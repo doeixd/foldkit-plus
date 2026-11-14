@@ -58,7 +58,9 @@ version changed; `pnpm` skips versions already in the registry.
   type error naming each missing `slot/obligation`, throws the first finding
   where the module loads, and returns a view whose `SlotView.detach` and
   `SlotView.replace` are checked again. `SlotView` and `NamedBehavior` take a
-  fourth type parameter, what they supply (default `never`), and a SlotView's
+  fourth type parameter, what they supply (default `never`), which a binder's
+  `behavior` reads from each slot's `provides` (`Behavior.ProvidesOf`) and an
+  annotation may forget but never widen, and a SlotView's
   own `pipe` types up to eight steps that change it; `Attr.AriaChecked` is
   new. `foldkit-primitives`: `ListNavigation`, `RovingTabindex`,
   `TreeNavigation`, `GridNavigation`, `Selection` and `Press`, and
@@ -69,12 +71,10 @@ version changed; `pnpm` skips versions already in the registry.
   `Patterns.Listbox` and `Patterns.Checkbox` name their obligations.
 
 - `foldkit-surface`: the law half of the contract graph (#537). A `Contract`
-  may carry `laws?: ContractLaws`, its declarations as plain data: `model`, law
-  ids over its Model slice, and `entities`, `Laws.check`'s entries.
-  `Module.graph(module, { evidence })` derives their nodes and edges when
-  asked (`GraphNode`: `Owner`, `Path`, `Transition`, `Law`, `State`, `Level`;
-  `GraphEdge`: `Owns`, `Reads`, `Writes`, `Observes`, `From`, `To`, `Keeps`,
-  `Refines`), so only a page that asks carries that code, and joins them with
+  may carry `facts?: () => GraphFacts` (`GraphNode`: `Owner`, `Path`,
+  `Transition`, `Law`, `State`, `Level`; `GraphEdge`: `Owns`, `Reads`,
+  `Writes`, `Observes`, `From`, `To`, `Keeps`, `Refines`), asked only when a
+  graph is. `Module.graph(module, { evidence })` joins every contract's facts,
   a level and a `closure:<name>` law per closed Surface, which level refines
   which, and a `Keeps` edge per record of `evidence` that is issued and joins
   its pair. `Module.validate` takes the same optional second argument and,
@@ -84,14 +84,13 @@ version changed; `pnpm` skips versions already in the registry.
   `Graph.breakersOf(graph, law)` names each transition that could break a law
   and its evidence; `Module.manifest`, `toMarkdown` and `toMermaid` take the
   option too, and the renderers add a Laws section. `Evidence` is re-exported
-  beside `Metadata`. `foldkit-remote`: a domain's contract declares its
-  declared writes (`Mutation.write`), giving `write:<name>`, what it writes,
-  its Entity's invariants and states, and its `from` and `becomes`.
-  `foldkit-sync`: a document declares its law ids, giving `sync:<name>.<law>`
-  per law, reading the shared slice, and `durable:<tag>` per durable and
-  server-only tag, writing it. `foldkit-entity`: `lawFactsOf(entries)` gives
-  the graph's facts of `Laws.check`'s entries with no check run, what the graph
-  derives `laws.entities` with; `lawId` and `transitionId` are `Laws.law` and
+  beside `Metadata`. `foldkit-remote`: a declared write (`Mutation.write`)
+  contributes `write:<name>`, what it writes, its Entity's invariants and
+  states, and its `from` and `becomes`, and a domain's contract joins them; a
+  page that declares no write carries none of it. `foldkit-sync`: a document
+  contributes `sync:<name>.<law>` per law, reading the shared slice, and
+  `durable:<tag>` per durable and server-only tag, writing it.
+  `foldkit-entity`: `lawId` and `transitionId` are `Laws.law` and
   `Laws.transition` by name; `Laws.facts`'s `Reads` and `Writes` carry
   `space: 'entity'`, so its result is a `GraphFacts`, and an `Unknown`
   footprint writes every member a law of its Entity reads.
@@ -457,8 +456,7 @@ version changed; `pnpm` skips versions already in the registry.
   settles the sending tab's queue, which ends its send; where that came before
   the store was written, the send's lock went with the store still saying
   waiting, and another tab holding the lock sent the write again. Recording
-  the answer is no longer interruptible; a store that does not take it within
-  5 seconds is given up on, so the lock still goes.
+  the answer is no longer interruptible.
 - `foldkit-mixins`: a Mount inside a `ChildAttribute` on a Slot is composed with
   the Slot's other Mounts, instead of drawn beside them where Foldkit kept one,
   and still sends through its own boundary (#531).

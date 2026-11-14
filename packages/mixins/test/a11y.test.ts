@@ -291,6 +291,7 @@ describe('A11y obligations', () => {
     })
 
     it('is unmet when its attached provider claims in its type what its value does not supply', () => {
+      // @ts-expect-error the lie under test: `{ listbox: {} }` supplies nothing.
       const Liar: Behavior.NamedBehavior<
         typeof ListSlots,
         ListInput,

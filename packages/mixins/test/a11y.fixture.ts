@@ -1,7 +1,7 @@
 /**
  * A listbox assembled from Behaviors that say what they supply, for the
- * obligation tests. A primitive's factory states its supplied names from the
- * slots it was given; these hand-written ones state them by annotation.
+ * obligation tests. A binder's `behavior` reads what each states from its
+ * slots' `provides`, with no annotation.
  */
 import { A11y, Attr, Behavior, Capability, Event, Slot, Slots, SlotView } from '../src/index.js'
 import type { TestMessage } from './resolverFixture.js'
@@ -26,12 +26,7 @@ export const Listbox = A11y.pattern({
 
 export const List = SlotView.over(ListSlots)<ListInput, TestMessage>()
 
-export const Nav: Behavior.NamedBehavior<
-  typeof ListSlots,
-  ListInput,
-  TestMessage,
-  'listbox/navigation' | 'option/focus-strategy'
-> = List.behavior(
+export const Nav = List.behavior(
   {
     listbox: Behavior.slot({ provides: [A11y.Navigation] }),
     option: Behavior.slot({ provides: [A11y.FocusStrategy] }),
@@ -39,12 +34,7 @@ export const Nav: Behavior.NamedBehavior<
   { name: 'Nav' },
 )
 
-export const Picks: Behavior.NamedBehavior<
-  typeof ListSlots,
-  ListInput,
-  TestMessage,
-  'option/activation' | 'option/state:aria-selected'
-> = List.behavior(
+export const Picks = List.behavior(
   { option: Behavior.slot({ provides: [A11y.Activation, A11y.State(Attr.AriaSelected)] }) },
   { name: 'Picks' },
 )

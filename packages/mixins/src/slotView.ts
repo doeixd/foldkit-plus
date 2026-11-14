@@ -8,7 +8,7 @@
 import { createLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import { Projection } from 'foldkit-surface'
 import type { Supplies, Supply } from './a11y.js'
-import { forSlots, type BehaviorSpec, type NamedBehavior } from './behavior.js'
+import { forSlots, type BehaviorSpec, type NamedBehavior, type ProvidesOf } from './behavior.js'
 import { carry } from './conformed.js'
 import { DiagnosticError } from './diagnostics.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
@@ -478,7 +478,7 @@ export function attach<Provides extends string>(
 export function attach(mixin: StaticMixin<never> | Mixin<never>): SlotViewTransform
 export function attach<MixinMessage>(mixin: Mixin<MixinMessage>): SlotViewTransformFor<MixinMessage>
 export function attach(mixin: AnyMixin | Mixin<never>): any {
-  return (view: SlotView<any, any, any, any>) => {
+  return (view: SlotView<any, any, any, never>) => {
     const next = makeView(view.name, view.slots, [...view.mixins, mixin], view.render)
     carry(view, next, false)
     return next
@@ -486,7 +486,7 @@ export function attach(mixin: AnyMixin | Mixin<never>): any {
 }
 
 /** Where the attachment named `name` sits in `view`; refused when it is not there once. */
-const attachmentAt = (view: SlotView<any, any, any, any>, name: string): number => {
+const attachmentAt = (view: SlotView<any, any, any, never>, name: string): number => {
   const found = view.mixins.flatMap((mixin, at) => (mixin.name === name ? [at] : []))
   const at = found[0]
   if (at === undefined) {
@@ -543,7 +543,7 @@ export function replace<MixinMessage>(
   view: SlotView<Slots, Input, MixinMessage, Provides>,
 ) => SlotView<Slots, Input, MixinMessage>
 export function replace(name: string, mixin: AnyMixin | Mixin<never>): any {
-  return (view: SlotView<any, any, any, any>) => {
+  return (view: SlotView<any, any, any, never>) => {
     const at = attachmentAt(view, name)
     const next = makeView(
       view.name,
@@ -592,7 +592,7 @@ export interface Parts<Slots, Input, Message> {
     options: {
       readonly reads: Reads
       readonly behaviors?: ReadonlyArray<
-        NamedBehavior<Slots, Pick<Input, Reads[number]>, Message, string>
+        NamedBehavior<Slots, Pick<Input, Reads[number]>, Message, never>
       >
     },
     render: (
@@ -712,10 +712,11 @@ export interface Bound<Slots, Input, Message> {
     render: SlotViewRender<Slots, Input, Message>,
     options?: { readonly name?: string },
   ) => SlotView<Slots, Input, Message>
-  readonly behavior: (
-    spec: BehaviorSpec<Slots, Input, Message>,
+  /** Supplies, at the type level, what each slot's `provides` names. */
+  readonly behavior: <const Spec extends BehaviorSpec<Slots, Input, Message>>(
+    spec: Spec,
     options?: { readonly name?: string },
-  ) => NamedBehavior<Slots, Input, Message>
+  ) => NamedBehavior<Slots, Input, Message, ProvidesOf<Spec>>
   readonly parts: Parts<Slots, Input, Message>
 }
 
@@ -744,8 +745,10 @@ export const over =
         render: SlotViewRender<Slots, Input, Message>,
         options?: { readonly name?: string },
       ) => define(slots, render, options),
-      behavior: (spec: BehaviorSpec<Slots, Input, Message>, options?: { readonly name?: string }) =>
-        forSlots(slots)<Input, Message>(spec, options),
+      behavior: <const Spec extends BehaviorSpec<Slots, Input, Message>>(
+        spec: Spec,
+        options?: { readonly name?: string },
+      ) => forSlots(slots)<Input, Message, Spec>(spec, options),
       parts: parts(slots)<Input, Message>(),
     })
 

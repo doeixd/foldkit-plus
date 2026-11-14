@@ -65,9 +65,11 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   / `a11y:delegation-unmet` (all in `details.diagnostics`); it returns a new view whose `detach`
   and `replace` are checked again. `A11y.check(pattern, view)` is the same as data. The navigation
   primitives, `Selection`, `Press`, `ToggleState`, `Disclosure` and `FieldAssociation` state what
-  they supply on the binder overload only; a hand-written Behavior states it in its type
-  (`NamedBehavior<S, I, M, 'clear/activation'>`), and the run-time check holds it to `provides`.
-  An annotated `SlotView<S, I, M>` forgets what it supplied. Structural, never WCAG.
+  they supply on the binder overload only, and only where the run time is sure to
+  (`A11y.ProvidedOn`: one literal slot; `Selection`'s activation for a literal selecting `mode`
+  and its click on). A binder's `behavior` reads a hand-written slot's `provides` into its type;
+  `forSlots(slots)<I, M>` reads none. An annotation may forget what a value supplies (an
+  annotated `SlotView<S, I, M>` supplies nothing) but never claim more. Structural, never WCAG.
 - **Rendered conformance** (#552, #558): `Conformance` (`foldkit-mixins/testing`) runs
   `listbox`, `checkbox`, `tree`, `dialog` and `tabs` over a mounted widget with a harness
   `{ root, press, accessibility, click }` and returns `ReadonlyArray<{ scenario, check, passed,

@@ -91,12 +91,10 @@ const Natively = A11y.native(
   { option: [A11y.FocusStrategy, A11y.Activation] },
   { element: 'button' },
 )
-const NavOnTheList: Behavior.NamedBehavior<
-  typeof ListSlots,
-  ListInput,
-  TestMessage,
-  'listbox/navigation'
-> = List.behavior({ listbox: Behavior.slot({ provides: [A11y.Navigation] }) }, { name: 'Keys' })
+const NavOnTheList = List.behavior(
+  { listbox: Behavior.slot({ provides: [A11y.Navigation] }) },
+  { name: 'Keys' },
+)
 bare.pipe(
   Behavior.attach(NavOnTheList),
   SlotView.attach(Natively),
@@ -116,12 +114,7 @@ bare.pipe(
   // @ts-expect-error option/focus-strategy is supplied by nothing attached.
   A11y.conform(Listbox),
 )
-const FocusOnly: Behavior.NamedBehavior<
-  typeof ListSlots,
-  ListInput,
-  TestMessage,
-  'option/focus-strategy'
-> = List.behavior({ option: Behavior.slot({ provides: [A11y.FocusStrategy] }) })
+const FocusOnly = List.behavior({ option: Behavior.slot({ provides: [A11y.FocusStrategy] }) })
 bare.pipe(
   Behavior.attach(FocusOnly),
   Behavior.attach(Picks),
@@ -150,7 +143,7 @@ bare.pipe(
   // @ts-expect-error what a detached attachment supplied is not known, so nothing is.
   A11y.conform(Listbox),
 )
-// A Behavior made without a statement of what it supplies supplies nothing at the type level.
+// Navigation stated twice is no name.
 bare.pipe(
   Behavior.attach(List.behavior({ listbox: Behavior.slot({ provides: [A11y.Navigation] }) })),
   Behavior.attach(Nav),
@@ -183,4 +176,62 @@ A11y.conform(Listbox)(
   SlotView.forMessages<TestMessage>().define(DynamicSlots, (input: ListInput, slots, h) =>
     h.ul(slots['listbox']!.attrs(), input.ids),
   ),
+)
+
+// What a Behavior made on a binder supplies is read from its slots' `provides`, with no annotation.
+bare.pipe(
+  Behavior.attach(
+    List.behavior({
+      listbox: Behavior.slot({ provides: [A11y.Navigation, A11y.Name] }),
+      option: Behavior.slot({ provides: [A11y.FocusStrategy] }),
+    }),
+  ),
+  Behavior.attach(
+    List.behavior({
+      option: Behavior.slot({ provides: [A11y.Activation, A11y.State(Attr.AriaSelected)] }),
+    }),
+  ),
+  A11y.conform(Listbox),
+)
+// An annotation is held to what the value is typed to supply: claiming more is refused.
+// @ts-expect-error `{}` supplies nothing, so it cannot be typed as supplying navigation.
+const _liar: Behavior.NamedBehavior<
+  typeof ListSlots,
+  ListInput,
+  TestMessage,
+  'listbox/navigation'
+> = List.behavior({})
+// @ts-expect-error a bare view supplies nothing, so it cannot be typed as supplying a listbox's due.
+const _liarView: SlotView.SlotView<typeof ListSlots, ListInput, TestMessage, 'listbox/navigation'> =
+  bare
+// Forgetting is allowed: a view that supplies more is typed as supplying less.
+const _forgets: SlotView.SlotView<typeof ListSlots, ListInput, TestMessage> = Conforming
+void [_liar, _liarView, _forgets]
+// An obligation whose name is not known (`Obligation<string>`) states nothing.
+declare const someObligation: A11y.Obligation
+bare.pipe(
+  Behavior.attach(
+    List.behavior({
+      listbox: Behavior.slot({ provides: [someObligation] }),
+      option: Behavior.slot({ provides: [someObligation] }),
+    }),
+  ),
+  Behavior.attach(Picks),
+  SlotView.attach(Named),
+  // @ts-expect-error listbox/navigation: an unknown obligation is no navigation.
+  A11y.conform(Listbox),
+)
+// `forSlots` given `Input` and `Message` reads no `provides`: TypeScript infers no type argument
+// once one is given. A binder's `behavior` fixes both and reads them.
+bare.pipe(
+  Behavior.attach(
+    Behavior.forSlots(ListSlots)<ListInput, TestMessage>({
+      listbox: Behavior.slot({ provides: [A11y.Navigation] }),
+    }),
+  ),
+  Behavior.attach(FocusOnly),
+  Behavior.attach(Picks),
+  SlotView.attach(Named),
+  // @ts-expect-error listbox/navigation: stated in a value the type does not read.
+  A11y.conform(Listbox),
 )

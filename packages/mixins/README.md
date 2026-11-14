@@ -1346,15 +1346,11 @@ What each call means:
 - It reads no input, runs no Mount and draws nothing. `A11y.check` returns the same findings as
   data, and `A11y.validate` stays the check of a bare contract.
 
-A Behavior written by hand states its names in its type, which the run-time check holds it to:
+A Behavior written by hand on the binder states its names from its slots' `provides`, with no
+annotation; this one's type supplies `'clear/activation'`:
 
 ```ts
-const Clears: Behavior.NamedBehavior<
-  typeof ListboxSlots,
-  FruitInput,
-  FruitMessage,
-  'clear/activation'
-> = Options.behavior(
+const Clears = Options.behavior(
   {
     clear: Behavior.slot({
       provides: [A11y.Activation],
@@ -1365,9 +1361,11 @@ const Clears: Behavior.NamedBehavior<
 )
 ```
 
-What a view supplies is a record for the type checker that an annotation can widen or forget: a
-`SlotView.SlotView<Slots, Input, Message>` written out supplies nothing, so `conform` on it is a
-type error until the annotation names what it supplies (or is dropped). A delegation names only
+`Behavior.forSlots(slots)<Input, Message>(spec)` reads no `provides`, since TypeScript infers no
+type argument once one is given: use the binder. An annotation may forget what a value supplies,
+never claim more: a `SlotView.SlotView<Slots, Input, Message>` written out supplies nothing, so
+`conform` on it is a type error until the annotation names what it supplies (or is dropped), and
+typing `Options.behavior({})` as supplying `'clear/activation'` is refused. A delegation names only
 what its `provider` supplies on `to`, and `to` is one of the provider's slots; both are type
 errors otherwise. A pattern without obligations, and a Behavior without `provides`, behave as
 before.

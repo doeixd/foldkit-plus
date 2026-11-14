@@ -5,7 +5,9 @@
  * (`a11y.test-d.ts`) was mutated by hand: a `Conforms` that always holds, a
  * `delegated` taking any obligation, an `Owed` judging unknown slot names and
  * a `detach` keeping what the view supplied each leave its negative cases
- * unused.
+ * unused; so do a bivariant `ProvidesRecord` (the annotations claiming more)
+ * and a `ProvidedOn` reading `Obligation<string>` (the unknown obligation),
+ * and a `ProvidesOf` reading nothing fails the inferred binder cases.
  */
 const unit = ['packages/mixins/test/a11y.test.ts']
 

@@ -203,13 +203,14 @@ export const validate = (
 export const ProvidesTypeId: unique symbol = Symbol.for('foldkit-mixins/Provides')
 
 /**
- * The type checker's record of `Provides`. A method, so the record is
- * bivariant: a value that supplies more is still accepted where less is
+ * The type checker's record of `Provides`. A function property, so the record
+ * is contravariant: a value that supplies more is accepted where less is
  * declared (an annotated return type, a parameter typed with the default),
- * which then forgets what it supplied rather than refusing it.
+ * which then forgets what it supplied, and one that supplies less is refused
+ * where more is declared, so an annotation cannot claim what its value lacks.
  */
 interface ProvidesRecord<Provides extends string> {
-  provides(names: Provides): void
+  readonly provides: (names: Provides) => void
 }
 
 /**
@@ -231,7 +232,9 @@ type OneOf<T, All = T> = T extends unknown ? ([All] extends [T] ? true : false) 
  * time (a union, `string`) states nothing: the type cannot say which slot the
  * value will name, so only `conform`'s run-time check can judge it.
  */
-export type ProvidedOn<Slot extends string, Obligation extends string> = string extends Slot
+export type ProvidedOn<Slot extends string, Obligation extends string> = string extends
+  | Slot
+  | Obligation
   ? never
   : OneOf<Slot> extends true
     ? `${Slot}/${Obligation}`
@@ -258,7 +261,7 @@ type Conforms<Spec, Slots, Provides> = [Exclude<Owed<Spec, Slots>, Provides>] ex
   ? unknown
   : { readonly 'a11y:unsatisfied-obligation': Exclude<Owed<Spec, Slots>, Provides> }
 
-type AnyView = SlotView<any, any, any, any>
+type AnyView = SlotView<any, any, any, never>
 
 interface Delegation {
   readonly slots: Readonly<Record<string, ReadonlyArray<string>>>
@@ -376,7 +379,8 @@ export const conform =
       ...Conformed.conformancesOf(view),
       { pattern, check: next => assertConforms(pattern, next as AnyView) },
     ])
-    return conformed
+    // The same Mixins, so the same supplies.
+    return conformed as SlotView<Slots, Input, Message, Provides>
   }
 
 /** A Mixin that contributes nothing and supplies obligations, attached with `SlotView.attach`. */

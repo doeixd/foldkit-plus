@@ -7,7 +7,7 @@
  */
 import type { Attribute, ChildAttribute, HtmlBuilder } from 'foldkit/html'
 import type { MountAction } from 'foldkit/mount'
-import type { Obligation, Supplies } from './a11y.js'
+import type { Obligation, ProvidedOn, Supplies } from './a11y.js'
 import * as Capability from './capability.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
 import { DiagnosticError, type DiagnosticCode } from './diagnostics.js'
@@ -51,10 +51,22 @@ export type BehaviorSpec<Slots, Input, Message> = {
 }
 
 /**
+ * What a spec's slots say they supply, as `` `${slot}/${obligation}` ``: each
+ * slot's `provides`, when its obligations' names are known.
+ */
+export type ProvidesOf<Spec> = {
+  [K in keyof Spec & string]-?: NonNullable<Spec[K]> extends {
+    readonly provides: ReadonlyArray<infer Supplied>
+  }
+    ? ProvidedOn<K, MetadataToken.NameOf<Supplied>>
+    : never
+}[keyof Spec & string]
+
+/**
  * A Behavior. `Provides` names, as `` `${slot}/${obligation}` ``, what it
- * supplies for `A11y.conform` at the type level: a factory given a
- * `SlotView.over` binder states it from the slot names it was given, and
- * `forSlots` states nothing.
+ * supplies for `A11y.conform` at the type level: `forSlots` and a binder's
+ * `behavior` read it from each slot's `provides`, and a factory given a
+ * `SlotView.over` binder states it from the slot names it was given.
  */
 export interface NamedBehavior<
   Slots,
@@ -67,9 +79,13 @@ export interface NamedBehavior<
   readonly mixin: MixinValue<Message>
 }
 
-/** Identity helper; `forSlots` supplies the contextual `Input`/`Message`. */
-export const slot = <Options extends BehaviorSlotOptions<any, any>>(options: Options): Options =>
-  options
+/**
+ * Identity helper; `forSlots` supplies the contextual `Input`/`Message`, and
+ * reads what the slot supplies from its `provides`.
+ */
+export const slot = <const Options extends BehaviorSlotOptions<any, any>>(
+  options: Options,
+): Options => options
 
 function fail(
   code: DiagnosticCode,
@@ -146,10 +162,14 @@ const slotMeta = (
 
 export const forSlots =
   <Slots>(slots: Slots) =>
-  <Input, Message>(
-    spec: BehaviorSpec<Slots, Input, Message>,
+  <
+    Input,
+    Message,
+    const Spec extends BehaviorSpec<Slots, Input, Message> = BehaviorSpec<Slots, Input, Message>,
+  >(
+    spec: Spec,
     options?: { readonly name?: string },
-  ): NamedBehavior<Slots, Input, Message> => {
+  ): NamedBehavior<Slots, Input, Message, ProvidesOf<Spec>> => {
     const source = slots as unknown as Record<string, AnySlot>
     const contributions: Record<string, SlotContribution<Message>> = Object.create(null)
     const meta: Record<string, SlotMeta> = Object.create(null)
@@ -212,6 +232,12 @@ export const attach =
   <ViewSlots, ViewProvides extends string = never>(
     view: SlotView.SlotView<ViewSlots, Input, Message, ViewProvides>,
   ): SlotView.SlotView<ViewSlots, Input, Message, ViewProvides | Provides> =>
-    SlotView.attach(behavior.mixin)(view)
+    // The one place a view's supplies grow: by what the Behavior's own type says it supplies.
+    SlotView.attach(behavior.mixin)(view) as SlotView.SlotView<
+      ViewSlots,
+      Input,
+      Message,
+      ViewProvides | Provides
+    >
 
 export const Behavior = { slot, forSlots, attach } as const
