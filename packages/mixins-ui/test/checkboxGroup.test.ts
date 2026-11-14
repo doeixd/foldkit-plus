@@ -103,8 +103,46 @@ describe('CheckboxGroup.view', () => {
     )
     const [error] = Inert.byTag(group, 'p')
     expect(Inert.text(error)).toBe('Pick at least one.')
-    expect(Inert.value(group, 'aria-invalid')).toBe('true')
+    // A group has no `aria-invalid`; each checkbox, which does, carries it.
+    expect(Inert.value(group, 'aria-invalid')).toBeUndefined()
+    expect(Inert.byRole(group, 'checkbox').map(box => Inert.value(box, 'aria-invalid'))).toEqual([
+      'true',
+    ])
     expect(Inert.value(group, 'aria-describedby')).toBe(Inert.value(error, 'id'))
+  })
+
+  it('submits each checked value under its name, and nothing without one', () => {
+    const drawn = (name?: string) =>
+      Inert.byTag(
+        CheckboxGroup.view(
+          {
+            id: 'alerts',
+            legend: 'Send me',
+            options: [
+              { value: 'mentions', label: 'Mentions' },
+              { value: 'digest', label: 'Digest' },
+              { value: 'offers', label: 'Offers' },
+            ],
+            checked: ['digest', 'offers'],
+            onToggle: () => message('Clicked'),
+            ...(name === undefined ? {} : { name }),
+            style,
+          },
+          h,
+        ),
+        'input',
+      )
+    expect(
+      drawn('alerts').map(input => [
+        Inert.value(input, 'type'),
+        Inert.value(input, 'name'),
+        Inert.value(input, 'value'),
+      ]),
+    ).toEqual([
+      ['hidden', 'alerts', 'digest'],
+      ['hidden', 'alerts', 'offers'],
+    ])
+    expect(drawn()).toEqual([])
   })
 })
 

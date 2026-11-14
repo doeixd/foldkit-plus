@@ -8,7 +8,7 @@ import { Effect, Option } from 'effect'
 import { injectIntoTemplate, renderToString } from 'foldkit/experimental/server'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { expect, test } from 'vitest'
-import { Rating, Slider } from '../src/index.js'
+import { CheckboxGroup, Rating, Slider } from '../src/index.js'
 
 const template =
   '<!doctype html><html><head><title></title></head><body><div id="root"></div></body></html>'
@@ -73,4 +73,28 @@ test('a rating names its radios apart from its id, and checks the one given', as
   expect(radios.map(input => input.value)).toEqual(['1', '2', '3', '4', '5'])
   expect(radios.filter(input => input.checked).map(input => input.value)).toEqual(['3'])
   expect(submitted(page, 'quality')).toEqual([])
+})
+
+test('a checkbox group submits each checked value and none other', async () => {
+  const page = await served(h =>
+    CheckboxGroup.view(
+      {
+        id: 'alerts',
+        legend: 'Send me',
+        name: 'alerts',
+        options: [
+          { value: 'mentions', label: 'Mentions' },
+          { value: 'digest', label: 'Digest' },
+          { value: 'offers', label: 'Offers' },
+        ],
+        checked: ['offers', 'mentions'],
+        onToggle: () => undefined as never,
+      },
+      h,
+    ),
+  )
+  expect(submitted(page, 'alerts').map(input => [input.type, input.value])).toEqual([
+    ['hidden', 'mentions'],
+    ['hidden', 'offers'],
+  ])
 })

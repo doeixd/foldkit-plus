@@ -78,11 +78,32 @@ export default [
     edits: [
       {
         file: view,
-        find: 'invalid ? [h.AriaInvalid(true), h.AriaDescribedBy(errorId)] : []',
+        find: 'invalid ? [h.AriaDescribedBy(errorId)] : []',
         replace: '[]',
       },
     ],
     tests: unit,
+  },
+  {
+    name: 'a checkbox is not invalid beside an error',
+    edits: [{ file: view, find: '...(invalid ? [h.AriaInvalid(true)] : []),', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'an unchecked value is submitted',
+    edits: [
+      {
+        file: view,
+        find: 'checked.has(option.value)\n            ? [',
+        replace: 'true\n            ? [',
+      },
+    ],
+    tests: [...unit, 'packages/mixins-ui/test/formName.ssr.test.ts'],
+  },
+  {
+    name: 'the name is not written',
+    edits: [{ file: view, find: 'h.Name(name),', replace: '' }],
+    tests: [...unit, 'packages/mixins-ui/test/formName.ssr.test.ts'],
   },
   {
     name: 'checked rows together keep their corners',
