@@ -17,7 +17,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // 240,509 bytes on 2026-11-12, from 239,065: the workspace's Effect moved from
 // 4.1.1 to 4.1.4, and `effect` is the package that grew (67.3 kB brotli~ in
 // the report). Ceiling that plus about 0.5%, rounded up to the next 500 bytes.
-const CEILING = 242_000
+// 242,385 bytes on 2026-11-14, from 240,509 at 3c601ebfb: Chirp registers Mutations, so it
+// carries the write capability, and the declared-write work added to it (module by module,
+// minified: `foldkit-entity` enumerate 2.8 kB, write 0.8, refine 0.6, footprint 0.6;
+// `foldkit-remote` canOf 1.1, remote 0.4, mutation 0.4). Ceiling that plus about 0.5%.
+const CEILING = 244_000
 
 clientBudget({
   name: 'chirp',
