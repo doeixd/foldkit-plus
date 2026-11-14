@@ -27,10 +27,21 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // laws from their declarations (#537 review), the page, which reaches that path, measured +175 bytes in one tree (Sync's facts left it,
 // `lawFactsOf` and the derivation came in); the ceiling was not raised for it.
 // +1191 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
-const CEILING = 257_700
+// -2,389 bytes: the law graph left `Module` for `Graph` (#537 review), and the page, which calls
+// only `Module.manifest`, keeps none of it (`absent` below): 259,242 before and 256,853 after,
+// measured in one tree on 2026-11-14. The +619 raised for the graph is taken back; the rest of
+// the drop paid for growth the ceiling was never raised for (U-WP1, the editor's Selections above).
+const CEILING = 257_081
 
 clientBudget({
   name: 'registry',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
+  // The page reads `Module`, never `Graph`: none of the law graph's modules may come with it.
+  absent: [
+    'foldkit-surface/graph',
+    'foldkit-entity/laws',
+    'foldkit-entity/lawIds',
+    'foldkit-metadata/evidence',
+  ],
 })
