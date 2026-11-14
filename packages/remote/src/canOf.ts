@@ -4,9 +4,9 @@
  */
 import { Match, Option, Result, Schema } from 'effect'
 import { Write as DomainWrite, type AnyWrite, type ExprContext } from 'foldkit-entity'
-import type { MemoryOperators } from 'foldkit-entity'
+import type { HeldRow, MemoryOperators } from 'foldkit-entity'
 import { Can, CanRefusal } from './can.js'
-import { forbiddenByWrite, judgedByWrite, metByWrite } from './mutation.js'
+import { forbiddenByWrite, judgedByWrite, metByWrite, unheldByWrite } from './mutation.js'
 import { holderOf } from './held.js'
 import { own } from './record.js'
 import type { EntityStore } from './store.js'
@@ -43,12 +43,21 @@ export const canOf = (
   const operators = tableOf(given)
   const entity = write.input.entity
   const { id } = DomainWrite.bind(write, input as never)
-  const row = write._tag === 'Insert' ? Option.none() : holderOf(store).rows.row(entity, id)
-  if (write._tag !== 'Insert' && Option.isNone(row))
-    return Can.Undecided({ reasons: [`${entity.name} ${id} is not held`] })
+  // An insert finds no row; any other write needs the one it changes.
+  const found = Match.valueTags(write, {
+    Insert: () => Option.some(Option.none<HeldRow>()),
+    Update: () => Option.map(holderOf(store).rows.row(entity, id), Option.some),
+    Delete: () => Option.map(holderOf(store).rows.row(entity, id), Option.some),
+  })
+  if (Option.isNone(found)) return Can.Undecided({ reasons: [`${entity.name} ${id} is not held`] })
+  const row = found.value
   const forbidden = forbiddenByWrite(write, input, undefined, store)
   if (Option.isSome(forbidden)) return Can.No({ refusal: CanRefusal.Forbidden(forbidden.value) })
-  const reasons: Array<string> = []
+  const unheld = unheldByWrite(write, input, undefined, store)
+  const reasons: Array<string> =
+    unheld.length === 0
+      ? []
+      : [`the client holds no ${unheld.join(', ')}, which a rule may refuse the write by`]
   if (Option.isSome(row)) {
     const met = metByWrite(write, row.value, encodedGiven(write, input), context, store, operators)
     if (Result.isSuccess(met) && !met.success) return Can.No({ refusal: CanRefusal.Unmet({}) })

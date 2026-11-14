@@ -632,7 +632,10 @@ const label = Can.match(answer, {
   has, so one component can show either.
 - **`Can.Undecided({ reasons })`**: the client cannot tell. The row is not held,
   a field or operator a rule reads is missing, an increment or computed field
-  would have to be worked out, or an input key the `when` reads was left out.
+  would have to be worked out, an input key the `when` reads was left out, or
+  a `may` member of the row is not held (the reason names it, `Doc.gate`): a
+  gate the client has not read could refuse the write. The rows a delete clears
+  or takes with it are not asked; the server judges them.
   `input` is `Partial`: ask with the id alone and a `when` over the input says
   `Undecided`, ask per value and it decides. Invariants are judged over the row
   as it would be with the keys given.

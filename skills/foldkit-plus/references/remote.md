@@ -721,7 +721,7 @@ invariants: [entity.md](entity.md).
 
 `Data.can(model, M, partialInput)` reads what the Model holds and answers `Can.Yes`,
 `Can.No({ refusal })` (`Forbidden { reason }`, `Unmet`, `Invalid { entity, rule, message, path }`,
-the server's order) or `Can.Undecided({ reasons })` (row, field or input key missing; an
+the server's order) or `Can.Undecided({ reasons })` (row, field, `may` member or input key missing; an
 increment or computed field not worked out). A hint: `Data.mutate` still asks the server.
 Throws for a mutation not declared with `Mutation.write`. Match with `Can.match`.
 

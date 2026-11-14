@@ -150,6 +150,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-remote`: `Data.can` answers `Can.Undecided`, naming the member (`Doc.gate`),
+  where a `may` member of the row is not held, instead of `Can.Yes`.
 - `foldkit-mixins`: a family's pressed fill (`active`) no longer turns a grey
   red. It added 0.05 of chroma at the fill's hue, which a grey does not have:
   shadcn's black accent pressed its secondary as a dark red, and a fill set to

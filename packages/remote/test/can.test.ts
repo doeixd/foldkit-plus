@@ -213,6 +213,24 @@ describe('Data.can', () => {
     expect(tag(answer)).toBe('Undecided')
   })
 
+  it('answers Undecided naming a may member the client holds no value of', () => {
+    const ungated = read(
+      [{ id: 'u', title: 'U', status: 'draft', size: 1 }],
+      ['id', 'title', 'status', 'size'],
+    )
+    for (const answer of [
+      Data.can(ungated, Publish, { id: 'u', status: 'published' }),
+      Data.can(ungated, Drop, { id: 'u' }),
+    ])
+      expect(answer).toEqual(
+        Can.Undecided({
+          reasons: ['the client holds no Doc.gate, which a rule may refuse the write by'],
+        }),
+      )
+    // A held gate that refuses still answers No: only a missing one is undecided.
+    expect(tag(Data.can(held, Publish, { id: 'draft', status: 'published' }))).toBe('Yes')
+  })
+
   it('answers Undecided without the id', () => {
     expect(Data.can(held, Publish, {})).toEqual(Can.Undecided({ reasons: ['id is not given'] }))
   })

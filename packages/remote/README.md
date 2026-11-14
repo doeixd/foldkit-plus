@@ -2530,7 +2530,7 @@ server to write; the input is still sent and validated whole.
 server would refuse a declared write, from what the Model holds: `Can.No` with
 `Forbidden` (a held `may`), `Unmet` (the `when`) or `Invalid` (an invariant),
 checked in the server's order; `Can.Undecided` with its reasons where the row,
-a field it reads or an input key is missing; otherwise `Can.Yes`. It is a hint
+a field it reads, a `may` member or an input key is missing; otherwise `Can.Yes`. It is a hint
 to grey a control: `Data.mutate` does not read it, and still asks the server. See
 [Asking before sending](../../docs/declared-writes.md#asking-before-sending-datacan).
 

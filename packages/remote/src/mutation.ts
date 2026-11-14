@@ -695,6 +695,19 @@ const forbiddenOf = (
   )
 }
 
+/** The supplied members (Guard's `may`) of a held row that the client holds no value of, named `Entity.member`. */
+const unheldForbidders = (
+  entity: AnyEntity,
+  id: string,
+  store: EntityStore,
+): ReadonlyArray<string> => {
+  const held = store[entityKey(entity.name, id)]
+  if (held === undefined) return []
+  return forbiddersOf(entity)
+    .filter(([key]) => !held.present.has(key))
+    .map(([key]) => `${entity.name}.${key}`)
+}
+
 const deleting: WriteSurface = { kind: 'Delete', members: [], relations: [] }
 
 /**
@@ -786,3 +799,23 @@ export const forbiddenByWrite = (
     },
   })
 }
+
+/**
+ * The `may` members of the row a write changes that `forbiddenByWrite` could
+ * not read because the client holds no value of them: a write they could
+ * refuse is undecided, not allowed. The rows a delete clears or takes with it
+ * are not asked: the server judges them, `Data.can` does not.
+ */
+export const unheldByWrite = (
+  write: AnyWrite,
+  input: unknown,
+  keys: ReadonlyArray<string> | undefined,
+  store: EntityStore,
+): ReadonlyArray<string> =>
+  Match.valueTags(write, {
+    Insert: () => [],
+    Update: () =>
+      unheldForbidders(write.input.entity, DomainWrite.bind(write, input as never, keys).id, store),
+    Delete: () =>
+      unheldForbidders(write.input.entity, DomainWrite.bind(write, input as never, keys).id, store),
+  })

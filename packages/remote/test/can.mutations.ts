@@ -48,12 +48,8 @@ export default [
     '!Object.hasOwn(encoded, key)',
     'false',
   ),
-  edit(
-    'a row not held is asked as if it were',
-    can,
-    "if (write._tag !== 'Insert' && Option.isNone(row))",
-    'if (false)',
-  ),
+  edit('a may member not held is taken as not refusing', can, 'unheld.length === 0', 'true'),
+  edit('a row not held is asked as if it were', can, 'if (Option.isNone(found))', 'if (false)'),
   edit(
     'a missing id is asked as if it were given',
     can,
