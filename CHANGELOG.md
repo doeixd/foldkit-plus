@@ -9,6 +9,24 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: obligations (#552). An `A11y.pattern` slot may name
+  `obligations` (`A11y.Navigation`, `A11y.FocusStrategy`, `A11y.Activation`,
+  `A11y.State(attr)`, `A11y.Name`) that an attachment must say it meets; a
+  `Behavior.slot` says so with `provides`, and `A11y.base`, `A11y.native` and
+  `A11y.delegated` are meta-only Mixins for the view's own word, a native
+  element and another slot's Behavior. `A11y.check(pattern, view)` reports
+  what `validate` does plus `a11y:unsatisfied-obligation` and
+  `a11y:delegation-unmet`; `A11y.conform(pattern)` in a view's `pipe` is a
+  type error naming each missing `slot/obligation`, throws the first finding
+  where the module loads, and returns a view whose `SlotView.detach` and
+  `SlotView.replace` are checked again. `SlotView` and `NamedBehavior` take a
+  fourth type parameter, what they supply (default `never`); `Attr.AriaChecked`
+  is new. `foldkit-primitives`: `ListNavigation`, `RovingTabindex`,
+  `TreeNavigation`, `GridNavigation`, `Selection` and `Press`, and
+  `Behaviors.ToggleState`, `Disclosure` and `FieldAssociation`, supply theirs,
+  stated in their type on the binder overload. `foldkit-mixins-ui`:
+  `Patterns.Listbox` and `Patterns.Checkbox` name their obligations.
+
 - `foldkit-surface`: the law half of the contract graph (#537). A `Contract`
   may carry `facts?: () => GraphFacts` (`GraphNode`: `Owner`, `Path`,
   `Transition`, `Law`, `State`, `Level`; `GraphEdge`: `Owns`, `Reads`,
@@ -338,6 +356,11 @@ version changed; `pnpm` skips versions already in the registry.
   `refused` ("The column's series gave no text here"), not padded.
 
 ### Changed
+
+- `foldkit-mixins`: a `pipe` on a SlotView, Slot or knob theme takes up to
+  eight typed steps and no longer a longer list of steps of one type: a step
+  that changes what a view supplies (#552) would have been read back as the
+  view before it. Split a longer chain, or use Effect's `pipe`.
 
 - `foldkit-primitives`: `DismissLayer` hears Escape in the bubble phase and
   skips one whose `defaultPrevented` is set, so an input inside a layer that

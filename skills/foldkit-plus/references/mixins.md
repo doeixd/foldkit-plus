@@ -54,6 +54,20 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   new view, and throw `mixins:unknown-attachment` / `mixins:ambiguous-attachment`, so name a
   Behavior you mean to address. A two-owner conflict names both contributors (`the view` for base
   attributes) in its message and `details.contributors`.
+- **Obligations** (#552): a pattern's slot may name what an attachment must do there
+  (`A11y.pattern({ listbox: { obligations: [A11y.Navigation, A11y.Name] } })`; the set is
+  `Navigation`, `FocusStrategy`, `Activation`, `State(Attr.X)`, `Name`, compared by name). A
+  Behavior slot says what it meets with `provides`; `A11y.base`, `A11y.native(spec, { element })`
+  and `A11y.delegated(spec, { to, provider })` are meta-only Mixins for the view's own word, a
+  native element and another slot's Behavior, attached with `SlotView.attach`.
+  `A11y.conform(pattern)` in the view's `pipe` is a type error naming each missing
+  `'slot/obligation'` and, where the module loads, throws the first `a11y:unsatisfied-obligation`
+  / `a11y:delegation-unmet` (all in `details.diagnostics`); it returns a new view whose `detach`
+  and `replace` are checked again. `A11y.check(pattern, view)` is the same as data. The navigation
+  primitives, `Selection`, `Press`, `ToggleState`, `Disclosure` and `FieldAssociation` state what
+  they supply on the binder overload only; a hand-written Behavior states it in its type
+  (`NamedBehavior<S, I, M, 'clear/activation'>`), and the run-time check holds it to `provides`.
+  An annotated `SlotView<S, I, M>` forgets what it supplied. Structural, never WCAG.
 - **Parts** cut a big view so each piece redraws only when what it reads changes:
   `const P = SlotView.parts(S)<Input, Message>()`, `P.part(name, { reads: ['k'], behaviors },
   (input, slots, h) => …)` (input is `Pick<Input, 'k'>`), `P.assemble((input, slots, h, draw) =>
@@ -753,7 +767,8 @@ export const stylesheet: string = Style.stylesheet(
   unlayered: wrap with `L.in('layouts', Layout.stack({ gap }))`. `center` fills to its
   measure, inside a `stack` or a flex row too.
 - `foldkit-mixins-ui` exports `Patterns`: an `A11y.pattern` per adapter plus `Patterns.catalog`
-  (`{ name, pattern, slots, tier, roles, floor }`), and adapters for `HoverIntent` and `Anchor`
+  (`{ name, pattern, slots, tier, roles, floor }`; `Listbox` and `Checkbox` also name obligations
+  a custom view is conformed to, while an adapter is only validated), and adapters for `HoverIntent` and `Anchor`
   (`Anchor.behavior(Slots)({ floating, config })`; `Anchor.topLayer(mount)` for an in-place panel, above).
 - `Style.attach`/`Behavior.attach` return new views; the original is untouched.
 - Rule-based CSS is data, and arrives with what draws it: in a browser, a class a Slot draws is

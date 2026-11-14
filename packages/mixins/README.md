@@ -1009,7 +1009,8 @@ two apart with `SlotView.isBound`.
 ### What a view remembers of its attachments
 
 Each attachment keeps its name, and a Style or Behavior also its `meta`: its kind and, per slot,
-what it requires and whether it reads the input. A Mixin made with `Mixin.make` or
+what it requires, what it supplies (its `provides`, see [Obligations](#obligations-who-does-what-a-pattern-asks))
+and whether it reads the input. A Mixin made with `Mixin.make` or
 `Mixin.dynamic` carries none; `Mixin.compose` records its parts in order. A name addresses an
 attachment:
 
@@ -1207,6 +1208,135 @@ A11y.validate(DialogPattern, DialogSlots)
 `A11y.validate` is pure and DOM-independent. It checks the declared contract for missing or hidden
 slots, capability mismatches and unpublished events or attributes. An optional requirement
 tolerates an absent slot but still checks a present one. It does **not** certify WCAG compliance.
+
+Three words stay apart here. A slot contract or a `provides` is **declared**: the author says so.
+`A11y.validate`, `A11y.check` and `A11y.conform` are **structural**: they say the declarations fit
+together. Only a browser test is **rendered**: it says the behaviour happened on a page. None of
+them is WCAG conformance.
+
+### Obligations: who does what a pattern asks
+
+A contract that publishes `keydown` on a list does not navigate it, and one that publishes
+`aria-selected` does not write it. A pattern's slot can also name **obligations**: things an
+attachment must say it does on that slot.
+
+| Obligation | Means | Supplied by |
+| --- | --- | --- |
+| `A11y.Navigation` | arrows, Home and End move among the items | `ListNavigation`, `RovingTabindex`, `TreeNavigation`, `GridNavigation` (container slot) |
+| `A11y.FocusStrategy` | each item is reachable: a roving stop, `aria-activedescendant`, or a native control | the same four (item slot); `A11y.native` |
+| `A11y.Activation` | Enter, Space or a press activates it | `Selection` (unless `click: false`), `Press`; `A11y.native` |
+| `A11y.State(attr)` | the attribute is written with a value on every draw | `Selection` (`aria-selected`), `Behaviors.ToggleState`, `Behaviors.Disclosure` (`aria-expanded`) |
+| `A11y.Name` | the element has an accessible name | `Behaviors.FieldAssociation`; the view's own label, as `A11y.base` |
+
+Something supplies an obligation in one of four ways: a Behavior slot's `provides`
+(`Behavior.slot({ provides: [A11y.Navigation], ... })`, as the primitives above declare theirs);
+`A11y.base({ slot: [...] })`, the view's own attributes on the author's word; `A11y.native({ slot:
+[...] }, { element: 'button' })`, what a native element does by itself; and
+`A11y.delegated({ slot: [...] }, { to, provider })`, an obligation met on another slot by an
+attached Behavior. The last three are Mixins that contribute nothing, attached with
+`SlotView.attach`. `A11y.conform` checks the assembled view:
+
+<!-- docs-check
+import { Bundle } from 'foldkit-bundle'
+const List = Bundle.declare(ListNavigation.bundle, 'list')
+const Sel = Bundle.declare(Selection.bundle, 'selection')
+const FruitMessage = defineMessageUnion({ ...List.cases, ...Sel.cases, Cleared: {} })
+type FruitMessage = typeof FruitMessage.Type
+interface FruitInput {
+  readonly list: ListNavigation.Model
+  readonly selection: Selection.Model
+  readonly fruit: ReadonlyArray<string>
+}
+const ListboxSlots = Slots.define({
+  listbox: Slot.make({ capability: Capability.Interactive, events: [Event.KeyDown] }),
+  option: Slot.make({ capability: Capability.Focusable, attributes: [Attr.AriaSelected] }),
+  clear: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+})
+const listArgs = { orientation: 'vertical', loop: true, virtual: false, timeoutMs: 500, page: 10 } as const
+const selArgs = { mode: 'single', allowEmpty: false } as const
+-->
+
+```ts
+import { ListNavigation, Selection } from 'foldkit-primitives/interaction'
+
+const Listbox = A11y.pattern({
+  listbox: { capability: Capability.Interactive, obligations: [A11y.Navigation, A11y.Name] },
+  option: {
+    capability: Capability.Focusable,
+    obligations: [A11y.FocusStrategy, A11y.Activation, A11y.State(Attr.AriaSelected)],
+  },
+})
+
+const Options = SlotView.over(ListboxSlots)<FruitInput, FruitMessage>()
+const itemsOf = (input: FruitInput) => Behaviors.Collection.of(input.fruit, { id: name => name })
+
+export const FruitList = Options.define((input, slots, h) =>
+  h.ul(
+    slots.listbox.attrs([h.AriaLabel('Fruit')]),
+    input.fruit.map((name, index) => h.li(slots.option.attrs([], { id: name, index }), [name])),
+  ),
+).pipe(
+  Behavior.attach(
+    ListNavigation.behavior(List, listArgs)(Options)({
+      container: 'listbox',
+      item: 'option',
+      items: itemsOf,
+      text: (input, index) => input.fruit[index] ?? '',
+    }),
+  ),
+  Behavior.attach(Selection.behavior(Sel, selArgs)(Options)({ item: 'option', items: itemsOf })),
+  SlotView.attach(A11y.base({ listbox: [A11y.Name] })),
+  A11y.conform(Listbox),
+)
+```
+
+What each call means:
+
+- `A11y.pattern` and the obligation tokens are data. Obligations are compared by name, so two
+  `A11y.State(Attr.AriaSelected)` are one.
+- The view restates nothing `ListNavigation` and `Selection` supply. Given the binder, each
+  factory states what it supplies from the slot names it was given (`'listbox/navigation'`,
+  `'option/focus-strategy'`), and a view's type collects them through `pipe`. Leave `Selection`
+  out and the `conform` line is a type error naming `'option/activation' |
+  'option/state:aria-selected'`. A factory called with bare slots (`(slots)<Input, Message>`)
+  states nothing, so such a view is judged at run time only.
+- At run time `conform` runs `A11y.check(pattern, view)` once, where the module loads, and throws
+  a `DiagnosticError` for the first finding (`a11y:unsatisfied-obligation`, with `slot` and
+  `details.obligation`; `a11y:delegation-unmet`, naming the provider), every finding in
+  `details.diagnostics`. Run time reads each attachment's `meta`, never a type, so a type that
+  claims more than its value supplies still fails here. An assembly whose slot names are not known
+  to the type checker (built from a `Record<string, …>`) is judged here alone.
+- `conform` returns a new view that remembers the pattern: `SlotView.detach` and
+  `SlotView.replace` check the view they make again, so detaching `ListNavigation` from
+  `FruitList` throws. The view `conform` was given is unchanged.
+- It reads no input, runs no Mount and draws nothing. `A11y.check` returns the same findings as
+  data, and `A11y.validate` stays the check of a bare contract.
+
+A Behavior written by hand states its names in its type, which the run-time check holds it to:
+
+```ts
+const Clears: Behavior.NamedBehavior<
+  typeof ListboxSlots,
+  FruitInput,
+  FruitMessage,
+  'clear/activation'
+> = Options.behavior(
+  {
+    clear: Behavior.slot({
+      provides: [A11y.Activation],
+      attributes: ({ h }) => [h.OnClick(FruitMessage.Cleared())],
+    }),
+  },
+  { name: 'Clears' },
+)
+```
+
+What a view supplies is a record for the type checker that an annotation can widen or forget: a
+`SlotView.SlotView<Slots, Input, Message>` written out supplies nothing, so `conform` on it is a
+type error until the annotation names what it supplies (or is dropped). A delegation names only
+what its `provider` supplies on `to`, and `to` is one of the provider's slots; both are type
+errors otherwise. A pattern without obligations, and a Behavior without `provides`, behave as
+before.
 
 ## Introspection
 
