@@ -69,7 +69,9 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   (`A11y.ProvidedOn`: one literal slot; `Selection`'s activation for a literal selecting `mode`
   and its click on). A binder's `behavior` reads a hand-written slot's `provides` into its type;
   `forSlots(slots)<I, M>` reads none. An annotation may forget what a value supplies (an
-  annotated `SlotView<S, I, M>` supplies nothing) but never claim more. A part's own `behaviors`
+  annotated `SlotView<S, I, M>` supplies nothing) but never claim more. A view `detach` or
+  `replace` makes supplies nothing at the type level (a Style taken or not); the run-time
+  check judges it. A part's own `behaviors`
   supply nothing to `conform` (it cannot find a part without drawing it): attach those to the
   assembly. Structural, never WCAG.
 - **Rendered conformance** (#552, #558): `Conformance` (`foldkit-mixins/testing`) runs

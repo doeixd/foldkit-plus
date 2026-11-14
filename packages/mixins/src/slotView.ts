@@ -462,8 +462,10 @@ export type SlotViewTransformFor<Message> = <Slots, Input, Provides extends stri
 
 /**
  * A transform that takes an attachment away or puts another in its place. The
- * view it makes supplies nothing at the type level, since what was taken is
- * not known there; `A11y.conform`'s run-time check is made again instead.
+ * view it makes supplies nothing at the type level, a Style taken or not: the
+ * type holds no attachment's name, and what one took may still be supplied by
+ * another, so subtracting it would refuse what is met. `A11y.conform`'s
+ * run-time check is made again instead.
  */
 export type SlotViewRemoval = <Slots, Input, Message, Provides extends string = never>(
   view: SlotView<Slots, Input, Message, Provides>,

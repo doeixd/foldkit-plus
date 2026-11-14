@@ -1368,7 +1368,12 @@ const Clears = Options.behavior(
 type argument once one is given: use the binder. An annotation may forget what a value supplies,
 never claim more: a `SlotView.SlotView<Slots, Input, Message>` written out supplies nothing, so
 `conform` on it is a type error until the annotation names what it supplies (or is dropped), and
-typing `Options.behavior({})` as supplying `'clear/activation'` is refused. A delegation names only
+typing `Options.behavior({})` as supplying `'clear/activation'` is refused. A view that
+`SlotView.detach` or `SlotView.replace` makes supplies nothing at the type level, whichever
+attachment it took: names are not in the type, and taking away what one attachment supplied may
+leave another supplying it. `conform` after either is a type error until something is attached
+again, and the run-time check, made again for a conformed view, is the judge of the result. A
+delegation names only
 what its `provider` supplies on `to`, and `to` is one of the provider's slots; both are type
 errors otherwise. A pattern without obligations, and a Behavior without `provides`, behave as
 before.
