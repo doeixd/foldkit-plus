@@ -1,18 +1,19 @@
 /**
  * `DomainRemote.layer`: a `RemoteClient` answered from a Domain Api's typed
- * client, keeping each write's receipt until a read of its View key confirms
- * it (#544). What the adapter holds, it holds per principal and View key:
+ * client (#544). It holds nothing of what it read or wrote: Remote's Model
+ * keeps both, on Remote's wire.
  *
- *   accepted(key) = the newest row of that key let through, by revision
- *   floor(key)    = the newest receipt of a write to that key whose read is not yet confirmed
+ *   a row's revision    = its View state's revision field, sent with the row
+ *   a write's token     = its receipt, `stream@version` (`MutationResult.after`)
  *
- * A row reaches Remote only if its revision is at least accepted(key)'s; a read
- * of a floored key asks `snapshot(key, { atLeast: floor })`, and the floor
- * clears when such a read answers. It keeps the last `MAX_PRINCIPALS` to ask:
- * one who asks again after more than that starts with nothing held.
+ * Remote drops a row of a lower revision than the one it holds, and reads a
+ * row it holds to a token with that token, which the adapter asks as
+ * `snapshot(key, { atLeast: receipt })`; a View still behind is named in
+ * `behind`. The adapter keeps only the commands it sent, so a retry is
+ * answered without sending one.
  */
 import * as Domain from '@alchemy.run/domain'
-import { Context, Duration, Effect, Equal, Layer, Match, Option, Ref, Schema, Stream } from 'effect'
+import { type Context, Duration, Effect, Layer, Match, Option, Ref, Schema, Stream } from 'effect'
 import { RpcClientError } from 'effect/rpc/RpcClientError'
 import type { AnyEntity } from 'foldkit-entity'
 import {
@@ -39,26 +40,6 @@ import {
   type ViewBinding,
   type ViewsOf,
 } from './binding.js'
-
-/** A write that committed whose View read is not yet confirmed. */
-export interface PendingRead {
-  readonly entity: string
-  readonly id: string
-  /** The Remote operation that wrote it. */
-  readonly operation: string
-  readonly receipt: Receipt
-}
-
-/** What the adapter holds of the writes it sent, for a page or a test to ask. */
-export class DomainReads extends Context.Service<
-  DomainReads,
-  {
-    /** The writes of who asks now that committed and whose View read is not yet confirmed. */
-    readonly pending: Effect.Effect<ReadonlyArray<PendingRead>>
-    /** Reads the key again at its floor: `true` once the View has the write, or when none is pending. */
-    readonly confirm: (entity: AnyEntity, id: string) => Effect.Effect<boolean>
-  }
->()('foldkit-remote-domain/DomainReads') {}
 
 type MiddlewareOf<A extends AnyApi> =
   | Domain.Api.CommandsOf<A>['middleware']
@@ -104,6 +85,7 @@ type CommandClient = (
 /** What a call failed with, as the adapter answers it. */
 type Failure =
   | { readonly _tag: 'Rejected'; readonly rejection: { readonly _tag: string } }
+  | { readonly _tag: 'Behind'; readonly message: string }
   | { readonly _tag: 'Unreachable'; readonly message: string }
   | { readonly _tag: 'Denied'; readonly error: unknown }
 
@@ -116,30 +98,26 @@ const failureOf =
     if (Schema.is(RpcClientError)(error))
       return { _tag: 'Unreachable', message: 'The Domain Api did not answer' }
     if (Schema.is(Domain.ConsistencyTimeout)(error))
-      return { _tag: 'Unreachable', message: 'The View did not catch up with the write' }
+      return { _tag: 'Behind', message: 'The View did not catch up with the write' }
     return { _tag: 'Denied', error }
   }
 
 const keyOf = (entity: string, id: string) => JSON.stringify([entity, id])
 
+/** A receipt as Remote carries it, a read-after token: `stream@version`. */
+const tokenOf = (receipt: Receipt): string => `${receipt.stream}@${receipt.version}`
+
+/** The receipt a token names, none for a token this adapter did not write. */
+const receiptOf = (token: string): Option.Option<Receipt> => {
+  const at = token.lastIndexOf('@')
+  const version = Number(token.slice(at + 1))
+  return at <= 0 || !Number.isSafeInteger(version) || version < 0 || token.slice(at + 1) === ''
+    ? Option.none()
+    : Option.some({ stream: token.slice(0, at), version })
+}
+
 /** How many commands' receipts the adapter keeps to answer a retry without sending it. */
 const MAX_COMMITTED = 1024
-
-/** Who asks, as results name them: their key, `null` for a visitor. */
-type Principal = string | null
-
-/** How many principals' rows and floors the adapter keeps; the one who asked longest ago goes first. */
-const MAX_PRINCIPALS = 4
-
-/**
- * What the adapter holds for one principal: a row one was let through is no
- * answer to another, whom the View may no longer let read it, and one's write
- * is not pending for another.
- */
-interface Held {
-  readonly accepted: Map<string, { readonly revision: number; readonly snapshot: Snapshot }>
-  readonly floors: Map<string, PendingRead>
-}
 
 /** A codec as the adapter runs it: the mutation's and the Entity's need no services. */
 type Codec = Schema.Codec<unknown, unknown>
@@ -154,17 +132,30 @@ const digest = (text: string): Effect.Effect<string> =>
     ),
   )
 
+/** The tokens of a batch or a stream, by row key, each read back as its receipt. */
+const receiptsOf = <E>(
+  rows: ReadonlyArray<{ readonly entity: string; readonly id: string; readonly token: string }>,
+  refused: (message: string) => E,
+) =>
+  Effect.forEach(rows, ({ entity, id, token }) =>
+    Option.match(receiptOf(token), {
+      onNone: () => Effect.fail(refused(`${entity} ${id}'s token is not a Domain receipt`)),
+      onSome: receipt => Effect.succeed([keyOf(entity, id), receipt] as const),
+    }),
+  ).pipe(Effect.map(entries => new Map(entries)))
+
 /**
- * A `RemoteClient`, and `DomainReads`, answered from the Api's client. Reads
- * and live reads go to the bound Views; writes to the bound commands, each
- * under a `commandId` derived from who asks and what, so a retry is the same
- * command and nothing else is.
+ * A `RemoteClient` answered from the Api's client. Reads and live reads go to
+ * the bound Views; writes to the bound commands, each under a `commandId`
+ * derived from who asks and what, so a retry is the same command and nothing
+ * else is.
  */
 export const layer = <A extends AnyApi>(
   api: A,
   config: LayerConfig<A>,
-): Layer.Layer<RemoteClient | DomainReads, never, ClientIdentifier<A>> =>
-  Layer.effectContext(
+): Layer.Layer<RemoteClient, never, ClientIdentifier<A>> =>
+  Layer.effect(
+    RemoteClient,
     Effect.gen(function* () {
       const client = (yield* api.Client) as Readonly<Record<string, unknown>>
       const confirmWithin = Duration.fromInputUnsafe(config.confirmWithin ?? '2 seconds')
@@ -177,104 +168,30 @@ export const layer = <A extends AnyApi>(
           )
       }
 
-      const principals = new Map<Principal, Held>()
       const committed = new Map<string, { readonly receipt: Receipt; readonly reply: unknown }>()
 
       const viewClient = (binding: ViewBinding) => client[binding.view] as ViewClient
       const principalKey = Effect.map(config.principal, Option.getOrNull)
 
-      /** What is held for who asks, who becomes the latest to ask. */
-      const heldFor = (asking: Principal): Held => {
-        const held = principals.get(asking) ?? { accepted: new Map(), floors: new Map() }
-        principals.delete(asking)
-        principals.set(asking, held)
-        for (const oldest of principals.keys()) {
-          if (principals.size <= MAX_PRINCIPALS) break
-          principals.delete(oldest)
-        }
-        return held
-      }
-
-      /** The key's snapshot, at the floor when one is set, within `confirmWithin`. */
-      const snapshotAt = (binding: ViewBinding, id: string, floor: Option.Option<Receipt>) =>
+      /** The key's snapshot, at the receipt when one is given, within `confirmWithin`. */
+      const snapshotAt = (binding: ViewBinding, id: string, receipt: Option.Option<Receipt>) =>
         viewClient(binding)
           .snapshot(
             id,
-            Option.match(floor, {
+            Option.match(receipt, {
               onNone: () => undefined,
-              onSome: receipt => ({ atLeast: receipt }),
+              onSome: atLeast => ({ atLeast }),
             }),
           )
           .pipe(Effect.timeoutOption(confirmWithin))
 
-      const orderOf = (
-        binding: ViewBinding,
-        snapshot: { readonly state: Readonly<Record<string, unknown>>; readonly cursor: number },
-      ) => snapshot.state[binding.revision] as number
-
-      /**
-       * Lets a snapshot through if its revision is at least the accepted
-       * one's, and answers what the key holds then with what it held before.
-       * A deleted row carries no revision: it is let through, and only a row
-       * of a later revision than the one it was deleted at comes after it.
-       */
-      const admit = (binding: ViewBinding, id: string, snapshot: Snapshot, asking: Principal) =>
-        Effect.gen(function* () {
-          const { accepted } = heldFor(asking)
-          const key = keyOf(binding.entity.name, id)
-          const held = Option.fromUndefinedOr(accepted.get(key))
-          if (snapshot.state === null) {
-            const revision = Option.match(held, {
-              onNone: () => -Infinity,
-              onSome: ({ revision }) => revision,
-            })
-            accepted.set(key, { revision, snapshot })
-            return { admitted: true, row: null, before: held }
-          }
-          const order = orderOf(binding, { state: snapshot.state, cursor: snapshot.cursor })
-          if (Option.isSome(held)) {
-            // A row at the revision it was deleted at is from before the deletion.
-            const tombstone = held.value.snapshot.state === null
-            if (tombstone ? order <= held.value.revision : order < held.value.revision)
-              return { admitted: false, row: held.value.snapshot.state, before: held }
-            if (
-              order === held.value.revision &&
-              !Equal.equals(snapshot.state, held.value.snapshot.state)
-            )
-              yield* Effect.logWarning(
-                `[foldkit-remote-domain] ${binding.view} sent two rows of ${id} at revision ${order}: an event did not move ${binding.revision}`,
-              )
-          }
-          accepted.set(key, { revision: order, snapshot })
-          return { admitted: true, row: snapshot.state, before: held }
-        })
-
-      /** Clears the floor a read at `receipt` confirmed, unless a newer write raised it since. */
-      const confirmed = (binding: ViewBinding, id: string, receipt: Receipt, asking: Principal) => {
-        const { floors } = heldFor(asking)
-        const key = keyOf(binding.entity.name, id)
-        const floor = floors.get(key)
-        if (floor !== undefined && floor.receipt.version <= receipt.version) floors.delete(key)
+      /** The revision a View state holds, as Remote orders rows by it. */
+      const revisionOf = (binding: ViewBinding, state: Readonly<Record<string, unknown>>) => {
+        const revision = state[binding.revision]
+        return typeof revision === 'number' && Number.isFinite(revision)
+          ? { revision }
+          : ({} as { readonly revision?: number })
       }
-
-      /**
-       * Reads the key at its floor, admits what answers and clears the floor.
-       * None when the View has not caught up, or the read failed.
-       */
-      const confirm = (binding: ViewBinding, id: string, floor: PendingRead, asking: Principal) =>
-        snapshotAt(binding, id, Option.some(floor.receipt)).pipe(
-          Effect.flatMap(
-            Option.match({
-              onNone: () => Effect.succeedNone,
-              onSome: snapshot =>
-                Effect.map(admit(binding, id, snapshot, asking), admission => {
-                  confirmed(binding, id, floor.receipt, asking)
-                  return Option.some(admission)
-                }),
-            }),
-          ),
-          Effect.orElseSucceed(() => Option.none()),
-        )
 
       /** A row's values for `fields`, encoded as the Entity stores them, and the fields it lacks. */
       const encodeRow = (
@@ -323,6 +240,10 @@ export const layer = <A extends AnyApi>(
               received: batch.version,
             })
           const asking = yield* principalKey
+          const receipts = yield* receiptsOf(
+            batch.after ?? [],
+            message => new RemoteReadError({ message }),
+          )
           const answers = yield* Effect.forEach(
             batch.requests,
             request =>
@@ -334,18 +255,24 @@ export const layer = <A extends AnyApi>(
                   return yield* new RemoteReadError({
                     message: `${request.entity} is read through ${binding.view}, which serves no relations yet`,
                   })
-                const floor = Option.fromUndefinedOr(
-                  heldFor(asking).floors.get(keyOf(request.entity, request.id)),
+                const receipt = Option.fromUndefinedOr(
+                  receipts.get(keyOf(request.entity, request.id)),
                 )
-                const answered = yield* snapshotAt(
-                  binding,
-                  request.id,
-                  Option.map(floor, ({ receipt }) => receipt),
-                ).pipe(
+                // A read at a receipt the View has not reached is behind, not unanswered.
+                const behind = () =>
+                  Option.isSome(receipt)
+                    ? Effect.succeed({ _tag: 'Behind' as const, request })
+                    : Effect.fail(
+                        new RemoteUnreachable({
+                          message: `${binding.view} did not answer in time`,
+                        }),
+                      )
+                const answered = yield* snapshotAt(binding, request.id, receipt).pipe(
                   Effect.catch(error =>
                     Match.valueTags(failureOf(binding.rejections)(error), {
                       // Hidden reads as missing, as a guarded Source's does.
                       Rejected: () => Effect.succeed(Option.some({ state: null, cursor: 0 })),
+                      Behind: () => Effect.succeedNone,
                       Unreachable: ({ message }) => Effect.fail(new RemoteUnreachable({ message })),
                       Denied: () =>
                         Effect.fail(
@@ -354,31 +281,30 @@ export const layer = <A extends AnyApi>(
                     }),
                   ),
                 )
-                const snapshot = yield* Option.match(answered, {
-                  onNone: () =>
-                    Effect.fail(
-                      new RemoteUnreachable({ message: `${binding.view} did not answer in time` }),
-                    ),
-                  onSome: Effect.succeed,
-                })
-                const { row } = yield* admit(binding, request.id, snapshot, asking)
-                if (Option.isSome(floor))
-                  confirmed(binding, request.id, floor.value.receipt, asking)
-                if (row === null) return Option.none()
-                return Option.some(
-                  Object.assign(yield* encodeRow(binding.entity, request.id, row, request.fields), {
-                    request,
-                  }),
-                )
+                if (Option.isNone(answered)) return yield* behind()
+                const state = answered.value.state
+                if (state === null) return { _tag: 'Absent' as const }
+                return {
+                  _tag: 'Row' as const,
+                  request,
+                  revision: revisionOf(binding, state),
+                  ...(yield* encodeRow(binding.entity, request.id, state, request.fields)),
+                }
               }),
             { concurrency: 'unbounded' },
           )
-          const found = answers.flatMap(Option.toArray)
+          const found = answers.flatMap(answer => (answer._tag === 'Row' ? [answer] : []))
+          const behind = answers.flatMap(answer =>
+            answer._tag === 'Behind'
+              ? [{ entity: answer.request.entity, id: answer.request.id }]
+              : [],
+          )
           return {
-            entities: found.map(({ request, values }) => ({
+            entities: found.map(({ request, values, revision }) => ({
               entity: request.entity,
               id: request.id,
               values,
+              ...revision,
             })),
             settled: found
               .filter(({ lacking }) => lacking.length > 0)
@@ -388,6 +314,7 @@ export const layer = <A extends AnyApi>(
                 fields: lacking,
               })),
             principal: asking,
+            ...(behind.length === 0 ? {} : { behind }),
           }
         })
 
@@ -498,6 +425,7 @@ export const layer = <A extends AnyApi>(
             Effect.catch(error =>
               Match.valueTags(failureOf(binding.rejections)(error), {
                 Rejected: ({ rejection }) => outcomeError(binding, rejection),
+                Behind: ({ message }) => Effect.fail(new RemoteUnreachable({ message })),
                 Unreachable: ({ message }) => Effect.fail(new RemoteUnreachable({ message })),
                 Denied: ({ error }) =>
                   Effect.fail(
@@ -514,40 +442,39 @@ export const layer = <A extends AnyApi>(
             ),
           )
 
-          const key = keyOf(binding.entity.name, target)
-          const floor: PendingRead = { entity: binding.entity.name, id: target, operation, receipt }
-          const { floors } = heldFor(asking)
-          const raised = floors.get(key)
-          if (raised === undefined || raised.receipt.version < receipt.version)
-            floors.set(key, floor)
-
-          const bound = Option.fromUndefinedOr(views.get(binding.entity.name))
+          const entity = binding.entity
+          const bound = Option.fromUndefinedOr(views.get(entity.name))
+          // The View read at the receipt: none while it is behind, or failed.
           const confirmation = yield* Option.match(bound, {
             onNone: () => Effect.succeedNone,
-            onSome: view => confirm(view, target, floor, asking),
+            onSome: view =>
+              snapshotAt(view, target, Option.some(receipt)).pipe(
+                Effect.map(Option.map(snapshot => ({ view, snapshot }))),
+                Effect.orElseSucceed(() => Option.none()),
+              ),
           })
-          const entity = binding.entity
           // The write committed and its View is behind: what it wrote is what the reply says (D6).
           const row = Option.match(confirmation, {
-            onSome: ({ row }) =>
-              Option.map(Option.fromNullOr(row), state => ({
+            onSome: ({ view, snapshot }) =>
+              Option.map(Option.fromNullOr(snapshot.state), state => ({
                 state,
                 fields: Object.keys(entity.fields).filter(field => field !== 'id'),
+                revision: revisionOf(view, state),
               })),
             onNone: () =>
               Option.map(binding.written, written => {
                 const state = written(reply, input)
-                return { state, fields: Object.keys(state) }
+                return { state, fields: Object.keys(state), revision: {} }
               }),
           })
           const entities = yield* Option.match(row, {
             onNone: () => Effect.succeed([]),
-            onSome: ({ state, fields }) =>
+            onSome: ({ state, fields, revision }) =>
               encodeRow(entity, target, state, fields).pipe(
                 Effect.mapError(({ message }) => new RemoteMutationError({ message })),
                 Effect.flatMap(({ values, lacking }) =>
                   lacking.length === 0
-                    ? Effect.succeed([{ entity: entity.name, id: target, values }])
+                    ? Effect.succeed([{ entity: entity.name, id: target, values, ...revision }])
                     : Effect.die(
                         new Error(
                           `[foldkit-remote-domain] ${binding.command} wrote ${lacking.join(', ')}, which ${entity.name} does not declare`,
@@ -566,7 +493,12 @@ export const layer = <A extends AnyApi>(
                 }),
             ),
           )
-          return { output, entities, principal: asking }
+          // Until a read at the receipt answers, Remote keeps what it holds of the row.
+          const after =
+            Option.isSome(bound) && Option.isNone(confirmation)
+              ? { after: { token: tokenOf(receipt), rows: [{ entity: entity.name, id: target }] } }
+              : {}
+          return { output, entities, principal: asking, ...after }
         })
 
       const live: RemoteClient['Service']['live'] = request =>
@@ -576,7 +508,10 @@ export const layer = <A extends AnyApi>(
               return yield* new RemoteLiveError({
                 message: 'A Domain Api serves no live lists yet',
               })
-            const asking = yield* principalKey
+            const receipts = yield* receiptsOf(
+              request.floors ?? [],
+              message => new RemoteLiveError({ message }),
+            )
             const watched = yield* Effect.forEach(request.requirements, requirement =>
               Effect.gen(function* () {
                 const binding = yield* viewOf(requirement.entity).pipe(
@@ -598,72 +533,57 @@ export const layer = <A extends AnyApi>(
               binding: ViewBinding,
               id: string,
               fields: ReadonlyArray<string>,
-              admission: Effect.Success<ReturnType<typeof admit>>,
+              snapshot: Snapshot,
             ) =>
               Effect.gen(function* () {
-                if (!admission.admitted) return Option.none<LiveEvent>()
                 const ref = { entity: binding.entity.name, id }
-                if (admission.row === null) {
-                  if (Option.isNone(admission.before)) return Option.none<LiveEvent>()
-                  return Option.some<LiveEvent>({ _tag: 'EntityDeleted', ref, cursor: yield* next })
-                }
-                const { values } = yield* encodeRow(binding.entity, id, admission.row, fields)
-                const before = Option.flatMap(admission.before, ({ snapshot }) =>
-                  Option.fromNullOr(snapshot.state),
-                )
-                const changed = fields.filter(field =>
-                  Option.match(before, {
-                    onNone: () => true,
-                    onSome: state => !Equal.equals(state[field], (admission.row ?? {})[field]),
-                  }),
-                )
-                if (Option.isSome(before) && changed.length === 0) return Option.none<LiveEvent>()
-                return Option.some<LiveEvent>({
+                if (snapshot.state === null)
+                  return { _tag: 'EntityDeleted', ref, cursor: yield* next } satisfies LiveEvent
+                const { values } = yield* encodeRow(binding.entity, id, snapshot.state, fields)
+                return {
                   _tag: 'EntityPatched',
                   ref,
                   values,
-                  changed,
+                  changed: Object.keys(values),
                   cursor: yield* next,
-                })
+                  ...revisionOf(binding, snapshot.state),
+                } satisfies LiveEvent
               })
 
             return Stream.mergeAll(
-              watched.map(({ binding, requirement }) =>
-                viewClient(binding)
+              watched.map(({ binding, requirement }) => {
+                const receipt = Option.fromUndefinedOr(
+                  receipts.get(keyOf(requirement.entity, requirement.id)),
+                )
+                return viewClient(binding)
                   .watch(requirement.id)
                   .pipe(
                     Stream.mapEffect(snapshot =>
-                      Effect.gen(function* () {
-                        const floor = heldFor(asking).floors.get(
-                          keyOf(binding.entity.name, requirement.id),
-                        )
-                        // While a write is unconfirmed a frame is only a signal: read at its floor.
-                        const admission =
-                          floor === undefined
-                            ? Option.some(yield* admit(binding, requirement.id, snapshot, asking))
-                            : yield* confirm(binding, requirement.id, floor, asking)
-                        return yield* Option.match(admission, {
-                          onNone: () => Effect.succeedNone,
-                          onSome: admitted =>
-                            eventOf(binding, requirement.id, requirement.fields, admitted),
-                        })
+                      Option.match(receipt, {
+                        onNone: () => Effect.succeedSome(snapshot),
+                        // Held to a write's receipt, a frame is only a signal: read at it.
+                        onSome: () =>
+                          snapshotAt(binding, requirement.id, receipt).pipe(
+                            Effect.orElseSucceed(() => Option.none<Snapshot>()),
+                          ),
                       }),
                     ),
-                    Stream.flatMap(event => Stream.fromIterable(Option.toArray(event))),
+                    Stream.flatMap(snapshot => Stream.fromIterable(Option.toArray(snapshot))),
+                    Stream.mapEffect(snapshot =>
+                      eventOf(binding, requirement.id, requirement.fields, snapshot),
+                    ),
                     Stream.catch(error =>
                       Match.valueTags(failureOf(binding.rejections)(error), {
                         // `validate` stopped allowing the key: absent to who asks from here on.
                         Rejected: () =>
                           Stream.fromEffect(
-                            admit(binding, requirement.id, { state: null, cursor: 0 }, asking).pipe(
-                              Effect.andThen(next),
-                              Effect.map((at): LiveEvent => ({
-                                _tag: 'EntityDeleted',
-                                ref: { entity: binding.entity.name, id: requirement.id },
-                                cursor: at,
-                              })),
-                            ),
+                            Effect.map(next, (at): LiveEvent => ({
+                              _tag: 'EntityDeleted',
+                              ref: { entity: binding.entity.name, id: requirement.id },
+                              cursor: at,
+                            })),
                           ),
+                        Behind: ({ message }) => Stream.fail(new RemoteLiveError({ message })),
                         Unreachable: ({ message }) => Stream.fail(new RemoteLiveError({ message })),
                         Denied: () =>
                           Stream.fail(
@@ -673,28 +593,13 @@ export const layer = <A extends AnyApi>(
                           ),
                       }),
                     ),
-                  ),
-              ),
+                  )
+              }),
               { concurrency: 'unbounded' },
             )
           }),
         )
 
-      const reads = DomainReads.of({
-        pending: Effect.map(principalKey, asking => [...heldFor(asking).floors.values()]),
-        confirm: (entity, id) =>
-          Effect.gen(function* () {
-            const asking = yield* principalKey
-            const floor = heldFor(asking).floors.get(keyOf(entity.name, id))
-            if (floor === undefined) return true
-            const binding = views.get(entity.name)
-            if (binding === undefined) return false
-            return Option.isSome(yield* confirm(binding, id, floor, asking))
-          }),
-      })
-
-      return Context.make(RemoteClient, RemoteClient.of({ read, query, mutate, live })).pipe(
-        Context.add(DomainReads, reads),
-      )
+      return RemoteClient.of({ read, query, mutate, live })
     }),
-  ) as Layer.Layer<RemoteClient | DomainReads, never, ClientIdentifier<A>>
+  ) as Layer.Layer<RemoteClient, never, ClientIdentifier<A>>

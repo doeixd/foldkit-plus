@@ -21,12 +21,12 @@ export default [
     tests: ordering,
   },
   {
-    name: 'a View frame older than one already let through is let through',
+    name: 'a View frame carries no revision, so an older one is let through',
     edits: [
       {
         file: adapter,
-        find: 'tombstone ? order <= held.value.revision : order < held.value.revision',
-        replace: 'false',
+        find: 'const revision = state[binding.revision]',
+        replace: 'const revision = undefined',
       },
     ],
     tests: ordering,

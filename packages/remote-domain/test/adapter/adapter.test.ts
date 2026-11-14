@@ -6,11 +6,19 @@
  */
 import { Effect, Fiber, Layer, Option, Optic, Ref, Schema, Stream } from 'effect'
 import { Entity, Write } from 'foldkit-entity'
-import { Mutation, Refusal, Remote, RemoteClient, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
+import {
+  Mutation,
+  Refusal,
+  Remote,
+  RemoteClient,
+  REMOTE_PROTOCOL_VERSION,
+  type LiveEvent,
+} from 'foldkit-remote'
+import { live } from 'foldkit-remote/live'
 import { Law } from 'foldkit-remote/testing'
 import { ModelRef } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { DomainReads, DomainRemote, type Outcome } from '../../src/index.js'
+import { DomainRemote, type Outcome } from '../../src/index.js'
 import {
   invalidOf,
   NotedProduct,
@@ -64,50 +72,82 @@ const readP1 = Effect.flatMap(RemoteClient, client =>
 const touch = (note: string) =>
   Effect.flatMap(ShopApi.Client, client => client.Touch('p1', { note }))
 
+const token = 'Product/p1@2'
+const readP1At = (at: string) =>
+  Effect.flatMap(RemoteClient, client =>
+    client.read({
+      version: REMOTE_PROTOCOL_VERSION,
+      requests: [{ entity: 'Product', id: 'p1', fields }],
+      after: [{ entity: 'Product', id: 'p1', token: at }],
+    }),
+  )
+
 describe('a write whose View is behind', () => {
-  it('commits, answers the reply as the row, and stays pending until its read confirms', async () => {
-    const seen = await run(world =>
-      Effect.gen(function* () {
-        const reads = yield* DomainReads
-        const answer = yield* reserve('op1', { quantity: 2, revision: 1 })
-        const pending = yield* reads.pending
-        const early = yield* reads.confirm(ProductEntity, 'p1')
-        const stillPending = yield* reads.pending
-        yield* world.control.drain
-        const late = yield* reads.confirm(ProductEntity, 'p1')
-        return { answer, pending, early, stillPending, late, after: yield* reads.pending }
-      }),
-    )
-    expect(seen.answer.entities).toEqual([
+  it('commits, answers the reply as the row, and holds the row to its receipt', async () => {
+    const answer = await run(() => reserve('op1', { quantity: 2, revision: 1 }))
+    expect(answer.entities).toEqual([
       { entity: 'Product', id: 'p1', values: { reserved: 2, revision: 2 } },
     ])
-    expect(seen.answer.principal).toBe('ada')
-    const pending = [
-      {
-        entity: 'Product',
-        id: 'p1',
-        operation: 'op1',
-        receipt: { stream: 'Product/p1', version: 2 },
-      },
-    ]
-    expect(seen.pending).toEqual(pending)
-    expect(seen.early).toBe(false)
-    expect(seen.stillPending).toEqual(pending)
-    expect(seen.late).toBe(true)
-    expect(seen.after).toEqual([])
+    expect(answer.principal).toBe('ada')
+    expect(answer.after).toEqual({ token, rows: [{ entity: 'Product', id: 'p1' }] })
   })
 
-  it('reads at the receipt: behind fails Unreachable rather than answer the row from before', async () => {
+  it('reads at the receipt: behind names the row rather than answer the one from before', async () => {
     const seen = await run(world =>
       Effect.gen(function* () {
         yield* reserve('op1', { quantity: 2, revision: 1 })
-        const behind = yield* Effect.flip(readP1)
+        const behind = yield* readP1At(token)
         yield* world.control.drain
-        return { behind, caught: yield* readP1 }
+        return { behind, caught: yield* readP1At(token) }
       }),
     )
-    expect(seen.behind._tag).toBe('Unreachable')
-    expect(seen.caught.entities[0]?.values).toMatchObject({ reserved: 2, revision: 2 })
+    expect(seen.behind.entities).toEqual([])
+    expect(seen.behind.behind).toEqual([{ entity: 'Product', id: 'p1' }])
+    expect(seen.caught.behind).toBeUndefined()
+    expect(seen.caught.entities[0]).toMatchObject({
+      values: { reserved: 2, revision: 2 },
+      revision: 2,
+    })
+  })
+
+  it('answers a write its View has caught up with as confirmed: the row, and no token', async () => {
+    const answer = await run(world =>
+      Effect.gen(function* () {
+        yield* Effect.forkChild(Effect.andThen(Effect.sleep('10 millis'), world.control.drain))
+        return yield* reserve('op1', { quantity: 2, revision: 1 })
+      }),
+    )
+    expect(answer.after).toBeUndefined()
+    expect(answer.entities[0]).toMatchObject({ values: { reserved: 2 }, revision: 2 })
+  })
+
+  it('a live stream held to the receipt sends no frame from before the write', async () => {
+    const events = await run(world =>
+      Effect.gen(function* () {
+        yield* reserve('op1', { quantity: 2, revision: 1 })
+        const client = yield* RemoteClient
+        const watching = yield* client
+          .live({
+            requirements: [{ entity: 'Product', id: 'p1', fields: ['reserved', 'revision'] }],
+            queries: [],
+            after: 0,
+            floors: [{ entity: 'Product', id: 'p1', token }],
+          })
+          .pipe(Stream.take(1), Stream.runCollect, Effect.forkChild)
+        // The watch's first frame is the View's state from before the write.
+        yield* Effect.sleep('50 millis')
+        yield* world.control.drain
+        return yield* Fiber.join(watching)
+      }),
+    )
+    expect(events.map(event => (event._tag === 'EntityPatched' ? event.values : null))).toEqual([
+      { reserved: 2, revision: 2 },
+    ])
+  })
+
+  it('refuses a token that is no receipt, reading nothing', async () => {
+    const refused = await run(() => Effect.flip(readP1At('not a receipt')))
+    expect(refused._tag).toBe('RemoteReadError')
   })
 
   it('sends a retried operation no second command, and reads with its receipt', async () => {
@@ -130,40 +170,6 @@ describe('a write whose View is behind', () => {
       note: '',
       revision: 2,
     })
-  })
-})
-
-describe('what is pending', () => {
-  const pendingAs = (world: World, actor: string) =>
-    Effect.gen(function* () {
-      yield* Ref.set(world.actor, Option.some(actor))
-      return (yield* (yield* DomainReads).pending).map(read => read.operation)
-    })
-
-  it('lists only the writes of who asks now', async () => {
-    const seen = await run(world =>
-      Effect.gen(function* () {
-        yield* reserve('op1', { quantity: 2, revision: 1 })
-        return {
-          grace: yield* pendingAs(world, 'grace'),
-          ada: yield* pendingAs(world, 'ada'),
-        }
-      }),
-    )
-    expect(seen).toEqual({ grace: [], ada: ['op1'] })
-  })
-
-  it('keeps four principals: a fifth to ask drops the one who asked longest ago', async () => {
-    const seen = await run(world =>
-      Effect.gen(function* () {
-        yield* reserve('op1', { quantity: 2, revision: 1 })
-        for (const other of ['b', 'c', 'd']) yield* pendingAs(world, other)
-        const afterThree = yield* pendingAs(world, 'ada')
-        for (const other of ['b', 'c', 'd', 'e']) yield* pendingAs(world, other)
-        return { afterThree, afterFour: yield* pendingAs(world, 'ada') }
-      }),
-    )
-    expect(seen).toEqual({ afterThree: ['op1'], afterFour: [] })
   })
 })
 
@@ -280,6 +286,37 @@ describe('what a write refuses before sending anything', () => {
   })
 })
 
+/**
+ * Remote's store over what the adapter sends: it, not the adapter, orders the
+ * rows of one key by their revision.
+ */
+const Rows = Remote.make({
+  model: ModelRef.fromOptic(
+    Remote.Model,
+    Optic.id<{ readonly remote: typeof Remote.Model.Type }>().key('remote'),
+    ['remote'],
+  ),
+  entities: [ProductEntity],
+})
+live(Rows, Entity.select(ProductEntity, { note: true }), 'p1')
+type Heard = { readonly read: Effect.Success<typeof readP1> } | { readonly live: LiveEvent }
+const stored = (...heard: ReadonlyArray<Heard>) =>
+  heard.reduce(
+    (model, each) =>
+      Rows.reduce(
+        model,
+        'read' in each
+          ? {
+              _tag: 'ReadReceived',
+              requests: [{ entity: 'Product', id: 'p1', fields }],
+              result: each.read,
+              now: 0,
+            }
+          : { _tag: 'LiveReceived', stream: 's', event: each.live, now: 0 },
+      ),
+    { remote: Remote.initial },
+  ).remote.entities['Product:p1']
+
 describe('rows of one key', () => {
   it('reaches live as a patch when the state changes with no output event', async () => {
     const events = await run(world =>
@@ -316,23 +353,25 @@ describe('rows of one key', () => {
     expect(events.map(event => event.cursor)).toEqual([41, 42, 43])
   })
 
-  it('does not send a read a snapshot older than one already let through', async () => {
-    const late = await run(world =>
+  it('sends each row its revision: Remote keeps the newer when an older read lands late', async () => {
+    const { late, newer } = await run(world =>
       Effect.gen(function* () {
         const release = world.holdReply('ProductRow.snapshot')
         const first = yield* Effect.forkChild(readP1)
         yield* Effect.sleep('20 millis')
         yield* touch('hello')
         yield* world.control.drain
-        yield* readP1
+        const newer = yield* readP1
         yield* release
-        return yield* Fiber.join(first)
+        return { late: yield* Fiber.join(first), newer }
       }),
     )
-    expect(late.entities[0]?.values).toMatchObject({ note: 'hello', revision: 2 })
+    expect(late.entities[0]).toMatchObject({ values: { note: '' }, revision: 1 })
+    expect(newer.entities[0]).toMatchObject({ values: { note: 'hello' }, revision: 2 })
+    expect(stored({ read: newer }, { read: late })?.values).toMatchObject({ note: 'hello' })
   })
 
-  it('does not send live a snapshot older than one already sent', async () => {
+  it('sends live each frame its revision: Remote drops an older one sent late', async () => {
     const events = await run(world =>
       Effect.gen(function* () {
         const client = yield* RemoteClient
@@ -342,7 +381,7 @@ describe('rows of one key', () => {
             queries: [],
             after: 0,
           })
-          .pipe(Stream.take(3), Stream.runCollect, Effect.forkChild)
+          .pipe(Stream.take(4), Stream.runCollect, Effect.forkChild)
         yield* Effect.sleep('50 millis')
         yield* touch('hello')
         yield* world.control.drain
@@ -358,11 +397,12 @@ describe('rows of one key', () => {
         return yield* Fiber.join(watching)
       }),
     )
-    expect(events.map(event => (event._tag === 'EntityPatched' ? event.values : null))).toEqual([
-      { note: '', revision: 1 },
-      { note: 'hello', revision: 2 },
-      { note: 'again', revision: 3 },
+    expect(events.map(event => (event._tag === 'EntityPatched' ? event.revision : null))).toEqual([
+      1, 2, 1, 3,
     ])
+    expect(stored(...events.slice(0, 3).map(event => ({ live: event })))?.values).toMatchObject({
+      note: 'hello',
+    })
   })
 
   it('answers a late read with what its own principal was let read, never another’s row', async () => {
@@ -388,7 +428,7 @@ describe('rows of one key', () => {
     expect(late.entities[0]?.values).toMatchObject({ ownerId: 'grace', note: '', revision: 2 })
   })
 
-  it('does not answer a read with the row from before a deletion live sent at its revision', async () => {
+  it('a read from before a deletion live sent lands as nothing in Remote', async () => {
     const seen = await run(world =>
       Effect.gen(function* () {
         const client = yield* RemoteClient
@@ -406,13 +446,15 @@ describe('rows of one key', () => {
       }),
     )
     expect(seen.events.map(event => event._tag)).toEqual(['EntityPatched', 'EntityDeleted'])
-    expect(seen.late.entities).toEqual([])
+    expect(seen.late.entities[0]?.revision).toBe(1)
+    const after = stored(...seen.events.map(event => ({ live: event })), { read: seen.late })
+    expect(after?.tombstone).toBe(true)
   })
 
-  it('does not answer an older read with a row a newer read found absent', async () => {
-    const older = await run(world =>
+  it('an older read lands as nothing in Remote after a newer read found the row absent', async () => {
+    const { first, newer, older } = await run(world =>
       Effect.gen(function* () {
-        yield* readP1
+        const first = yield* readP1
         const release = world.holdReply('ProductRow.snapshot')
         const older = yield* Effect.forkChild(readP1)
         yield* Effect.sleep('20 millis')
@@ -420,15 +462,15 @@ describe('rows of one key', () => {
         yield* client.Transfer('p1', { ownerId: 'grace' })
         yield* world.control.drain
         const newer = yield* readP1
-        expect(newer.entities).toEqual([])
         yield* release
-        return yield* Fiber.join(older)
+        return { first, newer, older: yield* Fiber.join(older) }
       }),
     )
-    expect(older.entities).toEqual([])
+    expect(newer.entities).toEqual([])
+    expect(stored({ read: first }, { read: newer }, { read: older })?.tombstone).toBe(true)
   })
 
-  it('does not answer a read with a row live has since lost access to', async () => {
+  it('a read from before live lost access lands as nothing in Remote', async () => {
     const seen = await run(world =>
       Effect.gen(function* () {
         const client = yield* RemoteClient
@@ -447,7 +489,8 @@ describe('rows of one key', () => {
       }),
     )
     expect(seen.events.map(event => event._tag)).toEqual(['EntityPatched', 'EntityDeleted'])
-    expect(seen.late.entities).toEqual([])
+    const after = stored(...seen.events.map(event => ({ live: event })), { read: seen.late })
+    expect(after?.tombstone).toBe(true)
   })
 
   it('reads a row validate hides as absent', async () => {

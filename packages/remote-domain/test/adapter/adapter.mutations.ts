@@ -1,5 +1,5 @@
 /**
- * The receipt-aware adapter, broken in turn:
+ * The adapter, broken in turn; what it orders and holds is Remote's now:
  * `pnpm mutate packages/remote-domain/test/adapter/adapter.mutations.ts`.
  */
 const file = '../../src/adapter/layer.ts'
@@ -7,9 +7,13 @@ const tests = ['packages/remote-domain/test/adapter/adapter.test.ts']
 
 export default [
   {
-    name: 'rows are ordered by the View cursor, not the revision',
+    name: 'rows carry no revision for Remote to order them by',
     edits: [
-      { file, find: 'snapshot.state[binding.revision] as number', replace: 'snapshot.cursor' },
+      {
+        file,
+        find: 'const revision = state[binding.revision]',
+        replace: 'const revision = undefined',
+      },
     ],
     tests,
   },
@@ -26,60 +30,9 @@ export default [
     tests,
   },
   {
-    name: 'an older snapshot is let through',
+    name: 'a read at a receipt does not wait for it',
     edits: [
-      {
-        file,
-        find: 'tombstone ? order <= held.value.revision : order < held.value.revision',
-        replace: 'false',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a row at the revision it was deleted at is let through',
-    edits: [
-      {
-        file,
-        find: 'tombstone ? order <= held.value.revision : order < held.value.revision',
-        replace: 'order < held.value.revision',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a read that finds no row records no deletion',
-    edits: [
-      {
-        file,
-        find: `                const { row } = yield* admit(binding, request.id, snapshot, asking)`,
-        replace: `                if (snapshot.state === null) return Option.none()
-                const { row } = yield* admit(binding, request.id, snapshot, asking)`,
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'live losing access to a row records no deletion',
-    edits: [
-      {
-        file,
-        find: `admit(binding, requirement.id, { state: null, cursor: 0 }, asking).pipe(
-                              Effect.andThen(next),`,
-        replace: `Effect.void.pipe(
-                              Effect.andThen(next),`,
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'the confirming read does not wait for the receipt',
-    edits: [
-      {
-        file,
-        find: 'onSome: receipt => ({ atLeast: receipt }),',
-        replace: 'onSome: () => undefined,',
-      },
+      { file, find: 'onSome: atLeast => ({ atLeast }),', replace: 'onSome: () => undefined,' },
     ],
     tests,
   },
@@ -117,28 +70,46 @@ export default [
     tests,
   },
   {
-    name: 'a committed write whose View is behind answers Unreachable',
+    name: 'a committed write whose View is behind gives no token',
     edits: [
       {
         file,
-        find: 'onSome: view => confirm(view, target, floor, asking),',
-        replace:
-          "onSome: view => Effect.flatMap(confirm(view, target, floor, asking), Option.match({ onNone: () => Effect.fail(new RemoteUnreachable({ message: 'behind' })), onSome: Effect.succeedSome })),",
+        find: '            Option.isSome(bound) && Option.isNone(confirmation)\n',
+        replace: '            false\n',
       },
     ],
     tests,
   },
   {
-    name: 'a read that did not confirm clears the floor',
+    name: 'a confirmed write gives a token too',
     edits: [
       {
         file,
-        find: `            Option.match({
-              onNone: () => Effect.succeedNone,
-              onSome: snapshot =>`,
-        replace: `            Option.match({
-              onNone: () => Effect.sync(() => { confirmed(binding, id, floor.receipt); return Option.none() }),
-              onSome: snapshot =>`,
+        find: '            Option.isSome(bound) && Option.isNone(confirmation)\n',
+        replace: '            Option.isSome(bound)\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a read the View is behind on fails rather than name the row behind',
+    edits: [
+      {
+        file,
+        find: '                  Option.isSome(receipt)\n                    ? Effect.succeed',
+        replace: '                  false\n                    ? Effect.succeed',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a token that is no receipt reads at none',
+    edits: [
+      {
+        file,
+        find: "      onNone: () => Effect.fail(refused(`${entity} ${id}'s token is not a Domain receipt`)),",
+        replace:
+          "      onNone: () => Effect.succeed([keyOf(entity, id), { stream: 'x', version: 0 }] as const),",
       },
     ],
     tests,
@@ -182,45 +153,6 @@ export default [
     tests,
   },
   {
-    name: 'rows let through are shared between principals',
-    edits: [
-      {
-        file,
-        find: 'const { accepted } = heldFor(asking)',
-        replace: 'const { accepted } = heldFor(null)',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'pending lists every principal’s writes',
-    edits: [
-      {
-        file,
-        find: 'pending: Effect.map(principalKey, asking => [...heldFor(asking).floors.values()]),',
-        replace:
-          'pending: Effect.sync(() => [...principals.values()].flatMap(held => [...held.floors.values()])),',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'no principal is dropped',
-    edits: [{ file, find: 'principals.delete(oldest)', replace: 'void oldest' }],
-    tests,
-  },
-  {
-    name: 'a principal is dropped one too early',
-    edits: [
-      {
-        file,
-        find: 'if (principals.size <= MAX_PRINCIPALS) break',
-        replace: 'if (principals.size < MAX_PRINCIPALS) break',
-      },
-    ],
-    tests,
-  },
-  {
     name: 'written is accepted where a member has a Read rule of its own',
     edits: [
       {
@@ -250,6 +182,18 @@ export default [
         find: '              new RemoteUnauthenticated({\n                message: `Sign in to send ${binding.command}`,',
         replace:
           '              new RemoteForbidden({\n                message: `Sign in to send ${binding.command}`,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a live frame held to a receipt is sent as it is',
+    edits: [
+      {
+        file,
+        find: '                        onSome: () =>\n                          snapshotAt(binding, requirement.id, receipt).pipe(',
+        replace:
+          '                        onSome: () =>\n                          Effect.succeedSome(snapshot).pipe(',
       },
     ],
     tests,

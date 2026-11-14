@@ -33,4 +33,4 @@ export type {
   ViewBinding,
   ViewConfig,
 } from './adapter/binding.js'
-export { DomainReads, type DeniedOf, type LayerConfig, type PendingRead } from './adapter/layer.js'
+export { type DeniedOf, type LayerConfig } from './adapter/layer.js'

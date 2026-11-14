@@ -73,21 +73,43 @@ export const page = (id: string) =>
         seen.push({ after, shows: shows(next), write: write(next) })
       })
 
+    /** The row's read-after token while Remote holds one: a read carries it, as the read entry's does. */
+    const floors = Effect.map(Ref.get(model), current =>
+      Data.inspect(current).floors.flatMap(({ key, token }) =>
+        key === entityKey('Product', id) ? [{ entity: 'Product', id, token }] : [],
+      ),
+    )
+
     const read = Effect.gen(function* () {
       const requests = [{ entity: 'Product', id, fields }]
-      const result = yield* client.read({ version: REMOTE_PROTOCOL_VERSION, requests })
-      yield* deliver('read', { _tag: 'ReadReceived', requests, result, now: 0 })
+      const after = yield* floors
+      const result = yield* client.read({
+        version: REMOTE_PROTOCOL_VERSION,
+        requests,
+        ...(after.length === 0 ? {} : { after }),
+      })
+      yield* deliver('read', {
+        _tag: 'ReadReceived',
+        requests,
+        result,
+        now: 0,
+        ...(after.length === 0 ? {} : { after }),
+      })
     })
 
-    /** Opens the live stream, delivering each frame as it arrives. */
-    let frames = 0
-    const watch = client
+    /**
+     * Opens the live stream, delivering each frame as it arrives, and waits for
+     * its first: the View's state when it subscribed, which the adapter sends
+     * as it is, since it holds nothing to compare it with.
+     */
+    let frames = -1
+    const opened = client
       .live({ requirements: [{ entity: 'Product', id, fields }], queries: [], after: 0 })
       .pipe(
         Stream.runForEach(event =>
           Effect.suspend(() => {
             frames += 1
-            return deliver(`live frame ${frames}`, {
+            return deliver(frames === 0 ? 'subscribed' : `live frame ${frames}`, {
               _tag: 'LiveReceived',
               stream: `${entityKey('Product', id)}:${[...fields].sort().join(',')}`,
               event,
@@ -97,10 +119,18 @@ export const page = (id: string) =>
         ),
         Effect.forkChild,
       )
+    const watch = Effect.tap(opened, () =>
+      poll(
+        Effect.sync(() => frames),
+        delivered => delivered >= 0,
+        'the subscription',
+      ),
+    )
 
     return {
       seen,
       read,
+      floors,
       watch,
       /** Waits until the live stream has delivered `count` frames. */
       framesDelivered: (count: number) =>

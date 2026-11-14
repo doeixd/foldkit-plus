@@ -8,8 +8,8 @@ export default [
     edits: [
       {
         file: '../../src/adapter/layer.ts',
-        find: 'import { Context, Duration, Effect, Equal,',
-        replace: "import { Tracer } from 'effect'\nimport { Context, Duration, Effect, Equal,",
+        find: 'import { type Context, Duration, Effect,',
+        replace: "import { Tracer } from 'effect'\nimport { type Context, Duration, Effect,",
       },
       {
         file: '../../src/adapter/layer.ts',

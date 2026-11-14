@@ -12,7 +12,7 @@ deploy tool of [alchemy.md](alchemy.md).
 | --- | --- |
 | Whether a command is allowed, the Events, who may read a row | the Domain model |
 | The page's copy of a row, a write's pending state, a refusal | Remote (`Remote.Model`) |
-| A write's receipt while its View has not caught up | the adapter, in memory, per principal |
+| A write's receipt while its View has not caught up, each row's revision | Remote (`Remote.Model`): a read-after token and a row revision on Remote's wire |
 
 `DomainRemote.layer` is a `RemoteClient` built from the Api's typed client: no Remote server sits between them, and
 `@alchemy.run/domain/Foldkit` is not used (two owners of one row). The page still declares writes with
@@ -88,10 +88,13 @@ that is not a number; only `layer` does anything, once the Api's client is provi
 ## What to know
 
 - **Receipts.** A command answers `{ stream, version }`; the adapter reads the View `atLeast` it. A write whose View is
-  behind answers success with `written(reply, input)` as the row and stays pending (`DomainReads.pending`, `confirm`);
-  a read at that floor that the View has not reached in `confirmWithin` (2 s) is `RemoteUnreachable`, never the old row.
-- **Revision.** Rows are ordered by the numeric field named in `view(…, { revision })`, which every Event must move,
-  never by the View cursor. Once a key reads deleted or hidden at a revision, no row of that revision or earlier returns.
+  behind answers success with `written(reply, input)` as the row and the receipt as `MutationResult.after`
+  (`stream@version`): Remote holds the row to it (`Data.inspect(model).floors`, `why`'s `ReadAfter`) and reads it again
+  carrying the token; a View that has not reached it in `confirmWithin` (2 s) is named in `behind`, never the old row.
+  The adapter holds nothing but the commands it sent.
+- **Revision.** Every row and live frame carries the numeric field named in `view(…, { revision })`, which every Event
+  must move; Remote orders by it, never by the View cursor. Once a key reads deleted or hidden at a revision, no row of
+  that revision or earlier returns.
 - **Command id** = `mutation:operation:digest(principal, target, keys, input)`; a missing `operation` is refused; a
   request for another principal is refused before sending. A lost reply is `RemoteUnreachable`; the retry reuses the id.
 - **`Lower.write` (`/lower`)** derives a command, `decide`, `evolve`, the View and both bindings from a declared
@@ -107,8 +110,8 @@ that is not a number; only `layer` does anything, once the Api's client is provi
 
 ## Limits
 
-Reads are by id: relations, windows, lists and queries fail by name. Receipts are in memory, so a reload forgets them
-and a read may show the row from before a committed write until the View catches up. Open upstream behaviour in beta.86 (not yet reported):
+Reads are by id: relations, windows, lists and queries fail by name. A row named in `behind` is asked again only when
+Remote's read entry restarts (a refresh, a change of what it reads). Open upstream behaviour in beta.86 (not yet reported):
 a reused `commandId` with other input or another principal returns the first receipt and skips `decide`; the View client
 takes no timeout for an `atLeast` read; a snapshot carries no stream version. No deploy, Durable Object or WebSocket
 path is exercised.

@@ -20,14 +20,15 @@ between them, and no Remote server is involved.
 | Whether a command is allowed, and the Events it records | the Domain model (`decide`, `evolve`) |
 | Who may read a row | the Domain model (the View's `validate`, its middleware) |
 | The page's copy of a row, a write's pending state, its optimistic value, a refusal | Remote (`Remote.Model`) |
-| A write's **receipt** while its View has not caught up | this adapter, in memory, per principal |
+| A write's **receipt** while its View has not caught up, and each row's revision | Remote (`Remote.Model`), as a read-after token and a row revision on Remote's wire |
 
 The page still declares the write as Plus declares any write
 (`Mutation.write`), so prediction, `Data.refusal` and `Refusal.isInvalidBy` read
 the same declaration they read against a SQL server. Only the authority changes.
-The adapter owns no row and decides nothing: it translates, and it remembers
-the one thing the Domain model cannot tell a client, which is how far its View
-has to read before it shows a write the client already knows committed.
+The adapter owns no row, decides nothing and holds nothing a reload would lose:
+it translates. The one thing the Domain model cannot tell a client, how far its
+View has to read before it shows a write the client already knows committed,
+it hands to Remote as a token, and Remote keeps it in its Model.
 
 `foldkit-remote-domain` and `foldkit-remote-server` are two ways to reach an
 authority, not two layers of one. A Remote server answers a page from a SQL
@@ -41,16 +42,17 @@ owners of one row.
 ## The mental model
 
 A Domain command commits at once, but a View is updated afterwards, so a read
-straight after a write can still show the row from before it. The adapter keeps
-the facts that close that gap:
+straight after a write can still show the row from before it. Remote's Model
+keeps the facts that close that gap, and the adapter carries them across:
 
 ```text
-accepted(key) = the newest row of that View key let through, by revision
-floor(key)    = the newest receipt of a write to that key whose read is not yet confirmed
+revision(row) = the View state's revision field, sent with every row
+floor(key)    = the receipt of the newest write to the key no read has confirmed,
+                sent to Remote as the write's read-after token, `stream@version`
 
-a row reaches Remote's store  only if  revision(row) >= revision(accepted(key))
+a row reaches Remote's store  only if  revision(row) >= the revision Remote holds
 a read of key                 asks     snapshot(key, { atLeast: floor(key) })  while a floor is set
-floor(key) clears             when     such a read answers
+floor(key) clears             when     such a read answers; a View still behind is named in `behind`
 ```
 
 A **receipt** is the `{ stream, version }` a command answers with. A **revision**
@@ -161,13 +163,13 @@ What each call means:
   View and command names, and the keys they use, are checked by type against the
   Api's own.
 - `DomainRemote.layer` is the only call that does anything: it provides
-  `RemoteClient` (and `DomainReads`, below) once the Api's client is provided.
+  `RemoteClient` once the Api's client is provided.
   Provide that client over a protocol, `NotesApi.layerClientInProcess` on the
   server or `NotesApi.layerClientHttp(url)` (it needs an `HttpClient`) from a browser, and `Remote.make`'s
   Data uses it as it uses any `RemoteClient`.
 - `principal` is who the Domain session is, as results name them. The adapter
-  keeps one write queue and one set of rows per principal, and refuses a write
-  made for anyone else before it sends anything (`RemotePrincipalChanged`).
+  refuses a write made for anyone else before it sends anything
+  (`RemotePrincipalChanged`).
 - `denied` says what a middleware's refusal means to Remote, `'Unauthenticated'`
   or `'Forbidden'`. A refused read is always `Unauthenticated`.
 - `written` is what the write answers with when its View is behind (below). It
@@ -183,7 +185,7 @@ rows are the ones that need the adapter):
 | What happened | What Remote sees |
 | --- | --- |
 | the command committed, the View is caught up | `MutationSucceeded` with the row the View now holds |
-| the command committed, the View is behind | `MutationSucceeded` with `written(reply, input)` as the row's values; the read stays pending |
+| the command committed, the View is behind | `MutationSucceeded` with `written(reply, input)` as the row's values, and the receipt as the answer's `after` token: Remote holds the row to it |
 | a Rejection the binding maps with `refuse` | `RemoteMutationError` carrying the mutation's own `Refusal` |
 | a Rejection mapped with `forbid`, `unauthenticated` or `fail` | `RemoteForbidden`, `RemoteUnauthenticated`, or `RemoteMutationError` with a message |
 | a middleware error | `RemoteUnauthenticated` or `RemoteForbidden`, by `denied` |
@@ -196,25 +198,11 @@ value; the reply is the third thing the client has, and it is authoritative for
 what the write set. With it in the answer, Remote's own echo rule keeps a
 lagging live patch from overwriting those fields.
 
-`DomainReads` makes the pending reads visible to a page or a test:
-
-```ts
-import { DomainReads } from 'foldkit-remote-domain'
-
-const pending = Effect.gen(function* () {
-  const reads = yield* DomainReads
-  return yield* reads.pending // [{ entity, id, operation, receipt: { stream, version } }]
-})
-
-const confirmed = (id: string) =>
-  Effect.gen(function* () {
-    const reads = yield* DomainReads
-    return yield* reads.confirm(NoteEntity, id) // true once the View has the write
-  })
-```
-
-`pending` lists the writes of who asks now. `confirm` reads the key again at its
-receipt, and clears it when the View answers.
+Remote keeps the floor in its Model, beside the row: a reload that restores
+the store (`persistence`) restores it too. While it is set, Remote reads the
+row again carrying the token, and the adapter asks the View at the receipt.
+`Data.inspect(model).floors` lists the rows waiting, and `why` names the wait
+(`ReadAfter`). Nothing in the adapter is pending.
 
 ### The command id
 
@@ -301,7 +289,7 @@ const read = Effect.gen(function* () {
 }).pipe(Effect.provide(shop.layer))
 ```
 
-`shop.layer` provides `RemoteClient`, `DomainReads` and the Api's own client;
+`shop.layer` provides `RemoteClient` and the Api's own client;
 `shop.commits()` lists the Events commands committed (seeded Events are not
 commands); `shop.as` is who the calls are made as, for a model with middleware
 that reads the call's headers (`as`, `headers`, `middleware` and `handlers` are
@@ -442,30 +430,34 @@ Policy, which is not built here. A lowered write holds no ledger,
 
 ## Failure and recovery
 
-- **A View behind.** The write answers with `written`'s row and stays pending.
-  A read of that key while it is pending asks the View at the receipt; if the
-  View has not reached it within `confirmWithin` (2 seconds by default: the Api's
-  client takes no deadline of its own), the read is `RemoteUnreachable`, never
-  the row from before. A live stream's frame for that key is only a signal: the
-  adapter reads at the receipt again and sends the row when it answers.
+- **A View behind.** The write answers with `written`'s row and its receipt as
+  a token, and Remote holds the row to it. A read of that key carries the token,
+  and the adapter asks the View at the receipt; if the View has not reached it
+  within `confirmWithin` (2 seconds by default: the Api's client takes no
+  deadline of its own), the read names the row in `behind`, and Remote keeps
+  what it holds and the floor, never the row from before. Remote asks again when
+  its read entry next restarts (a refresh, or a change of what it reads). A live
+  stream opened while a floor is set gets the token too: its frames for that key
+  are only signals, and the adapter reads at the receipt and sends the row when
+  it answers.
 - **A lost reply.** The command may have committed or not. The call fails
   `RemoteUnreachable`, and Remote's retry carries the same operation, so the same
   `commandId`: Domain returns the first receipt and does not decide again.
   A reply that did arrive is kept (the last 1,024), so a retry of it is not sent.
-- **A reload.** The receipts live in the adapter, in memory. A reloaded page
-  starts with none, so until the View catches up a read can show the row as it
-  was before a write that committed, and nothing the page holds says it is
-  behind. Remote's own Model is the right owner for a floor that survives a
-  reload, which needs a read-after token and a row revision on Remote's wire;
-  neither is built yet.
-- **Rows out of order.** A row older than the newest let through is not sent;
-  the batch answers the accepted row instead. Once a key reads as deleted or
-  hidden at a revision, no row of that revision or an earlier one is let back in
-  for who asks, and a key created again at a lower revision stays absent to
-  them. The revision must therefore keep rising across the stream's whole life.
-- **Another principal.** Rows and receipts are held per principal (the last four
-  to ask), because the View may not let someone else read a row. One who asks
-  again after more than four others starts with nothing held.
+- **A reload.** The floor and the revision are in Remote's store, so a reload
+  that restores the store keeps both, and asks at the token again. One that
+  restores nothing starts with nothing held.
+- **Rows out of order.** Every row and live frame carries its revision, and
+  Remote drops one older than the row it holds. Once a key reads as deleted or
+  hidden at a revision, no row of that revision or an earlier one is let back
+  in, and a key created again at a lower revision stays absent until its
+  revision passes the old one. The revision must therefore keep rising across
+  the stream's whole life. Two rows of one key at one revision with different
+  values (an event that did not move it) are both written, the later last; the
+  adapter no longer remembers rows, so it does not report them.
+- **Another principal.** Remote forgets what it holds when who is signed in
+  changes (`Data.forget`); the adapter holds no rows, so none can reach another
+  principal.
 - **A hidden row.** A row the View's `validate` refuses reads as absent, as a
   guarded SQL read of a hidden row does.
 
@@ -502,7 +494,7 @@ Policy, which is not built here. A lowered write holds no ledger,
 | --- | --- | --- |
 | `DomainRemote.view`, `.command` | `.` | bind a View to an Entity, a command to a mutation |
 | `DomainRemote.refuse`, `.forbid`, `.unauthenticated`, `.fail` | `.` | how a Rejection reaches Remote |
-| `DomainRemote.layer`, `DomainReads` | `.` | the `RemoteClient`; what is pending |
+| `DomainRemote.layer` | `.` | the `RemoteClient` |
 | `Receipt` | `.` | `{ stream, version }` |
 | `Lower.check`, `Lower.write`, `LoweringFinding` | `./lower` | lower a declared write |
 | `Imported.mutation`, `.describe`, `.show` | `./imported` | an undeclared command, and what was imported |

@@ -9,7 +9,7 @@ import * as InMemory from '@alchemy.run/domain/InMemory'
 import type { RemoteClient } from 'foldkit-remote'
 import { Context, Effect, identity, Layer, Option, Ref, Stream } from 'effect'
 import type { AnyApi } from './adapter/binding.js'
-import { DomainRemote, type DomainReads, type LayerConfig } from './index.js'
+import { DomainRemote, type LayerConfig } from './index.js'
 
 type Headers = Readonly<Record<string, string>>
 type Call = (...args: ReadonlyArray<unknown>) => unknown
@@ -62,8 +62,8 @@ type ClientIdentifier<A extends HostedApi> =
 type Client<A extends HostedApi> = Effect.Success<A['clientInProcess']>
 
 /**
- * What a fixture offers: `layer` answers `RemoteClient`, `DomainReads` and the
- * Api's own client; `drain` lets every held View delivery through; `commits`
+ * What a fixture offers: `layer` answers `RemoteClient` and the Api's own
+ * client; `drain` lets every held View delivery through; `commits`
  * lists each event a command committed (seeded events excluded); `as` is who
  * the calls are made as.
  */
@@ -73,11 +73,7 @@ export interface Fixture<
   W extends Layer.Layer<never, never, never> = Layer.Layer<never>,
 > {
   readonly layer: Layer.Layer<
-    | RemoteClient
-    | DomainReads
-    | ClientIdentifier<A>
-    | Layer.Success<ReturnType<M['layer']>>
-    | Layer.Success<W>
+    RemoteClient | ClientIdentifier<A> | Layer.Success<ReturnType<M['layer']>> | Layer.Success<W>
   >
   readonly drain: Effect.Effect<void>
   readonly commits: () => InMemory.Control['commits']

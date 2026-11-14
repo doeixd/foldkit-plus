@@ -10,7 +10,7 @@ import { Effect, Layer, Option } from 'effect'
 import * as FetchHttpClient from 'effect/http/FetchHttpClient'
 import { toWebHandlerLayerWith } from 'effect/http/HttpEffect'
 import { createServer, type Server } from 'node:http'
-import { DomainReads, DomainRemote } from '../../src/index.js'
+import { DomainRemote } from '../../src/index.js'
 import { RemoteClient } from 'foldkit-remote'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -101,9 +101,7 @@ type Hosted = Awaited<ReturnType<typeof serve>>
 
 /** Runs a body against a server, over the adapter and the Api's HTTP client. */
 const run = async <A, E>(
-  body: (
-    shop: Hosted,
-  ) => Effect.Effect<A, E, RemoteClient | DomainReads | (typeof ShopApi.Client)['Identifier']>,
+  body: (shop: Hosted) => Effect.Effect<A, E, RemoteClient | (typeof ShopApi.Client)['Identifier']>,
 ) => {
   const shop = await serve()
   const adapter = DomainRemote.layer(ShopApi, {

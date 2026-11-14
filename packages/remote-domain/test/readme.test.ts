@@ -8,7 +8,7 @@ import { Effect, Option, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { Mutation, REMOTE_PROTOCOL_VERSION, RemoteClient } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
-import { DomainReads, DomainRemote } from '../src/index.js'
+import { DomainRemote } from '../src/index.js'
 import { Fixture } from '../src/testing.js'
 
 class Renamed extends Domain.Event('Renamed', { name: Schema.String, revision: Schema.Int }) {}
@@ -94,12 +94,20 @@ describe('the README notes model', () => {
       }).pipe(Effect.scoped, Effect.provide(hosted.layer)),
     )
     expect(answer.entities).toEqual([
-      { entity: 'Note', id: 'n1', values: { name: 'Draft', revision: 1 } },
+      { entity: 'Note', id: 'n1', values: { name: 'Draft', revision: 1 }, revision: 1 },
     ])
   })
 
-  it('answers a write with the reply’s fields while the View is behind, and confirms after', async () => {
+  it('answers a write with the reply’s fields and its receipt while the View is behind', async () => {
     const hosted = shop()
+    const readN1At = (token: string) =>
+      Effect.flatMap(RemoteClient, client =>
+        client.read({
+          version: REMOTE_PROTOCOL_VERSION,
+          requests: [{ entity: 'Note', id: 'n1', fields: ['name', 'revision'] }],
+          after: [{ entity: 'Note', id: 'n1', token }],
+        }),
+      )
     const seen = await Effect.runPromise(
       Effect.gen(function* () {
         yield* hosted.drain
@@ -111,19 +119,22 @@ describe('the README notes model', () => {
           input: { id: 'n1', name: 'Final' },
           principal: null,
         })
-        const reads = yield* DomainReads
-        const pending = yield* reads.pending
-        const behind = yield* Effect.flip(readN1)
+        const token = written.after?.token ?? ''
+        const behind = yield* readN1At(token)
         yield* hosted.drain
-        const confirmed = yield* reads.confirm(NoteEntity, 'n1')
-        return { written, pending, behind, confirmed, after: yield* readN1 }
+        return { written, behind, after: yield* readN1At(token) }
       }).pipe(Effect.scoped, Effect.provide(hosted.layer)),
     )
     expect(seen.written.entities).toEqual([{ entity: 'Note', id: 'n1', values: { name: 'Final' } }])
-    expect(seen.pending.map(read => read.operation)).toEqual(['op1'])
-    expect(seen.behind._tag).toBe('Unreachable')
-    expect(seen.confirmed).toBe(true)
-    expect(seen.after.entities[0]?.values).toEqual({ name: 'Final', revision: 2 })
+    expect(seen.written.after).toEqual({
+      token: 'Note/n1@2',
+      rows: [{ entity: 'Note', id: 'n1' }],
+    })
+    expect(seen.behind.behind).toEqual([{ entity: 'Note', id: 'n1' }])
+    expect(seen.after.entities[0]).toMatchObject({
+      values: { name: 'Final', revision: 2 },
+      revision: 2,
+    })
   })
 
   it('sends a principal-less write for the principal the layer was given', async () => {
