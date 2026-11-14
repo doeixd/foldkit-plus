@@ -7,6 +7,24 @@ const tests = ['packages/mixins-ui/test/pagination.test.ts']
 
 export default [
   {
+    name: 'the stops ignore the words given',
+    edits: [
+      { file: '../src/pagination.ts', find: "options.words?.next ?? 'Next'", replace: "'Next'" },
+    ],
+    tests,
+  },
+  {
+    name: 'the stops ignore the naming given',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: '(options.words?.stopLabel ?? pageOf)(text)',
+        replace: 'pageOf(text)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'every stop draws, however many',
     edits: [
       {

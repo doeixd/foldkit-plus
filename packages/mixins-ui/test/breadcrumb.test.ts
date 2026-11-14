@@ -95,6 +95,13 @@ describe('the Menu of the hidden steps', () => {
 })
 
 describe('Breadcrumb view', () => {
+  it('names its landmark Breadcrumb, or what it is given', () => {
+    const name = (label?: string) =>
+      Inert.value(Inert.byTag(view({ steps, label }, h), 'nav')[0], 'aria-label')
+    expect(name()).toBe('Breadcrumb')
+    expect(name('Fil d’Ariane')).toBe('Fil d’Ariane')
+  })
+
   it('lands in a nav landmark with the current page marked', () => {
     const trail = view({ steps, style: Style.forSlots(BreadcrumbSlots)(Recipes.Breadcrumb({})) }, h)
     expect(Inert.byRole(trail, 'navigation')).toHaveLength(1)

@@ -126,6 +126,8 @@ export const chosen = (
  * stands behind it.
  */
 export interface BreadcrumbView<Message = never> {
+  /** The landmark's name. Default `'Breadcrumb'`. */
+  readonly label?: string | undefined
   readonly steps: ReadonlyArray<BreadcrumbStep>
   /** A separator of the application's own, in place of the recipe's. */
   readonly separator?: Html | undefined
@@ -227,14 +229,19 @@ export const view = <Message = never>(
             ellipsisOf(collapse, (collapse.label ?? more)(hidden.length), hidden, builders, h),
           ]),
         ]
-  return h.nav(builders.root.attrs([h.AriaLabel('Breadcrumb'), h.Role('navigation')]), [
-    h.ol(
-      builders.list.attrs(separator === undefined ? [] : [h.DataAttribute('separator', 'custom')]),
-      [
-        ...before.map((step, index) => drawStep(step, index)),
-        ...folded,
-        ...after.map((step, index) => drawStep(step, before.length + folded.length + index)),
-      ],
-    ),
-  ])
+  return h.nav(
+    builders.root.attrs([h.AriaLabel(options.label ?? 'Breadcrumb'), h.Role('navigation')]),
+    [
+      h.ol(
+        builders.list.attrs(
+          separator === undefined ? [] : [h.DataAttribute('separator', 'custom')],
+        ),
+        [
+          ...before.map((step, index) => drawStep(step, index)),
+          ...folded,
+          ...after.map((step, index) => drawStep(step, before.length + folded.length + index)),
+        ],
+      ),
+    ],
+  )
 }

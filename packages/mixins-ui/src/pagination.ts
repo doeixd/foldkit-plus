@@ -74,6 +74,20 @@ export const itemsOf = (
   return items
 }
 
+/** The words of the stops, which are also their names once `stopLabel` has said them. */
+export interface PaginationWords {
+  /** Default `"First"`. */
+  readonly first?: string | undefined
+  /** Default `"Previous"`. */
+  readonly previous?: string | undefined
+  /** Default `"Next"`. */
+  readonly next?: string | undefined
+  /** Default `"Last"`. */
+  readonly last?: string | undefined
+  /** A stop's accessible name from its words; default `"Next page"`. */
+  readonly stopLabel?: ((word: string) => string) | undefined
+}
+
 /** The rows a page may show, for a select of them; its value is the range's `perPage`. */
 export interface PaginationPerPage<Message> {
   /** The sizes to choose from, such as `[10, 20, 50]`. */
@@ -107,6 +121,8 @@ export interface PaginationView<Message> extends PaginationWindow {
   readonly onPage: (page: number) => Message
   /** The landmark's name. Default: `'Pagination'`. */
   readonly label?: string | undefined
+  /** The stops' words and names, for another language. */
+  readonly words?: PaginationWords | undefined
   /** Draws the numbered stops; `false` leaves previous and next alone. Default true. */
   readonly numbered?: boolean | undefined
   /** Draws first and last beside previous and next. Default false. */
@@ -118,6 +134,8 @@ export interface PaginationView<Message> extends PaginationWindow {
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
 }
+
+const pageOf = (word: string): string => `${word} page`
 
 const shown = (from: number, to: number, total: number): string => `${from}–${to} of ${total}`
 
@@ -149,7 +167,7 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
     h.button(
       builders[slot].attrs([
         h.Key(slot),
-        h.AriaLabel(`${text} page`),
+        h.AriaLabel((options.words?.stopLabel ?? pageOf)(text)),
         ...(atEnd ? [h.AriaDisabled(true)] : [h.OnClick(options.onPage(page))]),
       ]),
       [text],
@@ -177,8 +195,8 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
   const stops = lone
     ? []
     : [
-        ...(ends ? [stop(1, 'first', 'First', current === 1)] : []),
-        stop(current - 1, 'prev', 'Previous', current === 1),
+        ...(ends ? [stop(1, 'first', options.words?.first ?? 'First', current === 1)] : []),
+        stop(current - 1, 'prev', options.words?.previous ?? 'Previous', current === 1),
         ...(options.numbered === false
           ? []
           : itemsOf(current, count, options).map((item, index) =>
@@ -198,8 +216,8 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
                       : [String(item)],
                   ),
             )),
-        stop(current + 1, 'next', 'Next', current === count),
-        ...(ends ? [stop(count, 'last', 'Last', current === count)] : []),
+        stop(current + 1, 'next', options.words?.next ?? 'Next', current === count),
+        ...(ends ? [stop(count, 'last', options.words?.last ?? 'Last', current === count)] : []),
       ]
   return h.nav(
     builders.root.attrs([h.AriaLabel(options.label ?? 'Pagination'), h.Role('navigation')]),

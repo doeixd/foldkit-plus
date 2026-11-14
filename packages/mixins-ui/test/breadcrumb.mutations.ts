@@ -9,6 +9,17 @@ const menu = 'packages/mixins-ui/test/breadcrumbMenu.browser.test.ts'
 
 export default [
   {
+    name: 'the landmark ignores the name given',
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: "options.label ?? 'Breadcrumb'",
+        replace: "'Breadcrumb'",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/breadcrumb.test.ts'],
+  },
+  {
     name: 'the current page links onward',
     edits: [
       {

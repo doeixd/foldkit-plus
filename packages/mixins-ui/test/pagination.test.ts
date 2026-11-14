@@ -246,6 +246,39 @@ describe('Pagination view', () => {
     expect(asked.at(-1)).toBe(3)
   })
 
+  it('takes the stops’ words and names from the application', () => {
+    const nav = view<Message>(
+      {
+        page: 2,
+        pageCount: 3,
+        onPage: page => Message.Go({ page }),
+        ends: true,
+        words: {
+          first: 'Début',
+          previous: 'Précédent',
+          next: 'Suivant',
+          last: 'Fin',
+          stopLabel: word => `Page ${word}`,
+        },
+      },
+      h,
+    )
+    const all = Inert.byTag(nav, 'button')
+    const buttons = [all[0], all[1], ...all.slice(-2)]
+    expect(buttons.map(button => Inert.text(button))).toEqual([
+      'Début',
+      'Précédent',
+      'Suivant',
+      'Fin',
+    ])
+    expect(buttons.map(button => Inert.value(button, 'aria-label'))).toEqual([
+      'Page Début',
+      'Page Précédent',
+      'Page Suivant',
+      'Page Fin',
+    ])
+  })
+
   it('says the rows shown before the stops', () => {
     const nav = view<Message>(
       {
