@@ -143,12 +143,23 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   button found released). One pointer; touch and pen work by position. A finger's
   press is a drag once held still `HOLD_TO_DRAG_MS` (400ms); one that moves `HOLD_SLOP`
   (8px) first is a scroll, so leave the marked elements' `touch-action` alone and a list of
-  them still scrolls. No roles or keys: give the keyboard
-  its own way. Swallows the click a drop ends with. Onto another region (a palette onto a
+  them still scrolls. No roles or keys: `Reorder` is the keyboard's way. Swallows the click a drop ends with. Onto another region (a palette onto a
   page): `targets: { attribute, within: selector }`, so `over` is one of those; `within` is
   found nearest the container first, and each fact carries `region: boolean`, so `over: null`
   with `region: true` is the region's empty space. `part: attribute` reports an element
   marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say.
+- **Reorder a list or tree by keys and pointer:** place `Reorder.bundle` (no args; `onOut`
+  required) and attach `Reorder.behavior(Declared)(Slots)<Model, Message>({ container, item, handle, items, parent?, accepts?, orientation?, direction? })`.
+  Model `{ held: Option<{ id, by }>, over: Option<Place> }`, `Place` = `PointerDrag`'s
+  `{ id, zone }`. Space/Enter grabs and drops, arrows/Home/End walk `Reorder.places`, Escape or
+  blur puts back; `PointerDrag` on the container feeds the same Messages. Out:
+  `PickedUp`, `PassedOver`, `Moved { id, by, to }`, `PutBack`; the parent applies `Moved`
+  (`Reorder.apply(ids, moved)` for a flat list) or refuses it (`Reorder.movesIntoItself` for a
+  tree), and reads each out with `LiveAnnounce`'s `announce(Reorder.announcement(fact, { label }))`.
+  Items get `data-reorder="held"` and `data-reorder-over=zone`; nothing moves until the drop.
+  Beside `ListNavigation`: `handle: Reorder.routed` and
+  `Keys.first(Reorder.keys(Declared)({ items, current }), ListNavigation.keys(...))`. Keep focus
+  after the keyed move with `FocusRecovery`'s `same` on the handle.
 - **One router for a field and a list:** `RovingTabindex`, `ListNavigation`, `GridNavigation`, `TreeNavigation` and
   `Typeahead` each export `keys(Declared, args)<Input, Message>(options)` (`Typeahead.keys(Declared)` takes no args), the `Keys.route` their `behavior` installs;
   list it beside your own routes in one `Behaviors.Keys.behavior` (a search input: `EscapeClears` + `ListNavigation.keys`).

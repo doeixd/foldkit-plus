@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-primitives/interaction`: `Reorder`, a keyboard path for moving an
+  item in a list or a tree (#558 item 3). One Bundle holds the draft (`held`,
+  `over`); Space or Enter picks up and drops, the arrows, Home and End walk
+  `Reorder.places`, Escape or focus leaving puts back, and `PointerDrag`'s facts
+  feed the same Messages. Out-facts `PickedUp`, `PassedOver`, `Moved`, `PutBack`:
+  the parent applies or refuses `Moved` (`Reorder.apply`,
+  `Reorder.movesIntoItself`) and reads each out with `Reorder.announcement`
+  through `LiveAnnounce`. `Reorder.keys` composes with `ListNavigation.keys`
+  under `Keys.first`; RTL swaps Left and Right.
 - `foldkit-remote`: row revisions and read-after tokens on Remote's wire
   (#544, #480's open item). `NormalizedEntity.revision` and
   `EntityPatched.revision`: a row of a lower revision than the one held writes

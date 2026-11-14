@@ -30,6 +30,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `Move` | nothing (a Mount) | pointer drag deltas |
 | `Targets` | nothing (a Mount) | which marked descendant is hovered or pressed |
 | `PointerDrag` | nothing (a Mount) | dragging one marked descendant onto another |
+| `Reorder` | `{ held, over }`; out `Moved`, `PickedUp`, `PassedOver`, `PutBack` | moving an item in a list or tree, by keys and by pointer |
 | `EditableText` | nothing (a Mount) | text typed into a `contenteditable` field |
 | `FocusVisible` | `InputModality`'s `{ modality }` | a focus ring for keyboard users only |
 | `DismissLayer` | `{ layers }`; out `Dismiss { ids }` | close overlays on Escape or an outside press |
@@ -608,7 +609,7 @@ have `touch-action: none` so a finger drags rather than scrolls. The click a
 drop ends with is swallowed, so a `Targets` on the same container does not
 also press. A press in `contenteditable` text selects text and starts no drag.
 It writes no roles, `tabindex`, or keys, so it sits beside a tree's or a
-listbox's own; the keyboard's way to do what a drag does is yours to give.
+listbox's own; for the keyboard's way to move an item, see `Reorder` below.
 Boxes are measured as the pointer moves and never kept; an element drawn as
 `display: contents` is measured by its first child (`boxOf`). The Mount is
 `PointerDrag({ attribute })` in `foldkit-primitives/dom`;
@@ -632,6 +633,128 @@ an element marked by both `attribute` (or `targets.attribute`) and `part` is
 reported as `{ id, zone: 'inside', part }`, whatever third of it the pointer
 is in. An editor draws a node's empty Region that way, so a drop can name the
 Region it goes into.
+
+## `Reorder`: moving an item by keys and by pointer
+
+`Reorder` is the keyboard path a drag lacks, and the pointer's drag mapped
+onto the same draft. One Bundle holds what is held and where it would land;
+the parent owns the list and decides whether the move happens.
+
+```text
+Space/Enter on an item  →  Grabbed   (held, over its own place)   out PickedUp
+arrows, Home, End       →  Stepped   (over the next place)         out PassedOver
+Space/Enter             →  Dropped                                 out Moved { id, to } | PutBack
+Escape, focus leaving   →  Cancelled                               out PutBack
+pointer press and move  →  the same Messages, from PointerDrag's facts
+```
+
+Nothing moves while an item is held: the view draws a drop line from the
+marks the Behavior writes (`data-reorder="held"` on the held item,
+`data-reorder-over="before|inside|after"` on the place), so focus stays on the
+held item. On the drop the parent applies `Moved` to its own data, or refuses
+it, and the facts are what it reads out through `LiveAnnounce`:
+
+```ts standalone
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { Bundle } from 'foldkit-bundle'
+import { Behavior, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
+import { FocusRecovery, LiveAnnounce, Reorder } from 'foldkit-primitives/interaction'
+
+const Rows = Bundle.declare(Reorder.bundle, 'rows')
+const Live = Bundle.declare(LiveAnnounce.bundle, 'live')
+const Model = Schema.Struct({ ...Rows.fields, ...Live.fields, ids: Schema.Array(Schema.String) })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Rows.cases, ...Live.cases })
+type Message = typeof Message.Type
+
+const Parent = Bundle.parent({ Model, Message })
+const Announcer = Parent.at(Live, { args: { debounceMs: 150, clearAfterMs: 5000 } })
+const assembly = Parent.assemble(
+  Announcer,
+  Parent.at(Rows, {
+    onOut: (fact: Reorder.OutMessage) => (model: Model) => {
+      const moved = Reorder.OutMessage.match(fact, {
+        Moved: move => modifyFields(model, { ids: ids => Reorder.apply(ids, move) }),
+        PickedUp: () => model,
+        PassedOver: () => model,
+        PutBack: () => model,
+      })
+      return Announcer.helpers.announce(Reorder.announcement(fact, { label: id => id }))(moved)
+    },
+  }),
+)
+
+const ListSlots = Slots.define({
+  list: Slot.make({ capability: Capability.Container }),
+  row: Slot.make({ capability: Capability.Base }),
+  grip: Slot.make({ capability: Capability.Focusable, events: [Event.KeyDown, Event.Blur] }),
+})
+const List = SlotView.over(ListSlots)<Model, Message>()
+
+const SortableList = List.define((model, slots, h) =>
+  h.ul(
+    slots.list.attrs([]),
+    model.ids.map((id, index) =>
+      h.li(slots.row.attrs([h.Key(id)], { index, id }), [
+        h.button(slots.grip.attrs([h.Type('button')], { index, id }), [id]),
+      ]),
+    ),
+  ),
+).pipe(
+  Behavior.attach(
+    Reorder.behavior(Rows)(List)({
+      container: 'list',
+      item: 'row',
+      handle: 'grip',
+      items: model => model.ids,
+    }),
+  ),
+  // A keyed move takes the element out and back, and the browser drops its focus.
+  Behavior.attach(FocusRecovery.behavior(List)({ owner: 'list', parts: { grip: ['same'] } })),
+)
+
+const view = (model: Model, h: HtmlBuilder<Message>) =>
+  h.main([], [SortableList(model, h), LiveAnnounce.view(model.live, h)])
+void assembly
+void view
+```
+
+`Reorder.behavior` puts the pointer path (`PointerDrag`) on the container, the
+marks on each item, and the key route on the handle, which may be the row
+itself. Nothing here fetches or writes your list: `Moved` is a fact, and
+`Reorder.apply(ids, moved)` is the pure move for a flat list (it returns the
+list it was given when nothing changes). In a flat list a pointer's `inside`
+(the middle third of a row) means the row's own slot.
+
+**Beside a roving tab stop.** A list with `ListNavigation` already owns its
+container's `keydown`, and both take the arrows. Give the Behavior
+`handle: Reorder.routed` and list the route in the same router, first:
+`Keys.first(Reorder.keys(Rows)({ items, current: m => Option.fromNullishOr(m.nav.current) }), ListNavigation.keys(Nav, args)({ … }))`.
+Before a grab it answers only Space and Enter, so the arrows navigate; while
+an item is held it takes them, and focus stays on the held row. Focus leaving
+the row puts the grab back.
+
+**A tree.** Give `items` the rows that show, flat, with `parent` and
+`accepts`. The places then walk the tree: before each row, `inside` a row that
+accepts items and shows none of its own (as its last child), and `after` each
+level that ends. The held row's own rows are never offered, but a pointer can
+report one, and only the parent knows the tree: refuse such a `Moved` with
+`Reorder.movesIntoItself({ id, to, parent })`. `Reorder.places` is the walk
+itself, for a view that shows "position 2 of 5".
+
+**Words, direction, keys faster than a frame.** `announcement` reads each
+fact with `words` (English templates with `{item}` and `{target}`; pass your
+own). `orientation: 'horizontal'` walks with Left and Right, and
+`direction: () => 'rtl'` swaps them. Each arrow carries the places as drawn
+and steps from the Model's `over`, and the route remembers its own grab on a
+drawing, so keys pressed faster than a frame each count.
+
+Limits: one draft per placement; a pointer drag onto `targets` elsewhere is
+`PointerDrag`'s, not this one's; an empty list offers no place, since a place
+names an item.
 
 ## Editing in place
 
