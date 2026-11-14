@@ -1348,6 +1348,10 @@ What each call means:
   `FruitList` throws. The view `conform` was given is unchanged.
 - It reads no input, runs no Mount and draws nothing. `A11y.check` returns the same findings as
   data, and `A11y.validate` stays the check of a bare contract.
+- A page pays for the check only where it conforms: every SlotView carries the record `conform`
+  leaves for `detach` and `replace` (331 bytes minified, 228 brotli), and the module holding
+  `conform`, `check` and the obligation tokens adds 4.0 kB minified, 1.2 kB brotli, to a page
+  that imports it (measured with esbuild over the source, 2026-11-14).
 
 A Behavior written by hand on the binder states its names from its slots' `provides`, with no
 annotation; this one's type supplies `'clear/activation'`:
