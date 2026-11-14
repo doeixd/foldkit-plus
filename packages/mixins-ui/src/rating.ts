@@ -35,6 +35,8 @@ export const RatingSlots = Slots.define({
 interface RatingCommon<Message> {
   /** Names the radios as one group, and prefixes the ids; unique on the page. */
   readonly id: string
+  /** The form field the stars submit under, and what groups the radios; default `id`. */
+  readonly name?: string | undefined
   /** What is rated, shown and naming the group. */
   readonly label: string
   /** The stars given, up to `max`; none before any are. Read-only, any fraction. */
@@ -175,8 +177,7 @@ export const view = <Message>(options: RatingView<Message>, h: HtmlBuilder<Messa
           builders.star.attrs([
             h.Key(String(value)),
             h.Type('radio'),
-            // An attribute, not `h.Name`'s client-only property, so server markup groups the radios too.
-            h.Attribute('name', options.id),
+            h.Name(options.name ?? options.id),
             h.Attribute('value', String(value)),
             h.AriaLabel(starLabel(value)),
             h.Checked(value === given),

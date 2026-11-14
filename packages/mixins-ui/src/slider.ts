@@ -239,8 +239,7 @@ export function view<Message>(
         h.AriaValuetext(format(drawn.value)),
         ...(vertical ? [h.AriaOrientation('vertical')] : []),
         h.DataAttribute('thumb', drawn.key),
-        // An attribute, not `h.Name`'s client-only property, so server markup submits too.
-        ...(options.name === undefined ? [] : [h.Attribute('name', options.name)]),
+        ...(options.name === undefined ? [] : [h.Name(options.name)]),
         ...(disabled ? [h.Disabled(true)] : [h.OnInput(text => drawn.next(Number(text)))]),
       ]),
     )

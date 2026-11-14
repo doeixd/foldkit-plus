@@ -119,9 +119,9 @@ describe('Rating.view', () => {
     )
   })
 
-  it('groups the radios by an attribute, so server markup groups them too', () => {
+  it('groups the radios by the id, and by a name of its own when given', () => {
     const radios = Inert.byTag(drawn(Option.none()), 'input')
-    expect(radios.map(radio => radio.data?.attrs?.['name'])).toEqual(Array(5).fill('stay'))
+    expect(radios.map(radio => Inert.value(radio, 'name'))).toEqual(Array(5).fill('stay'))
   })
 
   it('read-only, is one image that says the rating, with no radios', () => {
