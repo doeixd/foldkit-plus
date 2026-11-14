@@ -32,6 +32,8 @@ import type { Any as AnySlot, SlotProtection } from './slot.js'
 declare const __FOLDKIT_MIXINS_FROZEN_STYLES__: boolean | undefined
 const injects = typeof __FOLDKIT_MIXINS_FROZEN_STYLES__ === 'undefined'
 
+export { describe, resolution, toMarkdown } from './describe.js'
+
 export type SlotBuilder<Message, Slots = unknown> = {
   /**
    * The view's base attributes plus every resolved contribution. Pass `item`
