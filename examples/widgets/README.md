@@ -19,27 +19,6 @@ pnpm --filter foldkit-example-widgets typecheck
 npx vitest run examples/widgets
 ```
 
-## Authoring fixtures
-
-These files are not islands on the demo page. They are the small composition examples, on the
-shipped APIs, kept beside the showcase.
-
-- `src/ui-sdk-search-field.ts` — **use** `Input.view`, **customize** it with
-  `Recipes.Input.extend` and an attached clear label plus `Behaviors.Keyboard`, and
-  **assemble** that child with `Bundle.make`. The parent places it twice (`first`, `second`).
-  Typing in one leaves the other alone. The parent view draws each placement and does not
-  construct the child's Message.
-- `src/ui-sdk-dismissible-list.ts` — the edit-and-remove widget on the same path: one
-  `update`, `SlotView.forMessages`, keyed rows, and `FocusRecovery` attached. One instance.
-- `src/autocomplete/` — a field with a popup that commits a selection. That widget is the
-  popup fixture.
-
-Authoring a primitive is a Behavior or a `foldkit-primitives` module that several widgets
-attach (`Behaviors.Keyboard`, `FocusRecovery`). It does not own the Model. The annotations
-the callbacks never mention stay written out: `forMessages<Message>()`, `(model: Model)`,
-`<Model, Message>` on a Behavior, and `Submodel.defineView<Model, Message>(view)` so the
-placed view stays `(model, h)`.
-
 ## Widgets
 
 - `src/toolbar/` — formatting toolbar: `RovingTabindex` + Collection +
@@ -97,13 +76,30 @@ placed view stays `(model, h)`.
   a Listbox dropping its options down on a desktop, and below the theme's
   `md` breakpoint an opener showing them in a bottom Sheet. One Model and one
   `Chose` either way; the order is the island's, an unlisted one ignored.
+- `src/search-field/` — `foldkit-mixins-ui`'s `SearchField` placed twice with `Bundle.make`: a
+  native search input and a clear button drawn while there is text, Escape clearing a field that
+  has text and passing an empty one on, and ArrowDown, the application's own key, opening
+  results through the field's `routes`. Typing in one leaves the other alone. Clearing answers
+  `SearchField.Focus`, since the pressed button takes its focus with it. The page also draws
+  what `Assembly.describe` says of the field. `demo.ts` holds the placements and that text.
+- `src/dismissible-list/` — the edit-and-remove list: keyed tag rows, one holding a nested
+  branch, with `FocusRecovery` attached. Removing a row moves focus to the next row, to the
+  previous one when it was last, and to the field when the last row names it; a removed branch
+  falls back to the row that holds it.
+- `src/leaving-rows/` — rows that stay drawn while they leave. Each row has a `Presence` of its
+  own in a collection keyed by the row's id (`Bundle.declareEach`), so any number leave at
+  once: a dismissed row is marked `leaving`, made inert, and dropped when its own `Hidden`
+  lands. `Keep` on a row shows it again without touching another row's exit. A popup, one more
+  placement, adds `FocusScope` and `HideOutside`.
 - `src/window-list/` — a thousand names in `foldkit-mixins-ui`'s
   `WindowList`, which scrolls with the page: only the rows in view are drawn,
   between spacers as tall as the rest, under a heading that sticks to the
   window's top. Last on the page, which it makes long.
 
 Each folder holds `app.ts` (Model, Message, update) and `view.ts` (the
-SlotView and its `runDemo`). The toolbar's trace lives in `demo.ts`. `test/`
+SlotView and its `runDemo`). The toolbar's trace lives in `demo.ts`; the search field's
+Model and update are in `child.ts` and its page in `demo.ts`, because the Bundle that places
+its view is `app.ts`. `test/`
 pins each widget with a mutation spec beside it. Absent values in these
 models are `Option`. `src/style.ts` is `AppStyle.make` of the design-system
 palette: one `Style.forSlots` per widget, state visuals read from the ARIA

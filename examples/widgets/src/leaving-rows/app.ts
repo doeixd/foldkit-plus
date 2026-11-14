@@ -107,13 +107,11 @@ export const update = assembly.update((model, message) =>
             () => ({ model }),
           )
         : { model },
+    // Showing a shown row, or one that is gone, changes nothing.
     Kept: ({ id }) =>
-      model.exits[id]?.phase === 'hiding'
-        ? Option.getOrElse(
-            exits.update(model, Exits.wrapper.make(id, PresenceMessage.Show())),
-            () => ({ model }),
-          )
-        : { model },
+      Option.getOrElse(exits.update(model, Exits.wrapper.make(id, PresenceMessage.Show())), () => ({
+        model,
+      })),
     RemovedChild: ({ id }) =>
       model.tags.some(tag => tag.children.some(child => child.id === id))
         ? {

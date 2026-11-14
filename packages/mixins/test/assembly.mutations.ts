@@ -3,7 +3,7 @@
  */
 const file = '../src/assembly.ts'
 const tests = ['packages/mixins/test/assembly.test.ts']
-const widget = ['examples/widgets/test/ui-sdk-assembly.test.ts']
+const widget = ['examples/widgets/test/search-field-assembly.test.ts']
 
 export default [
   {

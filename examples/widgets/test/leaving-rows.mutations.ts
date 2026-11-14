@@ -43,17 +43,6 @@ export default [
     tests: unit,
   },
   {
-    name: 'Keep on a row that is not leaving still shows it again',
-    edits: [
-      {
-        file: app,
-        find: "      model.exits[id]?.phase === 'hiding'\n",
-        replace: '      model.exits[id] !== undefined\n',
-      },
-    ],
-    tests: unit,
-  },
-  {
     name: 'the finished exit leaves its presence entry behind',
     edits: [
       {
