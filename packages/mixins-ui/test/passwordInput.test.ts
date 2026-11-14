@@ -333,7 +333,7 @@ describe('PasswordInput.view keydown ownership', () => {
   const Steal = Behavior.forSlots(PasswordInputSlots)<undefined, TestMessage>({
     input: Behavior.slot({
       attributes: ({ h }: { readonly h: HtmlBuilder<TestMessage> }) => [
-        h.OnKeyDown(() => Option.none()),
+        h.OnKeyDown(() => message('Other')),
       ],
     }),
   })
