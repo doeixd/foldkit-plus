@@ -440,6 +440,11 @@ export const overlayBars = [
   ).mixin,
 ] as const
 
+const followsActive = Behavior.slot({
+  requires: { capability: Capability.Container },
+  mount: () => KeepInView({ selector: '[role="option"][aria-selected="true"]' }),
+})
+
 /**
  * Scrolls the highlighted row into view as the keys move it, the least that
  * shows it, in a list taller than its panel. Pass it beside the style. Not a
@@ -447,12 +452,7 @@ export const overlayBars = [
  */
 export const keepActiveInView = [
   Behavior.forSlots(CommandSlots)<unknown, never>(
-    {
-      list: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => KeepInView({ selector: '[role="option"][aria-selected="true"]' }),
-      }),
-    },
+    { list: followsActive },
     { name: 'CommandKeepActiveInView' },
   ).mixin,
 ] as const
