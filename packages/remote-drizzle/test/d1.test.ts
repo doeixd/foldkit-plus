@@ -368,6 +368,57 @@ describe('A declared write over D1', () => {
     })
   }, 30_000)
 
+  it('refuses a sale that leaves no stock, by its becomes, in the one statement, ledgered or not', async () => {
+    const InStock = Entity.refine(Item, 'InStock', ({ row }) => Expr.gt(row.stock, 0))
+    const amount = Entity.input(Item, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
+      quantity: Entity.unmapped,
+    })
+    const Clear = Mutation.write(
+      'Clear',
+      Write.update(amount, { id: 'id', increment: { stock: 'quantity' }, becomes: InStock }),
+    )
+    const outOfStock = {
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Invalid', entity: 'Item', rule: 'becomes:InStock' } },
+    }
+    const ledgered = [
+      RemoteServer.write(
+        Clear,
+        writer<string>(ItemDb.Item, {
+          ledger: { table: ledgerTable, scope: (principal: string) => principal },
+        }),
+      ),
+    ]
+    // Through the ledger's batch: refused, and nothing recorded or written.
+    expect(await send(ledgered, 'Clear', { id: 'i1', quantity: -1 }, 'op-a')).toMatchObject(
+      outOfStock,
+    )
+    expect(await db.prepare('SELECT count(*) AS n FROM write_ledger').first()).toEqual({ n: 0 })
+    expect(await send(ledgered, 'Clear', { id: 'i1', quantity: 2 }, 'op-b')).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 'i1', values: { stock: 3 } }] },
+    })
+    // And as a plain statement, with no ledger.
+    const Sold = Mutation.write(
+      'Sold',
+      Write.update(Amount, {
+        id: 'id',
+        expect: 'revision',
+        increment: { stock: 'quantity' },
+        becomes: InStock,
+      }),
+    )
+    const plain = [RemoteServer.write(Sold, writer<string>(ItemDb.Item))]
+    expect(await send(plain, 'Sold', { id: 'i1', revision: 1, quantity: -3 })).toMatchObject(
+      outOfStock,
+    )
+    expect(await stock()).toEqual({ stock: 3, revision: 1 })
+    expect(await send(plain, 'Sold', { id: 'i1', revision: 1, quantity: -2 })).toMatchObject({
+      _tag: 'Success',
+    })
+    expect(await stock()).toEqual({ stock: 1, revision: 2 })
+  }, 30_000)
+
   describe('with a ledger, in one batch', () => {
     const Note = Entity.define(
       'Note',

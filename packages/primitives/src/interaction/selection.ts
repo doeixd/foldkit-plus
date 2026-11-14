@@ -11,7 +11,7 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, SlotView } from 'foldkit-mixins'
 import { perInput, sameIds } from '../internal.js'
 import { BundleBehavior } from './bundle-behavior.js'
 
@@ -132,40 +132,57 @@ export interface BehaviorOptions<Input, Slots> {
  * `aria-multiselectable` on the container in multiple mode; wires `OnClick`
  * to `Activated` unless told not to. A disabled item gets no click.
  */
-export const behavior =
-  <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
-  <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+export const behavior = <Field extends string>(
+  declared: Declared<typeof bundle, Field>,
+  args: Args,
+) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
-    const itemsOf = perInput(options.items)
-    const selectedOf = perInput((input: Input) => new Set(input[declared.field].selected))
-    return BundleBehavior.fromBundle(declared)(slots)<Input, ParentMessage>(
-      {
-        ...(options.container === undefined
-          ? {}
-          : {
-              [options.container]: {
-                requires: { capability: Capability.Container },
-                attributes: ({ h }) => [h.AriaMultiSelectable(args.mode === 'multiple')],
-              },
-            }),
-        [options.item]: {
-          requires: { capability: Capability.Interactive },
-          attributes: ({ input, h, item, send }) => {
-            if (item === undefined) return []
-            const items = itemsOf(input)
-            const id = item.id ?? items.ids[item.index]
-            if (id === undefined) return []
-            const clickable =
-              options.click !== false && args.mode !== 'none' && !items.isDisabled(item.index)
-            return [
-              h.AriaSelected(selectedOf(input).has(id)),
-              ...(clickable ? [h.OnClick(send(Message.Activated({ id })))] : []),
-            ]
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    // `boundSlots` took a binder apart, so this is a slot set `fromBundle` accepts. `Unbound<Slots>`
+    // is a conditional on a generic, which no plain `Slots` is known to satisfy: the cast is the
+    // only way in without a second, unchecked entry on `fromBundle`.
+    const slots = SlotView.boundSlots(given) as SlotView.Unbound<Slots>
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: BehaviorOptions<Input, Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
+      const itemsOf = perInput(options.items)
+      const selectedOf = perInput((input: Input) => new Set(input[declared.field].selected))
+      return BundleBehavior.fromBundle(declared)<Slots>(slots)<Input, ParentMessage>(
+        {
+          ...(options.container === undefined
+            ? {}
+            : {
+                [options.container]: {
+                  requires: { capability: Capability.Container },
+                  attributes: ({ h }) => [h.AriaMultiSelectable(args.mode === 'multiple')],
+                },
+              }),
+          [options.item]: {
+            requires: { capability: Capability.Interactive },
+            attributes: ({ input, h, item, send }) => {
+              if (item === undefined) return []
+              const items = itemsOf(input)
+              const id = item.id ?? items.ids[item.index]
+              if (id === undefined) return []
+              const clickable =
+                options.click !== false && args.mode !== 'none' && !items.isDisabled(item.index)
+              return [
+                h.AriaSelected(selectedOf(input).has(id)),
+                ...(clickable ? [h.OnClick(send(Message.Activated({ id })))] : []),
+              ]
+            },
           },
         },
-      },
-      { name: 'Selection' },
-    )
+        { name: 'Selection' },
+      )
+    }
   }
+  return place
+}

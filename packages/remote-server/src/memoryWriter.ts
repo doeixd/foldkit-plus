@@ -16,6 +16,7 @@ import {
   type AnyEntity,
   type EntityMember,
   type EntityRef,
+  type Invariant,
   type MemoryOperators,
   type Operation,
   type Row,
@@ -94,7 +95,8 @@ const linkIds = (
  * `Invalid` or `Taken`. It holds no ledger, judges no rule that reads another
  * row, and removes, restricts or clears nothing a delete would take with it,
  * so `RemoteServer.write` and `GuardServer.writer` refuse, by name, a write or
- * a rule that needs one of those.
+ * a rule that needs one of those. A write's postcondition (`ensures`) is
+ * judged beside the invariants, and refused the same way.
  *
  * ```ts
  * RemoteServer.memory({
@@ -143,9 +145,22 @@ export const memoryWriter = <P>(
   const stored = (id: string): Option.Option<Readonly<Record<string, unknown>>> =>
     Option.fromUndefinedOr(store.rows(entity.name).find(row => String(row['id']) === id))
 
-  /** The first invariant the change breaks, as the writer refuses it; none when it keeps them. */
-  const broken = (change: { readonly after: Row; readonly before?: Row }, id: string) =>
-    Match.value(Entity.judgeAgainst(invariants, change, operators)).pipe(
+  /**
+   * The first invariant the change breaks, the write's postcondition after the
+   * Entity's, as the writer refuses it; none when it keeps them.
+   */
+  const broken = (
+    change: { readonly after: Row; readonly before?: Row },
+    id: string,
+    ensures: Invariant | undefined,
+  ) =>
+    Match.value(
+      Entity.judgeAgainst(
+        ensures === undefined ? invariants : [...invariants, ensures],
+        change,
+        operators,
+      ),
+    ).pipe(
       Match.tagsExhaustive({
         Valid: () => Effect.succeed(Option.none<RemoteInvalid>()),
         Invalid: ({ failures }) =>
@@ -199,6 +214,7 @@ export const memoryWriter = <P>(
     increments: true,
     assignments: true,
     invariants: true,
+    postconditions: true,
     // One synchronous step reads and writes the row: no other write lands between.
     pins: true,
     operators,
@@ -218,11 +234,21 @@ export const memoryWriter = <P>(
           ? []
           : [`its assignment to "${field.key}" needs ${missing.join(', ')}`]
       }),
+      ...Option.match(write.ensures, {
+        onNone: () => [],
+        onSome: held => {
+          const missing = Expr.unsupported([held.predicate], {
+            operations: [...writeOperations, 'next'],
+            operators,
+          })
+          return missing.length === 0 ? [] : [`its ${held.id} needs ${missing.join(', ')}`]
+        },
+      }),
     ],
     // Every row is the writer's to read; the answer names its id, as a source's read does.
     read: ({ id, fields }) =>
       Effect.succeed(Option.map(stored(id), row => picked(row, ['id', ...fields]))),
-    update: ({ id, values, increments, assignments, links, expect, when }) =>
+    update: ({ id, values, increments, assignments, links, expect, when, ensures }) =>
       Effect.gen(function* () {
         const found = stored(id)
         if (Option.isNone(found)) return Option.none()
@@ -275,10 +301,10 @@ export const memoryWriter = <P>(
           })
         }
         const after = applied.row
-        const breaks = yield* broken({ before, after }, id)
+        const breaks = yield* broken({ before, after }, id, ensures)
         if (Option.isSome(breaks)) {
           if (!retried) return yield* breaks.value
-          const asRow = yield* broken({ after }, id)
+          const asRow = yield* broken({ after }, id, ensures)
           if (Option.isSome(asRow)) return yield* asRow.value
           return answer(row)
         }
@@ -297,10 +323,10 @@ export const memoryWriter = <P>(
         store.write(entity.name, id, next)
         return answer({ ...row, ...next })
       }),
-    insert: ({ id, values, links }) =>
+    insert: ({ id, values, links, ensures }) =>
       Effect.gen(function* () {
         // There is no row yet: the row it would make is its values, judged before it is written.
-        const breaks = yield* broken({ after: { ...values, ...linkIds(links), id } }, id)
+        const breaks = yield* broken({ after: { ...values, ...linkIds(links), id } }, id, ensures)
         if (Option.isSome(breaks)) return yield* breaks.value
         if (Option.isSome(stored(id))) {
           return yield* new RemoteTaken({ message: `${entity.name} ${id} is already taken` })

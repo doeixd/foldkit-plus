@@ -18,7 +18,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // child attribute's Mount composed through its own boundary) and behavior.js
 // 406 (each Behavior's attachment metadata, which describe reads), measured by
 // minifying the two sources before and after. The page then measured 255,014.
-const CEILING = 255_500
+// 2026-11-14, the editor reads each member an invariant reads in a Selection
+// of its own (#560 review): foldkit-crud's index.js grew 685 bytes minified,
+// and the page measured 255,583 against 255,497 from the same tree with the
+// editor before it, in fresh builds of each.
+const CEILING = 256_000
 
 clientBudget({
   name: 'registry',

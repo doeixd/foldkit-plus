@@ -503,6 +503,11 @@
       "types": "./dist/remote-domain.d.mts",
       "import": "./dist/remote-domain.mjs"
     },
+    "./remote-domain/lower": {
+      "foldkit-plus:source": "./src/remote-domain/lower.ts",
+      "types": "./dist/remote-domain/lower.d.mts",
+      "import": "./dist/remote-domain/lower.mjs"
+    },
     "./remote-drizzle": {
       "foldkit-plus:source": "./src/remote-drizzle.ts",
       "types": "./dist/remote-drizzle.d.mts",

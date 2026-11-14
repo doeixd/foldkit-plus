@@ -9,7 +9,7 @@ import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, SlotView } from 'foldkit-mixins'
 import { idSelector } from './roving-tabindex.js'
 import { clearQuery } from '../internal.js'
 
@@ -124,50 +124,61 @@ export interface BehaviorOptions<Input, Slots> {
  * With no match the key still extends the query, so the next one can match;
  * a space with an empty query is left to the host (it activates).
  */
-export const behavior =
-  <Field extends string>(declared: Declared<typeof bundle, Field>) =>
-  <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+export const behavior = <Field extends string>(declared: Declared<typeof bundle, Field>) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
-    const wrap = (char: string): ParentMessage =>
-      declared.wrapper.make(Message.Typed({ char })) as unknown as ParentMessage
-    return Behavior.forSlots(slots)<Input, ParentMessage>(
-      {
-        [options.host]: Behavior.slot({
-          requires: { capability: Capability.Interactive },
-          attributes: ({
-            input,
-            h,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-          }) => {
-            const items = options.items(input)
-            const query = input[declared.field].query
-            const currentId = options.current(input)
-            const current = currentId === null ? -1 : items.indexOf(currentId)
-            return [
-              h.OnKeyDownFocus((key, modifiers) => {
-                if (!isPrintable(key, modifiers)) return Option.none()
-                if (key === ' ' && query === '') return Option.none()
-                // Read on a key, not on every render.
-                const texts = items.ids.map((_, index) => options.text(input, index))
-                const found = match(texts, items.enabled, query + key, current)
-                const target = found === undefined ? currentId : items.ids[found]
-                return Option.some({
-                  // `:not(*)` matches nothing: no match and nothing current
-                  // moves no focus, but the key is still recorded.
-                  focusSelector:
-                    target === null || target === undefined ? ':not(*)' : idSelector(target),
-                  message: wrap(key),
-                })
-              }),
-            ]
-          },
-        }),
-        // Keyed by a value the caller chose; `forSlots` checks the key exists.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
-      { name: 'Typeahead' },
-    )
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    const slots = SlotView.boundSlots(given)
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: BehaviorOptions<Input, Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
+      const wrap = (char: string): ParentMessage =>
+        declared.wrapper.make(Message.Typed({ char })) as unknown as ParentMessage
+      return Behavior.forSlots(slots)<Input, ParentMessage>(
+        {
+          [options.host]: Behavior.slot({
+            requires: { capability: Capability.Interactive },
+            attributes: ({
+              input,
+              h,
+            }: {
+              readonly input: Input
+              readonly h: HtmlBuilder<ParentMessage>
+            }) => {
+              const items = options.items(input)
+              const query = input[declared.field].query
+              const currentId = options.current(input)
+              const current = currentId === null ? -1 : items.indexOf(currentId)
+              return [
+                h.OnKeyDownFocus((key, modifiers) => {
+                  if (!isPrintable(key, modifiers)) return Option.none()
+                  if (key === ' ' && query === '') return Option.none()
+                  // Read on a key, not on every render.
+                  const texts = items.ids.map((_, index) => options.text(input, index))
+                  const found = match(texts, items.enabled, query + key, current)
+                  const target = found === undefined ? currentId : items.ids[found]
+                  return Option.some({
+                    // `:not(*)` matches nothing: no match and nothing current
+                    // moves no focus, but the key is still recorded.
+                    focusSelector:
+                      target === null || target === undefined ? ':not(*)' : idSelector(target),
+                    message: wrap(key),
+                  })
+                }),
+              ]
+            },
+          }),
+          // Keyed by a value the caller chose; `forSlots` checks the key exists.
+        } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        { name: 'Typeahead' },
+      )
+    }
   }
+  return place
+}

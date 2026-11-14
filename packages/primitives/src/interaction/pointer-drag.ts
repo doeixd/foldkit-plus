@@ -5,7 +5,7 @@
  * means, and whether it is allowed, is the parent's `update`.
  */
 import * as Mount from 'foldkit/mount'
-import { Behavior, Capability } from 'foldkit-mixins'
+import { Behavior, Capability, SlotView } from 'foldkit-mixins'
 import { PointerDrag as PointerDragMount, type DragFact } from '../dom/pointer-drag.js'
 
 export {
@@ -38,9 +38,19 @@ export interface BehaviorOptions<Slots, ParentMessage> {
   readonly toMessage: (fact: DragFact) => ParentMessage
 }
 
-export const behavior =
-  <Slots>(slots: Slots) =>
-  <Input, ParentMessage>(
+export function behavior<Slots, Input, ParentMessage>(
+  bound: SlotView.Bound<Slots, Input, ParentMessage>,
+): (
+  options: BehaviorOptions<Slots, ParentMessage>,
+) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function behavior<Slots>(
+  slots: SlotView.Unbound<Slots>,
+): <Input, ParentMessage>(
+  options: BehaviorOptions<Slots, ParentMessage>,
+) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+  const slots = SlotView.boundSlots(given)
+  return <Input, ParentMessage>(
     options: BehaviorOptions<Slots, ParentMessage>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
     Behavior.forSlots(slots)<Input, ParentMessage>(
@@ -61,3 +71,4 @@ export const behavior =
       } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
       { name: 'PointerDrag' },
     )
+}

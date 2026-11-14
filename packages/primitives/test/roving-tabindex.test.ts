@@ -203,14 +203,15 @@ describe('RovingTabindex behavior', () => {
     expect(Option.isNone(keyHandler(input)('ArrowDown', plain))).toBe(true)
   })
 
-  it('escapes an id in the focus selector', () => {
+  it.each([
+    ['a"b', '[id="a\\22 b"]'],
+    ['a\nb', '[id="a\\a b"]'],
+  ])('escapes the id %j in the focus selector', (id, selector) => {
     const odd: ToolbarInput = {
       toolbarFocus: { current: null },
-      tools: [{ id: 'a"b' }, { id: 'c' }],
+      tools: [{ id }, { id: 'c' }],
     }
-    expect(Option.getOrThrow(keyHandler(odd)('ArrowRight', plain)).focusSelector).toBe(
-      '[id="a\\"b"]',
-    )
+    expect(Option.getOrThrow(keyHandler(odd)('ArrowRight', plain)).focusSelector).toBe(selector)
   })
 
   it('under virtual keeps focus on the container and points with aria-activedescendant', () => {

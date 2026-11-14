@@ -724,6 +724,12 @@ invariants: [entity.md](entity.md).
 the server's order) or `Can.Undecided({ reasons })` (row, field, `may` member or input key missing; an
 increment or computed field not worked out). A hint: `Data.mutate` still asks the server.
 Throws for a mutation not declared with `Mutation.write`. Match with `Can.match`.
+`Data.capability(M, toInput)` gives a `foldkit-agent` variant `{ authorize, applies }` from it
+(`Forbidden` refuses in `authorize` with its words, `Unmet` and `Invalid` in `applies`, `Undecided`
+allows), and `Data.available(M, model => Option<partialInput>)` an `available` (false with no row
+named or on `No`). Judged as the Model's viewer, so compose `authorize` with the agent's principal
+check, and `available` (asked at discovery, before `authorize`) shows any caller the viewer's answer;
+plain functions, so Remote needs no agent package.
 
 **Refusals.** `Mutation.make(name, { Input, Output, Refusal })` declares what
 the server may refuse with (`Refusal.field(key, reason)`, `Refusal.conflict`,

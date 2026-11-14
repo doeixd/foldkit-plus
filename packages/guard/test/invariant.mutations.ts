@@ -19,17 +19,27 @@ export default [
   ),
   edit(
     'an invariant over a hidden member is named',
-    '.filter(held => [...held.before, ...held.after].some(key => readRuled(ruled, key)))',
-    '.filter(() => false)',
+    '[...held.before, ...held.after].some(key => readRuled(ruled, key)),',
+    'false,',
   ),
   edit(
     'every invariant is unnamed',
-    '.filter(held => [...held.before, ...held.after].some(key => readRuled(ruled, key)))',
-    '.filter(() => true)',
+    '[...held.before, ...held.after].some(key => readRuled(ruled, key)),',
+    'true,',
   ),
   edit(
     'an update is told as its writer said',
-    '          told,\n        ),',
-    '          error => error,\n        ),',
+    'told(context.ensures),\n        ),',
+    'error => error,\n        ),',
+  ),
+  edit(
+    'a guarded writer hides that its writer judges postconditions',
+    '...(writer.postconditions === true ? { postconditions: true } : {}),',
+    '',
+  ),
+  edit(
+    'a postcondition over a hidden member is named',
+    '(ensures !== undefined && rule === ensures.id && readsRuled(ensures)),',
+    'false,',
   ),
 ]

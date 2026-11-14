@@ -419,6 +419,23 @@ Entity's: the operation decides what is valid, and may be stricter.
   A `Message.Refused` is a mark too, and lands only while the key still holds
   the `value` refused. One reading a field the form does not set is not judged here; the
   server decides it, and the form never calls the input valid on its account.
+  Unless the form is over the row it edits, below.
+- **A form over the row it edits.** An edit form sets a few fields of a row
+  that exists. Give it that row, encoded, with `form.over(model, row)`
+  (`Entity.rowFrom(entity, loaded)`), and its invariants are judged over the
+  row with the form's values laid over it, the row being the one before: a
+  rule over a field the form does not set is decided, and a transition
+  (`before.status`) is judged too. The row is taken once, when the form is
+  filled, and is not followed after; `fill` keeps it and `Reset` drops it, so
+  a form with none judges as above. Load what decides the rules beside the
+  form's keys: `Entity.selectFor(input, { also: Entity.judgedBy(input) })`.
+  A form over a row also judges **on each edit**, as #192 has every key do:
+  a failure shows once the person has edited every key of the form that sets
+  a member the rule reads, a field or a relation it points (`model.reached`),
+  so a rule over two keys waits for
+  the second; a blur judges nothing; a submit shows every failure, edited or
+  not. A rule the row lacks a field for is still the server's.
+  `foldkit-crud`'s editor does all of this.
   The same holds for one calling a primitive operator the form's table does
   not run: give the table as `operators` (`Form.make(name, input, { operators
   })`, `Operators.kernel` by default), and a nested form given none uses it.

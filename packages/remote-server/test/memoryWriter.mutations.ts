@@ -25,8 +25,13 @@ export default [
   edit('a delete ignores its when', 'if (!(yield* holds(row, when))) return yield* unmet(id)', ''),
   edit(
     'no invariant is judged',
-    'Entity.judgeAgainst(invariants, change, operators)',
-    'Entity.judgeAgainst([], change, operators)',
+    'ensures === undefined ? invariants : [...invariants, ensures],',
+    'ensures === undefined ? [] : [ensures],',
+  ),
+  edit(
+    "the write's postcondition is not judged",
+    'ensures === undefined ? invariants : [...invariants, ensures],',
+    'invariants,',
   ),
   edit(
     'the revision does not move',

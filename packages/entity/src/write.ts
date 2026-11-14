@@ -37,7 +37,7 @@ import {
   type Predicate,
   type Reads,
 } from './expr.js'
-import type { BeforeRow } from './invariant.js'
+import type { BeforeRow, Invariant } from './invariant.js'
 import { contextValue, viewerIdOf, type ExprContext, type ViewerPathExpr } from './context.js'
 import { Held, idOfRef } from './held.js'
 import type { MemoryOperators } from './operators.js'
@@ -148,9 +148,16 @@ export interface Write<
   /**
    * The state every row the write can start from is in once it lands
    * (`becomes: Published`): proved where the write is declared, by
-   * enumerating them.
+   * enumerating them, or, where enumeration cannot decide, kept by `ensures`.
    */
   readonly becomes: Option.Option<AnyRefinement>
+  /**
+   * The postcondition a `becomes` enumeration could not decide is held to
+   * where the write commits: an invariant of this write alone, with the id
+   * `becomes:<State>`, judged by each writer beside the Entity's invariants
+   * and refused as `Invalid`. None for a write with no such claim.
+   */
+  readonly ensures: Option.Option<Invariant>
   /** The keys it sets, in the input's order. */
   readonly sets: ReadonlyArray<WriteSet>
   /**
@@ -468,6 +475,7 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
     when,
     from,
     becomes,
+    ensures: Option.none(),
     sets: Object.freeze(sets),
     increments: Object.freeze(increments),
     assignments: Object.freeze(assignments),
@@ -833,39 +841,47 @@ const incrementOf = (
 /**
  * A write declared to leave every row in a state, proved by enumerating the
  * rows it can start from: refused where it is declared when one is left
- * outside it, and, until a writer enforces such a claim where it commits, when
- * enumeration cannot decide.
+ * outside it. Where enumeration cannot decide, the claim is the write's
+ * postcondition (`ensures`), which each writer holds where it commits.
  */
 const becoming = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind extends WriteKind>(
   write: Write<E, Fields, Kind>,
-): Write<E, Fields, Kind> => {
-  Option.map(write.becomes, target => {
-    const named = `${write.input.entity.name}.${target.name}`
-    const undecided = (reason: string): never =>
-      fail(
-        write.input,
-        `becomes ${named}, which enumeration cannot decide (${reason}); it needs a writer that enforces it`,
-      )
-    Steps.$match(steps(write, target.reads), {
-      Undecided: ({ reason }) => undecided(reason),
-      Steps: ({ steps: each }) => {
-        for (const step of each) {
-          Option.match(inState(target, step.after), {
-            onNone: () => undecided(`the row after reads no ${target.reads.join(', ')}`),
-            onSome: holds => {
-              if (!holds)
-                fail(
-                  write.input,
-                  `becomes ${named}, but from ${JSON.stringify(step.before)} given ${JSON.stringify(step.input)} it leaves ${JSON.stringify(step.after)}`,
-                )
-            },
-          })
-        }
-      },
-    })
+): Write<E, Fields, Kind> =>
+  Option.match(write.becomes, {
+    onNone: () => write,
+    onSome: target => {
+      const entity = write.input.entity.name
+      const enforced = (): Write<E, Fields, Kind> =>
+        Object.freeze({
+          ...write,
+          ensures: Option.some(
+            Object.freeze({
+              id: `becomes:${target.name}`,
+              entity,
+              predicate: target.after as Predicate,
+              message: `The ${entity} would not be ${target.name} once written`,
+              path: target.reads,
+              before: Object.freeze([]),
+              after: target.reads,
+            }),
+          ),
+        })
+      return Steps.$match(steps(write, target.reads), {
+        Undecided: enforced,
+        Steps: ({ steps: each }) => {
+          const judged = each.map(step => ({ step, holds: inState(target, step.after) }))
+          const broken = judged.find(({ holds }) => Option.contains(holds, false))
+          if (broken !== undefined)
+            fail(
+              write.input,
+              `becomes ${entity}.${target.name}, but from ${JSON.stringify(broken.step.before)} given ${JSON.stringify(broken.step.input)} it leaves ${JSON.stringify(broken.step.after)}`,
+            )
+          // A row after that lacks what the state reads is one enumeration did not decide.
+          return judged.some(({ holds }) => Option.isNone(holds)) ? enforced() : write
+        },
+      })
+    },
   })
-  return write
-}
 
 /** An update or an insert that would write nothing is refused where it is declared. */
 const settingSomething = <
@@ -911,9 +927,10 @@ export const Write = {
    *
    * `becomes: Published` says every row it can start from is in that state
    * once it lands. It is proved where the write is declared, by enumerating
-   * those rows over finite fields: one it leaves outside throws, naming it, and
-   * so, until a writer enforces such a claim where it commits, does one
-   * enumeration cannot decide.
+   * those rows over finite fields: one it leaves outside throws, naming it.
+   * One enumeration cannot decide (`becomes: InStock` over an increment) is
+   * the write's postcondition, `ensures`: each writer judges it where the
+   * write commits and refuses a row it leaves outside as `Invalid`.
    *
    * `compute` sets a field to what an expression comes to over the row before
    * the write and the input, run where it commits
@@ -932,7 +949,7 @@ export const Write = {
    * What its Entity sets from the write's context (`Entity.sets`: who asks,
    * when) it writes too, never from the input: a server fills them, a client
    * predicts them. An update writes those set `on: 'write'`. `becomes`, as an
-   * update's, is proved over what the insert sets.
+   * update's, is proved over what the insert sets, or else ensured.
    */
   insert: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
@@ -968,6 +985,19 @@ export const Write = {
       field: field.key,
       revision: encoded(field, (value as Readonly<Record<string, unknown>>)[key]),
     })),
+
+  /**
+   * The postcondition a write's `becomes` holds it to where it commits, as
+   * the invariant a refusal names (`Refusal.isInvalidBy(refusal,
+   * Write.ensured(Sell.write))`). Throws for a write with none: one with no
+   * `becomes`, or one whose `becomes` was proved where it was declared.
+   */
+  ensured: (write: AnyWrite): Invariant =>
+    Option.getOrElse(write.ensures, () => {
+      throw new Error(
+        `[foldkit-entity] Write.ensured: this write of ${write.input.entity.name} ensures nothing; only a becomes enumeration cannot decide is held where it commits`,
+      )
+    }),
 
   /** The members any invocation may write: what a query reading none of them cannot be changed by. */
   writes: (write: AnyWrite): ReadonlyArray<AnyField | OneRelation> => [

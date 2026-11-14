@@ -71,8 +71,8 @@ export default [
   ),
   edit(
     'a decoded value is judged unencoded',
-    '          decoded[key],\n        ),',
-    '          decoded[key],\n        ) && decoded[key],',
+    '        value[key],\n      ),',
+    '        value[key],\n      ) && value[key],',
   ),
   edit(
     'a failure is reported nowhere',

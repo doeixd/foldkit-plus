@@ -9,6 +9,7 @@ Product
   Draft -> Published   Publish   holds
   Published -> Draft   Revert    refused by publishedStaysPublished
   Archived -> Draft    Revert    undeclared
+  * -> InStock         Sell      enforced
   Archived                       unreached
 
 Rename    x reservedWithinStock       kept: writes no member it reads
@@ -21,4 +22,5 @@ Restock   x reservedWithinStock       undecided: stock is incremented
 Restock   x publishedStaysPublished   kept: 3 rows enumerated
 Sell      x reservedWithinStock       undecided: stock is incremented
 Sell      x publishedStaysPublished   kept: 3 rows enumerated
+Sell      x becomes:InStock           undecided: stock is incremented
 ```

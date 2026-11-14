@@ -53,4 +53,15 @@ export default [
     'field: key => own(row, key),',
     'field: key => row[key],',
   ),
+  {
+    name: 'a numeric id is taken for no id',
+    edits: [
+      {
+        file: '../src/rows.ts',
+        find: "typeof value === 'string' || typeof value === 'number'",
+        replace: "typeof value === 'string'",
+      },
+    ],
+    tests,
+  },
 ]

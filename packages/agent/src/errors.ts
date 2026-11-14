@@ -26,7 +26,9 @@ export class UnknownCapabilityError extends Schema.TaggedError<UnknownCapability
 
 /**
  * The capability exists, but its `available(model)` predicate is currently
- * false. Availability is discoverability, not authorization.
+ * false, or its `applies` refused this call's input. Availability is
+ * discoverability, not authorization. A refusal of `applies` with a `reason`
+ * is the error's message.
  */
 export class CapabilityUnavailableError extends Schema.TaggedError<CapabilityUnavailableError>()(
   'AgentCapabilityUnavailableError',
@@ -36,11 +38,11 @@ export class CapabilityUnavailableError extends Schema.TaggedError<CapabilityUna
     message: Schema.String,
   },
 ) {
-  static of(capability: string, tag: string): CapabilityUnavailableError {
+  static of(capability: string, tag: string, reason?: string): CapabilityUnavailableError {
     return new CapabilityUnavailableError({
       capability,
       tag,
-      message: `Capability "${capability}" is not available right now`,
+      message: reason ?? `Capability "${capability}" is not available right now`,
     })
   }
 }

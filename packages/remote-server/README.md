@@ -550,6 +550,7 @@ wrongly:
 | --- | --- | --- |
 | `preconditions: true` | checks `when` in the statement | a write with a `when` |
 | `invariants: true` | judges the Entity's invariants | a write of an Entity that has any |
+| `postconditions: true` | judges the write's `ensures` (a `becomes` enumeration could not decide) beside them, handed to `update` and `insert` | a write with one |
 | `increments: true` | adds `increments` in the statement | a write with an increment |
 | `assignments: true` | computes `assignments` in the statement | a write with a computed assignment |
 | `ledger: true` (with `recorded`) | records each update and insert under its `operation`, and answers a retry from the record | an increment or computed assignment with no `expect` |

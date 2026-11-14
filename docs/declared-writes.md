@@ -398,11 +398,50 @@ is excused it. A form has no row before, so it judges none; Crud shows the
 server's refusal beside its path. A `CHECK` sees one row, so `checkConstraints`
 leaves it out, and lists it under `serverOnly`.
 
+### What one write leaves: `becomes`
+
+An invariant is every write's. A claim about one write, that it leaves its row
+in a state (`Entity.refine`), is that write's `becomes`:
+
+```ts
+const CrateFields = Entity.define(
+  'Crate',
+  Schema.Struct({ id: Schema.String, stock: Schema.Int, reserved: Schema.Int }),
+)
+const InStock = Entity.refine(CrateFields, 'InStock', ({ row }) =>
+  Expr.gt(row.stock, row.reserved),
+)
+const SellCrate = Mutation.write(
+  'SellCrate',
+  Write.update(
+    Entity.input(CrateFields, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
+      quantity: Entity.unmapped,
+    }),
+    { id: 'id', increment: { stock: 'quantity' }, becomes: InStock },
+  ),
+)
+const soldOut = Write.ensured(SellCrate.write) // { id: 'becomes:InStock', entity: 'Crate', … }
+```
+
+Where the write is declared, `Write.update` enumerates every row it can start
+from over finite fields: a claim it proves costs nothing at run time, and one it
+disproves throws there, naming a row. A stock moved by an amount cannot be
+enumerated, so this claim is the write's postcondition, `ensures`: an invariant
+of that write alone, with the id `becomes:InStock`. The writer judges it beside
+the Entity's invariants, in the same `WHERE`, and refuses a sale that would
+leave nothing unreserved as `Invalid`, naming `becomes:InStock`; like an
+invariant, it speaks after a stale revision and an unmet precondition.
+`Refusal.isInvalidBy(refusal, soldOut)` tells it apart. A writer that cannot judge one is refused where the write is served,
+by name (`postconditions`): the Drizzle writer, the memory writer and a guarded
+writer over either judge them. `Laws.check` reports such an arrow `enforced`.
+
 All three kinds must hold for a write to land:
 
 ```text
 authorization (Forbidden) AND precondition (Unmet) AND invariants (Invalid)
 ```
+
+A write's postcondition is judged with the invariants.
 
 ### Retries: three different guarantees
 
@@ -587,8 +626,9 @@ each incremented field, the revision), and `Write.writes(write)` what it may
 change.
 
 Two refusals are made at once, before anything is sent, because the store can
-already tell: an invariant definitely broken by the row the write would leave
-(`Invalid`, above), and a write a held `may` says no to (`Forbidden`, with the
+already tell: an invariant, or the write's postcondition, definitely broken by
+the row the write would leave (`Invalid`, above; a field the write moves is not
+held, so a sale like `SellCrate` is the server's to refuse), and a write a held `may` says no to (`Forbidden`, with the
 rule's `explain` as `reason`; see [Guard's "What the client may
 do"](../packages/guard/README.md#what-the-client-may-do)). Each spares a round
 trip and decides nothing for the server, which judges every write that reaches

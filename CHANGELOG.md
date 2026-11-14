@@ -9,6 +9,42 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-agent`, `foldkit-remote`: an agent capability over a declared write
+  (#533). A variant's `applies({ model, input, principal })` judges a call
+  against what the Model holds, after `authorize` and over the invocation's one
+  Model snapshot, and never for a call `authorize` refused; its refusal is
+  `AgentCapabilityUnavailableError` with the reason as the message, and
+  descriptors report `inputDependent`. `Data.capability(mutation, toInput)`
+  gives `{ authorize, applies }` from `Data.can` (a forbidding `may` refuses in
+  `authorize`, an unmet `when` or broken invariant in `applies`, `Undecided`
+  allows), and `Data.available(mutation, inputOf)` a discovery predicate.
+
+- `foldkit-entity`, `foldkit-form`, `foldkit-crud`: a form judges an Entity's
+  invariants over the row it edits (#542, #543). `form.over(model, row)` keeps
+  the encoded row (`model.over`, stored as null when none, so an older Model
+  decodes), and invariants are judged over it with the form's values laid
+  over it, transitions included, on each edit once every key setting a member
+  the rule reads, a field or a relation, has been edited (`model.reached`), and
+  on submit.
+  `Entity.rowFrom(entity, value)` gives the row from a read value, and
+  `Entity.judgedBy(input)` names what to load beside the input; `Crud.editor`
+  loads it and sets its form over the loaded row, so a quote form setting only
+  the discount loads `approvedBy` and refuses a discount over 15% as it is typed.
+  It reads each such member in a Selection of its own: one a Read rule
+  withholds from the reader is left out of the row, its invariant undecided,
+  and the form still fills.
+
+- `foldkit-mixins`: `Behaviors.Keys` gives a slot's `keydown` one owner built
+  from named routes (`chord`, `printable`, `where`, `route`, `first`,
+  `behavior`, `focus`, `answer`). Two routes declaring one press are refused
+  when the Behavior is defined (`mixins:key-conflict`, naming the slot and
+  both) unless `Keys.first` orders them; a key no press reports is refused
+  where it is written (`mixins:unknown-key`) (#554).
+- `foldkit-primitives`, `foldkit-mixins`: every Behavior factory (`ListNavigation`,
+  `Selection`, `TreeNavigation`, `FocusScope`, `Behaviors.Disclosure`, and the
+  rest) takes a `SlotView.over` binder where it takes the slots, so its options
+  are typed from the binder's input and Message with nothing annotated. The call
+  with bare slots is unchanged. (#551)
 - `foldkit-mixins`: `SlotView.over(slots)<Input, Message>()` names the slots, the
   input and the Message universe once and returns `define`, `behavior` and
   `parts` with them fixed; `SlotView.isBound` tells it from bare slots.
@@ -36,12 +72,27 @@ version changed; `pnpm` skips versions already in the registry.
   `Query.from(state)` queries it, and `Expr.show` prints it by name. A write takes
   `from: state`, joined to its `when`, and `becomes: state`, proved where the
   write is declared by enumerating the rows it can start from (one that cannot
-  be decided throws until writers enforce it); a state reaching another row is
-  neither. `Laws.check({ writes })` judges each write, or a `{ name, entity,
+  be decided is the write's postcondition, held where it commits); a state
+  reaching another row is neither. `Laws.check({ writes })` judges each write, or a `{ name, entity,
   footprint }` entry (`Footprint.declared`, `Footprint.unknown`), against each
   invariant of its Entity by enumeration over finite fields, and reports the
   arrows between states; `Laws.show` prints it, `Write.footprint` is a
   write's own. `Write` gains `from` and `becomes`.
+- `foldkit-entity`, `foldkit-remote-server`, `foldkit-remote-drizzle`,
+  `foldkit-guard`, `foldkit-remote`: a `becomes` is enforced where the write
+  commits (#535). One the enumerator cannot decide is the write's `ensures`, an
+  invariant of that write alone with the id `becomes:<State>`;
+  `Write.ensured(write)` names it for `Refusal.isInvalidBy`. Writers declare
+  `postconditions` and are handed `ensures` on `update` and `insert`; the
+  Drizzle writer (SQLite, Postgres, D1) compiles it into the statement beside
+  the invariants, the memory writer and `GuardServer.writer` judge or forward
+  it, and each refuses as `Invalid`. `RemoteServer.write` refuses a write with
+  one over a writer without `postconditions`. The client judges it before
+  sending where it holds what it reads, and `Laws.check` reports the arrow
+  `enforced`. `Law.check` reports a server `Invalid` the client could not judge
+  (the row's invariants undecided) as `unknown` rather than a disagreement;
+  one over a row the client judged Valid stays a disagreement, though
+  `Data.can` was undecided for another reason, such as a `may` it does not hold.
 - `foldkit-sync`: a document's laws. `forApplication(...).make({ laws })` takes
   `{ holds({ before, after }), message, path? }` per id, typed over the shared
   fields alone; the journal judges each operation's resulting snapshot and
@@ -70,6 +121,19 @@ version changed; `pnpm` skips versions already in the registry.
   of that revision or an earlier one is not let back in. `DomainReads` lists
   the pending reads of who asks now and confirms one. The adapter keeps the
   rows and floors of the last four principals to ask.
+- `foldkit-remote-domain/lower`: `Lower.write` lowers a declared update into
+  one Domain aggregate (#545). It derives the command, a Rejection per
+  member of the mutation's `Refusal` plus `Forbidden`, `NotFound` and
+  `Reused`, the aggregate's state (its row and the operations it decided),
+  `decide`, `evolve`, the reply and the by-id View's state and `evolve`, and
+  the adapter's two bindings (`binding(api)`, `reads(api, view)`); the author
+  gives the events, `record` and `apply`, the revision, who asks and the
+  middleware that provides it. `decide` restates no rule: it lands the write
+  through `RemoteServer.write` over `GuardServer.writer` over
+  `RemoteServer.memoryWriter`. To who may write the row, an operation sent
+  again with another request is `Reused`. `Lower.check` lists, as data, each
+  rule, precondition, invariant or context value that reads another row and
+  each member the row does not hold; `Lower.write` refuses such a write.
 - `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over
   a list of named starts and checks a law after every step (it may be
   asynchronous, so a walk can go through a writer); `Walk.cases` requires a
@@ -139,6 +203,9 @@ version changed; `pnpm` skips versions already in the registry.
   `refused` ("The column's series gave no text here"), not padded.
 
 ### Changed
+
+- `Entity.judgeInput(input, value, { operators?, over? })` takes an options
+  object in place of the positional operator table (#542).
 
 - The workspace's Effect is `4.1.4` (was `4.1.1`), and `foldkit-plus setup`
   pins it and `@effect/*` at that release. Published packages still peer on

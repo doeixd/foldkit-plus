@@ -5,6 +5,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Effect, Match, Option, Optic, Schema } from 'effect'
+import { Write } from 'foldkit-entity'
 import { databaseLayer } from 'foldkit-remote-drizzle'
 import { Can, Refusal, Remote } from 'foldkit-remote'
 import { ModelRef } from 'foldkit-surface'
@@ -22,7 +23,8 @@ import {
 } from './domain.js'
 import { schema, server } from './server.js'
 
-const invariants = [reservedWithinStock, publishedStaysPublished]
+// What a refusal may name: the Entity's invariants, and the sale's own `becomes`.
+const invariants = [reservedWithinStock, publishedStaysPublished, Write.ensured(Sell.write)]
 
 /** What a client holds of the products, to ask `Data.can` before sending anything. */
 const ClientModel = Schema.Struct({ remote: Remote.Model })
@@ -148,6 +150,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     `sell 3, from the same read: ${await send(ada, Sell, { id: 'p1', quantity: -3 }, 'sale-2')}`,
     `the first sale again, its answer lost: ${await send(ada, Sell, { id: 'p1', quantity: -2 }, 'sale-1')}`,
     `sell 9 of the 10, 2 of them reserved: ${await send(ada, Sell, { id: 'p1', quantity: -9 }, 'sale-3')}`,
+    `sell 8 of the 10, leaving only the 2 reserved: ${await send(ada, Sell, { id: 'p1', quantity: -8 }, 'sale-4')}`,
     `row: ${JSON.stringify(sqlite.prepare("select name, status, stock, reserved, revision from products where id = 'p1'").get())}`,
   ]
 }

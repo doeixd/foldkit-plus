@@ -20,6 +20,7 @@ import * as Mount from 'foldkit/mount'
 import type { Bundle, Declared } from 'foldkit-bundle'
 import {
   Behavior,
+  SlotView,
   type BehaviorSlotOptions,
   type NamedBehavior,
   type SlotAttributes,
@@ -63,43 +64,62 @@ export type BundleBehaviorSpec<D extends Declared<any, any>, Input, ParentMessag
  * field, so attributes read the placed slice; the parent's `Message` includes
  * the declared wrapper cases, so nothing can be sent outside it.
  */
-export const fromBundle =
-  <D extends Declared<any, any>>(declared: D) =>
-  <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in D['field']]: BundleModelOf<D> }, ParentMessage>(
+export const fromBundle = <D extends Declared<any, any>>(declared: D) => {
+  function place<
+    Slots,
+    Input extends { readonly [K in D['field']]: BundleModelOf<D> },
+    ParentMessage,
+  >(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): (
     spec: BundleBehaviorSpec<D, Input, ParentMessage>,
     options?: { readonly name?: string },
-  ): NamedBehavior<Slots, Input, ParentMessage> => {
-    const send = (message: BundleMessageOf<D>): ParentMessage =>
-      declared.wrapper.make(message) as unknown as ParentMessage
-    const built: Record<string, BehaviorSlotOptions<Input, ParentMessage>> = Object.create(null)
-    for (const [name, slot] of Object.entries(
-      spec as Record<string, BundleSlotOptions<D, Input, ParentMessage> | undefined>,
-    )) {
-      if (slot === undefined) continue
-      const { requires, attributes, events } = slot
-      if (requires === undefined && attributes === undefined && events === undefined) continue
-      built[name] = {
-        ...(requires === undefined ? {} : { requires }),
-        ...(attributes === undefined
-          ? {}
-          : {
-              attributes: context =>
-                attributes({
-                  input: context.input as Input,
-                  h: context.h,
-                  ...(context.item === undefined ? {} : { item: context.item }),
-                  send,
-                }),
-            }),
-        ...(events === undefined ? {} : { mount: () => Mount.mapMessage(events, send) }),
+  ) => NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in D['field']]: BundleModelOf<D> }, ParentMessage>(
+    spec: BundleBehaviorSpec<D, Input, ParentMessage>,
+    options?: { readonly name?: string },
+  ) => NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    const slots = SlotView.boundSlots(given)
+    return <Input extends { readonly [K in D['field']]: BundleModelOf<D> }, ParentMessage>(
+      spec: BundleBehaviorSpec<D, Input, ParentMessage>,
+      options?: { readonly name?: string },
+    ): NamedBehavior<Slots, Input, ParentMessage> => {
+      const send = (message: BundleMessageOf<D>): ParentMessage =>
+        declared.wrapper.make(message) as unknown as ParentMessage
+      const built: Record<string, BehaviorSlotOptions<Input, ParentMessage>> = Object.create(null)
+      for (const [name, slot] of Object.entries(
+        spec as Record<string, BundleSlotOptions<D, Input, ParentMessage> | undefined>,
+      )) {
+        if (slot === undefined) continue
+        const { requires, attributes, events } = slot
+        if (requires === undefined && attributes === undefined && events === undefined) continue
+        built[name] = {
+          ...(requires === undefined ? {} : { requires }),
+          ...(attributes === undefined
+            ? {}
+            : {
+                attributes: context =>
+                  attributes({
+                    input: context.input as Input,
+                    h: context.h,
+                    ...(context.item === undefined ? {} : { item: context.item }),
+                    send,
+                  }),
+              }),
+          ...(events === undefined ? {} : { mount: () => Mount.mapMessage(events, send) }),
+        }
       }
+      return Behavior.forSlots(slots)<Input, ParentMessage>(
+        // Built slot by slot from the same contract `forSlots` validates.
+        built as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        options,
+      )
     }
-    return Behavior.forSlots(slots)<Input, ParentMessage>(
-      // Built slot by slot from the same contract `forSlots` validates.
-      built as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
-      options,
-    )
   }
+  return place
+}
 
 export const BundleBehavior = { fromBundle } as const

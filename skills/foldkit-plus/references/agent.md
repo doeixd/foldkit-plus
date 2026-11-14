@@ -31,7 +31,7 @@ Agent.forApplication(App)[.withPrincipal<P>()]   builder: infers Model (and fixe
   -> adapter (WebMCP / MCP / A2A / Agent Native)  translation only
 ```
 
-Each call runs the same pipeline: **resolve** the capability (by constructor or name), check **`available(model)`**, **decode** the input, check **`authorize`**, **construct and dispatch** the Message, then **await completion** if one is declared. A refusal before dispatch sends no Message. Steps 2 to 5 read **one Model snapshot**, taken once per invocation.
+Each call runs the same pipeline: **resolve** the capability (by constructor or name), check **`available(model)`**, **decode** the input, check **`authorize`**, check **`applies`**, **construct and dispatch** the Message, then **await completion** if one is declared. A refusal before dispatch sends no Message. Steps 2 to 6 read **one Model snapshot**, taken once per invocation.
 
 Host fields: `model()` returns an immutable current Model. `dispatch(message)` may return void, a Promise, or an Effect. `subscribe` is needed for `Agent.when({ projection })` and for tools that follow the Model. `observe` sees every applied Message and is needed for Message completion. `principal(invocation)` is required when any hook reads a principal. Never write one by hand over a copy of the Model: `Agent.host(config)` returns `{ config, host }`, the config to start with `run`/`hydrate`/`embed`/`SSR.hydrate` and a host over the runtime started from it; `Agent.headless({ init, update, subscriptions?, resources? })` returns `{ host, dispose }`; `Sync.mount` returns a host too. Their `dispatch` resolves once `update` applied the Message and rejects when the runtime is not running or stops first; `model()` throws until it runs. One config hosts one runtime: a second
 started from it beside the first crashes alone, and hosting a hosted config
@@ -130,7 +130,7 @@ const ownedRuntime = OwnedAgent.bind({
 - `input` without `toMessage` is a type error and a runtime error.
 - Input is typed as the schema's **encoded** side. For example, `NumberFromString` is sent as a string and reaches `update` as a number.
 - A tag with an acronym normalizes badly (every capital starts a word), so give it an explicit `name`.
-- A `foldkit-surface` Action (`Action.define`) is exposed with `Agent.action(action, { available?, authorize? })` under the tag of the Message it makes (another tag is a type error).
+- A `foldkit-surface` Action (`Action.define`) is exposed with `Agent.action(action, { available?, authorize?, applies? })` under the tag of the Message it makes (another tag is a type error).
 - `MessageSet.make(App, [...])` with `Agent.exposeSubset(subset, variants)` exposes a subset. `Agent.forModel<Model, Principal>()` covers the case where there is no `Surface.application`.
 
 ### Completion: resolve on the fact, not on receipt
@@ -273,7 +273,7 @@ const card = AgentA2a.agentCard(AppAgent, { name: 'Todos', description: 'A todo 
 // serve `card` at AgentA2a.AGENT_CARD_PATH ('/.well-known/agent-card.json')
 const served = AgentA2a.handler({ agent: agentRuntime }) // served.handle(jsonRpc): message/send, tasks/get, tasks/cancel
 ```
-- The card is static. Capabilities are tagged `conditional` (they have `available`) or `authorized`, and both are re-checked at call time.
+- The card is static. Capabilities are tagged `conditional` (they have `available` or `applies`) or `authorized`, and both are re-checked at call time.
 - A request refused before dispatch gives `rejected`. An accepted call whose failure Message arrives or that times out gives `failed`. `AgentCancelledError` gives `canceled`, and an unexpected defect gives `failed`.
 - Streaming, push notifications, multi-turn flows, and file parts are not supported.
 
@@ -304,6 +304,8 @@ registerPackageActions(AgentNative.actions({
 - **Agent authorization improves the interface. The server still owns trust.** Apply the same predicate at the authoritative boundary too, for example the Sync/Durable journal: `examples/todo-app` uses `isOwner` in both places.
 - `authorize` answers `true`, `false`, `{ allowed: false, reason }` (the reason becomes the `AgentAuthorizationError` message), or an `Effect` of one.
 - `available` runs **before** `authorize`. An unavailable capability is hidden and refused by name (`AgentCapabilityUnavailableError`), so an authorization result for something that does not exist cannot leak. Knowing a tool name does not bypass the check.
+- `applies({ model, input, principal })` judges a call against what the Model holds (the row its input names) and runs **after** `authorize`, never for a call it refused, so a caller who may not act learns nothing of the row. It answers `true`, `false` or `{ applies: false, reason }`; a refusal is `AgentCapabilityUnavailableError` with the reason as its message. Descriptors report it as `inputDependent`.
+- Over a declared write, `foldkit-remote` gives both checks: `const complete = Data.capability(Write, ({ input }: { input: { readonly id: string } }) => ({ id: input.id, status: 'done' }))` gives `authorize` (a held `may` that forbids) and `applies` (an unmet `when`, a broken invariant); `Undecided` allows. Both judge as the Model's viewer, so as the only `authorize` they delegate the viewer's whole write rights to the agent: spread it, then write `authorize: request => request.principal.canWrite ? complete.authorize(request) : false` after the spread, which replaces it. Annotate the request: a spread gives `toInput` no type. `Data.available(Write, model => Option<input>)` is an `available` for a row the Model names; it runs at discovery, before `authorize`, so its answer tells any caller whether the viewer's write would be refused. See [remote.md](remote.md).
 - Decoding rejects undeclared fields, matching `additionalProperties: false`. A capability with no payload accepts only `{}`.
 - Error messages are written for the calling agent and never repeat decode details, which stay on `cause`. Adapters flatten host defects into a generic failure.
 - Expose **intents** such as `RequestedTodo`, not facts such as `SubmittedTodo`. Otherwise the agent mints ids and timestamps. Then complete on the fact.

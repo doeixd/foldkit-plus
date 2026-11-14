@@ -87,6 +87,11 @@ export type Finding = Data.TaggedEnum<{
   Holds: Arrow
   /** A write with no such `becomes` makes the arrow. */
   Undeclared: Arrow
+  /**
+   * The write's `becomes` enumeration could not decide, kept where it commits
+   * by its postcondition: every row it lands is in `to`, from whatever state.
+   */
+  Enforced: { readonly entity: string; readonly write: string; readonly to: string }
   /** Every row the arrow leaves breaks `invariant`, which refuses the write there. */
   Refused: Arrow & { readonly invariant: string }
   /** No write leaves a row in the state. */
@@ -304,7 +309,9 @@ const check = <const W extends ReadonlyArray<LawEntry>>(options: {
     const entity = entityOf(entry)
     if (!entities.some(known => known.identity === entity.identity)) entities.push(entity)
     const footprint = footprintOf(entry)
-    for (const held of invariantsOf(entity)) {
+    // A write's own postcondition is judged as an invariant of that write alone.
+    const ensured = isWriteEntry(entry) ? Option.toArray(entry.write.ensures) : []
+    for (const held of [...invariantsOf(entity), ...ensured]) {
       pairs.push({
         write: entry.name,
         entity: entity.name,
@@ -346,6 +353,12 @@ const check = <const W extends ReadonlyArray<LawEntry>>(options: {
       const made = arrowsOf(entry.name, entry.write, local, invariants, operators)
       arrows.push(...made.arrows)
       findings.push(...made.findings)
+      const { becomes, ensures } = entry.write
+      if (Option.isSome(ensures) && Option.isSome(becomes)) {
+        const to = becomes.value.name
+        findings.push(Finding.Enforced({ entity: entity.name, write: entry.name, to }))
+        reached.add(to)
+      }
       made.reached.forEach(state => reached.add(state))
       made.left.forEach(state => left.add(state))
       made.undecided.forEach(state => undecided.add(state))
@@ -393,6 +406,7 @@ const shownFinding = (finding: Finding): readonly [string, string, string] =>
   Finding.$match(finding, {
     Holds: ({ from, to, write }) => [`${from} -> ${to}`, write, 'holds'] as const,
     Undeclared: ({ from, to, write }) => [`${from} -> ${to}`, write, 'undeclared'] as const,
+    Enforced: ({ to, write }) => [`* -> ${to}`, write, 'enforced'] as const,
     Refused: ({ from, to, write, invariant }) =>
       [`${from} -> ${to}`, write, `refused by ${invariant}`] as const,
     Unreached: ({ state }) => [state, '', 'unreached'] as const,

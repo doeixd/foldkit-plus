@@ -27,4 +27,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'an invalid row the page could not judge read as a disagreement',
+    edits: [
+      {
+        file: '../../../packages/remote/src/law.ts',
+        find: "{ onNone: () => true, onSome: judged => judged._tag === 'Undecided' },",
+        replace: '{ onNone: () => false, onSome: () => false },',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the sale declares no becomes',
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: "{ id: 'id', increment: { stock: 'quantity' }, becomes: InStock },",
+        replace: "{ id: 'id', increment: { stock: 'quantity' } },",
+      },
+    ],
+    tests,
+  },
 ]

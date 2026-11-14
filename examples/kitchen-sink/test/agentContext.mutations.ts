@@ -13,8 +13,8 @@ const edit = (name: string, find: string, replace: string) => ({
 export default [
   edit(
     'a Message outside the Surface moves a note',
-    '    Ping: () => model,',
-    "    Ping: () => modifyFields(model, { notes: () => [...model.notes, { id: 'p', body: 'p' }] }),",
+    '    Ping: () => ({ model }),',
+    "    Ping: () => ({ model: modifyFields(model, { notes: () => [...model.notes, { id: 'p', body: 'p' }] }) }),",
   ),
   edit(
     'a create reads the project the board shows',

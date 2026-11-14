@@ -11,7 +11,7 @@ import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability, type SlotItem } from 'foldkit-mixins'
+import { Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
 import * as RovingTabindex from './roving-tabindex.js'
 import * as Typeahead from './typeahead.js'
 import { clearQuery, perInput } from '../internal.js'
@@ -134,147 +134,168 @@ export const keyOutcome = (
  * `OnFocus` as under `RovingTabindex`. Under `virtual` nothing takes DOM focus
  * and the container carries `aria-activedescendant`.
  */
-export const behavior =
-  <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
-  <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+export const behavior = <Field extends string>(
+  declared: Declared<typeof bundle, Field>,
+  args: Args,
+) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): (
     options: BehaviorOptions<Input, Slots, ParentMessage>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
-    const wrap = (message: Message): ParentMessage =>
-      declared.wrapper.make(message) as unknown as ParentMessage
-    const focused = (id: string): ParentMessage => wrap(Message.Focused({ id }))
-    const slice = (input: Input): Model => input[declared.field]
-    const itemsOf = perInput(options.items)
-    const outcomeMessage = (outcome: KeyOutcome): ParentMessage =>
-      wrap(
-        Match.valueTags(outcome, {
-          Navigate: ({ id }): Message => Message.Focused({ id }),
-          Type: ({ char, match }): Message => Message.Typed({ char, match }),
-        }),
-      )
-    return Behavior.forSlots(slots)<Input, ParentMessage>(
-      {
-        [options.container]: Behavior.slot({
-          requires: { capability: Capability.Interactive },
-          attributes: ({
-            input,
-            h,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-          }) => {
-            const items = itemsOf(input)
-            const state = slice(input)
-            const moveOptions: RovingTabindex.MoveOptions = {
-              orientation: args.orientation,
-              loop: args.loop,
-              direction: options.direction?.(input) ?? 'ltr',
-              page: args.page,
-            }
-            const typeahead = options.typeahead !== false
-            // Commit is already a parent message. A key outcome still has to
-            // become one, and the focus path needs the id it should move to.
-            type Decision =
-              | { readonly _tag: 'Commit'; readonly id: string; readonly message: ParentMessage }
-              | { readonly _tag: 'Key'; readonly outcome: KeyOutcome }
-            const decide = (key: string, modifiers: KeyboardModifiers): Option.Option<Decision> => {
-              const current = state.current
-              if (
-                key === 'Enter' &&
-                options.commit !== undefined &&
-                !modifiers.shiftKey &&
-                !modifiers.ctrlKey &&
-                !modifiers.altKey &&
-                !modifiers.metaKey &&
-                current !== null
-              ) {
-                const currentIndex = items.indexOf(current)
-                if (currentIndex !== -1 && !items.isDisabled(currentIndex)) {
-                  return Option.some({
-                    _tag: 'Commit',
-                    id: current,
-                    message: options.commit(input, current),
-                  })
-                }
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: BehaviorOptions<Input, Slots, ParentMessage>,
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    const slots = SlotView.boundSlots(given)
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: BehaviorOptions<Input, Slots, ParentMessage>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
+      const wrap = (message: Message): ParentMessage =>
+        declared.wrapper.make(message) as unknown as ParentMessage
+      const focused = (id: string): ParentMessage => wrap(Message.Focused({ id }))
+      const slice = (input: Input): Model => input[declared.field]
+      const itemsOf = perInput(options.items)
+      const outcomeMessage = (outcome: KeyOutcome): ParentMessage =>
+        wrap(
+          Match.valueTags(outcome, {
+            Navigate: ({ id }): Message => Message.Focused({ id }),
+            Type: ({ char, match }): Message => Message.Typed({ char, match }),
+          }),
+        )
+      return Behavior.forSlots(slots)<Input, ParentMessage>(
+        {
+          [options.container]: Behavior.slot({
+            requires: { capability: Capability.Interactive },
+            attributes: ({
+              input,
+              h,
+            }: {
+              readonly input: Input
+              readonly h: HtmlBuilder<ParentMessage>
+            }) => {
+              const items = itemsOf(input)
+              const state = slice(input)
+              const moveOptions: RovingTabindex.MoveOptions = {
+                orientation: args.orientation,
+                loop: args.loop,
+                direction: options.direction?.(input) ?? 'ltr',
+                page: args.page,
               }
-              const result = keyOutcome(
-                items,
-                // Read on a key, not on every render.
-                items.ids.map((_, index) => options.text(input, index)),
-                state,
-                key,
-                modifiers,
-                moveOptions,
-              )
-              // A text field owns printable keys. Arrows still move the pointer.
-              if (!typeahead && result !== undefined && result._tag === 'Type') return Option.none()
-              if (result === undefined) return Option.none()
-              return Option.some({ _tag: 'Key', outcome: result })
-            }
-            const messageOf = (decision: Decision): ParentMessage => {
-              if (decision._tag === 'Commit') return decision.message
-              const { outcome } = decision
-              return outcomeMessage(outcome)
-            }
-            const stop = RovingTabindex.tabStop(items, state.current)
-            const stopId = stop === -1 ? undefined : items.ids[stop]
-            if (args.virtual) {
+              const typeahead = options.typeahead !== false
+              // Commit is already a parent message. A key outcome still has to
+              // become one, and the focus path needs the id it should move to.
+              type Decision =
+                | { readonly _tag: 'Commit'; readonly id: string; readonly message: ParentMessage }
+                | { readonly _tag: 'Key'; readonly outcome: KeyOutcome }
+              const decide = (
+                key: string,
+                modifiers: KeyboardModifiers,
+              ): Option.Option<Decision> => {
+                const current = state.current
+                if (
+                  key === 'Enter' &&
+                  options.commit !== undefined &&
+                  !modifiers.shiftKey &&
+                  !modifiers.ctrlKey &&
+                  !modifiers.altKey &&
+                  !modifiers.metaKey &&
+                  current !== null
+                ) {
+                  const currentIndex = items.indexOf(current)
+                  if (currentIndex !== -1 && !items.isDisabled(currentIndex)) {
+                    return Option.some({
+                      _tag: 'Commit',
+                      id: current,
+                      message: options.commit(input, current),
+                    })
+                  }
+                }
+                const result = keyOutcome(
+                  items,
+                  // Read on a key, not on every render.
+                  items.ids.map((_, index) => options.text(input, index)),
+                  state,
+                  key,
+                  modifiers,
+                  moveOptions,
+                )
+                // A text field owns printable keys. Arrows still move the pointer.
+                if (!typeahead && result !== undefined && result._tag === 'Type')
+                  return Option.none()
+                if (result === undefined) return Option.none()
+                return Option.some({ _tag: 'Key', outcome: result })
+              }
+              const messageOf = (decision: Decision): ParentMessage => {
+                if (decision._tag === 'Commit') return decision.message
+                const { outcome } = decision
+                return outcomeMessage(outcome)
+              }
+              const stop = RovingTabindex.tabStop(items, state.current)
+              const stopId = stop === -1 ? undefined : items.ids[stop]
+              if (args.virtual) {
+                return [
+                  h.OnKeyDownPreventDefault((key, modifiers) =>
+                    Option.map(decide(key, modifiers), messageOf),
+                  ),
+                  ...(stopId === undefined ? [] : [h.AriaActiveDescendant(stopId)]),
+                ]
+              }
               return [
-                h.OnKeyDownPreventDefault((key, modifiers) =>
-                  Option.map(decide(key, modifiers), messageOf),
-                ),
-                ...(stopId === undefined ? [] : [h.AriaActiveDescendant(stopId)]),
-              ]
-            }
-            return [
-              h.OnKeyDownFocus((key, modifiers) =>
-                Option.map(decide(key, modifiers), decision => {
-                  if (decision._tag === 'Commit') {
-                    return {
-                      focusSelector: RovingTabindex.idSelector(decision.id),
-                      message: decision.message,
+                h.OnKeyDownFocus((key, modifiers) =>
+                  Option.map(decide(key, modifiers), decision => {
+                    if (decision._tag === 'Commit') {
+                      return {
+                        focusSelector: RovingTabindex.idSelector(decision.id),
+                        message: decision.message,
+                      }
                     }
-                  }
-                  const result = decision.outcome
-                  const target = Match.valueTags(result, {
-                    Navigate: ({ id }) => id,
-                    Type: ({ match }) => match ?? state.current,
-                  })
-                  return {
-                    // `:not(*)` matches nothing: a typed key with no match and
-                    // nothing current moves no focus but is still recorded.
-                    focusSelector: target === null ? ':not(*)' : RovingTabindex.idSelector(target),
-                    message: outcomeMessage(result),
-                  }
-                }),
-              ),
-            ]
-          },
-        }),
-        [options.item]: Behavior.slot({
-          requires: { capability: Capability.Focusable },
-          attributes: ({
-            input,
-            h,
-            item,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-            readonly item?: SlotItem
-          }) =>
-            item === undefined
-              ? []
-              : RovingTabindex.itemAttributes(
-                  h,
-                  itemsOf(input),
-                  slice(input).current,
-                  item,
-                  args.virtual,
-                  focused,
+                    const result = decision.outcome
+                    const target = Match.valueTags(result, {
+                      Navigate: ({ id }) => id,
+                      Type: ({ match }) => match ?? state.current,
+                    })
+                    return {
+                      // `:not(*)` matches nothing: a typed key with no match and
+                      // nothing current moves no focus but is still recorded.
+                      focusSelector:
+                        target === null ? ':not(*)' : RovingTabindex.idSelector(target),
+                      message: outcomeMessage(result),
+                    }
+                  }),
                 ),
-        }),
-        // Keyed by values the caller chose; `forSlots` checks both keys exist.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
-      { name: 'ListNavigation' },
-    )
+              ]
+            },
+          }),
+          [options.item]: Behavior.slot({
+            requires: { capability: Capability.Focusable },
+            attributes: ({
+              input,
+              h,
+              item,
+            }: {
+              readonly input: Input
+              readonly h: HtmlBuilder<ParentMessage>
+              readonly item?: SlotItem
+            }) =>
+              item === undefined
+                ? []
+                : RovingTabindex.itemAttributes(
+                    h,
+                    itemsOf(input),
+                    slice(input).current,
+                    item,
+                    args.virtual,
+                    focused,
+                  ),
+          }),
+          // Keyed by values the caller chose; `forSlots` checks both keys exist.
+        } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        { name: 'ListNavigation' },
+      )
+    }
   }
+  return place
+}

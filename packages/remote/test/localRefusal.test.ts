@@ -27,6 +27,15 @@ const SetCount = Mutation.write(
     id: 'id',
   }),
 )
+/** Room left under the cap: over numbers, so a write into it is held where it commits. */
+const Spare = Entity.refine(Item, 'Spare', ({ row }) => Expr.gt(row.cap, row.count))
+const Fill = Mutation.write(
+  'Fill',
+  Write.update(Entity.input(Item, Schema.Struct({ id: Schema.String, count: Schema.Number })), {
+    id: 'id',
+    becomes: Spare,
+  }),
+)
 const AddItem = Mutation.write(
   'AddItem',
   Write.insert(
@@ -44,7 +53,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Item],
-  mutations: [SetCount, AddItem],
+  mutations: [SetCount, AddItem, Fill],
 })
 
 /** i1 held with a cap of 5; i2 held without its cap. */
@@ -118,6 +127,22 @@ describe('a write the client can tell breaks an invariant', () => {
     const answer = await run(Data.mutate(held, AddItem, { id: 'i3', count: 7, cap: 2 }), client)
     expect(sent).toEqual([])
     expect(answer._tag).toBe('MutationFailed')
+  })
+})
+
+describe("a write the client can tell leaves its row outside the write's becomes", () => {
+  it('is refused where it is made, naming the postcondition', async () => {
+    const { sent, client } = counting()
+    // 5 keeps the cap, so only the postcondition refuses it.
+    const started = Data.mutate(held, Fill, { id: 'i1', count: 5 })
+    const failed = Data.reduce(started.model, await run(started, client))
+    expect(sent).toEqual([])
+    const refusal = Data.refusal(failed, started.requestId, Fill)
+    expect(
+      Option.map(refusal, refused => Refusal.isInvalidBy(refused, Write.ensured(Fill.write))),
+    ).toEqual(Option.some(true))
+    await run(Data.mutate(held, Fill, { id: 'i1', count: 4 }), client)
+    expect(sent).toEqual(['Fill'])
   })
 })
 

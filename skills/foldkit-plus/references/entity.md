@@ -358,7 +358,9 @@ const Restock = Write.update(
   `Expr.or(Expr.isNull(after.x), …)` to allow it. Text compares only under a declared collation.
 - **Judged everywhere it can be.** `Entity.judge(entity, { after, before? })` is the pure reference
   (`Valid`, `Invalid` with the failures, or `Undecided` when a row lacks a field one reads);
-  `Entity.check(entity)` the state invariants as a Schema check; a form judges them on submit; the Drizzle
+  `Entity.check(entity)` the state invariants as a Schema check; `Entity.judgeInput(input, value, { over })`
+  an edit over the row it edits (`Entity.rowFrom(entity, value)`), transitions included, and
+  `Entity.judgedBy(input)` names what to load beside the input to decide them; a form judges them; the Drizzle
   writer judges them in the statement that writes, and refuses a breaking write as `Refusal.invalid`.
 - **Not a rule.** No guard alternative excuses an invariant, and a valid row grants no one anything.
 - **A handle, not a string.** `Entity.invariant` returns the pipe step, carrying its `id` and, once attached,
@@ -405,7 +407,9 @@ Laws.show(report)
 - **`becomes: Published`** is proved where the write is declared, by enumerating every row it can
   start from over finite fields (literals, unions of them, booleans). A row it leaves outside throws
   there, naming it; a claim enumeration cannot decide (a number moved, `becomes: InStock` on a sale)
-  throws too ("needs a writer that enforces it"), until writers enforce it where the write commits.
+  is the write's postcondition `ensures` (id `becomes:InStock`), judged by the writer where it
+  commits beside the invariants and refused as `Invalid`; `Write.ensured(write)` names it for
+  `Refusal.isInvalidBy`, and a writer without `postconditions` is refused at `RemoteServer.write`.
 - **`Query.from(Draft)`** is the Entity's query with the predicate in `where`; `Expr.show` prints it
   `Product.Draft`. `Entity.inState(Draft, storedRow)` is an `Option` (none when the row lacks a field
   it reads); `Draft.is(row)` narrows the literal form's fields. A Selection is never narrowed by state.
@@ -415,7 +419,8 @@ Laws.show(report)
   invariant never is. All-finite members changed only by `set` are enumerated (`Kept` or `Refused` with
   rows; the `when` drops rows it definitely refuses). Anything else (a number, an increment, a computed
   field, a link, a missing operator, over 4,096 rows) is `Undecided` with a reason. Findings (`holds`,
-  `undeclared`, `refused`, `unreached`, `terminal`) are reports, not faults.
+  `enforced` for a `becomes` held where it commits, `undeclared`, `refused`, `unreached`, `terminal`)
+  are reports, not faults.
 - **Footprints.** An entry that is no declared write is `{ name, entity, footprint }`:
   `Footprint.declared({ writes: [Product.fields.name], by })` keeps a state invariant by disjointness
   only (another Entity's field is a type error); `Footprint.unknown` writes every member and is
@@ -509,7 +514,7 @@ arguments. `foldkit-cms`'s `Cms.published(entity)` is one, over the `published` 
 Without `definedAs` an operator is **primitive**: each interpreter implements it.
 In memory, `Operators.memory(Operators.implement(op, (a, b, { collation }) => …))`
 is a table passed to `evaluate(body, input, rows, { operators })`, `Entity.judge`,
-`judgeInput` and `Entity.check(entity, { operators })` (which throws where it is made
+`judgeInput` (`{ operators }`) and `Entity.check(entity, { operators })` (which throws where it is made
 for an operator the table lacks); `Operators.kernel` is the
 default and holds `Text.startsWith(text, prefix, { collation? })`. A strict operator
 (the default) never sees a null; `nulls: 'handled'` with

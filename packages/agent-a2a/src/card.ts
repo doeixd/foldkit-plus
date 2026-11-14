@@ -67,8 +67,8 @@ export interface AgentCardOptions {
  * Builds the card an A2A client fetches before calling.
  *
  * Skills are the exposed capabilities: the same descriptors MCP lists as tools.
- * A capability that is only available in some Model states is tagged, because a
- * card is static while availability is not.
+ * A capability that is only available in some Model states, or for some
+ * inputs, is tagged, because a card is static while availability is not.
  */
 export const agentCard = (definition: Definition, options: AgentCardOptions): AgentCard => ({
   protocolVersion: A2A_VERSION,
@@ -87,7 +87,7 @@ export const agentCard = (definition: Definition, options: AgentCardOptions): Ag
     name: capability.name,
     description: capability.description,
     tags: [
-      ...(capability.modelDependent ? ['conditional'] : []),
+      ...(capability.modelDependent || capability.inputDependent ? ['conditional'] : []),
       ...(capability.requiresAuthorization ? ['authorized'] : []),
     ],
     inputSchema: capability.inputSchema,

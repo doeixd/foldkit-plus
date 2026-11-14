@@ -31,6 +31,11 @@
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./lower": {
+      "foldkit-plus:source": "./src/lower/index.ts",
+      "types": "./dist/lower/index.d.ts",
+      "import": "./dist/lower/index.js"
     }
   },
   "files": [
@@ -45,7 +50,8 @@
   "dependencies": {
     "foldkit-entity": "workspace:*",
     "foldkit-guard": "workspace:*",
-    "foldkit-remote": "workspace:*"
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-server": "workspace:*"
   },
   "peerDependencies": {
     "@alchemy.run/domain": "2.0.0-beta.86",

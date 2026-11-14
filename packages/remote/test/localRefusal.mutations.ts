@@ -36,6 +36,12 @@ export default [
     '                : false\n                  ? Effect.succeed({',
   ),
   edit(
+    "the client's judge ignores the write's postcondition",
+    '../src/mutation.ts',
+    '[...DomainEntity.invariants(entity), ...Option.toArray(write.ensures)]',
+    'DomainEntity.invariants(entity)',
+  ),
+  edit(
     'the refusal names no rule',
     '../src/writes.ts',
     'rule: Option.some(held.id),',

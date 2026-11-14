@@ -67,16 +67,16 @@ retained by the Board alone: Project:p1, User:u1
 hydrated: Ready Apollo II, plan empty
 replicated (durable journal): First note
 headless board (read by its Subscription): Ready Apollo II
-capabilities: requested_create_note, rename_note, selected_note
+capabilities: requested_create_note, rename_note, selected_note, complete_task
 agent context: {"notes":[{"id":"n1","body":"First note"}],"selectedNoteId":null}
 agent create: completed
 notes after agent: First note, From the agent
-webmcp tools: requested_create_note, rename_note, selected_note
+webmcp tools: requested_create_note, rename_note, selected_note, complete_task
 webmcp call: Completed: RequestedCreateNote reached its declared state
-mcp tools: requested_create_note, rename_note, selected_note
-a2a card: Kitchen Sink (3 skills)
+mcp tools: requested_create_note, rename_note, selected_note, complete_task
+a2a card: Kitchen Sink (4 skills)
 notes after A2A: First note, From the agent, From WebMCP, From A2A
-native actions: requested_create_note, rename_note, selected_note
+native actions: requested_create_note, rename_note, selected_note, complete_task
 rendered classes: board
 mixins-ui button classes: save
 ```

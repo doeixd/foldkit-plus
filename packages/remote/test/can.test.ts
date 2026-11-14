@@ -20,12 +20,20 @@ const Doc = Entity.define(
   }),
 ).pipe(
   Entity.derived({
-    gate: Derived.make(Schema.Struct({ locked: Schema.Boolean }), {
-      forbids: value =>
-        Schema.is(Schema.Struct({ locked: Schema.Literal(false) }))(value)
-          ? Option.none()
-          : Option.some({ reason: Option.some('It is locked.') }),
-    }),
+    gate: Derived.make(
+      Schema.Struct({ locked: Schema.Boolean, quiet: Schema.optionalKey(Schema.Boolean) }),
+      {
+        forbids: value =>
+          Schema.is(Schema.Struct({ locked: Schema.Literal(false) }))(value)
+            ? Option.none()
+            : Option.some({
+                // A quiet gate refuses without words.
+                reason: Schema.is(Schema.Struct({ quiet: Schema.Literal(true) }))(value)
+                  ? Option.none()
+                  : Option.some('It is locked.'),
+              }),
+      },
+    ),
   }),
   Entity.invariant('small', ({ after }) => Expr.lte(after.size, 10), {
     message: 'It stays small',
@@ -138,6 +146,7 @@ const held = read(
     { id: 'gone', title: 'C', status: 'archived', size: 1, gate: { locked: false } },
     { id: 'locked', title: 'D', status: 'draft', size: 1, gate: { locked: true } },
     { id: 'lockedLive', title: 'F', status: 'published', size: 1, gate: { locked: true } },
+    { id: 'hushed', title: 'G', status: 'draft', size: 1, gate: { locked: true, quiet: true } },
   ],
   all,
 )
@@ -274,5 +283,117 @@ describe('Data.can', () => {
     const before = JSON.stringify(held)
     Data.can(held, Publish, { id: 'draft', status: 'published' })
     expect(JSON.stringify(held)).toBe(before)
+  })
+})
+
+interface Caller {
+  readonly name: string
+}
+
+/** A capability over Publish, its input made from the agent call's own. */
+const publish = Data.capability(Publish, ({ input }: { input: { readonly id: string } }) => ({
+  id: input.id,
+  status: 'published',
+}))
+const call = (id: string) => ({ model: held, input: { id }, principal: { name: 'agent' } })
+
+describe('Data.capability', () => {
+  it('allows both where the write would be accepted', () => {
+    expect(publish.authorize(call('draft'))).toBe(true)
+    expect(publish.applies(call('draft'))).toBe(true)
+  })
+
+  it('refuses a held may in authorize, with its words, and only there', () => {
+    expect(publish.authorize(call('locked'))).toEqual({ allowed: false, reason: 'It is locked.' })
+    // Its when would refuse too: authorize answers for the gate alone.
+    expect(publish.authorize(call('lockedLive'))).toEqual({
+      allowed: false,
+      reason: 'It is locked.',
+    })
+  })
+
+  it('refuses a may without words as a plain refusal', () => {
+    expect(publish.authorize(call('hushed'))).toBe(false)
+  })
+
+  it('leaves the state of a row out of authorize', () => {
+    for (const id of ['live', 'gone']) expect(publish.authorize(call(id))).toBe(true)
+  })
+
+  it('refuses a when that does not hold in applies, naming the row and the write', () => {
+    expect(publish.applies(call('gone'))).toEqual({
+      applies: false,
+      reason: 'Doc gone does not hold what Publish asks of it',
+    })
+  })
+
+  it('refuses a broken invariant in applies with its message', () => {
+    const revert = Data.capability(Revert, ({ input }: { input: { readonly id: string } }) => ({
+      id: input.id,
+      status: 'draft',
+    }))
+    expect(revert.authorize(call('live'))).toBe(true)
+    expect(revert.applies(call('live'))).toEqual({
+      applies: false,
+      reason: 'A published doc does not go back to draft',
+    })
+  })
+
+  it('allows what the client cannot decide, which the server then does', () => {
+    expect(publish.authorize(call('nobody'))).toBe(true)
+    expect(publish.applies(call('nobody'))).toBe(true)
+  })
+
+  it('makes the input from the whole call, judged over the Model it carries', () => {
+    const asked: Array<unknown> = []
+    const checks = Data.capability(
+      Publish,
+      (request: { model: Model; input: { readonly id: string }; principal: Caller }) => {
+        asked.push(request)
+        return { id: request.input.id, status: 'published' }
+      },
+    )
+    const request = { model: held, input: { id: 'draft' }, principal: { name: 'agent' } }
+    checks.applies(request)
+    expect(asked).toEqual([request])
+    // The same id over a Model where it is published.
+    const published = read(
+      [{ id: 'draft', title: 'A', status: 'published', size: 1, gate: { locked: false } }],
+      all,
+    )
+    expect(checks.applies({ ...request, model: published })).toMatchObject({ applies: false })
+  })
+
+  it('refuses at declaration a mutation that is not a declared Write', () => {
+    expect(() => Data.capability(Hand, () => ({ id: 'x' }))).toThrow(
+      'Data.capability(Hand): the mutation was not declared as a Write',
+    )
+  })
+})
+
+describe('Data.available', () => {
+  const over = (id: Option.Option<string>) =>
+    Data.available(Publish, () => Option.map(id, each => ({ id: each, status: 'published' })))
+
+  it('is true while the write over the named row would be accepted', () => {
+    expect(over(Option.some('draft'))(held)).toBe(true)
+  })
+
+  it('is false while Data.can answers No, for any refusal', () => {
+    for (const id of ['live', 'gone', 'locked']) expect(over(Option.some(id))(held)).toBe(false)
+  })
+
+  it('is true where the client cannot decide', () => {
+    expect(over(Option.some('nobody'))(held)).toBe(true)
+  })
+
+  it('is false while the Model names no row', () => {
+    expect(over(Option.none())(held)).toBe(false)
+  })
+
+  it('refuses at declaration a mutation that is not a declared Write', () => {
+    expect(() => Data.available(Hand, () => Option.none())).toThrow(
+      'Data.available(Hand): the mutation was not declared as a Write',
+    )
   })
 })

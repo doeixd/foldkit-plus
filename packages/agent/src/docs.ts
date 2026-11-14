@@ -19,6 +19,7 @@ export interface Manifest {
     readonly inputSchema: Record<string, unknown>
     readonly modelDependent: boolean
     readonly requiresAuthorization: boolean
+    readonly inputDependent: boolean
     readonly completion?:
       | {
           readonly kind: 'message'
@@ -76,6 +77,7 @@ export const toManifest = (
         inputSchema: capability.inputSchema,
         modelDependent: capability.modelDependent,
         requiresAuthorization: capability.requiresAuthorization,
+        inputDependent: capability.inputDependent,
         ...(completion === undefined
           ? {}
           : {
@@ -165,6 +167,9 @@ export const toMarkdown = (definition: Definition<any, any, any, any, any>): str
       }
       if (capability.requiresAuthorization) {
         lines.push('Runs an authorization check before dispatching.', '')
+      }
+      if (capability.inputDependent) {
+        lines.push('Refused for some inputs, judged after authorization.', '')
       }
       lines.push('Input:', '', jsonBlock(capability.inputSchema), '')
       const completion = capability.completion

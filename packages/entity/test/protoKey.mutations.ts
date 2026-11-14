@@ -24,8 +24,8 @@ export default [
   edit(
     'a checked row is built by assignment',
     '../src/invariant.ts',
-    '      put(\n        row,\n        key,\n',
-    '      ((k: string, v: unknown) => void (row[k] = v))(\n        key,\n',
+    '    put(\n      row,\n      key,\n',
+    '    ((k: string, v: unknown) => void (row[k] = v))(\n      key,\n',
   ),
   // ---- #329
   edit(

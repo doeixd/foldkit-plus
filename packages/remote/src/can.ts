@@ -34,3 +34,26 @@ export const Can = defineTaggedUnion({
   Undecided: { reasons: Schema.Array(Schema.String) },
 })
 export type Can = typeof Can.Type
+
+/** What `Data.capability`'s hooks are asked: an agent capability's call, as `foldkit-agent` passes it. */
+export interface CapabilityRequest<AppModel, Input, Principal = unknown> {
+  readonly model: AppModel
+  readonly input: Input
+  readonly principal: Principal
+}
+
+/**
+ * An agent capability's `authorize` and `applies`, from `Data.can` over the
+ * write it dispatches. Plain functions in the shape `foldkit-agent` reads, so
+ * Remote depends on no agent package.
+ */
+export interface CapabilityChecks<AppModel, Input, Principal = unknown> {
+  /** Refuses where a held `may` forbids the write, with its words when it gave any. */
+  readonly authorize: (
+    request: CapabilityRequest<AppModel, Input, Principal>,
+  ) => boolean | { readonly allowed: false; readonly reason: string }
+  /** Refuses where the write's `when` does not hold, or the row it leaves breaks an invariant. */
+  readonly applies: (
+    request: CapabilityRequest<AppModel, Input, Principal>,
+  ) => boolean | { readonly applies: false; readonly reason: string }
+}

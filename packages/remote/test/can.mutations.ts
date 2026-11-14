@@ -62,4 +62,53 @@ export default [
     'Match.orElse(() => (before === undefined ? { after } : { after, before })),',
     'Match.orElse(() => ({ after })),',
   ),
+  edit(
+    'Data.capability refuses Undecided in authorize',
+    can,
+    'Undecided: allowed,\n      }),\n    applies',
+    'Undecided: () => false,\n      }),\n    applies',
+  ),
+  edit(
+    'Data.capability refuses Undecided in applies',
+    can,
+    'Undecided: allowed,\n      })\n    },',
+    'Undecided: () => false,\n      })\n    },',
+  ),
+  edit(
+    'Data.capability lets a forbidding may through authorize',
+    can,
+    'onSome: words => ({ allowed: false as const, reason: words }),',
+    'onSome: () => true,',
+  ),
+  edit(
+    "Data.capability tells the row's state in authorize",
+    can,
+    'Unmet: allowed,\n            Invalid: allowed,',
+    'Unmet: () => false,\n            Invalid: allowed,',
+  ),
+  edit(
+    'Data.capability lets an unmet when through applies',
+    can,
+    'Unmet: () => ({\n',
+    'Unmet: allowed,\n            Ignored: () => ({\n',
+  ),
+  edit(
+    'Data.capability lets a broken invariant through applies',
+    can,
+    'Invalid: ({ message }) => ({ applies: false as const, reason: message }),',
+    'Invalid: allowed,',
+  ),
+  edit('Data.available ignores No', can, 'No: () => false,', 'No: () => true,'),
+  edit(
+    'Data.available refuses Undecided',
+    can,
+    'Undecided: () => true,',
+    'Undecided: () => false,',
+  ),
+  edit(
+    'Data.available is true with no row named',
+    can,
+    'onNone: () => false,\n      onSome: input =>',
+    'onNone: () => true,\n      onSome: input =>',
+  ),
 ]

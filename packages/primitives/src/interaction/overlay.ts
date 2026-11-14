@@ -17,7 +17,7 @@
  * `aria-controls` has to name an element that exists.
  */
 import type { Declared } from 'foldkit-bundle'
-import { Behavior, type NamedBehavior } from 'foldkit-mixins'
+import { Behavior, SlotView, type NamedBehavior } from 'foldkit-mixins'
 import { behavior as dismissLayerBehavior, bundle as dismissLayerBundle } from './dismiss-layer.js'
 import { behavior as focusScopeBehavior } from './focus-scope.js'
 import { hideOutside, scrollLock } from './layers.js'
@@ -63,29 +63,46 @@ export const nonModal: Policy = {
   inert: false,
 }
 
+export interface BehaviorsOptions<Input, Slots, StackField extends string> {
+  readonly stack: Declared<typeof dismissLayerBundle, StackField>
+  readonly layer: keyof Slots & string
+  readonly trigger?: keyof Slots & string
+  readonly id: (input: Input) => string
+  readonly policy: Policy
+}
+
 /**
  * The policy as behaviors, to spread into the view's pipe alongside the
  * widget's own. Conditional pieces are included or left out when the list
  * is built — a static policy per composition — so no slot carries a mount
  * its policy never uses.
  */
-export const behaviors =
-  <Slots>(slots: Slots) =>
-  <Input, ParentMessage, StackField extends string>(options: {
-    readonly stack: Declared<typeof dismissLayerBundle, StackField>
-    readonly layer: keyof Slots & string
-    readonly trigger?: keyof Slots & string
-    readonly id: (input: Input) => string
-    readonly policy: Policy
-  }): ReadonlyArray<NamedBehavior<Slots, Input, ParentMessage>> => [
-    dismissLayerBehavior(options.stack)(slots)<Input, ParentMessage>({
+export function behaviors<Slots, Input, ParentMessage, StackField extends string>(
+  bound: SlotView.Bound<Slots, Input, ParentMessage>,
+): (
+  options: BehaviorsOptions<Input, Slots, StackField>,
+) => ReadonlyArray<NamedBehavior<Slots, Input, ParentMessage>>
+export function behaviors<Slots>(
+  slots: SlotView.Unbound<Slots>,
+): <Input, ParentMessage, StackField extends string>(
+  options: BehaviorsOptions<Input, Slots, StackField>,
+) => ReadonlyArray<NamedBehavior<Slots, Input, ParentMessage>>
+export function behaviors<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+  // `boundSlots` took a binder apart, so these are slots the callee's overload accepts. `Unbound<Slots>`
+  // is a conditional on a generic, which no plain `Slots` is known to satisfy: the cast is the
+  // only way in without a second, unchecked entry on every callee.
+  const slots = SlotView.boundSlots(given) as SlotView.Unbound<Slots>
+  return <Input, ParentMessage, StackField extends string>(
+    options: BehaviorsOptions<Input, Slots, StackField>,
+  ): ReadonlyArray<NamedBehavior<Slots, Input, ParentMessage>> => [
+    dismissLayerBehavior(options.stack)<Slots>(slots)<Input, ParentMessage>({
       layer: options.layer,
       ...(options.trigger === undefined ? {} : { trigger: options.trigger }),
       id: options.id,
       outsidePress: options.policy.dismiss.outside,
       escape: options.policy.dismiss.escape,
     }),
-    focusScopeBehavior(slots)<Input, ParentMessage>({
+    focusScopeBehavior<Slots>(slots)<Input, ParentMessage>({
       container: options.layer,
       contain: options.policy.focus.contain,
       restore: options.policy.focus.restore,
@@ -94,9 +111,10 @@ export const behaviors =
         : { initialFocus: options.policy.focus.initialFocus }),
     }),
     ...(options.policy.scroll.lock
-      ? [scrollLock(slots)<Input, ParentMessage>({ container: options.layer })]
+      ? [scrollLock<Slots>(slots)<Input, ParentMessage>({ container: options.layer })]
       : []),
     ...(options.policy.inert
-      ? [hideOutside(slots)<Input, ParentMessage>({ container: options.layer })]
+      ? [hideOutside<Slots>(slots)<Input, ParentMessage>({ container: options.layer })]
       : []),
   ]
+}

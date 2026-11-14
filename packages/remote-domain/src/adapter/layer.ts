@@ -29,6 +29,7 @@ import {
   RemoteUnreachable,
   type LiveEvent,
 } from 'foldkit-remote'
+import { commandIdOf } from '../commandId.js'
 import type { Receipt } from '../index.js'
 import {
   fail,
@@ -481,9 +482,10 @@ export const layer = <A extends AnyApi>(
           )
           const encoded = yield* Schema.encodeUnknownEffect(Input)(input).pipe(Effect.orDie)
           const target = binding.target(input)
-          const commandId = `${request.mutation}:${operation}:${yield* digest(
-            JSON.stringify([asking, target, request.keys ?? null, encoded]),
-          )}`
+          const commandId = commandIdOf(request.mutation, {
+            operation,
+            digest: yield* digest(JSON.stringify([asking, target, request.keys ?? null, encoded])),
+          })
 
           const { receipt, reply } = yield* send(binding, commandId, target, input).pipe(
             Effect.catch(error =>

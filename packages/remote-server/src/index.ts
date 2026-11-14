@@ -38,6 +38,7 @@ import {
   type Computation,
   type EntityMember,
   type EntityRef,
+  type Invariant,
   type Row,
   type WriteAssignment,
 } from 'foldkit-entity'
@@ -416,6 +417,14 @@ export interface EntityWriter<P, R = never> {
    */
   readonly invariants?: true
   /**
+   * Whether `update` and `insert` refuse a row they would leave that breaks
+   * the write's own postcondition (`ensures`, a `becomes` enumeration could
+   * not decide), with `RemoteInvalid`, judged as they judge the Entity's
+   * invariants. `RemoteServer.write` refuses a write with one through a
+   * writer without it, which would land a row outside the state.
+   */
+  readonly postconditions?: true
+  /**
    * Whether `delete` removes, in the transaction that deletes the row, every
    * row declared to go with it (`Entity.cascading`), and answers them as
    * `cascaded`; and holds those rows to the `cascading` requirements it is
@@ -492,6 +501,11 @@ export interface EntityWriter<P, R = never> {
     readonly when: Option.Option<WriteWhen>
     /** What the row must hold, judged where it is written; only a writer with `requires` is given one. */
     readonly requires?: WriteRequirement | undefined
+    /**
+     * The write's postcondition, judged over the row it leaves as an
+     * invariant is; only a writer with `postconditions` is given one.
+     */
+    readonly ensures?: Invariant | undefined
     readonly principal: P
   }) => Effect.Effect<
     Option.Option<Readonly<Record<string, unknown>>>,
@@ -517,6 +531,11 @@ export interface EntityWriter<P, R = never> {
     readonly request: string
     readonly values: Readonly<Record<string, unknown>>
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
+    /**
+     * The write's postcondition, judged over the row it would make as a
+     * state invariant is; only a writer with `postconditions` is given one.
+     */
+    readonly ensures?: Invariant | undefined
     readonly principal: P
   }) => Effect.Effect<
     Readonly<Record<string, unknown>>,
@@ -2337,7 +2356,10 @@ export const RemoteServer = {
    * a row already gone succeeds. A row that moved past the revision the write
    * `expect`s is refused as a conflict, and one that does not hold its `when`
    * as unmet; a write with a `when` needs a writer that checks it
-   * (`preconditions`), and is refused here without one.
+   * (`preconditions`), and is refused here without one. A row the write
+   * would leave outside its postcondition (`ensures`) is refused as
+   * invalid, as one breaking an invariant is; a write with one needs a
+   * writer that judges it (`postconditions`).
    */
   write: <P = unknown, R = never, Name extends string = string, Input = unknown>(
     // Its `Refusal` is the one `Mutation.write` derived from the write's kind; each
@@ -2409,14 +2431,20 @@ export const RemoteServer = {
       }),
     )
     // An update judges every invariant; an insert, with no row before, the state ones alone.
-    const judged = Entity.invariants(write.input.entity).filter(
+    const declared = Entity.invariants(write.input.entity).filter(
       held => kind.hasBefore || !Entity.readsBefore(held),
     )
-    if (judged.length > 0 && writer.invariants !== true) {
+    if (declared.length > 0 && writer.invariants !== true) {
       throw new Error(
         `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants, but its writer does not judge them (invariants)`,
       )
     }
+    if (Option.isSome(write.ensures) && writer.postconditions !== true) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" ensures ${write.ensures.value.id}, which enumeration could not prove where it was declared, but its writer for ${writer.entity} does not judge one (postconditions)`,
+      )
+    }
+    const judged = [...declared, ...Option.toArray(write.ensures)]
     // An insert's row is its values and its links (a `one` relation an invariant reads as the
     // id it points at): a member it leaves to a default the writer cannot judge.
     if (kind.inserts) {
@@ -2726,6 +2754,7 @@ export const RemoteServer = {
                       links: bound.links,
                       expect,
                       when: yield* when,
+                      ensures: Option.getOrUndefined(write.ensures),
                       principal,
                     }),
                   ),
@@ -2758,6 +2787,7 @@ export const RemoteServer = {
                       links: { ...bound.links, ...set.links },
                       operation,
                       request: yield* request,
+                      ensures: Option.getOrUndefined(write.ensures),
                       principal,
                     })
                     .pipe(

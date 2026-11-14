@@ -7,5 +7,6 @@
 export * as Collection from './collection.js'
 export * as Disclosure from './disclosure.js'
 export * as FieldAssociation from './field-association.js'
+export * as Keys from './keys.js'
 export * as SpinValue from './spin-value.js'
 export * as ToggleState from './toggle-state.js'

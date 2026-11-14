@@ -457,7 +457,8 @@ ClearedCompleted: {
 }
 ```
 
-These predicates answer different questions:
+These predicates answer different questions, and a third answers one neither
+can, since `available` sees no input:
 
 ```text
 available(model)
@@ -465,6 +466,9 @@ available(model)
 
 authorize(...)
   "May this principal invoke it?"
+
+applies({ model, input, principal })
+  "Does this call fit what the Model holds?" (the row its input names)
 ```
 
 Availability runs first. An unavailable capability is omitted from discovery
@@ -472,9 +476,62 @@ and refused by name before authorization is evaluated. That prevents the
 authorization result for an action that does not currently exist from becoming
 an information leak.
 
-One invocation reads one Model snapshot for `available`, input mapping, and
-`authorize`, so policy does not accidentally reason over several different
-application states.
+`applies` runs last, after `authorize`, and never for a call `authorize`
+refused: whether a call fits says what the row holds, which a caller who may
+not act on it must not learn. Its refusal is `AgentCapabilityUnavailableError`,
+with the `reason` it gives as the message. A capability that declares it is
+described as `inputDependent`, beside `modelDependent`.
+
+One invocation reads one Model snapshot for `available`, input decoding,
+`authorize`, `applies` and `toMessage`, so policy does not accidentally reason
+over several different application states.
+
+### A capability over a declared write
+
+A capability that dispatches a declared write (`Mutation.write`) need not
+restate when the write is refused. `foldkit-remote` judges it from what the
+client holds (`Data.can`) and gives the checks in the shape a variant takes.
+Those checks judge as **the Model's viewer**, the person signed in to the
+page, not as the agent's principal. Used as a capability's only `authorize`,
+`Data.capability` hands the agent everything the viewer may write. Compose it
+with your own principal check, written after the spread so it replaces the
+`authorize` the spread gave (`examples/kitchen-sink`'s `agent.ts`):
+
+```ts sketch
+const completeTask = Data.capability(CompleteTask, ({ input }: { input: { readonly id: string } }) => ({
+  id: input.id,
+  status: 'done',
+}))
+
+Agent.expose(Message, {
+  RequestedCompleteTask: {
+    name: 'complete_task',
+    description: 'Complete an open task',
+    input: Schema.Struct({ id: Schema.String }),
+    toMessage: input => input,
+    ...completeTask,
+    // The principal's own permission first, then the write's rules.
+    authorize: request => (request.principal.canWrite ? completeTask.authorize(request) : false),
+  },
+})
+```
+
+`Data.capability(mutation, toInput)` returns `{ authorize, applies }`. A held
+`may` that forbids the write refuses in `authorize`, with its words; a `when`
+that does not hold, or an invariant the write would break, refuses in
+`applies`. Where the client cannot tell (the row is not held, a field is
+missing) both allow, and the server decides when the write is sent, as the
+viewer's session. Annotate `toInput`'s request, as above: a spread gives the
+call no type to infer it from.
+
+For a capability over a row the Model alone names, such as the selected one,
+`Data.available(mutation, model => Option<Partial<Input>>)` is its `available`:
+false while no row is named or `Data.can` answers `No`, so a capability that
+cannot succeed leaves discovery. Availability runs at discovery, before
+`authorize`, and judges as the viewer too: whether the capability is listed
+tells any caller whether the viewer's write would be refused. Give it only to
+an agent whose callers may know that. `examples/kitchen-sink` declares one over
+`CompleteTask`.
 
 ## Which control is which: parts
 
@@ -543,9 +600,10 @@ Every call goes through the same contract-owned pipeline regardless of adapter:
 2. check available(model)
 3. decode protocol input
 4. authorize principal
-5. construct application Message
-6. dispatch Message
-7. if declared, wait for correlated completion
+5. check applies(model, input, principal)
+6. construct application Message
+7. dispatch Message
+8. if declared, wait for correlated completion
 ```
 
 Anything refused before dispatch sends no Message.

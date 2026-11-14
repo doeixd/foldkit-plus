@@ -7,7 +7,32 @@
     "composite": true,
     "noEmit": false,
     "paths": {
-      "foldkit-remote-domain": ["../../packages/remote-domain/src/index.ts"]
+      "foldkit-entity": ["../../packages/entity/src/index.ts"],
+      "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-example-writes/domain": ["../writes/src/domain.ts"],
+      "foldkit-example-writes/server": ["../writes/src/server.ts"],
+      "foldkit-guard": ["../../packages/guard/src/index.ts"],
+      "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
+      "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],
+      "foldkit-guard/media": ["../../packages/guard/src/media.ts"],
+      "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
+      "foldkit-guard/sync": ["../../packages/guard/src/sync.ts"],
+      "foldkit-remote": ["../../packages/remote/src/index.ts"],
+      "foldkit-remote-domain": ["../../packages/remote-domain/src/index.ts"],
+      "foldkit-remote-domain/lower": ["../../packages/remote-domain/src/lower/index.ts"],
+      "foldkit-remote-drizzle": ["../../packages/remote-drizzle/src/index.ts"],
+      "foldkit-remote-drizzle/pg": ["../../packages/remote-drizzle/src/pg.ts"],
+      "foldkit-remote-server": ["../../packages/remote-server/src/index.ts"],
+      "foldkit-remote-server/fetch": ["../../packages/remote-server/src/fetch.ts"],
+      "foldkit-remote-server/port": ["../../packages/remote-server/src/port.ts"],
+      "foldkit-remote/filter": ["../../packages/remote/src/filter.ts"],
+      "foldkit-remote/live": ["../../packages/remote/src/live.ts"],
+      "foldkit-remote/outbox": ["../../packages/remote/src/outbox.ts"],
+      "foldkit-remote/overlay": ["../../packages/remote/src/overlay.ts"],
+      "foldkit-remote/persistence": ["../../packages/remote/src/persistence.ts"],
+      "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
+      "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
+      "foldkit-remote/why": ["../../packages/remote/src/why.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
@@ -16,7 +41,22 @@
       "path": "../../packages/remote-domain/tsconfig.build.json"
     },
     {
-      "path": "../writes"
+      "path": "../writes/tsconfig.json"
+    },
+    {
+      "path": "../../packages/entity/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/guard/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote-server/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/remote-drizzle/tsconfig.build.json"
     }
   ]
 }
