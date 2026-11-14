@@ -1604,7 +1604,7 @@ has a `Writes` edge to each member a law of its Entity reads. A transition
 invariant (`pair.readsBefore`) also reads its whole row (`['Product']`), since
 a write leaving every member it reads alone can still break it.
 `lawFactsOf(entries)` gives the same shape from `Laws.check`'s entries without
-judging them: what Surface's `Module.graph` derives a contract's
+judging them: what Surface's `Graph.of` derives a contract's
 `laws.entities` with (a Remote domain declares its writes there), so only a
 page that asks for the graph carries it, and never the check.
 
@@ -1877,7 +1877,7 @@ server on different deploys see which side is behind.
 | `Query.from(state)` | Every row in a state: the Entity's query with its predicate in `where`. |
 | `Laws.check({ writes, operators? })` / `Laws.show(report)` | Each write (`{ name, write }` or `{ name, entity, footprint }`) against each invariant of its Entity, and the arrows between its states, by enumeration over finite fields: a `LawReport` of `pairs` (each with its `Enumerated` `evidence`, if decided kept), `arrows`, `states` and `findings`; the report as text. |
 | `Laws.facts(report)` / `Laws.transition(entry)` / `Laws.law(invariant)` | The report as graph facts (`LawFacts`: `LawNode`s and `LawEdge`s); a transition's id (`write:Sell`) and a law's (`Product.reservedWithinStock`) in evidence and the graph. |
-| `lawFactsOf(entries)` | `Laws.check`'s entries as graph facts, read off the declarations with no check run: what `Module.graph` derives a contract's `laws.entities` with. |
+| `lawFactsOf(entries)` | `Laws.check`'s entries as graph facts, read off the declarations with no check run: what `Graph.of` derives a contract's `laws.entities` with. |
 | `Footprint.declared({ reads?, writes, by })` / `Footprint.unknown` | What a transition that is no declared write reads and writes, on whose word; or nothing known, which writes every member. |
 | `Write.reads(write)` | The fields a write reads from its row: its `when`'s, each it increments, its assignments', the revision. |
 | `Write.update(input, { …, compute })` / `Computation` | A field computed from the row before the write and the input, carried as data. |

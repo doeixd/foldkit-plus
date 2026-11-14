@@ -478,16 +478,17 @@ modules can contribute their contracts independently.
 ### Laws in the graph
 
 A contract may also say which laws it holds and which transitions can break
-them. `Contract.laws` holds the declarations themselves, and `Module.graph`
-derives their nodes and edges only when it is asked, so a page that never
-asks carries none of that code. `laws.entities` lists transitions over
+them. `Contract.laws` holds the declarations themselves, and `Graph.of`
+derives their nodes and edges only when it is asked. `Graph` is apart from
+`Module`: a page that reads only `Module` (to draw who owns what) carries
+none of the graph's code. `laws.entities` lists transitions over
 Entities as `Laws.check` takes them: Remote declares each declared write, which
 becomes `write:Sell` beside a law per invariant of its Entity
 (`Product.reservedWithinStock`). `laws.model` names laws over the contract's
 Model slice: Sync declares its document's, each `sync:<name>.<id>` reading the
 whole slice, and each of its Messages is `durable:<tag>` writing it. A closed
 Surface is a level with a `closure:<name>` law over its paths.
-`Module.graph(module, { evidence })` joins them.
+`Graph.of(module, { evidence })` joins them.
 
 ```text
 transition --writes--> path <--reads-- law
@@ -497,10 +498,10 @@ transition ----------keeps(evidence)--> law
 A transition that writes a path a law reads could break it. The graph does not
 decide whether it does; evidence says so: `Laws.check`'s `Enumerated` records,
 what a walk or a scenario returns, or `Evidence.runtimeOnly` for a pair only
-the writer or the journal refuses. `Module.validate(module, { evidence })` asks
-the one question of the graph. The rules over the graph run only when
-`evidence` is passed, even `[]`: with one argument `validate` answers as it
-did before the graph, so a check written then stands.
+the writer or the journal refuses. `Graph.validate(module, { evidence })` asks
+the one question of the graph; with no `evidence`, every pair a transition can
+break is unwitnessed. `Module.validate` asks none of these rules, and
+`Graph.validate` none of `Module`'s, so a test that wants both asks both.
 
 ```ts standalone
 import { Schema } from 'effect'
@@ -525,8 +526,8 @@ const todos = {
 }
 const Todos = Module.make(App, [todos])
 
-Module.validate(Todos) // []: with one argument, the graph's rules do not run
-Module.validate(Todos, { evidence: [] })
+Module.validate(Todos) // []: one owner per path, every name declared
+Graph.validate(Todos)
 // [{ rule: 'law-unwitnessed', message: 'durable:Added writes todos, which sync:todos.capped reads, …' }]
 
 const judged = Evidence.runtimeOnly({
@@ -534,8 +535,8 @@ const judged = Evidence.runtimeOnly({
   law: 'sync:todos.capped',
   why: 'the journal judges every append, and refuses one past the cap',
 })
-Module.validate(Todos, { evidence: [judged] }) // []
-Graph.breakersOf(Module.graph(Todos, { evidence: [judged] }), 'sync:todos.capped')
+Graph.validate(Todos, { evidence: [judged] }) // []
+Graph.breakersOf(Graph.of(Todos, { evidence: [judged] }), 'sync:todos.capped')
 // [{ transition: 'durable:Added', paths: [['todos']], evidence: [judged] }]
 ```
 
@@ -550,9 +551,10 @@ The rules over the graph:
 
 So a durable Message added to a document, or a write added to a domain, is
 reported until a walk or a scenario draws it, or a line says why only
-production refuses it. `Module.toMarkdown` and `Module.toMermaid` take the same
-options and add a Laws section: each law, each transition that can break it,
-and its evidence. The graph holds no transition for a local Message: what
+production refuses it. `Graph.toMarkdown` takes the same options and writes a
+Laws section, to set beside `Module.toMarkdown`'s: each law, each transition
+that can break it, its evidence, then `Graph.validate`'s findings.
+`Graph.toMermaid` draws the same as a flowchart of its own. The graph holds no transition for a local Message: what
 `modifyFields` writes is known only at run time, so a law over the local Model
 has no `law-unwitnessed` yet, though a walk over it still runs.
 `examples/writes` keeps its table in `LAWS.md`.
@@ -825,10 +827,10 @@ that may observe across those runtime boundaries without creating another one.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
 - `Closure.reads`: whether a projection after a Message depends on the rest of the Model.
 - `Closure.violations`: the closed Surfaces a step broke, as `ClosureViolation`s; `Surface.make`'s and `App.surface`'s `closed`.
-- The law half of the contract graph: `Contract.laws`, `Module.graph`, the rules
-  `law-unwitnessed`, `evidence-unmatched`, `level-declared-twice` and
-  `transition-declared-twice`, and
-  `Graph.breakersOf`. It owns the question, not the answers: each contract
+- The law half of the contract graph: `Contract.laws`, and `Graph`: `Graph.of`,
+  `Graph.validate` (`law-unwitnessed`, `evidence-unmatched`,
+  `level-declared-twice`, `transition-declared-twice`), `Graph.breakersOf`,
+  `Graph.toMarkdown` and `Graph.toMermaid`. It owns the question, not the answers: each contract
   owns its declared laws, and the producers of `Evidence` own its records.
 - Actions (`Action.define`, `Action.run`): a named capability ending in a Message.
 - Named Surfaces and their renderer binding.

@@ -782,7 +782,7 @@ drift, and the conflict fixture (two `keydown` owners) asserts the same
 description's attachment names appear in the diagnostic's `contributors`.
 
 **No second graph.** A description is a function of one view value. When
-`Module.graph` exists (541 WP14), a Surface's node joins a description by the
+`Graph.of` exists (541 WP14), a Surface's node joins a description by the
 Surface's name and each link by its capability's name; nothing is registered
 anywhere now.
 

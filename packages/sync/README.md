@@ -659,10 +659,10 @@ operation -> validate -> authorize -> reduce -> laws(before, after) -> written
   fields alone, so a law that reads a local field does not compile. It sees no
   principal and no Message: a rule about who belongs in `authorize`.
 - **In the Module graph.** The contract declares its law ids
-  (`contract.laws.model`), and `Module.graph` draws a law per declared law
+  (`contract.laws.model`), and `Graph.of` draws a law per declared law
   (`sync:<name>.<id>`), read as reading the whole shared slice since `holds`
   is a function, and a transition per durable and server-only tag
-  (`durable:<tag>`), each writing it. So `Module.validate(module, { evidence })`
+  (`durable:<tag>`), each writing it. So `Graph.validate(module, { evidence })`
   reports each durable Message as `law-unwitnessed` against each law until a
   walk or a scenario (`Scenario.runMessages`) issues its evidence, or an
   `Evidence.runtimeOnly` line says only the journal's judge refuses it: a

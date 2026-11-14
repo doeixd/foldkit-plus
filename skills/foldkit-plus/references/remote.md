@@ -1069,9 +1069,9 @@ A listed law that `violations` never checks still gets its records, on the autho
 laws `violations` judges, named as the graph names them (`Laws.law(invariant)`), and walk a check
 that is no law (what the writer answers) with a `Walk.run` of its own.
 
-Those records, `Laws.check`'s `Enumerated` ones and scenarios' are what `Module.validate(module,
+Those records, `Laws.check`'s `Enumerated` ones and scenarios' are what `Graph.validate(module,
 { evidence })` takes: the domain's contract declares each declared write (`Mutation.write`) in
-`contract.laws.entities`, from which `Module.graph` derives `write:<name>`, the members it writes,
+`contract.laws.entities`, from which `Graph.of` derives `write:<name>`, the members it writes,
 its Entity's invariants and what each reads, its states, `from` and `becomes`; each write that
 writes what an invariant reads is `law-unwitnessed` until a record keeps it
 (`examples/writes/test/graph.test.ts`). Only a page that asks for the graph carries that code.

@@ -172,13 +172,13 @@ breaks one is wrong even when every test passes.
 | needs(Surface, Requirement) | Server data the Surface's Projection pulls |
 | activeOn(Surface, Route) | Activation recorded by `Surface.when` |
 
-`Module.make` and `Module.validate` exist today with nine rules: six over
+`Module.make` and `Module.validate` exist today with six rules over
 contracts (`foreign-contract`, `duplicate-name`, `ownership-overlap`,
-`message-claimed-twice`, `unknown-path`, `unknown-message`) and three over the
-law half of the graph (`law-unwitnessed`, `evidence-unmatched`,
-`level-declared-twice`), built before any Composition (#537,
+`message-claimed-twice`, `unknown-path`, `unknown-message`), and
+`Graph.validate` with four over the law half of the graph (`law-unwitnessed`,
+`evidence-unmatched`, `level-declared-twice`, `transition-declared-twice`), built before any Composition (#537,
 [541-laws-DESIGN.md](./541-laws-DESIGN.md) D21, D22). That half is in place:
-`Module.graph(module, { evidence })` holds Owner, Path (`model` and `entity`
+`Graph.of(module, { evidence })` holds Owner, Path (`model` and `entity`
 spaces), Transition (`write` and `durable`), Law, State and Level nodes, and
 `owns`, `reads`, `writes`, `observes`, `from`, `to`, `keeps` and `refines`
 edges, each contract contributing its own through `Contract.facts`; Owner is
@@ -307,7 +307,7 @@ Gate: Phase 2.
 
 1. `Module.fromComposition(ApplicationComposition, contracts)` (*Sketch*)
    builds the graph of §5.1. Owners, keys and operations come from the
-   Composition (invariant 4). It starts from `Module.graph`'s nodes and edges
+   Composition (invariant 4). It starts from `Graph.of`'s nodes and edges
    and `Contract.facts`, adding Block placements as Owners and a
    `message` Transition per local Message with its `writes` edges, which wait
    on foldkit/foldkit#1655; `law-unwitnessed` then covers laws over the local

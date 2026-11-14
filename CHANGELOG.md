@@ -84,23 +84,23 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-surface`: the law half of the contract graph (#537). A `Contract`
   may carry `laws?: ContractLaws`, its declarations as plain data: `model`, law
   ids over its Model slice, and `entities`, `Laws.check`'s entries.
-  `Module.graph(module, { evidence })` derives their nodes and edges when
-  asked (`GraphNode`: `Owner`, `Path`, `Transition` (a write's with its
-  Entity, so a delete, which writes no member, still joins its laws), `Law`,
-  `State`, `Level`;
+  `Graph`, apart from `Module` so a page that reads only `Module` carries none
+  of its code, works over them. `Graph.of(module, { evidence })` derives their
+  nodes and edges (`GraphNode`: `Owner`, `Path`, `Transition` (a write's with
+  its Entity, so a delete, which writes no member, still joins its laws),
+  `Law`, `State`, `Level`;
   `GraphEdge`: `Owns`, `Reads`, `Writes`, `Observes`, `From`, `To`, `Keeps`,
-  `Refines`), so only a page that asks carries that code, and joins them with
-  a level and a `closure:<name>` law per closed Surface, which level refines
-  which, and a `Keeps` edge per record of `evidence` that is issued and joins
-  its pair. `Module.validate` takes the same optional second argument and,
-  given one with `evidence` (even `[]`), adds `law-unwitnessed` (a transition
-  writes a path a law reads, and no evidence keeps it), `evidence-unmatched`,
-  `level-declared-twice` and `transition-declared-twice` (two contracts
-  declare a write of one name); with one argument it answers as before;
-  `Graph.breakersOf(graph, law)` names each transition that could break a law
-  and its evidence; `Module.manifest`, `toMarkdown` and `toMermaid` take the
-  option too, and the renderers add a Laws section. `Evidence` is re-exported
-  beside `Metadata`. `foldkit-remote`: a domain's contract declares its
+  `Refines`), and joins them with a level and a `closure:<name>` law per
+  closed Surface, which level refines which, and a `Keeps` edge per record of
+  `evidence` that is issued and joins its pair. `Graph.validate(module,
+  { evidence })` reports `law-unwitnessed` (a transition writes a path a law
+  reads, and no evidence keeps it; with no evidence, every such pair),
+  `evidence-unmatched`, `level-declared-twice` and `transition-declared-twice`
+  (two contracts declare a write of one name); `Module.validate` asks none of
+  them and is unchanged. `Graph.breakersOf(graph, law)` names each transition
+  that could break a law and its evidence; `Graph.toMarkdown` writes a Laws
+  section to set beside `Module.toMarkdown`'s, and `Graph.toMermaid` draws
+  the laws as a flowchart. `Evidence` is re-exported beside `Metadata`. `foldkit-remote`: a domain's contract declares its
   declared writes (`Mutation.write`), giving `write:<name>`, what it writes,
   its Entity's invariants and states, and its `from` and `becomes`.
   `foldkit-sync`: a document declares its law ids, giving `sync:<name>.<law>`
