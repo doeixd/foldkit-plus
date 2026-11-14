@@ -1,4 +1,4 @@
-import type { Message as DialogMessage, RenderInfo } from '@foldkit/ui/dialog'
+import type { Message as DialogMessage, Model as DialogModel, RenderInfo } from '@foldkit/ui/dialog'
 import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { KeyboardInset, ScrollBars } from 'foldkit-primitives/dom'
@@ -104,6 +104,13 @@ export interface DialogContext<Input, Message> extends ResolveContext<Input, Mes
    */
   readonly covered?: boolean
   /**
+   * Whether the dialog is leaving, `isLeaving(model)`. The panel is then drawn
+   * `inert` for the rest of its exit: upstream already takes the backdrop and
+   * close button out of a leaving dialog but leaves the application's own
+   * controls live, and its `RenderInfo` does not say it is leaving.
+   */
+  readonly isLeaving?: boolean
+  /**
    * Attributes added to a bundle before the mixins resolve, as the Sheet adds
    * its drag to the panel and the handle.
    */
@@ -121,8 +128,11 @@ export const resolve = <Input, Message>(
     dialog:
       context.role === 'alertdialog' ? [...render.dialog, h.Role('alertdialog')] : render.dialog,
     backdrop: render.backdrop,
-    panel:
-      context.covered === true ? [...render.panel, h.DataAttribute('covered', '')] : render.panel,
+    panel: [
+      ...render.panel,
+      ...(context.covered === true ? [h.DataAttribute('covered', '')] : []),
+      ...(context.isLeaving === true ? [h.Inert(true)] : []),
+    ],
     title: render.title,
     description: render.description,
     initialFocus: render.initialFocus,
@@ -141,6 +151,11 @@ export const resolve = <Input, Message>(
   )
   return resolveFor(DialogSlots, mixins, context)({ ...render, ...own, ...added })
 }
+
+/** Whether the dialog is in its exit animation: still drawn, no longer open. */
+export const isLeaving = (model: DialogModel): boolean =>
+  model.animation.transitionState === 'LeaveStart' ||
+  model.animation.transitionState === 'LeaveAnimating'
 
 /**
  * Whether `message` is the dialog dismissing itself: Escape, a press on the

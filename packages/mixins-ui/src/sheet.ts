@@ -40,7 +40,7 @@ import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import { Swipe } from 'foldkit-primitives/dom'
-import { resolve as resolveDialog, type ResolvedDialog } from './dialog.js'
+import { isLeaving, resolve as resolveDialog, type ResolvedDialog } from './dialog.js'
 import type { MixinList } from './resolve.js'
 
 export const Side = Schema.Literals(['top', 'right', 'bottom', 'left'])
@@ -357,6 +357,7 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
           resolveDialog(render, options.mixins ?? [], {
             h,
             covered: options.covered ?? false,
+            isLeaving: isLeaving(model.dialog),
             attributes: {
               dialog: [h.DataAttribute('side', model.side)],
               panel: [

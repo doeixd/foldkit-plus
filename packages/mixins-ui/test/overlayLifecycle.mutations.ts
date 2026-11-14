@@ -66,6 +66,22 @@ export default [
     tests: [leave],
   },
   {
+    name: 'a leaving Dialog panel is not inert',
+    edits: [
+      {
+        file: '../src/dialog.ts',
+        find: '...(context.isLeaving === true ? [h.Inert(true)] : []),',
+        replace: '',
+      },
+    ],
+    tests: [leave],
+  },
+  {
+    name: 'a leaving Sheet is not told it is leaving',
+    edits: [{ file: '../src/sheet.ts', find: 'isLeaving: isLeaving(model.dialog),', replace: '' }],
+    tests: [leave],
+  },
+  {
     name: "a Listbox's panel writes no dir, so a portaled panel places for left to right",
     edits: [
       {

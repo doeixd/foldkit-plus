@@ -4,7 +4,7 @@
  * close met by an open mid-exit settles on one open Dialog.
  */
 import { afterEach, expect, test, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { cdp, userEvent } from 'vitest/browser'
 import {
   active,
   byId,
@@ -17,6 +17,7 @@ import {
   present,
   scrollLocked,
 } from './overlayFixture.js'
+import { open as openSheet } from './sheetFixture.js'
 
 afterEach(cleanup)
 
@@ -47,7 +48,10 @@ test('a leaving Dialog still holds the page, and gives focus to its trigger when
     await openOuter()
     await startLeaving()
     const panel = byId(ids.outerPanel)
-    expect(panel?.contains(document.activeElement)).toBe(true)
+    // The panel is inert, so the control that held focus gives it up: it rests
+    // on the body until the close hands it to the trigger.
+    expect(panel?.contains(document.activeElement)).toBe(false)
+    expect(active()).toBe('BODY')
     expect(isInert(ids.outsideButton)).toBe(true)
     expect(scrollLocked()).toBe(true)
     await gone(ids.outerPanel)
@@ -59,19 +63,70 @@ test('a leaving Dialog still holds the page, and gives focus to its trigger when
   }
 })
 
-// `@foldkit/ui`'s Dialog takes the close button and backdrop out of a leaving
-// panel but leaves the application's own content live, and its RenderInfo
-// does not say the panel is leaving, so a view cannot gate its controls.
-test.fails('a control pressed in a leaving Dialog does nothing', async () => {
+/** A real press at the middle of an element, as a pointer would send it. */
+const pressAt = async (element: HTMLElement) => {
+  const box = element.getBoundingClientRect()
+  const point = {
+    x: box.left + box.width / 2,
+    y: box.top + box.height / 2,
+    button: 'left' as const,
+  }
+  await cdp().send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point })
+  await cdp().send('Input.dispatchMouseEvent', { type: 'mousePressed', clickCount: 1, ...point })
+  await cdp().send('Input.dispatchMouseEvent', { type: 'mouseReleased', clickCount: 1, ...point })
+}
+
+test('a control in a leaving Dialog takes neither a press nor a key', async () => {
   const handle = mount({ animated: true, leaveMs: LEAVE_MS })
   try {
     await openOuter()
+    const inner = byId(ids.openInner)!
+    inner.focus()
+    expect(active()).toBe(ids.openInner)
     await startLeaving()
-    byId(ids.openInner)?.click()
+    expect(byId(ids.outerPanel)?.hasAttribute('inert')).toBe(true)
+    await pressAt(inner)
+    inner.click()
+    inner.focus()
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard(' ')
     await gone(ids.outerPanel)
+    await vi.waitFor(() => expect(active()).toBe(ids.openOuter))
     expect(isOpen(ids.innerDialog)).toBe(false)
   } finally {
     handle.dispose()
+  }
+})
+
+// The Sheet draws the Dialog's bundles, so its exit holds still the same way.
+test('a control in a leaving Sheet takes neither a press nor a key', async () => {
+  let acted = 0
+  const { panel, dispose } = await openSheet(
+    { side: 'bottom' },
+    {},
+    {
+      content: h => [h.button([h.Id('sheet-control')], ['Apply'])],
+    },
+  )
+  try {
+    // A slow exit, so there is time to act on it.
+    const slow = document.createElement('style')
+    slow.dataset['test'] = ''
+    slow.textContent = `#edge-panel { transition-duration: ${LEAVE_MS}ms !important; }`
+    document.head.append(slow)
+    const control = byId('sheet-control')!
+    control.addEventListener('click', () => acted++)
+    control.focus()
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(panel.hasAttribute('data-leave')).toBe(true))
+    expect(panel.hasAttribute('inert')).toBe(true)
+    await pressAt(control)
+    control.focus()
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard(' ')
+    expect(acted).toBe(0)
+  } finally {
+    dispose()
   }
 })
 
@@ -90,7 +145,7 @@ test('an open sent mid-exit leaves one open Dialog, holding the page, that close
     )
     expect(isOpen(ids.outerDialog)).toBe(true)
     expect(byId(ids.outerPanel)?.hasAttribute('data-closed')).toBe(false)
-    expect(byId(ids.outerDialog)?.contains(document.activeElement)).toBe(true)
+    expect(byId(ids.outerPanel)?.hasAttribute('inert')).toBe(false)
     expect(isInert(ids.outsideButton)).toBe(true)
     expect(scrollLocked()).toBe(true)
 

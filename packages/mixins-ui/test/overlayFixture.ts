@@ -129,24 +129,27 @@ export const mount = (options: Options = {}) => {
         model,
         view: UiDialog.view,
         viewInputs: {
-          toView: Dialog.toView([dialogStyle.mixin], { h }, dialog =>
-            h.dialog(
-              dialog.dialog,
-              dialog.isVisible
-                ? [
-                    h.div(dialog.backdrop),
-                    h.div(
-                      [...dialog.panel, h.Id(panel)],
-                      [
-                        h.h2(dialog.title, [title]),
-                        h.p([h.Id(ids.dialogText), h.Tabindex(-1)], ['Some words.']),
-                        h.button([h.Id(close), h.OnClick(closeMessage)], ['Close']),
-                        ...(content ? menuAndPopover(h) : []),
-                      ],
-                    ),
-                  ]
-                : [],
-            ),
+          toView: Dialog.toView(
+            [dialogStyle.mixin],
+            { h, isLeaving: Dialog.isLeaving(model) },
+            dialog =>
+              h.dialog(
+                dialog.dialog,
+                dialog.isVisible
+                  ? [
+                      h.div(dialog.backdrop),
+                      h.div(
+                        [...dialog.panel, h.Id(panel)],
+                        [
+                          h.h2(dialog.title, [title]),
+                          h.p([h.Id(ids.dialogText), h.Tabindex(-1)], ['Some words.']),
+                          h.button([h.Id(close), h.OnClick(closeMessage)], ['Close']),
+                          ...(content ? menuAndPopover(h) : []),
+                        ],
+                      ),
+                    ]
+                  : [],
+              ),
           ),
         },
         toParentMessage: toParent,
