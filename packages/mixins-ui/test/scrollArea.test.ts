@@ -42,6 +42,19 @@ describe('ScrollArea view', () => {
     expect(viewport?.data?.foldkitMount).toBeUndefined()
   })
 
+  it('names the viewport a region only when given a label', () => {
+    const [, plain] = Inert.byTag(draw(), 'div')
+    expect(Inert.value(plain, 'role')).toBeUndefined()
+    expect(Inert.value(plain, 'aria-label')).toBeUndefined()
+    const [, named] = Inert.byTag(
+      view({ content: h.p([], ['Long words']), label: 'Release notes' }, h),
+      'div',
+    )
+    expect(Inert.value(named, 'role')).toBe('region')
+    expect(Inert.value(named, 'aria-label')).toBe('Release notes')
+    expect(Inert.value(named, 'tabIndex')).toBe(0)
+  })
+
   it('draws a hidden bar per axis beside the viewport, each with a thumb', () => {
     const [root] = Inert.byTag(draw(), 'div')
     const bars = Inert.children(root).slice(1)

@@ -1,4 +1,4 @@
-import { Behavior, Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Attr, Behavior, Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { ScrollBars } from 'foldkit-primitives/dom'
 import type { MixinList } from './resolve.js'
@@ -13,7 +13,10 @@ import type { MixinList } from './resolve.js'
  */
 export const ScrollAreaSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
-  viewport: Slot.make({ capability: Capability.Container }),
+  viewport: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.Role, Attr.AriaLabel],
+  }),
   bar: Slot.make({ capability: Capability.Container }),
   thumb: Slot.make({ capability: Capability.Container }),
 })
@@ -25,6 +28,14 @@ export const ScrollAreaSlots = Slots.define({
  */
 export interface ScrollAreaView<Message = never> {
   readonly content: Html
+  /**
+   * The region's name. With one, the viewport is a `region` landmark of that
+   * name; without, it is a focusable box with no role, which a screen reader
+   * announces as nothing. The viewport is a tab stop either way: a scroller
+   * with no focusable content must be reachable by keyboard (WCAG 2.1.1),
+   * and only Chromium and Firefox make one reachable by themselves.
+   */
+  readonly label?: string | undefined
   /** A style of `ScrollAreaSlots`, for the area's look. */
   readonly style?: NamedStyle<typeof ScrollAreaSlots> | undefined
   /** Mixins beside the style. */
@@ -48,7 +59,13 @@ export const view = <Message = never>(
       h.div(builders.thumb.attrs(), []),
     ])
   return h.div(builders.root.attrs(), [
-    h.div(builders.viewport.attrs([h.Tabindex(0)]), [options.content]),
+    h.div(
+      builders.viewport.attrs([
+        h.Tabindex(0),
+        ...(options.label === undefined ? [] : [h.Role('region'), h.AriaLabel(options.label)]),
+      ]),
+      [options.content],
+    ),
     bar('block'),
     bar('inline'),
   ])
