@@ -33,6 +33,8 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { Scene } from 'foldkit/test'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
+import * as Command from 'foldkit/command'
+import * as Render from 'foldkit/render'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import {
@@ -79,6 +81,8 @@ export const Message = defineMessageUnion({
   Measured: { rows: Schema.Array(Schema.Struct({ key: Schema.String, height: Schema.Number })) },
   /** The row now holding focus, or none once focus left the list. */
   Focused: { key: Schema.Option(Schema.String) },
+  /** `Reveal` has brought its row into view, or given up on it. */
+  CompletedReveal: {},
 })
 export type Message = typeof Message.Type
 
@@ -166,6 +170,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       top === model.viewport.top && height === model.viewport.height && model.from === 0
         ? { model }
         : { model: modifyFields(model, { viewport: () => ({ top, height }), from: () => 0 }) },
+    CompletedReveal: () => ({ model }),
     Focused: ({ key }) =>
       Equal.equals(key, model.held)
         ? { model }
@@ -362,6 +367,89 @@ const keysOf = <Item>(
   return keys
 }
 
+/** Where `Reveal` puts the row in the viewport: `nearest` scrolls only as far as shows it. */
+export const Align = Schema.Literals(['nearest', 'start', 'center', 'end'])
+export type Align = typeof Align.Type
+
+const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+
+/** How many scrolls `Reveal` makes before giving up; each follows a frame of drawing and measuring. */
+const REVEAL_ATTEMPTS = 12
+
+const drawnRows = (list: Element): ReadonlyArray<HTMLElement> =>
+  Array.from(list.querySelectorAll<HTMLElement>(`:scope > [${ROW_KEY}]`))
+
+/**
+ * Scrolls the document until row `index` of list `id` is drawn and in place.
+ * A row not drawn is as many mean row heights away as rows lie between it
+ * and the one drawn nearest the viewport's middle; the scroll redraws the
+ * window there and measures its rows, so each pass is nearer; a row drawn is
+ * brought to `align` until it stops moving, since measuring its neighbours
+ * moves it. Scrolls at once: Chromium drops a key pressed in the last frame
+ * of its own animated scroll (#406), and a reveal is a jump.
+ */
+const revealRow = async (id: string, index: number, align: Align): Promise<void> => {
+  let previous = Number.NaN
+  for (let attempt = 0; attempt < REVEAL_ATTEMPTS; attempt++) {
+    const list = document.getElementById(id)
+    if (list === null) return
+    const rows = drawnRows(list)
+    const target = rows.find(row => row.getAttribute('aria-posinset') === String(index + 1))
+    if (target !== undefined) {
+      target.scrollIntoView({ block: align, inline: 'nearest', behavior: 'instant' })
+      // Measuring its neighbours moves it: once more, until it stays.
+      await frame()
+      await frame()
+      const top = target.getBoundingClientRect().top
+      if (target.isConnected && top === previous) return
+      previous = top
+      continue
+    }
+    const middle = window.innerHeight / 2
+    const nearest = rows.reduce<HTMLElement | undefined>(
+      (best, row) =>
+        best === undefined ||
+        Math.abs(row.getBoundingClientRect().top - middle) <
+          Math.abs(best.getBoundingClientRect().top - middle)
+          ? row
+          : best,
+      undefined,
+    )
+    const first = rows[0]
+    const last = rows.at(-1)
+    if (nearest === undefined || first === undefined || last === undefined) return
+    const mean =
+      (last.getBoundingClientRect().bottom - first.getBoundingClientRect().top) / rows.length
+    const at = Number(nearest.getAttribute('aria-posinset')) - 1
+    window.scrollBy({ top: (index - at) * mean, behavior: 'instant' })
+    await frame()
+    await frame()
+  }
+}
+
+/**
+ * Brings row `index` of the list `id` into view, however far it is. Returned
+ * by `reveal`; an application's own `update` returns that.
+ */
+export const Reveal = Command.define('WindowList.Reveal', {
+  args: { id: Schema.String, index: Schema.Number, align: Align },
+  messages: [Message.CompletedReveal],
+  execute: ({ id, index, align }) =>
+    Render.afterCommit.pipe(
+      Effect.flatMap(() => Effect.promise(() => revealRow(id, index, align))),
+      Effect.map(() => Message.CompletedReveal()),
+    ),
+})
+
+/**
+ * The Command that scrolls the page until row `index` of `model`'s list is
+ * drawn and shown at `align` (`'nearest'` by default). Return it from an
+ * `update`: a row far outside the window is not drawn, so it cannot be
+ * scrolled to by element, and the window's own scroll then moves it in.
+ */
+export const reveal = (model: Model, index: number, align: Align = 'nearest') =>
+  Reveal({ id: model.id, index, align })
+
 /**
  * Which row holds focus, as `Focused`. A keyed row that must stay drawn is
  * moved in the DOM when it changes side of the window, and a move drops
@@ -369,8 +457,8 @@ const keysOf = <Item>(
  * from the held row's control gives it back. Told from a reader leaving by
  * the records of the list's children: a blur alone is ambiguous.
  */
-const followFocus = (element: Element): Stream.Stream<Message> =>
-  Stream.callback<Message>(queue =>
+const followFocus = (element: Element): Stream.Stream<ReturnType<typeof Message.Focused>> =>
+  Stream.callback<ReturnType<typeof Message.Focused>>(queue =>
     Effect.acquireRelease(
       Effect.sync(() => {
         let held = Option.none<{ readonly row: Element; readonly control: Element }>()
@@ -458,17 +546,16 @@ export const Track = Mount.defineStream('WindowList.Track', {
     Stream.unwrap(
       Effect.map(Effect.yieldNow, () => {
         place(element)
-        return Stream.mergeAll(
-          [
+        return Stream.merge(
+          Stream.merge(
             WindowViewport()
               .f(element, viewStateChanges)
               .pipe(Stream.map(({ top, height }) => Message.Placed({ top, height }))),
             MeasureRows({ attribute: ROW_KEY })
               .f(element, viewStateChanges)
               .pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),
-            followFocus(element),
-          ],
-          { concurrency: 'unbounded' },
+          ),
+          followFocus(element),
         )
       }),
     ),

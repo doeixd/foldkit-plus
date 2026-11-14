@@ -306,3 +306,13 @@ describe('the row holding focus', () => {
     ])
   })
 })
+
+describe('WindowList.reveal', () => {
+  it('is a Command for the list and row, and its completion changes nothing', () => {
+    const command = WindowList.reveal(model, 7, 'center')
+    expect(command.name).toBe('WindowList.Reveal')
+    expect(command.args).toEqual({ id: 'list', index: 7, align: 'center' })
+    expect(WindowList.reveal(model, 7).args).toMatchObject({ align: 'nearest' })
+    expect(WindowList.update(model, WindowList.Message.CompletedReveal()).model).toBe(model)
+  })
+})
