@@ -336,7 +336,7 @@ describe('An invariant calling an operator the table does not run', () => {
     const Edit = Entity.input(Guarded, Schema.Struct({ code: Schema.String }))
     const table = Operators.memory(joinedLive)
     expect(Entity.judgeInput(Edit, { code: 'AB' })._tag).toBe('Undecided')
-    expect(Entity.judgeInput(Edit, { code: 'CD' }, table)._tag).toBe('Invalid')
+    expect(Entity.judgeInput(Edit, { code: 'CD' }, { operators: table })._tag).toBe('Invalid')
     const checked = Guarded.schema.check(Entity.check(Guarded, { operators: table }))
     expect(() => Schema.decodeUnknownSync(checked)({ id: 'g1', code: 'CD' })).toThrow('Code it')
     // A check that cannot run an invariant would pass every value, so it is not made (#327).

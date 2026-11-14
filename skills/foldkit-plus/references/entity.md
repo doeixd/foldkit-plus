@@ -358,7 +358,9 @@ const Restock = Write.update(
   `Expr.or(Expr.isNull(after.x), …)` to allow it. Text compares only under a declared collation.
 - **Judged everywhere it can be.** `Entity.judge(entity, { after, before? })` is the pure reference
   (`Valid`, `Invalid` with the failures, or `Undecided` when a row lacks a field one reads);
-  `Entity.check(entity)` the state invariants as a Schema check; a form judges them on submit; the Drizzle
+  `Entity.check(entity)` the state invariants as a Schema check; `Entity.judgeInput(input, value, { over })`
+  an edit over the row it edits (`Entity.rowFrom(entity, value)`), transitions included, and
+  `Entity.judgedBy(input)` names what to load beside the input to decide them; a form judges them; the Drizzle
   writer judges them in the statement that writes, and refuses a breaking write as `Refusal.invalid`.
 - **Not a rule.** No guard alternative excuses an invariant, and a valid row grants no one anything.
 - **A handle, not a string.** `Entity.invariant` returns the pipe step, carrying its `id` and, once attached,
@@ -509,7 +511,7 @@ arguments. `foldkit-cms`'s `Cms.published(entity)` is one, over the `published` 
 Without `definedAs` an operator is **primitive**: each interpreter implements it.
 In memory, `Operators.memory(Operators.implement(op, (a, b, { collation }) => …))`
 is a table passed to `evaluate(body, input, rows, { operators })`, `Entity.judge`,
-`judgeInput` and `Entity.check(entity, { operators })` (which throws where it is made
+`judgeInput` (`{ operators }`) and `Entity.check(entity, { operators })` (which throws where it is made
 for an operator the table lacks); `Operators.kernel` is the
 default and holds `Text.startsWith(text, prefix, { collation? })`. A strict operator
 (the default) never sees a null; `nulls: 'handled'` with

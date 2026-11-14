@@ -23,7 +23,7 @@ import { OperatorMissingError, truthOver, type Row } from './evaluate.js'
 import { kernelOperators } from './memoryTable.js'
 import type { MemoryOperators } from './operators.js'
 import { put } from './record.js'
-import { oneRelations } from './rows.js'
+import { linkId, oneRelations } from './rows.js'
 import {
   Expr,
   Query,
@@ -351,18 +351,32 @@ export const judge = (
   operators: MemoryOperators = kernelOperators,
 ): Judgement => judgeAgainst(invariantsOf(entity), change, operators)
 
+/** What `judgeInput` is given beside the input's value. */
+export interface JudgeInputOptions {
+  /** The table the judge runs operators with: `Operators.kernel` by default. */
+  readonly operators?: MemoryOperators | undefined
+  /**
+   * The row the input edits, encoded as the store holds it (`rowFrom`): the
+   * input's keys are laid over it, and it is the row before, so transition
+   * invariants are judged too. None for a create.
+   */
+  readonly over?: Readonly<Record<string, unknown>> | undefined
+}
+
 /**
- * The row an input's value describes, judged under its Entity's state
- * invariants: each key mapped to a field, encoded as the store holds it, and
- * each mapped to a `one` relation as the id it points at. An
- * invariant over a field the input does not set (an `Option` holding nothing, a
- * key left out) is undecided, so a partial input is never called valid on its
- * account. It has no row before, so it judges no transition.
+ * The row an input's value describes, judged under its Entity's invariants:
+ * each key mapped to a field, encoded as the store holds it, and each mapped
+ * to a `one` relation as the id it points at. Without `over`, an invariant
+ * over a field the input does not set (an `Option` holding nothing, a key left
+ * out) is undecided, so a partial input is never called valid on its account,
+ * and no transition is judged. With `over`, the row it edits, such a field is
+ * the row's, and the change from the row to the row with the input laid over
+ * it is judged, transitions included.
  */
 export const judgeInput = (
   input: EntityInput<AnyEntity, any, any>,
   value: Readonly<Record<string, unknown>>,
-  operators: MemoryOperators = kernelOperators,
+  options: JudgeInputOptions = {},
 ): Judgement => {
   const invariants = invariantsOf(input.entity)
   if (invariants.length === 0) return { _tag: 'Valid' }
@@ -391,7 +405,69 @@ export const judgeInput = (
       encoded => put(row, member.key, encoded),
     )
   }
-  return judgeAgainst(invariants, { after: row }, operators)
+  const operators = options.operators ?? kernelOperators
+  if (options.over === undefined) return judgeAgainst(invariants, { after: row }, operators)
+  const after: Record<string, unknown> = {}
+  for (const [key, held] of Object.entries(options.over)) put(after, key, held)
+  for (const [key, held] of Object.entries(row)) put(after, key, held)
+  return judgeAgainst(invariants, { after, before: options.over }, operators)
+}
+
+/**
+ * A decoded value of `entity`, such as a Selection's, as the row the judge
+ * reads: each field it holds encoded as the store holds it, and each `one`
+ * relation as the id it points at. A member it does not hold is left out, so
+ * an invariant reading it is undecided.
+ */
+export const rowFrom = (
+  entity: AnyEntity,
+  value: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> => {
+  const fields = entity.fields as Readonly<Record<string, AnyField>>
+  const row: Record<string, unknown> = {}
+  for (const [key, field] of Object.entries(fields)) {
+    if (!Object.hasOwn(value, key)) continue
+    put(
+      row,
+      key,
+      Schema.encodeUnknownSync(field.schema as unknown as Schema.Codec<unknown, unknown>)(
+        value[key],
+      ),
+    )
+  }
+  for (const link of oneRelations(entity)) {
+    if (!Object.hasOwn(value, link.key)) continue
+    Option.map(linkId(value[link.key]), id => put(row, link.key, id))
+  }
+  return row
+}
+
+/**
+ * The members outside `input` that its Entity's invariants read, of each
+ * invariant that also reads a member the input sets: what a form over the
+ * input loads beside its own keys (`Entity.selectFor(input, { also })`), so it
+ * can judge those invariants over the row it edits.
+ */
+export const judgedBy = (
+  input: EntityInput<AnyEntity, any, any>,
+): Readonly<Record<string, true>> => {
+  const sets = new Set(
+    Object.values(input.members as Readonly<Record<string, InputMember>>).flatMap(member =>
+      Match.valueTags(member, {
+        Field: ({ key }) => [key],
+        RelationInput: ({ relation }) => [relation.key],
+        NestedInput: ({ relation }) => [relation.key],
+        Unmapped: () => [],
+      }),
+    ),
+  )
+  const read: Record<string, true> = {}
+  for (const held of invariantsOf(input.entity)) {
+    const reads = [...held.after, ...held.before]
+    if (!reads.some(key => sets.has(key))) continue
+    for (const key of reads) if (!sets.has(key)) put(read, key, true)
+  }
+  return read
 }
 
 /**
@@ -417,19 +493,7 @@ export const check = <E extends AnyEntity>(
     )
   }
   return Schema.makeFilter(value => {
-    const fields = entity.fields as Readonly<Record<string, AnyField>>
-    const decoded = value as Readonly<Record<string, unknown>>
-    const row: Record<string, unknown> = {}
-    for (const [key, field] of Object.entries(fields)) {
-      if (!Object.hasOwn(decoded, key)) continue
-      put(
-        row,
-        key,
-        Schema.encodeUnknownSync(field.schema as unknown as Schema.Codec<unknown, unknown>)(
-          decoded[key],
-        ),
-      )
-    }
+    const row = rowFrom(entity, value as Readonly<Record<string, unknown>>)
     const judged = judge(entity, { after: row }, options.operators)
     return Match.valueTags(judged, {
       Invalid: ({ failures }) =>

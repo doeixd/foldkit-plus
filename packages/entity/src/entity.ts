@@ -42,6 +42,7 @@ import {
   type VariantEntity,
 } from './index.js'
 import { own, put } from './record.js'
+import { linkId } from './rows.js'
 import { checkedSet, type EntitySet, type SetOn } from './sets.js'
 import { SchemaShape } from './shape.js'
 import {
@@ -960,15 +961,7 @@ export const valuesFor = <E extends AnyEntity, Fields extends Schema.Struct.Fiel
   value: Readonly<Record<string, unknown>>,
 ): Partial<Schema.Struct.Type<Fields>> => {
   const members: Readonly<Record<string, InputMember>> = input.members as never
-  // The id of a ref or of a nested Selection's value; `undefined` when it has none.
-  const idOf = (held: unknown): unknown =>
-    held === null
-      ? null
-      : typeof held === 'object' && 'id' in held
-        ? held.id
-        : typeof held === 'string'
-          ? held
-          : undefined
+  const idOf = (held: unknown): unknown => Option.getOrUndefined(linkId(held))
   const entries = Object.entries(members).flatMap(([key, member]) => {
     if (member._tag === 'Unmapped') return []
     const written = Match.valueTags(member, {
@@ -1008,5 +1001,8 @@ export {
   judge,
   judgeAgainst,
   judgeInput,
+  judgedBy,
   readsBefore,
+  rowFrom,
+  type JudgeInputOptions,
 } from './invariant.js'

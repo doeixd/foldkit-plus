@@ -1311,6 +1311,16 @@ A row judged holds each relation it reads as that id (null where an optional
 one points nowhere); `Entity.judgeInput` reads an input key mapped to the
 relation as it. A `many` relation holds no one value, so it is not there.
 
+An input describes a whole row only when it creates one. An edit sets a few
+fields of a row that exists, so `Entity.judgeInput(input, value, { over })`
+takes that row, encoded (`Entity.rowFrom(entity, value)` gives it from a
+read value): the input's keys are laid over it, and it is the row before, so
+an invariant over a field the input does not set, and a transition, are
+judged. Without `over` such an invariant is `Undecided`. `Entity.judgedBy(input)`
+names the members outside the input that its invariants read beside a key it
+sets (`{ approvedBy: true }`), for `Entity.selectFor(input, { also })` to load:
+`foldkit-crud`'s editor does both.
+
 `Entity.invariant` returns the step that attaches it, carrying its `id` and,
 once attached, its Entity's name as `entity`: an id is unique only within an
 Entity, so a refusal names both. A declaration attaches to one Entity; reading
@@ -1648,7 +1658,8 @@ refused where it is written.
   twice, or two under one name; `merge` refuses an overlap, and `override`
   replaces on purpose. `Operators.checked(table)` checks each answer against
   the operator's output schema, for tests. Nothing registers globally:
-  `evaluate`, `evaluateEach`, `decided`, `truthOver`, `Entity.judge`, `Entity.judgeInput` and
+  `evaluate`, `evaluateEach`, `decided`, `truthOver`, `Entity.judge`,
+  `Entity.judgeInput(input, value, { operators })` and
   `Entity.check(entity, { operators })` each take the table, `Operators.kernel`
   by default.
 - **Null is strict by default.** A null argument gives null (unknown for a
