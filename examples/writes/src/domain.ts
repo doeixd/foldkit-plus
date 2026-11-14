@@ -67,6 +67,13 @@ export const Product = ProductFields.pipe(
 export const Draft = Entity.refine(Product, 'Draft', { status: 'draft' })
 export const Published = Entity.refine(Product, 'Published', { status: 'published' })
 export const Archived = Entity.refine(Product, 'Archived', { status: 'archived' })
+/**
+ * Stock left over what is reserved: over numbers, so a write declared to leave
+ * a product in it is held to that where it commits, not proved where declared.
+ */
+export const InStock = Entity.refine(Product, 'InStock', ({ row }) =>
+  Expr.gt(row.stock, row.reserved),
+)
 
 /** A guarded rename: the rules decide who may, the writer's revision pin when it lands. */
 export const Rename = Mutation.write(
@@ -123,7 +130,10 @@ export const Restock = Mutation.write(
  * A sale takes from the stock where it commits, expecting no revision: two
  * sales made from one read both land. The server's writer for it keeps a
  * ledger, so a retry of a sale is never sold twice; it is answered with the row
- * as it now is.
+ * as it now is. It leaves some stock unreserved (`becomes: InStock`): a stock
+ * moved by an amount cannot be enumerated, so the writer holds the sale to it
+ * in the statement, and refuses one that would leave none as `Invalid`, rule
+ * `becomes:InStock`.
  */
 export const Sell = Mutation.write(
   'Sell',
@@ -131,6 +141,6 @@ export const Sell = Mutation.write(
     Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
       quantity: Entity.unmapped,
     }),
-    { id: 'id', increment: { stock: 'quantity' } },
+    { id: 'id', increment: { stock: 'quantity' }, becomes: InStock },
   ),
 )

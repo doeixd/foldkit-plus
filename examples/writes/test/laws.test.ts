@@ -34,7 +34,7 @@ describe('the laws of the declared writes', () => {
     ).toMatchFileSnapshot('../LAWS.md')
   })
 
-  it('prove a publish leaves a draft published, and find a revert from published refused', () => {
+  it('prove a publish leaves a draft published, find a revert from published refused, and a sale held InStock where it commits', () => {
     expect(report.findings.map(finding => ({ ...finding }))).toEqual([
       { _tag: 'Holds', entity: 'Product', write: 'Publish', from: 'Draft', to: 'Published' },
       {
@@ -46,6 +46,7 @@ describe('the laws of the declared writes', () => {
         invariant: 'publishedStaysPublished',
       },
       { _tag: 'Undeclared', entity: 'Product', write: 'Revert', from: 'Archived', to: 'Draft' },
+      { _tag: 'Enforced', entity: 'Product', write: 'Sell', to: 'InStock' },
       { _tag: 'Unreached', entity: 'Product', state: 'Archived' },
     ])
   })

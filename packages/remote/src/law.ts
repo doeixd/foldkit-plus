@@ -9,7 +9,7 @@ import { Effect, Option, Result, Schema } from 'effect'
 import type { AnyEntity } from 'foldkit-entity'
 import { RemoteClient, remoteError } from './client.js'
 import type { RemoteDomain } from './index.js'
-import type { MutationDescriptor } from './mutationDescriptor.js'
+import { Refusal, type MutationDescriptor } from './mutationDescriptor.js'
 import { stableStringify, type QueryRef } from './query.js'
 import { belongsEncoded } from './matching.js'
 import type { RemoteMessage, RemoteModel } from './model.js'
@@ -190,9 +190,22 @@ const check = <AppModel>(
       return { agreed, disagreed, unknown }
     }
     if (answer._tag === 'MutationFailed') {
+      const refusal = answer.error.refusal
+      // An invalid row the client could not judge (an invariant or a postcondition over a
+      // field the write moves) was left to the server: a verdict that is not Valid meets it.
+      if (
+        Option.exists(
+          Schema.decodeUnknownOption(config.mutation.Refusal)(refusal),
+          Refusal.isInvalid,
+        ) &&
+        // `input` is the mutation's own, which `Data.mutate` took above.
+        Data.can(model, config.mutation, config.input as never)._tag === 'Undecided'
+      ) {
+        unknown.push(config.mutation.name)
+        return { agreed, disagreed, unknown }
+      }
       // The client showed the write as made, where it showed anything; the server refused it.
-      if (predicted.size > 0)
-        compare(config.mutation.name, 'applied', answer.error.refusal ?? answer.error)
+      if (predicted.size > 0) compare(config.mutation.name, 'applied', refusal ?? answer.error)
       return disagreed.length === 0
         ? nothingCompared(config.mutation.name)
         : { agreed, disagreed, unknown }
