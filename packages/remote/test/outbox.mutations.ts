@@ -224,8 +224,8 @@ export default [
     edits: [
       {
         file: outbox,
-        find: 'saved(key, scope, storedChange([waiting], [])),',
-        replace: 'Effect.succeed(readOf(key, scope, storedChange([waiting], []))),',
+        find: '                  saved(key, scope, change).pipe(',
+        replace: '                  Effect.succeed(readOf(key, scope, change)).pipe(',
       },
     ],
     tests: ['packages/remote/test/outboxTabs.browser.test.ts'],
@@ -237,6 +237,28 @@ export default [
         file: outbox,
         find: '        Effect.uninterruptible(\n          emit(message).pipe(',
         replace: '        Effect.interruptible(\n          emit(message).pipe(',
+      },
+    ],
+    tests: ['packages/remote/test/outboxTabs.browser.test.ts'],
+  },
+  {
+    name: 'a send waits on a store that never answers, holding the lock',
+    edits: [
+      {
+        file: outbox,
+        find: '            Effect.timeout(storeWithin),\n',
+        replace: '',
+      },
+    ],
+    tests: ['packages/remote/test/outboxTabs.browser.test.ts'],
+  },
+  {
+    name: 'a wait for a sign-in waits on a store that never answers, holding the lock',
+    edits: [
+      {
+        file: outbox,
+        find: '                      duration: storeWithin,',
+        replace: '                      duration: Infinity,',
       },
     ],
     tests: ['packages/remote/test/outboxTabs.browser.test.ts'],

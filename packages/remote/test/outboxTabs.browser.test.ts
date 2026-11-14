@@ -151,11 +151,20 @@ const client: RemoteClient['Service'] = {
   live: () => Stream.empty,
 }
 
+/**
+ * Ends every hung store write, writing nothing: a hung write holds the page's
+ * store lock, which the next test would otherwise wait on for good.
+ */
+let unhang: () => void = () => undefined
+let unhung = new Promise<void>(resolve => (unhang = resolve))
+
 /** How long a tab's store takes to read and to write, as one under load does. */
 interface Lag {
   /** The wait before each read, asked once per read. */
   readonly get: () => number
   readonly set: number
+  /** Whether the store never answers a write of this text, as a hung IndexedDB does. */
+  readonly hangs?: (text: string) => boolean
 }
 const slowStore = (lag: Lag) =>
   Layer.effect(
@@ -164,7 +173,10 @@ const slowStore = (lag: Lag) =>
       KeyValueStore.make({
         ...base,
         get: key => Effect.andThen(Effect.sleep(lag.get()), base.get(key)),
-        set: (key, value) => Effect.andThen(Effect.sleep(lag.set), base.set(key, value)),
+        set: (key, value) =>
+          typeof value === 'string' && lag.hangs?.(value) === true
+            ? Effect.promise(() => unhung)
+            : Effect.andThen(Effect.sleep(lag.set), base.set(key, value)),
       }),
     ),
   ).pipe(Layer.provide(KeyValueStore.layerStorage(() => localStorage)))
@@ -250,6 +262,47 @@ it('sends a write once when the tab that sent it stops waiting for the answer be
     b.handle.dispose()
   }
 })
+
+const sending = async () =>
+  ((await navigator.locks.query()).held ?? []).some(
+    lock => lock.name === 'foldkit-remote-outbox:tabs:ada:send',
+  )
+
+// A send that settles writes the store under the lock; one that never hears back
+// gives it up, and the lock goes, so the next write can be sent and the page closed.
+it.each([
+  ['an answer', /"done":\["/, () => answer()],
+  ['a wait for a sign-in', /WaitingForSignIn/, () => undefined],
+] as const)(
+  'lets the send lock go when the store never takes %s',
+  async (_, text, reply) => {
+    let hung = false
+    const a = tab('a', initial, {
+      get: () => 0,
+      set: 0,
+      hangs: value => hung && text.test(value),
+    })
+    try {
+      await vi.waitFor(() => expect(a.read('count')).toBe('1'))
+      signedOut = text.source === 'WaitingForSignIn'
+      hung = true
+      a.press()
+      await vi.waitFor(() => expect(sent).toHaveLength(1))
+      reply()
+      // Told at once with an answer; told the store did not answer, after it gives up.
+      await vi.waitFor(
+        () => expect(a.read(signedOut ? 'signIn' : 'waiting')).toBe(signedOut ? '1' : '0'),
+        { timeout: 9000 },
+      )
+      await vi.waitFor(async () => expect(await sending()).toBe(false), { timeout: 9000 })
+    } finally {
+      a.handle.dispose()
+      unhang()
+      unhung = new Promise<void>(resolve => (unhang = resolve))
+    }
+  },
+  15_000,
+)
 
 it('shows a write no one is signed in to send as waiting for a sign-in in both tabs, until one reports it', async () => {
   const a = tab('a')

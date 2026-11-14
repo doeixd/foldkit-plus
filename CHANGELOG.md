@@ -457,7 +457,8 @@ version changed; `pnpm` skips versions already in the registry.
   settles the sending tab's queue, which ends its send; where that came before
   the store was written, the send's lock went with the store still saying
   waiting, and another tab holding the lock sent the write again. Recording
-  the answer is no longer interruptible.
+  the answer is no longer interruptible; a store that does not take it within
+  5 seconds is given up on, so the lock still goes.
 - `foldkit-mixins`: a Mount inside a `ChildAttribute` on a Slot is composed with
   the Slot's other Mounts, instead of drawn beside them where Foldkit kept one,
   and still sends through its own boundary (#531).

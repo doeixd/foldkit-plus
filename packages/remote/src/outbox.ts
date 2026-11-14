@@ -105,6 +105,13 @@ export interface OutboxWiring<AppModel> extends Wiring<
 }
 
 /**
+ * How long a send waits for the store to take its outcome before it lets the
+ * lock go regardless: past it the store still says waiting, and the next
+ * sender sends the write again under the same operation id.
+ */
+const storeWithin = '5 seconds'
+
+/**
  * Keeps a domain's durable writes (`mutate`'s `durable`) across a reload and
  * sends them, as a wiring beside `Data.wiring`: the queue is written to `key`
  * before a write is sent, sent oldest first by one tab (a Web Lock), sent
@@ -315,7 +322,9 @@ export const outbox = <AppModel>(
        * lock goes, so the next sender reads it. Not interruptible: the
        * answer settles this page's queue, which ends this send, and a send
        * ended before the write lets the lock go with the store still saying
-       * waiting, so a tab holding it sends the write again.
+       * waiting, so a tab holding it sends the write again. A store that
+       * never answers is given up on after `storeWithin`, so the lock still
+       * goes.
        */
       const settle = (message: RemoteMessage, change: StoredOutbox) =>
         Effect.uninterruptible(
@@ -323,6 +332,7 @@ export const outbox = <AppModel>(
             Effect.andThen(announce(key, Option.some(message))),
             Effect.andThen(writeStored(key, scope, change)),
             Effect.andThen(announce(key, Option.none())),
+            Effect.timeout(storeWithin),
             // Unwritten, the store still says waiting: the next sender sends it
             // again, and the operation id has the server answer from its record.
             Effect.ignore,
@@ -395,8 +405,20 @@ export const outbox = <AppModel>(
                 revision: write.revision + 1,
                 state: { _tag: 'WaitingForSignIn', error },
               } as const
+              const change = storedChange([waiting], [])
               return yield* Effect.uninterruptible(
-                Effect.flatMap(saved(key, scope, storedChange([waiting], [])), emit),
+                Effect.flatMap(
+                  saved(key, scope, change).pipe(
+                    Effect.timeoutOrElse({
+                      duration: storeWithin,
+                      orElse: () =>
+                        Effect.succeed(
+                          readOf(key, scope, change, { unsaved: 'The store did not answer.' }),
+                        ),
+                    }),
+                  ),
+                  emit,
+                ),
               )
             }
             // Nothing answered: kept waiting, and sent again after a wait.
