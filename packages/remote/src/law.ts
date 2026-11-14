@@ -13,6 +13,7 @@ import type { RemoteDomain } from './index.js'
 import { Refusal, type MutationDescriptor } from './mutationDescriptor.js'
 import { stableStringify, type QueryRef } from './query.js'
 import { belongsEncoded } from './matching.js'
+import { judgedByWrite } from './mutation.js'
 import type { RemoteMessage, RemoteModel } from './model.js'
 import { patchedFields } from './shown.js'
 import { entityKey, type EntityStore } from './store.js'
@@ -208,10 +209,15 @@ const check = <AppModel>(
         ) &&
         // `input` is the mutation's own, which `Data.mutate` took above.
         Option.match(
-          innerOf<AppModel>(Data).judged(
-            model,
-            config.mutation,
-            config.input as Readonly<Record<string, unknown>>,
+          Option.flatMap(Option.fromUndefinedOr(config.mutation.write), write =>
+            judgedByWrite(
+              write,
+              config.input,
+              undefined,
+              innerOf<AppModel>(Data).context(model),
+              Data.storeOf(model),
+              tableOf(Data.operators),
+            ),
           ),
           { onNone: () => true, onSome: judged => judged._tag === 'Undecided' },
         )
