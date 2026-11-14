@@ -11,6 +11,10 @@ import type { KeyPress } from './hotkeys.js'
 export const KeyboardMessage = defineMessageUnion({
   Pressed: {
     key: Schema.String,
+    /** The physical key (`KeyN`), for a layout that typed another character. */
+    code: Schema.String,
+    /** Focus was in a field where text is typed, so a bare letter is text, not a shortcut. */
+    typing: Schema.Boolean,
     repeat: Schema.Boolean,
     ctrl: Schema.Boolean,
     shift: Schema.Boolean,
@@ -21,8 +25,30 @@ export const KeyboardMessage = defineMessageUnion({
 })
 export type KeyboardMessage = typeof KeyboardMessage.Type
 
+const keyboardless = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'file',
+  'hidden',
+  'image',
+  'radio',
+  'range',
+  'reset',
+  'submit',
+])
+
+/** Whether `target` is where text is typed: a text-like input, a textarea, a select or an editable element. */
+export const isTypingTarget = (target: EventTarget | null | undefined): boolean => {
+  if (!(target instanceof Element)) return false
+  if (target instanceof HTMLElement && target.isContentEditable) return true
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true
+  return target instanceof HTMLInputElement && !keyboardless.has(target.type)
+}
+
 /**
- * Key presses and releases on the window. Without a window the stream is
+ * Key presses and releases on the window. A press made during an IME
+ * composition is not reported: it types text, and is no shortcut. Without a window the stream is
  * empty instead of throwing. Lift with `Subscription.persistentEntry`, mapping
  * into the parent's Message.
  */
@@ -41,8 +67,11 @@ export const keyboardEvents = (
     Effect.acquireRelease(
       Effect.sync(() => {
         const down = (event: KeyboardEvent) => {
+          if (event.isComposing || event.keyCode === 229) return
           const press = KeyboardMessage.Pressed({
             key: event.key,
+            code: event.code,
+            typing: isTypingTarget(event.composedPath()[0]),
             repeat: event.repeat,
             ctrl: event.ctrlKey,
             shift: event.shiftKey,

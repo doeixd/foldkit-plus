@@ -63,7 +63,7 @@ dropped. `Throttle` pairs leading-edge against that trailing edge.
 `loadScript`, `decodeImage` (a picture decoded before it is shown), `enterFullscreen`/`exitFullscreen`, and `postBroadcast` are
 Commands; `Resize()`, `Intersection()`, `Mutation()`, `Bounds()`, and
 `Autofocus()` attach with `h.OnMount` in the view; `keyboardEvents()` and
-friends lift with `Subscription.persistentEntry`, and `matchHotkey` turns a press
+friends lift with `Subscription.persistentEntry`, and `matchHotkey(pattern, press, { platform?, allowInInput? })` (`mod`, a letter by its physical `code`, text-field presses left to the text; `ariaKeyshortcuts` and `formatHotkey` write the attribute and the label from the same pattern, `Option`) turns a press
 into a chord answer. Slices that must survive reload persist through
 `Mirror.kv`, not here — this package owns live facts only.
 

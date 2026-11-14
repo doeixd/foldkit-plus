@@ -13,11 +13,11 @@ or [`dom`](../dom/README.md), not to these window-level streams.
 | `WindowSize` | bundle | `{ width, height }` | `Changed { width, height }` | none |
 | `Idle` | bundle | `{ idle }` | `BecameIdle`, `BecameActive` | `{ timeoutMs }` |
 | `InputModality` | bundle | `{ modality }` | `Changed { modality }` | none |
-| `keyboardEvents({ preventDefault? })` | entry | | `Pressed { key, repeat, ctrl, shift, alt, meta }`, `Released { key }` | |
+| `keyboardEvents({ preventDefault? })` | entry | | `Pressed { key, code, typing, repeat, ctrl, shift, alt, meta }`, `Released { key }` | |
 | `pointerEvents()` | entry | | `Moved { x, y }` | |
 | `scrollEvents()` | entry | | `Scrolled { x, y }` | |
 | `activeElementEvents()` | entry | | `Changed { tag, id }` | |
-| `matchHotkey(pattern, press)` | function | | | |
+| `matchHotkey(pattern, press, { platform?, allowInInput? })`, `ariaKeyshortcuts(pattern, platform?)`, `formatHotkey(pattern, platform?)`, `isTypingTarget(target)` | functions | | | |
 
 ## Start with one: is the tab visible
 
@@ -100,7 +100,49 @@ live node. Without a window each stream is empty rather than throwing.
 
 `matchHotkey('ctrl+shift+k', press)` answers whether a press is that chord, so
 `update` stays a table of chords. Matching is exact, with Mac aliases, and an
-auto-repeat never matches.
+auto-repeat never matches. Four things beyond the chord:
+
+- `mod` is the primary modifier: Meta with `{ platform: 'mac' }` or `'ios'`,
+  Control otherwise (the default, so a server and a test agree). The platform
+  is an argument because the function is pure; read it once with
+  `platformFromUA` from `foldkit-primitives/media` and keep it in the Model.
+- A letter or digit matches by its physical key (`code`) when the layout typed
+  another character: `alt+n` fires on Option+N, which types a tilde on a Mac,
+  and `ctrl+s` fires on a Cyrillic layout. It never overrides a Latin letter
+  the layout did type, so a Dvorak `ctrl+k` is the key that types `k`.
+- `Pressed.typing` says focus was in a text field (`isTypingTarget`), and a
+  press made there matches only a pattern with Control, Alt or Meta, because a
+  bare letter or a space is text. Pass `allowInInput: true` for the exceptions,
+  such as Escape. `keyboardEvents` also drops a press made during an IME
+  composition, which types text and is no shortcut.
+- One definition draws and runs the shortcut: `ariaKeyshortcuts('mod+shift+n',
+  'mac')` is `Some('Meta+Shift+N')` for the `aria-keyshortcuts` attribute and
+  `formatHotkey` is `Some('⌘⇧N')` (`Ctrl+Shift+N` elsewhere) for the label,
+  inside a left-to-right isolate so a right-to-left page does not reorder it.
+  Both are `None` for a pattern that would never match.
+
+The shortcut registry (scopes, a modal pausing the page's shortcuts, one
+listener) is not here: the Model holds which layer is open, and `update` decides
+whether a `Pressed` runs.
+
+```ts
+import { Option } from 'effect'
+import { ariaKeyshortcuts, formatHotkey, matchHotkey } from 'foldkit-primitives/events'
+
+const save = 'mod+s'
+const press = {
+  key: 's',
+  repeat: false,
+  ctrl: false,
+  shift: false,
+  alt: false,
+  meta: true,
+  typing: true,
+}
+const runs = matchHotkey(save, press, { platform: 'mac' })
+const attribute = Option.getOrElse(ariaKeyshortcuts(save, 'mac'), () => '')
+const label = Option.getOrElse(formatHotkey(save, 'mac'), () => '')
+```
 
 `keyboardEvents({ preventDefault })` cancels the default of the presses the
 predicate picks (the arrows scrolling a game's page, a browser's own `ctrl+s`),
