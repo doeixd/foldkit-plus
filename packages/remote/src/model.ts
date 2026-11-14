@@ -24,7 +24,13 @@ import {
   type Segment,
 } from './connection.js'
 import { noKept, type Kept } from './kept.js'
-import { emptyOptimistic, layersIn, liveIn, type Capabilities } from './capability.js'
+import {
+  emptyOptimistic,
+  layersIn,
+  liveIn,
+  type Capabilities,
+  type ReadAfterCapability,
+} from './capability.js'
 import { isPatch } from './shown.js'
 import type { ConnectionChange, OptimisticState, OptimisticOperation } from './optimistic.js'
 import { emptyLiveState, type AwaitedEcho, type LiveEvent, type LiveState } from './liveState.js'
@@ -55,8 +61,6 @@ import {
 import type { StoredWrite } from './outboxStore.js'
 import {
   askAgain,
-  behindAgain,
-  clearFloors,
   entityKey,
   entry as storeEntry,
   emptyStore,
@@ -64,7 +68,6 @@ import {
   mergeStores,
   readField,
   remove,
-  setFloors,
   setStale,
   setUnavailable,
   tombstone,
@@ -1942,7 +1945,14 @@ const reduceRemote = (
       return model
     case 'ReadReceived': {
       if (askedBeforeForget(model, message.generation)) return model
-      const { held } = readAfter(model.entities, message.requests, message.result, message.after)
+      const read = readAfterIn(capabilities).read(
+        model.entities,
+        message.requests,
+        message.result,
+        message.now,
+        message.after,
+      )
+      const { held } = read
       return {
         ...model,
         outbox: heardAs(
@@ -1951,13 +1961,7 @@ const reduceRemote = (
           message.result.principal === undefined ? undefined : madeAsOf(message.result.principal),
           message.generation,
         ),
-        entities: writeReadAt(
-          model.entities,
-          message.requests,
-          message.result,
-          message.now,
-          message.after,
-        ),
+        entities: read.store,
         echoes: answeredSince(
           model.echoes,
           held.size === 0
@@ -2256,13 +2260,7 @@ const reduceRemote = (
         entities:
           message.after === undefined || repeated
             ? written
-            : setFloors(
-                written,
-                message.after.rows.map(row => ({
-                  key: entityKey(row.entity, row.id),
-                  token: message.after!.token,
-                })),
-              ),
+            : readAfterIn(capabilities).hold(written, message.after),
         echoes,
         kept,
         mutations: settled.state,
@@ -2448,13 +2446,13 @@ const reduceRemote = (
       const entities =
         requests.length === 0
           ? model.entities
-          : writeRead(
+          : readAfterIn(capabilities).read(
               model.entities,
               requests,
               payloadRead,
               message.now ?? 0,
-              readAfter(model.entities, requests, payloadRead, undefined).held,
-            )
+              undefined,
+            ).store
       // Like `ReadReceived`: the answer settles what it was asked, whether
       // with values or as settled, so a prior failure does not outlive it.
       const failures = withoutFieldFailures(
@@ -2860,9 +2858,10 @@ const unsettledRead = (
   return { requests, result: { entities, settled } }
 }
 
-const noRows: ReadonlySet<EntityKey> = new Set()
+export const noRows: ReadonlySet<EntityKey> = new Set()
 
-const rowsOf = (
+/** The keys of `refs`, a row named in an answer's `behind` among them. */
+export const rowsOf = (
   refs: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined,
 ): ReadonlySet<EntityKey> =>
   refs === undefined || refs.length === 0
@@ -2870,62 +2869,21 @@ const rowsOf = (
     : new Set(refs.map(ref => entityKey(ref.entity, ref.id)))
 
 /**
- * What an answer to a read may say of the rows held to a read-after token
- * (`EntityEntry.floor`). A row the read carried its token for and the server
- * read at it (not named in `behind`) is `confirmed`: the answer writes it and
- * its floor ends. Every other floored row the answer names is `held`: it was
- * asked without the token, at another one, or the server's read model is
- * behind it, so the answer may be older than the write, and writes nothing.
- * A row named in `behind` is held whether it has a floor or not.
+ * The read-after capability, or, in a domain no write installed it in, reads
+ * with no token: nothing waits, and an answer writes all it names but the
+ * rows the server says it is behind on.
  */
-const readAfter = (
-  store: EntityStore,
-  requests: ReadonlyArray<Requirement>,
-  result: Schema.Schema.Type<typeof ReadBatchResult>,
-  sent: ReadonlyArray<Schema.Schema.Type<typeof RowToken>> | undefined,
-): {
-  readonly held: ReadonlySet<EntityKey>
-  readonly confirmed: ReadonlySet<EntityKey>
-  /** Rows asked at their floor that the server named in `behind`: asked again after a wait. */
-  readonly waiting: ReadonlySet<EntityKey>
-} => {
-  const tokens = new Map((sent ?? []).map(row => [entityKey(row.entity, row.id), row.token]))
-  const behind = rowsOf(result.behind)
-  // A row the server could not read at its token is no evidence it is gone, floored or not.
-  const held = new Set<EntityKey>(behind)
-  const confirmed = new Set<EntityKey>()
-  const waiting = new Set<EntityKey>()
-  for (const ref of [...requests, ...result.entities, ...result.settled]) {
-    const key = entityKey(ref.entity, ref.id)
-    const floor = store[key]?.floor
-    if (floor === undefined) continue
-    if (tokens.get(key) !== floor) held.add(key)
-    else if (behind.has(key)) {
-      held.add(key)
-      waiting.add(key)
-    } else confirmed.add(key)
-  }
-  return { held: held.size === 0 ? noRows : held, confirmed, waiting }
-}
+export const readAfterIn = (capabilities: Capabilities): ReadAfterCapability =>
+  Option.getOrElse(capabilities.readAfter, () => plainReads)
 
-/**
- * `writeRead` of a read sent with `after`'s tokens: a floored row it may not
- * speak for is left as held (`readAfter`), each it read at its token ends its
- * floor, and each the server was behind on waits to be asked again.
- */
-export const writeReadAt = (
-  store: EntityStore,
-  requests: ReadonlyArray<Requirement>,
-  result: Schema.Schema.Type<typeof ReadBatchResult>,
-  now: number,
-  after: ReadonlyArray<Schema.Schema.Type<typeof RowToken>> | undefined,
-): EntityStore => {
-  const { held, confirmed, waiting } = readAfter(store, requests, result, after)
-  return behindAgain(
-    clearFloors(writeRead(store, requests, result, now, held), confirmed),
-    waiting,
-    now,
-  )
+const plainReads: ReadAfterCapability = {
+  withTokens: (_store, requirements) => ({ requirements, after: [] }),
+  waiting: (_store, now) => ({ now, later: null }),
+  read: (store, requests, result, now) => {
+    const held = rowsOf(result.behind)
+    return { held, store: writeRead(store, requests, result, now, held) }
+  },
+  hold: store => store,
 }
 
 /**

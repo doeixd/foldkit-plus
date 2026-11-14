@@ -68,7 +68,7 @@ import {
   setConnectionStale,
   withRefreshRequested,
   writeRead,
-  writeReadAt,
+  readAfterIn,
   type RemoteMessage,
   type RemoteMessageInput,
   type RemoteModel,
@@ -81,7 +81,7 @@ import {
 } from './ledger.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { Can } from './can.js'
-import { plan as planRequirements, withTokens, type PlanOptions } from './plan.js'
+import { plan as planRequirements, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { IDENTITY_SEPARATOR, queryIdentity, stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef } from './query.js'
@@ -536,7 +536,8 @@ export const prefetch = /* @__PURE__ */ Effect.fn('Remote.prefetch')(function* <
     RemotePolicy.toPlan(policyAt(options.policy, model), at),
   )
   if (missing.length === 0) return store
-  const { requirements, after } = withTokens(store, missing)
+  const tokens = readAfterIn(bound[Capability])
+  const { requirements, after } = tokens.withTokens(store, missing)
   yield* Effect.annotateCurrentSpan('requirementCount', requirements.length)
   const client = yield* RemoteClient
   const result = yield* client.read({
@@ -544,7 +545,7 @@ export const prefetch = /* @__PURE__ */ Effect.fn('Remote.prefetch')(function* <
     requests: requirements,
     ...(after.length === 0 ? {} : { after }),
   })
-  return writeReadAt(store, requirements, result, at, after)
+  return tokens.read(store, requirements, result, at, after).store
 })
 
 /**
@@ -1481,7 +1482,7 @@ const bindDomain = <
           pageMessage(query.identity, page, true, query.window, query.select, now(), generation),
         )
       }
-      const { requirements, after } = withTokens(
+      const { requirements, after } = readAfterIn(bound[Capability]).withTokens(
         store.get(current).entities,
         planAsked(bound, store.get(current), askedUnion(projections), planOptions).requirements,
       )

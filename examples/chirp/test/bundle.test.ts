@@ -24,7 +24,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +941 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
 // -382 bytes: the law graph's facts left the page for `Module.graph`'s own path (#537 review): measured with and without the move in one tree on 2026-11-14,
 // the page fell by that, and the ceiling with it.
-const CEILING = 245_118
+// +500 (#560 review): asking again a row the server is behind on, a live patch ending a floor,
+// and the read-after half moved behind the write capability, which Chirp installs: the move
+// costs a page that writes what it saves one that reads (domains-plus -320). Measured with and
+// without both in one tree on 2026-11-14: 245,167 against 245,663, +496, rounded up.
+const CEILING = 245_618
 
 clientBudget({
   name: 'chirp',

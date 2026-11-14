@@ -67,6 +67,7 @@ import {
   remoteMessageSchema,
   remoteModelSchema,
   readsStale,
+  readAfterIn,
   type RemoteMessage,
   type RemoteMessageInput,
   type RemoteMessageTag,
@@ -76,15 +77,7 @@ import { DerivedBy } from './derived.js'
 import type { MutationStatus } from './ledger.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { OptimisticOperation } from './optimistic.js'
-import {
-  deadlineOf,
-  plan,
-  refreshedOf,
-  waitingOf,
-  withTokens,
-  type Deadline,
-  type PlanOptions,
-} from './plan.js'
+import { deadlineOf, plan, refreshedOf, type Deadline, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
@@ -1971,10 +1964,13 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       const known = byAsked?.get(askedKey)
       if (known !== undefined && at < known.until) return known.dependencies
       const plan = planAsked(bound, remote, asked, RemotePolicy.toPlan(policy, at))
-      const { now: due, later } = waitingOf(remote.entities, plan.requirements)
-      const { requirements, after } = withTokens(remote.entities, due)
+      const tokens = readAfterIn(bound[Capability])
+      const { now: due, later } = tokens.waiting(remote.entities, plan.requirements)
+      const { requirements, after } = tokens.withTokens(remote.entities, due)
       const retry =
-        later === null ? null : { at: later.at, ...withTokens(remote.entities, later.requirements) }
+        later === null
+          ? null
+          : { at: later.at, ...tokens.withTokens(remote.entities, later.requirements) }
       const asking = new Set([
         ...[...requirements, ...(retry?.requirements ?? [])].flatMap(({ entity, id, fields }) =>
           fields.map(field => fieldMark(entity, id, field)),

@@ -380,6 +380,26 @@ describe('A row named behind with no floor', () => {
     })
     expect(stockOf(model)).toBe(5)
   })
+
+  it('is not taken as deleted where nothing writes, and no read carries a token', () => {
+    const Reads = Remote.make({ model: App.model.remote, entities: [Product] })
+    const shown = Reads.reduce(
+      { remote: Remote.initial },
+      {
+        _tag: 'ReadReceived',
+        requests: [request],
+        result: { entities: [row(5)], settled: [] },
+        now: 0,
+      },
+    )
+    const answered = Reads.reduce(shown, {
+      _tag: 'ReadReceived',
+      requests: [request],
+      result: { entities: [], settled: [], behind: [{ entity: 'Product', id: 'p1' }] },
+      now: 10,
+    })
+    expect(Reads.get(selection, 'p1').read(answered)._tag).toBe('Ready')
+  })
 })
 
 describe('A floor across a reload', () => {

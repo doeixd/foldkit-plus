@@ -29,7 +29,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // 406 (each Behavior's attachment metadata, which describe reads), measured by
 // minifying the two sources before and after. The page then measured 194,714.
 // +1146 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
-const CEILING = 196_200
+// -189 bytes (#560 review): the read-after half of #544 (tokens, floors, waits) moved behind the
+// write capability, which this page never installs, -320; asking again a row the server is behind
+// on, +131. Measured with and without both in one tree on 2026-11-14 (195,829 against 195,640).
+const CEILING = 196_011
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))

@@ -2660,7 +2660,10 @@ a write's token    MutationResult.after = { token, rows }
 ```
 
 The store keeps both beside the row (`EntityEntry.revision`, `.floor`), so a
-snapshot `persistence` restores keeps them, and nothing else owns them. The
+snapshot `persistence` restores keeps them, and nothing else owns them. Only a
+domain that registers a Mutation reads with tokens: a page that writes nothing
+carries none of that code, and keeps a floor a snapshot brought without
+asking at it. The
 server owns what they mean: Remote only compares revisions and sends a token
 back. While a row has a floor:
 

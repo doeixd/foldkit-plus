@@ -5,6 +5,7 @@
 const tests = ['packages/remote/test/readAfter.test.ts', 'packages/remote/test/revision.test.ts']
 const store = '../src/store.ts'
 const model = '../src/model.ts'
+const readAfter = '../src/readAfter.ts'
 const plan = '../src/plan.ts'
 const events = '../src/liveEvents.ts'
 const persistence = '../src/persistence.ts'
@@ -41,19 +42,19 @@ export default [
   ),
   edit(
     'a floor clears on behind',
-    model,
+    readAfter,
     '    else if (behind.has(key)) {\n      held.add(key)\n      waiting.add(key)\n    } else confirmed.add(key)',
     '    else confirmed.add(key)',
   ),
   edit(
     'a floor clears on an answer asked without its token',
-    model,
+    readAfter,
     'if (tokens.get(key) !== floor) held.add(key)\n    else if',
     'if (false) held.add(key)\n    else if',
   ),
   edit(
     'a row named in behind is written',
-    model,
+    readAfter,
     'clearFloors(writeRead(store, requests, result, now, held), confirmed)',
     'clearFloors(writeRead(store, requests, result, now), confirmed)',
   ),
@@ -101,9 +102,9 @@ export default [
   ),
   edit(
     'a behind answer waits for nothing',
-    model,
-    '    waiting,\n    now,\n  )',
-    '    [],\n    now,\n  )',
+    readAfter,
+    '        waiting,\n        now,\n      ),',
+    '        [],\n        now,\n      ),',
   ),
   edit(
     'a waiting row is read at once',
@@ -223,26 +224,32 @@ export default [
   ),
   edit(
     'a row named behind with no floor is taken as gone',
-    model,
+    readAfter,
     '  const held = new Set<EntityKey>(behind)',
     '  const held = new Set<EntityKey>()',
   ),
   edit(
+    'a row named behind is taken as gone where nothing writes',
+    model,
+    '    const held = rowsOf(result.behind)\n',
+    '    const held = rowsOf(undefined)\n',
+  ),
+  edit(
     'a list page writes a floored row',
     model,
-    '              readAfter(model.entities, requests, payloadRead, undefined).held,\n',
-    '',
+    '          : readAfterIn(capabilities).read(\n              model.entities,\n              requests,\n              payloadRead,',
+    '          : plainReads.read(\n              model.entities,\n              requests,\n              payloadRead,',
   ),
   edit(
     'Remote.prefetch reads without the token',
     '../src/remote.ts',
-    '  const { requirements, after } = withTokens(store, missing)',
-    '  const { requirements } = withTokens(store, missing)\n  const after: ReadonlyArray<never> = []',
+    '  const { requirements, after } = tokens.withTokens(store, missing)',
+    '  const { requirements } = tokens.withTokens(store, missing)\n  const after: ReadonlyArray<never> = []',
   ),
   edit(
     'prefetch and satisfy read without the token',
     '../src/remote.ts',
-    '      const { requirements, after } = withTokens(\n        store.get(current).entities,',
-    '      const { requirements, after: _after } = withTokens(\n        store.get(current).entities,',
+    '      const { requirements, after } = readAfterIn(bound[Capability]).withTokens(',
+    '      const { requirements, after: _after } = readAfterIn(bound[Capability]).withTokens(',
   ),
 ]
