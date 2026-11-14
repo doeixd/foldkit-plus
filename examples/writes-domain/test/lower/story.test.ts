@@ -51,17 +51,18 @@ describe('the lowered ReserveStock as a Domain model', () => {
     )
   })
 
-  it('rebuilds the state from given ProductListed and StockReserved', async () => {
+  it('rebuilds the state from given ProductListed and StockReserved, copying the outcome recorded', async () => {
+    // Recorded as 7 of a quantity of 4 from 2: the event's outcome is the fact, whatever the rule now computes.
     await Effect.runPromise(
       Story.make(Shop, { layer: ProductRowLive })(
         Story.given(
           ref,
           listed,
-          new StockReserved({ quantity: 4, reservedAfter: 6, revisionAfter: 2 }),
+          new StockReserved({ quantity: 4, reservedAfter: 7, revisionAfter: 2 }),
         ),
-        Story.view(ProductRow, ref, { ...listed.row, reserved: 6, revision: 2 }),
+        Story.view(ProductRow, ref, { ...listed.row, reserved: 7, revision: 2 }),
         Story.provide(CurrentUser, ada),
-        Story.when(ref, new Reserved.command({ revision: 2, quantity: 5 })),
+        Story.when(ref, new Reserved.command({ revision: 2, quantity: 4 })),
         Story.rejected(
           new Reserved.rejections.Invalid({
             entity: Option.some('Product'),
