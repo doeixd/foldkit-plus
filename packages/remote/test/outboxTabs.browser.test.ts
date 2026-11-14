@@ -271,8 +271,8 @@ const sending = async () =>
 // A send that settles writes the store under the lock; one that never hears back
 // gives it up, and the lock goes, so the next write can be sent and the page closed.
 it.each([
-  ['an answer', /"done":\["/, () => answer()],
-  ['a wait for a sign-in', /WaitingForSignIn/, () => undefined],
+  ['an answer', /"done":\["/, (): void => answer()],
+  ['a wait for a sign-in', /WaitingForSignIn/, (): void => undefined],
 ] as const)(
   'lets the send lock go when the store never takes %s',
   async (_, text, reply) => {
