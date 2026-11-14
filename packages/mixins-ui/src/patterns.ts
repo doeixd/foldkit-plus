@@ -745,7 +745,7 @@ export const Breadcrumb = A11y.pattern({
 /** A native table; a sort and a row's details are presses only where the table draws them. */
 export const Table = A11y.pattern({
   root: { capability: Capability.Container },
-  headerCell: { capability: Capability.Container },
+  headerCell: { capability: Capability.Container, attributes: [Attr.AriaSort] },
   row: { capability: Capability.Container },
   cell: { capability: Capability.Container },
   sortButton: { capability: Capability.Interactive, events: [Event.Click], optional: true },

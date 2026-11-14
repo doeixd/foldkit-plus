@@ -22,6 +22,7 @@ const written: ReadonlyArray<Write> = [
   ['AriaLabelledby', Attr.AriaLabelledby, h.AriaLabelledBy('label')],
   ['AriaControls', Attr.AriaControls, h.AriaControls('panel')],
   ['AriaReadonly', Attr.AriaReadonly, h.AriaReadonly(true)],
+  ['AriaSort', Attr.AriaSort, h.AriaSort('ascending')],
   ['AriaRequired', Attr.AriaRequired, h.AriaRequired(true)],
   ['AriaCurrent', Attr.AriaCurrent, h.AriaCurrent('page')],
   ['AriaValuenow', Attr.AriaValuenow, h.AriaValuenow(3)],
