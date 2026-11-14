@@ -806,6 +806,17 @@ Foldkit's own behaviour that we work around is listed in
   reading source with library checks skipped, never did. Name an exported type
   for what a public function returns; `pack:check`'s consumer compile
   (`scripts/published-types.mjs`) catches the rest.
+- **A member typed with a form's Model can push a nesting form past TS7056.**
+  `form.over`'s signature named the whole form Model a second time, and
+  `examples/entity`'s `writeForm.ts`, a form nesting another form, failed
+  `typecheck:force` ("inferred type exceeds the maximum length the compiler
+  will serialize") while the package's own check passed. Type such a member
+  by the one field it reads or writes (`<M extends Pick<Model, 'over'>>`).
+- **A helper reached through a namespace object carries the namespace.**
+  Primitives read `Behaviors.idSelector`, and every page with roving focus
+  kept every Behavior module, `Keys` included (registry +300 bytes brotli).
+  Import a shared helper by name from a module that holds it; a budget that
+  creeps after a "share one helper" commit is this.
 - **A reference directive after a statement is ignored, silently.** The
   consumer `published-types.mjs` wrote `/// <reference types=
   "foldkit-media/client" />` after the imports, so `client.d.ts` was never
