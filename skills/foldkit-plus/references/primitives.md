@@ -52,7 +52,7 @@ stiffness, damping }`), `Pagination` (`{ perPage }`), `Locale` (`{ default
 timeoutMs }`), `Presence` (`{ durationMs }`), `Virtual` (`{
 estimatedHeight, overscan, gap, paddingStart, paddingEnd }`, plus optional
 restore and settle options), and `history({ name, value })` (a `Push` may name a `group`, joining consecutive steps; `History.push`/`undo`/`redo` are the same steps as pure functions; `History.close` ends a group,
-`History.revert(model, group)` takes a group's step back unredoably)
+`History.revert(model, group)` takes a group's step back unredoably; `Push` may carry `at` with a factory `within` so a pause ends a step, `equals` makes an unchanged push record nothing, `History.map` rewrites every kept value; a step's label or source is part of the value)
 place the same way. `sse({
 name })`, `websocket({ name })`, `mediaDevices({ name })`, `mediaStream({
 name })`, and `permissions({ name })` are factories over a resource tag;

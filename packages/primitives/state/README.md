@@ -8,7 +8,7 @@ frame, not the contents; loading the rows stays the application's job.
 | Name | Form | Model | Messages | Args |
 | --- | --- | --- | --- | --- |
 | `Pagination` | bundle | `{ page, perPage, total }` | `GoToPage`, `NextPage`, `PrevPage`, `SetPerPage`, `SetTotal` | `{ perPage, total? }` |
-| `history({ name, value, capacity? })` | bundle factory | `{ past, present, future, group }` | `Push { value, group? }`, `Undo`, `Redo`, `GoTo { step }`, `Clear` | `{ initial }` |
+| `history({ name, value, capacity?, within?, equals? })` | bundle factory | `{ past, present, future, group, groupedAt }` | `Push { value, group?, at? }`, `Undo`, `Redo`, `GoTo { step }`, `Clear` | `{ initial }` |
 | `History.*` | functions | the same steps, pure | | |
 | `Locale` | bundle | `{ locale }` | `SetLocale` | `{ default }` |
 | `SelectionSet` | bundle | `{ selected }` | `Select`, `Deselect`, `Toggle`, `ReplaceAll`, `Clear` | none |
@@ -70,7 +70,7 @@ const Editor = Bundle.compose({}).pipe(
 )
 ```
 
-The Model holds `{ past, present, future, group }`. `Push` records a value and
+The Model holds `{ past, present, future, group, groupedAt }`. `Push` records a value and
 drops the redo future (an already empty future is kept as it was, so a view
 reading it is not redrawn per push); `Undo` and `Redo` move one step; `GoTo { step }`
 jumps to any kept value, counted from the oldest (0), so the present is at
@@ -81,14 +81,44 @@ dispatches `EditHistory.Message.Push({ value })`. `canUndo` and `canRedo` read
 the edges.
 
 A `Push` may name a `group`: consecutive pushes of the same group are one
-step, so typing a word, or dragging a brush, undoes as a whole, with no clock.
+step, so typing a word, or dragging a brush, undoes as a whole. The Model reads
+no clock: a `Push` that carries `at` (milliseconds, from the Command or event
+that made the edit) and a factory `within` end the step at a pause, so typing
+that stops for longer than `within` starts a new one, and steady typing never
+splits. Without `equals`, a push of an unchanged value is recorded; give the
+factory (or `History.push`) an `equals` and a value equal to the present
+records nothing and returns the Model it was given.
+
+History does not name a step. A value that carries its own label and source is
+how a menu reads "Undo rename" from `present` (the step an undo takes back) and
+"Redo paste" from `future[0]`, and who made the edit with it:
+
+```ts
+import { Option } from 'effect'
+import { History, type HistoryModel } from 'foldkit-primitives/state'
+
+type Step = { readonly text: string; readonly label: string; readonly source: 'reader' | 'agent' }
+
+const edit = (model: HistoryModel<Step>, step: Step) =>
+  History.push(model, step, { capacity: 50 })
+
+const renamed = edit(History.start({ text: 'a', label: 'start', source: 'reader' }), {
+  text: 'b',
+  label: 'rename',
+  source: 'agent',
+})
+const undoLabel = `Undo ${renamed.present.label}`
+const redoLabel = Option.fromNullishOr(History.undo(renamed).future[0]?.label)
+```
 
 The steps are also pure functions, `History.start`, `push`, `undo`, `redo`,
 `goTo`, and `clear`, for a parent that records an edit in the same transition
 that makes it. Two more exist only as functions: `History.close(model)` ends
 the current group, so the same group pushed again is a step of its own, and
 `History.revert(model, group)` takes back the step `group` is making with
-nothing left to redo, which is what a cancelled edit leaves.
+nothing left to redo, which is what a cancelled edit leaves, and
+`History.map(model, change)` rewrites every kept value without adding a step
+(a status that changes everywhere it appears).
 [`examples/foldkit/pixel-art`](../../../examples/foldkit/pixel-art) keeps its
 grid this way, one group per stroke.
 
