@@ -80,6 +80,7 @@ import {
   deadlineOf,
   plan,
   refreshedOf,
+  waitingOf,
   withTokens,
   type Deadline,
   type PlanOptions,
@@ -1836,6 +1837,16 @@ export interface ReadDependencies {
   readonly requirements: ReadonlyArray<Requirement>
   /** The read-after tokens of the rows `requirements` reads that hold one (`withTokens`). */
   readonly after: ReadonlyArray<Schema.Schema.Type<typeof RowToken>>
+  /**
+   * The floored rows the server was behind on that come due first, read with
+   * their tokens at `at` (`waitingOf`). Each answer `behind` moves `at` on, so
+   * the entry restarts and waits again; nothing else would ask.
+   */
+  readonly retry: {
+    readonly at: number
+    readonly requirements: ReadonlyArray<Requirement>
+    readonly after: ReadonlyArray<Schema.Schema.Type<typeof RowToken>>
+  } | null
   readonly queries: ReadonlyArray<Schema.Schema.Type<typeof PlannedQuery>>
   /**
    * The highest generation the fields this entry reads were refreshed at: a
@@ -1927,6 +1938,13 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     dependenciesSchema: Schema.Struct({
       requirements: Schema.Array(ReadRequest),
       after: Schema.Array(RowToken),
+      retry: Schema.NullOr(
+        Schema.Struct({
+          at: Schema.Number,
+          requirements: Schema.Array(ReadRequest),
+          after: Schema.Array(RowToken),
+        }),
+      ),
       queries: Schema.Array(PlannedQuery),
       refresh: Schema.Number,
       refreshing: Schema.Array(Schema.String),
@@ -1953,9 +1971,12 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       const known = byAsked?.get(askedKey)
       if (known !== undefined && at < known.until) return known.dependencies
       const plan = planAsked(bound, remote, asked, RemotePolicy.toPlan(policy, at))
-      const { requirements, after } = withTokens(remote.entities, plan.requirements)
+      const { now: due, later } = waitingOf(remote.entities, plan.requirements)
+      const { requirements, after } = withTokens(remote.entities, due)
+      const retry =
+        later === null ? null : { at: later.at, ...withTokens(remote.entities, later.requirements) }
       const asking = new Set([
-        ...requirements.flatMap(({ entity, id, fields }) =>
+        ...[...requirements, ...(retry?.requirements ?? [])].flatMap(({ entity, id, fields }) =>
           fields.map(field => fieldMark(entity, id, field)),
         ),
         ...plan.queries.map(query => connectionMark(query.identity)),
@@ -1963,11 +1984,12 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       const dependencies: ReadDependencies = {
         refresh: refreshedAt(
           remote.refresh,
-          requirements,
+          [...requirements, ...(retry?.requirements ?? [])],
           plan.queries.map(query => query.identity),
         ),
         requirements,
         after,
+        retry,
         queries: plan.queries.map(({ identity, window, select }) => ({
           identity,
           window,
@@ -1988,6 +2010,7 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
     dependenciesToStream: ({
       requirements,
       after,
+      retry,
       queries,
       refresh,
       refreshing,
@@ -2027,6 +2050,26 @@ export const observeEntry = <AppModel, Store extends RemoteModel, Message>(
                 ? []
                 : [Stream.fromEffect(read(requirements, after, refresh))]),
               ...queries.map(query => Stream.fromEffect(run(query, refresh))),
+              ...(retry === null
+                ? []
+                : [
+                    Stream.fromEffect(Effect.sleep(Math.max(0, retry.at - now()))).pipe(
+                      Stream.drain,
+                      Stream.concat(
+                        Stream.make(
+                          toMessage({
+                            _tag: 'ReadStarted',
+                            requests: retry.requirements,
+                            refresh,
+                            by,
+                          }),
+                        ),
+                      ),
+                      Stream.concat(
+                        Stream.fromEffect(read(retry.requirements, retry.after, refresh)),
+                      ),
+                    ),
+                  ]),
             ],
             { concurrency: 'unbounded' },
           ),

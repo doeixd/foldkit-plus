@@ -1545,10 +1545,12 @@ handler's write and raw SQL are held to the invariants and move the revision too
   nothing, from a read, a live patch or an answer; a tombstone keeps the
   revision it was gone at, and takes a row of it again only while asked about
   again (a row hidden from the reader, then shown unchanged). A write's
-  answer may carry `after: { token, rows }`: each row is held to the token (`EntityEntry.floor`, kept by `persistence`),
-  read again carrying it (`ReadBatch.after`, `LiveRequirement.floors`), and
-  written only by an answer read at it; a row the server names in `behind`
-  keeps what is held. `Data.inspect(model).floors`, `why`'s `ReadAfter`.
+  answer may carry `after: { token, rows }`: each row is held to the token
+  (`EntityEntry.floor`, kept by `persistence`), read again carrying it
+  (`ReadBatch.after`, `LiveRequirement.floors`), and written only by an answer
+  read at it or a live patch on a stream opened at it; a row the server names
+  in `behind` keeps what is held and is asked again after 1s, doubling, at
+  most 30s. `Data.inspect(model).floors`, `why`'s `ReadAfter`.
   `source(binding, { revision })` in `foldkit-remote-drizzle` sends the revision;
   `foldkit-remote-domain` sends both.
 - `RemoteServer.handlers` takes an already-authenticated principal; it never reads

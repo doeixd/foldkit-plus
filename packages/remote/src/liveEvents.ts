@@ -13,6 +13,7 @@ import type { OptimisticState } from './optimistic.js'
 import type { LiveInsertion, LivePolicy } from './query.js'
 import { own } from './record.js'
 import {
+  clearFloors,
   entityKey,
   tombstone,
   olderThanHeld,
@@ -257,6 +258,8 @@ export const applyEntityEvent = (
     readonly kept?: Kept | undefined
     /** The requests in flight, which a patch is kept beside. */
     readonly pending?: ReadonlySet<string> | undefined
+    /** The read-after token the stream was opened with for the event's row (`LiveRequirement.floors`). */
+    readonly token?: string | undefined
   } = {},
 ): EntityApplied => {
   const echoes = context.echoes ?? {}
@@ -280,25 +283,30 @@ export const applyEntityEvent = (
     }
   }
   // Older than the row held: the stream has moved past it, and so has the store.
-  if (olderThanHeld(store[key], event.revision))
+  // A floored row is written only by a stream opened at its token, which the
+  // server answers at or after it: such a patch ends the floor, and one from
+  // a stream opened before may be older than the write.
+  const floor = store[key]?.floor
+  if (olderThanHeld(store[key], event.revision) || (floor !== undefined && context.token !== floor))
     return { state: next, store, outcome, written: {}, echoes, kept, contradicted: [] }
   const heard =
     awaited === undefined ? undefined : heardBack(awaited, context.stream ?? '', event.values)
   const written = heard?.values ?? event.values
   const unexpiredKept = unexpired(kept, context.now ?? 0)
+  const patched = writeEntities(
+    store,
+    [
+      {
+        key,
+        values: written,
+        ...(event.revision === undefined ? {} : { revision: event.revision }),
+      },
+    ],
+    context.now ?? 0,
+  )
   return {
     state: next,
-    store: writeEntities(
-      store,
-      [
-        {
-          key,
-          values: written,
-          ...(event.revision === undefined ? {} : { revision: event.revision }),
-        },
-      ],
-      context.now ?? 0,
-    ),
+    store: floor === undefined ? patched : clearFloors(patched, [key]),
     outcome,
     written,
     echoes:

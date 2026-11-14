@@ -174,6 +174,31 @@ export const plan = (
 }
 
 /**
+ * `planned` split into what is read now and the floored rows the server was
+ * behind on (`EntityEntry.behind`), which wait: the first of them to come
+ * due, and when. The rest wait for the plan after its answer.
+ */
+export const waitingOf = (
+  store: EntityStore,
+  planned: ReadonlyArray<Requirement>,
+): {
+  readonly now: ReadonlyArray<Requirement>
+  readonly later: { readonly at: number; readonly requirements: ReadonlyArray<Requirement> } | null
+} => {
+  const atOf = (requirement: Requirement) => {
+    const held = store[entityKey(requirement.entity, requirement.id)]
+    return held?.floor === undefined ? undefined : held.behind?.at
+  }
+  let at = Infinity
+  for (const requirement of planned) at = Math.min(at, atOf(requirement) ?? Infinity)
+  if (at === Infinity) return { now: planned, later: null }
+  return {
+    now: planned.filter(requirement => atOf(requirement) === undefined),
+    later: { at, requirements: planned.filter(requirement => atOf(requirement) === at) },
+  }
+}
+
+/**
  * The read-after tokens of the rows `planned` reads that hold one, at most
  * `MAX_READ_AFTER`, with the requirements a read sends them with: those of
  * the rows past the bound wait for the next plan, made once an answer ends

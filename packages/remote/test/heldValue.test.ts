@@ -626,6 +626,19 @@ const { list: cases, table: messages } = Walk.cases<Model, RemoteMessage>()({
       },
       now: 3,
     }),
+    "p1 patched live on a stream opened at its write's token": model => ({
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: {
+        _tag: 'EntityPatched',
+        ref: { entity: 'Project', id: 'p1' },
+        values: { name: 'Live at the token' },
+        changed: ['name'],
+        cursor: live(model, 's'),
+      },
+      now: 3,
+      token: 'p1@2',
+    }),
     'p2 deleted live': model => ({
       _tag: 'LiveReceived',
       stream: 's',

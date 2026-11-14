@@ -63,6 +63,11 @@ export interface EntityEntry {
    * it is set, carries it, and writes nothing until an answer read at it.
    */
   readonly floor?: string | undefined
+  /**
+   * How often a read at `floor` was answered `behind`, and when the read
+   * entry asks again (`behindAgain`). Not persisted: a reload asks at once.
+   */
+  readonly behind?: { readonly tries: number; readonly at: number } | undefined
 }
 
 export type EntityStore = Readonly<Record<EntityKey, EntityEntry>>
@@ -360,7 +365,9 @@ export const setFloors = (
     const held = (next ?? store)[key] ?? emptyEntry
     if (held.floor === token) continue
     next ??= { ...store }
-    next[key] = { ...held, floor: token }
+    // A newer write is asked about at once, however long the last one waited.
+    const { behind: _waited, ...rest } = held
+    next[key] = { ...rest, floor: token }
   }
   return next ?? store
 }
@@ -374,6 +381,30 @@ export const clearFloors = (store: EntityStore, keys: Iterable<EntityKey>): Enti
     next ??= { ...store }
     const { floor: _cleared, ...rest } = held
     next[key] = rest
+  }
+  return next ?? store
+}
+
+/** The wait before asking a row again after its `tries`-th answer `behind`: 1s, doubling, at most 30s. */
+export const behindDelay = (tries: number): number => Math.min(30_000, 1000 * 2 ** (tries - 1))
+
+/**
+ * Records, of each floored row, that a read at its floor was answered
+ * `behind` at `now`: the read entry asks again once the wait for that try is
+ * over, since nothing in the answer changes what it plans.
+ */
+export const behindAgain = (
+  store: EntityStore,
+  keys: Iterable<EntityKey>,
+  now: number,
+): EntityStore => {
+  let next: Record<EntityKey, EntityEntry> | undefined
+  for (const key of keys) {
+    const held = (next ?? store)[key]
+    if (held?.floor === undefined) continue
+    const tries = (held.behind?.tries ?? 0) + 1
+    next ??= { ...store }
+    next[key] = { ...held, behind: { tries, at: now + behindDelay(tries) } }
   }
   return next ?? store
 }

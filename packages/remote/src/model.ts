@@ -55,6 +55,7 @@ import {
 import type { StoredWrite } from './outboxStore.js'
 import {
   askAgain,
+  behindAgain,
   clearFloors,
   entityKey,
   entry as storeEntry,
@@ -718,6 +719,12 @@ export type RemoteMessage =
       readonly now: number
       /** The `forget` floor the stream was opened under: see `ReadReceived.generation`. */
       readonly generation?: number | undefined
+      /**
+       * The read-after token the stream was opened with for the event's row
+       * (`LiveRequirement.floors`): a patch of a floored row writes, and ends
+       * the floor, only at the row's own.
+       */
+      readonly token?: string | undefined
     }
   | { readonly _tag: 'GapCleared'; readonly stream: string }
   | {
@@ -904,6 +911,7 @@ export const remoteMessageCases = {
     policy: Schema.optional(Schema.Unknown),
     now: Schema.Number,
     generation: Schema.optional(Schema.Number),
+    token: Schema.optional(Schema.String),
   },
   GapCleared: { stream: Schema.String },
   ConnectionMerged: {
@@ -2357,6 +2365,7 @@ const reduceRemote = (
           echoes: model.echoes,
           kept: model.kept,
           pending: model.mutations.pending,
+          token: message.token,
         })
         if (applied.outcome === 'gap') return broke(model, message.stream, Option.none())
         // A value the server sent is newer than any failure to fetch it.
@@ -2874,26 +2883,35 @@ const readAfter = (
   requests: ReadonlyArray<Requirement>,
   result: Schema.Schema.Type<typeof ReadBatchResult>,
   sent: ReadonlyArray<Schema.Schema.Type<typeof RowToken>> | undefined,
-): { readonly held: ReadonlySet<EntityKey>; readonly confirmed: ReadonlySet<EntityKey> } => {
+): {
+  readonly held: ReadonlySet<EntityKey>
+  readonly confirmed: ReadonlySet<EntityKey>
+  /** Rows asked at their floor that the server named in `behind`: asked again after a wait. */
+  readonly waiting: ReadonlySet<EntityKey>
+} => {
   const tokens = new Map((sent ?? []).map(row => [entityKey(row.entity, row.id), row.token]))
   const behind = rowsOf(result.behind)
   // A row the server could not read at its token is no evidence it is gone, floored or not.
   const held = new Set<EntityKey>(behind)
   const confirmed = new Set<EntityKey>()
+  const waiting = new Set<EntityKey>()
   for (const ref of [...requests, ...result.entities, ...result.settled]) {
     const key = entityKey(ref.entity, ref.id)
     const floor = store[key]?.floor
     if (floor === undefined) continue
-    if (tokens.get(key) === floor && !behind.has(key)) confirmed.add(key)
-    else held.add(key)
+    if (tokens.get(key) !== floor) held.add(key)
+    else if (behind.has(key)) {
+      held.add(key)
+      waiting.add(key)
+    } else confirmed.add(key)
   }
-  return { held: held.size === 0 ? noRows : held, confirmed }
+  return { held: held.size === 0 ? noRows : held, confirmed, waiting }
 }
 
 /**
  * `writeRead` of a read sent with `after`'s tokens: a floored row it may not
- * speak for is left as held (`readAfter`), and each it read at its token ends
- * its floor.
+ * speak for is left as held (`readAfter`), each it read at its token ends its
+ * floor, and each the server was behind on waits to be asked again.
  */
 export const writeReadAt = (
   store: EntityStore,
@@ -2902,8 +2920,12 @@ export const writeReadAt = (
   now: number,
   after: ReadonlyArray<Schema.Schema.Type<typeof RowToken>> | undefined,
 ): EntityStore => {
-  const { held, confirmed } = readAfter(store, requests, result, after)
-  return clearFloors(writeRead(store, requests, result, now, held), confirmed)
+  const { held, confirmed, waiting } = readAfter(store, requests, result, after)
+  return behindAgain(
+    clearFloors(writeRead(store, requests, result, now, held), confirmed),
+    waiting,
+    now,
+  )
 }
 
 /**

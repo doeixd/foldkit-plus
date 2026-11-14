@@ -112,8 +112,8 @@ that is not a number; only `layer` does anything, once the Api's client is provi
 
 ## Limits
 
-Reads are by id: relations, windows, lists and queries fail by name. A row named in `behind` is asked again only when
-Remote's read entry restarts (a refresh, a change of what it reads). Open upstream behaviour in beta.86 (not yet reported):
+Reads are by id: relations, windows, lists and queries fail by name. A row named in `behind` is asked again with its
+token after 1 s, doubling, at most 30 s. Open upstream behaviour in beta.86 (not yet reported):
 a reused `commandId` with other input or another principal returns the first receipt and skips `decide`; the View client
 takes no timeout for an `atLeast` read; a snapshot carries no stream version. No deploy, Durable Object or WebSocket
 path is exercised.

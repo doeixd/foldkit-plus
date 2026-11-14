@@ -2669,16 +2669,19 @@ back. While a row has a floor:
   rest wait for the next plan);
 - an answer read at the token writes the row and ends the floor; a row the
   server names in `behind` (its copy has not caught up) keeps what the store
-  holds and the floor, and an answer to a read asked without the token writes
-  nothing of the row;
+  holds and the floor, and is asked again with the token after a wait (1
+  second, doubling with each answer `behind`, at most 30; `EntityEntry.behind`,
+  not persisted, so a reload asks at once); an answer to a read asked without
+  the token writes nothing of the row;
 - a live stream subscribes with the tokens of the rows it watches
-  (`LiveRequirement.floors`), and restarts when they change;
+  (`LiveRequirement.floors`), and restarts when they change. A server sends a
+  floored row's patch only once it reads at the token, so a patch on a stream
+  opened at the row's token writes it and ends the floor, and one on a stream
+  opened before writes nothing of it;
 - `Data.inspect(model).floors` lists them, and `why` names the wait
   (`ReadAfter`).
 
-A row named in `behind` is asked again only when the read entry next
-restarts: a refresh, a change of what it reads, or a live event that changes
-the plan. A tombstone keeps the revision the row was gone at, so a late
+A tombstone keeps the revision the row was gone at, so a late
 answer to a read begun before it went does not bring it back; a server whose
 revisions restart when a row is created again should send none. A tombstone
 asked about again (`Data.refresh`, a freshness running out) takes a row of

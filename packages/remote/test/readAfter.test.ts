@@ -7,13 +7,22 @@
 import { Deferred, Effect, Fiber, Layer, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
+import { TestClock } from 'effect/testing'
 import { describe, expect, it } from 'vitest'
-import { Entity, Mutation, Remote, RemoteClient, type RemoteMessage } from '../src/index.js'
+import {
+  Entity,
+  Mutation,
+  Remote,
+  RemoteClient,
+  type LiveEvent,
+  type RemoteMessage,
+} from '../src/index.js'
 import { live } from '../src/live.js'
 import { RemotePersistence } from '../src/persistence.js'
 import { why } from '../src/why.js'
 import { coalesceReads, type BatchRead } from '../src/coalesce.js'
 import { withTokens } from '../src/plan.js'
+import { behindDelay } from '../src/store.js'
 import {
   MAX_READ_AFTER,
   REMOTE_PROTOCOL_VERSION,
@@ -192,6 +201,103 @@ describe('An answer to a read of a floored row', () => {
   })
 })
 
+/**
+ * The read entry run as Foldkit runs it, over a server whose View is behind
+ * the write for its first `behindFor` reads (past `confirmWithin`, so each
+ * answer names the row `behind`). Foldkit restarts an entry after the
+ * Messages already queued (#399): every Message the running stream sent is
+ * reduced before the dependencies are compared, never between. The clock is
+ * the Effect clock, moved half a second at a time.
+ */
+const driveBehind = (start: Model, behindFor: number, until: number) =>
+  Effect.gen(function* () {
+    let clock = 0
+    const entry = Data.subscriptions({ product: active.product }, { now: () => clock })[
+      'product.read'
+    ]
+    const batches: Array<typeof ReadBatch.Type> = []
+    const client: RemoteClient['Service'] = {
+      read: batch =>
+        Effect.sync(() => {
+          batches.push(batch)
+          return batches.length <= behindFor
+            ? { entities: [row(5)], settled: [], behind: [{ entity: 'Product', id: 'p1' }] }
+            : { entities: [row(3)], settled: [] }
+        }),
+      query: () => Effect.die('no query'),
+      mutate: () => Effect.die('no mutate'),
+      live: () => Stream.empty,
+    }
+    const queued: Array<RemoteMessage> = []
+    const run = (dependencies: ReturnType<typeof entry.modelToDependencies>) =>
+      Effect.forkChild(
+        Stream.runForEach(entry.dependenciesToStream(dependencies), message =>
+          Effect.sync(() => void queued.push(message)),
+        ).pipe(Effect.provide(Layer.succeed(RemoteClient, client))),
+      )
+    const same = Schema.toEquivalence(entry.dependenciesSchema)
+    let model = start
+    let dependencies = entry.modelToDependencies(model)
+    let fiber = yield* run(dependencies)
+    while (clock <= until) {
+      for (let turn = 0; turn < 100; turn++) yield* Effect.yieldNow
+      model = queued.splice(0).reduce((current, message) => Data.reduce(current, message), model)
+      const next = entry.modelToDependencies(model)
+      if (!same(dependencies, next)) {
+        yield* Fiber.interrupt(fiber)
+        dependencies = next
+        fiber = yield* run(dependencies)
+        for (let turn = 0; turn < 100; turn++) yield* Effect.yieldNow
+      }
+      clock += 500
+      yield* TestClock.adjust('500 millis')
+    }
+    yield* Fiber.interrupt(fiber)
+    return { model, batches }
+  })
+
+describe('A floored row the server is behind on', () => {
+  it('is asked again with its token until a read at it answers, waiting longer each time', async () => {
+    const { model, batches } = await Effect.runPromise(
+      driveBehind(written(), 3, 20_000).pipe(Effect.provide(TestClock.layer())),
+    )
+    expect(batches.map(batch => batch.after)).toEqual([sent, sent, sent, sent])
+    expect(floorOf(model)).toBeUndefined()
+    expect(stockOf(model)).toBe(3)
+  })
+
+  it('shows the reply, and keeps its floor, while it waits', async () => {
+    const { model, batches } = await Effect.runPromise(
+      driveBehind(written(), Infinity, 2_000).pipe(Effect.provide(TestClock.layer())),
+    )
+    // Asked at once, then a second later; the next is due two seconds after that.
+    expect(batches).toHaveLength(2)
+    expect(floorOf(model)).toBe(token)
+    expect(stockOf(model)).toBe(3)
+    expect(model.remote.entities['Product:p1']?.behind?.tries).toBe(2)
+  })
+
+  it('waits a second after its first answer behind, doubling, at most thirty', () => {
+    expect([1, 2, 3, 5, 6, 20].map(behindDelay)).toEqual([1000, 2000, 4000, 16_000, 30_000, 30_000])
+  })
+
+  it('is asked at once for a newer write, however long the last one waited', () => {
+    const waited = Data.reduce(written(), answer(5, { after: sent, behind: true }))
+    expect(waited.remote.entities['Product:p1']?.behind?.tries).toBe(1)
+    // An answer naming no row of its own, only the token.
+    const started = Data.mutate(waited, Reserve, { id: 'p1', stock: 2 }, { optimistic: [] })
+    const again = Data.reduce(started.model, {
+      _tag: 'MutationSucceeded',
+      requestId: started.requestId,
+      entities: [],
+      after: { token: 'Product/p1@3', rows: [{ entity: 'Product', id: 'p1' }] },
+      now: 6,
+    })
+    expect(floorOf(again)).toBe('Product/p1@3')
+    expect(again.remote.entities['Product:p1']?.behind).toBeUndefined()
+  })
+})
+
 describe('Reads outside the read entry', () => {
   const through = <A>(effect: Effect.Effect<A, unknown, RemoteClient>) => {
     const batches: Array<typeof ReadBatch.Type> = []
@@ -307,31 +413,69 @@ describe('A floor across a reload', () => {
 })
 
 describe('A live stream over a floored row', () => {
-  it('subscribes with the token as its floor', async () => {
+  const floored = () => {
     const started = Data.mutate(held, Reserve, { id: 'p2', stock: 1 }, { optimistic: [] })
-    const model = Data.reduce(started.model, {
+    return Data.reduce(started.model, {
       _tag: 'MutationSucceeded',
       requestId: started.requestId,
+      // No row in the answer, so no echo of it is awaited on the stream.
       entities: [],
       after: { token: 'Product/p2@7', rows: [{ entity: 'Product', id: 'p2' }] },
       now: 5,
     })
-    const entry = Data.subscriptions({ watched: active.watched })['watched.live']
-    const floors: unknown[] = []
-    const dependencies = entry.modelToDependencies(model)
-    await Effect.runPromise(
-      Stream.runDrain(entry.dependenciesToStream(dependencies)).pipe(
+  }
+  const p2 = 'Product:p2'
+
+  /** The live entry over `model`, with a server that sends `events`, and the Messages it sent. */
+  const watch = (model: Model, events: ReadonlyArray<LiveEvent>) =>
+    Effect.gen(function* () {
+      const entry = Data.subscriptions({ watched: active.watched })['watched.live']
+      const floors: unknown[] = []
+      const messages = yield* Stream.runCollect(
+        entry.dependenciesToStream(entry.modelToDependencies(model)),
+      ).pipe(
         Effect.provide(
           Layer.succeed(RemoteClient, {
             read: () => Effect.die('no read'),
             query: () => Effect.die('no query'),
             mutate: () => Effect.die('no mutate'),
-            live: request => (floors.push(request.floors), Stream.empty),
+            live: request => (floors.push(request.floors), Stream.fromIterable(events)),
           }),
         ),
-      ),
-    )
+      )
+      return { floors, messages: [...messages] }
+    })
+  const patch = (cursor: number, stock: number): LiveEvent => ({
+    _tag: 'EntityPatched',
+    cursor,
+    ref: { entity: 'Product', id: 'p2' },
+    values: { stock },
+    changed: ['stock'],
+  })
+
+  it('subscribes with the token as its floor', async () => {
+    const { floors } = await Effect.runPromise(watch(floored(), []))
     expect(floors).toEqual([[{ entity: 'Product', id: 'p2', token: 'Product/p2@7' }]])
+  })
+
+  it('writes a patch of the row, sent on the stream opened at its token, and ends the floor', async () => {
+    const model = floored()
+    const { messages } = await Effect.runPromise(watch(model, [patch(1, 4)]))
+    const after = messages.reduce((current, message) => Data.reduce(current, message), model)
+    expect(after.remote.entities[p2]?.values).toMatchObject({ stock: 4 })
+    expect(after.remote.entities[p2]?.floor).toBeUndefined()
+  })
+
+  it('writes nothing of a patch sent on a stream opened before the write', () => {
+    const model = floored()
+    const after = Data.reduce(model, {
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: patch(1, 9),
+      now: 10,
+    })
+    expect(after.remote.entities[p2]?.values).toEqual({})
+    expect(after.remote.entities[p2]?.floor).toBe('Product/p2@7')
   })
 })
 

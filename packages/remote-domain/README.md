@@ -438,11 +438,12 @@ Policy, which is not built here. A lowered write holds no ledger,
   and the adapter asks the View at the receipt; if the View has not reached it
   within `confirmWithin` (2 seconds by default: the Api's client takes no
   deadline of its own), the read names the row in `behind`, and Remote keeps
-  what it holds and the floor, never the row from before. Remote asks again when
-  its read entry next restarts (a refresh, or a change of what it reads). A live
-  stream opened while a floor is set gets the token too: its frames for that key
-  are only signals, and the adapter reads at the receipt and sends the row when
-  it answers.
+  what it holds and the floor, never the row from before, and asks again with
+  the token after a wait (1 second, doubling, at most 30). A live stream opened
+  while a floor is set gets the token too: its frames for that key are only
+  signals, and the adapter reads at the receipt and sends the row when it
+  answers, which ends the floor. A receipt whose token would pass the wire's
+  512 characters (a very long stream name) holds the row to nothing.
 - **A lost reply.** The command may have committed or not. The call fails
   `RemoteUnreachable`, and Remote's retry carries the same operation, so the same
   `commandId`: Domain returns the first receipt and does not decide again.

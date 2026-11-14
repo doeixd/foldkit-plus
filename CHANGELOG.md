@@ -29,22 +29,27 @@ version changed; `pnpm` skips versions already in the registry.
   (#544, #480's open item). `NormalizedEntity.revision` and
   `EntityPatched.revision`: a row of a lower revision than the one held writes
   nothing, from `ReadReceived`, `LiveReceived` or `MutationSucceeded`, and a
-  tombstone keeps the revision it was gone at. `MutationResult.after` (`{
+  tombstone keeps the revision it was gone at, taking a row of it again only
+  while asked about again. `MutationResult.after` (`{
   token, rows }`) holds each row to the token (`EntityEntry.floor`): the read
   entry reads it again carrying the token (`ReadBatch.after`, at most
   `MAX_READ_AFTER`, 256), a live stream subscribes with it
-  (`LiveRequirement.floors`), an answer read at it ends the floor, and a row
-  named in `ReadBatchResult.behind` keeps what the store holds. Revision and
+  (`LiveRequirement.floors`), an answer read at it or a patch on a stream
+  opened at it ends the floor, and a row named in `ReadBatchResult.behind`
+  keeps what the store holds and is asked again after 1 second, doubling, at
+  most 30 (`EntityEntry.behind`). Revision and
   floor are kept by `persistence` and listed by `Data.inspect(model).floors`;
   `why` names the wait (`ReadAfter`). `REMOTE_PROTOCOL_VERSION` is 6.
-  `foldkit-remote-server` sends an `EntityRecord.revision`;
+  `foldkit-remote-server` sends an `EntityRecord.revision`, through
+  `GuardServer.filter` too;
   `foldkit-remote-drizzle`'s `source(binding, { revision })` reads the column
   with every row, and `pollLive` sends it.
 - `foldkit-remote-domain`: the adapter holds no rows and no floors. Each row
   and live frame carries its View revision, a write whose View is behind
   answers its receipt as `MutationResult.after` (`stream@version`), and a read
   carrying a token asks the View `atLeast` it, naming a row still behind in
-  `behind`. `DomainReads` and `PendingRead` are removed: Remote's Model keeps
+  `behind`. A receipt whose token would pass 512 characters holds the row to
+  nothing. `DomainReads` and `PendingRead` are removed: Remote's Model keeps
   both facts, and a reload keeps them.
 
 - `foldkit-mixins`: obligations (#552). An `A11y.pattern` slot may name
