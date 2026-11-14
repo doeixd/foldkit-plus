@@ -575,7 +575,7 @@ const controls = (model: Model, slots: Slots, h: H): Html =>
     {
       model: model.drawer,
       onMessage: message => Message.GotDrawer({ message }),
-      labels: { open: 'Hide the knobs', closed: 'Show the knobs' },
+      label: 'Theme knobs',
       style: StudioDrawerStyle,
       draw: ({ panel, handle, body, grip }) =>
         h.aside(

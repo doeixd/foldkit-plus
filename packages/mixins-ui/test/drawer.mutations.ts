@@ -178,4 +178,15 @@ export default [
     edits: [{ file, find: 'handle?.focus({ preventScroll: true })', replace: 'void handle' }],
     tests: browser,
   },
+  {
+    name: 'the handle’s name swaps with its state',
+    edits: [
+      {
+        file,
+        find: 'h.AriaLabel(options.label),',
+        replace: 'h.AriaLabel(model.open ? options.label : `${options.label} (closed)`),',
+      },
+    ],
+    tests: browser,
+  },
 ]

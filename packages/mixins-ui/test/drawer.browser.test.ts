@@ -57,13 +57,16 @@ test('peeks with its handle showing, and opens to its height on a press', async 
     expect(down(element)).toBe(320)
     const handle = element.querySelector<HTMLElement>('button')!
     expect(body(element).visibility).toBe('hidden')
-    expect(handle.getAttribute('aria-label')).toBe('Show the tools')
+    expect(handle.getAttribute('aria-label')).toBe('The tools')
+    expect(handle.getAttribute('aria-expanded')).toBe('false')
     handle.click()
     await vi.waitFor(() => expect(element.dataset['open']).toBe('true'))
     await settled(element)
     expect(down(element)).toBe(0)
     expect(body(element).visibility).toBe('visible')
     expect(handle.getAttribute('aria-expanded')).toBe('true')
+    // The name stays; the state is aria-expanded's, so a reader hears it once.
+    expect(handle.getAttribute('aria-label')).toBe('The tools')
   } finally {
     runtime.dispose()
   }

@@ -189,8 +189,11 @@ export interface DrawerView<Outer> {
   readonly model: Model
   /** Lifts the Drawer's Messages into the application's. */
   readonly onMessage: (message: Message) => NoInfer<Outer>
-  /** What the handle is called, open and peeking: a bar alone says nothing. */
-  readonly labels: { readonly open: string; readonly closed: string }
+  /**
+   * What the handle is called, whether the drawer is open or peeking: a bar alone says
+   * nothing. `aria-expanded` carries the state, so the name does not change with it.
+   */
+  readonly label: string
   /** A style of `DrawerSlots` (`Recipes.Drawer`). */
   readonly style?: NamedStyle<typeof DrawerSlots> | undefined
   /** Mixins beside the style. */
@@ -252,7 +255,7 @@ export const view = <Outer>(options: DrawerView<Outer>, h: HtmlBuilder<Outer>): 
       h.Type('button'),
       h.AriaExpanded(model.open),
       h.AriaControls(model.id),
-      h.AriaLabel(model.open ? options.labels.open : options.labels.closed),
+      h.AriaLabel(options.label),
       // The browser's own pan would take the press away from the drag.
       h.Style({ touchAction: 'none' }),
       h.OnMount(swipe('handle')),

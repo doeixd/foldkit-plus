@@ -61,7 +61,7 @@ export const mount = (
           {
             model: model.drawer,
             onMessage: message => message,
-            labels: { open: 'Hide the tools', closed: 'Show the tools' },
+            label: 'The tools',
             style: drawn,
             mixins,
             // The sizes on a wrapper: the panel's own style is the drag's.
