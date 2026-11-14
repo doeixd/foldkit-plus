@@ -9,6 +9,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `examples/authoring`: a search field, an editable and reorderable list, a popup conformed to the listbox pattern, a sortable listbox and an editor an agent can save, each assembled from primitives; the save is asserted once for a person, an agent in the page and an agent headless, and the type cost of `SlotView.over` is measured (#551, #556, #557, #558).
 - `foldkit-remote`: a live stream names the revision it holds each row at,
   whole, with no field stale and no floor (`LiveRequirement.revisions`), so a
   server may leave out a frame the page already has; a moved revision does not
