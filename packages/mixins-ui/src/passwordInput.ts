@@ -85,6 +85,10 @@ export interface PasswordInputView<Message> {
   readonly placeholder?: string | undefined
   readonly invalid?: boolean | undefined
   readonly disabled?: boolean | undefined
+  /** The form field the password submits under. */
+  readonly name?: string | undefined
+  /** The field must be filled to submit: the native `required` and `aria-required`. */
+  readonly required?: boolean | undefined
   /**
    * A strength gauge under the field, drawn by the application (`Meter.view`
    * with its own style), so a page with none ships no Meter.
@@ -157,6 +161,8 @@ export const view = <Message>(
           h.Autocapitalize('off'),
           h.Attribute('autocorrect', 'off'),
           ...(options.placeholder === undefined ? [] : [h.Placeholder(options.placeholder)]),
+          ...(options.name === undefined ? [] : [h.Name(options.name)]),
+          ...(options.required === true ? [h.Required(true), h.AriaRequired(true)] : []),
           ...(options.invalid === true ? [h.AriaInvalid(true)] : []),
           ...(describedBy.length === 0 ? [] : [h.AriaDescribedBy(describedBy.join(' '))]),
           ...(disabled

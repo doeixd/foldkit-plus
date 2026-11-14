@@ -25,6 +25,8 @@ type Edited = typeof Edited.Type
 
 const style = Style.forSlots(PasswordInputSlots)(Recipes.PasswordInput({}))
 interface Extra {
+  readonly name?: string
+  readonly required?: boolean
   readonly disabled?: boolean
   readonly autocomplete?: 'new-password'
 }
@@ -358,5 +360,17 @@ describe('PasswordInput.view keydown ownership', () => {
 
   it('leaves keydown to a Behavior while no Caps Lock reading is asked for', () => {
     expect(withMixin(false)).not.toThrow()
+  })
+})
+
+describe('PasswordInput.view form attributes', () => {
+  it('names the input, and marks it required for the browser and assistive technology', () => {
+    const { input } = parts(false, { name: 'password', required: true })
+    expect(Inert.value(input, 'name')).toBe('password')
+    expect(Inert.value(input, 'required')).toBe(true)
+    expect(Inert.value(input, 'aria-required')).toBe('true')
+    const plain = parts(false).input
+    expect(Inert.value(plain, 'name')).toBeUndefined()
+    expect(Inert.value(plain, 'required')).toBeUndefined()
   })
 })

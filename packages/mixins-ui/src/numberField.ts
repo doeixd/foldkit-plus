@@ -59,6 +59,10 @@ export interface NumberFieldView<Message> {
   /** PageUp and PageDown move by this; default ten steps. */
   readonly page?: number | undefined
   readonly disabled?: boolean | undefined
+  /** The form field the number submits under, as the text the field shows. */
+  readonly name?: string | undefined
+  /** The field must be filled to submit: the native `required` and `aria-required`. */
+  readonly required?: boolean | undefined
   /** A style of `NumberFieldSlots`, for the field's look. */
   readonly style?: NamedStyle<typeof NumberFieldSlots> | undefined
   /** Mixins beside the style. */
@@ -220,6 +224,8 @@ export const view = <Message>(
           h.Type('text'),
           h.InputMode('decimal'),
           h.Role('spinbutton'),
+          ...(options.name === undefined ? [] : [h.Name(options.name)]),
+          ...(options.required === true ? [h.Required(true), h.AriaRequired(true)] : []),
           h.Value(Option.match(options.value, { onNone: () => '', onSome: format })),
           ...Option.match(options.value, {
             onNone: () => [],

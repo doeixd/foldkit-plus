@@ -133,3 +133,14 @@ describe('NumberField.view locale', () => {
     expect(Inert.value(input, 'aria-valuetext')).toBeUndefined()
   })
 })
+
+describe('NumberField.view form attributes', () => {
+  it('names the input, and marks it required', () => {
+    const [input] = Inert.byTag(drawn(3, { name: 'servings', required: true }), 'input')
+    expect(Inert.value(input, 'name')).toBe('servings')
+    expect(Inert.value(input, 'required')).toBe(true)
+    expect(Inert.value(input, 'aria-required')).toBe('true')
+    const [plain] = Inert.byTag(drawn(3), 'input')
+    expect(Inert.value(plain, 'name')).toBeUndefined()
+  })
+})

@@ -98,4 +98,48 @@ export default [
     edits: [{ file: textarea, find: '...(options.attributes?.textarea ?? []),', replace: '' }],
     tests: unit,
   },
+  {
+    name: 'a password input drops its name',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: '...(options.name === undefined ? [] : [h.Name(options.name)]),',
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/passwordInput.test.ts'],
+  },
+  {
+    name: 'a password input is not required',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: '...(options.required === true ? [h.Required(true), h.AriaRequired(true)] : []),',
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/passwordInput.test.ts'],
+  },
+  {
+    name: 'a number field drops its name',
+    edits: [
+      {
+        file: '../src/numberField.ts',
+        find: '...(options.name === undefined ? [] : [h.Name(options.name)]),',
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/numberField.test.ts'],
+  },
+  {
+    name: 'a number field is not required',
+    edits: [
+      {
+        file: '../src/numberField.ts',
+        find: '...(options.required === true ? [h.Required(true), h.AriaRequired(true)] : []),',
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/numberField.test.ts'],
+  },
 ]
