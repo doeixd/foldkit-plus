@@ -224,7 +224,7 @@ Read current state before deciding whether to retry an effectful operation.
 | `Agent.expose(Message, variants)` | The capability boundary: what an agent may do. |
 | `Agent.exposeSubset(subset, variants)` | The same, restricted to a `MessageSet.make` subset. |
 | `Agent.variant(config)` | A mapped variant whose callbacks are inferred from its `input`; returns an `Agent.Variant`. |
-| `Agent.action(action, { available?, authorize? })` | A `foldkit-surface` Action as a variant: its name, description, input and Message. |
+| `Agent.action(action, { available?, authorize?, applies? })` | A `foldkit-surface` Action as a variant: its name, description, input and Message. |
 | `Agent.resource(name, options)` | A named read-only projection of Model state. |
 | `Agent.make({ context, messages, resources })` | The protocol-neutral contract; `context` is a `Projection`, a `Projection.pick`, or a feature Surface. |
 | `Agent.forApplication(App)` / `Agent.forApplication(App).withPrincipal<Principal>()` | The above, with `Model` inferred from a `Surface.application`; `withPrincipal` fixes the `Principal` type, or takes it from the Context key a server reads it from (`withPrincipal(G.Principal)`), so the two are one type. |
@@ -248,6 +248,7 @@ RequestedDeleteTodo: {
   description: 'Delete a todo',     // required
   available: model => ...,          // optional: does the capability exist in this Model?
   authorize: ({ principal, input, model, transport }) => ...,  // optional
+  applies: ({ input, model, principal }) => ...,               // optional: does this call fit the Model?
   input: Schema.Struct({ id: Schema.String }),                 // optional external input
   toMessage: ({ id }, { invocation }) => ({ id, source: 'Agent' }),
 }
@@ -265,6 +266,14 @@ No annotation is needed.
 `Effect` of one. A refusal with a `reason` is the `AgentAuthorizationError`'s
 message, so the agent learns why; a bare `false` says only that it was not
 authorized.
+
+`applies` judges a call against what the Model holds, the row its input names,
+which `available` cannot since it sees no input. It answers `true`, `false`, or
+`{ applies: false, reason }`; a refusal is `AgentCapabilityUnavailableError`,
+with the reason as its message. It runs after `authorize` and never for a call
+`authorize` refused, so a caller who may not act learns nothing of the row.
+Over a declared write, `foldkit-remote`'s `Data.capability` gives `authorize`
+and `applies` from the write itself ([Agents](../../docs/agents.md#a-capability-over-a-declared-write)).
 
 The one thing `expose` cannot infer inline is `completion`. `success` and
 `failure` are inference sites, so written inline `correlate` receives any
@@ -410,18 +419,19 @@ for authority. `foldkit-agent-mcp` serves the list as `app://parts`.
 
 ### Dispatch
 
-Every invocation runs the same five steps, in this order:
+Every invocation runs the same six steps, in this order:
 
 1. **Resolve** the capability, by Message constructor or by protocol name.
 2. **`available(model)`** — does this capability exist in the current Model?
 3. **Decode** the input through the capability's own Effect Schema.
 4. **`authorize`** — may this principal do it?
-5. **Construct and dispatch** the Message into the host.
+5. **`applies`** — does this call fit what the Model holds?
+6. **Construct and dispatch** the Message into the host.
 
 A refusal at any step before the last sends no Message at all. `available` runs
 before `authorize` deliberately: a capability the Model does not offer reports
 as unavailable rather than leaking whether the caller would have been permitted.
-All of steps 2 to 4 read one Model snapshot, taken when dispatch begins.
+All of steps 2 to 6 read one Model snapshot, taken when dispatch begins.
 
 A capability can be named by its Message constructor or by its protocol name.
 Both are checked, and both infer the input:

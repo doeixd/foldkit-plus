@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-agent`, `foldkit-remote`: an agent capability over a declared write
+  (#533). A variant's `applies({ model, input, principal })` judges a call
+  against what the Model holds, after `authorize` and over the invocation's one
+  Model snapshot, and never for a call `authorize` refused; its refusal is
+  `AgentCapabilityUnavailableError` with the reason as the message, and
+  descriptors report `inputDependent`. `Data.capability(mutation, toInput)`
+  gives `{ authorize, applies }` from `Data.can` (a forbidding `may` refuses in
+  `authorize`, an unmet `when` or broken invariant in `applies`, `Undecided`
+  allows), and `Data.available(mutation, inputOf)` a discovery predicate.
+
 - `foldkit-entity`, `foldkit-form`, `foldkit-crud`: a form judges an Entity's
   invariants over the row it edits (#542, #543). `form.over(model, row)` keeps
   the encoded row (`model.over`, stored as null when none, so an older Model
