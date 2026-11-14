@@ -107,4 +107,24 @@ The status section at the end says what was fixed.
 
 ## Status
 
-Being worked in the second wave of the UI SDK work; updated when it lands.
+Worked on `ui-sdk-work`, each fix behind a test that failed first.
+
+- **Overlay behaviour.** O1 to O4 fixed (`Dialog` `focusFallback`, the leaving
+  panel inert, panels drawn in place by default, direction on the panel).
+- **Overlays, popups and menus.** Fixed: 1, 2, 3, 4, 7, 8, 10, 14, 15, 16, 19,
+  the relationship half of 9, the popover half of 17, the typeahead and form
+  value of 18, the Drawer label of 23. Finding 6 fixed by a node per toast.
+  Not reproducible: the Escape half of 9 (upstream already closes on Escape
+  from the trigger or panel). Open: 5, 11, 12 (Command done; the rest stand),
+  13, 20, 21, 22, 24, 25, 26.
+- **Form controls.** Fixed: 1, 2, 3, 5, 6 (focus and disabled looks; the
+  scroll claim was not reproducible), 7, 9 (the tokens), 11, 12, 13, 18, and
+  the announcement half of 4. Open: 8, 10, 14, 15 (its `name` is fixed), 16,
+  17, 19, 20, 21, 22 (ButtonGroup has a pattern), 23 (SearchField shipped).
+- **Navigation, structure, lists and display.** Fixed: 1, 2, 3, 4, 5, 6, 7
+  (Alert and Card; Tabs was not reproducible), 8, 9 (the splitter), 10, 11,
+  12, 15, 17, 18, and the reduced-motion half of 22. The windowed-row lead is
+  fixed for `WindowList`. Open: 13, 14, 16, 19, 20, 21, 23, 24, 25, and the
+  rest of 9.
+
+What is open is gathered in `ui-followup-PLAN.md`.

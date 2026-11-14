@@ -130,11 +130,11 @@ Ideas for the catalog once the fixes above land:
 | F7 (`MessageScroller` guards) | fixed: `3c9481896` |
 | F8 (`Leaving` release) | fixed: `0083634f7` |
 | D2 (one obligation entry point), D7 (keyboard name) | fixed: `9d6923eb7`, `a2d183480` |
-| D1 (obligations read by nothing shipped) | in progress: catalog support lists and gate |
-| D4 (`Leaving` has no shipped consumer) | open. The overlay audit (`ff38a9027`) found no shipped widget exits through `Presence`; the Dialog gets its own fix |
-| D5, D6 (fixtures) | in progress |
-| P1 (deferrals) | in progress. Built so far: file-manager ranges (`611dbea23`), `GridNavigation` paging (`c4fbf89df`), pinch guard (`312813a9e`), cross-tab themes and the scheme hint (`5442a9741`), tree checked values (`b95e94e73`) |
-| P2, P3 | in progress: `docs/design/ui-catalog-review-FINDINGS.md` |
+| D1 (obligations read by nothing shipped) | fixed: `f88ab7c03`. All 70 catalog patterns name their providers and the gate judges them |
+| D4 (`Leaving` has no shipped consumer) | settled. The overlay audit (`ff38a9027`) found no shipped widget exits through `Presence`, and `Leaving` cannot serve the Dialog, whose page stays inert until the exit ends; the Dialog draws its own panel inert (`091bf8507`). `Leaving` is for a part an application exits through `Presence`, shown in the widgets demo |
+| D5, D6 (fixtures) | fixed: `6dc870acc`. Three demo sections; each leaving row has its own `Presence` |
+| P1 (deferrals) | fixed. Built: file-manager ranges, `GridNavigation` paging, the pinch guard, cross-tab themes and the scheme hint, tree checked values, `SpatialNavigation`, `Lasso`, `InlineEdit`, `WindowList` held row, reveal and find stand-ins. What is still open is listed with its reason in `ui-sdk-audit-LEDGER.md` and `ui-followup-PLAN.md` |
+| P2, P3 | partly fixed. Overlays were audited in a browser and four defects fixed; the catalog was reviewed and about fifty findings fixed (`ui-catalog-review-FINDINGS.md`). One reusable conformance suite, and three families not yet compared, remain in `ui-followup-PLAN.md` |
 | P4 (changelog) | fixed: `8bb31bd6d` |
-| P5 (issue hygiene) | open until the work lands |
-| P6 | partly fixed: `139ea314f` (the test cast) |
+| P5 (issue hygiene) | fixed: each issue carries a comment with what was done and what is left |
+| P6 | partly fixed: `139ea314f` (the test cast). The `data-fk-*` prefix beside `data-foldkit-plus-*` stands |
