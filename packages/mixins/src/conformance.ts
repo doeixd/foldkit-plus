@@ -296,7 +296,7 @@ const LISTBOX = '[role="listbox"]'
  * A listbox: roles and names from the accessibility tree; the arrows (mirrored
  * under right to left when horizontal), Home and End move the keyboard over
  * the enabled options and never onto a disabled one; Enter and Space activate;
- * a disabled option is not activated by a press; `aria-selected` has a value on
+ * a press selects an enabled option and not a disabled one; `aria-selected` has a value on
  * every option after every step.
  */
 export const listbox = async (harness: Harness, spec: ListboxSpec): Promise<Result> => {
@@ -403,6 +403,23 @@ export const listbox = async (harness: Harness, spec: ListboxSpec): Promise<Resu
 
   if (spec.disabled !== undefined) {
     await ensure()
+    // The control: a press that selects an enabled option, so the refusal below is the option's.
+    const selectedNow = () =>
+      options()
+        .filter(option => option.getAttribute('aria-selected') === 'true')
+        .map(labelOf)
+    const control = enabled.find(name => !selectedNow().includes(name))
+    const pressed = options().find(each => labelOf(each) === control)
+    if (pressed !== undefined) {
+      await harness.click(pressed)
+      await frames()
+      await ensure()
+      note(
+        'a press on an enabled option selects it',
+        selectedNow().includes(String(control)),
+        `selected ${JSON.stringify(selectedNow())}, pressed ${control}`,
+      )
+    }
     const option = options().find(each => labelOf(each) === spec.disabled)
     if (option === undefined) {
       note('a disabled option is drawn', false, `labels ${JSON.stringify(labelled())}`)
@@ -453,7 +470,7 @@ const isChecked = (element: HTMLElement): boolean =>
 /**
  * A checkbox: its role and name from the accessibility tree; Space toggles it
  * and what it reports (`aria-checked`, or the native `checked`) follows, both
- * ways; a disabled one does not toggle.
+ * ways; a press toggles it; a disabled one does not toggle.
  */
 export const checkbox = async (harness: Harness, spec: CheckboxSpec): Promise<Result> => {
   const { checks, note } = recorder('checkbox')
@@ -495,6 +512,13 @@ export const checkbox = async (harness: Harness, spec: CheckboxSpec): Promise<Re
   await harness.press(key(' '))
   await frames()
   note('Space again toggles it back', isChecked(target) === was, `checked ${isChecked(target)}`)
+
+  // The control: a press toggles it, so the refusal below is the disabled one's.
+  await harness.click(target)
+  await frames()
+  note('a press toggles it', isChecked(target) !== was, `checked ${isChecked(target)}`)
+  await harness.click(target)
+  await frames()
 
   if (spec.disabled !== undefined) {
     const locked = drawn(spec.disabled)

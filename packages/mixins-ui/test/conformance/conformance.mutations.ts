@@ -46,6 +46,17 @@ export default [
     tests: checkbox,
   },
   {
+    name: 'the harness presses nothing',
+    edits: [
+      edit(
+        conformance,
+        'const click = async (element: Element) => {',
+        'const click = async (element: Element) => {\n    if (element.isConnected) return',
+      ),
+    ],
+    tests: [...listbox, ...checkbox],
+  },
+  {
     name: 'a row hidden by an ancestor reads as showing',
     edits: [
       edit(
