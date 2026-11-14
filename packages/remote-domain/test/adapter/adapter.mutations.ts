@@ -186,8 +186,36 @@ export default [
     edits: [
       {
         file,
-        find: 'const key = JSON.stringify([asking, binding.entity.name, id])',
-        replace: 'const key = JSON.stringify([binding.entity.name, id])',
+        find: 'const { accepted } = heldFor(asking)',
+        replace: 'const { accepted } = heldFor(null)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'pending lists every principal’s writes',
+    edits: [
+      {
+        file,
+        find: 'pending: Effect.map(principalKey, asking => [...heldFor(asking).floors.values()]),',
+        replace:
+          'pending: Effect.sync(() => [...principals.values()].flatMap(held => [...held.floors.values()])),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'no principal is dropped',
+    edits: [{ file, find: 'principals.delete(oldest)', replace: 'void oldest' }],
+    tests,
+  },
+  {
+    name: 'a principal is dropped one too early',
+    edits: [
+      {
+        file,
+        find: 'if (principals.size <= MAX_PRINCIPALS) break',
+        replace: 'if (principals.size < MAX_PRINCIPALS) break',
       },
     ],
     tests,

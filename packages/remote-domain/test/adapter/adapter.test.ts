@@ -132,6 +132,40 @@ describe('a write whose View is behind', () => {
   })
 })
 
+describe('what is pending', () => {
+  const pendingAs = (world: World, actor: string) =>
+    Effect.gen(function* () {
+      yield* Ref.set(world.actor, Option.some(actor))
+      return (yield* (yield* DomainReads).pending).map(read => read.operation)
+    })
+
+  it('lists only the writes of who asks now', async () => {
+    const seen = await run(world =>
+      Effect.gen(function* () {
+        yield* reserve('op1', { quantity: 2, revision: 1 })
+        return {
+          grace: yield* pendingAs(world, 'grace'),
+          ada: yield* pendingAs(world, 'ada'),
+        }
+      }),
+    )
+    expect(seen).toEqual({ grace: [], ada: ['op1'] })
+  })
+
+  it('keeps four principals: a fifth to ask drops the one who asked longest ago', async () => {
+    const seen = await run(world =>
+      Effect.gen(function* () {
+        yield* reserve('op1', { quantity: 2, revision: 1 })
+        for (const other of ['b', 'c', 'd']) yield* pendingAs(world, other)
+        const afterThree = yield* pendingAs(world, 'ada')
+        for (const other of ['b', 'c', 'd', 'e']) yield* pendingAs(world, other)
+        return { afterThree, afterFour: yield* pendingAs(world, 'ada') }
+      }),
+    )
+    expect(seen).toEqual({ afterThree: ['op1'], afterFour: [] })
+  })
+})
+
 describe('what a write fails with', () => {
   it('decodes a typed Rejection with the mutation’s Refusal', async () => {
     const [invalid, moved] = await run(() =>

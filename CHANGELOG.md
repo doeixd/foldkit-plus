@@ -47,7 +47,8 @@ version changed; `pnpm` skips versions already in the registry.
   wrote. Rows are ordered by revision, never by the View's cursor, and per
   principal: once a key reads as deleted or hidden at a revision, a late row
   of that revision or an earlier one is not let back in. `DomainReads` lists
-  the pending reads and confirms one.
+  the pending reads of who asks now and confirms one. The adapter keeps the
+  rows and floors of the last four principals to ask.
 - `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over
   a list of named starts and checks a law after every step (it may be
   asynchronous, so a walk can go through a writer); `Walk.cases` requires a

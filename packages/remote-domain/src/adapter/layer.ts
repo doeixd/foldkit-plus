@@ -1,14 +1,15 @@
 /**
  * `DomainRemote.layer`: a `RemoteClient` answered from a Domain Api's typed
  * client, keeping each write's receipt until a read of its View key confirms
- * it (#544). What the adapter holds, it holds per View key:
+ * it (#544). What the adapter holds, it holds per principal and View key:
  *
  *   accepted(key) = the newest row of that key let through, by revision
  *   floor(key)    = the newest receipt of a write to that key whose read is not yet confirmed
  *
  * A row reaches Remote only if its revision is at least accepted(key)'s; a read
  * of a floored key asks `snapshot(key, { atLeast: floor })`, and the floor
- * clears when such a read answers.
+ * clears when such a read answers. It keeps the last `MAX_PRINCIPALS` to ask:
+ * one who asks again after more than that starts with nothing held.
  */
 import * as Domain from '@alchemy.run/domain'
 import { Context, Duration, Effect, Equal, Layer, Match, Option, Ref, Schema, Stream } from 'effect'
@@ -51,7 +52,7 @@ export interface PendingRead {
 export class DomainReads extends Context.Service<
   DomainReads,
   {
-    /** Writes that committed whose View read is not yet confirmed. */
+    /** The writes of who asks now that committed and whose View read is not yet confirmed. */
     readonly pending: Effect.Effect<ReadonlyArray<PendingRead>>
     /** Reads the key again at its floor: `true` once the View has the write, or when none is pending. */
     readonly confirm: (entity: AnyEntity, id: string) => Effect.Effect<boolean>
@@ -118,13 +119,26 @@ const failureOf =
     return { _tag: 'Denied', error }
   }
 
-const keyOf = (entity: string, id: string) => `${entity}:${id}`
+const keyOf = (entity: string, id: string) => JSON.stringify([entity, id])
 
 /** How many commands' receipts the adapter keeps to answer a retry without sending it. */
 const MAX_COMMITTED = 1024
 
 /** Who asks, as results name them: their key, `null` for a visitor. */
 type Principal = string | null
+
+/** How many principals' rows and floors the adapter keeps; the one who asked longest ago goes first. */
+const MAX_PRINCIPALS = 4
+
+/**
+ * What the adapter holds for one principal: a row one was let through is no
+ * answer to another, whom the View may no longer let read it, and one's write
+ * is not pending for another.
+ */
+interface Held {
+  readonly accepted: Map<string, { readonly revision: number; readonly snapshot: Snapshot }>
+  readonly floors: Map<string, PendingRead>
+}
 
 /** A codec as the adapter runs it: the mutation's and the Entity's need no services. */
 type Codec = Schema.Codec<unknown, unknown>
@@ -162,12 +176,23 @@ export const layer = <A extends AnyApi>(
           )
       }
 
-      const accepted = new Map<string, { readonly revision: number; readonly snapshot: Snapshot }>()
-      const floors = new Map<string, PendingRead>()
+      const principals = new Map<Principal, Held>()
       const committed = new Map<string, { readonly receipt: Receipt; readonly reply: unknown }>()
 
       const viewClient = (binding: ViewBinding) => client[binding.view] as ViewClient
       const principalKey = Effect.map(config.principal, Option.getOrNull)
+
+      /** What is held for who asks, who becomes the latest to ask. */
+      const heldFor = (asking: Principal): Held => {
+        const held = principals.get(asking) ?? { accepted: new Map(), floors: new Map() }
+        principals.delete(asking)
+        principals.set(asking, held)
+        for (const oldest of principals.keys()) {
+          if (principals.size <= MAX_PRINCIPALS) break
+          principals.delete(oldest)
+        }
+        return held
+      }
 
       /** The key's snapshot, at the floor when one is set, within `confirmWithin`. */
       const snapshotAt = (binding: ViewBinding, id: string, floor: Option.Option<Receipt>) =>
@@ -194,9 +219,8 @@ export const layer = <A extends AnyApi>(
        */
       const admit = (binding: ViewBinding, id: string, snapshot: Snapshot, asking: Principal) =>
         Effect.gen(function* () {
-          // Per principal: a row one caller was let through is no answer to another, whom
-          // the View may no longer let read it.
-          const key = JSON.stringify([asking, binding.entity.name, id])
+          const { accepted } = heldFor(asking)
+          const key = keyOf(binding.entity.name, id)
           const held = Option.fromUndefinedOr(accepted.get(key))
           if (snapshot.state === null) {
             const revision = Option.match(held, {
@@ -225,7 +249,8 @@ export const layer = <A extends AnyApi>(
         })
 
       /** Clears the floor a read at `receipt` confirmed, unless a newer write raised it since. */
-      const confirmed = (binding: ViewBinding, id: string, receipt: Receipt) => {
+      const confirmed = (binding: ViewBinding, id: string, receipt: Receipt, asking: Principal) => {
+        const { floors } = heldFor(asking)
         const key = keyOf(binding.entity.name, id)
         const floor = floors.get(key)
         if (floor !== undefined && floor.receipt.version <= receipt.version) floors.delete(key)
@@ -242,7 +267,7 @@ export const layer = <A extends AnyApi>(
               onNone: () => Effect.succeedNone,
               onSome: snapshot =>
                 Effect.map(admit(binding, id, snapshot, asking), admission => {
-                  confirmed(binding, id, floor.receipt)
+                  confirmed(binding, id, floor.receipt, asking)
                   return Option.some(admission)
                 }),
             }),
@@ -308,7 +333,9 @@ export const layer = <A extends AnyApi>(
                   return yield* new RemoteReadError({
                     message: `${request.entity} is read through ${binding.view}, which serves no relations yet`,
                   })
-                const floor = Option.fromUndefinedOr(floors.get(keyOf(request.entity, request.id)))
+                const floor = Option.fromUndefinedOr(
+                  heldFor(asking).floors.get(keyOf(request.entity, request.id)),
+                )
                 const answered = yield* snapshotAt(
                   binding,
                   request.id,
@@ -334,7 +361,8 @@ export const layer = <A extends AnyApi>(
                   onSome: Effect.succeed,
                 })
                 const { row } = yield* admit(binding, request.id, snapshot, asking)
-                if (Option.isSome(floor)) confirmed(binding, request.id, floor.value.receipt)
+                if (Option.isSome(floor))
+                  confirmed(binding, request.id, floor.value.receipt, asking)
                 if (row === null) return Option.none()
                 return Option.some(
                   Object.assign(yield* encodeRow(binding.entity, request.id, row, request.fields), {
@@ -479,6 +507,7 @@ export const layer = <A extends AnyApi>(
 
           const key = keyOf(binding.entity.name, target)
           const floor: PendingRead = { entity: binding.entity.name, id: target, operation, receipt }
+          const { floors } = heldFor(asking)
           const raised = floors.get(key)
           if (raised === undefined || raised.receipt.version < receipt.version)
             floors.set(key, floor)
@@ -596,7 +625,9 @@ export const layer = <A extends AnyApi>(
                   .pipe(
                     Stream.mapEffect(snapshot =>
                       Effect.gen(function* () {
-                        const floor = floors.get(keyOf(binding.entity.name, requirement.id))
+                        const floor = heldFor(asking).floors.get(
+                          keyOf(binding.entity.name, requirement.id),
+                        )
                         // While a write is unconfirmed a frame is only a signal: read at its floor.
                         const admission =
                           floor === undefined
@@ -641,14 +672,15 @@ export const layer = <A extends AnyApi>(
         )
 
       const reads = DomainReads.of({
-        pending: Effect.sync(() => [...floors.values()]),
+        pending: Effect.map(principalKey, asking => [...heldFor(asking).floors.values()]),
         confirm: (entity, id) =>
           Effect.gen(function* () {
-            const floor = floors.get(keyOf(entity.name, id))
+            const asking = yield* principalKey
+            const floor = heldFor(asking).floors.get(keyOf(entity.name, id))
             if (floor === undefined) return true
             const binding = views.get(entity.name)
             if (binding === undefined) return false
-            return Option.isSome(yield* confirm(binding, id, floor, yield* principalKey))
+            return Option.isSome(yield* confirm(binding, id, floor, asking))
           }),
       })
 
