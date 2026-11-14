@@ -1077,6 +1077,34 @@ a bound), and gives the same starts for the same seed. A kind it has no
 generator for (`Option`, `Date`, a recursive Schema) throws at the call,
 naming the kind and its path: give such a Model's starts by hand.
 
+**Scenarios: a write as data.** `Scenario` (`foldkit-remote/testing`) is a write,
+the rows it starts from and what must come of it, as plain data run by runners:
+
+```ts sketch
+const scenario = Scenario.write<User>({
+  name: 'a published product does not go back to draft',
+  given: [{ entity: Product, row: { id: 'p2', /* every field, encoded */ } }],
+  principal: Option.some({ id: 'ada' }), now: 0, operation: 'op-1',
+  when: [Revert, { id: 'p2', status: 'draft' }],
+  expect: Scenario.refused({ entity: 'Product', id: 'publishedStaysPublished' }),
+  // Scenario.accepted({ status: 'draft' }) | refused('Unmet' | 'Conflict' | 'Taken' | 'Referenced') | forbidden | unauthenticated
+})
+const runner = Scenario.remote({ data: Data, model, backend: (rows, principal) => layerOver(rows, principal) })
+const { mismatches, evidence } = await Effect.runPromise(Scenario.run(scenario, [runner], { report }))
+const generated = Scenario.fromReport(report, { writes: [Revert], starts, principal, now: 0 })
+```
+
+`Scenario.remote` runs it through `Law.check` and the server alone (`backend` is called twice,
+once per run, and must give a fresh backend each time); its steps are `law`, `decision`, `row`
+(`Forbidden`/`Unauthenticated` have no `law` or `row`). A scenario outside any runner's reach
+is a `ScenarioRunner<Principal>` of its own (`{ name, run }` giving `ScenarioStep`s). With
+`report`, a scenario that expects what `Laws.check` disproved (a refused write landing) throws
+before running, naming the invariant; a run issues one `Scenario` record per runner with no
+mismatch, for each invariant the accepted write could break. `Scenario.fromReport` gives an
+acceptance per holding arrow and a rejection per refused pair, over your `starts`.
+`Scenario.messages` / `Scenario.runMessages(scenario, { app, readers, judge, evidence })` do the
+same for a history of Messages (`Scenario.reads(reader, value)`, `Scenario.breaks(law)`).
+
 **The same properties in a real browser.** `foldkit-plus/testing/playwright`
 checks the drawn page over the real network, where SSR, persistence and the
 Worker take part (`playwright` is an optional peer, for its types):

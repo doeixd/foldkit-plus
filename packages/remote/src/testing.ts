@@ -707,6 +707,7 @@ export const Trace = {
 }
 
 export { Law, type LawConfig, type LawPart, type LawReport } from './law.js'
+export * from './scenario.js'
 export {
   Walk,
   type Start as WalkStart,

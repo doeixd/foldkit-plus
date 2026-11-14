@@ -4066,6 +4066,53 @@ expect(report.agreed).toEqual(expect.arrayContaining(['Card:c9.createdAt', ByRan
   Name the parts you expect compared, as above, so a prediction that silently
   stops is caught too.
 
+### Scenarios: a write as data, run against the real thing
+
+A `Scenario` is a write, the rows it starts from and what must come of it,
+written once as plain data. It holds no function and names no backend; a
+runner seeds its backend from `given`, sends `when` as `principal` at `now`
+under `operation`, and reports one step for each thing it owns and checked.
+`Scenario.run` gives the mismatches, each naming its backend and step.
+
+```ts sketch
+const reverted = Scenario.write<User>({
+  name: 'a published product does not go back to draft',
+  given: [{ entity: Product, row: { id: 'p2', ownerId: 'ada', name: 'Rivet', status: 'published', stock: 5, reserved: 0, revision: 1 } }],
+  principal: Option.some({ id: 'ada' }),
+  now: 0,
+  when: [Revert, { id: 'p2', status: 'draft' }],
+  operation: 'op-1',
+  expect: Scenario.refused({ entity: 'Product', id: 'publishedStaysPublished' }),
+})
+// Scenario.accepted({ status: 'draft' }), Scenario.refused('Unmet'), Scenario.forbidden, Scenario.unauthenticated
+
+const remote = Scenario.remote({ data: Data, model, backend: (rows, principal) => serverOver(rows, principal) })
+const { mismatches, evidence } = await Effect.runPromise(Scenario.run(reverted, [remote], { report }))
+```
+
+- **`Scenario.remote`** runs the write through `Law.check` (the client's
+  prediction against the server's answer) and through the server alone for the
+  decision and the row it leaves. `backend` is called twice per scenario and
+  must give a backend of its own each time. A `Forbidden` or `Unauthenticated`
+  scenario skips the prediction and the row: the client cannot know who asks,
+  and nobody refused may read the row. Another backend (SQLite's table and
+  ledger, a Domain story) is a `ScenarioRunner` of its own.
+- **`report`, a `Laws.check` report, is checked before anything runs.** A
+  scenario that expects a write to land where enumeration found an invariant
+  refusing it, or expects a refusal by an invariant the report kept the write
+  from breaking, throws naming the invariant. It also lets `run` issue
+  evidence: one `Scenario` record per runner with no mismatch, for each
+  invariant the (accepted) write could break.
+- **`Scenario.fromReport(report, { writes, starts, principal, now })`** gives
+  an acceptance for each arrow that holds and a rejection for each refused
+  pair, over the first of your `starts` that fits; one that fits none throws
+  naming the arrow or pair.
+- **`Scenario.messages` and `Scenario.runMessages`** are the same idea for an
+  `update`: a history of Messages from `initial`, one more, and a named
+  reading of the Model (`Scenario.reads`) or a law the step breaks
+  (`Scenario.breaks`), judged with a contract's `judge`.
+- External effects are not executed.
+
 ## Advanced: the kernel
 
 Everything above compiles to the lower-level exports below; there is not a
