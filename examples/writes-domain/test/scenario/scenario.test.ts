@@ -15,7 +15,7 @@ import {
   Scenario,
   sqliteRunner,
 } from '../../src/scenario/index.js'
-import { accepted, scenarios, visitor } from './scenarios.js'
+import { accepted, scenarios, visitor } from '../../src/scenario/scenarios.js'
 
 const runners = [sqliteRunner, memoryRunner, domainRunner]
 

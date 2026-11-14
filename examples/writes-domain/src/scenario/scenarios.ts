@@ -1,7 +1,8 @@
+/** The scenarios the demo prints and the tests run: one per decision ReserveStock can reach. */
 import { Option } from 'effect'
 import { Product, reservedWithinStock } from 'foldkit-example-writes/domain'
-import { ReserveStock } from '../../src/domain.js'
-import { Scenario } from '../../src/scenario/index.js'
+import { ReserveStock } from '../domain.js'
+import { Scenario } from './scenario.js'
 
 const bolt = {
   id: 'p1',

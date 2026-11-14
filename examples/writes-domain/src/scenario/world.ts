@@ -3,9 +3,10 @@
  * run it: hosted in memory with every View delivery held until `control.drain`,
  * signed in as whoever `as` holds (each call carries that user's header, as a
  * session cookie would), and steerable at the one call that matters: the
- * reply to a `ReserveStock` can be held back, or lost after the command ran.
+ * reply to a `ReserveStock` can be held back, or lost after the command ran,
+ * and a View frame can be delivered late.
  */
-import { Deferred, Effect, Layer, Option, Ref, Schema, Stream, type Duration } from 'effect'
+import { Deferred, Effect, Layer, Option, Queue, Ref, Schema, Stream, type Duration } from 'effect'
 import { RpcClientDefect, RpcClientError } from 'effect/rpc/RpcClientError'
 import { Product } from 'foldkit-example-writes/domain'
 import { host, ShopApi } from '../model.js'
@@ -30,6 +31,7 @@ export const world = (options: { readonly confirmWithin?: Duration.Input } = {})
   const as = Ref.makeUnsafe<Option.Option<string>>(Option.none())
   const steering: Array<Steer> = []
   const commandIds: Array<string | undefined> = []
+  const late = Effect.runSync(Queue.unbounded<{ readonly key: string; readonly frame: unknown }>())
 
   const headers = Effect.map(
     Ref.get(as),
@@ -59,7 +61,17 @@ export const world = (options: { readonly confirmWithin?: Duration.Input } = {})
         snapshot: (key, options) =>
           Effect.flatMap(headers, headers => view.snapshot(key, { ...options, headers })),
         watch: (key, options) =>
-          Stream.unwrap(Effect.map(headers, headers => view.watch(key, { ...options, headers }))),
+          Stream.unwrap(
+            Effect.map(headers, headers =>
+              Stream.merge(
+                view.watch(key, { ...options, headers }),
+                Stream.fromQueue(late).pipe(
+                  Stream.filter(each => each.key === key),
+                  Stream.map(each => each.frame as never),
+                ),
+              ),
+            ),
+          ),
       },
     }
   }
@@ -76,6 +88,8 @@ export const world = (options: { readonly confirmWithin?: Duration.Input } = {})
     as,
     /** The `commandId` of each `ReserveStock` sent, in order. */
     commandIds,
+    /** Sends every open watch of `key` a frame, as one the transport delivered late. */
+    deliverLate: (key: string, frame: unknown) => Queue.offer(late, { key, frame }),
     /** Lists these rows as products, and lets every View catch up. */
     seed: (rows: ReadonlyArray<Row>) =>
       Effect.gen(function* () {
