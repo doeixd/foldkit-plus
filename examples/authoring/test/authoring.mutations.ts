@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: '../src/list/app.ts',
-        find: "model.presence[id]?.phase === 'hidden'",
-        replace: 'true',
+        find: "Object.hasOwn(model.presence, id) && model.presence[id]?.phase === 'hidden'",
+        replace: 'Object.hasOwn(model.presence, id)',
       },
     ],
     tests: [unit],

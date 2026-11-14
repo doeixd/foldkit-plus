@@ -77,10 +77,8 @@ const Announcer = Page.at(Live, { args: { debounceMs: 0, clearAfterMs: 5000 } })
 const Presences = Presence.bundle.each(Link.collection<Model>()('presence', GotPresence), {
   args: { durationMs: DURATION_MS },
   // Removal is the view ceasing to draw the row: the placement decided it is `hidden`.
-  onMessage: (message: PresenceMessage, id: string) => (model: Model) =>
-    message._tag === 'Hidden' &&
-    Object.hasOwn(model.presence, id) &&
-    model.presence[id]?.phase === 'hidden'
+  onMessage: (_message: PresenceMessage, id: string) => (model: Model) =>
+    Object.hasOwn(model.presence, id) && model.presence[id]?.phase === 'hidden'
       ? {
           model: modifyFields(model, {
             items: items => items.filter(item => item.id !== id),
