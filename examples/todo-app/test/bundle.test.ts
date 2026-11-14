@@ -16,7 +16,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // 160,661 bytes on 2026-11-12: the workspace's Effect moved from 4.1.1 to
 // 4.1.4, and `effect` is the package that grew (57.2 kB brotli~ in the report).
 // Ceiling that plus about 1%, rounded up to the next 500 bytes.
-const CEILING = 162_500
+// +397 bytes for the law graph's facts (#537), measured by building the page with and without them in one tree on 2026-11-14: the Sync contract's `facts` (a law per declared law, a
+// transition per durable tag), which `Module.graph` asks for. Ceiling raised by that, rounded up.
+const CEILING = 163_000
 
 clientBudget({
   name: 'todo-app',

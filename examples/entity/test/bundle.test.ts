@@ -19,7 +19,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // (the editor's judged reads, the Keys and bound-slot changes); locally the page
 // read 218,827, and 218,838 with the editor before its judged reads, so no single
 // module of crud's is the growth: brotli over the whole page moved it.
-const CEILING = 219_500
+// +357 bytes for the law graph's facts (#537), measured by building the page with and without them in one tree on 2026-11-14: each declared write's `facts` and the domain contract
+// joining them. Ceiling raised by that, rounded up.
+const CEILING = 220_000
 
 clientBudget({
   name: 'entity',

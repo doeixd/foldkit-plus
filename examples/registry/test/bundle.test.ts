@@ -22,7 +22,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // of its own (#560 review): foldkit-crud's index.js grew 685 bytes minified,
 // and the page measured 255,583 against 255,497 from the same tree with the
 // editor before it, in fresh builds of each.
-const CEILING = 256_000
+// +619 bytes for the law graph's facts (#537), measured by building the page with and without them in one tree on 2026-11-14: the page calls `Module.manifest`, whose findings are
+// `Module.validate`'s and now include the graph's three rules, and the Sync contract's `facts`.
+// Ceiling raised by that, rounded up.
+const CEILING = 256_500
 
 clientBudget({
   name: 'registry',

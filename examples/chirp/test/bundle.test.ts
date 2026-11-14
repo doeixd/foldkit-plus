@@ -21,7 +21,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // carries the write capability, and the declared-write work added to it (module by module,
 // minified: `foldkit-entity` enumerate 2.8 kB, write 0.8, refine 0.6, footprint 0.6;
 // `foldkit-remote` canOf 1.1, remote 0.4, mutation 0.4). Ceiling that plus about 0.5%.
-const CEILING = 244_000
+// +290 bytes for the law graph's facts (#537), measured by building the page with and without them in one tree on 2026-11-14: each declared write's `facts` (`Mutation.write`) and the
+// domain contract joining them. Ceiling raised by that, rounded up.
+const CEILING = 244_500
 
 clientBudget({
   name: 'chirp',
