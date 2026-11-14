@@ -322,7 +322,10 @@ nothing, as Remote's server does (#405).
      `MutationResult` with that row in `entities`.
    - `ConsistencyTimeout`, the deadline, or a transport failure: answer
      `MutationResult` with `binding.written(reply, input)` as the row's values
-     (D6), and keep the floor.
+     (D6), and keep the floor. (As built: a read answered with the row in
+     `behind` asks again after 1 s, doubling to at most 30 s, since an
+     unchanged plan would never restart the read entry; a live patch ends the
+     floor only when its stream was opened at the row's token.)
 
 ### Why D6
 
