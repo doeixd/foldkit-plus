@@ -12,7 +12,8 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-metadata`: `Evidence`, records that a transition keeps a law
   (`Enumerated`, `Walked`, `Scenario`, `RuntimeOnly`), stamped by the producer
   that issued them (#537). `Evidence.issuedBy(record)` is that producer, none
-  for a record typed by hand or spread from an issued one;
+  for a record typed by hand or spread from an issued one, and a second
+  `Evidence.issuer` of a name throws;
   `Evidence.runtimeOnly({ transition, law, why })` refuses an empty `why`. The
   package now peers on `effect`. `foldkit-entity`: each `Laws.check` pair the
   check keeps by reading the declarations carries an `Enumerated` record in

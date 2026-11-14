@@ -49,4 +49,11 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a second issuer of a name accepted',
+    edits: [
+      { file: evidence, find: 'if (taken.has(name))', replace: 'if (taken.has(name) && false)' },
+    ],
+    tests,
+  },
 ]

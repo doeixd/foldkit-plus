@@ -115,7 +115,9 @@ Evidence.issuedBy({ ...line }) // Option.none(): a copy was issued by no one
 `runtimeOnly` and `issuedBy`; it reads records with `Evidence.$match`.
 
 **What the stamp does not prove.** It says which producer made a record, not
-that the record is true: nothing stops an author calling `Evidence.issuer`
+that the record is true. A name has one issuer: a second
+`Evidence.issuer('foldkit-entity/laws')` throws, so nothing loaded after a
+producer can stamp as it, but nothing stops an author taking an unused name
 in a test. This repository's `pnpm evidence:check` refuses a call outside the
 producer modules. And a `Walked` record says only which seeds passed.
 
@@ -130,7 +132,7 @@ producer modules. And a `Walked` record says only which seeds passed.
 | `Metadata.is(value)` | True only for a value this module made. |
 | `Evidence.issuedBy(record)` | The producer that issued `record`: an `Option`, none for a record typed by hand or copied. |
 | `Evidence.runtimeOnly({ transition, law, why })` | An issued `RuntimeOnly` record; throws on an empty `why`. |
-| `Evidence.issuer(name)` | For a producer, once at module level: `{ name, issue(record) }`, where `issue` returns a frozen, stamped copy. |
+| `Evidence.issuer(name)` | For a producer, once at module level: `{ name, issue(record) }`, where `issue` returns a frozen, stamped copy. Throws for a name that already has an issuer. |
 | `Evidence.Enumerated` / `Scenario` / `Walked`, `$match`, `$is` | A producer's records before it issues them, and reading a record by kind. |
 
 ## Limits
@@ -141,6 +143,9 @@ producer modules. And a `Walked` record says only which seeds passed.
   Treat entry values as immutable too.
 - **Key identity is per module instance.** Two copies of an interpreter (a
   duplicated install, a reloaded module) declare two keys and do not see each
-  other's entries. Declare a key once, at module level.
+  other's entries. Declare a key once, at module level. Evidence stamps are
+  the same: a record issued through one copy of `foldkit-metadata` reads
+  `issuedBy` none in another, so a reader there undercounts it rather than
+  trusting a stamp it cannot check.
 - **Not serializable.** `summarize` gives text for display; there is no decode
   path back to entries.

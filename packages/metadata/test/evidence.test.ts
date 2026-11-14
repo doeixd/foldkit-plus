@@ -42,6 +42,13 @@ describe('Evidence', () => {
     )
   })
 
+  it.each(['test/producer', 'foldkit-metadata/runtimeOnly'])(
+    'refuses a second issuer named %s',
+    name => {
+      expect(() => Evidence.issuer(name)).toThrow(`${name} already has an issuer`)
+    },
+  )
+
   it('refuses an issuer with no name', () => {
     expect(() => Evidence.issuer(' ')).toThrow('a name is required')
   })

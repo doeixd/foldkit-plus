@@ -44,10 +44,15 @@ export interface EvidenceIssuer {
 }
 
 const issuedBy = new WeakMap<Evidence, string>()
+// One issuer per name, so a stamp's name is the producer that took it first.
+const taken = new Set<string>()
 
 const issuer = (name: string): EvidenceIssuer => {
   if (name.trim().length === 0)
     throw new Error('[foldkit-metadata] Evidence.issuer: a name is required')
+  if (taken.has(name))
+    throw new Error(`[foldkit-metadata] Evidence.issuer: ${name} already has an issuer`)
+  taken.add(name)
   return {
     name,
     issue: record => {
@@ -69,10 +74,12 @@ export const Evidence = {
   $is: constructors.$is,
   $match: constructors.$match,
   /**
-   * Made once, at module level, by a module that produces evidence. Only the
-   * producers call it, which `scripts/evidence-check.mjs` holds in this
-   * repository; nothing stops another author, so a stamp says who made a
-   * record, not that the record is true.
+   * Made once, at module level, by a module that produces evidence; a second
+   * issuer of a name throws, so a module loaded after a producer cannot
+   * stamp as it. Only the producers call it, which
+   * `scripts/evidence-check.mjs` holds in this repository; nothing stops
+   * another author taking an unused name, so a stamp says who made a record,
+   * not that the record is true.
    */
   issuer,
   /** The producer that issued `record`; none for a record typed by hand or copied. */
