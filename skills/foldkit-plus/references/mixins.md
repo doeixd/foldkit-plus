@@ -113,7 +113,7 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   returns one serializable description of the public slots, the attachments in order, the pattern
   obligations and diagnostics, and any contribution conflict (`mixins:event-conflict` or
   `mixins:attribute-conflict`, naming both contributors and their attachment `orders`, the slot,
-  and the event or attribute). With a `view`, only a behavior it attaches supplies an obligation. `support` lists providers no Behavior declares (`A11y.native(...)`, `A11y.delegated(...)`), so a pattern whose obligations the element or a delegate supplies describes clean; an entry the pattern does not ask is ignored.
+  and the event or attribute). With a `view`, only a behavior it attaches supplies an obligation. `support` lists providers no Behavior declares (`A11y.native(...)`, `A11y.delegated(...)`), so a pattern whose obligations the element or a delegate supplies describes clean; an entry there that the pattern does not ask is `a11y:unknown-support`, while a Behavior that supplies more than the pattern asks is not reported.
   Omit `input` and a Behavior's events and attributes stay `unknown`; pass it and only those
   names are filled in. What a closure reads stays `unknown`. A Surface contract or an Action
   keeps its kind and name. `Assembly.textOf(description)` is that value as text, so a document

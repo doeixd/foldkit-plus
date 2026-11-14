@@ -298,7 +298,9 @@ under another name.
 returns one serializable description: public slots, attachments in order, pattern obligations,
 pattern diagnostics, known links, and contribution conflicts. A document and a diagnostic both
 consume that value (`Assembly.textOf`). It does not draw the view, call a Mount, or dispatch a
-Message.
+Message. `support` lists providers no Behavior declares (`A11y.native(...)`,
+`A11y.delegated(...)`), so a pattern whose obligations the element or a delegate supplies
+describes clean.
 
 Pass the behaviors and styles you still hold. A behavior records only its mixin on the view, so
 the description names an attachment by the `NamedBehavior` or `NamedStyle` whose mixin is that
@@ -363,7 +365,10 @@ Slot.make({
   `Base → Collection`. A behavior that requires `Interactive` may attach to a `TextInput`.
   Extend it with `Capability.make(name, { extends })`.
 - **Event** and **Attr** are branded metadata tokens. `Event.make` and `Attr.make` add custom ones;
-  declaring them does not install handlers.
+  declaring them does not install handlers. `Attr` ships `Role`, `AriaLabel`, `AriaDescribedby`,
+  `AriaExpanded`, `AriaSelected`, `AriaInvalid`, `AriaPressed`, `AriaDisabled`, `Disabled` and
+  `Value`, and `AriaChecked`, `AriaLabelledby`, `AriaControls`, `AriaReadonly`, `AriaRequired`,
+  `AriaCurrent` and `AriaValuenow`, for a slot to declare what it writes.
 - **Requirement** tokens name platform needs such as `Keyboard`, `Pointer` and `Clipboard` for
   tooling to inspect.
 - `hidden` reserves an internal extension point: public Style and Behavior specs do not even offer
