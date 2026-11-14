@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file: '../src/interaction/list-navigation.ts',
-        find: "if (!typeahead && result !== undefined && result._tag === 'Type') return Option.none()\n",
+        find: "if (!typeahead && result !== undefined && result._tag === 'Type')\n                  return Option.none()\n",
         replace: '',
       },
     ],
