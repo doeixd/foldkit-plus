@@ -12,7 +12,7 @@ import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
+import { A11y, Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
 import * as RovingTabindex from './roving-tabindex.js'
 import { perInput } from '../internal.js'
 
@@ -142,11 +142,16 @@ export interface KeyOptions<Input> {
   readonly direction?: (input: Input) => RovingTabindex.Direction
 }
 
-export interface BehaviorOptions<Input, Slots> extends KeyOptions<Input> {
+export interface BehaviorOptions<
+  Input,
+  Slots,
+  Container extends keyof Slots & string = keyof Slots & string,
+  Item extends keyof Slots & string = keyof Slots & string,
+> extends KeyOptions<Input> {
   /** The slot that receives the arrow keys. */
-  readonly container: keyof Slots & string
+  readonly container: Container
   /** The slot rendered once per cell; must carry the cell's id (see `Behaviors.Collection`). */
-  readonly item: keyof Slots & string
+  readonly item: Item
 }
 
 /**
@@ -206,7 +211,14 @@ export const behavior = <Field extends string>(
 ) => {
   function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
-  ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  ): <Container extends keyof Slots & string, Item extends keyof Slots & string>(
+    options: BehaviorOptions<Input, Slots, Container, Item>,
+  ) => Behavior.NamedBehavior<
+    Slots,
+    Input,
+    ParentMessage,
+    `${Container}/navigation` | `${Item}/focus-strategy`
+  >
   function place<Slots>(
     slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
@@ -229,6 +241,7 @@ export const behavior = <Field extends string>(
         {
           [options.container]: Behavior.slot({
             requires: { capability: Capability.Interactive },
+            provides: [A11y.Navigation],
             attributes: context => {
               const { input, h } = context
               const items = itemsOf(input)
@@ -242,6 +255,7 @@ export const behavior = <Field extends string>(
           }),
           [options.item]: Behavior.slot({
             requires: { capability: Capability.Focusable },
+            provides: [A11y.FocusStrategy],
             attributes: ({
               input,
               h,

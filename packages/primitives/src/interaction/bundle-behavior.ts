@@ -21,6 +21,7 @@ import type { Bundle, Declared } from 'foldkit-bundle'
 import {
   Behavior,
   SlotView,
+  type A11y,
   type BehaviorSlotOptions,
   type NamedBehavior,
   type SlotAttributes,
@@ -42,6 +43,8 @@ export type BundleMessageOf<D extends Declared<any, any>> = Bundle.BundleParts<
 
 export interface BundleSlotOptions<D extends Declared<any, any>, Input, ParentMessage> {
   readonly requires?: SlotRequirements
+  /** What the slot's contributions meet, as `Behavior.slot`'s `provides`. */
+  readonly provides?: ReadonlyArray<A11y.Obligation>
   readonly attributes?: (context: {
     readonly input: Input
     readonly h: HtmlBuilder<ParentMessage>
@@ -94,10 +97,11 @@ export const fromBundle = <D extends Declared<any, any>>(declared: D) => {
         spec as Record<string, BundleSlotOptions<D, Input, ParentMessage> | undefined>,
       )) {
         if (slot === undefined) continue
-        const { requires, attributes, events } = slot
+        const { requires, provides, attributes, events } = slot
         if (requires === undefined && attributes === undefined && events === undefined) continue
         built[name] = {
           ...(requires === undefined ? {} : { requires }),
+          ...(provides === undefined ? {} : { provides }),
           ...(attributes === undefined
             ? {}
             : {

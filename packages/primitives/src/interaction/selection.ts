@@ -11,7 +11,7 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability, SlotView } from 'foldkit-mixins'
+import { A11y, Attr, Behavior, Behaviors, Capability, SlotView } from 'foldkit-mixins'
 import { perInput, sameIds } from '../internal.js'
 import { BundleBehavior } from './bundle-behavior.js'
 
@@ -116,15 +116,20 @@ export const bundle = Bundle.make('Selection', {
   }),
 })
 
-export interface BehaviorOptions<Input, Slots> {
+export interface BehaviorOptions<
+  Input,
+  Slots,
+  Item extends keyof Slots & string = keyof Slots & string,
+  Click extends boolean = boolean,
+> {
   /** The slot holding the items, for `aria-multiselectable`. */
   readonly container?: keyof Slots & string
   /** The slot rendered once per item; must carry the item's id. */
-  readonly item: keyof Slots & string
+  readonly item: Item
   readonly items: (input: Input) => Behaviors.Collection.Items<unknown>
   /** Wire a plain click on each item to `Activated`. Default `true`; turn off
-   *  when `Press` or the view owns the click. */
-  readonly click?: boolean
+   *  when `Press` or the view owns the click, which then supplies activation. */
+  readonly click?: Click
 }
 
 /**
@@ -138,7 +143,14 @@ export const behavior = <Field extends string>(
 ) => {
   function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
-  ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  ): <Item extends keyof Slots & string, Click extends boolean = boolean>(
+    options: BehaviorOptions<Input, Slots, Item, Click>,
+  ) => Behavior.NamedBehavior<
+    Slots,
+    Input,
+    ParentMessage,
+    `${Item}/state:aria-selected` | ([Click] extends [false] ? never : `${Item}/activation`)
+  >
   function place<Slots>(
     slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
@@ -166,6 +178,10 @@ export const behavior = <Field extends string>(
               }),
           [options.item]: {
             requires: { capability: Capability.Interactive },
+            provides: [
+              A11y.State(Attr.AriaSelected),
+              ...(options.click !== false && args.mode !== 'none' ? [A11y.Activation] : []),
+            ],
             attributes: ({ input, h, item, send }) => {
               if (item === undefined) return []
               const items = itemsOf(input)

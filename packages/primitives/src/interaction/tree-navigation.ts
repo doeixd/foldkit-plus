@@ -19,7 +19,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 import type { Declared } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
+import { A11y, Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
 import { FollowTabStop } from '../dom/follow-tab-stop.js'
 import { FOCUS_MARK } from '../dom/focusable.js'
 import { arrowChords } from './roving-tabindex.js'
@@ -214,11 +214,16 @@ export interface KeyOptions<Input> {
   readonly direction?: (input: Input) => 'ltr' | 'rtl'
 }
 
-export interface BehaviorOptions<Input, Slots> extends KeyOptions<Input> {
+export interface BehaviorOptions<
+  Input,
+  Slots,
+  Container extends keyof Slots & string = keyof Slots & string,
+  Item extends keyof Slots & string = keyof Slots & string,
+> extends KeyOptions<Input> {
   /** The slot that receives the keys: the element with `role="tree"`. */
-  readonly container: keyof Slots & string
+  readonly container: Container
   /** The slot rendered once per showing row, with `item.id` or `item.index` into `shown`. */
-  readonly item: keyof Slots & string
+  readonly item: Item
 }
 
 /** The rows showing for one input, with what each row's attributes look up. */
@@ -306,7 +311,14 @@ export const behavior = <Field extends string>(
 ) => {
   function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
-  ): (options: BehaviorOptions<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  ): <Container extends keyof Slots & string, Item extends keyof Slots & string>(
+    options: BehaviorOptions<Input, Slots, Container, Item>,
+  ) => Behavior.NamedBehavior<
+    Slots,
+    Input,
+    ParentMessage,
+    `${Container}/navigation` | `${Item}/focus-strategy`
+  >
   function place<Slots>(
     slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
@@ -329,6 +341,7 @@ export const behavior = <Field extends string>(
         {
           [options.container]: Behavior.slot({
             requires: { capability: Capability.Interactive },
+            provides: [A11y.Navigation],
             // Focus in the tree stays on its stop when an edit elsewhere moves or removes it.
             mount: () => FollowTabStop(),
             attributes: context => [
@@ -338,6 +351,7 @@ export const behavior = <Field extends string>(
           }),
           [options.item]: Behavior.slot({
             requires: { capability: Capability.Focusable },
+            provides: [A11y.FocusStrategy],
             attributes: ({
               input,
               h,

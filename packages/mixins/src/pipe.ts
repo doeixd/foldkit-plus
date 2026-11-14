@@ -2,14 +2,17 @@
 export const pipeSelf = (self: unknown, fns: ReadonlyArray<(value: any) => any>): unknown =>
   fns.reduce((acc, fn) => fn(acc), self)
 
+/**
+ * Typed steps, as Effect's `pipe`, and no catch-all of `(self: Self) => Self`:
+ * a step that changes the type (an attachment that supplies obligations, a
+ * `detach` that forgets them) would be read back as `Self` and keep what it
+ * changed, so a later `A11y.conform` would judge the view before the change.
+ */
 export type Pipeable<Self> = {
   pipe(): Self
-  pipe(...fns: ReadonlyArray<(self: Self) => Self>): Self
   pipe<A>(ab: (self: Self) => A): A
   pipe<A, B>(ab: (self: Self) => A, bc: (a: A) => B): B
   pipe<A, B, C>(ab: (self: Self) => A, bc: (a: A) => B, cd: (b: B) => C): C
-  // Longer chains whose steps change the type, as attachments that supply
-  // obligations change a SlotView's: the rest form above keeps one type throughout.
   pipe<A, B, C, D>(ab: (self: Self) => A, bc: (a: A) => B, cd: (b: B) => C, de: (c: C) => D): D
   pipe<A, B, C, D, E>(
     ab: (self: Self) => A,

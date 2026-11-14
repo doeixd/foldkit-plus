@@ -14,8 +14,9 @@ import * as Conformed from './conformed.js'
 import { DiagnosticError, type Diagnostic } from './diagnostics.js'
 import * as MetadataToken from './metadataToken.js'
 import type { NamedBehavior } from './behavior.js'
-import type { MixinFor, MixinMeta, StaticMixin } from './mixin.js'
+import type { Mixin, MixinFor, MixinMeta, StaticMixin } from './mixin.js'
 import type { Any as AnySlot, AttributeName, EventName, SlotCapability } from './slot.js'
+import * as SlotViews from './slotView.js'
 import type { SlotView } from './slotView.js'
 
 export type A11yDiagnosticCode =
@@ -202,6 +203,16 @@ export const validate = (
 export const ProvidesTypeId: unique symbol = Symbol.for('foldkit-mixins/Provides')
 
 /**
+ * The type checker's record of `Provides`. A method, so the record is
+ * bivariant: a value that supplies more is still accepted where less is
+ * declared (an annotated return type, a parameter typed with the default),
+ * which then forgets what it supplied rather than refusing it.
+ */
+interface ProvidesRecord<Provides extends string> {
+  provides(names: Provides): void
+}
+
+/**
  * What a value supplies, as `` `${slot}/${obligation}` `` names, for the type
  * checker alone: nothing is stored under the key. A view's names are the union
  * of what its attachments supply, and `conform` asks them to cover the
@@ -209,7 +220,7 @@ export const ProvidesTypeId: unique symbol = Symbol.for('foldkit-mixins/Provides
  * claims more than its value supplies still fails `conform` when the module loads.
  */
 export interface Supplies<Provides extends string> {
-  readonly [ProvidesTypeId]?: Provides
+  readonly [ProvidesTypeId]?: ProvidesRecord<Provides>
 }
 
 type ObligationNames<Requirement> = Requirement extends {
@@ -322,9 +333,10 @@ const assertConforms = (pattern: Pattern, view: AnyView): void => {
  * attachments' supplied names do not cover what the pattern owes on its slots
  * is an error naming each `slot/obligation` missing. At run time, where the
  * module loads, `check` runs and the first finding is thrown as a
- * `DiagnosticError` with every finding in `details.diagnostics`. The pattern
- * is remembered, so `SlotView.detach` and `SlotView.replace` check the view
- * they make again.
+ * `DiagnosticError` with every finding in `details.diagnostics`. Returns a
+ * new view that remembers the pattern, so `SlotView.detach` and
+ * `SlotView.replace` check the view they make from it again; the view given is
+ * unchanged.
  *
  * @example
  * ```ts
@@ -337,19 +349,25 @@ const assertConforms = (pattern: Pattern, view: AnyView): void => {
 export const conform =
   <Spec extends Requirements>(pattern: Pattern<Spec>) =>
   <Slots, Input, Message, Provides extends string = never>(
-    view: SlotView<Slots, Input, Message, Provides> & NoInfer<Conforms<Spec, Slots, Provides>>,
+    view: SlotView<Slots, Input, Message, Provides> & Conforms<Spec, Slots, Provides>,
   ): SlotView<Slots, Input, Message, Provides> => {
     assertConforms(pattern, view)
-    Conformed.record(view, [
+    // The same view made again, so the one given stays unconformed. Each Mixin
+    // already met this view's Message universe when it was first attached.
+    const conformed = (view as AnyView).mixins.reduce<AnyView>(
+      (built, mixin) => SlotViews.attach(mixin as Mixin<any>)(built),
+      SlotViews.define(view.slots, view.render, view.name === undefined ? {} : { name: view.name }),
+    )
+    Conformed.record(conformed, [
       ...Conformed.conformancesOf(view),
       { pattern, check: next => assertConforms(pattern, next as AnyView) },
     ])
-    return view
+    return conformed
   }
 
 /** A Mixin that contributes nothing and supplies obligations, attached with `SlotView.attach`. */
 export interface Supply<Provides extends string> extends StaticMixin<never> {
-  readonly [ProvidesTypeId]: Provides
+  readonly [ProvidesTypeId]: ProvidesRecord<Provides>
 }
 
 /** Per slot, the obligations supplied there. */
@@ -380,7 +398,7 @@ const supply = <Provides extends string>(
     name,
     contributions: Object.freeze(Object.create(null)),
     meta: Object.freeze({ kind: 'mixin' as const, slots: Object.freeze(slots) }),
-    [ProvidesTypeId]: undefined as unknown as Provides,
+    [ProvidesTypeId]: undefined as unknown as ProvidesRecord<Provides>,
   })
 }
 
