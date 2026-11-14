@@ -9,6 +9,32 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-surface`: the law half of the contract graph (#537). A `Contract`
+  may carry `facts?: () => GraphFacts` (`GraphNode`: `Owner`, `Path`,
+  `Transition`, `Law`, `State`, `Level`; `GraphEdge`: `Owns`, `Reads`,
+  `Writes`, `Observes`, `From`, `To`, `Keeps`, `Refines`), asked only when a
+  graph is. `Module.graph(module, { evidence })` joins every contract's facts,
+  a level and a `closure:<name>` law per closed Surface, which level refines
+  which, and a `Keeps` edge per record of `evidence` that is issued and joins
+  its pair. `Module.validate` takes the same optional second argument and adds
+  `law-unwitnessed` (a transition writes a path a law reads, and no evidence
+  keeps it), `evidence-unmatched` and `level-declared-twice`;
+  `Graph.breakersOf(graph, law)` names each transition that could break a law
+  and its evidence; `Module.manifest`, `toMarkdown` and `toMermaid` take the
+  option too, and the renderers add a Laws section. `Evidence` is re-exported
+  beside `Metadata`. `foldkit-remote`: a declared write (`Mutation.write`)
+  contributes `write:<name>`, what it writes, its Entity's invariants and
+  states, and its `from` and `becomes`, and a domain's contract joins them; a
+  page that declares no write carries none of it. `foldkit-sync`: a document
+  contributes `sync:<name>.<law>` per law, reading the shared slice, and
+  `durable:<tag>` per durable and server-only tag, writing it.
+  `foldkit-entity`: `lawId` and `transitionId` are `Laws.law` and
+  `Laws.transition` by name; `Laws.facts`'s `Reads` and `Writes` carry
+  `space: 'entity'`, so its result is a `GraphFacts`, and an `Unknown`
+  footprint writes every member a law of its Entity reads.
+  `examples/writes` validates its Module and keeps the evidence table in
+  `LAWS.md`.
+
 - `foldkit-remote-domain/testing`: `Fixture.make(Api, { model, handlers?,
   middleware?, bindings, given?, as?, headers?, through? })` hosts a Domain model
   in memory with every View delivery held until `drain`, commits the `given`

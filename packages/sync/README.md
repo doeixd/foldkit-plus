@@ -658,6 +658,14 @@ operation -> validate -> authorize -> reduce -> laws(before, after) -> written
 - **What it sees.** `holds` gets `{ before, after }`, typed over the shared
   fields alone, so a law that reads a local field does not compile. It sees no
   principal and no Message: a rule about who belongs in `authorize`.
+- **In the Module graph.** The contract's `facts` give `Module.graph` a law
+  per declared law (`sync:<name>.<id>`), read as reading the whole shared
+  slice since `holds` is a function, and a transition per durable and
+  server-only tag (`durable:<tag>`), each writing it. So `Module.validate`
+  reports each durable Message as `law-unwitnessed` against each law until a
+  walk or a scenario (`Scenario.runMessages`) issues its evidence, or an
+  `Evidence.runtimeOnly` line says only the journal's judge refuses it: a
+  durable Message added later is reported until something draws it.
 - **Matching the refusal.** `CappedBoard.laws.atMost100Todos` is the declared
   law (`{ id, message, path }`), and
   `Sync.isInvalidBy(refusal, CappedBoard.laws.atMost100Todos)` tells its

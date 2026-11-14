@@ -1587,15 +1587,22 @@ const { nodes, edges } = Laws.facts(report)
 
 Records and the graph name a transition `write:<name>` (`Laws.transition`)
 and a law `<Entity>.<id>` (`Laws.law(invariant)`), so `Laws.check` throws for
-two entries of one name. `Laws.facts(report)` is
-the law half of `foldkit-surface`'s graph as plain data, since this package
-does not import Surface: a `Law` per invariant, a `Transition` per write in
-a pair or an arrow, a `State` per local state, `Reads` and `Writes` over `['Product', 'stock']`
-paths, `From` and `To` per arrow, and a `Keeps` edge per transition and law whose
-every pair carries a record. A write's
-own `ensures` is marked `postcondition` on its pair and is no law of the
-Entity, so the facts leave it out; an `Unknown` footprint gives its
-`Transition` and no `Writes`, since the report does not list the members.
+two entries of one name. `lawId` and `transitionId` are the same two
+functions by name, in a module of their own, for code that must not carry the
+check (a page's Remote domain names its laws for the graph with them).
+`Laws.facts(report)` is the law half of `foldkit-surface`'s graph as plain
+data in that graph's own shape (`GraphFacts`), since this package does not
+import Surface: a `Law` per invariant, a `Transition` per write in a pair or an
+arrow, a `State` per local state, `Reads` and `Writes` over `space: 'entity'`
+paths such as `['Product', 'stock']`, `From` and `To` per arrow, and a `Keeps`
+edge per transition and law whose every pair carries a record. A write's own
+`ensures` is marked `postcondition` on its pair and is no law of the Entity,
+so the facts leave it out; an `Unknown` footprint writes every member, so it
+has a `Writes` edge to each member a law of its Entity reads. A contract over
+transitions that are no declared write (an imported command's footprint)
+returns these facts from its `facts`; `Module.validate` then asks which writes
+are witnessed. A Remote domain's declared writes contribute their own facts,
+so a domain needs none of this.
 
 ## Naming a question: operators
 

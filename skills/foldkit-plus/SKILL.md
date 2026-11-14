@@ -26,6 +26,7 @@ Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.4`. APIs are
 | The state or job | Owner | Package | Reference |
 | --- | --- | --- | --- |
 | What a feature may observe and which Messages it may cause | the application | `foldkit-surface` | [surface.md](references/surface.md) |
+| Which transitions can break which laws, and what shows they keep them | each contract its facts; `Evidence`'s producers their records | `foldkit-surface` (`Module.graph`, `Module.validate`) | [surface.md](references/surface.md) |
 | Facts a server owns: entities, queries, live rows and lists, writes (queued across reloads with `durable`) | the server | `foldkit-remote` (+ `-server`, `-drizzle`; live reads, the outbox and persistence from entries of their own, which install what they need on the domain) | [remote.md](references/remote.md) |
 | Client-authored edits that must survive offline and converge across devices; facts only the server records (`serverOnly`) and work after a commit (reactions, at least once) | the durable log; a reaction's cursor beside its effect ledger | `foldkit-sync` + `foldkit-durable` | [sync.md](references/sync.md) |
 | A filter in the URL, a draft or preference remembered on a device, a cart a server renders from a cookie | the local Model | `foldkit-mirror` | [mirror.md](references/mirror.md) |

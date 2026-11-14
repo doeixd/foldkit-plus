@@ -429,10 +429,12 @@ Laws.show(report)
   record in `pair.evidence` (`Evidence` from `foldkit-metadata`, issued by `foldkit-entity/laws`); one
   kept on its author's word, refused or undecided has none, and needs a walk, a scenario or
   `Evidence.runtimeOnly({ transition, law, why })`. Ids: `Laws.transition(entry)` is `write:Sell`,
-  `Laws.law(invariant)` `Product.reservedWithinStock`. `Laws.facts(report)` is the law half of Surface's
-  graph as plain data (`LawNode`: Path, Transition, Law, State; `LawEdge`: Reads, Writes, From, To, Keeps,
-  drawn only where every pair of that transition and law has a record); a write's own `ensures`
-  (`pair.postcondition`) is left out. Entries are told apart by name: `Laws.check` throws for two of one.
+  `Laws.law(invariant)` `Product.reservedWithinStock` (`transitionId` and `lawId` are the same functions
+  by name, without the check). `Laws.facts(report)` is the law half of Surface's graph in its own shape
+  (`GraphFacts`; `LawNode`: Path, Transition, Law, State; `LawEdge`: Reads and Writes with
+  `space: 'entity'`, From, To, Keeps, drawn only where every pair of that transition and law has a
+  record); a write's own `ensures` (`pair.postcondition`) is left out, and an `Unknown` footprint
+  writes each member a law reads. Pass `pair.evidence` records to `Module.validate`'s `evidence`. Entries are told apart by name: `Laws.check` throws for two of one.
 - Keep the report as a checked-in file (`examples/writes/LAWS.md`, `toMatchFileSnapshot`) so a new write
   changes it.
 

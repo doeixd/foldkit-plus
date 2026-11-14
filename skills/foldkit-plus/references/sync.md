@@ -297,6 +297,10 @@ hint; the server judges again). Strict: a document already breaking a law
 takes only an operation that repairs it; write a new cap over `before`
 (`after.todos.length <= Math.max(100, before.todos.length)`) and audit stored
 snapshots with `Capped.judge(snapshot, snapshot)` (`Option<DeclaredLaw>`).
+In `Module.graph`, each law is `sync:<name>.<id>` reading the shared slice
+and each durable or server-only tag `durable:<tag>` writing it, so
+`Module.validate(module, { evidence })` reports a durable Message with no
+walk, scenario or `Evidence.runtimeOnly` line as `law-unwitnessed`.
 
 ## Changing a durable Message
 

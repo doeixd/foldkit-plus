@@ -13,8 +13,11 @@ tool can inspect it without running anything.
   dependency paths, opaque metadata; `Metadata` is re-exported from
   `foldkit-metadata`). Also application identity
   (`Surface.application`), typed Message subsets (`MessageSet`), named Surfaces
-  with their renderer binding, `Module` (static checks across contracts), and
-  `Diagnostics`, the channel every package reports quiet failures on.
+  with their renderer binding, `Module` (static checks across contracts, and
+  the law graph: which transitions can break which laws, asked in
+  `Module.validate`, while each contract owns its facts and the producers of
+  `Evidence` its records), and `Diagnostics`, the channel every package
+  reports quiet failures on.
 - **Does NOT own:** I/O, transport, state, transitions, or Commands. A Surface is
   an *observation + capability contract*, not a Submodel. It has no private
   Model, no child update, and no Message wrapping. Submodels divide state by
@@ -220,7 +223,41 @@ Surface.inspect(TodoDetail, { id: 't1' })   // { name, dependencies, metadata, e
 `Module.make` accepts a Surface without params, a `Contract`, or any value with a
 `contract` field (Sync, Remote, and Agent values). `validate` can report these
 rules: `foreign-contract`, `duplicate-name`, `ownership-overlap`,
-`message-claimed-twice`, `unknown-path`, `unknown-message`.
+`message-claimed-twice`, `unknown-path`, `unknown-message`, and three over the
+law graph below.
+
+**Which transitions can break which laws, and what shows they do not.** A
+contract's `facts?: () => GraphFacts` (asked only when a graph is) gives
+`GraphNode`s (`Law`, `Transition`, `State`, `Path`, ...) and `GraphEdge`s
+(`Reads`, `Writes`, `From`, `To`, `Keeps`, ...): a declared write
+(`Mutation.write`) contributes `write:<name>` and its Entity's invariants
+(`Product.reservedWithinStock`), a Sync document `durable:<tag>` per durable
+and server-only tag and `sync:<name>.<law>` per law, a closed Surface a level
+and a `closure:<name>` law over its paths. Evidence (`Evidence`, re-exported
+here) says a transition keeps a law; the graph never decides it:
+
+```ts
+import { Evidence, Graph, Module } from 'foldkit-surface'
+
+declare const records: ReadonlyArray<Evidence> // Laws.check's Enumerated, Walk.run's and Scenario.run's `evidence`
+const evidence = [
+  ...records,
+  Evidence.runtimeOnly({ transition: 'write:Revert', law: 'Product.publishedStaysPublished', why: 'the writer refuses it' }),
+]
+Module.validate(Project, { evidence })   // + law-unwitnessed, evidence-unmatched, level-declared-twice
+Graph.breakersOf(Module.graph(Project, { evidence }), 'Product.reservedWithinStock')
+// [{ transition, paths, evidence }]: each transition writing what the law reads
+Module.toMarkdown(Project, { evidence }) // adds a Laws table: law, transition, evidence
+```
+
+`law-unwitnessed`: a transition writes a path a law reads (one path within the
+other) and no admitted record joins them. `evidence-unmatched`: a record typed
+by hand or copied (no issuer), or naming a transition or law no contract
+declares, or a write and a law of two Entities. `level-declared-twice`: two
+closed Surfaces over the same paths and Messages. One argument behaves as
+before for a Module whose contracts contribute no facts. A local Message has
+no `writes` edge yet (foldkit/foldkit#1655). `examples/writes/test/graph.test.ts`
+is the worked case.
 
 **Seeing what packages kept going past.** A fallback, a refusal answered
 generically, or a failure a package swallowed is a typed `Diagnostic`
