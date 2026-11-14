@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-primitives`, `foldkit-mixins`: every Behavior factory (`ListNavigation`,
+  `Selection`, `TreeNavigation`, `FocusScope`, `Behaviors.Disclosure`, and the
+  rest) takes a `SlotView.over` binder where it takes the slots, so its options
+  are typed from the binder's input and Message with nothing annotated. The call
+  with bare slots is unchanged. (#551)
 - `foldkit-mixins`: `SlotView.over(slots)<Input, Message>()` names the slots, the
   input and the Message universe once and returns `define`, `behavior` and
   `parts` with them fixed; `SlotView.isBound` tells it from bare slots.
