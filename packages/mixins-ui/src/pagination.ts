@@ -1,4 +1,4 @@
-import { Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
 
@@ -10,13 +10,16 @@ import type { MixinList } from './resolve.js'
  * choice, since choosing a size above the row count must leave a way back.
  */
 export const PaginationSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
+  root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] }),
   summary: Slot.make({ capability: Capability.Container }),
-  first: Slot.make({ capability: Capability.Interactive }),
-  prev: Slot.make({ capability: Capability.Interactive }),
-  next: Slot.make({ capability: Capability.Interactive }),
-  last: Slot.make({ capability: Capability.Interactive }),
-  page: Slot.make({ capability: Capability.Interactive }),
+  first: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  prev: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  next: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  last: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  page: Slot.make({
+    capability: Capability.Interactive,
+    attributes: [Attr.AriaLabel, Attr.AriaCurrent],
+  }),
   /**
    * After the current stop's number, `" / 12"`, hidden from assistive
    * technology so the stop's name stays its number: the recipe shows it where

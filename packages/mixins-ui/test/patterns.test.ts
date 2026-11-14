@@ -79,6 +79,42 @@ describe('Patterns.catalog', () => {
     }
   })
 
+  /** The attributes a slot must publish for the pattern to hold, one pair per requirement the slots now declare. */
+  it.each([
+    ['checkbox', 'checkbox', 'aria-checked'],
+    ['switch', 'button', 'aria-checked'],
+    ['checkbox-group', 'checkbox', 'aria-checked'],
+    ['radioGroup', 'option', 'aria-checked'],
+    ['accordion', 'trigger', 'aria-controls'],
+    ['resizable', 'handle', 'aria-valuenow'],
+    ['pagination', 'root', 'aria-label'],
+    ['pagination', 'root', 'role'],
+    ['pagination', 'page', 'aria-current'],
+    ['breadcrumb', 'root', 'aria-label'],
+    ['breadcrumb', 'root', 'role'],
+    ['breadcrumb', 'current', 'aria-current'],
+    ['button-group', 'root', 'aria-label'],
+    ['button-group', 'root', 'role'],
+  ] as const)('%s requires %s to publish %s', (name, slot, attribute) => {
+    const entry = Patterns.catalog.find(item => item.name === name)
+    if (entry === undefined) throw new Error(`no ${name} pattern`)
+    const original = entry.slots[slot as keyof typeof entry.slots] as Slot.Any
+    const without = Slot.make({
+      capability: original.capability,
+      events: original.events,
+      attributes: original.attributes.filter(item =>
+        typeof item === 'string' ? item !== attribute : item.name !== attribute,
+      ),
+    })
+    expect(original.attributes).toHaveLength(without.attributes.length + 1)
+    const reported = A11y.validate(
+      entry.pattern,
+      { ...entry.slots, [slot]: without } as never,
+      entry.support,
+    )
+    expect(reported.map(item => [item.code, item.slot])).toEqual([['a11y:missing-attribute', slot]])
+  })
+
   it('can fail: a contract missing a required slot or capability is refused', () => {
     const Bare = Slots.define({ trigger: Slot.make({ capability: Capability.Interactive }) })
     const codes = A11y.validate(Patterns.Tooltip, Bare).map(d => d.code)

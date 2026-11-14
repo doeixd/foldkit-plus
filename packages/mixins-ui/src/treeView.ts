@@ -58,7 +58,13 @@ export const TreeViewSlots = Slots.define({
   item: Slot.make({
     capability: Capability.Focusable,
     events: [Event.Focus],
-    attributes: [Attr.Role, Attr.AriaExpanded, Attr.AriaSelected, Attr.AriaDisabled],
+    attributes: [
+      Attr.Role,
+      Attr.AriaExpanded,
+      Attr.AriaSelected,
+      Attr.AriaChecked,
+      Attr.AriaDisabled,
+    ],
   }),
   row: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   chevron: Slot.make({ capability: Capability.Container }),

@@ -35,9 +35,9 @@ export default [
     edits: [
       {
         file: '../src/patterns.ts',
-        find: "  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role],\n    obligations: ['checked', 'activation'],\n  },\n  label:",
+        find: "  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaChecked],\n    obligations: ['checked', 'activation'],\n  },\n  label:",
         replace:
-          '  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role],\n  },\n  label:',
+          '  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaChecked],\n  },\n  label:',
       },
     ],
     tests,
@@ -86,5 +86,28 @@ export default [
       },
     ],
     tests: ['packages/mixins-ui/test/catalogComplete.test.ts'],
+  },
+  {
+    name: 'a checkbox pattern does not require aria-checked',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: 'export const Checkbox = A11y.pattern({\n  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaChecked],',
+        replace:
+          'export const Checkbox = A11y.pattern({\n  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a pagination landmark does not require its name',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: 'root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },\n  prev:',
+        replace: 'root: { capability: Capability.Container },\n  prev:',
+      },
+    ],
+    tests,
   },
 ]

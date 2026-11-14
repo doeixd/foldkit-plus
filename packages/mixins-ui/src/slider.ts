@@ -44,7 +44,10 @@ import type { MixinList } from './resolve.js'
  * drag, and every logical inset the recipe places with turns with them.
  */
 export const SliderSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  root: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.Role, Attr.AriaLabelledby],
+  }),
   header: Slot.make({ capability: Capability.Container }),
   label: Slot.make({ capability: Capability.Container }),
   output: Slot.make({ capability: Capability.Base }),
@@ -57,7 +60,7 @@ export const SliderSlots = Slots.define({
   thumb: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Input],
-    attributes: [Attr.AriaLabel, Attr.Disabled, Attr.Value],
+    attributes: [Attr.AriaLabel, Attr.AriaLabelledby, Attr.Disabled, Attr.Value],
   }),
 })
 

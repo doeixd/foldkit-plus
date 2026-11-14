@@ -30,7 +30,10 @@ import type { MixinList } from './resolve.js'
  * `--fk-angle-marker`, and `data-state`: `at`, `under` or `over` the value.
  */
 export const AngleSliderSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  root: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.Role, Attr.AriaLabelledby],
+  }),
   label: Slot.make({ capability: Capability.Container }),
   /** The dial; a press anywhere on it turns the thumb to the pointer. */
   control: Slot.make({ capability: Capability.Container }),
@@ -39,7 +42,14 @@ export const AngleSliderSlots = Slots.define({
   thumb: Slot.make({
     capability: Capability.Focusable,
     events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaDisabled, Attr.AriaInvalid],
+    attributes: [
+      Attr.Role,
+      Attr.AriaLabel,
+      Attr.AriaLabelledby,
+      Attr.AriaValuenow,
+      Attr.AriaDisabled,
+      Attr.AriaInvalid,
+    ],
   }),
   markers: Slot.make({ capability: Capability.Container }),
   marker: Slot.make({ capability: Capability.Container }),

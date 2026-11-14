@@ -12,7 +12,14 @@ export const CheckboxSlots = Slots.define({
   checkbox: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Role, Attr.AriaDisabled, Attr.Disabled, Attr.Value],
+    attributes: [
+      Attr.Role,
+      Attr.AriaChecked,
+      Attr.AriaLabelledby,
+      Attr.AriaDisabled,
+      Attr.Disabled,
+      Attr.Value,
+    ],
   }),
   label: Slot.make({
     capability: Capability.Container,

@@ -37,7 +37,7 @@ export const ResizableSlots = Slots.define({
   handle: Slot.make({
     capability: Capability.Interactive,
     events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaControls],
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaControls, Attr.AriaValuenow],
   }),
   /** The mark on the handle to take hold of; the recipe's `handle: 'grip'` shows it. */
   grip: Slot.make({ capability: Capability.Container }),

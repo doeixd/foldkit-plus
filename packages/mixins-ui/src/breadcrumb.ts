@@ -1,5 +1,6 @@
 import { Option } from 'effect'
 import {
+  Attr,
   Behavior,
   Capability,
   Slot,
@@ -24,11 +25,11 @@ import type { MixinList } from './resolve.js'
  * application to draw the trail whole.
  */
 export const BreadcrumbSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
+  root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] }),
   list: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Container }),
   link: Slot.make({ capability: Capability.Interactive }),
-  current: Slot.make({ capability: Capability.Container }),
+  current: Slot.make({ capability: Capability.Container, attributes: [Attr.AriaCurrent] }),
   icon: Slot.make({ capability: Capability.Container }),
   separator: Slot.make({ capability: Capability.Container }),
   ellipsis: Slot.make({ capability: Capability.Interactive }),

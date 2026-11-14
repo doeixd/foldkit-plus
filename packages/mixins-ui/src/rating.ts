@@ -21,7 +21,10 @@ import type { MixinList } from './resolve.js'
  * as it goes: each mark's share is `--fk-rating-fill`, 0 to 1.
  */
 export const RatingSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  root: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaLabelledby],
+  }),
   label: Slot.make({ capability: Capability.Container }),
   star: Slot.make({
     capability: Capability.Interactive,

@@ -17,12 +17,18 @@ import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 export const RadioGroupSlots = Slots.define({
   group: Slot.make({
     capability: Capability.Container,
-    attributes: [Attr.Role],
+    attributes: [Attr.Role, Attr.AriaLabel],
   }),
   option: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Role, Attr.AriaSelected, Attr.Disabled, Attr.AriaDisabled],
+    attributes: [
+      Attr.Role,
+      Attr.AriaChecked,
+      Attr.AriaLabelledby,
+      Attr.Disabled,
+      Attr.AriaDisabled,
+    ],
   }),
   label: Slot.make({ capability: Capability.Container }),
   description: Slot.make({ capability: Capability.Container }),

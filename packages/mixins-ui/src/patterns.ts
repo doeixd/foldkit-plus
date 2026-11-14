@@ -135,7 +135,7 @@ export const Checkbox = A11y.pattern({
   checkbox: {
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Role],
+    attributes: [Attr.Role, Attr.AriaChecked],
     obligations: ['checked', 'activation'],
   },
   label: { capability: Capability.Container },
@@ -146,7 +146,7 @@ export const Switch = A11y.pattern({
   button: {
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Role],
+    attributes: [Attr.Role, Attr.AriaChecked],
     obligations: ['checked', 'activation'],
   },
   label: { capability: Capability.Container },
@@ -172,7 +172,7 @@ export const Accordion = A11y.pattern({
   trigger: {
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.AriaExpanded],
+    attributes: [Attr.AriaExpanded, Attr.AriaControls],
     obligations: ['activation'],
   },
   panel: { capability: Capability.Container, attributes: [Attr.Role] },
@@ -184,7 +184,7 @@ export const CheckboxGroup = A11y.pattern({
   checkbox: {
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Role],
+    attributes: [Attr.Role, Attr.AriaChecked],
     obligations: ['checked', 'activation'],
   },
 })
@@ -226,7 +226,7 @@ export const Resizable = A11y.pattern({
   handle: {
     capability: Capability.Interactive,
     events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel],
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaValuenow],
   },
 })
 
@@ -441,7 +441,7 @@ export const RadioGroup = A11y.pattern({
   option: {
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Role],
+    attributes: [Attr.Role, Attr.AriaChecked],
     obligations: ['navigation', 'focus', 'checked', 'activation'],
   },
   label: { capability: Capability.Container },
@@ -728,18 +728,18 @@ export const Tour = A11y.pattern({
 
 /** A named navigation landmark of presses: previous, next and a button per page. */
 export const Pagination = A11y.pattern({
-  root: { capability: Capability.Container },
-  prev: { capability: Capability.Interactive },
-  next: { capability: Capability.Interactive },
-  page: { capability: Capability.Interactive },
+  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+  prev: { capability: Capability.Interactive, attributes: [Attr.AriaLabel] },
+  next: { capability: Capability.Interactive, attributes: [Attr.AriaLabel] },
+  page: { capability: Capability.Interactive, attributes: [Attr.AriaLabel, Attr.AriaCurrent] },
 })
 
 /** A named navigation landmark of links to the ancestors, and the page the trail ends on. */
 export const Breadcrumb = A11y.pattern({
-  root: { capability: Capability.Container },
+  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
   list: { capability: Capability.Container },
   link: { capability: Capability.Interactive },
-  current: { capability: Capability.Container },
+  current: { capability: Capability.Container, attributes: [Attr.AriaCurrent] },
 })
 
 /** A native table; a sort and a row's details are presses only where the table draws them. */
@@ -800,7 +800,7 @@ export const Picker = A11y.pattern({
 
 /** A named group of buttons. */
 export const ButtonGroup = A11y.pattern({
-  root: { capability: Capability.Container },
+  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
 })
 
 /** A list that draws only the rows in view. */

@@ -20,7 +20,14 @@ export const CheckboxGroupSlots = Slots.define({
   checkbox: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Role, Attr.AriaDisabled, Attr.AriaInvalid, Attr.Disabled],
+    attributes: [
+      Attr.Role,
+      Attr.AriaChecked,
+      Attr.AriaControls,
+      Attr.AriaDisabled,
+      Attr.AriaInvalid,
+      Attr.Disabled,
+    ],
   }),
   label: Slot.make({ capability: Capability.Container }),
   description: Slot.make({ capability: Capability.Container }),
