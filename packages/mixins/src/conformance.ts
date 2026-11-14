@@ -242,21 +242,21 @@ export const listbox = async (harness: Harness, spec: ListboxSpec): Promise<Resu
     )
   }
 
-  // Activation: move onto the second enabled option, then activate it by each key.
-  const target = enabled[1] ?? first
-  for (const activate of ['Enter', ' '] as const) {
+  // Activation: each key on an option of its own, so the second cannot pass on the first's selection.
+  const targets = { Enter: enabled[1] ?? first, Space: enabled[2] ?? first }
+  for (const [activate, target] of Object.entries(targets)) {
     await ensure()
     await press('Home')
-    if (target !== first) await press(forward)
-    await press(activate)
+    for (let at = 0; at < enabled.indexOf(String(target)); at++) await press(forward)
+    await press(activate === 'Space' ? ' ' : activate)
     await ensure()
     const selected = options()
       .filter(option => option.getAttribute('aria-selected') === 'true')
       .map(labelOf)
     note(
-      `${activate === ' ' ? 'Space' : 'Enter'} activates the option the keyboard is on`,
+      `${activate} activates the option the keyboard is on`,
       selected.includes(String(target)),
-      `selected ${JSON.stringify(selected)}`,
+      `selected ${JSON.stringify(selected)}, wanted ${target}`,
     )
     observe()
   }
@@ -470,6 +470,13 @@ export const tree = async (harness: Harness, spec: TreeSpec): Promise<Result> =>
   )
   const child = row(spec.child)
   note('and its child shows', child !== undefined && shown(child), 'the child is not showing')
+  await press('ArrowDown')
+  note(
+    'ArrowDown goes one row, to the first child',
+    current() === spec.child,
+    `current ${current()}`,
+  )
+  await press('ArrowUp')
   await press(toward)
   note(
     `${toward} again moves onto its first child`,
