@@ -21,12 +21,13 @@ between them, and no Remote server is involved.
 | Who may read a row | the Domain model (the View's `validate`, its middleware) |
 | The page's copy of a row, a write's pending state, its optimistic value, a refusal | Remote (`Remote.Model`) |
 | A write's **receipt** while its View has not caught up, and each row's revision | Remote (`Remote.Model`), as a read-after token and a row revision on Remote's wire |
+| The receipts and replies of the last 1,024 commands that answered, so a retry of one is not sent | the adapter, in memory: a cache. A reload loses it, and a retry then reaches Domain, whose command id answers it with the first receipt |
 
 The page still declares the write as Plus declares any write
 (`Mutation.write`), so prediction, `Data.refusal` and `Refusal.isInvalidBy` read
 the same declaration they read against a SQL server. Only the authority changes.
-The adapter owns no row, decides nothing and holds nothing a reload would lose:
-it translates. The one thing the Domain model cannot tell a client, how far its
+The adapter owns no row, decides nothing and holds nothing a reload must keep:
+it translates, and its one cache, of replies, only spares a retry its call. The one thing the Domain model cannot tell a client, how far its
 View has to read before it shows a write the client already knows committed,
 it hands to Remote as a token, and Remote keeps it in its Model.
 
@@ -202,7 +203,8 @@ Remote keeps the floor in its Model, beside the row: a reload that restores
 the store (`persistence`) restores it too. While it is set, Remote reads the
 row again carrying the token, and the adapter asks the View at the receipt.
 `Data.inspect(model).floors` lists the rows waiting, and `why` names the wait
-(`ReadAfter`). Nothing in the adapter is pending.
+(`ReadAfter`). Nothing in the adapter is pending: beside the reply cache above,
+it holds nothing between calls.
 
 ### The command id
 

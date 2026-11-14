@@ -13,6 +13,7 @@ deploy tool of [alchemy.md](alchemy.md).
 | Whether a command is allowed, the Events, who may read a row | the Domain model |
 | The page's copy of a row, a write's pending state, a refusal | Remote (`Remote.Model`) |
 | A write's receipt while its View has not caught up, each row's revision | Remote (`Remote.Model`): a read-after token and a row revision on Remote's wire |
+| The last 1,024 answered commands' receipts and replies, so a retry of one is not sent | the adapter, in memory: a cache; after a reload Domain's command id answers the retry |
 
 `DomainRemote.layer` is a `RemoteClient` built from the Api's typed client: no Remote server sits between them, and
 `@alchemy.run/domain/Foldkit` is not used (two owners of one row). The page still declares writes with
