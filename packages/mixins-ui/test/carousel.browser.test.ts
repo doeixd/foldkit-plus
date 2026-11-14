@@ -45,6 +45,7 @@ const element = (selector: string): HTMLElement => {
 const mount = (
   carousel: Carousel.Model,
   more: { readonly perView?: number; readonly loop?: boolean } = {},
+  density?: number,
 ) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -52,7 +53,19 @@ const mount = (
     Style.stylesheet(
       Layers.standard.declare,
       Layers.standard.in('reset', Defaults.reset),
-      Layers.standard.in('theme', Theme.root(theme)),
+      Layers.standard.in(
+        'theme',
+        Theme.root(
+          density === undefined
+            ? theme
+            : Theme.standard(
+                Theme.make({
+                  accent: { hue: 265, chroma: 0.16 },
+                  shape: { density, radius: 1 },
+                }),
+              ),
+        ),
+      ),
     ) + style.css
   document.head.append(sheet)
   // Somewhere to rest the pointer away from the carousel.
@@ -258,3 +271,27 @@ test('Tab skips a link in a slide out of view, and the track stays put', async (
     handle.dispose()
   }
 })
+
+test('a dot is drawn at the density knob’s size, in a button that stays a fixed target', async () => {
+  const sizes = async (density: number) => {
+    const handle = mount(Carousel.init({ id: 'trip' }), {}, density)
+    try {
+      const dot = await vi.waitFor(() => element('[aria-current="true"]'))
+      const idle = element('[aria-controls="trip-slide-1"]')
+      return [
+        Number.parseFloat(getComputedStyle(idle, '::before').width),
+        dot.getBoundingClientRect().height,
+      ]
+    } finally {
+      handle.dispose()
+      document.head.querySelectorAll('style[data-test]').forEach(each => each.remove())
+      document.body.replaceChildren()
+    }
+  }
+  const [dot, target] = await sizes(1)
+  expect(dot).toBeCloseTo(8, 1)
+  const [dense, denseTarget] = await sizes(1.3)
+  expect(dense).toBeCloseTo(10.4, 1)
+  // 24px is the least target a pointer is asked to hit, whatever the density.
+  expect(denseTarget).toBe(target)
+}, 20_000)

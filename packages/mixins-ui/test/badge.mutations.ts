@@ -8,6 +8,17 @@ const browser = ['packages/mixins-ui/test/badge.browser.test.ts']
 
 export default [
   {
+    name: 'the padding ignores the density knob',
+    edits: [
+      {
+        file: '../src/recipes/badge.ts',
+        find: 'paddingInline: `calc(${ref.space.xs} * 1.2)`,',
+        replace: "paddingInline: '0.6rem',",
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'pills lose their tone attribute',
     edits: [
       {

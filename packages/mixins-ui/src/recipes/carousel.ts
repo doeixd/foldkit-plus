@@ -186,7 +186,9 @@ export const Carousel = Style.recipeFor(CarouselSlots)({
       }),
       Style.nest('&::-webkit-scrollbar', { display: 'none' }),
     ),
-    // A dot drawn small inside a button big enough to press.
+    // A dot drawn small inside a button big enough to press. The dot follows the
+    // density knob; the button stays 1.5rem, since a target must not shrink below
+    // what a pointer can hit (WCAG 2.5.8's 24px) however tight the theme.
     dot: component(
       Style.self({
         display: 'grid',
@@ -201,8 +203,8 @@ export const Carousel = Style.recipeFor(CarouselSlots)({
       }),
       Style.nest('&::before', {
         content: '""',
-        inlineSize: '0.5rem',
-        blockSize: '0.5rem',
+        inlineSize: ref.space.xs,
+        blockSize: ref.space.xs,
         borderRadius: ref.radius.full,
         background: ref.outline.default,
         transitionProperty: 'background-color, inline-size',

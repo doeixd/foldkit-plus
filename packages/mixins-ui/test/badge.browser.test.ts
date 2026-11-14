@@ -12,6 +12,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { Badge, BadgeSlots, Recipes } from '../src/index.js'
 import type { BadgeAppearance } from '../src/recipes/index.js'
+import { unitKnobs } from './fixture.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(BadgeSlots)(
@@ -147,4 +148,56 @@ test('each appearance carries its tone: a tint, a dot, a line or a fill', async 
   } finally {
     handle.dispose()
   }
+})
+
+const paddingAt = async (density: number) => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(
+      Layers.standard.declare,
+      Layers.standard.in(
+        'theme',
+        Theme.root(Theme.standard(Theme.make({ ...unitKnobs, shape: { density, radius: 1 } }))),
+      ),
+    ) + style.css
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = `badge-density-${density}`
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: {} }),
+      update: (model: typeof Model.Type) => ({ model }),
+      view: (_: unknown, h: HtmlBuilder<never>) =>
+        h.div([], [Badge.view({ text: 'New', tone: 'review', style }, h)]),
+    }),
+  )
+  try {
+    const badge = await vi.waitFor(() => {
+      const found = document.body.firstElementChild?.firstElementChild
+      expect(found).toBeInstanceOf(HTMLElement)
+      return found as HTMLElement
+    })
+    const computed = getComputedStyle(badge)
+    return [
+      Number.parseFloat(computed.paddingBlockStart),
+      Number.parseFloat(computed.paddingInlineStart),
+    ]
+  } finally {
+    handle.dispose()
+    sheet.remove()
+    document.body.replaceChildren()
+  }
+}
+
+test('a badge’s padding is the same at density 1 and grows with the density knob', async () => {
+  const [block, inline] = await paddingAt(1)
+  expect(block).toBeCloseTo(2.4, 1)
+  expect(inline).toBeCloseTo(9.6, 1)
+  const [denseBlock, denseInline] = await paddingAt(1.3)
+  expect(denseBlock).toBeCloseTo(block! * 1.3, 1)
+  expect(denseInline).toBeCloseTo(inline! * 1.3, 1)
 })

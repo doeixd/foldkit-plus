@@ -92,7 +92,9 @@ export const Badge = (options: BadgeOptions): { readonly badge: StyleValue } => 
       ...role('caption'),
       fontWeight: ref.weight.semibold,
       gap: '0.35rem',
-      padding: '0.15rem 0.6rem',
+      // No rung of the space scale is 0.15rem or 0.6rem, so each is a share of the nearest.
+      paddingBlock: `calc(${ref.space['2xs']} * 0.6)`,
+      paddingInline: `calc(${ref.space.xs} * 1.2)`,
       whiteSpace: 'nowrap',
     }),
     appearances[options.appearance ?? 'tinted'],
