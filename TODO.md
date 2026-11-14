@@ -373,8 +373,9 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
 6. **UI authoring** (#551 to #558): assembly from existing contracts,
    accessibility obligations, focus recovery, one keyboard owner, Presence
    with interaction and recovery, inspection, agent parts, and the UI SDK
-   audit. Work packages U-WP1 to U-WP12 (with U-WP1b and U-WP3b). Status
-   of every one: not started.
+   audit. Work packages U-WP1 to U-WP15 (with U-WP1b and U-WP3b). Built:
+   U-WP11 (the audit, `docs/design/558-audit-FINDINGS.md`). Running: U-WP1,
+   U-WP8. The rest: not started.
    First, in parallel: U-WP1, U-WP8, U-WP11.
    [551-558-ui-authoring-DESIGN.md](./docs/design/551-558-ui-authoring-DESIGN.md) §12
    - U-WP1 attachments a view remembers, contributors named in conflicts,
@@ -406,6 +407,13 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
      browser scenarios and a findings note (#558). Sonnet. After: none.
    - U-WP12 `Reorder`, the keyboard path beside `PointerDrag` (#558).
      Default. After: U-WP11, U-WP3b.
+   - U-WP13 edge scrolling while dragging, and a marquee press on empty
+     space (#558, audit R1 and R6). Sonnet. After: U-WP12.
+   - U-WP14 an overlay's focus return when its opener is gone, and a
+     portaled panel inheriting its region's custom properties (#558, audit
+     O2 and O3). Sonnet. After: U-WP5.
+   - U-WP15 the chat scroller following the end when its frame shrinks
+     (#558, audit C1; flips its `DEFECT:` test). Sonnet. After: none.
 
    **File order within item 6** (the note's §12 holds the detail):
    `packages/mixins/src/behavior.ts` and `slotView.ts` are U-WP1's, then
