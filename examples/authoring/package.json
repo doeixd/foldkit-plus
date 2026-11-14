@@ -16,7 +16,8 @@
     "foldkit-bundle": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-primitives": "workspace:*",
-    "foldkit-remote": "workspace:*"
+    "foldkit-remote": "workspace:*",
+    "foldkit-surface": "workspace:*"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.1.4",
@@ -28,6 +29,7 @@
     "foldkit-mixins": "workspace:*",
     "foldkit-primitives": "workspace:*",
     "foldkit-remote": "workspace:*",
+    "foldkit-surface": "workspace:*",
     "typescript": "7.0.2",
     "vite": "8.3.5"
   }

@@ -41,7 +41,8 @@
       "foldkit-remote/persistence": ["../../packages/remote/src/persistence.ts"],
       "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
       "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
-      "foldkit-remote/why": ["../../packages/remote/src/why.ts"]
+      "foldkit-remote/why": ["../../packages/remote/src/why.ts"],
+      "foldkit-surface": ["../../packages/surface/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
@@ -60,6 +61,9 @@
     },
     {
       "path": "../../packages/remote/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/surface/tsconfig.build.json"
     }
   ]
 }
