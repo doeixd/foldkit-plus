@@ -49,6 +49,22 @@ export default [
     '',
   ),
   edit(
+    'a retry whose when the write made false is refused',
+    '          if (retried) return answer(row)\n',
+    '',
+  ),
+  edit(
+    'a taken id is refused before an invariant the insert breaks',
+    `        if (Option.isSome(breaks)) return yield* breaks.value
+        if (Option.isSome(stored(id))) {
+          return yield* new RemoteTaken({ message: \`\${entity.name} \${id} is already taken\` })
+        }`,
+    `        if (Option.isSome(stored(id))) {
+          return yield* new RemoteTaken({ message: \`\${entity.name} \${id} is already taken\` })
+        }
+        if (Option.isSome(breaks)) return yield* breaks.value`,
+  ),
+  edit(
     'an insert over a taken id overwrites it',
     'if (Option.isSome(stored(id))) {',
     'if (false) {',

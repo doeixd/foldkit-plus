@@ -137,7 +137,15 @@ const Withdraw = Mutation.write(
     when: () => Expr.eq(Stock.fields.status, 'draft'),
   }),
 )
-const mutations = [Reserve, Rename, Relabel, Restock, List, Withdraw]
+/** Publishes a draft: a write conditioned on what it changes, so its retry no longer holds `when`. */
+const Publish = Mutation.write(
+  'Publish',
+  Write.update(Entity.input(Stock, Schema.Struct({ id: Schema.String, status: Schema.String })), {
+    id: 'id',
+    when: () => Expr.eq(Stock.fields.status, 'draft'),
+  }),
+)
+const mutations = [Reserve, Rename, Relabel, Restock, List, Withdraw, Publish]
 /** Each write through `writer`: listed one by one, since their inputs differ. */
 const writes = <P, R>(through: EntityWriter<P, R>) => [
   RemoteServer.write(Reserve, through),
@@ -146,6 +154,7 @@ const writes = <P, R>(through: EntityWriter<P, R>) => [
   RemoteServer.write(Restock, through),
   RemoteServer.write(List, through),
   RemoteServer.write(Withdraw, through),
+  RemoteServer.write(Publish, through),
 ]
 
 const owners = sqliteTable('owners', { id: text('id').primaryKey() })
@@ -288,6 +297,7 @@ const cases: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, unk
   ['a row whose link breaks an invariant', [['Restock', { id: 's4', quantity: 12 }]]],
   ['an insert whose link breaks an invariant', [['List', { ...listed, ownerId: 'blocked' }]]],
   ['an id already taken', [['List', { ...listed, id: 's1' }]]],
+  ['an insert both invalid and onto a taken id', [['List', { ...listed, id: 's1', reserved: 5 }]]],
   ['a delete at a stale revision', [['Withdraw', { id: 's2', revision: 7 }]]],
   ['a delete of a row not a draft', [['Withdraw', { id: 's1', revision: 1 }]]],
   [
@@ -304,12 +314,36 @@ const cases: ReadonlyArray<readonly [string, ReadonlyArray<readonly [string, unk
       ['Rename', { id: 's2', revision: 1, name: 'Nut', prefix: '' }],
     ],
   ],
+  [
+    'a retry of a conditioned update whose when the write made false',
+    [
+      ['Publish', { id: 's2', status: 'published' }],
+      ['Publish', { id: 's2', status: 'published' }],
+    ],
+  ],
 ]
 
 describe('the memory writer and the SQLite writer', () => {
   it.each(cases)('agree on %s', async (_, sends) => {
     const [memoryRun, sqliteRun] = await Promise.all([inMemory(sends), overSqlite(sends)])
     expect(memoryRun).toEqual(sqliteRun)
+  })
+
+  it('answers a retry its when no longer holds as written, and an invalid taken insert as invalid', async () => {
+    const outcomesOf = async (name: string) =>
+      (await overSqlite(cases.find(([each]) => each === name)![1])).outcomes
+    const [retried, invalid] = await Promise.all([
+      outcomesOf('a retry of a conditioned update whose when the write made false'),
+      outcomesOf('an insert both invalid and onto a taken id'),
+    ])
+    const published = {
+      _tag: 'Success',
+      value: { entities: [{ entity: 'Stock', id: 's2', values: { status: 'published' } }] },
+    }
+    expect(retried).toMatchObject([published, published])
+    expect(invalid).toMatchObject([
+      { failure: { refusal: { _tag: 'Invalid', rule: 'reservedWithinQuantity' } } },
+    ])
   })
 
   it('compare something: a refusal and a write each tell the two apart', async () => {
