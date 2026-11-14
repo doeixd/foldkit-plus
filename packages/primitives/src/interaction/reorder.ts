@@ -80,6 +80,11 @@ export type OutMessage = typeof OutMessage.Type
 
 type Return = Update.ReturnWithOutMessage<Model, Message, OutMessage>
 
+interface Held {
+  readonly id: string
+  readonly by: By
+}
+
 const idle: Model = { held: Option.none(), over: Option.none() }
 
 const samePlace = (a: Place, b: Place): boolean =>
@@ -107,16 +112,16 @@ const stepped = (at: number, count: number, step: Step): number => {
 }
 
 const update = (model: Model, message: Message): Return => {
-  const holding = (then: (held: { readonly id: string; readonly by: By }) => Return): Return =>
+  const holding = (then: (held: Held) => Return): Return =>
     Option.match(model.held, { onNone: () => ({ model }), onSome: then })
-  const over = (held: { readonly id: string; readonly by: By }, next: Option.Option<Place>) =>
+  const over = (held: Held, next: Option.Option<Place>) =>
     sameOver(next, model.over)
       ? { model }
       : {
           model: { ...model, over: next },
           outMessage: OutMessage.PassedOver({ ...held, over: next }),
         }
-  const finish = (held: { readonly id: string; readonly by: By }, at: Option.Option<Place>) =>
+  const finish = (held: Held, at: Option.Option<Place>) =>
     Option.match(at, {
       onNone: (): Return => ({ model: idle, outMessage: OutMessage.PutBack(held) }),
       onSome: (to): Return => ({ model: idle, outMessage: OutMessage.Moved({ ...held, to }) }),
@@ -407,6 +412,10 @@ const routeOf = <
       ...(options.parent === undefined ? {} : { parent: id => options.parent!(input, id) }),
       ...(options.accepts === undefined ? {} : { accepts: id => options.accepts!(input, id) }),
     })
+  // What this route answered on a drawing, by its input: keys faster than a
+  // frame meet the last drawing, whose Model has not seen the grab or drop
+  // before them, so the drawing remembers it.
+  const answered = new WeakMap<Input, Option.Option<string>>()
   return Behaviors.Keys.route<Input, ParentMessage>('Reorder', {
     on: [
       Behaviors.Keys.chord(' '),
@@ -418,19 +427,24 @@ const routeOf = <
     ],
     handle: press => {
       const { key, input } = press
-      const state = input[declared.field]
-      return Option.match(state.held, {
-        onNone: () =>
-          key === ' ' || key === 'Enter'
-            ? Option.map(pressed(press), id =>
-                wrap(Message.Grabbed({ id, by: 'keys', at: placesOf(input, id).origin })),
-              )
-            : Option.none(),
-        onSome: held => {
-          if (key === ' ' || key === 'Enter') return Option.some(wrap(Message.Dropped()))
-          if (key === 'Escape') return Option.some(wrap(Message.Cancelled()))
+      const held = answered.has(input)
+        ? answered.get(input)!
+        : Option.map(input[declared.field].held, ({ id }) => id)
+      return Option.match(held, {
+        onNone: () => {
+          if (key !== ' ' && key !== 'Enter') return Option.none()
+          return Option.map(pressed(press), id => {
+            answered.set(input, Option.some(id))
+            return wrap(Message.Grabbed({ id, by: 'keys', at: placesOf(input, id).origin }))
+          })
+        },
+        onSome: id => {
+          if (key === ' ' || key === 'Enter' || key === 'Escape') {
+            answered.set(input, Option.none())
+            return Option.some(wrap(key === 'Escape' ? Message.Cancelled() : Message.Dropped()))
+          }
           return Option.map(stepOf(key, orientation, options.direction?.(input) ?? 'ltr'), step =>
-            wrap(Message.Stepped({ step, places: placesOf(input, held.id).places })),
+            wrap(Message.Stepped({ step, places: placesOf(input, id).places })),
           )
         },
       })

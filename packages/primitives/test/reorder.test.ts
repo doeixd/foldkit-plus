@@ -293,6 +293,24 @@ describe('Reorder.keys', () => {
     expect(ask(base, 'Enter')).toEqual(grab)
   })
 
+  it('remembers its own grab and drop on one drawing, for keys faster than a frame', () => {
+    const answer = Keys.answer([route()])
+    const drawn: Input = { ...base }
+    const press = (key: string) => answer({ key, modifiers: plain, input: drawn })
+    expect(press(' ')).toEqual(
+      wrapped(Message.Grabbed({ id: 'b', by: 'keys', at: Option.some(before('c')) })),
+    )
+    expect(press('ArrowDown')).toEqual(
+      wrapped(Message.Stepped({ step: 'next', places: [before('a'), before('c'), after('c')] })),
+    )
+    expect(press(' ')).toEqual(wrapped(Message.Dropped()))
+    expect(press('ArrowDown')).toEqual(Option.none())
+    // A new drawing reads its Model, which says nothing is held.
+    expect(answer({ key: 'ArrowDown', modifiers: plain, input: { ...base } })).toEqual(
+      Option.none(),
+    )
+  })
+
   it('leaves the arrows, Home, End and Escape alone until something is held', () => {
     for (const key of ['ArrowDown', 'ArrowUp', 'Home', 'End', 'Escape']) {
       expect(ask(base, key)).toEqual(Option.none())
