@@ -5,8 +5,11 @@
  * over the adapter's model (`test/adapter/fixture.ts`).
  */
 import { Effect, Layer, Option, Ref, Schema } from 'effect'
-import { Entity, Footprint } from 'foldkit-entity'
-import { RemoteClient } from 'foldkit-remote'
+import { defineMessageUnion } from 'foldkit/message'
+import { Entity, Expr, Footprint, Order } from 'foldkit-entity'
+import { Mutation, Query, Reach, reaches, Remote, RemoteClient } from 'foldkit-remote'
+import { explain } from 'foldkit-remote/why'
+import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { DomainRemote } from '../../src/index.js'
 import { Imported } from '../../src/imported/index.js'
@@ -85,7 +88,6 @@ describe('Imported.mutation', () => {
   it('throws where a footprint of another Entity is made, and is a type error beside this Entity', () => {
     expect(() =>
       Footprint.declared({
-        // @ts-expect-error a footprint is of one Entity.
         reads: [ProductEntity.fields.note],
         writes: [StaffProduct.fields.note],
         by: 'test',
@@ -182,6 +184,20 @@ describe('Imported.describe', () => {
     expect(operation('ShopApi/Transfer').footprint).toBe(Footprint.unknown)
   })
 
+  it('leaves a mutation declared with Mutation.make unknown, as no footprint is no word', () => {
+    const Plain = Mutation.make('Touch', {
+      Input: { target: Schema.String, input: Schema.Struct({ note: Schema.String }) },
+      Output: {},
+    })
+    const Plainly = DomainRemote.command(Plain, ShopApi, 'Touch', {
+      entity: ProductEntity,
+      target: input => input.target,
+      input: input => input.input,
+    })
+    const described = Imported.describe(ShopApi, { views: [], commands: [Plainly] })
+    expect(described.operations[0]?.footprint).toBe(Footprint.unknown)
+  })
+
   it('gives each operation its mutation and JSON Schemas of its input and reply', () => {
     const reserve = operation('ShopApi/ReserveStock')
     expect(reserve.mutation).toBe('ReserveStock')
@@ -213,6 +229,13 @@ describe('Imported.describe', () => {
 
   it('has no description for a command that gives none', () => {
     expect(operation('ShopApi/Touch').description).toEqual(Option.none())
+  })
+
+  it('throws for a binding of another Api', () => {
+    const elsewhere = { ...Touching, api: { apiName: 'Elsewhere' } } as unknown as typeof Touching
+    expect(() => Imported.describe(ShopApi, { views: [], commands: [elsewhere] })).toThrow(
+      /Touch is bound to Elsewhere, not ShopApi/,
+    )
   })
 
   it('throws for a field naming a command not given or a Rejection it does not declare', () => {
@@ -260,5 +283,51 @@ describe('Imported.show', () => {
 
   it('is the same text for the same Api', () => {
     expect(Imported.show(description)).toBe(text)
+  })
+})
+
+describe('what an imported command touches, as Remote judges a list by it', () => {
+  const NoteList = Query.define('NoteList', {}, () =>
+    Query.from(ProductEntity).pipe(
+      Query.where(Expr.eq(ProductEntity.fields.note, 'fragile')),
+      Query.orderBy(Order.asc(ProductEntity.fields.id)),
+    ),
+  )
+  const Model = Schema.Struct({ remote: Remote.Model })
+  const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+  const reachedBy = (mutations: ReadonlyArray<typeof Touch | typeof Transfer>) => {
+    const Data = Remote.make({
+      model: App.model.remote,
+      entities: [ProductEntity],
+      queries: [NoteList],
+      mutations,
+    })
+    const read = Data.query(
+      NoteList,
+      {},
+      { select: Entity.select(ProductEntity, { id: true, note: true }), first: 10 },
+    )
+    return explain(Data, { remote: Remote.initial }, read).reachedBy
+  }
+
+  it('names a declared footprint whose writes a list reads, in why', () => {
+    expect(reachedBy([Touch])).toEqual(['Touch'])
+  })
+
+  it('leaves out a declared footprint whose writes a list does not read', () => {
+    const Moves = Imported.mutation(ShopApi, 'Transfer', {
+      entity: ProductEntity,
+      footprint: Footprint.declared({
+        writes: [ProductEntity.fields.ownerId],
+        by: 'the Domain model',
+      }),
+    })
+    expect(reachedBy([Moves])).toEqual([])
+  })
+
+  it('takes the conservative path for an unknown footprint: neither reaching nor missing the list', () => {
+    expect(reachedBy([Touch, Transfer])).toEqual(['Touch'])
+    expect(reaches(Transfer, NoteList)).toEqual(Reach.Unknown({ why: 'Handler' }))
+    expect(reaches(Touch, NoteList)).toEqual(Reach.Reads())
   })
 })

@@ -107,7 +107,7 @@ export const describe = <A extends AnyApi>(
         `${'view' in binding ? binding.view : binding.command} is bound to ${binding.api.apiName}, not ${api.apiName}`,
       )
   }
-  const fields: Readonly<Record<string, Readonly<Record<string, string>> | undefined>> =
+  const fields: Readonly<Record<string, Readonly<Record<string, string | undefined>> | undefined>> =
     config.fields ?? {}
   for (const [command, tags] of Object.entries(fields)) {
     const bound = config.commands.find(binding => binding.command === command)
