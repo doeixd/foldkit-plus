@@ -83,7 +83,7 @@ export const RowListSlots = Slots.define({
   status: Slot.make({ capability: Capability.Base }),
   /** The `ul` holding the rows, `aria-busy` while refreshing. */
   list: Slot.make({ capability: Capability.Container }),
-  /** One `li`, holding a row's drawing. */
+  /** One `li`, holding a row's drawing; `data-row-key` is its key, as `rowKey` or its `id` gives it. */
   row: Slot.make({ capability: Capability.Container }),
   /** The button around a row's drawing, when the application gave `onOpen`. */
   open: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
@@ -138,6 +138,7 @@ export const ListSlots = Slots.define({
   headCell: Slot.make({ capability: Capability.Base }),
   /** The button in the header of a column that sorts. */
   sort: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** One `tr`; `data-row-key` is its key, as `rowKey` or its `id` gives it. */
   row: Slot.make({ capability: Capability.Container }),
   cell: Slot.make({ capability: Capability.Base }),
   /** The button in a row's first cell that opens the row. */
@@ -360,7 +361,7 @@ const list = <Message>() => ({
                     input.rowKey?.(row) ??
                     (typeof values.id === 'string' ? values.id : String(position))
                   return h.tr(
-                    slots.row.attrs([h.Key(key)]),
+                    slots.row.attrs([h.Key(key), h.DataAttribute('row-key', key)]),
                     columns.map((column, index) => {
                       const special = input.cells?.[column.key]
                       const content = special?.(row, h) ?? draw(column, values[column.key], row)
@@ -435,7 +436,7 @@ const rowList = <Message>() => ({
                   (typeof values.id === 'string' ? values.id : String(position))
                 const content = input.row(row, h)
                 return h.li(
-                  slots.row.attrs([h.Key(key)]),
+                  slots.row.attrs([h.Key(key), h.DataAttribute('row-key', key)]),
                   input.onOpen === undefined
                     ? content
                     : [

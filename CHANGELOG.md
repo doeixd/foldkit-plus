@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-crud`: a `ListView` and `RowListView` row carries its key as `data-row-key` on the `row`
+  Slot, server markup included, so an application can return focus to a row's button after a re-read
+  with `Dom.focus` and a `CSS.escape`d selector.
 - `foldkit-mixins-ui`: a `Table` column's `sortKey` keeps its literal type, so `sort.onSort` receives
   the union of the keys and `Table.TableSort` and `Table.nextSort` carry it (`TableColumn`, `TableSort`
   and `TableView` take a `Key` parameter, defaulting to `string`). `Table.defineColumns<Row>()([...])`
