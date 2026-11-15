@@ -192,7 +192,12 @@ chrome's icon set (Lucide, ISC). `blockStyles<Message>()` is the
 style picker: `{ document, selection, wrap }` in, `BlockStyleSlots` (`root`, `toolbar`,
 `button`) out, one `data-style` button per retype entry (Paragraph, Heading 1–3), pressed from
 `RichText.textBlockAt`, all disabled without a text selection; `blockStyleMenu<Message>()` is the
-same as one trigger and a menu (`{ …, open, toggled }`, `BlockStyleMenuSlots`). `linkEditor<Message>()` is the link
+same as one trigger and a menu (`{ …, open, toggled }`, `BlockStyleMenuSlots`). `formattingToolbar<Message>()` is the
+standard bar, one `role="toolbar"` with one tab stop: `{ id, document, selection, storedMarks?, wrap, menu?, toggled(menu, open),
+roving: { current }, onFocus(id), items?, history?, inserts?, shortcuts?, words?, direction? }` in, `FormattingToolbarSlots` out;
+`items` (default `standardFormattingItems`) lists `'undo' | 'redo' | 'style' | 'link' | 'bulleted-list' | 'numbered-list' | 'checklist' |
+'quote' | 'insert' | 'separator' | { mark }`; the application keeps which menu is open and the tab stop id; an unavailable control is
+`aria-disabled`, focusable, and sends nothing; `history` lets the application say what undo and redo apply to. `linkEditor<Message>()` is the link
 editor: `{ document, selection, draft, drafted, wrap, closed?, submitted? }` in (Escape sends `closed`; Enter sends `submitted`, for `update` to apply `linkEdit(document, selection, draft)` to the Model's draft), `LinkEditorSlots` (`root`, `input`,
 `apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
 `RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range
@@ -258,7 +263,7 @@ editor. An `Edited` OutMessage carries the `transactions` the edit applied.
 a blank document is no value, `fill` starts a fresh history, and `settled` keeps caret, stored
 marks, and history for a resumed draft. A third argument `{ codec: { value, fill } }` makes the
 key hold another type (Markdown text: `print(document).markdown` and `parse(text, { mint }).document`)
-while the editor holds a document; `value` is never called with a blank document, and a `fill`
+while the editor holds a document; `value` is never called with a blank document (a codec may give `blank: A` as that document's value instead of "required"), and a `fill`
 that throws fails the form's `fill`.
 
 The read-only view (`foldkit-richtext-dom/view`) renders a document or a

@@ -76,6 +76,17 @@ export {
   type BlockStyleMenuInput,
 } from './style.js'
 
+/** The formatting toolbar's view and its slots: one tab stop over undo, style, marks, link, lists and insert. */
+export {
+  FormattingToolbarSlots,
+  formattingToolbar,
+  standardFormattingItems,
+  type FormattingItem,
+  type FormattingMenu,
+  type FormattingToolbarInput,
+  type FormattingWords,
+} from './formatting.js'
+
 /** The find and replace bar's view and its slots. */
 export { FindReplaceSlots, findReplace, stepMatch, type FindReplaceInput } from './find.js'
 

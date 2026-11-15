@@ -18,7 +18,7 @@ import { isRichTextIcon, richTextIcon } from './icons.js'
 
 type Retype = Extract<EditorEvent, { readonly _tag: 'RetypedBlock' }>
 
-const styles = slashEntries.filter(
+export const styles = slashEntries.filter(
   (entry): entry is SlashEntry<Retype> => entry.message._tag === 'RetypedBlock',
 )
 
