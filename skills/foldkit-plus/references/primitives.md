@@ -205,7 +205,7 @@ Pick by task:
   Only `keydown` is written: attach `ListNavigation.item(Declared, args)(Slots)({ item, items })` for its items'
   tab stop and `OnFocus` (the others: `RovingTabindex.itemAttributes`), and draw `aria-activedescendant` yourself.
 - **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
-  `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
+  `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction?, routes? })` (`routes`: the application's keys on the same `keydown`; a clash is `mixins:key-conflict`).
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or
   column, `wrap` continues into the next row or column, Home/End are per row and Ctrl+Home/End
   per grid. The pure move is `GridNavigation.move(enabled, count, current, key, modifiers, options)`.
@@ -350,12 +350,12 @@ const recovers = FocusRecovery.behavior(RowView)({
   `onOut` for `Pressed { pointerType }`; attach `Press.behavior(Declared)(Slots)<Model, Message>({ target, disabled? })`.
   The `Press.events` Mount reports pointer, key, and click facts; `update` decides
   (primary button, one pointer, cancel, Enter/Space without repeat, virtual clicks,
-  ghost click suppressed by a timed Command; `Pressed` carries `shiftKey`). `data-pressed` while down.
+  ghost click suppressed by a timed Command; `Pressed { pointerType, modifiers }`, `modifiers` being `{ shiftKey, ctrlKey, metaKey, altKey }` of the completing event; it does not say which row). `data-pressed` while down.
   An `aria-disabled` target refuses new presses but still ends one that began enabled (its release arrives as
   a cancel, never as a `Pressed`), so a control that disables itself mid-hold is not left held.
 - **Swipe-to-reveal actions with a keyboard way:** `SwipeActions.bundle` (`{ fullSwipe, flick, full }`, `onOut` for `FullSwiped { side }`); `SwipeActions.decide(model, release, args)` reads a `SwipeEnded`; `SwipeActions.keys({ open, rtl, toMessage })` is a `Behaviors.Keys` route (arrows open and close, Escape closes). Hide a closed row's actions with `inert`.
 - **Held stepper:** `Repeat.bundle` (`{ delayMs, intervalMs }`, required `onOut` for `Stepped { count, input }` and `Ended { count }`) with
-  `Repeat.behavior(Declared)(Slots)({ target })`; send `Repeat.Message.Stopped()` at a bound. A tap steps on release for a finger; one slot takes one of `Press`, `LongPress`, `Repeat`.
+  `Repeat.behavior(Declared)(binder)({ target, disabled? })` (the `SlotView.over` binder, as `Press.behavior`; the target supplies `activation`); send `Repeat.Message.Stopped()` at a bound. A tap steps on release for a finger; the pointer leaving the button ends the hold (no resume on return); one slot takes one of `Press`, `LongPress`, `Repeat`.
 - **Hold:** `LongPress.bundle` (`{ thresholdMs }`, required `onOut` for `LongPressed`) with
   `LongPress.behavior(Declared)(Slots)({ target })`; reads `Press.events`, so not on the same slot as `Press`.
 - **Keep the selection in view:** the `KeepInView({ selector })` Mount (`foldkit-primitives/dom`) on a
@@ -424,14 +424,14 @@ const recovers = FocusRecovery.behavior(RowView)({
   `data-fk-placed="above"` (`Placing.placedSide`, `Placing.placedAbove`) so a hover bridge can
   overlap that side. `Anchor.behavior` portals and tracks; this places once.
 - **A parent's own decisions are helpers, never the child's Messages:** `Selection`'s
-  `activate(id)`, `replace(ids)`, `clear()`; `TreeNavigation`'s `focus`, `open`, `close`,
+  `activate(id)`, `select(id)` (one item, anchored), `range(id, order)` (a Shift range), `replace(ids)`, `clear()`; `TreeNavigation`'s `focus`, `open`, `close`,
   `toggle(id)`; `focus(id)` on `RovingTabindex`, `ListNavigation`, `GridNavigation`;
   `Typeahead`'s `clear()`; `LiveAnnounce`'s `announce(text, politeness?)`. Call them on the
   placement (`Picks.helpers.activate(id)(model)`); a control the parent draws sends a parent
   Message and `update` calls the helper.
 - **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
   with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
-  `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).
+  `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range and `Selected { id }` for a click that replaces (Shift comes from `Pressed.modifiers.shiftKey`).
 - **Announce to assistive technology:** place `LiveAnnounce.bundle` once (`{ debounceMs, clearAfterMs }`), fold
   the placement's `helpers.announce(text, politeness?)` in `update`, render `LiveAnnounce.view(slice, h)` once and hide it visually.
 
