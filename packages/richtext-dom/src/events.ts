@@ -486,6 +486,12 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
    * Read before a patch replaces the nodes it points into.
    */
   const ownsSelection = (): boolean => {
+    const { activeElement, body } = current.root.ownerDocument
+    // A selection kept in the text while focus is on a control beside it is not the user's to put
+    // back: restoring it would pull the focus into the editor.
+    if (activeElement !== null && activeElement !== body && !current.root.contains(activeElement)) {
+      return false
+    }
     const live = current.root.ownerDocument.defaultView?.getSelection()
     if (live === null || live === undefined || live.rangeCount === 0) return false
     return current.root.contains(live.anchorNode) && current.root.contains(live.focusNode)
@@ -881,11 +887,9 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     redecorate: () => {
       if (composing) return
       const selection = readSelection(current)
-      // A selection kept in the editor while focus is on a control beside it is not the user's
-      // to put back: restoring it would pull the focus into the text.
-      const focused = current.root.contains(current.root.ownerDocument.activeElement)
+      const owned = ownsSelection()
       redraw(patchInto(current, current.content, unchanged, options.decorate?.(current.content)))
-      if (selection !== null && focused) restoreSelection(current, selection)
+      if (selection !== null && owned) restoreSelection(current, selection)
     },
     focus: selection => {
       current.root.focus({ preventScroll: true })
