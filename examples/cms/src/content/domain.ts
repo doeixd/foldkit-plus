@@ -9,6 +9,10 @@ import { FieldRecipes } from 'foldkit-form-recipes'
 import { Entity, Expr, Order } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Mutation, Query } from 'foldkit-remote'
+import * as RichText from 'foldkit-richtext'
+import { EditorInput, richTextInput } from 'foldkit-richtext-dom/input'
+import { markdownInputRules, print } from 'foldkit-richtext-markdown'
+import { documentOf } from './markdownBody.js'
 
 /** Where this demo's code is read: the site links to it, and its pages point to it. */
 export const SOURCE = 'https://github.com/doeixd/foldkit-plus/tree/main/examples/cms'
@@ -61,7 +65,32 @@ export const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
     // A long title wraps, as it will on the page.
     title: Input.multiline(),
     excerpt: Input.multiline(),
-    body: Input.multiline(),
+    // The body is written in the rich-text editor and stored as Markdown.
+    body: richTextInput(
+      'post-body',
+      {
+        vocabulary: {
+          nodes: RichText.nodeRegistry(RichText.standardNodes),
+          marks: RichText.markRegistry(RichText.standardMarks),
+        },
+        rendering: RichText.standardRendering,
+        inputRules: markdownInputRules,
+        placeholder: 'Begin writing your post…',
+      },
+      {
+        codec: {
+          blank: '',
+          value: document => print(document).markdown.trimEnd(),
+          // An empty text has no block for a caret to sit in: the editor's own blank stands in.
+          fill: markdown => {
+            const read = documentOf(markdown)
+            return read.children.length === 0
+              ? EditorInput.init({ hostId: 'post-body' }).model.document
+              : read
+          },
+        },
+      },
+    ),
   },
   debounce: 0,
 }).pipe(

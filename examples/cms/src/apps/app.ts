@@ -20,6 +20,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
+import { RovingTabindex } from 'foldkit-primitives/interaction'
 import { Url, toString as urlToString } from 'foldkit/url'
 import {
   beginMissing,
@@ -30,7 +31,7 @@ import {
   writeAddress,
   type EntryEditor,
 } from '../routing/address.js'
-import { focusOn, opened } from './focus.js'
+import { focusOn, focusRow, opened } from './focus.js'
 import { EntryRow, Post, PostForm, PostId, PostPreview, Posts } from '../content/domain.js'
 import { FormStyle, WritingFieldStyle } from '../styles/formStyles.js'
 
@@ -40,9 +41,8 @@ export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 mill
 const placeholders: Readonly<Record<string, string>> = {
   title: 'Post title',
   excerpt: 'A line or two that draws a reader in',
-  body: 'Begin writing your post…',
 }
-type PostKey = (typeof PostForm.controls)[number]['key']
+type PostKey = Parameters<typeof PostForm.field>[1]
 const Placeholders = Behavior.forSlots(FieldSlots)<
   FieldInput<PostKey>,
   typeof PostForm.Message.Type
@@ -77,9 +77,13 @@ const Slot = Bundle.declare(
   'editor',
 )
 
+/** The body toolbar's one tab stop: Tab enters at the tool focused last. */
+export const Roving = Bundle.declare(RovingTabindex.bundle, 'bodyTools')
+
 export const Model = Schema.Struct({
   remote: Remote.Model,
   ...Slot.fields,
+  ...Roving.fields,
   /**
    * What the schedule box holds: the text of a `datetime-local` input, and the
    * entry it was typed for. Read through `scheduleText`, which is empty for any
@@ -106,6 +110,9 @@ export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   ...Remote.messages,
   ...Slot.cases,
+  ...Roving.cases,
+  /** A tool of the body toolbar was pressed: the form's Message for the body editor. */
+  PressedTool: { message: PostForm.Message },
   OpenedEntry: { entry: Schema.String },
   /** Asked for something new; its id is made in a Command, so `update` stays pure. */
   AskedForPost: {},
@@ -169,7 +176,11 @@ export const actives = {
 
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 export const EditorSlot = Page.at(Slot, { onOut: PostEditor.onOut })
-export const placements = Page.assemble(EditorSlot, Data.wiring(actives))
+export const placements = Page.assemble(
+  EditorSlot,
+  Page.at(Roving, { args: { orientation: 'horizontal', loop: true, virtual: false } }),
+  Data.wiring(actives),
+)
 
 const newPost: Command<Message> = {
   name: 'NewEntryId',
@@ -199,13 +210,31 @@ const placed = placements.update((model, message) => {
   return Match.valueTags(message, {
     OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
     AskedForPost: () => ({ model, commands: [newPost] }),
+    // The edit is made as the editor's own Message; the editor takes focus back as it patches.
+    PressedTool: ({ message: pressed }) => ({
+      model,
+      commands: [
+        {
+          name: 'PressedTool',
+          args: {},
+          effect: Effect.succeed(Message.GotEditorMessage({ message: pressed })),
+        },
+      ],
+    }),
     StartedPost: ({ entry }) => leaving(EditorSlot.helpers.create(entry)),
-    // The back button is gone once closed: focus goes to the list it returns to.
-    // WAITING ON foldkit-mixins-crud (`data-row-key` on rows, approved): focus the row that
-    // was open, `[data-row-key="<entry>"] button`, instead of the list.
+    // The back button is gone once closed: focus goes back to the row that opened it.
     ClosedEditor: () => {
       const closed = leaving(EditorSlot.helpers.close())
-      return { ...closed, commands: [...closed.commands, focusOn('#Worklist', Message.Ticked())] }
+      return {
+        ...closed,
+        commands: [
+          ...closed.commands,
+          Option.match(PostEditor.entry(model), {
+            onNone: () => focusOn('#Worklist', Message.Ticked()),
+            onSome: entry => focusRow('#Worklist', entry, Message.Ticked()),
+          }),
+        ],
+      }
     },
     TypedSchedule: ({ text }) => ({
       model: modifyFields(model, {

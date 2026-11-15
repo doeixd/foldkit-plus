@@ -31,6 +31,7 @@ import {
   type Model,
 } from '../apps/app.js'
 import { PostForm, type PostPreview } from '../content/domain.js'
+import { BodyTools } from './bodyTools.js'
 import { icon } from './icons.js'
 import {
   chair,
@@ -268,11 +269,17 @@ const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
       h.div(slots.canvas.attrs(), [
         PostEditor.previewing(model)
           ? previewing(model, slots, h)
-          : EditorSlot.view(model, h, {
-              words: { submit: 'Publish' },
-              // Published from the bar; the form draws no button of its own.
-              submits: false,
-            }),
+          : h.div(
+              [],
+              [
+                BodyTools(model, h),
+                EditorSlot.view(model, h, {
+                  words: { submit: 'Publish' },
+                  // Published from the bar; the form draws no button of its own.
+                  submits: false,
+                }),
+              ],
+            ),
       ]),
       h.aside(slots.aside.attrs([h.AriaLabel('Post settings')]), [
         ...(status === 'Conflict'

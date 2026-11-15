@@ -23,7 +23,7 @@ import * as Subscription from 'foldkit/subscription'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { NodeId, type Document } from 'foldkit-composition'
 import { QueryBlock } from 'foldkit-composition/remote'
-import { focusOn, opened } from './focus.js'
+import { focusOn, focusRow, opened } from './focus.js'
 import { Post, PostById, RecentPosts } from '../content/domain.js'
 import { Page, PageForm, PageId, PageView, Pages } from '../content/pageDomain.js'
 import { PageBuilder, Site } from '../content/site.js'
@@ -192,12 +192,19 @@ const placed = placements.update((model, message) => {
     OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
     AskedForPage: () => ({ model, commands: [newPage] }),
     StartedPage: ({ entry }) => leaving(EditorSlot.helpers.create(entry)),
-    // The back button is gone once closed: focus goes to the list it returns to.
-    // WAITING ON foldkit-mixins-crud (`data-row-key` on rows, approved): focus the row that
-    // was open, `[data-row-key="<entry>"] button`, instead of the list.
+    // The back button is gone once closed: focus goes back to the row that opened it.
     ClosedEditor: () => {
       const closed = leaving(EditorSlot.helpers.close())
-      return { ...closed, commands: [...closed.commands, focusOn('#sitePages', Message.Ticked())] }
+      return {
+        ...closed,
+        commands: [
+          ...closed.commands,
+          Option.match(PageEditor.entry(model), {
+            onNone: () => focusOn('#sitePages', Message.Ticked()),
+            onSome: entry => focusRow('#sitePages', entry, Message.Ticked()),
+          }),
+        ],
+      }
     },
     RetriedList: () => ({ model: Data.refresh(model, sitePages) }),
     UrlChanged: ({ url }) => {

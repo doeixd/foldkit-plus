@@ -88,17 +88,41 @@ it('keeps focus in the page as a post opens and closes', async () => {
   await mount('/', 'as=wren')
   await expect.poll(() => document.querySelector('#Worklist button') !== null, answered).toBe(true)
   const row = document.querySelector('#Worklist button') as HTMLButtonElement
+  const key = row.closest('[data-row-key]')?.getAttribute('data-row-key')
   row.focus()
   row.click()
   // The row that held focus is gone once the editor is drawn: writing starts at the title.
   await expect.poll(() => document.activeElement?.id, answered).toBe('PostForm-title')
 
   // Writing elsewhere in the form, and the draft saved under the writer's hands, leaves focus there.
-  const body = document.querySelector('#PostForm-body') as HTMLTextAreaElement
-  body.focus()
-  type('#PostForm-body', 'Another line.')
+  const excerpt = document.querySelector('#PostForm-excerpt') as HTMLTextAreaElement
+  excerpt.focus()
+  type('#PostForm-excerpt', 'Another line.')
   await expect.poll(() => text('#status'), answered).toBe('Draft saved.')
-  expect(document.activeElement?.id).toBe('PostForm-body')
+  expect(document.activeElement?.id).toBe('PostForm-excerpt')
+
+  click('#close')
+  // Back where the writer came from: the button of the row they opened.
+  await expect
+    .poll(
+      () => document.activeElement?.closest('[data-row-key]')?.getAttribute('data-row-key'),
+      answered,
+    )
+    .toBe(key)
+  expect(document.activeElement?.tagName).toBe('BUTTON')
+})
+
+it('falls back to the list when the row a post was opened from is gone', async () => {
+  await mount('/', 'as=wren')
+  await expect.poll(() => document.querySelector('#Worklist button') !== null, answered).toBe(true)
+  click('#Worklist button')
+  await expect.poll(() => document.activeElement?.id, answered).toBe('PostForm-title')
+  // The narrowing changes under the open post, as another tab's would: no row matches it.
+  const url = new URL(window.location.href)
+  url.searchParams.set('q', 'no post is called this')
+  window.history.replaceState(null, '', url)
+  window.dispatchEvent(new PopStateEvent('popstate'))
+  await expect.poll(() => window.location.search, answered).toContain('q=')
 
   click('#close')
   await expect.poll(() => document.activeElement?.id, answered).toBe('Worklist')
@@ -108,10 +132,54 @@ it('keeps focus in the page as a page opens and closes', async () => {
   await mount('/pages', 'as=wren')
   await expect.poll(() => document.querySelector('#sitePages button') !== null, answered).toBe(true)
   const row = document.querySelector('#sitePages button') as HTMLButtonElement
+  const key = row.closest('[data-row-key]')?.getAttribute('data-row-key')
   row.focus()
   row.click()
   await expect.poll(() => document.activeElement?.id, answered).toBe('PageForm-title')
 
   click('#close')
-  await expect.poll(() => document.activeElement?.id, answered).toBe('sitePages')
+  await expect
+    .poll(
+      () => document.activeElement?.closest('[data-row-key]')?.getAttribute('data-row-key'),
+      answered,
+    )
+    .toBe(key)
+})
+
+it('formats the body from its toolbar, which is one tab stop, and leaves the writer in the editor', async () => {
+  await mount('/', 'as=wren')
+  await expect.poll(() => document.querySelector('#Worklist button') !== null, answered).toBe(true)
+  click('#Worklist button')
+  const editable = () => document.querySelector('#post-body [contenteditable]') as HTMLElement
+  await expect.poll(() => editable() !== null, answered).toBe(true)
+
+  const tools = () => [...document.querySelectorAll<HTMLButtonElement>('[role="toolbar"] button')]
+  const bold = () => tools().find(tool => tool.textContent === 'Bold')!
+  expect(bold()).toBeDefined()
+  expect(tools().filter(tool => tool.tabIndex === 0)).toHaveLength(1)
+
+  // Select the first run's words, as the writer does.
+  const run = editable().querySelector('[data-run]') as HTMLElement
+  const range = document.createRange()
+  range.selectNodeContents(run)
+  const selection = window.getSelection()!
+  selection.removeAllRanges()
+  selection.addRange(range)
+  document.dispatchEvent(new Event('selectionchange'))
+
+  // The tab stop follows focus.
+  bold().focus()
+  await expect.poll(() => tools().filter(tool => tool.tabIndex === 0), answered).toEqual([bold()])
+  tools()[1]!.focus()
+  await expect
+    .poll(() => tools().filter(tool => tool.tabIndex === 0), answered)
+    .toEqual([tools()[1]])
+
+  // Pressing a tool formats the selection, and gives focus back to the editor, still tabbable.
+  bold().focus()
+  bold().click()
+  await expect.poll(() => editable().querySelector('strong') !== null, answered).toBe(true)
+  await expect.poll(() => bold().getAttribute('aria-pressed'), answered).toBe('true')
+  await expect.poll(() => document.activeElement === editable(), answered).toBe(true)
+  expect(editable().getAttribute('tabindex')).toBeNull()
 })
