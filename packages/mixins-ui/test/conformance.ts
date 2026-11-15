@@ -58,9 +58,14 @@ export interface Scenario<Setup> {
   readonly state?: Readonly<Record<string, string>> | undefined
   /** Every key must have been defaultPrevented: the page must not also scroll. */
   readonly prevented?: boolean | undefined
+  /** The scenario expects nothing to change: it is no witness that a key does anything. */
+  readonly inert?: boolean | undefined
   /** Why it fails today, as a finding; the scenario then runs as `test.fails`. */
   readonly finding?: string | undefined
 }
+
+/** Scenarios that expect nothing to change, named so. */
+const unchanged = /(stays|moves nothing|does nothing|never lands)/
 
 const SPECIAL = new Set(['{', '[', '>', '/'])
 
@@ -159,6 +164,7 @@ export const listScenarios = <Setup>(
       focus,
       state: options.chosen === false ? undefined : chosen(start, focus),
       prevented: options.prevented,
+      inert: unchanged.test(name) || undefined,
       finding: spec.findings?.[full],
     })
   }
@@ -323,6 +329,7 @@ export const treeScenarios = <Setup>(
       focus,
       state: options.state,
       prevented: options.prevented,
+      inert: unchanged.test(name) || undefined,
       finding: spec.findings?.[full],
     })
   }
@@ -885,4 +892,153 @@ export const defineRefusal = <Setup>(adapter: Adapter<Setup>, refusal: Refusal<S
       mounted.dispose()
     }
   })
+}
+
+// ---------------------------------------------------------------------------
+// The suite can fail: scenarios run against a deliberately wrong widget
+// ---------------------------------------------------------------------------
+
+/** The widget as a user with a broken keyboard handler would meet it: `key` never reaches the page. */
+const deafTo = <Setup>(adapter: Adapter<Setup>, key: string): Adapter<Setup> => ({
+  name: `${adapter.name} deaf to ${key === ' ' ? 'Space' : key}`,
+  mount: async setup => {
+    const mounted = await adapter.mount(setup)
+    const drop = (event: KeyboardEvent) => {
+      if (event.key !== key) return
+      event.stopImmediatePropagation()
+      event.preventDefault()
+    }
+    document.addEventListener('keydown', drop, true)
+    return {
+      ...mounted,
+      dispose: () => {
+        document.removeEventListener('keydown', drop, true)
+        mounted.dispose()
+      },
+    }
+  },
+})
+
+/** The widget that reads the horizontal arrows the wrong way round: what a no-op direction swap does. */
+const misreading = <Setup>(adapter: Adapter<Setup>): Adapter<Setup> => ({
+  name: `${adapter.name} reading the arrows the wrong way round`,
+  mount: async setup => {
+    const mounted = await adapter.mount(setup)
+    const swap = (event: KeyboardEvent) => {
+      const other =
+        event.key === 'ArrowLeft' ? 'ArrowRight' : event.key === 'ArrowRight' ? 'ArrowLeft' : null
+      if (other === null || !event.isTrusted) return
+      event.stopImmediatePropagation()
+      event.preventDefault()
+      event.target?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: other, bubbles: true, cancelable: true }),
+      )
+    }
+    document.addEventListener('keydown', swap, true)
+    return {
+      ...mounted,
+      dispose: () => {
+        document.removeEventListener('keydown', swap, true)
+        mounted.dispose()
+      },
+    }
+  },
+})
+
+/**
+ * Proof the table is not vacuous: for each key it presses, one scenario that
+ * expects an effect is run against a widget that never hears the key, and must
+ * fail; and each horizontal arrow's against a widget that reads both the wrong
+ * way round. A scenario that passed anyway would hold whatever the widget did.
+ */
+export const defineSelfChecks = <Setup>(
+  adapter: Adapter<Setup>,
+  scenarios: ReadonlyArray<Scenario<Setup>>,
+) => {
+  const effective = scenarios.filter(scenario => scenario.inert !== true)
+  throw new Error('DBG ' + JSON.stringify(scenarios.filter(s => s.keys.includes('l')).map(s => [s.name, s.inert])))
+  const keys = new Set(effective.flatMap(scenario => scenario.keys))
+  for (const key of keys) {
+    const witness = effective.find(scenario => scenario.keys.includes(key))!
+    defineScenarios(deafTo(adapter, key), [
+      { ...witness, name: `${witness.name} (${key})`, finding: 'the key never arrives' },
+    ])
+  }
+  for (const key of ['ArrowLeft', 'ArrowRight']) {
+    const witness = effective.find(scenario => scenario.keys.includes(key))
+    if (witness === undefined) continue
+    defineScenarios(misreading(adapter), [
+      { ...witness, name: `${witness.name} (${key})`, finding: 'the arrows are swapped' },
+    ])
+  }
+}
+
+type Sabotage = { readonly name: string; readonly apply: (mounted: Mounted) => void }
+
+const dropped = (attribute: string, elements: ReadonlyArray<HTMLElement>) =>
+  elements.forEach(element => element.removeAttribute(attribute))
+
+const sabotagesOf = (spec: NamesSpec): ReadonlyArray<Sabotage> => [
+  {
+    name: 'the root takes another role',
+    apply: m => m.root().setAttribute('role', 'presentation'),
+  },
+  {
+    name: 'the root is named something else',
+    apply: m => m.root().setAttribute('aria-label', 'Other'),
+  },
+  ...Object.entries(spec.root.attributes ?? {}).map(([attribute, value]) => ({
+    name: `the root's ${attribute} is ${value === null ? 'present' : 'wrong'}`,
+    apply: (m: Mounted) =>
+      m.root().setAttribute(attribute, value === null ? 'true' : `not-${value}`),
+  })),
+  {
+    name: 'an item takes another role',
+    apply: m => m.items()[0]!.setAttribute('role', 'presentation'),
+  },
+  {
+    name: 'an item is named something else',
+    apply: m => m.items()[1]!.setAttribute('aria-label', 'Other'),
+  },
+  ...spec.states.map(rule => ({
+    name: `${rule.attribute} is missing`,
+    apply: (m: Mounted) => dropped(rule.attribute, rule.on(m)),
+  })),
+  ...spec.states.map(rule => ({
+    name: `${rule.attribute} says something Chrome reads differently from its value`,
+    apply: (m: Mounted) =>
+      rule.on(m).forEach(element => element.setAttribute(rule.attribute, 'nonsense')),
+  })),
+  ...spec.relationships.map(rule => ({
+    name: `${rule.attribute} is missing`,
+    apply: (m: Mounted) => dropped(rule.attribute, rule.on(m)),
+  })),
+  ...spec.relationships.map(rule => ({
+    name: `${rule.attribute} names an element that does not exist`,
+    apply: (m: Mounted) =>
+      rule.on(m).forEach(element => element.setAttribute(rule.attribute, 'no-such-id')),
+  })),
+]
+
+/** Each name, state and relation in `spec`, spoiled in turn on a mounted widget; `checkNames` must fail each. */
+export const defineNameSabotage = <Setup>(
+  adapter: Adapter<Setup>,
+  setup: Setup,
+  spec: NamesSpec,
+) => {
+  for (const sabotage of sabotagesOf(spec)) {
+    test.fails(`${adapter.name}: names and relationships fail when ${sabotage.name}`, async () => {
+      const mounted = await adapter.mount(setup)
+      // Found before the spoiling, which may change the role it is found by.
+      const root = mounted.root()
+      const items = mounted.items()
+      const stable: Mounted = { ...mounted, root: () => root, items: () => items }
+      try {
+        sabotage.apply(stable)
+        await checkNames(stable, spec)
+      } finally {
+        mounted.dispose()
+      }
+    })
+  }
 }

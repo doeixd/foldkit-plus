@@ -10,6 +10,7 @@ frame, not the contents; loading the rows stays the application's job.
 | `Pagination` | bundle | `{ page, perPage, total }` | `GoToPage`, `NextPage`, `PrevPage`, `SetPerPage`, `SetTotal` | `{ perPage, total? }` |
 | `history({ name, value, capacity?, within?, equals? })` | bundle factory | `{ past, present, future, group, groupedAt }` | `Push { value, group?, at? }`, `Undo`, `Redo`, `GoTo { step }`, `Clear` | `{ initial }` |
 | `History.*` | functions | the same steps, pure | | |
+| `Box.moveBy`, `moveEach`, `resize`, `moveKey`, `resizeKey` | functions | `Box { x, y, width, height }` | | |
 | `Locale` | bundle | `{ locale }` | `SetLocale` | `{ default }` |
 | `SelectionSet` | bundle | `{ selected }` | `Select`, `Deselect`, `Toggle`, `ReplaceAll`, `Clear` | none |
 | `Virtual` | bundle | scroll, heights, layout | `Scrolled`, `Measured`, `Prune`, `Settled` | layout args |
@@ -121,6 +122,57 @@ nothing left to redo, which is what a cancelled edit leaves, and
 (a status that changes everywhere it appears).
 [`examples/foldkit/pixel-art`](../../../examples/foldkit/pixel-art) keeps its
 grid this way, one group per stroke.
+
+## `Box`: move and resize within limits
+
+A box that a pointer drags (the `Move` Behavior in
+[`interaction`](../interaction/README.md) reports the deltas) or a key nudges is
+held in the Model, and these functions turn a delta into the next box. They are
+pure, so a key and a drag obey the same limits and the Model is the only owner:
+
+- `Box.moveBy(box, dx, dy, { bounds?, snap? })` and `Box.moveEach(boxes, ids,
+  dx, dy, limits)` for several boxes at once. A group keeps its shape: the delta
+  is limited so the whole group stays inside `bounds`, rather than each box
+  stopping alone. `snap` lands the first id on the grid, on the axes that move,
+  and the rest keep their distance from it.
+- `Box.resize(box, handle, dx, dy, { bounds?, min?, max?, aspect?, snap? })`
+  moves the edges a handle (`n`, `e`, `se`, ...) owns and keeps the others. The
+  grid takes the moving edge first and the limits still win; with `aspect` an
+  edge grows the other side about the box's middle and a corner follows the edge
+  that moved further.
+- `Box.moveKey(press, { step?, largeStep? })`: Alt with an arrow, Shift for the
+  larger step (ten steps by default). `Box.resizeKey(press, handle, options)`:
+  an arrow moves the handle's own edges (an east handle reads Left and Right
+  only), and Home and End take its axes to the smallest and largest size the
+  limits allow. Both are `Option`, none for another key or a press with Control
+  or Meta; read them from a `Pressed` or an attribute-handler key, not a Mount.
+
+A function that changes nothing returns the box it was given, so a nudge against
+the edge records no undo step (see `History.push`'s `equals`), and a delta that
+is not finite is refused. Announcing the result ("Card moved to 40, 20") is the
+parent's: say it through `LiveAnnounce` in the same transition.
+
+```ts
+import { Option } from 'effect'
+import type { KeyPress } from 'foldkit-primitives/events'
+import { Box } from 'foldkit-primitives/state'
+
+const area = { left: 0, top: 0, right: 100, bottom: 50 }
+const card = { x: 10, y: 10, width: 20, height: 10 }
+
+const press: KeyPress = {
+  key: 'ArrowRight',
+  repeat: false,
+  ctrl: false,
+  shift: true,
+  alt: true,
+  meta: false,
+}
+const nudged = Option.map(Box.moveKey(press, { step: 100 }), ({ dx, dy }) =>
+  Box.moveBy(card, dx, dy, { bounds: area }),
+)
+const grown = Box.resize(card, 'se', 500, 500, { bounds: area, aspect: 2 })
+```
 
 ## `Locale` and `SelectionSet`
 

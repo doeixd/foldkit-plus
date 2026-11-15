@@ -19,14 +19,17 @@ import { Recipes, Tabs, TabsSlots } from '../src/index.js'
 import {
   checkNames,
   defineActivation,
+  defineNameSabotage,
   defineRefusal,
   defineScenarios,
+  defineSelfChecks,
   defineTabStop,
   listScenarios,
   type Adapter,
   type Direction,
   type ListSpec,
   type Mounted,
+  type NamesSpec,
   type Orientation,
   type Scenario,
 } from './conformance.js'
@@ -344,60 +347,72 @@ defineTabStop(adapter, {
   moved: 'Activity',
 })
 
+const namesOf = (orientation: Orientation): NamesSpec => ({
+  root: {
+    role: 'tablist',
+    name: 'Files',
+    attributes: { 'aria-orientation': orientation },
+    properties: { orientation },
+  },
+  item: { role: 'tab' },
+  states: [
+    {
+      attribute: 'aria-selected',
+      property: 'selected',
+      on: m => m.items(),
+      values: ['true', 'false'],
+    },
+    {
+      attribute: 'aria-disabled',
+      property: 'disabled',
+      on: m => m.items().filter(item => DISABLED.includes(m.labelOf(item))),
+      values: ['true'],
+    },
+  ],
+  relationships: [
+    // The chosen tab names the panel it shows, which it names back.
+    {
+      attribute: 'aria-controls',
+      on: m => m.items().filter(item => item.getAttribute('aria-selected') === 'true'),
+      targetRole: 'tabpanel',
+      targetName: (m, tab) => m.labelOf(tab),
+    },
+    {
+      attribute: 'aria-labelledby',
+      on: () => Array.from(document.querySelectorAll<HTMLElement>('[role="tabpanel"]')),
+      targetRole: 'tab',
+      targetName: () => 'Activity',
+    },
+  ],
+})
+
+const namesSetup = (orientation: Orientation): Setup => ({
+  labels: LABELS,
+  disabled: DISABLED,
+  start: 'Activity',
+  direction: 'ltr',
+  orientation,
+  activation: 'Automatic',
+  closable: false,
+})
+
 describe('names and relationships', () => {
   for (const orientation of ['horizontal', 'vertical'] as const) {
     test(`a ${orientation} tablist is named, stated and related as the APG asks, in Chrome`, async () => {
-      const mounted = await adapter.mount({
-        labels: LABELS,
-        disabled: DISABLED,
-        start: 'Activity',
-        direction: 'ltr',
-        orientation,
-        activation: 'Automatic',
-        closable: false,
-      })
+      const mounted = await adapter.mount(namesSetup(orientation))
       try {
-        await checkNames(mounted, {
-          root: {
-            role: 'tablist',
-            name: 'Files',
-            attributes: { 'aria-orientation': orientation },
-            properties: { orientation },
-          },
-          item: { role: 'tab' },
-          states: [
-            {
-              attribute: 'aria-selected',
-              property: 'selected',
-              on: m => m.items(),
-              values: ['true', 'false'],
-            },
-            {
-              attribute: 'aria-disabled',
-              property: 'disabled',
-              on: m => m.items().filter(item => DISABLED.includes(m.labelOf(item))),
-              values: ['true'],
-            },
-          ],
-          relationships: [
-            // The chosen tab names the panel it shows, which it names back.
-            {
-              attribute: 'aria-controls',
-              on: m => m.items().filter(item => item.getAttribute('aria-selected') === 'true'),
-              targetRole: 'tabpanel',
-              targetName: (m, tab) => m.labelOf(tab),
-            },
-            {
-              attribute: 'aria-labelledby',
-              on: () => Array.from(document.querySelectorAll<HTMLElement>('[role="tabpanel"]')),
-              targetRole: 'tab',
-              targetName: () => 'Activity',
-            },
-          ],
-        })
+        await checkNames(mounted, namesOf(orientation))
       } finally {
         mounted.dispose()
       }
     })
   }
+})
+
+describe('the suite can fail', () => {
+  defineSelfChecks(adapter, [
+    ...named('automatic, horizontal', listScenarios(spec('horizontal', 'Automatic'), 'rtl')),
+    ...named('manual, vertical', listScenarios(spec('vertical', 'Manual'), 'ltr')),
+  ])
+  defineNameSabotage(adapter, namesSetup('horizontal'), namesOf('horizontal'))
 })

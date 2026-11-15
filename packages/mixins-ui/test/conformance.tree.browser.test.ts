@@ -12,11 +12,14 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { Recipes, TreeView, TreeViewSlots } from '../src/index.js'
 import {
   checkNames,
+  defineNameSabotage,
   defineScenarios,
+  defineSelfChecks,
   defineTabStop,
   treeScenarios,
   type Adapter,
   type Mounted,
+  type NamesSpec,
   type TreeNodeSpec,
   type TreeSetup,
 } from './conformance.js'
@@ -188,40 +191,48 @@ const hasRows = (mounted: Mounted) =>
     item => item.querySelector('[role="group"]') !== null,
   )
 
+const namesOf = (): NamesSpec => ({
+  root: { role: 'tree', name: 'Files' },
+  item: { role: 'treeitem' },
+  states: [
+    {
+      attribute: 'aria-selected',
+      property: 'selected',
+      on: m => m.items(),
+      values: ['true', 'false'],
+    },
+    {
+      attribute: 'aria-expanded',
+      property: 'expanded',
+      on: hasRows,
+      values: ['true', 'false'],
+    },
+    {
+      attribute: 'aria-checked',
+      property: 'checked',
+      on: m => m.items(),
+      values: ['true', 'false', 'mixed'],
+    },
+  ],
+  relationships: [],
+})
+
+const namesSetup: TreeSetup = { direction: 'ltr', open: ['src'], start: 'src', checkable: true }
+
 test('the tree and its rows are named, stated and related as the APG asks, in Chrome', async () => {
-  const mounted = await adapter.mount({
-    direction: 'ltr',
-    open: ['src'],
-    start: 'src',
-    checkable: true,
-  })
+  const mounted = await adapter.mount(namesSetup)
   try {
-    await checkNames(mounted, {
-      root: { role: 'tree', name: 'Files' },
-      item: { role: 'treeitem' },
-      states: [
-        {
-          attribute: 'aria-selected',
-          property: 'selected',
-          on: m => m.items(),
-          values: ['true', 'false'],
-        },
-        {
-          attribute: 'aria-expanded',
-          property: 'expanded',
-          on: hasRows,
-          values: ['true', 'false'],
-        },
-        {
-          attribute: 'aria-checked',
-          property: 'checked',
-          on: m => m.items(),
-          values: ['true', 'false', 'mixed'],
-        },
-      ],
-      relationships: [],
-    })
+    await checkNames(mounted, namesOf())
   } finally {
     mounted.dispose()
   }
+})
+
+describe('the suite can fail', () => {
+  defineSelfChecks(adapter, [
+    ...sources('ltr', false),
+    ...sources('rtl', false),
+    ...sources('ltr', true),
+  ])
+  defineNameSabotage(adapter, namesSetup, namesOf())
 })

@@ -16,8 +16,10 @@ import { Listbox, ListboxSlots, ListboxView, Recipes } from '../src/index.js'
 import {
   checkNames,
   defineActivation,
+  defineNameSabotage,
   defineRefusal,
   defineScenarios,
+  defineSelfChecks,
   listScenarios,
   press,
   settle,
@@ -25,6 +27,7 @@ import {
   type Direction,
   type ListSpec,
   type Mounted,
+  type NamesSpec,
   type Orientation,
 } from './conformance.js'
 
@@ -209,6 +212,58 @@ describe('activation', () => {
   })
 })
 
+const namesOf = (multiple: boolean, orientation: Orientation): NamesSpec => {
+  const button = () => document.getElementById('lb-button')!
+  return {
+    root: {
+      role: 'listbox',
+      // The listbox is named by the button that opened it.
+      name: 'Colour',
+      attributes: {
+        'aria-orientation': orientation,
+        'aria-multiselectable': multiple ? 'true' : null,
+      },
+      properties: { orientation, ...(multiple ? { multiselectable: 'true' } : {}) },
+    },
+    item: { role: 'option' },
+    states: [
+      {
+        attribute: 'aria-selected',
+        property: 'selected',
+        on: m => m.items(),
+        values: ['true', 'false'],
+      },
+      {
+        attribute: 'aria-expanded',
+        property: 'expanded',
+        on: () => [button()],
+        values: ['true'],
+      },
+      {
+        attribute: 'aria-disabled',
+        property: 'disabled',
+        on: m => m.items().filter(item => DISABLED.includes(m.labelOf(item))),
+        values: ['true'],
+      },
+    ],
+    relationships: [
+      { attribute: 'aria-controls', on: () => [button()], targetRole: 'listbox' },
+      {
+        attribute: 'aria-labelledby',
+        on: m => [m.root()],
+        targetRole: 'button',
+        targetName: () => 'Colour',
+      },
+      {
+        attribute: 'aria-activedescendant',
+        on: m => [m.root()],
+        targetRole: 'option',
+        targetName: () => 'Amber',
+      },
+    ],
+  }
+}
+
 describe('names and relationships', () => {
   const names = (multiple: boolean, orientation: Orientation) =>
     test(`a ${multiple ? 'multiple' : 'single'} ${orientation} listbox is named, stated and related as the APG asks, in Chrome`, async () => {
@@ -219,55 +274,7 @@ describe('names and relationships', () => {
         multiple,
       })
       try {
-        const button = () => document.getElementById('lb-button')!
-        await checkNames(mounted, {
-          root: {
-            role: 'listbox',
-            // The listbox is named by the button that opened it.
-            name: 'Colour',
-            attributes: {
-              'aria-orientation': orientation,
-              'aria-multiselectable': multiple ? 'true' : null,
-            },
-            properties: { orientation, ...(multiple ? { multiselectable: 'true' } : {}) },
-          },
-          item: { role: 'option' },
-          states: [
-            {
-              attribute: 'aria-selected',
-              property: 'selected',
-              on: m => m.items(),
-              values: ['true', 'false'],
-            },
-            {
-              attribute: 'aria-expanded',
-              property: 'expanded',
-              on: () => [button()],
-              values: ['true'],
-            },
-            {
-              attribute: 'aria-disabled',
-              property: 'disabled',
-              on: m => m.items().filter(item => DISABLED.includes(m.labelOf(item))),
-              values: ['true'],
-            },
-          ],
-          relationships: [
-            { attribute: 'aria-controls', on: () => [button()], targetRole: 'listbox' },
-            {
-              attribute: 'aria-labelledby',
-              on: m => [m.root()],
-              targetRole: 'button',
-              targetName: () => 'Colour',
-            },
-            {
-              attribute: 'aria-activedescendant',
-              on: m => [m.root()],
-              targetRole: 'option',
-              targetName: () => 'Amber',
-            },
-          ],
-        })
+        await checkNames(mounted, namesOf(multiple, orientation))
       } finally {
         mounted.dispose()
       }
@@ -275,6 +282,18 @@ describe('names and relationships', () => {
   names(false, 'vertical')
   names(false, 'horizontal')
   names(true, 'vertical')
+})
+
+describe('the suite can fail', () => {
+  defineSelfChecks(adapter, [
+    ...listScenarios(spec('vertical', false), 'ltr'),
+    ...listScenarios(spec('horizontal', false), 'rtl'),
+  ])
+  defineNameSabotage(
+    adapter,
+    { start: 'Amber', direction: 'ltr', orientation: 'vertical', multiple: true },
+    namesOf(true, 'vertical'),
+  )
 })
 
 test('Escape closes the list and returns focus to the button', async () => {
