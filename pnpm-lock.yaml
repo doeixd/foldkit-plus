@@ -629,6 +629,9 @@ importers:
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../packages/primitives
     devDependencies:
       '@foldkit/vite-plugin':
         specifier: 0.29.0

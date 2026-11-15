@@ -14,7 +14,8 @@
     "effect": "4.1.4",
     "foldkit": "0.170.0",
     "foldkit-mixins": "workspace:*",
-    "foldkit-mixins-ui": "workspace:*"
+    "foldkit-mixins-ui": "workspace:*",
+    "foldkit-primitives": "workspace:*"
   },
   "devDependencies": {
     "@foldkit/vite-plugin": "0.29.0",

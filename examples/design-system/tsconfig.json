@@ -21,7 +21,18 @@
       "foldkit-mixins/theme/knob-data": ["../../packages/mixins/src/theme/knobData.ts"],
       "foldkit-mixins/theme/runtime": ["../../packages/mixins/src/theme/runtime.ts"],
       "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
-      "foldkit-mixins/vite": ["../../packages/mixins/src/vite.ts"]
+      "foldkit-mixins/vite": ["../../packages/mixins/src/vite.ts"],
+      "foldkit-primitives": ["../../packages/primitives/src/index.ts"],
+      "foldkit-primitives/device": ["../../packages/primitives/src/device/index.ts"],
+      "foldkit-primitives/dom": ["../../packages/primitives/src/dom/index.ts"],
+      "foldkit-primitives/events": ["../../packages/primitives/src/events/index.ts"],
+      "foldkit-primitives/interaction": ["../../packages/primitives/src/interaction/index.ts"],
+      "foldkit-primitives/media": ["../../packages/primitives/src/media/index.ts"],
+      "foldkit-primitives/motion": ["../../packages/primitives/src/motion/index.ts"],
+      "foldkit-primitives/net": ["../../packages/primitives/src/net/index.ts"],
+      "foldkit-primitives/observers": ["../../packages/primitives/src/observers/index.ts"],
+      "foldkit-primitives/state": ["../../packages/primitives/src/state/index.ts"],
+      "foldkit-primitives/time": ["../../packages/primitives/src/time/index.ts"]
     }
   },
   "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts"],
@@ -31,6 +42,9 @@
     },
     {
       "path": "../../packages/mixins-ui/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/primitives/tsconfig.build.json"
     }
   ]
 }
