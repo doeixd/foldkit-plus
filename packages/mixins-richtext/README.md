@@ -308,24 +308,39 @@ formattingToolbar<Message>()(
 
 ### Where the focus goes
 
-A command leaves the focus on the control that sent it, so a keyboard user can press the next
-one: after Bold, a list wrap or undo (by Enter or Space on the button, or a click) the focus is
-still on that button, and the editor keeps its selection in the Model. Typing then is not typing in
-the text: a letter reaches the button, and Space presses it again.
+**A pointer press leaves the focus in the text.** The bar's root carries `data-editor-controls`
+(`CONTROLS_ATTRIBUTE` from `foldkit-richtext-dom/toolbar`), and while the focus is in the text the
+editor holds back the focus change of a press inside such an element. The click still happens. So
+after pressing Bold the same text is still selected in the browser, pressing Italic marks it too,
+and typing replaces it. A menu opened by a press is chosen from by a press, and its entry lands on
+the selection or caret that is still in the text. No control took the focus, so the tab stop does
+not move. A press made while a bar control or another field has the focus moves the focus to the
+pressed control, as any button does.
+
+**A control reached by key holds the focus.** After Tab or Shift+Tab to the bar and the arrows, a
+command (Enter or Space on Bold, a list wrap, undo) leaves the focus on its button, so the next
+control is an arrow away. Every command reads the selection the editor keeps in the Model, which
+the focus leaving does not change, so two commands in a row act on the same text. The browser
+cannot show a selection in the text while a button has the focus, so the editor draws it as a
+decoration, `span[data-decoration="selection"]`, which the application's stylesheet paints as
+selected text. Typing then is not typing in the text: a letter reaches the button, and Space
+presses it again.
 
 To go back to the text, press Escape on a control. It sends `returned`, usually
 a Message whose `update` runs `foldkit-richtext-dom/editor-bundle`'s `focus(hostId, selection)`;
 without `returned` Escape does nothing there. It closes an open popup first, and then returns.
-Typing while a button has the focus is not typing in the text: Space presses the button again. To
-come back to the bar, Tab or Shift+Tab reaches the control last used.
+Tab into the text returns too. Either way the decoration goes and the selection is the browser's
+again, so typing replaces it. To come back to the bar, Tab or Shift+Tab reaches the control last
+focused.
 
-A press does not move the editor's selection: the browser may move focus to the button, but the
-editor keeps its own selection in the Model, which every command reads, so the mark lands on the
-text that was selected.
+`markToolbar`, `blockStyles`, `blockStyleMenu`, `tableToolbar`, `codeToolbar`, `slashMenuView` and
+`linkEditor` mark their roots the same way. A field in a marked element (the link editor's
+address) takes the focus as usual. Mark your own chrome that acts on the selection, such as a
+block menu, with `h.Attribute(CONTROLS_ATTRIBUTE, '')`.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `root` | Container | the bar, `role="toolbar"`; owns `keydown` |
+| `root` | Container | the bar, `role="toolbar"`, `data-editor-controls`; owns `keydown` |
 | `button` | Interactive | one control, `data-item` its id, `aria-pressed` or `aria-expanded` |
 | `separator` | Container | a rule between sets |
 | `anchor` | Container | a menu's trigger and its open panel, to anchor the panel to |

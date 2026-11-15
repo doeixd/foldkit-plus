@@ -23,7 +23,7 @@ import {
   type EditorEvent,
   type SlashEntry,
 } from 'foldkit-richtext-dom/editor'
-import { markActive } from 'foldkit-richtext-dom/toolbar'
+import { CONTROLS_ATTRIBUTE, markActive } from 'foldkit-richtext-dom/toolbar'
 import { isRichTextIcon, richTextIcon, type RichTextIconName } from './icons.js'
 import { styles } from './style.js'
 
@@ -376,8 +376,10 @@ const menuItemIds = <Message>(
  * selection, the text style menu a text selection, and link a selection that covers text. Lists
  * and quote are not toggles here: wrapping again wraps deeper, as in the slash menu.
  *
- * Pressing a control does not stop the browser moving the document selection to it: the editor
- * keeps its own selection in the Model, which every command reads, and which survives.
+ * The root is marked as the editor's controls (`CONTROLS_ATTRIBUTE`), so a pointer press on a
+ * control or a menu entry leaves the focus, and the browser's selection, in the text. A control
+ * reached by key does hold the focus: every command then reads the selection the editor keeps in
+ * the Model, and the editor draws that selection as a decoration until the focus returns.
  */
 export const formattingToolbar = <Message>(): SlotView.SlotView<
   typeof FormattingToolbarSlots,
@@ -669,6 +671,7 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
           h.Role('toolbar'),
           h.AriaLabel(words.toolbar),
           h.AriaOrientation('horizontal'),
+          h.Attribute(CONTROLS_ATTRIBUTE, ''),
         ]),
         items.map((item, position) => {
           if (item === 'separator') {

@@ -10,7 +10,7 @@
  */
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
-import { markActive, type ToolbarState } from 'foldkit-richtext-dom/toolbar'
+import { CONTROLS_ATTRIBUTE, markActive, type ToolbarState } from 'foldkit-richtext-dom/toolbar'
 
 /** The elements the toolbar publishes: its wrapper, its row, and one button per mark. */
 export const MarkToolbarSlots = Slots.define({
@@ -44,7 +44,7 @@ export const markToolbar = <Message>(): SlotView.SlotView<
 > =>
   SlotView.forMessages<Message>().define(MarkToolbarSlots, (input, slots, h) => {
     const marks = input.marks ?? RichText.shippedMarks.map(definition => definition.name)
-    return h.div(slots.root.attrs(), [
+    return h.div(slots.root.attrs([h.Attribute(CONTROLS_ATTRIBUTE, '')]), [
       h.div(
         slots.toolbar.attrs([h.Role('toolbar')]),
         marks.map((mark, index) =>

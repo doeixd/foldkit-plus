@@ -8,6 +8,7 @@ import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage, type EditorEvent } from 'foldkit-richtext-dom/editor'
+import { CONTROLS_ATTRIBUTE } from 'foldkit-richtext-dom/toolbar'
 
 /** The elements the toolbar publishes: its wrapper, the language picker, and the Copy button. */
 export const CodeToolbarSlots = Slots.define({
@@ -51,28 +52,35 @@ export const codeToolbar = <Message>(): SlotView.SlotView<
     const languages = input.languages.some(each => each.id === language)
       ? input.languages
       : [...input.languages, { id: language, label: language }]
-    return h.div(slots.root.attrs([h.Role('toolbar'), h.AriaLabel('Code')]), [
-      h.select(
-        slots.language.attrs([
-          h.AriaLabel('Language'),
-          h.Value(language),
-          h.OnChange(chosen =>
-            input.wrap(
-              EditorMessage.ChangedProps({ node: input.node, props: { language: chosen } }),
+    return h.div(
+      slots.root.attrs([
+        h.Role('toolbar'),
+        h.AriaLabel('Code'),
+        h.Attribute(CONTROLS_ATTRIBUTE, ''),
+      ]),
+      [
+        h.select(
+          slots.language.attrs([
+            h.AriaLabel('Language'),
+            h.Value(language),
+            h.OnChange(chosen =>
+              input.wrap(
+                EditorMessage.ChangedProps({ node: input.node, props: { language: chosen } }),
+              ),
             ),
+          ]),
+          languages.map(each =>
+            h.option([h.Value(each.id), h.Selected(each.id === language)], [each.label]),
           ),
-        ]),
-        languages.map(each =>
-          h.option([h.Value(each.id), h.Selected(each.id === language)], [each.label]),
         ),
-      ),
-      h.button(
-        slots.copy.attrs([
-          h.Type('button'),
-          h.DataAttribute('code', 'copy'),
-          h.OnClick(input.copied),
-        ]),
-        ['Copy'],
-      ),
-    ])
+        h.button(
+          slots.copy.attrs([
+            h.Type('button'),
+            h.DataAttribute('code', 'copy'),
+            h.OnClick(input.copied),
+          ]),
+          ['Copy'],
+        ),
+      ],
+    )
   })

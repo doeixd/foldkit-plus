@@ -8,6 +8,7 @@ import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage, type EditorEvent } from 'foldkit-richtext-dom/editor'
+import { CONTROLS_ATTRIBUTE } from 'foldkit-richtext-dom/toolbar'
 
 /** The elements the toolbar publishes: its wrapper, its row, and one button per change. */
 export const TableToolbarSlots = Slots.define({
@@ -61,7 +62,7 @@ export const tableToolbar = <Message>(): SlotView.SlotView<
         at === undefined ? undefined : EditorMessage.DeletedBlock({ node: at.table.id }),
       ],
     ]
-    return h.div(slots.root.attrs(), [
+    return h.div(slots.root.attrs([h.Attribute(CONTROLS_ATTRIBUTE, '')]), [
       h.div(
         slots.toolbar.attrs([h.Role('toolbar'), h.AriaLabel('Table')]),
         changes.map(([id, label, message, pressed], index) =>

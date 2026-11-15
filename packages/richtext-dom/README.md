@@ -576,7 +576,24 @@ that transition committed.
   else (a table, code, an image) opens a paragraph there, which no caret could reach.
   `attachment.sync(state, changeSet)` patches and restores the
   selection in one call, but only while the browser's selection is inside the editor: a sync
-  never takes the caret from another editor or an input. While an IME is composing, the latest
+  never takes the caret from another editor or an input.
+  The editor owns the browser's selection only while the focus is not on something outside it,
+  such as a toolbar button or another field. While it is, a redraw puts no selection back
+  (setting one in the text would take the focus), and what the browser then says of its selection
+  is not reported, so the application's selection is what it was when the focus left, plus what
+  its own commands did. When the focus moves outside, and in every state drawn while it is
+  there, a range selection is drawn as a decoration of kind `selection`
+  (`SELECTION_DECORATION`): `span[data-decoration="selection"]` over the selected text, for a
+  stylesheet to paint as selected (`background: Highlight; color: HighlightText`). A caret and
+  a selected block draw none. When the focus comes back to the text by a key or by `focus`, the
+  decoration goes and the browser's selection is the application's again; a press in the text
+  places its own caret.
+  A press inside an element marked `data-editor-controls` (`CONTROLS_ATTRIBUTE`; both names are
+  exported from `foldkit-richtext-dom/toolbar`) does not take the focus from the text at all: while
+  the editor owns the selection it prevents the press's default, and the click still happens. A
+  field in such an element (`input`, `select`, `textarea`, anything `contenteditable`) takes the
+  focus as usual, and so does a marked control pressed while the focus is elsewhere.
+  While an IME is composing, the latest
   state waits and is drawn when composition ends, so another person's edit never rewrites the
   text under the IME.
   The caret is kept in view: after an edit, an undo or redo, or a caret the editor itself moved

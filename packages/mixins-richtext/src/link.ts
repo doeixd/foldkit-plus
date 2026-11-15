@@ -13,6 +13,7 @@ import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage, type EditorEvent } from 'foldkit-richtext-dom/editor'
+import { CONTROLS_ATTRIBUTE } from 'foldkit-richtext-dom/toolbar'
 
 /** The elements the editor publishes: its wrapper, the address field, and its two buttons. */
 export const LinkEditorSlots = Slots.define({
@@ -76,43 +77,46 @@ export const linkEditor = <Message>(): SlotView.SlotView<
     const apply = Option.getOrUndefined(
       Option.map(linkEdit(input.document, input.selection, input.draft), input.wrap),
     )
-    return h.div(slots.root.attrs([h.Role('group'), h.AriaLabel('Link')]), [
-      h.input(
-        slots.input.attrs([
-          h.Type('url'),
-          h.DataAttribute('link', 'address'),
-          h.AriaLabel('Link address'),
-          h.Placeholder('Paste or type a link'),
-          h.Value(input.draft),
-          h.OnInput(input.drafted),
-          h.OnKeyDownPreventDefault(key => {
-            if (key === 'Escape' && input.closed !== undefined) return Option.some(input.closed)
-            if (key !== 'Enter') return Option.none()
-            if (input.submitted !== undefined) return Option.some(input.submitted)
-            return apply === undefined ? Option.none() : Option.some(apply)
-          }),
-        ]),
-      ),
-      h.button(
-        slots.apply.attrs([
-          h.Type('button'),
-          h.DataAttribute('link', 'apply'),
-          h.Disabled(apply === undefined),
-          ...(apply === undefined ? [] : [h.OnClick(apply)]),
-        ]),
-        [link === undefined ? 'Apply' : 'Update'],
-      ),
-      ...(link === undefined
-        ? []
-        : [
-            h.button(
-              slots.remove.attrs([
-                h.Type('button'),
-                h.DataAttribute('link', 'remove'),
-                h.OnClick(input.wrap(EditorMessage.ClearedMark({ mark: 'Link' }))),
-              ]),
-              ['Remove'],
-            ),
+    return h.div(
+      slots.root.attrs([h.Role('group'), h.AriaLabel('Link'), h.Attribute(CONTROLS_ATTRIBUTE, '')]),
+      [
+        h.input(
+          slots.input.attrs([
+            h.Type('url'),
+            h.DataAttribute('link', 'address'),
+            h.AriaLabel('Link address'),
+            h.Placeholder('Paste or type a link'),
+            h.Value(input.draft),
+            h.OnInput(input.drafted),
+            h.OnKeyDownPreventDefault(key => {
+              if (key === 'Escape' && input.closed !== undefined) return Option.some(input.closed)
+              if (key !== 'Enter') return Option.none()
+              if (input.submitted !== undefined) return Option.some(input.submitted)
+              return apply === undefined ? Option.none() : Option.some(apply)
+            }),
           ]),
-    ])
+        ),
+        h.button(
+          slots.apply.attrs([
+            h.Type('button'),
+            h.DataAttribute('link', 'apply'),
+            h.Disabled(apply === undefined),
+            ...(apply === undefined ? [] : [h.OnClick(apply)]),
+          ]),
+          [link === undefined ? 'Apply' : 'Update'],
+        ),
+        ...(link === undefined
+          ? []
+          : [
+              h.button(
+                slots.remove.attrs([
+                  h.Type('button'),
+                  h.DataAttribute('link', 'remove'),
+                  h.OnClick(input.wrap(EditorMessage.ClearedMark({ mark: 'Link' }))),
+                ]),
+                ['Remove'],
+              ),
+            ]),
+      ],
+    )
   })
