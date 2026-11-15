@@ -115,9 +115,9 @@ describe('Menubar.view', () => {
                 label: 'Editor',
                 model,
                 menus: [
-                  { label: 'File', rows: [{ label: 'New' }] },
-                  { label: 'Edit', rows: [{ label: 'Copy' }] },
-                  { label: 'View', rows: [{ label: 'Zoom' }] },
+                  { label: 'File', rows: [{ value: 'New', label: 'New' }] },
+                  { label: 'Edit', rows: [{ value: 'Copy', label: 'Copy' }] },
+                  { label: 'View', rows: [{ value: 'Zoom', label: 'Zoom' }] },
                 ],
                 onMessage: message => message,
                 direction,
@@ -179,7 +179,7 @@ describe('Menubar.view', () => {
         {
           label: 'Editor',
           model: bar,
-          menus: [{ label: 'File', rows: [{ label: 'New' }] }],
+          menus: [{ label: 'File', rows: [{ value: 'New', label: 'New' }] }],
           onMessage: message => message,
           menuMixins: [],
           routes,

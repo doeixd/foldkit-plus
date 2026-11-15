@@ -85,7 +85,7 @@ export default [
     edits: [
       {
         file: '../src/menubar.ts',
-        find: 'onSome: row => Message.ChoseCheck({ menu: index, value: row.label }),',
+        find: 'onSome: row => Message.ChoseCheck({ menu: index, value: row.value }),',
         replace: 'onSome: () => Message.GotMenu({ index, message }),',
       },
     ],
@@ -164,6 +164,17 @@ export default [
         file: view,
         find: 'h.OnClick(Message.ClickedButton()),',
         replace: 'h.OnClick(Message.Opened({ maybeActiveItemIndex: Option.none() })),',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a check row reports its label, not its value',
+    edits: [
+      {
+        file,
+        find: 'onSome: row => Message.ChoseCheck({ value: row.value }),',
+        replace: 'onSome: row => Message.ChoseCheck({ value: row.label }),',
       },
     ],
     tests: browser,

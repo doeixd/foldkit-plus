@@ -80,7 +80,10 @@ const expectUnderTrigger = ({ trigger, panel }: { trigger: DOMRect; panel: DOMRe
 }
 
 test('a Menu opens under its trigger right to left', async () => {
-  const rows: ReadonlyArray<Menu.Row> = [{ label: 'New tab' }, { label: 'Print' }]
+  const rows: ReadonlyArray<Menu.Row> = [
+    { value: 'New tab', label: 'New tab' },
+    { value: 'Print', label: 'Print' },
+  ]
   const initial = Menu.init('file', rows)
   const handle = Runtime.embed(
     Runtime.makeElement({

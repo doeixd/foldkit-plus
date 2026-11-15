@@ -24,9 +24,16 @@ import { marksThrough } from './observe.js'
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(MenuSlots)(Recipes.Menu({}))
 const ROWS: ReadonlyArray<Menu.Row> = [
-  { label: 'New tab' },
-  { label: 'Share', items: ['Email', 'Messages'] },
-  { label: 'Print' },
+  { value: 'New tab', label: 'New tab' },
+  {
+    value: 'Share',
+    label: 'Share',
+    items: [
+      { value: 'Email', label: 'Email' },
+      { value: 'Messages', label: 'Messages' },
+    ],
+  },
+  { value: 'Print', label: 'Print' },
 ]
 const Model = Schema.Struct({ menu: Menu.Model, chosen: Schema.Option(Schema.String) })
 type Model = typeof Model.Type
@@ -44,9 +51,18 @@ interface Mounting {
   readonly direction: 'ltr' | 'rtl'
   readonly around: (menu: Html, h: HtmlBuilder<Message>) => Html
   readonly isAnimated?: boolean
+  readonly rows?: ReadonlyArray<Menu.Row>
+  readonly isRowDisabled?: (value: string) => boolean
 }
 
-const mount = ({ opensAt, direction, around, isAnimated = false }: Mounting) => {
+const mount = ({
+  opensAt,
+  direction,
+  around,
+  isAnimated = false,
+  rows = ROWS,
+  isRowDisabled,
+}: Mounting) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -65,7 +81,8 @@ const mount = ({ opensAt, direction, around, isAnimated = false }: Mounting) => 
           Menu.view(
             {
               model: model.menu,
-              rows: ROWS,
+              rows,
+              ...(isRowDisabled === undefined ? {} : { isRowDisabled }),
               buttonContent: h.span([], ['File']),
               onMessage: got,
               opensAt,
@@ -84,7 +101,7 @@ const mount = ({ opensAt, direction, around, isAnimated = false }: Mounting) => 
       Model,
       container,
       init: () => ({
-        model: { menu: Menu.init('file', ROWS, { isAnimated }), chosen: Option.none() },
+        model: { menu: Menu.init('file', rows, { isAnimated }), chosen: Option.none() },
       }),
       update: (model: Model, message: Message) => {
         const next = Menu.update(model.menu, message.message)
@@ -462,6 +479,78 @@ test("an application's own typed, grouped Menu opens at a point through toView",
     expect(Math.abs(panel.top - (box.top + 30))).toBeLessThan(12)
     expect(document.querySelectorAll('#actions-items [role="group"]')).toHaveLength(2)
     expect(byId('actions-button')?.tabIndex).toBe(-1)
+  } finally {
+    handle.dispose()
+  }
+})
+
+// Two rows read "Delete" in every group: only their values tell them apart.
+const TWINS: ReadonlyArray<Menu.Row> = [
+  { value: 'delete-draft', label: 'Delete' },
+  { value: 'delete-all', label: 'Delete' },
+  {
+    value: 'more',
+    label: 'More',
+    items: [
+      { value: 'copy-delete', label: 'Delete' },
+      { value: 'move-delete', label: 'Delete' },
+    ],
+    isItemDisabled: value => value === 'move-delete',
+  },
+]
+
+const twins = () =>
+  mount({
+    opensAt: 'button',
+    direction: 'ltr',
+    around: (menu, h) => h.div([h.Style({ padding: '40px' })], [menu]),
+    rows: TWINS,
+    isRowDisabled: value => value === 'delete-all',
+  })
+
+const chosenText = () => document.querySelector('[aria-label="chosen"]')?.textContent
+
+const openTwins = async () => {
+  const trigger = await vi.waitFor(() => {
+    const found = byId('file-button')
+    expect(found).not.toBeNull()
+    return found!
+  })
+  trigger.focus()
+  await userEvent.keyboard('{Enter}')
+  await vi.waitFor(() => expect(focusedId()).toBe('file-items'))
+}
+
+test('two rows with one label are told apart by value: one disabled, the keys skip it, each chooses itself', async () => {
+  const handle = twins()
+  try {
+    await openTwins()
+    expect(byId('file-item-0')?.getAttribute('aria-disabled')).toBeNull()
+    expect(byId('file-item-1')?.getAttribute('aria-disabled')).toBe('true')
+    // The first row is active as the menu opens; ArrowDown passes the disabled twin.
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(byId('file-item-2')?.hasAttribute('data-active')).toBe(true))
+    await userEvent.keyboard('{ArrowUp}')
+    await vi.waitFor(() => expect(byId('file-item-0')?.hasAttribute('data-active')).toBe(true))
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(chosenText()).toBe('delete-draft'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("a submenu's rows with one label are told apart by value, and the choice names both", async () => {
+  const handle = twins()
+  try {
+    await openTwins()
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(byId('file-item-2')?.hasAttribute('data-active')).toBe(true))
+    await userEvent.keyboard('{ArrowRight}')
+    await vi.waitFor(() => expect(focusedId()).toBe('file-sub-2-items'))
+    expect(byId('file-sub-2-item-0')?.getAttribute('aria-disabled')).toBeNull()
+    expect(byId('file-sub-2-item-1')?.getAttribute('aria-disabled')).toBe('true')
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(chosenText()).toBe('copy-delete'))
   } finally {
     handle.dispose()
   }

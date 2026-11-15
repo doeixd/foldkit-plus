@@ -51,7 +51,10 @@ export const ids = {
   dialogText: 'dialog-text',
 } as const
 
-const ROWS: ReadonlyArray<Menu.Row> = [{ label: 'Rename' }, { label: 'Open the second dialog' }]
+const ROWS: ReadonlyArray<Menu.Row> = [
+  { value: 'Rename', label: 'Rename' },
+  { value: 'Open the second dialog', label: 'Open the second dialog' },
+]
 const OPEN_SECOND = 'Open the second dialog'
 
 export const Model = Schema.Struct({

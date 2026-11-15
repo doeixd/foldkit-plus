@@ -80,17 +80,32 @@ describe('collapsedOf', () => {
 describe('the Menu of the hidden steps', () => {
   it('has a row for each hidden step, in order', () => {
     expect(menuRows(long, 3)).toEqual([
-      { label: 'Docs' },
-      { label: 'Guides' },
-      { label: 'Overlays' },
+      { value: '0', label: 'Docs' },
+      { value: '1', label: 'Guides' },
+      { value: '2', label: 'Overlays' },
     ])
     expect(menuRows(long, 6)).toEqual([])
   })
 
   it('finds the hidden step a chosen row stands for, and none outside the fold', () => {
-    expect(chosen(long, 3, 'Guides')).toEqual(Option.some({ label: 'Guides', href: '/Guides' }))
-    expect(chosen(long, 3, 'Dialog')).toEqual(Option.none())
+    expect(chosen(long, 3, '1')).toEqual(Option.some({ label: 'Guides', href: '/Guides' }))
+    expect(chosen(long, 3, '3')).toEqual(Option.none())
     expect(chosen(long, 3, 'Nowhere')).toEqual(Option.none())
+  })
+
+  it('tells two hidden steps of one label apart', () => {
+    const twins = [
+      { label: 'Home', href: '/' },
+      { label: 'Guides', href: '/a/guides' },
+      { label: 'Guides', href: '/b/guides' },
+      { label: 'Dialog', href: '/dialog' },
+      { label: 'Sizes', current: true },
+    ]
+    const values = menuRows(twins, 3).map(row => row.value)
+    expect(new Set(values).size).toBe(2)
+    expect(Option.map(chosen(twins, 3, values[1] ?? ''), step => step.href)).toEqual(
+      Option.some('/b/guides'),
+    )
   })
 })
 

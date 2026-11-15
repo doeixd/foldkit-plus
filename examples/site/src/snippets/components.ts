@@ -358,9 +358,9 @@ export const buttonGroupToolbar = (
 // is the group's last face, so it takes the group's end corners. Its Model
 // is the application's, as any Menu's.
 export const SAVE_MENU: ReadonlyArray<Menu.Row> = [
-  { label: 'Save as copy' },
-  { label: 'Save as template' },
-  { label: 'Save and close' },
+  { value: 'Save as copy', label: 'Save as copy' },
+  { value: 'Save as template', label: 'Save as template' },
+  { value: 'Save and close', label: 'Save and close' },
 ]
 
 export const buttonGroupSplit = <Message>(
@@ -3467,18 +3467,35 @@ export const MenuStyle = forSlots(MenuSlots)(Recipes.Menu({}))
 
 /** The rows of the menu a button opens. */
 export const PAGE_MENU: ReadonlyArray<Menu.Row> = [
-  { label: 'Rename' },
-  { label: 'Duplicate' },
-  { label: 'Move' },
-  { label: 'Delete' },
+  { value: 'Rename', label: 'Rename' },
+  { value: 'Duplicate', label: 'Duplicate' },
+  { value: 'Move', label: 'Move' },
+  { value: 'Delete', label: 'Delete' },
 ]
 
 /** The rows of the menu a right press opens, two opening submenus beside them. */
 export const FILE_MENU: ReadonlyArray<Menu.Row> = [
-  { label: 'New tab' },
-  { label: 'Share', items: ['Email', 'Messages', 'Copy link'] },
-  { label: 'Export', items: ['PDF', 'PNG', 'SVG'], isItemDisabled: item => item === 'SVG' },
-  { label: 'Print' },
+  { value: 'New tab', label: 'New tab' },
+  {
+    value: 'Share',
+    label: 'Share',
+    items: [
+      { value: 'Email', label: 'Email' },
+      { value: 'Messages', label: 'Messages' },
+      { value: 'Copy link', label: 'Copy link' },
+    ],
+  },
+  {
+    value: 'Export',
+    label: 'Export',
+    items: [
+      { value: 'PDF', label: 'PDF' },
+      { value: 'PNG', label: 'PNG' },
+      { value: 'SVG', label: 'SVG' },
+    ],
+    isItemDisabled: item => item === 'SVG',
+  },
+  { value: 'Print', label: 'Print' },
 ]
 
 /** Each open menu is the component's; what each last chose is the Model's. */
@@ -3515,7 +3532,7 @@ export const menu = <Message>(
           model: state.pageMenu,
           rows: PAGE_MENU,
           buttonContent: h.span([], ['Page actions']),
-          isRowDisabled: label => label === 'Move',
+          isRowDisabled: value => value === 'Move',
           onMessage: toPage,
           direction,
           mixins: [style.mixin, ...Menu.fluid],
@@ -3572,16 +3589,24 @@ export type ViewOptions = typeof ViewOptions.Type
 // Checkbox and radio rows send `Selected` and keep the menu open; rows of one
 // group stand under its heading; a shortcut is drawn as keys at the row's end.
 export const viewRows = (options: ViewOptions): ReadonlyArray<Menu.Row> => [
-  { label: 'Grid', check: 'checkbox', checked: options.grid, group: 'Show', shortcut: ['⌘', 'G'] },
-  { label: 'Rulers', check: 'checkbox', checked: options.rulers, group: 'Show' },
-  { label: 'Fit', check: 'radio', checked: options.zoom === 'Fit', group: 'Zoom' },
   {
+    value: 'Grid',
+    label: 'Grid',
+    check: 'checkbox',
+    checked: options.grid,
+    group: 'Show',
+    shortcut: ['⌘', 'G'],
+  },
+  { value: 'Rulers', label: 'Rulers', check: 'checkbox', checked: options.rulers, group: 'Show' },
+  { value: 'Fit', label: 'Fit', check: 'radio', checked: options.zoom === 'Fit', group: 'Zoom' },
+  {
+    value: 'Actual size',
     label: 'Actual size',
     check: 'radio',
     checked: options.zoom === 'Actual size',
     group: 'Zoom',
   },
-  { label: 'Delete', tone: 'destructive', shortcut: ['⌫'] },
+  { value: 'Delete', label: 'Delete', tone: 'destructive', shortcut: ['⌫'] },
 ]
 
 export const viewOptionsMenu = <Message>(
@@ -5808,14 +5833,14 @@ export const switcherSidebar = Sidebar.init({
 })
 
 export const TEAMS: ReadonlyArray<Menu.Row> = [
-  { label: 'Acme Inc' },
-  { label: 'Acme Corp.' },
-  { label: 'Evil Corp.' },
+  { value: 'Acme Inc', label: 'Acme Inc' },
+  { value: 'Acme Corp.', label: 'Acme Corp.' },
+  { value: 'Evil Corp.', label: 'Evil Corp.' },
 ]
 export const ACCOUNT: ReadonlyArray<Menu.Row> = [
-  { label: 'Account' },
-  { label: 'Notifications' },
-  { label: 'Log out' },
+  { value: 'Account', label: 'Account' },
+  { value: 'Notifications', label: 'Notifications' },
+  { value: 'Log out', label: 'Log out' },
 ]
 
 // A menu whose trigger is the whole end beside its mark, as wide as the column.
@@ -5915,13 +5940,31 @@ const MenubarMenuStyle = forSlots(MenuSlots)(Recipes.MenubarMenu({}))
 
 /** The bar's menus, in the order of the Model's. */
 export const MENUBAR: ReadonlyArray<Menubar.MenubarMenu> = [
-  { label: 'File', rows: [{ label: 'New' }, { label: 'Open' }, { label: 'Save' }] },
+  {
+    label: 'File',
+    rows: [
+      { value: 'New', label: 'New' },
+      { value: 'Open', label: 'Open' },
+      { value: 'Save', label: 'Save' },
+    ],
+  },
   {
     label: 'Edit',
-    rows: [{ label: 'Undo' }, { label: 'Redo' }, { label: 'Copy' }],
-    isRowDisabled: label => label === 'Redo',
+    rows: [
+      { value: 'Undo', label: 'Undo' },
+      { value: 'Redo', label: 'Redo' },
+      { value: 'Copy', label: 'Copy' },
+    ],
+    isRowDisabled: value => value === 'Redo',
   },
-  { label: 'View', rows: [{ label: 'Zoom in' }, { label: 'Zoom out' }, { label: 'Full screen' }] },
+  {
+    label: 'View',
+    rows: [
+      { value: 'Zoom in', label: 'Zoom in' },
+      { value: 'Zoom out', label: 'Zoom out' },
+      { value: 'Full screen', label: 'Full screen' },
+    ],
+  },
 ]
 
 /** The open menus are the bar's; the command chosen is the Model's. */

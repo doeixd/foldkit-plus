@@ -177,4 +177,15 @@ export default [
     ],
     tests: [unit],
   },
+  {
+    name: 'a menu of the bar disables no row',
+    edits: [
+      {
+        file,
+        find: 'rowInputs(shown.rows, shown.isRowDisabled, h)',
+        replace: 'rowInputs(shown.rows, undefined, h)',
+      },
+    ],
+    tests: [browser],
+  },
 ]
