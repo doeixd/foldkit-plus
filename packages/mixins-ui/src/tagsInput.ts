@@ -276,6 +276,12 @@ export interface TagsInputView<Message> {
   readonly label: string
   readonly placeholder?: string | undefined
   readonly disabled?: boolean | undefined
+  /**
+   * Adds the draft when the input loses focus, as Enter does, so text left in
+   * it is not thrown away. A refused draft stays, and says why. Default
+   * `false`: moving to a chip with the arrow keys is a blur too.
+   */
+  readonly addOnBlur?: boolean | undefined
   /** Default `ltr`; `rtl` swaps the arrows that move among the chips and out of the input. */
   readonly direction?: 'ltr' | 'rtl' | undefined
   /**
@@ -441,7 +447,10 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
           ...(options.placeholder === undefined ? [] : [h.Placeholder(options.placeholder)]),
           ...(disabled
             ? [h.Disabled(true)]
-            : [h.OnInput(text => lift(Message.Typed({ text, drawn: model.commits })))]),
+            : [
+                h.OnInput(text => lift(Message.Typed({ text, drawn: model.commits }))),
+                ...(options.addOnBlur === true ? [h.OnBlur(lift(Message.Committed()))] : []),
+              ]),
         ]),
       ),
     ]),

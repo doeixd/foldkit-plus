@@ -34,7 +34,7 @@ afterEach(async () => {
  */
 let handled: Array<string> = []
 
-const mount = (tags: ReadonlyArray<string> = []) => {
+const mount = (tags: ReadonlyArray<string> = [], addOnBlur = false) => {
   handled = []
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -62,7 +62,10 @@ const mount = (tags: ReadonlyArray<string> = []) => {
         return { model: next.model, commands: next.commands ?? [] }
       },
       view: (model: TagsInput.Model, h: HtmlBuilder<TagsInput.Message>) =>
-        TagsInput.view({ model, onMessage: message => message, label: 'Topics', style }, h),
+        TagsInput.view(
+          { model, onMessage: message => message, label: 'Topics', style, addOnBlur },
+          h,
+        ),
     }),
   )
 }
@@ -236,6 +239,27 @@ test('removing a chip from the keyboard focuses the one that takes its place, el
     handle.dispose()
   }
 })
+
+test.each([
+  [true, ['abc'], ''],
+  [false, [], 'abc'],
+] as const)(
+  'with addOnBlur %s, leaving the input holds the draft as tags %j',
+  async (addOnBlur, tags, draft) => {
+    const handle = mount([], addOnBlur)
+    try {
+      await vi.waitFor(() => expect(document.getElementById('topics-input')).not.toBeNull())
+      input().focus()
+      await userEvent.keyboard('abc')
+      await vi.waitFor(() => expect((input() as HTMLInputElement).value).toBe('abc'))
+      ;(document.activeElement as HTMLElement).blur()
+      await vi.waitFor(() => expect(tagTexts()).toEqual(tags))
+      await vi.waitFor(() => expect((input() as HTMLInputElement).value).toBe(draft))
+    } finally {
+      handle.dispose()
+    }
+  },
+)
 
 test('under reduced motion a refusal does not move the field', async () => {
   await reduce('reduce')

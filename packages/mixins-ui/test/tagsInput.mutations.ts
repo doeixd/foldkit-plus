@@ -437,6 +437,28 @@ export default [
     tests: [browser],
   },
   {
+    name: 'the input adds nothing when it loses focus',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: '...(options.addOnBlur === true ? [h.OnBlur(lift(Message.Committed()))] : []),',
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the input adds its draft on blur unasked',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'options.addOnBlur === true ? [h.OnBlur',
+        replace: 'true ? [h.OnBlur',
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'a disabled field still takes keys',
     edits: [
       {

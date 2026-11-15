@@ -244,6 +244,39 @@ describe('TagsInput.view', () => {
     )
   })
 
+  describe('adding on blur', () => {
+    it('commits the draft when the input loses focus, if asked to', () => {
+      sends(
+        (h: HtmlBuilder<TagsInput.Message>) =>
+          TagsInput.view(
+            { model: init({ id: 'topics' }), onMessage: m => m, label: 'Topics', addOnBlur: true },
+            h,
+          ),
+        Scene.blur(Scene.label('Topics')),
+        Scene.expectOutMessage(Message.Committed()),
+      )
+    })
+
+    it('leaves the draft alone by default, and while disabled', () => {
+      const [plain] = Inert.byTag(drawn([]), 'input')
+      expect(plain?.data?.on?.['blur']).toBeUndefined()
+      const [off] = Inert.byTag(
+        TagsInput.view(
+          {
+            model: init({ id: 'topics' }),
+            onMessage: () => message('Clicked'),
+            label: 'Topics',
+            addOnBlur: true,
+            disabled: true,
+          },
+          h,
+        ),
+        'input',
+      )
+      expect(off?.data?.on?.['blur']).toBeUndefined()
+    })
+  })
+
   it('reports the text typed', () => {
     sends(
       plain,

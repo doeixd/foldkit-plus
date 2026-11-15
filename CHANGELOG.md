@@ -9,6 +9,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `TagsInput.view` takes `addOnBlur`, which adds the draft when the input
+  loses focus, so text left in it is not thrown away. Off by default.
 - `foldkit-mixins-ui`: a Menu row takes an `icon` (before its label) and a `hint` (at its end, before its shortcut), each in a Slot of its own (`MenuSlots.icon`, `MenuSlots.hint`) that `Recipes.Menu` styles; a submenu's items take them too.
 
 - `foldkit-mixins-ui`: `TagsInput`'s chips are one roving tab stop (`Model.chip`, set by
