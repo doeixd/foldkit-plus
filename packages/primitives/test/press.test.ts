@@ -173,7 +173,7 @@ describe('Press.events', () => {
           )
           for (let i = 0; i < 50; i++) yield* Effect.yieldNow
           button.setAttribute('aria-disabled', 'true')
-          fire(button, 'click', { detail: 0 })
+          fire(button, 'click', { detail: 5 })
           button.removeAttribute('aria-disabled')
           fire(button, 'click', { detail: 0 })
           const collected = yield* Fiber.join(fiber)
@@ -185,6 +185,76 @@ describe('Press.events', () => {
     } finally {
       button.remove()
     }
+  })
+
+  /** Runs `act` against a mounted element and returns the `count` facts it reported. */
+  const reported = (count: number, act: (button: HTMLElement) => void) => {
+    const button = document.createElement('div')
+    document.body.appendChild(button)
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(
+          takeMessages(Press.events().f(button, Mount.liveViewStateChanges), count),
+        )
+        for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+        act(button)
+        return yield* Fiber.join(fiber)
+      }),
+    ).finally(() => button.remove())
+  }
+  const disable = (button: HTMLElement) => button.setAttribute('aria-disabled', 'true')
+
+  it('an element disabled mid-press still hears that press end, as a cancel', async () => {
+    const facts = await reported(4, button => {
+      fire(button, 'pointerdown', { pointerId: 4, button: 0, pointerType: 'mouse' })
+      disable(button)
+      fire(button, 'pointerup', { pointerId: 4, pointerType: 'mouse' })
+      button.removeAttribute('aria-disabled')
+      fire(button, 'pointerdown', { pointerId: 5, button: 0, pointerType: 'mouse' })
+      disable(button)
+      fire(button, 'pointerleave', { pointerId: 5 })
+    })
+    expect(facts).toEqual([
+      M.PointerDown({ pointerId: 4, button: 0, pointerType: 'mouse' }),
+      M.PointerCancelled({ pointerId: 4 }),
+      M.PointerDown({ pointerId: 5, button: 0, pointerType: 'mouse' }),
+      M.PointerCancelled({ pointerId: 5 }),
+    ])
+  })
+
+  it('a key released after the element disabled is a cancel, not a press', async () => {
+    const facts = await reported(2, button => {
+      fire(button, 'keydown', { key: 'Enter', repeat: false })
+      disable(button)
+      fire(button, 'keyup', { key: 'Enter' })
+    })
+    expect(facts).toEqual([
+      M.KeyDown({ key: 'Enter', repeat: false }),
+      M.KeyCancelled({ key: 'Enter' }),
+    ])
+  })
+
+  it('a disabled element refuses a new press, and the release of one it never heard', async () => {
+    const facts = await reported(1, button => {
+      disable(button)
+      fire(button, 'pointerdown', { pointerId: 6, button: 0, pointerType: 'mouse' })
+      fire(button, 'pointerup', { pointerId: 6, pointerType: 'mouse' })
+      fire(button, 'keydown', { key: 'Enter', repeat: false })
+      fire(button, 'keyup', { key: 'Enter' })
+      button.removeAttribute('aria-disabled')
+      fire(button, 'keyup', { key: 'Enter', shiftKey: false })
+    })
+    expect(facts).toEqual([M.KeyUp({ key: 'Enter', shiftKey: false })])
+  })
+})
+
+describe('Press placement, a key cancelled', () => {
+  it('ends the key press without activating, and ignores another key', () => {
+    const down = send(fresh, M.KeyDown({ key: 'Enter', repeat: false })).model
+    const cancelled = send(down, M.KeyCancelled({ key: 'Enter' })).model
+    expect(cancelled.button).toMatchObject({ pressed: false, key: null })
+    expect(cancelled.presses).toEqual([])
+    expect(send(down, M.KeyCancelled({ key: ' ' })).model).toBe(down)
   })
 })
 

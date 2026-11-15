@@ -109,6 +109,14 @@ describe('Repeat placement', () => {
     expect(released).toHaveLength(3)
   })
 
+  it('a key cancelled by a disabled element ends its hold, and another key does not', () => {
+    const down = send(fresh, M.KeyDown({ key: 'Enter', repeat: false })).model
+    expect(send(down, M.KeyCancelled({ key: ' ' })).model).toBe(down)
+    const ended = send(down, M.KeyCancelled({ key: 'Enter' })).model
+    expect(ended.hold.holding).toBe(false)
+    expect(ended.out.at(-1)).toEqual(Repeat.Ended.make({ count: 1 }))
+  })
+
   it('a cancelled finger steps nothing', () => {
     expect(send(fresh, touchDown, M.PointerCancelled({ pointerId: 7 })).model.out).toEqual([])
   })

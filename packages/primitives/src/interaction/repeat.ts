@@ -37,6 +37,7 @@ export const Message = defineMessageUnion({
   PointerCancelled: { pointerId: Schema.Number },
   KeyDown: { key: Schema.String, repeat: Schema.Boolean },
   KeyUp: { key: Schema.String, shiftKey: Schema.Boolean },
+  KeyCancelled: { key: Schema.String },
   Clicked: { detail: Schema.Number, shiftKey: Schema.Boolean },
   Elapsed: { generation: Schema.Number },
   /** The parent reached a bound (a stepper's maximum): a held press steps no more. */
@@ -162,6 +163,7 @@ export const bundle = Bundle.make('Repeat', {
           ? { model }
           : begin(model, args, { key }, 'keyboard'),
       KeyUp: ({ key }) => (Option.contains(model.key, key) ? release(model) : { model }),
+      KeyCancelled: ({ key }) => (Option.contains(model.key, key) ? release(model) : { model }),
       // The click after a pointer press has a detail; one with none is no pointer's (assistive technology).
       Clicked: ({ detail }) =>
         detail === 0 && !model.holding

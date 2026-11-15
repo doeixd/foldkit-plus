@@ -7,7 +7,7 @@
  * by a clock read in a handler. Activation is an OutMessage, `Pressed`, so
  * the placement must say what a press does.
  */
-import { Effect, Queue, Schema, Stream } from 'effect'
+import { Effect, Option, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import type * as Update from 'foldkit/update'
@@ -37,6 +37,8 @@ export const Message = defineMessageUnion({
   PointerCancelled: { pointerId: Schema.Number },
   KeyDown: { key: Schema.String, repeat: Schema.Boolean },
   KeyUp: { key: Schema.String, shiftKey: Schema.Boolean },
+  /** The key went up on an element that had since disabled itself: the press ends, and activates nothing. */
+  KeyCancelled: { key: Schema.String },
   /** `detail` is 0 for a click no pointer made: keyboard on a native control, or assistive technology. */
   Clicked: { detail: Schema.Number, shiftKey: Schema.Boolean },
   Unsuppressed: { generation: Schema.Number },
@@ -109,6 +111,7 @@ export const bundle = Bundle.make('Press', {
         model.key === key
           ? { model: idle(model), outMessage: Pressed.make({ pointerType: 'keyboard', shiftKey }) }
           : { model },
+      KeyCancelled: ({ key }) => (model.key === key ? { model: idle(model) } : { model }),
       Clicked: ({ detail, shiftKey }) =>
         detail === 0
           ? { model, outMessage: Pressed.make({ pointerType: 'virtual', shiftKey }) }
@@ -134,8 +137,11 @@ export type Fact = Exclude<Message, { readonly _tag: 'Unsuppressed' }>
  * The element's press-relevant events as facts. Enter and Space key downs
  * are default-prevented so a native control does not also click, and Space
  * does not scroll; the Bundle owns activation. An element marked
- * `aria-disabled="true"` (which the Behavior writes) reports nothing, read
- * at event time so a toggle needs no remount. Nothing else is decided here.
+ * `aria-disabled="true"` (which the Behavior writes) refuses new presses, read
+ * at event time so a toggle needs no remount. A press that began while it was
+ * enabled still ends: a release or a key up after it disabled is reported as a
+ * cancel, so a stepper that disables itself at its bound mid-hold is not left
+ * held. Nothing else is decided here.
  */
 export const events = Mount.defineStream('PressEvents', {
   messages: [
@@ -144,24 +150,35 @@ export const events = Mount.defineStream('PressEvents', {
     Message.PointerCancelled,
     Message.KeyDown,
     Message.KeyUp,
+    Message.KeyCancelled,
     Message.Clicked,
   ],
   execute: ({ element }) =>
     Stream.callback<Fact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
-          const offer = (message: Fact) => {
-            if (element.getAttribute('aria-disabled') === 'true') return
-            Queue.offerUnsafe(queue, message)
+          const isDisabled = () => element.getAttribute('aria-disabled') === 'true'
+          const offer = (message: Fact) => Queue.offerUnsafe(queue, message)
+          // What began while enabled, which is what disabling must not strand.
+          let began: Option.Option<number> = Option.none()
+          let beganKey: Option.Option<string> = Option.none()
+          const pointerEnds = (id: number, whenEnabled: Fact) => {
+            const ending = Option.contains(began, id)
+            if (ending) began = Option.none()
+            if (ending && isDisabled()) offer(Message.PointerCancelled({ pointerId: id }))
+            else if (!isDisabled()) offer(whenEnabled)
           }
           const listeners: ReadonlyArray<readonly [string, (event: Event) => void]> = [
             [
               'pointerdown',
               event => {
+                if (isDisabled()) return
                 const pointer = event as PointerLike
+                const pointerId = pointer.pointerId ?? 0
+                began = Option.some(pointerId)
                 offer(
                   Message.PointerDown({
-                    pointerId: pointer.pointerId ?? 0,
+                    pointerId,
                     button: pointer.button ?? 0,
                     pointerType: pointer.pointerType ?? 'mouse',
                   }),
@@ -172,34 +189,35 @@ export const events = Mount.defineStream('PressEvents', {
               'pointerup',
               event => {
                 const pointer = event as PointerLike
-                offer(
+                const pointerId = pointer.pointerId ?? 0
+                pointerEnds(
+                  pointerId,
                   Message.PointerUp({
-                    pointerId: pointer.pointerId ?? 0,
+                    pointerId,
                     pointerType: pointer.pointerType ?? 'mouse',
                     shiftKey: pointer.shiftKey ?? false,
                   }),
                 )
               },
             ],
-            [
-              'pointerleave',
-              event =>
-                offer(
-                  Message.PointerCancelled({ pointerId: (event as PointerLike).pointerId ?? 0 }),
-                ),
-            ],
-            [
-              'pointercancel',
-              event =>
-                offer(
-                  Message.PointerCancelled({ pointerId: (event as PointerLike).pointerId ?? 0 }),
-                ),
-            ],
+            ...['pointerleave', 'pointercancel'].map(
+              (type): readonly [string, (event: Event) => void] => [
+                type,
+                event => {
+                  const pointerId = (event as PointerLike).pointerId ?? 0
+                  pointerEnds(pointerId, Message.PointerCancelled({ pointerId }))
+                },
+              ],
+            ),
             [
               'keydown',
               event => {
                 const key = event as KeyboardEvent
                 if (isActivationKey(key.key)) key.preventDefault()
+                if (isDisabled()) return
+                if (isActivationKey(key.key) && !key.repeat && Option.isNone(beganKey)) {
+                  beganKey = Option.some(key.key)
+                }
                 offer(Message.KeyDown({ key: key.key, repeat: key.repeat }))
               },
             ],
@@ -207,12 +225,17 @@ export const events = Mount.defineStream('PressEvents', {
               'keyup',
               event => {
                 const key = event as KeyboardEvent
-                offer(Message.KeyUp({ key: key.key, shiftKey: key.shiftKey }))
+                const ending = Option.contains(beganKey, key.key)
+                if (ending) beganKey = Option.none()
+                if (ending && isDisabled()) offer(Message.KeyCancelled({ key: key.key }))
+                else if (!isDisabled())
+                  offer(Message.KeyUp({ key: key.key, shiftKey: key.shiftKey }))
               },
             ],
             [
               'click',
               event => {
+                if (isDisabled()) return
                 const click = event as MouseEvent
                 offer(
                   Message.Clicked({ detail: click.detail ?? 0, shiftKey: click.shiftKey ?? false }),

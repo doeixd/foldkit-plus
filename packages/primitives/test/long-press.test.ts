@@ -86,6 +86,12 @@ describe('LongPress placement', () => {
     expect(send(key, M.KeyUp({ key: 'Enter', shiftKey: false })).model.hold.holding).toBe(false)
   })
 
+  it('a key cancelled by a disabled element stops the hold, and another key does not', () => {
+    const key = send(fresh, M.KeyDown({ key: 'Enter', repeat: false })).model
+    expect(send(key, M.KeyCancelled({ key: ' ' })).model).toBe(key)
+    expect(send(key, M.KeyCancelled({ key: 'Enter' })).model.hold.holding).toBe(false)
+  })
+
   it('the threshold runs on the clock', async () => {
     const effect = send(fresh, M.KeyDown({ key: ' ', repeat: false })).commands![0]! as {
       readonly effect: Effect.Effect<Message>

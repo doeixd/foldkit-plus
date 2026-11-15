@@ -351,6 +351,8 @@ const recovers = FocusRecovery.behavior(RowView)({
   The `Press.events` Mount reports pointer, key, and click facts; `update` decides
   (primary button, one pointer, cancel, Enter/Space without repeat, virtual clicks,
   ghost click suppressed by a timed Command; `Pressed` carries `shiftKey`). `data-pressed` while down.
+  An `aria-disabled` target refuses new presses but still ends one that began enabled (its release arrives as
+  a cancel, never as a `Pressed`), so a control that disables itself mid-hold is not left held.
 - **Swipe-to-reveal actions with a keyboard way:** `SwipeActions.bundle` (`{ fullSwipe, flick, full }`, `onOut` for `FullSwiped { side }`); `SwipeActions.decide(model, release, args)` reads a `SwipeEnded`; `SwipeActions.keys({ open, rtl, toMessage })` is a `Behaviors.Keys` route (arrows open and close, Escape closes). Hide a closed row's actions with `inert`.
 - **Held stepper:** `Repeat.bundle` (`{ delayMs, intervalMs }`, required `onOut` for `Stepped { count, input }` and `Ended { count }`) with
   `Repeat.behavior(Declared)(Slots)({ target })`; send `Repeat.Message.Stopped()` at a bound. A tap steps on release for a finger; one slot takes one of `Press`, `LongPress`, `Repeat`.

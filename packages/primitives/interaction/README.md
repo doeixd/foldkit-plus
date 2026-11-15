@@ -682,7 +682,8 @@ owner of the return, and `FocusRecovery` there uses `{ part: 'trigger' }` with
 **`Press`** turns pointer and keyboard activation of one element into one
 fact. Foldkit's declarative pointer attributes carry no button, pointer id, or
 click detail, so `Press.events` is a Mount that reports what the element saw
-(`PointerDown`, `PointerUp`, `PointerCancelled`, `KeyDown`, `KeyUp`, `Clicked`),
+(`PointerDown`, `PointerUp`, `PointerCancelled`, `KeyDown`, `KeyUp`,
+`KeyCancelled`, `Clicked`),
 and the Bundle's `update` decides: primary button only, one pointer at a time,
 `pointerleave` and `pointercancel` cancel, Enter and Space with a repeat
 ignored, a click with `detail` 0 (keyboard on a native control, or assistive
@@ -727,8 +728,12 @@ const Activate = Press.behavior(Button)(CardSlots)<CardModel, CardMessage>({
 
 The Behavior attaches the Mount to the target slot, writes `data-pressed`
 while the element is down for styling, and marks a disabled target
-`aria-disabled`, which the Mount reads at event time so nothing is reported and
-no remount is needed. The Model slice is `{ pressed, pointerId, key,
+`aria-disabled`, which the Mount reads at event time, so no remount is needed.
+A disabled element refuses new presses (a click, a pointer down, a key down)
+but still hears a press that began while it was enabled end: its release or key
+up arrives as a cancel (`PointerCancelled`, `KeyCancelled`), so the press ends
+without activating. That matters for a control that disables itself mid-press,
+such as a stepper at its bound. The Model slice is `{ pressed, pointerId, key,
 suppressing, generation }`; only `pressed` is meant for a view.
 
 **`LongPress`** is holding for `thresholdMs`. It reads the same facts
@@ -770,8 +775,11 @@ and the rest of that press steps no more. The delay and interval run on
 Effect's clock, so `TestClock` drives them, and a release makes a late timer a
 no-op. `Repeat.behavior(Declared)(Slots)<Input, Message>({ target })` attaches
 `Press.events` and writes `data-holding`; it shares `Press`'s Mount, so a slot
-takes one of `Press`, `LongPress` and `Repeat`. The Mount reports no pointer
-leaving the button, so a held press does not pause while the pointer is off it.
+takes one of `Press`, `LongPress` and `Repeat`. The pointer leaving the button
+cancels the press, as it does for `Press`, so a hold ends there (`Ended`) and
+coming back with the button still down does not resume it: the next hold is a
+new press. A Repeat button may disable itself at its bound while held; its
+release still ends the hold.
 
 **`Move`** is pointer movement as facts, a Mount in `foldkit-primitives/dom`:
 a primary-button pointer down captures the pointer and reports `MoveStarted`,
