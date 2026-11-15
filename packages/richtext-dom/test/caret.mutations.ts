@@ -105,4 +105,27 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a Range without rectangles, as in jsdom, throws',
+    edits: [
+      {
+        file: reveal,
+        find: "if (typeof range.getClientRects !== 'function') return undefined",
+        replace: '',
+      },
+    ],
+    tests: ['packages/richtext-dom/test/events.test.ts'],
+  },
+  {
+    name: 'a window without a visual viewport, as in jsdom, throws',
+    edits: [
+      {
+        file: reveal,
+        find: 'const visual = view.visualViewport ?? undefined',
+        replace: 'const visual = view.visualViewport',
+      },
+      { file: reveal, find: 'visual === undefined', replace: 'visual === null' },
+    ],
+    tests: ['packages/richtext-dom/test/atom.test.ts'],
+  },
 ]

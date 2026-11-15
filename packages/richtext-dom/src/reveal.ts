@@ -34,6 +34,9 @@ const nearest = (start: number, end: number, from: number, to: number): number =
  * line's own element stands for it.
  */
 export const caretRect = (range: Range): Box | undefined => {
+  // jsdom, where an application's unit tests run the editor, lays nothing out and gives a Range
+  // no rectangles to read.
+  if (typeof range.getClientRects !== 'function') return undefined
   const first = range.getClientRects()[0]
   if (first !== undefined) return first
   const { startContainer: node, startOffset: offset } = range
@@ -121,10 +124,11 @@ export const reveal = (from: Element, rect: Box): void => {
     )
   }
   // The visual viewport is what a phone's on-screen keyboard shrinks.
-  const visual = view.visualViewport
+  // Absent as `undefined` in jsdom, which has no viewport, where a browser without one says null.
+  const visual = view.visualViewport ?? undefined
   move(
     (x, y) => view.scrollBy({ left: x, top: y, behavior: 'instant' }),
-    visual === null
+    visual === undefined
       ? { top: 0, left: 0, bottom: page.clientHeight, right: page.clientWidth }
       : {
           top: visual.offsetTop,
