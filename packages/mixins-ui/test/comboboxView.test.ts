@@ -319,7 +319,7 @@ describe('forked combobox seam', () => {
       anchoredSingle(),
       Scene.expect(Scene.selector(panel)).toHaveAttr('popover', 'manual'),
     )
-    // No `portal` given: in place, so the region's theme reaches the panel.
+    // No `portal` given: upstream's default, a portaled panel that `inheritRegion` keeps themed.
     Scene.scene<SingleModel, Message, UpstreamCombobox.OutMessage<Fruit>>(
       {
         update: upstreamSingle.update,
@@ -327,7 +327,7 @@ describe('forked combobox seam', () => {
       },
       Scene.given(openSingle()),
       anchoredSingle(),
-      Scene.expect(Scene.selector(panel)).toHaveAttr('popover', 'manual'),
+      Scene.expect(Scene.selector(panel)).not.toHaveAttr('popover', 'manual'),
     )
   })
 

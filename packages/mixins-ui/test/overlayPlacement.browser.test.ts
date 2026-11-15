@@ -27,7 +27,7 @@ afterEach(() => {
 })
 
 interface Setup {
-  /** Unset, the application passes none and the widget's default stands. */
+  /** Unset, the application passes none and upstream's default (portaled) stands. */
   readonly portal?: boolean
   /** A region that sets the step knob compact around the page the runtime draws. */
   readonly compact?: boolean
@@ -118,7 +118,7 @@ const regionReachesRows = async (portal: boolean | undefined, rowHeight: number)
     const inPlace = document
       .getElementById('overlay-page')!
       .contains(document.querySelector('[role="option"]'))
-    expect(inPlace).toBe(portal !== true)
+    expect(inPlace).toBe(portal === false)
     expect(row.getBoundingClientRect().height).toBe(rowHeight)
   } finally {
     handle.dispose()
@@ -131,10 +131,9 @@ test('a region set compact reaches the rows of a panel the application gave no p
 test('a region set compact reaches the rows of a panel kept in place', () =>
   regionReachesRows(false, 28))
 
-// A cascade fact, not a defect: a panel the application asks to portal leaves
-// the region, so a knob set on the region does not reach it: the root's step (36px rows).
-test('a panel the application portals reads the root knobs, not those of its region', () =>
-  regionReachesRows(true, 36))
+// `inheritRegion` carries the region's custom properties to the portaled panel.
+test('a region set compact reaches the rows of a panel the application portals', () =>
+  regionReachesRows(true, 28))
 
 const mirrorsUnderRtl = async (portal: boolean) => {
   const handle = mount({ portal, direction: 'rtl' })
