@@ -283,8 +283,10 @@ export interface ListboxSpec {
   readonly direction?: Direction
   /**
    * Gives the keyboard to the widget with its options drawn: a popup is
-   * opened, a list is focused. Called first, and again whenever an activation
-   * has closed the options.
+   * opened, a list is focused. Called only when no option is drawn: before a
+   * check begins with the container absent or empty, and again after an
+   * activation has closed the options. A list that is already showing its
+   * options is never entered, so `enter` must not be what focuses it.
    */
   readonly enter: () => Promise<void>
 }
