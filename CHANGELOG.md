@@ -9,6 +9,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `TagsInput.view` takes `name`, which draws one hidden input per tag
+  (`TagsInputSlots.hiddenInput`) so a form submits the tags, in order, and not the draft.
 - `foldkit-mixins-ui`: `TagsInput.view` takes `addOnBlur`, which adds the draft when the input
   loses focus, so text left in it is not thrown away. Off by default.
 - `foldkit-mixins-ui`: a Menu row takes an `icon` (before its label) and a `hint` (at its end, before its shortcut), each in a Slot of its own (`MenuSlots.icon`, `MenuSlots.hint`) that `Recipes.Menu` styles; a submenu's items take them too.

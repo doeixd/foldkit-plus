@@ -8,7 +8,15 @@ import { Effect, Option } from 'effect'
 import { injectIntoTemplate, renderToString } from 'foldkit/experimental/server'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { expect, test } from 'vitest'
-import { CheckboxGroup, Input, Rating, Segmented, Slider, Textarea } from '../src/index.js'
+import {
+  CheckboxGroup,
+  Input,
+  Rating,
+  Segmented,
+  Slider,
+  TagsInput,
+  Textarea,
+} from '../src/index.js'
 
 const template =
   '<!doctype html><html><head><title></title></head><body><div id="root"></div></body></html>'
@@ -166,4 +174,26 @@ test('a segmented control submits its chosen value, a multiple one each', async 
     ),
   )
   expect(submitted(several, 'style').map(input => input.value)).toEqual(['day', 'month'])
+})
+
+test('a tags input submits each tag under its name, one hidden input apiece, and not its draft', async () => {
+  const model = TagsInput.update(
+    TagsInput.init({ id: 'topics', tags: ['react', 'a, "b"'] }),
+    TagsInput.Message.Typed({ text: 'draft', drawn: 0 }),
+  ).model
+  const page = await served(h =>
+    TagsInput.view(
+      { model, onMessage: () => undefined as never, label: 'Topics', name: 'topic' },
+      h,
+    ),
+  )
+  expect(submitted(page, 'topic').map(input => [input.type, input.value])).toEqual([
+    ['hidden', 'react'],
+    ['hidden', 'a, "b"'],
+  ])
+  expect(page.querySelectorAll('input[name]')).toHaveLength(2)
+  const unnamed = await served(h =>
+    TagsInput.view({ model, onMessage: () => undefined as never, label: 'Topics' }, h),
+  )
+  expect(unnamed.querySelectorAll('input[name]')).toHaveLength(0)
 })

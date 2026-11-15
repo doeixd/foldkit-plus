@@ -54,6 +54,8 @@ export const TagsInputSlots = Slots.define({
     attributes: [Attr.Disabled],
   }),
   message: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  /** One per tag, drawn when the field has a `name`, so a form submits the tags and not the draft. */
+  hiddenInput: Slot.make({ capability: Capability.Base, attributes: [Attr.Value] }),
 })
 
 /** Why the last commit added nothing, or not all of the draft. */
@@ -275,6 +277,8 @@ export interface TagsInputView<Message> {
   /** The input's visible label, which also names the list of tags. */
   readonly label: string
   readonly placeholder?: string | undefined
+  /** Submits each tag under this name, one hidden input apiece, in order; the draft is not submitted. */
+  readonly name?: string | undefined
   readonly disabled?: boolean | undefined
   /**
    * Adds the draft when the input loses focus, as Enter does, so text left in
@@ -324,7 +328,7 @@ const caretAtStart = (model: Model): boolean => {
 }
 
 export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>): Html => {
-  const { model } = options
+  const { model, name } = options
   const lift = options.onMessage
   const disabled = options.disabled === true
   const direction = options.direction ?? 'ltr'
@@ -459,5 +463,14 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
       builders.message.attrs([h.Id(messageId(model.id)), h.Role('status')]),
       Option.toArray(said),
     ),
+    ...(name === undefined
+      ? []
+      : model.tags.map(tag =>
+          h.keyed('input')(
+            `submit-${tag}`,
+            builders.hiddenInput.attrs([h.Type('hidden'), h.Name(name), h.Value(tag)]),
+            [],
+          ),
+        )),
   ])
 }
