@@ -89,7 +89,3 @@ export const update = assembly.update((model, message) =>
     }),
   }),
 )
-
-/** Whether an editor is open on `id`. */
-export const isEditing = (model: Model, id: string): boolean =>
-  Option.exists(model.rename.editing, editing => editing.id === id)
