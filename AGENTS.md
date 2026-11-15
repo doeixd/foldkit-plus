@@ -2263,6 +2263,13 @@ of its own named a form field "fits the Catalog". Read words with
   release run succeeded, 15 of 37 new versions were still absent from
   `registry.npmjs.org`, and the count fell as they landed. Read `gh run view`
   for the verdict; use `npm view` only to confirm afterwards.
+- **A runner a job starves loses its log, not only its job.** PR #564's
+  fourth test shard ran the Foldkit ports' 19-page bundle build beside the
+  browser and workerd tests; the runner "lost communication with the server",
+  the job hung 48 minutes, and GitHub kept no log at all. Only the check run's
+  annotations (`gh api …/check-runs/<id>/annotations`) said why. Production
+  builds run in their own `builds` job (`buildTests`), and every job has a
+  `timeout-minutes`.
 - **A fast red hides slower reds.** Fixing the 30s install failure above
   revealed a `tags:check` failure the red main had masked for days. After
   any CI repair, watch a full run to green — a green gate is not a green

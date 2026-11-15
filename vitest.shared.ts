@@ -32,6 +32,28 @@ export const perfTests = {
 export const budgetsElsewhere =
   process.env.CI !== undefined && process.env.FOLDKIT_PERF === undefined
 
+/**
+ * The tests that make a production build of a page or a package. Run beside
+ * the rest in one shard, they starved CI's runner of memory until it lost
+ * contact with GitHub (PR #564's fourth shard), so on CI they run in the
+ * `builds` job (`FOLDKIT_BUILDS=1`) with few workers; locally they stay in
+ * `pnpm test`.
+ */
+export const buildTests = [
+  'examples/**/test/bundle.test.ts',
+  'examples/auth/test/{boot,split}.test.ts',
+  'scripts/test/{readOnlyPage,publishedBuild}.test.ts',
+] as const
+
+/**
+ * Whether the build tests are left to the `builds` job: on CI, outside it and
+ * the `perf` job, which builds its own budgets.
+ */
+export const buildsElsewhere =
+  process.env.CI !== undefined &&
+  process.env.FOLDKIT_BUILDS === undefined &&
+  process.env.FOLDKIT_PERF === undefined
+
 /** For tests in Node or jsdom. */
 export const shared = defineConfig({
   plugins: [mutation()],

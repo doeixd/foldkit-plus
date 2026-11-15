@@ -1,7 +1,14 @@
 import { availableParallelism, freemem } from 'node:os'
 import { playwright } from '@vitest/browser-playwright'
 import { defineConfig, mergeConfig } from 'vitest/config'
-import { budgetsElsewhere, inBrowser, perfTests, shared } from './vitest.shared.js'
+import {
+  budgetsElsewhere,
+  buildTests,
+  buildsElsewhere,
+  inBrowser,
+  perfTests,
+  shared,
+} from './vitest.shared.js'
 
 const everywhere = [
   'packages/*/test/**/*.test.ts',
@@ -52,6 +59,7 @@ export default defineConfig({
           exclude: [
             ...browserTests,
             ...(budgetsElsewhere ? perfTests.unit : []),
+            ...(buildsElsewhere ? buildTests : []),
             '**/node_modules/**',
           ],
         },
