@@ -42,6 +42,12 @@ const Posts = Cms.content('posts', {
 })
 expectTypeOf(Posts.name).toEqualTypeOf<'posts'>()
 
+// A reader of a content type needs its name, Entity and roles, not the form that authors it.
+Cms.bySlug(Posts)
+Cms.bySlug({ name: 'posts', entity: Post, roles: Cms.rolesOf(Post) })
+// @ts-expect-error without its roles there is no address to find it by
+Cms.bySlug({ name: 'posts', entity: Post })
+
 Cms.content('posts', {
   entity: Post,
   form: PostForm,

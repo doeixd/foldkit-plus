@@ -316,7 +316,7 @@ RemoteServer.make({
   `eq(isNotNull(archivedAt), input.archived)` and the search as
   `contains(label, input.search)` — no branch on an input, since a body is built
   once. An empty search is everything because `label` is not nullable.
-- A `slug` role adds `Cms.bySlug(Posts)` (`postsBySlug`, input `{ slug }`) to
+- A `slug` role adds `Cms.bySlug(Posts)` (`postsBySlug`, input `{ slug }`; it takes a `ContentReader`, the content's `name`, `entity` and `roles`, so a public site passes a form-free one) to
   `cms.queries`; a visitor finds only published rows. It is declared with
   `Query.define`, so it carries its body (`eq(slug field, input.slug)`, ordered by
   id) and `foldkit-cms-drizzle` registers it as `query(descriptor, { entity })`
