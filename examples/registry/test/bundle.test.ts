@@ -42,16 +42,19 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // Alert and Card, which gained the form options (`name`, `required`, `readOnly`, `attributes`),
 // the live description, `recoveryPart` and Card's `headingLevel`. Not measured module by
 // module; the ceiling is that reading plus about 200 bytes.
-// 2026-11-15, measured in one tree: 258,080 at HEAD before this round (+230 over the line
-// above, from the data grid's new members `reveal`, `rangeSize`, `filterCount`, `hasFilters`
-// and `Copied`, which `DataGrid.make` returns as one object, so a page keeps them whether it
-// calls them or not), then 260,555 with the device's connection strip (+2,475). Nearly all of
-// that is `Button.view`: foldkit-mixins-ui 6.9 to 9.2 kB and foldkit-primitives 1.2 to 1.7 kB
-// brotli, the widget's module with its press handling and recipe; the page's own code is the
-// rest. A plain `h.button` over `ButtonSlots` measured 260,3xx, since the slots live in the
-// same module. Loading the ownership panel lazily was tried and measured worse (259,576):
-// its chunk is 1.5 kB and the split cost more than it saved. Ceiling: the measure plus about
-// 450 bytes.
+// 2026-11-15, three causes, each measured in the one tree with `scripts/bundle-report.mjs`:
+// (1) the grid packages' new exports (`reveal`, `rangeSize`, `filterCount`, `hasFilters`,
+// `Copied`; `DataGrid.make` returns them as one object, so a page keeps them whether it calls
+// them or not): 258,080 against the 257,850 ceiling, +230 by timing right after the grid
+// commits, not bisected. Re-measured at the end of the round with the round's source files
+// taken out, the page read 257,421: other agents' package changes since had taken it back.
+// (2) The device's connection strip, apart from its button (the status line and its dot,
+// the copy announcement, the live notices): 259,196, +1,775 over 257,421.
+// (3) The button, `Button.view` with its recipe and `ButtonSlots`: 260,555, +1,359 over (2),
+// of which the widget's view with its press handling is 581 and its recipe and slots the rest.
+// Loading "How this page works" as a chunk of its own was tried and measured worse (259,576
+// against 258,080 in that tree): its chunk is 1.5 kB and the split cost more than it saved.
+// Ceiling: the measure plus about 450 bytes.
 const CEILING = 261_000
 
 clientBudget({

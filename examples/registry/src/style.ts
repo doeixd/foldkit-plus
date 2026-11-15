@@ -165,7 +165,14 @@ export const DeviceBadgeStyle = demoStyle.forSlots(BadgeSlots)(
 
 export const Sandbox = demoStyle.slots(
   {
-    content: L.in('layouts', Layout.stack({ gap: t.space.lg })),
+    // Room under the devices for the site's fixed "How to try this demo" pill, so scrolled to
+    // the end nothing interactive sits under it (on a phone the guide adds its own room). The
+    // pill still crosses a device while the page scrolls: a `position` option on `demoGuide`
+    // is planned for the website pass.
+    content: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.lg })),
+      Style.at('@media (min-width: 48.01rem)', Style.self({ paddingBlockEnd: '4.5rem' })),
+    ),
     // The lede and the conflict steps side by side where there is room, so the devices start high.
     intro: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),

@@ -113,7 +113,7 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html => {
                 [
                   'Press Go offline in Device B, then edit the same price in both devices. Each shows its own value; B’s cell is marked Not yet sent.',
                   'Press Go online in B. Its edit reaches the server after A’s, and the server’s order decides: B’s price wins in both devices.',
-                  'A’s cell is marked Replaced, and a notice in A says what it held. Nothing is merged: one write wins, by the order the server committed them, not by who typed last.',
+                  'This page marks A’s cell Replaced, and a notice in A says what it held. Nothing is merged: one write wins, by the order the server committed them, not by who typed last.',
                 ].map(text => h.li([h.Key(text)], [text])),
               ),
             ]),

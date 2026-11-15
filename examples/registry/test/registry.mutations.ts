@@ -423,6 +423,29 @@ export default [
     tests,
   },
   {
+    name: 'the refused region is redrawn as a new element on each change',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: "slots.notices.attrs([h.Id('refused'), h.AriaLabel('Edits not saved'), h.AriaLive('polite')]),",
+        replace:
+          "slots.notices.attrs([h.Id('refused'), h.AriaLabel('Edits not saved'), h.AriaLive('polite'), h.Key(String(model.refused.length))]),",
+      },
+    ],
+    tests: ['examples/registry/test/connection.browser.test.ts'],
+  },
+  {
+    name: 'the button label does not follow the connection',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: "label: model.offline ? 'Go online' : 'Go offline',",
+        replace: "label: 'Go offline',",
+      },
+    ],
+    tests: ['examples/registry/test/connection.browser.test.ts'],
+  },
+  {
     name: 'a whole number of cents is rounded away',
     edits: [
       {

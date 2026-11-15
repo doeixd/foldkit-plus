@@ -222,6 +222,19 @@ test('on a phone one device shows at a time, both stay mounted, and the page doe
   await expect.poll(() => shown('Device B')).toBe(true)
   expect(await shown('Device A')).toBe(false)
 
+  // The switch is a radio group: an arrow moves the choice and the focus, which shows a ring.
+  await page.keyboard.press('ArrowLeft')
+  await expect.poll(() => shown('Device A')).toBe(true)
+  expect(
+    await page.evaluate(() => {
+      const style = getComputedStyle(document.activeElement!)
+      return (
+        document.activeElement?.getAttribute('role') === 'radio' &&
+        (style.outlineStyle !== 'none' || style.boxShadow !== 'none')
+      )
+    }),
+  ).toBe(true)
+
   // Layout viewport, not `innerWidth`: a phone zooms out to fit an overflowing page.
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -237,5 +250,49 @@ test('on a desktop both devices show and there is no switch', async () => {
   await cell(page, 'Device A', 'p000004', 'cents').waitFor({ timeout: 60_000 })
   expect(await page.getByRole('radiogroup', { name: 'Device shown' }).isVisible()).toBe(false)
   expect(await page.locator('iframe[title="Device B"]').isVisible()).toBe(true)
+  await page.close()
+})
+
+test('with the keyboard alone, Tab goes through Device A, then Device B, each button shows a focus ring, and the grid does not trap Tab', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  await page.goto(url)
+  await cell(page, 'Device A', 'p000004', 'cents').waitFor({ timeout: 60_000 })
+  await cell(page, 'Device B', 'p000004', 'cents').waitFor({ timeout: 60_000 })
+  // Where focus is, by frame: the frame that has it names its element.
+  const focused = async () => {
+    for (const frame of page.frames().slice(1)) {
+      const found = await frame.evaluate(() =>
+        document.hasFocus() && document.activeElement !== document.body
+          ? {
+              label: (document.activeElement?.textContent ?? '').trim().slice(0, 30),
+              id: document.activeElement?.id ?? '',
+              outline:
+                getComputedStyle(document.activeElement!).outlineStyle !== 'none' ||
+                getComputedStyle(document.activeElement!).boxShadow !== 'none',
+            }
+          : null,
+      )
+      if (found !== null) return { frame: frame.url().includes('device-a') ? 'A' : 'B', ...found }
+    }
+    return null
+  }
+  await page.locator('body').press('Tab')
+  const seen: Array<string> = []
+  const rings = new Map<string, boolean>()
+  for (let step = 0; step < 60; step++) {
+    await page.keyboard.press('Tab')
+    const now = await focused()
+    if (now === null) continue
+    const key = `${now.frame}:${now.id || now.label}`
+    seen.push(key)
+    if (now.label === 'Go offline') rings.set(now.frame, now.outline)
+    if (rings.size === 2) break
+  }
+  // A's button before B's, with A's grid between them left by Tab alone.
+  expect(rings.get('A')).toBe(true)
+  expect(rings.get('B')).toBe(true)
+  const firstB = seen.findIndex(entry => entry.startsWith('B:'))
+  expect(firstB).toBeGreaterThan(0)
+  expect(seen.slice(0, firstB).every(entry => entry.startsWith('A:'))).toBe(true)
   await page.close()
 })
