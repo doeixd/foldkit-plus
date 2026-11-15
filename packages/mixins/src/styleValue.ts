@@ -162,6 +162,52 @@ const checkInlineShorthands = (
   }
 }
 
+const IMPORTANT = /!\s*important\s*$/i
+
+/**
+ * Refuses an inline declaration beside a rule for the same property that applies
+ * only under a condition (an at-rule, a selector beyond the element, or a piece
+ * the view chooses). An inline declaration beats every rule, layers included,
+ * so the rule never applies: a media query's `padding` beside an inline
+ * `padding` was dead for months. A shorthand and its longhand count, either
+ * way round; a rule marked `!important` beats inline and passes. Not caught:
+ * a declaration that is inline only when the view chooses it or per item, which
+ * is unknown here, and two Styles attached to one slot, which meet only as
+ * classes and inline text.
+ */
+const checkDeadRules = (
+  inlined: ReadonlyArray<string>,
+  rules: ReadonlyArray<StyleRule>,
+  conditions: ReadonlyArray<{ readonly piece: StyleValue }>,
+  chosen = false,
+): void => {
+  for (const rule of rules) {
+    if (!chosen && rule.at === undefined && rule.selector === '&') continue
+    for (const [property, value] of Object.entries(rule.declarations)) {
+      const dead = IMPORTANT.test(value)
+        ? undefined
+        : inlined.find(
+            inline =>
+              inline === property ||
+              (shorthands.includes(inline) && isLonghandOf(inline, property)) ||
+              (shorthands.includes(property) && isLonghandOf(property, inline)),
+          )
+      if (dead === undefined) continue
+      const condition = rule.at ?? rule.selector
+      throw new DiagnosticError({
+        source: 'mixins',
+        code: 'mixins:dead-conditional-rule',
+        severity: 'error',
+        message: `\`${property}\` under \`${condition}\` never applies: \`${dead}\` is set inline, which beats every rule. Put the base in Style.self(...), or mark the rule !important.`,
+        details: { property, inline: dead, condition },
+      })
+    }
+  }
+  for (const { piece } of conditions) {
+    checkDeadRules(inlined, piece.rules ?? [], piece.conditions ?? [], true)
+  }
+}
+
 /** Concatenate classes; later inline declarations win per property. */
 export const compose = (...written: ReadonlyArray<Piece>): StyleValue => {
   const pieces = written.map(toStyleValue)
@@ -171,6 +217,7 @@ export const compose = (...written: ReadonlyArray<Piece>): StyleValue => {
   const globalCss = pieces.flatMap(piece => piece.globalCss ?? [])
   const style = Object.assign(Object.create(null), ...pieces.map(piece => piece.style))
   checkInlineShorthands(style, conditions)
+  if (rules.length + conditions.length > 0) checkDeadRules(Object.keys(style), rules, conditions)
   return make({
     classes: Object.freeze(pieces.flatMap(piece => piece.classes)),
     style: Object.freeze(style),

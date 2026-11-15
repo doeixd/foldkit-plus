@@ -405,6 +405,16 @@ round) is refused when the style is defined, with
 it, so clearing `borderColor` also cleared the color `border` set, and the
 element kept a `currentColor` border after the state ended.
 
+An inline declaration beats every rule, layers included, so a conditional rule for the same
+property in the same composition never applies: `Style.compose(Style.inline({ padding: '1.75rem' }),
+Style.media('(max-width: 30rem)', { padding: '1rem' }))` is refused when composed, with
+`mixins:dead-conditional-rule` naming the property, the condition and the fix, which is to put the
+base in `Style.self`. A media, pseudo, nest, container, supports or `states` rule, and a rule inside
+`whenInput`, counts, as does a shorthand against its longhand (`padding` and `paddingInline`, either
+way round); a rule marked `!important` beats inline and passes. An inline declaration that exists
+only when the view chooses it or per item is not known when the style is defined, and two Styles
+attached to one slot meet only as classes and inline text, so neither is checked.
+
 Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces are:
 
 - `Style.states({ open: { opacity: '1' } })` compiles to `&[data-state="open"]`, for Behaviors that

@@ -56,9 +56,9 @@ describe('Layers', () => {
   it('in emits the rule inside the layer and keeps declarations as they are', () => {
     const piece = L.in(
       'components',
-      Style.compose(Style.inline({ color: 'red' }), Style.pseudo(':hover', { color: 'blue' })),
+      Style.compose(Style.inline({ margin: '0' }), Style.pseudo(':hover', { color: 'blue' })),
     )
-    expect(piece.style).toEqual({ color: 'red' })
+    expect(piece.style).toEqual({ margin: '0' })
     const Named = Style.forSlots(RootSlots)({ root: piece })
     expect(Named.css).toMatch(
       /^@layer components\{@media \(hover: hover\)\{\.style-[a-z0-9]+:hover\{color:blue\}\}\}$/,
@@ -212,7 +212,7 @@ describe('Layers.in', () => {
   })
 
   it('a layer option never refuses a piece already in another layer', () => {
-    const piece = Style.compose(L.in('layouts', hover), Style.inline({ color: 'red' }))
+    const piece = Style.compose(L.in('layouts', hover), Style.inline({ margin: '0' }))
     const bare = Style.forSlots(RootSlots)({ root: piece })
     const placed = Style.forSlots(RootSlots)({ root: piece }, { layer: L.layer('app') })
     expect(placed.rules.map(rule => rule.css)).toEqual(bare.rules.map(rule => rule.css))
