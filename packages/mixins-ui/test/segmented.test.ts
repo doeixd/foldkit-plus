@@ -26,6 +26,7 @@ describe('Segmented.view', () => {
     Segmented.view(
       {
         label: 'Text style',
+        multiple: true,
         options: [
           { value: 'bold', label: 'Bold' },
           { value: 'italic', label: 'Italic' },
@@ -64,5 +65,54 @@ describe('Segmented.view', () => {
     expect(bold?.data?.on?.['click']).toBeTypeOf('function')
     expect(Inert.value(strike, 'disabled')).toBeDefined()
     expect(strike?.data?.on?.['click']).toBeUndefined()
+  })
+
+  it('draws a single choice as a radio group with one tab stop', () => {
+    const group = Segmented.view(
+      {
+        id: 'range',
+        label: 'Range',
+        options: [
+          { value: 'day', label: 'Day' },
+          { value: 'week', label: 'Week', disabled: true },
+          { value: 'month', label: 'Month' },
+        ],
+        pressed: ['month'],
+        onPress: () => message('Clicked'),
+        style,
+      },
+      h,
+    )
+    expect(Inert.value(group, 'role')).toBe('radiogroup')
+    const radios = Inert.byTag(group, 'button')
+    expect(radios.map(each => Inert.value(each, 'role'))).toEqual(['radio', 'radio', 'radio'])
+    expect(radios.map(each => Inert.value(each, 'aria-checked'))).toEqual([
+      'false',
+      'false',
+      'true',
+    ])
+    expect(radios.map(each => Inert.value(each, 'tabindex'))).toEqual([-1, -1, 0])
+    expect(radios.map(each => Inert.value(each, 'aria-pressed'))).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ])
+  })
+
+  it('puts the tab stop on the first enabled option when none is chosen', () => {
+    const group = Segmented.view(
+      {
+        id: 'range',
+        label: 'Range',
+        options: [
+          { value: 'day', label: 'Day', disabled: true },
+          { value: 'week', label: 'Week' },
+        ],
+        pressed: [],
+        onPress: () => message('Clicked'),
+      },
+      h,
+    )
+    expect(Inert.byTag(group, 'button').map(each => Inert.value(each, 'tabindex'))).toEqual([-1, 0])
   })
 })

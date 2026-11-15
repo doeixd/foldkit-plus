@@ -68,6 +68,7 @@ const mount = (fixture: Fixture) => {
       view: (model: Model, h: HtmlBuilder<Message>) =>
         Segmented.view(
           {
+            id: 'view',
             label: 'View',
             options: (fixture.labels ?? labels).map(label => ({
               value: label,
@@ -92,10 +93,10 @@ const mount = (fixture: Fixture) => {
 }
 
 const option = (name: string) =>
-  Array.from(document.querySelectorAll<HTMLElement>('[aria-pressed]')).find(
+  Array.from(document.querySelectorAll<HTMLElement>('[role="radio"]')).find(
     each => each.textContent === name || each.getAttribute('aria-label') === name,
   )!
-const indicator = () => document.querySelector('[role="group"]')!.children[0] as HTMLElement
+const indicator = () => document.querySelector('[role="radiogroup"]')!.children[0] as HTMLElement
 const rect = (element: Element) => element.getBoundingClientRect()
 
 test('pressing an option with an icon moves nothing beside it', async () => {
@@ -104,7 +105,7 @@ test('pressing an option with an icon moves nothing beside it', async () => {
     await vi.waitFor(() => expect(option('Calendar')).toBeTruthy())
     const before = rect(option('Calendar')).left
     press('Board')
-    await vi.waitFor(() => expect(option('Board').getAttribute('aria-pressed')).toBe('true'))
+    await vi.waitFor(() => expect(option('Board').getAttribute('aria-checked')).toBe('true'))
     expect(getComputedStyle(option('Board')).fontWeight).toBe('600')
     expect(rect(option('Calendar')).left).toBe(before)
   } finally {
@@ -145,7 +146,7 @@ test('full width, the options share the container’s width equally', async () =
   const { handle } = mount({ recipe: { width: 'fill' }, width: '30rem' })
   try {
     await vi.waitFor(() => expect(option('List')).toBeTruthy())
-    const group = rect(document.querySelector('[role="group"]')!)
+    const group = rect(document.querySelector('[role="radiogroup"]')!)
     expect(Math.abs(group.width - 480)).toBeLessThan(0.5)
     const widths = labels.map(label => rect(option(label)).width)
     expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(0.5)
@@ -158,7 +159,7 @@ test('a tray is as wide as its options, not its container', async () => {
   const { handle } = mount({ width: '40rem' })
   try {
     await vi.waitFor(() => expect(option('List')).toBeTruthy())
-    const group = rect(document.querySelector('[role="group"]')!)
+    const group = rect(document.querySelector('[role="radiogroup"]')!)
     expect(Math.abs(group.right - rect(option('Calendar')).right)).toBeLessThan(8)
   } finally {
     handle.dispose()

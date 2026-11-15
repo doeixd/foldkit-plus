@@ -7326,6 +7326,7 @@ export const segmented = <Message>(
 ): Html =>
   Segmented.view(
     {
+      id: 'range',
       label: 'Range',
       options: Range.literals.map(value => ({
         value,
@@ -7361,6 +7362,7 @@ export const segmentedIcons = <Message>(
 ): Html =>
   Segmented.view(
     {
+      id: 'view',
       label: 'View',
       options: ViewMode.literals.map(value => ({
         value,

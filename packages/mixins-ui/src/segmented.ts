@@ -1,6 +1,8 @@
+import { Option } from 'effect'
 import {
   Attr,
   Behavior,
+  Behaviors,
   Capability,
   Event,
   Slot,
@@ -10,29 +12,33 @@ import {
 } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { FluidHover, Measure } from 'foldkit-primitives/dom'
+import { RovingTabindex } from 'foldkit-primitives/interaction'
 import { FollowDirection } from './direction.js'
 import { flipped } from './choices.js'
 import type { MixinList } from './resolve.js'
 
 /**
- * A segmented control: one `group` of pressed-button `option`s. Plain
- * buttons, not tabs: the group is `role="group"`, each option carries
- * `aria-pressed`, and there are no arrow keys or roving tabindex.
- * `indicator` and `highlight`, drawn first in the group, are the pressed
+ * A segmented control: one `group` of `option`s. A single choice, the
+ * default, is the APG's radio group: `role="radiogroup"` of `role="radio"`
+ * options with `aria-checked`, one tab stop (the chosen option, else the first
+ * enabled), and the arrows, Home and End moving the choice and focus together.
+ * With `multiple` it is shadcn's and Zag's toggle group: a `role="group"` of
+ * buttons with `aria-pressed`, any number on, each filling itself (draw it
+ * without `fluid`, whose pill marks one), every one a tab stop.
+ * `indicator` and `highlight`, drawn first in the group, are the chosen
  * option's sliding pill and the hover that follows the pointer, which `fluid`
- * moves. With `multiple`, it is shadcn's and Zag's toggle group: any number
- * of options pressed, each filling itself (draw it without `fluid`, whose
- * pill marks one).
+ * moves. `hiddenInput` carries the form value when the group has a `name`.
  */
 export const SegmentedSlots = Slots.define({
   group: Slot.make({
     capability: Capability.Container,
-    attributes: [Attr.Role, Attr.AriaLabel],
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaDisabled],
   }),
   option: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.AriaPressed, Attr.Disabled, Attr.AriaDisabled],
+    attributes: [Attr.Role, Attr.AriaPressed, Attr.AriaChecked, Attr.Disabled, Attr.AriaDisabled],
   }),
   /** An option's words, a box of their own so they can be trimmed apart from the option's steady copy. */
   label: Slot.make({ capability: Capability.Container }),
@@ -42,9 +48,12 @@ export const SegmentedSlots = Slots.define({
   content: Slot.make({ capability: Capability.Container }),
   indicator: Slot.make({ capability: Capability.Container }),
   highlight: Slot.make({ capability: Capability.Container }),
+  /** One per chosen value, drawn when the group has a `name`, so a form submits them. */
+  hiddenInput: Slot.make({ capability: Capability.Base, attributes: [Attr.Value] }),
 })
 
-const pressed = '[aria-pressed="true"]'
+// A chosen option is `aria-checked` in a single choice and `aria-pressed` in a multiple one.
+const pressed = ':is([aria-pressed="true"], [aria-checked="true"])'
 
 /**
  * What moves the `indicator` and `highlight`, on the group: the pressed
@@ -70,7 +79,7 @@ export const fluid = [
         mount: () =>
           FluidHover({
             name: 'segmented-hover',
-            item: '[aria-pressed]',
+            item: ':is([aria-pressed], [aria-checked])',
             axis: 'x',
             gapClick: true,
             from: pressed,
@@ -103,19 +112,47 @@ export interface SegmentedOption<Value extends string> {
   readonly disabled?: boolean | undefined
 }
 
-export interface SegmentedView<Value extends string, Message> {
+interface SegmentedCommon<Value extends string, Message> {
   readonly options: ReadonlyArray<SegmentedOption<Value>>
-  /** The pressed values, as the application keeps them. */
+  /** The chosen values, as the application keeps them: at most one for a single choice. */
   readonly pressed: ReadonlyArray<Value>
-  /** The Message a press on an option sends; its type comes from `h`. */
+  /** The Message a press, or an arrow key in a single choice, sends; its type comes from `h`. */
   readonly onPress: (value: Value) => NoInfer<Message>
   /** The group's accessible name: what the options choose. */
   readonly label: string
+  /** Submits the chosen values under this name, one hidden input each, in the options' order. */
+  readonly name?: string | undefined
+  /** Every option is off and the group says so (`aria-disabled`); no key or press is taken. */
+  readonly disabled?: boolean | undefined
   /** A style of `SegmentedSlots`, for the control's look. */
   readonly style?: NamedStyle<typeof SegmentedSlots> | undefined
   /** Mixins beside the style; `Segmented.fluid` glides a single choice's pill. */
   readonly mixins?: MixinList<Message> | undefined
 }
+
+/** One of the options: a radio group, whose arrows choose as they move. */
+export interface SegmentedSingle<Value extends string, Message> extends SegmentedCommon<
+  Value,
+  Message
+> {
+  readonly multiple?: false | undefined
+  /** Prefixes the ids the options draw, which the arrows move focus by; unique on the page. */
+  readonly id: string
+  /** Default `ltr`; `rtl` swaps ArrowLeft and ArrowRight. */
+  readonly direction?: 'ltr' | 'rtl' | undefined
+}
+
+/** Any number of the options: a group of pressed buttons, each a tab stop. */
+export interface SegmentedMultiple<Value extends string, Message> extends SegmentedCommon<
+  Value,
+  Message
+> {
+  readonly multiple: true
+}
+
+export type SegmentedView<Value extends string, Message> =
+  | SegmentedSingle<Value, Message>
+  | SegmentedMultiple<Value, Message>
 
 /**
  * The pressed values after `value` is pressed. A single control keeps one
@@ -134,56 +171,119 @@ export const toggled = <Value extends string>(
 }
 
 /**
- * A segmented control in one call: the options as pressed buttons in a
- * group, each label also in `data-label` so turning semibold when pressed
- * moves nothing, after the indicator and highlight `fluid` moves. An option
- * with an icon draws it and its words in a `content` row and is marked
- * `data-icon`; one drawn `iconOnly` is named by its label.
+ * A segmented control in one call: the options in a group, each label also in
+ * `data-label` so turning semibold when chosen moves nothing, after the
+ * indicator and highlight `fluid` moves. An option with an icon draws it and
+ * its words in a `content` row and is marked `data-icon`; one drawn `iconOnly`
+ * is named by its label.
  */
 export const view = <Value extends string, Message>(
   options: SegmentedView<Value, Message>,
   h: HtmlBuilder<Message>,
 ): Html => {
+  const multiple = options.multiple === true
+  const off = options.disabled === true
+  const chosen = new Set<string>(options.pressed)
+  const idOf = (value: Value) => `${options.multiple === true ? '' : options.id}-${value}`
+  // The tab stop of a radio group: the chosen option, else the first one that can take focus.
+  const enabled = options.options.flatMap((option, index) =>
+    off || option.disabled === true ? [] : [index],
+  )
+  const chosenAt = options.options.findIndex(option => chosen.has(option.value))
+  const stop = enabled.includes(chosenAt) ? chosenAt : (enabled[0] ?? -1)
+  const keys = Behaviors.Keys.behavior(SegmentedSlots)<unknown, Message>({
+    slot: 'group',
+    name: 'SegmentedKeys',
+    routes: [
+      Behaviors.Keys.route<unknown, Message>('Radio', {
+        on: [
+          Behaviors.Keys.chord('Home'),
+          Behaviors.Keys.chord('End'),
+          ...RovingTabindex.arrowChords('both'),
+        ],
+        handle: ({ key, modifiers }) => {
+          const next = RovingTabindex.move(enabled, chosenAt, key, modifiers, {
+            orientation: 'both',
+            loop: true,
+            direction: multiple ? 'ltr' : (options.direction ?? 'ltr'),
+          })
+          const target = next === undefined ? undefined : options.options[next]
+          return target === undefined
+            ? Option.none()
+            : Option.some(Behaviors.Keys.focus(idOf(target.value), options.onPress(target.value)))
+        },
+      }),
+    ],
+  })
   const builders = SlotView.buildersFor(
     SegmentedSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      ...(multiple ? [] : [keys.mixin]),
+      ...(options.mixins ?? []),
+    ],
     { input: undefined, h },
   )
-  const pressed = new Set<string>(options.pressed)
-  return h.div(builders.group.attrs([h.Role('group'), h.AriaLabel(options.label)]), [
-    h.div(builders.indicator.attrs([h.AriaHidden(true)]), []),
-    h.div(builders.highlight.attrs([h.AriaHidden(true)]), []),
-    ...options.options.map(option => {
-      const words = h.span(builders.label.attrs(), [option.label])
-      // What the option names itself by, and what it draws.
-      const drawn = (): readonly [ReadonlyArray<Attribute<Message>>, ReadonlyArray<Html>] => {
-        const named = h.DataAttribute('label', option.label)
-        if (option.icon === undefined) return [[named], [words]]
-        const mark = h.span(builders.icon.attrs([h.AriaHidden(true)]), [option.icon])
-        if (option.iconOnly === true) {
+  const submitted = (name: string) =>
+    options.options.flatMap(option =>
+      chosen.has(option.value)
+        ? [
+            h.input(
+              builders.hiddenInput.attrs([
+                h.Key(`submit-${option.value}`),
+                h.Type('hidden'),
+                h.Name(name),
+                h.Value(option.value),
+              ]),
+            ),
+          ]
+        : [],
+    )
+  return h.div(
+    builders.group.attrs([
+      h.Role(multiple ? 'group' : 'radiogroup'),
+      h.AriaLabel(options.label),
+      ...(off ? [h.AriaDisabled(true)] : []),
+    ]),
+    [
+      h.div(builders.indicator.attrs([h.AriaHidden(true)]), []),
+      h.div(builders.highlight.attrs([h.AriaHidden(true)]), []),
+      ...options.options.map((option, index) => {
+        const words = h.span(builders.label.attrs(), [option.label])
+        // What the option names itself by, and what it draws.
+        const drawn = (): readonly [ReadonlyArray<Attribute<Message>>, ReadonlyArray<Html>] => {
+          const named = h.DataAttribute('label', option.label)
+          if (option.icon === undefined) return [[named], [words]]
+          const mark = h.span(builders.icon.attrs([h.AriaHidden(true)]), [option.icon])
+          if (option.iconOnly === true) {
+            return [
+              [h.AriaLabel(option.label), h.Title(option.label), h.DataAttribute('icon', 'only')],
+              [mark],
+            ]
+          }
           return [
-            [h.AriaLabel(option.label), h.Title(option.label), h.DataAttribute('icon', 'only')],
-            [mark],
+            [named, h.DataAttribute('icon', '')],
+            [h.span(builders.content.attrs(), [mark, words])],
           ]
         }
-        return [
-          [named, h.DataAttribute('icon', '')],
-          [h.span(builders.content.attrs(), [mark, words])],
-        ]
-      }
-      const [naming, children] = drawn()
-      return h.button(
-        builders.option.attrs([
-          h.Key(option.value),
-          h.Type('button'),
-          h.AriaPressed(String(pressed.has(option.value))),
-          ...naming,
-          ...(option.disabled === true
-            ? [h.Disabled(true)]
-            : [h.OnClick(options.onPress(option.value))]),
-        ]),
-        children,
-      )
-    }),
-  ])
+        const [naming, children] = drawn()
+        const on = chosen.has(option.value)
+        const unavailable = off || option.disabled === true
+        return h.button(
+          builders.option.attrs([
+            h.Key(option.value),
+            h.Type('button'),
+            ...(multiple ? [] : [h.Id(idOf(option.value))]),
+            ...(multiple
+              ? [h.AriaPressed(String(on))]
+              : [h.Role('radio'), h.AriaChecked(on), h.Tabindex(index === stop ? 0 : -1)]),
+            ...naming,
+            ...(unavailable ? [h.Disabled(true)] : [h.OnClick(options.onPress(option.value))]),
+          ]),
+          children,
+        )
+      }),
+      ...(options.name === undefined ? [] : submitted(options.name)),
+    ],
+  )
 }

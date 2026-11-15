@@ -720,12 +720,15 @@ describe('Recipes', () => {
 
     it('tints the pressed option, flat, for text and icon tiles alike', () => {
       // In the variants layer, so an icon button's own background (a variant) does not hide it.
-      const pressed = /@layer variants\{[^@]*\w > \[aria-pressed="true"\]\{([^}]*)\}/.exec(css({}))
-      expect(pressed?.[1]).toContain('color:var(--fk-accent-ink)')
-      // Its fill, until `Segmented.fluid` runs and the indicator carries it.
-      const filled = /:not\(\[data-fluid-hover\]\) > \[aria-pressed="true"\]\{([^}]*)\}/.exec(
+      const chosen = String.raw`:is\(\[aria-pressed="true"\], \[aria-checked="true"\]\)`
+      const pressed = new RegExp(String.raw`@layer variants\{[^@]*\w > ${chosen}\{([^}]*)\}`).exec(
         css({}),
       )
+      expect(pressed?.[1]).toContain('color:var(--fk-accent-ink)')
+      // Its fill, until `Segmented.fluid` runs and the indicator carries it.
+      const filled = new RegExp(
+        String.raw`:not\(\[data-fluid-hover\]\) > ${chosen}\{([^}]*)\}`,
+      ).exec(css({}))
       expect(filled?.[1]).toContain('background:var(--fk-accent-subtle)')
       expect(pressed?.[1]).toContain('box-shadow:none')
       expect(pressed?.[1]).toContain('font-weight:var(--fk-weight-semibold)')

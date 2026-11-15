@@ -131,6 +131,7 @@ const mount = () => {
               [
                 Segmented.view(
                   {
+                    id: 'view',
                     label: 'View',
                     options: [
                       { value: 'a', label: 'A' },

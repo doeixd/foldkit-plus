@@ -69,6 +69,7 @@ const mount = (scheme: 'light' | 'dark' = 'light') => {
         Segmented.view(
           {
             label: 'Text style',
+            multiple: true,
             options: ['Bold', 'Italic', 'Strike'].map(value => ({ value, label: value })),
             pressed: ['Bold', 'Italic'],
             onPress: () => Pressed,

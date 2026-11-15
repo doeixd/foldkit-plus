@@ -264,6 +264,7 @@ const row = (model: Model, slots: Slots, h: H, path: KnobPath): Html => {
     hint(model, h, path, knob.title),
     Segmented.view(
       {
+        id: `knob-${knob.title.toLowerCase().replaceAll(' ', '-')}`,
         label: knob.title,
         options: words(control.options),
         pressed: [String(valueAt(model.theme, path))],
@@ -639,7 +640,15 @@ const canvas = (model: Model, slots: Slots, h: H): Html => {
     onPress: (value: A) => Message,
   ) =>
     Segmented.view(
-      { label, options, pressed: [current], onPress, style: BarStyle, mixins: Segmented.fluid },
+      {
+        id: `bar-${label.toLowerCase().replaceAll(' ', '-')}`,
+        label,
+        options,
+        pressed: [current],
+        onPress,
+        style: BarStyle,
+        mixins: Segmented.fluid,
+      },
       h,
     )
   return h.div(slots.canvasColumn.attrs(), [

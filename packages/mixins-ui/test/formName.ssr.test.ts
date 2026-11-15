@@ -8,7 +8,7 @@ import { Effect, Option } from 'effect'
 import { injectIntoTemplate, renderToString } from 'foldkit/experimental/server'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { expect, test } from 'vitest'
-import { CheckboxGroup, Input, Rating, Slider, Textarea } from '../src/index.js'
+import { CheckboxGroup, Input, Rating, Segmented, Slider, Textarea } from '../src/index.js'
 
 const template =
   '<!doctype html><html><head><title></title></head><body><div id="root"></div></body></html>'
@@ -130,4 +130,40 @@ test('an input and a textarea name their value, and an input says it is required
   expect(email?.getAttribute('value')).toBe('a@b.c')
   expect(email?.hasAttribute('required')).toBe(true)
   expect(page.querySelector('textarea[name="bio"]')?.textContent).toBe('Hello')
+})
+
+test('a segmented control submits its chosen value, a multiple one each', async () => {
+  const options = [
+    { value: 'day', label: 'Day' },
+    { value: 'week', label: 'Week' },
+    { value: 'month', label: 'Month' },
+  ]
+  const single = await served(h =>
+    Segmented.view(
+      {
+        id: 'range',
+        label: 'Range',
+        options,
+        pressed: ['week'],
+        onPress: () => undefined as never,
+        name: 'range',
+      },
+      h,
+    ),
+  )
+  expect(submitted(single, 'range')).toEqual([{ type: 'hidden', value: 'week', checked: false }])
+  const several = await served(h =>
+    Segmented.view(
+      {
+        label: 'Style',
+        multiple: true,
+        options,
+        pressed: ['month', 'day'],
+        onPress: () => undefined as never,
+        name: 'style',
+      },
+      h,
+    ),
+  )
+  expect(submitted(several, 'style').map(input => input.value)).toEqual(['day', 'month'])
 })
