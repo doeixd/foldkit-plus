@@ -33,8 +33,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/design.ts',
-        find: 'var(--_fk-state-ink, ${ref.state.ink}) ${',
-        replace: '${ref.state.ink} ${',
+        find: "var(--_fk-state-ink, ${ref.state.ink}) ${ref.knob['state-hover']}, transparent)",
+        replace: "${ref.state.ink} ${ref.knob['state-hover']}, transparent)",
       },
     ],
     tests: [...browser, 'packages/mixins-ui/test/recipes.test.ts'],
