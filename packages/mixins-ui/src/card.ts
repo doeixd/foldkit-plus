@@ -7,7 +7,7 @@ import {
   type SlotAttributes,
 } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
-import { FLUID_PRESS_ATTRIBUTE, FluidHover, fluidHovered } from 'foldkit-primitives/dom'
+import { FLUID_PRESS_ATTRIBUTE, FOCUS_MARK, FluidHover, fluidHovered } from 'foldkit-primitives/dom'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -219,7 +219,7 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
                 // card is drawn inside a list the application owns, so it has no such slot.
                 ...(options.recoveryPart === undefined
                   ? []
-                  : [h.DataAttribute('fk-focus-part', options.recoveryPart)]),
+                  : [h.DataAttribute(FOCUS_MARK.part, options.recoveryPart)]),
               ]),
               // Named by its label, so the glyph is never read.
               ['✕'],

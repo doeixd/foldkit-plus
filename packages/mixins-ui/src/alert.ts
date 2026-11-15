@@ -1,6 +1,7 @@
 import { Match } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { FOCUS_MARK } from 'foldkit-primitives/dom'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -139,7 +140,7 @@ export const view = <Message = never>(
               // alert is drawn inside a list the application owns, so it has no such slot.
               ...(options.recoveryPart === undefined
                 ? []
-                : [h.DataAttribute('fk-focus-part', options.recoveryPart)]),
+                : [h.DataAttribute(FOCUS_MARK.part, options.recoveryPart)]),
             ]),
             // Named by its label, so the glyph is never read.
             ['✕'],

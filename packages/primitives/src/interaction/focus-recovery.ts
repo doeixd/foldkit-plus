@@ -11,6 +11,7 @@ import { FocusRecovery as FocusRecoveryMount, type Step } from '../dom/focus-rec
 import { FOCUS_MARK } from '../dom/focusable.js'
 
 export { FocusRecovery as mount, UNRECOVERED } from '../dom/focus-recovery.js'
+export { FOCUS_MARK } from '../dom/focusable.js'
 
 /** A step in slot terms: `{ part }` names a slot of the contract. */
 export type Steps<Slot extends string> = ReadonlyArray<

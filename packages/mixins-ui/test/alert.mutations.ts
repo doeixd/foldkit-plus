@@ -13,8 +13,8 @@ export default [
     edits: [
       {
         file: '../src/alert.ts',
-        find: "h.DataAttribute('fk-focus-part', options.recoveryPart)",
-        replace: "h.DataAttribute('fk-focus-part', 'unrelated')",
+        find: 'h.DataAttribute(FOCUS_MARK.part, options.recoveryPart)',
+        replace: "h.DataAttribute(FOCUS_MARK.part, 'unrelated')",
       },
     ],
     tests: ['packages/mixins-ui/test/dismissFocus.browser.test.ts'],
