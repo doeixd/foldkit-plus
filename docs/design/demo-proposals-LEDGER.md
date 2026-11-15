@@ -28,7 +28,7 @@ Last updated 2026-11-15.
 | D6 | data-grid | A header filter form closed itself about 100 ms after a mouse click. Cause: Foldkit's Vite plugin brands a node by the function that returned it and replaces a node whose brand changed; the funnel was returned from two arrows. Only workspace builds are branded, so the browser tests never saw it. | `foldkit-mixins-data-grid` | Landed `5b2a13ebd` |
 | D7 | data-grid | Header filter and column-menu buttons are 24px targets on a coarse pointer. | `foldkit-mixins-data-grid` | Building (data-grid demo agent) |
 | D8 | pages | `redecorate` in `richtext-dom` restored the DOM selection without the `ownsSelection()` guard, so any decoration refresh pulled focus back into the editor from whatever button the user had moved to. | `foldkit-richtext-dom` | Building (pages demo agent) |
-| D9 | authoring guide | `Conformance.listbox`'s doc comment said `enter` runs "first, and again whenever an activation has closed the options"; it runs only when no option is drawn. Comment corrected. | `foldkit-mixins` | Landed (primitives agent's conformance commit) |
+| D9 | authoring guide | `Conformance.listbox`'s doc comment said `enter` runs "first, and again whenever an activation has closed the options"; it runs only when no option is drawn. Comment corrected. | `foldkit-mixins` | Landed `cf84dc70d` |
 | D10 | widgets | A `File` kept in a Model or Message makes Foldkit's dev-tools relay reject with `SchemaError: Expected JSON value` under `vite dev` (not reproduced in isolation; the relay only runs under `import.meta.hot`). README note written. | `foldkit-mixins-ui` docs; upstream Foldkit | Landed `22c8c0b75` (note). **Open**: file upstream? |
 
 ## API additions and changes
@@ -45,7 +45,7 @@ Last updated 2026-11-15.
 | A8 | widgets | `Table` sort keys typed through to `onSort`; `Table.defineColumns` for hoisted columns. | `foldkit-mixins-ui` | Landed `21331cecd` |
 | A9 | widgets | `FocusRecovery`: a fallback naming an undeclared part is a type error; `parts` may name a widget's own `recoveryPart` without inventing a Slot. | `foldkit-primitives` | Building |
 | A10 | widgets/authoring | `Repeat.behavior` takes the `SlotView.over` binder with inference, a `disabled` option, and supplies `activation`. | `foldkit-primitives` | Landed `92da18aa4` |
-| A11 | widgets/authoring | `Selection` helpers `select` (replace and anchor) and `range`. | `foldkit-primitives` | Landed |
+| A11 | widgets/authoring | `Selection` helpers `select` (replace and anchor) and `range`. | `foldkit-primitives` | Landed `7df47c587` |
 | A12 | widgets/authoring | `Pressed` carries `modifiers` (shift, ctrl, meta, alt) in place of `shiftKey`. **Breaking.** | `foldkit-primitives` | Landed `4d3d7cd81` |
 | A13 | widgets/authoring | `GridNavigation.behavior` takes application key `routes`. | `foldkit-primitives` | Landed `adaf67191` |
 | A14 | design-system | A runtime-only Themes entry (apply, choose, changes, boot script) importable without the style compiler, and knob metadata as data. | `foldkit-mixins` | Building |
