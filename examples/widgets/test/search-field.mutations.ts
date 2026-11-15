@@ -49,7 +49,7 @@ export default [
   },
   {
     name: 'the second view routes to the first placement',
-    edits: [{ file: demo, find: 'second.view(model, h),', replace: 'first.view(model, h),' }],
+    edits: [{ file: demo, find: 'second.view(model, h)]', replace: 'first.view(model, h)]' }],
     tests: unit,
   },
   {
