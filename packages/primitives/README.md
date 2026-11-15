@@ -15,9 +15,32 @@ import { MediaQuery } from 'foldkit-primitives/media'
 > hands your `update` a Message. What your application keeps, and what it does
 > about it, stays yours.
 
+## What it owns, and what it does not
+
+It owns interaction **logic**: the transitions of a roving tab stop, a press, a
+drag, an undo stack, a timer, written once as Bundles, Mounts and Behaviors.
+The fact itself stays in your Model, and your `update` decides what it means.
+It does not own a widget or a look: finished components are
+[`foldkit-mixins-ui`](../mixins-ui), and the Slots, Behaviors and styles they are
+drawn with are [`foldkit-mixins`](../mixins). Replicated or durable state is
+[`foldkit-sync`](../sync)'s and [`foldkit-mirror`](../mirror)'s.
+
+For keyboard, pointer and focus patterns (the `interaction` subpath) the model is
+four parts:
+
+```text
+Bundle    holds the state and Messages          (which item is current, what is held)
+Mount     reports a DOM fact to a Message       (a press, a drag, where focus went)
+Behavior  attaches both to a view's typed Slots (tabindex, aria-*, handlers)
+Command   does a DOM effect the Model caused    (focus this row once it is drawn)
+```
+
+A widget's keys are `Behaviors.Keys` routes, the one `keydown` owner of a slot,
+so an application adds a key beside them instead of fighting them.
+
 ## Which form a primitive takes
 
-Every primitive is one of five things, chosen by what it has to own:
+Every primitive is one of six things, chosen by what it has to own:
 
 | It needs to own | Form | Joins the application by | Examples |
 | --- | --- | --- | --- |
@@ -177,19 +200,24 @@ const copy = (model: NoteModel): Update.Return<NoteModel, NoteMessage> => ({
 | Follow the color scheme, reduced motion or any media query | `MediaQuery`, `PrefersDark`, `PrefersReducedMotion` | [media](./media/README.md) |
 | Change the layout at named widths | `Breakpoints` | [media](./media/README.md) |
 | Know whether the tab is visible, the window's size, or the user idle | `Visibility`, `WindowSize`, `Idle` | [events](./events/README.md) |
-| Answer keyboard shortcuts | `keyboardEvents` with `matchHotkey` | [events](./events/README.md) |
+| Answer keyboard shortcuts, and draw their labels | `keyboardEvents` with `matchHotkey`, `formatHotkey`, `ariaKeyshortcuts` | [events](./events/README.md) |
 | Count ticks, or run something on an interval | `Timer`, `Interval`, `ticks` | [time](./time/README.md) |
 | Wait until typing stops, or limit how often something runs | `debounce`, `Throttle` | [time](./time/README.md) |
 | Say "3 minutes ago" | `formatRelativeTime` | [time](./time/README.md) |
 | Page through a list | `Pagination`, `range` | [state](./state/README.md) |
-| Undo and redo | `history` | [state](./state/README.md) |
-| Draw only the visible rows of a long list | `Virtual` | [state](./state/README.md) |
+| Undo and redo | `history`, `History` | [state](./state/README.md) |
+| Draw only the visible rows of a long list | `Virtual` (drawn as `WindowList` in `foldkit-mixins-ui`) | [state](./state/README.md) |
 | Animate a value, or let an element leave before it is removed | `Tween`, `Spring`, `Presence` | [motion](./motion/README.md) |
-| Move with arrow keys through a toolbar, list, grid or tree | `RovingTabindex`, `ListNavigation`, `GridNavigation`, `TreeNavigation` | [interaction](./interaction/README.md) |
+| Move with arrow keys through a toolbar, list, grid, tree or free-form board | `RovingTabindex`, `ListNavigation`, `GridNavigation`, `TreeNavigation`, `SpatialNavigation` | [interaction](./interaction/README.md#choosing-between-near-neighbours) |
 | Close a popup on Escape or an outside press | `DismissLayer`, `Overlay` | [interaction](./interaction/README.md) |
-| Press, long-press, drag or lasso | `Press`, `LongPress`, `Move`, `PointerDrag`, `Marquee` | [interaction](./interaction/README.md) |
+| Press, long-press, or repeat while held (a stepper) | `Press`, `LongPress`, `Repeat` | [interaction](./interaction/README.md) |
+| Drag a window or handle, and nudge or resize it by keys within limits | `Move`, `Move.nudge`, `Move.resizeKeys`, `Box` | [interaction](./interaction/README.md), [state](./state/README.md) |
+| Reorder a list or tree by keys and by pointer | `Reorder`, `PointerDrag` | [interaction](./interaction/README.md) |
+| Select items, with Shift ranges or a lasso | `Selection`, `Marquee` | [interaction](./interaction/README.md) |
+| Swipe a row open, or settle a scroller on an item | `SwipeActions`, `Swipe`, `ScrollSettle` | [interaction](./interaction/README.md), [dom](./dom/README.md) |
+| Keep focus when a row goes, or return it when an overlay closes | `FocusRecovery`, `FocusReturn`, `FollowTabStop`, `FocusScope` | [interaction](./interaction/README.md#choosing-between-near-neighbours) |
 | Read where the pointer is inside an element (a color area, a dial, a pad drawn on) | `PointerPosition` | [dom](./dom/README.md) |
-| Edit text in place | `EditableText` | [interaction](./interaction/README.md) |
+| Edit text in place | `InlineEdit` (an `<input>`), `EditableText` (`contenteditable`) | [interaction](./interaction/README.md#choosing-between-near-neighbours) |
 | Tell a screen reader what changed | `LiveAnnounce` | [interaction](./interaction/README.md) |
 | Know whether the browser is online, or talk over a socket | `Online`, `websocket`, `sse` | [net](./net/README.md) |
 | Talk between tabs | `broadcastMessages`, `SharedHost` | [net](./net/README.md) |
@@ -211,13 +239,13 @@ reference: every Model shape, Message, argument, and failure rule.
 | [`media`](./media/README.md) | the environment | `MediaQuery` (+ `PrefersDark`, `PrefersReducedMotion`), `Breakpoints`, `platformFromUA`, `isBrowser` |
 | [`net`](./net/README.md) | the network | `Online`, `websocket`, `sse`, `broadcastMessages`, `postBroadcast`, `SharedHost` |
 | [`time`](./time/README.md) | the clock | `Timer`, `Interval`, `ticks`, `debounce`, `Throttle`, `formatRelativeTime` |
-| [`state`](./state/README.md) | UI state with nowhere else to live | `Pagination`, `history`, `Locale`, `SelectionSet`, `Virtual`, `range`, layout math |
+| [`state`](./state/README.md) | UI state with nowhere else to live | `Pagination`, `history`, `Box`, `Locale`, `SelectionSet`, `Virtual`, `range`, layout math |
 | [`motion`](./motion/README.md) | animation | `Tween`, `Spring`, `Presence`, the `Motion` service |
-| [`interaction`](./interaction/README.md) | keyboard, pointer, and focus patterns, with their Behaviors | `RovingTabindex`, `Typeahead`, `ListNavigation`, `GridNavigation`, `TreeNavigation`, `FocusScope`, `FocusRecovery`, `Press`, `LongPress`, `Move`, `Targets`, `PointerDrag`, `Marquee`, `EditableText`, `FocusVisible`, `DismissLayer`, `Layers`, `Selection`, `LiveAnnounce` |
+| [`interaction`](./interaction/README.md) | keyboard, pointer, and focus patterns, with their Behaviors | `RovingTabindex`, `Typeahead`, `ListNavigation`, `GridNavigation`, `SpatialNavigation`, `TreeNavigation`, `FocusScope`, `FocusRecovery`, `Presence`, `Press`, `LongPress`, `Repeat`, `SwipeActions`, `Move`, `Targets`, `PointerDrag`, `Marquee`, `Reorder`, `EditableText`, `InlineEdit`, `FocusVisible`, `DismissLayer`, `Layers`, `Overlay`, `Placing`, `Selection`, `LiveAnnounce` |
 | [`device`](./device/README.md) | hardware | `Geolocation`, `mediaDevices`, `mediaStream`, `permissions`, fullscreen |
-| [`events`](./events/README.md) | raw window events | `Visibility`, `WindowSize`, `Idle`, `InputModality`, `keyboardEvents`, `pointerEvents`, `scrollEvents`, `activeElementEvents`, `matchHotkey` |
+| [`events`](./events/README.md) | raw window events | `Visibility`, `WindowSize`, `Idle`, `InputModality`, `keyboardEvents`, `pointerEvents`, `scrollEvents`, `activeElementEvents`, `matchHotkey`, `formatHotkey`, `ariaKeyshortcuts` |
 | [`observers`](./observers/README.md) | element observers | `Resize`, `Intersection`, `Mutation`, `Bounds` |
-| [`dom`](./dom/README.md) | element Mounts and one-shot Commands | `Autofocus`, `InputMask`, `KeepInView`, `Measure`, `FluidHover`, `ScrollBars`, `PointerPosition`, `FocusScope`, `FollowTabStop`, `FocusRecovery`, `FocusReturn`, `ScrollLock`, `HideOutside`, `copyText`, `readText`, `share`, `loadScript`, `decodeImage`, `keepScroll`, `pointedLinks`, `visibleLinks` |
+| [`dom`](./dom/README.md) | element Mounts and one-shot Commands | `Autofocus`, `InputMask`, `KeepInView`, `Measure`, `FluidHover`, `ScrollBars`, `PointerPosition`, `FocusScope`, `FollowTabStop`, `FocusRecovery`, `FocusReturn`, `ScrollLock`, `HideOutside`, `TrackBox`, `Swipe`, `ScrollSettle`, `KeyboardInset`, `copyText`, `readText`, `share`, `loadScript`, `decodeImage`, `keepScroll`, `pointedLinks`, `visibleLinks` |
 
 ## Rules every primitive keeps
 

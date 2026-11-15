@@ -21,14 +21,16 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `Typeahead` | `{ query, generation }` | type-to-find, for a host whose focus is managed elsewhere |
 | `ListNavigation` | `{ current, query, generation }` | a list host that wants both, in one placement |
 | `GridNavigation` | `{ current }` | cells in rows: a calendar, a swatch picker |
+| `SpatialNavigation` | `{ current }` | freely placed items: a board, a canvas, a dashboard of cards |
 | `TreeNavigation` | `{ current, toggled }` | a tree: a file explorer, a layers panel |
 | `FocusScope` | nothing (a Mount) | keep focus inside an overlay |
 | `FocusRecovery` | nothing (a Mount) | keep focus when its part is removed or hidden |
+| `InlineEdit` | `{ editing }`; out `Committed` | edit a plain value where it is shown, in an `<input>` |
 | `Presence` | nothing (draws the Model's phase) | a leaving row that takes no click, Tab or focus |
 | `Press` | `{ pressed, … }`; out `Pressed` | pointer, touch, Enter, Space, and AT clicks as one fact |
 | `LongPress` | `{ … }`; out `LongPressed` | holding for a threshold |
-| `SwipeActions` | `{ fullSwipe, flick, full }`; out `FullSwiped` | which side of a row is open, what a swipe's release means, and its keys |
-| `Repeat` | `{ delayMs, intervalMs }`; out `Stepped`, `Ended` | a held stepper button |
+| `SwipeActions` | `{ open }`; out `FullSwiped` | which side of a row is open, what a swipe's release means, and its keys |
+| `Repeat` | `{ holding, count, … }`; out `Stepped`, `Ended` | a held stepper button |
 | `Move` | nothing (a Mount) | pointer drag deltas |
 | `Targets` | nothing (a Mount) | which marked descendant is hovered or pressed |
 | `PointerDrag` | nothing (a Mount) | dragging one marked descendant onto another |
@@ -40,9 +42,54 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `Layers` | nothing (Mounts) | scroll lock and inert-outside for an overlay |
 | `Selection` | `{ selected, anchor, ranged }` | selected items with `aria-selected` and Shift ranges |
 | `LiveAnnounce` | the live regions' text | speak to assistive technology |
+| `Overlay`, `Placing` | nothing (Behaviors) | one policy for an overlay's dismissal, focus and locks; keep a panel in the viewport |
+| `BundleBehavior` | nothing | write the Behavior half of a Bundle you author |
 
-The pure rule behind each (`move`, `match`, `between`, `toDismiss`,
+The pure rule behind each (`move`, `match`, `nearest`, `between`, `toDismiss`,
 `targetOf`, `zoneOf`) is exported beside it, for a view that wires its own.
+
+## Choosing between near neighbours
+
+Four pairs look alike. Each answer is the one fact that differs.
+
+**Arrow keys over items.** Pick by how the items are laid out.
+
+| The items are | Take | Because |
+| --- | --- | --- |
+| one row or column, no typing to find | `RovingTabindex` | the smallest: one tab stop, arrows, Home and End |
+| one row or column, and typing finds one | `ListNavigation` | `RovingTabindex` plus `Typeahead` in one placement: a container has one `keydown` owner, so the two cannot be placed side by side |
+| cells in rows of a fixed `columns` | `GridNavigation` | up and down mean the same column |
+| nested, some of them open | `TreeNavigation` | Left and Right open, close and step out; openness is in the Model |
+| placed anywhere, with no rows or columns | `SpatialNavigation` | the nearest item drawn that way, measured when the key is pressed |
+
+`Typeahead` alone is for a host whose focus is managed elsewhere.
+
+**Keeping focus.** The four differ by what makes focus move.
+
+| Take | It acts when | And moves focus to |
+| --- | --- | --- |
+| `FocusScope` | an overlay mounts and unmounts | in: its first tabbable; contained while open; out: back to the opener |
+| `FocusReturn` | an overlay whose own restoring is not ours unmounts with focus lost (a native `<dialog>`) | the opener, else by `FocusRecovery`'s steps, else the layer below |
+| `FocusRecovery` | the focused part is removed, hidden, made `inert` or moved | the part's declared steps (`next`, `previous`, `parent`, `{ part }`, `owner`) |
+| `FollowTabStop` | a transition moves or removes the roving stop's row | the container's stop (the roving primitives and `TreeNavigation` attach it themselves) |
+
+`FocusScope` and `FocusReturn` are about an overlay; `FocusRecovery` and
+`FollowTabStop` are about a list that changes under the focus. A custom overlay
+takes `FocusScope`; add `FocusReturn` when something else restores focus.
+
+**Editing text.** `InlineEdit` edits a plain value in an `<input>` and keeps the
+draft in the Model; the parent saves or refuses the `Committed` value.
+`EditableText` reads the text typed into a `contenteditable` field the view
+already draws (a label on a canvas, a node's title), one or several lines, and
+reports it as it changes.
+
+**Moving things.** `Move` reports a pointer drag's deltas for one element (a
+window, a handle). `PointerDrag` drags one marked descendant onto another
+(a place in a list). `Marquee` moves nothing: it reports the marked items a lasso
+from empty space covers. `Reorder` is the keyboard's path
+and the pointer's, as one draft (`Moved { id, to }`) for a list or tree, and
+uses `PointerDrag` itself. For a window or card, a key and a drag share
+`Move.nudge` and `Box` (in [`state`](../state/README.md)).
 
 ## Start with one: a toolbar with a roving tab stop
 
@@ -271,7 +318,42 @@ presses is found where it is now. The rule is the pure `nearest(items, current,
 direction)`, and directions are physical (left is left in a right-to-left
 page). Its Model slice and item attributes are `RovingTabindex`'s. Like
 `RovingTabindex` it provides `A11y.Navigation` on the container and
-`A11y.FocusStrategy` on each item.
+`A11y.FocusStrategy` on each item. Its one arg, `id`, names the board on the
+page, so two boards each find their own items.
+
+<!-- docs-check
+const Card = Schema.Struct({ id: Schema.String, disabled: Schema.Boolean })
+type Card = typeof Card.Type
+const describeCards = (cards: ReadonlyArray<Card>) =>
+  Behaviors.Collection.of(cards, { id: card => card.id, disabled: card => card.disabled })
+const BoardSlots = Slots.define({
+  board: Slot.make({ capability: Capability.Interactive }),
+  card: Slot.make({ capability: Capability.Focusable }),
+})
+const BoardModel = Schema.Struct({
+  ...Bundle.declare(SpatialNavigation.bundle, 'board').fields,
+  cards: Schema.Array(Card),
+})
+type BoardModel = typeof BoardModel.Type
+const BoardMessage = defineMessageUnion({
+  ...Bundle.declare(SpatialNavigation.bundle, 'board').cases,
+})
+type BoardMessage = typeof BoardMessage.Type
+-->
+
+```ts
+import { SpatialNavigation } from 'foldkit-primitives/interaction'
+
+const Board = Bundle.declare(SpatialNavigation.bundle, 'board')
+const BoardKeys = SpatialNavigation.behavior(Board, { id: 'cards' })(BoardSlots)<
+  BoardModel,
+  BoardMessage
+>({
+  container: 'board',
+  item: 'card',
+  items: model => describeCards(model.cards),
+})
+```
 
 **`InlineEdit`** edits a plain value where it is shown, in an `<input>`: Enter,
 F2, a double click or a typed key starts, Enter saves, Escape puts it back and
@@ -282,7 +364,52 @@ saves or hands back to `refuse` with a reason, keeping the editor open on the
 same draft; an unchanged value commits nothing. Enter and Escape on the field
 are `Behaviors.Keys` routes; its `routes` option adds more (Tab moving to the
 next cell), and a route on a key it already owns is a `mixins:key-conflict`
-naming both.
+naming both. The placement's helpers are `start(id, text)` (a Rename menu item
+begins an edit) and `refuse(committed, error)`, which `onOut` calls to reopen
+the editor on the same draft with a reason; `blur` says whether leaving the
+field commits or cancels, and the field needs an `aria-label` of its own.
+
+<!-- docs-check
+const Note = Schema.Struct({ id: Schema.String, title: Schema.String })
+type Note = typeof Note.Type
+import { Event } from 'foldkit-mixins'
+const NoteSlots = Slots.define({
+  title: Slot.make({ capability: Capability.Focusable }),
+  field: Slot.make({ capability: Capability.TextInput, events: [Event.KeyDown] }),
+  error: Slot.make({ capability: Capability.Base }),
+})
+const NoteModel = Schema.Struct({
+  ...Bundle.declare(InlineEdit.bundle, 'rename').fields,
+  notes: Schema.Array(Note),
+})
+type NoteModel = typeof NoteModel.Type
+const NoteMessage = defineMessageUnion({ ...Bundle.declare(InlineEdit.bundle, 'rename').cases })
+type NoteMessage = typeof NoteMessage.Type
+const NotePage = Bundle.parent({ Model: NoteModel, Message: NoteMessage })
+-->
+
+```ts
+import { modifyFields } from 'foldkit/struct'
+import { InlineEdit } from 'foldkit-primitives/interaction'
+
+const Rename = Bundle.declare(InlineEdit.bundle, 'rename')
+const renameArgs = { id: 'notes', blur: 'commit' } as const
+const Renamed = NotePage.at(Rename, {
+  args: renameArgs,
+  onOut: committed => model => ({
+    model: modifyFields(model, {
+      notes: notes =>
+        notes.map(note => (note.id === committed.id ? { ...note, title: committed.value } : note)),
+    }),
+  }),
+})
+const Renames = InlineEdit.behavior(Rename, renameArgs)(NoteSlots)<NoteModel, NoteMessage>({
+  display: 'title',
+  input: 'field',
+  error: 'error',
+  value: (model, id) => model.notes.find(note => note.id === id)?.title ?? '',
+})
+```
 
 <!-- docs-check
 const Day = Schema.Struct({ id: Schema.String })
@@ -396,8 +523,7 @@ command palette.
 
 **`FocusRecovery`** keeps focus when the element that has it goes away: a
 removed row, a clear button that leaves with the text, a part made `inert`,
-`hidden` or `disabled`. The browser drops focus to `body` (probes in the design
-note, not guesses); the Mount runs in the same task as the change, before that,
+`hidden` or `disabled`. The browser drops focus to `body`; the Mount runs in the same task as the change, before that,
 and moves focus along a fallback the application declares. Like `FocusScope` it
 is DOM, not state: nothing crosses to the Model except what the target's own
 `OnFocus` already reports. Where `FocusScope` acts when a scope appears or goes
@@ -615,12 +741,13 @@ mount `PressEvents`; a slot takes one of them.
 
 **`SwipeActions`** is actions behind a row, with a way in that needs no
 pointer. Its Model holds which side is open (`start` is revealed by moving the
-row toward the end, right in English). `SwipeActions.decide(model, release, args)`
-is the rule for a `SwipeEnded` (from `foldkit-primitives/dom`'s `Swipe`, which
-is not part of this Bundle): a flick opens the side it points to or closes the
-row when it points back, otherwise past half of a side's actions opens it, and
-past `fullSwipe` of the row runs the first action when `full` is set, reported as
-`FullSwiped { side }` after the row closes. A side with no actions never opens,
+row toward the end, right in English); `fullSwipe`, `flick` and `full` are its
+args. `SwipeActions.decide(model, release, args)` is the rule for a `SwipeEnded`
+(from `foldkit-primitives/dom`'s `Swipe`, which is not part of this Bundle):
+past `fullSwipe` of the row it runs the first action when `full` is set,
+reported as `FullSwiped { side }` after the row closes; otherwise a flick opens
+the side it points to or closes the row when it points back, and a slower
+release opens a side once it is past half of that side's actions. A side with no actions never opens,
 and right to left swaps the sides. The row's offset while a finger moves it is
 the parent's draft from `Swiped`. `SwipeActions.keys({ open, rtl, toMessage })`
 is a `Behaviors.Keys` route for the row's keydown owner: the arrow toward the

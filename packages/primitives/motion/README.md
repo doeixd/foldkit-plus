@@ -64,12 +64,10 @@ Holds mount-transition state for an exit animation. `phase` moves
 `shown → hiding → hidden`: `Hide` starts the timed `hiding` phase, and the
 `Hidden` fact it schedules carries its generation, so a `Show` in between wins
 and the late fact is ignored. `isVisible(model)` reads whether content renders
-(shown or mid-exit); the view keeps drawing while it does. While `phase` is
-`hiding`, mark the part with `leaving(h)` from `foldkit-primitives/interaction`
-so focus moves out and the part becomes inert; the marker goes when the phase
-is `shown` again or the part is removed on `Hidden`. That Mount does not time
-the exit. The timeout Command is the owner; there is no `transitionend` timer
-beside it. Under reduced motion the same `Hidden` is sent at once.
+(shown or mid-exit); the view keeps drawing while it does. The timeout Command
+is the owner of the exit's end; there is no `transitionend` timer beside it.
+Under reduced motion the same `Hidden` is sent at once. A placement starts
+`hidden`: send `Show` (or its `show` helper) to draw the content.
 
 A parent starts and undoes the exit through the placement's helpers, never by
 building the child's Messages: a dismiss button sends the parent's own
@@ -77,9 +75,9 @@ building the child's Messages: a dismiss button sends the parent's own
 (`show(id)` brings the row back; a single placement takes no key).
 
 While it exits the content should take no click, Tab or focus: draw it with
-[`Presence.behavior`](../interaction/README.md), which writes `data-presence` and
-`inert` from the phase, and let `FocusRecovery` move focus off it in the frame it
-turns `inert`.
+[`Presence.behavior`](../interaction/README.md#presence-a-leaving-row-is-out-of-reach),
+which writes `data-presence` and `inert` from the phase, and let `FocusRecovery`
+move focus off it in the frame it turns `inert`.
 
 ## Reduced motion is a service
 
