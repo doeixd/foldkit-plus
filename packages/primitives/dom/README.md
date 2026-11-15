@@ -22,6 +22,7 @@ wraps.
 | `ScrollBars({ idle?, scroller? })` | Mount | nothing; writes custom properties and marks | `idle` in ms, default 600 |
 | `FocusScope(options)` | Mount | nothing | `{ contain?, restore?, initialFocus? }` |
 | `FollowTabStop` | Mount | nothing | |
+| `KeyboardInset` | Mount | nothing; writes `--fk-keyboard-inset` | |
 | `FocusRecovery({ fallback })` | Mount | nothing | `fallback`: steps per part slot |
 | `FocusReturn()` | Mount | nothing | none |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
@@ -352,6 +353,16 @@ stays. How the thumb rests, widens and fades is the style's;
 field with approximate caret restore, and emits `Input { value, raw }` with
 the masked and unmasked text. The parent owns the value, like any controlled
 input. `applyMask(value, pattern)` is the pure rule.
+
+**`KeyboardInset`** writes `--fk-keyboard-inset` on its element: how much of the
+layout viewport's bottom the on-screen keyboard covers, from the visual
+viewport's height and scroll, rounded down so a fraction of a pixel is no
+keyboard. A style pads or shrinks by `var(--fk-keyboard-inset, 0px)`. While the
+page is pinch-zoomed in (`scale` above 1) the visual viewport is short because
+it shows less of the page, not because something covers it, so it writes `0px`;
+with no visual viewport it writes nothing, and it removes the property when the
+element goes. It sends no Message, so a Scene test of a view that draws it by
+default cannot resolve it: attach it as an option.
 
 ## `PointerPosition`: where the pointer is inside an element
 

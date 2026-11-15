@@ -38,7 +38,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `FocusVisible` | `InputModality`'s `{ modality }` | a focus ring for keyboard users only |
 | `DismissLayer` | `{ layers }`; out `Dismiss { ids }` | close overlays on Escape or an outside press |
 | `Layers` | nothing (Mounts) | scroll lock and inert-outside for an overlay |
-| `Selection` | `{ selected, anchor }` | selected items with `aria-selected` and Shift ranges |
+| `Selection` | `{ selected, anchor, ranged }` | selected items with `aria-selected` and Shift ranges |
 | `LiveAnnounce` | the live regions' text | speak to assistive technology |
 
 The pure rule behind each (`move`, `match`, `between`, `toDismiss`,
@@ -259,6 +259,30 @@ under `wrap` a horizontal key continues into the next row and a vertical key
 into the next column, otherwise the key is consumed at the edge. Home and End
 are the row's first and last enabled cell, Ctrl+Home and Ctrl+End the grid's.
 RTL swaps left and right, and `virtual` works as it does for `RovingTabindex`.
+Given a `page` in its args, PageUp and PageDown move that many rows (at the
+same column, stopping at the first and last row); without one they are left to
+the page.
+
+**`SpatialNavigation`** is arrow keys over freely placed items (a board, a
+canvas, a dashboard of cards), where there are no rows or columns: each arrow
+moves the one tab stop to the nearest item drawn in that direction, measured
+when the key is handled and never kept, so an item that moved between two
+presses is found where it is now. The rule is the pure `nearest(items, current,
+direction)`, and directions are physical (left is left in a right-to-left
+page). Its Model slice and item attributes are `RovingTabindex`'s. Like
+`RovingTabindex` it provides `A11y.Navigation` on the container and
+`A11y.FocusStrategy` on each item.
+
+**`InlineEdit`** edits a plain value where it is shown, in an `<input>`: Enter,
+F2, a double click or a typed key starts, Enter saves, Escape puts it back and
+closes no dialog around it. The Model slice holds the item being edited, its
+draft and the parent's refusal; nothing is read back from the field. A changed
+value commits as the `Committed` OutMessage, which the placement's `onOut`
+saves or hands back to `refuse` with a reason, keeping the editor open on the
+same draft; an unchanged value commits nothing. Enter and Escape on the field
+are `Behaviors.Keys` routes; its `routes` option adds more (Tab moving to the
+next cell), and a route on a key it already owns is a `mixins:key-conflict`
+naming both.
 
 <!-- docs-check
 const Day = Schema.Struct({ id: Schema.String })
@@ -1322,7 +1346,7 @@ Behavior.attach(Placing.keepWithin(WidgetSlots)({ panel: 'popup' })),
 **`Selection`** is which items are selected, with `mode` `'single'` (a click
 replaces; `allowEmpty` says whether clicking the selected item deselects it),
 `'multiple'` (a click toggles), or `'none'`, and the `anchor` a range extends
-from. The Model slice is `{ selected, anchor }`. A range needs the items'
+from. The Model slice is `{ selected, anchor, ranged }`, where `ranged` is the ids the last range added: the next `Ranged` from the same anchor takes them back first, so a shorter Shift range shrinks as in a file manager, while ids picked by a plain click stay. In `'single'` mode `Replaced` with more than one id is refused and returns the Model it was given. A range needs the items'
 order, which the view knows and the Bundle does not, so `Ranged { id, order }`
 carries it; `Selection.between(order, from, to)` is the pure span. The
 Behavior, `Selection.behavior(Declared, args)(Slots)<Model, Message>({ container?, item, items, click? })`,
