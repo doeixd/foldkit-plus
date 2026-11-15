@@ -513,7 +513,7 @@ export const PillTabsStyle = app.forSlots(TabsSlots)(
     name: 'PillTabsStyle',
   },
 )
-// Across the column, the plans in equal shares.
+// Across the column, the options in equal shares: the plans, and the studio's pickers.
 export const PlanStyle = app.forSlots(SegmentedSlots)(
   Recipes.Segmented({ tray: 'tray', size: 'sm', width: 'fill' }),
   { name: 'PlanStyle' },
@@ -694,12 +694,6 @@ export const StudioStyle = app.slots(
     specimenLabel: [U.m('0'), U.text('xs'), U.font('semibold'), U.color('text.muted')],
   },
   { name: 'StudioStyle' },
-)
-
-/** The panel's pickers: a tray of equal shares, so three or four options read as one control. */
-export const ChoiceStyle = app.forSlots(SegmentedSlots)(
-  Recipes.Segmented({ tray: 'tray', size: 'sm', width: 'fill' }),
-  { name: 'ChoiceStyle' },
 )
 
 // --- tokens and cascade ---------------------------------------------------------------------

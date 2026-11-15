@@ -7,7 +7,7 @@
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView } from 'foldkit-mixins'
 import { Button, Segmented, Slider } from 'foldkit-mixins-ui'
-import { ChoiceStyle, GhostButtonStyle, SliderStyle, StudioStyle } from './style.js'
+import { GhostButtonStyle, PlanStyle, SliderStyle, StudioStyle } from './style.js'
 import { StudioSlots } from './slots.js'
 import { knobs, themeNames } from './themeData.js'
 import type { ThemeName } from './themeRuntime.js'
@@ -61,7 +61,7 @@ export const studioPanel = <Message>(
           pressed: [chosen],
           onPress: send,
           direction: state.dir,
-          style: ChoiceStyle,
+          style: PlanStyle,
         },
         h,
       ),

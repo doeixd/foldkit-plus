@@ -71,7 +71,9 @@ test('radio circles center on their labels’ first lines', async () => {
   // so the style nudges it down. Fails at 3.5px without the nudge.
   await vi.waitFor(
     () => {
-      const radio = document.querySelector('[role="radio"]') as HTMLElement
+      const radio = document.querySelector(
+        '[aria-label="Preferred contact"] [role="radio"]',
+      ) as HTMLElement
       const label = radio.parentElement?.querySelector('label') as HTMLElement
       const circle = radio.getBoundingClientRect()
       const range = document.createRange()
@@ -156,10 +158,13 @@ test('the plan picker spans its column, its plans in equal shares', async () => 
   mount()
   await seen('Team plans')
   await vi.waitFor(() => {
-    const plans = document.querySelector('[role="group"][aria-label="Plan"]')
+    const plans = document.querySelector('[role="radiogroup"][aria-label="Plan"]')
     if (!(plans instanceof HTMLElement) || plans.parentElement === null) throw new Error('no plans')
     expect(plans.getBoundingClientRect().width).toBeCloseTo(plans.parentElement.clientWidth, 0)
-    const widths = Array.from(plans.children, plan => plan.getBoundingClientRect().width)
+    const widths = Array.from(
+      plans.querySelectorAll('[role="radio"]'),
+      plan => plan.getBoundingClientRect().width,
+    )
     expect(widths).toHaveLength(3)
     widths.forEach(width => expect(width).toBeCloseTo(widths[0]!, 0))
   })
@@ -184,14 +189,20 @@ test('collections show an empty state, a list, and a table', async () => {
   await seen('Team plans')
 })
 
-test('shadow presets rewrite the strength knob on :root', async () => {
+test('a knob slider writes its knob on :root', async () => {
   mount()
-  await page.getByRole('button', { name: 'Soft' }).click()
+  const slider = await vi.waitFor(() => {
+    const input = document.querySelector('input[type="range"][id^="tweak-shadow"]')
+    if (!(input instanceof HTMLInputElement)) throw new Error('no shadow slider')
+    return input
+  })
+  slider.value = '30'
+  slider.dispatchEvent(new Event('input', { bubbles: true }))
   await vi.waitFor(
     () =>
       expect(
         [...document.querySelectorAll('style')].some(element =>
-          (element.textContent ?? '').includes('--fk-knob-shadow-strength:60%'),
+          (element.textContent ?? '').includes(':root{--fk-knob-shadow-strength:30%}'),
         ),
       ).toBe(true),
     { timeout: 10_000 },
