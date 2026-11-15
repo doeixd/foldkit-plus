@@ -7,6 +7,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
@@ -121,6 +122,8 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
+const DEFAULT_DELIMITER = ','
+
 export const init = (options: {
   readonly id: string
   readonly tags?: ReadonlyArray<string> | undefined
@@ -132,7 +135,7 @@ export const init = (options: {
   id: options.id,
   tags: options.tags ?? [],
   draft: '',
-  delimiter: options.delimiter ?? ',',
+  delimiter: options.delimiter ?? DEFAULT_DELIMITER,
   max: Option.fromUndefinedOr(options.max),
   refusal: Option.none(),
   refusals: 0,
@@ -341,6 +344,55 @@ const caretAtStart = (model: Model): boolean =>
     onSome: field => field.selectionStart === 0 && field.selectionEnd === 0,
   })
 
+/** What a clash with the input's own keys depends on: the delimiter, and the arrow `rtl` swaps. */
+type OwnKeysInput<Outer> = Pick<Model, 'delimiter'> & Pick<TagsInputView<Outer>, 'direction'>
+
+/** The input's own keys: Enter and the delimiter, Backspace in an empty field, and the arrow into the chips. */
+const ownRoutes = <Outer>(
+  keys: OwnKeysInput<Outer>,
+  answers: Readonly<
+    Record<
+      'Commit' | 'RemoveLast' | 'ToChips',
+      (model: Model) => Option.Option<Outer | Behaviors.Keys.Focus<Outer>>
+    >
+  >,
+): ReadonlyArray<Route<Outer>> => [
+  Behaviors.Keys.route<Model, Outer>('Commit', {
+    on: [Behaviors.Keys.chord('Enter'), Behaviors.Keys.chord(keys.delimiter)],
+    handle: ({ input }) => answers.Commit(input),
+  }),
+  Behaviors.Keys.route<Model, Outer>('RemoveLast', {
+    on: [Behaviors.Keys.chord('Backspace')],
+    handle: ({ input }) => answers.RemoveLast(input),
+  }),
+  Behaviors.Keys.route<Model, Outer>('ToChips', {
+    on: [Behaviors.Keys.chord(keys.direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft')],
+    handle: ({ input }) => answers.ToChips(input),
+  }),
+]
+
+/**
+ * The `mixins:key-conflict` that drawing the input with `routes` would throw,
+ * or none: the application's routes against the input's own and against each
+ * other. `delimiter` is the Model's (default `,`) and `direction` the view's.
+ */
+export const conflict = <Outer>(
+  routes: ReadonlyArray<Route<Outer>>,
+  input: Partial<OwnKeysInput<Outer>> = {},
+): Option.Option<Diagnostic> => {
+  const none = () => Option.none()
+  return Behaviors.Keys.conflict(
+    [
+      ...ownRoutes<Outer>(
+        { delimiter: input.delimiter ?? DEFAULT_DELIMITER, direction: input.direction },
+        { Commit: none, RemoveLast: none, ToChips: none },
+      ),
+      ...routes,
+    ],
+    Option.some('input'),
+  )
+}
+
 export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>): Html => {
   const { model, name } = options
   const lift = options.onMessage
@@ -351,26 +403,24 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
     slot: 'input',
     name: 'TagsInputKeys',
     routes: [
-      Behaviors.Keys.route<Model, Outer>('Commit', {
-        on: [Behaviors.Keys.chord('Enter'), Behaviors.Keys.chord(model.delimiter)],
-        handle: () => Option.some(lift(Message.Committed())),
-      }),
-      Behaviors.Keys.route<Model, Outer>('RemoveLast', {
-        on: [Behaviors.Keys.chord('Backspace')],
-        handle: ({ input }) =>
-          input.tags.length > 0 && fieldIsEmpty(input)
-            ? Option.some(lift(Message.BackspacedEmpty()))
-            : Option.none(),
-      }),
-      Behaviors.Keys.route<Model, Outer>('ToChips', {
-        on: [Behaviors.Keys.chord(direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft')],
-        handle: ({ input }) =>
-          Option.flatMap(Option.fromNullishOr(input.tags.at(-1)), last =>
-            caretAtStart(input)
-              ? Option.some(Behaviors.Keys.focus(chipId(input.id, last), moved(Option.some(last))))
+      ...ownRoutes<Outer>(
+        { delimiter: model.delimiter, direction },
+        {
+          Commit: () => Option.some(lift(Message.Committed())),
+          RemoveLast: input =>
+            input.tags.length > 0 && fieldIsEmpty(input)
+              ? Option.some(lift(Message.BackspacedEmpty()))
               : Option.none(),
-          ),
-      }),
+          ToChips: input =>
+            Option.flatMap(Option.fromNullishOr(input.tags.at(-1)), last =>
+              caretAtStart(input)
+                ? Option.some(
+                    Behaviors.Keys.focus(chipId(input.id, last), moved(Option.some(last))),
+                  )
+                : Option.none(),
+            ),
+        },
+      ),
       ...(options.routes ?? []),
     ],
   })

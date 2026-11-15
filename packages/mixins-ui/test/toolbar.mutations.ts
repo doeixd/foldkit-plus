@@ -74,7 +74,7 @@ export default [
     edits: [
       {
         file: source,
-        find: "...Behaviors.Keys.withShift('Home'),\n          ...Behaviors.Keys.withShift('End'),",
+        find: "...Behaviors.Keys.withShift('Home'),\n      ...Behaviors.Keys.withShift('End'),",
         replace: '',
       },
     ],
@@ -107,9 +107,8 @@ export default [
     edits: [
       {
         file: source,
-        find: 'orientation,\n            loop: options.loop ?? true,\n            direction,',
-        replace:
-          "orientation,\n            loop: options.loop ?? true,\n            direction: 'ltr',",
+        find: 'orientation,\n          loop: options.loop ?? true,\n          direction,',
+        replace: "orientation,\n          loop: options.loop ?? true,\n          direction: 'ltr',",
       },
     ],
     tests: [unit, browser],

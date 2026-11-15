@@ -156,7 +156,7 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: "on: [Behaviors.Keys.chord('Enter'), Behaviors.Keys.chord(model.delimiter)],",
+        find: "on: [Behaviors.Keys.chord('Enter'), Behaviors.Keys.chord(keys.delimiter)],",
         replace: "on: [Behaviors.Keys.chord('Enter')],",
       },
     ],

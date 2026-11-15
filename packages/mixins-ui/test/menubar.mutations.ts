@@ -123,8 +123,8 @@ export default [
     edits: [
       {
         file,
-        find: 'handle: () => Option.some(onMessage(Message.Pressed({ key: reading }))),',
-        replace: "handle: () => Option.some(onMessage(Message.Pressed({ key: 'End' }))),",
+        find: 'handle: () => answer(reading),',
+        replace: "handle: () => answer('End'),",
       },
     ],
     tests: [unit],
@@ -134,7 +134,7 @@ export default [
     edits: [
       {
         file,
-        find: "options.direction === 'rtl' ? RTL_KEYS[reading] : reading",
+        find: "direction === 'rtl' ? RTL_KEYS[reading] : reading",
         replace: 'reading',
       },
     ],
@@ -160,8 +160,8 @@ export default [
     edits: [
       {
         file,
-        find: "...Behaviors.Keys.withShift(options.direction === 'rtl' ? RTL_KEYS[reading] : reading),",
-        replace: "Behaviors.Keys.chord(options.direction === 'rtl' ? RTL_KEYS[reading] : reading),",
+        find: "...Behaviors.Keys.withShift(direction === 'rtl' ? RTL_KEYS[reading] : reading)",
+        replace: "Behaviors.Keys.chord(direction === 'rtl' ? RTL_KEYS[reading] : reading)",
       },
     ],
     tests: [unit],

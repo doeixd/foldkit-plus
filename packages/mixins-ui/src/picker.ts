@@ -36,6 +36,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
@@ -215,6 +216,29 @@ const STEP_KEYS = ['Home', 'End', 'ArrowDown', 'ArrowUp'] as const satisfies Rea
   keyof typeof STEPS & Behaviors.Keys.NamedKey
 >
 
+/** A Sheet option's own keys: the arrows, Home and End, each answered with the option's place. */
+const ownRoutes = <Outer>(
+  step: (key: (typeof STEP_KEYS)[number], index: number) => Option.Option<Outer>,
+): ReadonlyArray<Route<Outer>> =>
+  STEP_KEYS.map(key =>
+    Behaviors.Keys.route<undefined, Outer>(`Step ${key}`, {
+      on: [...Behaviors.Keys.withShift(key)],
+      handle: ({ item }) =>
+        Option.flatMap(Option.fromNullishOr(item), ({ index }) => step(key, index)),
+    }),
+  )
+
+/**
+ * The `mixins:key-conflict` that drawing the Sheet's options with `routes`
+ * would throw, or none: the application's routes against the options' own and
+ * against each other. The dropdown's keys are the Listbox's.
+ */
+export const conflict = <Outer>(routes: ReadonlyArray<Route<Outer>>): Option.Option<Diagnostic> =>
+  Behaviors.Keys.conflict(
+    [...ownRoutes<Outer>(() => Option.none()), ...routes],
+    Option.some('option'),
+  )
+
 /** The picker: the dropdown and the opener, one shown by the style, and the Sheet. */
 export const view = <Value extends string, Outer>(
   options: PickerView<Value, Outer>,
@@ -226,14 +250,8 @@ export const view = <Value extends string, Outer>(
     slot: 'option',
     name: 'PickerKeys',
     routes: [
-      ...STEP_KEYS.map(key =>
-        Behaviors.Keys.route<undefined, Outer>(`Step ${key}`, {
-          on: [...Behaviors.Keys.withShift(key)],
-          handle: ({ item }) =>
-            Option.map(Option.fromNullishOr(item), ({ index }) =>
-              onMessage(Message.Stepped({ to: STEPS[key](index, choices.length) })),
-            ),
-        }),
+      ...ownRoutes<Outer>((key, index) =>
+        Option.some(onMessage(Message.Stepped({ to: STEPS[key](index, choices.length) }))),
       ),
       ...(options.routes ?? []),
     ],

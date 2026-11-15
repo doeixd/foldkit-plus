@@ -1727,6 +1727,41 @@ const searchWithFocus = (text: string, h: HtmlBuilder<Search>) =>
   )
 ```
 
+#### Checking routes without drawing
+
+Each of these widgets exports `conflict(routes, input?)`: the `mixins:key-conflict` that
+drawing it with `routes` would throw, as an `Option` of the diagnostic, for a screen
+where a user rebinds keys and the candidate set must be judged before anything is drawn.
+It asks `Keys.conflict` of the widget's own routes and `routes` together, the own routes
+being the list the view itself draws, so it names the same two routes the view would,
+and also reports two application routes on one gesture. It reads gestures only: no
+handler runs and nothing is drawn.
+
+`input` is the part of the view's options that decides which keys the widget owns, with
+the view's defaults. A widget whose own keys never vary takes `routes` alone. One that
+draws nothing while closed (`Tour`, `FloatingPanel`, the `CascadeSelect` panel) is
+checked as open, since a route that clashes in any state is a clash.
+
+| Widget | `input` |
+| --- | --- |
+| `Command`, `SearchField`, `CascadeSelect`, `Picker` | none |
+| `Menubar` | `{ direction? }`: the same keys clash either way, and `'rtl'` changes which own route the diagnostic names. |
+| `Tour`, `FloatingPanel` | `{ closeOnEscape? }`: Escape is the widget's only while it is not `false`. |
+| `Toolbar` | `{ orientation? }`, default `'horizontal'`: the arrows along it. |
+| `Tabs` | `{ close? }`: Delete is the tabs' own key only when they are closable. |
+| `TagsInput` | `{ delimiter?, direction? }`: the Model's delimiter, default `,`, and which arrow enters the chips. |
+| `Nav` | `{ panelRoutes? }`: `routes` is checked against the row's keys, then `panelRoutes` against a panel's links'. |
+
+```ts
+// Escape is the field's own key, so this candidate is refused with the diagnostic that
+// drawing the field with it would throw; a free key gives `Option.none()`.
+const candidate: SearchField.Route<Search> = Keys.route('Open results', {
+  on: [Keys.chord('Escape')],
+  handle: () => Option.some(Search.OpenedResults()),
+})
+const refusal = Option.map(SearchField.conflict([candidate]), diagnostic => diagnostic.message)
+```
+
 ### Focus after removal
 
 When the element that held focus leaves the page, the browser drops focus to `body`.

@@ -129,7 +129,7 @@ export default [
     edits: [
       {
         file,
-        find: 'Message.Pressed({ key: readingKey(key, options.direction) })',
+        find: 'Message.Pressed({ key: readingKey(key, direction) })',
         replace: 'Message.Pressed({ key })',
       },
     ],

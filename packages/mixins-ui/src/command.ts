@@ -8,6 +8,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -202,6 +203,41 @@ export const filtered = <Value extends string>(
   })
 }
 
+/** The menu's own keys, each with the name a clash reports. */
+const OWN_KEYS = [
+  ['Next', 'ArrowDown'],
+  ['Previous', 'ArrowUp'],
+  ['PageDown', 'PageDown'],
+  ['PageUp', 'PageUp'],
+  ['Run', 'Enter'],
+  ['Back', 'Backspace'],
+] as const satisfies ReadonlyArray<readonly [string, Behaviors.Keys.NamedKey]>
+
+type OwnKey = (typeof OWN_KEYS)[number][0]
+
+const ownRoutes = <Value extends string, Message>(
+  answer: (name: OwnKey) => (input: CommandKeyInput<Value>) => Option.Option<Message>,
+): ReadonlyArray<CommandRoute<Value, Message>> =>
+  OWN_KEYS.map(([name, key]) =>
+    Behaviors.Keys.route<CommandKeyInput<Value>, Message>(name, {
+      on: [Behaviors.Keys.chord(key)],
+      handle: ({ input }) => answer(name)(input),
+    }),
+  )
+
+/**
+ * The `mixins:key-conflict` that drawing the menu with `routes` would throw,
+ * or none: the application's routes against the menu's own (the arrows,
+ * PageUp, PageDown, Enter and Backspace) and against each other.
+ */
+export const conflict = <Value extends string, Message>(
+  routes: ReadonlyArray<CommandRoute<Value, Message>>,
+): Option.Option<Diagnostic> =>
+  Behaviors.Keys.conflict(
+    [...ownRoutes<Value, Message>(() => () => Option.none()), ...routes],
+    Option.some('input'),
+  )
+
 export const view = <Value extends string, Message>(
   options: CommandView<Value, Message>,
   h: HtmlBuilder<Message>,
@@ -244,36 +280,28 @@ export const view = <Value extends string, Message>(
     enabled.length === 0
       ? Option.none()
       : at(Math.min(Math.max(positionOf() + by, 0), enabled.length - 1))
-  const keyRoutes = Behaviors.Keys
-  const route = (
-    name: string,
-    key: Behaviors.Keys.NamedKey,
-    handle: (input: CommandKeyInput<Value>) => Option.Option<Message>,
-  ): CommandRoute<Value, Message> =>
-    keyRoutes.route(name, { on: [keyRoutes.chord(key)], handle: ({ input }) => handle(input) })
-  const moves = (name: string, key: Behaviors.Keys.NamedKey, to: () => Option.Option<Value>) =>
-    route(name, key, () =>
-      Option.map(to(), value => {
-        reached.current = Option.some(value)
-        return options.onActive(value)
-      }),
-    )
-  const keyboard = keyRoutes.behavior(CommandSlots)<CommandKeyInput<Value>, Message>({
+  const moves = (to: () => Option.Option<Value>) => () =>
+    Option.map(to(), value => {
+      reached.current = Option.some(value)
+      return options.onActive(value)
+    })
+  const answers: Readonly<
+    Record<OwnKey, (input: CommandKeyInput<Value>) => Option.Option<Message>>
+  > = {
+    Next: moves(() => step(1)),
+    Previous: moves(() => step(-1)),
+    PageDown: moves(() => jump(PAGE)),
+    PageUp: moves(() => jump(-PAGE)),
+    Run: ({ current }) => Option.map(current, options.onRun),
+    Back: ({ query }) =>
+      query === ''
+        ? Option.map(Option.fromNullishOr(options.page), page => page.onBack)
+        : Option.none(),
+  }
+  const keyboard = Behaviors.Keys.behavior(CommandSlots)<CommandKeyInput<Value>, Message>({
     slot: 'input',
     name: 'CommandKeys',
-    routes: [
-      moves('Next', 'ArrowDown', () => step(1)),
-      moves('Previous', 'ArrowUp', () => step(-1)),
-      moves('PageDown', 'PageDown', () => jump(PAGE)),
-      moves('PageUp', 'PageUp', () => jump(-PAGE)),
-      route('Run', 'Enter', ({ current }) => Option.map(current, options.onRun)),
-      route('Back', 'Backspace', ({ query }) =>
-        query === ''
-          ? Option.map(Option.fromNullishOr(options.page), page => page.onBack)
-          : Option.none(),
-      ),
-      ...(options.routes ?? []),
-    ],
+    routes: [...ownRoutes<Value, Message>(name => answers[name]), ...(options.routes ?? [])],
   })
   const builders = SlotView.buildersFor(
     CommandSlots,

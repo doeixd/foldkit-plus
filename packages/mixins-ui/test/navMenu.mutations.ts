@@ -206,8 +206,8 @@ export default [
     edits: [
       {
         file: view,
-        find: '...PANEL_KEYS.map(key =>',
-        replace: '...([] as unknown as typeof PANEL_KEYS).map(key =>',
+        find: 'PANEL_KEYS.map(key =>',
+        replace: '([] as unknown as typeof PANEL_KEYS).map(key =>',
       },
     ],
     tests,
@@ -228,9 +228,9 @@ export default [
     edits: [
       {
         file: view,
-        find: 'Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {\n        on: [...Behaviors.Keys.withShift(key)],',
+        find: 'Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {\n      on: [...Behaviors.Keys.withShift(key)],',
         replace:
-          'Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {\n        on: [Behaviors.Keys.chord(key)],',
+          'Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {\n      on: [Behaviors.Keys.chord(key)],',
       },
     ],
     tests: unit,

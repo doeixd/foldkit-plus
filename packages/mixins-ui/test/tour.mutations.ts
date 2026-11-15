@@ -161,7 +161,7 @@ export default [
     edits: [
       {
         file,
-        find: 'Message.Pressed({ key: readingKey(key, options.direction) })',
+        find: 'Message.Pressed({ key: readingKey(key, input.direction) })',
         replace: 'Message.Pressed({ key })',
       },
     ],
@@ -172,7 +172,7 @@ export default [
     edits: [
       {
         file,
-        find: 'options.closeOnEscape === false',
+        find: 'input.closeOnEscape === false',
         replace: 'false',
       },
     ],

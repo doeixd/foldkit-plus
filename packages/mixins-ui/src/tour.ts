@@ -9,6 +9,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import { FocusReturn, TRACK_TARGET_ATTRIBUTE, TrackBox } from 'foldkit-primitives/dom'
@@ -315,6 +316,42 @@ const ofCount = (step: number, count: number) => `${step + 1} of ${count}`
 /** A key the application answers on a step. */
 export type Route<ParentMessage> = Behaviors.Keys.Route<undefined, ParentMessage>
 
+/** A step's own keys: the arrows, and Escape unless `closeOnEscape` is false. */
+const ownRoutes = <ParentMessage>(
+  input: Pick<TourView<ParentMessage>, 'direction' | 'closeOnEscape'>,
+  answer: (message: Message) => Option.Option<ParentMessage>,
+): ReadonlyArray<Route<ParentMessage>> => [
+  ...STEP_KEYS.map(key =>
+    Behaviors.Keys.route<undefined, ParentMessage>(`Tour ${key}`, {
+      on: [...Behaviors.Keys.withShift(key)],
+      // The key as a left-to-right reader presses it.
+      handle: () => answer(Message.Pressed({ key: readingKey(key, input.direction) })),
+    }),
+  ),
+  ...(input.closeOnEscape === false
+    ? []
+    : [
+        Behaviors.Keys.route<undefined, ParentMessage>('Tour Escape', {
+          on: [...Behaviors.Keys.withShift('Escape')],
+          handle: () => answer(Message.Pressed({ key: 'Escape' })),
+        }),
+      ]),
+]
+
+/**
+ * The `mixins:key-conflict` that drawing an open step with `routes` would
+ * throw, or none: the application's routes against the step's own and against
+ * each other. A closed tour draws nothing, so the check is of the open one.
+ */
+export const conflict = <ParentMessage>(
+  routes: ReadonlyArray<Route<ParentMessage>>,
+  input: Pick<TourView<ParentMessage>, 'closeOnEscape'> = {},
+): Option.Option<Diagnostic> =>
+  Behaviors.Keys.conflict(
+    [...ownRoutes<ParentMessage>(input, () => Option.none()), ...routes],
+    Option.some('panel'),
+  )
+
 export const view = <ParentMessage>(
   options: TourView<ParentMessage>,
   h: HtmlBuilder<ParentMessage>,
@@ -327,22 +364,7 @@ export const view = <ParentMessage>(
     slot: 'panel',
     name: 'TourKeys',
     routes: [
-      ...STEP_KEYS.map(key =>
-        Behaviors.Keys.route<undefined, ParentMessage>(`Tour ${key}`, {
-          on: [...Behaviors.Keys.withShift(key)],
-          // The key as a left-to-right reader presses it.
-          handle: () =>
-            Option.some(send(Message.Pressed({ key: readingKey(key, options.direction) }))),
-        }),
-      ),
-      ...(options.closeOnEscape === false
-        ? []
-        : [
-            Behaviors.Keys.route<undefined, ParentMessage>('Tour Escape', {
-              on: [...Behaviors.Keys.withShift('Escape')],
-              handle: () => Option.some(send(Message.Pressed({ key: 'Escape' }))),
-            }),
-          ]),
+      ...ownRoutes(options, message => Option.some(send(message))),
       ...(options.routes ?? []),
     ],
   })

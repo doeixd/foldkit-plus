@@ -8,6 +8,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import { FocusReturn, Move } from 'foldkit-primitives/dom'
@@ -407,6 +408,35 @@ export interface FloatingPanelView<ParentMessage> {
 /** The z-index of the lowest panel in a stack, above the page's own layers. */
 export const BASE_LAYER = 40
 
+/** The panel's own key: Escape closes it, unless `closeOnEscape` is false. */
+const ownRoutes = <ParentMessage>(
+  closeOnEscape: boolean | undefined,
+  close: () => Option.Option<ParentMessage>,
+): ReadonlyArray<Route<ParentMessage>> =>
+  closeOnEscape === false
+    ? []
+    : [
+        Behaviors.Keys.route<undefined, ParentMessage>('Close on Escape', {
+          on: [...Behaviors.Keys.withShift('Escape')],
+          handle: close,
+        }),
+      ]
+
+/**
+ * The `mixins:key-conflict` that drawing the open panel with `routes` would
+ * throw, or none: the application's routes against Escape (unless
+ * `closeOnEscape` is false) and against each other. A closed panel draws
+ * nothing, so the check is of the open one.
+ */
+export const conflict = <ParentMessage>(
+  routes: ReadonlyArray<Route<ParentMessage>>,
+  input: Pick<FloatingPanelView<ParentMessage>, 'closeOnEscape'> = {},
+): Option.Option<Diagnostic> =>
+  Behaviors.Keys.conflict(
+    [...ownRoutes<ParentMessage>(input.closeOnEscape, () => Option.none()), ...routes],
+    Option.some('panel'),
+  )
+
 export const view = <ParentMessage>(
   options: FloatingPanelView<ParentMessage>,
   h: HtmlBuilder<ParentMessage>,
@@ -419,14 +449,7 @@ export const view = <ParentMessage>(
     slot: 'panel',
     name: 'FloatingPanelKeys',
     routes: [
-      ...(options.closeOnEscape === false
-        ? []
-        : [
-            Behaviors.Keys.route<undefined, ParentMessage>('Close on Escape', {
-              on: [...Behaviors.Keys.withShift('Escape')],
-              handle: () => Option.some(send(Message.Closed())),
-            }),
-          ]),
+      ...ownRoutes(options.closeOnEscape, () => Option.some(send(Message.Closed()))),
       ...(options.routes ?? []),
     ],
   })

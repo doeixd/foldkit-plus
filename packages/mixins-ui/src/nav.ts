@@ -8,6 +8,7 @@ import {
   Slot,
   Slots,
   type SlotAttributes,
+  type Diagnostic,
 } from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -428,6 +429,56 @@ const moveOf = (key: string, along: 'row' | 'column'): Option.Option<Move> => {
   return Option.none()
 }
 
+/** The keys the top-level row owns, whichever way it runs, each answered with the press. */
+const ownTopRoutes = <Message>(
+  answer: (
+    key: (typeof TOP_KEYS)[number],
+    press: Behaviors.Keys.Press<NavEntry>,
+  ) => Option.Option<Message>,
+): ReadonlyArray<Route<Message>> =>
+  TOP_KEYS.map(key =>
+    Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {
+      on: [...Behaviors.Keys.withShift(key)],
+      handle: press => answer(key, press),
+    }),
+  )
+
+/** The keys a panel's links own. */
+const ownPanelRoutes = <Message>(
+  answer: (
+    key: (typeof PANEL_KEYS)[number],
+    press: Behaviors.Keys.Press<NavPanelLink>,
+  ) => Option.Option<Message>,
+): ReadonlyArray<PanelRoute<Message>> =>
+  PANEL_KEYS.map(key =>
+    Behaviors.Keys.route<NavPanelLink, Message>(`Nav panel ${key}`, {
+      on: [...Behaviors.Keys.withShift(key)],
+      handle: press => answer(key, press),
+    }),
+  )
+
+/**
+ * The `mixins:key-conflict` that drawing the nav with `routes`, and with
+ * `panelRoutes` when given, would throw, or none: the application's routes
+ * against the nav's own and against each other. The top row's keys are the
+ * same in both orientations, so none is asked for.
+ */
+export const conflict = <Message>(
+  routes: ReadonlyArray<Route<Message>>,
+  input: Pick<NavView<Message>, 'panelRoutes'> = {},
+): Option.Option<Diagnostic> =>
+  Option.orElse(
+    Behaviors.Keys.conflict(
+      [...ownTopRoutes<Message>(() => Option.none()), ...routes],
+      Option.some('link'),
+    ),
+    () =>
+      Behaviors.Keys.conflict(
+        [...ownPanelRoutes<Message>(() => Option.none()), ...(input.panelRoutes ?? [])],
+        Option.some('panelLink'),
+      ),
+  )
+
 /**
  * The navigation menu: each entry a top-level link, or a trigger with its
  * panel, drawn only while it shows, in the browser's top layer below its
@@ -445,23 +496,19 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
   const along = vertical ? 'column' : 'row'
   // Physical keys: under `rtl` the arrows along a row swap, so each is read as a left-to-right reader presses it.
   const topRoutes = [
-    ...TOP_KEYS.map(key =>
-      Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {
-        on: [...Behaviors.Keys.withShift(key)],
-        handle: ({ input, item }) =>
-          Option.flatMap(Option.fromNullishOr(item), ({ index }) => {
-            const reading = readingKey(key, options.direction)
-            if (
-              isPanel(input) &&
-              reading === (vertical ? 'ArrowRight' : 'ArrowDown') &&
-              input.groups.some(group => group.links.length > 0)
-            ) {
-              return Option.some(onMessage(Message.Entered({ index, panel: input.id })))
-            }
-            return Option.map(moveOf(reading, along), move =>
-              onMessage(Message.MovedTop({ from: index, count, move })),
-            )
-          }),
+    ...ownTopRoutes<Message>((key, { input, item }) =>
+      Option.flatMap(Option.fromNullishOr(item), ({ index }) => {
+        const reading = readingKey(key, options.direction)
+        if (
+          isPanel(input) &&
+          reading === (vertical ? 'ArrowRight' : 'ArrowDown') &&
+          input.groups.some(group => group.links.length > 0)
+        ) {
+          return Option.some(onMessage(Message.Entered({ index, panel: input.id })))
+        }
+        return Option.map(moveOf(reading, along), move =>
+          onMessage(Message.MovedTop({ from: index, count, move })),
+        )
       }),
     ),
     ...(options.routes ?? []),
@@ -472,22 +519,18 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
   const panelAt = new Map(entries.flatMap((entry, at) => (isPanel(entry) ? [[entry.id, at]] : [])))
   const panelKeys = Behaviors.Keys.attribute<NavPanelLink, Message>(
     [
-      ...PANEL_KEYS.map(key =>
-        Behaviors.Keys.route<NavPanelLink, Message>(`Nav panel ${key}`, {
-          on: [...Behaviors.Keys.withShift(key)],
-          handle: ({ item }) =>
-            Option.flatMap(Option.fromNullishOr(item), ({ index: from, id, count: links }) =>
-              Option.flatMap(
-                Option.all({
-                  entry: Option.fromNullishOr(id === undefined ? undefined : panelAt.get(id)),
-                  count: Option.fromNullishOr(links),
-                  move: moveOf(key, 'column'),
-                }),
-                ({ entry, count, move }) =>
-                  Option.some(onMessage(Message.MovedInPanel({ entry, from, count, move }))),
-              ),
-            ),
-        }),
+      ...ownPanelRoutes<Message>((key, { item }) =>
+        Option.flatMap(Option.fromNullishOr(item), ({ index: from, id, count: links }) =>
+          Option.flatMap(
+            Option.all({
+              entry: Option.fromNullishOr(id === undefined ? undefined : panelAt.get(id)),
+              count: Option.fromNullishOr(links),
+              move: moveOf(key, 'column'),
+            }),
+            ({ entry, count, move }) =>
+              Option.some(onMessage(Message.MovedInPanel({ entry, from, count, move }))),
+          ),
+        ),
       ),
       ...(options.panelRoutes ?? []),
     ],

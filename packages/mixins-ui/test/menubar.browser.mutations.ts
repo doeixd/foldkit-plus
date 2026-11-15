@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file: '../src/menubar.ts',
-        find: "options.direction === 'rtl' ? RTL_KEYS[reading] : reading",
+        find: "direction === 'rtl' ? RTL_KEYS[reading] : reading",
         replace: 'reading',
       },
     ],

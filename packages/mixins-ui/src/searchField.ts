@@ -8,6 +8,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
@@ -109,16 +110,35 @@ export interface SearchFieldView<Message> {
   readonly mixins?: MixinList<Message> | undefined
 }
 
+/** The field's own key: Escape clears the words it holds. */
+const ownRoutes = <Message>(
+  clear: (words: string) => Option.Option<Message>,
+): ReadonlyArray<Route<Message>> => [
+  Behaviors.Keys.route<string, Message>('Clear', {
+    on: [Behaviors.Keys.chord('Escape')],
+    handle: ({ input }) => clear(input),
+  }),
+]
+
+/**
+ * The `mixins:key-conflict` that drawing the field with `routes` would throw,
+ * or none: the application's routes against Escape and against each other.
+ */
+export const conflict = <Message>(
+  routes: ReadonlyArray<Route<Message>>,
+): Option.Option<Diagnostic> =>
+  Behaviors.Keys.conflict(
+    [...ownRoutes<Message>(() => Option.none()), ...routes],
+    Option.some('input'),
+  )
+
 export const view = <Message>(options: SearchFieldView<Message>, h: HtmlBuilder<Message>): Html => {
   const disabled = options.disabled === true
   const keys = Behaviors.Keys.behavior(SearchFieldSlots)<string, Message>({
     slot: 'input',
     name: 'SearchFieldKeys',
     routes: [
-      Behaviors.Keys.route<string, Message>('Clear', {
-        on: [Behaviors.Keys.chord('Escape')],
-        handle: ({ input }) => (input === '' ? Option.none() : Option.some(options.onClear)),
-      }),
+      ...ownRoutes<Message>(words => (words === '' ? Option.none() : Option.some(options.onClear))),
       ...(options.routes ?? []),
     ],
   })

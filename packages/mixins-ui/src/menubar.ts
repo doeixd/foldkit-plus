@@ -7,6 +7,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
@@ -276,6 +277,32 @@ export interface MenubarView<ParentMessage, Value extends string = string> {
   readonly kbd?: NamedStyle<typeof KbdSlots> | undefined
 }
 
+/** The bar's own keys: the arrows, Home and End, which `'rtl'` swaps. */
+const ownRoutes = <ParentMessage>(
+  direction: 'ltr' | 'rtl' | undefined,
+  answer: (reading: BarKey) => Option.Option<ParentMessage>,
+): ReadonlyArray<Route<ParentMessage>> =>
+  BarKey.literals.map(reading =>
+    Behaviors.Keys.route<unknown, ParentMessage>(`Menubar ${reading}`, {
+      on: [...Behaviors.Keys.withShift(direction === 'rtl' ? RTL_KEYS[reading] : reading)],
+      handle: () => answer(reading),
+    }),
+  )
+
+/**
+ * The `mixins:key-conflict` that drawing the bar with `routes` would throw, or
+ * none: the application's routes against the bar's own and against each other.
+ * `direction` is the one the view is given, since `'rtl'` moves the arrows.
+ */
+export const conflict = <ParentMessage>(
+  routes: ReadonlyArray<Route<ParentMessage>>,
+  input: Pick<MenubarView<ParentMessage>, 'direction'> = {},
+): Option.Option<Diagnostic> =>
+  Behaviors.Keys.conflict(
+    [...ownRoutes<ParentMessage>(input.direction, () => Option.none()), ...routes],
+    Option.some('bar'),
+  )
+
 export const view = <ParentMessage, Value extends string = string>(
   options: MenubarView<ParentMessage, Value>,
   h: HtmlBuilder<ParentMessage>,
@@ -286,13 +313,8 @@ export const view = <ParentMessage, Value extends string = string>(
     slot: 'bar',
     name: 'MenubarKeys',
     routes: [
-      ...BarKey.literals.map(reading =>
-        Behaviors.Keys.route<unknown, ParentMessage>(`Menubar ${reading}`, {
-          on: [
-            ...Behaviors.Keys.withShift(options.direction === 'rtl' ? RTL_KEYS[reading] : reading),
-          ],
-          handle: () => Option.some(onMessage(Message.Pressed({ key: reading }))),
-        }),
+      ...ownRoutes(options.direction, reading =>
+        Option.some(onMessage(Message.Pressed({ key: reading }))),
       ),
       ...(options.routes ?? []),
     ],

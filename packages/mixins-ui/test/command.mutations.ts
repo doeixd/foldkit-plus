@@ -63,8 +63,8 @@ export default [
     edits: [
       {
         file,
-        find: "moves('Next', 'ArrowDown', () => step(1))",
-        replace: "moves('Next', 'ArrowDown', () => step(-1))",
+        find: 'Next: moves(() => step(1)),',
+        replace: 'Next: moves(() => step(-1)),',
       },
     ],
     tests: [unit],
@@ -85,8 +85,8 @@ export default [
     edits: [
       {
         file,
-        find: "route('Run', 'Enter', ({ current }) => Option.map(current, options.onRun))",
-        replace: "route('Run', 'Enter', () => Option.none())",
+        find: 'Run: ({ current }) => Option.map(current, options.onRun),',
+        replace: 'Run: () => Option.none(),',
       },
     ],
     tests: [unit],
@@ -133,8 +133,8 @@ export default [
     edits: [
       {
         file,
-        find: '({ query }) =>' + '\n' + "        query === ''",
-        replace: '({ query }) =>' + '\n' + "        query === '' || true",
+        find: 'Back: ({ query }) =>' + '\n' + "      query === ''",
+        replace: 'Back: ({ query }) =>' + '\n' + "      query === '' || true",
       },
     ],
     tests: [browser],
@@ -144,8 +144,8 @@ export default [
     edits: [
       {
         file,
-        find: '({ query }) =>' + '\n' + "        query === ''",
-        replace: '() =>' + '\n' + "        options.query === ''",
+        find: 'Back: ({ query }) =>' + '\n' + "      query === ''",
+        replace: 'Back: () =>' + '\n' + "      options.query === ''",
       },
     ],
     tests: [browser],
@@ -236,7 +236,7 @@ export default [
   },
   {
     name: 'the application routes are dropped',
-    edits: [{ file, find: '...(options.routes ?? []),', replace: '' }],
+    edits: [{ file, find: ', ...(options.routes ?? [])', replace: '' }],
     tests: [unit],
   },
   {
@@ -252,7 +252,7 @@ export default [
   },
   {
     name: 'a key reads the highlight the last drawing showed, not where the previous key left it',
-    edits: [{ file, find: '        reached.current = Option.some(value)\n', replace: '' }],
+    edits: [{ file, find: '      reached.current = Option.some(value)\n', replace: '' }],
     tests: [browser],
   },
   {
@@ -260,9 +260,13 @@ export default [
     edits: [
       {
         file,
-        find: "moves('PageDown', 'PageDown', () => jump(PAGE)),",
-        replace:
-          "moves('PageDown', 'PageDown', () => jump(PAGE)), moves('First', 'Home', () => at(0)),",
+        find: "['PageDown', 'PageDown'],",
+        replace: "['PageDown', 'PageDown'], ['First', 'Home'],",
+      },
+      {
+        file,
+        find: 'PageDown: moves(() => jump(PAGE)),',
+        replace: 'PageDown: moves(() => jump(PAGE)), First: moves(() => at(0)),',
       },
     ],
     tests: [unit, browser],

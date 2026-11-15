@@ -8,6 +8,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
@@ -155,6 +156,38 @@ const usedBy = (element: Element, key: string, direction: 'ltr' | 'rtl'): boolea
   return backward ? start > 0 : end < value.length
 }
 
+/** The toolbar's own keys: the arrows along the orientation, Home and End. */
+const ownRoutes = <Message>(
+  orientation: 'horizontal' | 'vertical',
+  answer: (
+    press: Behaviors.Keys.Press<undefined>,
+  ) => Option.Option<Message | Behaviors.Keys.Focus<Message>>,
+): ReadonlyArray<Behaviors.Keys.Route<undefined, Message>> => [
+  Behaviors.Keys.route<undefined, Message>('Toolbar', {
+    on: [
+      ...Behaviors.Keys.withShift('Home'),
+      ...Behaviors.Keys.withShift('End'),
+      ...RovingTabindex.arrowChords(orientation),
+    ],
+    handle: answer,
+  }),
+]
+
+/**
+ * The `mixins:key-conflict` that drawing the toolbar with `routes` would
+ * throw, or none: the application's routes against the arrows along the
+ * orientation (default `'horizontal'`), Home and End, and against each other.
+ * A disabled toolbar still builds its routes, so it throws as well.
+ */
+export const conflict = <Message>(
+  routes: ReadonlyArray<Behaviors.Keys.Route<undefined, Message>>,
+  input: Pick<ToolbarView<Message>, 'orientation'> = {},
+): Option.Option<Diagnostic> =>
+  Behaviors.Keys.conflict(
+    [...ownRoutes<Message>(input.orientation ?? 'horizontal', () => Option.none()), ...routes],
+    Option.some('root'),
+  )
+
 /**
  * A toolbar in one call, the APG's: `role="toolbar"` named by `label`, one tab
  * stop over its controls, and the arrows along the orientation, Home and End
@@ -194,32 +227,25 @@ export const view = <Message>(options: ToolbarView<Message>, h: HtmlBuilder<Mess
     slot: 'root',
     name: 'ToolbarKeys',
     routes: [
-      Behaviors.Keys.route<undefined, Message>('Toolbar', {
-        on: [
-          ...Behaviors.Keys.withShift('Home'),
-          ...Behaviors.Keys.withShift('End'),
-          ...RovingTabindex.arrowChords(orientation),
-        ],
-        handle: ({ key, modifiers }) => {
-          // Read at the press: a render may lag a held key, and only the DOM knows
-          // whether the press came from a control of this toolbar.
-          const active = document.activeElement
-          const focused = items.ids.findIndex(id => controlId(options.id, id) === active?.id)
-          if (active !== null && active !== document.body && focused === -1) return Option.none()
-          if (focused !== -1 && active !== null && usedBy(active, key, direction)) {
-            return Option.none()
-          }
-          const current = focused === -1 ? items.indexOf(options.roving.current ?? '') : focused
-          const next = RovingTabindex.move(items.enabled, current, key, modifiers, {
-            orientation,
-            loop: options.loop ?? true,
-            direction,
-          })
-          const id = next === undefined ? undefined : items.ids[next]
-          return id === undefined
-            ? Option.none()
-            : Option.some(Behaviors.Keys.focus(controlId(options.id, id), options.onFocus(id)))
-        },
+      ...ownRoutes<Message>(orientation, ({ key, modifiers }) => {
+        // Read at the press: a render may lag a held key, and only the DOM knows
+        // whether the press came from a control of this toolbar.
+        const active = document.activeElement
+        const focused = items.ids.findIndex(id => controlId(options.id, id) === active?.id)
+        if (active !== null && active !== document.body && focused === -1) return Option.none()
+        if (focused !== -1 && active !== null && usedBy(active, key, direction)) {
+          return Option.none()
+        }
+        const current = focused === -1 ? items.indexOf(options.roving.current ?? '') : focused
+        const next = RovingTabindex.move(items.enabled, current, key, modifiers, {
+          orientation,
+          loop: options.loop ?? true,
+          direction,
+        })
+        const id = next === undefined ? undefined : items.ids[next]
+        return id === undefined
+          ? Option.none()
+          : Option.some(Behaviors.Keys.focus(controlId(options.id, id), options.onFocus(id)))
       }),
       ...(options.routes ?? []),
     ],

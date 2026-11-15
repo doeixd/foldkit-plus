@@ -223,7 +223,7 @@ export default [
     edits: [
       {
         file,
-        find: 'handle: () => Option.some(send(Message.Closed())),',
+        find: 'handle: close,',
         replace: 'handle: () => Option.none(),',
       },
     ],
@@ -231,7 +231,7 @@ export default [
   },
   {
     name: 'Escape closes when told not to',
-    edits: [{ file, find: '...(options.closeOnEscape === false', replace: '...(false' }],
+    edits: [{ file, find: 'closeOnEscape === false', replace: 'false' }],
     tests: [unit],
   },
   {
