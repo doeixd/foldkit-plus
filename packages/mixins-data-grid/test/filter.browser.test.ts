@@ -92,6 +92,34 @@ test('Alt+ArrowDown opens the form with focus in its field; typing filters, Esca
   }
 })
 
+/** Two frames and a pause past what a re-render and the Messages it queued take. */
+const settle = async () => {
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  await new Promise(resolve => setTimeout(resolve, 100))
+}
+
+test('a click on the funnel leaves the form open, with focus in its field', async () => {
+  const mounted = mountTasks()
+  try {
+    await vi.waitFor(() => expect(shownRows()).toHaveLength(3))
+    const funnel = buttonOf('title')
+    await userEvent.click(funnel)
+    await vi.waitFor(() => expect(document.activeElement).toBe(field()))
+    await settle()
+    expect(buttonOf('title')).toBe(funnel)
+    expect(form()).not.toBeNull()
+    expect(document.activeElement).toBe(field())
+    expect(mounted.latest().grid.filtering._tag).toBe('Some')
+    // The press toggles: a second one closes it, and the grid has focus again.
+    await userEvent.click(buttonOf('title'))
+    await vi.waitFor(() => expect(form()).toBeNull())
+    await settle()
+    expect(form()).toBeNull()
+  } finally {
+    mounted.dispose()
+  }
+})
+
 test('Tab walks the form and, leaving it, closes it', async () => {
   const mounted = mountTasks()
   try {
