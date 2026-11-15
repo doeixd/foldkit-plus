@@ -16,7 +16,8 @@
     "foldkit-example-site": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-data-grid": "workspace:*",
-    "foldkit-mixins-ui": "workspace:*"
+    "foldkit-mixins-ui": "workspace:*",
+    "foldkit-primitives": "workspace:*"
   },
   "devDependencies": {
     "@effect/platform-browser": "4.1.4",
