@@ -83,8 +83,10 @@ test('a filter shows how many products match, and Clear filters takes it off', a
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
   await page.goto(vite.resolvedUrls!.local[0]!)
   await cell(page, 'p0', 'line').waitFor({ timeout: 120_000 })
+  // The counts are plain text; only what an action did is the live region.
+  const counts = page.getByText(/products.*selected./)
   const status = page.getByRole('status')
-  await expect.poll(() => status.textContent(), slow).toContain('100,000 products, 0 selected')
+  await expect.poll(() => counts.textContent(), slow).toContain('100,000 products, 0 selected')
 
   await cell(page, 'p0', 'line').click()
   await expect
@@ -98,13 +100,16 @@ test('a filter shows how many products match, and Clear filters takes it off', a
   await page.keyboard.press('Alt+ArrowDown')
   await page.locator('#products input').waitFor()
   await page.keyboard.type('Paint')
+  await expect.poll(() => status.textContent(), slow).toContain('Filtered by line:')
   await expect.poll(() => status.textContent(), slow).toContain('of 100,000 products match')
+  await expect.poll(() => counts.textContent(), slow).toContain('of 100,000 products match')
 
   const clear = page.getByRole('button', { name: 'Clear filters' })
   await expect.poll(() => clear.getAttribute('aria-disabled'), slow).toBe('false')
   await clear.focus()
   await page.keyboard.press('Enter')
-  await expect.poll(() => status.textContent(), slow).toContain('100,000 products, 0 selected')
+  await expect.poll(() => status.textContent(), slow).toContain('Filters cleared.')
+  await expect.poll(() => counts.textContent(), slow).toContain('100,000 products, 0 selected')
   await expect.poll(() => clear.getAttribute('aria-disabled'), slow).toBe('true')
   // The button stays drawn, so a key press on it does not drop focus to the body.
   expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Clear filters')

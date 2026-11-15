@@ -173,6 +173,11 @@ const laid = (
   }),
 })
 
+/** Whether a column's filter is on. A union of differently typed Options needs this widening to be asked. */
+const isOn = (filter: Option.Option<unknown>): boolean => Option.isSome(filter)
+
+const hasFilters = (filters: Model['filters']): boolean => Object.values(filters).some(isOn)
+
 const application = Bundle.assemble<Model, Message>()([
   Bundle.parent({ Model, Message }).at(Placement, {
     onOut: out => model =>
@@ -191,12 +196,21 @@ const application = Bundle.assemble<Model, Message>()([
             ? { model }
             : laid(model, 'Filled', accepted, refused)
         },
-        Filtered: ({ change }) => ({
-          model: modifyFields(model, {
+        Filtered: ({ change }) => {
+          const filtered = modifyFields(model, {
             filters: filters => Grid.setFilter(filters, change),
-            notice: () => `Filtered by ${change.column}.`,
-          }),
-        }),
+          })
+          // The count is what a screen reader hears: the grid's rows change out of its sight.
+          const kept = addressableRows(rowsOf(filtered).count).toLocaleString()
+          return {
+            model: modifyFields(filtered, {
+              notice: () =>
+                isOn(change.filter)
+                  ? `Filtered by ${change.column}: ${kept} of ${model.products.length.toLocaleString()} products match.`
+                  : `Removed the ${change.column} filter: ${kept} products.`,
+            }),
+          }
+        },
         // These rows keep no history; the registry demo shows undo as new edits.
         UndoRequested: () => ({ model }),
         RedoRequested: () => ({ model }),
@@ -282,9 +296,6 @@ export const init = (
     }),
   })
 }
-
-const hasFilters = (filters: Model['filters']): boolean =>
-  Object.values(filters).some((filter: Option.Option<unknown>) => Option.isSome(filter))
 
 const placed = application.update((model, message) =>
   Match.value(message).pipe(
@@ -399,15 +410,23 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ],
           [
             h.span(
-              [h.Role('status')],
+              [],
               [
                 filtered
                   ? `${shownCount.toLocaleString()} of ${total.toLocaleString()} products match, `
                   : `${total.toLocaleString()} products, `,
-                `${selectedCount.toLocaleString()} selected. `,
+                `${selectedCount.toLocaleString()} selected.`,
+                // GAP (package work pending): the selected range's size belongs here; a "go to row"
+                // control and the header lock's title come from the grid too.
+              ],
+            ),
+            // Only what an action did is announced: a selection changes on every key, and a screen
+            // reader reading the whole count each time would talk over the person moving through cells.
+            h.span(
+              [h.Role('status')],
+              [
+                // GAP (package work pending): the copied-cells message joins the notice.
                 model.notice,
-                // GAP (package work pending): the copied-cells message and the selected range's size
-                // belong in this status; a "go to row" control and the header lock's title come from the grid too.
               ],
             ),
             // Always drawn, so pressing it never drops focus to the body, and so nothing shifts.
