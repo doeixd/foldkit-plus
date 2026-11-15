@@ -38,6 +38,7 @@ const fresh: Model = {
   out: [],
 }
 const M = Repeat.Message
+const none = { shiftKey: false, ctrlKey: false, metaKey: false, altKey: false }
 const send = (model: Model, ...messages: ReadonlyArray<Repeat.Message>) => {
   let last = {
     model,
@@ -50,9 +51,9 @@ const send = (model: Model, ...messages: ReadonlyArray<Repeat.Message>) => {
   return last
 }
 const mouseDown = M.PointerDown({ pointerId: 1, button: 0, pointerType: 'mouse' })
-const mouseUp = M.PointerUp({ pointerId: 1, pointerType: 'mouse', shiftKey: false })
+const mouseUp = M.PointerUp({ pointerId: 1, pointerType: 'mouse', modifiers: none })
 const touchDown = M.PointerDown({ pointerId: 7, button: 0, pointerType: 'touch' })
-const touchUp = M.PointerUp({ pointerId: 7, pointerType: 'touch', shiftKey: false })
+const touchUp = M.PointerUp({ pointerId: 7, pointerType: 'touch', modifiers: none })
 const stepped = (count: number, input: Repeat.Stepped['input']) =>
   Repeat.Stepped.make({ count, input })
 
@@ -91,7 +92,7 @@ describe('Repeat placement', () => {
       down,
     )
     expect(
-      send(down, M.PointerUp({ pointerId: 2, pointerType: 'mouse', shiftKey: false })).model,
+      send(down, M.PointerUp({ pointerId: 2, pointerType: 'mouse', modifiers: none })).model,
     ).toBe(down)
     expect(
       send(fresh, M.PointerDown({ pointerId: 1, button: 2, pointerType: 'mouse' })).model,
@@ -146,7 +147,7 @@ describe('Repeat placement', () => {
     const ended = send(
       down.model,
       M.Elapsed({ generation: 1 }),
-      M.KeyUp({ key: 'Enter', shiftKey: false }),
+      M.KeyUp({ key: 'Enter', modifiers: none }),
     )
     expect(ended.model.out).toEqual([
       stepped(1, 'keyboard'),
@@ -154,16 +155,16 @@ describe('Repeat placement', () => {
       Repeat.Ended.make({ count: 2 }),
     ])
     expect(send(fresh, M.KeyDown({ key: 'a', repeat: false })).model).toBe(fresh)
-    expect(send(down.model, M.KeyUp({ key: ' ', shiftKey: false })).model).toBe(down.model)
+    expect(send(down.model, M.KeyUp({ key: ' ', modifiers: none })).model).toBe(down.model)
   })
 
   it('a click no pointer made steps once; the click after a press does not', () => {
-    expect(send(fresh, M.Clicked({ detail: 0, shiftKey: false })).model.out).toEqual([
+    expect(send(fresh, M.Clicked({ detail: 0, modifiers: none })).model.out).toEqual([
       stepped(1, 'virtual'),
     ])
-    expect(send(fresh, M.Clicked({ detail: 1, shiftKey: false })).model).toBe(fresh)
+    expect(send(fresh, M.Clicked({ detail: 1, modifiers: none })).model).toBe(fresh)
     const down = send(fresh, mouseDown).model
-    expect(send(down, M.Clicked({ detail: 0, shiftKey: false })).model).toBe(down)
+    expect(send(down, M.Clicked({ detail: 0, modifiers: none })).model).toBe(down)
   })
 
   it('the parent stopping at a bound ends the stepping but not the press', () => {

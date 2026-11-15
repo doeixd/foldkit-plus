@@ -121,4 +121,31 @@ export default [
     ],
     tests: ['packages/primitives/test/repeat.browser.test.ts'],
   },
+  // Each modifier the events Mount reads, and each way a press completes.
+  ...(['shiftKey', 'ctrlKey', 'metaKey', 'altKey'] as const).map(key => ({
+    name: `the events Mount does not read ${key}`,
+    edits: [{ file, find: `${key}: held.${key} ?? false,`, replace: `${key}: false,` }],
+    tests: unit,
+  })),
+  ...(
+    [
+      ['a pointer release', 'pointerType: asPointerType(pointerType), modifiers }'],
+      ['a key release', "pointerType: 'keyboard', modifiers }"],
+      ['a click no pointer made', "pointerType: 'virtual', modifiers }"],
+      ['a mouse click', "pointerType: 'mouse', modifiers }"],
+    ] as const
+  ).map(([completes, find]) => ({
+    name: `${completes} drops the modifiers from Pressed`,
+    edits: [
+      {
+        file,
+        find,
+        replace: find.replace(
+          'modifiers }',
+          'modifiers: { shiftKey: false, ctrlKey: false, metaKey: false, altKey: false } }',
+        ),
+      },
+    ],
+    tests: unit,
+  })),
 ]

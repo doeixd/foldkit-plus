@@ -18,6 +18,15 @@ import { BundleBehavior } from './bundle-behavior.js'
 export const PointerType = Schema.Literals(['mouse', 'touch', 'pen', 'keyboard', 'virtual'])
 export type PointerType = typeof PointerType.Type
 
+/** The keys held when a press completed, as the pointer, key or click event reported them. */
+export const Modifiers = Schema.Struct({
+  shiftKey: Schema.Boolean,
+  ctrlKey: Schema.Boolean,
+  metaKey: Schema.Boolean,
+  altKey: Schema.Boolean,
+})
+export type Modifiers = typeof Modifiers.Type
+
 export const Model = Schema.Struct({
   /** Down and not yet released or cancelled. For styling. */
   pressed: Schema.Boolean,
@@ -33,22 +42,22 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   PointerDown: { pointerId: Schema.Number, button: Schema.Number, pointerType: Schema.String },
-  PointerUp: { pointerId: Schema.Number, pointerType: Schema.String, shiftKey: Schema.Boolean },
+  PointerUp: { pointerId: Schema.Number, pointerType: Schema.String, modifiers: Modifiers },
   PointerCancelled: { pointerId: Schema.Number },
   KeyDown: { key: Schema.String, repeat: Schema.Boolean },
-  KeyUp: { key: Schema.String, shiftKey: Schema.Boolean },
+  KeyUp: { key: Schema.String, modifiers: Modifiers },
   /** The key went up on an element that had since disabled itself: the press ends, and activates nothing. */
   KeyCancelled: { key: Schema.String },
   /** `detail` is 0 for a click no pointer made: keyboard on a native control, or assistive technology. */
-  Clicked: { detail: Schema.Number, shiftKey: Schema.Boolean },
+  Clicked: { detail: Schema.Number, modifiers: Modifiers },
   Unsuppressed: { generation: Schema.Number },
 })
 export type Message = typeof Message.Type
 
 export const Pressed = Schema.TaggedStruct('Pressed', {
   pointerType: PointerType,
-  /** Shift was held, for a range selection. */
-  shiftKey: Schema.Boolean,
+  /** Shift, Ctrl, Meta and Alt as the completing event reported them: a range or a toggle reads them. */
+  modifiers: Modifiers,
 })
 export type Pressed = typeof Pressed.Type
 
@@ -83,7 +92,7 @@ export const bundle = Bundle.make('Press', {
         button !== 0 || model.pointerId !== null
           ? { model }
           : { model: { ...model, pressed: true, pointerId } },
-      PointerUp: ({ pointerId, pointerType, shiftKey }) => {
+      PointerUp: ({ pointerId, pointerType, modifiers }) => {
         if (model.pointerId !== pointerId) return { model }
         const generation = model.generation + 1
         return {
@@ -98,7 +107,7 @@ export const bundle = Bundle.make('Press', {
               ),
             },
           ],
-          outMessage: Pressed.make({ pointerType: asPointerType(pointerType), shiftKey }),
+          outMessage: Pressed.make({ pointerType: asPointerType(pointerType), modifiers }),
         }
       },
       PointerCancelled: ({ pointerId }) =>
@@ -107,17 +116,17 @@ export const bundle = Bundle.make('Press', {
         !isActivationKey(key) || repeat || model.key !== null || model.pointerId !== null
           ? { model }
           : { model: { ...model, pressed: true, key } },
-      KeyUp: ({ key, shiftKey }) =>
+      KeyUp: ({ key, modifiers }) =>
         model.key === key
-          ? { model: idle(model), outMessage: Pressed.make({ pointerType: 'keyboard', shiftKey }) }
+          ? { model: idle(model), outMessage: Pressed.make({ pointerType: 'keyboard', modifiers }) }
           : { model },
       KeyCancelled: ({ key }) => (model.key === key ? { model: idle(model) } : { model }),
-      Clicked: ({ detail, shiftKey }) =>
+      Clicked: ({ detail, modifiers }) =>
         detail === 0
-          ? { model, outMessage: Pressed.make({ pointerType: 'virtual', shiftKey }) }
+          ? { model, outMessage: Pressed.make({ pointerType: 'virtual', modifiers }) }
           : model.suppressing !== null
             ? { model }
-            : { model, outMessage: Pressed.make({ pointerType: 'mouse', shiftKey }) },
+            : { model, outMessage: Pressed.make({ pointerType: 'mouse', modifiers }) },
       Unsuppressed: ({ generation }) =>
         model.suppressing === generation ? { model: { ...model, suppressing: null } } : { model },
     }),
@@ -127,7 +136,17 @@ type PointerLike = Event & {
   readonly pointerId?: number
   readonly button?: number
   readonly pointerType?: string
-  readonly shiftKey?: boolean
+}
+
+/** A test's plain `Event` carries none of these, so each reads as not held. */
+const modifiersOf = (event: Event): Modifiers => {
+  const held = event as Partial<Modifiers>
+  return {
+    shiftKey: held.shiftKey ?? false,
+    ctrlKey: held.ctrlKey ?? false,
+    metaKey: held.metaKey ?? false,
+    altKey: held.altKey ?? false,
+  }
 }
 
 /** What the element reports; `Unsuppressed` comes from the timer, not the DOM. */
@@ -195,7 +214,7 @@ export const events = Mount.defineStream('PressEvents', {
                   Message.PointerUp({
                     pointerId,
                     pointerType: pointer.pointerType ?? 'mouse',
-                    shiftKey: pointer.shiftKey ?? false,
+                    modifiers: modifiersOf(event),
                   }),
                 )
               },
@@ -229,7 +248,7 @@ export const events = Mount.defineStream('PressEvents', {
                 if (ending) beganKey = Option.none()
                 if (ending && isDisabled()) offer(Message.KeyCancelled({ key: key.key }))
                 else if (!isDisabled())
-                  offer(Message.KeyUp({ key: key.key, shiftKey: key.shiftKey }))
+                  offer(Message.KeyUp({ key: key.key, modifiers: modifiersOf(event) }))
               },
             ],
             [
@@ -237,9 +256,7 @@ export const events = Mount.defineStream('PressEvents', {
               event => {
                 if (isDisabled()) return
                 const click = event as MouseEvent
-                offer(
-                  Message.Clicked({ detail: click.detail ?? 0, shiftKey: click.shiftKey ?? false }),
-                )
+                offer(Message.Clicked({ detail: click.detail ?? 0, modifiers: modifiersOf(event) }))
               },
             ],
           ]
