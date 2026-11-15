@@ -5,7 +5,7 @@
  * the keyboard path of Reorder with focus staying on the held row.
  */
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { cdp, userEvent } from 'vitest/browser'
 import { Style } from 'foldkit-mixins'
 import { mountList } from '../src/list/mount.js'
 import { pageStylesheet } from '../src/style.js'
@@ -21,7 +21,8 @@ beforeEach(async () => {
   await vi.waitFor(() => expect(rows()).toHaveLength(3))
 })
 
-afterEach(() => {
+afterEach(async () => {
+  await cdp().send('Emulation.setCPUThrottlingRate', { rate: 1 })
   handle?.dispose()
   handle = undefined
   document.body.replaceChildren()
@@ -44,16 +45,33 @@ test('dismissing a row hands focus to the next row at once, makes it inert while
   expect(document.activeElement).toBe(button('Dismiss Ship it'))
 })
 
-test('a leaving row takes no press', async () => {
+test.each([1, 6, 20])('a leaving row takes no press at CPU throttling %i', async rate => {
+  await cdp().send('Emulation.setCPUThrottlingRate', { rate })
+  // The press is delivered inside the mutation callback that sees the row turn `hiding`, in
+  // the same task as the frame that drew it, so no runner's speed lets the 200ms exit end
+  // first. Like a real press it goes to whatever the browser hit-tests at the button's centre:
+  // an inert row is not hit, so the click lands elsewhere, and a live Edit button would be hit.
+  const pressed = new Promise<{ readonly hit: Element | null; readonly edit: Element }>(
+    (resolve, reject) => {
+      const watch = new MutationObserver(() => {
+        const leaving = rows()[1]
+        if (leaving?.getAttribute('data-presence') !== 'hiding') return
+        watch.disconnect()
+        const edit = button('Edit Review the pull request')
+        const box = edit.getBoundingClientRect()
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        if (hit instanceof HTMLElement) hit.click()
+        resolve({ hit, edit })
+      })
+      watch.observe(document.body, { subtree: true, attributes: true })
+      setTimeout(() => reject(new Error('the row never turned hiding')), 5000)
+    },
+  )
   button('Dismiss Review the pull request').focus()
   await userEvent.keyboard('{Enter}')
-  const leaving = rows()[1]!
-  await vi.waitFor(() => expect(leaving.getAttribute('data-presence')).toBe('hiding'))
-  // A real press on its Edit button. Forced, since Playwright otherwise waits for the inert
-  // button to take the press, which it never does.
-  await userEvent.click(button('Edit Review the pull request'), { force: true })
-  // Still leaving, so the press met the row while it was inert, not after it went.
-  expect(leaving.isConnected).toBe(true)
+  const { hit, edit } = await pressed
+  expect(hit).not.toBe(edit)
+  expect(edit.closest('li')?.hasAttribute('inert')).toBe(true)
   await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))
   expect(document.querySelector('input')).toBeNull()
 })
