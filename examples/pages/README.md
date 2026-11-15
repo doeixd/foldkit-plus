@@ -8,8 +8,9 @@ together, and what each one owns.
 
 **Try it:** the sandbox is at
 [foldkit-pages-demo.pages.dev](https://foldkit-pages-demo.pages.dev/). Its journal
-runs in your browser, shared by every tab of it: open two tabs, edit one page from
-both, and each sees the other's typing.
+runs in your browser, shared by every tab of it: the sidebar's "Open a second tab" link opens one, and
+editing one page from both shows each the other's typing. Deleting a page says so and offers Undo,
+with the focus on it; a new page's title takes the focus, and Enter there goes on to the text.
 
 ## Who owns what
 

@@ -385,8 +385,17 @@ export const Page = demoStyle.slots({
       color: t.text.muted,
       fontSize: t.size.xs,
     }),
-    Style.media(NARROW, { display: 'none' }),
   ),
+  secondTab: Style.self({
+    paddingInline: t.space.xs,
+    color: t.text.link,
+    fontSize: t.size.xs,
+    textUnderlineOffset: '3px',
+    // A touch target, where the sidebar sits above the page on a phone.
+    minBlockSize: '2rem',
+    display: 'inline-flex',
+    alignItems: 'center',
+  }),
   // Whether this tab's edits reached the server; shown at every width, unlike who is here.
   saved: Style.compose(
     Style.self({

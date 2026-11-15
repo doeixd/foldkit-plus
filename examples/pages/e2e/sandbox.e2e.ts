@@ -100,3 +100,21 @@ test('focus follows a new page, Enter in its title, a delete, and its undo', asy
   await expect.poll(() => body(page).textContent()).toBe('Ship it')
   await context.close()
 })
+
+test('the sidebar opens a second tab, and each tab then says the other is online', async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 800 } })
+  const first = await context.newPage()
+  await first.goto(url)
+  await first.waitForSelector('#second-tab', { timeout: 120_000 })
+  // Phone width: the link is shown, and nothing makes the page scroll sideways.
+  expect(
+    await first.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    ),
+  ).toBe(0)
+  const [second] = await Promise.all([context.waitForEvent('page'), first.click('#second-tab')])
+  await second.waitForSelector('#new-page', { timeout: 60_000 })
+  for (const tab of [first, second])
+    await expect.poll(() => tab.getByText('1 other online').count(), { timeout: 30_000 }).toBe(1)
+  await context.close()
+})

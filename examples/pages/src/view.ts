@@ -220,9 +220,20 @@ const sidebar = (model: Model, slots: Slots, h: H): Html => {
     h.div(slots.online.attrs([h.AriaLive('polite')]), [
       ...model.peers.slice(0, 5).map(peer => peerAvatar(peer, slots, h)),
       model.peers.length === 0
-        ? 'Only you here. Open another tab to edit together.'
+        ? 'Only you here.'
         : `${model.peers.length} ${model.peers.length === 1 ? 'other' : 'others'} online`,
     ]),
+    // A visitor sees the collaboration without arranging it: the tab opens on the same
+    // journal, shared by every tab of this browser.
+    h.a(
+      slots.secondTab.attrs([
+        h.Id('second-tab'),
+        h.Href(''),
+        h.Target('_blank'),
+        h.Rel('noopener'),
+      ]),
+      ['Open a second tab to edit together'],
+    ),
     h.p(
       slots.saved.attrs([h.Id('saved'), h.Role('status'), h.DataAttribute('state', saved.state)]),
       [saved.text],
