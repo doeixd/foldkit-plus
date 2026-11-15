@@ -70,7 +70,7 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html => {
     [],
     [
       h.div(
-        builders.list.attrs([h.Id('options'), h.Role('listbox'), h.Tabindex(0)]),
+        builders.list.attrs([h.Id('options'), h.Role('listbox')]),
         fruits.map((fruit, index) =>
           h.div(
             builders.option.attrs(
@@ -118,7 +118,10 @@ it('moves focus past a disabled option and activates the one that lands', async 
   expect(document.getElementById('apricot')?.getAttribute('aria-disabled')).toBe('true')
   expect(document.getElementById('apple')?.getAttribute('aria-selected')).toBe('false')
 
-  document.getElementById('apple')?.focus()
+  // Tab, as a reader would: a script's `focus()` leaves the page itself
+  // unfocused when the run starts elsewhere, and the keys then go nowhere.
+  await userEvent.tab()
+  await vi.waitFor(() => expect(document.activeElement?.id).toBe('apple'))
   await userEvent.keyboard('{ArrowDown}')
   await vi.waitFor(() => expect(document.activeElement?.id).toBe('banana'))
   expect(document.getElementById('apricot')).not.toBe(document.activeElement)
