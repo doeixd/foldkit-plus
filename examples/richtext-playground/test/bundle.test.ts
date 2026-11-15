@@ -8,15 +8,17 @@ import { resolve } from 'node:path'
 import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 
 // Brotli bytes. Never raise it without saying here what the growth bought.
-// 266.2 kB (266,185 bytes) measured on 2026-11-11; the ceiling is that plus about 2%,
-// rounded up to the next 500 bytes.
-// 272.8 kB on 2026-11-15: the toolbar became `formattingToolbar`, which brings its Keys behavior,
-// roving tabindex, shortcut formatting and the editor's slash entries; the hand-built bar and
-// `blockStyleMenu` it replaced were smaller (HEAD before the change passed at 272,000).
-const CEILING = 274_000
+// 203.8 kB measured on 2026-11-15 with `node scripts/bundle-report.mjs`; the ceiling is that plus
+// about 2%, rounded up to the next 500 bytes. Before this, shiki's grammars, TextMate engine and
+// regex compiler were in the start chunk (@shikijs/* and oniguruma: about 408 kB minified, 70 kB
+// brotli, of 273.6 kB); they are a lazy chunk now (`src/highlight.ts`, 71.6 kB brotli). The
+// shipped `formattingToolbar` is `foldkit-mixins-richtext`'s 6.8 kB brotli of that start chunk.
+const CEILING = 208_000
 
 clientBudget({
   name: 'richtext-playground',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
+  // Grammars load after the first frame (`src/highlight.ts`), in a chunk of their own.
+  absent: ['@shikijs/langs/typescript', '@shikijs/core/index', 'foldkit-richtext-code-shiki/index'],
 })

@@ -6,7 +6,6 @@
 import { Schema } from 'effect'
 import { ImageAsset } from 'foldkit-media'
 import * as RichText from 'foldkit-richtext'
-import { shikiTokenizers } from 'foldkit-richtext-code-shiki'
 import {
   Message as EditorMessage,
   slashEntries,
@@ -14,12 +13,6 @@ import {
 } from 'foldkit-richtext-dom/editor'
 import type { SlashEntry } from 'foldkit-richtext-dom/editor'
 import type { CodeLanguage } from 'foldkit-mixins-richtext'
-import { createHighlighterCoreSync } from 'shiki/core'
-import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
-import css from 'shiki/langs/css.mjs'
-import json from 'shiki/langs/json.mjs'
-import typescript from 'shiki/langs/typescript.mjs'
-import githubLight from 'shiki/themes/github-light.mjs'
 
 // --- marks ---------------------------------------------------------------------------------
 
@@ -364,16 +357,15 @@ export const playgroundSlashEntries: ReadonlyArray<SlashEntry<EditorEvent>> = [
 // --- code highlighting ---------------------------------------------------------------------
 
 /**
- * Tokenizers for the languages a code block may name. The highlighter is synchronous, because
- * decorating is a pure call made on every patch, so its grammars load with the page.
+ * The tokenizers for the languages a code block may name, none until `highlight.ts` has loaded.
+ * `decorate` is a pure call the editor makes with the document alone, so what it reads must
+ * already be here: the application installs them once, then asks the editor to draw again.
  */
-const tokenizers = shikiTokenizers(
-  createHighlighterCoreSync({
-    themes: [githubLight],
-    langs: [typescript, json, css],
-    engine: createJavaScriptRegexEngine(),
-  }),
-)
+let tokenizers: ReadonlyMap<string, RichText.CodeTokenizer> = new Map()
+
+export const installTokenizers = (loaded: ReadonlyMap<string, RichText.CodeTokenizer>): void => {
+  tokenizers = loaded
+}
 
 export const decorate = (document: RichText.Document): RichText.DecorationSet =>
   RichText.codeDecorations(document, tokenizers)

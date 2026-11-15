@@ -239,4 +239,14 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'showing the source the panel already shows rewrites the Model',
+    edits: [{ file, find: 'Option.contains(model.source, format)', replace: 'false' }],
+    tests,
+  },
+  {
+    name: 'the direction toggle never goes back',
+    edits: [{ file, find: "direction === 'ltr' ? 'rtl' : 'ltr'", replace: "'rtl'" }],
+    tests,
+  },
 ]
