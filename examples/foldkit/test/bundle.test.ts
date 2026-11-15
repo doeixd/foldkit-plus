@@ -25,7 +25,10 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   ['form', 147_000], // 143,904 bytes
   ['job-application', 187_500], // 183,490 bytes
   ['kanban', 137_500], // 134,653 bytes
-  ['pixel-art', 155_500], // 152,276 bytes
+  // pixel-art +200 on 2026-11-15 (#560 review): 155,275 without the review's focus fixes and 155,637
+  // with them in one tree, +362 (its dialogs' FocusReturn: the way back split from the trail, a
+  // frame's own trail held weakly, the realm check); ceiling raised to the reading, rounded up.
+  ['pixel-art', 155_700], // 155,637 bytes
   ['query-sync', 140_000], // 137,018 bytes
   ['route-transitions', 117_500], // 114,792 bytes
   ['routing', 135_500], // 132,800 bytes

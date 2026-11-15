@@ -24,7 +24,13 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // without it (292,065 and 292,154): every subscriptions call goes through one function taking
 // each key's policy, and the wiring checks the keys it is given. Ceiling raised by that, rounded
 // up; the page was over it already from other growth (292,065), which this does not cover.
-const CEILING = 291_900
+// +750 on 2026-11-15 (#560 review): measured 292,599, over by 699. U-WP13's edge scrolling, which
+// the builder's drags never use, is now loaded only when a Mount asks for it: 292,903 without the
+// review's UI fixes and 292,599 with them in one tree (-304; the scroller's 1,443 minified bytes
+// leave, Vite's preload helper for the dynamic import comes in). The rest is the A3, F2 and C2
+// fixes and the wave's other growth the investigation attributed. Ceiling raised to the reading,
+// rounded up.
+const CEILING = 292_650
 
 clientBudget({
   name: 'cms',

@@ -39,7 +39,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // one tree: 244,368 against 244,819): `Site.codeFor`, the code a placed page carries and
 // its fetch on intent (#438), which every page on `Site.routing` pays (foldkit-site's
 // index 8,739 -> 9,305 minified). Ceiling raised by that, rounded up.
-const CEILING = 245_050
+// -236 on 2026-11-15 (#560 review): the Site fixes made the fetch of a route's code on intent
+// opt-in (`fetchCode`), measured -236 by that fix; the review's UI fixes add 26 (244,583 against
+// 244,609 in one tree). Ceiling lowered by the 236.
+const CEILING = 244_814
 
 clientBudget({
   name: 'chirp',
