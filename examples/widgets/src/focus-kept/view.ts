@@ -33,8 +33,6 @@ export const FocusKeptSlots = Slots.define({
   item: Slot.make({ capability: Capability.Container }),
   /** The fallback part: where focus goes when the last row is gone. */
   add: Slot.make({ capability: Capability.Interactive }),
-  /** Drawn by the Alert and the Card, which mark their own dismiss button; named here for `parts`. */
-  dismiss: Slot.make({ capability: Capability.Interactive }),
   toasts: Slot.make({ capability: Capability.Container }),
 })
 
@@ -42,7 +40,10 @@ export const ADD_ALERT_ID = 'focus-kept-add-alert'
 export const ADD_CARD_ID = 'focus-kept-add-card'
 export const NOTIFY_ID = 'focus-kept-notify'
 
-const Recovers = FocusRecovery.behavior(FocusKeptSlots)<unknown, never>({
+const Recoverable = SlotView.over(FocusKeptSlots)<unknown, never>()
+
+// `dismiss` is no slot: the Alert and the Card mark their dismiss button as that part (`recoveryPart`).
+const Recovers = FocusRecovery.behavior(Recoverable)({
   owner: 'group',
   parts: { dismiss: ['next', 'previous', { part: 'add' }], add: [] },
 })
