@@ -1,78 +1,59 @@
 /**
- * A post's body as its author types it: parts separated by a blank line, a
- * heading, a list, a fenced code block that may hold blank lines of its own,
- * and code marked in a sentence.
+ * A post's body is Markdown text, read into a rich-text document for the site and the
+ * preview. The seed's lightweight conventions (a blank line between parts, `## `,
+ * `- `, a fence, backticks) are Markdown, so the published posts read as before, and
+ * what the editor adds (bold, links, quotes, numbered lists) reads too.
  */
+import * as RichText from 'foldkit-richtext'
+import { print } from 'foldkit-richtext-markdown'
 import { describe, expect, it } from 'vitest'
-import { bodyOf, spansOf } from '../src/content/site.js'
+import { documentOf, readingTime } from '../src/content/markdownBody.js'
 
 const FENCE = '```'
 
-describe('bodyOf', () => {
+const kinds = (markdown: string) =>
+  documentOf(markdown).children.map(block =>
+    block.type === 'Node' ? block.kind : block.type === 'Heading' ? `h${block.level}` : block.type,
+  )
+
+describe('documentOf', () => {
   it.each([
+    ['paragraphs, by a blank line', 'One.\n\nTwo.', ['Paragraph', 'Paragraph']],
+    ['a heading', '## How it works\n\nText.', ['h2', 'Paragraph']],
+    ['a list', '- one\n- two', ['List']],
+    ['a numbered list and a quote', '1. one\n2. two\n\n> said', ['List', 'Quote']],
     [
-      'paragraphs, by a blank line',
-      'One.\n\nTwo\nlines.',
-      [
-        { _tag: 'Paragraph', text: 'One.' },
-        { _tag: 'Paragraph', text: 'Two\nlines.' },
-      ],
+      'code, blank lines and all',
+      `Before.\n\n${FENCE}ts\na\n\nb\n${FENCE}\n\nAfter.`,
+      ['Paragraph', 'CodeBlock', 'Paragraph'],
     ],
-    [
-      'a heading',
-      '## How it works\n\nText.',
-      [
-        { _tag: 'Heading', text: 'How it works' },
-        { _tag: 'Paragraph', text: 'Text.' },
-      ],
-    ],
-    ['a list, every line marked', '- one\n- two', [{ _tag: 'List', items: ['one', 'two'] }]],
-    [
-      'a paragraph, when one line is not marked',
-      '- one\ntwo',
-      [{ _tag: 'Paragraph', text: '- one\ntwo' }],
-    ],
-    [
-      'code, blank lines and all, with no paragraph around it',
-      `Before.\n${FENCE}ts\nconst a = 1\n\nconst b = 2\n${FENCE}\nAfter.`,
-      [
-        { _tag: 'Paragraph', text: 'Before.' },
-        { _tag: 'Code', text: 'const a = 1\n\nconst b = 2' },
-        { _tag: 'Paragraph', text: 'After.' },
-      ],
-    ],
-    [
-      'an unclosed fence, to the end',
-      `${FENCE}\nleft open\n\nstill code`,
-      [{ _tag: 'Code', text: 'left open\n\nstill code' }],
-    ],
-  ])('reads %s', (_, body, parts) => {
-    expect(bodyOf(body)).toEqual(parts)
+  ])('reads %s', (_, markdown, expected) => {
+    expect(kinds(markdown)).toEqual(expected)
+  })
+
+  it('reads the marks an author adds', () => {
+    const [paragraph] = documentOf(
+      'A **bold** word, `code`, and [a link](https://example.com).',
+    ).children
+    const runs = paragraph?.type === 'Paragraph' ? paragraph.children : []
+    const marks = runs.flatMap(run => run.marks.map(RichText.markName))
+    expect(marks).toEqual(['Bold', 'Code', 'Link'])
+  })
+
+  it('gives the same text the same document, identities included', () => {
+    expect(documentOf('One.\n\nTwo.')).toEqual(documentOf('One.\n\nTwo.'))
+  })
+
+  it('prints back to the text it read, so a save keeps what was written', () => {
+    const text = '## Title\n\nA **bold** word.\n\n- one\n- two'
+    // The printer ends its text with a newline.
+    expect(print(documentOf(text)).markdown).toBe(text + '\n')
   })
 })
 
-describe('spansOf', () => {
-  it.each([
-    [
-      'code between backticks',
-      'Call `update` once.',
-      [
-        { code: false, text: 'Call ' },
-        { code: true, text: 'update' },
-        { code: false, text: ' once.' },
-      ],
-    ],
-    [
-      'the last of an odd number of backticks as text',
-      'A ` here and `code`.',
-      [
-        { code: false, text: 'A ' },
-        { code: true, text: ' here and ' },
-        { code: false, text: 'code`.' },
-      ],
-    ],
-    ['a sentence with none', 'Plain.', [{ code: false, text: 'Plain.' }]],
-  ])('reads %s', (_, text, spans) => {
-    expect(spansOf(text)).toEqual(spans)
+describe('readingTime', () => {
+  it('is at least a minute, and counts the words', () => {
+    expect(readingTime('Short.')).toBe('1 min read')
+    expect(readingTime(Array.from({ length: 700 }, () => 'word').join(' '))).toBe('3 min read')
   })
 })

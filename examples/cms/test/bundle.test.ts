@@ -43,7 +43,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +100 on 2026-11-15 for the studio's focus Commands (focus.ts): measured 293,138 against 293,074
 // before it, +64 (a Command per open and close of an editor, in both sections). Ceiling raised to
 // the reading, rounded up.
-const CEILING = 293_200
+// +25,300 on 2026-11-15 for Markdown bodies: the site and the studio's preview read a post's
+// Markdown into a rich-text document (`markdownBody.ts`) and draw it with the standard rendering,
+// which brings the Markdown parser (micromark, mdast, GFM) and the rich-text renderer into the
+// page: measured 317,844 against 293,138 before. It replaces the 60-line hand parser, which
+// drew only paragraphs, headings, lists and code. Ceiling raised to the reading, rounded up.
+const CEILING = 318_500
 
 clientBudget({
   name: 'cms',
