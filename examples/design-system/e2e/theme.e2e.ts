@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import type { Page } from 'playwright'
-import { startHarness, type Harness } from './harness.js'
+import { reveal, startHarness, type Harness } from './harness.js'
 
 let harness: Harness
 
@@ -127,12 +127,27 @@ test('at a phone width the page does not scroll sideways', async () => {
   const { page } = await harness.visit(390, 800)
   await page.getByRole('heading', { name: 'Theme', exact: true }).waitFor()
   await shoot(page, 'shadcn-light-390')
+  const islands = [
+    'buttons',
+    'form',
+    'choice',
+    'overlays',
+    'feedback',
+    'navigation',
+    'calendar',
+    'collections',
+    'utilities',
+  ]
   for (const theme of ['Soft', 'Hard', 'Compact']) {
     await page.getByRole('radio', { name: theme }).click()
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    )
-    expect(overflow, theme).toBeLessThanOrEqual(0)
+    for (const island of islands) {
+      await reveal(page, island)
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow, `${theme}, ${island}`).toBeLessThanOrEqual(0)
+    }
+    await page.evaluate(() => window.scrollTo(0, 0))
   }
   await page.close()
 })

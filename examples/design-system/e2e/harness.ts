@@ -47,3 +47,9 @@ export const startHarness = async (): Promise<Harness> => {
     },
   }
 }
+
+/** An island's section scrolled to, so it loads, once it has drawn. */
+export const reveal = async (page: Page, id: string): Promise<void> => {
+  await page.locator(`#${id}-island`).scrollIntoViewIfNeeded({ timeout: 120_000 })
+  await page.locator(`#${id}-island > *`).first().waitFor({ timeout: 120_000 })
+}

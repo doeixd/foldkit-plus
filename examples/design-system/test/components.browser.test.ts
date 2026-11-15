@@ -8,15 +8,19 @@ import { Runtime } from 'foldkit'
 import { afterEach, expect, test, vi } from 'vitest'
 import { page } from 'vitest/browser'
 
-import { initModel, update, view, Message, Model } from '../src/main.js'
+import { init, update, view, Message, Model } from '../src/main.js'
 import { stylesheet } from '../src/appStyle.js'
 import { subscriptions } from '../src/subscriptions.js'
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   document.body.replaceChildren()
 })
 
+// With no IntersectionObserver every island loads at once (as in `islands.ts`), so a test finds
+// any section without scrolling to it.
 const mount = (): void => {
+  vi.stubGlobal('IntersectionObserver', undefined)
   Style.install(stylesheet)
   const container = document.createElement('div')
   container.id = 'root'
@@ -24,7 +28,7 @@ const mount = (): void => {
   Runtime.run(
     Runtime.makeApplication({
       Model,
-      init: () => ({ model: initModel({ year: 2026, month: 10, day: 8 }) }),
+      init: () => init(),
       update,
       view,
       subscriptions,

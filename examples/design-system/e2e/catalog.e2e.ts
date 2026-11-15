@@ -3,7 +3,7 @@
  * searchable notification list that keeps focus on clear, and topic chips.
  */
 import { afterAll, beforeAll, expect, test } from 'vitest'
-import { startHarness, type Harness } from './harness.js'
+import { reveal, startHarness, type Harness } from './harness.js'
 
 let harness: Harness
 
@@ -16,6 +16,7 @@ afterAll(async () => {
 
 test('the plan is a radio group the arrow keys move', async () => {
   const { page } = await harness.visit(1280, 900)
+  await reveal(page, 'navigation')
   const group = page.getByRole('radiogroup', { name: 'Plan' })
   await group.getByRole('radio', { name: 'Pro' }).focus()
   await page.keyboard.press('ArrowRight')
@@ -28,6 +29,7 @@ test('the plan is a radio group the arrow keys move', async () => {
 
 test('searching narrows the notifications, announces the count, and clearing refocuses the field', async () => {
   const { page } = await harness.visit(1280, 900)
+  await reveal(page, 'collections')
   const field = page.getByRole('searchbox', { name: 'Search notifications' })
   await field.fill('wren')
   await page.getByText('1 of 3 notifications').waitFor()
@@ -43,6 +45,7 @@ test('searching narrows the notifications, announces the count, and clearing ref
 
 test('topics are chips: Enter adds, the remove button removes', async () => {
   const { page } = await harness.visit(1280, 900)
+  await reveal(page, 'form')
   const field = page.getByRole('textbox', { name: 'Topics' })
   await field.fill('ui')
   await field.press('Enter')
@@ -54,6 +57,7 @@ test('topics are chips: Enter adds, the remove button removes', async () => {
 
 test('the Table names its rows by the first column', async () => {
   const { page } = await harness.visit(1280, 900)
+  await reveal(page, 'collections')
   await page.getByRole('rowheader', { name: 'Pro' }).waitFor()
   await page.close()
 })

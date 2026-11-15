@@ -5,7 +5,14 @@
  * declarations without touching them.
  */
 import { Option, Schema } from 'effect'
-import { knobData } from 'foldkit-mixins/theme/knob-data'
+import {
+  accentHue,
+  motionScale,
+  shadowStrength,
+  shapeDensity,
+  shapeRadius,
+  typeScale,
+} from 'foldkit-mixins/theme/knob-data'
 import type { ThemeName } from './looks.js'
 import { themeValues } from './themeData.js'
 
@@ -15,12 +22,12 @@ export const tweakNames: ReadonlyArray<TweakName> = TweakName.literals
 
 /** The standard knob each tweak moves, for its range and the variable it writes. */
 export const tweakKnobs = {
-  hue: knobData['accent.hue'],
-  density: knobData['shape.density'],
-  radius: knobData['shape.radius'],
-  text: knobData['type.scale'],
-  motion: knobData['motion.scale'],
-  shadow: knobData['shadow.strength'],
+  hue: accentHue,
+  density: shapeDensity,
+  radius: shapeRadius,
+  text: typeScale,
+  motion: motionScale,
+  shadow: shadowStrength,
 } as const
 
 const Tweak = Schema.Option(Schema.Number)

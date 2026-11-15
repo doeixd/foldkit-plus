@@ -12,6 +12,10 @@ export const PageSlots = Slots.define({
   lede: Slot.make({ capability: Capability.Container }),
   controlLabel: Slot.make({ capability: Capability.Container }),
   section: Slot.make({ capability: Capability.Container }),
+  /** An island's content: the section's text and controls, stacked. */
+  body: Slot.make({ capability: Capability.Container }),
+  /** Where an island draws; it keeps a height so the page does not jump as islands arrive. */
+  island: Slot.make({ capability: Capability.Container }),
   sectionTitle: Slot.make({ capability: Capability.Container }),
   sectionText: Slot.make({ capability: Capability.Container }),
   /** A result count, read aloud when it changes. */

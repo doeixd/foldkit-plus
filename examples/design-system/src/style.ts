@@ -95,6 +95,8 @@ export const PageStyle = app.slots(
     lede: [U.m('0'), U.color('text.muted'), { maxWidth: '40rem' }],
     controlLabel: [U.m('0'), U.text('xs'), U.font('semibold'), U.color('text.muted')],
     section: [L.in('layouts', Layout.stack({ gap: t.space.md })), { scrollMarginTop: '4rem' }],
+    body: L.in('layouts', Layout.stack({ gap: t.space.md })),
+    island: [{ minBlockSize: '6rem' }],
     sectionTitle: [
       U.m('0'),
       U.font('semibold'),

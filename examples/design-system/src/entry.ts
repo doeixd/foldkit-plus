@@ -1,10 +1,9 @@
-import { Effect } from 'effect'
-import { Calendar, Runtime } from 'foldkit'
+import { Runtime } from 'foldkit'
 import { currentScheme, schemeScript } from 'foldkit-mixins/theme'
 import { themeScript } from 'foldkit-mixins/theme/runtime'
 import { href } from 'virtual:foldkit-styles'
 
-import { Message, Model, initModel, update, view } from './main.js'
+import { Message, Model, init, update, view } from './main.js'
 import { subscriptions } from './subscriptions.js'
 import { looks, shownTheme } from './looks.js'
 
@@ -26,13 +25,10 @@ document.head.append(sheet)
 const container = document.getElementById('root')
 if (container === null) throw new Error('#root is missing from index.html')
 
-// The picker's month; tests pass their own fixed date to initModel.
-const today = Effect.runSync(Calendar.today.local)
-
 Runtime.run(
   Runtime.makeApplication({
     Model,
-    init: () => ({ model: initModel(today, { theme, scheme: currentScheme() }) }),
+    init: () => init({ theme, scheme: currentScheme() }),
     update,
     view,
     subscriptions,

@@ -22,20 +22,30 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // `FocusRecovery` and `Presence` behaviors beside this branch's kept widget work (SearchField,
 // the larger WindowList, Resizable, Sidebar); not bisected between the two. The ceiling is that
 // plus about 1%.
-// 199.9 kB (199,9xx bytes) on 2026-11-15, after the theme studio: +3.5 kB over the reading above for
-// the Segmented radio groups, six Sliders, the tweak/theme Messages and Commands, the generated
-// theme data and the token table. The compiler-side `Themes` runtime cannot be imported in this
-// client (`modules` refuses it), and the studio now uses the compiler-free `theme/runtime` and `theme/knob-data`.
-// The ceiling is that plus about 1%.
-// 201.8 kB on 2026-11-15, after the catalog additions: +1.9 kB for the Segmented plan picker, a
-// SearchField, a TagsInput and the notification filter (the rebuilt `foldkit-mixins` dist also moved
-// with other work in the tree; not bisected). The ceiling is that plus about 1%.
-// 205.9 kB after adopting `foldkit-mixins/theme/runtime` and `theme/knob-data`: `knob-data` keeps the
-// knob tables and the style code under them (about 4 kB); a generated table is proposed.
-const CEILING = 208_000
+// 149.8 kB (149,848 bytes) on 2026-11-15, after the catalog moved into islands (`src/islands.ts`,
+// `src/sections/*.ts`): the page loads the theme studio, its specimen and the static sections, and
+// each other section's code, 91.8 kB brotli in 25 lazy chunks, arrives as it nears the window. It was
+// 205.9 kB with everything at start. The ceiling is that plus about 1%; `absent` pins the modules that
+// only an island uses, so one imported from the start code again fails here.
+const CEILING = 151_500
 
 clientBudget({
   name: 'design-system',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
+  absent: [
+    'combobox',
+    'datePicker',
+    'calendar',
+    'listbox',
+    'menu',
+    'tagsInput',
+    'searchField',
+    'patterns',
+    'table',
+    'toast',
+    'tabs',
+    'fileDrop',
+    'radioGroup',
+  ].map(name => `foldkit-mixins-ui/${name}`),
 })
