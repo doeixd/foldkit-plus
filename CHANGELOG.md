@@ -650,6 +650,17 @@ version changed; `pnpm` skips versions already in the registry.
   grouped push joins the last only if it came within that long) and `equals` (an
   unchanged value is not recorded).
 
+- `foldkit-mixins-ui`: Menubar, CascadeSelect, Tour, FloatingPanel, Picker, Nav and
+  Tabs take `routes`, `Behaviors.Keys.Route`s for keys the application answers beside the
+  widget's own on the same keydown owner (a route on the same gesture is a
+  `mixins:key-conflict` diagnostic naming both): on the bar, CascadeSelect's open panel,
+  a Tour step, the FloatingPanel's panel, a Picker Sheet option, Nav's top-level links and
+  triggers (`panelRoutes` for a panel's links) and `TabsContext.routes` for a tab. A tab
+  with no key to answer draws no keydown at all. `Tour.focusReturn` and
+  `FloatingPanel.focusReturn` are opt-in mixins that give focus a way back, by
+  `FocusReturn`'s rules, when the opener is gone or none was named; the `opener` given to
+  `start` or `open` is still focused after them.
+
 ### Changed
 
 - `foldkit-site`: a `Bundle.lazy` page's `changed` is required and returns a Message (a
@@ -843,6 +854,17 @@ version changed; `pnpm` skips versions already in the registry.
   a message that lands in between stays below the reader. A Ctrl wheel, a wheel over a
   nested element that can still scroll up, and a key that was prevented, has Ctrl, Meta or
   Alt down, or goes to an editable field do not count (#558).
+
+- **Breaking:** `foldkit-mixins-ui`: Menubar's bar keys, CascadeSelect's panel and trigger
+  keys, Tour's arrows and Escape, FloatingPanel's Escape and the arrows on its drag
+  trigger and corner, Picker's Sheet-option keys and Nav's row, panel and Escape keys go
+  through `Behaviors.Keys`, which matches modifiers exactly: a press with Ctrl, Alt or
+  Meta is no longer taken (Alt+ArrowLeft on a floating panel nudged it before and is the
+  browser's Back again). CascadeSelect's typeahead accepts characters outside the Basic
+  Multilingual Plane, and Space on its closed trigger is a route. `Nav.link`,
+  `Nav.panelLink`, `FloatingPanel.handle` and `Tabs.tab` declare `Event.KeyDown`, so a
+  Mixin writing a `keydown` there is now a conflict, and `Patterns.Nav`, `Patterns.Tabs` and
+  `Patterns.FloatingPanel` require it.
 
 ### Fixed
 
