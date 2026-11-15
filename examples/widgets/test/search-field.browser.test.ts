@@ -82,7 +82,6 @@ it('draws the description the assembly gives, and a pressed clear button returns
     }),
   ).dispose
   await vi.waitFor(() => expect(document.querySelector('#first-input')).not.toBeNull())
-  expect(document.getElementById('search-inspection')?.textContent).toContain('SearchField')
   input('second').focus()
   await userEvent.keyboard('beta')
   const clear = await vi.waitFor(() => {

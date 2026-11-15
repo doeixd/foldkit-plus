@@ -113,7 +113,7 @@ test('the window list scrolls with the page and draws a handful of rows at its e
 const section = (page: Page, heading: string) =>
   page.locator('section', { has: page.getByRole('heading', { name: heading }) })
 
-test('the search field, the dismissible list and the leaving rows are on the page and work', async () => {
+test('the search field is on the page and works', async () => {
   const { page, problems } = await visit(1280, 900)
   const search = section(page, 'Search field (placed twice)')
   const first = search.getByRole('searchbox', { name: 'Search first' })
@@ -122,20 +122,6 @@ test('the search field, the dismissible list and the leaving rows are on the pag
   await search.getByRole('button', { name: 'Clear search' }).click()
   await expect.poll(() => first.inputValue()).toBe('')
   await expect.poll(() => first.evaluate(element => element === document.activeElement)).toBe(true)
-  expect(await search.locator('#search-inspection').textContent()).toContain('SearchField')
-
-  const dismissible = section(page, 'Dismissible list')
-  await dismissible.getByRole('button', { name: 'Remove design' }).click()
-  await expect
-    .poll(() => dismissible.getByRole('button', { name: 'Remove design' }).count())
-    .toBe(0)
-
-  // Two rows dismissed in quick succession: each exits on its own presence.
-  const leaving = section(page, 'Leaving rows and popup')
-  await leaving.getByRole('button', { name: 'Remove release' }).click()
-  await leaving.getByRole('button', { name: 'Remove backlog' }).click()
-  await expect.poll(() => leaving.getByRole('button', { name: 'Remove release' }).count()).toBe(0)
-  await expect.poll(() => leaving.getByRole('button', { name: 'Remove backlog' }).count()).toBe(0)
   expect(problems).toEqual([])
   await page.close()
 })

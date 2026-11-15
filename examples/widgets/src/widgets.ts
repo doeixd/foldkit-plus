@@ -39,18 +39,6 @@ import {
   ContextMenuSlots,
   runDemo as runContextMenuDemo,
 } from './context-menu/view.js'
-import * as DismissibleList from './dismissible-list/app.js'
-import {
-  DismissibleList as DismissibleListView,
-  DismissibleListSlots,
-  runDemo as runDismissibleListDemo,
-} from './dismissible-list/view.js'
-import * as LeavingRows from './leaving-rows/app.js'
-import {
-  LeavingRows as LeavingRowsView,
-  LeavingRowsSlots,
-  runDemo as runLeavingRowsDemo,
-} from './leaving-rows/view.js'
 import * as SearchFieldApp from './search-field/app.js'
 import {
   SearchFieldIsland,
@@ -134,8 +122,6 @@ import {
   checkboxGroupStyle,
   commandStyle,
   contextMenuStyle,
-  dismissibleListStyle,
-  leavingRowsStyle,
   searchFieldStyle,
   searchPageStyle,
   hoverCardStyle,
@@ -541,40 +527,6 @@ export const islands = [
           init: () => ({ model: SearchFieldApp.initial }),
           update: SearchFieldApp.update,
           view: (model, h) => SearchFieldIsland(model, h),
-          container,
-        }),
-      )
-    },
-  }),
-  define({
-    id: 'dismissible-list',
-    title: 'Dismissible list',
-    runDemo: runDismissibleListDemo,
-    style: () => dismissibleListStyle(DismissibleListSlots),
-    mount: container => {
-      Runtime.embed(
-        Runtime.makeElement({
-          Model: DismissibleList.Model,
-          init: () => ({ model: DismissibleList.initial }),
-          update: DismissibleList.update,
-          view: (model, h) => DismissibleListView(model, h),
-          container,
-        }),
-      )
-    },
-  }),
-  define({
-    id: 'leaving-rows',
-    title: 'Leaving rows and popup',
-    runDemo: runLeavingRowsDemo,
-    style: () => leavingRowsStyle(LeavingRowsSlots),
-    mount: container => {
-      Runtime.embed(
-        Runtime.makeElement({
-          Model: LeavingRows.Model,
-          init: () => LeavingRows.initial,
-          update: LeavingRows.update,
-          view: (model, h) => LeavingRowsView(model, h),
           container,
         }),
       )

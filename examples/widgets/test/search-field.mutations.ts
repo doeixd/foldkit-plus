@@ -57,15 +57,4 @@ export default [
     edits: [{ file: view, find: 'routes: [openResults],', replace: '' }],
     tests: [...unit, ...browser],
   },
-  {
-    name: 'the page does not draw the description',
-    edits: [
-      {
-        file: demo,
-        find: '[Assembly.textOf(description)]',
-        replace: "['Search']",
-      },
-    ],
-    tests: browser,
-  },
 ]

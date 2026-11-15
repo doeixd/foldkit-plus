@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { Command } from 'foldkit/scene'
 import { Scene } from 'foldkit/test'
 import { SearchField } from 'foldkit-mixins-ui'

@@ -80,17 +80,8 @@ npx vitest run examples/widgets
   native search input and a clear button drawn while there is text, Escape clearing a field that
   has text and passing an empty one on, and ArrowDown, the application's own key, opening
   results through the field's `routes`. Typing in one leaves the other alone. Clearing answers
-  `SearchField.Focus`, since the pressed button takes its focus with it. The page also draws
-  what `Assembly.describe` says of the field. `demo.ts` holds the placements and that text.
-- `src/dismissible-list/` — the edit-and-remove list: keyed tag rows, one holding a nested
-  branch, with `FocusRecovery` attached. Removing a row moves focus to the next row, to the
-  previous one when it was last, and to the field when the last row names it; a removed branch
-  falls back to the row that holds it.
-- `src/leaving-rows/` — rows that stay drawn while they leave. Each row has a `Presence` of its
-  own in a collection keyed by the row's id (`Bundle.declareEach`), so any number leave at
-  once: a dismissed row is marked `leaving`, made inert, and dropped when its own `Hidden`
-  lands. `Keep` on a row shows it again without touching another row's exit. A popup, one more
-  placement, adds `FocusScope` and `HideOutside`.
+  `SearchField.Focus`, since the pressed button takes its focus with it. `demo.ts` holds the
+  placements.
 - `src/window-list/` — a thousand names in `foldkit-mixins-ui`'s
   `WindowList`, which scrolls with the page: only the rows in view are drawn,
   between spacers as tall as the rest, under a heading that sticks to the

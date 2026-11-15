@@ -4,7 +4,7 @@
  * under it once opened.
  */
 import { Option } from 'effect'
-import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Recipes, SearchField, SearchFieldSlots } from 'foldkit-mixins-ui'
 import { searchFieldStyle } from '../style.js'
 import { SearchMessage, resultsId, type SearchModel } from './child.js'
@@ -16,11 +16,10 @@ export const SearchSlots = Slots.define({
 
 export const FieldStyle = Style.forSlots(SearchFieldSlots)(Recipes.SearchField({}))
 
-const openResults: SearchField.Route<SearchMessage> = {
-  name: 'Open results',
-  key: 'ArrowDown',
-  toMessage: () => Option.some(SearchMessage.OpenedResults()),
-}
+const openResults = Behaviors.Keys.route<string, SearchMessage>('Open results', {
+  on: [Behaviors.Keys.chord('ArrowDown')],
+  handle: () => Option.some(SearchMessage.OpenedResults()),
+})
 
 export const SearchView = SlotView.forMessages<SearchMessage>()
   .define(SearchSlots, (model: SearchModel, slots, h) =>
