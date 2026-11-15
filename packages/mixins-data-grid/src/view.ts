@@ -59,6 +59,8 @@ export interface GridWords {
   readonly unpin?: string
   readonly hide?: string
   readonly show?: string
+  /** The title and description of a column that does not edit. Default `Read-only`. */
+  readonly readOnly?: string
   /** The words of the columns' filters. */
   readonly filters?: FilterWords
 }
@@ -1435,6 +1437,7 @@ const view = <Message>() => ({
         const filterPart = (column: Id, part: string): string =>
           [grid.id, column, 'filter', part].map(encodeURIComponent).join(':')
         const filterWords = input.words?.filters ?? {}
+        const readOnlyWord = input.words?.readOnly ?? 'Read-only'
         /** A filtering column's button, and its form while open. */
         const columnFilter = (id: Id): ReadonlyArray<Html> =>
           Option.match(filterOf(id), {
@@ -1520,7 +1523,7 @@ const view = <Message>() => ({
                     h.DataAttribute('filtered', 'true'),
                     h.AriaDescription(
                       [
-                        ...(readOnly(id) ? ['Read-only'] : []),
+                        ...(readOnly(id) ? [readOnlyWord] : []),
                         filterWords.filtered ?? 'Filtered',
                       ].join(', '),
                     ),
@@ -1557,7 +1560,7 @@ const view = <Message>() => ({
                 onSome: edge => [h.DataAttribute('pinned', edge)],
               }),
               ...pinnedEdge(id),
-              ...(readOnly(id) ? [h.AriaReadonly(true), h.Title('Read-only')] : []),
+              ...(readOnly(id) ? [h.AriaReadonly(true), h.Title(readOnlyWord)] : []),
               ...Option.match(sortOf(id), {
                 onNone: () => [],
                 onSome: sorted => [h.AriaSort(ariaSort(sorted.direction))],

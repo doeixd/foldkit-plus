@@ -284,7 +284,8 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   inside and closes it. While a column is filtered its header and button
   carry `data-filtered`, and the header says "Filtered" as its
   `aria-description` ("Read-only, Filtered" on a column that does not edit,
-  whose title's description it replaces). Every header is named by its own words
+  whose title's description it replaces; `words.readOnly` is that word, here
+  and in the `title` a column that does not edit shows on hover). Every header is named by its own words
   (`aria-label`), so neither its buttons nor an open form join its name.
   While the form is open the grid's clipboard handlers are off, so copy, cut
   and paste in its fields are the fields' own. The words are `words.filters`; the Slots are
