@@ -66,6 +66,7 @@ export const Chooses = Selection.behavior(Picks, pickArgs)(Grid)({
  * Foldkit's `OnClick` reports neither, and its custom-event attribute is not
  * public. The row is the element the click's target sits in, named by its id.
  */
+// ADOPT: Press's Pressed carrying modifiers (approved) replaces this hand-written click Mount.
 const RowClicks = Mount.defineStream('GridRowClicks', {
   messages: [Message.Chose],
   execute: ({ element }) =>

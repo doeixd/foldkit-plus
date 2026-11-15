@@ -17,6 +17,7 @@ export const StepperSlots = Slots.define({
 
 const Stepper = SlotView.over(StepperSlots)<Model, Message>()
 
+// ADOPT: Repeat.behavior(Less)(Stepper)({ target, disabled }) with inference and `provides: A11y.Activation` (approved).
 export const LessRepeats = Repeat.behavior(Less)(StepperSlots)<Model, Message>({ target: 'less' })
 export const MoreRepeats = Repeat.behavior(More)(StepperSlots)<Model, Message>({ target: 'more' })
 
@@ -50,6 +51,7 @@ export const NumberStepper = Stepper.define((model, slots, h) =>
       slots.less.attrs([
         h.Type('button'),
         h.AriaLabel('Less'),
+        // ADOPT: once Press delivers a release on an aria-disabled element (approved), drop the `!holding` dodge.
         h.AriaDisabled(model.value <= MIN && !model.less.holding),
       ]),
       ['−'],
@@ -59,6 +61,7 @@ export const NumberStepper = Stepper.define((model, slots, h) =>
       slots.more.attrs([
         h.Type('button'),
         h.AriaLabel('More'),
+        // ADOPT: as above.
         h.AriaDisabled(model.value >= MAX && !model.more.holding),
       ]),
       ['+'],

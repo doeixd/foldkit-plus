@@ -79,6 +79,7 @@ export const update = assembly.update((model, message) =>
         return Option.getOrElse(
           Picked.update(
             model,
+            // ADOPT: Selection's `helpers.range(id, order)` (approved) replaces this Message.
             Picks.wrapper.make(Selection.Message.Ranged({ id, order: rows.ids })),
           ),
           () => ({ model }),
