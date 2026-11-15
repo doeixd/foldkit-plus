@@ -25,7 +25,7 @@
 import { Data, Option } from 'effect'
 import type { Attribute, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import * as Behavior from '../behavior.js'
-import { DiagnosticError } from '../diagnostics.js'
+import { DiagnosticError, type Diagnostic } from '../diagnostics.js'
 import * as Event from '../event.js'
 import type { SlotItem } from '../slotItem.js'
 import * as SlotView from '../slotView.js'
@@ -182,20 +182,26 @@ export type Chord = Data.TaggedEnum.Value<Gesture, 'Chord'>
 
 const Gesture = Data.taggedEnum<Gesture>()
 
-const fail = (
+const diagnostic = (
   code: 'mixins:unknown-key' | 'mixins:key-conflict',
   message: string,
   details: Readonly<Record<string, unknown>>,
   slot: Option.Option<string> = Option.none(),
+): Diagnostic => ({
+  source: 'mixins',
+  code,
+  severity: 'error',
+  message,
+  ...Option.match(slot, { onNone: () => ({}), onSome: name => ({ slot: name }) }),
+  details,
+})
+
+const fail = (
+  code: 'mixins:unknown-key',
+  message: string,
+  details: Readonly<Record<string, unknown>>,
 ): never => {
-  throw new DiagnosticError({
-    source: 'mixins',
-    code,
-    severity: 'error',
-    message,
-    ...Option.match(slot, { onNone: () => ({}), onSome: name => ({ slot: name }) }),
-    details,
-  })
+  throw new DiagnosticError(diagnostic(code, message, details))
 }
 
 /**
@@ -379,33 +385,49 @@ export const describe = (chord: Chord): string =>
     chord.key === ' ' ? 'Space' : chord.key,
   ].join('+')
 
-const refuseOverlaps = <Input, Message>(
+/**
+ * The `mixins:key-conflict` that `behavior`, `attribute` and `answer` throw for
+ * `routes`, or none when no two declare one press. A pure check for a caller
+ * that wants to see a clash without drawing and catching: `slot` names the
+ * slot in the message.
+ */
+export const conflict = <Input, Message>(
   routes: ReadonlyArray<Route<Input, Message>>,
-  slot: Option.Option<string>,
-): void => {
-  routes.forEach((left, index) => {
+  slot: Option.Option<string> = Option.none(),
+): Option.Option<Diagnostic> => {
+  for (const [index, left] of routes.entries()) {
     for (const right of routes.slice(index + 1)) {
       for (const a of left.on.filter(isDeclared)) {
         for (const b of right.on.filter(isDeclared)) {
-          Option.match(overlap(a, b), {
-            onNone: () => {},
-            onSome: pressed =>
-              fail(
+          const pressed = overlap(a, b)
+          if (Option.isSome(pressed)) {
+            return Option.some(
+              diagnostic(
                 'mixins:key-conflict',
-                `two routes take ${pressed === 'printable' ? 'every printable key' : `"${pressed}"`}${Option.match(slot, { onNone: () => '', onSome: name => ` on slot "${name}"` })}: "${left.name}" and "${right.name}"; wrap them in Keys.first(a, b) to give one precedence`,
+                `two routes take ${pressed.value === 'printable' ? 'every printable key' : `"${pressed.value}"`}${Option.match(slot, { onNone: () => '', onSome: name => ` on slot "${name}"` })}: "${left.name}" and "${right.name}"; wrap them in Keys.first(a, b) to give one precedence`,
                 {
                   ...Option.match(slot, { onNone: () => ({}), onSome: name => ({ slot: name }) }),
                   event: 'keydown',
-                  chord: pressed,
+                  chord: pressed.value,
                   contributors: [left.name, right.name],
                 },
                 slot,
               ),
-          })
+            )
+          }
         }
       }
     }
-  })
+  }
+  return Option.none()
+}
+
+const refuseOverlaps = <Input, Message>(
+  routes: ReadonlyArray<Route<Input, Message>>,
+  slot: Option.Option<string>,
+): void => {
+  const found = conflict(routes, slot)
+  if (Option.isSome(found)) throw new DiagnosticError(found.value)
 }
 
 export interface Options<Slots, Input, Message> {

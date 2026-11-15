@@ -1093,7 +1093,7 @@ const Submits = searchKeys([
 
 Two routes that declare the same chord throw `mixins:key-conflict` when the Behavior is defined,
 naming both, because nothing chains at run time and one press sends at most one Message. Where one
-must win, `Keys.first(a, b)` asks `a` and falls to `b` only if `a` declines. A chord matches the
+must win, `Keys.first(a, b)` asks `a` and falls to `b` only if `a` declines. To see a clash without drawing and catching, `Keys.conflict(routes, Option.some('input'))` returns the same diagnostic as an `Option` (`Option.none()` when no two routes declare one press), and takes the slot name only to say it in the message. A chord matches the
 `key` a press reports, so Shift+a is `Keys.chord('A')`; a name that is neither one character nor a
 named key (`'Esc'`) throws `mixins:unknown-key` and says what was meant. A handled press is
 default-prevented, an unhandled one untouched, a key of an IME composition reaches no route, and a

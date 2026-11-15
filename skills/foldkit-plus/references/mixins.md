@@ -241,7 +241,8 @@ undeclared `Keys.where((key, modifiers) => …)`) and answers `Option<Message>`,
 `Option.some(Keys.focus(id, message))` to move focus in the handler.
 `Keys.behavior(bound)({ slot, routes, name? })` (or `(Slots)<Input, Message>(…)`) requires the
 slot to publish `Event.KeyDown`. Two routes declaring one press throw `mixins:key-conflict`
-naming both when the Behavior is defined, unless `Keys.first(a, b)` orders them; a misspelt key
+naming both when the Behavior is defined, unless `Keys.first(a, b)` orders them (`Keys.conflict(routes, slot?)`
+is the same check as an `Option<Diagnostic>`, for seeing a clash without throwing); a misspelt key
 (`Keys.chord('Esc')`) is a type error and throws `mixins:unknown-key`. A press asks its one
 declared route, then the `where` routes in list order; the first `Some` wins and is
 default-prevented, a declined key keeps its native effect, propagation is never stopped, IME

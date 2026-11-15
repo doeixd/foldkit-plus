@@ -146,4 +146,48 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'conflict only compares neighbouring routes',
+    edits: [
+      {
+        file,
+        find: 'for (const right of routes.slice(index + 1)) {',
+        replace: 'for (const right of routes.slice(index + 1, index + 2)) {',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'conflict reports the first overlap as none',
+    edits: [
+      {
+        file,
+        find: '          if (Option.isSome(pressed)) {',
+        replace: '          if (Option.isNone(pressed)) {',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the throwing path no longer refuses',
+    edits: [
+      {
+        file,
+        find: '  if (Option.isSome(found)) throw new DiagnosticError(found.value)',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'conflict leaves the slot out of the message',
+    edits: [
+      {
+        file,
+        find: '${Option.match(slot, { onNone: () => \'\', onSome: name => ` on slot "${name}"` })}: "${left.name}"',
+        replace: ': "${left.name}"',
+      },
+    ],
+    tests: unit,
+  },
 ]
