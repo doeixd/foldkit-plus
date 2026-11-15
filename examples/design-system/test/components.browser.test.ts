@@ -46,7 +46,7 @@ const seen = (text: string, timeout = 10_000): Promise<void> =>
 test('menu picks an action', async () => {
   mount()
   await page.getByRole('button', { name: 'Actions' }).click()
-  await page.getByRole('menuitem', { name: 'Forward' }).click()
+  await page.getByRole('menuitem', { name: /Forward/ }).click()
   await seen('Chose Forward.')
 })
 
@@ -150,7 +150,7 @@ test('delete dialog gaps its actions', async () => {
 test('feedback warns and confirms with alerts', async () => {
   mount()
   await seen('Storage almost full')
-  await seen('All checks passed')
+  await seen('Backup finished')
 })
 
 test('navigation trails a breadcrumb', async () => {

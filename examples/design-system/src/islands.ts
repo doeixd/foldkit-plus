@@ -38,21 +38,22 @@ const boot = async (island: Island, container: HTMLElement): Promise<void> => {
   body.mount(own)
 }
 
-// Decided once: with no observer to say a section is near, every section loads now.
-const loadWhenNear: (island: Island, container: HTMLElement) => void =
-  typeof IntersectionObserver === 'undefined'
-    ? (island, container) => void boot(island, container)
-    : (island, container) => {
-        const watcher = new IntersectionObserver(
-          entries => {
-            if (!entries.some(entry => entry.isIntersecting)) return
-            watcher.disconnect()
-            void boot(island, container)
-          },
-          { rootMargin: '600px 0px' },
-        )
-        watcher.observe(container)
-      }
+/** With no observer to say a section is near, it loads now. */
+const loadWhenNear = (island: Island, container: HTMLElement): void => {
+  if (typeof IntersectionObserver === 'undefined') {
+    void boot(island, container)
+    return
+  }
+  const watcher = new IntersectionObserver(
+    entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return
+      watcher.disconnect()
+      void boot(island, container)
+    },
+    { rootMargin: '600px 0px' },
+  )
+  watcher.observe(container)
+}
 
 export const bootIslands = (): void => {
   for (const island of islands) {
