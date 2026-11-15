@@ -22,6 +22,15 @@ styling of a feature view, tooltips, analytics, ARIA decoration, focus/resize Mo
 state" means you need a Submodel. For a one-off component with no external customizers, plain
 attributes are simpler.
 
+**Which piece for the task**
+
+- A key of the application's on a widget: its `routes` option (Command, SearchField, Toolbar, Menubar, Nav, Tabs, TagsInput, Picker, CascadeSelect, Tour, FloatingPanel) takes `Behaviors.Keys.route`s; on your own view, one `Behaviors.Keys.behavior` per slot (section 2, `Behaviors.Keys`; example under the table in section 5).
+- Focus when a row, clear button or toast goes away: `FocusRecovery.behavior` with `parts` (`primitives.md`); Alert and Card name their dismiss button with `recoveryPart`, Toast has `keepFocus`. When a dialog's, tour's or floating panel's opener is gone: `Dialog.focusReturn`, `Tour.focusReturn`, `FloatingPanel.focusReturn`.
+- A keyboard-reorderable list, arrows over a board, a value edited where it shows: `Reorder`, `SpatialNavigation`, `InlineEdit` in `primitives.md`.
+- A search box `SearchField`; a file picker `FileInput` (a drop zone is `FileDrop`); a toolbar `Toolbar`; a command palette `Command`; a menu bar `Menubar`; a select `Listbox` or `Picker`; tags `TagsInput`; a number `NumberField`.
+- Who provides an accessibility obligation (navigation, name, focus strategy): `provides` on a Behavior slot, or `A11y.base` / `A11y.native` / `A11y.delegated`, checked by `A11y.conform` (the Obligations bullet below).
+- A widget's keyboard conformance in a test: `Conformance` from `foldkit-mixins/testing` in a browser test (the Rendered conformance bullet below).
+
 ## 2. Mental model
 
 ```text
@@ -635,6 +644,156 @@ that derived.
 | `Timer` | After Zag's: a countdown (`Timer.init({ id, countdown: true, duration })`) or a stopwatch (`Timer.init({ id, interval? })`), folded with `Timer.update`, whose Commands (`Timer.Stamp`, `Timer.Tick`) read Effect's `Clock`, so TestClock drives a run. `Timer.view({ model, onMessage, label, units?, separator?, labels?, style? }, h)`: a `role="timer"` with each unit in a Slot, one press that says what comes next, and reset. `Timer.phase(model)` is `idle`, `running`, `paused` or `done`; to start at once, return `Timer.update(model, Timer.Message.Pressed({ action: 'start' }))` from `init`. | `tone`, `look`, `progress`, `size`. Slots `root`, `label`, `area`, `item`, `separator`, `controls`, `action`. |
 | `Toolbar` | `Toolbar.view({ id, label, items, roving, onFocus, orientation?, direction?, loop?, disabled?, routes?, style?, mixins? }, h)`: the APG's toolbar, `role="toolbar"` named by `label`, with one tab stop over its controls and the arrows along `orientation` (default horizontal; `direction: 'rtl'` mirrors Left and Right), Home and End moving focus between them. The view keeps nothing and draws nothing around the controls, which are the application's own. `items` are, in order, controls `{ id, disabled?, draw }`, where `draw` receives `{ attributes, disabled }` and puts `attributes` (the id, the `tabindex` and a focus report) on the one focusable element, as `Button.view`'s `attributes: { button: control.attributes }` does, and draws it off when `disabled`; groups `{ label, controls, disabled? }`, a named `role="group"` of controls; and the word `'separator'`, a rule between sets. The application keeps the tab stop: `roving` is a placed `RovingTabindex`'s slice (`{ current }`) and `onFocus(id)` is answered with its `Focused`, so Tab re-enters at the control focused last, or at the first enabled one. A disabled control (its own, its group's, or the toolbar's `disabled`) is skipped by the arrows and never holds the tab stop, as in `Segmented`; `Toolbar.controlId(toolbarId, id)` is the id a control draws, for a Command that focuses it. A focused text field, textarea, select or range keeps the keys it uses (Home and End, the arrows along its caret or value, Up and Down in a textarea), so the arrows leave a text field only from the edge they point at: place a field last, or leave it with Tab. A key pressed in something the toolbar did not draw, such as a menu's rows, is left to it. `routes` takes `Behaviors.Keys.Route`s (their `input` is `undefined`) on the toolbar's one keydown owner; a route on the same gesture as another throws `mixins:key-conflict` naming both. | `size` is Button's ladder step (`sm`, `md`, `lg`), set on the toolbar so buttons without a size of their own line up. A bordered row, or column when vertical, with a rule between sets. Slots `root`, `group`, `separator`. |
 | `Tour` | Steps anchored beside their targets in the top layer, over a dim with a cutout the target's presses reach. `Tour.init({ id })`, started with `Tour.start(model, config)` and folded with `Tour.update(config)` (`config` is `{ steps: [{ title, description, target?, placement? }] }`); `Tour.view({ model, config, onMessage, padding?, interactive?, dismissOnOutside?, closeOnEscape?, routes?, labels?, direction?, style? }, h)`. The target scrolls into view; Next, Back and the arrows move on, Escape and Skip end it, and `update` returns `Ended { completed }`. `routes` takes keys the application answers on a step, such as a digit jumping to that step, beside the arrows and, unless `closeOnEscape` is false, Escape. `Tour.focusReturn` among the mixins is opt-in and is the one way focus returns: ending the tour gives focus back to what had it before it started, by `FocusReturn`'s rules when that is gone (the tour keeps no opener of its own). A step without a target, or whose target is missing, stands in the middle. The cutout is placed from `--fk-tour-x/-y/-w/-h/-radius`, which `TrackBox` (`foldkit-primitives/dom`) writes on the `layer`. | No axis. Slots `layer`, `blocker`, `spotlight`, `panel`, `arrow`, `progress`, `title`, `description`, `actions`, `back`, `next`, `skip`. |
+
+A widget's keys are routes on one `keydown` owner, and `routes` adds the application's.
+`SearchField` shows the whole loop: the application owns the text, a route answers ArrowDown,
+and the clear button's focus comes back through a Command:
+
+```ts standalone
+import { Option, Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import type { Return } from 'foldkit/update'
+import { Behaviors } from 'foldkit-mixins'
+import { SearchField } from 'foldkit-mixins-ui'
+
+const Model = Schema.Struct({ query: Schema.String, resultsOpen: Schema.Boolean })
+const Message = defineMessageUnion({
+  ChangedQuery: { query: Schema.String },
+  ClearedQuery: {},
+  OpenedResults: {},
+  CompletedFocus: {},
+})
+type Message = typeof Message.Type
+
+// A route declares its gesture; a second route on ArrowDown would throw
+// `mixins:key-conflict` when the view is drawn, naming both.
+const OpenResults = Behaviors.Keys.route('OpenResults', {
+  on: [Behaviors.Keys.chord('ArrowDown')],
+  handle: () => Option.some(Message.OpenedResults()),
+})
+
+const update = (model: typeof Model.Type, message: Message): Return<typeof Model.Type, Message> =>
+  Message.match(message, {
+    ChangedQuery: ({ query }) => ({ model: modifyFields(model, { query: () => query }) }),
+    // The clear button leaves with the text, taking focus with it.
+    ClearedQuery: () => ({
+      model: modifyFields(model, { query: () => '' }),
+      commands: [SearchField.Focus({ id: 'find' })],
+    }),
+    OpenedResults: () => ({ model: modifyFields(model, { resultsOpen: () => true }) }),
+    CompletedFocus: () => ({ model }),
+  })
+
+const view = (model: typeof Model.Type, h: HtmlBuilder<Message>) =>
+  SearchField.view(
+    {
+      id: 'find',
+      label: 'Search',
+      value: model.query,
+      onInput: query => Message.ChangedQuery({ query }),
+      onClear: Message.ClearedQuery(),
+      routes: [OpenResults],
+    },
+    h,
+  )
+```
+
+`Toolbar` is one tab stop over controls you draw: `roving` is the `{ current }` slice you keep and
+`onFocus(id)` sets it; each control's `draw` puts `control.attributes` on its one focusable element:
+
+```ts standalone
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Button, Toolbar } from 'foldkit-mixins-ui'
+
+const Model = Schema.Struct({ stop: Schema.NullOr(Schema.String) })
+const Message = defineMessageUnion({ Focused: { id: Schema.String }, ToggledBold: {} })
+type Message = typeof Message.Type
+
+const view = (model: typeof Model.Type, h: HtmlBuilder<Message>) =>
+  Toolbar.view(
+    {
+      id: 'format',
+      label: 'Formatting',
+      roving: { current: model.stop },
+      onFocus: id => Message.Focused({ id }),
+      items: [
+        {
+          id: 'bold',
+          draw: control =>
+            Button.view(
+              {
+                label: 'Bold',
+                onClick: Message.ToggledBold(),
+                attributes: { button: control.attributes },
+              },
+              h,
+            ),
+        },
+      ],
+    },
+    h,
+  )
+```
+
+`FileInput` keeps no files: fold a pick with `FileInput.added`, then write the list back into the
+native input with `FileInput.Sync`, so a surrounding form submits what the list shows:
+
+```ts standalone
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import type { Return } from 'foldkit/update'
+import { FileInput } from 'foldkit-mixins-ui'
+
+const Model = Schema.Struct({ files: Schema.Array(Schema.instanceOf(File)) })
+const Message = defineMessageUnion({
+  Picked: { files: Schema.Array(Schema.instanceOf(File)) },
+  Removed: { file: Schema.instanceOf(File) },
+  CompletedSync: {},
+  CompletedFocus: {},
+})
+type Message = typeof Message.Type
+
+const update = (model: typeof Model.Type, message: Message): Return<typeof Model.Type, Message> =>
+  Message.match(message, {
+    Picked: ({ files }) => {
+      const next = FileInput.added(model.files, files, { multiple: true })
+      return {
+        model: modifyFields(model, { files: () => next }),
+        commands: [FileInput.Sync({ id: 'cv', files: next })],
+      }
+    },
+    // The remove button held focus and left with its row.
+    Removed: ({ file }) => {
+      const next = model.files.filter(each => each !== file)
+      return {
+        model: modifyFields(model, { files: () => next }),
+        commands: [FileInput.Sync({ id: 'cv', files: next }), FileInput.Focus({ id: 'cv' })],
+      }
+    },
+    CompletedSync: () => ({ model }),
+    CompletedFocus: () => ({ model }),
+  })
+
+const view = (model: typeof Model.Type, h: HtmlBuilder<Message>) =>
+  FileInput.view(
+    {
+      id: 'cv',
+      label: 'Attach files',
+      name: 'attachments',
+      multiple: true,
+      files: model.files,
+      onChange: files => Message.Picked({ files }),
+      onRemove: file => Message.Removed({ file }),
+    },
+    h,
+  )
+```
 
 Beyond `type` and `placeholder`, `Input.view` takes `name`, `readOnly`, `required`, `autocomplete`, `inputMode` and `maxLength`, so a form that submits natively needs no hand-drawn `input`, and `attributes: { input?, label?, description? }` adds what another component hands a slot (a blur handler, `aria-busy`) before the mixins resolve. `Textarea.view` takes `name`, `required`, `autocomplete` and `attributes` the same way. A field's description (`Input.field`'s and `Textarea.field`'s) is an always-drawn `role="status"` span, even with nothing to say, since a live region announces only what is put into it.
 
