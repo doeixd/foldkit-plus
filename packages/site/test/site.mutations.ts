@@ -2,6 +2,13 @@
  * The Site first cut, broken in turn:
  * `pnpm mutate packages/site/test/site.mutations.ts` checks that a test
  * fails for every one.
+ *
+ * The type side (`site.test-d.ts`) is mutated by hand, since `pnpm mutate`
+ * runs Vitest and Vitest does not typecheck. `SiteSources` keyed by every tag
+ * of the tree again, `NodeBuilder.surface` keeping the builder's `Surfaced`,
+ * and `Site.route` marking a node surfaced with no `surface` given, each made
+ * `npx tsc -b packages/site` fail where `Site.sources` names only the tags of
+ * nodes with a Surface (2026-11-15).
  */
 const tests = [
   'packages/site/test/site.test.ts',

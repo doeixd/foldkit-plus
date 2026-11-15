@@ -8,6 +8,8 @@ import { Projection, Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import { Site } from '../src/index.js'
 
+type Equals<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
+
 const AppRoute = defineRouteUnion({
   Home: {},
   People: { searchText: Schema.Option(Schema.String) },
@@ -156,16 +158,26 @@ export const ChildPageBadChanged = Site.placement(ChildNode, ChildBundle, {
   changed: () => 42,
 })
 
-// `Site.sources` is keyed by the tree's tags, so the keys survive a spread
-// beside the application's own entries (an index signature would not).
+// `Site.sources` is keyed by the tags of the nodes with a Surface, so the keys
+// survive a spread beside the application's own entries (an index signature
+// would not), and a surfaceless node's tag is no key.
 const sourced = {
   ...Site.sources(Site.make(Home, Surfaced), App.owner, App.model.route),
   own: Surface.at(Page, { searchText: Option.none() }),
 }
-export const sourcedKeys: ReadonlyArray<keyof typeof sourced> = ['Home', 'People', 'own']
+export const sourcedKeys: Equals<keyof typeof sourced, 'People' | 'own'> = true
 export const peopleSource = sourced.People
+// @ts-expect-error: Home has no Surface, so it activates nothing to key
+export const homeSource = sourced.Home
 // @ts-expect-error: no node of the tree holds this tag
 export const strangerSource = sourced.Person
+// A Surface given in steps, or under a mount, is keyed the same way.
+const stepped = Site.sources(
+  Site.make(Site.mount(Home, [ViewedInSteps.node])),
+  App.owner,
+  App.model.route,
+)
+export const stepKeys: Equals<keyof typeof stepped, 'People'> = true
 // A destination's Sources are keyed the same way.
 export const sourcedFor = Site.sourcesFor(
   Site.make(Home, Surfaced),

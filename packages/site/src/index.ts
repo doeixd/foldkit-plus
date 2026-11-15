@@ -93,6 +93,20 @@ export interface NodeSurface<Route, SRoot, SModel, SMessage, SParams, Viewer> {
   readonly params: (route: Route, viewer: Viewer) => SParams
 }
 
+/** What `Site.route` annotates a node with, beside its Surface. */
+export interface RouteOptions<Route extends { readonly _tag: string }> {
+  readonly title?: ((route: Route) => string) | undefined
+  readonly section?: string | undefined
+  readonly landing?: Omit<Route, '_tag'> | undefined
+  readonly shortcut?: KeySequence | undefined
+  readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
+  readonly layout?: NodeLayout | undefined
+  readonly view?: NodeView | undefined
+  readonly meta?: NodeMeta<Route> | undefined
+  readonly indexed?: boolean | undefined
+  readonly access?: NodeAccess<never> | undefined
+}
+
 /**
  * A layout around everything under a node: it receives the composed child
  * explicitly — no Outlet, no context, no hidden route state. Ancestors with
@@ -172,7 +186,10 @@ export interface SitePage<Parent, ParentMessage, R, P> {
  * never mutates it, so the same node serves targets, hrefs, and inspection
  * wherever it is mounted.
  */
-export interface SiteNode<Route extends { readonly _tag: string }> {
+export interface SiteNode<
+  Route extends { readonly _tag: string },
+  Surfaced extends string = never,
+> {
   readonly tag: string
   readonly router: Router<Route>
   readonly case: RouteCase<Route>
@@ -202,6 +219,7 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
   readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
   /** The Surface this route activates, if the node declares one. */
   readonly bound?: BoundSurface | undefined
+  readonly [surfaced]?: (tag: Surfaced) => void
   /** A layout wrapping everything under this node, if it declares one. */
   readonly layout?: NodeLayout | undefined
   /** What this node draws for its own route, if it draws anything. */
@@ -248,11 +266,24 @@ export type Access = typeof Access.Type
 /** Carries the routes a mount or tree holds, in its type only: nothing sets it. */
 declare const routes: unique symbol
 
-/** A node mounted with its children: structure, not state. `Route` is every route it holds. */
-export interface SiteMount<Route extends { readonly _tag: string } = any> {
+/**
+ * Carries the tags of the nodes with a Surface, in their types only: nothing
+ * sets it. `Site.sources` keys its entries by these.
+ */
+declare const surfaced: unique symbol
+
+/**
+ * A node mounted with its children: structure, not state. `Route` is every
+ * route it holds, `Surfaced` the tags of those whose node has a Surface.
+ */
+export interface SiteMount<
+  Route extends { readonly _tag: string } = any,
+  Surfaced extends string = never,
+> {
   readonly node: SiteNode<any>
   readonly children: ReadonlyArray<SiteMount>
   readonly [routes]?: (route: Route) => void
+  readonly [surfaced]?: (tag: Surfaced) => void
 }
 
 /** The routes a bare node or a mount holds. */
@@ -263,6 +294,14 @@ export type RoutesOf<Mounted> =
       ? Route
       : never
 
+/** The tags of the nodes with a Surface that a bare node or a mount holds. */
+export type SurfacedOf<Mounted> =
+  Mounted extends SiteNode<any, infer Tag>
+    ? Tag
+    : Mounted extends SiteMount<any, infer Tag>
+      ? Tag
+      : never
+
 /**
  * A node under construction, from `Site.node`: each method annotates and
  * returns the builder, so nodes compose in steps and annotation bundles are
@@ -270,9 +309,12 @@ export type RoutesOf<Mounted> =
  * a pipe is a separate generic call and could not infer the route. Read
  * `.node` at any stage for the frozen node so far.
  */
-export interface NodeBuilder<Route extends { readonly _tag: string }> {
+export interface NodeBuilder<
+  Route extends { readonly _tag: string },
+  Surfaced extends string = never,
+> {
   /** The node so far: frozen, usable for targets and hrefs at any stage. */
-  readonly node: SiteNode<Route>
+  readonly node: SiteNode<Route, Surfaced>
   /**
    * One named bundle through the builder, Effect-style: the bundle stays
    * generic over the builder it meets, so it instantiates to this node's
@@ -288,33 +330,33 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
    * Free `pipe(builder, bundle)` from `effect` composes the same way; this
    * method is the same spelling without the import.
    */
-  pipe<A>(fn: (builder: NodeBuilder<Route>) => A): A
+  pipe<A>(fn: (builder: NodeBuilder<Route, Surfaced>) => A): A
   /** The page's title for this route, once the route value is known. */
-  title(title: (route: Route) => string): NodeBuilder<Route>
+  title(title: (route: Route) => string): NodeBuilder<Route, Surfaced>
   /** The navigation section this route belongs to. */
-  section(section: string): NodeBuilder<Route>
+  section(section: string): NodeBuilder<Route, Surfaced>
   /** Where the section's nav item points, as this node's params. */
-  landing(landing: Omit<Route, '_tag'>): NodeBuilder<Route>
+  landing(landing: Omit<Route, '_tag'>): NodeBuilder<Route, Surfaced>
   /** The keys that go to this node's landing. */
-  shortcut(shortcut: KeySequence): NodeBuilder<Route>
+  shortcut(shortcut: KeySequence): NodeBuilder<Route, Surfaced>
   /** Which history step a move within this node is. */
   history(
     history: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent),
-  ): NodeBuilder<Route>
+  ): NodeBuilder<Route, Surfaced>
   /** A layout wrapping everything under this node. */
-  layout(layout: NodeLayout): NodeBuilder<Route>
+  layout(layout: NodeLayout): NodeBuilder<Route, Surfaced>
   /** What this node draws for its own route. */
-  view(view: NodeView): NodeBuilder<Route>
+  view(view: NodeView): NodeBuilder<Route, Surfaced>
   /** What this node says of itself in the head, from its route and the Model. */
-  meta<Model = any>(meta: NodeMeta<Route, Model>): NodeBuilder<Route>
+  meta<Model = any>(meta: NodeMeta<Route, Model>): NodeBuilder<Route, Surfaced>
   /** Whether search engines index this node and the nodes below it. */
-  indexed(indexed: boolean): NodeBuilder<Route>
+  indexed(indexed: boolean): NodeBuilder<Route, Surfaced>
   /** Who may be shown this node and the nodes below it, and where anyone else goes. */
-  access<Who>(access: NodeAccess<Who>): NodeBuilder<Route>
+  access<Who>(access: NodeAccess<Who>): NodeBuilder<Route, Surfaced>
   /** The Surface this route activates, and the viewer its params read, if any. */
   surface<SRoot, SModel, SMessage, SParams, Viewer = void>(
     config: NodeSurface<Route, SRoot, SModel, SMessage, SParams, Viewer>,
-  ): NodeBuilder<Route>
+  ): NodeBuilder<Route, Route['_tag']>
 }
 
 /**
@@ -322,9 +364,13 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
  * `Route` is the union of every node's route, so the tree parses an address
  * to it (`Site.parse`) and builds one back (`Site.hrefOf`).
  */
-export interface SiteTree<Route extends { readonly _tag: string } = any> {
+export interface SiteTree<
+  Route extends { readonly _tag: string } = any,
+  Surfaced extends string = never,
+> {
   readonly roots: ReadonlyArray<SiteMount>
   readonly [routes]?: (route: Route) => void
+  readonly [surfaced]?: (tag: Surfaced) => void
 }
 
 /** One address a node's `Site.paths` lists: the route's params, and when its content last changed. */
@@ -466,27 +512,30 @@ const sourceOf = <Root>(
 }
 
 /**
- * What `Site.sources` gives: an entry per surfaced node, keyed by its tag. Every
- * key is optional, since a node with no Surface has none; a literal key, unlike
- * an index signature, survives a spread beside the application's own entries.
+ * What `Site.sources` gives: an entry per node with a Surface, keyed by its
+ * tag (`Surfaced`, which the tree's type carries). A node with none has no
+ * key, so a key named where the entries are keyed (`Data.wiring`'s
+ * `policies`) is one that reads. A literal key, unlike an index signature,
+ * survives a spread beside the application's own entries. Each is optional:
+ * `Site.sourcesFor` gives one chain's.
  */
-export type SiteSources<Root, Route extends { readonly _tag: string }> = {
-  readonly [Tag in Route['_tag']]?: ActiveSurface<Root> & SurfaceSource<Root>
+export type SiteSources<Root, Surfaced extends string> = {
+  readonly [Tag in Surfaced]?: ActiveSurface<Root> & SurfaceSource<Root>
 }
 
 /** The surfaced entries among `nodes`, keyed by tag. */
-const sourcesOn = <Root, Route extends { readonly _tag: string }>(
+const sourcesOn = <Root, Surfaced extends string>(
   nodes: ReadonlyArray<SiteNode<any>>,
   owner: object,
   place: ModelPlace<Root>,
-): SiteSources<Root, Route> => {
+): SiteSources<Root, Surfaced> => {
   const out: Record<string, ActiveSurface<Root> & SurfaceSource<Root>> = {}
   for (const node of nodes) {
     const entry = sourceOf(node, owner, place)
     if (entry !== undefined) out[entry[0]] = entry[1]
   }
-  // Keyed by each node's own tag, which the tree's route union holds.
-  return out as SiteSources<Root, Route>
+  // Keyed by the tag of each node with a Surface, which the tree's type carries.
+  return out as SiteSources<Root, Surfaced>
 }
 
 /** The fields a `Meta` gives, so one left `undefined` does not erase an ancestor's. */
@@ -537,20 +586,11 @@ export const Site = {
   route: <Route extends { readonly _tag: string }, SRoot, SModel, SMessage, SParams, Viewer = void>(
     router: Router<Route>,
     routeCase: RouteCase<Route>,
-    options?: {
-      readonly title?: ((route: Route) => string) | undefined
-      readonly section?: string | undefined
-      readonly landing?: Omit<Route, '_tag'> | undefined
-      readonly shortcut?: KeySequence | undefined
-      readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
-      readonly layout?: NodeLayout | undefined
-      readonly view?: NodeView | undefined
-      readonly meta?: NodeMeta<Route> | undefined
-      readonly indexed?: boolean | undefined
-      readonly access?: NodeAccess<never> | undefined
+    options?: RouteOptions<Route> & {
       readonly surface?: NodeSurface<Route, SRoot, SModel, SMessage, SParams, Viewer> | undefined
     },
-  ): SiteNode<Route> => {
+    // With no `surface`, nothing infers the Surface's root, which stays `unknown`.
+  ): SiteNode<Route, unknown extends SRoot ? never : Route['_tag']> => {
     let built = Site.node(router, routeCase)
     if (options?.title !== undefined) built = built.title(options.title)
     if (options?.section !== undefined) built = built.section(options.section)
@@ -564,7 +604,9 @@ export const Site = {
     if (options?.access !== undefined) built = built.access(options.access)
     if (options?.surface !== undefined)
       built = built.surface<SRoot, SModel, SMessage, SParams, Viewer>(options.surface)
-    return built.node
+    // The builder's type forgets the Surface across the `if`; the return type
+    // says it again, from whether `surface` was given.
+    return built.node as SiteNode<Route, unknown extends SRoot ? never : Route['_tag']>
   },
 
   /**
@@ -590,9 +632,11 @@ export const Site = {
     router: Router<Route>,
     routeCase: RouteCase<Route>,
   ): NodeBuilder<Route> => {
-    const at = (built: SiteNode<Route>): NodeBuilder<Route> => ({
+    const at = <Surfaced extends string>(
+      built: SiteNode<Route, Surfaced>,
+    ): NodeBuilder<Route, Surfaced> => ({
       node: built,
-      pipe: <A>(fn: (builder: NodeBuilder<Route>) => A): A => fn(at(built)),
+      pipe: <A>(fn: (builder: NodeBuilder<Route, Surfaced>) => A): A => fn(at(built)),
       title: title => at(Object.freeze({ ...built, title })),
       section: section => at(Object.freeze({ ...built, section })),
       landing: landing => at(Object.freeze({ ...built, landing })),
@@ -603,7 +647,14 @@ export const Site = {
       meta: meta => at(Object.freeze({ ...built, meta })),
       indexed: indexed => at(Object.freeze({ ...built, indexed })),
       access: access => at(Object.freeze({ ...built, access })),
-      surface: config => at(Object.freeze({ ...built, bound: config as BoundSurface })),
+      // The node now has a Surface, which its type says by its tag.
+      surface: config =>
+        at(
+          Object.freeze({ ...built, bound: config as BoundSurface }) as SiteNode<
+            Route,
+            Route['_tag']
+          >,
+        ),
     })
     return at(baseNode(router, routeCase))
   },
@@ -616,10 +667,11 @@ export const Site = {
   mount: <
     Route extends { readonly _tag: string },
     const Children extends ReadonlyArray<SiteNode<any> | SiteMount> = [],
+    Surfaced extends string = never,
   >(
-    node: SiteNode<Route>,
+    node: SiteNode<Route, Surfaced>,
     children?: Children,
-  ): SiteMount<Route | RoutesOf<Children[number]>> =>
+  ): SiteMount<Route | RoutesOf<Children[number]>, Surfaced | SurfacedOf<Children[number]>> =>
     Object.freeze({ node, children: Object.freeze((children ?? []).map(asMount)) }),
 
   /**
@@ -629,8 +681,8 @@ export const Site = {
    */
   make: <const Roots extends ReadonlyArray<SiteNode<any> | SiteMount>>(
     ...roots: Roots
-  ): SiteTree<RoutesOf<Roots[number]>> => {
-    const tree: SiteTree<RoutesOf<Roots[number]>> = Object.freeze({
+  ): SiteTree<RoutesOf<Roots[number]>, SurfacedOf<Roots[number]>> => {
+    const tree: SiteTree<RoutesOf<Roots[number]>, SurfacedOf<Roots[number]>> = Object.freeze({
       roots: Object.freeze(roots.map(asMount).map(freezeMount)),
     })
     // Fail at definition time, not at the first inspection.
@@ -1002,15 +1054,15 @@ export const Site = {
    * `Data.subscriptions`, `Data.satisfy`, or an SSR plan's `surfaces`: each
    * node's `Surface.when` over the application's route place. A surface from
    * another application is refused here, not at its reads. The keys are the
-   * tree's tags, each optional (a node with no Surface has no entry), so they
-   * survive a spread beside the application's own entries and can be named
-   * where the entries are keyed (`Data.wiring`'s `policies`).
+   * tags of the nodes with a Surface (`SiteSources`), so they survive a spread
+   * beside the application's own entries and can be named where the entries
+   * are keyed (`Data.wiring`'s `policies`); a surfaceless node's tag cannot.
    */
-  sources: <Root, Route extends { readonly _tag: string }>(
-    site: SiteTree<Route>,
+  sources: <Root, Surfaced extends string>(
+    site: SiteTree<any, Surfaced>,
     owner: object,
     place: ModelPlace<Root>,
-  ): SiteSources<Root, Route> => sourcesOn(Site.nodesOf(site), owner, place),
+  ): SiteSources<Root, Surfaced> => sourcesOn(Site.nodesOf(site), owner, place),
 
   /**
    * The route-level Sources for one destination: the same entries as
@@ -1028,12 +1080,12 @@ export const Site = {
    * There is deliberately no `SitePlan` object: the chain is already
    * `Site.chainOf`, and the head is `Site.metaOf`.
    */
-  sourcesFor: <Root, Route extends { readonly _tag: string }>(
-    site: SiteTree<Route>,
+  sourcesFor: <Root, Surfaced extends string>(
+    site: SiteTree<any, Surfaced>,
     owner: object,
     place: ModelPlace<Root>,
     route: { readonly _tag: string },
-  ): SiteSources<Root, Route> => sourcesOn(Site.chainOf(site, route), owner, place),
+  ): SiteSources<Root, Surfaced> => sourcesOn(Site.chainOf(site, route), owner, place),
 
   /**
    * The lazy bodies a route draws: the `code` of each page placed on its
