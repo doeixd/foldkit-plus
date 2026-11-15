@@ -75,7 +75,8 @@ export const edgeScroller = (
   const scrollers = (axis: Axis): ReadonlyArray<Scroller> => {
     if (view === null) return []
     const found: Array<Scroller> = []
-    const root = owner.scrollingElement
+    // jsdom has none, which it reports as `undefined`, not `null`.
+    const root = owner.scrollingElement ?? null
     let fixed = false
     for (let at = element as Element | null; at !== null; at = at.parentElement) {
       if (at === owner.documentElement || at === owner.body || at === root) continue

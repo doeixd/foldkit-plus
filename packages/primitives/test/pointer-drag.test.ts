@@ -13,6 +13,7 @@ import {
   DragCancelled,
   DragDropped,
   type DragPlace,
+  DRAGGING,
   DragStarted,
   DraggedOver,
   HOLD_SLOP,
@@ -271,6 +272,88 @@ describe('PointerDrag', () => {
         DraggedOver.make({ over: { id: 'c', zone: 'inside' } }),
         DragCancelled.make({ id: 'a' }),
       ])
+    }))
+})
+
+describe('PointerDrag writes where the pointer is', () => {
+  const root = document.documentElement
+  const written = () => [
+    root.style.getPropertyValue(DRAGGING.x),
+    root.style.getPropertyValue(DRAGGING.y),
+    root.getAttribute(DRAGGING.kind),
+  ]
+  const clear = ['', '', null]
+
+  it('on the root, per move, for as long as a drag lasts', () =>
+    withList(async ({ list, a, c }) => {
+      const seen: Array<ReadonlyArray<string | null>> = []
+      await run(list, 3, () => {
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        // Not a drag yet: nothing written.
+        fire(a, 'pointermove', { clientX: 11, clientY: 11 })
+        seen.push(written())
+        fire(c, 'pointermove', { clientX: 20, clientY: 70 })
+        seen.push(written())
+        fire(c, 'pointermove', { clientX: 25, clientY: 75 })
+        seen.push(written())
+        fire(c, 'pointerup', { clientX: 25, clientY: 75 })
+        seen.push(written())
+      })
+      expect(seen).toEqual([clear, ['20px', '70px', 'mouse'], ['25px', '75px', 'mouse'], clear])
+    }))
+
+  it('names a finger’s drag as one, from where it was held', () =>
+    withList(async ({ list, a, b }) => {
+      let held: ReadonlyArray<string | null> = []
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(
+              PointerDrag({ attribute: 'data-row' }).f(list, Mount.liveViewStateChanges),
+              2,
+            ),
+          )
+          for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+          yield* Effect.promise(async () => {
+            fire(a, 'pointerdown', {
+              button: 0,
+              pointerType: 'touch',
+              pointerId: 5,
+              clientX: 12,
+              clientY: 14,
+            })
+            await new Promise(resolve => setTimeout(resolve, HOLD_TO_DRAG_MS + 50))
+            held = written()
+            // One more fact, so the stream is still open when the place is read.
+            fire(b, 'pointermove', {
+              button: 0,
+              pointerType: 'touch',
+              pointerId: 5,
+              clientX: 12,
+              clientY: 40,
+            })
+          })
+          yield* Fiber.join(fiber)
+        }),
+      )
+      expect(held).toEqual(['12px', '14px', 'touch'])
+    }))
+
+  it('takes them away on Escape and when the mount ends mid-drag', () =>
+    withList(async ({ list, a, b }) => {
+      await run(list, 2, () => {
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        fire(b, 'pointermove', { clientX: 10, clientY: 40 })
+        expect(written()).toEqual(['10px', '40px', 'mouse'])
+        fire(document, 'keydown', { key: 'Escape' })
+        expect(written()).toEqual(clear)
+      })
+      // Ended by the mount going, with the pointer still down.
+      await run(list, 1, () => {
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        fire(b, 'pointermove', { clientX: 10, clientY: 40 })
+      })
+      expect(written()).toEqual(clear)
     }))
 })
 

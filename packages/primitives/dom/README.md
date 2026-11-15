@@ -17,6 +17,7 @@ wraps.
 | `InputMask({ pattern })` | Mount | `Input { value, raw }` | `#`, `A`, `*` placeholders |
 | `KeepInView({ selector })` | Mount | nothing | |
 | `Measure({ targets })` | Mount | nothing; writes custom properties | |
+| `DragPreview()` | Mount | nothing | on an element with `popover="manual"`: shows it in the top layer; see [`PointerDrag`](../interaction/README.md) |
 | `TrackBox({ name, radius? })` | Mount | `TrackedTarget { target, found }`; writes custom properties | the target's id in `data-target` |
 | `FluidHover({ name, item, axis, gapClick, gapReach?, follows?, from? })` | Mount | nothing; writes custom properties | `axis`: `x`, `y`, `xy` |
 | `ScrollBars({ idle?, scroller? })` | Mount | nothing; writes custom properties and marks | `idle` in ms, default 600 |

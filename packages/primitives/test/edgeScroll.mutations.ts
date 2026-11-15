@@ -235,8 +235,8 @@ export default [
     edits: [
       {
         file: drag,
-        find: '            scroller?.stop()\n            const id = dragging',
-        replace: '            const id = dragging',
+        find: '            scroller?.stop()\n            clearAt()\n            const id = dragging',
+        replace: '            clearAt()\n            const id = dragging',
       },
     ],
     tests: edgeTests,
@@ -246,8 +246,8 @@ export default [
     edits: [
       {
         file: drag,
-        find: '            clearTimeout(holding)\n            scroller?.stop()\n            release()',
-        replace: '            clearTimeout(holding)\n            release()',
+        find: '            clearTimeout(holding)\n            scroller?.stop()\n            clearAt()\n            release()',
+        replace: '            clearTimeout(holding)\n            clearAt()\n            release()',
       },
     ],
     tests: edgeTests,

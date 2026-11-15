@@ -10,6 +10,7 @@ import type { EdgeScroll } from '../dom/edge-scroll.js'
 import { PointerDrag as PointerDragMount, type DragFact } from '../dom/pointer-drag.js'
 
 export {
+  DRAGGING,
   DRAG_THRESHOLD,
   DragCancelled,
   DragDropped,

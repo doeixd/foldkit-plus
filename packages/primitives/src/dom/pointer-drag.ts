@@ -62,6 +62,18 @@ export const HOLD_TO_DRAG_MS = 400
 /** How far, in CSS pixels, a held finger may wander before the hold is a scroll. */
 export const HOLD_SLOP = 8
 
+/**
+ * What a drag under way writes on the document's root, for something that follows
+ * the pointer to read without the view drawing again on every move: the pointer's
+ * viewport position in pixels (`x`, `y`), and its kind (`mouse`, `touch` or `pen`)
+ * as the `kind` attribute. All are removed when the drag ends.
+ */
+export const DRAGGING = {
+  x: '--fk-drag-x',
+  y: '--fk-drag-y',
+  kind: 'data-fk-drag',
+} as const
+
 interface Box {
   readonly top: number
   readonly height: number
@@ -176,12 +188,30 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             readonly y: number
             /** A finger's: a drag once held still, a scroll if it moves first. */
             readonly touch: boolean
+            readonly kind: string
           } | null = null
           let holding: ReturnType<typeof setTimeout> | undefined
-          const begin = (id: string) => {
-            dragging = id
+          const root = owner.documentElement
+          const writeAt = (x: number, y: number) => {
+            root.style.setProperty(DRAGGING.x, `${x}px`)
+            root.style.setProperty(DRAGGING.y, `${y}px`)
+          }
+          const clearAt = () => {
+            root.style.removeProperty(DRAGGING.x)
+            root.style.removeProperty(DRAGGING.y)
+            root.removeAttribute(DRAGGING.kind)
+          }
+          const begin = (pressed: {
+            readonly id: string
+            readonly kind: string
+            readonly x: number
+            readonly y: number
+          }) => {
+            dragging = pressed.id
             owner.getSelection()?.removeAllRanges()
-            Queue.offerUnsafe(queue, DragStarted.make({ id }))
+            root.setAttribute(DRAGGING.kind, pressed.kind === '' ? 'mouse' : pressed.kind)
+            writeAt(pressed.x, pressed.y)
+            Queue.offerUnsafe(queue, DragStarted.make({ id: pressed.id }))
           }
           let dragging: string | null = null
           let over: DragPlace | null = null
@@ -222,6 +252,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             clearTimeout(holding)
             holding = undefined
             scroller?.stop()
+            clearAt()
             const id = dragging
             if (id !== null && at?.clientX !== undefined && at.clientY !== undefined) {
               const { place, region } = placeAt(at)
@@ -287,8 +318,9 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                   // A finger that moves before its hold is up is scrolling, not dragging.
                   if (pressed.touch) return moved < HOLD_SLOP ? undefined : end(false)
                   if (moved < DRAG_THRESHOLD) return
-                  begin(pressed.id)
+                  begin(pressed)
                 }
+                writeAt(positioned.clientX ?? 0, positioned.clientY ?? 0)
                 heard = {
                   clientX: positioned.clientX,
                   clientY: positioned.clientY,
@@ -367,12 +399,13 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                   x: positioned.clientX ?? 0,
                   y: positioned.clientY ?? 0,
                   touch,
+                  kind: positioned.pointerType ?? 'mouse',
                 }
                 listen()
                 if (touch) {
                   holding = setTimeout(() => {
                     holding = undefined
-                    if (pressed !== null && dragging === null) begin(pressed.id)
+                    if (pressed !== null && dragging === null) begin(pressed)
                   }, HOLD_TO_DRAG_MS)
                 }
               },
@@ -405,6 +438,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           const stop = () => {
             clearTimeout(holding)
             scroller?.stop()
+            clearAt()
             release()
             if (!(element instanceof HTMLElement)) return
             if (callout === undefined || callout === '') {

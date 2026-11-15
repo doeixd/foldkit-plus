@@ -40,7 +40,7 @@ export default [
     edits: [
       {
         file,
-        find: '                    if (pressed !== null && dragging === null) begin(pressed.id)\n',
+        find: '                    if (pressed !== null && dragging === null) begin(pressed)\n',
         replace: '',
       },
     ],
