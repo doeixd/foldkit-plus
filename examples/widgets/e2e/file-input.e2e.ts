@@ -39,8 +39,8 @@ test('chosen files are listed and submitted, and a keyboard removal keeps focus 
 
   await section.getByRole('button', { name: 'Submit' }).click()
   await expect.poll(() => status.textContent()).toBe('Submitted photo.png')
-  // ADOPT: the Model holds `File`s, which the dev-tools relay cannot encode when it is attached
-  // (proposed to the coordinator); drop this filter once a JSON-safe form exists.
+  // Foldkit's dev-tools relay, attached under `vite dev`, rejects the `File`s the Model holds with
+  // "Expected JSON value"; that upstream behaviour is the one page error ignored, every other fails.
   expect(problems.filter(problem => !problem.includes('Expected JSON value'))).toEqual([])
   await page.close()
 })
