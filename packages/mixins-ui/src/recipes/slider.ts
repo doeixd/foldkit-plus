@@ -124,6 +124,7 @@ export const Slider = Style.recipeFor(SliderSlots)({
         fontWeight: ref.weight.medium,
       }),
     ),
+    description: component(Style.self({ margin: '0', color: ref.text.muted, ...role('body') })),
     // Shown only by `value: 'end'`.
     output: component(
       Style.self({
