@@ -278,6 +278,34 @@ formattingToolbar<Message>()(
 )
 ```
 
+### Narrow screens
+
+Wrap an item as `{ low: item }` to say it gives way: with `compact: true` it is not drawn, so it is
+neither a tab stop nor an arrow-key target, and a separator a hidden group leaves at an end or
+beside another is dropped. If the control the tab stop names is the one that goes, the stop falls to
+the nearest control still drawn (the next one, else the one before). The bar knows no width: the
+application keeps `compact` in its Model. `foldkit-primitives/media`'s `MediaQuery.with({ query:
+'(max-width: 40rem)' })` is that signal, a Bundle holding `matches` that a `matchMedia` Subscription
+keeps current, so pass `compact: model.narrow.matches`. What is left out is still offered by the
+slash menu.
+
+```ts
+formattingToolbar<Message>()(
+  {
+    id: 'body-bar',
+    document: model.document,
+    selection: model.editor.selection,
+    wrap: edited,
+    toggled: (menu, open) => ToggledMenu({ menu, open }),
+    roving: { current: model.tabStop },
+    onFocus: id => FocusedControl({ id }),
+    items: ['undo', 'redo', 'separator', { mark: 'Bold' }, { low: { mark: 'Code' } }, { low: 'quote' }],
+    compact: true,
+  },
+  h,
+)
+```
+
 ### Where the focus goes
 
 A command leaves the focus on the control that sent it, so a keyboard user can press the next
