@@ -184,25 +184,85 @@ it('is not started by a press on a node, a control or the scrollbar, nor by a fi
   }
 })
 
-it("is not started by a press on the container's own scrollbar", async () => {
-  const element = canvas('overflow:auto')
-  element.insertAdjacentHTML(
-    'beforeend',
-    '<div style="position:absolute;left:0;top:500px;width:10px;height:10px"></div>',
-  )
-  // Headless Chromium hides scrollbars, so clientWidth is what a 15px classic one would leave.
-  Object.defineProperty(element, 'clientWidth', { value: 285 })
-  const run = drive(element, { attribute: 'data-node' })
+// Headless Chromium hides scrollbars, but `scrollbar-gutter: stable` keeps a real 15px gutter where
+// the bar would be drawn: on the right, on the left right to left, and at the bottom where the inline
+// axis runs down.
+it.each([
+  {
+    layout: 'a vertical bar',
+    style: '',
+    bar: at(292, 100),
+    inside: at(280, 100),
+    client: [285, 200],
+  },
+  {
+    layout: 'a right-to-left bar',
+    style: 'direction:rtl',
+    bar: at(7, 100),
+    inside: at(20, 100),
+    client: [285, 200],
+  },
+  {
+    layout: 'a horizontal bar',
+    style: 'writing-mode:vertical-lr',
+    bar: at(150, 192),
+    inside: at(150, 180),
+    client: [300, 185],
+  },
+])(
+  "is not started by a press on the container's own scrollbar: $layout",
+  async ({ style, bar, inside, client }) => {
+    const element = canvas(`overflow:auto;scrollbar-gutter:stable;${style}`)
+    element.insertAdjacentHTML(
+      'beforeend',
+      '<div style="position:absolute;left:500px;top:500px;width:10px;height:10px"></div>',
+    )
+    // The gutter is there, or the case proves nothing.
+    expect([element.clientWidth, element.clientHeight]).toEqual(client)
+    const run = drive(element, { attribute: 'data-node' })
+    try {
+      await later(20)
+      lasso(bar, [inside[0] - 40, inside[1] - 40])
+      await later(20)
+      expect(run.facts).toEqual([])
+      lasso(inside, [inside[0] - 40, inside[1] - 40])
+      await later(20)
+      expect(ended(run.facts)).toBeDefined()
+    } finally {
+      await run.stop()
+    }
+  },
+)
+
+it('measures a right-to-left container by content, and edge-scrolls it toward its start', async () => {
+  const element = document.createElement('div')
+  element.style.cssText =
+    'position:absolute;left:0;top:0;width:200px;height:100px;overflow:auto;border:0;direction:rtl'
+  element.innerHTML =
+    '<div style="position:relative;width:600px;height:100px">' +
+    '<div data-node="far" style="position:absolute;left:470px;top:20px;width:20px;height:20px"></div>' +
+    '<div data-node="near" style="position:absolute;left:100px;top:20px;width:20px;height:20px"></div>' +
+    '</div>'
+  document.body.append(element)
+  const run = drive(element, { attribute: 'data-node', edgeScroll: {} })
   try {
     await later(20)
-    const inside = 102 + 285 - 5
-    const onBar = 102 + 285 + 5
-    lasso([onBar, 100], [inside - 60, 150])
+    // Right to left, the box shows the content's right end first: content x 400 to 600.
+    expect(element.scrollLeft).toBe(0)
+    pointer(150, 10, 'pointerdown')
+    pointer(100, 50, 'pointermove')
+    pointer(50, 50, 'pointermove')
     await later(20)
-    expect(run.facts).toEqual([])
-    lasso([inside, 100], [inside - 60, 150])
+    expect(run.facts.at(-1)).toMatchObject({
+      rect: { x: 450, y: 10, width: 100, height: 40 },
+      ids: ['far'],
+    })
+    pointer(3, 50, 'pointermove')
+    await until(() => element.scrollLeft < -300)
+    expect(element.scrollLeft).toBeLessThan(-300)
+    pointer(3, 50, 'pointerup')
     await later(20)
-    expect(ended(run.facts)).toBeDefined()
+    expect(ended(run.facts)!.ids).toEqual(['far', 'near'])
   } finally {
     await run.stop()
   }

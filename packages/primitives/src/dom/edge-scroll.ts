@@ -27,6 +27,8 @@ interface Scroller {
   readonly top: number
   readonly right: number
   readonly bottom: number
+  /** The lowest scroll offset: minus its room across for a right-to-left box, whose `scrollLeft` runs down from 0. */
+  readonly low: number
 }
 
 const room = (element: Element, axis: Axis) =>
@@ -44,6 +46,9 @@ const scrolls = (style: CSSStyleDeclaration, element: Element, axis: Axis) => {
     room(element, axis) > 0
   )
 }
+
+const lowOf = (style: CSSStyleDeclaration, element: Element, axis: Axis) =>
+  axis === 'x' && style.direction === 'rtl' ? -room(element, axis) : 0
 
 /** Whether the page itself can scroll that way: a scroll lock writes `overflow: hidden` on the root, which `scrollTo` would still move. */
 const pageScrolls = (view: Window, owner: Document, axis: Axis) =>
@@ -102,6 +107,7 @@ export const edgeScroller = (
           top: box.top,
           right: box.right,
           bottom: box.bottom,
+          low: lowOf(style, at, axis),
         })
       }
       // Nothing above a fixed box moves it: the page scrolling behind a fixed panel shows nothing new in it.
@@ -117,6 +123,7 @@ export const edgeScroller = (
         top: 0,
         right: owner.documentElement.clientWidth,
         bottom: owner.documentElement.clientHeight,
+        low: lowOf(view.getComputedStyle(root), root, axis),
       })
     }
     return found
@@ -140,7 +147,8 @@ export const edgeScroller = (
             : pull(point.x, scroller.left, scroller.right, band)
         if (by === 0) continue
         const at = offset(scroller.element, axis)
-        if (by < 0 ? at <= 0 : at >= room(scroller.element, axis) - 0.5) continue
+        const { low } = scroller
+        if (by < 0 ? at <= low : at >= low + room(scroller.element, axis) - 0.5) continue
         steps.push({ element: scroller.element, axis, by })
         break
       }

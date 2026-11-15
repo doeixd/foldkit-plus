@@ -13,6 +13,50 @@ const marqueeTests = ['packages/primitives/test/marquee.browser.test.ts']
 
 export default [
   {
+    name: "a right-to-left box's scroll starts at 0, so it never scrolls toward its start",
+    edits: [
+      {
+        file: scroll,
+        find: "axis === 'x' && style.direction === 'rtl' ? -room(element, axis) : 0",
+        replace: '0',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a right-to-left container is measured as if left to right',
+    edits: [
+      {
+        file: marquee,
+        find: "rtl = owner.defaultView?.getComputedStyle(element).direction === 'rtl'",
+        replace: 'rtl = false',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a scrollbar on the left is empty space',
+    edits: [
+      {
+        file: marquee,
+        find: '                  (x < inLeft ||',
+        replace: '                  (false ||',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a scrollbar along the bottom is empty space',
+    edits: [
+      {
+        file: marquee,
+        find: '                    y >= inTop + element.clientHeight)',
+        replace: '                    false)',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
     name: 'a lasso lets the browser select text under it',
     edits: [
       {
@@ -125,7 +169,7 @@ export default [
     edits: [
       {
         file: scroll,
-        find: 'if (by < 0 ? at <= 0 : at >= room(scroller.element, axis) - 0.5) continue',
+        find: 'if (by < 0 ? at <= low : at >= low + room(scroller.element, axis) - 0.5) continue',
         replace: '',
       },
     ],

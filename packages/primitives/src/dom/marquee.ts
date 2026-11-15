@@ -95,11 +95,15 @@ export const Marquee = Mount.defineStream('Marquee', {
           let swallowClick = false
           let lastRect: MarqueeRect | null = null
 
-          /** The container's content box origin on screen, and its scroll: what a client point is measured from. */
+          // Read at each press: a right-to-left container scrolls from 0 down to minus its room.
+          let rtl = false
+          /** The container's content origin on screen, scrolled with it: what a client point is measured from. */
           const origin = () => {
             const box = element.getBoundingClientRect()
+            const fromLeft =
+              element.scrollLeft + (rtl ? element.scrollWidth - element.clientWidth : 0)
             return {
-              left: box.left + element.clientLeft - element.scrollLeft,
+              left: box.left + element.clientLeft - fromLeft,
               top: box.top + element.clientTop - element.scrollTop,
             }
           }
@@ -247,13 +251,19 @@ export const Marquee = Mount.defineStream('Marquee', {
                 const x = down.clientX ?? 0
                 const y = down.clientY ?? 0
                 const box = element.getBoundingClientRect()
-                // The scrollbars sit in the element's own box, outside what its content fills.
+                // The scrollbars sit in the element's own box, outside what its content fills, on
+                // either side: a right-to-left box draws its vertical one on the left.
+                const inLeft = box.left + element.clientLeft
+                const inTop = box.top + element.clientTop
                 if (
                   element.clientWidth > 0 &&
-                  (x >= box.left + element.clientLeft + element.clientWidth ||
-                    y >= box.top + element.clientTop + element.clientHeight)
+                  (x < inLeft ||
+                    x >= inLeft + element.clientWidth ||
+                    y < inTop ||
+                    y >= inTop + element.clientHeight)
                 )
                   return
+                rtl = owner.defaultView?.getComputedStyle(element).direction === 'rtl'
                 const { left, top } = origin()
                 pressed = {
                   pointer: down.pointerId,
