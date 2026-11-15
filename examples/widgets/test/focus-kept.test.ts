@@ -54,7 +54,7 @@ describe('the toast stack', () => {
   it('shows a numbered toast in front, and asks for its clock and animation', () => {
     const first = update(initial, Message.ShowedToast())
     expect(first.model.toast.entries.map(entry => entry.title)).toEqual(['Saved draft 1'])
-    expect(first.commands.length).toBeGreaterThan(0)
+    expect(first.commands?.length).toBeGreaterThan(0)
     const second = update(first.model, Message.ShowedToast()).model
     expect(second.toast.entries.map(entry => entry.title)).toEqual([
       'Saved draft 2',

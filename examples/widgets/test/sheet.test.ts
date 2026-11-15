@@ -26,7 +26,7 @@ describe('update flows', () => {
 
   it('opens at the lowest point and asks the Dialog to show it', () => {
     expect(percentShown(opened.model)).toEqual(Option.some(30))
-    expect(opened.commands.length).toBeGreaterThan(0)
+    expect(opened.commands?.length).toBeGreaterThan(0)
   })
 
   it('rests at the point a key names, and keeps the Model for the one it already rests at', () => {

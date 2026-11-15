@@ -19,7 +19,7 @@ describe('the tour', () => {
   it('starts at its first step and asks for it to be shown', () => {
     expect(started.model.tour.open).toBe(true)
     expect(started.model.tour.step).toBe(0)
-    expect(started.commands.length).toBeGreaterThan(0)
+    expect(started.commands?.length).toBeGreaterThan(0)
   })
 
   it('finishes on the last step’s Next, and says it finished', () => {
@@ -54,7 +54,7 @@ describe('the floating panel', () => {
   it('opens and asks for its focus, and closes where it was', () => {
     const opened = update(initial, Message.OpenedNotes())
     expect(opened.model.panel.open).toBe(true)
-    expect(opened.commands.length).toBeGreaterThan(0)
+    expect(opened.commands?.length).toBeGreaterThan(0)
     const closed = update(opened.model, gotPanel(FloatingPanel.Message.Closed())).model
     expect(closed.panel.open).toBe(false)
     expect(closed.panel.rect).toEqual(initial.panel.rect)

@@ -67,7 +67,11 @@ const without = (notices: ReadonlyArray<Notice>, id: string): ReadonlyArray<Noti
   return kept.length === notices.length ? notices : kept
 }
 
-const toastStep = (model: Model, next: Toast.Return, counted: boolean): Return<Model, Message> => ({
+const toastStep = (
+  model: Model,
+  next: ReturnType<typeof Toast.update>,
+  counted: boolean,
+): Return<Model, Message> => ({
   model:
     next.model === model.toast && !counted
       ? model
