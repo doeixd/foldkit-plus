@@ -141,6 +141,8 @@ export const Message = defineMessageUnion({
   UndidTrash: { id: Schema.String },
   /** A formatting bar control took focus, so Tab returns to it. */
   FocusedControl: { id: Schema.String },
+  /** Escape on a formatting bar control: back to the text, caret where it was. */
+  ReturnedToText: {},
   /** Enter in the title: on to the text. */
   EnteredTitle: {},
   GotEditor: { message: EditorMessage },
@@ -748,6 +750,13 @@ export const update = (model: Model, message: Message): Return =>
             ...result,
             commands: [...(result.commands ?? []), toApp(focus(hostId, selection))],
           }
+    },
+    ReturnedToText: () => {
+      const selection = Option.match(pageInEditor(model), {
+        onNone: () => null,
+        onSome: page => editorViewOf(model, page).selection,
+      })
+      return selection === null ? { model } : { model, commands: [toApp(focus(hostId, selection))] }
     },
     FocusedField: () => ({ model }),
   })

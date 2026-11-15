@@ -99,4 +99,15 @@ export default [
     edits: [{ file, find: 'Option.contains(model.tabStop, id)', replace: 'false' }],
     tests,
   },
+  {
+    name: 'Escape on a bar control does not return to the text',
+    edits: [
+      {
+        file,
+        find: ': { model, commands: [toApp(focus(hostId, selection))] }',
+        replace: ': { model }',
+      },
+    ],
+    tests,
+  },
 ]

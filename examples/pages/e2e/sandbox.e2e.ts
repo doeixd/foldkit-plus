@@ -165,6 +165,8 @@ test('the formatting bar is one tab stop with arrows, keeps the selection, and r
   await expect.poll(() => focused(page)).toBe('bar-undo')
   await page.keyboard.press('ArrowRight')
   await expect.poll(() => focused(page)).toBe('bar-redo')
+  // The stop follows focus a frame later: End before that moves from the old position.
+  await expect.poll(() => bar.locator('button[tabindex="0"]').getAttribute('id')).toBe('bar-redo')
   await page.keyboard.press('End')
   await expect.poll(() => focused(page)).toBe('bar-insert')
   expect(await bar.locator('button[tabindex="0"]').getAttribute('id')).toBe('bar-insert')
@@ -192,5 +194,24 @@ test('the formatting bar is one tab stop with arrows, keeps the selection, and r
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     ),
   ).toBe(0)
+  await context.close()
+})
+
+test('Escape on a formatting bar control returns to the text, and typing lands there', async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 800 } })
+  const page = await context.newPage()
+  await page.goto(url)
+  await page.waitForSelector('#new-page', { timeout: 120_000 })
+  await page.click('#new-page')
+  await expect.poll(() => focused(page)).toBe('page-title')
+  await body(page).click()
+  await page.keyboard.type('Milk')
+  await page.keyboard.press('Shift+Home')
+  const bold = page.locator('[role="toolbar"][aria-label="Formatting"] [data-item="mark-Bold"]')
+  await bold.focus()
+  await page.keyboard.press('Escape')
+  await expect.poll(() => body(page).evaluate(el => el.contains(document.activeElement))).toBe(true)
+  await page.keyboard.type('Oat')
+  await expect.poll(() => body(page).textContent()).toContain('Oat')
   await context.close()
 })

@@ -366,6 +366,7 @@ const formatting = (
       inserts,
       roving: { current: Option.getOrNull(model.tabStop) },
       onFocus: id => Message.FocusedControl({ id }),
+      returned: Message.ReturnedToText(),
       shortcuts: SHORTCUTS,
       words: onToolbar ? undefined : { toolbar: 'Selection' },
     },

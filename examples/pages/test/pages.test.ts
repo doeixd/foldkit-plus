@@ -676,6 +676,25 @@ describe('two people on one page', () => {
     )
   })
 
+  it('returns to the text on Escape from a bar control, and does nothing with no page open', async () => {
+    const replica = await open('bob')
+    replicas.push(replica)
+    let model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'P' }))
+    const page = Option.getOrThrow(model.open)
+    const run = Replicated.project(Option.getOrThrow(pageOf(model, page)).body).children[0]!
+      .children[0]!.id
+    model = await bobEdits(
+      replica,
+      model,
+      Message.GotEditor({ message: EditorMessage.Selected({ selection: caretAt(run, 0) }) }),
+    )
+    const result = update(model, Message.ReturnedToText())
+    expect(result.model).toBe(model)
+    expect(result.commands?.map(command => command.name)).toEqual(['RichText.focus'])
+    const closed = initialModel('bob')
+    expect(update(closed, Message.ReturnedToText())).toEqual({ model: closed })
+  })
+
   it('gives a new page’s title the focus, and Enter in it the text', () => {
     expect(
       update(initialModel('alice'), Message.AddedPage({ title: 'T' })).commands?.map(
