@@ -176,7 +176,7 @@ test('selected text starts a discussion anchored to it', async () => {
     getSelection()!.setBaseAndExtent(text, 2, text, 8)
   })
   // The toolbar over the selection offers the comment.
-  const floating = page.getByRole('toolbar', { name: 'Selection' })
+  const floating = page.getByRole('group', { name: 'Selection actions' })
   await floating.waitFor()
   await floating.getByRole('button', { name: 'Comment', exact: true }).click()
   await page
@@ -283,6 +283,48 @@ test('Enter in code breaks the line, and on an empty last line leaves the block'
   await page.keyboard.press('Enter')
   await page.keyboard.type('after')
   await expect.poll(() => code.evaluate(e => e.nextElementSibling?.textContent)).toBe('after')
+  expect(errors).toEqual([])
+})
+
+test('the formatting bar is one tab stop, and its arrow keys move between controls', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  const bar = page.getByRole('toolbar', { name: 'Formatting' })
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute('data-item'))
+  await bar.locator('[data-item="mark-Bold"]').focus()
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(focused).toBe('mark-Italic')
+  await page.keyboard.press('End')
+  await expect.poll(focused).toBe('insert')
+  await page.keyboard.press('Home')
+  await expect.poll(focused).toBe('undo')
+  await page.keyboard.press('ArrowLeft')
+  await expect.poll(focused).toBe('insert')
+  // One tab stop: every other control is out of the tab order, and the stop is the last one used.
+  expect(
+    await bar
+      .locator('button[tabindex="0"]')
+      .evaluateAll(buttons => buttons.map(b => b.getAttribute('data-item'))),
+  ).toEqual(['insert'])
+  expect(errors).toEqual([])
+})
+
+test('the formatting bar’s Insert menu opens with the arrow keys and inserts a block', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  await caretAtEnd(page.locator('[contenteditable=true] > p').first())
+  await page.getByRole('toolbar', { name: 'Formatting' }).locator('[data-item="insert"]').focus()
+  await page.keyboard.press('ArrowDown')
+  await page.getByRole('menu', { name: 'Insert' }).waitFor()
+  await page.keyboard.press('ArrowDown')
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-insert')))
+    .toBe('table')
+  await page.keyboard.press('Escape')
+  await expect.poll(() => page.getByRole('menu', { name: 'Insert' }).count()).toBe(0)
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-item')))
+    .toBe('insert')
   expect(errors).toEqual([])
 })
 

@@ -12,11 +12,11 @@ import { Theme } from 'foldkit-mixins/theme'
 import { AppShellSlots, Recipes } from 'foldkit-mixins-ui'
 import { demoStyle } from 'foldkit-example-site/demo-style'
 import {
-  BlockStyleMenuSlots,
   CodeToolbarSlots,
   EditorStatusSlots,
   FindReplaceSlots,
   FootnotePreviewSlots,
+  FormattingToolbarSlots,
   TableOfContentsSlots,
   LinkEditorSlots,
   SlashMenuSlots,
@@ -434,9 +434,9 @@ export const Page = demoStyle.slots({
     boxShadow: t.shadow.sm,
     overflow: 'clip',
   }),
-  // One row of tools that stays in reach while the document scrolls under it.
+  // The formatting bar and the page's own actions, in reach while the document scrolls under them.
   bar: Style.compose(
-    row(t.space['3xs']),
+    row(t.space['2xs']),
     Style.self({
       position: 'sticky',
       insetBlockStart: '0',
@@ -445,8 +445,9 @@ export const Page = demoStyle.slots({
       borderBlockEnd: `1px solid ${t.outline.subtle}`,
       background: t.surface.base,
     }),
-    Style.media('(max-width: 40rem)', { flexWrap: 'nowrap', padding: `${t.space.xs}` }),
+    Style.media('(max-width: 40rem)', { padding: t.space.xs }),
   ),
+  barActions: Style.compose(row(t.space['3xs']), Style.self({ marginInlineStart: 'auto' })),
   // On a phone the toolbar keeps to one row: what the slash menu also offers steps aside, and a
   // labelled tool shows its icon alone.
   tool: Style.compose(
@@ -461,28 +462,8 @@ export const Page = demoStyle.slots({
     Style.self({ fontSize: t.size.sm }),
     Style.media('(max-width: 40rem)', { display: 'none' }),
   ),
-  spacer: Style.self({ flex: '1' }),
   dismiss: Style.self({ display: 'none' }),
-  separator: Style.compose(
-    Style.self({
-      inlineSize: '1px',
-      blockSize: '1.25rem',
-      background: t.outline.subtle,
-      marginInline: t.space['2xs'],
-    }),
-    Style.media('(max-width: 40rem)', { marginInline: '1px' }),
-    Style.at(
-      '@media (max-width: 40rem)',
-      Style.pseudo('[data-priority="low"]', { display: 'none' }),
-    ),
-  ),
-  anchor: Style.compose(
-    Style.self({ position: 'relative' }),
-    Style.at(
-      '@media (max-width: 40rem)',
-      Style.pseudo('[data-priority="low"]', { display: 'none' }),
-    ),
-  ),
+  anchor: Style.self({ position: 'relative' }),
   dropdown: Style.compose(
     popup,
     Style.self({
@@ -800,46 +781,109 @@ export const LinkEditorStyle = demoStyle.forSlots(LinkEditorSlots)({
   remove: control,
 })
 
-export const BlockStyleMenuStyle = demoStyle.forSlots(BlockStyleMenuSlots)({
-  root: Style.self({ position: 'relative' }),
-  trigger: Style.compose(
-    control,
-    Style.self({ minInlineSize: '9.5rem', justifyContent: 'space-between' }),
-    Style.pseudo('[aria-expanded="true"]', { background: t.surface.muted }),
-    // On a phone the icon says the style, and the trigger's name says it aloud.
-    Style.media('(max-width: 40rem)', { minInlineSize: '0' }),
-  ),
-  menu: Style.compose(
-    popup,
-    Style.self({
-      position: 'absolute',
-      insetBlockStart: 'calc(100% + 6px)',
-      insetInlineStart: '0',
-      zIndex: '20',
-      display: 'grid',
-      minInlineSize: '12rem',
-    }),
-  ),
-  item: Style.compose(
-    control,
-    Style.self({
-      display: 'grid',
-      gridTemplateColumns: 'auto 1fr auto',
-      gap: t.space.sm,
-      justifyContent: 'stretch',
-      textAlign: 'start',
-    }),
-  ),
-  icon: Style.self({ display: 'inline-flex', color: t.text.muted }),
-  label: Style.compose(
-    Style.self({ fontSize: t.size.sm }),
-    // The trigger's label, not an item's: on a phone the icon says the style.
-    Style.at(
-      '@media (max-width: 40rem)',
-      Style.nest(':where([aria-haspopup="menu"]) > &', { display: 'none' }),
+/** A phone: touch, narrow. The less used controls step aside there; the slash menu still offers them. */
+const PHONE = '(max-width: 40rem) and (pointer: coarse)'
+const LESS_USED = [
+  'mark-Strikethrough',
+  'mark-Code',
+  'mark-Highlight',
+  'mark-Underline',
+  'numbered-list',
+  'checklist',
+  'quote',
+]
+  .map(item => `[data-item="${item}"]`)
+  .join(', ')
+
+/** The formatting bar's slots, beneath the root that says where the bar stands. */
+const barSlots = (root: StyleValue) =>
+  ({
+    root,
+    button: Style.compose(
+      control,
+      // An unavailable control stays focusable, so the arrows reach it; it only looks and acts off.
+      Style.pseudo('[aria-disabled="true"]', {
+        color: t.text.muted,
+        cursor: 'default',
+        opacity: '0.5',
+      }),
+      Style.pseudo('[aria-disabled="true"]:hover', { background: 'transparent' }),
+      Style.pseudo('[aria-expanded="true"]', { background: t.surface.muted }),
+      Style.at(
+        '@media (pointer: coarse)',
+        Style.self({ minBlockSize: '2.75rem', minInlineSize: '2.75rem' }),
+      ),
+      Style.at(`@media ${PHONE}`, Style.pseudo(LESS_USED, { display: 'none' })),
     ),
+    // Insert and the text style are an icon or a word and a chevron: on a phone the style keeps its
+    // word, which says what the caret is in, and Insert is its plus.
+    label: Style.compose(
+      Style.self({ fontSize: t.size.sm }),
+      Style.at(
+        '@media (max-width: 40rem)',
+        Style.nest(':where([data-item="insert"]) > &', { display: 'none' }),
+      ),
+    ),
+    separator: Style.compose(
+      Style.self({
+        inlineSize: '1px',
+        blockSize: '1.25rem',
+        background: t.outline.subtle,
+        marginInline: t.space['2xs'],
+      }),
+      Style.media(PHONE, { display: 'none' }),
+    ),
+    anchor: Style.self({ position: 'relative' }),
+    menu: Style.compose(
+      popup,
+      Style.self({
+        position: 'absolute',
+        insetBlockStart: 'calc(100% + 6px)',
+        insetInlineStart: '0',
+        zIndex: '20',
+        minInlineSize: '14rem',
+        display: 'grid',
+        gap: '1px',
+      }),
+    ),
+    item: Style.compose(
+      control,
+      Style.self({
+        display: 'grid',
+        gridTemplateColumns: 'auto 1fr',
+        columnGap: t.space.sm,
+        alignItems: 'center',
+        justifyContent: 'stretch',
+        inlineSize: '100%',
+        minBlockSize: '2.5rem',
+        padding: `${t.space['2xs']} ${t.space.sm}`,
+        textAlign: 'start',
+        whiteSpace: 'normal',
+      }),
+      Style.nest('& > svg', { gridRow: '1 / span 2', color: t.text.muted }),
+      Style.pseudo('[aria-checked="true"]', { background: t.accent.subtle, color: t.accent.ink }),
+    ),
+    itemLabel: Style.self({ fontSize: t.size.sm }),
+    itemDescription: Style.self({ fontSize: t.size.xs, color: t.text.muted }),
+  }) as const
+
+export const FormattingBarStyle = demoStyle.forSlots(FormattingToolbarSlots)(
+  barSlots(Style.compose(row(t.space['3xs']), Style.self({ flex: '1 1 auto' }))),
+)
+
+/** Over selected text: the floating popup is the frame, so the row has none. */
+export const SelectionBarStyle = demoStyle.forSlots(FormattingToolbarSlots)({
+  ...barSlots(Style.compose(row('0'), Style.self({ flexWrap: 'nowrap' }))),
+  // The popup is dark on a light page, so the glyphs take its ink, not the page's.
+  button: Style.compose(
+    barSlots(row('0')).button,
+    Style.self({ color: t.popup.ink }),
+    Style.pseudo(':hover', { background: `color-mix(in oklab, ${t.popup.ink} 15%, transparent)` }),
+    Style.pseudo('[aria-pressed="true"]', {
+      background: `color-mix(in oklab, ${t.popup.ink} 28%, transparent)`,
+      color: t.popup.ink,
+    }),
   ),
-  check: Style.self({ display: 'inline-flex', color: t.accent.default, minInlineSize: '16px' }),
 })
 
 export const StatusStyle = demoStyle.forSlots(EditorStatusSlots)({

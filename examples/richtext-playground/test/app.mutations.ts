@@ -223,4 +223,20 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the tab stop is rewritten on every focus',
+    edits: [{ file, find: 'Option.contains(model.tabStop, id)', replace: 'false' }],
+    tests,
+  },
+  {
+    name: 'the Image button leaves a menu open',
+    edits: [
+      {
+        file,
+        find: 'OpenedFileDialog: () => ({ model: closed(model), commands',
+        replace: 'OpenedFileDialog: () => ({ model, commands',
+      },
+    ],
+    tests,
+  },
 ]

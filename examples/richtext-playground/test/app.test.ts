@@ -498,6 +498,19 @@ describe('menus', () => {
     expect(Option.getOrUndefined(caption.block)).toEqual({ node, caption: true })
   })
 
+  it('the formatting bar keeps its tab stop on the control last used', () => {
+    const model = step(start(), Message.FocusedControl({ id: 'mark-Bold' }))
+    expect(Option.getOrUndefined(model.tabStop)).toBe('mark-Bold')
+    expect(update(model, Message.FocusedControl({ id: 'mark-Bold' })).model).toBe(model)
+  })
+
+  it('the Image button closes a menu and asks for the file dialog', () => {
+    const opened = step(start(), Message.OpenedMenu({ menu: Menu.Insert() }))
+    const result = update(opened, Message.OpenedFileDialog())
+    expect(Option.isNone(result.model.menu)).toBe(true)
+    expect(result.commands?.map(command => command.name)).toEqual(['OpenFileDialog'])
+  })
+
   it('a no-op keeps the Model', () => {
     const model = start()
     // The browser reporting the selection the editor already has.

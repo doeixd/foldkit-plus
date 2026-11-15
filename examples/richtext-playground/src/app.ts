@@ -129,6 +129,8 @@ export const Model = Schema.Struct({
   /** What the last copy did, shown in the footer. */
   status: Schema.Option(Status),
   find: Schema.Option(Find),
+  /** The formatting bar's one tab stop: the control last used, so Tab comes back to it. */
+  tabStop: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -191,6 +193,12 @@ export const Message = defineMessageUnion({
    */
   JumpedTo: { node: RichText.NodeId },
   Reset: {},
+  /** A formatting bar control took focus, by a key or a press: the bar's tab stop moves to it. */
+  FocusedControl: { id: Schema.String },
+  /** The toolbar's Image, video or file: the file dialog opens. */
+  OpenedFileDialog: {},
+  /** The file dialog was asked for. */
+  AskedForFile: {},
 })
 export type Message = typeof Message.Type
 type Return = Update.Return<Model, Message>
@@ -228,6 +236,7 @@ export const init = (): Return => ({
     notice: Option.none(),
     status: Option.none(),
     find: Option.none(),
+    tabStop: Option.none(),
   },
 })
 
@@ -544,6 +553,18 @@ const ExpireStatus = Command.define('ExpireStatus', {
   messages: [Message.StatusExpired],
   execute: ({ status }) =>
     Effect.sleep(STATUS_LASTS).pipe(Effect.as(Message.StatusExpired({ status }))),
+})
+
+/** The id of the one file field, which the toolbar's Image button opens and the picker reads. */
+export const FILE_INPUT = 'playground-file'
+
+/** Opens the file dialog: a button cannot, since only the file field itself can be asked to. */
+const OpenFileDialog = Command.define('OpenFileDialog', {
+  messages: [Message.AskedForFile],
+  execute: Effect.sync(() => {
+    document.getElementById(FILE_INPUT)?.click()
+    return Message.AskedForFile()
+  }),
 })
 
 /** Gives the focus to the field a control just opened, so its keys go there at once. */
@@ -907,6 +928,12 @@ const step = (model: Model, message: Message): Return =>
     }),
     ClosedFind: () => ({ model: modifyFields(model, { find: () => Option.none() }) }),
     FocusedField: () => ({ model }),
+    AskedForFile: () => ({ model }),
+    OpenedFileDialog: () => ({ model: closed(model), commands: [OpenFileDialog()] }),
+    FocusedControl: ({ id }) =>
+      Option.contains(model.tabStop, id)
+        ? { model }
+        : { model: modifyFields(model, { tabStop: () => Option.some(id) }) },
     LinkSubmitted: () =>
       Option.match(linkEdit(model.document, model.editor.selection, model.linkDraft), {
         onNone: () => ({ model }),
