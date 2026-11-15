@@ -54,7 +54,9 @@ test('two tabs write to one sandbox, and neither loses the other’s post', asyn
     await page.getByRole('button', { name: 'New post' }).click()
     await page.getByRole('textbox', { name: 'Title' }).fill(title)
     await page.getByRole('textbox', { name: 'Excerpt' }).fill('A few words.')
-    await page.getByRole('textbox', { name: 'Body' }).fill('More words.')
+    // ADOPT (richtext label option, approved): find it by getByRole('textbox', { name: 'Body' }) once it has a name.
+    await page.locator('#post-body [contenteditable]').click()
+    await page.keyboard.type('More words.')
     await expect.poll(() => status(page), { timeout: 15_000 }).toBe('Draft saved.')
   }
   const first = await tab()

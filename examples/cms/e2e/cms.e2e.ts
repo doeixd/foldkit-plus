@@ -67,7 +67,10 @@ test('a writer’s draft is saved but not public, and an editor’s publish make
   await wren.page.getByRole('button', { name: 'New post' }).click({ timeout: 120_000 })
   await wren.page.getByRole('textbox', { name: 'Title' }).fill('Notes on bread')
   await wren.page.getByRole('textbox', { name: 'Excerpt' }).fill('Flour, water, salt, time.')
-  await wren.page.getByRole('textbox', { name: 'Body' }).fill('A loaf wants a day.')
+  // The body is the rich-text editor: no field to fill, so write into it as a person does.
+  // ADOPT (richtext label option, approved): find it by getByRole('textbox', { name: 'Body' }) once it has a name.
+  await wren.page.locator('#post-body [contenteditable]').click()
+  await wren.page.keyboard.type('A loaf wants a day.')
   await expect.poll(() => status(wren.page), { timeout: 10_000 }).toBe('Draft saved.')
   expect(await wren.page.getByRole('textbox', { name: 'Address' }).inputValue()).toBe(
     'notes-on-bread',

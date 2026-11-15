@@ -455,8 +455,8 @@ it.skipIf(import.meta.env.VITE_MEASURE === undefined)(
 )
 
 it('shows its tabs at every width it stacks at, so the page is never pushed below every panel', async () => {
-  // Wider than a phone's editor, narrower than a desktop's: a 1280px window's.
-  unmount = mount(stylesheet, 3, longPage(3), '900px')
+  // Wider than a phone's editor, narrower than the three-panel layout's 56rem (896px): a tablet's.
+  unmount = mount(stylesheet, 3, longPage(3), '800px')
   const tabs = () => document.querySelector<HTMLElement>('[aria-label="Panels"]')
   await vi.waitFor(() => expect(canvas()).not.toBeNull())
   expect(tabs()?.checkVisibility()).toBe(true)

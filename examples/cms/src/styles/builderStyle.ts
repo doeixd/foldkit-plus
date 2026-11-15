@@ -125,7 +125,7 @@ export const InspectorFormStyle = Style.forSlots(FormSlots)(
  * chosen by tabs (`BuilderView.narrow`). One width for both: stacked without
  * the tabs, every panel stood above the page and pushed it out of view.
  */
-export const narrowWidth = '64rem'
+export const narrowWidth = '56rem'
 const narrowBuilder = `builder (max-width: ${narrowWidth})`
 
 export const BuilderStyle = Style.forSlots(BuilderSlots)(
@@ -137,7 +137,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         display: 'grid',
         // The palette and the layers, the page under its bar, then the inspector.
         gridTemplateAreas: '"start bar end" "start stage end"',
-        gridTemplateColumns: '15.5rem minmax(0, 1fr) 19rem',
+        gridTemplateColumns: '14rem minmax(0, 1fr) 17rem',
         gridTemplateRows: 'auto minmax(0, 1fr)',
         height: 'calc(100vh - 12.75rem)',
         minHeight: '34rem',
@@ -475,6 +475,8 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       Style.pseudo(':focus-visible', { outline: `2px solid ${t.accent.default}` }),
       Style.container(narrowBuilder, { minHeight: '30rem' }),
       Style.container('builder (max-width: 30rem)', { padding: t.space.xs }),
+      // Room for the grip, which sits above the selected node's top edge and is finger-sized here.
+      Style.media('(pointer: coarse)', { paddingBlockStart: '3.5rem' }),
       Style.nest('[data-composition-drop="before"] > *', { boxShadow: `0 -3px 0 ${selection}` }),
       Style.nest('[data-composition-drop="after"] > *', { boxShadow: `0 3px 0 ${selection}` }),
       Style.nest('[data-composition-drop="inside"] > *', {
@@ -539,6 +541,76 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       margin: '0',
       padding: `${t.space['2xl']} ${t.space.lg}`,
       textAlign: 'center',
+    }),
+    // The grip over the selected node's top edge: a solid tab of six dots, finger-sized under a
+    // coarse pointer (the package gives the size and `touch-action`). The canvas keeps room above
+    // its first node for it (`canvas` padding).
+    nodeGrip: Style.compose(
+      Style.self({
+        background: t.accent.default,
+        border: '0',
+        borderRadius: `${t.radius.sm} ${t.radius.sm} 0 0`,
+        color: t.surface.base,
+        display: 'grid',
+        padding: '0',
+        placeItems: 'center',
+      }),
+      Style.nest('&::before', {
+        backgroundImage: 'radial-gradient(currentColor 1.3px, transparent 1.6px)',
+        backgroundSize: '0.4rem 0.4rem',
+        blockSize: '0.8rem',
+        content: '""',
+        inlineSize: '0.8rem',
+      }),
+      Style.pseudo(':hover', { background: t.accent.ink }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
+    ),
+    // The popover of the node's commands, beside the grip: a card with a button for each.
+    nodeMenu: Style.self({
+      background: t.surface.base,
+      border: `1px solid ${t.outline.default}`,
+      borderRadius: t.radius.md,
+      boxShadow: t.shadow.lg,
+      color: t.text.default,
+      display: 'grid',
+      gap: t.space['3xs'],
+      minInlineSize: '12rem',
+      padding: t.space['2xs'],
+    }),
+    nodeAction: Style.compose(
+      button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
+      Style.self({ justifyContent: 'flex-start', textAlign: 'start' }),
+    ),
+    // What is carried: a card beside the pointer naming the block and what it holds.
+    dragPreview: Style.compose(
+      Style.self({
+        background: t.surface.base,
+        border: `1px solid ${t.accent.default}`,
+        borderRadius: t.radius.md,
+        boxShadow: t.shadow.lg,
+        display: 'grid',
+        gap: t.space['3xs'],
+        maxInlineSize: '16rem',
+        opacity: '0.95',
+        padding: `${t.space['2xs']} ${t.space.sm}`,
+      }),
+    ),
+    dragPreviewLabel: Style.self({
+      color: t.accent.ink,
+      fontSize: t.size.xs,
+      fontWeight: t.weight.semibold,
+      letterSpacing: '0.05em',
+      textTransform: 'uppercase',
+    }),
+    dragPreviewSummary: Style.self({
+      color: t.text.default,
+      fontSize: t.size.sm,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
     }),
     // The live region is read, not seen; hidden absolutely, it takes no cell of the grid.
     live: visuallyHidden,
