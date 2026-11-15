@@ -1,8 +1,9 @@
 # Authoring a UI from primitives (`foldkit-example-authoring`)
 
-Five small interfaces, each assembled from the primitives in this repository
+Twelve small interfaces, each assembled from the primitives in this repository
 and nothing else: a search field, an editable list, a popup with a selection, a
-sortable listbox and an editor an agent can save. Each is a Foldkit
+sortable listbox, an editor an agent can save, and seven for the newer primitives (inline
+edit, spatial navigation, a box, a stepper, a swipeable row, a file grid, hotkeys). Each is a Foldkit
 application of its own. None draws a widget from a library, so everything a
 person sees, and everything an agent is told, traces to a line in `src/`.
 
@@ -172,6 +173,59 @@ finding names both: `SearchKeys` and `Stray`.
 | Popup (`src/popup`) | `Overlay.nonModal` (`DismissLayer`, `FocusScope`), `ListNavigation`, `Selection`, `Keys`, `A11y.conform` | a popup that closes on Escape and an outside press, returns focus to its trigger, and conforms to the listbox pattern |
 | Sortable listbox (`src/sortable`) | `Reorder.routed`, `ListNavigation`, `Selection`, `Keys.first` | reorder beside a roving stop, with a grab chord of its own |
 | Editor (`src/save`) | Remote (`Mutation`, `Data.mutate`), `foldkit-agent` parts and completion | one save, driven by a person and by an agent |
+| Inline edit (`src/inline-edit`) | `InlineEdit`, `Keys` | a title renamed where it shows, with a Model that refuses a blank or duplicate value and keeps the editor open on it |
+| Spatial (`src/spatial`) | `SpatialNavigation`, `Marquee`, `Selection`, `LiveAnnounce` | cards placed freely, selected by arrows and Space or by a lasso into one `Selection`, announced once |
+| Box (`src/box`) | `Move.nudge`, `Move.resizeKeys`, `Move.behavior` | a box that moves and resizes inside bounds on a grid by keys and by pointer, Escape restoring the start |
+| Stepper (`src/stepper`) | `Repeat`, `Press` | two buttons that repeat while held, stopping at release and at a bound |
+| Swipe (`src/swipe`) | `SwipeActions`, `Swipe`, `FocusRecovery` | a row whose actions a swipe or the arrows reveal |
+| Grid (`src/grid`) | `GridNavigation` (`page`), `Selection` ranges | page keys over cells, and a file manager's range, toggle and replace over the rows |
+| Hotkeys (`src/hotkeys`) | hotkey patterns (`mod`, `formatHotkey`, `ariaKeyshortcuts`), `History` | one pattern for the key, the label and `aria-keyshortcuts`; a labelled undo whose steps a pause ends |
+
+The seven newer sections and the editor load when they near the window (`src/entry.ts`), so the
+first load holds the first five sections and none of Remote or the agent.
+
+### Inline edit, spatial, box
+
+`InlineEdit` renames a title where it shows: Enter or F2 on the title, or a double click, opens a field;
+Enter commits, Escape puts the title back, and focus returns to the title either way. The Model decides
+what a title may be: its `onOut` for `Committed` refuses a blank or duplicate title through the
+placement's `refuse` helper, which keeps the editor open on what was typed with the reason drawn and set
+as `aria-describedby`.
+
+Cards at places no row or column fits are selected two ways into one `Selection`. `SpatialNavigation` moves
+focus to the nearest card in the direction of an arrow and Space presses it; `Marquee` dragged over empty
+space replaces the selection with the cards it touches (Shift keeps the earlier selection, Escape restores
+it). The count is read out through `LiveAnnounce` from one step both paths end in, only when it changes.
+
+`Move.nudge` (Alt with an arrow, Shift for ten steps), `Move.resizeKeys` on a corner handle and
+`Move.behavior` on the box and the handle give a key and a pointer drag the same `Box.moveBy` and
+`Box.resize`, so both stay inside the area, on the 20px grid and above the minimum size. A drag is measured
+from where it began, and Escape mid-drag puts the starting rectangle back.
+
+### Stepper, swipe, grid
+
+Each stepper button is a `Repeat` placement: holding it steps again after a delay, the value is the Model's
+and clamped in `update`, reaching a bound sends `Repeat.Message.Stopped` back through a lifted Command, and
+the speed-up (one step, then five) is the Model's rule over `Stepped.count`, since `Repeat` has fixed
+timing. Leaving the button with the pointer ends the hold. A button at its bound keeps its `aria-disabled`
+off while held, because `Press` drops a release on an `aria-disabled` element and `Repeat` would never stop.
+
+A row's face is a `Swipe` Mount for the pointer and `SwipeActions.keys` is the way in without one: the
+arrows reveal the actions (the right arrow the start side, the left the end side or closes what is open), Tab reaches an action, and Enter or a click presses it. Escape closes. Closed actions are
+`inert`, `FocusRecovery` returns focus to the face when a pressed action closes the row, and a hand-written
+Mount closes the row when focus leaves it.
+
+`GridNavigation` with `page: 5` moves a cell by a page of rows with PageUp and PageDown, and Home, End and
+their Ctrl forms by the grid's ends. `Selection` holds the rows; one `Chose { id, shift, toggle }` Message
+serves a click, Space, Shift+Space, Ctrl+Space, Shift+arrow and Ctrl+A, so a range, a toggle and a
+replacement all end in the same slice.
+
+### Hotkeys and a labelled history
+
+`UNDO`, `REDO` and `RENAME` are each one pattern string: `update` matches it, a hint beside each button
+shows `formatHotkey` of it (`Ctrl+Z`, or `⌘Z`), and the button's `aria-keyshortcuts` carries the same
+chord, so the three cannot drift. `History` keeps labelled steps, so the buttons read "Undo rename" and
+"Redo rename"; typing is one step until a pause, which a clock the mount takes (so a test owns it) ends.
 
 ### List: leaving, recovering, reordering
 
@@ -193,6 +247,10 @@ from `data-reorder-over`), `update` applies the `Moved` fact with
 `Reorder.apply` and reads it out through `LiveAnnounce` with the titles. The
 keyed move takes the row out and back, which drops its focus in the browser, so
 the grip is a `FocusRecovery` part that finds itself again (`'same'`).
+
+Every id a list draws starts with the list's own, so two lists on a page recover independently; a row
+may have a parent, and its dismissed focus goes to the parent row first; and the list's runtime provides
+`Motion.live`, so `prefers-reduced-motion` ends a leave at once.
 
 Renaming in place is the Model's: `StartedEdit` records the id and draft and
 focuses the editor by a Command, and Enter or Escape (one `Keys` owner) end it
@@ -308,6 +366,7 @@ tree.
 | `popup.browser.test.ts` | open, arrow past a disabled option, pick, Escape, outside press, focus back on the trigger; `Conformance.listbox` |
 | `sortable.browser.test.ts` | Alt+Enter grabs, an arrow carries, Enter drops with focus on the row; Space selects while nothing is held |
 | `save.browser.test.ts`, `save.test.ts` | `outcomes` for a person, an agent in the page and an agent headless; parts marks match the listing |
+| `inline-edit`, `spatial`, `box`, `stepper`, `swipe`, `grid`, `hotkeys` (each `.test.ts` and `.browser.test.ts`) | what each section's `update` decides, and its keys, pointer, focus and layout in Chromium |
 | `views.test.ts` | every view draws only Slots, reads no missing token, with and without the binder |
 | `describe.test.ts` | the description printed above is the view; a clash names both owners |
 | `updates.test.ts` | what each `update` decides, and the Model it returns when nothing changes |
@@ -331,8 +390,8 @@ tree.
 - **Keys faster than a frame.** A route reads the input as last drawn. The
   search field's tests and the popup's wait a frame between presses; see the
   popup section.
-- **The page carries Remote and the agent for the editor**, about 64 kB brotli
-  of its 207 kB, though only one section uses them. `bundle.test.ts` says so.
+- **Remote and the agent are 92.9 kB brotli, used by one section.** The editor is a lazy section, so
+  the first load does not carry them; `bundle.test.ts` says what moving it bought.
 
 ## Files
 
@@ -344,6 +403,8 @@ tree.
 - `src/sortable/` — `app.ts`, `view.ts` (the routed Reorder), `mount.ts`.
 - `src/save/` — `app.ts` (the mutation and its ledger), `server.ts` (the writer),
   `agent.ts` (contract and parts), `view.ts`, `mount.ts` (`Agent.host`).
+- `src/inline-edit/`, `src/spatial/`, `src/box/`, `src/stepper/`, `src/swipe/`, `src/grid/`,
+  `src/hotkeys/` — each `app.ts`, `view.ts`, `mount.ts` and `demo.ts` (its trace).
 - `src/style.ts` — the page sheet and the pieces every section shares.
 - `src/entry.ts`, `index.html` — the page; `src/demo.ts` — the trace.
 - `test/outcomes.ts`, `test/drivers.ts` — the save assertions and the agent's driver.

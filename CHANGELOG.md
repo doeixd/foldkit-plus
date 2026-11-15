@@ -723,6 +723,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `examples/widgets`, `examples/authoring`: the examples show the newer capabilities, each section with
+  its tests. Widgets gained file-input, tags-input, app-keys, menu-rows, choices, table, sheet,
+  focus-kept and tour sections, and the window list's `findable` and `reveal`; authoring gained
+  inline-edit, spatial, box, stepper, swipe, grid and hotkeys sections and tests for nested, odd-id,
+  back-to-back, reduced-motion and two-list focus recovery. Both pages load the newer sections (and the
+  authoring editor, with Remote and the agent) when they near the window, so the start chunks
+  (widgets 144.8 kB, authoring 152.1 kB brotli) hold far less than before.
 - `foldkit-mixins-ui`: **Breaking:** `Tour.start` and `FloatingPanel.open` take no `opener`, and `Tour.Model` and `FloatingPanel.Model` have no `opener` field (nor `Tour` a `FocusOpener` Command and `CompletedFocus` Message): `Tour.focusReturn` and `FloatingPanel.focusReturn` are the one way focus returns, to what had it when the widget opened, by `FocusReturn`'s rules when that is gone. Without the mixin, ending a tour or closing a panel gives focus to nothing. A caller that named an opener passes the mixin instead (`mixins: Tour.focusReturn`).
 
 - `foldkit-mixins-ui`: `Menubar.view`'s `menuMixins` is optional, as the other views' `mixins` are; a bar given none draws its menus unstyled.
