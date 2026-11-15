@@ -51,7 +51,7 @@ test('topics are chips: Enter adds, the remove button removes', async () => {
   await field.press('Enter')
   await page.getByRole('button', { name: /Remove ui/i }).waitFor()
   await page.getByRole('button', { name: /Remove ui/i }).click()
-  expect(await page.getByRole('button', { name: /Remove ui/i }).count()).toBe(0)
+  await expect.poll(() => page.getByRole('button', { name: /Remove ui/i }).count()).toBe(0)
   await page.close()
 })
 
@@ -59,5 +59,23 @@ test('the Table names its rows by the first column', async () => {
   const { page } = await harness.visit(1280, 900)
   await reveal(page, 'collections')
   await page.getByRole('rowheader', { name: 'Pro' }).waitFor()
+  await page.close()
+})
+
+test('the Menu draws icons, shortcuts, a tone and a disabled row, and reports the row picked', async () => {
+  const { page } = await harness.visit(1280, 900)
+  await reveal(page, 'overlays')
+  await page.getByRole('button', { name: 'Actions' }).click()
+  const reply = page.getByRole('menuitem', { name: /Reply/ })
+  expect(await reply.getAttribute('aria-keyshortcuts')).toBe('Meta+R')
+  expect(await reply.locator('svg').count()).toBe(1)
+  expect(await page.getByRole('menuitem', { name: /Delete/ }).getAttribute('data-tone')).toBe(
+    'destructive',
+  )
+  expect(await page.getByRole('menuitem', { name: /Archive/ }).getAttribute('aria-disabled')).toBe(
+    'true',
+  )
+  await page.getByRole('menuitem', { name: /Forward/ }).click()
+  await page.getByText('Chose Forward.').waitFor()
   await page.close()
 })

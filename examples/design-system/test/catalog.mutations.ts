@@ -49,4 +49,15 @@ export default [
     ],
     tests: unit,
   },
+  {
+    name: 'a menu pick is forgotten',
+    edits: [
+      {
+        file: '../src/sections/overlays.ts',
+        find: 'picked: current => (Option.isSome(picked) ? picked : current),',
+        replace: 'picked: current => current,',
+      },
+    ],
+    tests: ['examples/design-system/test/sections.test.ts'],
+  },
 ]

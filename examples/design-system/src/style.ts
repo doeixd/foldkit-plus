@@ -36,6 +36,7 @@ import {
   FileDropSlots,
   HoverIntentSlots,
   Icons,
+  IconSlots as UiIconSlots,
   InputSlots,
   ItemSlots,
   KbdSlots,
@@ -773,4 +774,9 @@ export const SearchStyle = app.forSlots(SearchFieldSlots)(Recipes.SearchField({}
 
 export const TagsStyle = app.forSlots(TagsInputSlots)(Recipes.TagsInput({}), {
   name: 'TagsStyle',
+})
+
+/** The glyphs in a menu's rows. */
+export const RowIconStyle = app.forSlots(UiIconSlots)(Recipes.Icon({}), {
+  name: 'RowIconStyle',
 })

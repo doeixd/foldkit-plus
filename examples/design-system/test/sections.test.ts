@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { Option } from 'effect'
-import { TagsInput } from 'foldkit-mixins-ui'
-import { Combobox, DatePicker, FileDrop, Listbox, Menu } from '@foldkit/ui'
+import { Menu, TagsInput } from 'foldkit-mixins-ui'
+import { Combobox, DatePicker, FileDrop, Listbox } from '@foldkit/ui'
+import * as UiMenu from '@foldkit/ui/menu'
 import { Dialog as UiDialog } from '@foldkit/ui'
 import { HoverIntent as UiHoverIntent } from '@foldkit/ui'
 import { Popover as UiPopover } from '@foldkit/ui'
@@ -216,22 +217,37 @@ describe('overlays', () => {
     expect(closed.model.hoverCard.isOpen).toBe(false)
   })
 
-  it('picks a menu action while the menu closes itself', () => {
+  it('reports the value of the menu row picked, and keeps it while the menu opens again', () => {
+    const got = (message: UiMenu.Message) =>
+      Overlays.Message.Menu({ message: Menu.Message.GotMenu({ message }) })
     const opened = Overlays.update(
       Overlays.initModel(),
-      Overlays.Message.Menu({
-        message: Menu.Message.Opened({ maybeActiveItemIndex: Option.none() }),
-      }),
+      got(UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(1) })),
     )
-    expect(opened.model.menu.isOpen).toBe(true)
+    expect(opened.model.menu.menu.isOpen).toBe(true)
     const picked = Overlays.update(
       opened.model,
-      Overlays.Message.Menu({
-        message: Menu.Message.SelectedItem({ index: 1, item: 'Duplicate' }),
-      }),
+      got(UiMenu.Message.SelectedItem({ index: 1, item: 'forward' })),
     )
-    expect(picked.model.menuChoice).toBe('Duplicate')
-    expect(picked.model.menu.isOpen).toBe(false)
+    expect(picked.model.picked).toEqual(Option.some('forward'))
+    expect(picked.model.menu.menu.isOpen).toBe(false)
+    const again = Overlays.update(
+      picked.model,
+      got(UiMenu.Message.Opened({ maybeActiveItemIndex: Option.none() })),
+    )
+    expect(again.model.picked).toEqual(Option.some('forward'))
+  })
+
+  it('returns the Model it was given when the menu changes nothing', () => {
+    const model = Overlays.initModel()
+    expect(
+      Overlays.update(
+        model,
+        Overlays.Message.Menu({
+          message: Menu.Message.GotMenu({ message: UiMenu.Message.Closed() }),
+        }),
+      ).model,
+    ).toBe(model)
   })
 })
 
