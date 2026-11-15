@@ -6,6 +6,7 @@ const browser = ['packages/mixins/test/themes.browser.test.ts']
 const unit = ['packages/mixins/test/knobs.test.ts']
 const kept = ['packages/mixins/test/themesKept.test.ts']
 const file = '../src/theme/themes.ts'
+const runtime = '../src/theme/runtime.ts'
 
 export default [
   {
@@ -30,7 +31,7 @@ export default [
     name: 'the initial theme keeps an attribute of its own',
     edits: [
       {
-        file,
+        file: runtime,
         find: 'if (name === themes.initial) root.removeAttribute(themes.attribute)\n    else ',
         replace: '',
       },
@@ -52,7 +53,7 @@ export default [
     name: 'the head script shows whatever name storage holds',
     edits: [
       {
-        file,
+        file: runtime,
         find: 'if(${scriptLiteral(themes.names.filter(name => name !== themes.initial))}.indexOf(n)!==-1)',
         replace: 'if(n)',
       },
@@ -61,14 +62,14 @@ export default [
   },
   {
     name: 'the head script throws where storage does',
-    edits: [{ file, find: 'n)}catch(e){}})()', replace: 'n)}catch(e){throw e}})()' }],
+    edits: [{ file: runtime, find: 'n)}catch(e){}})()', replace: 'n)}catch(e){throw e}})()' }],
     tests: kept,
   },
   {
     name: 'choose keeps the initial theme too',
     edits: [
       {
-        file,
+        file: runtime,
         find: '          if (name === themes.initial) localStorage.removeItem(key)\n          else localStorage',
         replace: '          localStorage',
       },
@@ -79,7 +80,7 @@ export default [
     name: 'a refused store fails the Command',
     edits: [
       {
-        file,
+        file: runtime,
         find: '        } catch {\n          // Storage refused (a private window, a full quota): this visit keeps it.\n        }\n      }),',
         replace: '        } finally {\n        }\n      }),',
       },

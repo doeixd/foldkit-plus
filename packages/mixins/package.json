@@ -42,6 +42,16 @@
       "types": "./dist/theme.d.ts",
       "import": "./dist/theme.js"
     },
+    "./theme/runtime": {
+      "foldkit-plus:source": "./src/theme/runtime.ts",
+      "types": "./dist/theme/runtime.d.ts",
+      "import": "./dist/theme/runtime.js"
+    },
+    "./theme/knob-data": {
+      "foldkit-plus:source": "./src/theme/knobData.ts",
+      "types": "./dist/theme/knobData.d.ts",
+      "import": "./dist/theme/knobData.js"
+    },
     "./layout": {
       "foldkit-plus:source": "./src/layout.ts",
       "types": "./dist/layout.d.ts",

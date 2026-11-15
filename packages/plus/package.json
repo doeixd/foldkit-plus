@@ -298,6 +298,16 @@
       "types": "./dist/mixins/theme.d.mts",
       "import": "./dist/mixins/theme.mjs"
     },
+    "./mixins/theme/runtime": {
+      "foldkit-plus:source": "./src/mixins/theme/runtime.ts",
+      "types": "./dist/mixins/theme/runtime.d.mts",
+      "import": "./dist/mixins/theme/runtime.mjs"
+    },
+    "./mixins/theme/knob-data": {
+      "foldkit-plus:source": "./src/mixins/theme/knob-data.ts",
+      "types": "./dist/mixins/theme/knob-data.d.mts",
+      "import": "./dist/mixins/theme/knob-data.mjs"
+    },
     "./mixins/layout": {
       "foldkit-plus:source": "./src/mixins/layout.ts",
       "types": "./dist/mixins/layout.d.mts",
