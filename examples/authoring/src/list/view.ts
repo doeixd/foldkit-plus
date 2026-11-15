@@ -63,6 +63,8 @@ export const Recovers = FocusRecovery.behavior(List)({
     grip: ['same'],
     // A child's own parent row comes first; a row with none goes straight to its neighbours.
     dismiss: ['parent', 'next', 'previous', { part: 'add' }],
+    // Named so the step above can land on it; the Add button itself needs no recovery.
+    add: [],
   },
   parent: (model, item) =>
     Option.flatMap(

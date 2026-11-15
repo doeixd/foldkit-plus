@@ -383,15 +383,14 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
       Style.inline({
         border: '0',
         background: 'transparent',
-        color: t.text.muted,
         fontSize: '1.2rem',
         lineHeight: '1',
         // Flush with the row's edge, where the footer's Clear completed ends.
         padding: '0',
         cursor: 'pointer',
       }),
-      // A finger's target, however small the ×.
-      Style.self({ inlineSize: '1.5rem', blockSize: '1.5rem' }),
+      // A finger's target, however small the ×. The colour is a rule, not inline, so hover can change it.
+      Style.self({ inlineSize: '1.5rem', blockSize: '1.5rem', color: t.text.muted }),
       Style.pseudo(':hover', { color: t.error.ink }),
       Style.pseudo(':focus-visible', {
         outline: `2px solid ${t.outline.focus}`,
@@ -558,7 +557,8 @@ export const ConnectionStyle = Style.forSlots(ConnectionSlots)(
     ),
     text: Style.inline({ margin: '0', color: t.text.default }),
     toggle: Style.compose(
-      Style.inline({
+      // Rules, so hover can change the background.
+      Style.self({
         border: `1px solid ${t.outline.default}`,
         borderRadius: t.radius.full,
         background: 'transparent',
@@ -581,7 +581,8 @@ export const ConnectionStyle = Style.forSlots(ConnectionSlots)(
 export const ClearButtonStyle = Style.forSlots(ButtonSlots)(
   {
     button: Style.compose(
-      Style.inline({
+      // Rules, so the disabled and hover states can change the cursor and colour.
+      Style.self({
         border: '0',
         background: 'transparent',
         color: t.text.muted,
