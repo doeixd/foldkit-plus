@@ -149,7 +149,11 @@ export const tasks: ReadonlyArray<Task> = [
  * the filters as the application would from outside the grid (a URL).
  */
 export const mountTasks = (
-  options: { readonly store?: Store; readonly columnMenu?: boolean } = {},
+  options: {
+    readonly store?: Store
+    readonly columnMenu?: boolean
+    readonly headerHeight?: number
+  } = {},
 ) => {
   store = options.store ?? 'now'
   held.length = 0
@@ -200,7 +204,7 @@ export const mountTasks = (
                 wrap,
                 label: 'Tasks',
                 rowHeight: 24,
-                headerHeight: 28,
+                headerHeight: options.headerHeight ?? 28,
                 columnMenu: options.columnMenu === true,
                 filters: model.filters,
               },
