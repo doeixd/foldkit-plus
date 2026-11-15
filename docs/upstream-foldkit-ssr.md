@@ -598,6 +598,22 @@ Testing:
 - **A second `ShowDialog` for a dialog already held is a no-op**, so reopening
   one mid-exit restores no focus. `Dialog.open` and `Dialog.update` put it back
   after the commit (`Dialog.RestoreFocus`).
+- **The Checkbox toggles on Enter.** It draws a `button` with
+  `role="checkbox"`, so the browser's native Enter click toggles it. The APG
+  checkbox lists Space alone, and a native `input[type=checkbox]` ignores
+  Enter (and submits its form). Foldkit has no Message-free way to prevent a
+  key's default: `OnKeyDownPreventDefault` prevents only when its handler
+  returns a Message, so a wrapper cannot swallow Enter without inventing one.
+  Upstream needs to draw a native checkbox, or prevent Enter's default on the
+  checkbox element (calling `form.requestSubmit()` to keep implicit
+  submission) without sending a Message. Until then
+  `packages/mixins-ui/test/keyboardMaps.browser.test.ts` holds it as a
+  `test.fails`.
+- **The Combobox's and Listbox's key Messages take an absolute index**, worked
+  out in the view from the last drawn active item, so two keys pressed inside
+  one frame compute the same target. Our Combobox view keeps a record per
+  drawing and continues from it; a relative move in upstream's Message
+  (`next`, `previous`) would let `update` continue from the Model.
 - **HoverIntent has no leave state**, so a hover card cannot animate out: the
   panel is removed at once. It also closes on Escape only from the trigger or
   the panel, not while the pointer alone rests on the card and focus is
