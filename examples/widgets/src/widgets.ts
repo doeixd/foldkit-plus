@@ -113,7 +113,12 @@ import {
   runDemo as runToggleGroupDemo,
 } from './toggle-group/view.js'
 import * as Toolbar from './toolbar/app.js'
-import { Toolbar as ToolbarView, ToolbarSlots } from './toolbar/view.js'
+import {
+  BarStyle as ToolbarBarStyle,
+  Toolbar as ToolbarView,
+  ToolbarSlots,
+  ToolStyle as ToolbarToolStyle,
+} from './toolbar/view.js'
 import { runDemo as runToolbarDemo } from './toolbar/demo.js'
 import {
   accordionStyle,
@@ -161,7 +166,7 @@ export const islands = [
     id: 'toolbar',
     title: 'Toolbar',
     runDemo: runToolbarDemo,
-    style: () => toolbarStyle(ToolbarSlots),
+    style: () => merged(toolbarStyle(ToolbarSlots), ToolbarBarStyle, ToolbarToolStyle),
     mount: container => {
       Runtime.embed(
         Runtime.makeElement({

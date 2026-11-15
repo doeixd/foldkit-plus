@@ -141,18 +141,7 @@ const modalPanel = (width: string): ReturnType<typeof Style.self> =>
   })
 
 export const toolbarStyle = (slots: typeof ToolbarSlots) =>
-  Style.forSlots(slots)(
-    {
-      root: Style.self({ display: 'flex', gap: '0.5rem' }),
-      tool: Style.compose(
-        control,
-        focus,
-        pressed,
-        Style.states({ true: { opacity: '0.45', cursor: 'not-allowed' } }, 'aria-disabled'),
-      ),
-    },
-    { name: 'ShowcaseToolbar' },
-  )
+  Style.forSlots(slots)({ root: Style.self({ display: 'block' }) }, { name: 'ShowcaseToolbar' })
 
 export const searchFieldStyle = (slots: typeof SearchSlots) =>
   Style.forSlots(slots)(

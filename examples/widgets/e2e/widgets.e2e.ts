@@ -50,6 +50,13 @@ test('Bold presses, and the palette narrows to what was typed and picks from it'
   await bold.click()
   await expect.poll(() => bold.getAttribute('aria-pressed')).toBe('true')
 
+  // The toolbar's arrows move focus past the disabled tool.
+  const focused = () => page.evaluate(() => document.activeElement?.textContent)
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(focused).toBe('Italic')
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(focused).toBe('Link')
+
   const palette = page.getByRole('dialog', { name: 'Commands' })
   await expect.poll(() => palette.getByRole('option').count()).toBe(6)
   await palette.getByRole('searchbox', { name: 'Search commands' }).fill('new')

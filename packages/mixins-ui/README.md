@@ -29,7 +29,7 @@ Three kinds of thing live here:
   `@foldkit/ui` component's bundles as Slots and run the Mixins resolver over
   them: Button, Dialog, Popover, Tooltip, Tabs, Listbox, Combobox and more.
 - **Stateless views** draw a vocabulary from what the application passes and
-  keep nothing: Card, Badge, Item, Avatar, Command, Slider, PasswordInput, SearchField.
+  keep nothing: Card, Badge, Item, Avatar, Command, Slider, PasswordInput, SearchField, Toolbar.
 - **Components with a small Model of their own**: Menu, Menubar, Toast,
   Sheet, Picker, WindowList, Drawer, TagsInput, TreeView, Carousel, Resizable, ColorPicker, InputCopy,
   MessageScroller, Questionnaire, AngleSlider, Timer, Marquee, ImageCropper,
@@ -723,6 +723,7 @@ glyph with it, so the recipe's size is the drawing's.
 | `ThinkingSteps` | The trace of what an assistant did: `ThinkingSteps.view({ id, steps, open, onToggle, duration?, summary?, openSteps?, onToggleStep?, stateWords?, style? }, h)`. Each step is `{ id, title, state, duration?, detail?, icon?, steps? }`, `state` being `pending`, `running`, `done` or `failed`, said in words too. The button says the running step's title, or "Thought for 4s". Its openness is yours, an `Option<boolean>`: none opens it while a step runs and shuts it once all are done, and the press sends the state the reader asked for. `openSteps` and `onToggleStep` make each step's detail collapsible (`Accordion.toggled`). | `variant` (`plain`, `card`), `connector` (`line`, `none`). Slots `root`, `trigger`, `summary`, `chevron`, `panel`, `list`, `step`, `head`, `marker`, `title`, `state`, `duration`, `body`, `detail`. |
 | `Timer` | After Zag's: a countdown (`Timer.init({ id, countdown: true, duration })`) or a stopwatch (`Timer.init({ id, interval? })`), folded with `Timer.update`, whose Commands (`Timer.Stamp`, `Timer.Tick`) read Effect's `Clock`, so TestClock drives a run. `Timer.view({ model, onMessage, label, units?, separator?, labels?, style? }, h)`: a `role="timer"` with each unit in a Slot, one press that says what comes next, and reset. `Timer.phase(model)` is `idle`, `running`, `paused` or `done`; to start at once, return `Timer.update(model, Timer.Message.Pressed({ action: 'start' }))` from `init`. | `tone`, `look`, `progress`, `size`. Slots `root`, `label`, `area`, `item`, `separator`, `controls`, `action`. |
 | `Toast` | A stack of toasts, Sonner's: `Toast.init(id, { position?, direction?, duration?, max?, threshold? })`, folded with `Toast.update`, whose `Acted` OutMessage names a pressed action; `Toast.show(model, { type?, title, description?, action?, duration? })` returns the stack and the new toast's `id`, `Toast.settle(model, id, input)` turns a toast (a `loading` one, a promise's) into its outcome, and `Toast.dismiss(model, id)` takes it away; draw it with `Toast.view({ model, onMessage, label?, closeLabel?, expand?, icons?, style? }, h)`. The newest stand in front, spread out while the pointer or focus holds the stack, at most `max` (3) showing; a held stack or a hidden page pauses every countdown, keeping the time left; a swipe toward the edge past `threshold` dismisses one. A toast is spoken in a polite region, an error in an assertive one, each toast a keyed child of its own (the regions are not atomic), so one added beside another, or with the same words, is still read by itself. A toast that is already leaving does not act again when its action is pressed. `Toast.keepFocus` beside the style, a `FocusRecovery.behavior` on the container, hands focus from a dismissed toast's close button to the close button of the toast behind it, else the one in front; from an action it goes to the action of a neighbouring toast, else to a close button. With no toast left, focus is not moved. It is a mixin, off by default, because its Mount sends no Message. A promise toast is `show` with `type: 'loading'`, the work run as a Command, and `settle` on the toast's `id` when its Message comes back. `ToastView` is the fork for toasts that carry their own payload. | `tone`: `plain` (default) or `rich` (each type on its tint). Slots `container`, `entry`, `list`, `icon`, `body`, `title`, `description`, `action`, `close`, `status`, `alert`. |
+| `Toolbar` | `Toolbar.view({ id, label, items, roving, onFocus, orientation?, direction?, loop?, disabled?, routes?, style?, mixins? }, h)`: the APG's toolbar, `role="toolbar"` named by `label`, with one tab stop over its controls and the arrows along `orientation` (default horizontal; `direction: 'rtl'` mirrors Left and Right), Home and End moving focus between them. The view keeps nothing and draws nothing around the controls, which are the application's own. `items` are, in order, controls `{ id, disabled?, draw }`, where `draw` receives `{ attributes, disabled }` and puts `attributes` (the id, the `tabindex` and a focus report) on the one focusable element, as `Button.view`'s `attributes: { button: control.attributes }` does, and draws it off when `disabled`; groups `{ label, controls, disabled? }`, a named `role="group"` of controls; and the word `'separator'`, a rule between sets. The application keeps the tab stop: `roving` is a placed `RovingTabindex`'s slice (`{ current }`) and `onFocus(id)` is answered with its `Focused`, so Tab re-enters at the control focused last, or at the first enabled one. A disabled control (its own, its group's, or the toolbar's `disabled`) is skipped by the arrows and never holds the tab stop, as in `Segmented`; `Toolbar.controlId(toolbarId, id)` is the id a control draws, for a Command that focuses it. A focused text field, textarea, select or range keeps the keys it uses (Home and End, the arrows along its caret or value, Up and Down in a textarea), so the arrows leave a text field only from the edge they point at: place a field last, or leave it with Tab. A key pressed in something the toolbar did not draw, such as a menu's rows, is left to it. `routes` takes `Behaviors.Keys.Route`s (their `input` is `undefined`) on the toolbar's one keydown owner; a route on the same gesture as another throws `mixins:key-conflict` naming both. | `size` is Button's ladder step (`sm`, `md`, `lg`), set on the toolbar so buttons without a size of their own line up. A bordered row, or column when vertical, with a rule between sets. Slots `root`, `group`, `separator`. |
 | `Tour` | Steps anchored beside their targets in the top layer, over a dim with a cutout the target's presses reach. `Tour.init({ id })`, started with `Tour.start(model, config)` and folded with `Tour.update(config)` (`config` is `{ steps: [{ title, description, target?, placement? }] }`); `Tour.view({ model, config, onMessage, padding?, interactive?, dismissOnOutside?, closeOnEscape?, routes?, labels?, direction?, style? }, h)`. The target scrolls into view; Next, Back and the arrows move on, Escape and Skip end it, and `update` returns `Ended { completed }`. `routes` takes keys the application answers on a step, such as a digit jumping to that step, beside the arrows and, unless `closeOnEscape` is false, Escape. `Tour.focusReturn` among the mixins is opt-in and is the one way focus returns: ending the tour gives focus back to what had it before it started, by `FocusReturn`'s rules when that is gone (the tour keeps no opener of its own). A step without a target, or whose target is missing, stands in the middle. | No axis. Slots `layer`, `blocker`, `spotlight`, `panel`, `arrow`, `progress`, `title`, `description`, `actions`, `back`, `next`, `skip`. |
 | `TreeView` | The APG's and Zag's tree view, a small Model of its own: `TreeView.init({ id, open?, checked? })`, folded with `TreeView.update(nodes, { checkable? })` (curried over the tree, flattened once), drawn with `TreeView.view({ label, model, nodes, onMessage, direction?, style?, mixins? }, h)` over nodes `{ id, label, children?, disabled?, icon?, openIcon? }`. `checkable` (on the view and `update`) gives each row a box: the Model's `checked` holds the leaves, a branch reads checked, mixed or not from them (`TreeView.checksOf`), and Space checks the current row in `update`. `TreeView.checkedAs(nodes, checked, 'leaf' | 'branch' | 'trunk')` reads the Model's leaves as the other common shapes and `TreeView.leavesOf(nodes, value)` turns such a value back into leaves (see Checked values under the table). One tab stop; Up/Down move through the rows showing, stepping over shut and disabled ones; Right opens or steps in, Left shuts or steps out (swapped under `direction: 'rtl'`, drawn as the root's `dir`); Home/End; letters typed within 500ms of each other find the next showing row whose label starts with all of them (`TreeView.Model.typeahead`, cleared by the `QueryExpired` Message, which an application that wraps the Messages passes through to `update`); `*` opens every row beside the current one that holds rows; Enter, Space or a click chooses a row and opens or shuts a branch. Keys reach `update`, which decides from its own Model and sends a focus Command. Each item carries `--fk-tree-level`; a shut group stays drawn and `inert`. | `guides`: `none` (default) or `lines`, a guide down each open branch; `data-state` on a branch `item` and its `group`. Slots `root`, `item`, `row`, `chevron`, `checkbox`, `icon`, `label`, `group`. |
 | `Typography` | `{ level, text }`. The level chooses the element (`h1`–`h4`, `lead`, `body`, `small`, `muted`, `quote`, `code`, and the interface roles `display`, `title`, `subtitle`, `caption`, `micro` as paragraphs). | `level`, same set; a role is its size and leading on the size ladder. Defaults to `body`. Slot `text`. |
@@ -761,6 +762,78 @@ A row holding rows is listed once every row it holds that holds none is
 checked, a disabled one included. Ids the tree does not hold are left out of
 both. Independent checks that do not cascade, and branches whose rows are not
 loaded yet, are not modelled.
+
+### A toolbar
+
+A `Toolbar` is one tab stop over a row of controls you draw. It owns the keys
+(the arrows along its orientation, Home and End) and hands each control the
+attributes of its stop; you own which control holds the stop, so Tab comes back
+to the control focused last, and you draw the controls. `Toolbar.view` draws
+the toolbar and does no I/O; focus moves in the browser, and `onFocus` reports
+where it went.
+
+```ts
+import { Toolbar, ToolbarSlots } from 'foldkit-mixins-ui'
+
+const BarModel = Schema.Struct({ stop: Schema.NullOr(Schema.String), bold: Schema.Boolean })
+const BarMessage = defineMessageUnion({ Focused: { id: Schema.String }, ToggledBold: {} })
+type BarMessage = typeof BarMessage.Type
+
+const BarStyle = Style.forSlots(ToolbarSlots)(Recipes.Toolbar({}))
+const ToolStyle = Style.forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'outline' }),
+)
+
+const barView = (model: typeof BarModel.Type, h: HtmlBuilder<BarMessage>) =>
+  Toolbar.view(
+    {
+      id: 'format',
+      label: 'Formatting',
+      roving: { current: model.stop },
+      onFocus: id => BarMessage.Focused({ id }),
+      items: [
+        {
+          id: 'bold',
+          draw: control =>
+            Button.view(
+              {
+                label: 'Bold',
+                pressed: model.bold,
+                onClick: BarMessage.ToggledBold(),
+                attributes: { button: control.attributes },
+                style: ToolStyle,
+              },
+              h,
+            ),
+        },
+        'separator',
+        {
+          id: 'link',
+          disabled: true,
+          draw: control =>
+            Button.view(
+              {
+                label: 'Link',
+                disabled: control.disabled,
+                attributes: { button: control.attributes },
+                style: ToolStyle,
+              },
+              h,
+            ),
+        },
+      ],
+      style: BarStyle,
+    },
+    h,
+  )
+```
+
+`roving` is the `{ current }` slice of a `RovingTabindex` (here kept by hand;
+`examples/widgets` places the Bundle) and `onFocus(id)` is answered by setting
+it. `control.attributes` goes on the one focusable element, and `control.disabled`
+says to draw it off: the arrows skip it. A control that needs the arrow keys
+itself keeps them: a text field gives the toolbar only the arrows at its edge,
+and never Home or End, so place it last or leave it with Tab.
 
 ## Recipes
 
@@ -1219,7 +1292,7 @@ A test iterates the catalog and validates each adapter's own Slots and
 claims. The patterns are written separately from the Slots, which is what makes
 the check mean something.
 
-Where a pattern names obligations (who navigates, who makes an item reachable, who activates it, who names it), the entry's `support` lists who supplies each: Mixins that contribute nothing, made with `A11y.base` (the widget's own markup or the upstream bundle it draws, named by source file) or `A11y.native` (what a native element does by itself). An adapter draws through `resolveFor`, so it has no view for `A11y.check` to read; the gate attaches `support` to a view over the adapter's Slots and `check` judges it, so an obligation nobody supplies is a failure, and so is a supplier nothing needs. These are claims found in source, not a rendered check; the rendered check is `Conformance` from `foldkit-mixins/testing`. Pagination, breadcrumb, table, scroll area, drawer, hover intent, picker, button group, window list, card and search field are in the catalog beside the older widgets, and a published `*Slots` that is neither in the catalog nor on the gate's list of Slots with nothing to require fails the gate. None of this is a WCAG claim.
+Where a pattern names obligations (who navigates, who makes an item reachable, who activates it, who names it), the entry's `support` lists who supplies each: Mixins that contribute nothing, made with `A11y.base` (the widget's own markup or the upstream bundle it draws, named by source file) or `A11y.native` (what a native element does by itself). An adapter draws through `resolveFor`, so it has no view for `A11y.check` to read; the gate attaches `support` to a view over the adapter's Slots and `check` judges it, so an obligation nobody supplies is a failure, and so is a supplier nothing needs. These are claims found in source, not a rendered check; the rendered check is `Conformance` from `foldkit-mixins/testing`. Pagination, breadcrumb, table, scroll area, drawer, hover intent, picker, button group, window list, card, search field and toolbar are in the catalog beside the older widgets, and a published `*Slots` that is neither in the catalog nor on the gate's list of Slots with nothing to require fails the gate. None of this is a WCAG claim.
 
 ## Why some components needed a fork
 

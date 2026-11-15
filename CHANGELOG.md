@@ -562,6 +562,18 @@ version changed; `pnpm` skips versions already in the registry.
   `routes`, `Behaviors.Keys.Route`s, add keys beside Escape on the same keydown owner
   (#558).
 
+- `foldkit-mixins-ui`: `Toolbar` and `Recipes.Toolbar`, the APG's toolbar: `role="toolbar"`
+  named by `label`, one tab stop over controls the application draws, the arrows along
+  `orientation` (mirrored by `direction: 'rtl'`), Home and End moving focus, and disabled
+  controls skipped. `items` are controls `{ id, disabled?, draw }`, groups
+  `{ label, controls }` and `'separator'`; `draw` receives the control's `attributes` (its
+  id, `tabindex` and a focus report, which `Button.view`'s `attributes.button` takes) and
+  `disabled`. The application keeps the stop (`roving`, a placed `RovingTabindex`'s slice,
+  answered from `onFocus`), so Tab returns to the control focused last. A focused text
+  field, select or range keeps the keys it uses, and a key from something the toolbar did
+  not draw is left alone. `routes` adds keys on the same keydown owner. `examples/widgets`'
+  toolbar is drawn with it, in place of the primitives it assembled by hand.
+
 - `foldkit-mixins-ui`: `Dialog.update(model, message)` and `Dialog.open(model)` are
   `@foldkit/ui`'s `update` and `open` plus one focus repair: a dialog opened again during
   its exit gets focus back inside it (`Dialog.RestoreFocus`). `Dialog.isLeaving(model)`,

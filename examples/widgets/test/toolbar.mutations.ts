@@ -18,14 +18,12 @@ export default [
     tests,
   },
   {
-    name: 'the disabled tool is clickable',
+    name: 'the disabled tool is drawn on',
     edits: [
       {
         file: '../src/toolbar/view.ts',
-        find: `...(tool.disabled
-                ? [h.Title('Unavailable with plain text selected')]
-                : [h.OnClick(Message.PressedTool({ id: tool.id }))]),`,
-        replace: '...[h.OnClick(Message.PressedTool({ id: tool.id }))],',
+        find: 'disabled: control.disabled,',
+        replace: 'disabled: false,',
       },
     ],
     tests,
@@ -35,9 +33,19 @@ export default [
     edits: [
       {
         file: '../src/toolbar/view.ts',
-        find: "Option.isSome(model.active) && model.active.value === tool.id ? 'true' : 'false',",
-        replace:
-          "Option.isSome(model.active) && model.active.value === tool.id ? 'false' : 'true',",
+        find: 'pressed: Option.exists(model.active, active => active === tool.id),',
+        replace: 'pressed: !Option.exists(model.active, active => active === tool.id),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the tab stop ignores where focus was',
+    edits: [
+      {
+        file: '../src/toolbar/view.ts',
+        find: 'roving: model.toolbarFocus,',
+        replace: 'roving: { current: null },',
       },
     ],
     tests,

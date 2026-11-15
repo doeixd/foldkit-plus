@@ -82,6 +82,7 @@ import { PaginationSlots } from './pagination.js'
 import { PickerSlots } from './picker.js'
 import { ScrollAreaSlots } from './scrollArea.js'
 import { SearchFieldPattern, SearchFieldSlots } from './searchField.js'
+import { ToolbarPattern, ToolbarSlots } from './toolbar.js'
 import { TableSlots } from './table.js'
 import { WindowListSlots } from './windowList.js'
 
@@ -1515,5 +1516,26 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateless',
     ['searchbox', 'button'],
     ['native-control'],
+  ),
+  entry(
+    'toolbar',
+    ToolbarPattern,
+    ToolbarSlots,
+    'stateless',
+    ['toolbar', 'group', 'separator'],
+    [],
+    [
+      drawn(
+        'Toolbar.view: Behaviors.Keys route on the root, the arrows of the orientation, Home and End (toolbar.ts)',
+        'root',
+        Navigation,
+      ),
+      drawn(
+        'Toolbar.view: tabindex 0 on the control that holds the stop, -1 on the rest (toolbar.ts)',
+        'root',
+        FocusStrategy,
+      ),
+      drawn('Toolbar.view: aria-label on the root (toolbar.ts)', 'root', Name),
+    ],
   ),
 ])

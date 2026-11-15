@@ -21,8 +21,9 @@ npx vitest run examples/widgets
 
 ## Widgets
 
-- `src/toolbar/` — formatting toolbar: `RovingTabindex` + Collection +
-  pressed state (`PressedTool`).
+- `src/toolbar/` — formatting toolbar: `foldkit-mixins-ui`'s `Toolbar` over a
+  placed `RovingTabindex` (the Model keeps the one tab stop) + pressed state
+  (`PressedTool`).
 - `src/toggle/` — a single pressable with `aria-pressed` (`ToggleState`).
 - `src/toggle-group/` — exclusive pressables over `Selection` single mode.
   The selected value is an `Option`.
