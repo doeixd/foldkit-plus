@@ -78,30 +78,73 @@ export const Anchor = Mount.defineStream('Anchor', {
 export type AnchorArgs = Parameters<typeof Anchor>[0]
 
 /**
+ * The custom property names declared anywhere a value could reach `element`
+ * from: every rule of the document's sheets (a cross-origin sheet lists none)
+ * and the inline styles of the element and its ancestors. Read from the
+ * declarations, not from a computed style, which not every engine lists
+ * custom properties of.
+ */
+const declaredNames = (element: Element): ReadonlySet<string> => {
+  const names = new Set<string>()
+  const add = (style: CSSStyleDeclaration) => {
+    for (let index = 0; index < style.length; index++) {
+      const name = style.item(index)
+      if (name.startsWith('--')) names.add(name)
+    }
+  }
+  const walk = (rules: CSSRuleList) => {
+    for (const rule of Array.from(rules)) {
+      // By shape, not `instanceof`: a frame's rules are of its own realm.
+      if ('selectorText' in rule && 'style' in rule) add(rule.style as CSSStyleDeclaration)
+      if ('cssRules' in rule) walk(rule.cssRules as CSSRuleList)
+    }
+  }
+  const doc = element.ownerDocument
+  for (const sheet of [...Array.from(doc.styleSheets), ...doc.adoptedStyleSheets]) {
+    let rules: CSSRuleList
+    try {
+      rules = sheet.cssRules
+    } catch {
+      continue
+    }
+    walk(rules)
+  }
+  for (let at: Element | null = element; at !== null; at = at.parentElement)
+    if ('style' in at) add((at as HTMLElement).style)
+  return names
+}
+
+/**
  * Gives a panel the custom properties its region set, once it has left the
  * region: a property set on an ancestor of the trigger (`--fk-knob-step: 1` on
  * a compact toolbar) reaches an in-place panel by inheritance, and not one
- * the anchor relocated to the portal root. Each custom property whose value
- * differs between where the panel was drawn (`origin`) and where it stands now
- * is written on the panel, unless the panel sets it itself (a popup's `size`
- * sets the step on its own slot): the panel's own value, read as it stands,
- * differs from what it would inherit there. Values are as they resolved, so
+ * the anchor relocated to the portal root. A property is written on the panel
+ * when the region's value differs from what the panel inherits where it
+ * stands now, and the panel would take the region's value where it was drawn:
+ * a copy of it (`probe`), put back for the read in its old place, says so
+ * without comparing values, so a popup's `size: 'md'` that sets the step to
+ * the document's own value still beats a compact region, and a property
+ * registered not to inherit is not carried. Values are as they resolved, so
  * they are as the region had them when the panel left it, not afterwards.
  */
-const carryRegion = (origin: Element, panel: HTMLElement): void => {
+const carryRegion = (origin: Element, panel: HTMLElement, before: Node | null): void => {
   const view = panel.ownerDocument.defaultView
   const around = panel.parentElement
   if (view === null || around === null) return
+  const probe = panel.cloneNode(false) as HTMLElement
+  origin.insertBefore(probe, before?.parentNode === origin ? before : null)
   const from = view.getComputedStyle(origin)
-  const own = view.getComputedStyle(panel)
+  const own = view.getComputedStyle(probe)
   const inherited = view.getComputedStyle(around)
-  for (const name of Array.from(from)) {
-    if (!name.startsWith('--')) continue
+  const carried: Array<readonly [string, string]> = []
+  for (const name of declaredNames(origin)) {
     const value = from.getPropertyValue(name)
     if (value === inherited.getPropertyValue(name)) continue
-    if (own.getPropertyValue(name) !== inherited.getPropertyValue(name)) continue
-    panel.style.setProperty(name, value)
+    if (own.getPropertyValue(name) !== value) continue
+    carried.push([name, value])
   }
+  probe.remove()
+  for (const [name, value] of carried) panel.style.setProperty(name, value)
 }
 
 /**
@@ -117,7 +160,8 @@ const carryOnRelocation = (parent: Element, child: Element): (() => void) => {
     for (const record of records) {
       for (const node of record.removedNodes) {
         if (!(node instanceof HTMLElement) || node !== child) continue
-        if (node.isConnected && !parent.contains(node)) carryRegion(parent, node)
+        if (node.isConnected && !parent.contains(node))
+          carryRegion(parent, node, record.nextSibling)
       }
     }
   })

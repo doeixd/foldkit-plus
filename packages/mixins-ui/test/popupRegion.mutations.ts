@@ -14,8 +14,8 @@ export default [
     edits: [
       {
         file: anchor,
-        find: 'if (node.isConnected && !parent.contains(node)) carryRegion(parent, node)',
-        replace: '',
+        find: '          carryRegion(parent, node, record.nextSibling)',
+        replace: '          void record',
       },
     ],
     tests,
@@ -58,10 +58,40 @@ export default [
     edits: [
       {
         file: anchor,
-        find: '    if (own.getPropertyValue(name) !== inherited.getPropertyValue(name)) continue\n',
+        find: '    if (own.getPropertyValue(name) !== value) continue\n',
         replace: '',
       },
     ],
+    tests,
+  },
+  {
+    name: "the panel's own value is compared where it stands, with what it inherits there",
+    edits: [
+      {
+        file: anchor,
+        find: 'const own = view.getComputedStyle(probe)',
+        replace: 'const own = view.getComputedStyle(panel)',
+      },
+      {
+        file: anchor,
+        find: '    if (own.getPropertyValue(name) !== value) continue\n',
+        replace:
+          '    if (own.getPropertyValue(name) !== inherited.getPropertyValue(name)) continue\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the names are read from the computed style alone',
+    edits: [
+      {
+        file: anchor,
+        find: '  for (const name of declaredNames(origin)) {',
+        replace: "  for (const name of Array.from(from).filter(each => each.startsWith('--'))) {",
+      },
+    ],
+    survives:
+      'Chromium, the one engine the browser tests run, lists custom properties in a computed style; the sheets are read for the engines that do not',
     tests,
   },
   {

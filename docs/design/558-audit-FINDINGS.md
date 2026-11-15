@@ -25,7 +25,7 @@ from a name in UI SDK's index; each gap is a behaviour a test observed.
 | R7 | A drop after the list scrolled under the pointer | present | none | none |
 | O1 | Nested modal dialogs: Escape and focus return | present | none | none |
 | O2 | A trigger removed while its dialog is open | built (U-WP14, `FocusReturn`, `Dialog.focusReturn`) | medium | U-WP14 |
-| O3 | A portaled panel inherits a region's custom properties | built for Menu, Listbox, Combobox and the Anchor Mount (U-WP14, `Anchor.inheritRegion`); a portaled Popover stays unsupported | medium | U-WP14 |
+| O3 | A portaled panel inherits a region's custom properties | built for Menu, Listbox, Combobox and the Anchor Mount (U-WP14, `Anchor.inheritRegion`); a Popover or Tooltip with `portal: true` is not | medium | U-WP14 |
 | V1 | Focus in a virtual row that scrolls out | by design, undocumented | low | U-WP10 (guide), D12's recipe |
 | V2 | Shift range over a virtual list | present, caller-fed | low | U-WP10 (guide) |
 | V3 | `GridNavigation` against a wrapped layout | missing (spatial) | low | not built, see below |
@@ -160,7 +160,13 @@ audit's `dialog-nesting` scenarios (the "today" test is now the control without
 the mixin, and three more with it) and `focus-return.browser.test.ts`. O3: a
 portaled panel is given the custom properties its region set, written inline
 on it once relocated, when they differ from what it inherits there and the
-panel does not set them itself (`Anchor.inheritRegion` around upstream's Menu,
+panel would take the region's value where it was drawn (a copy of the panel,
+put back in its old place for the read, says so: comparing values took a
+panel's own `--fk-knob-step: 0` for an inherited one wherever the document's
+value was also 0, and carried a property registered not to inherit). The
+names are read from the document's sheets and the inline styles above the
+panel, not from a computed style, which not every engine lists custom
+properties of (`Anchor.inheritRegion` around upstream's Menu,
 Listbox and Combobox anchor Mounts, and inside the `Anchor` Mount; a MutationObserver
 set in the Mount's own acquire sees the move). The copy is made when the panel
 leaves, not kept in step with the region afterwards. A Popover with

@@ -187,6 +187,49 @@ test.each([
   },
 )
 
+/** A hand-built region around a trigger and a panel the `Anchor` Mount portals; `read` runs once it moved. */
+const portaled = async (
+  regionStyle: string,
+  sheetText: string,
+  read: (panel: HTMLElement) => void,
+) => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent = sheetText
+  document.head.append(sheet)
+  document.body.innerHTML = `<div id="region" style="--region: set; ${regionStyle}">
+    <button id="trigger">open</button><div id="panel">panel</div></div>`
+  const panel = document.getElementById('panel')!
+  const fiber = Effect.runFork(
+    Stream.runDrain(
+      Anchor.Anchor({
+        buttonId: 'trigger',
+        anchor: { placement: 'bottom-start', portal: true },
+      }).f(panel, Mount.liveViewStateChanges) as Stream.Stream<never>,
+    ),
+  )
+  try {
+    await vi.waitFor(() => expect(panel.closest('#region')).toBeNull())
+    await vi.waitFor(() => expect(property(panel, '--region')).toBe('set'))
+    read(panel)
+  } finally {
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  }
+}
+
+test('a value the panel sets itself stays, though it is the document value', async () => {
+  // As `size: 'md'` sets the step to the root's own 0 on a panel drawn in a compact region.
+  await portaled('--step: 1', ':root { --step: 0 } #panel { --step: 0 }', panel =>
+    expect(property(panel, '--step')).toBe('0'),
+  )
+})
+
+test('a property registered not to inherit is not carried', async () => {
+  // Registered once per page: a name of this test's own.
+  CSS.registerProperty({ name: '--solo', syntax: '<length>', inherits: false, initialValue: '0px' })
+  await portaled('--solo: 5px', '', panel => expect(property(panel, '--solo')).toBe('0px'))
+})
+
 test('the Anchor Mount, portaling its panel, carries the region too', async () => {
   document.documentElement.style.setProperty('--shared', 'x')
   document.body.innerHTML = `<div id="region" style="--region: set; --shared: x">

@@ -23,7 +23,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 - `foldkit-mixins-ui`: `Anchor.inheritRegion(mount)`, and the `Anchor` Mount itself, give a
   panel the anchor relocates to the portal root the custom properties its region set (a
-  region set compact, a density), unless the panel sets them itself. Menu, Listbox and
+  region set compact, a density), unless the panel sets them itself (judged by a copy of
+  the panel put back where it was drawn, so a value equal to the document's still counts,
+  and a property registered not to inherit is not carried). Menu, Listbox and
   Combobox wrap their upstream anchor Mounts with it, so a region reaches a portaled panel
   as it reaches an in-place one. A Popover or Tooltip with `portal: true` is not
   covered (audit O3, #558).
