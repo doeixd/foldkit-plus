@@ -780,3 +780,17 @@ export const TagsStyle = app.forSlots(TagsInputSlots)(Recipes.TagsInput({}), {
 export const RowIconStyle = app.forSlots(UiIconSlots)(Recipes.Icon({}), {
   name: 'RowIconStyle',
 })
+
+export const NoticeAlertStyle = app.slots(
+  {
+    group: L.in('layouts', Layout.stack({ gap: t.space.sm })),
+    list: [
+      L.in('layouts', Layout.stack({ gap: t.space.xs })),
+      { listStyle: 'none', margin: '0', padding: '0' },
+    ],
+    item: [{ display: 'block' }],
+    add: [{ alignSelf: 'start' }],
+    dismiss: [{}],
+  },
+  { name: 'NoticeAlertStyle' },
+)

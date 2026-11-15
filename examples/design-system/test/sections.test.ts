@@ -297,6 +297,17 @@ describe('feedback', () => {
   })
 })
 
+describe('notices', () => {
+  it('adds a notice with the next id, and dismisses one by id', () => {
+    const added = Feedback.update(Feedback.initModel(), Feedback.Message.NoticeAdded())
+    expect(added.model.notices.map(notice => notice.id)).toEqual([1, 2, 3, 4])
+    const dismissed = Feedback.update(added.model, Feedback.Message.NoticeDismissed({ id: 2 }))
+    expect(dismissed.model.notices.map(notice => notice.id)).toEqual([1, 3, 4])
+    const again = Feedback.update(dismissed.model, Feedback.Message.NoticeAdded())
+    expect(again.model.notices.map(notice => notice.id)).toEqual([1, 3, 4, 5])
+  })
+})
+
 describe('date', () => {
   it('opens the picker from its trigger', () => {
     const opened = DateSection.update(

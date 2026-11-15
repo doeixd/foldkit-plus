@@ -5,9 +5,11 @@ import { Option, Schema } from 'effect'
 import { Runtime, Subscription, Update } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Dialog as UiDialog } from '@foldkit/ui'
 import type { EntryHandlers } from '@foldkit/ui/toast'
 import { SlotView } from 'foldkit-mixins'
+import { FocusRecovery } from 'foldkit-primitives/interaction'
 import { Alert, Button, Dialog, Toast, ToastView } from 'foldkit-mixins-ui'
 import {
   AlertSuccessStyle,
@@ -16,12 +18,13 @@ import {
   DialogActionsStyle,
   DialogPreviewStyle,
   GhostButtonStyle,
+  NoticeAlertStyle,
   PageStyle,
   PrimaryButtonStyle,
   ToastEntryStyle,
   ToastStyle,
 } from '../style.js'
-import { DialogActionsSlots, PageSlots, ToastEntrySlots } from '../slots.js'
+import { DialogActionsSlots, NoticeAlertSlots, PageSlots, ToastEntrySlots } from '../slots.js'
 import { foldsFor } from '../fold.js'
 import { BadgesView, neverH } from '../shared.js'
 
@@ -41,6 +44,8 @@ export const ToastStack: ReturnType<
 export const Model = Schema.Struct({
   dialog: UiDialog.Model,
   toast: ToastStack.Model,
+  notices: Schema.Array(Schema.Struct({ id: Schema.Number, title: Schema.String })),
+  nextNotice: Schema.Number,
 })
 export type Model = typeof Model.Type
 
@@ -50,12 +55,20 @@ export const Message = defineMessageUnion({
   DeleteDialog: { message: UiDialog.Message },
   Toast: { message: ToastStack.Message },
   NotifyPressed: {},
+  NoticeAdded: {},
+  NoticeDismissed: { id: Schema.Number },
 })
 export type Message = typeof Message.Type
 
 export const initModel = (): Model => ({
   dialog: UiDialog.init({ id: 'delete-dialog' }),
   toast: ToastStack.init({ id: 'notify-toast' }),
+  notices: [
+    { id: 1, title: 'Backup finished' },
+    { id: 2, title: 'Invite accepted' },
+    { id: 3, title: 'Quota at 80%' },
+  ],
+  nextNotice: 4,
 })
 
 const own = foldsFor<Model, Message>()
@@ -105,6 +118,20 @@ export const update = (model: Model, message: Message) =>
     CloseDeleteDialog: () => foldDeleteDialogClose(model),
     DeleteDialog: ({ message }) => foldDeleteDialog(model, message),
     Toast: ({ message }) => foldToast(model, message),
+    NoticeAdded: () => ({
+      model: modifyFields(model, {
+        notices: notices => [
+          ...notices,
+          { id: model.nextNotice, title: `Notice ${model.nextNotice}` },
+        ],
+        nextNotice: next => next + 1,
+      }),
+    }),
+    NoticeDismissed: ({ id }) => ({
+      model: modifyFields(model, {
+        notices: notices => notices.filter(notice => notice.id !== id),
+      }),
+    }),
     NotifyPressed: () =>
       foldToastShow(model, {
         variant: 'Success',
@@ -223,6 +250,55 @@ const ToastDemo = (model: Pick<Model, 'toast'>, h: HtmlBuilder<Message>): Html =
   )
 }
 
+/**
+ * A dismissed alert hands its focus to the next alert's dismiss button, else the
+ * previous one's, else the Add button, instead of dropping it to the page.
+ */
+const Recovers = FocusRecovery.behavior(NoticeAlertSlots)<unknown, never>({
+  owner: 'group',
+  parts: { dismiss: ['next', 'previous', { part: 'add' }], add: [] },
+})
+
+const NoticeAlerts = (model: Pick<Model, 'notices'>, h: HtmlBuilder<Message>): Html => {
+  const list = SlotView.buildersFor(
+    NoticeAlertSlots,
+    [NoticeAlertStyle.style.mixin, Recovers.mixin],
+    {
+      input: undefined,
+      h,
+    },
+  )
+  return h.div(list.group.attrs(), [
+    h.ul(
+      list.list.attrs([h.AriaLabel('Notices')]),
+      model.notices.map(notice =>
+        h.keyed('li')(String(notice.id), list.item.attrs(), [
+          Alert.view(
+            {
+              layout: 'inline',
+              title: notice.title,
+              icon: h.span([h.AriaHidden(true)], ['✓']),
+              onDismiss: Message.NoticeDismissed({ id: notice.id }),
+              recoveryPart: 'dismiss',
+              style: AlertSuccessStyle,
+            },
+            h,
+          ),
+        ]),
+      ),
+    ),
+    Button.view(
+      {
+        label: 'Add notice',
+        style: GhostButtonStyle,
+        onClick: Message.NoticeAdded(),
+        attributes: { button: list.add.attrs([h.Id('add-notice')]) },
+      },
+      h,
+    ),
+  ])
+}
+
 export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
   const slots = SlotView.buildersFor(PageSlots, [PageStyle.style.mixin], { input: model, h })
   return h.div(slots.body.attrs(), [
@@ -241,16 +317,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
       },
       neverH,
     ),
-    Alert.view(
-      {
-        layout: 'inline',
-        title: 'All checks passed',
-        description: 'The deploy finished in 42 seconds.',
-        icon: h.span([h.AriaHidden(true)], ['✓']),
-        style: AlertSuccessStyle,
-      },
-      neverH,
-    ),
+    NoticeAlerts(model, h),
     h.div(slots.row.attrs(), [
       Button.view(
         {

@@ -79,3 +79,18 @@ test('the Menu draws icons, shortcuts, a tone and a disabled row, and reports th
   await page.getByText('Chose Forward.').waitFor()
   await page.close()
 })
+
+test('a dismissed alert hands its focus to the next, then the previous, then Add', async () => {
+  const { page } = await harness.visit(1280, 900)
+  await reveal(page, 'feedback')
+  const dismiss = (title: string) => page.getByRole('button', { name: `Dismiss ${title}` })
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label'))
+  await dismiss('Invite accepted').focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(focused).toBe('Dismiss Quota at 80%')
+  await page.keyboard.press('Enter')
+  await expect.poll(focused).toBe('Dismiss Backup finished')
+  await page.keyboard.press('Enter')
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('add-notice')
+  await page.close()
+})

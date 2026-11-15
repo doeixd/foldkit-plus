@@ -111,3 +111,14 @@ export const CascadeSlots = Slots.define({
   app: Slot.make({ capability: Capability.Container }),
   inline: Slot.make({ capability: Capability.Container }),
 })
+
+/** A list of dismissible alerts and its Add button: the owner and parts of its `FocusRecovery`. */
+export const NoticeAlertSlots = Slots.define({
+  group: Slot.make({ capability: Capability.Container }),
+  list: Slot.make({ capability: Capability.Container }),
+  item: Slot.make({ capability: Capability.Container }),
+  /** The fallback part: where focus goes when the last alert is gone. */
+  add: Slot.make({ capability: Capability.Interactive }),
+  /** Drawn by each Alert, which marks its own dismiss button; named here for `parts`. */
+  dismiss: Slot.make({ capability: Capability.Interactive }),
+})
