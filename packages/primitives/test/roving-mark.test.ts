@@ -26,7 +26,7 @@ const input: Input = {
   roving: { current: null },
   tree: { current: null, toggled: [] },
   grid: { current: null },
-  selection: { selected: [], anchor: null },
+  selection: { selected: [], anchor: null, ranged: [] },
   press: { pressed: false, pointerId: null, key: null, suppressing: null, generation: 0 },
   options: [{ id: 'a', label: 'A' }],
 }
