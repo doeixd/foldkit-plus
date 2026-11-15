@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: `Behaviors.Keys.conflict(routes, slot?)` returns the `mixins:key-conflict`
+  clash as an `Option<Diagnostic>`, for seeing a clash without drawing the view and catching the
+  throw; `behavior`, `attribute` and `answer` raise the same diagnostic from the same detection.
 - `foldkit-primitives`: `Repeat.behavior` takes the `SlotView.over` binder as `Press.behavior` does (options
   and Message inferred, bare slots with named generics still work), gains `disabled`, and supplies the
   `activation` obligation on its target. The pointer leaving a held button ends the hold, as documented.
@@ -759,6 +762,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-mixins`: **Breaking:** composing a conditional rule (media, pseudo, nest, container,
+  supports, `states`, or a rule inside `whenInput`) beside an inline declaration of the same
+  property, or a shorthand and its longhand, throws `mixins:dead-conditional-rule`: an inline
+  declaration beats every rule, so the rule never applied. A rule marked `!important` is exempt.
+  This check and `mixins:inline-shorthand-conflict` are development-time: they run where
+  `import.meta.env.DEV` is true (Vite's dev server and Vitest) and are absent from a production
+  build, saving about 340 bytes brotli on Chirp's client.
+- `foldkit-primitives`: **Breaking:** a `FocusRecovery` `{ part }` step must name a key of `parts`
+  (a type error otherwise, in the bound form). A key of `parts` that is no slot now names a part a
+  widget draws itself (`recoveryPart`) and marks nothing; it was a type error.
 - `foldkit-primitives`: **Breaking:** `Press`'s `Pressed` and the `PointerUp`, `KeyUp` and `Clicked`
   facts of `Press`, `Repeat` and `LongPress` carry `modifiers: { shiftKey, ctrlKey, metaKey, altKey }`
   in place of `shiftKey`. Migrate `out.shiftKey` to `out.modifiers.shiftKey`.

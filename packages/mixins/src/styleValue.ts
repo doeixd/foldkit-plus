@@ -216,8 +216,14 @@ export const compose = (...written: ReadonlyArray<Piece>): StyleValue => {
   const rules = pieces.flatMap(piece => piece.rules ?? [])
   const globalCss = pieces.flatMap(piece => piece.globalCss ?? [])
   const style = Object.assign(Object.create(null), ...pieces.map(piece => piece.style))
-  checkInlineShorthands(style, conditions)
-  if (rules.length + conditions.length > 0) checkDeadRules(Object.keys(style), rules, conditions)
+  // Development only: Vite folds `import.meta.env` to false in a production build, installed
+  // package or source alike, so these checks and their text leave the page whole. Untyped
+  // here (no Vite types), and typed where an application has them, hence ignore, not expect.
+  // @ts-ignore
+  if (import.meta.env?.DEV === true) {
+    checkInlineShorthands(style, conditions)
+    if (rules.length + conditions.length > 0) checkDeadRules(Object.keys(style), rules, conditions)
+  }
   return make({
     classes: Object.freeze(pieces.flatMap(piece => piece.classes)),
     style: Object.freeze(style),

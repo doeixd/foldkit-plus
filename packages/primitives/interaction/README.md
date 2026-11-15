@@ -580,8 +580,9 @@ it. A key that is no slot names a part a widget draws itself: an Alert's or a Ca
 `recoveryPart: 'dismiss'` marks its dismiss button as that part, so `parts: { dismiss: ['next',
 'previous', { part: 'add' }], add: [] }` recovers to it without declaring a `dismiss` slot that is
 never drawn. Such a name is not checked against the widget, so a misspelling on either side finds
-nothing; and type arguments written out (`behavior(Slots)<Input, Message>(…)`) leave the `{ part }`
-check at any string. The Behavior draws marks, which a
+nothing. The `{ part }` check needs the inferred form, `behavior(Bound)({ … })` over a
+`SlotView.over(Slots)<Input, Message>()` binder: TypeScript cannot infer part of a call's type
+arguments, so `behavior(Slots)<Input, Message>({ … })` checks a `{ part }` against any string. The Behavior draws marks, which a
 server render has: `data-fk-focus-owner` on the owner, `data-fk-focus-part`
 on each part, and `data-fk-focus-key` from `item.id` on a slot drawn per item.
 Attach it beside the Behaviors already on the owner: the resolver composes

@@ -409,7 +409,9 @@ An inline declaration beats every rule, layers included, so a conditional rule f
 property in the same composition never applies: `Style.compose(Style.inline({ padding: '1.75rem' }),
 Style.media('(max-width: 30rem)', { padding: '1rem' }))` is refused when composed, with
 `mixins:dead-conditional-rule` naming the property, the condition and the fix, which is to put the
-base in `Style.self`. A media, pseudo, nest, container, supports or `states` rule, and a rule inside
+base in `Style.self`. It is a development-time check, like `mixins:inline-shorthand-conflict`
+beside it: Vite folds `import.meta.env.DEV` away in a production build, so neither check nor its
+text reaches a page (a build without Vite's `import.meta.env` skips them too). A media, pseudo, nest, container, supports or `states` rule, and a rule inside
 `whenInput`, counts, as does a shorthand against its longhand (`padding` and `paddingInline`, either
 way round); a rule marked `!important` beats inline and passes. An inline declaration that exists
 only when the view chooses it or per item is not known when the style is defined, and two Styles

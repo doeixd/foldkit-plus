@@ -214,7 +214,9 @@ Pick by task:
   each arrow moves the one tab stop to the nearest item drawn that way (a board, a canvas),
   measured when the key is handled and never kept. Home/End follow the view's order, directions are
   physical, and the pure rule is `SpatialNavigation.nearest(items, current, direction)`. Same
-  Model slice and item attributes as `RovingTabindex`.
+  Model slice and item attributes as `RovingTabindex`. The `item` slot must have
+  `Capability.Focusable` (another capability, a `Container`, throws `mixins:capability-mismatch`
+  when the Behavior is defined); a card `Selection` also drives takes `Focusable` too.
 The items come from `Behaviors.Collection.of`, described once per change of the list:
 
 ```ts standalone
@@ -317,6 +319,9 @@ The view draws the `field` (with its own `aria-label`) in place of the `title` o
   the parts (`data-fk-focus-*`, key from `item.id`). A removed, hidden, `inert` or
   `disabled` focused part, or a row a keyed reorder moved, sends focus to the first step
   that can take it: `same`, `next`, `previous`, `parent`, `stop`, `{ part }`, `owner`.
+  A `{ part }` step names a key of `parts` (a type error otherwise, in the bound form
+  `behavior(Bound)({ … })`); a key that is no slot names a part a widget marks itself
+  (`recoveryPart: 'dismiss'` on an Alert or a Card), so no never-drawn slot is needed.
   Never when focus moved elsewhere; nested owners decide innermost first, then outward;
   a row not drawn yet is the Model's (a Command), not the Mount's. Opt-in. `FOCUS_MARK` (`/dom`) names the
   marks (`data-fk-focus-owner`, `-part`, `-key`, `-parent`) for a view that draws a part by hand.

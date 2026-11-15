@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file,
-        find: '  if (rules.length + conditions.length > 0) checkDeadRules(Object.keys(style), rules, conditions)\n',
+        find: '    if (rules.length + conditions.length > 0) checkDeadRules(Object.keys(style), rules, conditions)\n',
         replace: '',
       },
     ],
@@ -98,5 +98,10 @@ export default [
     name: 'an exact match is not caught',
     edits: [{ file, find: 'inline === property ||', replace: '' }],
     tests,
+  },
+  {
+    name: 'the checks run in a production build too',
+    edits: [{ file, find: 'import.meta.env?.DEV === true', replace: 'true' }],
+    tests: ['packages/mixins/test/deadRulesProduction.test.ts'],
   },
 ]
