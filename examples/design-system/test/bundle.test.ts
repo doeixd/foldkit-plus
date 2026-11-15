@@ -27,7 +27,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // theme data and the token table. The compiler-side `Themes` runtime cannot be imported in this
 // client (`modules` refuses it), so the studio carries a small local one (`themeRuntime.ts`).
 // The ceiling is that plus about 1%.
-const CEILING = 202_000
+// 201.8 kB on 2026-11-15, after the catalog additions: +1.9 kB for the Segmented plan picker, a
+// SearchField, a TagsInput and the notification filter (the rebuilt `foldkit-mixins` dist also moved
+// with other work in the tree; not bisected). The ceiling is that plus about 1%.
+const CEILING = 204_000
 
 clientBudget({
   name: 'design-system',

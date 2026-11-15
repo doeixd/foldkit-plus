@@ -48,6 +48,7 @@ import {
   ScrollAreaSlots,
   SegmentedSlots,
   SelectSlots,
+  SearchFieldSlots,
   SeparatorSlots,
   SidebarSlots,
   SkeletonSlots,
@@ -56,6 +57,7 @@ import {
   SwitchSlots,
   TableSlots,
   TabsSlots,
+  TagsInputSlots,
   TextareaSlots,
   ToastSlots,
   TooltipSlots,
@@ -100,6 +102,7 @@ export const PageStyle = app.slots(
       { fontSize: '1.25rem', letterSpacing: '-0.015em' },
     ],
     sectionText: [U.m('0'), U.color('text.muted'), { maxWidth: '38rem' }],
+    live: [U.m('0'), U.text('sm'), U.color('text.muted')],
     swatchGrid: [
       {
         display: 'grid',
@@ -767,3 +770,11 @@ export const CascadeStyle = app.slots(
   },
   { name: 'CascadeStyle' },
 )
+
+export const SearchStyle = app.forSlots(SearchFieldSlots)(Recipes.SearchField({}), {
+  name: 'SearchStyle',
+})
+
+export const TagsStyle = app.forSlots(TagsInputSlots)(Recipes.TagsInput({}), {
+  name: 'TagsStyle',
+})

@@ -14,6 +14,8 @@ export const PageSlots = Slots.define({
   section: Slot.make({ capability: Capability.Container }),
   sectionTitle: Slot.make({ capability: Capability.Container }),
   sectionText: Slot.make({ capability: Capability.Container }),
+  /** A result count, read aloud when it changes. */
+  live: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
   swatchGrid: Slot.make({ capability: Capability.Container }),
   swatch: Slot.make({ capability: Capability.Container }),
   chip: Slot.make({ capability: Capability.Container }),

@@ -68,7 +68,9 @@ import {
   Popover,
   RadioGroup,
   ScrollArea,
-  SegmentedSlots,
+  Segmented,
+  SearchField,
+  TagsInput,
   Select,
   Separator,
   Sidebar,
@@ -124,6 +126,8 @@ import {
   PaginationStyle,
   PillTabsStyle,
   PlanStyle,
+  SearchStyle,
+  TagsStyle,
   CascadeStyle,
   TokenStyle,
   PopoverStyle,
@@ -283,6 +287,8 @@ export const Model = Schema.Struct({
   popover: UiPopover.Model,
   address: Schema.String,
   sidebar: Sidebar.Model,
+  query: Schema.String,
+  topics: TagsInput.Model,
 })
 export type Model = typeof Model.Type
 
@@ -327,6 +333,10 @@ export const Message = defineMessageUnion({
   Popover: { message: UiPopover.Message },
   AddressTyped: { value: Schema.String },
   GotSidebar: { message: Sidebar.Message },
+  NoticesSearched: { value: Schema.String },
+  NoticesCleared: {},
+  GotSearchField: { message: SearchField.Message },
+  GotTopics: { message: TagsInput.Message },
 })
 export type Message = typeof Message.Type
 
@@ -386,6 +396,8 @@ export const initModel = (
   popover: UiPopover.init({ id: 'details-popover' }),
   address: 'about',
   sidebar: Sidebar.init({ id: 'sections', rows: [] }),
+  query: '',
+  topics: TagsInput.init({ id: 'topics', tags: ['design', 'tokens'], max: 6 }),
 })
 
 /** Shows the theme on the root and keeps it for the next visit and the other tabs. */
@@ -523,6 +535,25 @@ export const update = (model: Model, message: Message) =>
     }),
     Popover: ({ message }) => foldPopover(model, message),
     GotSidebar: ({ message }) => foldSidebar(model, message),
+    NoticesSearched: ({ value }) =>
+      value === model.query ? { model } : { model: modifyFields(model, { query: () => value }) },
+    // Clearing took focus with the pressed button; the field draws it back.
+    NoticesCleared: () => ({
+      model: model.query === '' ? model : modifyFields(model, { query: () => '' }),
+      commands: Command.mapMessages([SearchField.Focus({ id: 'notice-search' })], message =>
+        Message.GotSearchField({ message }),
+      ),
+    }),
+    GotSearchField: () => ({ model }),
+    GotTopics: ({ message }) => {
+      const result = TagsInput.update(model.topics, message)
+      const commands = Command.mapMessages(result.commands, message =>
+        Message.GotTopics({ message }),
+      )
+      return result.model === model.topics
+        ? { model, commands }
+        : { model: modifyFields(model, { topics: () => result.model }), commands }
+    },
     AddressTyped: ({ value }) => ({ model: modifyFields(model, { address: () => value }) }),
   })
 
@@ -816,22 +847,18 @@ const PillTabsView = (model: Pick<Model, 'pillTab' | 'rangeTabs'>, h: HtmlBuilde
     toParentMessage: message => Message.RangeTabs({ message }),
   })
 
-const PlanView = SlotView.forMessages<Message>()
-  .define(SegmentedSlots, (active: Plan, slots, h) =>
-    h.div(slots.group.attrs([h.Role('group'), h.AriaLabel('Plan')]), [
-      ...plans.map(plan =>
-        h.button(
-          slots.option.attrs([
-            h.Type('button'),
-            h.AriaPressed(active === plan.value ? 'true' : 'false'),
-            h.OnClick(Message.PlanSelected({ plan: plan.value })),
-          ]),
-          [plan.label],
-        ),
-      ),
-    ]),
+const PlanView = (active: Plan, h: HtmlBuilder<Message>): Html =>
+  Segmented.view(
+    {
+      id: 'plan-choice',
+      label: 'Plan',
+      options: plans,
+      pressed: [active],
+      onPress: plan => Message.PlanSelected({ plan }),
+      style: PlanStyle,
+    },
+    h,
   )
-  .pipe(SlotView.attach(PlanStyle.mixin))
 
 const BadgesView = SlotView.forMessages<Message>()
   .define(BadgeSlots, (_input: unknown, slots, h) =>
@@ -1455,6 +1482,80 @@ const IconsDemo = SlotView.forMessages<Message>()
   )
   .pipe(SlotView.attach(IconStyle.style.mixin))
 
+const notices: ReadonlyArray<{
+  readonly title: string
+  readonly when: string
+  readonly text: string
+}> = [
+  { title: 'Deploy finished', when: '2 minutes ago', text: 'Production is live.' },
+  { title: 'Review requested', when: '1 hour ago', text: 'The website redesign is ready.' },
+  { title: 'Mentioned by Wren', when: 'Yesterday', text: 'Feedback on the onboarding flow.' },
+]
+
+export const noticesMatching = (query: string) =>
+  notices.filter(notice =>
+    `${notice.title} ${notice.text}`.toLowerCase().includes(query.trim().toLowerCase()),
+  )
+
+/** A searchable list: the field filters the rows, and the count is announced. */
+const NoticesView = (
+  model: Pick<Model, 'query'>,
+  slots: PageBuilders,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const found = noticesMatching(model.query)
+  const list = SlotView.buildersFor(NoticeListSlots, [NoticeListStyle.style.mixin], {
+    input: undefined,
+    h,
+  })
+  return h.div(
+    [],
+    [
+      SearchField.view(
+        {
+          id: 'notice-search',
+          label: 'Search notifications',
+          value: model.query,
+          placeholder: 'Search notifications',
+          onInput: value => Message.NoticesSearched({ value }),
+          onClear: Message.NoticesCleared(),
+          style: SearchStyle,
+        },
+        h,
+      ),
+      h.p(slots.live.attrs([h.Role('status')]), [
+        `${found.length} of ${notices.length} notifications`,
+      ]),
+      found.length === 0
+        ? Empty.view(
+            {
+              title: 'No notifications match',
+              description: 'Clear the search to see them all.',
+              icon: neverH.span([neverH.AriaHidden(true)], ['∅']),
+              style: EmptyStyle,
+            },
+            neverH,
+          )
+        : h.div(
+            list.list.attrs(),
+            found.flatMap((notice, index) => [
+              ...(index === 0 ? [] : [Separator.view({ style: SeparatorStyle }, neverH)]),
+              Item.view(
+                {
+                  media: neverH.span([neverH.AriaHidden(true)], ['●']),
+                  title: notice.title,
+                  description: notice.when,
+                  content: neverH.span([], [notice.text]),
+                  style: ItemStyle,
+                },
+                neverH,
+              ),
+            ]),
+          ),
+    ],
+  )
+}
+
 /** What the knobs act on, at once: states of the controls that carry them, not a catalog. */
 const Specimen = (model: Model, h: HtmlBuilder<Message>): Html => {
   const slots = SlotView.buildersFor(StudioSlots, [StudioStyle.style.mixin], { input: model, h })
@@ -1857,6 +1958,17 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               },
               h,
             ),
+            TagsInput.view(
+              {
+                model: model.topics,
+                onMessage: message => Message.GotTopics({ message }),
+                label: 'Topics',
+                placeholder: 'Add a topic',
+                addOnBlur: true,
+                style: TagsStyle,
+              },
+              h,
+            ),
             UiCheckbox.view(
               {
                 id: 'marketing',
@@ -2114,7 +2226,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           h.section(slots.section.attrs([h.Id('collections')]), [
             h.h2(slots.sectionTitle.attrs(), ['Collections']),
             h.p(slots.sectionText.attrs(), [
-              'Structured content: an empty state, a notification list, and a plain table with a numeric column.',
+              'Structured content: an empty state, a notification list you can search, and a table with a row header and a numeric column.',
             ]),
             Empty.view(
               {
@@ -2125,51 +2237,12 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               },
               neverH,
             ),
-            h.div(
-              SlotView.buildersFor(NoticeListSlots, [NoticeListStyle.style.mixin], {
-                input: undefined,
-                h,
-              }).list.attrs(),
-              [
-                Item.view(
-                  {
-                    media: neverH.span([neverH.AriaHidden(true)], ['●']),
-                    title: 'Deploy finished',
-                    description: '2 minutes ago',
-                    content: neverH.span([], ['Production is live.']),
-                    style: ItemStyle,
-                  },
-                  neverH,
-                ),
-                Separator.view({ style: SeparatorStyle }, neverH),
-                Item.view(
-                  {
-                    media: neverH.span([neverH.AriaHidden(true)], ['●']),
-                    title: 'Review requested',
-                    description: '1 hour ago',
-                    content: neverH.span([], ['The website redesign is ready.']),
-                    style: ItemStyle,
-                  },
-                  neverH,
-                ),
-                Separator.view({ style: SeparatorStyle }, neverH),
-                Item.view(
-                  {
-                    media: neverH.span([neverH.AriaHidden(true)], ['●']),
-                    title: 'Mentioned by Wren',
-                    description: 'Yesterday',
-                    content: neverH.span([], ['Feedback on the onboarding flow.']),
-                    style: ItemStyle,
-                  },
-                  neverH,
-                ),
-              ],
-            ),
+            NoticesView(model, slots, h),
             Table.view(
               {
                 caption: 'Team plans',
                 columns: [
-                  { header: 'Plan', value: row => row.plan },
+                  { header: 'Plan', rowHeader: true, value: row => row.plan },
                   { header: 'Seats', numeric: true, value: row => String(row.seats) },
                   { header: 'Price', value: row => row.price },
                 ],

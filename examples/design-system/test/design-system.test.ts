@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Option } from 'effect'
+import { TagsInput } from 'foldkit-mixins-ui'
 import { Combobox, DatePicker, FileDrop, Listbox, Menu } from '@foldkit/ui'
 import { Dialog as UiDialog } from '@foldkit/ui'
 import { HoverIntent as UiHoverIntent } from '@foldkit/ui'
@@ -9,7 +10,7 @@ import { Tabs as UiTabs } from '@foldkit/ui'
 import * as Animation from '@foldkit/ui/animation'
 import { File as FoldkitFile } from 'foldkit'
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import { Message, ToastStack, initModel, update } from '../src/main.js'
+import { Message, ToastStack, initModel, noticesMatching, update } from '../src/main.js'
 import { noTweaks, tweaksCss, valueOf, withTweak } from '../src/tweaks.js'
 
 const modelForTests = initModel({ year: 2026, month: 10, day: 8 })
@@ -299,5 +300,36 @@ describe('design-system update', () => {
     const scheme = update(modelForTests, Message.SchemeChangedElsewhere({ scheme: 'dark' }))
     expect(scheme.model.scheme).toBe('dark')
     expect('commands' in scheme ? scheme.commands.length : 0).toBe(1)
+  })
+
+  it('searches the notifications, and clearing takes focus back to the field', () => {
+    const typed = update(modelForTests, Message.NoticesSearched({ value: 'deploy' }))
+    expect(typed.model.query).toBe('deploy')
+    expect(update(typed.model, Message.NoticesSearched({ value: 'deploy' })).model).toBe(
+      typed.model,
+    )
+    const cleared = update(typed.model, Message.NoticesCleared())
+    expect(cleared.model.query).toBe('')
+    expect('commands' in cleared ? cleared.commands.length : 0).toBe(1)
+  })
+
+  it.each([
+    ['', 3],
+    ['DEPLOY', 1],
+    ['  wren ', 1],
+    ['onboarding', 1],
+    ['nothing like it', 0],
+  ])('finds %j among the notifications: %i', (query, count) => {
+    expect(noticesMatching(query)).toHaveLength(count)
+  })
+
+  it('adds a topic chip through the field’s own update', () => {
+    const typed = update(
+      modelForTests,
+      Message.GotTopics({ message: TagsInput.Message.Typed({ text: 'ui', drawn: 0 }) }),
+    )
+    expect(typed.model.topics.draft).toBe('ui')
+    const added = update(typed.model, Message.GotTopics({ message: TagsInput.Message.Committed() }))
+    expect(added.model.topics.tags).toEqual(['design', 'tokens', 'ui'])
   })
 })

@@ -84,6 +84,10 @@ test('the scheme and direction reach the root, and RTL swaps the arrow keys', as
   await page.getByRole('radio', { name: 'Dark' }).click()
   expect(await page.evaluate(() => document.documentElement.style.colorScheme)).toBe('dark')
   await shoot(page, 'shadcn-dark-1280')
+  if (shots !== undefined) {
+    await page.locator('#tokens').screenshot({ path: `${shots}/tokens-dark.png` })
+    await page.locator('#cascade').screenshot({ path: `${shots}/cascade-dark.png` })
+  }
   await page.getByRole('radio', { name: 'Rtl' }).click()
   expect(await page.evaluate(() => document.documentElement.dir)).toBe('rtl')
   await page.getByRole('radio', { name: 'Rtl' }).focus()

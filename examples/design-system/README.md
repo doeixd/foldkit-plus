@@ -51,6 +51,11 @@ can be imported without the compiler.
 
 ## What else it shows
 
+Recent catalog widgets are in it too: the plan is a `Segmented` radio group
+(arrow keys choose), the notification list in Collections has a `SearchField`
+that announces its count and returns focus on clear, Form has a `TagsInput`, and
+the Table's first column is a row header.
+
 The rest of the page is the component catalog, each one a live `@foldkit/ui`
 component drawn through a shipped recipe: Colors, Buttons, Form, Choice, Menu,
 Feedback, Overlays, Navigation, Date, Card, Display, Collections and Utilities.
