@@ -32,7 +32,8 @@ import {
   type EntryEditor,
 } from '../routing/address.js'
 import { focusOn, focusRow, opened } from './focus.js'
-import { EntryRow, Post, PostForm, PostId, PostPreview, Posts } from '../content/domain.js'
+import { EntryRow, Post, PostId, PostPreview, PostsBySlug } from '../content/domain.js'
+import { PostForm, Posts } from '../content/postForm.js'
 import { FormStyle, WritingFieldStyle } from '../styles/formStyles.js'
 
 export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 millis' })
@@ -142,7 +143,7 @@ const App = Surface.application({ Model, Message })
 export const Data = Remote.make({
   model: App.model.remote,
   entities: [Post, ...Object.values(Cms.Entities)],
-  queries: [Cms.Entries, Cms.bySlug(Posts)],
+  queries: [Cms.Entries, PostsBySlug],
   mutations: [...Cms.operations],
   // Off in a build; `tsx` has no `import.meta.env`.
   verifyPredictions: import.meta.env?.DEV === true,

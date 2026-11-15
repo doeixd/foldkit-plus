@@ -2,7 +2,7 @@
  * The body's rich-text control and its toolbar, broken one guard at a time:
  * `pnpm mutate examples/cms/test/bodyEditor.mutations.ts`.
  */
-const input = '../src/content/domain.ts'
+const input = '../src/content/postForm.ts'
 const unit = ['examples/cms/test/markdownInput.test.ts']
 const browser = ['examples/cms/test/studio.browser.test.ts']
 

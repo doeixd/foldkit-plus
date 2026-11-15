@@ -61,6 +61,9 @@ export const Pages = Cms.content('pages', {
   preview: (value, id) => [{ entity: 'Page', id, values: value }],
 })
 
+/** The pages-by-address query, from what a reader needs: no form, so the site does not load the Builder that writes them. */
+export const PagesBySlug = Cms.bySlug({ name: 'pages', entity: Page, roles: Cms.rolesOf(Page) })
+
 /** The public site's reading of a page. */
 export const PageView = Entity.select(Page, { title: true, slug: true, document: true })
 

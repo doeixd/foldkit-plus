@@ -30,7 +30,8 @@ import {
   scheduleText,
   type Model,
 } from '../apps/app.js'
-import { PostForm, type PostPreview } from '../content/domain.js'
+import type { PostPreview } from '../content/domain.js'
+import { PostForm } from '../content/postForm.js'
 import { BodyTools } from './bodyTools.js'
 import { icon } from './icons.js'
 import {

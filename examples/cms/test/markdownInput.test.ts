@@ -4,7 +4,7 @@
  * into the editor's document, and the form's value is that document printed again.
  */
 import { describe, expect, it } from 'vitest'
-import { PostForm } from '../src/content/domain.js'
+import { PostForm } from '../src/content/postForm.js'
 
 const valueAfterFill = (body: string) => {
   const filled = PostForm.fill(PostForm.initial, { body }).model

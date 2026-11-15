@@ -29,7 +29,8 @@ import {
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Article } from '../content/articleDomain.js'
-import { Post, PostById, PostInput, Posts, RecentPosts, PostId } from '../content/domain.js'
+import { Post, PostById, PostInput, RecentPosts, PostId } from '../content/domain.js'
+import { Posts } from '../content/postForm.js'
 import { Page, PageId, PageInput, Pages, PublishedPages } from '../content/pageDomain.js'
 import { seed, SEEDED_AT } from '../content/seed.js'
 

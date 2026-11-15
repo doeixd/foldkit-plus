@@ -8,14 +8,11 @@ import type { UrlRequest } from 'foldkit/navigation'
 import * as Runtime from 'foldkit/runtime'
 import type { Url } from 'foldkit/url'
 import { Remote, type RemoteClient } from 'foldkit-remote'
+import type * as StudioApp from './apps/studioApp.js'
 import { FOLDKIT_APP_ATTRIBUTE } from 'foldkit-ssr/client'
-import * as Site from './apps/siteApp.js'
-import * as Studio from './apps/studioApp.js'
-import { siteConfig, takesOver } from './content/siteConfig.js'
 import { sandboxRemote } from './server/connection.js'
 import { edited } from './server/store.js'
 import { chairOf, httpClient } from './server/transport.js'
-import { takeOver } from './ssr/sitePlan.js'
 
 /**
  * Whether the address asks for a fresh sandbox (`?reset`): read, and taken out of
@@ -55,7 +52,14 @@ const remote = sandboxed
   ? sandboxRemote(chair, startsAfresh())
   : Remote.clientLayer(httpClient('/remote', chair))
 
+// The site and the studio are two chunks, and a page loads the one it shows: the studio's editor
+// (rich text, Markdown) never reaches a reader of the site, nor the site's pages the studio's.
 if (path.startsWith('/site')) {
+  const [Site, { siteConfig, takesOver }, { takeOver }] = await Promise.all([
+    import('./apps/siteApp.js'),
+    import('./content/siteConfig.js'),
+    import('./ssr/sitePlan.js'),
+  ])
   const config = siteConfig({
     initial: (url: Url) => Site.initial(url),
     resources: remote,
@@ -68,6 +72,7 @@ if (path.startsWith('/site')) {
   const changed = sandboxed && (await edited())
   takeOver(config, import.meta.env.FOLDKIT_BUILD_ID, page => takesOver(page, chair, changed))
 } else {
+  const Studio = await import('./apps/studioApp.js')
   // The studio's two sections share one document and one runtime: moving
   // between them swaps no application, so nothing reloads and nothing refetches.
   const host = document.createElement('div')
@@ -75,7 +80,7 @@ if (path.startsWith('/site')) {
   host.id = container.id
   container.replaceWith(host)
   Runtime.run(
-    Runtime.makeApplication<Studio.Model, Studio.Message, RemoteClient>({
+    Runtime.makeApplication<StudioApp.Model, StudioApp.Message, RemoteClient>({
       Model: Studio.Model,
       container: host,
       init: (url: Url) => Studio.init(url),

@@ -14,7 +14,7 @@ import {
   type FormattingItem,
 } from 'foldkit-mixins-richtext'
 import { Message, Roving, type Model } from '../apps/app.js'
-import { PostForm } from '../content/domain.js'
+import { PostForm } from '../content/postForm.js'
 import { app, button, t } from '../styles/style.js'
 
 export const BodyToolsSlots = Slots.define({

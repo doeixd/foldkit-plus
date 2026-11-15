@@ -20,7 +20,8 @@ import {
   postPage,
   update,
 } from '../apps/app.js'
-import { PostForm, Posts } from '../content/domain.js'
+import { PostsBySlug } from '../content/domain.js'
+import { PostForm, Posts } from '../content/postForm.js'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import type { Principal } from '../server/server.js'
 import { chairHarness, openBackend, visitBySlug } from './harness.js'
@@ -138,7 +139,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       visit: (slug: string) =>
         visitBySlug({
           chair: harness,
-          query: Cms.bySlug(Posts),
+          query: PostsBySlug,
           entity: 'Post',
           fields: ['title', 'body'],
           render: values => `"${values['title']}": ${values['body']}`,

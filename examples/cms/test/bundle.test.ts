@@ -48,7 +48,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // which brings the Markdown parser (micromark, mdast, GFM) and the rich-text renderer into the
 // page: measured 317,844 against 293,138 before. It replaces the 60-line hand parser, which
 // drew only paragraphs, headings, lists and code. Ceiling raised to the reading, rounded up.
-const CEILING = 318_500
+// Lowered to 164,000 on 2026-11-15 (163.2 kB measured): the entry now holds only what both
+// applications share (the runtime, Remote, Entity and the start-up), since the studio and the
+// public site are chunks of their own, loaded by the address (`client.ts`). What each screen loads
+// first is held by `routes.test.ts`, which adds the chunk: studio 366.6 kB, site 322.2 kB.
+const CEILING = 164_000
 
 clientBudget({
   name: 'cms',

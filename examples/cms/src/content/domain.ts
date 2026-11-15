@@ -5,14 +5,8 @@
  */
 import { Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
-import { FieldRecipes } from 'foldkit-form-recipes'
 import { Entity, Expr, Order } from 'foldkit-entity'
-import { Form, Input } from 'foldkit-form'
-import { Mutation, Query } from 'foldkit-remote'
-import * as RichText from 'foldkit-richtext'
-import { EditorInput, richTextInput } from 'foldkit-richtext-dom/input'
-import { markdownInputRules, print } from 'foldkit-richtext-markdown'
-import { documentOf } from './markdownBody.js'
+import { Query } from 'foldkit-remote'
 
 /** Where this demo's code is read: the site links to it, and its pages point to it. */
 export const SOURCE = 'https://github.com/doeixd/foldkit-plus/tree/main/examples/cms'
@@ -58,66 +52,11 @@ export const PostInput = Schema.Struct({
   body: Post.fields.body.schema,
 })
 
-export const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
-  // The address follows the title until the author writes it themselves.
-  inputs: {
-    slug: FieldRecipes.slug('title', { prefix: '/blog/' }).control,
-    // A long title wraps, as it will on the page.
-    title: Input.multiline(),
-    excerpt: Input.multiline(),
-    // The body is written in the rich-text editor and stored as Markdown.
-    body: richTextInput(
-      'post-body',
-      {
-        vocabulary: {
-          nodes: RichText.nodeRegistry(RichText.standardNodes),
-          marks: RichText.markRegistry(RichText.standardMarks),
-        },
-        rendering: RichText.standardRendering,
-        inputRules: markdownInputRules,
-        placeholder: 'Begin writing your post…',
-      },
-      {
-        codec: {
-          blank: '',
-          value: document => print(document).markdown.trimEnd(),
-          // An empty text has no block for a caret to sit in: the editor's own blank stands in.
-          fill: markdown => {
-            const read = documentOf(markdown)
-            return read.children.length === 0
-              ? EditorInput.init({ hostId: 'post-body' }).model.document
-              : read
-          },
-        },
-      },
-    ),
-  },
-  debounce: 0,
-}).pipe(
-  // And says while it is typed what a publish would refuse. The post keeps its
-  // own address because `Cms.editor` tells the form which row it is editing.
-  // Asking needs `RemoteClient`; the step adds that to what the form needs.
-  Form.checks({ slug: Cms.addressFree('posts') }),
-)
-
-export const CreatePost = Mutation.make('CreatePost', {
-  Input: PostInput,
-  Output: { id: PostId },
-})
-export const UpdatePost = Mutation.make('UpdatePost', {
-  Input: { ...PostInput.fields, id: PostId },
-  Output: {},
-})
-
-/** How posts are authored: a fact about the application. */
-export const Posts = Cms.content('posts', {
-  entity: Post,
-  form: PostForm,
-  publish: { create: CreatePost, update: UpdatePost },
-  words: { one: 'Post', many: 'Posts' },
-  // How a value would look in the store: what an optimistic publish would show.
-  preview: (value, id) => [{ entity: 'Post', id, values: value }],
-})
+/**
+ * The posts-by-address query, from what a reader of the content needs: no form, so the public
+ * site, which reads posts by address, does not load the editor that writes them.
+ */
+export const PostsBySlug = Cms.bySlug({ name: 'posts', entity: Post, roles: Cms.rolesOf(Post) })
 
 /** The public page's reading of a post, and the worklist's reading of an entry. */
 export const PostPage = Entity.select(Post, {

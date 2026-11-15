@@ -28,7 +28,7 @@ import {
   update,
   type Model,
 } from '../src/apps/app.js'
-import { PostForm } from '../src/content/domain.js'
+import { PostForm } from '../src/content/postForm.js'
 import { writeBody } from '../src/demo/postDemo.js'
 import type { Principal } from '../src/server/server.js'
 import { Studio } from '../src/views/view.js'
