@@ -47,6 +47,19 @@ describe('navigation', () => {
   })
 })
 
+describe('buttons toolbar', () => {
+  it('keeps the one tab stop where focus last was, and the Model when it has not moved', () => {
+    const first = Buttons.update(
+      Buttons.initModel(),
+      Buttons.Message.ToolbarFocused({ id: 'italic' }),
+    )
+    expect(first.model.roving.current).toBe('italic')
+    expect(
+      Buttons.update(first.model, Buttons.Message.ToolbarFocused({ id: 'italic' })).model,
+    ).toBe(first.model)
+  })
+})
+
 describe('buttons', () => {
   it('counts presses and toggles the text style', () => {
     const clicked = Buttons.update(Buttons.initModel(), Buttons.Message.ButtonClicked())

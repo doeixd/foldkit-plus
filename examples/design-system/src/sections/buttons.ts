@@ -7,7 +7,8 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { SlotView } from 'foldkit-mixins'
-import { Button, ButtonGroup, CardSlots } from 'foldkit-mixins-ui'
+import { Button, ButtonGroup, CardSlots, Toolbar } from 'foldkit-mixins-ui'
+import { RovingTabindex } from 'foldkit-primitives/interaction'
 import {
   ButtonGroupStyle,
   CardPressedStyle,
@@ -20,6 +21,7 @@ import {
   PrimaryButtonStyle,
   SecondaryButtonStyle,
   SmallButtonStyle,
+  ToolbarStyle,
 } from '../style.js'
 import { PageSlots } from '../slots.js'
 import { neverH } from '../shared.js'
@@ -29,6 +31,7 @@ export const Model = Schema.Struct({
   bold: Schema.Boolean,
   italic: Schema.Boolean,
   underline: Schema.Boolean,
+  roving: RovingTabindex.Model,
 })
 export type Model = typeof Model.Type
 
@@ -37,10 +40,17 @@ export const Message = defineMessageUnion({
   BoldToggled: { value: Schema.Boolean },
   ItalicToggled: { value: Schema.Boolean },
   UnderlineToggled: { value: Schema.Boolean },
+  ToolbarFocused: { id: Schema.String },
 })
 export type Message = typeof Message.Type
 
-export const initModel = (): Model => ({ clicks: 0, bold: false, italic: false, underline: false })
+export const initModel = (): Model => ({
+  clicks: 0,
+  bold: false,
+  italic: false,
+  underline: false,
+  roving: { current: null },
+})
 
 export const update = (model: Model, message: Message) =>
   Message.match(message, {
@@ -48,6 +58,11 @@ export const update = (model: Model, message: Message) =>
     BoldToggled: ({ value }) => ({ model: modifyFields(model, { bold: () => value }) }),
     ItalicToggled: ({ value }) => ({ model: modifyFields(model, { italic: () => value }) }),
     UnderlineToggled: ({ value }) => ({ model: modifyFields(model, { underline: () => value }) }),
+    // The tab stop is the control last focused, by key or by press.
+    ToolbarFocused: ({ id }) =>
+      model.roving.current === id
+        ? { model }
+        : { model: modifyFields(model, { roving: () => ({ current: id }) }) },
   })
 
 const CardView = SlotView.forMessages<Message>()
@@ -154,6 +169,84 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
         }),
       ]),
       ['The quick brown fox'],
+    ),
+    h.p(slots.sectionText.attrs(), [
+      'The same state in a Toolbar: one tab stop, the arrow keys move between its tools, Home and End jump, and the disabled tool is skipped.',
+    ]),
+    Toolbar.view(
+      {
+        id: 'text-tools',
+        label: 'Text style',
+        orientation: 'horizontal',
+        roving: model.roving,
+        onFocus: id => Message.ToolbarFocused({ id }),
+        style: ToolbarStyle,
+        items: [
+          {
+            label: 'Style',
+            controls: [
+              {
+                id: 'bold',
+                draw: control =>
+                  Button.view(
+                    {
+                      label: 'Bold',
+                      pressed: model.bold,
+                      onClick: Message.BoldToggled({ value: !model.bold }),
+                      attributes: { button: control.attributes },
+                      style: model.bold ? SecondaryButtonStyle : OutlineButtonStyle,
+                    },
+                    h,
+                  ),
+              },
+              {
+                id: 'italic',
+                draw: control =>
+                  Button.view(
+                    {
+                      label: 'Italic',
+                      pressed: model.italic,
+                      onClick: Message.ItalicToggled({ value: !model.italic }),
+                      attributes: { button: control.attributes },
+                      style: model.italic ? SecondaryButtonStyle : OutlineButtonStyle,
+                    },
+                    h,
+                  ),
+              },
+              {
+                id: 'strike',
+                disabled: true,
+                draw: control =>
+                  Button.view(
+                    {
+                      label: 'Strike',
+                      disabled: control.disabled,
+                      attributes: { button: control.attributes },
+                      style: OutlineButtonStyle,
+                    },
+                    h,
+                  ),
+              },
+            ],
+          },
+          'separator',
+          {
+            id: 'underline',
+            draw: control =>
+              Button.view(
+                {
+                  label: 'Underline',
+                  pressed: model.underline,
+                  onClick: Message.UnderlineToggled({ value: !model.underline }),
+                  attributes: { button: control.attributes },
+                  style: model.underline ? SecondaryButtonStyle : OutlineButtonStyle,
+                },
+                h,
+              ),
+          },
+        ],
+      },
+      h,
     ),
     h.section(slots.section.attrs([h.Id('card')]), [
       h.h2(slots.sectionTitle.attrs(), ['Card']),

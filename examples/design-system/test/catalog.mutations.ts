@@ -60,4 +60,15 @@ export default [
     ],
     tests: ['examples/design-system/test/sections.test.ts'],
   },
+  {
+    name: 'the toolbar takes a focus it already holds as a change',
+    edits: [
+      {
+        file: '../src/sections/buttons.ts',
+        find: 'model.roving.current === id',
+        replace: 'false',
+      },
+    ],
+    tests: ['examples/design-system/test/sections.test.ts'],
+  },
 ]

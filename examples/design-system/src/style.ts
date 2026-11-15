@@ -59,6 +59,7 @@ import {
   TableSlots,
   TabsSlots,
   TagsInputSlots,
+  ToolbarSlots,
   TextareaSlots,
   ToastSlots,
   TooltipSlots,
@@ -794,3 +795,7 @@ export const NoticeAlertStyle = app.slots(
   },
   { name: 'NoticeAlertStyle' },
 )
+
+export const ToolbarStyle = app.forSlots(ToolbarSlots)(Recipes.Toolbar({}), {
+  name: 'ToolbarStyle',
+})
