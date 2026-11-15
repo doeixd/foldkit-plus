@@ -89,6 +89,14 @@ the same two calls, so a key and a `Move` drag obey the same limits.
 
 ## Common tasks
 
+Pick by task:
+
+- Keep focus when a row, clear button or toast goes: `FocusRecovery` (Keep focus when its part goes away), or `FocusReturn` / `Dialog.focusReturn` when an opener is gone.
+- A keyboard-reorderable list: `Reorder`; with arrows and typeahead on the same list, `Reorder.routed` beside `ListNavigation`.
+- Arrows over a grid of cells, a tree, or freely placed cards: `GridNavigation`, `TreeNavigation`, `SpatialNavigation`.
+- A value edited where it shows: `InlineEdit`. A key of the application's on a primitive's host: its `keys(...)` route in one `Behaviors.Keys.behavior`, or a `routes` option.
+- Swipe to reveal row actions with a key way: `SwipeActions`. A held stepper button: `Repeat`. Move or resize limits for a box: `Box` with `Move.nudge` and `Move.resizeKeys`.
+
 - **Place a preset:** `Page.place(PrefersDark, 'dark')` — no config needed.
 - **Drive a timer in tests:** the tick stream runs on Effect's clock, so
   `TestClock.adjust` advances it instead of waiting.
@@ -207,12 +215,92 @@ the same two calls, so a key and a `Move` drag obey the same limits.
   measured when the key is handled and never kept. Home/End follow the view's order, directions are
   physical, and the pure rule is `SpatialNavigation.nearest(items, current, direction)`. Same
   Model slice and item attributes as `RovingTabindex`.
+The items come from `Behaviors.Collection.of`, described once per change of the list:
+
+```ts standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+import { Behaviors, Capability, Slot, Slots } from 'foldkit-mixins'
+import { SpatialNavigation } from 'foldkit-primitives/interaction'
+
+const Card = Schema.Struct({ id: Schema.String, disabled: Schema.Boolean })
+const Board = Bundle.declare(SpatialNavigation.bundle, 'board')
+const Model = Schema.Struct({ ...Board.fields, cards: Schema.Array(Card) })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Board.cases })
+type Message = typeof Message.Type
+
+const BoardSlots = Slots.define({
+  board: Slot.make({ capability: Capability.Interactive }),
+  card: Slot.make({ capability: Capability.Focusable }),
+})
+const arrows = SpatialNavigation.behavior(Board, { id: 'board' })(BoardSlots)<Model, Message>({
+  container: 'board',
+  item: 'card',
+  items: model =>
+    Behaviors.Collection.of(model.cards, { id: card => card.id, disabled: card => card.disabled }),
+})
+```
+
 - **Edit a value in place:** `InlineEdit.bundle` (args `{ id, blur: 'commit' | 'cancel' }`) with
   `InlineEdit.behavior(Declared, args)(Slots)<Model, Message>({ display, input, error?, value, disabled?, routes? })`.
   Enter, F2, a double click or a typed key starts; Enter saves, Escape cancels without closing a dialog
   around it. A changed value is the `Committed` OutMessage; the parent saves it or hands it back with
   `refuse(committed, error)`, which keeps the editor open. Enter and Escape are `Behaviors.Keys` routes,
   and `routes` adds more.
+
+InlineEdit is wired through the placement's `onOut`, which saves a `Committed` or refuses it:
+
+```ts standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
+import { Bundle } from 'foldkit-bundle'
+import { Capability, Event, Slot, Slots } from 'foldkit-mixins'
+import { InlineEdit } from 'foldkit-primitives/interaction'
+
+const Item = Schema.Struct({ id: Schema.String, title: Schema.String })
+const Title = Bundle.declare(InlineEdit.bundle, 'title')
+const Model = Schema.Struct({ ...Title.fields, items: Schema.Array(Item) })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Title.cases })
+type Message = typeof Message.Type
+const Page = Bundle.parent({ Model, Message })
+
+const args = { id: 'titles', blur: 'commit' } as const
+const placed = Page.at(Title, {
+  args,
+  onOut:
+    (committed: InlineEdit.Committed) =>
+    (model: Model): Update.Return<Model, Message> =>
+      committed.value.trim() === ''
+        ? placed.helpers.refuse(committed, 'A title is needed')(model)
+        : {
+            model: {
+              ...model,
+              items: model.items.map(item =>
+                item.id === committed.id ? { ...item, title: committed.value } : item,
+              ),
+            },
+          },
+})
+
+const ListSlots = Slots.define({
+  title: Slot.make({ capability: Capability.Focusable }),
+  field: Slot.make({ capability: Capability.TextInput, events: [Event.KeyDown] }),
+  error: Slot.make({ capability: Capability.Base }),
+})
+const editor = InlineEdit.behavior(Title, args)(ListSlots)<Model, Message>({
+  display: 'title',
+  input: 'field',
+  error: 'error',
+  value: (model, id) => model.items.find(item => item.id === id)?.title ?? '',
+})
+```
+
+The view draws the `field` (with its own `aria-label`) in place of the `title` of the item being edited, and `InlineEdit.errorOf(model.title)` is the refusal's text.
+
 - **Keep focus inside an overlay:** `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
@@ -230,7 +318,28 @@ the same two calls, so a key and a `Move` drag obey the same limits.
   `disabled` focused part, or a row a keyed reorder moved, sends focus to the first step
   that can take it: `same`, `next`, `previous`, `parent`, `stop`, `{ part }`, `owner`.
   Never when focus moved elsewhere; nested owners decide innermost first, then outward;
-  a row not drawn yet is the Model's (a Command), not the Mount's. Opt-in.
+  a row not drawn yet is the Model's (a Command), not the Mount's. Opt-in. `FOCUS_MARK` (`/dom`) names the
+  marks (`data-fk-focus-owner`, `-part`, `-key`, `-parent`) for a view that draws a part by hand.
+
+The smallest use, a row that falls back to its neighbours and then to the field above it:
+```ts standalone
+import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { FocusRecovery } from 'foldkit-primitives/interaction'
+
+const RowSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  input: Slot.make({ capability: Capability.TextInput }),
+  row: Slot.make({ capability: Capability.Focusable }),
+})
+const RowView = SlotView.over(RowSlots)<{ readonly rows: ReadonlyArray<{ readonly id: string }> }, never>()
+
+// Each part names where focus goes if it is removed, hidden or made inert while it holds focus.
+const recovers = FocusRecovery.behavior(RowView)({
+  owner: 'root',
+  parts: { input: [], row: ['next', 'previous', { part: 'input' }] },
+})
+```
+
 - **A row that leaves without taking input:** `Presence.behavior(Slots)<Input, Message>({ content, phase: (input, item) => 'shown' | 'hiding' | 'hidden' })`
   draws `data-presence` and `inert` (not `aria-hidden`) on the slot for every phase but `shown`;
   it sends no Message. The phase and the timed `Hidden` are `Presence.bundle`'s (`motion`), one
