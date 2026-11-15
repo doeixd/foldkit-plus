@@ -60,7 +60,7 @@ export const registryDemo: Demo = {
     { title: 'Edit', text: 'Change a price in Device A. It shows in Device B a moment later.' },
     {
       title: 'Conflict',
-      text: 'Tick “Work offline” in Device B, edit the same price in both, then untick it. The later edit wins, and the device that lost says so.',
+      text: 'Press “Go offline” in Device B, edit the same price in both, then press “Go online”. The later edit wins, and the device that lost says so.',
     },
     {
       title: 'Reload',

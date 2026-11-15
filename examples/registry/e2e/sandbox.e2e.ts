@@ -114,12 +114,13 @@ test('the later of two edits wins, the device whose edit lost is told, and an of
   const row = 'p000005'
   await cell(page, 'Device A', row, 'cents').waitFor({ timeout: 60_000 })
   await cell(page, 'Device B', row, 'cents').waitFor({ timeout: 60_000 })
-  const offline = (device: Device) =>
-    pane(page, device).getByRole('checkbox', { name: 'Work offline' })
+  const goOffline = (device: Device) =>
+    pane(page, device).getByRole('button', { name: 'Go offline' })
+  const goOnline = (device: Device) => pane(page, device).getByRole('button', { name: 'Go online' })
   const mark = (device: Device) => cell(page, device, row, 'cents').getAttribute('data-mark')
 
   // A commits first; B, offline, edits the same price and commits when back.
-  await offline('Device B').check()
+  await goOffline('Device B').click()
   // Working offline pauses B's exchange, not its live reads of the table: B
   // showing A's price is the sign A's edit is committed, so B's is the later.
   await editPrice(page, 'Device A', row, '1.11')
@@ -128,7 +129,7 @@ test('the later of two edits wins, the device whose edit lost is told, and an of
     .toBe('1.11')
   await editPrice(page, 'Device B', row, '2.22')
   await expect.poll(() => mark('Device B')).toBe('pending')
-  await offline('Device B').uncheck()
+  await goOnline('Device B').click()
   await expect
     .poll(() => cell(page, 'Device A', row, 'cents').textContent(), { timeout: 10_000 })
     .toBe('2.22')
@@ -140,7 +141,7 @@ test('the later of two edits wins, the device whose edit lost is told, and an of
 
   // B offline again, an edit, and B's page reloaded: the edit is still on the device,
   // and goes once B is back (a reload starts online).
-  await offline('Device B').check()
+  await goOffline('Device B').click()
   await editPrice(page, 'Device B', 'p000006', '6.66')
   await expect
     .poll(() => cell(page, 'Device B', 'p000006', 'cents').getAttribute('data-mark'))
@@ -151,7 +152,7 @@ test('the later of two edits wins, the device whose edit lost is told, and an of
   // to do, and CI sometimes did.
   await expect
     .poll(() => pane(page, 'Device B').locator('#exchange').textContent())
-    .toBe('Working offline: 1 edit kept on this device.')
+    .toBe('Offline: 1 edit waiting to sync')
   const frameB = page.frames().find(frame => frame.url().includes('pane=device-b'))!
   await frameB.goto(frameB.url())
   // The reloaded device starts its database and connection again, which the
@@ -184,15 +185,57 @@ test('where a device is shows on the other, and its card says when it is offline
   // B's card: synced, then offline, then synced again; A offline leaves presence.
   const badge = (device: Device) =>
     page.locator('section', { has: page.locator(`iframe[title="${device}"]`) }).getByRole('status')
-  await expect.poll(() => badge('Device B').textContent()).toBe('Synced')
-  await pane(page, 'Device B').getByRole('checkbox', { name: 'Work offline' }).check()
+  await expect.poll(() => badge('Device B').textContent()).toBe('Online · in sync')
+  await pane(page, 'Device B').getByRole('button', { name: 'Go offline' }).click()
   await expect.poll(() => badge('Device B').textContent()).toBe('Offline')
-  await pane(page, 'Device B').getByRole('checkbox', { name: 'Work offline' }).uncheck()
-  await expect.poll(() => badge('Device B').textContent(), { timeout: 10_000 }).toBe('Synced')
-  await pane(page, 'Device A').getByRole('checkbox', { name: 'Work offline' }).check()
+  await pane(page, 'Device B').getByRole('button', { name: 'Go online' }).click()
+  await expect
+    .poll(() => badge('Device B').textContent(), { timeout: 10_000 })
+    .toBe('Online · in sync')
+  await pane(page, 'Device A').getByRole('button', { name: 'Go offline' }).click()
   await expect
     .poll(() => cell(page, 'Device B', row, 'line').getAttribute('data-mark'), { timeout: 10_000 })
     .toBeNull()
   expect(errors).toEqual([])
+  await page.close()
+})
+
+test('on a phone one device shows at a time, both stay mounted, and the page does not scroll sideways', async () => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  })
+  const page = await context.newPage()
+  const errors: Array<string> = []
+  page.on('pageerror', error => errors.push(String(error)))
+  await page.goto(url)
+  const row = 'p000004'
+  // Both devices run while only one is shown: the hidden one has its grid too.
+  await cell(page, 'Device A', row, 'cents').waitFor({ timeout: 60_000 })
+  await cell(page, 'Device B', row, 'cents').waitFor({ state: 'attached', timeout: 60_000 })
+  const shown = (device: Device) => page.locator(`iframe[title="${device}"]`).isVisible()
+  expect([await shown('Device A'), await shown('Device B')]).toEqual([true, false])
+
+  const switcher = page.getByRole('radiogroup', { name: 'Device shown' })
+  await switcher.getByRole('radio', { name: 'Device B' }).click()
+  await expect.poll(() => shown('Device B')).toBe(true)
+  expect(await shown('Device A')).toBe(false)
+
+  // Layout viewport, not `innerWidth`: a phone zooms out to fit an overflowing page.
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
+  expect(overflow).toBeLessThanOrEqual(0)
+  expect(errors).toEqual([])
+  await context.close()
+})
+
+test('on a desktop both devices show and there is no switch', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  await page.goto(url)
+  await cell(page, 'Device A', 'p000004', 'cents').waitFor({ timeout: 60_000 })
+  expect(await page.getByRole('radiogroup', { name: 'Device shown' }).isVisible()).toBe(false)
+  expect(await page.locator('iframe[title="Device B"]').isVisible()).toBe(true)
   await page.close()
 })

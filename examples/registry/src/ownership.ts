@@ -82,6 +82,11 @@ const facts = (
     replica: `Replica ${model.replica}`,
     undo: `${counted(model.undo.length, 'step')} to undo`,
     redo: `${counted(model.redo.length, 'step')} to redo`,
+    copied: Option.match(model.copied, {
+      onNone: () => 'Nothing copied',
+      onSome: ({ rows, columns }) =>
+        `${counted(rows, 'row')} by ${counted(columns, 'column')} copied`,
+    }),
     heldBack: Option.match(model.heldBack, {
       onNone: () => 'Nothing left alone',
       onSome: ({ cells }) => `${counted(cells.length, 'cell')} left alone`,

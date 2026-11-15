@@ -159,8 +159,8 @@ test('a column is hidden from its menu, and shown again from another’s', async
 test('working offline keeps an edit on the device, and switching back sends it', async () => {
   const errors = await open()
   const exchange = () => page.locator('#exchange').textContent()
-  await page.getByRole('checkbox', { name: 'Work offline' }).check()
-  await expect.poll(exchange).toBe('Working offline.')
+  await page.getByRole('button', { name: 'Go offline' }).click()
+  await expect.poll(exchange).toBe('Offline: edits are kept on this device')
   const priceOf = cell(productId(11), 'cents')
   await priceOf.click()
   await page.waitForFunction(
@@ -172,15 +172,15 @@ test('working offline keeps an edit on the device, and switching back sends it',
   await page.keyboard.press('Control+A')
   await page.keyboard.type('11.10')
   await page.keyboard.press('Enter')
-  await expect.poll(exchange).toBe('Working offline: 1 edit kept on this device.')
+  await expect.poll(exchange).toBe('Offline: 1 edit waiting to sync')
   expect(await priceOf.getAttribute('data-mark')).toBe('pending')
 
   // Offline long enough for the replica's backoff to have grown past a few
   // seconds (0.5 s, doubling): switching back sends at once, not when the
   // backoff ends.
   await page.waitForTimeout(4_000)
-  await page.getByRole('checkbox', { name: 'Work offline' }).uncheck()
-  await expect.poll(exchange, { timeout: 1_500 }).toBe('')
+  await page.getByRole('button', { name: 'Go online' }).click()
+  await expect.poll(exchange, { timeout: 1_500 }).toBe('Saved on this device and in sync')
   const read = await Effect.runPromise(
     Remote.http(server.url).FoldkitRemoteRead({
       version: REMOTE_PROTOCOL_VERSION,

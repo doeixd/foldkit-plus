@@ -11,9 +11,11 @@ import {
   AlertSlots,
   AppShellSlots,
   BadgeSlots,
+  ButtonSlots,
   CardSlots,
   InputSlots,
   Recipes,
+  SegmentedSlots,
 } from 'foldkit-mixins-ui'
 import { demoStyle } from 'foldkit-example-site/demo-style'
 
@@ -27,6 +29,11 @@ export const ShellStyle = demoStyle.forSlots(AppShellSlots)(Recipes.AppShell({})
 export const SearchStyle = demoStyle.forSlots(InputSlots)(Recipes.Input({ size: 'sm' }), {
   name: 'SearchStyle',
 })
+/** The device's go offline / go online button, beside its status. */
+export const OfflineButtonStyle = demoStyle.forSlots(ButtonSlots)(
+  Recipes.Button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
+  { name: 'OfflineButtonStyle' },
+)
 /** What the server refused. */
 export const RefusedStyle = demoStyle.forSlots(AlertSlots)(Recipes.Alert({ tone: 'error' }), {
   name: 'RefusedStyle',
@@ -58,12 +65,17 @@ export const Page = demoStyle.slots(
     content: L.in('layouts', Layout.stack({ gap: t.space.sm })),
     toolbar: L.in('layouts', Layout.cluster({ gap: t.space.sm, justify: 'space-between' })),
     counts: Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted }),
-    // Always in the page, so a change is announced; drawn as a pill only when it says something.
+    // Always in the page, so a change is announced.
     exchange: Style.compose(
-      Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted }),
-      Style.nest('&:not(:empty)', {
+      Style.self({
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: t.space.xs,
+        margin: '0',
         padding: `${t.space['3xs']} ${t.space.sm}`,
         borderRadius: t.radius.full,
+        fontSize: t.size.sm,
+        color: t.text.muted,
         background: t.surface.muted,
       }),
       Style.states(
@@ -71,24 +83,19 @@ export const Page = demoStyle.slots(
         'data-waiting',
       ),
     ),
+    dot: Style.compose(
+      Style.self({
+        flexShrink: '0',
+        inlineSize: '0.5rem',
+        blockSize: '0.5rem',
+        borderRadius: t.radius.full,
+        background: t.success.default,
+      }),
+      Style.states({ offline: { background: t.warning.default } }, 'data-link'),
+    ),
     controls: L.in('layouts', Layout.cluster({ gap: t.space.md })),
     // The box's own recipe fills this; the controls give it up to 16rem.
     search: Style.self({ inlineSize: '16rem', maxInlineSize: '100%' }),
-    offline: Style.self({
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: t.space.xs,
-      fontSize: t.size.sm,
-      cursor: 'pointer',
-      userSelect: 'none',
-    }),
-    box: Style.self({
-      flexShrink: '0',
-      inlineSize: '1rem',
-      blockSize: '1rem',
-      margin: '0',
-      accentColor: t.accent.default,
-    }),
     // A list of notices, not drawn at all while it has none, so it adds no gap.
     notices: Style.compose(
       Style.self({
@@ -146,6 +153,10 @@ export const DeviceCardStyle = demoStyle.forSlots(CardSlots)(
   })({ padding: 'flush' }),
   { name: 'DeviceCardStyle' },
 )
+/** The phone's switch between the two devices. */
+export const PaneSwitchStyle = demoStyle.forSlots(SegmentedSlots)(Recipes.Segmented({}), {
+  name: 'PaneSwitchStyle',
+})
 /** Where a device's edits stand: settled, or waiting on the device. */
 export const DeviceBadgeStyle = demoStyle.forSlots(BadgeSlots)(
   Recipes.Badge({ attribute: 'data-tone', tones: { synced: 'success', waiting: 'warning' } }),
@@ -164,11 +175,31 @@ export const Sandbox = demoStyle.slots(
     }),
     heading: Style.self({ margin: '0', fontSize: t.size['2xl'], color: t.text.overt }),
     lede: Style.self({ margin: '0', maxInlineSize: '44rem', color: t.text.muted }),
-    devices: Style.self({
-      display: 'grid',
-      gap: t.space.md,
-      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 36rem), 1fr))',
+    steps: Style.self({
+      margin: '0',
+      paddingInlineStart: t.space.lg,
+      maxInlineSize: '44rem',
+      fontSize: t.size.sm,
+      color: t.text.muted,
     }),
+    // Only a phone, which shows one device at a time, needs the switch.
+    switch: Style.compose(
+      Style.self({ display: 'none' }),
+      Style.media('(max-width: 63.99rem)', { display: 'block' }),
+    ),
+    devices: Style.compose(
+      Style.self({
+        display: 'grid',
+        gap: t.space.md,
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      }),
+      // One column on a phone, and only the chosen device: the other stays mounted, hidden.
+      Style.media('(max-width: 63.99rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
+      Style.at(
+        '@media (max-width: 63.99rem)',
+        Style.nest('& > [data-chosen="false"]', { display: 'none' }),
+      ),
+    ),
     frame: Style.self({
       display: 'block',
       inlineSize: '100%',
