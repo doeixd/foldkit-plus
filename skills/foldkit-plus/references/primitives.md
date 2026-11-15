@@ -201,6 +201,18 @@ the same two calls, so a key and a `Move` drag obey the same limits.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or
   column, `wrap` continues into the next row or column, Home/End are per row and Ctrl+Home/End
   per grid. The pure move is `GridNavigation.move(enabled, count, current, key, modifiers, options)`.
+- **Freely placed items:** `SpatialNavigation.bundle` (args `{ id }`) with
+  `SpatialNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items })`:
+  each arrow moves the one tab stop to the nearest item drawn that way (a board, a canvas),
+  measured when the key is handled and never kept. Home/End follow the view's order, directions are
+  physical, and the pure rule is `SpatialNavigation.nearest(items, current, direction)`. Same
+  Model slice and item attributes as `RovingTabindex`.
+- **Edit a value in place:** `InlineEdit.bundle` (args `{ id, blur: 'commit' | 'cancel' }`) with
+  `InlineEdit.behavior(Declared, args)(Slots)<Model, Message>({ display, input, error?, value, disabled?, routes? })`.
+  Enter, F2, a double click or a typed key starts; Enter saves, Escape cancels without closing a dialog
+  around it. A changed value is the `Committed` OutMessage; the parent saves it or hands it back with
+  `refuse(committed, error)`, which keeps the editor open. Enter and Escape are `Behaviors.Keys` routes,
+  and `routes` adds more.
 - **Keep focus inside an overlay:** `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
