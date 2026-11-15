@@ -100,7 +100,7 @@ test('a filter shows how many products match, and Clear filters takes it off', a
   await page.keyboard.press('Alt+ArrowDown')
   await page.locator('#products input').waitFor()
   await page.keyboard.type('Paint')
-  await expect.poll(() => status.textContent(), slow).toContain('Filtered by line:')
+  await expect.poll(() => status.textContent(), slow).toContain('line filter:')
   await expect.poll(() => status.textContent(), slow).toContain('of 100,000 products match')
   await expect.poll(() => counts.textContent(), slow).toContain('of 100,000 products match')
 

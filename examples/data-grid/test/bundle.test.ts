@@ -20,7 +20,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // child attribute's Mount composed through its own boundary) and behavior.js
 // 406 (each Behavior's attachment metadata, which describe reads), measured by
 // minifying the two sources before and after. The page then measured 143,531.
-const CEILING = 144_000
+// 2026-11-15, demo round: 144,187 bytes measured (about 650 more than the 143,531 above), all
+// of it the page's own first screen in main.ts: the live status region, the filtered count
+// (`addressableRows`), the Clear filters button and its Message, the narrow-screen start and
+// the hint line. No package grew. Ceiling is the measure plus 0.5%, rounded up to the next 500.
+const CEILING = 145_000
 
 clientBudget({
   name: 'data-grid',

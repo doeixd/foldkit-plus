@@ -51,6 +51,7 @@ test('the registry draws a window of 100,000 products, and edits and pastes reac
       new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers }),
     )
   const status = () => document.querySelector('[role="status"]')!.textContent
+  const counts = () => document.getElementById('registry-counts')!.textContent
   const editor = () => document.querySelector<HTMLInputElement>('#products input')
   const type = (text: string) => {
     editor()!.value = text
@@ -62,7 +63,7 @@ test('the registry draws a window of 100,000 products, and edits and pastes reac
   expect(grid().getAttribute('aria-rowcount')).toBe('100001')
   // Ten rows in view and six of overscan below: a window, not 100,000 rows.
   expect(document.querySelectorAll('#products [role="row"]').length).toBeLessThan(30)
-  expect(status()).toContain('100,000 products')
+  expect(counts()).toContain('100,000 products')
 
   // An edited price reaches the product.
   cell('p2', 'price')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -114,7 +115,7 @@ test('the registry draws a window of 100,000 products, and edits and pastes reac
 
   // Ctrl+A selects every product, drawn or not.
   press(grid(), 'a', { ctrlKey: true })
-  await vi.waitFor(() => expect(status()).toContain('100,000 selected'))
+  await vi.waitFor(() => expect(counts()).toContain('100,000 selected'))
 })
 
 test('a column filtered from its header narrows the 100,000 products, and an edit there lands on its product', async () => {

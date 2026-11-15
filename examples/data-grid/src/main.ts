@@ -204,10 +204,7 @@ const application = Bundle.assemble<Model, Message>()([
           const kept = addressableRows(rowsOf(filtered).count).toLocaleString()
           return {
             model: modifyFields(filtered, {
-              notice: () =>
-                isOn(change.filter)
-                  ? `Filtered by ${change.column}: ${kept} of ${model.products.length.toLocaleString()} products match.`
-                  : `Removed the ${change.column} filter: ${kept} products.`,
+              notice: () => `${change.column} filter: ${kept} products match.`,
             }),
           }
         },
@@ -392,8 +389,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         h.p(
           [h.Style({ margin: '0', color: 'var(--fk-text-muted)', fontSize: '13px' })],
           [
-            'Press Enter on a cell to edit it, Shift with the arrows to select a range, Ctrl+C to copy it. ',
-            'A header’s funnel filters its column and its menu pins or hides it; scroll sideways for the rest.',
+            'Enter edits a cell, Shift+arrows select a range, Ctrl+C copies it. ',
+            'A header’s funnel filters and its menu pins or hides; scroll sideways for the rest.',
           ],
         ),
         h.div(
@@ -410,7 +407,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ],
           [
             h.span(
-              [],
+              [h.Id('registry-counts')],
               [
                 filtered
                   ? `${shownCount.toLocaleString()} of ${total.toLocaleString()} products match, `
@@ -439,7 +436,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                   font: 'inherit',
                   color: 'inherit',
                   background: 'transparent',
-                  border: '1px solid var(--fk-border-default, currentColor)',
+                  border: '1px solid',
                   borderRadius: '6px',
                   minHeight: '2rem',
                   padding: '0 0.75rem',
