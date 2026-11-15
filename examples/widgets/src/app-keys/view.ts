@@ -3,15 +3,14 @@
  * its own through the widget's `routes` option. Both widgets own a keydown
  * handler on one slot, so a route on a key the widget already answers is
  * refused when the view is drawn (`mixins:key-conflict`); the section shows
- * that refusal as text, found by drawing the offending view on the inert
- * builder, where nothing is dispatched.
+ * that refusal as text, asked of each widget's `conflict` without drawing it.
  */
 import { Array, Option } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
-import { Behaviors, Capability, Diagnostics, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Command, CommandSlots, Menubar, MenubarSlots, MenuSlots, Recipes } from 'foldkit-mixins-ui'
 import { appKeysStyle } from './style.js'
-import { MENUS, Message, initial, stopOf, type Model } from './app.js'
+import { MENUS, Message, stopOf, type Model } from './app.js'
 import { textOf } from '../text.js'
 
 export const AppKeysSlots = Slots.define({
@@ -120,27 +119,11 @@ const barOf = (
     h,
   )
 
-/** What drawing a view refuses with, if it does: a key the application took twice. */
-const refusal = (draw: () => unknown): Option.Option<string> => {
-  try {
-    draw()
-    return Option.none()
-  } catch (error) {
-    // ADOPT: a non-throwing key-clash check in foldkit-mixins (approved) replaces this catch.
-    if (error instanceof Diagnostics.DiagnosticError) {
-      return Option.some(`${error.diagnostic.code}: ${error.diagnostic.message}`)
-    }
-    throw error
-  }
-}
-
-const inert = SlotView.inertBuilder<Message>()
-
-/** The refusals of the two views with a route on a key the widget answers, drawn once. */
+/** The clash each widget reports for a route on a key it answers itself, asked without drawing it. */
 export const clashes: ReadonlyArray<string> = Array.getSomes([
-  refusal(() => commandOf(initial, [downAgain], inert)),
-  refusal(() => barOf(initial, [homeAgain], inert)),
-])
+  Command.conflict([downAgain]),
+  Menubar.conflict([homeAgain]),
+]).map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`)
 
 export const AppKeys = SlotView.forMessages<Message>()
   .define(AppKeysSlots, (model: Model, slots, h) =>
