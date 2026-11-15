@@ -27,6 +27,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `Presence` | nothing (draws the Model's phase) | a leaving row that takes no click, Tab or focus |
 | `Press` | `{ pressed, … }`; out `Pressed` | pointer, touch, Enter, Space, and AT clicks as one fact |
 | `LongPress` | `{ … }`; out `LongPressed` | holding for a threshold |
+| `SwipeActions` | `{ fullSwipe, flick, full }`; out `FullSwiped` | which side of a row is open, what a swipe's release means, and its keys |
 | `Repeat` | `{ delayMs, intervalMs }`; out `Stepped`, `Ended` | a held stepper button |
 | `Move` | nothing (a Mount) | pointer drag deltas |
 | `Targets` | nothing (a Mount) | which marked descendant is hovered or pressed |
@@ -587,6 +588,23 @@ makes its `Elapsed` a no-op. `LongPressed { pointerType }` is the OutMessage,
 required at placement. The Behavior writes `data-holding` while down. `Press`
 and `LongPress` on one slot are refused by the resolver, since both would
 mount `PressEvents`; a slot takes one of them.
+
+**`SwipeActions`** is actions behind a row, with a way in that needs no
+pointer. Its Model holds which side is open (`start` is revealed by moving the
+row toward the end, right in English). `SwipeActions.decide(model, release, args)`
+is the rule for a `SwipeEnded` (from `foldkit-primitives/dom`'s `Swipe`, which
+is not part of this Bundle): a flick opens the side it points to or closes the
+row when it points back, otherwise past half of a side's actions opens it, and
+past `fullSwipe` of the row runs the first action when `full` is set, reported as
+`FullSwiped { side }` after the row closes. A side with no actions never opens,
+and right to left swaps the sides. The row's offset while a finger moves it is
+the parent's draft from `Swiped`. `SwipeActions.keys({ open, rtl, toMessage })`
+is a `Behaviors.Keys` route for the row's keydown owner: the arrow toward the
+end of the row opens `start` (the other arrow, `end`), the opposite arrow closes
+an open side, Escape closes, and a press that would change nothing is declined,
+so Escape on a closed row still reaches the dialog around it. Draw the actions
+behind a closed row `inert` from `open`, so Tab skips them, and say the result
+through `LiveAnnounce`.
 
 **`Repeat`** is a held stepper: the `+` and `-` of a number field. A mouse or
 Enter or Space steps as it goes down, and holding on steps again every
