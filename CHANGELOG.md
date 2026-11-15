@@ -933,6 +933,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a filled `Input`, `Textarea`, `Select` and `Listbox` trigger show
+  their hover as a change of fill (the border is transparent in that look), and a filled
+  `Select` shows its invalid edge.
+- `foldkit-mixins-ui`: a pressed `Button` of the `primary` variant rests on its deeper fill,
+  so a toggle reads as pressed.
+- `foldkit-mixins-ui`: a disabled `Segmented` option is dimmed, and a disabled `NumberField`
+  no longer changes its border under the pointer.
+- `foldkit-mixins-ui`: `Combobox` keys typed before the next frame continue from the option
+  the previous key reached, so none is lost and Enter chooses the option last reached.
 - `foldkit-mixins-ui`: with two `FloatingPanel`s drawn side by side, closing the first left focus on the second: the closed panel draws nothing, so the second panel's view took over its element, holding focus, and focus stayed in it. The panel's root is keyed by its `id`, so `FloatingPanel.focusReturn` gives focus back to what opened the closed panel, and a panel closed from elsewhere leaves focus where the reader put it.
 
 - `foldkit-primitives`: modal layers drawn as siblings, as portaled dialogs
