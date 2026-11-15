@@ -143,4 +143,38 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a segmented option does not ask for aria-checked',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: '      A11y.State(Attr.AriaPressed),\n      A11y.State(Attr.AriaChecked),\n    ],\n  },\n  hiddenInput',
+        replace: '      A11y.State(Attr.AriaPressed),\n    ],\n  },\n  hiddenInput',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a nav link does not require keydown',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: '  link: { capability: Capability.Interactive, events: [Event.KeyDown] },\n  panelLink',
+        replace: '  link: { capability: Capability.Interactive },\n  panelLink',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a rating star does not require keydown',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: 'events: [Event.Change, Event.KeyDown],\n    attributes: [Attr.AriaLabel],\n    obligations: [A11y.Navigation, A11y.FocusStrategy],',
+        replace:
+          'events: [Event.Change],\n    attributes: [Attr.AriaLabel],\n    obligations: [A11y.Navigation, A11y.FocusStrategy],',
+      },
+    ],
+    tests,
+  },
 ]

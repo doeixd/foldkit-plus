@@ -4,7 +4,7 @@
  * needed, the catalog names each widget once, and a pattern refuses a contract
  * that lacks what it requires.
  */
-import { A11y, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { A11y, Capability, MetadataToken, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { Patterns } from '../src/index.js'
 
@@ -119,6 +119,10 @@ describe('Patterns.catalog', () => {
     ['breadcrumb', 'current', 'aria-current'],
     ['button-group', 'root', 'aria-label'],
     ['button-group', 'root', 'role'],
+    ['segmented', 'group', 'aria-disabled'],
+    ['segmented', 'option', 'aria-checked'],
+    ['segmented', 'option', 'aria-pressed'],
+    ['slider', 'thumb', 'aria-describedby'],
   ] as const)('%s requires %s to publish %s', (name, slot, attribute) => {
     const entry = Patterns.catalog.find(item => item.name === name)
     if (entry === undefined) throw new Error(`no ${name} pattern`)
@@ -133,6 +137,29 @@ describe('Patterns.catalog', () => {
     expect(original.attributes).toHaveLength(without.attributes.length + 1)
     const findings = A11y.validate(entry.pattern, { ...entry.slots, [slot]: without } as never)
     expect(findings.map(item => [item.code, item.slot])).toEqual([['a11y:missing-attribute', slot]])
+  })
+
+  /** The events a slot must publish: the keys a widget answers are drawn on these slots. */
+  it.each([
+    ['segmented', 'group', 'keydown'],
+    ['rating', 'star', 'keydown'],
+    ['slider', 'thumb', 'change'],
+    ['nav', 'link', 'keydown'],
+    ['nav', 'panelLink', 'keydown'],
+    ['tabs', 'tab', 'keydown'],
+    ['floating-panel', 'handle', 'keydown'],
+  ] as const)('%s requires %s to publish %s', (name, slot, event) => {
+    const entry = Patterns.catalog.find(item => item.name === name)
+    if (entry === undefined) throw new Error(`no ${name} pattern`)
+    const original = entry.slots[slot as keyof typeof entry.slots] as Slot.Any
+    const without = Slot.make({
+      capability: original.capability,
+      events: original.events.filter(item => MetadataToken.nameOf(item) !== event),
+      attributes: original.attributes,
+    })
+    expect(original.events.map(item => MetadataToken.nameOf(item))).toContain(event)
+    const findings = A11y.validate(entry.pattern, { ...entry.slots, [slot]: without } as never)
+    expect(findings.map(item => [item.code, item.slot])).toEqual([['a11y:missing-event', slot]])
   })
 
   it('can fail: a contract missing a required slot or capability is refused', () => {

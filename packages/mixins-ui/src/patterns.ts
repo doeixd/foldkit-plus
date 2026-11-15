@@ -286,7 +286,7 @@ export const Rating = A11y.pattern({
   label: { capability: Capability.Container },
   star: {
     capability: Capability.Interactive,
-    events: [Event.Change],
+    events: [Event.Change, Event.KeyDown],
     attributes: [Attr.AriaLabel],
     obligations: [A11y.Navigation, A11y.FocusStrategy],
   },
@@ -387,10 +387,11 @@ export const TreeView = A11y.pattern({
 export const Slider = A11y.pattern({
   root: { capability: Capability.Container, attributes: [Attr.Role] },
   label: { capability: Capability.Container },
+  description: { capability: Capability.Container, optional: true },
   thumb: {
     capability: Capability.Interactive,
-    events: [Event.Input],
-    attributes: [Attr.AriaLabel],
+    events: [Event.Input, Event.Change],
+    attributes: [Attr.AriaLabel, Attr.AriaDescribedby],
     obligations: [A11y.Navigation],
   },
 })
@@ -415,7 +416,8 @@ export const Carousel = A11y.pattern({
 
 export const Nav = A11y.pattern({
   nav: { capability: Capability.Container },
-  link: { capability: Capability.Interactive },
+  link: { capability: Capability.Interactive, events: [Event.KeyDown] },
+  panelLink: { capability: Capability.Interactive, events: [Event.KeyDown], optional: true },
 })
 
 export const Dialog = A11y.pattern({
@@ -444,7 +446,7 @@ export const Tabs = A11y.pattern({
   tablist: { capability: Capability.Container, attributes: [Attr.Role] },
   tab: {
     capability: Capability.Interactive,
-    events: [Event.Click],
+    events: [Event.Click, Event.KeyDown],
     attributes: [Attr.Role, Attr.AriaSelected],
     obligations: [A11y.Navigation, A11y.FocusStrategy, A11y.Activation],
   },
@@ -493,14 +495,29 @@ export const Toast = A11y.pattern({
   entry: { capability: Capability.Container, attributes: [Attr.Role] },
 })
 
+/**
+ * One shape with two draws: a single choice is a radio group (`aria-checked`,
+ * one tab stop, the arrows move the choice), `multiple` a group of
+ * `aria-pressed` buttons that are each a tab stop.
+ */
 export const Segmented = A11y.pattern({
-  group: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+  group: {
+    capability: Capability.Container,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaDisabled],
+  },
   option: {
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.AriaPressed, Attr.Disabled, Attr.AriaDisabled],
-    obligations: [A11y.Activation, A11y.State(Attr.AriaPressed)],
+    attributes: [Attr.Role, Attr.AriaPressed, Attr.AriaChecked, Attr.Disabled, Attr.AriaDisabled],
+    obligations: [
+      A11y.Activation,
+      A11y.FocusStrategy,
+      A11y.State(Attr.AriaPressed),
+      A11y.State(Attr.AriaChecked),
+    ],
   },
+  hiddenInput: { capability: Capability.Base, attributes: [Attr.Value], optional: true },
 })
 
 export const DatePicker = A11y.pattern({
@@ -737,6 +754,12 @@ export const FloatingPanel = A11y.pattern({
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.AriaLabel],
+  },
+  handle: {
+    capability: Capability.Interactive,
+    events: [Event.KeyDown],
+    attributes: [Attr.AriaLabel],
+    optional: true,
   },
 })
 
@@ -1059,7 +1082,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     [],
     [
       drawn(
-        'Menubar.view: keydown on the bar, ArrowLeft, ArrowRight, Home, End (menubar.ts)',
+        'Menubar.view: Behaviors.Keys routes on the bar, ArrowLeft, ArrowRight, Home, End (menubar.ts)',
         'bar',
         Navigation,
       ),
@@ -1138,7 +1161,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateless',
     ['radiogroup', 'radio'],
     ['native-control', 'form-submission'],
-    [native('input', 'star', Navigation, FocusStrategy)],
+    [
+      drawn(
+        'Rating.view: native radios take the arrows, and a Behaviors.Keys route on each star takes Home and End (rating.ts)',
+        'star',
+        Navigation,
+      ),
+      native('input', 'star', FocusStrategy),
+    ],
   ),
   entry('steps', Steps, StepsSlots, 'stateless', ['list', 'listitem', 'button']),
   entry('virtual-list', VirtualList, VirtualListSlots, 'stateful', ['list', 'listitem']),
@@ -1182,7 +1212,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['form-submission'],
     [
       drawn(
-        '@foldkit/ui/radioGroup: keydown on each option (radioGroup/index.js)',
+        '@foldkit/ui/radioGroup: keydown on each option, and, opt-in, readingKeys for the cross-axis pair and right-to-left (radioGroup/index.js, radioGroup.ts)',
         'option',
         Navigation,
       ),
@@ -1275,7 +1305,21 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['native-control'],
     [
       native('button', 'option', Activation),
-      drawn('Segmented.view: aria-pressed (segmented.ts)', 'option', State(Attr.AriaPressed)),
+      drawn(
+        'Segmented.view: a single choice is one tab stop, the chosen option or the first enabled; with multiple every button is its own (segmented.ts)',
+        'option',
+        FocusStrategy,
+      ),
+      drawn(
+        'Segmented.view: aria-pressed on each button of a multiple group (segmented.ts)',
+        'option',
+        State(Attr.AriaPressed),
+      ),
+      drawn(
+        'Segmented.view: aria-checked on each role=radio of a single choice (segmented.ts)',
+        'option',
+        State(Attr.AriaChecked),
+      ),
     ],
   ),
   entry(
@@ -1384,7 +1428,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['top-layer', 'backdrop', 'form-submission'],
     [
       drawn(
-        'CascadeSelect.view: keydown on the panel, arrows, Home, End, typeahead (cascadeSelect.ts)',
+        'CascadeSelect.view: Behaviors.Keys routes on the panel, arrows, Home, End, Enter, Escape, typeahead (cascadeSelect.ts)',
         'panel',
         Navigation,
       ),
@@ -1413,7 +1457,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['top-layer', 'escape-dismiss', 'backdrop'],
     [
       drawn(
-        'Tour.view: keydown on the panel, ArrowLeft, ArrowRight, Escape (tour.ts)',
+        'Tour.view: Behaviors.Keys routes on the panel, ArrowLeft, ArrowRight, Escape (tour.ts)',
         'panel',
         Navigation,
       ),
@@ -1436,7 +1480,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['top-layer', 'backdrop'],
     [
       drawn(
-        'Picker.view: keydown on each sheet option, ArrowDown, ArrowUp (picker.ts)',
+        'Picker.view: Behaviors.Keys routes on each sheet option, ArrowDown, ArrowUp, Home, End (picker.ts)',
         'option',
         Navigation,
       ),

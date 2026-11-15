@@ -11,7 +11,7 @@
  * not built here (Alert, Calendar, Card, Carousel, CascadeSelect, Chart,
  * ChatMessage, Combobox, Command, DatePicker, Dialog, Drawer, FloatingPanel,
  * ImageCropper, Listbox, Menu, Menubar, MessageScroller, Nav, NumberField,
- * PasswordInput, Picker, Segmented, Sidebar, SignaturePad, Steps, TagsInput,
+ * PasswordInput, Picker, Sidebar, SignaturePad, Steps, TagsInput,
  * Timer, Toast, Tour, WindowList and the rest): a gap there is found only by
  * reading.
  */
@@ -39,6 +39,8 @@ import {
   Recipes,
   Resizable,
   ResizableSlots,
+  Segmented,
+  SegmentedSlots,
   Slider,
   SliderSlots,
   Switch,
@@ -189,6 +191,56 @@ const fixtures: ReadonlyArray<Fixture> = [
     name: 'Slider',
     slots: SliderSlots,
     written: () => draw(SliderSlots, () => Slider.view({ ...sliderOptions, value: 40 }, h)),
+  },
+  {
+    name: 'Slider, with a description',
+    slots: SliderSlots,
+    written: () =>
+      draw(SliderSlots, () =>
+        Slider.view({ ...sliderOptions, value: 40, description: 'In dollars.' }, h),
+      ),
+  },
+  {
+    name: 'Segmented, single choice',
+    slots: SegmentedSlots,
+    written: () =>
+      draw(SegmentedSlots, () =>
+        Segmented.view(
+          {
+            id: 'view',
+            label: 'View',
+            options: [
+              { value: 'list', label: 'List' },
+              { value: 'grid', label: 'Grid', disabled: true },
+            ],
+            pressed: ['list'],
+            onPress: () => message('Clicked'),
+            name: 'view',
+            disabled: true,
+          },
+          h,
+        ),
+      ),
+  },
+  {
+    name: 'Segmented, multiple',
+    slots: SegmentedSlots,
+    written: () =>
+      draw(SegmentedSlots, () =>
+        Segmented.view(
+          {
+            multiple: true,
+            label: 'Style',
+            options: [
+              { value: 'bold', label: 'Bold' },
+              { value: 'italic', label: 'Italic' },
+            ],
+            pressed: ['bold'],
+            onPress: () => message('Clicked'),
+          },
+          h,
+        ),
+      ),
   },
   {
     name: 'Slider, range',
