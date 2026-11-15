@@ -18,6 +18,12 @@ grid's OutMessage (`Edited`, `Pasted`, or `Filled`, whose cells `Grid.fill` work
 into the products. A refused cell stays in the editor with its message, or is
 listed under `refused` in a paste.
 
+The page says what to try (edit, select a range, copy, filter, pin or hide),
+and its status line says how many products a filter keeps ("42 of 100,000
+products match") beside a Clear filters button. The filters are the page's, so
+`ClearedFilters` writes `Grid.noFilters` in `update`; the button stays drawn
+(`aria-disabled` when no filter is on) so pressing it never drops focus.
+
 The columns stay as you leave them, in this browser. After any transition
 that changes the column state (a width, the order, a pin, a hidden column),
 `update` saves it to `localStorage` with a Command, and the entry reads it
@@ -56,6 +62,8 @@ The workspace packages resolve to their source, so no build is needed first.
   two rows with one refused cell, and selects every product.
 - `test/layout.test.ts` saves a resized column, opens the page from the
   save, and reads a save naming a removed column.
+- `test/filters.test.ts` clears filters, and a clear with none on returns the
+  same Model.
 - `test/registry.browser.test.ts` (Chromium) scrolls to the last product at
   full size, checks that a window of rows is drawn, and checks that the UPC
   stays at the left edge while the rest scrolls sideways.
