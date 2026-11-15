@@ -27,6 +27,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `Presence` | nothing (draws the Model's phase) | a leaving row that takes no click, Tab or focus |
 | `Press` | `{ pressed, … }`; out `Pressed` | pointer, touch, Enter, Space, and AT clicks as one fact |
 | `LongPress` | `{ … }`; out `LongPressed` | holding for a threshold |
+| `Repeat` | `{ delayMs, intervalMs }`; out `Stepped`, `Ended` | a held stepper button |
 | `Move` | nothing (a Mount) | pointer drag deltas |
 | `Targets` | nothing (a Mount) | which marked descendant is hovered or pressed |
 | `PointerDrag` | nothing (a Mount) | dragging one marked descendant onto another |
@@ -587,14 +588,57 @@ required at placement. The Behavior writes `data-holding` while down. `Press`
 and `LongPress` on one slot are refused by the resolver, since both would
 mount `PressEvents`; a slot takes one of them.
 
+**`Repeat`** is a held stepper: the `+` and `-` of a number field. A mouse or
+Enter or Space steps as it goes down, and holding on steps again every
+`intervalMs` once `delayMs` has passed. A finger or a pen steps on a tap, or
+once held, so a scroll that starts on the button never steps; a click no pointer
+made (a screen reader's) steps once, and the click that follows a press does
+not step again. `Stepped { count, input }` is an OutMessage per step and
+`Ended { count }` one when a hold's steps stop (a single step has no end of
+its own), so a parent can fold a hold's steps into one `History` group and
+announce once. When `update` reaches a bound it sends `Repeat.Message.Stopped()`
+and the rest of that press steps no more. The delay and interval run on
+Effect's clock, so `TestClock` drives them, and a release makes a late timer a
+no-op. `Repeat.behavior(Declared)(Slots)<Input, Message>({ target })` attaches
+`Press.events` and writes `data-holding`; it shares `Press`'s Mount, so a slot
+takes one of `Press`, `LongPress` and `Repeat`. The Mount reports no pointer
+leaving the button, so a held press does not pause while the pointer is off it.
+
 **`Move`** is pointer movement as facts, a Mount in `foldkit-primitives/dom`:
 a primary-button pointer down captures the pointer and reports `MoveStarted`,
-each move reports `Moved { deltaX, deltaY }` from where it went down, and up,
-cancel, or lost capture reports `MoveEnded { completed }`. A second pointer
+each move reports `Moved { deltaX, deltaY }` from where it went down, and up
+reports `MoveEnded { completed: true }`. Cancel, lost capture, or Escape reports
+`completed: false`: the Escape is the drag's alone (it closes no dialog around
+it), is heard on the document only while a pointer is down, and the Model, which
+kept the box where it began, drops the draft. A second pointer
 and a secondary button are ignored; capture is released with the Mount.
 `Move.behavior(Slots)<Input, Message>({ handle, toMessage })` attaches it to a
 `Draggable` slot and maps each fact into the view's Messages; a drag's meaning
 (a threshold, a snap, a reorder) is the parent's `update`.
+
+The keyboard's way to do the same is two `Behaviors.Keys` routes for the
+handle's keydown owner. `Move.nudge({ step?, largeStep?, toMessage })` takes Alt
+with an arrow (Shift for the larger step), and `Move.resizeKeys(handle, {
+toMessage })` takes a resize handle's arrows, Home and End; each hands
+`toMessage` a `{ dx, dy }`. `update` applies it with `Box.moveBy`, `Box.moveEach`
+or `Box.resize` from [`state`](../state/README.md), so a key and a drag obey
+the same bounds, grid, size limits and aspect ratio, and says the result through
+`LiveAnnounce`. Plain arrows are not taken, and a second route on one chord is
+a `mixins:key-conflict`.
+
+```ts
+import { Move } from 'foldkit-primitives/interaction'
+import { Box } from 'foldkit-primitives/state'
+
+type Nudged = { readonly dx: number; readonly dy: number }
+
+// Attach with Behaviors.Keys.behavior(...)({ slot: 'handle', routes: [nudge] }).
+const nudge = Move.nudge<undefined, Nudged>({ step: 2, toMessage: delta => delta })
+
+const card = { x: 10, y: 10, width: 20, height: 10 }
+const area = { left: 0, top: 0, right: 100, bottom: 50 }
+const applyNudge = ({ dx, dy }: Nudged) => Box.moveBy(card, dx, dy, { bounds: area })
+```
 
 **`Targets`** is which marked descendant of a container the pointer is over,
 and which one was pressed, as one Mount on the container rather than one per

@@ -222,6 +222,8 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   The `Press.events` Mount reports pointer, key, and click facts; `update` decides
   (primary button, one pointer, cancel, Enter/Space without repeat, virtual clicks,
   ghost click suppressed by a timed Command; `Pressed` carries `shiftKey`). `data-pressed` while down.
+- **Held stepper:** `Repeat.bundle` (`{ delayMs, intervalMs }`, required `onOut` for `Stepped { count, input }` and `Ended { count }`) with
+  `Repeat.behavior(Declared)(Slots)({ target })`; send `Repeat.Message.Stopped()` at a bound. A tap steps on release for a finger; one slot takes one of `Press`, `LongPress`, `Repeat`.
 - **Hold:** `LongPress.bundle` (`{ thresholdMs }`, required `onOut` for `LongPressed`) with
   `LongPress.behavior(Declared)(Slots)({ target })`; reads `Press.events`, so not on the same slot as `Press`.
 - **Keep the selection in view:** the `KeepInView({ selector })` Mount (`foldkit-primitives/dom`) on a
@@ -249,7 +251,9 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   scroller carries `data-scroll-overlaid` while it runs (hide the native bar under it). A coarse pointer
   gets nothing: native bars stay. `scroller: 'ul'` when the scroller holds another Mount. No Message.
 - **Drag deltas:** the `Move` Mount (`foldkit-primitives/dom`) reports `MoveStarted`, `Moved { deltaX, deltaY }`,
-  `MoveEnded { completed }` with pointer capture; `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.
+  `MoveEnded { completed }` with pointer capture (Escape ends it `completed: false`); `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.
+  Keys: `Move.nudge({ step?, largeStep?, toMessage })` (Alt+arrows) and `Move.resizeKeys(handle, { toMessage })` are
+  `Behaviors.Keys` routes that give `{ dx, dy }` for `Box.moveBy`/`moveEach`/`resize`.
 - **Where one pointer is in an element:** the `PointerPosition({ focus? })` Mount (`foldkit-primitives/dom`)
   reports `PointerPressed`, `PointerMoved` (with the coalesced `points` and pressure) and `PointerReleased
   { completed }`, each place in the element's padding box with its size, captured, moves listened to only
