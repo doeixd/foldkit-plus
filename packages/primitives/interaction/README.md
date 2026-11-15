@@ -670,7 +670,9 @@ list moving is a place changing. Each step is `scrollTo` with `behavior:
 'instant'`, so a page's own `scroll-behavior: smooth` does not glide it; under
 `prefers-reduced-motion: reduce` the scroll moves in jumps every 150ms by what
 the same time would have moved it, not in a glide. The frame loop runs only
-while something scrolls, and ends with the drag, a cancel, or the Mount.
+while something scrolls, and ends with the drag, a cancel, or the Mount. The
+scrolling code is loaded when a Mount that asks for it starts, so a page whose
+drags never scroll does not carry it.
 `PointerDrag` scrolls nothing unless asked; `Reorder` asks for it itself
 (`edgeScroll: false` turns it off).
 

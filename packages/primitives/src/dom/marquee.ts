@@ -1,7 +1,7 @@
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 import { DRAG_THRESHOLD, boxOf } from './pointer-drag.js'
-import { EdgeScroll, edgeScroller } from './edge-scroll.js'
+import { EdgeScroll, edgeScrollerLater } from './edge-scroll.js'
 import { escapeEnds, whilePressed } from './press-session.js'
 
 /** A rectangle in the container's content coordinates: from its padding box's top left, scrolled with it. */
@@ -160,7 +160,7 @@ export const Marquee = Mount.defineStream('Marquee', {
             )
           }
           const scroller =
-            edgeScroll === undefined ? undefined : edgeScroller(element, edgeScroll, report)
+            edgeScroll === undefined ? undefined : edgeScrollerLater(element, edgeScroll, report)
 
           const end = (ended: boolean, inside = false) => {
             scroller?.stop()

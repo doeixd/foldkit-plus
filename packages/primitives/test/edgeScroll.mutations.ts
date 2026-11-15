@@ -2,7 +2,7 @@
  * Edge scrolling and the marquee, each part broken in turn: `pnpm mutate
  * packages/primitives/test/edgeScroll.mutations.ts` checks that a test fails for every one.
  */
-const scroll = '../src/dom/edge-scroll.ts'
+const scroll = '../src/dom/edge-scroller.ts'
 const drag = '../src/dom/pointer-drag.ts'
 const marquee = '../src/dom/marquee.ts'
 const edgeTests = [
@@ -12,6 +12,17 @@ const edgeTests = [
 const marqueeTests = ['packages/primitives/test/marquee.browser.test.ts']
 
 export default [
+  {
+    name: 'a pointer held before the scroller has loaded is never handed to it',
+    edits: [
+      {
+        file: '../src/dom/edge-scroll.ts',
+        find: '    if (held !== undefined) loaded.move(held.x, held.y)\n',
+        replace: '',
+      },
+    ],
+    tests: [...edgeTests, 'packages/primitives/test/reorder.browser.test.ts'],
+  },
   {
     name: 'an Escape before the press is under way is swallowed too',
     edits: [
@@ -253,8 +264,9 @@ export default [
     edits: [
       {
         file: drag,
-        find: 'edgeScroll === undefined\n              ? undefined',
-        replace: 'false\n              ? undefined',
+        find: 'edgeScroll === undefined\n              ? undefined\n              : edgeScrollerLater(element, edgeScroll,',
+        replace:
+          'false\n              ? undefined\n              : edgeScrollerLater(element, edgeScroll ?? {},',
       },
     ],
     tests: edgeTests,
@@ -404,8 +416,8 @@ export default [
     edits: [
       {
         file: marquee,
-        find: 'edgeScroll === undefined ? undefined : edgeScroller(element, edgeScroll, report)',
-        replace: 'edgeScroller(element, edgeScroll ?? {}, report)',
+        find: 'edgeScroll === undefined ? undefined : edgeScrollerLater(element, edgeScroll, report)',
+        replace: 'edgeScrollerLater(element, edgeScroll ?? {}, report)',
       },
     ],
     tests: marqueeTests,

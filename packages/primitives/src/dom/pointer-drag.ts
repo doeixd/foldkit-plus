@@ -1,6 +1,6 @@
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { EdgeScroll, edgeScroller } from './edge-scroll.js'
+import { EdgeScroll, edgeScrollerLater } from './edge-scroll.js'
 import { escapeEnds, whilePressed } from './press-session.js'
 import { targetOf } from './targets.js'
 
@@ -267,7 +267,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           const scroller =
             edgeScroll === undefined
               ? undefined
-              : edgeScroller(element, edgeScroll, () => {
+              : edgeScrollerLater(element, edgeScroll, () => {
                   if (dragging !== null && heard !== null) report(heard)
                 })
           const onDocument: ReadonlyArray<readonly [string, (event: Event) => void]> = [
