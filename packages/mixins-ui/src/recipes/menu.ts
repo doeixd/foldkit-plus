@@ -3,13 +3,14 @@
  * popup panel, whose rows commit on click, and a row that opens a submenu
  * ends in a chevron pointing the way the submenu opens. A checkbox row marks
  * itself with a tick and a radio row with a dot, in a column every row of
- * the menu keeps; a shortcut sits muted at the row's end; a destructive row
+ * the menu keeps; a row's icon leads its words and its hint and shortcut sit
+ * muted at its end; a destructive row
  * is in the danger ink and lights with its tint. The submenus' panels are
  * this recipe's too. `size` steps the trigger and its rows on the size
  * ladder.
  */
 import { Style } from 'foldkit-mixins'
-import { role } from 'foldkit-mixins/theme'
+import { ladder, role } from 'foldkit-mixins/theme'
 import { MenuSlots } from '../menu.js'
 import {
   component,
@@ -115,6 +116,19 @@ export const Menu = Style.recipeFor(MenuSlots)({
         blockSize: '0.4em',
         borderRadius: ref.radius.full,
         background: 'currentColor',
+      }),
+    ),
+    // A drawing given at any size takes the ladder's icon size; the row's gap spaces it.
+    icon: component(
+      Style.self({ flex: 'none', display: 'inline-flex' }),
+      Style.nest('& > svg', { inlineSize: ladder('icon'), blockSize: ladder('icon') }),
+    ),
+    hint: component(
+      Style.self({
+        flex: 'none',
+        marginInlineStart: ref.space.md,
+        color: `color-mix(in oklab, currentColor 62%, transparent)`,
+        ...role('caption'),
       }),
     ),
     shortcut: component(
