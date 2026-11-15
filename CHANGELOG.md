@@ -663,6 +663,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-mixins-ui`: **Breaking:** `TagsInput`'s keys are `Behaviors.Keys` routes on its
+  `input` Slot, and `TagsInput.view` takes `routes` for the application's own. The input
+  no longer reports every key: `Message.Pressed { key }` is `Message.BackspacedEmpty`,
+  sent for Backspace only when the input itself (not the Model's frame-old draft) holds no
+  text, so Backspace over text typed since the last frame still edits it. A route on
+  Enter, the delimiter or such a Backspace is a `mixins:key-conflict`.
 - `foldkit-site`: a `Bundle.lazy` page's `changed` is required and returns a Message (a
   type error otherwise, and refused by `Site.placement` at run time), since a page whose
   arrival says nothing draws its placeholder for good. `Site.sources` and

@@ -156,8 +156,8 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: "key === 'Enter' || key === model.delimiter",
-        replace: "key === 'Enter'",
+        find: "on: [Behaviors.Keys.chord('Enter'), Behaviors.Keys.chord(model.delimiter)],",
+        replace: "on: [Behaviors.Keys.chord('Enter')],",
       },
     ],
     tests: [unit],
@@ -194,8 +194,8 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: "key === 'Backspace' && model.draft === '' && model.tags.length > 0",
-        replace: "key === 'Backspace' && model.tags.length > 0",
+        find: "model.draft === '' && model.tags.length > 0",
+        replace: 'model.tags.length > 0',
       },
     ],
     tests: [unit],
@@ -234,12 +234,39 @@ export default [
     tests: [unit],
   },
   {
+    name: 'Backspace is read from a frame-old draft',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'input.tags.length > 0 && fieldIsEmpty(input)',
+        replace: "input.tags.length > 0 && input.draft === ''",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'Backspace is taken with text in the input',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'input.tags.length > 0 && fieldIsEmpty(input)',
+        replace: 'input.tags.length > 0',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the keys of the application are dropped',
+    edits: [{ file: '../src/tagsInput.ts', find: '...(options.routes ?? []),', replace: '' }],
+    tests: [unit],
+  },
+  {
     name: 'a disabled field still takes keys',
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: '...(disabled\n            ? [h.Disabled(true)]\n            : [\n',
-        replace: '...(false\n            ? [h.Disabled(true)]\n            : [\n',
+        find: '...(disabled ? [] : [keys.mixin]),',
+        replace: '...[keys.mixin],',
       },
     ],
     tests: [unit],

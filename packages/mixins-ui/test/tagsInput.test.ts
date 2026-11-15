@@ -10,7 +10,7 @@ import { Effect, Option } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, Style, SlotView } from 'foldkit-mixins'
+import { A11y, Behaviors, Style, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Patterns, Recipes, TagsInput, TagsInputSlots } from '../src/index.js'
 import { h, message, sends, type TestMessage } from './fixture.js'
@@ -150,12 +150,11 @@ describe('TagsInput.update', () => {
 
   it('takes the last tag on Backspace only while the draft is empty', () => {
     const empty = withDraft(['a', 'b'], '')
-    expect(update(empty, Message.Pressed({ key: 'Backspace' })).model.tags).toEqual(['a'])
+    expect(update(empty, Message.BackspacedEmpty()).model.tags).toEqual(['a'])
     const typing = withDraft(['a', 'b'], 'c')
-    expect(update(typing, Message.Pressed({ key: 'Backspace' })).model).toBe(typing)
-    expect(update(empty, Message.Pressed({ key: 'x' })).model).toBe(empty)
+    expect(update(typing, Message.BackspacedEmpty()).model).toBe(typing)
     const none = init({ id: 'topics' })
-    expect(update(none, Message.Pressed({ key: 'Backspace' })).model).toBe(none)
+    expect(update(none, Message.BackspacedEmpty()).model).toBe(none)
   })
 
   it('removes a tag by its text and sends the focus back to the input', () => {
@@ -203,20 +202,64 @@ describe('TagsInput.view', () => {
     ])
   })
 
-  it('commits on Enter and on the delimiter, and passes every key on', () => {
-    const view = (h: HtmlBuilder<TagsInput.Message>) =>
-      TagsInput.view({ model: init({ id: 'topics' }), onMessage: m => m, label: 'Topics' }, h)
+  const plain = (h: HtmlBuilder<TagsInput.Message>) =>
+    TagsInput.view({ model: init({ id: 'topics' }), onMessage: m => m, label: 'Topics' }, h)
+
+  it.each(['Enter', ','])('commits on %s', key => {
     sends(
-      view,
-      Scene.keydown(Scene.label('Topics'), 'Enter'),
-      Scene.expectOutMessages(Message.Committed(), Message.Pressed({ key: 'Enter' })),
-      Scene.keydown(Scene.label('Topics'), ','),
-      Scene.expectOutMessages(Message.Committed(), Message.Pressed({ key: ',' })),
-      Scene.keydown(Scene.label('Topics'), 'a'),
-      Scene.expectOutMessage(Message.Pressed({ key: 'a' })),
+      plain,
+      Scene.keydown(Scene.label('Topics'), key),
+      Scene.expectOutMessage(Message.Committed()),
+    )
+  })
+
+  it('reports the text typed', () => {
+    sends(
+      plain,
       Scene.type(Scene.label('Topics'), 'react'),
       Scene.expectOutMessage(Message.Typed({ text: 'react', drawn: 0 })),
     )
+  })
+
+  describe('routes of the application', () => {
+    type Outer = TagsInput.Message | { readonly _tag: 'Down' }
+    const routeOn = (key: 'ArrowDown' | 'Enter') =>
+      Behaviors.Keys.route<TagsInput.Model, Outer>(key, {
+        on: [Behaviors.Keys.chord(key)],
+        handle: () => Option.some({ _tag: 'Down' }),
+      })
+    const withRoutes = (routes: ReadonlyArray<TagsInput.Route<Outer>>) => (h: HtmlBuilder<Outer>) =>
+      TagsInput.view(
+        { model: init({ id: 'topics' }), onMessage: m => m, label: 'Topics', routes },
+        h,
+      )
+
+    it('answer beside the keys of the field', () => {
+      sends(
+        withRoutes([routeOn('ArrowDown')]),
+        Scene.keydown(Scene.label('Topics'), 'ArrowDown'),
+        Scene.expectOutMessage({ _tag: 'Down' }),
+      )
+      sends(
+        withRoutes([routeOn('ArrowDown')]),
+        Scene.keydown(Scene.label('Topics'), 'Enter'),
+        Scene.expectOutMessage(Message.Committed()),
+      )
+    })
+
+    it('may not take a key the field takes', () => {
+      expect(() =>
+        TagsInput.view(
+          {
+            model: init({ id: 'topics' }),
+            onMessage: m => m,
+            label: 'Topics',
+            routes: [routeOn('Enter')],
+          },
+          SlotView.inertBuilder<Outer>(),
+        ),
+      ).toThrow(/Enter/)
+    })
   })
 
   it('removes the tag whose button is pressed', () => {

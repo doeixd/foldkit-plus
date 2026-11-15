@@ -69,6 +69,7 @@ const mount = () => {
 
 const input = () => document.getElementById('topics-input')!
 const control = () => input().parentElement!
+const tagTexts = () => [...document.querySelectorAll('li')].map(tag => tag.firstChild?.textContent)
 const status = () => document.getElementById('topics-message')!
 
 test('a tag typed and committed in one burst is added, and its repeat shakes the field', async () => {
@@ -125,6 +126,37 @@ test('a frame drawn mid-burst, its draft the start of the tag just added, keeps 
     await vi.waitFor(() =>
       expect(status().textContent, handled.join('\n')).toBe('react is already added'),
     )
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('Backspace edits text typed since the last frame, and takes a tag only from an empty field', async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(document.getElementById('topics-input')).not.toBeNull())
+    input().focus()
+    await userEvent.keyboard('x{Enter}')
+    await vi.waitFor(() => expect(tagTexts()).toEqual(['x']))
+    const frames: Array<FrameRequestCallback> = []
+    const held = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(frame => {
+      frames.push(frame)
+      return frames.length
+    })
+    const draw = () => frames.splice(0).forEach(frame => frame(performance.now()))
+    try {
+      // The drawing holds an empty draft beside a tag, and the input `ab`: the key edits the text.
+      await userEvent.keyboard('ab{Backspace}')
+      expect((input() as HTMLInputElement).value).toBe('a')
+    } finally {
+      held.mockRestore()
+      draw()
+    }
+    await userEvent.keyboard('{Backspace}')
+    await vi.waitFor(() => expect((input() as HTMLInputElement).value).toBe(''))
+    expect(tagTexts()).toEqual(['x'])
+    await userEvent.keyboard('{Backspace}')
+    await vi.waitFor(() => expect(tagTexts()).toEqual([]))
   } finally {
     handle.dispose()
   }

@@ -1,5 +1,14 @@
 import { Effect, Option, Schema } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import {
+  Attr,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+} from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -85,11 +94,11 @@ export const Message = defineMessageUnion({
   /** Enter or the delimiter was pressed. */
   Committed: {},
   /**
-   * Every key pressed in the input. The view cannot tell whether the draft is
-   * empty without reading a frame-old Model, so every key comes here and
-   * `update` acts on Backspace alone.
+   * Backspace was pressed in an input holding no text. `update` checks the
+   * draft again, since the input read at the press may be a frame ahead of the
+   * Model.
    */
-  Pressed: { key: Schema.String },
+  BackspacedEmpty: {},
   /** A tag's remove button was pressed; the tag names it, as tags are unique. */
   Removed: { tag: Schema.String },
   CompletedFocusInput: {},
@@ -199,8 +208,8 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
         }),
       }
     },
-    Pressed: ({ key }) =>
-      key === 'Backspace' && model.draft === '' && model.tags.length > 0
+    BackspacedEmpty: () =>
+      model.draft === '' && model.tags.length > 0
         ? {
             model: modifyFields(model, {
               tags: () => model.tags.slice(0, -1),
@@ -221,6 +230,8 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
     CompletedFocusInput: () => ({ model }),
   })
 
+export type Route<Message> = Behaviors.Keys.Route<Model, Message>
+
 export interface TagsInputView<Message> {
   readonly model: Model
   /** Lifts the field's own Messages into the application's. */
@@ -229,6 +240,11 @@ export interface TagsInputView<Message> {
   readonly label: string
   readonly placeholder?: string | undefined
   readonly disabled?: boolean | undefined
+  /**
+   * Keys the application answers in the input, beside Enter, the delimiter and
+   * Backspace in an empty field: a route on one of those is a diagnostic naming both.
+   */
+  readonly routes?: ReadonlyArray<Route<NoInfer<Message>>> | undefined
   /** What the `message` slot says of a refusal; default English sentences. */
   readonly refusalText?: ((refusal: Refusal) => string) | undefined
   /** A style of `TagsInputSlots`, for the field's look. */
@@ -244,15 +260,48 @@ const refusalText = (refusal: Refusal): string =>
     Full: ({ max }) => `At most ${max} tags`,
   })
 
+/**
+ * Whether the input holds no text, as the browser has it at this press: the
+ * Model's draft is a frame behind keys typed in a burst, and a Backspace
+ * taken for an empty field would be swallowed over a character. The Model
+ * answers where no input is drawn (a Scene test).
+ */
+const fieldIsEmpty = (model: Model): boolean => {
+  const field = document.getElementById(inputId(model.id))
+  return field instanceof HTMLInputElement ? field.value === '' : model.draft === ''
+}
+
 export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>): Html => {
-  const builders = SlotView.buildersFor(
-    TagsInputSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
-    { input: undefined, h },
-  )
   const { model } = options
   const lift = options.onMessage
   const disabled = options.disabled === true
+  const keys = Behaviors.Keys.behavior(TagsInputSlots)<Model, Outer>({
+    slot: 'input',
+    name: 'TagsInputKeys',
+    routes: [
+      Behaviors.Keys.route<Model, Outer>('Commit', {
+        on: [Behaviors.Keys.chord('Enter'), Behaviors.Keys.chord(model.delimiter)],
+        handle: () => Option.some(lift(Message.Committed())),
+      }),
+      Behaviors.Keys.route<Model, Outer>('RemoveLast', {
+        on: [Behaviors.Keys.chord('Backspace')],
+        handle: ({ input }) =>
+          input.tags.length > 0 && fieldIsEmpty(input)
+            ? Option.some(lift(Message.BackspacedEmpty()))
+            : Option.none(),
+      }),
+      ...(options.routes ?? []),
+    ],
+  })
+  const builders = SlotView.buildersFor(
+    TagsInputSlots,
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      ...(disabled ? [] : [keys.mixin]),
+      ...(options.mixins ?? []),
+    ],
+    { input: model, h },
+  )
   const labelId = `${model.id}-label`
   const said = Option.map(model.refusal, options.refusalText ?? refusalText)
   // The shake's name alternates with each refusal, so a second one in a row replays it.
@@ -294,16 +343,7 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
           ...(options.placeholder === undefined ? [] : [h.Placeholder(options.placeholder)]),
           ...(disabled
             ? [h.Disabled(true)]
-            : [
-                h.OnInput(text => lift(Message.Typed({ text, drawn: model.commits }))),
-                // Enter adds a tag rather than submitting the form around the field.
-                h.OnKeyDownPreventDefault(key =>
-                  key === 'Enter' || key === model.delimiter
-                    ? Option.some(lift(Message.Committed()))
-                    : Option.none(),
-                ),
-                h.OnKeyDown(key => lift(Message.Pressed({ key }))),
-              ]),
+            : [h.OnInput(text => lift(Message.Typed({ text, drawn: model.commits })))]),
         ]),
       ),
     ]),
