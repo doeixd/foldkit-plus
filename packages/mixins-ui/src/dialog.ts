@@ -240,17 +240,24 @@ export const RestoreFocus = Command.define('Dialog.RestoreFocus', {
 /**
  * `@foldkit/ui`'s Dialog `update`, plus one focus repair: after an open that
  * met the exit, focus goes back inside the dialog. A closing dialog whose
- * opener is gone is `Dialog.focusReturn`'s.
+ * opener is gone is `Dialog.focusReturn`'s. A `RequestedClose` on a dialog
+ * that is not open is a no-op returning the Model it was given; upstream
+ * rebuilds an equal one, which renders the whole page.
  */
 export const update = (
   model: DialogModel,
   message: DialogMessage,
 ): ReturnType<typeof updateDialog> => {
+  if (message._tag === 'RequestedClose' && !model.isOpen) return { model, commands: [] }
   const next = updateDialog(model, message)
   if (message._tag !== 'RequestedOpen' || !isLeaving(model)) return next
   const selector = Option.getOrElse(model.maybeFocusSelector, () => initialFocusSelector)
   return { ...next, commands: [...(next.commands ?? []), RestoreFocus({ id: model.id, selector })] }
 }
+
+/** `@foldkit/ui`'s `close`, through `update`: closing a closed dialog returns its Model. */
+export const close = (model: DialogModel): ReturnType<typeof updateDialog> =>
+  update(model, DialogMessage.RequestedClose())
 
 /** `@foldkit/ui`'s `open`, through `update`: an open that meets the exit puts focus back. */
 export const open = (model: DialogModel): ReturnType<typeof updateDialog> =>

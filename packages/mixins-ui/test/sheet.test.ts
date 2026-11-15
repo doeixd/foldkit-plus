@@ -7,7 +7,7 @@
 import { Option } from 'effect'
 import { Style } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
-import { DialogSlots } from '../src/dialog.js'
+import { DialogSlots, update as DialogUpdate } from '../src/dialog.js'
 import { Dialog as DialogRecipe } from '../src/recipes/dialog.js'
 import { Sheet as SheetRecipe } from '../src/recipes/sheet.js'
 import * as Sheet from '../src/sheet.js'
@@ -269,5 +269,25 @@ describe('the recipe', () => {
 
   it('slides on the Dialog transition, which the travel knob stills', () => {
     expect(css).toContain('calc(var(--fk-motion-slow) * var(--fk-knob-travel))')
+  })
+})
+
+describe('closing a closed sheet', () => {
+  const closed = () => Sheet.init({ id: 'x', points: [0.3, 1] })
+  it('Sheet.close returns the Model it was given', () => {
+    const model = closed()
+    expect(Sheet.close(model).model).toBe(model)
+  })
+  it('a RequestedClose while closed returns the Model it was given', () => {
+    const model = closed()
+    const step = Sheet.update(
+      model,
+      Sheet.Message.GotDialog({ message: UiDialog.Message.RequestedClose() }),
+    )
+    expect(step.model).toBe(model)
+  })
+  it('Dialog.update does the same for its own Model', () => {
+    const model = UiDialog.init({ id: 'x', isAnimated: true })
+    expect(DialogUpdate(model, UiDialog.Message.RequestedClose()).model).toBe(model)
   })
 })

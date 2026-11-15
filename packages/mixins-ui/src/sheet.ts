@@ -47,6 +47,7 @@ import { Swipe } from 'foldkit-primitives/dom'
 import {
   DialogSlots,
   isLeaving,
+  close as closeDialog,
   open as openDialog,
   resolve as resolveDialog,
   update as updateDialog,
@@ -200,7 +201,7 @@ export const open = (model: Model): Return =>
   dialogStep(model, openDialog(model.dialog), { at: model.opensAt })
 
 /** Closes the Sheet; a no-op when it is closed. */
-export const close = (model: Model): Return => dialogStep(model, UiDialog.close(model.dialog))
+export const close = (model: Model): Return => dialogStep(model, closeDialog(model.dialog))
 
 /** How far, in pixels, the panel is drawn in from fully open at point `index`. */
 const hiddenAt = (points: ReadonlyArray<number>, index: number, size: number): number =>

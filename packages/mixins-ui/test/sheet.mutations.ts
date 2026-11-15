@@ -309,4 +309,15 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'closing a closed dialog rebuilds its Model',
+    edits: [
+      {
+        file: '../src/dialog.ts',
+        find: "if (message._tag === 'RequestedClose' && !model.isOpen) return { model, commands: [] }",
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
 ]

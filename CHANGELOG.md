@@ -941,6 +941,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: `Sheet.close` on a closed Sheet, and `Dialog.update` given a
+  `RequestedClose` while the dialog is not open, return the Model they were given instead of an
+  equal copy that rendered the page. `Dialog.close` is new: `@foldkit/ui`'s `close` through that
+  guard.
 - `foldkit-mixins-ui`: `Command.view`'s keys continue from the highlight the drawing's
   previous key reached, so ArrowDown, PageDown and the like pressed before the next frame
   each count, and Enter (and an application route) reads the row the last one reached
