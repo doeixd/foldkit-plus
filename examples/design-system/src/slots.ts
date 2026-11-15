@@ -122,3 +122,13 @@ export const NoticeAlertSlots = Slots.define({
   /** Drawn by each Alert, which marks its own dismiss button; named here for `parts`. */
   dismiss: Slot.make({ capability: Capability.Interactive }),
 })
+
+/** The contrast table: each pair drawn as a probe, with the ratio it measured and its grade. */
+export const ContrastSlots = Slots.define({
+  table: Slot.make({ capability: Capability.Container }),
+  row: Slot.make({ capability: Capability.Container }),
+  sample: Slot.make({ capability: Capability.Container }),
+  label: Slot.make({ capability: Capability.Container }),
+  ratio: Slot.make({ capability: Capability.Container }),
+  grade: Slot.make({ capability: Capability.Container }),
+})

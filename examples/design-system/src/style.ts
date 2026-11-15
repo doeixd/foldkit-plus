@@ -799,3 +799,36 @@ export const NoticeAlertStyle = app.slots(
 export const ToolbarStyle = app.forSlots(ToolbarSlots)(Recipes.Toolbar({}), {
   name: 'ToolbarStyle',
 })
+
+export const ContrastStyle = app.slots(
+  {
+    table: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
+    row: [
+      {
+        display: 'grid',
+        gridTemplateColumns: '4rem minmax(0, 1fr) auto 3.5rem',
+        gap: t.space.sm,
+        alignItems: 'center',
+      },
+    ],
+    sample: [
+      U.font('semibold'),
+      {
+        padding: `${t.space['2xs']} ${t.space.sm}`,
+        border: `${t.border.thin} solid ${t.outline.subtle}`,
+        borderRadius: t.radius.md,
+        textAlign: 'center',
+      },
+    ],
+    label: [U.m('0'), U.text('sm'), U.color('text.default')],
+    ratio: [U.m('0'), U.text('sm'), U.color('text.muted'), { fontVariantNumeric: 'tabular-nums' }],
+    grade: [
+      Recipes.Badge({
+        attribute: 'data-state',
+        tones: { ok: 'success', warn: 'warning', bad: 'error' },
+      }).badge,
+      { justifySelf: 'start' },
+    ],
+  },
+  { name: 'ContrastStyle' },
+)

@@ -3,6 +3,7 @@
  * the direction, another tab's choice, and a phone's width. `SHOTS=<dir>` also
  * writes screenshots there, for looking at.
  */
+import { writeFileSync } from 'node:fs'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import type { Page } from 'playwright'
 import { reveal, startHarness, type Harness } from './harness.js'
@@ -149,5 +150,56 @@ test('at a phone width the page does not scroll sideways', async () => {
     }
     await page.evaluate(() => window.scrollTo(0, 0))
   }
+  await page.close()
+})
+
+const contrastOf = (page: Page) =>
+  page.evaluate(() => {
+    const table = document.querySelector('[aria-label="Contrast of the derived palette"]')
+    return Object.fromEntries(
+      [...(table?.children ?? [])].map(row => [
+        row.children[1]?.textContent ?? '',
+        Number.parseFloat(row.children[2]?.textContent ?? 'NaN'),
+      ]),
+    )
+  })
+
+test('the palette contrast is measured as painted, and follows the theme and the scheme', async () => {
+  const { page } = await harness.visit(1280, 900)
+  await page.getByRole('heading', { name: 'Colors', exact: true }).waitFor()
+  const seen: Record<string, unknown> = {}
+  for (const scheme of ['Light', 'Dark']) {
+    await page.getByRole('radio', { name: scheme }).click()
+    for (const theme of ['Shadcn', 'Compact', 'Soft', 'Hard']) {
+      await page.getByRole('radio', { name: theme }).click()
+      await expect
+        .poll(async () =>
+          Object.values(await contrastOf(page)).every(value => !Number.isNaN(value)),
+        )
+        .toBe(true)
+      // The grid is read after the theme's own Applied: wait for the page to hold the theme.
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.dataset['theme'] ?? 'shadcn'))
+        .toBe(theme.toLowerCase())
+      const ratios = await contrastOf(page)
+      seen[`${scheme}/${theme}`] = ratios
+      expect(ratios['Text'], `${scheme} ${theme} text`).toBeGreaterThanOrEqual(7)
+      expect(ratios['Muted text'], `${scheme} ${theme} muted`).toBeGreaterThanOrEqual(4.5)
+    }
+  }
+  if (shots !== undefined)
+    writeFileSync(`${shots}/ds2-contrast.json`, JSON.stringify(seen, null, 1))
+  await page.close()
+})
+
+test('a tweaked hue is measured again', async () => {
+  const { page } = await harness.visit(1280, 900)
+  await page.getByRole('heading', { name: 'Colors', exact: true }).waitFor()
+  await expect.poll(async () => (await contrastOf(page))['Link']).toBeGreaterThan(0)
+  const before = (await contrastOf(page))['Link']
+  const hue = page.getByRole('slider', { name: 'Hue' })
+  await hue.focus()
+  await page.keyboard.press('End')
+  await expect.poll(async () => (await contrastOf(page))['Link']).not.toBe(before)
   await page.close()
 })

@@ -70,4 +70,16 @@ describe('design-system update', () => {
     expect(scheme.model.scheme).toBe('dark')
     expect('commands' in scheme ? scheme.commands.length : 0).toBe(1)
   })
+  it('measures the contrast after a theme or scheme is applied, and after a tweak', () => {
+    expect('commands' in update(modelForTests, Message.Applied())).toBe(true)
+    const tweaked = update(modelForTests, Message.TweakChanged({ tweak: 'hue', value: 10 }))
+    expect('commands' in tweaked ? tweaked.commands.length : 0).toBe(1)
+  })
+
+  it('keeps the Model when a measurement reads what it already holds', () => {
+    const ratios = modelForTests.contrast.map(() => Option.some(5))
+    const measured = update(modelForTests, Message.Contrasted({ ratios }))
+    expect(measured.model.contrast).toEqual(ratios)
+    expect(update(measured.model, Message.Contrasted({ ratios })).model).toBe(measured.model)
+  })
 })

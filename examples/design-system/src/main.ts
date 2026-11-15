@@ -8,7 +8,7 @@
  * (`sections/*.ts`, `islands.ts`), each its own small runtime that loads when
  * its section nears the window.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Equal, Option, Schema } from 'effect'
 import { Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import * as Command from 'foldkit/command'
@@ -53,11 +53,12 @@ import {
 } from './style.js'
 import { CascadeSlots, PageSlots, TokenSlots } from './slots.js'
 import { studioPanel, titled, type Direction } from './studio.js'
-import { StudioSlots } from './slots.js'
-import { StudioStyle } from './style.js'
+import { ContrastSlots, StudioSlots } from './slots.js'
+import { ContrastStyle, StudioStyle } from './style.js'
 import { initialTheme, tokenGroups } from './themeData.js'
 import { chooseTheme } from 'foldkit-mixins/theme/runtime'
 import { foldsFor } from './fold.js'
+import { measure, pairs, gradeOf, probeId } from './contrast.js'
 import { bootIslands } from './islands.js'
 import { BadgesView, neverH } from './shared.js'
 import { ThemeName, looks } from './looks.js'
@@ -81,6 +82,8 @@ export const Model = Schema.Struct({
   status: Schema.String,
   clicks: Schema.Number,
   sidebar: Sidebar.Model,
+  /** The measured contrast ratio of each palette pair, none until read. */
+  contrast: Schema.Array(Schema.OptionFromNullOr(Schema.Number)),
 })
 export type Model = typeof Model.Type
 
@@ -95,6 +98,7 @@ export const Message = defineMessageUnion({
   Applied: {},
   ButtonClicked: {},
   GotSidebar: { message: Sidebar.Message },
+  Contrasted: { ratios: Schema.Array(Schema.OptionFromNullOr(Schema.Number)) },
 })
 export type Message = typeof Message.Type
 
@@ -112,6 +116,13 @@ export const initModel = (
   status: '',
   clicks: 0,
   sidebar: Sidebar.init({ id: 'sections', rows: [] }),
+  contrast: pairs.map(() => Option.none()),
+})
+
+/** Reads the contrast of every palette pair once the page has drawn the theme it shows. */
+const MeasureContrast = Command.define('MeasureContrast', {
+  messages: [Message.Contrasted],
+  execute: Render.afterCommit.pipe(Effect.map(() => Message.Contrasted({ ratios: measure() }))),
 })
 
 /** Boots the islands once the first frame is drawn: their placeholders exist then. */
@@ -180,7 +191,7 @@ export const update = (model: Model, message: Message) =>
       const tweaks = withTweak(model.tweaks, tweak, value)
       return tweaks === model.tweaks
         ? { model }
-        : { model: modifyFields(model, { tweaks: () => tweaks }) }
+        : { model: modifyFields(model, { tweaks: () => tweaks }), commands: [MeasureContrast()] }
     },
     TweaksReset: () =>
       hasTweaks(model.tweaks)
@@ -219,7 +230,13 @@ export const update = (model: Model, message: Message) =>
             }),
             commands: [ApplyScheme({ scheme })],
           },
-    Applied: () => ({ model }),
+    // Every theme, scheme and direction is shown by a Command that answers `Applied`: only then is the page drawn in it.
+    Applied: () => ({ model, commands: [MeasureContrast()] }),
+    Contrasted: ({ ratios }) =>
+      ratios.length === model.contrast.length &&
+      ratios.every((ratio, index) => Equal.equals(ratio, model.contrast[index]))
+        ? { model }
+        : { model: modifyFields(model, { contrast: () => ratios }) },
     ButtonClicked: () => ({ model: modifyFields(model, { clicks: clicks => clicks + 1 }) }),
     GotSidebar: ({ message }) => foldSidebar(model, message),
   })
@@ -392,6 +409,54 @@ const sections = [
   ['cascade', 'Cascade'],
 ] as const
 
+const tokenRef = ([group, name]: readonly [string, string]): string => `var(--fk-${group}-${name})`
+
+/** The contrast of the palette the theme derives, as the page paints it now: see `contrast.ts`. */
+const ContrastTable = (model: Pick<Model, 'contrast'>, h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(ContrastSlots, [ContrastStyle.style.mixin], {
+    input: undefined,
+    h,
+  })
+  return h.div(
+    slots.table.attrs([h.AriaLabel('Contrast of the derived palette')]),
+    pairs.map((pair, index) => {
+      const measured = model.contrast[index] ?? Option.none()
+      return h.div(slots.row.attrs([h.Key(`contrast-${index}`)]), [
+        h.div(
+          slots.sample.attrs([
+            h.Id(probeId(index)),
+            h.AriaHidden(true),
+            h.Style({ color: tokenRef(pair.foreground), background: tokenRef(pair.background) }),
+          ]),
+          ['Aa'],
+        ),
+        h.p(slots.label.attrs(), [pair.label]),
+        h.p(slots.ratio.attrs(), [
+          Option.match(measured, {
+            onNone: () => 'measuring',
+            onSome: ratio => `${ratio.toFixed(2)} : 1`,
+          }),
+        ]),
+        Option.match(measured, {
+          onNone: () => h.span([], []),
+          onSome: ratio => {
+            const grade = gradeOf(ratio)
+            return h.span(
+              slots.grade.attrs([
+                h.DataAttribute(
+                  'state',
+                  grade === 'Fail' ? 'bad' : grade === 'Large' ? 'warn' : 'ok',
+                ),
+              ]),
+              [grade],
+            )
+          },
+        }),
+      ])
+    }),
+  )
+}
+
 type PageBuilders = SlotBuilders<typeof PageSlots, Message>
 
 /** Where an island draws: its heading is here, so the sidebar link and the page's length are there at start. */
@@ -502,6 +567,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                   ),
                 ]),
             ),
+            h.p(slots.controlLabel.attrs(), [
+              'Contrast of the derived palette, measured as painted (WCAG 2: AA is 4.5, large text 3)',
+            ]),
+            ContrastTable(model, h),
           ]),
           IslandSlot(slots, h, 'buttons', 'Buttons'),
           IslandSlot(slots, h, 'form', 'Form'),
