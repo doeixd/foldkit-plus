@@ -148,3 +148,39 @@ test('on a phone the pinned UPC leaves room for the next column, and the page do
   expect(clear.height).toBeGreaterThanOrEqual(32)
   await context.close()
 })
+
+test('the toolbar searches the products and sets the density, on a desktop and a phone', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  await page.goto(vite.resolvedUrls!.local[0]!)
+  await cell(page, 'p0', 'line').waitFor({ timeout: 120_000 })
+  // The widgets arrive as a chunk after boot; their radio group is the sign.
+  await page.getByRole('radiogroup', { name: 'Row density' }).waitFor({ timeout: 30_000 })
+
+  const search = page.getByRole('searchbox', { name: 'Search products' })
+  await search.fill('Cable, large #2')
+  await expect
+    .poll(() => page.locator('#products').getAttribute('aria-rowcount'), slow)
+    .not.toBe('100001')
+  await expect.poll(() => page.getByRole('status').textContent(), slow).toContain('match')
+  // The clear button hands focus back to the field it took away.
+  await page.getByRole('button', { name: 'Clear search' }).click()
+  await expect
+    .poll(() => page.locator('#products').getAttribute('aria-rowcount'), slow)
+    .toBe('100001')
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.getAttribute('type')), slow)
+    .toBe('search')
+
+  const rowHeight = async () => (await cell(page, 'p0', 'line').boundingBox())!.height
+  expect(await rowHeight()).toBe(32)
+  await page.getByRole('radio', { name: 'spacious' }).click()
+  await expect.poll(rowHeight, slow).toBe(44)
+
+  await page.setViewportSize({ width: 390, height: 800 })
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true)
+  await page.close()
+})

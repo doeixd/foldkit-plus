@@ -24,10 +24,16 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // of it the page's own first screen in main.ts: the live status region, the filtered count
 // (`addressableRows`), the Clear filters button and its Message, the narrow-screen start and
 // the hint line. No package grew. Ceiling is the measure plus 0.5%, rounded up to the next 500.
-const CEILING = 145_000
+// Later the same day, the toolbar: 146,020 bytes at start (+1,833). Its declaration, the Model,
+// Messages, a plain field shown until the chunk arrives, `Bundle.lazy` and `Link`, and the search
+// in `rowsOf` are the page's own; the widgets are not here: SearchField, Segmented and their
+// recipes (9.8 kB brotli) load as a chunk after boot, which `absent` below holds. Ceiling the
+// measure plus about 0.5%, rounded up to the next 500.
+const CEILING = 147_000
 
 clientBudget({
   name: 'data-grid',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
+  absent: ['foldkit-mixins-ui/searchField', 'foldkit-mixins-ui/segmented'],
 })

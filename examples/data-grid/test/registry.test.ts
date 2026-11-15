@@ -200,3 +200,57 @@ test('a column filtered from its header narrows the 100,000 products, and an edi
     expect.objectContaining({ value: expect.objectContaining({ _tag: 'Range' }) }),
   )
 })
+
+test('the toolbar searches the products and sets the row density', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(356)
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000)
+  const container = document.createElement('div')
+  container.id = 'root'
+  document.body.append(container)
+  let latest: Model | undefined
+  Runtime.run(
+    Runtime.makeApplication({
+      Model: ModelSchema,
+      init: () => init(),
+      update: (model: Model, message) => {
+        const next = update(model, message)
+        latest = next.model
+        return next
+      },
+      view,
+      container,
+    }),
+  )
+  const grid = () => document.getElementById('products')!
+  // The widgets arrive as a chunk after boot; until then a plain field stands in.
+  const search = () => document.querySelector<HTMLInputElement>('input[type="search"]')!
+  await vi.waitFor(() => expect(document.querySelector('[role="radiogroup"]')).not.toBeNull(), {
+    timeout: 20_000,
+  })
+  expect(grid().getAttribute('aria-rowcount')).toBe('100001')
+
+  // "Cable, large" is one product in eight, and found in the description alone.
+  search().value = 'Cable, LARGE'
+  search().dispatchEvent(new Event('input', { bubbles: true }))
+  await vi.waitFor(() => expect(grid().getAttribute('aria-rowcount')).toBe('12501'))
+  expect(document.querySelector('[role="status"]')!.textContent).toContain('12,500 products match')
+
+  // A search that finds nothing leaves no rows, and clearing it brings them all back.
+  search().value = 'no such product'
+  search().dispatchEvent(new Event('input', { bubbles: true }))
+  await vi.waitFor(() => expect(grid().getAttribute('aria-rowcount')).toBe('1'))
+  search().value = ''
+  search().dispatchEvent(new Event('input', { bubbles: true }))
+  await vi.waitFor(() => expect(grid().getAttribute('aria-rowcount')).toBe('100001'))
+
+  const radio = (name: string) =>
+    [...document.querySelectorAll<HTMLElement>('[role="radio"]')].find(
+      option => option.textContent === name,
+    )!
+  radio('compact').click()
+  await vi.waitFor(() => expect(latest?.toolbar.density).toBe('compact'))
+}, 60_000)

@@ -18,11 +18,12 @@ import { gridDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { Bundle } from 'foldkit-bundle'
+import { Bundle, Link } from 'foldkit-bundle'
 import { Columns, DataGrid, RowModel, RowSelection, addressableRows } from 'foldkit-data-grid'
 import { Style } from 'foldkit-mixins'
 import { DataGridView, GridSlots, GridStyle } from 'foldkit-mixins-data-grid'
 import { Product, products } from './products.js'
+import { Toolbar, ToolbarMessage, ToolbarModel, rowHeights } from './toolbar.js'
 
 /** A description as typed: its spaces around dropped, and something left. */
 const Description = Schema.Trim.pipe(
@@ -83,9 +84,12 @@ export const Grid = DataGrid.make({
 })
 
 const Placement = Bundle.declare(Grid.bundle, 'grid')
+const GotToolbarMessage = Link.wrapper('GotToolbarMessage', ToolbarMessage)
 
 export const Model = Schema.Struct({
   ...Placement.fields,
+  /** The search and the row density, drawn by a toolbar whose widgets load on demand. */
+  toolbar: ToolbarModel,
   products: Schema.Array(Product),
   /** What each column is filtered by: the page's, as the grid reports it. */
   filters: Grid.Filters,
@@ -96,6 +100,7 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   ...Placement.cases,
+  ...GotToolbarMessage.cases,
   /** The column layout was written to this browser's storage. */
   SavedLayout: {},
   /** Every column's filter was taken off at once. */
@@ -112,12 +117,25 @@ const allRowsOf = (model: Model) => RowModel.fromArray(model.products, productKe
 // projection, which is kept per row model.
 const shown = new WeakMap<
   object,
-  { readonly products: ReadonlyArray<Product>; readonly rows: RowModel<Product> }
+  {
+    readonly products: ReadonlyArray<Product>
+    readonly search: string
+    readonly rows: RowModel<Product>
+  }
 >()
-/** The products the filters keep, as the grid shows them. */
+/** The products the filters keep and the search finds, as the grid shows them. */
 const rowsOf = (model: Model): RowModel<Product> => {
+  const { search } = model.toolbar
   const known = shown.get(model.filters)
-  if (known !== undefined && known.products === model.products) return known.rows
+  if (known !== undefined && known.products === model.products && known.search === search) {
+    return known.rows
+  }
+  const needle = search.trim().toLowerCase()
+  const found = (product: Product) =>
+    needle === '' ||
+    [product.description, product.line, product.upc].some(text =>
+      text.toLowerCase().includes(needle),
+    )
   const keeps = Grid.keeps(model.filters, {
     description: product => product.description,
     line: product => product.line,
@@ -125,8 +143,11 @@ const rowsOf = (model: Model): RowModel<Product> => {
     // The price itself, not the text its cell shows.
     price: product => product.price,
   })
-  const rows = RowModel.fromArray(model.products.filter(keeps), productKey)
-  shown.set(model.filters, { products: model.products, rows })
+  const rows = RowModel.fromArray(
+    model.products.filter(product => keeps(product) && found(product)),
+    productKey,
+  )
+  shown.set(model.filters, { products: model.products, search, rows })
   return rows
 }
 
@@ -178,7 +199,10 @@ const isOn = (filter: Option.Option<unknown>): boolean => Option.isSome(filter)
 
 const hasFilters = (filters: Model['filters']): boolean => Object.values(filters).some(isOn)
 
+const PlacedToolbar = Toolbar.at(Link.field<Model>()('toolbar', GotToolbarMessage))
+
 const application = Bundle.assemble<Model, Message>()([
+  PlacedToolbar,
   Bundle.parent({ Model, Message }).at(Placement, {
     onOut: out => model =>
       Grid.Out.match(out, {
@@ -266,11 +290,12 @@ export const init = (
   saved: Option.Option<unknown> = Option.none(),
   narrow = false,
 ): Update.Return<Model, Message, unknown> => {
-  const start = application.initial({
+  const initial = application.initial({
     products: products(count),
     filters: Grid.noFilters,
     notice: '',
   })
+  const start = { ...initial, commands: [...(initial.commands ?? []), LoadToolbar({})] }
   return Option.match(saved, {
     // A phone keeps the UPC pinned but narrow, so the next column shows beside it.
     onNone: () =>
@@ -293,6 +318,16 @@ export const init = (
     }),
   })
 }
+
+/** Fetches the toolbar's widgets once the page is up, so its field is the real one before anyone types. */
+const LoadToolbar = Command.define('LoadToolbar', {
+  args: {},
+  messages: [Message.GotToolbarMessage],
+  execute: () =>
+    Effect.promise(() => Toolbar.load()).pipe(
+      Effect.as(Message.GotToolbarMessage({ message: ToolbarMessage.Loaded() })),
+    ),
+})
 
 const placed = application.update((model, message) =>
   Match.value(message).pipe(
@@ -357,7 +392,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   const rows = rowsOf(model)
   const shownCount = addressableRows(rows.count)
   const total = model.products.length
-  const filtered = hasFilters(model.filters)
+  const searching = model.toolbar.search.trim() !== ''
+  const filtered = hasFilters(model.filters) || searching
   return {
     title: 'Product registry',
     body: h.main(
@@ -422,6 +458,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             h.span(
               [h.Role('status')],
               [
+                searching
+                  ? `${shownCount.toLocaleString()} products match “${model.toolbar.search.trim()}”. `
+                  : '',
                 // GAP (package work pending): the copied-cells message joins the notice.
                 model.notice,
               ],
@@ -430,7 +469,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             h.button(
               [
                 h.Type('button'),
-                h.AriaDisabled(!filtered),
+                h.AriaDisabled(!hasFilters(model.filters)),
                 h.OnClick(Message.ClearedFilters()),
                 h.Style({
                   font: 'inherit',
@@ -440,21 +479,22 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                   borderRadius: '6px',
                   minHeight: '2rem',
                   padding: '0 0.75rem',
-                  opacity: filtered ? '1' : '0.5',
-                  cursor: filtered ? 'pointer' : 'default',
+                  opacity: hasFilters(model.filters) ? '1' : '0.5',
+                  cursor: hasFilters(model.filters) ? 'pointer' : 'default',
                 }),
               ],
               ['Clear filters'],
             ),
           ],
         ),
+        PlacedToolbar.view(model, h),
         Registry(
           {
             state: model.grid,
             rows,
             wrap: wrapGrid,
             label: 'Products',
-            rowHeight: 32,
+            rowHeight: rowHeights[model.toolbar.density],
             headerHeight: 36,
             overscan: { rows: 6, columns: 1 },
             columnMenu: true,
