@@ -63,6 +63,8 @@ const markers: BuilderWords = {
   narrow: '«narrow»',
   previewAs: '«previewAs»',
   unset: '«unset»',
+  moveNode: '«moveNode:{label}»',
+  nodeActions: '«nodeActions:{label}»',
   canvas: '«canvas»',
   emptyPage: '«emptyPage»',
 }

@@ -24,6 +24,7 @@ import {
   type BuilderCommand,
   type CommandKey,
   type DragSource,
+  type DropAim,
   type DropZone,
   type InspectedForm,
   type Inspecting,
@@ -60,7 +61,7 @@ import {
   Style,
 } from 'foldkit-mixins'
 import { FormView, type FormViewInputs, type Renderers } from 'foldkit-mixins-form'
-import { KeepInView, Measure, measured } from 'foldkit-primitives/dom'
+import { DragPreview, KeepInView, Measure, measured } from 'foldkit-primitives/dom'
 import {
   EditableText,
   LiveAnnounce,
@@ -171,6 +172,24 @@ export const BuilderSlots = Slots.define({
   selectionLabel: Slot.make({ capability: Capability.Base }),
   /** Over the node under the pointer, as the selection's box is placed. */
   hoverBox: Slot.make({ capability: Capability.Base }),
+  /**
+   * Over the selected node, placed as its box is, holding the handle that moves it:
+   * a pointer's press and move or a finger's hold drags the node, a tap or a click on
+   * the grip opens `nodeMenu`. It takes no pointer itself; `nodeGrip` does.
+   */
+  nodeHandle: Slot.make({ capability: Capability.Container }),
+  /** The grip: a button, always drawn for the selected node, so a finger has something to hold. Carries `data-builder-handle`. */
+  nodeGrip: Slot.make({ capability: Capability.Interactive }),
+  /** What the selected node can do without a drag: its commands (move, indent, duplicate, delete), a popover opened by the grip. */
+  nodeMenu: Slot.make({ capability: Capability.Container }),
+  nodeAction: Slot.make({ capability: Capability.Interactive }),
+  /**
+   * What a drag carries, following the pointer in the top layer for as long as the drag
+   * lasts, hidden from assistive technology and taking no pointer. Carries `data-drag-source`.
+   */
+  dragPreview: Slot.make({ capability: Capability.Base }),
+  dragPreviewLabel: Slot.make({ capability: Capability.Base }),
+  dragPreviewSummary: Slot.make({ capability: Capability.Base }),
   /** The live region the Builder's announcements are read from. */
   live: Slot.make({ capability: Capability.Base }),
 })
@@ -213,6 +232,60 @@ const FrameDefaults = Style.forSlots(BuilderSlots)(
       insetInlineStart: '0',
     }),
     hoverBox: boxOver('hovered'),
+    // Scoped, so two Builders on a page anchor each menu to its own grip.
+    nodeHandle: Style.compose(boxOver('selected'), Style.self({ anchorScope: '--builder-grip' })),
+    nodeGrip: Style.compose(
+      Style.self({
+        position: 'absolute',
+        anchorName: '--builder-grip',
+        insetBlockEnd: '100%',
+        insetInlineEnd: '0',
+        pointerEvents: 'auto',
+        cursor: 'grab',
+        minInlineSize: '1.5rem',
+        minBlockSize: '1.5rem',
+        // A finger on the grip is held to drag, and must neither scroll the page, select
+        // text nor open the browser's own menu.
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+      }),
+      // A finger is wider than a pointer.
+      Style.media('(pointer: coarse)', { minInlineSize: '2.75rem', minBlockSize: '2.75rem' }),
+      // What is carried must not be under the pointer, or it would hide the drop from it.
+      Style.nest(':root[data-fk-drag] &', { pointerEvents: 'none' }),
+    ),
+    nodeMenu: Style.self({
+      // The popover's own box: placed beside the grip where anchors position, else in the middle.
+      margin: '0',
+      positionAnchor: '--builder-grip',
+      positionArea: 'block-end span-inline-start',
+    }),
+    nodeAction: Style.media('(pointer: coarse)', { minBlockSize: '2.75rem' }),
+    // Physical `top` and `left`: the pointer's coordinates are physical, whatever the direction.
+    dragPreview: Style.compose(
+      Style.self({
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        margin: '0',
+        padding: '0',
+        border: '0',
+        overflow: 'visible',
+        background: 'transparent',
+        pointerEvents: 'none',
+        willChange: 'transform',
+        // Beside the pointer, not under it.
+        transform:
+          'translate(calc(var(--fk-drag-x, 0px) + 12px), calc(var(--fk-drag-y, 0px) + 12px))',
+      }),
+      // A finger's is lifted clear of the finger.
+      Style.nest(':root[data-fk-drag="touch"] &', {
+        transform:
+          'translate(calc(var(--fk-drag-x, 0px) + 12px), calc(var(--fk-drag-y, 0px) - 72px))',
+      }),
+    ),
     // A container, so what it holds may be laid out by the editor's width, not the window's.
     root: Style.self({ containerType: 'inline-size', containerName: 'builder' }),
     // Shown only by a narrow layout, which shows one panel at a time.
@@ -296,6 +369,22 @@ export const ROW_ATTRIBUTE = 'builder-row'
 export const ROW_DROP_ATTRIBUTE = 'builder-drop'
 /** On the row being dragged. */
 export const ROW_DRAGGING_ATTRIBUTE = 'builder-dragging'
+/** On the selected node's grip, holding its node's id, for a drag to find. */
+export const HANDLE_ATTRIBUTE = 'builder-handle'
+
+/**
+ * What the DOM's drag facts say of where the pointer is, in the Builder's terms:
+ * `null` is over nothing, `region` too is over the page's own space, and a
+ * `part` is a node's empty Region.
+ */
+const aimOf = (fact: PointerDrag.DraggedOver | PointerDrag.DragDropped): DropAim =>
+  fact.over !== null
+    ? fact.over.part === undefined
+      ? { _tag: 'OverNode', id: NodeId.make(fact.over.id), zone: fact.over.zone }
+      : { _tag: 'OverRegion', id: NodeId.make(fact.over.id), region: fact.over.part }
+    : fact.region === true
+      ? { _tag: 'OverPage' }
+      : { _tag: 'OverNothing' }
 
 /**
  * A drag's facts as the Builder's Messages; `source` says what the dragged
@@ -308,22 +397,20 @@ const dragMessage =
       case 'DragStarted':
         return Message.DragStarted({ source: source(fact.id) })
       case 'DraggedOver':
-        // The DOM's fact says "over nothing" with `null`, over the page's own space
-        // with `region` too, and over a node's empty Region with its `part`; the
-        // Builder has a Message for each.
-        return fact.over !== null
-          ? fact.over.part === undefined
-            ? Message.DraggedOver({ id: NodeId.make(fact.over.id), zone: fact.over.zone })
-            : Message.DraggedOverRegion({ id: NodeId.make(fact.over.id), region: fact.over.part })
-          : fact.region === true
-            ? Message.DraggedOverPage()
-            : Message.DraggedOff()
+        return Match.valueTags(aimOf(fact), {
+          OverNode: ({ id, zone }) => Message.DraggedOver({ id, zone }),
+          OverRegion: ({ id, region }) => Message.DraggedOverRegion({ id, region }),
+          OverPage: () => Message.DraggedOverPage(),
+          OverNothing: () => Message.DraggedOff(),
+        })
+      // The release was measured again, so the drop lands where the pointer let go.
       case 'DragDropped':
-        return Message.DragDropped()
+        return Message.DragDropped({ aim: aimOf(fact) })
       case 'DragCancelled':
         return Message.DragCancelled()
     }
   }
+
 /** A row or a node dragged: a node on the page. */
 const nodeDrag = dragMessage(id => ({ _tag: 'Existing', id: NodeId.make(id) }))
 /** A palette tile dragged: a new node of its Block. */
@@ -569,6 +656,8 @@ export interface BuilderParts {
   readonly Alert: BuilderPart
   /** The page, drawn by the site's Renderer, with the pointer. */
   readonly Canvas: BuilderPart
+  /** What a drag carries, following the pointer while it lasts; nothing otherwise. Draw it once, anywhere. */
+  readonly Carried: BuilderPart
   /** What the Builder announces to a screen reader. */
   readonly Live: BuilderPart
 }
@@ -1050,11 +1139,13 @@ export const BuilderView = {
       slot: SlotView.SlotBuilder<Message>,
       command: BuilderCommand,
       input: Pick<BuilderInput, 'page' | 'selected' | 'platform' | 'words'>,
+      extra: ReadonlyArray<Attribute<Message>> = [],
     ) => {
       const [key] = command.keys
       const w = wordsOf(input.words)
       return button(h, slot, command.label, command.run(input), [
         h.DataAttribute('action', command.id),
+        ...extra,
         h.Title(
           key === undefined
             ? command.label
@@ -1185,6 +1276,7 @@ export const BuilderView = {
           PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'palette',
             attribute: 'data-block',
+            edgeScroll: {},
             // Its own canvas, found from the palette, whatever the Builder's name holds.
             targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: '[data-builder-canvas]' },
             part: `data-${REGION_ATTRIBUTE}`,
@@ -1366,6 +1458,7 @@ export const BuilderView = {
           PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'tree',
             attribute: `data-${ROW_ATTRIBUTE}`,
+            edgeScroll: {},
             toMessage: nodeDrag,
           }),
           Shortcuts,
@@ -1563,6 +1656,51 @@ export const BuilderView = {
       }),
     )
 
+    const menuId = `${builder.name}-node-menu`
+    /**
+     * The selected node's grip and its commands. The grip is a button, so a tap or a
+     * click opens the commands, a popover the platform opens and closes; a hold or a
+     * move drags the node instead, and the click a drag ends with is swallowed.
+     */
+    const nodeHandle = (
+      h: HtmlBuilder<Message>,
+      slots: SlotView.SlotBuilders<typeof BuilderSlots, Message>,
+      input: Pick<BuilderInput, 'page' | 'selected' | 'platform' | 'words'>,
+      id: NodeId,
+      block: string,
+    ): Html => {
+      const w = wordsOf(input.words)
+      const label = labelOf(block)
+      return h.div(slots.nodeHandle.attrs([h.Key('node-handle')]), [
+        h.button(
+          slots.nodeGrip.attrs([
+            h.Type('button'),
+            h.AriaLabel(say(w.moveNode, { label })),
+            h.DataAttribute(HANDLE_ATTRIBUTE, id),
+            h.Attribute('popovertarget', menuId),
+          ]),
+          [],
+        ),
+        h.div(
+          slots.nodeMenu.attrs([
+            h.Id(menuId),
+            h.Attribute('popover', 'auto'),
+            h.Role('group'),
+            h.AriaLabel(say(w.nodeActions, { label })),
+          ]),
+          builder.commands
+            .filter(command => command.placement.includes('node'))
+            .map(command =>
+              commandButton(h, slots.nodeAction, command, input, [
+                // Closed by what it chose, as a menu is.
+                h.Attribute('popovertarget', menuId),
+                h.Attribute('popovertargetaction', 'hide'),
+              ]),
+            ),
+        ),
+      ])
+    }
+
     // Focusable, so a press on the page leaves the shortcuts where the selection is.
     const Canvas = Parts.part(
       'Canvas',
@@ -1576,6 +1714,7 @@ export const BuilderView = {
           'preview',
           'data',
           'editing',
+          'platform',
           'words',
         ],
         behaviors: [
@@ -1603,6 +1742,16 @@ export const BuilderView = {
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
             part: `data-${REGION_ATTRIBUTE}`,
+            edgeScroll: {},
+            toMessage: nodeDrag,
+          }),
+          // The selected node's handle drags it onto the page's nodes, as a palette tile is.
+          PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
+            container: 'nodeHandle',
+            attribute: `data-${HANDLE_ATTRIBUTE}`,
+            targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: '[data-builder-canvas]' },
+            part: `data-${REGION_ATTRIBUTE}`,
+            edgeScroll: {},
             toMessage: nodeDrag,
           }),
           // Text on the page, edited where it is: the Builder checks which field each names.
@@ -1673,9 +1822,66 @@ export const BuilderView = {
                 onSome: name => [h.span(slots.selectionLabel.attrs(), [labelOf(name)])],
               }),
             ),
+            // Not hidden from assistive technology: its grip and the commands it opens are buttons.
+            ...Option.match(Option.all({ id: input.selected, block: selectedBlock }), {
+              onNone: () => [],
+              onSome: ({ id, block }) => [nodeHandle(h, slots, input, id, block)],
+            }),
           ],
         )
       },
+    )
+
+    // What a drag carries, in the top layer while it lasts. The pointer's place is a custom
+    // property `PointerDrag` writes, so this is drawn when the drag starts or changes, not per move.
+    const Carried = Parts.part(
+      'Carried',
+      {
+        reads: ['page', 'drag'],
+        behaviors: [
+          Behavior.forSlots(BuilderSlots)<Pick<BuilderInput, never>, Message>(
+            { dragPreview: Behavior.slot({ mount: () => DragPreview({}) }) },
+            { name: 'DragPreview' },
+          ),
+        ],
+      },
+      (input, slots, h) =>
+        Option.match(input.drag, {
+          onNone: () => null,
+          onSome: ({ source }) => {
+            const document = builder.document(input)
+            const { kind, block, summary } = Match.valueTags(source, {
+              Existing: ({ id }) => {
+                const node = document.nodes[id]
+                return {
+                  kind: 'node',
+                  block: node === undefined ? '?' : labelOf(node.block),
+                  summary: node === undefined ? Option.none<string>() : summaryOf(node),
+                }
+              },
+              New: ({ block: name }) => ({
+                kind: 'new',
+                block: labelOf(name),
+                summary: Option.none<string>(),
+              }),
+            })
+            return h.div(
+              slots.dragPreview.attrs([
+                h.Key('drag-preview'),
+                h.AriaHidden(true),
+                h.Attribute('popover', 'manual'),
+                h.DataAttribute('drag-source', kind),
+              ]),
+              [
+                h.span(slots.dragPreviewLabel.attrs(), [block]),
+                ...Option.match(summary, {
+                  onNone: () => [],
+                  onSome: text => [h.span(slots.dragPreviewSummary.attrs(), [text])],
+                }),
+              ],
+            )
+          },
+        }),
     )
 
     const Live = Parts.part('Live', { reads: ['announcer'] }, (input, slots, h) =>
@@ -1693,6 +1899,7 @@ export const BuilderView = {
       Preview,
       Alert,
       Canvas,
+      Carried,
       Live,
     }
   },
@@ -1758,6 +1965,7 @@ export const BuilderView = {
           h.div(slots.stage.attrs(), [draw(parts.Alert), draw(parts.Canvas)]),
           h.div(slots.end.attrs(), [draw(parts.Inspector)]),
         ]),
+        draw(parts.Carried),
         draw(parts.Live),
       ]),
     )

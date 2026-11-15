@@ -111,7 +111,7 @@ const PageForm = Form.make('PageForm', PageInput, {
 | `RowPressed({ id })`, `RowToggled({ id })` | a layers row pressed (made current, so selected, keeping the panel) and its expander (opened or shut by the tree's state) |
 | `Undid()`, `Redid()` | a step of the page's undo history |
 | `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
-| `DragStarted({ source })`, `DraggedOver({ id, zone })`, `DraggedOverRegion({ id, region })`, `DraggedOff()`, `DraggedOverPage()`, `DragDropped()`, `DragCancelled()` | a pointer drag: see below |
+| `DragStarted({ source })`, `DraggedOver({ id, zone })`, `DraggedOverRegion({ id, region })`, `DraggedOff()`, `DraggedOverPage()`, `DragDropped({ aim? })`, `DragCancelled()` | a pointer drag: see below |
 | `PreviewChosen({ key, value })`, `PreviewCleared({ key })` | previews the page with one context key set, or unset |
 | `Inspected({ id, message })` | a Message of the selected node's settings form: see below |
 | `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
@@ -463,12 +463,16 @@ dragged from the palette.
   It lands where a press with nothing selected would put it (`placeFor`):
   last among the roots, or last in the last Region that takes it. A node
   already on the page is moved only onto another.
-- **`DragDropped()`** works the place out again, since the page may have
+- **`DragDropped({ aim? })`** works the place out again, since the page may have
   changed, and moves a node there as one edit, undone and announced like a
   key's; a new node is asked for as a press on the palette asks, so it gets an
   id, is added there, and is selected. With no place, nothing changes and "Not
-  moved", or "Not added", is announced. **`DragCancelled()`** ends the drag the
-  same way.
+  moved", or "Not added", is announced. `aim` is where the pointer was when it
+  let go, measured at the release (`OverNode { id, zone }`, `OverRegion { id,
+  region }`, `OverPage` or `OverNothing`): the drop lands there, not where the
+  last `DraggedOver` said, since the page may have scrolled under a still
+  pointer after it. Absent, the place the last move gave, as a keyboard or an
+  agent drives it. **`DragCancelled()`** ends the drag the same way.
 
 A drawing marks `drag.over` only while `drag.at` is set, so the mark is where
 the node will go. The keyboard's way to move a node is `keyCommand`.

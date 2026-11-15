@@ -64,6 +64,18 @@ export const DragSource = Schema.Union([
 ])
 export type DragSource = typeof DragSource.Type
 
+/**
+ * Where the pointer was when it let go: what a `DragDropped` carries so the
+ * drop lands where the pointer ended, not where the last move reported it.
+ */
+export const DropAim = Schema.Union([
+  Schema.TaggedStruct('OverNode', { id: NodeId, zone: DropZone }),
+  Schema.TaggedStruct('OverRegion', { id: NodeId, region: Schema.String }),
+  Schema.TaggedStruct('OverPage', {}),
+  Schema.TaggedStruct('OverNothing', {}),
+])
+export type DropAim = typeof DropAim.Type
+
 /** A drag under way: what is dragged, what it is over, and where it would go. */
 export const Drag = Schema.Struct({
   source: DragSource,
@@ -269,8 +281,11 @@ export const Message = defineMessageUnion({
    * page or the space below the last node: it goes last where the page takes it.
    */
   DraggedOverPage: {},
-  /** The drag ended where it is: the node moves there, when it may. */
-  DragDropped: {},
+  /**
+   * The drag ended: the node moves where the pointer let go, when it may. `aim` is
+   * that place, measured at the release; absent, the place the last move gave.
+   */
+  DragDropped: { aim: Schema.optionalKey(DropAim) },
   DragCancelled: {},
   /** The author previews the page with one context key set. */
   PreviewChosen: { key: Schema.String, value: ContextValue },
@@ -919,6 +934,29 @@ export const Builder = {
       }
     }
 
+    /** The drag over the page's own space: a palette tile goes last where the page takes it. */
+    const draggedOverPage = (model: Model): Model => {
+      if (Option.isNone(model.drag)) return model
+      const drag = model.drag.value
+      return {
+        ...model,
+        drag: Option.some({
+          ...drag,
+          over: Option.none(),
+          at: onPage(documentOf(model), drag.source),
+        }),
+      }
+    }
+
+    /** The drag over nothing. */
+    const draggedOff = (model: Model): Model =>
+      Option.isNone(model.drag)
+        ? model
+        : {
+            ...model,
+            drag: Option.some({ ...model.drag.value, over: Option.none(), at: Option.none() }),
+          }
+
     /** Puts a node's tree on the system clipboard, then says `said`, whether it could or not. */
     const copy = (tree: Tree, said: string): Commands => [
       {
@@ -1508,36 +1546,25 @@ export const Builder = {
           return draggedOver(model, message.id, message.zone, Option.none())
         case 'DraggedOverRegion':
           return draggedOver(model, message.id, 'inside', Option.some(message.region))
-        case 'DraggedOverPage': {
-          if (Option.isNone(model.drag)) return { model }
-          const drag = model.drag.value
-          return {
-            model: {
-              ...model,
-              drag: Option.some({
-                ...drag,
-                over: Option.none(),
-                at: onPage(documentOf(model), drag.source),
-              }),
-            },
-          }
-        }
+        case 'DraggedOverPage':
+          return { model: draggedOverPage(model) }
         case 'DraggedOff':
-          return Option.isNone(model.drag)
-            ? { model }
-            : {
-                model: {
-                  ...model,
-                  drag: Option.some({
-                    ...model.drag.value,
-                    over: Option.none(),
-                    at: Option.none(),
-                  }),
-                },
-              }
+          return { model: draggedOff(model) }
         case 'DragDropped': {
           if (Option.isNone(model.drag)) return { model }
-          const { source, over, at } = model.drag.value
+          // Where the pointer let go, measured at the release, outranks where it last moved.
+          const aimed =
+            message.aim === undefined
+              ? model
+              : Match.valueTags(message.aim, {
+                  OverNode: ({ id, zone }) => draggedOver(model, id, zone, Option.none()).model,
+                  OverRegion: ({ id, region }) =>
+                    draggedOver(model, id, 'inside', Option.some(region)).model,
+                  OverPage: () => draggedOverPage(model),
+                  OverNothing: () => draggedOff(model),
+                })
+          if (Option.isNone(aimed.drag)) return { model }
+          const { source, over, at } = aimed.drag.value
           const ended = { ...model, drag: Option.none() }
           // Worked out again: the page may have changed since the pointer got here.
           // Over no node with a place is over the page's own space.

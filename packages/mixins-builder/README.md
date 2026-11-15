@@ -132,7 +132,9 @@ Five Behaviors are attached, each from `foldkit-primitives`:
 | `canvas` | `Targets` | The pointer over a node marks it hovered; a press selects it and does not follow a link. |
 | `canvas` | `EditableText` | A double-click on text the page draws as a field, or Enter on its node, edits it where it is: typing sets the prop, Enter or leaving commits, Escape puts it back. A press in it selects text rather than dragging the node. |
 | `layers`, `canvas` | `KeepInView` | Whatever became selected (a click, a shortcut, an insert, the address) is scrolled into view, its row in the layers and its element on the page. |
-| `tree`, `canvas` | `PointerDrag` | A row or a node pressed and moved 4px is dragged; over another, the drop lands before it, inside it or after it by which third of it the pointer is in; releasing moves it there, and Escape cancels. |
+| `tree`, `canvas` | `PointerDrag` | A row or a node pressed and moved 4px (a finger's: held still 400ms) is dragged; over another, the drop lands before it, inside it or after it by which third of it the pointer is in; releasing moves it where the pointer let go, and Escape or a cancelled pointer drops nothing. Held near the edge of the layers or the canvas, the drag scrolls it. |
+| `nodeHandle` | `PointerDrag`, onto the canvas | The selected node's grip drags it as a row or a node is dragged. A tap or a click on the grip opens `nodeMenu` instead: the node's commands (move, indent, duplicate, delete) as buttons, a `popover` the platform opens and closes, so a finger has every move a key has. |
+| `dragPreview` | `DragPreview` | What a drag carries, in the top layer above every panel, `aria-hidden` and taking no pointer, following the pointer by the custom properties `PointerDrag` writes on the root (`--fk-drag-x`, `--fk-drag-y`), so a move redraws nothing; a finger's sits above the finger. Drawn by the `Carried` part. |
 | `palette` | `PointerDrag`, onto the canvas | A Block's tile dragged onto the page lands the same way and adds a new node of it there; a press without a drag adds it where its title says. A pattern's tile is pressed, not dragged. |
 
 The shortcuts are on the layers panel and the canvas, not the whole editor,
@@ -236,6 +238,12 @@ the node a drop would land at. A wrapper is `display: contents` and draws
 nothing, so style the element inside it. The layer rows carry
 `data-builder-drop` and `data-builder-dragging` the same way.
 
+A drag under way also writes the pointer's place on the document root, for
+the preview and for any style of yours that follows the pointer: `--fk-drag-x`
+and `--fk-drag-y` (pixels) and `data-fk-drag="mouse | touch | pen"`, all
+removed when the drag ends. `dragPreview` reads them; the defaults put it
+beside the pointer, and above a finger.
+
 ```css
 [data-composition-drop='before'] > * { box-shadow: 0 -3px 0 Highlight; }
 [data-composition-drop='after'] > * { box-shadow: 0 3px 0 Highlight; }
@@ -261,7 +269,8 @@ const Compact = BuilderView.assemble((_model, slots, h, draw) =>
 ```
 
 The parts are `Panels`, `Palette`, `Layers`, `Inspector`, `Toolbar`, `Crumbs`,
-`Viewports`, `Preview`, `Alert`, `Canvas` and `Live`. Each brings its own
+`Viewports`, `Preview`, `Alert`, `Canvas`, `Carried` (what a drag carries; a
+layout without it shows nothing following a drag) and `Live`. Each brings its own
 Behaviors: `Layers` its tree keyboard and dragging, `Canvas` the pointer, and
 both the shortcuts. A layout without `Layers` has no tree keyboard. Styles
 attach to `Compact` as to `define`'s view.
@@ -527,8 +536,12 @@ the page for that context: a node hidden there is still drawn, marked
   under the Builder's name, and one drawn twice is a crash that says so. Its
   fields' ids are `<Block>Settings-<prop>`, so two Builders over one Catalog
   showing the same Block also share ids.
-- A drag does not scroll the layers or the canvas when the pointer nears an
-  edge.
+- The grip is drawn over the selected node, above its top edge: a page whose
+  first node touches the top of the canvas needs room there for it. Its menu
+  places itself beside the grip with CSS anchor positioning; a browser without
+  it opens the menu in the middle of the window. A finger drags only after a
+  hold, as `PointerDrag` does everywhere: the grip is for holding, the menu for
+  tapping.
 - The viewport frame sets a width: `--fk-frame-width` on the frame, read by
   the Builder's one default rule (in `components`, so any application style
   overrides it). It does not load the page in an iframe, so the page's media

@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-primitives`: a `PointerDrag` under way writes the pointer's viewport place on the document root
+  (`--fk-drag-x`, `--fk-drag-y`, and `data-fk-drag="mouse | touch | pen"`, named by `DRAGGING`) and removes them
+  when it ends, so something follows the pointer with no draw per move. `DragPreview()` (`/dom`) is the
+  Mount that shows an element the view draws with `popover="manual"` in the top layer.
+- `foldkit-mixins-builder`: the Builder shows what a drag carries (`dragPreview`, drawn by the new `Carried`
+  part, in the top layer, `aria-hidden`, above a finger's hold) and draws a handle over the selected node
+  (`nodeHandle`, `nodeGrip`: a finger-sized grip with `touch-action: none` that drags the node, and whose tap
+  opens `nodeMenu`, a `popover` of its commands in `nodeAction` buttons). Its words gain `moveNode` and
+  `nodeActions`. The layers, the canvas and the palette scroll while a held drag is near their edge.
+- `foldkit-builder`: `DragDropped` takes an optional `aim` (`OverNode`, `OverRegion`, `OverPage`,
+  `OverNothing`, exported as `DropAim`): where the pointer was when it let go.
 - `foldkit-mixins-crud`: a `ListView` and `RowListView` row carries its key as `data-row-key` on the `row`
   Slot, server markup included, so an application can return focus to a row's button after a re-read
   with `Dom.focus` and a `CSS.escape`d selector.
@@ -962,6 +973,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-builder`: a drop lands where the pointer let go. It landed where the last move had been
+  over, so a list scrolled under a still pointer dropped a row away.
+- `foldkit-primitives`: an edge-scrolling drag no longer throws where the document has no `scrollingElement` (jsdom).
 - `foldkit-mixins-ui`: `Sheet.close` on a closed Sheet, and `Dialog.update` given a
   `RequestedClose` while the dialog is not open, return the Model they were given instead of an
   equal copy that rendered the page. `Dialog.close` is new: `@foldkit/ui`'s `close` through that

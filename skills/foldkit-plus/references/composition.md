@@ -267,7 +267,7 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
   palette), `DraggedOver({ id, zone })`, `DraggedOverRegion({ id, region })` (over a node's
   empty Region, which a drop then goes into), `DraggedOff()`, `DraggedOverPage()` (a tile over the
   page's empty space, which lands where `placeFor` with nothing selected puts it),
-  `DragDropped()`, `DragCancelled()`: `drag.at` is where a drop lands
+  `DragDropped({ aim? })` (`aim`: where the pointer let go, `OverNode`, `OverRegion`, `OverPage` or `OverNothing`; absent, the last move's place), `DragCancelled()`: `drag.at` is where a drop lands
   (`dropAt`; inside a node that takes nothing is after it, and `over`'s zone
   says so; where the node has no place for it, by the nearest holder that does), none where the page refuses or onto the node's own place; a drop
   is one undoable move, or for a new Block an insert with a minted id, its place worked out
@@ -327,7 +327,8 @@ const DrawnPageForm = Form.make('PageForm', PageInput, {
   and the page via the site's Renderer in edit mode.
 - Behaviors: `TreeNavigation` on `tree`/`row`; `keyPressed` shortcuts on
   `layers` and the focusable `canvas` (Escape deselects); a `crumbs` breadcrumb; `Targets` on `canvas` (hover marks, press selects, a link does not
-  navigate). No state, no Messages of its own.
+  navigate); `PointerDrag` (rows, nodes, a palette's tiles, and the selected node's grip, `nodeHandle`, whose tap opens
+  `nodeMenu`, a `popover` of the node's commands); `Carried` draws what a drag carries in the top layer. No state, no Messages of its own.
 - A Block's words: `Block.words({ label, description, group })` (from `foldkit-composition`, a
   pipe step, so a Block from another package can be worded); the label defaults to the name
   spaced. An agent's `operationSchema` carries each description. Look values are named with an
