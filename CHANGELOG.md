@@ -9,8 +9,6 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
-- `foldkit-mixins-ui`: a Menu row takes an `icon` (before its label) and a `hint` (at its end, before its shortcut), each in a Slot of its own (`MenuSlots.icon`, `MenuSlots.hint`) that `Recipes.Menu` styles; a submenu's items take them too.
-
 - `foldkit-mixins-ui`: `TagsInput`'s chips are one roving tab stop (`Model.chip`, set by
   `Message.FocusMoved`, the last chip until an arrow moves it): ArrowLeft and ArrowRight
   move among the chips, Home and End go to the ends, Backspace and Delete remove the
@@ -672,16 +670,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
-- `foldkit-mixins-ui`: `Menubar.view`'s `menuMixins` is optional, as the other views' `mixins` are; a bar given none draws its menus unstyled.
-
-- `foldkit-mixins-ui`: **Breaking:** a Menu row is named by a `value` of its own, beside its `label`. `Menu.ItemRow`, `CheckRow`, `SubmenuRow`, `LeafRow` and `Row` take `value` (and `Row<Value>` types it by the application's union); the menu's items, `isRowDisabled`, a submenu's `isItemDisabled`, `Selected`'s `value` and `submenu`, `Menu.checkChosen` and `Menubar`'s `Selected` and `isRowDisabled` go by it, so two rows with one label (a "Delete" in two groups) are told apart in the disabled state and in what is chosen. A submenu's `items` are `ItemRow`s, not strings. `label` is what is drawn and what typeahead matches. `Breadcrumb.menuRows` gives each hidden step's place as its row's value, and `Breadcrumb.chosen` reads it. `Menu.rowInputs` is the Menu view inputs for rows, shared by Menu and Menubar.
-
 - `foldkit-mixins-ui`: **Breaking:** `TagsInput`'s keys are `Behaviors.Keys` routes on its
   `input` Slot, and `TagsInput.view` takes `routes` for the application's own. The input
   no longer reports every key: `Message.Pressed { key }` is `Message.BackspacedEmpty`,
   sent for Backspace only when the input itself (not the Model's frame-old draft) holds no
   text, so Backspace over text typed since the last frame still edits it. A route on
   Enter, the delimiter or such a Backspace is a `mixins:key-conflict`.
+- `foldkit-mixins-ui`: **Breaking:** removing a `TagsInput` tag, by its button or from the
+  keyboard, focuses the chip that takes its place, else the one before it, else the input
+  (it was always the input), through `update`'s Command, which finds a chip by its id
+  whatever the tag's text. `Message.CompletedFocusInput` is `Message.CompletedFocus`.
 - `foldkit-site`: a `Bundle.lazy` page's `changed` is required and returns a Message (a
   type error otherwise, and refused by `Site.placement` at run time), since a page whose
   arrival says nothing draws its placeholder for good. `Site.sources` and

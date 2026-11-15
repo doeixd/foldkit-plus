@@ -205,19 +205,52 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: 'commands: [FocusInput({ id: model.id })],',
-        replace: '',
+        find: 'commands: [',
+        replace: 'commands: undefined && [',
       },
     ],
     tests: [unit],
   },
   {
-    name: 'a removal focuses the element named by the bare id',
+    name: 'a removal focuses a chip by its bare id',
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: 'Dom.focus(`#${inputId(id)}`)',
+        find: 'Dom.focus(RovingTabindex.idSelector(id))',
         replace: 'Dom.focus(`#${id}`)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a removal focuses the input whatever chips are left',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'onSome: each => chipId(model.id, each),',
+        replace: 'onSome: () => inputId(model.id),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a removal focuses the chip before it',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'tags[Math.min(at, tags.length - 1)]',
+        replace: 'tags[Math.max(0, at - 1)]',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a removal leaves the tab stop where it was',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'chip: () => next,',
+        replace: 'chip: chip => chip,',
       },
     ],
     tests: [unit],

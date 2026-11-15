@@ -115,7 +115,7 @@ export const Message = defineMessageUnion({
   Removed: { tag: Schema.String },
   /** Focus moved to a chip by a key, or, with `none`, back to the input. */
   FocusMoved: { chip: Schema.OptionFromNullOr(Schema.String) },
-  CompletedFocusInput: {},
+  CompletedFocus: {},
 })
 export type Message = typeof Message.Type
 
@@ -143,12 +143,16 @@ const inputId = (id: string) => `${id}-input`
 const messageId = (id: string) => `${id}-message`
 const chipId = (id: string, tag: string) => `${id}-chip-${tag}`
 
-// A removed tag's button leaves the page with the focus on it.
-const FocusInput = Command.define('FocusInput', {
+// A removed tag's button leaves the page with the focus on it. The id is a
+// tag's for a chip, and a tag may hold any text, so it is no bare `#id`.
+const Focus = Command.define('Focus', {
   args: { id: Schema.String },
-  messages: [Message.CompletedFocusInput],
+  messages: [Message.CompletedFocus],
   execute: ({ id }) =>
-    Dom.focus(`#${inputId(id)}`).pipe(Effect.ignore, Effect.as(Message.CompletedFocusInput())),
+    Dom.focus(RovingTabindex.idSelector(id)).pipe(
+      Effect.ignore,
+      Effect.as(Message.CompletedFocus()),
+    ),
 })
 
 /**
@@ -233,21 +237,33 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
             }),
           }
         : { model },
-    Removed: ({ tag }) =>
-      model.tags.includes(tag)
-        ? {
-            model: modifyFields(model, {
-              tags: () => model.tags.filter(each => each !== tag),
-              refusal: () => Option.none(),
+    Removed: ({ tag }) => {
+      const at = model.tags.indexOf(tag)
+      if (at === -1) return { model }
+      const tags = model.tags.filter(each => each !== tag)
+      // The chip that takes its place, else the one before it, else the input.
+      const next = Option.fromNullishOr(tags[Math.min(at, tags.length - 1)])
+      return {
+        model: modifyFields(model, {
+          tags: () => tags,
+          refusal: () => Option.none(),
+          chip: () => next,
+        }),
+        commands: [
+          Focus({
+            id: Option.match(next, {
+              onNone: () => inputId(model.id),
+              onSome: each => chipId(model.id, each),
             }),
-            commands: [FocusInput({ id: model.id })],
-          }
-        : { model },
+          }),
+        ],
+      }
+    },
     FocusMoved: ({ chip }) =>
       Option.getOrNull(chip) === Option.getOrNull(model.chip)
         ? { model }
         : { model: modifyFields(model, { chip: () => chip }) },
-    CompletedFocusInput: () => ({ model }),
+    CompletedFocus: () => ({ model }),
   })
 
 export type Route<Message> = Behaviors.Keys.Route<Model, Message>

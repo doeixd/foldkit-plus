@@ -216,6 +216,27 @@ test('ArrowLeft in the input leaves it only from the start of its text', async (
   }
 })
 
+test('removing a chip from the keyboard focuses the one that takes its place, else the input', async () => {
+  const handle = mount(['a b', 'say "hi"', 'c'])
+  try {
+    await vi.waitFor(() => expect(document.getElementById('topics-input')).not.toBeNull())
+    input().focus()
+    await userEvent.tab({ shift: true })
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(focused()).toBe('Remove say "hi"')
+    await userEvent.keyboard('{Delete}')
+    await vi.waitFor(() => expect(focused()).toBe('Remove c'))
+    expect(tagTexts()).toEqual(['a b', 'c'])
+    await userEvent.keyboard('{Backspace}')
+    await vi.waitFor(() => expect(focused()).toBe('Remove a b'))
+    await userEvent.keyboard('{Backspace}')
+    await vi.waitFor(() => expect(document.activeElement).toBe(input()))
+    expect(tagTexts()).toEqual([])
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('under reduced motion a refusal does not move the field', async () => {
   await reduce('reduce')
   const handle = mount()

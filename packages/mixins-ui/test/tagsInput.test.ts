@@ -157,25 +157,56 @@ describe('TagsInput.update', () => {
     expect(update(none, Message.BackspacedEmpty()).model).toBe(none)
   })
 
-  it('removes a tag by its text and sends the focus back to the input', () => {
+  it('removes a tag by its text, and changes nothing for one that is not there', () => {
     const model = init({ id: 'topics', tags: ['a', 'b', 'c'] })
-    const result = update(model, Message.Removed({ tag: 'b' }))
-    expect(result.model.tags).toEqual(['a', 'c'])
-    expect((result.commands ?? []).map(command => command.name)).toEqual(['FocusInput'])
+    expect(update(model, Message.Removed({ tag: 'b' })).model.tags).toEqual(['a', 'c'])
     const gone = update(model, Message.Removed({ tag: 'z' }))
     expect(gone.model).toBe(model)
     expect(gone.commands).toBeUndefined()
   })
 
-  it("focuses the field's own input once a tag is removed", async () => {
-    document.body.innerHTML = '<input id="topics"><input id="topics-input">'
-    const [command] = update(
-      init({ id: 'topics', tags: ['a'] }),
-      Message.Removed({ tag: 'a' }),
-    ).commands!
-    await Effect.runPromise(command!.effect)
-    expect(document.activeElement?.id).toBe('topics-input')
-    document.body.replaceChildren()
+  describe('focus after a removal', () => {
+    // What each removal focuses, found by running its Command against the page the view draws.
+    const focusedAfter = async (tags: ReadonlyArray<string>, removed: string) => {
+      const page = document.createElement('div')
+      page.append(
+        ...['topics-input', ...tags.map(tag => `topics-chip-${tag}`)].map(id => {
+          const element = document.createElement('button')
+          element.id = id
+          return element
+        }),
+      )
+      document.body.append(page)
+      const { model, commands } = update(
+        init({ id: 'topics', tags }),
+        Message.Removed({ tag: removed }),
+      )
+      expect(commands).toHaveLength(1)
+      await Effect.runPromise(commands![0]!.effect)
+      const id = document.activeElement?.id
+      page.remove()
+      return { id, chip: model.chip }
+    }
+
+    it.each([
+      ['a middle chip', ['a', 'b', 'c'], 'b', 'topics-chip-c', Option.some('c')],
+      ['the first chip', ['a', 'b', 'c'], 'a', 'topics-chip-b', Option.some('b')],
+      ['the last chip', ['a', 'b', 'c'], 'c', 'topics-chip-b', Option.some('b')],
+      ['the only chip', ['a'], 'a', 'topics-input', Option.none()],
+    ] as const)(
+      '%s goes to the chip that takes its place, else the input',
+      async (_, tags, removed, id, chip) => {
+        expect(await focusedAfter(tags, removed)).toEqual({ id, chip })
+      },
+    )
+
+    it('finds a chip whose text is no safe selector', async () => {
+      const awkward = 'say "hi" #1'
+      expect(await focusedAfter(['a', awkward, 'b'], 'a')).toEqual({
+        id: `topics-chip-${awkward}`,
+        chip: Option.some(awkward),
+      })
+    })
   })
 })
 
@@ -278,7 +309,9 @@ describe('TagsInput.view', () => {
         ).map(button => Inert.value(button, 'tabindex'))
       expect(stops(three)).toEqual([-1, -1, 0])
       expect(stops(update(three, moved('a')).model)).toEqual([0, -1, -1])
-      const gone = update(update(three, moved('a')).model, Message.Removed({ tag: 'a' })).model
+      // The chip it last moved to is gone: the stop falls back to the last.
+      const gone = update(update(three, moved('c')).model, Message.BackspacedEmpty()).model
+      expect(gone.tags).toEqual(['a', 'b'])
       expect(stops(gone)).toEqual([-1, 0])
     })
 
