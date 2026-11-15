@@ -18,7 +18,7 @@ each of those.
 | **Mount** | Element-scoped imperative work. Emits Messages while the element is live; cleans up on unmount. |
 | **Resource / ManagedResource** | A dependency shared with Commands and Subscriptions. A `ManagedResource`'s lifetime follows a Model slice. |
 | **Submodel** | A child state machine whose state is a field of the parent Model and whose Messages are a variant of the parent's. |
-| **Owner** | The one authoritative source for a datum. Every package in this repository is built around there being exactly one. |
+| **Owner** | The one authoritative source for a datum. Every package in this repository is built around there being exactly one. On a view's slot it is the one attachment that writes an event, an attribute or a style property: a second is a diagnostic, not a winner. |
 
 ## `foldkit-surface`: boundaries
 
@@ -94,5 +94,20 @@ each of those.
 | **Absorbed** | An edit the read model holds, recorded so by the server; replicas drop it and the log compacts. |
 | **Held edit** | An absorbed edit a page keeps while the row it has cached is behind it, so the row never shows a stale read (`EditableEntity.held`). |
 | **Agent contract** | What an agent may see (a Projection) and do (a Message subset), built from `Agent.forApplication(App)` and served by an adapter. [Agents](./agents.md) |
-| **Slot** | A named extension point in a view (`root`, `label`, …) that Style and Behavior attach to. [`foldkit-mixins`](../packages/mixins/README.md) |
-| **SlotView** | A pure view that renders its slots and resolves what is attached to them. |
+
+## `foldkit-mixins` and `foldkit-primitives`: views and interaction
+
+| Term | What it is |
+| --- | --- |
+| **Slot** | A named extension point in a view (`root`, `label`, …) that Style and Behavior attach to. A metadata contract, not a DOM node. [`foldkit-mixins`](../packages/mixins/README.md#slots-the-public-contract) |
+| **SlotView** | A pure view that renders its slots and resolves what is attached to them. [SlotView](../packages/mixins/README.md#slotview) |
+| **Style** | Appearance attached to a slot as data: classes, declarations and compiled rules, built from tokens. A *piece* is one value of it. [Style](../packages/mixins/README.md#style-appearance-as-data) |
+| **Behavior** | Element-level interaction attached to a slot: attributes and an optional Mount, built from the view's input. It sends Messages and owns no state. [Behavior](../packages/mixins/README.md#behavior-reusable-element-level-interaction) |
+| **Mixin** | What Style and Behavior both compile to. The resolver merges the Mixins on a view and refuses two owners of one event, attribute or style property. |
+| **Recipe** | A widget's default look: pieces for its slots over the theme's tokens, chosen by axes (`size`, `variant`) and adjusted with `.extend`, never forked. [Recipes](../packages/mixins-ui/README.md) |
+| **Obligation** | Something a pattern asks an attachment to do on a slot: navigate its items, make each reachable, activate it, write a state attribute, give it a name. [Obligations](../packages/mixins/README.md#obligations-who-does-what-a-pattern-asks) |
+| **Supply** | A claim that an obligation is met: a Behavior slot's `provides`, or `A11y.base` (the view's own markup), `A11y.native` (a native element) and `A11y.delegated` (another slot's Behavior). `A11y.conform` refuses a view where one has none. |
+| **Key route** | One named `keydown` answer for a slot: the chords it takes and the Message each means. `Behaviors.Keys` folds a slot's routes into its one handler, so a widget's own keys and an application's share it; two routes on a chord are `mixins:key-conflict`. [Keys](../packages/mixins/README.md#keys-one-owner-for-a-slots-keydown) |
+| **Part** | In `SlotView.parts`, a piece of a view that is drawn again only when the input keys it reads change. In `FocusRecovery`, a slot whose element focus can be lost with, given fallback steps. |
+| **Conformance** | `foldkit-mixins/testing`'s rendered scenarios (`listbox`, `tree`, `dialog`, `tabs`, `checkbox`): they drive a real page and read what it did, where `A11y.check` only reads declarations. [Conformance](../packages/mixins/README.md#conformance-the-rendered-check) |
+| **Primitive** | A ready-made piece of browser or interaction state in `foldkit-primitives`: a Bundle (state in your Model), a Mount (a DOM fact), a Behavior (the Bundle attached to slots), a Command or a pure function. [Primitives](../packages/primitives/README.md) |

@@ -285,9 +285,10 @@ in a line.
 | Keep the filter and page in the URL, remember a draft or a preference | `foldkit-mirror` | [Mirrored state](./docs/mirror.md) |
 | Declare where the application is: route nodes, typed targets, titles, history intent | `foldkit-site` (early) | [package README](./packages/site) |
 | Package a Submodel once and place it several times, or once per key, with every part wired | `foldkit-bundle` (+ `-surface` for Module ownership) | [package README](./packages/bundle) |
-| Reach for everyday browser primitives instead of hand-wiring them: media queries, timers, sockets, device state, observers, clipboard, one in-browser server for every tab | `foldkit-primitives` | [package README](./packages/primitives) |
+| Reach for everyday browser and interaction primitives instead of hand-wiring them: media queries, timers, sockets, observers, clipboard, and arrow-key navigation, focus, press, drag, reorder, undo | `foldkit-primitives` | [package README](./packages/primitives) (a task map to each subpath) |
 | Draw responsive images (`srcset`, `sizes`, a source per format, a placeholder, the box held before the file arrives), make and keep their variants on a server or in a build, and import icons as data by name | `foldkit-media` (+ `Image` and `Icon.view` in `foldkit-mixins-ui`; early) | [package README](./packages/media) |
-| Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`, `-ui`) | [View composition](./docs/mixins.md) |
+| Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`) | [View composition](./docs/mixins.md), [package README](./packages/mixins) |
+| Use ready-made, themed, accessible widgets (menus, dialogs, tabs, tables, toolbars, search fields), or build one from the same Slots and primitives | `foldkit-mixins-ui` (+ `foldkit-primitives`) | [Widget catalog](./packages/mixins-ui), [UI architecture](./docs/ui-architecture.md) |
 | Use a React component in a Foldkit view, or embed a Foldkit program in a React app | `foldkit-react` | [package README](./packages/react) |
 | Compile Foldkit views to React TSX source | `foldkit-react-codegen` | [package README](./packages/react-codegen) |
 | Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
@@ -551,6 +552,9 @@ pnpm add foldkit-media
 # view extension points
 pnpm add foldkit-mixins foldkit-mixins-surface
 
+# ready-made widgets (its peers are the interaction primitives and Slots they compose)
+pnpm add foldkit-mixins-ui foldkit-mixins foldkit-primitives foldkit-media @foldkit/ui
+
 # React interop in either direction
 pnpm add foldkit-react react react-dom
 pnpm add -D foldkit-react-codegen # views to TSX source
@@ -597,6 +601,7 @@ README documents its API.
 | Local-first replication and the durable server log | [Replicated state](./docs/replication.md) |
 | URL and key-value mirrors | [Mirrored state](./docs/mirror.md) |
 | Inside-out view composition | [View composition](./docs/mixins.md) |
+| The layers every UI package shares: anatomy, patterns, behavior, recipe, theme | [UI architecture](./docs/ui-architecture.md) |
 | Running a Foldkit app over a replica | [Runtime binding](./docs/sync-runtime-binding.md) |
 | Design lineage and prior art | [Prior art and design lineage](./docs/prior-art.md) |
 

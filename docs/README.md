@@ -59,7 +59,7 @@ Link and Placement to Connection and Segment, are in the
 | You are trying to… | Guide | Packages |
 | --- | --- | --- |
 | Track drafts, revisions, publication, and audience over an existing domain | [CMS](../packages/cms/README.md) | `foldkit-cms`, `foldkit-cms-drizzle` |
-| Use a browser primitive or element observer | [Primitives](../packages/primitives/README.md) | `foldkit-primitives` |
+| Use a browser primitive, an element observer, or an interaction pattern (arrow-key navigation, focus recovery, drag, reorder, undo) | [Primitives](../packages/primitives/README.md) | `foldkit-primitives` |
 | Cross between React and Foldkit | [React bridge](../packages/react/README.md) | `foldkit-react`; codegen for source translation |
 | Let an LLM or another agent use the application through real application transitions | [Agents](./agents.md) | `foldkit-agent` + WebMCP/MCP/A2A/Agent Native adapters |
 | Follow Entity, Query and Write declarations through Remote reads and UI regions | [From declarations to the screen](./declared-data-to-ui.md) | `foldkit-entity`, `foldkit-remote`, `foldkit-surface`, `foldkit-mixins` |
@@ -79,6 +79,7 @@ Link and Placement to Connection and Segment, are in the
 | Name a rule once, search and order by what the kernel lacks, compute a write, and have server and client mean the same by it | [Operators](./operators.md) | `foldkit-entity`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-guard` |
 | Tell who is asking from what they may do, and wire the two | [Auth and Guard](./auth-and-guard.md) | `foldkit-auth`, `foldkit-guard` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
+| Use a ready-made widget (menus, dialogs, tabs, tables, toolbars, search fields) in the application's theme | [Widget catalog](../packages/mixins-ui/README.md) | `foldkit-mixins-ui`, `foldkit-primitives` |
 | Build on the shared UI vocabulary (anatomy, capability, recipe, theme) before adding widgets | [UI architecture](./ui-architecture.md) | `foldkit-mixins`, `foldkit-mixins-ui` |
 | Understand the long-term path from one Foldkit state machine to Web, native iOS, native Android, and desktop without requiring a JavaScript runtime on mobile | [Native cross-platform Foldkit](./native-cross-platform.md) | `foldkit-surface`, `foldkit-mixins`, platform adapters, reffect |
 | Understand how a replica is actually bound to a running Foldkit app | [Runtime binding](./sync-runtime-binding.md) | `Sync.mount` |
@@ -121,7 +122,7 @@ Server data      foldkit-remote + remote-server / remote-drizzle
 Replication      foldkit-sync + foldkit-durable
 Persistence      foldkit-mirror
 Submodels        foldkit-bundle + bundle-surface
-Primitives       foldkit-primitives (media, net, time, state, motion, device, events, observers, dom)
+Primitives       foldkit-primitives (media, net, time, state, motion, interaction, device, events, observers, dom)
 Views            foldkit-mixins + mixins-surface / mixins-ui
 React interop    foldkit-react + react-codegen
 ```
