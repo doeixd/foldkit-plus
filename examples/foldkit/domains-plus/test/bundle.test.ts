@@ -41,7 +41,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // frame's realm; a portaled panel's region read from the sheets through a probe). The other
 // 1,166 is U-WP14 and the A3, F2 and C2 fixes the investigation attributed, which put the page
 // over before the review. Ceiling raised to the reading, rounded up.
-const CEILING = 197_550
+// 199,053 on 2026-11-14, after merging main: +1,553 over main's 197,500, from this branch's
+// kept `WindowList` work (the row holding focus kept drawn, revealing a row, find-in-page
+// stand-ins; 4.4 kB to 9.7 kB minified) that the page draws. The ceiling is that plus about 1%.
+const CEILING = 201_500
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))
