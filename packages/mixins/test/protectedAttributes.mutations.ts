@@ -128,10 +128,7 @@ export default [
     edits: [
       {
         file: resolver,
-        find:
-          '      if (isTagged(inner)) {\n' +
-          '        if (!countChildMount(inner._tag)) reserve(inner._tag, inner)\n' +
-          '      }\n',
+        find: '      if (isTagged(inner)) claim(inner._tag, inner)\n',
         replace: '',
       },
     ],

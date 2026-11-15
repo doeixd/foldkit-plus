@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: '                  reduced\n',
-        replace: '                  false\n',
+        find: '                reduced\n',
+        replace: '                false\n',
       },
     ],
     tests,
