@@ -27,8 +27,8 @@ test('picking the second Copy by keyboard reports copy-link and returns focus to
     .toEqual(['RenameF2', 'CopyText', 'CopyLink', 'Archive'])
 
   const picked = section.getByLabel('Picked')
-  // One key at a time: the menu reads the next row from the last frame.
-  for (const expected of ['Rename', 'CopyText', 'CopyLink']) {
+  // Opened by Enter, the first row is active. One key at a time: the menu reads the next row from the last frame.
+  for (const expected of ['CopyText', 'CopyLink']) {
     await page.keyboard.press('ArrowDown')
     await expect
       .poll(() =>

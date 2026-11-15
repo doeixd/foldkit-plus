@@ -15,8 +15,8 @@ export const ChoicesSlots = Slots.define({
   line: Slot.make({ capability: Capability.Container }),
 })
 
-export const SegmentedStyle = Style.forSlots(SegmentedSlots)(Recipes.Segmented({}))
-export const SliderStyle = Style.forSlots(SliderSlots)(Recipes.Slider({}))
+const SegmentedStyle = Style.forSlots(SegmentedSlots)(Recipes.Segmented({}))
+const SliderStyle = Style.forSlots(SliderSlots)(Recipes.Slider({}))
 const layout = choicesStyle(ChoicesSlots)
 
 /** The styles the section draws with, for the page's sheet. */

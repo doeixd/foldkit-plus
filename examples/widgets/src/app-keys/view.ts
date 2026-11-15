@@ -23,9 +23,9 @@ export const AppKeysSlots = Slots.define({
   clash: Slot.make({ capability: Capability.Container }),
 })
 
-export const CommandStyle = Style.forSlots(CommandSlots)(Recipes.Command({}))
-export const BarStyle = Style.forSlots(MenubarSlots)(Recipes.Menubar({}))
-export const BarMenuStyle = Style.forSlots(MenuSlots)(Recipes.MenubarMenu({}))
+const CommandStyle = Style.forSlots(CommandSlots)(Recipes.Command({}))
+const BarStyle = Style.forSlots(MenubarSlots)(Recipes.Menubar({}))
+const BarMenuStyle = Style.forSlots(MenuSlots)(Recipes.MenubarMenu({}))
 const layout = appKeysStyle(AppKeysSlots)
 
 /** The styles the section draws with, for the page's sheet. */

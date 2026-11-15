@@ -16,8 +16,8 @@ export const MenuRowsSlots = Slots.define({
   result: Slot.make({ capability: Capability.Container }),
 })
 
-export const MenuStyle = Style.forSlots(MenuSlots)(Recipes.Menu({}))
-export const IconStyle = Style.forSlots(IconSlots)(Recipes.Icon({}))
+const MenuStyle = Style.forSlots(MenuSlots)(Recipes.Menu({}))
+const IconStyle = Style.forSlots(IconSlots)(Recipes.Icon({}))
 const layout = menuRowsStyle(MenuRowsSlots)
 
 /** The styles the section draws with, for the page's sheet. */
