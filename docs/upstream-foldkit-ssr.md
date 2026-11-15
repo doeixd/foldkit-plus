@@ -505,8 +505,8 @@ with the SSR plan and README updated in the same commit.
 
 ## Other Foldkit behaviour we work around
 
-Beyond SSR, this repository works around the behaviour below. Four
-`@foldkit/ui` gaps are filed (listed at the end). The rest are not filed
+Beyond SSR, this repository works around the behaviour below. Eight
+`@foldkit/ui` gaps and three core ones are filed (listed at the end). The rest are not filed
 yet: each is a candidate once it has the use case Foldkit asks for. The
 working detail of each is a trap in `AGENTS.md`, named here by its title.
 
@@ -641,3 +641,29 @@ Filed against `@foldkit/ui`, each with the workaround it would retire
 - [foldkit#1689](https://github.com/foldkit/foldkit/issues/1689): a modal
   `<dialog>` in the top layer, an opt-in beside `show()`, which upstream
   keeps for DevTools, so a transformed ancestor no longer captures it.
+- [foldkit#1936](https://github.com/foldkit/foldkit/issues/1936): the
+  Checkbox toggling on Enter, its Enter default prevented without a Message,
+  so the `test.fails` in `keyboardMaps.browser.test.ts` turns around.
+- [foldkit#1937](https://github.com/foldkit/foldkit/issues/1937): a leaving
+  Dialog's panel controls, an `inert` panel or `isLeaving` in `RenderInfo`,
+  so `Dialog.isLeaving` and our inert panel can go.
+- [foldkit#1939](https://github.com/foldkit/foldkit/issues/1939): Escape on
+  hover-opened Tooltip and HoverIntent content while focus is elsewhere (WCAG
+  1.4.13), a document listener while open.
+- [foldkit#1940](https://github.com/foldkit/foldkit/issues/1940): the
+  VirtualList dropping a focused row, a view input of indices kept drawn, so
+  `WindowList`'s `Model.held` and the `test.fails` in
+  `virtualListFocus.browser.test.ts` can go.
+
+Filed against `foldkit`, each with the workaround it would retire:
+
+- [foldkit#1938](https://github.com/foldkit/foldkit/issues/1938): a
+  `focusFallback` on `closeDialog` for an opener that is gone, so
+  `Dialog.update({ focusFallback })` and `Sheet.init({ focusFallback })`
+  can go.
+- [foldkit#1941](https://github.com/foldkit/foldkit/issues/1941): `Class`
+  and `Style` merging instead of keeping the last, so the mixins resolver's
+  class merge within a Slot is no longer needed.
+- [foldkit#1942](https://github.com/foldkit/foldkit/issues/1942):
+  `Route.string` percent-decoding and encoding, so slugs no longer need
+  `schemaSegment` with an encoding Schema.
