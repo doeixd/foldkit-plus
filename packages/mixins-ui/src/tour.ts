@@ -1,7 +1,17 @@
 import { AnchorConfig, anchorSetup, type Placement } from '@foldkit/ui/anchor'
 import { Effect, Option, Schema } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
-import { TRACK_TARGET_ATTRIBUTE, TrackBox } from 'foldkit-primitives/dom'
+import {
+  Attr,
+  Behavior,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+} from 'foldkit-mixins'
+import { FocusReturn, TRACK_TARGET_ATTRIBUTE, TrackBox } from 'foldkit-primitives/dom'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -268,6 +278,27 @@ export const PlaceStep = Mount.define('Tour.PlaceStep', {
     }),
 })
 
+/**
+ * A way back for focus when the element that started the tour is gone when it
+ * ends, or none was named to `start`: focus goes to what had it before the
+ * tour, then by `FocusReturn`'s rules (an element with the opener's id, the
+ * opener's `FocusRecovery` steps, the layer below, the page's first tabbable
+ * element). Focus the reader moved elsewhere is left alone. Pass it among the
+ * mixins; opt in, as it sends no Message. The `opener` given to `start` is
+ * focused after it, by id, as without this.
+ */
+export const focusReturn = [
+  Behavior.forSlots(TourSlots)<unknown, never>(
+    {
+      layer: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => FocusReturn(),
+      }),
+    },
+    { name: 'TourFocusReturn' },
+  ).mixin,
+] as const
+
 export interface TourView<ParentMessage> {
   readonly model: Model
   /** The steps; the same as `update`'s. */
@@ -294,16 +325,27 @@ export interface TourView<ParentMessage> {
     | undefined
   /** Default `'ltr'`; under `'rtl'` ArrowLeft goes on to the next step. */
   readonly direction?: 'ltr' | 'rtl' | undefined
+  /**
+   * Keys the application answers on a step, such as a digit jumping to that
+   * step. They share one keydown owner with the step's own: the arrows
+   * (ArrowLeft goes to the previous step, swapped right to left) and, unless
+   * `closeOnEscape` is false, Escape; a route on the same gesture is a
+   * diagnostic naming both.
+   */
+  readonly routes?: ReadonlyArray<Route<NoInfer<ParentMessage>>> | undefined
   /** A style of `TourSlots`, for the look. */
   readonly style?: NamedStyle<typeof TourSlots> | undefined
   /** Mixins beside the style. */
   readonly mixins?: MixinList<ParentMessage> | undefined
 }
 
+/** The arrows that move between steps, as a left-to-right reader presses them. */
+const STEP_KEYS = ['ArrowRight', 'ArrowLeft'] as const
+
 const ofCount = (step: number, count: number) => `${step + 1} of ${count}`
 
-/** The keys a step takes from the page. */
-const STEP_KEYS = new Set(['ArrowRight', 'ArrowLeft', 'Escape'])
+/** A key the application answers on a step. */
+export type Route<ParentMessage> = Behaviors.Keys.Route<undefined, ParentMessage>
 
 export const view = <ParentMessage>(
   options: TourView<ParentMessage>,
@@ -312,12 +354,39 @@ export const view = <ParentMessage>(
   const { model, onMessage, config } = options
   const step = config.steps[model.step]
   if (!model.open || step === undefined) return h.empty
+  const send = (message: Message) => onMessage(message)
+  const keys = Behaviors.Keys.behavior(TourSlots)<undefined, ParentMessage>({
+    slot: 'panel',
+    name: 'TourKeys',
+    routes: [
+      ...STEP_KEYS.map(key =>
+        Behaviors.Keys.route<undefined, ParentMessage>(`Tour ${key}`, {
+          on: [...Behaviors.Keys.withShift(key)],
+          // The key as a left-to-right reader presses it.
+          handle: () =>
+            Option.some(send(Message.Pressed({ key: readingKey(key, options.direction) }))),
+        }),
+      ),
+      ...(options.closeOnEscape === false
+        ? []
+        : [
+            Behaviors.Keys.route<undefined, ParentMessage>('Tour Escape', {
+              on: [...Behaviors.Keys.withShift('Escape')],
+              handle: () => Option.some(send(Message.Pressed({ key: 'Escape' }))),
+            }),
+          ]),
+      ...(options.routes ?? []),
+    ],
+  })
   const builders = SlotView.buildersFor(
     TourSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      keys.mixin,
+      ...(options.mixins ?? []),
+    ],
     { input: undefined, h },
   )
-  const send = (message: Message) => onMessage(message)
   const { id } = model
   const count = config.steps.length
   const labels = options.labels ?? {}
@@ -378,12 +447,6 @@ export const view = <ParentMessage>(
             ),
           ),
         ],
-      }),
-      h.OnKeyDownPreventDefault((pressed, modifiers) => {
-        if (modifiers.ctrlKey || modifiers.metaKey || modifiers.altKey) return Option.none()
-        const key = readingKey(pressed, options.direction)
-        if (key === 'Escape' && options.closeOnEscape === false) return Option.none()
-        return STEP_KEYS.has(key) ? Option.some(send(Message.Pressed({ key }))) : Option.none()
       }),
     ]),
     [

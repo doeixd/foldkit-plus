@@ -6,14 +6,14 @@
  * cutout following it; and a step whose target is missing stands in the
  * middle of the viewport.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
-import { Layers, Style } from 'foldkit-mixins'
+import { Behaviors, Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
@@ -36,12 +36,18 @@ const config: Config = {
 }
 const update = Tour.update(config)
 
-const Model = Schema.Struct({ tour: Tour.Model, pressed: Schema.Number })
+const Model = Schema.Struct({
+  tour: Tour.Model,
+  pressed: Schema.Number,
+  /** Whether the button that started the tour has been taken off the page. */
+  helpGone: Schema.Boolean,
+})
 type Model = typeof Model.Type
 const Got = defineMessageUnion({
   Started: {},
   GotTour: { message: Tour.Message },
   PressedNav: {},
+  RemovedHelp: {},
 })
 type Got = typeof Got.Type
 
@@ -52,7 +58,12 @@ afterEach(() => {
   window.scrollTo(0, 0)
 })
 
-const mount = (view: Partial<Tour.TourView<Got>> = {}, direction: 'ltr' | 'rtl' = 'ltr') => {
+const mount = (
+  view: Partial<Tour.TourView<Got>> = {},
+  direction: 'ltr' | 'rtl' = 'ltr',
+  // Whether `start` is told what opened the tour.
+  named = true,
+) => {
   document.documentElement.dir = direction
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -72,20 +83,25 @@ const mount = (view: Partial<Tour.TourView<Got>> = {}, direction: 'ltr' | 'rtl' 
     Runtime.makeElement({
       Model,
       container,
-      init: () => ({ model: { tour: Tour.init({ id: 'tour' }), pressed: 0 } }),
+      init: () => ({ model: { tour: Tour.init({ id: 'tour' }), pressed: 0, helpGone: false } }),
       update: (model: Model, message: Got) =>
         Got.match(message, {
-          Started: () => fold(model, Tour.start(model.tour, config, { opener: 'help' })),
+          Started: () =>
+            fold(model, Tour.start(model.tour, config, named ? { opener: 'help' } : {})),
           GotTour: ({ message: inner }) => fold(model, update(model.tour, inner)),
           PressedNav: () => ({
             model: modifyFields(model, { pressed: pressed => pressed + 1 }),
           }),
+          RemovedHelp: () => ({ model: modifyFields(model, { helpGone: () => true }) }),
         }),
       view: (model: Model, h: HtmlBuilder<Got>) =>
         h.div(
           [h.Style({ padding: '40px' })],
           [
-            h.button([h.Id('help'), h.OnClick(Got.Started())], ['Start tour']),
+            // A placeholder in its place, so what follows keeps its position.
+            model.helpGone
+              ? h.empty
+              : h.button([h.Id('help'), h.OnClick(Got.Started())], ['Start tour']),
             h.button(
               [
                 h.Id('nav'),
@@ -240,6 +256,55 @@ test('right to left, ArrowLeft goes on and ArrowRight back', async () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(panel()))
     await userEvent.keyboard('{ArrowRight}')
     await vi.waitFor(() => expect(panel()!.textContent).toContain('1 of 3'))
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('with Tour.focusReturn, a tour that was not told its opener gives focus back to what started it', async () => {
+  const mounted = mount({ mixins: Tour.focusReturn }, 'ltr', false)
+  try {
+    await started()
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(panel()).toBeNull())
+    await vi.waitFor(() => expect(document.activeElement).toBe(byId('help')))
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('with Tour.focusReturn, an opener taken off the page leaves focus on the page, not on body', async () => {
+  const removeHelp = Behaviors.Keys.route<undefined, Got>('Remove the opener', {
+    on: [Behaviors.Keys.chord('x')],
+    handle: () => Option.some(Got.RemovedHelp()),
+  })
+  const mounted = mount({ mixins: Tour.focusReturn, routes: [removeHelp] })
+  try {
+    await started()
+    await userEvent.keyboard('x')
+    await vi.waitFor(() => expect(document.getElementById('help')).toBeNull())
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(panel()).toBeNull())
+    // The page's first tabbable element: the opener's id names nothing, and nothing is below.
+    await vi.waitFor(() => expect(document.activeElement).toBe(byId('nav')))
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('without it, an opener taken off the page leaves focus on body', async () => {
+  const removeHelp = Behaviors.Keys.route<undefined, Got>('Remove the opener', {
+    on: [Behaviors.Keys.chord('x')],
+    handle: () => Option.some(Got.RemovedHelp()),
+  })
+  const mounted = mount({ routes: [removeHelp] })
+  try {
+    await started()
+    await userEvent.keyboard('x')
+    await vi.waitFor(() => expect(document.getElementById('help')).toBeNull())
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(panel()).toBeNull())
+    expect(document.activeElement).toBe(document.body)
   } finally {
     mounted.dispose()
   }
