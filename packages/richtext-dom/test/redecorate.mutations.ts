@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file,
-        find: 'if (selection !== null && focused) restoreSelection',
+        find: 'if (selection !== null && owned) restoreSelection',
         replace: 'if (selection !== null) restoreSelection',
       },
     ],
@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file,
-        find: 'if (selection !== null && focused) restoreSelection',
-        replace: 'if (selection !== null && !focused) restoreSelection',
+        find: 'if (selection !== null && owned) restoreSelection',
+        replace: 'if (selection !== null && !owned) restoreSelection',
       },
     ],
     tests,
