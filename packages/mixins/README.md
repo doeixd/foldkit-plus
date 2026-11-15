@@ -578,6 +578,52 @@ On `ThemeFollowed`, `update` sets the Model's field and returns `Themes.apply(th
 `SchemeFollowed` it returns `Theme.chooseScheme(scheme)`. Kept knobs have no stream:
 `Theme.chooseKnobs` stores CSS variable declarations, which do not map back to a theme's knobs.
 
+### Switching themes in a page with no style compiler
+
+`Themes.make` compiles the themes, so a page built with `foldkit-mixins/vite`'s `modules`, which
+ships no style compiler, cannot import it. The functions that only show, keep and hear a theme
+need no compiled theme: `foldkit-mixins/theme/runtime` exports them (the same functions as
+`Themes.apply`, `Themes.choose`, `Themes.script` and `themeChanges`) over `ThemeNames`, the
+names, the initial name and the root attribute, which a compiled `Themes` already is. A page
+without the compiler declares its own, typed by a type-only import of the compiled set so the
+names cannot drift in type. `foldkit-mixins/theme/knob-data` is the table of every range knob of
+`Knobs.standard` (`knobData['shape.density']` is its `title`, `variable`, `unit`, `min`, `max`,
+`step` and `default`; a knob with a light and a dark value is two entries, `.light` and `.dark`),
+for a panel's sliders.
+
+```ts standalone
+import { Effect, Stream } from 'effect'
+import { knobData } from 'foldkit-mixins/theme/knob-data'
+import {
+  applyTheme,
+  chooseTheme,
+  themeChanges,
+  themeScript,
+  type ThemeNames,
+} from 'foldkit-mixins/theme/runtime'
+
+type Look = 'cobalt' | 'cobaltDense'
+const looks: ThemeNames<Look> = {
+  names: ['cobalt', 'cobaltDense'],
+  initial: 'cobalt',
+  attribute: 'data-theme',
+}
+
+// A Command's effects: the Model's field owns the chosen name, these only show it.
+export const show = (name: Look): Effect.Effect<void> => applyTheme(looks, name)
+export const keep = (name: Look): Effect.Effect<void> => chooseTheme(looks, name)
+// A Subscription's stream: another tab's choice, for `update` to store and answer with `show`.
+export const followed: Stream.Stream<Look> = themeChanges(looks)
+// The text of the head `<script>`, which shows the kept theme before the first paint.
+export const head: string = themeScript(looks)
+export const density = knobData['shape.density']
+```
+
+A name that is not one of `names` is a type error at a call. One read from storage, which nothing
+validated, never reaches a call: the head script leaves the initial theme, and `themeChanges`
+emits the initial theme, exactly as for a compiled set. Neither entry imports style code, so
+`modules` accepts a page that imports only these.
+
 ### The server's first render of the scheme
 
 A server that builds the Model per request reads the browser's hint with

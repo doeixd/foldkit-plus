@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: a page built with `foldkit-mixins/vite`'s `modules`, which ships no style compiler, can
+  switch, keep and follow a named theme. `foldkit-mixins/theme/runtime` exports `applyTheme`, `chooseTheme`,
+  `themeScript`, `themeChanges`, `THEME_KEY` and `ThemeNames` (names, initial, attribute); `Themes.apply`,
+  `Themes.choose`, `Themes.script` and `themeChanges` from `foldkit-mixins/theme` are these same functions,
+  and a compiled `Themes` is a `ThemeNames`. `foldkit-mixins/theme/knob-data` exports `knobData`, each range
+  knob of `Knobs.standard` by path (`shape.density`; `accent.chroma.light` and `.dark` for a two-scheme knob)
+  as `{ name, title, variable, unit, min, max, step, default }`, for a theme panel's sliders. A range
+  knob's `control` now carries its `variable`.
 - `foldkit-mixins`: `Behaviors.Keys.conflict(routes, slot?)` returns the `mixins:key-conflict`
   clash as an `Option<Diagnostic>`, for seeing a clash without drawing the view and catching the
   throw; `behavior`, `attribute` and `answer` raise the same diagnostic from the same detection.

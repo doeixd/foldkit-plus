@@ -907,7 +907,12 @@ export const stylesheet: string = Style.stylesheet(
   `Theme.currentScheme()` reads it back for the Model. Another tab's choice arrives as a Stream,
   `themeChanges(themes)` or `schemeChanges()` (named exports), from `storage` events (never the writing
   tab's): map it to a Message in `Subscription.persistentEntry`, and `update` stores it and
-  returns `Themes.apply` or `Theme.chooseScheme`. On a server, `schemeOfHint(header)` reads
+  returns `Themes.apply` or `Theme.chooseScheme`. A page built with `foldkit-mixins/vite`'s `modules`
+  (no style compiler in the browser) cannot import `Themes.make`: it takes `applyTheme`, `chooseTheme`,
+  `themeScript`, `themeChanges` and `type ThemeNames` (names, initial, attribute) from
+  `foldkit-mixins/theme/runtime`, the same functions as the `Themes` members, and a slider's
+  `title`, `variable`, `unit`, `min`, `max`, `step` and `default` from `knobData['shape.density']` in
+  `foldkit-mixins/theme/knob-data` (`.light` and `.dark` for a two-scheme knob). On a server, `schemeOfHint(header)` reads
   `Sec-CH-Prefers-Color-Scheme` into `Option<'light' | 'dark'>`; send `COLOR_SCHEME_HINT_HEADERS`
   so the browser sends it. Knob values a reader set get the same pair:
   `Theme.knobScript({ selector? })` in the head applies the kept knob variables, and
