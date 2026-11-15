@@ -302,11 +302,9 @@ test('a combobox opens on ArrowDown, ArrowDown and ArrowUp move the active optio
   expect(active()).toBe('fruit-input')
 })
 
-// Finding: the active option is worked out from the drawn view's active index
-// (`comboboxShared.ts` `resolveActiveIndex`, which reads `maybeActiveItemIndex` of the last
-// render), so a second ArrowDown before the next frame computes the same target as the first
-// and one press is lost. A held key repeating on a busy page does this.
-test.fails('two ArrowDowns before the next frame move the active option two places', async () => {
+// Keys come faster than frames: a held key repeating on a busy page sends several before
+// the next drawing, and each continues from the option the previous one reached.
+test('two ArrowDowns before the next frame move the active option two places', async () => {
   handle = mountCombobox()
   await vi.waitFor(() => expect(byId('fruit-input')).not.toBeNull())
   byId('fruit-input').focus()
@@ -319,6 +317,34 @@ test.fails('two ArrowDowns before the next frame move the active option two plac
     release()
   }
   await vi.waitFor(() => expect(activeOption()).toBe('Cherry'))
+})
+
+test('Enter after two ArrowDowns before the next frame chooses the option the second reached', async () => {
+  handle = mountCombobox()
+  await vi.waitFor(() => expect(byId('fruit-input')).not.toBeNull())
+  byId('fruit-input').focus()
+  await userEvent.keyboard('{ArrowDown}')
+  await vi.waitFor(() => expect(activeOption()).toBe('Apple'))
+  const release = holdFrames()
+  try {
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+  } finally {
+    release()
+  }
+  await vi.waitFor(() => expect(byId('picked').textContent).toBe('Cherry'))
+})
+
+test('ArrowDown twice before the next frame on a closed combobox opens it on the first option and moves to the second', async () => {
+  handle = mountCombobox()
+  await vi.waitFor(() => expect(byId('fruit-input')).not.toBeNull())
+  byId('fruit-input').focus()
+  const release = holdFrames()
+  try {
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+  } finally {
+    release()
+  }
+  await vi.waitFor(() => expect(activeOption()).toBe('Banana'))
 })
 
 test('Escape shuts an open combobox and keeps focus in the field', async () => {

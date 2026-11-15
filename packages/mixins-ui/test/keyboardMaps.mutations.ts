@@ -53,6 +53,39 @@ export default [
     tests: [popups],
   },
   {
+    name: 'a combobox arrow continues from the drawn active option, not the last press',
+    edits: [
+      {
+        file: '../src/comboboxShared.ts',
+        find: '    pressed = { isOpen: true, activeIndex: Option.some(targetIndex) }',
+        replace: '',
+      },
+    ],
+    tests: [popups],
+  },
+  {
+    name: 'a combobox Enter chooses the drawn active option, not the last press',
+    edits: [
+      {
+        file: '../src/comboboxShared.ts',
+        find: 'const maybeCommitIndex = validIndex(pressed.activeIndex)',
+        replace: 'const maybeCommitIndex = maybeValidActiveItemIndex',
+      },
+    ],
+    tests: [popups],
+  },
+  {
+    name: 'a second arrow before the next frame reopens a closed combobox',
+    edits: [
+      {
+        file: '../src/comboboxShared.ts',
+        find: '    pressed = { isOpen: true, activeIndex: Option.some(index) }',
+        replace: '',
+      },
+    ],
+    tests: [popups],
+  },
+  {
     name: 'a combobox Escape does not shut it',
     edits: [
       {
