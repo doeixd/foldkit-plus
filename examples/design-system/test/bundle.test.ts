@@ -17,7 +17,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // options on Input and its siblings, NumberField's locale parsing, the toast's
 // focus and live regions, Command's key routes and the tree's typeahead. The
 // ceiling is that plus about 1%.
-const CEILING = 193_000
+// 195.3 kB (195,275 bytes) on 2026-11-14, after merging main: +4.3 kB over the reading above. The
+// page draws most of the catalog, and the merged tree's widgets carry main's `Keys` routes,
+// `FocusRecovery` and `Presence` behaviors beside this branch's kept widget work (SearchField,
+// the larger WindowList, Resizable, Sidebar); not bisected between the two. The ceiling is that
+// plus about 1%.
+const CEILING = 197_500
 
 clientBudget({
   name: 'design-system',
