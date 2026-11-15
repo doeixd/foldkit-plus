@@ -78,3 +78,43 @@ test('a price edited in the grid is the cell’s, and one that is no price is re
   expect(problems).toEqual([])
   await page.close()
 })
+
+test('a filter shows how many products match, and Clear filters takes it off', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  await page.goto(vite.resolvedUrls!.local[0]!)
+  await cell(page, 'p0', 'line').waitFor({ timeout: 120_000 })
+  const status = page.getByRole('status')
+  await expect.poll(() => status.textContent(), slow).toContain('100,000 products, 0 selected')
+
+  await cell(page, 'p0', 'line').click()
+  await expect
+    .poll(() => page.locator('#products').getAttribute('aria-activedescendant'), slow)
+    .toBe('products:p0:line')
+  // Up from the first row is the column's header, where Alt+ArrowDown opens its filter.
+  await page.keyboard.press('ArrowUp')
+  await expect
+    .poll(() => page.locator('#products').getAttribute('aria-activedescendant'), slow)
+    .toBe('products:line')
+  await page.keyboard.press('Alt+ArrowDown')
+  await page.locator('#products input').waitFor()
+  await page.keyboard.type('Paint')
+  await expect.poll(() => status.textContent(), slow).toContain('of 100,000 products match')
+
+  const clear = page.getByRole('button', { name: 'Clear filters' })
+  await expect.poll(() => clear.getAttribute('aria-disabled'), slow).toBe('false')
+  await clear.focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => status.textContent(), slow).toContain('100,000 products, 0 selected')
+  await expect.poll(() => clear.getAttribute('aria-disabled'), slow).toBe('true')
+  // The button stays drawn, so a key press on it does not drop focus to the body.
+  expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Clear filters')
+
+  // Measured against the layout viewport: a phone zooms out to fit an overflowing page.
+  await page.setViewportSize({ width: 390, height: 800 })
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true)
+  await page.close()
+})

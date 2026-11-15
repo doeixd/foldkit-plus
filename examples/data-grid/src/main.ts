@@ -11,7 +11,7 @@
  * and the page filters the products by them before the grid sees a row. How
  * the columns stand is kept in this browser, and read back as the page opens.
  */
-import { Effect, Option, Schema, SchemaGetter } from 'effect'
+import { Effect, Match, Option, Schema, SchemaGetter } from 'effect'
 import { Command, type Update } from 'foldkit'
 import { type Document, type HtmlBuilder } from 'foldkit/html'
 import { gridDemo } from 'foldkit-example-site/demos'
@@ -19,7 +19,7 @@ import { demoGuide } from 'foldkit-example-site/guide'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
-import { Columns, DataGrid, RowModel, RowSelection } from 'foldkit-data-grid'
+import { Columns, DataGrid, RowModel, RowSelection, addressableRows } from 'foldkit-data-grid'
 import { Style } from 'foldkit-mixins'
 import { DataGridView, GridSlots, GridStyle } from 'foldkit-mixins-data-grid'
 import { Product, products } from './products.js'
@@ -98,6 +98,8 @@ export const Message = defineMessageUnion({
   ...Placement.cases,
   /** The column layout was written to this browser's storage. */
   SavedLayout: {},
+  /** Every column's filter was taken off at once. */
+  ClearedFilters: {},
 })
 export type Message = typeof Message.Type
 
@@ -262,7 +264,28 @@ export const init = (
   })
 }
 
-const placed = application.update()
+const hasFilters = (filters: Model['filters']): boolean =>
+  Object.values(filters).some((filter: Option.Option<unknown>) => Option.isSome(filter))
+
+const placed = application.update((model, message) =>
+  Match.value(message).pipe(
+    Match.tags({
+      // Nothing to read back: the save is the Command's own.
+      SavedLayout: () => ({ model }),
+      // A no-op returns the Model it was given, so nothing is drawn again.
+      ClearedFilters: () =>
+        hasFilters(model.filters)
+          ? {
+              model: modifyFields(model, {
+                filters: () => Grid.noFilters,
+                notice: () => 'Filters cleared.',
+              }),
+            }
+          : { model },
+    }),
+    Match.exhaustive,
+  ),
+)
 /** Every transition, and a save of the column layout when one changed it. */
 export const update = (model: Model, message: Message) => {
   const next = placed(model, message)
@@ -304,6 +327,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     Keys: ({ keys }) => keys.length,
     AllExcept: ({ except }) => model.products.length - except.length,
   })
+  const rows = rowsOf(model)
+  const shownCount = addressableRows(rows.count)
+  const total = model.products.length
+  const filtered = hasFilters(model.filters)
   return {
     title: 'Product registry',
     body: h.main(
@@ -333,19 +360,60 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ['Product registry'],
         ),
         h.p(
+          [h.Style({ margin: '0', color: 'var(--fk-text-muted)', fontSize: '13px' })],
           [
-            h.Role('status'),
-            h.Style({ margin: '0 0 1.25rem', color: 'var(--fk-text-muted)', fontSize: '13px' }),
+            'Press Enter on a cell to edit it, Shift with the arrows to select a range, Ctrl+C to copy it. ',
+            'A header’s funnel filters its column and its menu pins or hides it; scroll sideways for the rest.',
+          ],
+        ),
+        h.div(
+          [
+            h.Style({
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '0.5rem',
+              margin: '0 0 1rem',
+              color: 'var(--fk-text-muted)',
+              fontSize: '13px',
+            }),
           ],
           [
-            `${model.products.length.toLocaleString()} products, ${selectedCount.toLocaleString()} selected. `,
-            model.notice,
+            h.span(
+              [h.Role('status')],
+              [
+                filtered
+                  ? `${shownCount.toLocaleString()} of ${total.toLocaleString()} products match, `
+                  : `${total.toLocaleString()} products, `,
+                `${selectedCount.toLocaleString()} selected. `,
+                model.notice,
+              ],
+            ),
+            // Always drawn, so pressing it never drops focus to the body, and so nothing shifts.
+            h.button(
+              [
+                h.Type('button'),
+                h.AriaDisabled(!filtered),
+                h.OnClick(Message.ClearedFilters()),
+                h.Style({
+                  font: 'inherit',
+                  color: 'inherit',
+                  background: 'transparent',
+                  border: '1px solid var(--fk-border-default, currentColor)',
+                  borderRadius: '6px',
+                  padding: '0 0.5rem',
+                  opacity: filtered ? '1' : '0.5',
+                  cursor: filtered ? 'pointer' : 'default',
+                }),
+              ],
+              ['Clear filters'],
+            ),
           ],
         ),
         Registry(
           {
             state: model.grid,
-            rows: rowsOf(model),
+            rows,
             wrap: wrapGrid,
             label: 'Products',
             rowHeight: 32,
