@@ -76,4 +76,36 @@ export default [
     edits: [{ file, find: 'button !== 0 || model.holding', replace: 'model.holding' }],
     tests,
   },
+  {
+    name: 'the target is never marked aria-disabled',
+    edits: [
+      {
+        file,
+        find: '...(options.disabled?.(input) === true ? [h.AriaDisabled(true)] : []),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a hold is not marked',
+    edits: [
+      {
+        file,
+        find: "...(input[declared.field].holding ? [h.DataAttribute('holding', 'true')] : []),",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the target supplies no activation',
+    edits: [{ file, find: 'provides: [A11y.Activation],', replace: 'provides: [],' }],
+    tests: ['packages/primitives/test/obligations.test.ts'],
+  },
+  {
+    name: 'the Press events are not mounted',
+    edits: [{ file, find: 'events: Press.events(),', replace: '' }],
+    tests,
+  },
 ]

@@ -773,8 +773,39 @@ its own), so a parent can fold a hold's steps into one `History` group and
 announce once. When `update` reaches a bound it sends `Repeat.Message.Stopped()`
 and the rest of that press steps no more. The delay and interval run on
 Effect's clock, so `TestClock` drives them, and a release makes a late timer a
-no-op. `Repeat.behavior(Declared)(Slots)<Input, Message>({ target })` attaches
-`Press.events` and writes `data-holding`; it shares `Press`'s Mount, so a slot
+no-op.
+
+<!-- docs-check
+const StepperSlots = Slots.define({
+  more: Slot.make({ capability: Capability.Interactive }),
+})
+const StepperModel = Schema.Struct({
+  ...Bundle.declare(Repeat.bundle, 'more').fields,
+  value: Schema.Number,
+})
+type StepperModel = typeof StepperModel.Type
+const StepperMessage = defineMessageUnion({ ...Bundle.declare(Repeat.bundle, 'more').cases })
+type StepperMessage = typeof StepperMessage.Type
+-->
+
+```ts
+import { Repeat } from 'foldkit-primitives/interaction'
+
+const More = Bundle.declare(Repeat.bundle, 'more')
+const Stepper = SlotView.over(StepperSlots)<StepperModel, StepperMessage>()
+const Holds = Repeat.behavior(More)(Stepper)({
+  target: 'more',
+  disabled: model => model.value >= 100,
+})
+```
+
+`Repeat.behavior(Declared)(binder)({ target, disabled? })` takes the same
+`SlotView.over` binder as `Press.behavior`, so the options are typed from it
+with nothing annotated, and the target supplies the `activation` obligation
+(bare slots with the generics named, `(Slots)<Input, Message>({ target })`, also
+still work). It attaches `Press.events` and writes `data-holding`; `disabled`
+marks the target `aria-disabled`, which refuses new presses and leaves a hold
+already under way to end on release. It shares `Press`'s Mount, so a slot
 takes one of `Press`, `LongPress` and `Repeat`. The pointer leaving the button
 cancels the press, as it does for `Press`, so a hold ends there (`Ended`) and
 coming back with the button still down does not resume it: the next hold is a
@@ -896,6 +927,22 @@ scrolling code is loaded when a Mount that asks for it starts, so a page whose
 drags never scroll does not carry it.
 `PointerDrag` scrolls nothing unless asked; `Reorder` asks for it itself
 (`edgeScroll: false` turns it off).
+
+**Following the pointer.** A drag under way writes where the pointer is on the
+document root, so something that follows it needs no Message and no draw per
+move: `--fk-drag-x` and `--fk-drag-y` (viewport pixels, from the press and
+then each move) and `data-fk-drag="mouse"`, `"touch"` or `"pen"` (`DRAGGING`
+names the three). All are removed on a drop, a cancel and when the Mount ends.
+`DragPreview()` in `foldkit-primitives/dom` is the Mount for what a drag
+carries: on an element the view draws with `popover="manual"` while the drag
+lasts, it shows it in the top layer, above every panel and clear of an
+ancestor's `contain` or `transform`, and leaves the rest to a rule such as
+`position: fixed; top: 0; left: 0; transform: translate(var(--fk-drag-x),
+var(--fk-drag-y))` (physical `top` and `left`, since the pointer's coordinates
+are), `pointer-events: none`, and a lift above a finger under
+`:root[data-fk-drag="touch"]`. A browser without popovers leaves the element
+in the page flow. It settles with no animation, so reduced motion has nothing
+to turn off.
 
 ## `Marquee`: a lasso over marked items
 

@@ -47,20 +47,16 @@ const assembly = Parent.assemble(placed)
 
 const Slotted = Slots.define({ button: Slot.make({ capability: Capability.Interactive }) })
 const View = SlotView.over(Slotted)<Model, Message>()
-const Holds = Repeat.behavior(Hold)(Slotted)<Model, Message>({ target: 'button' })
+const Holds = Repeat.behavior(Hold)(View)({
+  target: 'button',
+  // Disabled while holding, which is the case under test.
+  disabled: model => model.value >= BOUND,
+})
 const draw = View.define((model, slots, h) =>
   h.div(
     [],
     [
-      h.button(
-        slots.button.attrs([
-          h.Id('more'),
-          h.Type('button'),
-          // Disabled while holding, which is the case under test.
-          h.AriaDisabled(model.value >= BOUND),
-        ]),
-        ['more'],
-      ),
+      h.button(slots.button.attrs([h.Id('more'), h.Type('button')]), ['more']),
       h.button([h.Id('reset'), h.Type('button'), h.OnClick(Message.Reset())], ['reset']),
       h.output([h.Id('value')], [String(model.value)]),
     ],
@@ -106,7 +102,7 @@ const mouse = (
 const reenable = async () => {
   await userEvent.click(el('reset'))
   await vi.waitFor(() => expect(value()).toBe(0))
-  await vi.waitFor(() => expect(el('more').getAttribute('aria-disabled')).toBe('false'))
+  await vi.waitFor(() => expect(el('more').hasAttribute('aria-disabled')).toBe(false))
 }
 
 it('a pointer released after the button disabled itself ends the hold, so the next press works', async () => {
