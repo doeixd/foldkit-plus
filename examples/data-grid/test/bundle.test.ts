@@ -40,5 +40,9 @@ clientBudget({
   name: 'data-grid',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
-  absent: ['foldkit-mixins-ui/searchField', 'foldkit-mixins-ui/segmented'],
+  absent: [
+    'foldkit-mixins-ui/searchField',
+    'foldkit-mixins-ui/segmented',
+    'foldkit-primitives/events/hotkeys',
+  ],
 })

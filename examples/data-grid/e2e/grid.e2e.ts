@@ -264,5 +264,10 @@ test('the toolbar is reachable by keyboard alone: Tab walks its controls and the
   await expect
     .poll(() => page.getByRole('radio', { name: 'spacious' }).getAttribute('aria-checked'), slow)
     .toBe('true')
+
+  // The shortcut list is a native disclosure: Enter on its summary opens it.
+  await page.getByText('Keyboard shortcuts').focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => page.locator('details dl').textContent(), slow).toContain('Ctrl+C')
   await page.close()
 })

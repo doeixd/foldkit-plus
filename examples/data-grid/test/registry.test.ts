@@ -232,6 +232,7 @@ test('the toolbar searches the products and sets the row density', async () => {
     timeout: 20_000,
   })
   expect(grid().getAttribute('aria-rowcount')).toBe('100001')
+  expect(document.querySelector('details')?.textContent).toContain('Keyboard shortcuts')
 
   // "Cable, large" is one product in eight, and found in the description alone.
   search().value = 'Cable, LARGE'

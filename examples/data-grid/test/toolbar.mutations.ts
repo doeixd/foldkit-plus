@@ -36,4 +36,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a Mac is shown the Windows chords',
+    edits: [
+      {
+        file: body,
+        find: 'formatHotkey(pattern!, platform)',
+        replace: "formatHotkey(pattern!, 'windows')",
+      },
+    ],
+    tests: ['examples/data-grid/test/shortcuts.test.ts'],
+  },
 ]
