@@ -754,8 +754,7 @@ const Model = Schema.Struct({ files: Schema.Array(Schema.instanceOf(File)) })
 const Message = defineMessageUnion({
   Picked: { files: Schema.Array(Schema.instanceOf(File)) },
   Removed: { file: Schema.instanceOf(File) },
-  CompletedSync: {},
-  CompletedFocus: {},
+  ...FileInput.cases,
 })
 type Message = typeof Message.Type
 

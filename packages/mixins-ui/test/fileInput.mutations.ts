@@ -303,4 +303,9 @@ export default [
     edits: [{ file: recipe, find: 'sm: { root: steps.sm },', replace: 'sm: { root: steps.md },' }],
     tests: [browser],
   },
+  {
+    name: 'the spread cases lack the answer of Focus',
+    edits: [{ file: source, find: 'CompletedFocus: {},', replace: '' }],
+    tests: [unit],
+  },
 ]

@@ -46,8 +46,6 @@ element-level attributes and optional Mount behavior; it is not a hidden state
 container. If you are building your own view rather than adapting a widget,
 publish Slots directly with [`foldkit-mixins`](../mixins); for Slot / Style /
 Behavior itself, read [Inside-out view composition](../../docs/mixins.md) first.
-[Authoring components](../../docs/authoring-components.md) builds such a view from
-primitives step by step, and lists what a widget for this catalog must carry.
 
 ## The mental model
 
@@ -683,8 +681,9 @@ so a surrounding form submits exactly the list shown (Foldkit empties the input
 after each pick; an empty list resets its value, so a removed file can be chosen
 again). Answer `onRemove` with `FileInput.Focus({ id })` as well, which puts focus
 on the input, since the button that held it left with its row, as
-`SearchField.Focus` does; both answer `FileInput.Message.CompletedSync` and
-`CompletedFocus`. Each row has a `remove` button named `Remove {name}` (`words: {
+`SearchField.Focus` does; both answer `CompletedSync` and `CompletedFocus`, which
+`...FileInput.cases` adds to your Message union (a missing one is a type error where
+you return the Command). Each row has a `remove` button named `Remove {name}` (`words: {
 remove? }`). `name`, `accept`, `multiple` and `required` are the native
 attributes; `invalid` is `aria-invalid`, and `description` is read after the name.
 A disabled field takes no pick and its rows no remove.
@@ -698,8 +697,7 @@ const FilesModel = Schema.Struct({ files: Schema.Array(Schema.instanceOf(File)) 
 const FilesMessage = defineMessageUnion({
   Picked: { files: Schema.Array(Schema.instanceOf(File)) },
   Removed: { file: Schema.instanceOf(File) },
-  CompletedSync: {},
-  CompletedFocus: {},
+  ...FileInput.cases,
 })
 type FilesMessage = typeof FilesMessage.Type
 

@@ -64,12 +64,18 @@ export const FileInputPattern = A11y.pattern({
   },
 })
 
-export const Message = defineMessageUnion({
+/**
+ * The Messages `Sync` and `Focus` answer with, to spread into the application's own:
+ * `defineMessageUnion({ ..., ...FileInput.cases })`. Its `update` need do nothing for either.
+ */
+export const cases = {
   /** `Sync` ran; nothing to change. */
   CompletedSync: {},
   /** `Focus` ran; nothing to change. */
   CompletedFocus: {},
-})
+}
+
+export const Message = defineMessageUnion(cases)
 export type Message = typeof Message.Type
 
 /** The id of the field's file input, for `id` given to `view`. */

@@ -4,6 +4,8 @@
  * view does not send. Type-checked, not executed.
  */
 import { Behavior } from 'foldkit-mixins'
+import { Schema } from 'effect'
+import type * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { FileInput, FileInputSlots } from '../src/index.js'
 import { h, message } from './fixture.js'
@@ -84,3 +86,16 @@ export const foreignAdded = FileInput.added(
   // @ts-expect-error a pick is files
   ['resume.pdf'],
 )
+
+// The cases spread into an application's Message, so the widget's two Commands answer with it.
+const Mine = defineMessageUnion({ Picked: { count: Schema.Number }, ...FileInput.cases })
+export const synced: ReadonlyArray<Command.Command<typeof Mine.Type>> = [
+  FileInput.Sync({ id: 'cv', files: [] }),
+  FileInput.Focus({ id: 'cv' }),
+]
+
+const Without = defineMessageUnion({ Picked: { count: Schema.Number } })
+export const unanswered: ReadonlyArray<Command.Command<typeof Without.Type>> = [
+  // @ts-expect-error the application's Message lacks CompletedSync
+  FileInput.Sync({ id: 'cv', files: [] }),
+]

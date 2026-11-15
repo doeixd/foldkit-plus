@@ -5,6 +5,7 @@
  * helper that folds a pick into the list. The dialog, the focus and the form
  * are `fileInput.browser.test.ts`.
  */
+import { Effect } from 'effect'
 import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -176,5 +177,15 @@ describe('FileInput.added', () => {
 
   it('tells a changed file from the one held by its modification time', () => {
     expect(FileInput.added([resume], [edited], { multiple: true })).toHaveLength(2)
+  })
+})
+
+describe('cases', () => {
+  it('names every Message the widget Commands answer with', async () => {
+    const answers = [
+      await Effect.runPromise(FileInput.Sync({ id: 'none', files: [] }).effect),
+      await Effect.runPromise(FileInput.Focus({ id: 'none' }).effect),
+    ]
+    expect(answers.map(answer => answer._tag).sort()).toEqual(Object.keys(FileInput.cases).sort())
   })
 })

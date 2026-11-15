@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `FileInput.cases`, the Messages `FileInput.Sync` and `FileInput.Focus` answer with
+  (`CompletedSync`, `CompletedFocus`), to spread into the application's Message union:
+  `defineMessageUnion({ ..., ...FileInput.cases })`. A union without them is a type error where the
+  Commands are returned.
 - `foldkit-mixins-ui`: `Table` has a `control` slot, the name of a `FocusRecovery` part for a control
   the application draws in a cell. With `FocusRecovery.behavior(TableSlots)` on the `frame`, focus stays
   on the same control (that, the open button or a sort heading) when a re-sort moves its row.
