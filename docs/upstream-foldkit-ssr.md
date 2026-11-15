@@ -494,9 +494,8 @@ check:
 6. Proposal 5 as an issue, any time: it needs nothing from the others.
 7. Proposal 6 as an issue, any time: it needs nothing from the others.
 8. Proposal 7 as a comment on foldkit#1657, now: our half is done.
-9. The leave that ends before it is drawn (below) as an issue, now. A draft
-   is ready; it was not filed because this repository's sessions cannot
-   post to foldkit/foldkit.
+9. The leave that ends before it is drawn (below): filed as
+   [foldkit#1927](https://github.com/foldkit/foldkit/issues/1927).
 10. Proposal 8 as an issue, any time: it needs nothing from the others. Not
     posted.
 
