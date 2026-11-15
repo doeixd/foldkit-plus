@@ -1,6 +1,14 @@
 import type { ItemInfo, RenderInfo } from '@foldkit/ui/nav'
 import { Effect, Option, Queue, Schema, Stream } from 'effect'
-import { Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import {
+  Behavior,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  type SlotAttributes,
+} from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -34,7 +42,7 @@ export const NavSlots = Slots.define({
   nav: Slot.make({ capability: Capability.Container }),
   list: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Container, events: [Event.KeyDown] }),
-  link: Slot.make({ capability: Capability.Interactive }),
+  link: Slot.make({ capability: Capability.Interactive, events: [Event.KeyDown] }),
   /** A top-level button that shows its panel, `aria-expanded`. */
   trigger: Slot.make({ capability: Capability.Interactive, events: [Event.Click, Event.KeyDown] }),
   /** The mark that a trigger opens a panel. */
@@ -48,7 +56,7 @@ export const NavSlots = Slots.define({
   /** A group's list of links. */
   links: Slot.make({ capability: Capability.Container }),
   panelItem: Slot.make({ capability: Capability.Container }),
-  panelLink: Slot.make({ capability: Capability.Interactive }),
+  panelLink: Slot.make({ capability: Capability.Interactive, events: [Event.KeyDown] }),
   /** A panel link's words. */
   title: Slot.make({ capability: Capability.Container }),
   /** A panel link's line under its words. */
@@ -360,6 +368,12 @@ const PressAway = Mount.defineStream('NavPressAway', {
     ),
 })
 
+/** A key the application answers on a top-level link or trigger; the press's `item.index` is its place. */
+export type Route<Message> = Behaviors.Keys.Route<NavEntry, Message>
+
+/** A key the application answers on a link in a panel; the press's `item.index` is its place among the panel's links. */
+export type PanelRoute<Message> = Behaviors.Keys.Route<NavPanelLink, Message>
+
 export interface NavView<Message> {
   readonly model: Model
   readonly entries: ReadonlyArray<NavEntry>
@@ -373,9 +387,36 @@ export interface NavView<Message> {
    * open on its left. Given, it is drawn as the nav's `dir`.
    */
   readonly direction?: 'ltr' | 'rtl' | undefined
+  /**
+   * Keys the application answers on the top-level links and triggers, beside
+   * the arrows along the row, Home and End, and the arrow into a panel. They
+   * share one keydown owner with those: a route on the same gesture is a
+   * diagnostic naming both.
+   */
+  readonly routes?: ReadonlyArray<Route<NoInfer<Message>>> | undefined
+  /** The same for the links in a panel, beside ArrowUp, ArrowDown, Home and End. */
+  readonly panelRoutes?: ReadonlyArray<PanelRoute<NoInfer<Message>>> | undefined
   /** A style of `NavSlots` (`Recipes.Nav`) and mixins beside it; `Nav.fluid` glides the indicator. */
   readonly mixins?: MixinList<Message> | undefined
 }
+
+/** The physical keys that move along the top-level row or into a panel. */
+const TOP_KEYS = [
+  'Home',
+  'End',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+] as const satisfies ReadonlyArray<Behaviors.Keys.NamedKey>
+
+/** The keys that move among a panel's links. */
+const PANEL_KEYS = [
+  'Home',
+  'End',
+  'ArrowUp',
+  'ArrowDown',
+] as const satisfies ReadonlyArray<Behaviors.Keys.NamedKey>
 
 /** The move a key asks for along a line of entries or links, if it asks for one. */
 const moveOf = (key: string, along: 'row' | 'column'): Option.Option<Move> => {
@@ -402,23 +443,70 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
   const beside = options.direction === 'rtl' ? 'left-start' : 'right-start'
   const placement = vertical ? beside : 'bottom-start'
   const along = vertical ? 'column' : 'row'
-  // The keys that move along the top-level row, on each link and trigger.
-  const topKeys = (index: number, into: Option.Option<NavPanel>) =>
-    h.OnKeyDownPreventDefault(pressed => {
-      const key = readingKey(pressed, options.direction)
-      const opens = Option.filter(
-        into,
-        entry =>
-          key === (vertical ? 'ArrowRight' : 'ArrowDown') &&
-          entry.groups.some(group => group.links.length > 0),
-      )
-      if (Option.isSome(opens)) {
-        return Option.some(onMessage(Message.Entered({ index, panel: opens.value.id })))
-      }
-      return Option.map(moveOf(key, along), move =>
-        onMessage(Message.MovedTop({ from: index, count, move })),
-      )
-    })
+  // Physical keys: under `rtl` the arrows along a row swap, so each is read as a left-to-right reader presses it.
+  const topRoutes = [
+    ...TOP_KEYS.map(key =>
+      Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {
+        on: [...Behaviors.Keys.withShift(key)],
+        handle: ({ input, item }) =>
+          Option.flatMap(Option.fromNullishOr(item), ({ index }) => {
+            const reading = readingKey(key, options.direction)
+            if (
+              isPanel(input) &&
+              reading === (vertical ? 'ArrowRight' : 'ArrowDown') &&
+              input.groups.some(group => group.links.length > 0)
+            ) {
+              return Option.some(onMessage(Message.Entered({ index, panel: input.id })))
+            }
+            return Option.map(moveOf(reading, along), move =>
+              onMessage(Message.MovedTop({ from: index, count, move })),
+            )
+          }),
+      }),
+    ),
+    ...(options.routes ?? []),
+  ]
+  const linkKeys = Behaviors.Keys.attribute(topRoutes, { slot: 'link' })
+  const triggerKeys = Behaviors.Keys.attribute(topRoutes, { slot: 'trigger' })
+  // A panel's links are told apart by the panel's id, which the press carries as `item.id`.
+  const panelAt = new Map(entries.flatMap((entry, at) => (isPanel(entry) ? [[entry.id, at]] : [])))
+  const panelKeys = Behaviors.Keys.attribute<NavPanelLink, Message>(
+    [
+      ...PANEL_KEYS.map(key =>
+        Behaviors.Keys.route<NavPanelLink, Message>(`Nav panel ${key}`, {
+          on: [...Behaviors.Keys.withShift(key)],
+          handle: ({ item }) =>
+            Option.flatMap(Option.fromNullishOr(item), ({ index: from, id, count: links }) =>
+              Option.flatMap(
+                Option.all({
+                  entry: Option.fromNullishOr(id === undefined ? undefined : panelAt.get(id)),
+                  count: Option.fromNullishOr(links),
+                  move: moveOf(key, 'column'),
+                }),
+                ({ entry, count, move }) =>
+                  Option.some(onMessage(Message.MovedInPanel({ entry, from, count, move }))),
+              ),
+            ),
+        }),
+      ),
+      ...(options.panelRoutes ?? []),
+    ],
+    { slot: 'panelLink' },
+  )
+
+  // Escape from a trigger or its panel, heard on their item while the panel shows.
+  const escapeKeys = Behaviors.Keys.attribute<NavEntry, Message>(
+    [
+      Behaviors.Keys.route<NavEntry, Message>('Nav Escape', {
+        on: [...Behaviors.Keys.withShift('Escape')],
+        handle: ({ item }) =>
+          Option.map(Option.fromNullishOr(item), ({ index }) =>
+            onMessage(Message.Escaped({ index })),
+          ),
+      }),
+    ],
+    { slot: 'item' },
+  )
 
   const drawLink = (entry: NavLink, index: number) =>
     h.a(
@@ -426,7 +514,7 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
         h.Id(entryId(model.id, index)),
         h.Href(entry.href),
         ...(entry.current === true ? [h.AriaCurrent('page')] : []),
-        topKeys(index, Option.none()),
+        linkKeys({ input: entry, h, item: { index } }),
       ]),
       [entry.label],
     )
@@ -470,13 +558,11 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
                         h.Href(link.href),
                         ...(link.current === true ? [h.AriaCurrent('page')] : []),
                         h.OnClick(onMessage(Message.Dismissed())),
-                        h.OnKeyDownPreventDefault(key =>
-                          Option.map(moveOf(key, 'column'), move =>
-                            onMessage(
-                              Message.MovedInPanel({ entry: index, from: n, count: linksOf, move }),
-                            ),
-                          ),
-                        ),
+                        panelKeys({
+                          input: link,
+                          h,
+                          item: { index: n, id: entry.id, count: linksOf },
+                        }),
                       ]),
                       [
                         h.span(builders.title.attrs(), [link.label]),
@@ -508,17 +594,11 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
         ...(holdsCurrent ? [h.DataAttribute('current', '')] : []),
         h.DataAttribute('state', shown ? 'open' : 'closed'),
         h.OnClick(onMessage(Message.Toggled({ panel: entry.id }))),
-        topKeys(index, Option.some(entry)),
+        triggerKeys({ input: entry, h, item: { index } }),
       ]),
       [entry.label, h.span(builders.chevron.attrs([h.AriaHidden(true)]), [])],
     )
   }
-
-  // Escape from a trigger or its panel, heard on their item while the panel shows.
-  const escapes = (index: number) =>
-    h.OnKeyDownPreventDefault(key =>
-      key === 'Escape' ? Option.some(onMessage(Message.Escaped({ index }))) : Option.none(),
-    )
 
   return h.nav(
     builders.nav.attrs([
@@ -541,7 +621,7 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
             const shown = Option.contains(model.open, entry.id)
             return h.keyed('li')(
               `panel-${entry.id}`,
-              builders.item.attrs(shown ? [escapes(index)] : []),
+              builders.item.attrs(shown ? [escapeKeys({ input: entry, h, item: { index } })] : []),
               [drawTrigger(entry, index), ...(shown ? [drawPanel(entry, index)] : [])],
             )
           }),

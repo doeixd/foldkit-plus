@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Nav as markup over `@foldkit/ui`'s nav: a named landmark whose list holds
  * the links, the current one marked, and an indicator and highlight a reader
@@ -7,9 +8,11 @@ import { Nav as UiNav } from '@foldkit/ui'
 import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, SlotView, Style } from 'foldkit-mixins'
+import type { HtmlBuilder } from 'foldkit/html'
+import { A11y, Behaviors, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Nav, NavSlots, Patterns, Recipes } from '../src/index.js'
+import { diagnosticFrom, sends } from './fixture.js'
 
 const style = Style.forSlots(NavSlots)(Recipes.Nav({}))
 const pages = ['home', 'docs', 'blog'] as const
@@ -93,6 +96,111 @@ describe('Nav.view menu', () => {
     const keys = items.map(item => item.key)
     expect(keys).toHaveLength(3)
     expect(new Set(keys).size).toBe(3)
+  })
+})
+
+describe('Nav.view keys', () => {
+  const { Keys } = Behaviors
+  const entries: ReadonlyArray<Nav.NavEntry> = [
+    { label: 'Home', href: '#home' },
+    { label: 'Start', href: '#start' },
+    {
+      id: 'docs',
+      label: 'Docs',
+      groups: [
+        {
+          links: [
+            { label: 'Guides', href: '#guides' },
+            { label: 'API', href: '#api' },
+          ],
+        },
+      ],
+    },
+  ]
+  const toggles = Nav.Message.Toggled({ panel: 'docs' })
+  const onKey = (name: string, key: Behaviors.Keys.NamedKey) =>
+    Keys.route<Nav.NavEntry, Nav.Message>(name, {
+      on: [Keys.chord(key)],
+      handle: () => Option.some(toggles),
+    })
+  const onPanelKey = (name: string, key: Behaviors.Keys.NamedKey) =>
+    Keys.route<Nav.NavPanelLink, Nav.Message>(name, {
+      on: [Keys.chord(key)],
+      handle: () => Option.some(toggles),
+    })
+  const view =
+    (extra: Partial<Nav.NavView<Nav.Message>> = {}) =>
+    (h: HtmlBuilder<Nav.Message>) =>
+      Nav.view(
+        {
+          model: { ...Nav.init('site'), open: Option.none() },
+          entries,
+          label: 'Site',
+          onMessage: message => message,
+          ...extra,
+        },
+        h,
+      )
+  const link = (name: string) => Scene.role('link', { name })
+  const docs = Scene.role('button', { name: 'Docs' })
+
+  it('moves along the row with the arrows, Home and End, and enters a panel with ArrowDown', () => {
+    sends(
+      view(),
+      Scene.keydown(link('Start'), 'Home'),
+      Scene.expectOutMessage(Nav.Message.MovedTop({ from: 1, count: 3, move: 'first' })),
+      Scene.keydown(link('Start'), 'ArrowRight'),
+      Scene.expectOutMessage(Nav.Message.MovedTop({ from: 1, count: 3, move: 'next' })),
+      Scene.keydown(link('Start'), 'ArrowDown'),
+      Scene.expectIgnored(),
+      Scene.keydown(docs, 'ArrowDown'),
+      Scene.expectOutMessage(Nav.Message.Entered({ index: 2, panel: 'docs' })),
+      Scene.keydown(docs, 'End', { shiftKey: true }),
+      Scene.expectOutMessage(Nav.Message.MovedTop({ from: 2, count: 3, move: 'last' })),
+      Scene.keydown(docs, 'End', { ctrlKey: true }),
+      Scene.expectIgnored(),
+    )
+  })
+
+  it('right to left, ArrowLeft moves toward the end of the row', () => {
+    sends(
+      view({ direction: 'rtl' }),
+      Scene.keydown(link('Start'), 'ArrowLeft'),
+      Scene.expectOutMessage(Nav.Message.MovedTop({ from: 1, count: 3, move: 'next' })),
+    )
+  })
+
+  it('in a column, ArrowRight enters a panel and ArrowDown moves on', () => {
+    sends(
+      view({ orientation: 'vertical' }),
+      Scene.keydown(docs, 'ArrowRight'),
+      Scene.expectOutMessage(Nav.Message.Entered({ index: 2, panel: 'docs' })),
+      Scene.keydown(docs, 'ArrowDown'),
+      Scene.expectOutMessage(Nav.Message.MovedTop({ from: 2, count: 3, move: 'next' })),
+    )
+  })
+
+  it("answers the application's routes on the row's links and triggers", () => {
+    sends(
+      view({ routes: [onKey('Toggle', 'PageDown')] }),
+      Scene.keydown(link('Home'), 'PageDown'),
+      Scene.expectOutMessage(toggles),
+      Scene.keydown(docs, 'PageDown'),
+      Scene.expectOutMessage(toggles),
+    )
+  })
+
+  it.each([
+    ['a row key', { routes: [onKey('Mine', 'Home')] }, ['Nav Home', 'Mine']],
+    [
+      'a panel key',
+      { panelRoutes: [onPanelKey('Mine', 'ArrowUp')] },
+      ['Nav panel ArrowUp', 'Mine'],
+    ],
+  ] as const)('names both routes when one overlaps %s', (_, extra, names) => {
+    const diagnostic = diagnosticFrom(() => view(extra)(SlotView.inertBuilder<Nav.Message>()))
+    expect(diagnostic?.code).toBe('mixins:key-conflict')
+    expect(diagnostic?.details?.['contributors']).toEqual(names)
   })
 })
 
