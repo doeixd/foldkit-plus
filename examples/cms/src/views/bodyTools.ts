@@ -1,152 +1,127 @@
 /**
- * The formatting toolbar over a post's body: one tab stop, the arrows between tools, each
- * mark pressed while the selection carries it, and the shortcut written beside the tool
- * that has one. It draws from the body editor's Model (the form's control) and sends
- * the editor's own Messages, wrapped as `PressedTool`; the one tab stop is the posts
- * application's own (`Roving`).
+ * The formatting toolbar over a post's body: `foldkit-mixins-richtext`'s, with its one tab stop,
+ * marks pressed while the selection carries them, the text style and insert menus, and the
+ * shortcut each tool names. It draws from the body editor's Model (the form's control) and sends
+ * the editor's own Messages, wrapped as `PressedTool`; the tab stop and the open popup are the
+ * posts application's own (`Roving`, `toolsMenu`).
  */
 import { Option } from 'effect'
 import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
-import {
-  Button,
-  ButtonSlots,
-  Recipes,
-  Toolbar,
-  ToolbarSlots as UiToolbarSlots,
-} from 'foldkit-mixins-ui'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
-import { formatHotkey, ariaKeyshortcuts } from 'foldkit-primitives/events'
-import { platformFromUA, type Platform } from 'foldkit-primitives/media'
-import * as RichText from 'foldkit-richtext'
-import { Message as EditorMessage, slashEntries } from 'foldkit-richtext-dom/editor'
-import { markActive } from 'foldkit-richtext-dom/toolbar'
+import {
+  FormattingToolbarSlots,
+  formattingToolbar,
+  type FormattingItem,
+} from 'foldkit-mixins-richtext'
 import { Message, Roving, type Model } from '../apps/app.js'
 import { PostForm } from '../content/domain.js'
-import { t } from '../styles/style.js'
+import { app, button, t } from '../styles/style.js'
 
 export const BodyToolsSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
 })
 
-const platform: Platform = platformFromUA(navigator.userAgent)
-
-interface Tool {
-  readonly id: string
-  readonly label: string
-  readonly message: typeof EditorMessage.Type
-  /** The editor's own shortcut, shown beside the tool. */
-  readonly hotkey?: string
-  readonly pressed: (state: Parameters<typeof markActive>[0]) => boolean
-}
-
-const entry = (id: string): typeof EditorMessage.Type => {
-  const found = slashEntries.find(candidate => candidate.id === id)
-  if (found === undefined) throw new Error(`the editor offers no "${id}" entry`)
-  return found.message
-}
-
-const mark = (name: string, hotkey: string): Tool => ({
-  id: name.toLowerCase(),
-  label: name,
-  message: EditorMessage.ToggledMark({ mark: name }),
-  hotkey,
-  pressed: state => markActive(state, name),
-})
-
-const block = (id: string, label: string, heading = false): Tool => ({
-  id,
-  label,
-  message: entry(id),
-  pressed: state =>
-    heading && RichText.textBlockAt(state.document, state.selection)?.type === 'Heading',
-})
-
-/** In bar order; a group is set apart from the next by a separator. */
-const GROUPS: ReadonlyArray<ReadonlyArray<Tool>> = [
-  [mark('Bold', 'mod+b'), mark('Italic', 'mod+i'), mark('Code', 'mod+e')],
-  [
-    block('heading-2', 'Heading', true),
-    block('quote', 'Quote'),
-    block('bulleted-list', 'Bulleted list'),
-    block('numbered-list', 'Numbered list'),
-    block('code-block', 'Code block'),
-  ],
-  [
-    {
-      id: 'undo',
-      label: 'Undo',
-      message: EditorMessage.Undone(),
-      hotkey: 'mod+z',
-      pressed: () => false,
-    },
-    {
-      id: 'redo',
-      label: 'Redo',
-      message: EditorMessage.Redone(),
-      hotkey: 'mod+shift+z',
-      pressed: () => false,
-    },
-  ],
+/**
+ * Undo and redo, the text style, the marks a post's Markdown can say, lists and quote, and the
+ * insert menu. No link control yet: it opens `linkEditor`, which needs a draft of its own.
+ */
+const ITEMS: ReadonlyArray<FormattingItem> = [
+  'undo',
+  'redo',
+  'separator',
+  'style',
+  'separator',
+  { mark: 'Bold' },
+  { mark: 'Italic' },
+  { mark: 'Code' },
+  { mark: 'Strikethrough' },
+  'separator',
+  'bulleted-list',
+  'numbered-list',
+  'quote',
+  'separator',
+  'insert',
 ]
 
-export const BarStyle = Style.forSlots(UiToolbarSlots)(Recipes.Toolbar({}))
-export const ToolStyle = Style.forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
+const tool = button({ tone: 'neutral', variant: 'ghost', size: 'sm' })
+
+export const BarStyle = Style.forSlots(FormattingToolbarSlots)(
+  {
+    root: Style.self({
+      alignItems: 'center',
+      display: 'flex',
+      gap: t.space['3xs'],
+      // A phone's bar scrolls sideways rather than wrapping its tools onto a second row.
+      overflowX: 'auto',
+      padding: t.space['2xs'],
+    }),
+    button: Style.compose(
+      tool,
+      Style.self({ flexShrink: '0', whiteSpace: 'nowrap' }),
+      Style.pseudo('[aria-pressed="true"]', { background: t.accent.subtle, color: t.accent.ink }),
+      Style.pseudo('[aria-disabled="true"]', { opacity: '0.45' }),
+    ),
+    separator: Style.self({
+      background: t.outline.subtle,
+      blockSize: '1.25rem',
+      flexShrink: '0',
+      inlineSize: '1px',
+      marginInline: t.space['2xs'],
+    }),
+    anchor: Style.self({ flexShrink: '0', position: 'relative' }),
+    label: Style.self({ fontSize: t.size.sm }),
+    menu: Style.self({
+      background: t.surface.base,
+      border: `1px solid ${t.outline.default}`,
+      borderRadius: t.radius.md,
+      boxShadow: t.shadow.md,
+      display: 'grid',
+      insetBlockStart: 'calc(100% + 6px)',
+      insetInlineStart: '0',
+      minInlineSize: '14rem',
+      padding: t.space['2xs'],
+      position: 'absolute',
+      zIndex: '20',
+    }),
+    item: Style.compose(
+      tool,
+      Style.self({
+        columnGap: t.space.sm,
+        display: 'grid',
+        gridTemplateColumns: 'auto 1fr',
+        inlineSize: '100%',
+        justifyContent: 'stretch',
+        textAlign: 'start',
+        whiteSpace: 'normal',
+      }),
+      Style.pseudo('[aria-checked="true"]', { background: t.accent.subtle, color: t.accent.ink }),
+    ),
+    itemLabel: Style.self({ fontSize: t.size.sm }),
+    itemDescription: Style.self({ color: t.text.muted, fontSize: t.size.xs }),
+  },
+  { name: 'BodyBarStyle', layer: app },
 )
+
+const Bar = formattingToolbar<Message>().pipe(Style.attach(BarStyle))
 
 const body = PostForm.control('body')
 
 export const BodyTools = SlotView.forMessages<Message>()
   .define(BodyToolsSlots, (model: Model, slots, h) => {
     const draft = body.field(model.editor.form).value
-    const state = {
-      document: draft.document,
-      selection: draft.selection,
-      storedMarks: draft.storedMarks,
-    }
-    const control = (tool: Tool): Toolbar.ToolbarControl<Message> => ({
-      id: tool.id,
-      draw: stop =>
-        Button.view(
-          {
-            label: tool.label,
-            disabled: stop.disabled,
-            pressed: tool.pressed(state),
-            onClick: Message.PressedTool({ message: body.send(tool.message) }),
-            attributes: {
-              button: [
-                ...stop.attributes,
-                ...Option.match(
-                  Option.flatMap(Option.fromUndefinedOr(tool.hotkey), key =>
-                    ariaKeyshortcuts(key, platform),
-                  ),
-                  { onNone: () => [], onSome: keys => [h.Attribute('aria-keyshortcuts', keys)] },
-                ),
-                ...Option.match(
-                  Option.flatMap(Option.fromUndefinedOr(tool.hotkey), key =>
-                    formatHotkey(key, platform),
-                  ),
-                  { onNone: () => [], onSome: text => [h.Title(`${tool.label} (${text})`)] },
-                ),
-              ],
-            },
-            style: ToolStyle,
-          },
-          h,
-        ),
-    })
     return h.div(slots.root.attrs(), [
-      Toolbar.view(
+      Bar(
         {
           id: 'body-tools',
-          label: 'Formatting',
-          items: GROUPS.flatMap((group, index) => [
-            ...(index === 0 ? [] : ['separator' as const]),
-            ...group.map(control),
-          ]),
+          document: draft.document,
+          selection: draft.selection,
+          storedMarks: draft.storedMarks,
+          items: ITEMS,
+          wrap: message => Message.PressedTool({ message: body.send(message) }),
+          menu: Option.getOrUndefined(model.toolsMenu),
+          toggled: (menu, open) => Message.ToggledToolsMenu({ menu, open }),
           roving: model.bodyTools,
           onFocus: id => Roving.wrapper.make(RovingTabindex.Message.Focused({ id })),
-          style: BarStyle,
         },
         h,
       ),
@@ -155,20 +130,14 @@ export const BodyTools = SlotView.forMessages<Message>()
   .pipe(
     Style.attach(
       Style.forSlots(BodyToolsSlots)({
-        root: Style.compose(
-          Style.self({
-            background: t.surface.default,
-            borderBlockEnd: `1px solid ${t.outline.subtle}`,
-            insetBlockStart: '0',
-            marginBlockEnd: t.space.md,
-            // A phone's bar scrolls sideways rather than wrapping its tools onto a second row.
-            overflowX: 'auto',
-            paddingBlock: t.space['2xs'],
-            position: 'sticky',
-            zIndex: '1',
-          }),
-          Style.nest('button', { whiteSpace: 'nowrap' }),
-        ),
+        root: Style.self({
+          background: t.surface.base,
+          borderBlockEnd: `1px solid ${t.outline.subtle}`,
+          insetBlockStart: '0',
+          marginBlockEnd: t.space.md,
+          position: 'sticky',
+          zIndex: '1',
+        }),
       }),
     ),
   )

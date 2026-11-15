@@ -80,10 +80,15 @@ const Slot = Bundle.declare(
 /** The body toolbar's one tab stop: Tab enters at the tool focused last. */
 export const Roving = Bundle.declare(RovingTabindex.bundle, 'bodyTools')
 
+/** The popups of the body toolbar. */
+export const ToolsMenu = Schema.Literals(['style', 'insert', 'link'])
+
 export const Model = Schema.Struct({
   remote: Remote.Model,
   ...Slot.fields,
   ...Roving.fields,
+  /** The toolbar's open popup, if any: the application places it, the toolbar only asks. */
+  toolsMenu: Schema.Option(ToolsMenu),
   /**
    * What the schedule box holds: the text of a `datetime-local` input, and the
    * entry it was typed for. Read through `scheduleText`, which is empty for any
@@ -113,6 +118,7 @@ export const Message = defineMessageUnion({
   ...Roving.cases,
   /** A tool of the body toolbar was pressed: the form's Message for the body editor. */
   PressedTool: { message: PostForm.Message },
+  ToggledToolsMenu: { menu: ToolsMenu, open: Schema.Boolean },
   OpenedEntry: { entry: Schema.String },
   /** Asked for something new; its id is made in a Command, so `update` stays pure. */
   AskedForPost: {},
@@ -211,8 +217,14 @@ const placed = placements.update((model, message) => {
     OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
     AskedForPost: () => ({ model, commands: [newPost] }),
     // The edit is made as the editor's own Message; the editor takes focus back as it patches.
+    ToggledToolsMenu: ({ menu, open }) => ({
+      model: modifyFields(model, { toolsMenu: () => (open ? Option.some(menu) : Option.none()) }),
+    }),
     PressedTool: ({ message: pressed }) => ({
-      model,
+      // A choice in a popup is made: it closes.
+      model: Option.isNone(model.toolsMenu)
+        ? model
+        : modifyFields(model, { toolsMenu: () => Option.none() }),
       commands: [
         {
           name: 'PressedTool',
@@ -382,6 +394,7 @@ export const initial: Model = placements.initial({
   archived: false,
   previewAsked: Option.none(),
   fresh: Option.none(),
+  toolsMenu: Option.none(),
 }).model
 
 /**

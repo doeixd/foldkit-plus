@@ -154,7 +154,7 @@ it('formats the body from its toolbar, which is one tab stop, and leaves the wri
   await expect.poll(() => editable() !== null, answered).toBe(true)
 
   const tools = () => [...document.querySelectorAll<HTMLButtonElement>('[role="toolbar"] button')]
-  const bold = () => tools().find(tool => tool.textContent === 'Bold')!
+  const bold = () => tools().find(tool => tool.getAttribute('aria-label') === 'Bold')!
   expect(bold()).toBeDefined()
   expect(tools().filter(tool => tool.tabIndex === 0)).toHaveLength(1)
 
