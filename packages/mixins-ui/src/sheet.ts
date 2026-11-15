@@ -37,14 +37,13 @@
 import * as UiDialog from '@foldkit/ui/dialog'
 import { Match, Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Html, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
-import { Behaviors, type NamedStyle } from 'foldkit-mixins'
+import type { NamedStyle } from 'foldkit-mixins'
 import { Swipe } from 'foldkit-primitives/dom'
-import { RovingTabindex } from 'foldkit-primitives/interaction'
 import {
   DialogSlots,
   isLeaving,
@@ -372,37 +371,19 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
   const snapping = model.points.length > 1
   const last = model.points.length - 1
   const percent = (index: number) => Math.round((model.points[index] ?? 1) * 100)
-  const orientation = axis === 'y' ? 'vertical' : 'horizontal'
-  // `move` steps on from ArrowDown and ArrowRight, which raise a top and a left sheet; a
-  // bottom and a right sheet are raised by the other arrow, so they list the points from the top.
-  const ascending = model.points.map((_, index) => index)
-  const order = model.side === 'top' || model.side === 'left' ? ascending : [...ascending].reverse()
-  const keys = Behaviors.Keys.behavior(DialogSlots)<Model, Outer>({
-    slot: 'handle',
-    name: 'SheetHandleKeys',
-    routes: [
-      Behaviors.Keys.route<Model, Outer>('Snap', {
-        on: [
-          ...Behaviors.Keys.withShift('Home'),
-          ...Behaviors.Keys.withShift('End'),
-          ...RovingTabindex.arrowChords(orientation),
-        ],
-        handle: ({ key, modifiers, input }) => {
-          const to =
-            key === 'Home'
-              ? 0
-              : key === 'End'
-                ? last
-                : RovingTabindex.move(order, input.at, key, modifiers, {
-                    orientation,
-                    loop: false,
-                    direction: 'ltr',
-                  })
-          return Option.map(Option.fromNullishOr(to), at => onMessage(Message.SnappedTo({ at })))
-        },
-      }),
-    ],
-  })
+  // The step from ArrowDown and ArrowRight raises a top and a left sheet; a bottom and a right
+  // sheet are raised by the other arrow of the axis, so their arrows step the other way.
+  const raising = model.side === 'top' || model.side === 'left' ? 1 : -1
+  const stepKeys = axis === 'y' ? ['ArrowUp', 'ArrowDown'] : ['ArrowLeft', 'ArrowRight']
+  // A plain `OnKeyDownPreventDefault`, not `Behaviors.Keys`: the router and the roving-tabindex
+  // helpers weigh more than this one handler, and a page whose sheets have one point never draws it.
+  const snapTo = (key: string, modifiers: KeyboardModifiers): Option.Option<number> => {
+    if (modifiers.ctrlKey || modifiers.altKey || modifiers.metaKey) return Option.none()
+    if (key === 'Home') return Option.some(0)
+    if (key === 'End') return Option.some(last)
+    const step = key === stepKeys[1] ? raising : key === stepKeys[0] ? -raising : 0
+    return step === 0 ? Option.none() : Option.some(Math.min(last, Math.max(0, model.at + step)))
+  }
   const place = Option.match(model.drag, {
     onNone: () => [],
     onSome: drag => [
@@ -422,12 +403,10 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
             render,
             [
               ...(options.style === undefined ? [] : [options.style.mixin]),
-              ...(snapping ? [keys.mixin] : []),
               ...(options.mixins ?? []),
             ],
             {
               h,
-              input: model,
               covered: options.covered ?? false,
               isLeaving: isLeaving(model.dialog),
               interactiveHandle: snapping,
@@ -460,6 +439,11 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
                         h.AriaValuemin(percent(0)),
                         h.AriaValuemax(percent(last)),
                         h.AriaControls(`${model.dialog.id}-panel`),
+                        h.OnKeyDownPreventDefault((key, modifiers) =>
+                          Option.map(snapTo(key, modifiers), at =>
+                            onMessage(Message.SnappedTo({ at })),
+                          ),
+                        ),
                       ]
                     : []),
                 ],

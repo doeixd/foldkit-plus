@@ -20,7 +20,18 @@ export default [
   },
   {
     name: 'the handle takes no keys',
-    edits: [{ file: '../src/sheet.ts', find: '...(snapping ? [keys.mixin] : []),', replace: '' }],
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'h.OnKeyDownPreventDefault((key, modifiers) =>',
+        replace: 'h.OnKeyDownPreventDefault(() =>',
+      },
+      {
+        file: '../src/sheet.ts',
+        find: 'Option.map(snapTo(key, modifiers), at =>',
+        replace: 'Option.map(Option.none<number>(), at =>',
+      },
+    ],
     tests: [handle],
   },
   {
@@ -71,20 +82,37 @@ export default [
     edits: [
       {
         file: '../src/sheet.ts',
-        find: "model.side === 'top' || model.side === 'left' ? ascending : [...ascending].reverse()",
-        replace: 'ascending',
+        find: "model.side === 'top' || model.side === 'left' ? 1 : -1",
+        replace: '1',
       },
     ],
     tests: [handle],
   },
   {
     name: 'the keys wrap round the points',
-    edits: [{ file: '../src/sheet.ts', find: 'loop: false,', replace: 'loop: true,' }],
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'Math.min(last, Math.max(0, model.at + step))',
+        replace: '(model.at + step + last + 1) % (last + 1)',
+      },
+    ],
     tests: [handle],
   },
   {
     name: 'Home goes to the highest point',
     edits: [{ file: '../src/sheet.ts', find: "key === 'Home'", replace: "key === 'End'" }],
+    tests: [handle],
+  },
+  {
+    name: 'a key with a modifier is taken',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: 'if (modifiers.ctrlKey || modifiers.altKey || modifiers.metaKey) return Option.none()',
+        replace: '',
+      },
+    ],
     tests: [handle],
   },
   {
