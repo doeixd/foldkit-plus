@@ -78,6 +78,13 @@ const hero = (model: Model, slots: Slots, h: H): Html =>
         ]),
         [SETUP, h.span(slots.installHint.attrs(), [model.copied ? 'Copied' : 'Copy'])],
       ),
+      h.p(slots.setupLabel.attrs(), [
+        'The docs and the agent skill ship inside the npm package, at the version of your code. ',
+        code(h, 'npx foldkit-plus docs <query>'),
+        ' reads them offline; ',
+        code(h, 'npx foldkit-plus skill'),
+        ' installs the matching skill.',
+      ]),
     ]),
     film(slots, h),
   ])

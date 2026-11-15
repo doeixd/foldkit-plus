@@ -142,6 +142,19 @@ describe('the generated site', () => {
     expect(first?.textContent).toBe(schemeScript())
   })
 
+  test('the home page says the docs and the skill ship with the package, with the commands', () => {
+    const setup = Array.from(page('/').querySelectorAll('p')).find(each =>
+      each.textContent?.startsWith('The docs and the agent skill'),
+    )
+    expect(setup?.textContent).toBe(
+      'The docs and the agent skill ship inside the npm package, at the version of your code. npx foldkit-plus docs <query> reads them offline; npx foldkit-plus skill installs the matching skill.',
+    )
+    expect(Array.from(setup?.querySelectorAll('code') ?? [], each => each.textContent)).toEqual([
+      'npx foldkit-plus docs <query>',
+      'npx foldkit-plus skill',
+    ])
+  })
+
   test('the home page has a card for each package family, leading to its subsite', () => {
     expect(hrefs(page('/'), '#packages a')).toEqual(subsites.map(subsite => `/${subsite.id}`))
   })
