@@ -13,7 +13,7 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { cdp, userEvent } from 'vitest/browser'
 // Not the index: a test loads only what it tests.
 import * as Popover from '../src/popover.js'
 import { PopoverSlots } from '../src/popover.js'
@@ -34,7 +34,11 @@ afterEach(() => {
  * A popover whose trigger sits in a small clipping box placed by `where`
  * (inline CSS for the box), opened by a real press on the trigger.
  */
-const open = async (where: Record<string, string>, anchor: AnchorConfig = Popover.anchor()) => {
+const open = async (
+  where: Record<string, string>,
+  anchor: AnchorConfig = Popover.anchor(),
+  isAnimated = false,
+) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -89,7 +93,7 @@ const open = async (where: Record<string, string>, anchor: AnchorConfig = Popove
     Runtime.makeElement({
       Model,
       container,
-      init: () => ({ model: { popover: UiPopover.init({ id: 'share' }) } }),
+      init: () => ({ model: { popover: UiPopover.init({ id: 'share', isAnimated }) } }),
       update: (model: Model, message: Message) => {
         const next = UiPopover.update(model.popover, message.message)
         return {
@@ -215,6 +219,34 @@ test('the arrow shows across more than half the gap to the trigger, in the panel
     expect(drawn.top).toBeGreaterThan(trigger.bottom)
     expect(drawn.left + drawn.width / 2).toBeCloseTo(trigger.left + trigger.width / 2, 0)
     expect(getComputedStyle(arrow).backgroundColor).toBe(getComputedStyle(panel).backgroundColor)
+  } finally {
+    dispose()
+  }
+})
+
+test('an animated popover fades out in place, and its open trigger is marked', async () => {
+  await cdp().send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+  })
+  const { panel, dispose } = await open({ top: '80px', left: '400px' }, Popover.anchor(), true)
+  try {
+    const button = document.getElementById('share-button')!
+    await vi.waitFor(() => expect(panel.getAnimations()).toEqual([]))
+    // The pointer is off the trigger, so a fill is the open mark, not the hover.
+    const spot = document.createElement('div')
+    spot.style.cssText = 'position: fixed; left: 0; bottom: 0; width: 40px; height: 40px'
+    document.body.append(spot)
+    await userEvent.hover(spot)
+    await vi.waitFor(() => expect(button.matches(':hover')).toBe(false))
+    // The fill the hover laid fades out first: read what stays.
+    await vi.waitFor(() => expect(button.getAnimations()).toEqual([]))
+    expect(getComputedStyle(button).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+    await userEvent.click(button)
+    // Leaving: still drawn, going, its opacity transitioning to nothing.
+    await vi.waitFor(() => expect(panel.hasAttribute('data-leave')).toBe(true))
+    expect(panel.isConnected).toBe(true)
+    expect(getComputedStyle(panel).transitionProperty).toContain('opacity')
+    await vi.waitFor(() => expect(document.getElementById('share-panel')).toBeNull())
   } finally {
     dispose()
   }

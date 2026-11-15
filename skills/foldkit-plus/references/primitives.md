@@ -63,7 +63,7 @@ dropped. `Throttle` pairs leading-edge against that trailing edge.
 `loadScript`, `decodeImage` (a picture decoded before it is shown), `enterFullscreen`/`exitFullscreen`, and `postBroadcast` are
 Commands; `Resize()`, `Intersection()`, `Mutation()`, `Bounds()`, and
 `Autofocus()` attach with `h.OnMount` in the view; `keyboardEvents()` and
-friends lift with `Subscription.persistentEntry`, and `matchHotkey` turns a press
+friends lift with `Subscription.persistentEntry`, and `matchHotkey(pattern, press, { platform?, allowInInput? })` (`mod` by platform, a letter by its physical `code`, text-field presses left to the text; `ariaKeyshortcuts` and `formatHotkey` write the attribute and the label from the same pattern, as `Option`s) turns a press
 into a chord answer. Slices that must survive reload persist through
 `Mirror.kv`, not here — this package owns live facts only.
 
@@ -78,6 +78,14 @@ inside the listener, and composes with `matchHotkey`. `websocket` takes
 `TimedOut` reports an attempt that ran out of time. The connection and device
 bundles' `lastError` (and Geolocation's `coords`) are `Option`s, `null` in JSON. `History.goTo(model, step)`
 and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
+
+`Box` (`/state`) holds the limits of a moved or resized box as pure functions:
+`Box.moveBy`/`moveEach(boxes, ids, dx, dy, { bounds?, snap? })` keep a group in
+shape inside an area and return the box they were given when nothing moves;
+`Box.resize(box, handle, dx, dy, { bounds?, min?, max?, aspect?, snap? })`;
+`Box.moveKey(press)` (Alt+arrows, Shift larger) and `Box.resizeKey(press, handle)`
+(arrows, Home and End to the smallest and largest) are `Option` deltas for
+the same two calls, so a key and a `Move` drag obey the same limits.
 
 ## Common tasks
 
@@ -193,6 +201,18 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or
   column, `wrap` continues into the next row or column, Home/End are per row and Ctrl+Home/End
   per grid. The pure move is `GridNavigation.move(enabled, count, current, key, modifiers, options)`.
+- **Freely placed items:** `SpatialNavigation.bundle` (args `{ id }`) with
+  `SpatialNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items })`:
+  each arrow moves the one tab stop to the nearest item drawn that way (a board, a canvas),
+  measured when the key is handled and never kept. Home/End follow the view's order, directions are
+  physical, and the pure rule is `SpatialNavigation.nearest(items, current, direction)`. Same
+  Model slice and item attributes as `RovingTabindex`.
+- **Edit a value in place:** `InlineEdit.bundle` (args `{ id, blur: 'commit' | 'cancel' }`) with
+  `InlineEdit.behavior(Declared, args)(Slots)<Model, Message>({ display, input, error?, value, disabled?, routes? })`.
+  Enter, F2, a double click or a typed key starts; Enter saves, Escape cancels without closing a dialog
+  around it. A changed value is the `Committed` OutMessage; the parent saves it or hands it back with
+  `refuse(committed, error)`, which keeps the editor open. Enter and Escape are `Behaviors.Keys` routes,
+  and `routes` adds more.
 - **Keep focus inside an overlay:** `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
@@ -222,6 +242,9 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   The `Press.events` Mount reports pointer, key, and click facts; `update` decides
   (primary button, one pointer, cancel, Enter/Space without repeat, virtual clicks,
   ghost click suppressed by a timed Command; `Pressed` carries `shiftKey`). `data-pressed` while down.
+- **Swipe-to-reveal actions with a keyboard way:** `SwipeActions.bundle` (`{ fullSwipe, flick, full }`, `onOut` for `FullSwiped { side }`); `SwipeActions.decide(model, release, args)` reads a `SwipeEnded`; `SwipeActions.keys({ open, rtl, toMessage })` is a `Behaviors.Keys` route (arrows open and close, Escape closes). Hide a closed row's actions with `inert`.
+- **Held stepper:** `Repeat.bundle` (`{ delayMs, intervalMs }`, required `onOut` for `Stepped { count, input }` and `Ended { count }`) with
+  `Repeat.behavior(Declared)(Slots)({ target })`; send `Repeat.Message.Stopped()` at a bound. A tap steps on release for a finger; one slot takes one of `Press`, `LongPress`, `Repeat`.
 - **Hold:** `LongPress.bundle` (`{ thresholdMs }`, required `onOut` for `LongPressed`) with
   `LongPress.behavior(Declared)(Slots)({ target })`; reads `Press.events`, so not on the same slot as `Press`.
 - **Keep the selection in view:** the `KeepInView({ selector })` Mount (`foldkit-primitives/dom`) on a
@@ -249,7 +272,9 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   scroller carries `data-scroll-overlaid` while it runs (hide the native bar under it). A coarse pointer
   gets nothing: native bars stay. `scroller: 'ul'` when the scroller holds another Mount. No Message.
 - **Drag deltas:** the `Move` Mount (`foldkit-primitives/dom`) reports `MoveStarted`, `Moved { deltaX, deltaY }`,
-  `MoveEnded { completed }` with pointer capture; `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.
+  `MoveEnded { completed }` with pointer capture (Escape ends it `completed: false`); `Move.behavior(Slots)({ handle, toMessage })` maps them on a `Draggable` slot.
+  Keys: `Move.nudge({ step?, largeStep?, toMessage })` (Alt+arrows) and `Move.resizeKeys(handle, { toMessage })` are
+  `Behaviors.Keys` routes that give `{ dx, dy }` for `Box.moveBy`/`moveEach`/`resize`.
 - **Where one pointer is in an element:** the `PointerPosition({ focus? })` Mount (`foldkit-primitives/dom`)
   reports `PointerPressed`, `PointerMoved` (with the coalesced `points` and pressure) and `PointerReleased
   { completed }`, each place in the element's padding box with its size, captured, moves listened to only

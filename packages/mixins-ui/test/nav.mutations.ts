@@ -10,6 +10,22 @@ const browser = 'packages/mixins-ui/test/nav.browser.test.ts'
 
 export default [
   {
+    name: 'a closed trigger names a panel that is not drawn',
+    edits: [
+      {
+        file,
+        find: '...(shown ? [h.AriaControls(panelId(model.id, index))] : []),',
+        replace: 'h.AriaControls(panelId(model.id, index)),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'two links to one address share a key',
+    edits: [{ file, find: 'link-${index}-${entry.href}', replace: 'link-${entry.href}' }],
+    tests: [unit],
+  },
+  {
     name: 'a reader counts the indicator',
     edits: [
       {

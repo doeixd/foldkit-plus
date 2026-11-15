@@ -59,8 +59,12 @@ const description = component(
   }),
 )
 
+// A variant beats the base layer, so `filled`'s transparent edge would hide an
+// invalid control's: the invalid rules sit here too, for the control and its frame.
 const filled: StyleValue = variant(
   Style.self({ background: ref.surface.field, borderColor: 'transparent' }),
+  Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
+  Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
 )
 const outlined: StyleValue = variant(Style.self({ background: ref.surface.base }))
 

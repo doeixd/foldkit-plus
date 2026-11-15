@@ -53,6 +53,13 @@ export const reread = (current: string, next: string): string =>
 
 type Return = Update.Return<Model, Message>
 
+/** `text` put into its region now, with nothing left waiting. */
+const deliver = (model: Model, text: string, politeness: Politeness): Model => ({
+  ...model,
+  pending: null,
+  [politeness]: reread(model[politeness], text),
+})
+
 const after = (ms: number, message: Message, name: string, generation: number) => ({
   name,
   args: { generation },
@@ -62,9 +69,18 @@ const after = (ms: number, message: Message, name: string, generation: number) =
 const update = (model: Model, message: Message, args: Args): Return =>
   Message.match<Return>(message, {
     Announced: ({ message: text, politeness }) => {
+      // Nothing to read: a region changed to blank would be a no-op that still starts a clock.
+      if (text.trim() === '') return { model }
       const generation = model.generation + 1
+      // The one waiting slot is shared, so an announcement of the other politeness
+      // would replace one still waiting; that one is read now instead of lost.
+      const waiting = model.pending
+      const settled =
+        waiting !== null && waiting.politeness !== politeness
+          ? deliver(model, waiting.message, waiting.politeness)
+          : model
       return {
-        model: { ...model, pending: { message: text, politeness }, generation },
+        model: { ...settled, pending: { message: text, politeness }, generation },
         commands: [
           after(args.debounceMs, Message.Read({ generation }), 'LiveAnnounce.read', generation),
         ],
@@ -73,9 +89,8 @@ const update = (model: Model, message: Message, args: Args): Return =>
     Read: ({ generation }) => {
       if (generation !== model.generation || model.pending === null) return { model }
       const { message: text, politeness } = model.pending
-      const region = politeness === 'polite' ? 'polite' : 'assertive'
       return {
-        model: { ...model, pending: null, [region]: reread(model[region], text) },
+        model: deliver(model, text, politeness),
         commands: [
           after(
             args.clearAfterMs,
@@ -110,18 +125,30 @@ export const REGION_ATTRIBUTE = 'data-foldkit-plus-live'
 /**
  * The two live regions. Render once, anywhere in the page, and hide them
  * visually with a rule on `[data-foldkit-plus-live]`; they must stay in the
- * accessibility tree, so no `display: none`.
+ * accessibility tree, so no `display: none`. Draw them in the first view, not
+ * with the first message: assistive technology ignores a region that arrives
+ * together with its text, and an empty one is announced into once it exists.
  */
 export const view = <ParentMessage>(model: Model, h: HtmlBuilder<ParentMessage>): Html =>
   h.div(
     [h.Attribute(REGION_ATTRIBUTE, 'regions')],
     [
       h.div(
-        [h.Attribute(REGION_ATTRIBUTE, 'polite'), h.AriaLive('polite'), h.AriaAtomic(true)],
+        [
+          h.Attribute(REGION_ATTRIBUTE, 'polite'),
+          h.Role('status'),
+          h.AriaLive('polite'),
+          h.AriaAtomic(true),
+        ],
         [model.polite],
       ),
       h.div(
-        [h.Attribute(REGION_ATTRIBUTE, 'assertive'), h.AriaLive('assertive'), h.AriaAtomic(true)],
+        [
+          h.Attribute(REGION_ATTRIBUTE, 'assertive'),
+          h.Role('alert'),
+          h.AriaLive('assertive'),
+          h.AriaAtomic(true),
+        ],
         [model.assertive],
       ),
     ],

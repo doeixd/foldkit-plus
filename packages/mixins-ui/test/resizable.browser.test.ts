@@ -314,6 +314,32 @@ test('the handle turns to a thicker accent line under the pointer', async () => 
   }
 })
 
+test('keyboard focus draws a ring on the handle that a pointer rest does not', async () => {
+  const mounted = mountNested()
+  try {
+    await ready()
+    const [outer] = handles() as [HTMLElement]
+    await userEvent.hover(document.body, { position: { x: 1000, y: 700 } })
+    const line = outer.getBoundingClientRect()
+    const body = document.body.getBoundingClientRect()
+    const x = line.left + line.width / 2
+    const y = line.top + 40
+    expect(document.elementFromPoint(x, y)).toBe(outer)
+    await userEvent.hover(document.body, { position: { x: x - body.left, y: y - body.top } })
+    await vi.waitFor(() => expect(getComputedStyle(outer).boxShadow).not.toBe('none'))
+    expect(getComputedStyle(outer).outlineStyle).toBe('none')
+    await userEvent.hover(document.body, { position: { x: 1000, y: 700 } })
+    await userEvent.tab()
+    await vi.waitFor(() => expect(document.activeElement).toBe(outer))
+    expect(outer.matches(':focus-visible')).toBe(true)
+    expect(getComputedStyle(outer).outlineStyle).toBe('solid')
+    expect(Number.parseFloat(getComputedStyle(outer).outlineWidth)).toBeGreaterThan(0)
+  } finally {
+    await userEvent.hover(document.body, { position: { x: 1000, y: 700 } })
+    mounted.dispose()
+  }
+})
+
 test('a grip of dots sits on the line, across it, only when chosen', async () => {
   let mounted = mountNested({ handle: 'grip' })
   try {

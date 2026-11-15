@@ -30,7 +30,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // leave, Vite's preload helper for the dynamic import comes in). The rest is the A3, F2 and C2
 // fixes and the wave's other growth the investigation attributed. Ceiling raised to the reading,
 // rounded up.
-const CEILING = 292_650
+// +293 on 2026-11-14, after merging main: measured 292,943 (main's reading 292,599). The page draws
+// the builder's widgets, which carry this branch's kept widget work beside main's primitives; not
+// bisected. Ceiling raised to the reading, rounded up.
+const CEILING = 293_000
 
 clientBudget({
   name: 'cms',

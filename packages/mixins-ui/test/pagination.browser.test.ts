@@ -30,7 +30,7 @@ afterEach(async () => {
   await page.viewport(1440, 900)
 })
 
-const mount = () => {
+const mount = (start = { page: 5, perPage: 10 }) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -46,7 +46,7 @@ const mount = () => {
     Runtime.makeElement({
       Model,
       container,
-      init: () => ({ model: { page: 5, perPage: 10 } }),
+      init: () => ({ model: start }),
       update: (model: Model, message: Message) => ({
         model: Message.match(message, {
           Went: ({ page }) => modifyFields(model, { page: () => page }),
@@ -62,7 +62,10 @@ const mount = () => {
             range: {
               total: 97,
               perPage: model.perPage,
-              choose: { sizes: [10, 20, 50], onPerPage: perPage => Message.Sized({ perPage }) },
+              choose: {
+                sizes: [10, 20, 50, 100],
+                onPerPage: perPage => Message.Sized({ perPage }),
+              },
             },
             style,
           },
@@ -112,6 +115,67 @@ test('the page-size select shows the rows a page holds, and chooses another', as
     await userEvent.selectOptions(select, '20')
     await vi.waitFor(() => expect(document.body.textContent).toContain('1–20 of 97'))
     expect(shownStops()).toEqual(['Previous', '1', '2', '3', '4', '5', 'Next'])
+  } finally {
+    handle.dispose()
+  }
+})
+
+const button = (name: string) => {
+  const found = Array.from(document.querySelectorAll<HTMLElement>('button')).find(
+    candidate => candidate.getAttribute('aria-label') === name,
+  )
+  if (found === undefined) throw new Error(`no ${name} button`)
+  return found
+}
+
+test('Next on the second-to-last page keeps the focus on Next, now at its end', async () => {
+  const handle = mount({ page: 9, perPage: 10 })
+  try {
+    await vi.waitFor(() => expect(document.querySelector('button')).not.toBeNull())
+    button('Next page').focus()
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(button('Next page').getAttribute('aria-disabled')).toBe('true'))
+    expect(document.activeElement).toBe(button('Next page'))
+    // Pressed at the end, it sends nothing and keeps the focus.
+    await userEvent.keyboard('{Enter}')
+    expect(document.body.textContent).toContain('91–97 of 97')
+    expect(document.activeElement).toBe(button('Next page'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('the focus follows a page number as the stops shift under it', async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(document.querySelector('button')).not.toBeNull())
+    const six = Array.from(document.querySelectorAll<HTMLElement>('button')).find(
+      candidate => candidate.textContent === '6',
+    )
+    if (six === undefined) throw new Error('no stop 6')
+    six.focus()
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(document.body.textContent).toContain('51–60 of 97'))
+    expect(document.activeElement?.getAttribute('aria-current')).toBe('page')
+    expect(document.activeElement?.textContent).toContain('6')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a page size above the row count leaves the select to go back', async () => {
+  const handle = mount()
+  try {
+    const select = await vi.waitFor(() => {
+      const found = document.querySelector('select')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    await userEvent.selectOptions(select, '100')
+    await vi.waitFor(() => expect(document.body.textContent).toContain('1–97 of 97'))
+    expect(document.querySelectorAll('button')).toHaveLength(0)
+    await userEvent.selectOptions(select, '10')
+    await vi.waitFor(() => expect(document.body.textContent).toContain('1–10 of 97'))
   } finally {
     handle.dispose()
   }

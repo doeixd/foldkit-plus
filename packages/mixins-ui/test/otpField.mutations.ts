@@ -10,6 +10,49 @@ const browser = 'packages/mixins-ui/test/otpField.browser.test.ts'
 
 export default [
   {
+    name: 'the name is not written',
+    edits: [{ file, find: 'h.Name(options.name)', replace: 'h.Id("x")' }],
+    tests: [unit],
+  },
+  {
+    name: 'a read-only code still takes typing',
+    edits: [{ file, find: ': options.readOnly === true', replace: ': false' }],
+    tests: [unit],
+  },
+  {
+    name: 'an invalid code marks no cell',
+    edits: [
+      {
+        file,
+        find: "...(options.invalid === true ? [h.DataAttribute('invalid', '')] : []),",
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an invalid cell keeps its edge',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo('[data-invalid]'",
+        replace: "Style.pseudo('[data-never]'",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a disabled cell looks live',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo('[data-disabled]'",
+        replace: "Style.pseudo('[data-never]'",
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'a code keeps characters past its length',
     edits: [
       {

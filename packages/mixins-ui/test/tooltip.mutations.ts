@@ -55,4 +55,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'the overflow rule yields to the anchor’s inline style',
+    edits: [
+      {
+        file: '../src/recipes/tooltip.ts',
+        find: "overflow: 'visible !important',",
+        replace: "overflow: 'visible',",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/tooltip.browser.test.ts'],
+  },
 ]

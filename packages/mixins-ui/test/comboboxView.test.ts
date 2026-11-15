@@ -284,11 +284,19 @@ describe('forked combobox seam', () => {
     expect(render.groups[0]!.items).toHaveLength(3)
   })
 
-  it('draws the panel for the top layer only when the anchor stays in place', () => {
+  it('draws the panel for the top layer unless the application asks to portal it', () => {
     Scene.scene<SingleModel, Message, UpstreamCombobox.OutMessage<Fruit>>(
       {
         update: upstreamSingle.update,
-        view: (current, h) => forkSingle.view(current, singleInputs(h), h),
+        view: (current, h) =>
+          forkSingle.view(
+            current,
+            {
+              ...singleInputs(h),
+              anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: true },
+            },
+            h,
+          ),
       },
       Scene.given(openSingle()),
       anchoredSingle(),
@@ -310,6 +318,16 @@ describe('forked combobox seam', () => {
       Scene.given(openSingle()),
       anchoredSingle(),
       Scene.expect(Scene.selector(panel)).toHaveAttr('popover', 'manual'),
+    )
+    // No `portal` given: upstream's default, a portaled panel that `inheritRegion` keeps themed.
+    Scene.scene<SingleModel, Message, UpstreamCombobox.OutMessage<Fruit>>(
+      {
+        update: upstreamSingle.update,
+        view: (current, h) => forkSingle.view(current, singleInputs(h), h),
+      },
+      Scene.given(openSingle()),
+      anchoredSingle(),
+      Scene.expect(Scene.selector(panel)).not.toHaveAttr('popover', 'manual'),
     )
   })
 

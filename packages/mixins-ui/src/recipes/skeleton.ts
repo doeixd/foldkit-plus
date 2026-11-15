@@ -29,7 +29,7 @@ const sweep = Style.keyframes({
 const fill = ref.state.tint
 const band = `color-mix(in oklab, ${ref.surface.base} 60%, transparent)`
 /** A bar on its own: a frame lays out its own bars, whatever shape the lone one takes. */
-const lone = '&:not([aria-hidden="true"])'
+const lone = '&[data-lone]'
 const still = Style.media('(prefers-reduced-motion: reduce)', { animation: 'none' })
 
 export const Skeleton = Style.recipeFor(SkeletonSlots)({

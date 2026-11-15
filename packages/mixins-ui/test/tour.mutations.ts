@@ -172,8 +172,8 @@ export default [
     edits: [
       {
         file,
-        find: 'const key = readingKey(pressed, options.direction)',
-        replace: 'const key = pressed',
+        find: 'Message.Pressed({ key: readingKey(key, options.direction) })',
+        replace: 'Message.Pressed({ key })',
       },
     ],
     tests: [unit, browser],
@@ -183,8 +183,8 @@ export default [
     edits: [
       {
         file,
-        find: "if (key === 'Escape' && options.closeOnEscape === false) return Option.none()",
-        replace: '',
+        find: 'options.closeOnEscape === false',
+        replace: 'false',
       },
     ],
     tests: [unit],
@@ -279,6 +279,27 @@ export default [
         replace: '',
       },
     ],
+    tests: [browser],
+  },
+  {
+    name: "the application's routes on a step are dropped",
+    edits: [{ file, find: '...(options.routes ?? []),', replace: '' }],
+    tests: [unit, browser],
+  },
+  {
+    name: 'Shift stops a step key',
+    edits: [
+      {
+        file,
+        find: 'on: [...Behaviors.Keys.withShift(key)],',
+        replace: 'on: [Behaviors.Keys.chord(key)],',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'focusReturn gives focus back to nothing',
+    edits: [{ file, find: 'mount: () => FocusReturn(),', replace: 'attributes: () => [],' }],
     tests: [browser],
   },
 ]

@@ -87,7 +87,7 @@ export const Knobs = { standard, schema: schemaOf, paths, at, valueAt, withValue
 /**
  * Themes installed by name: `Themes.make({ iris, cobalt }, { initial: 'iris' })`; `Themes.apply`
  * shows one, `Themes.choose` shows and keeps it, and `Themes.script` shows the kept one before
- * the first paint.
+ * the first paint. `themeChanges` streams the name another tab chose, for a Subscription.
  */
 export const Themes = {
   make: ThemeSet.make,
@@ -95,11 +95,19 @@ export const Themes = {
   choose: ThemeSet.choose,
   script: ThemeSet.script,
 } as const
-export { THEME_KEY } from './theme/themes.js'
+export { changes as themeChanges, THEME_KEY } from './theme/themes.js'
 export type { StandardTokens, Themes as ThemesOf } from './theme/themes.js'
 export { raise, raisedSurface } from './theme/raise.js'
 export type { Palette } from './theme/oklch.js'
-export { chooseScheme, currentScheme, SCHEME_KEY, schemeScript } from './theme/scheme.js'
+export {
+  chooseScheme,
+  COLOR_SCHEME_HINT_HEADERS,
+  currentScheme,
+  SCHEME_KEY,
+  schemeChanges,
+  schemeOfHint,
+  schemeScript,
+} from './theme/scheme.js'
 export type { Scheme } from './theme/scheme.js'
 export { chooseKnobs, KNOBS_FORMAT, KNOBS_KEY, knobScript } from './theme/knobsKept.js'
 export type { KnobsChoice, KnobsPlace } from './theme/knobsKept.js'

@@ -5,6 +5,7 @@
  */
 const file = '../src/menubar.ts'
 const unit = 'packages/mixins-ui/test/menubar.test.ts'
+const browser = 'packages/mixins-ui/test/menubar.browser.test.ts'
 
 export default [
   {
@@ -118,12 +119,12 @@ export default [
     tests: [unit],
   },
   {
-    name: 'the bar takes every key',
+    name: 'a bar key always sends End',
     edits: [
       {
         file,
-        find: 'return isBarKey(key) ? Option.some(onMessage(Message.Pressed({ key }))) : Option.none()',
-        replace: "return Option.some(onMessage(Message.Pressed({ key: 'End' })))",
+        find: 'handle: () => Option.some(onMessage(Message.Pressed({ key: reading }))),',
+        replace: "handle: () => Option.some(onMessage(Message.Pressed({ key: 'End' }))),",
       },
     ],
     tests: [unit],
@@ -133,41 +134,45 @@ export default [
     edits: [
       {
         file,
-        find: 'const key = readingKey(pressed, options.direction)',
-        replace: 'const key = pressed',
+        find: "options.direction === 'rtl' ? RTL_KEYS[reading] : reading",
+        replace: 'reading',
       },
     ],
     tests: [unit],
   },
   {
     name: 'right to left, ArrowLeft stays ArrowLeft',
-    edits: [
-      {
-        file: '../src/direction.ts',
-        find: "if (key === 'ArrowLeft') return 'ArrowRight'\n",
-        replace: '',
-      },
-    ],
+    edits: [{ file, find: "ArrowRight: 'ArrowLeft',", replace: "ArrowRight: 'ArrowRight'," }],
     tests: [unit],
   },
   {
     name: 'right to left, ArrowRight stays ArrowRight',
+    edits: [{ file, find: "ArrowLeft: 'ArrowRight',", replace: "ArrowLeft: 'ArrowLeft'," }],
+    tests: [unit],
+  },
+  {
+    name: "the application's routes on the bar are dropped",
+    edits: [{ file, find: '...(options.routes ?? []),', replace: '' }],
+    tests: [unit, browser],
+  },
+  {
+    name: 'Shift cancels a bar key',
     edits: [
       {
-        file: '../src/direction.ts',
-        find: "if (key === 'ArrowRight') return 'ArrowLeft'\n",
-        replace: '',
+        file,
+        find: "...Behaviors.Keys.withShift(options.direction === 'rtl' ? RTL_KEYS[reading] : reading),",
+        replace: "Behaviors.Keys.chord(options.direction === 'rtl' ? RTL_KEYS[reading] : reading),",
       },
     ],
     tests: [unit],
   },
   {
-    name: 'left to right swaps the arrows too',
+    name: 'the bar installs no keydown owner',
     edits: [
       {
-        file: '../src/direction.ts',
-        find: "if (direction !== 'rtl') return key\n",
-        replace: '',
+        file,
+        find: '[...(options.style === undefined ? [] : [options.style.mixin]), keys.mixin]',
+        replace: '[...(options.style === undefined ? [] : [options.style.mixin])]',
       },
     ],
     tests: [unit],

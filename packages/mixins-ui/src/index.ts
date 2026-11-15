@@ -28,6 +28,7 @@ export * as ColorPicker from './colorPicker.js'
 export * as InputCopy from './inputCopy.js'
 export * as TagsInput from './tagsInput.js'
 export * as PasswordInput from './passwordInput.js'
+export * as SearchField from './searchField.js'
 export * as Rating from './rating.js'
 export * as Steps from './steps.js'
 export * as VirtualList from './virtualList.js'
@@ -138,6 +139,8 @@ export type { InputCopyView } from './inputCopy.js'
 export { TagsInputSlots } from './tagsInput.js'
 export type { TagsInputView } from './tagsInput.js'
 export { PasswordInputSlots } from './passwordInput.js'
+export { SearchFieldSlots } from './searchField.js'
+export type { SearchFieldView, SearchFieldWords } from './searchField.js'
 export type { Requirement as PasswordRequirement } from './passwordInput.js'
 export { RatingSlots } from './rating.js'
 export type { RatingDisplay, RatingInput, RatingView } from './rating.js'
@@ -174,7 +177,15 @@ export type { OtpFieldView } from './otpField.js'
 export type { NumberFieldView } from './numberField.js'
 export { CheckboxGroupSlots } from './checkboxGroup.js'
 export { CommandSlots } from './command.js'
-export type { CommandGroup, CommandHint, CommandItem, CommandPage, CommandView } from './command.js'
+export type {
+  CommandGroup,
+  CommandHint,
+  CommandItem,
+  CommandKeyInput,
+  CommandPage,
+  CommandRoute,
+  CommandView,
+} from './command.js'
 export type { CheckboxGroupOption, CheckboxGroupView } from './checkboxGroup.js'
 export { CheckboxSlots } from './checkbox.js'
 export { CodeBlockSlots } from './codeBlock.js'

@@ -42,12 +42,12 @@ export default [
     tests: [unit],
   },
   {
-    name: 'the radios are grouped by a client-only property',
+    name: 'the radios are not grouped by the id',
     edits: [
       {
         file: '../src/rating.ts',
-        find: "h.Attribute('name', options.id),",
-        replace: 'h.Name(options.id),',
+        find: 'h.Name(options.name ?? options.id)',
+        replace: "h.Name('')",
       },
     ],
     tests: [unit],
@@ -57,8 +57,8 @@ export default [
     edits: [
       {
         file: '../src/rating.ts',
-        find: '            ...(disabled\n              ? [h.Disabled(true)]',
-        replace: '            ...(false\n              ? [h.Disabled(true)]',
+        find: '          ...(disabled\n            ? [h.Disabled(true)]',
+        replace: '          ...(false\n            ? [h.Disabled(true)]',
       },
     ],
     tests: [unit],
@@ -68,8 +68,8 @@ export default [
     edits: [
       {
         file: '../src/rating.ts',
-        find: "h.Role('radiogroup'),\n      h.AriaLabelledBy(labelId),",
-        replace: "h.Role('radiogroup'),",
+        find: "h.Role('radiogroup'), h.AriaLabelledBy(labelId)",
+        replace: "h.Role('radiogroup')",
       },
     ],
     tests: [unit],
@@ -134,8 +134,8 @@ export default [
     edits: [
       {
         file: '../src/rating.ts',
-        find: 'const step = options.precision ?? 1',
-        replace: 'const step = 1',
+        find: 'options.readOnly === true ? 1 : (options.precision ?? 1)',
+        replace: '1',
       },
     ],
     tests: [unit],
@@ -167,15 +167,21 @@ export default [
     edits: [
       {
         file: '../src/rating.ts',
-        find: '...(disabled\n        ? []\n        : [h.OnMount(',
-        replace: '...(false\n        ? []\n        : [h.OnMount(',
+        find: 'options.readOnly === true || options.disabled === true ? [] : [ends.mixin]',
+        replace: 'options.readOnly === true ? [] : [ends.mixin]',
       },
     ],
     tests: [unit],
   },
   {
     name: 'Home and End move the choice but not the focus',
-    edits: [{ file: '../src/rating.ts', find: '            to.focus()\n', replace: '' }],
+    edits: [
+      {
+        file: '../src/rating.ts',
+        find: 'Option.some(Behaviors.Keys.focus(idOf(value), options.onChange(value)))',
+        replace: 'Option.some(options.onChange(value))',
+      },
+    ],
     tests: [browser],
   },
   {
@@ -183,11 +189,16 @@ export default [
     edits: [
       {
         file: '../src/rating.ts',
-        find: "event.key === 'Home' ? radios[0] : radios[radios.length - 1]",
-        replace: 'radios[0]',
+        find: "key === 'Home' ? values[0] : values[values.length - 1]",
+        replace: 'values[0]',
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'a star has no id for the key route to focus',
+    edits: [{ file: '../src/rating.ts', find: 'h.Id(idOf(value)),', replace: '' }],
+    tests: [unit],
   },
   {
     name: 'a fraction fills from the left right to left',

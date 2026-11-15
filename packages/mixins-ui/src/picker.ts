@@ -28,7 +28,16 @@
 import * as UiDialog from '@foldkit/ui/dialog'
 import * as UiListbox from '@foldkit/ui/listbox'
 import { Effect, Option, Schema } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import {
+  Attr,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+} from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -163,6 +172,9 @@ export interface PickerOption<Value extends string> extends Listbox.OptionConten
   readonly value: Value
 }
 
+/** A key the application answers on a Sheet option; the press's `item.index` is the option's place. */
+export type Route<Message> = Behaviors.Keys.Route<undefined, Message>
+
 export interface PickerView<Value extends string, Outer> {
   readonly model: Model
   readonly onMessage: (message: Message) => NoInfer<Outer>
@@ -183,16 +195,25 @@ export interface PickerView<Value extends string, Outer> {
   readonly listbox?: MixinList<Outer> | undefined
   /** The Sheet's style and mixins (`Recipes.Sheet`), on `DialogSlots`. */
   readonly sheet?: MixinList<Outer> | undefined
+  /**
+   * Keys the application answers on a Sheet option, beside the arrows, Home
+   * and End. They share one keydown owner with those: a route on the same
+   * gesture is a diagnostic naming both. The dropdown's keys are the
+   * Listbox's.
+   */
+  readonly routes?: ReadonlyArray<Route<NoInfer<Outer>>> | undefined
 }
 
-/** Where a key moves focus from the option at `index` of `count`, if it is one that moves it. */
-const stepped = (key: string, index: number, count: number): Option.Option<number> => {
-  if (key === 'Home') return Option.some(0)
-  if (key === 'End') return Option.some(count - 1)
-  if (key === 'ArrowDown') return Option.some(Math.min(count - 1, index + 1))
-  if (key === 'ArrowUp') return Option.some(Math.max(0, index - 1))
-  return Option.none()
-}
+/** Where each key moves focus from the option at `index` of `count`. */
+const STEPS = {
+  Home: () => 0,
+  End: (_index, count) => count - 1,
+  ArrowDown: (index, count) => Math.min(count - 1, index + 1),
+  ArrowUp: index => Math.max(0, index - 1),
+} satisfies Readonly<Record<string, (index: number, count: number) => number>>
+const STEP_KEYS = ['Home', 'End', 'ArrowDown', 'ArrowUp'] as const satisfies ReadonlyArray<
+  keyof typeof STEPS & Behaviors.Keys.NamedKey
+>
 
 /** The picker: the dropdown and the opener, one shown by the style, and the Sheet. */
 export const view = <Value extends string, Outer>(
@@ -200,9 +221,30 @@ export const view = <Value extends string, Outer>(
   h: HtmlBuilder<Outer>,
 ): Html => {
   const { model, onMessage, value } = options
+  const choices = options.options
+  const keys = Behaviors.Keys.behavior(PickerSlots)<undefined, Outer>({
+    slot: 'option',
+    name: 'PickerKeys',
+    routes: [
+      ...STEP_KEYS.map(key =>
+        Behaviors.Keys.route<undefined, Outer>(`Step ${key}`, {
+          on: [...Behaviors.Keys.withShift(key)],
+          handle: ({ item }) =>
+            Option.map(Option.fromNullishOr(item), ({ index }) =>
+              onMessage(Message.Stepped({ to: STEPS[key](index, choices.length) })),
+            ),
+        }),
+      ),
+      ...(options.routes ?? []),
+    ],
+  })
   const builders = SlotView.buildersFor(
     PickerSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      keys.mixin,
+      ...(options.mixins ?? []),
+    ],
     { input: undefined, h },
   )
   const listboxMixins = options.listbox ?? []
@@ -211,7 +253,6 @@ export const view = <Value extends string, Outer>(
     Option.fromNullishOr(options.options.find(option => option.value === current)),
   )
   const trigger = part.trigger(chosen, options.placeholder)
-  const choices = options.options
   const focused = Math.max(
     0,
     choices.findIndex(option => Option.contains(value, option.value)),
@@ -277,20 +318,18 @@ export const view = <Value extends string, Outer>(
                       choices.map((option, index) =>
                         h.keyed('button')(
                           option.value,
-                          builders.option.attrs([
-                            h.Type('button'),
-                            h.Id(optionId(model.id, index)),
-                            h.Role('option'),
-                            h.AriaSelected(Option.contains(value, option.value)),
-                            h.Tabindex(index === focused ? 0 : -1),
-                            ...(index === focused ? dialog.initialFocus : []),
-                            h.OnClick(onMessage(Message.ChoseInSheet({ value: option.value }))),
-                            h.OnKeyDownPreventDefault(key =>
-                              Option.map(stepped(key, index, choices.length), to =>
-                                onMessage(Message.Stepped({ to })),
-                              ),
-                            ),
-                          ]),
+                          builders.option.attrs(
+                            [
+                              h.Type('button'),
+                              h.Id(optionId(model.id, index)),
+                              h.Role('option'),
+                              h.AriaSelected(Option.contains(value, option.value)),
+                              h.Tabindex(index === focused ? 0 : -1),
+                              ...(index === focused ? dialog.initialFocus : []),
+                              h.OnClick(onMessage(Message.ChoseInSheet({ value: option.value }))),
+                            ],
+                            { index, id: option.value, count: choices.length },
+                          ),
                           [part.option(option)],
                         ),
                       ),

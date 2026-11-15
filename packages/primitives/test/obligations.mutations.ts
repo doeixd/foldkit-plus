@@ -25,6 +25,8 @@ export default [
   dropsProvides('../src/interaction/tree-navigation.ts', 'A11y.FocusStrategy'),
   dropsProvides('../src/interaction/grid-navigation.ts', 'A11y.Navigation'),
   dropsProvides('../src/interaction/grid-navigation.ts', 'A11y.FocusStrategy'),
+  dropsProvides('../src/interaction/spatial-navigation.ts', 'A11y.Navigation'),
+  dropsProvides('../src/interaction/spatial-navigation.ts', 'A11y.FocusStrategy'),
   dropsProvides('../src/interaction/press.ts', 'A11y.Activation'),
   {
     name: 'Selection supplies activation with its click off',

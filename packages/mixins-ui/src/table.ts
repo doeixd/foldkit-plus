@@ -27,7 +27,8 @@ export const TableSlots = Slots.define({
   caption: Slot.make({ capability: Capability.Container }),
   head: Slot.make({ capability: Capability.Container }),
   headerRow: Slot.make({ capability: Capability.Container }),
-  headerCell: Slot.make({ capability: Capability.Container }),
+  /** A column heading; a sortable one carries `aria-sort` while it sorts the rows. */
+  headerCell: Slot.make({ capability: Capability.Container, attributes: [Attr.AriaSort] }),
   /** The button a sortable heading is drawn as. */
   sortButton: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   /** The mark beside a sortable heading, turned by the header cell's `aria-sort`. */
@@ -37,7 +38,7 @@ export const TableSlots = Slots.define({
   cell: Slot.make({ capability: Capability.Container }),
   /** The narrow cell holding a row's checkbox or its open button. */
   controlCell: Slot.make({ capability: Capability.Container }),
-  /** A checkbox's name, for a screen reader alone. */
+  /** A name drawn for a screen reader alone: a checkbox's, or the expansion column's. */
   checkboxLabel: Slot.make({ capability: Capability.Container }),
   expandButton: Slot.make({
     capability: Capability.Interactive,
@@ -52,12 +53,15 @@ export const TableSlots = Slots.define({
   emptyCell: Slot.make({ capability: Capability.Container }),
 })
 
-/** One column: its heading, and each row's value for it. */
+/** One column: its heading, and each row's cell for it. */
 export interface TableColumn<Row> {
   readonly header: string
   /** Right-align values that read as numbers. */
   readonly numeric?: boolean | undefined
-  readonly value: (row: Row) => string
+  /** The cell's content: text, or markup for a link, a badge or an avatar. */
+  readonly value: (row: Row) => Html | string
+  /** Draws the cell as the row's heading (`th scope="row"`), so a screen reader names a row by it. */
+  readonly rowHeader?: boolean | undefined
   /** Makes the heading a button that sends `sort.onSort` with this key. */
   readonly sortKey?: string | undefined
 }
@@ -110,6 +114,8 @@ export interface TableExpansion<Row, Message> {
   readonly isExpanded: (row: Row) => boolean
   readonly onToggle: (row: Row, expanded: boolean) => Message
   readonly detail: (row: Row) => Html
+  /** The heading of the open buttons' column, for a screen reader alone; default `"Details"`. */
+  readonly headerLabel?: string | undefined
   /** The open button's name; default `"Show details"`. */
   readonly label?: ((row: Row) => string) | undefined
 }
@@ -230,7 +236,13 @@ export const view = <Row, Message = never>(
 
   const chosen = selection === undefined ? 0 : rows.filter(selection.isSelected).length
   const headerRow = h.tr(builders.headerRow.attrs(), [
-    ...(expansion === undefined ? [] : [h.td(builders.controlCell.attrs(), [])]),
+    ...(expansion === undefined
+      ? []
+      : [
+          h.th(builders.controlCell.attrs([h.Scope('col')]), [
+            h.span(builders.checkboxLabel.attrs(), [expansion.headerLabel ?? 'Details']),
+          ]),
+        ]),
     ...(selection === undefined
       ? []
       : [
@@ -288,7 +300,11 @@ export const view = <Row, Message = never>(
                 'td',
               ),
             ]),
-        ...columns.map(column => h.td(builders.cell.attrs(numeric(column)), [column.value(row)])),
+        ...columns.map(column =>
+          column.rowHeader === true
+            ? h.th(builders.cell.attrs([h.Scope('row'), ...numeric(column)]), [column.value(row)])
+            : h.td(builders.cell.attrs(numeric(column)), [column.value(row)]),
+        ),
       ],
     )
     if (!open || expansion === undefined) return [drawn]

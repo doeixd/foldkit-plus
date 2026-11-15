@@ -164,6 +164,42 @@ describe('Table sort', () => {
   })
 })
 
+describe('Table cells', () => {
+  it('draws an Html value as the cell, beside a string one', () => {
+    const table = drawn({
+      columns: [
+        { header: 'Product', value: (row: Product) => h.strong([], [row.name]) },
+        { header: 'Price', value: (row: Product) => row.price },
+      ],
+    })
+    expect(Inert.byTag(table, 'strong')).toHaveLength(3)
+    expect(Inert.text(Inert.byTag(table, 'td')[1])).toBe('4.99')
+  })
+
+  it('draws a row header as `th scope="row"` in the cell slot, and no `td` for that column', () => {
+    const table = drawn({
+      columns: [{ ...columns[0]!, rowHeader: true }, columns[1]!],
+    })
+    const body = Inert.byTag(table, 'tr').slice(1)
+    const [first] = Inert.byTag(body[0], 'th')
+    expect(Inert.text(first)).toBe('Apples')
+    expect(Inert.value(first, 'scope')).toBe('row')
+    expect(Inert.byTag(body[0], 'td')).toHaveLength(1)
+    // The heading row keeps its column headings.
+    expect(Inert.byTag(Inert.byTag(table, 'thead')[0], 'th')).toHaveLength(2)
+  })
+
+  it('names the expansion column with a heading, for a screen reader alone', () => {
+    const table = drawn({ expansion: expansion([]) })
+    const [head] = Inert.byTag(Inert.byTag(table, 'thead')[0], 'th')
+    expect(Inert.text(head)).toBe('Details')
+    expect(Inert.value(head, 'scope')).toBe('col')
+    expect(Inert.byTag(Inert.byTag(table, 'thead')[0], 'td')).toHaveLength(0)
+    const named = drawn({ expansion: { ...expansion([]), headerLabel: 'Mehr' } })
+    expect(Inert.text(Inert.byTag(Inert.byTag(named, 'thead')[0], 'th')[0])).toBe('Mehr')
+  })
+})
+
 describe('Table selection', () => {
   it('checks the rows chosen, and the heading is mixed while only some are', () => {
     const states = boxes(drawn({ selection: selection(['Bread']) })).map(box =>

@@ -5,9 +5,9 @@
  * and a secondary button are ignored; listeners go with the Mount; the
  * Behavior maps facts to the view's Messages on a draggable slot.
  */
-import { Effect, Fiber } from 'effect'
+import { Effect, Fiber, Option } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { Attributes, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { Attributes, Behaviors, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { Move, MoveEnded, MoveStarted, Moved } from '../src/dom/index.js'
 import { Move as Interaction } from '../src/interaction/index.js'
@@ -116,6 +116,70 @@ describe('Move', () => {
       ])
     }))
 
+  it('Escape ends a drag not completed, once, and stops there', () =>
+    withHandle(async (handle, captured) => {
+      let reachedPage = 0
+      const onPage = () => reachedPage++
+      document.addEventListener('keydown', onPage)
+      const run = (count: number, steps: () => void) =>
+        Effect.runPromise(
+          Effect.gen(function* () {
+            const fiber = yield* Effect.forkChild(
+              takeMessages(Move().f(handle, Mount.liveViewStateChanges), count),
+            )
+            for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+            steps()
+            return yield* Fiber.join(fiber)
+          }),
+        )
+      const down = () =>
+        fire(handle, 'pointerdown', { pointerId: 4, button: 0, clientX: 0, clientY: 0 })
+      const facts = await run(3, () => {
+        down()
+        fire(document.body, 'keydown', { key: 'Escape' })
+        // The drag is over: neither this move nor a second Escape reports anything.
+        fire(handle, 'pointermove', { pointerId: 4, clientX: 9, clientY: 9 })
+        fire(document.body, 'keydown', { key: 'Escape' })
+        down()
+        fire(handle, 'pointerup', { pointerId: 4 })
+      })
+      document.removeEventListener('keydown', onPage)
+      expect(facts).toEqual([
+        MoveStarted.make({ pointerId: 4, pointerType: 'mouse' }),
+        MoveEnded.make({ pointerId: 4, completed: false }),
+        MoveStarted.make({ pointerId: 4, pointerType: 'mouse' }),
+      ])
+      expect(captured).toEqual([4, -4, 4, -4])
+      // The first Escape belonged to the drag; the second found none and went on.
+      expect(reachedPage).toBe(1)
+    }))
+
+  it('keeps nothing on the document while no pointer is down', () =>
+    withHandle(async handle => {
+      const added: Array<string> = []
+      const real = document.addEventListener.bind(document)
+      document.addEventListener = (type: string, ...rest: [EventListenerOrEventListenerObject]) => {
+        added.push(type)
+        real(type, ...rest)
+      }
+      try {
+        await Effect.runPromise(
+          Effect.gen(function* () {
+            const fiber = yield* Effect.forkChild(
+              takeMessages(Move().f(handle, Mount.liveViewStateChanges), 1),
+            )
+            for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+            expect(added).toEqual([])
+            fire(handle, 'pointerdown', { pointerId: 1, button: 0, clientX: 0, clientY: 0 })
+            yield* Fiber.join(fiber)
+          }),
+        )
+        expect(added).toEqual(['keydown'])
+      } finally {
+        document.addEventListener = real
+      }
+    }))
+
   it('removes its listeners with the Mount', () =>
     withHandle(async handle => {
       const facts = await Effect.runPromise(
@@ -160,5 +224,59 @@ describe('Move.behavior', () => {
         toMessage: () => ({ _tag: 'Other' }),
       }),
     ).toThrow(/capability/)
+  })
+})
+
+describe('Move keys', () => {
+  const mods = (init: Partial<Record<'shiftKey' | 'ctrlKey' | 'altKey' | 'metaKey', boolean>>) => ({
+    shiftKey: false,
+    ctrlKey: false,
+    altKey: false,
+    metaKey: false,
+    ...init,
+  })
+  const ask = <M>(
+    route: Behaviors.Keys.Route<undefined, M>,
+    key: string,
+    init: Parameters<typeof mods>[0],
+  ) => Behaviors.Keys.answer([route])({ key, modifiers: mods(init), input: undefined })
+  const nudge = Interaction.nudge<undefined, string>({
+    step: 2,
+    toMessage: ({ dx, dy }) => `${dx},${dy}`,
+  })
+
+  it.each([
+    ['ArrowRight', {}, '2,0'],
+    ['ArrowLeft', { shiftKey: true }, '-20,0'],
+    ['ArrowUp', {}, '0,-2'],
+    ['ArrowDown', { shiftKey: true }, '0,20'],
+  ])('Alt+%s nudges', (key, init, message) => {
+    expect(ask(nudge, key, { altKey: true, ...init })).toEqual(Option.some(message))
+  })
+
+  it('leaves a plain arrow, an Alt+Ctrl chord and another key to the page', () => {
+    expect(ask(nudge, 'ArrowRight', {})).toEqual(Option.none())
+    expect(ask(nudge, 'ArrowRight', { altKey: true, ctrlKey: true })).toEqual(Option.none())
+    expect(ask(nudge, 'a', { altKey: true })).toEqual(Option.none())
+  })
+
+  it('a handle’s keys move its own edges, and Home and End ask for the extremes', () => {
+    const east = Interaction.resizeKeys<undefined, string>('e', {
+      toMessage: ({ dx, dy }) => `${dx},${dy}`,
+    })
+    expect(ask(east, 'ArrowRight', {})).toEqual(Option.some('1,0'))
+    expect(ask(east, 'ArrowRight', { shiftKey: true })).toEqual(Option.some('10,0'))
+    expect(ask(east, 'ArrowUp', {})).toEqual(Option.none())
+    expect(ask(east, 'End', {})).toEqual(Option.some('Infinity,0'))
+    expect(ask(east, 'Home', {})).toEqual(Option.some('-Infinity,0'))
+    expect(ask(east, 'ArrowRight', { altKey: true })).toEqual(Option.none())
+  })
+
+  it('shares a keydown owner with another route, and two on one chord are refused', () => {
+    const other = Behaviors.Keys.route<undefined, string>('Other', {
+      on: [Behaviors.Keys.chord('ArrowRight', { alt: true })],
+      handle: () => Option.some('other'),
+    })
+    expect(() => Behaviors.Keys.answer([nudge, other])).toThrow(/two routes take "Alt.ArrowRight"/)
   })
 })

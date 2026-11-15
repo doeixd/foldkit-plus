@@ -8,7 +8,7 @@
  * the Command's effect that shows it, and `choose` shows it and keeps it,
  * for `script` to show in the head of the next page before the first paint.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Schema, Stream } from 'effect'
 import { global, type StyleValue } from '../styleValue.js'
 import { compose, VAR_PREFIX, type ThemeTokens } from './core.js'
 import {
@@ -21,6 +21,7 @@ import {
 } from './knobs.js'
 import { palette, type Palette } from './oklch.js'
 import { scriptLiteral } from './scriptLiteral.js'
+import { storageChanges } from './storageChanges.js'
 import { tokens, type Tokens } from './tokens.js'
 
 /** Every shipped token: the scales, the palette, and the knobs they read. */
@@ -140,6 +141,21 @@ export const choose = <Name extends string>(
         }
       }),
     ),
+  )
+
+/**
+ * The theme another tab chose, each time it does: what its `choose` kept
+ * under `key`, with a name no theme has, a removed key and anything else read
+ * as the initial theme, as `script` reads it. For a Subscription whose Message
+ * the application's `update` stores and answers with `apply`: this tab's
+ * Model owns the chosen name, so the stream applies nothing itself.
+ */
+export const changes = <Name extends string>(
+  themes: Themes<Name>,
+  key: string = THEME_KEY,
+): Stream.Stream<Name> =>
+  storageChanges(key).pipe(
+    Stream.map(value => themes.names.find(name => name === value) ?? themes.initial),
   )
 
 /**

@@ -28,6 +28,8 @@ export const StepsSlots = Slots.define({
   text: Slot.make({ capability: Capability.Container }),
   title: Slot.make({ capability: Capability.Container }),
   description: Slot.make({ capability: Capability.Container }),
+  /** Where the step stands, in words a screen reader reads: the marker is hidden from it. */
+  state: Slot.make({ capability: Capability.Container }),
   content: Slot.make({ capability: Capability.Container }),
   connector: Slot.make({ capability: Capability.Container }),
 })
@@ -44,6 +46,16 @@ export interface Step {
   readonly content?: Html | undefined
 }
 
+/** What each state of a step says to a screen reader, after its title. */
+export interface StepsWords {
+  /** Default `"Completed"`. */
+  readonly complete?: string | undefined
+  /** Default none: the item's `aria-current="step"` already says it. */
+  readonly current?: string | undefined
+  /** Default `"Upcoming"`. */
+  readonly upcoming?: string | undefined
+}
+
 export interface StepsView<Message> {
   /** The list's accessible name. */
   readonly label: string
@@ -54,6 +66,7 @@ export interface StepsView<Message> {
   readonly onSelect?: ((index: number) => NoInfer<Message>) | undefined
   /** How far the current step has gone, 0 to 1; outside that, the nearest end. */
   readonly progress?: number | undefined
+  readonly words?: StepsWords | undefined
   /** A style of `StepsSlots`, for the look. */
   readonly style?: NamedStyle<typeof StepsSlots> | undefined
   /** Mixins beside the style. */
@@ -74,6 +87,11 @@ export const view = <Message>(options: StepsView<Message>, h: HtmlBuilder<Messag
   const last = options.steps.length - 1
   const onSelect = options.onSelect
   const progress = options.progress
+  const words = {
+    complete: options.words?.complete ?? 'Completed',
+    current: options.words?.current,
+    upcoming: options.words?.upcoming ?? 'Upcoming',
+  }
   return h.ol(
     builders.root.attrs([
       h.AriaLabel(options.label),
@@ -91,6 +109,9 @@ export const view = <Message>(options: StepsView<Message>, h: HtmlBuilder<Messag
         ]),
         h.span(builders.text.attrs(), [
           h.span(builders.title.attrs([marked]), [step.title]),
+          ...(words[state] === undefined
+            ? []
+            : [h.span(builders.state.attrs([marked]), [words[state]])]),
           ...(step.description === undefined
             ? []
             : [h.span(builders.description.attrs(), [step.description])]),

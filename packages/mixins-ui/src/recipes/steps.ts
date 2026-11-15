@@ -24,6 +24,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
+import { Utilities } from 'foldkit-mixins/utilities'
 import { StepsSlots } from '../steps.js'
 import {
   component,
@@ -159,6 +160,7 @@ export const Steps = Style.recipeFor(StepsSlots)({
       Style.pseudo(upcoming, { color: ref.text.muted }),
       Style.pseudo(current, { color: ref.text.overt, fontWeight: ref.weight.medium }),
     ),
+    state: component(Utilities.srOnly),
     description: component(Style.self({ ...role('caption'), color: ref.text.muted })),
     // Under the title and no larger: a body's size, muted, so the title leads.
     content: component(Style.self({ minInlineSize: '0', ...role('body'), color: ref.text.muted })),

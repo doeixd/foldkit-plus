@@ -20,13 +20,16 @@ export const AccordionSlots = Slots.define({
   trigger: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.AriaExpanded, Attr.Disabled],
+    attributes: [Attr.AriaExpanded, Attr.AriaControls, Attr.Disabled],
   }),
   label: Slot.make({ capability: Capability.Container }),
   chevron: Slot.make({ capability: Capability.Container }),
   /** The view's own `icon`, drawn in place of the chevron. */
   icon: Slot.make({ capability: Capability.Container }),
-  panel: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  panel: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.Role, Attr.AriaLabelledby],
+  }),
   /** The panel's one grid row, with no padding of its own, so it can shrink to nothing. */
   body: Slot.make({ capability: Capability.Container }),
   content: Slot.make({ capability: Capability.Container }),

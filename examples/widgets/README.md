@@ -76,13 +76,21 @@ npx vitest run examples/widgets
   a Listbox dropping its options down on a desktop, and below the theme's
   `md` breakpoint an opener showing them in a bottom Sheet. One Model and one
   `Chose` either way; the order is the island's, an unlisted one ignored.
+- `src/search-field/` — `foldkit-mixins-ui`'s `SearchField` placed twice with `Bundle.make`: a
+  native search input and a clear button drawn while there is text, Escape clearing a field that
+  has text and passing an empty one on, and ArrowDown, the application's own key, opening
+  results through the field's `routes`. Typing in one leaves the other alone. Clearing answers
+  `SearchField.Focus`, since the pressed button takes its focus with it. `demo.ts` holds the
+  placements.
 - `src/window-list/` — a thousand names in `foldkit-mixins-ui`'s
   `WindowList`, which scrolls with the page: only the rows in view are drawn,
   between spacers as tall as the rest, under a heading that sticks to the
   window's top. Last on the page, which it makes long.
 
 Each folder holds `app.ts` (Model, Message, update) and `view.ts` (the
-SlotView and its `runDemo`). The toolbar's trace lives in `demo.ts`. `test/`
+SlotView and its `runDemo`). The toolbar's trace lives in `demo.ts`; the search field's
+Model and update are in `child.ts` and its page in `demo.ts`, because the Bundle that places
+its view is `app.ts`. `test/`
 pins each widget with a mutation spec beside it. Absent values in these
 models are `Option`. `src/style.ts` is `AppStyle.make` of the design-system
 palette: one `Style.forSlots` per widget, state visuals read from the ARIA

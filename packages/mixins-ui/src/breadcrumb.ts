@@ -1,5 +1,6 @@
 import { Option } from 'effect'
 import {
+  Attr,
   Behavior,
   Capability,
   Slot,
@@ -24,11 +25,11 @@ import type { MixinList } from './resolve.js'
  * application to draw the trail whole.
  */
 export const BreadcrumbSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
+  root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] }),
   list: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Container }),
   link: Slot.make({ capability: Capability.Interactive }),
-  current: Slot.make({ capability: Capability.Container }),
+  current: Slot.make({ capability: Capability.Container, attributes: [Attr.AriaCurrent] }),
   icon: Slot.make({ capability: Capability.Container }),
   separator: Slot.make({ capability: Capability.Container }),
   ellipsis: Slot.make({ capability: Capability.Interactive }),
@@ -126,6 +127,8 @@ export const chosen = (
  * stands behind it.
  */
 export interface BreadcrumbView<Message = never> {
+  /** The landmark's name. Default `'Breadcrumb'`. */
+  readonly label?: string | undefined
   readonly steps: ReadonlyArray<BreadcrumbStep>
   /** A separator of the application's own, in place of the recipe's. */
   readonly separator?: Html | undefined
@@ -227,14 +230,19 @@ export const view = <Message = never>(
             ellipsisOf(collapse, (collapse.label ?? more)(hidden.length), hidden, builders, h),
           ]),
         ]
-  return h.nav(builders.root.attrs([h.AriaLabel('Breadcrumb'), h.Role('navigation')]), [
-    h.ol(
-      builders.list.attrs(separator === undefined ? [] : [h.DataAttribute('separator', 'custom')]),
-      [
-        ...before.map((step, index) => drawStep(step, index)),
-        ...folded,
-        ...after.map((step, index) => drawStep(step, before.length + folded.length + index)),
-      ],
-    ),
-  ])
+  return h.nav(
+    builders.root.attrs([h.AriaLabel(options.label ?? 'Breadcrumb'), h.Role('navigation')]),
+    [
+      h.ol(
+        builders.list.attrs(
+          separator === undefined ? [] : [h.DataAttribute('separator', 'custom')],
+        ),
+        [
+          ...before.map((step, index) => drawStep(step, index)),
+          ...folded,
+          ...after.map((step, index) => drawStep(step, before.length + folded.length + index)),
+        ],
+      ),
+    ],
+  )
 }

@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: '../src/segmented.ts',
-        find: 'attributes: [Attr.AriaPressed, Attr.Disabled, Attr.AriaDisabled],',
-        replace: 'attributes: [Attr.Disabled, Attr.AriaDisabled],',
+        find: 'attributes: [Attr.Role, Attr.AriaPressed, Attr.AriaChecked, Attr.Disabled, Attr.AriaDisabled],',
+        replace: 'attributes: [Attr.Role, Attr.AriaChecked, Attr.Disabled, Attr.AriaDisabled],',
       },
     ],
     tests: gate,

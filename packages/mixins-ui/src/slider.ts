@@ -44,9 +44,13 @@ import type { MixinList } from './resolve.js'
  * drag, and every logical inset the recipe places with turns with them.
  */
 export const SliderSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  root: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.Role, Attr.AriaLabelledby],
+  }),
   header: Slot.make({ capability: Capability.Container }),
   label: Slot.make({ capability: Capability.Container }),
+  description: Slot.make({ capability: Capability.Container }),
   output: Slot.make({ capability: Capability.Base }),
   control: Slot.make({ capability: Capability.Container }),
   track: Slot.make({ capability: Capability.Base }),
@@ -56,8 +60,14 @@ export const SliderSlots = Slots.define({
   value: Slot.make({ capability: Capability.Base }),
   thumb: Slot.make({
     capability: Capability.Interactive,
-    events: [Event.Input],
-    attributes: [Attr.AriaLabel, Attr.Disabled, Attr.Value],
+    events: [Event.Input, Event.Change],
+    attributes: [
+      Attr.AriaLabel,
+      Attr.AriaLabelledby,
+      Attr.AriaDescribedby,
+      Attr.Disabled,
+      Attr.Value,
+    ],
   }),
 })
 
@@ -90,6 +100,14 @@ export interface SliderView<Message, Value extends number | Range> extends Bound
   readonly value: Value
   /** The Message for the next value; its type comes from `h`. */
   readonly onChange: (value: Value) => NoInfer<Message>
+  /**
+   * Sent once when the reader lets go, with the value then: the native
+   * `change` of the range input, which fires on release after a drag and on
+   * each key press, where `onChange` has sent every step on the way.
+   */
+  readonly onCommit?: ((value: Value) => NoInfer<Message>) | undefined
+  /** Said under the slider and read with it: each thumb is described by it. */
+  readonly description?: string | undefined
   /** How a value reads aloud, as each thumb's `aria-valuetext`, and as shown; default `String`. */
   readonly format?: ((value: number) => string) | undefined
   /** A range's thumb names; default `Minimum` and `Maximum`. One thumb is named by `label`. */
@@ -157,7 +175,22 @@ interface Thumb<Message> {
   readonly to: number
   readonly naming: Attribute<Message>
   readonly next: (value: number) => Message
+  /** The message for letting go at `value`; none when the view was given no `onCommit`. */
+  readonly commit: Option.Option<(value: number) => Message>
 }
+
+/** What a thumb sends for a number the input reports: the same settled value to `onChange` and `onCommit`. */
+const sends = <Message, Value>(
+  settle: (value: number) => Value,
+  onChange: (value: Value) => Message,
+  onCommit: ((value: Value) => Message) | undefined,
+): Pick<Thumb<Message>, 'next' | 'commit'> => ({
+  next: value => onChange(settle(value)),
+  commit: Option.map(
+    Option.fromNullishOr(onCommit),
+    commit => (value: number) => commit(settle(value)),
+  ),
+})
 
 /** One thumb across the whole track, or a range's two, each bounded by the other. */
 const thumbsOf = <Message>(
@@ -167,7 +200,6 @@ const thumbsOf = <Message>(
 ): ReadonlyArray<Thumb<Message>> => {
   const bounds = { min: options.min ?? 0, max: options.max ?? 100, step: options.step }
   if (!isRange(options)) {
-    const onChange = options.onChange
     return [
       {
         key: 'value',
@@ -175,11 +207,11 @@ const thumbsOf = <Message>(
         from: bounds.min,
         to: bounds.max,
         naming: h.AriaLabelledBy(labelId),
-        next: value => onChange(settled(value, bounds)),
+        ...sends(value => settled(value, bounds), options.onChange, options.onCommit),
       },
     ]
   }
-  const { value: range, onChange } = options
+  const { value: range, onChange, onCommit } = options
   const names = options.thumbLabels ?? { low: 'Minimum', high: 'Maximum' }
   return [
     {
@@ -188,7 +220,7 @@ const thumbsOf = <Message>(
       from: bounds.min,
       to: range.high,
       naming: h.AriaLabel(names.low),
-      next: value => onChange(moved(range, 'low', value, bounds)),
+      ...sends(value => moved(range, 'low', value, bounds), onChange, onCommit),
     },
     {
       key: 'high',
@@ -196,7 +228,7 @@ const thumbsOf = <Message>(
       from: range.low,
       to: bounds.max,
       naming: h.AriaLabel(names.high),
-      next: value => onChange(moved(range, 'high', value, bounds)),
+      ...sends(value => moved(range, 'high', value, bounds), onChange, onCommit),
     },
   ]
 }
@@ -217,6 +249,7 @@ export function view<Message>(
   const format = options.format ?? String
   const disabled = options.disabled === true
   const labelId = `${options.id}-label`
+  const descriptionId = `${options.id}-description`
   const ranged = isRange(options)
   const thumbs = thumbsOf(options, labelId, h)
   const vertical = options.orientation === 'vertical'
@@ -239,9 +272,17 @@ export function view<Message>(
         h.AriaValuetext(format(drawn.value)),
         ...(vertical ? [h.AriaOrientation('vertical')] : []),
         h.DataAttribute('thumb', drawn.key),
-        // An attribute, not `h.Name`'s client-only property, so server markup submits too.
-        ...(options.name === undefined ? [] : [h.Attribute('name', options.name)]),
-        ...(disabled ? [h.Disabled(true)] : [h.OnInput(text => drawn.next(Number(text)))]),
+        ...(options.name === undefined ? [] : [h.Name(options.name)]),
+        ...(options.description === undefined ? [] : [h.AriaDescribedBy(descriptionId)]),
+        ...(disabled
+          ? [h.Disabled(true)]
+          : [
+              h.OnInput(text => drawn.next(Number(text))),
+              ...Option.match(drawn.commit, {
+                onNone: () => [],
+                onSome: commit => [h.OnChange(text => commit(Number(text)))],
+              }),
+            ]),
       ]),
     )
 
@@ -341,6 +382,9 @@ export function view<Message>(
             : []),
         ],
       ),
+      ...(options.description === undefined
+        ? []
+        : [h.p(builders.description.attrs([h.Id(descriptionId)]), [options.description])]),
     ],
   )
 }

@@ -16,7 +16,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // one tree, +479: the focus return's way back split from its trail and checked for a frame's
 // realm, editable text and a summary taking focus, and a portaled panel's region read from the
 // sheets through a probe (the popups carry it). Ceiling raised to the reading, rounded up.
-const CEILING = 171_300
+// 174.8 kB (174,824 bytes) on 2026-11-14, after merging main: this branch's kept widget work
+// reaches the page (the SearchField widget and its section, WindowList's larger follower,
+// Resizable, Sidebar), +3,524 over main's 171,300; the ceiling is that plus about 2%.
+const CEILING = 178_500
 
 clientBudget({
   name: 'widgets',

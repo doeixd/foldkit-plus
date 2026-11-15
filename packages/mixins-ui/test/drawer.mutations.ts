@@ -91,8 +91,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "      visibility: 'hidden',\n    }),",
-        replace: '    }),',
+        find: "      visibility: 'hidden',\n",
+        replace: '',
       },
     ],
     tests: browser,
@@ -162,6 +162,29 @@ export default [
         file: recipe,
         find: "left: 'calc(50% - 0.0625rem)',",
         replace: "insetInlineStart: 'calc(50% - 0.0625rem)',",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the body hides as the slide starts',
+    edits: [
+      { file: recipe, find: 'transitionDelay: travelled(ref.motion.moderate),', replace: '' },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'focus stays in a body that collapses',
+    edits: [{ file, find: 'handle?.focus({ preventScroll: true })', replace: 'void handle' }],
+    tests: browser,
+  },
+  {
+    name: 'the handle’s name swaps with its state',
+    edits: [
+      {
+        file,
+        find: 'h.AriaLabel(options.label),',
+        replace: 'h.AriaLabel(model.open ? options.label : `${options.label} (closed)`),',
       },
     ],
     tests: browser,

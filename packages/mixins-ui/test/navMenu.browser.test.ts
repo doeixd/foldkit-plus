@@ -8,13 +8,13 @@
  * `Nav.fluid` the indicator marks the trigger whose panel holds the current
  * page, as a line or a pill, and the hover leaves the panel's links alone.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { mapMessages } from 'foldkit/command'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { modifyFields } from 'foldkit/struct'
-import { Layers, Style } from 'foldkit-mixins'
+import { Behaviors, Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
@@ -70,6 +70,8 @@ interface Fixture {
    * flex item shrink (as the gallery's does), which squeezes the entries.
    */
   readonly squeezed?: boolean
+  /** An application key, PageDown, that goes to the last entry of the row, or the last link of a panel. */
+  readonly pageDown?: boolean
 }
 
 const mount = (fixture: Fixture = {}) => {
@@ -117,6 +119,41 @@ const mount = (fixture: Fixture = {}) => {
             onMessage: got,
             ...(fixture.orientation === undefined ? {} : { orientation: fixture.orientation }),
             ...(fixture.direction === undefined ? {} : { direction: fixture.direction }),
+            ...(fixture.pageDown === true
+              ? {
+                  routes: [
+                    Behaviors.Keys.route<Nav.NavEntry, Message>('Last entry', {
+                      on: [Behaviors.Keys.chord('PageDown')],
+                      handle: ({ item }) =>
+                        Option.map(Option.fromNullishOr(item), ({ index }) =>
+                          got(
+                            Nav.Message.MovedTop({
+                              from: index,
+                              count: entries.length,
+                              move: 'last',
+                            }),
+                          ),
+                        ),
+                    }),
+                  ],
+                  panelRoutes: [
+                    Behaviors.Keys.route<Nav.NavPanelLink, Message>('Last link', {
+                      on: [Behaviors.Keys.chord('PageDown')],
+                      handle: ({ item }) =>
+                        Option.map(Option.fromNullishOr(item), ({ index }) =>
+                          got(
+                            Nav.Message.MovedInPanel({
+                              entry: 1,
+                              from: index,
+                              count: 3,
+                              move: 'last',
+                            }),
+                          ),
+                        ),
+                    }),
+                  ],
+                }
+              : {}),
             mixins: [style.mixin, ...(fixture.fluid === true ? Nav.fluid : [])],
           },
           h,
@@ -175,6 +212,26 @@ test('ArrowDown enters the panel, the arrows walk its links, Escape returns to t
       expect(panel()).toBeNull()
       expect(document.activeElement).toBe(byText('Products'))
     })
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("an application's keys on the row and in a panel go through the same owners", async () => {
+  const { handle } = mount({ pageDown: true })
+  try {
+    await vi.waitFor(() => expect(byText('Products')).toBeTruthy())
+    byText('Home').focus()
+    await userEvent.keyboard('{PageDown}')
+    await vi.waitFor(() => expect(document.activeElement).toBe(byText('Blog')))
+    byText('Products').focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(document.activeElement).toBe(byText('Mixins')))
+    await userEvent.keyboard('{PageDown}')
+    await vi.waitFor(() => expect(document.activeElement).toBe(byText('Sync')))
+    // The arrows are still the nav's own.
+    await userEvent.keyboard('{Home}')
+    await vi.waitFor(() => expect(document.activeElement).toBe(byText('Mixins')))
   } finally {
     handle.dispose()
   }

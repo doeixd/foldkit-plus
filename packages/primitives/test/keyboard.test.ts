@@ -5,7 +5,12 @@
  */
 import { Effect, Fiber, type Stream } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { KeyboardMessage, keyboardEvents, matchHotkey } from '../src/events/index.js'
+import {
+  KeyboardMessage,
+  isTypingTarget,
+  keyboardEvents,
+  matchHotkey,
+} from '../src/events/index.js'
 import { takeMessages } from './support.js'
 
 const key = (type: string, init: KeyboardEventInit) =>
@@ -36,6 +41,8 @@ describe('keyboardEvents', () => {
     )
     expect(values).toEqual([
       KeyboardMessage.Pressed({
+        code: '',
+        typing: false,
         key: 'a',
         repeat: false,
         ctrl: false,
@@ -44,6 +51,8 @@ describe('keyboardEvents', () => {
         meta: false,
       }),
       KeyboardMessage.Pressed({
+        code: '',
+        typing: false,
         key: 'a',
         repeat: true,
         ctrl: false,
@@ -53,6 +62,8 @@ describe('keyboardEvents', () => {
       }),
       KeyboardMessage.Released({ key: 'a' }),
       KeyboardMessage.Pressed({
+        code: '',
+        typing: false,
         key: 'Enter',
         repeat: false,
         ctrl: true,
@@ -107,5 +118,106 @@ describe('keyboardEvents', () => {
       false,
       false,
     ])
+  })
+
+  const pressed = (events: ReadonlyArray<() => void>, count = events.length) =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(takeMessages(keyboardEvents(), count))
+        for (let i = 0; i < 100; i++) yield* Effect.yieldNow
+        for (const dispatch of events) {
+          dispatch()
+          for (let i = 0; i < 10; i++) yield* Effect.yieldNow
+        }
+        return yield* Fiber.join(fiber)
+      }),
+    )
+
+  const inField = (tag: string, type?: string) => {
+    const field = document.createElement(tag)
+    if (type !== undefined) field.setAttribute('type', type)
+    document.body.append(field)
+    return field
+  }
+
+  it('reports the physical key, and whether the press was made typing in a field', async () => {
+    const input = inField('input', 'text')
+    const button = inField('input', 'button')
+    const messages = await pressed([
+      () =>
+        input.dispatchEvent(
+          new window.KeyboardEvent('keydown', {
+            key: 'n',
+            code: 'KeyN',
+            bubbles: true,
+            composed: true,
+          }),
+        ),
+      () =>
+        button.dispatchEvent(
+          new window.KeyboardEvent('keydown', {
+            key: 'n',
+            code: 'KeyN',
+            bubbles: true,
+            composed: true,
+          }),
+        ),
+    ])
+    expect(
+      messages.map(message => [
+        message._tag === 'Pressed' ? message.code : '',
+        message._tag === 'Pressed' && message.typing,
+      ]),
+    ).toEqual([
+      ['KeyN', true],
+      ['KeyN', false],
+    ])
+    input.remove()
+    button.remove()
+  })
+
+  it('does not report a press made during a composition', async () => {
+    const messages = await pressed(
+      [
+        () => key('keydown', { key: 'Process', isComposing: true }),
+        () => key('keydown', { key: 'a', keyCode: 229 }),
+        () => key('keydown', { key: 'b' }),
+      ],
+      1,
+    )
+    expect(messages.map(message => (message._tag === 'Pressed' ? message.key : ''))).toEqual(['b'])
+  })
+})
+
+describe('isTypingTarget', () => {
+  const make = (html: string) => {
+    const host = document.createElement('div')
+    host.innerHTML = html
+    return host.firstElementChild
+  }
+
+  it.each([
+    ['<input>', true],
+    ['<input type="search">', true],
+    ['<textarea></textarea>', true],
+    ['<select></select>', true],
+    ['<div contenteditable="true"></div>', true],
+    ['<input type="checkbox">', false],
+    ['<input type="range">', false],
+    ['<input type="submit">', false],
+    ['<button></button>', false],
+    ['<div></div>', false],
+  ])('%s is %s', (html, expected) => {
+    // jsdom has no layout, so isContentEditable is read from the attribute below.
+    const element = make(html)
+    if (element instanceof HTMLElement && element.getAttribute('contenteditable') === 'true') {
+      Object.defineProperty(element, 'isContentEditable', { value: true })
+    }
+    expect(isTypingTarget(element)).toBe(expected)
+  })
+
+  it('is false for no target', () => {
+    expect(isTypingTarget(null)).toBe(false)
+    expect(isTypingTarget(window)).toBe(false)
   })
 })

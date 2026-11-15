@@ -7,7 +7,7 @@
 import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { OtpFieldSlots } from '../otpField.js'
-import { component, ref, touchText } from './design.js'
+import { component, controlHeight, ref, touchText } from './design.js'
 
 const blink = Style.keyframes({ '0%, 100%': { opacity: '1' }, '50%': { opacity: '0' } })
 const focused = ':where(:focus-within) > :where([aria-hidden]) > &[data-next]'
@@ -37,6 +37,7 @@ export const OtpField = Style.recipeFor(OtpFieldSlots)({
         outline: 'none',
         cursor: 'text',
       }),
+      Style.pseudo(':disabled', { cursor: 'not-allowed' }),
       // Its text is clear, but iOS zooms into any focused field under 16px all the same.
       touchText,
       Style.pseudo('::selection', { background: 'transparent' }),
@@ -48,8 +49,8 @@ export const OtpField = Style.recipeFor(OtpFieldSlots)({
         position: 'relative',
         display: 'grid',
         placeItems: 'center',
-        inlineSize: ladder('height'),
-        blockSize: ladder('height'),
+        inlineSize: controlHeight,
+        blockSize: controlHeight,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         marginInlineStart: `calc(-1 * ${ref.border.thin})`,
         background: ref.surface.base,
@@ -72,6 +73,9 @@ export const OtpField = Style.recipeFor(OtpFieldSlots)({
         outline: `${ref.border.thick} solid ${ref.outline.focus}`,
         outlineOffset: `calc(-1 * ${ref.border.thin})`,
       }),
+      // An invalid code reddens every cell, and a disabled one dims them, as a field's edge does.
+      Style.pseudo('[data-invalid]', { borderColor: ref.error.outline }),
+      Style.pseudo('[data-disabled]', { opacity: ref.knob['state-disabled'] }),
       blink.style,
       // An empty next cell draws the caret the input keeps clear.
       Style.nest(`${focused}[data-filled="false"]::after`, {

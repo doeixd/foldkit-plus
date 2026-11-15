@@ -12,6 +12,35 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 })
 
 export default [
+  {
+    name: 'the break that ends the code makes a numbered line',
+    edits: [
+      {
+        file: '../src/codeBlock.ts',
+        find: 'if (lines.length > 1 && lines.at(-1)?.length === 0) lines.pop()',
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/codeBlock.test.ts'],
+  },
+  {
+    name: 'the final line break is dropped from the text',
+    edits: [
+      { file: '../src/codeBlock.ts', find: "options.code.endsWith('\\n') ?", replace: 'false ?' },
+    ],
+    tests: ['packages/mixins-ui/test/codeBlock.test.ts'],
+  },
+  {
+    name: 'copying says nothing to a screen reader',
+    edits: [
+      {
+        file: '../src/codeBlock.ts',
+        find: "copy.copied === true ? [copy.copiedLabel ?? 'Copied'] : []",
+        replace: '[]',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/codeBlock.test.ts'],
+  },
   edit(
     'a token drawn without its kind',
     '../src/codeBlock.ts',

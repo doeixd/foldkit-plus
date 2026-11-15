@@ -23,6 +23,7 @@ import {
   transition,
   unfilledHover,
   variant,
+  controlHeight,
 } from './design.js'
 
 export const PasswordInput = Style.recipeFor(PasswordInputSlots)({
@@ -36,7 +37,7 @@ export const PasswordInput = Style.recipeFor(PasswordInputSlots)({
         placeItems: 'center',
         flexShrink: '0',
         alignSelf: 'stretch',
-        inlineSize: ladder('height'),
+        inlineSize: controlHeight,
         padding: '0',
         border: '0',
         borderRadius: ref.radius.md,

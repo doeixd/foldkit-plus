@@ -27,6 +27,8 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `Presence` | nothing (draws the Model's phase) | a leaving row that takes no click, Tab or focus |
 | `Press` | `{ pressed, … }`; out `Pressed` | pointer, touch, Enter, Space, and AT clicks as one fact |
 | `LongPress` | `{ … }`; out `LongPressed` | holding for a threshold |
+| `SwipeActions` | `{ fullSwipe, flick, full }`; out `FullSwiped` | which side of a row is open, what a swipe's release means, and its keys |
+| `Repeat` | `{ delayMs, intervalMs }`; out `Stepped`, `Ended` | a held stepper button |
 | `Move` | nothing (a Mount) | pointer drag deltas |
 | `Targets` | nothing (a Mount) | which marked descendant is hovered or pressed |
 | `PointerDrag` | nothing (a Mount) | dragging one marked descendant onto another |
@@ -36,7 +38,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `FocusVisible` | `InputModality`'s `{ modality }` | a focus ring for keyboard users only |
 | `DismissLayer` | `{ layers }`; out `Dismiss { ids }` | close overlays on Escape or an outside press |
 | `Layers` | nothing (Mounts) | scroll lock and inert-outside for an overlay |
-| `Selection` | `{ selected, anchor }` | selected items with `aria-selected` and Shift ranges |
+| `Selection` | `{ selected, anchor, ranged }` | selected items with `aria-selected` and Shift ranges |
 | `LiveAnnounce` | the live regions' text | speak to assistive technology |
 
 The pure rule behind each (`move`, `match`, `between`, `toDismiss`,
@@ -257,6 +259,30 @@ under `wrap` a horizontal key continues into the next row and a vertical key
 into the next column, otherwise the key is consumed at the edge. Home and End
 are the row's first and last enabled cell, Ctrl+Home and Ctrl+End the grid's.
 RTL swaps left and right, and `virtual` works as it does for `RovingTabindex`.
+Given a `page` in its args, PageUp and PageDown move that many rows (at the
+same column, stopping at the first and last row); without one they are left to
+the page.
+
+**`SpatialNavigation`** is arrow keys over freely placed items (a board, a
+canvas, a dashboard of cards), where there are no rows or columns: each arrow
+moves the one tab stop to the nearest item drawn in that direction, measured
+when the key is handled and never kept, so an item that moved between two
+presses is found where it is now. The rule is the pure `nearest(items, current,
+direction)`, and directions are physical (left is left in a right-to-left
+page). Its Model slice and item attributes are `RovingTabindex`'s. Like
+`RovingTabindex` it provides `A11y.Navigation` on the container and
+`A11y.FocusStrategy` on each item.
+
+**`InlineEdit`** edits a plain value where it is shown, in an `<input>`: Enter,
+F2, a double click or a typed key starts, Enter saves, Escape puts it back and
+closes no dialog around it. The Model slice holds the item being edited, its
+draft and the parent's refusal; nothing is read back from the field. A changed
+value commits as the `Committed` OutMessage, which the placement's `onOut`
+saves or hands back to `refuse` with a reason, keeping the editor open on the
+same draft; an unchanged value commits nothing. Enter and Escape on the field
+are `Behaviors.Keys` routes; its `routes` option adds more (Tab moving to the
+next cell), and a route on a key it already owns is a `mixins:key-conflict`
+naming both.
 
 <!-- docs-check
 const Day = Schema.Struct({ id: Schema.String })
@@ -587,14 +613,74 @@ required at placement. The Behavior writes `data-holding` while down. `Press`
 and `LongPress` on one slot are refused by the resolver, since both would
 mount `PressEvents`; a slot takes one of them.
 
+**`SwipeActions`** is actions behind a row, with a way in that needs no
+pointer. Its Model holds which side is open (`start` is revealed by moving the
+row toward the end, right in English). `SwipeActions.decide(model, release, args)`
+is the rule for a `SwipeEnded` (from `foldkit-primitives/dom`'s `Swipe`, which
+is not part of this Bundle): a flick opens the side it points to or closes the
+row when it points back, otherwise past half of a side's actions opens it, and
+past `fullSwipe` of the row runs the first action when `full` is set, reported as
+`FullSwiped { side }` after the row closes. A side with no actions never opens,
+and right to left swaps the sides. The row's offset while a finger moves it is
+the parent's draft from `Swiped`. `SwipeActions.keys({ open, rtl, toMessage })`
+is a `Behaviors.Keys` route for the row's keydown owner: the arrow toward the
+end of the row opens `start` (the other arrow, `end`), the opposite arrow closes
+an open side, Escape closes, and a press that would change nothing is declined,
+so Escape on a closed row still reaches the dialog around it. Draw the actions
+behind a closed row `inert` from `open`, so Tab skips them, and say the result
+through `LiveAnnounce`.
+
+**`Repeat`** is a held stepper: the `+` and `-` of a number field. A mouse or
+Enter or Space steps as it goes down, and holding on steps again every
+`intervalMs` once `delayMs` has passed. A finger or a pen steps on a tap, or
+once held, so a scroll that starts on the button never steps; a click no pointer
+made (a screen reader's) steps once, and the click that follows a press does
+not step again. `Stepped { count, input }` is an OutMessage per step and
+`Ended { count }` one when a hold's steps stop (a single step has no end of
+its own), so a parent can fold a hold's steps into one `History` group and
+announce once. When `update` reaches a bound it sends `Repeat.Message.Stopped()`
+and the rest of that press steps no more. The delay and interval run on
+Effect's clock, so `TestClock` drives them, and a release makes a late timer a
+no-op. `Repeat.behavior(Declared)(Slots)<Input, Message>({ target })` attaches
+`Press.events` and writes `data-holding`; it shares `Press`'s Mount, so a slot
+takes one of `Press`, `LongPress` and `Repeat`. The Mount reports no pointer
+leaving the button, so a held press does not pause while the pointer is off it.
+
 **`Move`** is pointer movement as facts, a Mount in `foldkit-primitives/dom`:
 a primary-button pointer down captures the pointer and reports `MoveStarted`,
-each move reports `Moved { deltaX, deltaY }` from where it went down, and up,
-cancel, or lost capture reports `MoveEnded { completed }`. A second pointer
+each move reports `Moved { deltaX, deltaY }` from where it went down, and up
+reports `MoveEnded { completed: true }`. Cancel, lost capture, or Escape reports
+`completed: false`: the Escape is the drag's alone (it closes no dialog around
+it), is heard on the document only while a pointer is down, and the Model, which
+kept the box where it began, drops the draft. A second pointer
 and a secondary button are ignored; capture is released with the Mount.
 `Move.behavior(Slots)<Input, Message>({ handle, toMessage })` attaches it to a
 `Draggable` slot and maps each fact into the view's Messages; a drag's meaning
 (a threshold, a snap, a reorder) is the parent's `update`.
+
+The keyboard's way to do the same is two `Behaviors.Keys` routes for the
+handle's keydown owner. `Move.nudge({ step?, largeStep?, toMessage })` takes Alt
+with an arrow (Shift for the larger step), and `Move.resizeKeys(handle, {
+toMessage })` takes a resize handle's arrows, Home and End; each hands
+`toMessage` a `{ dx, dy }`. `update` applies it with `Box.moveBy`, `Box.moveEach`
+or `Box.resize` from [`state`](../state/README.md), so a key and a drag obey
+the same bounds, grid, size limits and aspect ratio, and says the result through
+`LiveAnnounce`. Plain arrows are not taken, and a second route on one chord is
+a `mixins:key-conflict`.
+
+```ts
+import { Move } from 'foldkit-primitives/interaction'
+import { Box } from 'foldkit-primitives/state'
+
+type Nudged = { readonly dx: number; readonly dy: number }
+
+// Attach with Behaviors.Keys.behavior(...)({ slot: 'handle', routes: [nudge] }).
+const nudge = Move.nudge<undefined, Nudged>({ step: 2, toMessage: delta => delta })
+
+const card = { x: 10, y: 10, width: 20, height: 10 }
+const area = { left: 0, top: 0, right: 100, bottom: 50 }
+const applyNudge = ({ dx, dy }: Nudged) => Box.moveBy(card, dx, dy, { bounds: area })
+```
 
 **`Targets`** is which marked descendant of a container the pointer is over,
 and which one was pressed, as one Mount on the container rather than one per
@@ -1260,7 +1346,7 @@ Behavior.attach(Placing.keepWithin(WidgetSlots)({ panel: 'popup' })),
 **`Selection`** is which items are selected, with `mode` `'single'` (a click
 replaces; `allowEmpty` says whether clicking the selected item deselects it),
 `'multiple'` (a click toggles), or `'none'`, and the `anchor` a range extends
-from. The Model slice is `{ selected, anchor }`. A range needs the items'
+from. The Model slice is `{ selected, anchor, ranged }`, where `ranged` is the ids the last range added: the next `Ranged` from the same anchor takes them back first, so a shorter Shift range shrinks as in a file manager, while ids picked by a plain click stay. In `'single'` mode `Replaced` with more than one id is refused and returns the Model it was given. A range needs the items'
 order, which the view knows and the Bundle does not, so `Ranged { id, order }`
 carries it; `Selection.between(order, from, to)` is the pure span. The
 Behavior, `Selection.behavior(Declared, args)(Slots)<Model, Message>({ container?, item, items, click? })`,

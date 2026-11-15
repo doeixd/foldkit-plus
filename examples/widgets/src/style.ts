@@ -13,6 +13,8 @@ import type { AlertDialogSlots } from './alert-dialog/view.js'
 import type { AutocompleteSlots } from './autocomplete/view.js'
 import type { CheckboxGroupSlots } from './checkbox-group/view.js'
 import type { CommandSlots } from './command/view.js'
+import type { SearchSlots } from './search-field/view.js'
+import type { SearchPageSlots } from './search-field/demo.js'
 import type { MeterSlots } from './meter/view.js'
 import type { HoverCardSlots } from './hover-card/view.js'
 import type { MenubarSlots } from './menubar/view.js'
@@ -150,6 +152,23 @@ export const toolbarStyle = (slots: typeof ToolbarSlots) =>
       ),
     },
     { name: 'ShowcaseToolbar' },
+  )
+
+export const searchFieldStyle = (slots: typeof SearchSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '0.5rem' }),
+      results: Style.self({ color: muted }),
+    },
+    { name: 'ShowcaseSearchField' },
+  )
+
+export const searchPageStyle = (slots: typeof SearchPageSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid', gap: '1rem', maxWidth: '24rem' }),
+    },
+    { name: 'ShowcaseSearchPage' },
   )
 
 export const toggleStyle = (slots: typeof ToggleSlots) =>

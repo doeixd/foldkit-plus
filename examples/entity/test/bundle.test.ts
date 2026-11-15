@@ -30,7 +30,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // loads whole. 299 minified bytes in `foldkit-remote/remote.js` (the policies on
 // `Data.wiring`, #236) and 219 in `foldkit-surface/index.js` (a Derived as an entry of
 // `Projection.struct`). Shortening the one error message each carries moved brotli up, not down.
-const CEILING = 219_350
+// +500 on 2026-11-15 (219,197 on origin/main 1bbd87d15, 219,461 here, each from its own `dist`):
+// the page draws input, toggle and field, whose modules grew by 0.5, 0.15 and 0.13 kB minified
+// on this branch; the dumps differ by nothing else of size.
+const CEILING = 219_850
 
 clientBudget({
   name: 'entity',

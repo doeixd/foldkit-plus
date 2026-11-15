@@ -83,6 +83,15 @@ describe('Sidebar.view', () => {
     expect(Inert.value(byLabel(drawn(collapsed), 'Show Workspace'), 'aria-expanded')).toBe('false')
   })
 
+  it('refuses a rail whose Model has no Tooltip for a row it draws, naming the row', () => {
+    const unlisted = modifyFields(Sidebar.init({ id: 'side', rows: ['billing', 'help'] }), {
+      collapsed: () => true,
+    })
+    expect(() => drawn(unlisted, { collapse: 'icons' })).toThrow(/"inbox".*rows/)
+    // Expanded, the words show, so no row needs a Tooltip.
+    expect(() => drawn(Sidebar.init({ id: 'side', rows: [] }), { collapse: 'icons' })).not.toThrow()
+  })
+
   it('keeps a collapsed rail in reach, its rows named by their words', () =>
     // A rail's rows are Tooltips' triggers, drawn in a runtime's frame.
     Scene.scene<Sidebar.Model, Sidebar.Message>(

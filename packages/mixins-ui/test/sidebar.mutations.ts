@@ -8,6 +8,33 @@ const recipe = '../src/recipes/sidebar.ts'
 
 export default [
   {
+    name: 'a rail with no Tooltip for a row draws it unnamed',
+    edits: [{ file, find: 'if (tooltip === undefined)', replace: 'if (tooltip === null)' }],
+    tests: unit,
+  },
+  {
+    name: 'an expanded sidebar asks for Tooltips too',
+    edits: [{ file, find: 'if (!railed) return Option.none()', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'Home does not collapse the column',
+    edits: [{ file, find: 'smallest: model.collapsed', replace: 'smallest: !model.collapsed' }],
+    tests: browser,
+  },
+  {
+    name: 'End goes nowhere',
+    edits: [
+      { file, find: 'largest: Option.some(setWidth(max)),', replace: 'largest: Option.none(),' },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'right to left widens with the wrong arrow',
+    edits: [{ file: '../src/splitter.ts', find: "keys.direction === 'rtl'", replace: 'false' }],
+    tests: browser,
+  },
+  {
     name: 'the toggle says the opposite of what shows',
     edits: [
       {

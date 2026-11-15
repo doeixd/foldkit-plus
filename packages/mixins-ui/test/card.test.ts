@@ -80,6 +80,15 @@ describe('Card view', () => {
     expect(Inert.value(card, 'data-pressable')).toBe('false')
   })
 
+  it('draws the title in the heading level asked for, h3 by default', () => {
+    const titleTag = (headingLevel?: 2 | 3 | 4 | 5 | 6) =>
+      Inert.all(view({ title: 'Pro', headingLevel })).find(
+        node => Inert.value(node, 'data-label') === 'Pro',
+      )?.sel
+    expect(titleTag()).toBe('h3')
+    expect([titleTag(2), titleTag(4), titleTag(5), titleTag(6)]).toEqual(['h2', 'h4', 'h5', 'h6'])
+  })
+
   it('stretches one button over a card that sends a Message, named by its title', () => {
     const card = view({ title: 'Starter', press: { onClick: message('Clicked') } })
     const overlay = overlayOf(card)
@@ -100,12 +109,15 @@ describe('Card view', () => {
     }
   })
 
-  it('disables the button and drops its Message when the card is disabled', () => {
+  it('marks the button aria-disabled and drops its Message when the card is disabled', () => {
     const card = view({ title: 'Pro', disabled: true, press: { onClick: message('Clicked') } })
     const overlay = overlayOf(card)
-    expect(Inert.value(overlay, 'disabled')).toBe(true)
+    // `aria-disabled`: a native `disabled` would drop a focus the button holds.
+    expect(Inert.value(overlay, 'aria-disabled')).toBe('true')
+    expect(Inert.value(overlay, 'disabled')).toBeUndefined()
     expect(overlay?.data?.on?.['click']).toBeUndefined()
-    expect(Inert.value(card, 'aria-disabled')).toBe('true')
+    // A `div` with no role takes no `aria-disabled`.
+    expect(Inert.value(card, 'aria-disabled')).toBeUndefined()
     expect(Inert.value(card, 'data-disabled')).toBe('true')
   })
 
@@ -125,7 +137,7 @@ describe('Card view', () => {
 
   it('marks a chosen link current, and a disabled one goes nowhere', () => {
     const current = overlayOf(view({ title: 'Home', selected: true, press: { href: '/' } }))
-    expect(Inert.value(current, 'aria-current')).toBe('true')
+    expect(Inert.value(current, 'aria-current')).toBe('page')
     const disabled = overlayOf(view({ title: 'Home', disabled: true, press: { href: '/' } }))
     expect(Inert.value(disabled, 'href')).toBeUndefined()
     expect(Inert.value(disabled, 'aria-disabled')).toBe('true')
@@ -173,9 +185,10 @@ describe('CardGroup view', () => {
     expect(Inert.value(group({ cards, fluidHover: false }), 'data-card-fluid')).toBe('false')
   })
 
-  it('marks a disabled card disabled where the highlight looks for it', () => {
+  it('marks a disabled card with data-disabled, which the highlight reads', () => {
     const drawn = group({ cards: [{ key: 'a', title: 'A', disabled: true }] })
-    expect(Inert.value(itemsOf(drawn)[0], 'aria-disabled')).toBe('true')
+    expect(Inert.value(itemsOf(drawn)[0], 'data-disabled')).toBe('true')
+    expect(Inert.value(itemsOf(drawn)[0], 'aria-disabled')).toBeUndefined()
   })
 
   it('follows the pointer with one highlight, reading both directions in a grid', () => {

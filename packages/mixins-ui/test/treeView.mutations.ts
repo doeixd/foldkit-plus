@@ -8,6 +8,48 @@ const browser = 'packages/mixins-ui/test/treeView.browser.test.ts'
 
 export default [
   {
+    name: 'typing forgets the letters before it',
+    edits: [{ file: '../src/treeView.ts', find: 'model.typeahead.query + key', replace: 'key' }],
+    tests: [unit],
+  },
+  {
+    name: 'a stale expiry drops the query',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: 'generation === model.typeahead.generation &&',
+        replace: 'true &&',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a move leaves the typed word',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: 'Focus: ({ id }) => focused(calm, id),',
+        replace: 'Focus: ({ id }) => focused(model, id),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'star opens a row that holds none',
+    edits: [{ file: '../src/treeView.ts', find: 'other.branch &&', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'star opens a disabled row',
+    edits: [{ file: '../src/treeView.ts', find: 'other.disabled !== true &&', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'star opens rows of other parents',
+    edits: [{ file: '../src/treeView.ts', find: 'other.parent === row.parent &&', replace: '' }],
+    tests: [unit],
+  },
+  {
     name: 'a move sends no focus',
     edits: [
       {
@@ -177,5 +219,54 @@ export default [
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'a trunk lists every fully checked row',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: "as === 'branch' || row.parent === null || !full.has(row.parent)",
+        replace: 'true',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a branch value lists only the outermost rows',
+    edits: [{ file: '../src/treeView.ts', find: "as === 'branch' ||", replace: 'false ||' }],
+    tests: [unit],
+  },
+  {
+    name: 'a partly checked row is listed as fully checked',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: 'if (state === true) full.add(id)',
+        replace: 'if (state !== false) full.add(id)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the leaf value lists rows holding rows',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: '(!row.branch && on.has(row.id) ? [row.id] : []))\n  const full',
+        replace: '(on.has(row.id) ? [row.id] : []))\n  const full',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a branch id expands to nothing',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: 'value.flatMap(id => flat.leaves.get(id) ?? [])',
+        replace: 'value.flatMap(id => (flat.leaves.get(id) ?? []).slice(0, 1))',
+      },
+    ],
+    tests: [unit],
   },
 ]

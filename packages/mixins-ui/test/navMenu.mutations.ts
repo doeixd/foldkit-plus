@@ -3,6 +3,7 @@
  * `pnpm mutate packages/mixins-ui/test/navMenu.mutations.ts`.
  */
 const tests = ['packages/mixins-ui/test/navMenu.browser.test.ts']
+const unit = ['packages/mixins-ui/test/nav.test.ts']
 const view = '../src/nav.ts'
 const recipe = '../src/recipes/nav.ts'
 
@@ -80,8 +81,8 @@ export default [
     edits: [
       {
         file: view,
-        find: '      const key = readingKey(pressed, options.direction)\n      const opens',
-        replace: '      const key = pressed\n      const opens',
+        find: 'const reading = readingKey(key, options.direction)',
+        replace: 'const reading = key',
       },
     ],
     tests,
@@ -174,6 +175,73 @@ export default [
         file: recipe,
         find: "            inlineSize: at('chosen', 'w'),\n            blockSize: at('chosen', 'h'),\n            marginBlockStart: '0',",
         replace: "            inlineSize: at('chosen', 'w'),\n            marginBlockStart: '0',",
+      },
+    ],
+    tests,
+  },
+  {
+    name: "the application's routes on the row are dropped",
+    edits: [{ file: view, find: '...(options.routes ?? []),', replace: '' }],
+    tests: [...tests, ...unit],
+  },
+  {
+    name: "the application's routes in a panel are dropped",
+    edits: [{ file: view, find: '...(options.panelRoutes ?? []),', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a link takes no key',
+    edits: [{ file: view, find: 'linkKeys({ input: entry, h, item: { index } }),', replace: '' }],
+    tests: [...tests, ...unit],
+  },
+  {
+    name: 'a trigger takes no key',
+    edits: [
+      { file: view, find: 'triggerKeys({ input: entry, h, item: { index } }),', replace: '' },
+    ],
+    tests: [...tests, ...unit],
+  },
+  {
+    name: "a panel's own keys move nothing",
+    edits: [
+      {
+        file: view,
+        find: '...PANEL_KEYS.map(key =>',
+        replace: '...([] as unknown as typeof PANEL_KEYS).map(key =>',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'Escape in an open panel does nothing',
+    edits: [
+      {
+        file: view,
+        find: 'builders.item.attrs(shown ? [escapeKeys({ input: entry, h, item: { index } })] : [])',
+        replace: 'builders.item.attrs()',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'Shift stops a row key',
+    edits: [
+      {
+        file: view,
+        find: 'Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {\n        on: [...Behaviors.Keys.withShift(key)],',
+        replace:
+          'Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {\n        on: [Behaviors.Keys.chord(key)],',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a panel key moves among the panel of the first entry',
+    edits: [
+      {
+        file: view,
+        find: 'Option.fromNullishOr(id === undefined ? undefined : panelAt.get(id))',
+        replace: 'Option.some(0)',
       },
     ],
     tests,

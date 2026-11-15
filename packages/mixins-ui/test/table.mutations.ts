@@ -10,6 +10,33 @@ const recipe = '../src/recipes/table.ts'
 
 export default [
   {
+    name: 'a row header draws as a plain cell',
+    edits: [
+      {
+        file: view,
+        find: 'column.rowHeader === true',
+        replace: 'column.rowHeader === undefined',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row header is scoped to the column',
+    edits: [{ file: view, find: "h.Scope('row')", replace: "h.Scope('col')" }],
+    tests: [...tests, 'packages/mixins-ui/test/table.ssr.test.ts'],
+  },
+  {
+    name: 'the expansion column has no name',
+    edits: [
+      {
+        file: view,
+        find: "[expansion.headerLabel ?? 'Details']",
+        replace: '[]',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'numbers start-align with everything else',
     edits: [
       {

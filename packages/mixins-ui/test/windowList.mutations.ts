@@ -9,6 +9,7 @@
 const file = '../src/windowList.ts'
 const unit = ['packages/mixins-ui/test/windowList.test.ts']
 const browser = ['packages/mixins-ui/test/windowList.browser.test.ts']
+const focus = ['packages/mixins-ui/test/windowListFocus.browser.test.ts']
 const ssr = ['packages/mixins-ui/test/windowList.ssr.test.ts']
 
 export default [
@@ -17,7 +18,7 @@ export default [
     edits: [
       {
         file,
-        find: 'top === model.viewport.top && height === model.viewport.height',
+        find: 'top === model.viewport.top && height === model.viewport.height && model.placed',
         replace: 'false',
       },
     ],
@@ -130,8 +131,8 @@ export default [
     edits: [
       {
         file,
-        find: "      spacer('end', `${endHeight}px`),",
-        replace: "      spacer('end', '0px'),",
+        find: "      spacer('end', `${total - offset(end)}px`, end, keys.length),\n    ],\n",
+        replace: "      spacer('end', '0px', end, keys.length),\n    ],\n",
       },
     ],
     tests: browser,
@@ -141,7 +142,7 @@ export default [
     edits: [
       {
         file,
-        find: 'model.from === 0 ? `${startHeight}px` :',
+        find: 'model.from === 0 ? `${offset(until)}px` :',
         replace: "model.from === 0 ? '0px' :",
       },
     ],
@@ -232,28 +233,17 @@ export default [
   },
   {
     name: 'rows carry no key to be measured by',
-    edits: [{ file, find: '            h.Attribute(ROW_KEY, key),\n', replace: '' }],
+    edits: [{ file, find: '        h.Attribute(ROW_KEY, keys[index]!),\n', replace: '' }],
     tests: browser,
   },
   {
     name: "a row's content margins escape its measure",
-    edits: [{ file, find: "            h.Style({ display: 'flow-root' }),\n", replace: '' }],
+    edits: [{ file, find: "        h.Style({ display: 'flow-root' }),\n", replace: '' }],
     tests: browser,
   },
   {
     name: 'placing leaves the list opened at its row',
-    edits: [{ file, find: 'from: () => 0 }) },', replace: 'from: () => model.from }) },' }],
-    tests: unit,
-  },
-  {
-    name: 'a first reading equal to the one assumed leaves the list opened',
-    edits: [
-      {
-        file,
-        find: 'height === model.viewport.height && model.from === 0',
-        replace: 'height === model.viewport.height',
-      },
-    ],
+    edits: [{ file, find: 'from: () => 0,', replace: 'from: () => model.from,' }],
     tests: unit,
   },
   {
@@ -315,8 +305,8 @@ export default [
     edits: [
       {
         file,
-        find: ': `calc(var(${PLACED}, 0) * ${startHeight}px)`,',
-        replace: ': `${startHeight}px`,',
+        find: ': `calc(var(${PLACED}, 0) * ${offset(until)}px)`',
+        replace: ': `${offset(until)}px`',
       },
     ],
     tests: [...ssr, ...browser],
@@ -358,5 +348,87 @@ export default [
       },
     ],
     tests: ssr,
+  },
+  {
+    name: 'the same focus report makes a new Model',
+    edits: [{ file, find: 'Equal.equals(key, model.held)', replace: 'false' }],
+    tests: unit,
+  },
+  {
+    name: 'keep drops the height of the row holding focus',
+    edits: [{ file, find: 'onSome: key => [...keys, key] }', replace: 'onSome: () => keys }' }],
+    tests: unit,
+  },
+  {
+    name: 'a held row is looked up in a list opened at a row',
+    edits: [
+      {
+        file,
+        find: 'model.from === 0\n    ? Option.flatMap',
+        replace: 'true\n    ? Option.flatMap',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the row outside the window is not drawn',
+    edits: [
+      {
+        file,
+        find: '  const held = Option.filter(heldRow(model, keys), index => index < start || index >= end)',
+        replace: '  const held = Option.none<number>()',
+      },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'the spacer between the held row and the window is dropped from its height',
+    edits: [
+      {
+        file,
+        find: "spacer('gap', `${offset(start) - offset(index + 1)}px`, index + 1, start)",
+        replace: "spacer('gap', '0px', index + 1, start)",
+      },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'the held row below the window leaves the end spacer whole',
+    edits: [
+      {
+        file,
+        find: "spacer('end', `${total - offset(index + 1)}px`, index + 1, keys.length)",
+        replace: "spacer('end', `${total - offset(end)}px`, index + 1, keys.length)",
+      },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'a move that drops focus is not given back',
+    edits: [
+      {
+        file,
+        find: 'if (moved && control.isConnected && adrift() && control instanceof HTMLElement) {',
+        replace:
+          'if (false && moved && control.isConnected && adrift() && control instanceof HTMLElement) {',
+      },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'focus leaving the list is not reported',
+    edits: [
+      {
+        file,
+        find: 'if (Option.exists(held, ({ row }) => !row.contains(document.activeElement))) release()',
+        replace: '',
+      },
+    ],
+    tests: focus,
+  },
+  {
+    name: 'focus entering a row is not listened for',
+    edits: [{ file, find: "element.addEventListener('focusin', onFocusIn)", replace: '' }],
+    tests: focus,
   },
 ]

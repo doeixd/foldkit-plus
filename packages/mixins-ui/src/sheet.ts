@@ -40,7 +40,13 @@ import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import { Swipe } from 'foldkit-primitives/dom'
-import { resolve as resolveDialog, type ResolvedDialog } from './dialog.js'
+import {
+  isLeaving,
+  open as openDialog,
+  resolve as resolveDialog,
+  update as updateDialog,
+  type ResolvedDialog,
+} from './dialog.js'
 import type { MixinList } from './resolve.js'
 
 export const Side = Schema.Literals(['top', 'right', 'bottom', 'left'])
@@ -184,7 +190,7 @@ const dialogStep = (
 
 /** Opens the Sheet at its `opensAt` point. */
 export const open = (model: Model): Return =>
-  dialogStep(model, UiDialog.open(model.dialog), { at: model.opensAt })
+  dialogStep(model, openDialog(model.dialog), { at: model.opensAt })
 
 /** Closes the Sheet; a no-op when it is closed. */
 export const close = (model: Model): Return => dialogStep(model, UiDialog.close(model.dialog))
@@ -232,7 +238,7 @@ export const settle = (release: {
 /** The Sheet after `message`; the same Model when nothing changes. */
 export const update = (model: Model, message: Message): Return =>
   Message.match(message, {
-    GotDialog: ({ message }) => dialogStep(model, UiDialog.update(model.dialog, message)),
+    GotDialog: ({ message }) => dialogStep(model, updateDialog(model.dialog, message)),
     Grabbed: ({ size }) => ({
       model: modifyFields(model, { drag: () => Option.some({ size, delta: 0 }) }),
     }),
@@ -357,6 +363,7 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
           resolveDialog(render, options.mixins ?? [], {
             h,
             covered: options.covered ?? false,
+            isLeaving: isLeaving(model.dialog),
             attributes: {
               dialog: [h.DataAttribute('side', model.side)],
               panel: [

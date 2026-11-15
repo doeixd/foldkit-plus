@@ -12,6 +12,61 @@ const recipe = '../src/recipes/card.ts'
 
 export default [
   {
+    name: 'a disabled card claims aria-disabled on its div',
+    edits: [
+      {
+        file: view,
+        find: "h.DataAttribute('dismissible', flag(dismiss !== undefined)),",
+        replace:
+          "h.DataAttribute('dismissible', flag(dismiss !== undefined)), h.AriaDisabled(disabled),",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a disabled overlay button is natively disabled',
+    edits: [
+      {
+        file: view,
+        find: '...(state.disabled ? [h.AriaDisabled(true)] : [h.OnClick(press.onClick)]),',
+        replace: '...(state.disabled ? [h.Disabled(true)] : [h.OnClick(press.onClick)]),',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the title ignores its heading level',
+    edits: [{ file: view, find: '})[level]', replace: '})[3]' }],
+    tests: unit,
+  },
+  {
+    name: 'a chosen link card says current is true',
+    edits: [{ file: view, find: "h.AriaCurrent('page')", replace: "h.AriaCurrent('true')" }],
+    tests: unit,
+  },
+  {
+    name: 'a disabled card in a group hides from the highlight',
+    edits: [
+      {
+        file: view,
+        find: "h.DataAttribute('disabled', 'true')",
+        replace: "h.DataAttribute('x', 'true')",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a dismissed card drops the focus to the page',
+    edits: [
+      {
+        file: '../src/card.ts',
+        find: 'h.DataAttribute(FOCUS_MARK.part, options.recoveryPart)',
+        replace: "h.DataAttribute(FOCUS_MARK.part, 'unrelated')",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/dismissFocus.browser.test.ts'],
+  },
+  {
     name: 'the outlined card loses its surface',
     edits: [
       {
@@ -83,7 +138,7 @@ export default [
     edits: [
       {
         file: view,
-        find: '...(state.disabled ? [h.Disabled(true)] : [h.OnClick(press.onClick)]),',
+        find: '...(state.disabled ? [h.AriaDisabled(true)] : [h.OnClick(press.onClick)]),',
         replace: '...[h.OnClick(press.onClick)],',
       },
     ],

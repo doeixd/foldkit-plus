@@ -18,7 +18,7 @@ const plain: KeyboardModifiers = { shiftKey: false, ctrlKey: false, altKey: fals
 describe('update flows', () => {
   it('starts closed with nothing selected', () => {
     expect(start.nav).toEqual({ current: null, toggled: [] })
-    expect(start.selection).toEqual({ selected: [], anchor: null })
+    expect(start.selection).toEqual({ selected: [], anchor: null, ranged: [] })
   })
 
   it('opens a branch and shows its children', () => {

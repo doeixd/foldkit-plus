@@ -7,7 +7,7 @@ import {
   type SlotAttributes,
 } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
-import { FLUID_PRESS_ATTRIBUTE, FluidHover, fluidHovered } from 'foldkit-primitives/dom'
+import { FLUID_PRESS_ATTRIBUTE, FOCUS_MARK, FluidHover, fluidHovered } from 'foldkit-primitives/dom'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -20,6 +20,9 @@ import type { MixinList } from './resolve.js'
  * one announcement. The action, the footer and the dismiss button sit above
  * it and stay pressable on their own. The root carries `data-selected`,
  * `data-disabled`, `data-pressable` and `data-dismissible` for a style to read.
+ * Given `recoveryPart`, its dismiss button is a `FocusRecovery` part: with
+ * `FocusRecovery.behavior` on the list holding the cards, dismissing one hands its focus to
+ * the fallback the list's `parts` name for it instead of dropping it to the page.
  */
 export const CardSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -60,6 +63,8 @@ export interface CardDismiss<Message> {
  */
 export interface CardView<Message> {
   readonly title?: string | undefined
+  /** The level of the heading that holds the title, for the page's outline. Default 3. */
+  readonly headingLevel?: 2 | 3 | 4 | 5 | 6 | undefined
   readonly description?: string | undefined
   readonly content?: Html | undefined
   /** A banner across the top of a stacked card, a square beside an inline one. */
@@ -72,10 +77,15 @@ export interface CardView<Message> {
   readonly press?: CardPress<Message> | undefined
   /** The press's accessible name; the title when omitted, and required without one. */
   readonly label?: string | undefined
-  /** Chosen: `aria-pressed` on a pressing button, `aria-current` on a link. */
+  /** Chosen: `aria-pressed` on a pressing button, `aria-current="page"` on a link. */
   readonly selected?: boolean | undefined
   readonly disabled?: boolean | undefined
   readonly dismiss?: CardDismiss<Message> | undefined
+  /**
+   * The name of the dismiss button in the `parts` of the `FocusRecovery.behavior` on the list
+   * holding the cards, which the application owns: the button marks itself that part.
+   */
+  readonly recoveryPart?: string | undefined
   /** A style of `CardSlots`, for the card's look. */
   readonly style?: NamedStyle<typeof CardSlots> | undefined
   /** Mixins beside the style. */
@@ -114,7 +124,7 @@ export const overlay = <Message>(
               h.Href(press.href),
               ...(external ? [h.Target('_blank'), h.Rel('noopener noreferrer')] : []),
             ]),
-        ...(state.selected === true ? [h.AriaCurrent('true')] : []),
+        ...(state.selected === true ? [h.AriaCurrent('page')] : []),
         ...(external ? [h.AriaDescription('Opens in a new tab')] : []),
       ]),
       [],
@@ -125,11 +135,17 @@ export const overlay = <Message>(
       ...shared,
       h.Type('button'),
       ...(state.selected === undefined ? [] : [h.AriaPressed(flag(state.selected))]),
-      ...(state.disabled ? [h.Disabled(true)] : [h.OnClick(press.onClick)]),
+      // `aria-disabled`, not `disabled`: a button that disables itself under the keys drops the focus.
+      ...(state.disabled ? [h.AriaDisabled(true)] : [h.OnClick(press.onClick)]),
     ]),
     [],
   )
 }
+
+const headingOf =
+  <Message>(h: HtmlBuilder<Message>) =>
+  (level: NonNullable<CardView<Message>['headingLevel']> = 3) =>
+    ({ 2: h.h2, 3: h.h3, 4: h.h4, 5: h.h5, 6: h.h6 })[level]
 
 export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message>): Html => {
   const builders = SlotView.buildersFor(
@@ -143,6 +159,7 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
     throw new Error('Card: a pressable card needs a `label` when it has no `title` to be named by')
   }
   const disabled = options.disabled === true
+  const heading = headingOf(h)
   const dismiss = options.dismiss
   const hasHeader =
     options.title !== undefined || options.description !== undefined || options.action !== undefined
@@ -152,7 +169,6 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
       h.DataAttribute('disabled', flag(disabled)),
       h.DataAttribute('pressable', flag(press !== undefined)),
       h.DataAttribute('dismissible', flag(dismiss !== undefined)),
-      ...(disabled ? [h.AriaDisabled(true)] : []),
     ]),
     [
       ...(options.image === undefined ? [] : [h.div(builders.image.attrs(), [options.image])]),
@@ -163,9 +179,10 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
               ...(options.title === undefined
                 ? []
                 : [
-                    h.h3(builders.title.attrs([h.DataAttribute('label', options.title)]), [
-                      options.title,
-                    ]),
+                    heading(options.headingLevel)(
+                      builders.title.attrs([h.DataAttribute('label', options.title)]),
+                      [options.title],
+                    ),
                   ]),
               ...(options.description === undefined
                 ? []
@@ -198,6 +215,11 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
                 h.AriaLabel(dismiss.label ?? (name === undefined ? 'Dismiss' : `Dismiss ${name}`)),
                 h.DataAttribute('reveal', dismiss.always === true ? 'always' : 'hover'),
                 h.OnClick(dismiss.onDismiss),
+                // The mark `FocusRecovery.behavior` writes on a part slot (`FOCUS_MARK.part`): the
+                // card is drawn inside a list the application owns, so it has no such slot.
+                ...(options.recoveryPart === undefined
+                  ? []
+                  : [h.DataAttribute(FOCUS_MARK.part, options.recoveryPart)]),
               ]),
               // Named by its label, so the glyph is never read.
               ['✕'],
@@ -305,7 +327,8 @@ export const group = <Message>(options: CardGroupView<Message>, h: HtmlBuilder<M
             key,
             builders.item.attrs([
               h.DataAttribute('card-item', ''),
-              ...(card.disabled === true ? [h.AriaDisabled(true)] : []),
+              // `data-disabled`, which the highlight reads: an `li` allows no `aria-disabled`.
+              ...(card.disabled === true ? [h.DataAttribute('disabled', 'true')] : []),
             ]),
             [view({ ...card, style: card.style ?? options.cardStyle }, h)],
           ),

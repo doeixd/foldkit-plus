@@ -11,6 +11,7 @@ import {
   disabled,
   focusRing,
   hover,
+  presence,
   ref,
   transition,
   unfilledHover,
@@ -95,6 +96,8 @@ export const Popover = Style.recipeFor(PopoverSlots)({
         ...transition('background-color, border-color, color'),
       }),
       hover({ background: unfilledHover }),
+      // Open, it keeps the film the hover lays, so the trigger says what the card hangs from.
+      Style.pseudo('[aria-expanded="true"]', { background: unfilledHover }),
       focusRing,
       disabled,
     ),
@@ -109,6 +112,12 @@ export const Popover = Style.recipeFor(PopoverSlots)({
         zIndex: '20',
       }),
       raise(2),
+      // As a menu's panel does: it grows from the side it opened on, and leaves the same way,
+      // where `isAnimated` gives it states to leave by.
+      Style.self({ transformOrigin: 'top' }),
+      presence('fast', { scale: '1 0.96', translate: '0 -4px' }),
+      Style.pseudo('[data-placement="top"]', { transformOrigin: 'bottom' }),
+      Style.pseudo('[data-placement="top"][data-closed]', { translate: '0 4px' }),
     ),
     backdrop: component(Style.self({ position: 'fixed', inset: '0' })),
     // Larger than a tooltip's: in the panel's own light fill and faint line, the

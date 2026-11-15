@@ -30,11 +30,43 @@ export default [
     tests: unit,
   },
   {
-    name: 'text that is no number becomes zero',
+    name: 'text that is no number clears the value',
     edits: [
-      { file: view, find: "text.trim() === '' || !Number.isFinite(typed)", replace: 'false' },
+      { file: view, find: 'onNone: () => options.value,', replace: 'onNone: () => Option.none(),' },
     ],
     tests: browser,
+  },
+  {
+    name: 'cleared text keeps the old value',
+    edits: [{ file: view, find: "text.trim() === ''", replace: 'false' }],
+    tests: browser,
+  },
+  {
+    name: 'a group mark is kept',
+    edits: [{ file: view, find: "plain = plain.replaceAll(group, '')", replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'a typed dot is no decimal in a comma locale',
+    edits: [
+      { file: view, find: "plain.replaceAll(mark('decimal') ?? '.', '.')", replace: 'plain' },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a locale is not applied to typed text',
+    edits: [{ file: view, find: 'parseNumber(text, locale))', replace: 'parseNumber(text))' }],
+    tests: browser,
+  },
+  {
+    name: 'an empty field steps down from zero, not its bound',
+    edits: [{ file: view, find: "key === 'ArrowDown' || key === 'PageDown'", replace: 'false' }],
+    tests: browser,
+  },
+  {
+    name: 'a bidi mark stays in the text',
+    edits: [{ file: view, find: ".replace(/\\p{Cf}/gu, '')", replace: '' }],
+    tests: unit,
   },
   {
     name: 'a stepper at its bound still steps',

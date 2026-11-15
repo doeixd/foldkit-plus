@@ -8,7 +8,7 @@
  * throws nothing and has the Foldkit plugin answering.
  */
 import { fileURLToPath } from 'node:url'
-import { type Browser, chromium } from 'playwright'
+import { type Browser, type Page, chromium } from 'playwright'
 import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { onFreePort } from '../../../scripts/free-port.mjs'
@@ -106,6 +106,22 @@ test('the window list scrolls with the page and draws a handful of rows at its e
   await last.waitFor()
   expect(await list.getByRole('listitem').count()).toBeLessThan(45)
   expect(await list.evaluate(element => getComputedStyle(element).overflowY)).toBe('visible')
+  expect(problems).toEqual([])
+  await page.close()
+})
+
+const section = (page: Page, heading: string) =>
+  page.locator('section', { has: page.getByRole('heading', { name: heading }) })
+
+test('the search field is on the page and works', async () => {
+  const { page, problems } = await visit(1280, 900)
+  const search = section(page, 'Search field (placed twice)')
+  const first = search.getByRole('searchbox', { name: 'Search first' })
+  await first.waitFor({ timeout: 120_000 })
+  await first.fill('lamp')
+  await search.getByRole('button', { name: 'Clear search' }).click()
+  await expect.poll(() => first.inputValue()).toBe('')
+  await expect.poll(() => first.evaluate(element => element === document.activeElement)).toBe(true)
   expect(problems).toEqual([])
   await page.close()
 })

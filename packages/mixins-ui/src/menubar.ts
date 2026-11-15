@@ -1,13 +1,20 @@
 import * as UiMenu from '@foldkit/ui/menu'
 import { Effect, Option, Schema } from 'effect'
-import { Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import {
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+} from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
-import { readingKey } from './direction.js'
 import {
   checkChosen,
   grouping,
@@ -53,7 +60,14 @@ export type Model = typeof Model.Type
 /** The keys the bar answers; every other is the Menus'. */
 const BarKey = Schema.Literals(['ArrowRight', 'ArrowLeft', 'Home', 'End'])
 type BarKey = typeof BarKey.Type
-const isBarKey = Schema.is(BarKey)
+
+/** The key a right-to-left reader presses for each `BarKey`: the two arrows swap. */
+const RTL_KEYS = {
+  ArrowRight: 'ArrowLeft',
+  ArrowLeft: 'ArrowRight',
+  Home: 'Home',
+  End: 'End',
+} as const satisfies Record<BarKey, Behaviors.Keys.NamedKey>
 
 export const Message = defineMessageUnion({
   GotMenu: { index: Schema.Number, message: UiMenu.Message },
@@ -231,6 +245,9 @@ export interface MenubarMenu {
   readonly isRowDisabled?: ((label: string) => boolean) | undefined
 }
 
+/** A key the bar answers beside its own; it is pressed on the bar or a trigger or row inside it. */
+export type Route<Message> = Behaviors.Keys.Route<unknown, Message>
+
 export interface MenubarView<ParentMessage> {
   /** The bar's name. */
   readonly label: string
@@ -244,6 +261,12 @@ export interface MenubarView<ParentMessage> {
    * and the page's `dir` stands.
    */
   readonly direction?: 'ltr' | 'rtl' | undefined
+  /**
+   * Keys the application answers on the bar, beside the four the bar owns
+   * (the arrows, Home and End). They share one keydown owner with those: a
+   * route on the same gesture is a diagnostic naming both.
+   */
+  readonly routes?: ReadonlyArray<Route<NoInfer<ParentMessage>>> | undefined
   /** A style of `MenubarSlots`, for the bar's look. */
   readonly style?: NamedStyle<typeof MenubarSlots> | undefined
   /** The menus' mixins: a style of `MenuSlots` (`Recipes.MenubarMenu`), and `Menu.fluid`. */
@@ -256,22 +279,33 @@ export const view = <ParentMessage>(
   options: MenubarView<ParentMessage>,
   h: HtmlBuilder<ParentMessage>,
 ): Html => {
+  const { model, onMessage } = options
+  const keys = Behaviors.Keys.behavior(MenubarSlots)<unknown, ParentMessage>({
+    slot: 'bar',
+    name: 'MenubarKeys',
+    routes: [
+      ...BarKey.literals.map(reading =>
+        Behaviors.Keys.route<unknown, ParentMessage>(`Menubar ${reading}`, {
+          on: [
+            ...Behaviors.Keys.withShift(options.direction === 'rtl' ? RTL_KEYS[reading] : reading),
+          ],
+          handle: () => Option.some(onMessage(Message.Pressed({ key: reading }))),
+        }),
+      ),
+      ...(options.routes ?? []),
+    ],
+  })
   const builders = SlotView.buildersFor(
     MenubarSlots,
-    options.style === undefined ? [] : [options.style.mixin],
+    [...(options.style === undefined ? [] : [options.style.mixin]), keys.mixin],
     { input: undefined, h },
   )
-  const { model, onMessage } = options
   return h.div(
     builders.bar.attrs([
       h.Role('menubar'),
       h.AriaLabel(options.label),
       // So the CSS reads the direction the keys do.
       ...(options.direction === undefined ? [] : [h.Dir(options.direction)]),
-      h.OnKeyDownPreventDefault(pressed => {
-        const key = readingKey(pressed, options.direction)
-        return isBarKey(key) ? Option.some(onMessage(Message.Pressed({ key }))) : Option.none()
-      }),
     ]),
     model.menus.flatMap((menu, index) => {
       const shown = options.menus[index]

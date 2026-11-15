@@ -214,4 +214,63 @@ export default [
     edits: [{ file, find: "if (options.title.trim() === '')", replace: 'if (false)' }],
     tests: [unit],
   },
+  {
+    name: 'the drag trigger has no role',
+    edits: [
+      {
+        file,
+        find: "h.Role('button'),\n                    h.AriaLabel(labels.move",
+        replace: 'h.AriaLabel(labels.move',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'Escape closes nothing',
+    edits: [
+      {
+        file,
+        find: 'handle: () => Option.some(send(Message.Closed())),',
+        replace: 'handle: () => Option.none(),',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'Escape closes when told not to',
+    edits: [{ file, find: '...(options.closeOnEscape === false', replace: '...(false' }],
+    tests: [unit],
+  },
+  {
+    name: "the application's routes on the panel are dropped",
+    edits: [{ file, find: '...(options.routes ?? []),', replace: '' }],
+    tests: [unit, browser],
+  },
+  {
+    name: 'Shift stops Escape',
+    edits: [
+      {
+        file,
+        find: "on: [...Behaviors.Keys.withShift('Escape')],",
+        replace: "on: [Behaviors.Keys.chord('Escape')],",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the corner arrows move the panel instead',
+    edits: [
+      {
+        file,
+        find: 'Message.Nudged({ handle: input,',
+        replace: "Message.Nudged({ handle: 'move',",
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'focusReturn gives focus back to nothing',
+    edits: [{ file, find: 'mount: () => FocusReturn(),', replace: 'attributes: () => [],' }],
+    tests: [browser],
+  },
 ]

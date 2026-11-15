@@ -116,13 +116,23 @@ export const DELAY = 4000
 export const init = (options: {
   readonly id: string
   readonly index?: number
-  /** Rotate from the start; default no rotation and no rotation button. */
+  /**
+   * Rotate from the start; default no rotation and no rotation button.
+   * With `reducedMotion` it begins `Stopped`, with the button to start it.
+   */
   readonly autoplay?: boolean
+  /**
+   * Whether the reader asked for less motion (`prefers-reduced-motion: reduce`),
+   * which the application knows from its flags or a `MediaQuery`. `init` stays
+   * pure so a server's Model equals the client's.
+   */
+  readonly reducedMotion?: boolean
   readonly delay?: number
 }): Model => ({
   id: options.id,
   index: options.index ?? 0,
-  rotation: options.autoplay === true ? 'Rotating' : 'None',
+  rotation:
+    options.autoplay !== true ? 'None' : options.reducedMotion === true ? 'Stopped' : 'Rotating',
   hovered: false,
   delay: options.delay ?? DELAY,
   turn: 0,
@@ -430,19 +440,22 @@ export const view = <ParentMessage>(
           ]),
       h.div(
         builders.track.attrs([h.Id(`${id}-track`), h.OnMount(settle)]),
-        options.slides.map((slide, index) =>
-          h.div(
+        options.slides.map((slide, index) => {
+          const shown = index >= current && index < current + perView
+          return h.div(
             builders.slide.attrs([
               h.Key(String(index)),
               h.Id(slideId(id, index)),
               h.Role('group'),
               roledescription('slide'),
               h.AriaLabel(slideLabel(index, count)),
-              h.DataAttribute('current', String(index >= current && index < current + perView)),
+              h.DataAttribute('current', String(shown)),
+              // Out of view, its content must not take the focus, which would scroll the track.
+              ...(shown ? [] : [h.Inert(true)]),
             ]),
             [slide],
-          ),
-        ),
+          )
+        }),
       ),
       h.div(builders.controls.attrs(), [
         h.button(

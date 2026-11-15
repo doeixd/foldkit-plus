@@ -1,5 +1,6 @@
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
+import { escapeEnds, whilePressed } from './press-session.js'
 
 export const MoveStarted = Schema.TaggedStruct('MoveStarted', {
   pointerId: Schema.Number,
@@ -41,7 +42,9 @@ type Capturing = Element & {
 /**
  * Pointer movement on an element as a Mount: a primary-button pointer down
  * captures the pointer, each move reports the delta from where it started,
- * and up, cancel, or lost capture ends it. Nothing is decided here: a drag
+ * and up ends it completed, while cancel, lost capture, or Escape ends it not
+ * completed (the Escape is the drag's and goes no further; the Model, which
+ * kept the start, drops the draft). Nothing is decided here: a drag
  * threshold, a snap, or a constraint is the parent's `update`. Capture is
  * released with the Mount.
  */
@@ -58,9 +61,22 @@ export const Move = Mount.defineStream('Move', {
             readonly y: number
           } | null = null
           const offer = (fact: Fact) => Queue.offerUnsafe(queue, fact)
+          // Held only while a pointer is down, so an idle handle keeps nothing on the document.
+          const session = whilePressed(element.ownerDocument, [
+            [
+              'keydown',
+              escapeEnds(
+                () => active !== null,
+                () => active !== null,
+                () => active !== null && end(active.pointerId, false),
+              ),
+              true,
+            ],
+          ])
           const end = (pointerId: number, completed: boolean) => {
             if (active === null || active.pointerId !== pointerId) return
             active = null
+            session.release()
             try {
               target.releasePointerCapture?.(pointerId)
             } catch {
@@ -81,6 +97,7 @@ export const Move = Mount.defineStream('Move', {
                 } catch {
                   // Without capture the move still reports while over the element.
                 }
+                session.listen()
                 offer(MoveStarted.make({ pointerId, pointerType: pointer.pointerType ?? 'mouse' }))
               },
             ],
@@ -105,10 +122,11 @@ export const Move = Mount.defineStream('Move', {
             ['lostpointercapture', event => end((event as PointerLike).pointerId ?? 0, false)],
           ]
           for (const [type, listener] of listeners) element.addEventListener(type, listener)
-          return { listeners, current: () => active }
+          return { listeners, current: () => active, session }
         }),
-        ({ listeners, current }) =>
+        ({ listeners, current, session }) =>
           Effect.sync(() => {
+            session.release()
             for (const [type, listener] of listeners) element.removeEventListener(type, listener)
             const pointer = current()
             if (pointer !== null) {

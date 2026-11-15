@@ -26,14 +26,35 @@ export default [
     tests: [unit],
   },
   {
-    name: 'a letter is matched by case',
+    name: 'a typed letter replaces the query',
     edits: [
       {
         file,
-        find: 'row.label.toLocaleLowerCase().startsWith(letter)',
-        replace: 'row.label.startsWith(key)',
+        find: 'const query = model.typeahead.query + key',
+        replace: 'const query = key',
       },
     ],
+    tests: [unit],
+  },
+  {
+    name: 'a superseded expiry clears the query',
+    edits: [{ file, find: 'generation === model.typeahead.generation &&', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'the value is joined into one input',
+    edits: [
+      {
+        file,
+        find: "(value.length === 0 ? [''] : value).map((step, level) =>",
+        replace: "[value.join('/')].map((step, level) =>",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'no value sends no field',
+    edits: [{ file, find: "(value.length === 0 ? [''] : value)", replace: 'value' }],
     tests: [unit],
   },
   {
@@ -108,11 +129,54 @@ export default [
     edits: [
       {
         file,
-        find: 'const key = readingKey(pressed, options.direction)',
-        replace: 'const key = pressed',
+        find: 'Message.Pressed({ key: readingKey(key, options.direction) })',
+        replace: 'Message.Pressed({ key })',
       },
     ],
     tests: [unit, browser],
+  },
+  {
+    name: "the application's routes on the panel are dropped",
+    edits: [{ file, find: '...(options.routes ?? []),', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'the typeahead takes no character',
+    edits: [
+      {
+        file,
+        find: 'on: [Behaviors.Keys.printable],',
+        replace: "on: [Behaviors.Keys.chord('F13')],",
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'Shift stops a panel key',
+    edits: [
+      {
+        file,
+        find: 'on: [...Behaviors.Keys.withShift(key)],',
+        replace: 'on: [Behaviors.Keys.chord(key)],',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a closed trigger opens on no key',
+    edits: [{ file, find: "Behaviors.Keys.chord(' '),", replace: "Behaviors.Keys.chord('F13')," }],
+    tests: [unit],
+  },
+  {
+    name: 'a disabled trigger still answers keys',
+    edits: [
+      {
+        file,
+        find: '...(options.disabled === true ? [] : [triggerKeys.mixin]),',
+        replace: '...[triggerKeys.mixin],',
+      },
+    ],
+    tests: [unit],
   },
   {
     name: 'the active row is not named',

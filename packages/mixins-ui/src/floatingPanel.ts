@@ -1,6 +1,16 @@
 import { Effect, Match, Option, Schema } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
-import { Move } from 'foldkit-primitives/dom'
+import {
+  Attr,
+  Behavior,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+} from 'foldkit-mixins'
+import { FocusReturn, Move } from 'foldkit-primitives/dom'
 import { Bounds } from 'foldkit-primitives/observers'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -86,7 +96,11 @@ export const FloatingPanelSlots = Slots.define({
   }),
   body: Slot.make({ capability: Capability.Container }),
   /** An edge or corner a drag resizes from, named by `data-edge`; the bottom-end corner takes the arrows too. */
-  handle: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  handle: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.KeyDown],
+    attributes: [Attr.AriaLabel],
+  }),
 })
 
 export const Stage = Schema.Literals(['default', 'minimized', 'maximized'])
@@ -329,14 +343,39 @@ export const update = (limits: Limits = {}) => {
 }
 
 /** The arrows' directions, physical: a panel is placed from the top left either way. */
-const ARROWS: Record<string, readonly [number, number]> = {
+const ARROWS = {
   ArrowLeft: [-1, 0],
   ArrowRight: [1, 0],
   ArrowUp: [0, -1],
   ArrowDown: [0, 1],
-}
+} as const satisfies Readonly<Partial<Record<Behaviors.Keys.NamedKey, readonly [number, number]>>>
+const ARROW_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'] as const
 
 const EDGES: ReadonlyArray<Edge> = ['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw']
+
+/** A key the application answers on the panel; a press inside it that nothing else took reaches it. */
+export type Route<ParentMessage> = Behaviors.Keys.Route<undefined, ParentMessage>
+
+/**
+ * A way back for focus when the element that opened the panel is gone when it
+ * closes, or none was named to `open`: focus goes to what had it before the
+ * panel, then by `FocusReturn`'s rules (an element with the opener's id, the
+ * opener's `FocusRecovery` steps, the layer below, the page's first tabbable
+ * element). Focus the reader moved elsewhere is left alone. Pass it among the
+ * mixins; opt in, as it sends no Message. The `opener` given to `open` is
+ * focused after it, by id, as without this.
+ */
+export const focusReturn = [
+  Behavior.forSlots(FloatingPanelSlots)<unknown, never>(
+    {
+      panel: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => FocusReturn(),
+      }),
+    },
+    { name: 'FloatingPanelFocusReturn' },
+  ).mixin,
+] as const
 
 export interface FloatingPanelView<ParentMessage> {
   readonly model: Model
@@ -352,6 +391,14 @@ export interface FloatingPanelView<ParentMessage> {
   readonly draggable?: boolean | undefined
   /** Whether Escape closes it; default true. */
   readonly closeOnEscape?: boolean | undefined
+  /**
+   * Keys the application answers on the panel, beside Escape (unless
+   * `closeOnEscape` is false). They share one keydown owner with it: a route
+   * on the same gesture is a diagnostic naming both. The arrows on the drag
+   * trigger and the resizing corner are the panel's own, and a press they
+   * handled still reaches the panel, as nothing stops propagation.
+   */
+  readonly routes?: ReadonlyArray<Route<NoInfer<ParentMessage>>> | undefined
   /** Pixels an arrow moves or resizes it by; five times that with Shift. Default 10. */
   readonly step?: number | undefined
   /** Default `'ltr'`; under `'rtl'` the corner the arrows resize from is the bottom left. */
@@ -383,12 +430,31 @@ export const view = <ParentMessage>(
   if (options.title.trim() === '') throw new Error('FloatingPanel: a title is required, its name')
   const { model, onMessage } = options
   if (!model.open) return h.empty
+  const send = (message: Message) => onMessage(message)
+  const keys = Behaviors.Keys.behavior(FloatingPanelSlots)<undefined, ParentMessage>({
+    slot: 'panel',
+    name: 'FloatingPanelKeys',
+    routes: [
+      ...(options.closeOnEscape === false
+        ? []
+        : [
+            Behaviors.Keys.route<undefined, ParentMessage>('Close on Escape', {
+              on: [...Behaviors.Keys.withShift('Escape')],
+              handle: () => Option.some(send(Message.Closed())),
+            }),
+          ]),
+      ...(options.routes ?? []),
+    ],
+  })
   const builders = SlotView.buildersFor(
     FloatingPanelSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      keys.mixin,
+      ...(options.mixins ?? []),
+    ],
     { input: undefined, h },
   )
-  const send = (message: Message) => onMessage(message)
   const { id, rect, stage } = model
   const labels = options.labels ?? {}
   const step = options.step ?? 10
@@ -402,13 +468,22 @@ export const view = <ParentMessage>(
   // The corner at the bottom and the end of the reading.
   const corner: Edge = options.direction === 'rtl' ? 'sw' : 'se'
 
-  const arrows = (handle: Handle) =>
-    h.OnKeyDownSelfPreventDefault((key, modifiers) =>
-      Option.map(Option.fromNullishOr(ARROWS[key]), ([x, y]) => {
-        const by = modifiers.shiftKey ? step * 5 : step
-        return send(Message.Nudged({ handle, deltaX: x * by, deltaY: y * by }))
+  // The input is what the arrows move: the whole panel or the resizing corner.
+  const arrows = Behaviors.Keys.attribute<Handle, ParentMessage>(
+    ARROW_KEYS.map(key =>
+      Behaviors.Keys.route<Handle, ParentMessage>(`Nudge ${key}`, {
+        on: [...Behaviors.Keys.withShift(key)],
+        handle: ({ input, modifiers }) => {
+          const [x, y] = ARROWS[key]
+          const by = modifiers.shiftKey ? step * 5 : step
+          return Option.some(
+            send(Message.Nudged({ handle: input, deltaX: x * by, deltaY: y * by })),
+          )
+        },
       }),
-    )
+    ),
+    { slot: 'dragTrigger' },
+  )
 
   const gesture = (handle: Handle) =>
     h.OnMount(
@@ -469,7 +544,7 @@ export const view = <ParentMessage>(
                   h.Role('button'),
                   h.AriaLabel(labels.resize ?? `Resize ${options.title}`),
                   h.AriaKeyshortcuts('ArrowUp ArrowDown ArrowLeft ArrowRight'),
-                  arrows(edge),
+                  arrows({ input: edge, h }),
                 ]
               : [h.AriaHidden(true)]),
           ]),
@@ -518,13 +593,6 @@ export const view = <ParentMessage>(
         h.Style({ ...placement, boxSizing: 'border-box', zIndex: String(BASE_LAYER + place) }),
         h.OnPointerDown(() => Option.some(send(Message.Activated()))),
         h.OnFocusEnter(send(Message.Activated())),
-        ...(options.closeOnEscape === false
-          ? []
-          : [
-              h.OnKeyDownPreventDefault(key =>
-                key === 'Escape' ? Option.some(send(Message.Closed())) : Option.none(),
-              ),
-            ]),
       ]),
       [
         h.div(builders.header.attrs(), [
@@ -533,10 +601,12 @@ export const view = <ParentMessage>(
               ...(draggable
                 ? [
                     h.Tabindex(0),
+                    // A name on a bare div is ignored; "Move <title>" holds the visible words.
+                    h.Role('button'),
                     h.AriaLabel(labels.move ?? `Move ${options.title}`),
                     h.AriaKeyshortcuts('ArrowUp ArrowDown ArrowLeft ArrowRight'),
                     h.Style({ touchAction: 'none' }),
-                    arrows('move'),
+                    arrows({ input: 'move', h }),
                     gesture('move'),
                   ]
                 : []),

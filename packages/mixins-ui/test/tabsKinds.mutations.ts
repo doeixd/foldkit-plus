@@ -10,7 +10,13 @@ const recipe = '../src/recipes/tabs.ts'
 export default [
   {
     name: 'Delete closes nothing',
-    edits: [{ file: adapter, find: "key === 'Delete'", replace: "key === 'Del'" }],
+    edits: [
+      {
+        file: adapter,
+        find: "on: [Behaviors.Keys.chord('Delete')],",
+        replace: "on: [Behaviors.Keys.chord('Insert')],",
+      },
+    ],
     tests,
   },
   {
@@ -225,5 +231,37 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'Delete closes a disabled tab',
+    edits: [
+      {
+        file: adapter,
+        find: 'input.isDisabled ? Option.none() : Option.some(close.onClose(input.value))',
+        replace: 'Option.some(close.onClose(input.value))',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: "the application's routes on a tab are dropped",
+    edits: [{ file: adapter, find: '...(context.routes ?? []),', replace: '' }],
+    tests: [...tests, ...unit],
+  },
+  {
+    name: 'every tab listens for keys though none is answered',
+    edits: [{ file: adapter, find: 'routes.length === 0 ? undefined :', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'every tab takes the first tab as its input',
+    edits: [
+      {
+        file: adapter,
+        find: '...(keys === undefined ? [] : [keys({ input: item, h })]),',
+        replace: '...(keys === undefined ? [] : [keys({ input: render.tabs[0]!, h })]),',
+      },
+    ],
+    tests: unit,
   },
 ]

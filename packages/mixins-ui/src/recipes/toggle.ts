@@ -86,6 +86,8 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         transitionTimingFunction: ref.motion.ease,
       }),
       Style.pseudo(`${checked}::after`, { clipPath: 'inset(0 0 0 0)' }),
+      // After the checked rule, which sets the same border: an invalid box keeps its fill and shows the error edge.
+      Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
       // The check's box lives on every `::after` so it can wipe in. A dash
       // clears that box, or it inherits the check's size, borders and turn.
       Style.pseudo('[aria-checked="mixed"]::after', {
@@ -163,6 +165,10 @@ export const Switch = Style.recipeFor(SwitchSlots)({
       Style.pseudo(checked, { background: toneVar('fill') }),
       // On, it sits at the far end, and a stretch grows back from that end.
       Style.pseudo(`${checked}::before`, { translate: `calc(${rail} * 0.7 - ${stretch}) 0` }),
+      // The track has no edge to recolour, so an invalid one is ringed.
+      Style.pseudo('[aria-invalid="true"]', {
+        boxShadow: `0 0 0 ${ref.border.thin} ${ref.error.outline}`,
+      }),
       // `translate` is physical while the thumb starts at the inline start:
       // right to left it starts on the right and moves left.
       Style.nest(`&${checked}:dir(rtl)::before`, {

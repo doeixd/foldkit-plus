@@ -58,4 +58,26 @@ export default [
     edits: [{ file: '../src/recipes/popover.ts', find: 'size: ref.space.sm,', replace: '' }],
     tests: browser,
   },
+  {
+    name: 'the panel does not fade out',
+    edits: [
+      {
+        file: '../src/recipes/popover.ts',
+        find: "presence('fast', { scale: '1 0.96', translate: '0 -4px' }),",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the open trigger is not marked',
+    edits: [
+      {
+        file: '../src/recipes/popover.ts',
+        find: 'Style.pseudo(\'[aria-expanded="true"]\', { background: unfilledHover }),',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
 ]

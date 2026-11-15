@@ -4,6 +4,8 @@
  * test fails for every one.
  */
 const tests = ['packages/mixins-ui/test/fileDrop.test.ts']
+const browser = ['packages/mixins-ui/test/fileDrop.browser.test.ts']
+const recipe = '../src/recipes/fileDrop.ts'
 const gate = ['packages/mixins-ui/test/patterns.test.ts']
 
 export default [
@@ -61,5 +63,27 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'the zone shows no focus ring',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo(':has(> input:focus-visible)'",
+        replace: "Style.pseudo(':has(> input:never)'",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a disabled zone looks live',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo('[data-disabled]', {",
+        replace: "Style.pseudo('[data-never]', {",
+      },
+    ],
+    tests: browser,
   },
 ]

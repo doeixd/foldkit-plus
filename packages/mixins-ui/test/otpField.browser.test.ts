@@ -80,3 +80,57 @@ test('a press on a cell lands in the input, and typing fills the cells', async (
     handle.dispose()
   }
 })
+
+test('an invalid code reddens its cells and a disabled one dims them', async () => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(theme))) +
+    style.css
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'otp-looks'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: { code: '' } }),
+      update: (model: Model) => ({ model }),
+      view: (_: Model, h: HtmlBuilder<Message>) =>
+        h.div(
+          [],
+          (['rest', 'invalid', 'disabled'] as const).map(state =>
+            h.div(
+              [h.Class(state)],
+              [
+                OtpField.view<Message>(
+                  {
+                    label: state,
+                    value: '',
+                    onChange: code => ({ _tag: 'Typed', code }),
+                    invalid: state === 'invalid',
+                    disabled: state === 'disabled',
+                    style,
+                  },
+                  h,
+                ),
+              ],
+            ),
+          ),
+        ),
+    }),
+  )
+  try {
+    await vi.waitFor(() => expect(document.querySelector('.disabled [data-filled]')).not.toBeNull())
+    const look = (state: string) => {
+      const cell = document.querySelector(`.${state} [data-filled]`)!
+      return getComputedStyle(cell)
+    }
+    expect(look('invalid').borderTopColor).not.toBe(look('rest').borderTopColor)
+    expect(parseFloat(look('disabled').opacity)).toBeLessThan(parseFloat(look('rest').opacity))
+    expect(getComputedStyle(document.querySelector('.disabled input')!).cursor).toBe('not-allowed')
+  } finally {
+    handle.dispose()
+  }
+})

@@ -4,11 +4,11 @@
  * back. Animated, a menu's panel stays drawn while it leaves, marked for the
  * recipe's fade.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { mapMessages } from 'foldkit/command'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
-import { Layers, Style } from 'foldkit-mixins'
+import { Behaviors, Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -30,7 +30,11 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (isAnimated = false) => {
+const mount = (
+  isAnimated = false,
+  direction: 'ltr' | 'rtl' = 'rtl',
+  routes: ReadonlyArray<Menubar.Route<Message>> = [],
+) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -60,7 +64,8 @@ const mount = (isAnimated = false) => {
               { label: 'View', rows: [{ label: 'Zoom' }] },
             ],
             onMessage: got,
-            direction: 'rtl',
+            direction,
+            routes,
             style: barStyle,
             menuMixins: [menuStyle.mixin],
           },
@@ -163,6 +168,40 @@ test("a bar's menu leaving draws its fade though a render frame is put off (#400
     } finally {
       restore()
     }
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('left to right, the arrows, Home and End move the tab stop, and an application key joins them', async () => {
+  const toEnd = Behaviors.Keys.route<unknown, Message>('Jump to the last', {
+    on: [Behaviors.Keys.chord('PageDown')],
+    handle: () => Option.some(got(Menubar.Message.Pressed({ key: 'End' }))),
+  })
+  const handle = mount(false, 'ltr', [toEnd])
+  try {
+    await vi.waitFor(() => expect(document.getElementById('file-button')).not.toBeNull())
+    const focused = async (key: string, id: string) => {
+      await userEvent.keyboard(key)
+      await vi.waitFor(() => expect(document.activeElement?.id).toBe(id))
+    }
+    document.getElementById('file-button')!.focus()
+    await focused('{ArrowRight}', 'edit-button')
+    await focused('{End}', 'view-button')
+    await focused('{ArrowRight}', 'file-button')
+    await focused('{ArrowLeft}', 'view-button')
+    await focused('{Home}', 'file-button')
+    await focused('{PageDown}', 'view-button')
+    // With a menu open the arrows go across to the next menu, on its first row.
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() =>
+      expect(document.getElementById('view-button')?.ariaExpanded).toBe('true'),
+    )
+    await userEvent.keyboard('{ArrowRight}')
+    await vi.waitFor(() =>
+      expect(document.getElementById('file-button')?.ariaExpanded).toBe('true'),
+    )
+    expect(document.getElementById('view-button')?.ariaExpanded).toBe('false')
   } finally {
     handle.dispose()
   }

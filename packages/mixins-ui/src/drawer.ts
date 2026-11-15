@@ -25,7 +25,7 @@
  * with the finger while one drags it. Undocked, it is the column it sits in,
  * and its open state waits for the next narrow screen.
  */
-import { Match, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema, Stream } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
@@ -37,6 +37,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  Behavior,
   type NamedStyle,
   type SlotAttributes,
 } from 'foldkit-mixins'
@@ -188,8 +189,11 @@ export interface DrawerView<Outer> {
   readonly model: Model
   /** Lifts the Drawer's Messages into the application's. */
   readonly onMessage: (message: Message) => NoInfer<Outer>
-  /** What the handle is called, open and peeking: a bar alone says nothing. */
-  readonly labels: { readonly open: string; readonly closed: string }
+  /**
+   * What the handle is called, whether the drawer is open or peeking: a bar alone says
+   * nothing. `aria-expanded` carries the state, so the name does not change with it.
+   */
+  readonly label: string
   /** A style of `DrawerSlots` (`Recipes.Drawer`). */
   readonly style?: NamedStyle<typeof DrawerSlots> | undefined
   /** Mixins beside the style. */
@@ -251,7 +255,7 @@ export const view = <Outer>(options: DrawerView<Outer>, h: HtmlBuilder<Outer>): 
       h.Type('button'),
       h.AriaExpanded(model.open),
       h.AriaControls(model.id),
-      h.AriaLabel(model.open ? options.labels.open : options.labels.closed),
+      h.AriaLabel(options.label),
       // The browser's own pan would take the press away from the drag.
       h.Style({ touchAction: 'none' }),
       h.OnMount(swipe('handle')),
@@ -262,3 +266,43 @@ export const view = <Outer>(options: DrawerView<Outer>, h: HtmlBuilder<Outer>): 
     grip: builders.grip.attrs([h.Style({ touchAction: 'pan-x' }), h.OnMount(swipe('grip'))]),
   })
 }
+
+/**
+ * The handle takes focus when the panel goes down with focus in its body,
+ * which would otherwise drop it to the page as the body is hidden. Pass it
+ * beside the style. Not a default: its Mount sends no Message, which a Scene
+ * test of every page drawing a Drawer could not resolve. A drag of the grip
+ * is how a finger collapses it with focus still in the body.
+ */
+const HandleKeepsFocus = Mount.defineStream('DrawerKeepFocus', {
+  messages: [Schema.Never],
+  execute: ({ element }) =>
+    Stream.callback<never>(() =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const observer = new MutationObserver(() => {
+            if (element.getAttribute('data-open') !== 'false') return
+            const active = element.ownerDocument.activeElement
+            const handle = element.querySelector<HTMLElement>('button[aria-expanded]')
+            if (active !== null && active !== handle && element.contains(active))
+              handle?.focus({ preventScroll: true })
+          })
+          observer.observe(element, { attributes: true, attributeFilter: ['data-open'] })
+          return observer
+        }),
+        observer => Effect.sync(() => observer.disconnect()),
+      ),
+    ),
+})
+
+export const keepFocus = [
+  Behavior.forSlots(DrawerSlots)<unknown, never>(
+    {
+      panel: Behavior.slot({
+        requires: { capability: Capability.Container },
+        mount: () => HandleKeepsFocus(),
+      }),
+    },
+    { name: 'DrawerKeepFocus' },
+  ).mixin,
+] as const

@@ -1,21 +1,25 @@
-import { Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
 
 /**
  * Page navigation publishes its regions as slots; it owns no state, only the
  * controlled page it is given. The application moves the page in `onPage`;
- * this draws where it is. A single page — or none — draws nothing, since
- * there is nowhere to go.
+ * this draws where it is. A single page — or none — has nowhere to go, so it
+ * draws no stops; with a `range` it still draws the summary and the page-size
+ * choice, since choosing a size above the row count must leave a way back.
  */
 export const PaginationSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
+  root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] }),
   summary: Slot.make({ capability: Capability.Container }),
-  first: Slot.make({ capability: Capability.Interactive }),
-  prev: Slot.make({ capability: Capability.Interactive }),
-  next: Slot.make({ capability: Capability.Interactive }),
-  last: Slot.make({ capability: Capability.Interactive }),
-  page: Slot.make({ capability: Capability.Interactive }),
+  first: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  prev: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  next: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  last: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  page: Slot.make({
+    capability: Capability.Interactive,
+    attributes: [Attr.AriaLabel, Attr.AriaCurrent],
+  }),
   /**
    * After the current stop's number, `" / 12"`, hidden from assistive
    * technology so the stop's name stays its number: the recipe shows it where
@@ -73,6 +77,20 @@ export const itemsOf = (
   return items
 }
 
+/** The words of the stops, which are also their names once `stopLabel` has said them. */
+export interface PaginationWords {
+  /** Default `"First"`. */
+  readonly first?: string | undefined
+  /** Default `"Previous"`. */
+  readonly previous?: string | undefined
+  /** Default `"Next"`. */
+  readonly next?: string | undefined
+  /** Default `"Last"`. */
+  readonly last?: string | undefined
+  /** A stop's accessible name from its words; default `"Next page"`. */
+  readonly stopLabel?: ((word: string) => string) | undefined
+}
+
 /** The rows a page may show, for a select of them; its value is the range's `perPage`. */
 export interface PaginationPerPage<Message> {
   /** The sizes to choose from, such as `[10, 20, 50]`. */
@@ -106,6 +124,8 @@ export interface PaginationView<Message> extends PaginationWindow {
   readonly onPage: (page: number) => Message
   /** The landmark's name. Default: `'Pagination'`. */
   readonly label?: string | undefined
+  /** The stops' words and names, for another language. */
+  readonly words?: PaginationWords | undefined
   /** Draws the numbered stops; `false` leaves previous and next alone. Default true. */
   readonly numbered?: boolean | undefined
   /** Draws first and last beside previous and next. Default false. */
@@ -117,6 +137,8 @@ export interface PaginationView<Message> extends PaginationWindow {
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
 }
+
+const pageOf = (word: string): string => `${word} page`
 
 const shown = (from: number, to: number, total: number): string => `${from}–${to} of ${total}`
 
@@ -130,7 +152,8 @@ export const summaryOf = <Message>(page: number, range: PaginationRange<Message>
 }
 
 export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<Message>): Html => {
-  if (Math.floor(options.pageCount) < 2) return h.empty
+  const lone = Math.floor(options.pageCount) < 2
+  if (lone && options.range === undefined) return h.empty
   const builders = SlotView.buildersFor(
     PaginationSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
@@ -146,9 +169,9 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
   ) =>
     h.button(
       builders[slot].attrs([
-        h.OnClick(options.onPage(page)),
-        h.Disabled(atEnd),
-        h.AriaLabel(`${text} page`),
+        h.Key(slot),
+        h.AriaLabel((options.words?.stopLabel ?? pageOf)(text)),
+        ...(atEnd ? [h.AriaDisabled(true)] : [h.OnClick(options.onPage(page))]),
       ]),
       [text],
     )
@@ -159,7 +182,7 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
     range === undefined || choose === undefined
       ? []
       : [
-          h.label(builders.perPage.attrs(), [
+          h.label(builders.perPage.attrs([h.Key('per-page')]), [
             choose.label ?? 'Rows per page',
             h.select(
               builders.perPageSelect.attrs([h.OnChange(value => choose.onPerPage(Number(value)))]),
@@ -172,35 +195,41 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
             ),
           ]),
         ]
+  const stops = lone
+    ? []
+    : [
+        ...(ends ? [stop(1, 'first', options.words?.first ?? 'First', current === 1)] : []),
+        stop(current - 1, 'prev', options.words?.previous ?? 'Previous', current === 1),
+        ...(options.numbered === false
+          ? []
+          : itemsOf(current, count, options).map((item, index) =>
+              item === 'ellipsis'
+                ? h.span(builders.ellipsis.attrs([h.Key(`ellipsis-${index}`)]), ['…'])
+                : h.button(
+                    builders.page.attrs([
+                      h.Key(`page-${item}`),
+                      h.OnClick(options.onPage(item)),
+                      ...(item === current ? [h.AriaCurrent('page')] : []),
+                    ]),
+                    item === current
+                      ? [
+                          String(item),
+                          h.span(builders.pageCount.attrs([h.AriaHidden(true)]), [` / ${count}`]),
+                        ]
+                      : [String(item)],
+                  ),
+            )),
+        stop(current + 1, 'next', options.words?.next ?? 'Next', current === count),
+        ...(ends ? [stop(count, 'last', options.words?.last ?? 'Last', current === count)] : []),
+      ]
   return h.nav(
     builders.root.attrs([h.AriaLabel(options.label ?? 'Pagination'), h.Role('navigation')]),
     [
       ...(range === undefined
         ? []
-        : [h.span(builders.summary.attrs(), [summaryOf(current, range)])]),
+        : [h.span(builders.summary.attrs([h.Key('summary')]), [summaryOf(current, range)])]),
       ...perPage,
-      ...(ends ? [stop(1, 'first', 'First', current === 1)] : []),
-      stop(current - 1, 'prev', 'Previous', current === 1),
-      ...(options.numbered === false
-        ? []
-        : itemsOf(current, count, options).map(item =>
-            item === 'ellipsis'
-              ? h.span(builders.ellipsis.attrs(), ['…'])
-              : h.button(
-                  builders.page.attrs([
-                    h.OnClick(options.onPage(item)),
-                    ...(item === current ? [h.AriaCurrent('page')] : []),
-                  ]),
-                  item === current
-                    ? [
-                        String(item),
-                        h.span(builders.pageCount.attrs([h.AriaHidden(true)]), [` / ${count}`]),
-                      ]
-                    : [String(item)],
-                ),
-          )),
-      stop(current + 1, 'next', 'Next', current === count),
-      ...(ends ? [stop(count, 'last', 'Last', current === count)] : []),
+      ...stops,
     ],
   )
 }

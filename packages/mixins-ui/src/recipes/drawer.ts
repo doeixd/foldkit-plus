@@ -70,6 +70,10 @@ const docked = {
     // Anywhere in the panel, so what draws before the body (tabs) can peek with the handle.
     Style.nest(':where([data-drawer][data-open="false"]:not([data-dragging])) &', {
       visibility: 'hidden',
+      // Hidden once the panel has slid down, not as it starts; opening shows it at once.
+      transitionProperty: 'visibility',
+      transitionDuration: '0s',
+      transitionDelay: travelled(ref.motion.moderate),
     }),
   ],
 }

@@ -177,6 +177,23 @@ describe('Carousel.view', () => {
     expect(Inert.style(root)['--fk-carousel-per-view']).toBe('2')
   })
 
+  it('makes the slides out of view inert, and only those', () => {
+    const slideGroups = (more: Drawn) =>
+      Inert.byRole(drawn(1, more).html, 'group').filter(
+        group => Inert.value(group, 'aria-roledescription') === 'slide',
+      )
+    expect(slideGroups({}).map(slide => Inert.value(slide, 'inert'))).toEqual([
+      true,
+      undefined,
+      true,
+    ])
+    expect(slideGroups({ perView: 2 }).map(slide => Inert.value(slide, 'inert'))).toEqual([
+      true,
+      undefined,
+      undefined,
+    ])
+  })
+
   it('draws thumbnails in place of dots, each holding its copy', () => {
     const { picks } = drawn(0, { thumbnails: true })
     expect(picks.map(pick => Inert.text(pick))).toEqual(['thumb', 'thumb', 'thumb'])
@@ -217,6 +234,19 @@ describe('Carousel.view', () => {
     expect(state({ rotation: 'Rotating', hovered: true, turn: 4 })).toEqual(['paused', 'even'])
     expect(state({ rotation: 'Rotating', counting: false })).toEqual(['stopped', 'even'])
     expect(state({ rotation: 'Stopped', counting: true })).toEqual(['stopped', 'even'])
+  })
+})
+
+describe('Carousel.init', () => {
+  it('starts rotating on autoplay, and stopped for a reader who asked for less motion', () => {
+    expect(Carousel.init({ id: 'trip', autoplay: true }).rotation).toBe('Rotating')
+    expect(Carousel.init({ id: 'trip', autoplay: true, reducedMotion: false }).rotation).toBe(
+      'Rotating',
+    )
+    expect(Carousel.init({ id: 'trip', autoplay: true, reducedMotion: true }).rotation).toBe(
+      'Stopped',
+    )
+    expect(Carousel.init({ id: 'trip', reducedMotion: true }).rotation).toBe('None')
   })
 })
 

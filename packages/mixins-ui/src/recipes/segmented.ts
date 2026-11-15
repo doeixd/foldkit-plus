@@ -29,12 +29,14 @@ import {
   trimmed,
   unfilledHover,
   variant,
+  controlHeight,
 } from './design.js'
 
-const pressed = '[aria-pressed="true"]'
+// A single choice is `aria-checked`, a multiple one `aria-pressed`.
+const pressed = ':is([aria-pressed="true"], [aria-checked="true"])'
 const lit = ':where([data-fluid-hover]) > &'
 /** An option's height inside the tray's inset, so the tray as a whole is one rung tall. */
-const optionHeight = `calc(${ladder('height')} - 2 * var(--_fk-segmented-inset, 0px))`
+const optionHeight = `calc(${controlHeight} - 2 * var(--_fk-segmented-inset, 0px))`
 const at = (name: 'hover' | 'chosen', part: 'x' | 'y' | 'w' | 'h') =>
   `var(--fk-segmented-${name}-${part})`
 

@@ -38,7 +38,8 @@ export const Tooltip = Style.recipeFor(TooltipSlots)({
         color: ref.surface.base,
         ...role('caption'),
         // Upstream's anchor, told of no arrow, makes the panel scroll, which
-        // clips the arrow standing half outside it; a pill never scrolls.
+        // clips the arrow standing half outside it; a pill never scrolls. It does so
+        // inline, which no layered rule beats: only `!important` does (mutation-checked).
         overflow: 'visible !important',
       }),
       // Fades in on the fast tier, sliding 4px toward its trigger from the side it opens on.

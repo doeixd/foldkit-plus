@@ -35,7 +35,7 @@ describe('Patterns.Checkbox', () => {
     checkbox: Slot.make({
       capability: Capability.Interactive,
       events: [Event.Click],
-      attributes: [Attr.Role],
+      attributes: [Attr.Role, Attr.AriaChecked, Attr.AriaLabelledby],
     }),
     label: Slot.make({ capability: Capability.Container }),
   })

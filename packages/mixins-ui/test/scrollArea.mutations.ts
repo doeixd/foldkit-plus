@@ -11,8 +11,30 @@ export default [
     edits: [
       {
         file: '../src/scrollArea.ts',
-        find: 'builders.viewport.attrs([h.Tabindex(0)])',
-        replace: 'builders.viewport.attrs([])',
+        find: 'h.Tabindex(0),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the label names nothing',
+    edits: [
+      {
+        file: '../src/scrollArea.ts',
+        find: "...(options.label === undefined ? [] : [h.Role('region'), h.AriaLabel(options.label)]),",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an unlabelled viewport claims a region',
+    edits: [
+      {
+        file: '../src/scrollArea.ts',
+        find: 'options.label === undefined ? []',
+        replace: "options.label === undefined ? [h.Role('region')]",
       },
     ],
     tests,

@@ -8,7 +8,7 @@ import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { describe, expect, it } from 'vitest'
-import { isVisible, Presence, PresenceMessage } from '../src/motion/index.js'
+import { isVisible, Motion, Presence, PresenceMessage } from '../src/motion/index.js'
 
 const Overlay = Bundle.declare(Presence, 'overlay')
 const Model = Schema.Struct({ ...Overlay.fields })
@@ -59,6 +59,23 @@ describe('Presence transitions', () => {
     const shown = fold({ overlay: hiding }, PresenceMessage.Show())
     expect(shown).toEqual({ phase: 'shown', generation: 3 })
     expect(fold({ overlay: shown }, PresenceMessage.Hidden({ generation: 2 }))).toEqual(shown)
+  })
+
+  it('hides at once when motion is reduced, and waits when it is not', async () => {
+    const step = Option.getOrThrow(
+      placed.update(
+        { overlay: { phase: 'shown', generation: 1 } },
+        Overlay.wrapper.make(PresenceMessage.Hide()),
+      ),
+    )
+    const effect = step.commands![0]!.effect
+    const reduced = await Effect.runPromise(
+      effect.pipe(Effect.provide(Motion.reduced), Effect.timeout('30 millis')),
+    )
+    expect(reduced).toEqual(Overlay.wrapper.make(PresenceMessage.Hidden({ generation: 2 })))
+    await expect(
+      Effect.runPromise(effect.pipe(Effect.provide(Motion.full), Effect.timeout('30 millis'))),
+    ).rejects.toThrow()
   })
 
   it('rejects a non-positive or non-finite duration at placement', () => {

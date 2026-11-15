@@ -90,6 +90,8 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
         borderRadius: ref.radius.full,
         background: toneVar('fill'),
       }),
+      // The group is what is invalid (`aria-invalid` is the radiogroup's), and after the checked ring, which sets the same border.
+      Style.nest('[aria-invalid="true"] &', { borderColor: ref.error.outline }),
       focusRing,
       disabled,
     ),

@@ -41,6 +41,9 @@ import { bar, thumb } from './scrollBars.js'
 import { checkAt, optionParts } from './listbox.js'
 import { chip, chipList, chipRemove } from './tagsInput.js'
 
+/** The clear button's side: small, but never under the touch floor `Defaults.reset` sets for a coarse pointer. */
+const clearSize = 'max(1.5em, var(--fk-touch-floor, 0px))'
+
 export const Combobox = Style.recipeFor(ComboboxSlots)({
   base: {
     wrapper: component(Style.self({ position: 'relative', display: 'inline-block' })),
@@ -56,7 +59,13 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
         boxShadow: ref.shadow.field,
         ...transition('border-color, background-color'),
       }),
-      Style.pseudo(':hover:not(:focus-within)', { borderColor: ref.outline.overt }),
+      Style.pseudo(
+        ':hover:not(:focus-within, :has(:disabled, [aria-disabled="true"], [aria-invalid="true"]))',
+        {
+          borderColor: ref.outline.overt,
+        },
+      ),
+      Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
       focusWithin,
     ),
     input: component(
@@ -114,8 +123,8 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
       Style.self({
         display: 'grid',
         placeItems: 'center',
-        inlineSize: '1.5em',
-        blockSize: '1.5em',
+        inlineSize: clearSize,
+        blockSize: clearSize,
         padding: '0',
         border: '0',
         borderRadius: ref.radius.full,
@@ -150,6 +159,7 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
       // and on the panel too, which upstream portals out of the wrapper by default.
       sm: { wrapper: steps.sm, items: steps.sm, empty: steps.sm },
       md: { wrapper: steps.md, items: steps.md, empty: steps.md },
+      lg: { wrapper: steps.lg, items: steps.lg, empty: steps.lg },
     },
     check: checkAt,
     width: {

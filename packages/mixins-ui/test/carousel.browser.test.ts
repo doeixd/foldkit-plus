@@ -45,6 +45,7 @@ const element = (selector: string): HTMLElement => {
 const mount = (
   carousel: Carousel.Model,
   more: { readonly perView?: number; readonly loop?: boolean } = {},
+  density?: number,
 ) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -52,7 +53,19 @@ const mount = (
     Style.stylesheet(
       Layers.standard.declare,
       Layers.standard.in('reset', Defaults.reset),
-      Layers.standard.in('theme', Theme.root(theme)),
+      Layers.standard.in(
+        'theme',
+        Theme.root(
+          density === undefined
+            ? theme
+            : Theme.standard(
+                Theme.make({
+                  accent: { hue: 265, chroma: 0.16 },
+                  shape: { density, radius: 1 },
+                }),
+              ),
+        ),
+      ),
     ) + style.css
   document.head.append(sheet)
   // Somewhere to rest the pointer away from the carousel.
@@ -93,7 +106,7 @@ const mount = (
                 label: 'Trip photos',
                 model: model.carousel,
                 slides: PLACES.map(name =>
-                  h.p([h.Style({ height: '120px', margin: '0' })], [name]),
+                  h.p([h.Style({ height: '120px', margin: '0' })], [h.a([h.Href('#')], [name])]),
                 ),
                 onMessage: message => Message.Got({ message }),
                 style,
@@ -239,3 +252,46 @@ test('focus arriving by the keys stops it, and its button starts it again', asyn
     handle.dispose()
   }
 })
+
+test('Tab skips a link in a slide out of view, and the track stays put', async () => {
+  const handle = mount(Carousel.init({ id: 'trip' }))
+  try {
+    await vi.waitFor(() => element('#trip-slide-3'))
+    element('#trip-slide-0 a').focus()
+    for (let press = 0; press < 12; press++) {
+      await userEvent.tab()
+      expect(
+        document.querySelector(
+          '#trip-track #trip-slide-1 a:focus, #trip-slide-2 a:focus, #trip-slide-3 a:focus',
+        ),
+      ).toBeNull()
+    }
+    expect(element('#trip-track').scrollLeft).toBe(0)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a dot is drawn at the density knob’s size, in a button that stays a fixed target', async () => {
+  const sizes = async (density: number) => {
+    const handle = mount(Carousel.init({ id: 'trip' }), {}, density)
+    try {
+      const dot = await vi.waitFor(() => element('[aria-current="true"]'))
+      const idle = element('[aria-controls="trip-slide-1"]')
+      return [
+        Number.parseFloat(getComputedStyle(idle, '::before').width),
+        dot.getBoundingClientRect().height,
+      ]
+    } finally {
+      handle.dispose()
+      document.head.querySelectorAll('style[data-test]').forEach(each => each.remove())
+      document.body.replaceChildren()
+    }
+  }
+  const [dot, target] = await sizes(1)
+  expect(dot).toBeCloseTo(8, 1)
+  const [dense, denseTarget] = await sizes(1.3)
+  expect(dense).toBeCloseTo(10.4, 1)
+  // 24px is the least target a pointer is asked to hit, whatever the density.
+  expect(denseTarget).toBe(target)
+}, 20_000)

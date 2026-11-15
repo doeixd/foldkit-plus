@@ -16,6 +16,7 @@ import {
   touchText,
   transition,
   unfilledHover,
+  controlHeight,
 } from './design.js'
 
 // The group's corner inside its border, which it publishes with no inset: the
@@ -34,7 +35,7 @@ export const InputCopy = Style.recipeFor(InputCopySlots)({
         display: 'flex',
         alignItems: 'stretch',
         inlineSize: 'min(24rem, 100%)',
-        minBlockSize: ladder('height'),
+        minBlockSize: controlHeight,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: controlCorner,
         ...nests(controlCorner, '0px', ref.border.thin),
@@ -87,6 +88,8 @@ export const InputCopy = Style.recipeFor(InputCopySlots)({
       }),
       Style.pseudo(':hover', { background: unfilledHover }),
       Style.pseudo('[data-copied="true"]', { color: ref.success.ink }),
+      // The status region is for screen readers; a refusal shows on the button.
+      Style.pseudo('[data-failed="true"]', { color: ref.error.ink }),
       focusRing,
       Style.pseudo(':focus-visible', { outlineOffset: `calc(-1 * ${ref.border.thick})` }),
     ),

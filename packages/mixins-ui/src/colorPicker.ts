@@ -48,13 +48,16 @@ import type { SliderSlots } from './slider.js'
  * them from what each `channel` (`data-channel`) sets.
  */
 export const ColorPickerSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  root: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.Role, Attr.AriaLabelledby],
+  }),
   label: Slot.make({ capability: Capability.Container }),
   area: Slot.make({ capability: Capability.Container }),
   areaThumb: Slot.make({
     capability: Capability.Focusable,
     events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel],
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaValuenow],
   }),
   controls: Slot.make({ capability: Capability.Container }),
   eyedropper: Slot.make({
@@ -770,8 +773,7 @@ const drawn = <Outer>(
                   builders.preset.attrs([
                     h.Key(preset.label),
                     h.Type('radio'),
-                    // An attribute, not `h.Name`'s client-only property, so server markup groups the radios too.
-                    h.Attribute('name', `${model.id}-presets`),
+                    h.Name(`${model.id}-presets`),
                     h.AriaLabel(preset.label),
                     h.Checked(same(preset.value, current)),
                     h.Style({ '--fk-color': format(preset.value, 'rgb') }),

@@ -344,7 +344,7 @@ export const computeRender = (
         ? [h.DataAttribute('open', ''), h.Style({ position: 'relative', zIndex: '1' })]
         : []),
       ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
-      ...(isInvalid ? [h.DataAttribute('invalid', '')] : []),
+      ...(isInvalid ? [h.AriaInvalid(true), h.DataAttribute('invalid', '')] : []),
       ...(buttonClassName ? [h.Class(buttonClassName)] : []),
     ]),
     ...buttonAttributes,
@@ -424,6 +424,8 @@ export const computeRender = (
       ...childAttributes([
         h.Id(`${id}-items`),
         h.Role('listbox'),
+        // A portaled panel is no longer inside the wrapper that carries it.
+        ...(direction === undefined ? [] : [h.Dir(direction)]),
         h.AriaOrientation(String.toLowerCase(orientation)),
         ...(behavior.ariaMultiSelectable ? [h.AriaMultiSelectable(true)] : []),
         ...(isReadOnly ? [h.AriaReadonly(true), h.DataAttribute('readonly', '')] : []),

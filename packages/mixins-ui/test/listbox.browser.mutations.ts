@@ -33,10 +33,11 @@ export default [
     edits: [
       {
         file: '../src/listboxShared.ts',
-        find: '...(direction === undefined ? [] : [h.Dir(direction)]),',
+        find: `      // So the CSS reads the direction the keys do.
+      ...(direction === undefined ? [] : [h.Dir(direction)]),`,
         replace: '',
       },
     ],
-    tests,
+    tests: [...tests, 'packages/mixins-ui/test/popupStates.browser.test.ts'],
   },
 ]

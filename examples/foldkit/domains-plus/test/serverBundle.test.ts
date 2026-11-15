@@ -27,7 +27,11 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // and 3,259,503 with them in one tree, +1,837 raw (their doc comments count here). The Worker was
 // over by 8,487 before them (3,264,148 at #236's measure, since cut by the Site and SSR fixes),
 // from the wave's A3, F2 and C2 fixes and the growth noted above. Ceiling raised to the reading.
-const CEILING = 3_259_550
+// +13,450 on 2026-11-14, after merging main: measured 3,272,832, +13,282 over main's reading. The
+// Worker renders the page, so it carries this branch's kept `WindowList` growth (the focus-holding
+// row, reveal, find-in-page stand-ins) and the widgets' source as main's primitives reshaped them;
+// not bisected between the two. Ceiling raised to the reading, rounded up.
+const CEILING = 3_273_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

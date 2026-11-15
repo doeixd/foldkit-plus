@@ -8,6 +8,28 @@ const browser = 'packages/mixins-ui/test/steps.browser.test.ts'
 
 export default [
   {
+    name: 'a completed step says nothing a screen reader hears',
+    edits: [
+      {
+        file: '../src/steps.ts',
+        find: "complete: options.words?.complete ?? 'Completed'",
+        replace: 'complete: undefined',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/steps.test.ts'],
+  },
+  {
+    name: 'the words given are ignored',
+    edits: [
+      {
+        file: '../src/steps.ts',
+        find: "upcoming: options.words?.upcoming ?? 'Upcoming'",
+        replace: "upcoming: 'Upcoming'",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/steps.test.ts'],
+  },
+  {
     name: 'the current step counts as complete',
     edits: [
       {

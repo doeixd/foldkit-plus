@@ -23,7 +23,7 @@ export const SpinnerSlots = Slots.define({
  * stands behind it.
  */
 export interface SpinnerView<Message = never> {
-  /** What is loading, announced politely. */
+  /** What is loading, announced politely. Without it the wheel is hidden from assistive technology. */
   readonly label?: string | undefined
   /** Show the label beside the wheel, where it is read as the status's words. */
   readonly showLabel?: boolean | undefined
@@ -48,10 +48,9 @@ export const view = <Message = never>(
   const { label } = options
   if (options.showLabel !== true || label === undefined) {
     return h.div(
-      builders.wheel.attrs([
-        h.Role('status'),
-        ...(label === undefined ? [] : [h.AriaLabel(label)]),
-      ]),
+      builders.wheel.attrs(
+        label === undefined ? [h.AriaHidden(true)] : [h.Role('status'), h.AriaLabel(label)],
+      ),
       parts,
     )
   }

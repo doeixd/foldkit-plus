@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Cascade Select as a transition and as markup: opening starts at the value
  * or the first option, the keys move within a level and between levels,
@@ -6,13 +7,15 @@
  * `aria-activedescendant` names.
  */
 import { Option } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y } from 'foldkit-mixins'
+import { A11y, Behaviors, SlotView } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 // From the modules, not the index: the test reads nothing else.
 import { CascadeSelectSlots, type Config, type Node } from '../src/cascadeSelect.js'
 import { CascadeSelect, Patterns } from '../src/index.js'
-import { h, message } from './fixture.js'
+import { diagnosticFrom, h, message, sends } from './fixture.js'
 
 const { Message, init } = CascadeSelect
 
@@ -92,9 +95,31 @@ describe('CascadeSelect.update', () => {
     expect(keys(open(), 'M', 'm').highlighted).toEqual(['mx'])
     // A disabled option is passed over: British Columbia is not where B lands.
     const canada = keys(open(), 'ArrowRight')
-    expect(update(canada, Message.Pressed({ key: 'b' })).model).toBe(canada)
-    const root = open()
-    expect(update(root, Message.Pressed({ key: 'z' })).model).toBe(root)
+    expect(keys(canada, 'b').highlighted).toEqual(canada.highlighted)
+    expect(keys(open(), 'z').highlighted).toEqual(['ca'])
+  })
+
+  it('builds a query from the letters typed together, and a pause ends it', () => {
+    const places: ReadonlyArray<Node> = [
+      { id: 'bs', label: 'Bahamas' },
+      { id: 'bb', label: 'Barbados' },
+      { id: 'br', label: 'Brazil' },
+    ]
+    const typing = CascadeSelect.update({ nodes: places })
+    const start = typing(init({ id: 'place' }), Message.Opened()).model
+    const press = (model: CascadeSelect.Model, key: string) =>
+      typing(model, Message.Pressed({ key }))
+    const b = press(start, 'b')
+    expect(b.model.highlighted).toEqual(['bb'])
+    // A second letter refines: "br" is Brazil, where a letter alone would have found none.
+    const br = press(b.model, 'r')
+    expect(br.model.highlighted).toEqual(['br'])
+    expect(names(br)).toContain('ExpireQuery')
+    // A superseded timer's expiry changes nothing; the last one clears the query.
+    const stale = typing(br.model, Message.QueryExpired({ generation: 1 }))
+    expect(stale.model).toBe(br.model)
+    const cleared = typing(br.model, Message.QueryExpired({ generation: 2 }))
+    expect(press(cleared.model, 'b').model.highlighted).toEqual(['bs'])
   })
 
   it('scrolls a row the keys reach into view, and not one the pointer is on', () => {
@@ -274,6 +299,92 @@ describe('CascadeSelect.view', () => {
     )
   })
 
+  const highlightsMexico = (
+    name: string,
+    chord: Behaviors.Keys.Gesture,
+  ): CascadeSelect.Route<CascadeSelect.Message> =>
+    Behaviors.Keys.route(name, {
+      on: [chord],
+      handle: () => Option.some(Message.Highlighted({ path: ['mx'] })),
+    })
+
+  it("answers the application's routes on the panel beside its own keys", () => {
+    scene(
+      open(),
+      { routes: [highlightsMexico('Last', Behaviors.Keys.chord('a', { ctrl: true }))] },
+      placed(),
+      Scene.expect(tree).toHaveAttr('aria-activedescendant', 'place-item-0'),
+      Scene.keydown(tree, 'a', { ctrlKey: true }),
+      Scene.expect(tree).toHaveAttr('aria-activedescendant', 'place-item-2'),
+    )
+  })
+
+  it.each([
+    ['Home', Behaviors.Keys.chord('Home'), 'Cascade Home'],
+    ['Escape', Behaviors.Keys.chord('Escape'), 'Cascade Escape'],
+    ['a printable character', Behaviors.Keys.chord('a'), 'Cascade typeahead'],
+  ])('names both routes when one overlaps %s', (_, chord, built) => {
+    const diagnostic = diagnosticFrom(() =>
+      CascadeSelect.view(
+        {
+          model: open(),
+          config,
+          onMessage: message => message,
+          label: 'Place',
+          routes: [highlightsMexico('Mine', chord)],
+        },
+        SlotView.inertBuilder<CascadeSelect.Message>(),
+      ),
+    )
+    expect(diagnostic?.code).toBe('mixins:key-conflict')
+    expect(diagnostic?.details?.['contributors']).toEqual([built, 'Mine'])
+  })
+
+  it('takes the panel keys with Shift, and none of them with Ctrl, Alt or Meta', () => {
+    scene(
+      open(),
+      {},
+      placed(),
+      Scene.keydown(tree, 'ArrowDown', { shiftKey: true }),
+      revealed(),
+      Scene.expect(tree).toHaveAttr('aria-activedescendant', 'place-item-1'),
+      Scene.keydown(tree, 'ArrowDown', { ctrlKey: true }),
+      Scene.expectIgnored(),
+      Scene.keydown(tree, 'ArrowDown', { altKey: true }),
+      Scene.expectIgnored(),
+      Scene.keydown(tree, 'ArrowDown', { metaKey: true }),
+      Scene.expectIgnored(),
+      Scene.expect(tree).toHaveAttr('aria-activedescendant', 'place-item-1'),
+    )
+  })
+
+  it('sends a printable character on the panel as a press, Space too', () => {
+    sends(
+      (h: HtmlBuilder<CascadeSelect.Message>) =>
+        CascadeSelect.view(
+          { model: open(), config, onMessage: message => message, label: 'Place' },
+          h,
+        ),
+      placed(),
+      Scene.keydown(tree, 'm'),
+      Scene.expectOutMessage(Message.Pressed({ key: 'm' })),
+      Scene.keydown(tree, ' '),
+      Scene.expectOutMessage(Message.Pressed({ key: ' ' })),
+      Scene.keydown(tree, 'F13'),
+      Scene.expectIgnored(),
+    )
+  })
+
+  it('opens from a trigger key with Shift, and Space', () => {
+    scene(
+      init({ id: 'place' }),
+      {},
+      Scene.keydown(trigger, ' '),
+      placed(),
+      Scene.expect(tree).toExist(),
+    )
+  })
+
   it('right to left, ArrowLeft goes into the children and ArrowRight back', () => {
     scene(
       open(),
@@ -317,11 +428,38 @@ describe('CascadeSelect.view', () => {
     )
   })
 
-  it('submits the value under its name, and clears it from its button', () => {
+  it('submits one value per level under its name, whatever characters an id holds', () => {
+    const submitted = (value: ReadonlyArray<string>) =>
+      Inert.byTag(
+        CascadeSelect.view(
+          {
+            model: init({ id: 'place', value }),
+            config,
+            onMessage: () => message('Other'),
+            label: 'Place',
+            name: 'city',
+          },
+          h,
+        ),
+        'input',
+      ).map(input => [Inert.value(input, 'name'), Inert.value(input, 'value')])
+    expect(submitted(['ca', 'qc', 'mtl'])).toEqual([
+      ['city', 'ca'],
+      ['city', 'qc'],
+      ['city', 'mtl'],
+    ])
+    expect(submitted(['a/b', 'c'])).toEqual([
+      ['city', 'a/b'],
+      ['city', 'c'],
+    ])
+    expect(submitted([])).toEqual([['city', '']])
+  })
+
+  it('clears the value from its button', () => {
     scene(
       init({ id: 'place', value: ['ca', 'qc', 'mtl'] }),
       { name: 'city', clearable: true },
-      Scene.expect(Scene.selector('input[name="city"]')).toHaveAttr('value', 'ca/qc/mtl'),
+      Scene.expect(Scene.selector('input[name="city"]')).toHaveAttr('value', 'ca'),
       Scene.click(Scene.role('button', { name: 'Clear' })),
       Scene.Command.resolve(CascadeSelect.FocusTrigger, Message.CompletedFocusTrigger()),
       Scene.expect(Scene.selector('input[name="city"]')).toHaveAttr('value', ''),

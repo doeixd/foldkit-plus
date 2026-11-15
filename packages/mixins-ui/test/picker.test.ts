@@ -8,7 +8,9 @@
 import * as UiListbox from '@foldkit/ui/listbox'
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
+import { Behaviors, SlotView } from 'foldkit-mixins'
 import { Picker, Sheet } from '../src/index.js'
+import { diagnosticFrom } from './fixture.js'
 
 const closed = Picker.init({ id: 'sort' })
 const step = (model: Picker.Model, message: Picker.Message) => Picker.update(model, message)
@@ -79,5 +81,35 @@ describe('Picker.update', () => {
     ['a Listbox closed again', Picker.Message.GotListbox({ message: UiListbox.Message.Closed() })],
   ])('returns the Model given for %s', (_, message) => {
     expect(step(closed, message).model).toBe(closed)
+  })
+})
+
+describe('Picker.view keys', () => {
+  const view = (routes: ReadonlyArray<Picker.Route<Picker.Message>>) => () =>
+    Picker.view(
+      {
+        model: closed,
+        onMessage: message => message,
+        label: 'Sort',
+        options: [{ value: 'a', label: 'A' }],
+        value: Option.none(),
+        placeholder: 'Sort by',
+        routes,
+      },
+      SlotView.inertBuilder<Picker.Message>(),
+    )
+  const onKey = (name: string, key: Behaviors.Keys.NamedKey) =>
+    Behaviors.Keys.route<undefined, Picker.Message>(name, {
+      on: [Behaviors.Keys.chord(key)],
+      handle: () => Option.some(Picker.Message.Stepped({ to: 0 })),
+    })
+
+  it.each([
+    ['Home', ['Step Home', 'Mine']],
+    ['ArrowUp', ['Step ArrowUp', 'Mine']],
+  ] as const)('names both routes when one overlaps %s', (key, names) => {
+    const diagnostic = diagnosticFrom(view([onKey('Mine', key)]))
+    expect(diagnostic?.code).toBe('mixins:key-conflict')
+    expect(diagnostic?.details?.['contributors']).toEqual(names)
   })
 })

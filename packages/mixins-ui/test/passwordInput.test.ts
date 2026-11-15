@@ -8,7 +8,7 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, Style, SlotView } from 'foldkit-mixins'
+import { A11y, Behavior, Diagnostics, Style, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import {
   Meter,
@@ -25,6 +25,8 @@ type Edited = typeof Edited.Type
 
 const style = Style.forSlots(PasswordInputSlots)(Recipes.PasswordInput({}))
 interface Extra {
+  readonly name?: string
+  readonly required?: boolean
   readonly disabled?: boolean
   readonly autocomplete?: 'new-password'
 }
@@ -326,5 +328,49 @@ describe('PasswordInput.view', () => {
       Scene.keydown(Scene.label('Password'), 'Q'),
       Scene.expectOutMessage(Read.ReadCapsLock({ reading: Option.some(true) })),
     )
+  })
+})
+
+describe('PasswordInput.view keydown ownership', () => {
+  const Steal = Behavior.forSlots(PasswordInputSlots)<undefined, TestMessage>({
+    input: Behavior.slot({
+      attributes: ({ h }: { readonly h: HtmlBuilder<TestMessage> }) => [
+        h.OnKeyDown(() => message('Other')),
+      ],
+    }),
+  })
+  const withMixin = (capsLock: boolean) => () =>
+    PasswordInput.view(
+      {
+        id: 'sign-in',
+        label: 'Password',
+        value: '',
+        onInput: () => message('Other'),
+        visible: false,
+        onToggle: message('Clicked'),
+        mixins: [Steal.mixin],
+        ...(capsLock ? { capsLock: { on: false, onKey: () => message('Other') } } : {}),
+      },
+      h,
+    )
+
+  it('refuses a Behavior that adds a second keydown owner beside the Caps Lock reading', () => {
+    expect(withMixin(true)).toThrow(Diagnostics.DiagnosticError)
+  })
+
+  it('leaves keydown to a Behavior while no Caps Lock reading is asked for', () => {
+    expect(withMixin(false)).not.toThrow()
+  })
+})
+
+describe('PasswordInput.view form attributes', () => {
+  it('names the input, and marks it required for the browser and assistive technology', () => {
+    const { input } = parts(false, { name: 'password', required: true })
+    expect(Inert.value(input, 'name')).toBe('password')
+    expect(Inert.value(input, 'required')).toBe(true)
+    expect(Inert.value(input, 'aria-required')).toBe('true')
+    const plain = parts(false).input
+    expect(Inert.value(plain, 'name')).toBeUndefined()
+    expect(Inert.value(plain, 'required')).toBeUndefined()
   })
 })

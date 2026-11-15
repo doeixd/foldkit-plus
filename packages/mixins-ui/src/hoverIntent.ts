@@ -15,7 +15,9 @@ import { resolveFor, type MixinList, type ResolveContext, type Resolved } from '
  * Upstream's HoverIntent places nothing. Given `anchored`, `resolve` places
  * the panel against the trigger itself, as a hover card does: the panel
  * shows in the browser's top layer and the anchor positions it there, and
- * `arrow`, drawn as the panel's child, points at the trigger.
+ * `arrow`, drawn as the panel's child, points at the trigger. The trigger
+ * then carries `aria-expanded`, and `aria-describedby` the panel while it is open.
+ * Escape closes the card from the trigger or the panel while either has focus.
  */
 export const HoverIntentSlots = Slots.define({
   trigger: Slot.make({
@@ -44,6 +46,9 @@ export const anchor = (config: AnchorConfig = {}): AnchorConfig => ({
 
 /** The trigger's id when `anchored` names `id`, for `focusTriggerSelector` or a label. */
 export const triggerId = (id: string): string => `${id}-trigger`
+
+/** The panel's id when `anchored` names `id`: what the open trigger's `aria-describedby` points at. */
+export const panelId = (id: string): string => `${id}-panel`
 
 export interface HoverIntentContext<Input, Message> extends ResolveContext<Input, Message> {
   /**
@@ -75,9 +80,15 @@ export const resolve = <Input, Message>(
     context,
   )({
     ...render,
-    trigger: [...render.trigger, h.Id(buttonId)],
+    trigger: [
+      ...render.trigger,
+      h.Id(buttonId),
+      h.AriaExpanded(render.isVisible),
+      ...(render.isVisible ? [h.AriaDescribedBy(panelId(anchored.id))] : []),
+    ],
     panel: [
       ...render.panel,
+      h.Id(panelId(anchored.id)),
       // A popover keeps the browser's `inset: 0`, of which the anchor writes
       // only `left` and `top`: right to left, `right: 0` would win.
       h.Attribute('popover', 'manual'),

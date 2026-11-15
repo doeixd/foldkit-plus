@@ -58,7 +58,13 @@ export const TreeViewSlots = Slots.define({
   item: Slot.make({
     capability: Capability.Focusable,
     events: [Event.Focus],
-    attributes: [Attr.Role, Attr.AriaExpanded, Attr.AriaSelected, Attr.AriaDisabled],
+    attributes: [
+      Attr.Role,
+      Attr.AriaExpanded,
+      Attr.AriaSelected,
+      Attr.AriaChecked,
+      Attr.AriaDisabled,
+    ],
   }),
   row: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   chevron: Slot.make({ capability: Capability.Container }),
@@ -122,6 +128,8 @@ export const Model = Schema.Struct({
   selected: Schema.Option(Schema.String),
   /** The checked rows that hold no rows; a row holding rows reads its state from them. */
   checked: Schema.Array(Schema.String),
+  /** The letters typed so far, which a pause clears: typeahead matches the whole word, not the last key. */
+  typeahead: Typeahead.Model,
 })
 export type Model = typeof Model.Type
 
@@ -136,6 +144,8 @@ export const Message = defineMessageUnion({
   Clicked: { id: Schema.String },
   /** A row's box was pressed. */
   Checked: { id: Schema.String },
+  /** The pause after `generation`'s key ended: its query is dropped. */
+  QueryExpired: { generation: Schema.Number },
   CompletedFocusItem: {},
 })
 export type Message = typeof Message.Type
@@ -150,6 +160,7 @@ export const init = (options: {
   open: options.open ?? [],
   selected: Option.none(),
   checked: options.checked ?? [],
+  typeahead: { query: '', generation: 0 },
 })
 
 /** The DOM id of a row's `treeitem`. */
@@ -163,6 +174,16 @@ const FocusItem = Command.define('FocusItem', {
       Effect.ignore,
       Effect.as(Message.CompletedFocusItem()),
     ),
+})
+
+/** How long a typed query lasts after its last key. */
+const QUERY_MS = 500
+
+const ExpireQuery = Command.define('ExpireQuery', {
+  args: { generation: Schema.Number },
+  messages: [Message.QueryExpired],
+  execute: ({ generation }) =>
+    Effect.sleep(QUERY_MS).pipe(Effect.as(Message.QueryExpired({ generation }))),
 })
 
 interface Flat {
@@ -255,6 +276,55 @@ export const checksOf = (
   return states
 }
 
+/** Which rows a checked value lists: see `checkedAs`. */
+export type CheckedValue = 'leaf' | 'branch' | 'trunk'
+
+/**
+ * The Model's `checked` (the checked rows holding no rows) as the value an
+ * application stores or sends, in tree order:
+ * - `'leaf'`: the checked rows holding no rows, which is what `checked` holds.
+ * - `'branch'`: every fully checked row, rows holding rows and not.
+ * - `'trunk'`: the outermost fully checked rows, so a checked folder stands for
+ *   everything in it.
+ *
+ * A row holding rows is fully checked as `checksOf` reads it: every row it
+ * holds that holds none is checked, a disabled one included, so a folder with
+ * an unchecked disabled file is not listed and its checked files are. Ids the
+ * tree does not hold are left out. `leavesOf` is the way back, so the Model
+ * stays the one owner of what is checked.
+ */
+export const checkedAs = (
+  nodes: ReadonlyArray<TreeNode>,
+  checked: ReadonlyArray<string>,
+  as: CheckedValue,
+): ReadonlyArray<string> => {
+  const { rows } = flatOf(nodes)
+  const on = new Set(checked)
+  if (as === 'leaf') return rows.flatMap(row => (!row.branch && on.has(row.id) ? [row.id] : []))
+  const full = new Set<string>()
+  for (const [id, state] of checksOf(nodes, checked)) if (state === true) full.add(id)
+  return rows.flatMap(row =>
+    full.has(row.id) && (as === 'branch' || row.parent === null || !full.has(row.parent))
+      ? [row.id]
+      : [],
+  )
+}
+
+/**
+ * The checked rows holding no rows that a value stands for, in tree order,
+ * to seed or write the Model's `checked`: an id of a row holding rows stands
+ * for every such row beneath it, whichever value the application keeps
+ * (`checkedAs`), and ids the tree does not hold are ignored.
+ */
+export const leavesOf = (
+  nodes: ReadonlyArray<TreeNode>,
+  value: ReadonlyArray<string>,
+): ReadonlyArray<string> => {
+  const flat = flatOf(nodes)
+  const on = new Set(value.flatMap(id => flat.leaves.get(id) ?? []))
+  return flat.rows.flatMap(row => (!row.branch && on.has(row.id) ? [row.id] : []))
+}
+
 /**
  * The tree's `update` over `nodes`, the tree the view draws; the same Model
  * when nothing changes. Pass the same `nodes` the view gets, built once, and
@@ -298,16 +368,41 @@ export const update = (
             onSome: row => chosen(model, row),
           })
         }
+        // APG: `*` opens every row beside the current one that holds rows.
+        if (key === '*') {
+          const here = Option.flatMap(model.current, id => Option.fromUndefinedOr(byId.get(id)))
+          const beside = Option.match(here, {
+            onNone: () => [],
+            onSome: row =>
+              flat.rows.filter(
+                other =>
+                  other.parent === row.parent &&
+                  other.branch &&
+                  other.disabled !== true &&
+                  !model.open.includes(other.id),
+              ),
+          })
+          return beside.length === 0
+            ? { model }
+            : { model: modifyFields(model, { open: open => [...open, ...beside.map(r => r.id)] }) }
+        }
         const showing = TreeNavigation.shown(flat.rows, navigationOf(model), args)
         if (Typeahead.isPrintable(key, plain)) {
+          const query = model.typeahead.query + key
+          const generation = model.typeahead.generation + 1
           const at = Typeahead.match(
             showing.map(row => flat.labels.get(row.id) ?? ''),
             showing.flatMap((row, index) => (row.disabled === true ? [] : [index])),
-            key,
+            query,
             showing.findIndex(row => Option.contains(model.current, row.id)),
           )
           const row = at === undefined ? undefined : showing[at]
-          return row === undefined ? { model } : focused(model, row.id)
+          const typed = modifyFields(model, { typeahead: () => ({ query, generation }) })
+          const moved = row === undefined ? { model: typed } : focused(typed, row.id)
+          return {
+            model: moved.model,
+            commands: [...(moved.commands ?? []), ExpireQuery({ generation })],
+          }
         }
         const action = TreeNavigation.move(
           showing,
@@ -318,16 +413,27 @@ export const update = (
           args,
         )
         if (action === undefined) return { model }
+        // A move ends the word being typed.
+        const calm =
+          model.typeahead.query === ''
+            ? model
+            : modifyFields(model, {
+                typeahead: () => ({ query: '', generation: model.typeahead.generation }),
+              })
         // `move` opens only a shut row and shuts only an open one, so each flips it.
         const flip = ({ id }: { readonly id: string }): Return => ({
-          model: modifyFields(model, { open: () => flipped(model.open, id) }),
+          model: modifyFields(calm, { open: () => flipped(calm.open, id) }),
         })
         return Match.valueTags(action, {
-          Focus: ({ id }) => focused(model, id),
+          Focus: ({ id }) => focused(calm, id),
           Open: flip,
           Close: flip,
         })
       },
+      QueryExpired: ({ generation }) =>
+        generation === model.typeahead.generation && model.typeahead.query !== ''
+          ? { model: modifyFields(model, { typeahead: () => ({ query: '', generation }) }) }
+          : { model },
       Focused: ({ id }) =>
         Option.contains(model.current, id) || Option.isNone(enabled(id))
           ? { model }

@@ -40,7 +40,7 @@ describe('Steps.view', () => {
       'step',
       undefined,
     ])
-    expect(Inert.text(items[0])).toBe('1AccountYour details')
+    expect(Inert.text(items[0])).toBe('1AccountCompletedYour details')
   })
 
   it('carries the current step’s progress, held between 0 and 1, only when given', () => {
@@ -56,6 +56,22 @@ describe('Steps.view', () => {
       '1',
       '0',
       undefined,
+    ])
+  })
+
+  it('says where each step stands in words, the current one by aria-current alone', () => {
+    const wordsOf = (words?: Steps.StepsWords) =>
+      Inert.byTag(Steps.view({ label: 'Checkout', steps, current: 1, words, style }, h), 'span')
+        .filter(span =>
+          ['Completed', 'Upcoming', 'Done', 'Here', 'Later'].includes(Inert.text(span)),
+        )
+        .map(span => Inert.text(span))
+    expect(wordsOf()).toEqual(['Completed', 'Upcoming', 'Upcoming'])
+    expect(wordsOf({ complete: 'Done', current: 'Here', upcoming: 'Later' })).toEqual([
+      'Done',
+      'Here',
+      'Later',
+      'Later',
     ])
   })
 
@@ -84,7 +100,7 @@ describe('Steps.view', () => {
       h,
     )
     const buttons = Inert.byTag(offered, 'button')
-    expect(buttons.map(Inert.text)).toEqual(['1AccountYour details', '2Plan'])
+    expect(buttons.map(Inert.text)).toEqual(['1AccountCompletedYour details', '2PlanCompleted'])
     expect(asked).toEqual([0, 1])
     expect(buttons.map(button => Inert.value(button, 'type'))).toEqual(['button', 'button'])
     expect(buttons[1]?.data?.on?.['click']).toBeTypeOf('function')
@@ -111,7 +127,7 @@ describe('Steps.view', () => {
     )
     const [first, second] = Inert.byTag(drawn, 'li')
     expect(Inert.text(first)).toBe('☺Account')
-    expect(Inert.text(second)).toBe('2Plan')
+    expect(Inert.text(second)).toBe('2PlanUpcoming')
   })
 
   it('draws a step’s content after it, before the line, with its state', () => {

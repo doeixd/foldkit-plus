@@ -3,7 +3,7 @@ import { Option } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, type NamedStyle } from 'foldkit-mixins'
 import { FieldValidation } from 'foldkit'
 import type { Attribute, ChildAttribute, Html, HtmlBuilder, TextareaAttribute } from 'foldkit/html'
-import { descriptionOf, type FieldParts } from './field.js'
+import { descriptionOf, statusOf, type FieldParts } from './field.js'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 export const TextareaSlots = Slots.define({
@@ -13,7 +13,7 @@ export const TextareaSlots = Slots.define({
     attributes: [Attr.AriaLabel, Attr.AriaInvalid, Attr.Disabled, Attr.Value],
   }),
   label: Slot.make({ capability: Capability.Container }),
-  description: Slot.make({ capability: Capability.Container }),
+  description: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
   /** How many characters are written, and of how many when there is a `maxLength`. */
   count: Slot.make({ capability: Capability.Container }),
   /** The box a field with a footer draws around its text and the footer. */
@@ -90,7 +90,23 @@ export interface TextareaView<Message> {
   /** Whether a `count` is drawn: the textarea is then described by it as well. */
   readonly count?: boolean | undefined
   readonly name?: string | undefined
+  /** The field must be filled to submit: the native `required` and `aria-required`. */
+  readonly required?: boolean | undefined
+  /** What the browser may fill in, as the HTML `autocomplete` attribute takes it. */
+  readonly autocomplete?: string | undefined
   readonly placeholder?: string | undefined
+  /**
+   * Attributes added to a Slot before the mixins resolve, as `Input.view`'s are.
+   * A class among them joins the recipe's, and an owned event or attribute among
+   * them is a conflict.
+   */
+  readonly attributes?:
+    | ({ readonly textarea?: ReadonlyArray<TextareaAttribute<NoInfer<Message>>> } & {
+        readonly [K in Exclude<keyof typeof TextareaSlots, 'textarea'>]?: ReadonlyArray<
+          Attribute<NoInfer<Message>>
+        >
+      })
+    | undefined
   /** A style of `TextareaSlots`, for the textarea's own look. */
   readonly style?: NamedStyle<typeof TextareaSlots> | undefined
   /** Mixins beside the style, for state or behavior the style does not own. */
@@ -126,6 +142,9 @@ export const view = <Message>(options: TextareaView<Message>, h: HtmlBuilder<Mes
   const extra: ReadonlyArray<TextareaAttribute<Message>> = [
     ...(maxLength === undefined ? [] : [h.Maxlength(maxLength)]),
     ...(counted ? [h.AriaDescribedBy(describedBy.join(' '))] : []),
+    ...(options.required === true ? [h.Required(true), h.AriaRequired(true)] : []),
+    ...(options.autocomplete === undefined ? [] : [h.Autocomplete(options.autocomplete)]),
+    ...(options.attributes?.textarea ?? []),
     ...(Object.keys(lines).length === 0 ? [] : [h.Style(lines)]),
   ]
   const mixins = [
@@ -150,13 +169,18 @@ export const view = <Message>(options: TextareaView<Message>, h: HtmlBuilder<Mes
             {
               ...attributes,
               textarea: [...attributes.textarea, ...extra],
+              label: [...attributes.label, ...(options.attributes?.label ?? [])],
+              description: [...attributes.description, ...(options.attributes?.description ?? [])],
               count: [
                 h.Id(countId),
                 ...(maxLength === undefined
                   ? []
                   : [h.DataAttribute('limit', limitOf(options.value ?? '', maxLength))]),
+                ...(options.attributes?.count ?? []),
               ],
-              frame: [h.DataAttribute('textarea-frame', '')],
+              frame: [h.DataAttribute('textarea-frame', ''), ...(options.attributes?.frame ?? [])],
+              footer: options.attributes?.footer ?? [],
+              meta: options.attributes?.meta ?? [],
             },
             mixins,
             { input: options.input, h },
@@ -234,10 +258,7 @@ export const field = <Message>(options: TextareaField<Message>, h: HtmlBuilder<M
             footer === undefined
               ? text
               : h.div(resolved.frame, [text, h.div(resolved.footer, [...footer, count])]),
-          description: Option.match(description, {
-            onNone: () => h.empty,
-            onSome: text => h.span(resolved.description, [text]),
-          }),
+          description: statusOf(h, resolved.description, description),
           count: footer === undefined ? count : h.empty,
         }
         if (options.draw !== undefined) return options.draw(parts, h)

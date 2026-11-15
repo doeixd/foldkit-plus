@@ -38,6 +38,10 @@ export const Args = Schema.Struct({
   /** Keep DOM focus on the container and point at the current cell with
    *  `aria-activedescendant` instead of moving focus. */
   virtual: Schema.Boolean,
+  /** Rows PageUp and PageDown move; absent, they are left to the browser. */
+  page: Schema.optionalKey(
+    Schema.Number.pipe(Schema.check(Schema.isInt()), Schema.check(Schema.isGreaterThan(0))),
+  ),
 })
 export type Args = typeof Args.Type
 
@@ -61,6 +65,8 @@ export interface MoveOptions {
   readonly columns: number
   readonly wrap: boolean
   readonly direction: RovingTabindex.Direction
+  /** Rows PageUp and PageDown move; absent, they are not handled. */
+  readonly page?: number
 }
 
 /**
@@ -70,9 +76,13 @@ export interface MoveOptions {
  * under `wrap`; up and down step within the column, and across columns under
  * `wrap`. Home and End are the row's first and last enabled cell; with Ctrl
  * they are the grid's. At an edge without `wrap` the key is consumed and
- * `current` is returned. From `-1` (nothing current) a forward key lands on
- * the first enabled cell and a backward key on the last. Under `rtl`, left
- * and right swap.
+ * `current` is returned. PageUp and PageDown, when `page` is given, move that
+ * many rows in the same column and stop at the first or last row, never
+ * wrapping; a disabled landing cell continues in the direction of travel as
+ * the arrows do, and when nothing beyond it is enabled the nearest enabled
+ * cell back toward `current` is taken, else `current`. From `-1` (nothing
+ * current) a forward key lands on the first enabled cell and a backward key
+ * on the last. Under `rtl`, left and right swap.
  */
 export const move = (
   enabled: ReadonlyArray<number>,
@@ -95,6 +105,28 @@ export const move = (
     return key === 'Home' ? (inRow[0] ?? current) : (inRow[inRow.length - 1] ?? current)
   }
   if (modifiers.ctrlKey) return undefined
+
+  if (options.page !== undefined && (key === 'PageUp' || key === 'PageDown')) {
+    const down = key === 'PageDown'
+    if (current === -1) return down ? first : last
+    const column = current % columns
+    const bottom = column + columns * Math.floor((count - 1 - column) / columns)
+    const landing = down
+      ? Math.min(bottom, current + options.page * columns)
+      : Math.max(column, current - options.page * columns)
+    const step = down ? columns : -columns
+    for (let index = landing; index >= column && index <= bottom; index += step) {
+      if (isEnabled(index)) return index
+    }
+    for (
+      let index = landing - step;
+      index !== current && index >= column && index <= bottom;
+      index -= step
+    ) {
+      if (isEnabled(index)) return index
+    }
+    return current
+  }
 
   const forwardKey = options.direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'
   const backwardKey = options.direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft'
@@ -176,6 +208,9 @@ export const keys =
         ...Behaviors.Keys.withShift('Home', { ctrl: true }),
         ...Behaviors.Keys.withShift('End', { ctrl: true }),
         ...RovingTabindex.arrowChords('both'),
+        ...(args.page === undefined
+          ? []
+          : [...Behaviors.Keys.withShift('PageUp'), ...Behaviors.Keys.withShift('PageDown')]),
       ],
       handle: ({ key, modifiers, input }) => {
         const items = itemsOf(input)
@@ -190,6 +225,7 @@ export const keys =
             columns: args.columns,
             wrap: args.wrap,
             direction: options.direction?.(input) ?? 'ltr',
+            ...(args.page === undefined ? {} : { page: args.page }),
           },
         )
         const id = next === undefined ? undefined : items.ids[next]
@@ -202,7 +238,7 @@ export const keys =
 /**
  * Wires a placed `GridNavigation` to the slots exactly as `RovingTabindex`
  * does, with `move` above deciding the cell: the container's arrows, Home and
- * End (`keys`) focus the next cell (synchronously, then dispatch) or, under `virtual`,
+ * End (and PageUp and PageDown, given `page`) (`keys`) focus the next cell (synchronously, then dispatch) or, under `virtual`,
  * only dispatch and point with `aria-activedescendant`; each cell gets
  * `tabindex` 0 or -1 and reports `Focused` when focused.
  */

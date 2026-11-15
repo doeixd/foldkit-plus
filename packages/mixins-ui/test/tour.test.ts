@@ -9,11 +9,11 @@ import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { TrackBox } from 'foldkit-primitives/dom'
 import { describe, expect, it } from 'vitest'
-import { A11y } from 'foldkit-mixins'
+import { A11y, Behaviors, SlotView } from 'foldkit-mixins'
 // From the modules, not the index: the test reads nothing else.
 import { TourSlots, type Config } from '../src/tour.js'
 import { Tour, Patterns } from '../src/index.js'
-import { h, message } from './fixture.js'
+import { diagnosticFrom, h, message } from './fixture.js'
 
 const { Message, init } = Tour
 
@@ -215,6 +215,75 @@ describe('Tour.view', () => {
       Scene.keydown(dialog, 'Escape'),
       Scene.expectIgnored(),
     )
+  })
+
+  const { Keys } = Behaviors
+  const toLast = (name: string, chord: Behaviors.Keys.Gesture): Tour.Route<Tour.Message> =>
+    Keys.route(name, {
+      on: [chord],
+      handle: () => Option.some(Message.Pressed({ key: 'ArrowRight' })),
+    })
+
+  it("answers the application's routes on a step beside its own keys", () => {
+    scene(
+      started().model,
+      { routes: [toLast('Next on N', Keys.chord('n'))] },
+      drawn(),
+      Scene.keydown(dialog, 'n'),
+      shown(),
+      Scene.Mount.expectEnded(Tour.PlaceStep),
+      Scene.expect(dialog).toContainText('2 of 3'),
+    )
+  })
+
+  it.each([
+    ['an arrow', Keys.chord('ArrowRight'), 'Tour ArrowRight'],
+    ['Escape', Keys.chord('Escape'), 'Tour Escape'],
+  ])('names both routes when one overlaps %s', (_, chord, built) => {
+    const diagnostic = diagnosticFrom(() =>
+      Tour.view(
+        {
+          model: started().model,
+          config,
+          onMessage: message => message,
+          routes: [toLast('Mine', chord)],
+        },
+        SlotView.inertBuilder<Tour.Message>(),
+      ),
+    )
+    expect(diagnostic?.code).toBe('mixins:key-conflict')
+    expect(diagnostic?.details?.['contributors']).toEqual([built, 'Mine'])
+  })
+
+  it('takes Escape and the arrows with Shift held, and none with Ctrl', () => {
+    scene(
+      started().model,
+      {},
+      drawn(),
+      Scene.keydown(dialog, 'ArrowRight', { ctrlKey: true }),
+      Scene.expectIgnored(),
+      Scene.keydown(dialog, 'ArrowRight', { shiftKey: true }),
+      shown(),
+      Scene.Mount.expectEnded(Tour.PlaceStep),
+      Scene.expect(dialog).toContainText('2 of 3'),
+    )
+  })
+
+  it('leaves Escape out of the routes when told not to, so another may take it', () => {
+    expect(
+      diagnosticFrom(() =>
+        Tour.view(
+          {
+            model: started().model,
+            config,
+            onMessage: message => message,
+            closeOnEscape: false,
+            routes: [toLast('Mine', Keys.chord('Escape'))],
+          },
+          SlotView.inertBuilder<Tour.Message>(),
+        ),
+      ),
+    ).toBeUndefined()
   })
 
   it('opens a hole over the target for presses, unless it is not to be used', () => {

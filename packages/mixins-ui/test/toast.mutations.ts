@@ -209,4 +209,53 @@ export default [
     edits: [{ file, find: '? travel : travel * RESISTANCE', replace: '? travel : travel' }],
     tests: unit,
   },
+  {
+    name: 'an action acts on a toast already leaving',
+    edits: [
+      {
+        file,
+        find: 'Option.filter(entryOf(model, id), entry => !isLeaving(entry)),\n            entry => Option.map(entry.action',
+        replace: 'entryOf(model, id),\n            entry => Option.map(entry.action',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the close buttons are not focus recovery parts',
+    edits: [{ file, find: "close: ['next', 'previous'],", replace: 'close: [],' }],
+    tests: browser,
+  },
+  {
+    name: 'an action with no neighbour does not fall back to a close button',
+    edits: [
+      {
+        file,
+        find: "action: ['next', 'previous', { part: 'close' }],",
+        replace: "action: ['next', 'previous'],",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a live region holds only the newest toast',
+    edits: [
+      {
+        file,
+        find: ".map(entry => h.keyed('p')(entry.id, [], [spoken(entry)]))",
+        replace: ".slice(0, 1).map(entry => h.keyed('p')(entry.id, [], [spoken(entry)]))",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the regions are read whole at each change',
+    edits: [
+      {
+        file,
+        find: "builders.status.attrs([h.Role('status'), h.AriaAtomic(false), h.Style(unseen)])",
+        replace: "builders.status.attrs([h.Role('status'), h.Style(unseen)])",
+      },
+    ],
+    tests: unit,
+  },
 ]

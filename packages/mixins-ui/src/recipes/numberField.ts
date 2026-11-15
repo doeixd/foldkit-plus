@@ -16,13 +16,14 @@ import {
   touchText,
   transition,
   unfilledHover,
+  controlHeight,
 } from './design.js'
 
 const stepper = component(
   Style.self({
     display: 'grid',
     placeItems: 'center',
-    inlineSize: ladder('height'),
+    inlineSize: controlHeight,
     padding: '0',
     border: '0',
     background: 'transparent',
@@ -48,7 +49,7 @@ export const NumberField = Style.recipeFor(NumberFieldSlots)({
         gridTemplateColumns: 'auto 1fr auto',
         alignItems: 'stretch',
         inlineSize: 'fit-content',
-        minBlockSize: ladder('height'),
+        minBlockSize: controlHeight,
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: controlCorner,
         background: ref.surface.base,

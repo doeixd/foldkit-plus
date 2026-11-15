@@ -98,7 +98,7 @@ describe('InputCopy.update', () => {
   )
 
   it('shows Copied and begins a Reset for that copy after resetAfter', () => {
-    expect(copiedOnce.model).toEqual({ copied: true, copies: 1, resetAfter: 500 })
+    expect(copiedOnce.model).toEqual({ copied: true, failed: false, copies: 1, resetAfter: 500 })
     expect(copiedOnce.commands?.map(command => command.name)).toEqual(['InputCopy.Reset'])
   })
 
@@ -136,5 +136,46 @@ describe('InputCopy.Reset', () => {
       }).pipe(Effect.provide(TestClock.layer())),
     )
     expect(result).toEqual(InputCopy.Message.ElapsedReset({ copy: 3 }))
+  })
+})
+
+describe('a refused copy', () => {
+  const refused = InputCopy.update(InputCopy.init({ resetAfter: 500 }), InputCopy.Message.Failed())
+
+  it('shows as failed and begins a Reset, and is not copied', () => {
+    expect(refused.model).toEqual({ copied: false, failed: true, copies: 1, resetAfter: 500 })
+    expect(refused.commands?.map(command => command.name)).toEqual(['InputCopy.Reset'])
+  })
+
+  it('clears when its Reset elapses, and a later copy replaces it', () => {
+    const { model } = InputCopy.update(refused.model, InputCopy.Message.ElapsedReset({ copy: 1 }))
+    expect(model).toEqual({ copied: false, failed: false, copies: 1, resetAfter: 500 })
+    expect(InputCopy.update(refused.model, InputCopy.Message.Copied()).model.failed).toBe(false)
+  })
+
+  it('says so in the status region, drawn before it speaks, and keeps the button on Copy', () => {
+    const view = (failed: boolean, failedLabel?: string) =>
+      InputCopy.view(
+        {
+          id: 'key',
+          label: 'API key',
+          value: 'sk-123',
+          copied: false,
+          failed,
+          ...(failedLabel === undefined ? {} : { failedLabel }),
+          onCopy: message('Clicked'),
+          style,
+        },
+        h,
+      )
+    const [status] = Inert.byRole(view(true), 'status')
+    const [button] = Inert.byTag(view(true), 'button')
+    expect(Inert.text(status)).toBe('Copy failed')
+    expect(Inert.text(button)).toBe('Copy')
+    expect(Inert.value(button, 'data-failed')).toBe('true')
+    expect(Inert.text(Inert.byRole(view(true, 'Could not copy'), 'status')[0])).toBe(
+      'Could not copy',
+    )
+    expect(Inert.text(Inert.byRole(view(false), 'status')[0])).toBe('')
   })
 })

@@ -39,6 +39,13 @@ import {
   ContextMenuSlots,
   runDemo as runContextMenuDemo,
 } from './context-menu/view.js'
+import * as SearchFieldApp from './search-field/app.js'
+import {
+  SearchFieldIsland,
+  SearchPageSlots,
+  runDemo as runSearchFieldDemo,
+} from './search-field/demo.js'
+import { FieldStyle as SearchFieldRecipe, SearchSlots } from './search-field/view.js'
 import * as HoverCard from './hover-card/app.js'
 import {
   HoverCard as HoverCardView,
@@ -115,6 +122,8 @@ import {
   checkboxGroupStyle,
   commandStyle,
   contextMenuStyle,
+  searchFieldStyle,
+  searchPageStyle,
   hoverCardStyle,
   menubarStyle,
   meterStyle,
@@ -500,6 +509,24 @@ export const islands = [
           init: () => ({ model: PickerApp.initial }),
           update: PickerApp.update,
           view: (model, h) => PickerIsland(model, h),
+          container,
+        }),
+      )
+    },
+  }),
+  define({
+    id: 'search-field',
+    title: 'Search field (placed twice)',
+    runDemo: runSearchFieldDemo,
+    style: () =>
+      merged(searchPageStyle(SearchPageSlots), searchFieldStyle(SearchSlots), SearchFieldRecipe),
+    mount: container => {
+      Runtime.embed(
+        Runtime.makeElement({
+          Model: SearchFieldApp.Model,
+          init: () => ({ model: SearchFieldApp.initial }),
+          update: SearchFieldApp.update,
+          view: (model, h) => SearchFieldIsland(model, h),
           container,
         }),
       )

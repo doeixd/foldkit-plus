@@ -158,6 +158,8 @@ export const Table = Style.recipeFor(TableSlots)({
     ),
     cell: component(
       Style.self({ blockSize: ladder('height'), paddingBlock: '0', paddingInline: ladder('pad') }),
+      // A row header is a `th`, which the user agent centres and embolds.
+      Style.nest('&:where(th)', { textAlign: 'start', fontWeight: 'inherit' }),
       Style.nest('&[data-numeric]', { textAlign: 'end' }),
     ),
     controlCell: component(

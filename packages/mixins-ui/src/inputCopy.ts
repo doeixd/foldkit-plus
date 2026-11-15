@@ -42,6 +42,8 @@ export const Copy = Command.define('InputCopy.Copy', {
  */
 export const Model = Schema.Struct({
   copied: Schema.Boolean,
+  /** The clipboard refused the last copy; never together with `copied`. */
+  failed: Schema.Boolean,
   copies: Schema.Number,
   /** Milliseconds from a copy until the button says "Copy" again. */
   resetAfter: Schema.Number,
@@ -51,6 +53,8 @@ export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   /** The clipboard took the value: send it on `ClipboardMessage.Copied`. */
   Copied: {},
+  /** The clipboard refused the value: send it on `ClipboardMessage.CopyFailed`. */
+  Failed: {},
   /** A copy's `resetAfter` ran out; `copy` is the stamp it began with. */
   ElapsedReset: { copy: Schema.Number },
 })
@@ -59,6 +63,7 @@ export type Message = typeof Message.Type
 /** Not copied yet; `resetAfter` defaults to 2000 milliseconds. */
 export const init = (options: { readonly resetAfter?: number | undefined } = {}): Model => ({
   copied: false,
+  failed: false,
   copies: 0,
   resetAfter: options.resetAfter ?? 2000,
 })
@@ -77,13 +82,28 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
     Copied: () => {
       const copies = model.copies + 1
       return {
-        model: modifyFields(model, { copied: () => true, copies: () => copies }),
+        model: modifyFields(model, {
+          copied: () => true,
+          failed: () => false,
+          copies: () => copies,
+        }),
+        commands: [Reset({ ms: model.resetAfter, copy: copies })],
+      }
+    },
+    Failed: () => {
+      const copies = model.copies + 1
+      return {
+        model: modifyFields(model, {
+          copied: () => false,
+          failed: () => true,
+          copies: () => copies,
+        }),
         commands: [Reset({ ms: model.resetAfter, copy: copies })],
       }
     },
     ElapsedReset: ({ copy }) =>
-      copy === model.copies && model.copied
-        ? { model: modifyFields(model, { copied: () => false }) }
+      copy === model.copies && (model.copied || model.failed)
+        ? { model: modifyFields(model, { copied: () => false, failed: () => false }) }
         : { model },
   })
 
@@ -94,12 +114,16 @@ export interface InputCopyView<Message> {
   readonly value: string
   /** Whether the value was just copied, the application's to set and clear. */
   readonly copied: boolean
+  /** Whether the clipboard refused the copy: the status region says so, and the button stays `Copy` to try again. */
+  readonly failed?: boolean | undefined
   /** Sent by the button; answer it with `Copy`. */
   readonly onCopy: NoInfer<Message>
   /** The button's text; default `Copy`. */
   readonly copyLabel?: string | undefined
   /** The button's text once copied, and what the status region says; default `Copied`. */
   readonly copiedLabel?: string | undefined
+  /** What the status region says when the copy failed; default `Copy failed`. */
+  readonly failedLabel?: string | undefined
   /** A style of `InputCopySlots`, for the field's look. */
   readonly style?: NamedStyle<typeof InputCopySlots> | undefined
   /** Mixins beside the style. */
@@ -117,7 +141,9 @@ export const view = <Message>(options: InputCopyView<Message>, h: HtmlBuilder<Me
   const buttonId = `${options.id}-button`
   const copiedLabel = options.copiedLabel ?? 'Copied'
   const copied = h.DataAttribute('copied', String(options.copied))
-  return h.div(builders.root.attrs([copied]), [
+  const failed = options.failed === true
+  const failedAttribute = h.DataAttribute('failed', String(failed))
+  return h.div(builders.root.attrs([copied, failedAttribute]), [
     h.label(builders.label.attrs([h.Id(labelId), h.For(inputId)]), [options.label]),
     h.div(builders.group.attrs(), [
       h.input(
@@ -136,11 +162,15 @@ export const view = <Message>(options: InputCopyView<Message>, h: HtmlBuilder<Me
           // "Copy API key": several copy buttons on a page each say what they copy.
           h.AriaLabelledBy(`${buttonId} ${labelId}`),
           copied,
+          failedAttribute,
           h.OnClick(options.onCopy),
         ]),
         [options.copied ? copiedLabel : (options.copyLabel ?? 'Copy')],
       ),
     ]),
-    h.span(builders.status.attrs([h.Role('status')]), options.copied ? [copiedLabel] : []),
+    h.span(
+      builders.status.attrs([h.Role('status')]),
+      options.copied ? [copiedLabel] : failed ? [options.failedLabel ?? 'Copy failed'] : [],
+    ),
   ])
 }

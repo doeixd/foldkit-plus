@@ -8,8 +8,9 @@ frame, not the contents; loading the rows stays the application's job.
 | Name | Form | Model | Messages | Args |
 | --- | --- | --- | --- | --- |
 | `Pagination` | bundle | `{ page, perPage, total }` | `GoToPage`, `NextPage`, `PrevPage`, `SetPerPage`, `SetTotal` | `{ perPage, total? }` |
-| `history({ name, value, capacity? })` | bundle factory | `{ past, present, future, group }` | `Push { value, group? }`, `Undo`, `Redo`, `GoTo { step }`, `Clear` | `{ initial }` |
+| `history({ name, value, capacity?, within?, equals? })` | bundle factory | `{ past, present, future, group, groupedAt }` | `Push { value, group?, at? }`, `Undo`, `Redo`, `GoTo { step }`, `Clear` | `{ initial }` |
 | `History.*` | functions | the same steps, pure | | |
+| `Box.moveBy`, `moveEach`, `resize`, `moveKey`, `resizeKey` | functions | `Box { x, y, width, height }` | | |
 | `Locale` | bundle | `{ locale }` | `SetLocale` | `{ default }` |
 | `SelectionSet` | bundle | `{ selected }` | `Select`, `Deselect`, `Toggle`, `ReplaceAll`, `Clear` | none |
 | `Virtual` | bundle | scroll, heights, layout | `Scrolled`, `Measured`, `Prune`, `Settled` | layout args |
@@ -70,7 +71,7 @@ const Editor = Bundle.compose({}).pipe(
 )
 ```
 
-The Model holds `{ past, present, future, group }`. `Push` records a value and
+The Model holds `{ past, present, future, group, groupedAt }`. `Push` records a value and
 drops the redo future (an already empty future is kept as it was, so a view
 reading it is not redrawn per push); `Undo` and `Redo` move one step; `GoTo { step }`
 jumps to any kept value, counted from the oldest (0), so the present is at
@@ -81,16 +82,97 @@ dispatches `EditHistory.Message.Push({ value })`. `canUndo` and `canRedo` read
 the edges.
 
 A `Push` may name a `group`: consecutive pushes of the same group are one
-step, so typing a word, or dragging a brush, undoes as a whole, with no clock.
+step, so typing a word, or dragging a brush, undoes as a whole. The Model reads
+no clock: a `Push` that carries `at` (milliseconds, from the Command or event
+that made the edit) and a factory `within` end the step at a pause, so typing
+that stops for longer than `within` starts a new one, and steady typing never
+splits. Without `equals`, a push of an unchanged value is recorded; give the
+factory (or `History.push`) an `equals` and a value equal to the present
+records nothing and returns the Model it was given.
+
+History does not name a step. A value that carries its own label and source is
+how a menu reads "Undo rename" from `present` (the step an undo takes back) and
+"Redo paste" from `future[0]`, and who made the edit with it:
+
+```ts
+import { Option } from 'effect'
+import { History, type HistoryModel } from 'foldkit-primitives/state'
+
+type Step = { readonly text: string; readonly label: string; readonly source: 'reader' | 'agent' }
+
+const edit = (model: HistoryModel<Step>, step: Step) =>
+  History.push(model, step, { capacity: 50 })
+
+const renamed = edit(History.start({ text: 'a', label: 'start', source: 'reader' }), {
+  text: 'b',
+  label: 'rename',
+  source: 'agent',
+})
+const undoLabel = `Undo ${renamed.present.label}`
+const redoLabel = Option.fromNullishOr(History.undo(renamed).future[0]?.label)
+```
 
 The steps are also pure functions, `History.start`, `push`, `undo`, `redo`,
 `goTo`, and `clear`, for a parent that records an edit in the same transition
 that makes it. Two more exist only as functions: `History.close(model)` ends
 the current group, so the same group pushed again is a step of its own, and
 `History.revert(model, group)` takes back the step `group` is making with
-nothing left to redo, which is what a cancelled edit leaves.
+nothing left to redo, which is what a cancelled edit leaves, and
+`History.map(model, change)` rewrites every kept value without adding a step
+(a status that changes everywhere it appears).
 [`examples/foldkit/pixel-art`](../../../examples/foldkit/pixel-art) keeps its
 grid this way, one group per stroke.
+
+## `Box`: move and resize within limits
+
+A box that a pointer drags (the `Move` Behavior in
+[`interaction`](../interaction/README.md) reports the deltas) or a key nudges is
+held in the Model, and these functions turn a delta into the next box. They are
+pure, so a key and a drag obey the same limits and the Model is the only owner:
+
+- `Box.moveBy(box, dx, dy, { bounds?, snap? })` and `Box.moveEach(boxes, ids,
+  dx, dy, limits)` for several boxes at once. A group keeps its shape: the delta
+  is limited so the whole group stays inside `bounds`, rather than each box
+  stopping alone. `snap` lands the first id on the grid, on the axes that move,
+  and the rest keep their distance from it.
+- `Box.resize(box, handle, dx, dy, { bounds?, min?, max?, aspect?, snap? })`
+  moves the edges a handle (`n`, `e`, `se`, ...) owns and keeps the others. The
+  grid takes the moving edge first and the limits still win; with `aspect` an
+  edge grows the other side about the box's middle and a corner follows the edge
+  that moved further.
+- `Box.moveKey(press, { step?, largeStep? })`: Alt with an arrow, Shift for the
+  larger step (ten steps by default). `Box.resizeKey(press, handle, options)`:
+  an arrow moves the handle's own edges (an east handle reads Left and Right
+  only), and Home and End take its axes to the smallest and largest size the
+  limits allow. Both are `Option`, none for another key or a press with Control
+  or Meta; read them from a `Pressed` or an attribute-handler key, not a Mount.
+
+A function that changes nothing returns the box it was given, so a nudge against
+the edge records no undo step (see `History.push`'s `equals`), and a delta that
+is not finite is refused. Announcing the result ("Card moved to 40, 20") is the
+parent's: say it through `LiveAnnounce` in the same transition.
+
+```ts
+import { Option } from 'effect'
+import type { KeyPress } from 'foldkit-primitives/events'
+import { Box } from 'foldkit-primitives/state'
+
+const area = { left: 0, top: 0, right: 100, bottom: 50 }
+const card = { x: 10, y: 10, width: 20, height: 10 }
+
+const press: KeyPress = {
+  key: 'ArrowRight',
+  repeat: false,
+  ctrl: false,
+  shift: true,
+  alt: true,
+  meta: false,
+}
+const nudged = Option.map(Box.moveKey(press, { step: 100 }), ({ dx, dy }) =>
+  Box.moveBy(card, dx, dy, { bounds: area }),
+)
+const grown = Box.resize(card, 'se', 500, 500, { bounds: area, aspect: 2 })
+```
 
 ## `Locale` and `SelectionSet`
 

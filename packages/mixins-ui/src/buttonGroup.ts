@@ -1,4 +1,4 @@
-import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Attr, Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
 
@@ -13,7 +13,7 @@ import type { MixinList } from './resolve.js'
  * `data-orientation`, for the style to read.
  */
 export const ButtonGroupSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
+  root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] }),
   separator: Slot.make({ capability: Capability.Container }),
   text: Slot.make({ capability: Capability.Container }),
 })

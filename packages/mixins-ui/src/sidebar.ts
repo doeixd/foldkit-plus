@@ -3,6 +3,7 @@ import { Match, Option, Schema, Stream } from 'effect'
 import {
   Attr,
   Behavior,
+  Behaviors,
   Capability,
   Event,
   Slot,
@@ -20,10 +21,10 @@ import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
 import { FluidHover, Measure, Move } from 'foldkit-primitives/dom'
 import { flipped } from './choices.js'
-import { readingKey } from './direction.js'
 import type { ResolvedDialog } from './dialog.js'
 import type { MixinList } from './resolve.js'
 import * as Sheet from './sheet.js'
+import * as Splitter from './splitter.js'
 import * as Tooltip from './tooltip.js'
 
 /**
@@ -226,7 +227,7 @@ const clamp = (size: number, min: number, max: number) => Math.min(max, Math.max
 export interface InitConfig {
   /** Prefixes every id the sidebar draws, unique on the page. */
   readonly id: string
-  /** The ids of the rows a rail names in tooltips: each gets a Tooltip. */
+  /** The ids of the rows a rail names in tooltips: each gets a Tooltip, and a rail drawing a row not listed here throws. */
   readonly rows: ReadonlyArray<string>
   readonly collapsed?: boolean | undefined
   /** The groups and branches open at first; default none. */
@@ -453,18 +454,54 @@ export interface SidebarView<Message> {
  * its own, so the two never share one.
  */
 export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Message>): Html => {
+  const { model, onMessage } = options
+  const setWidth = (size: number) => onMessage(Message.SetWidth({ size }))
+  // Collapsed is the handle's least place, as `aria-valuemin` says: Home goes there.
+  const keys = Behaviors.Keys.behavior(SidebarSlots)<unknown, Message>({
+    slot: 'resize',
+    name: 'SidebarResizeKeys',
+    routes: Option.match(model.width, {
+      onNone: () => [],
+      onSome: ({ size, max }) =>
+        Splitter.routes({
+          stacked: false,
+          direction: options.direction,
+          shrink: setWidth(size - STEP),
+          grow: setWidth(size + STEP),
+          smallest: model.collapsed
+            ? Option.none()
+            : Option.some(onMessage(Message.ToggledCollapsed())),
+          largest: Option.some(setWidth(max)),
+          toggle: Option.some(onMessage(Message.ToggledCollapsed())),
+        }),
+    }),
+  })
   const builders = SlotView.buildersFor(
     SidebarSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      keys.mixin,
+      ...(options.mixins ?? []),
+    ],
     { input: undefined, h },
   )
-  const { model, onMessage } = options
   const rail = options.collapse === 'icons'
   const railed = rail && model.collapsed
   const navId = `${model.id}-nav`
   const collapsed = h.DataAttribute('collapsed', String(model.collapsed))
   const tips = new Map(model.tips.map(tip => [tip.row, tip.tooltip]))
   const drawn = groupsOf(options, builders, h)
+  // A Tooltip is state, which only `init` can give: a row it was not told of
+  // would draw an icon with no name, so the mismatch is refused where it shows.
+  const railedTip = (row: string) => {
+    if (!railed) return Option.none()
+    const tooltip = tips.get(row)
+    if (tooltip === undefined)
+      throw new Error(
+        `Sidebar "${model.id}" draws a rail, but its Model has no Tooltip for the row "${row}": pass it in \`init\`'s \`rows\`.`,
+      )
+    return Option.some(tooltip)
+  }
   const end = (
     slot: typeof builders.header,
     given: SidebarEnd | undefined,
@@ -534,37 +571,33 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
             railed,
             // Only a rail names its rows in tooltips: expanded, the words show.
             tip: (row, link) =>
-              Option.match(
-                Option.filter(Option.fromNullishOr(tips.get(row.id)), () => railed),
-                {
-                  onNone: () => link([]),
-                  onSome: tooltip =>
-                    h.submodel({
-                      slotId: tooltip.id,
-                      model: tooltip,
-                      view: UiTooltip.view,
-                      viewInputs: {
-                        anchor: Tooltip.anchor({
-                          placement: options.direction === 'rtl' ? 'left' : 'right',
-                        }),
-                        toView: Tooltip.toView(options.tooltip ?? [], { h, id: tooltip.id }, tip =>
-                          h.div(builders.tip.attrs(), [
-                            link(tip.trigger),
-                            ...(tip.isVisible
-                              ? [
-                                  h.div(tip.layer, [
-                                    h.div(tip.panel, [h.span(tip.arrow, []), row.label]),
-                                  ]),
-                                ]
-                              : []),
-                          ]),
-                        ),
-                      },
-                      toParentMessage: message =>
-                        onMessage(Message.GotTip({ row: row.id, message })),
-                    }),
-                },
-              ),
+              Option.match(railedTip(row.id), {
+                onNone: () => link([]),
+                onSome: tooltip =>
+                  h.submodel({
+                    slotId: tooltip.id,
+                    model: tooltip,
+                    view: UiTooltip.view,
+                    viewInputs: {
+                      anchor: Tooltip.anchor({
+                        placement: options.direction === 'rtl' ? 'left' : 'right',
+                      }),
+                      toView: Tooltip.toView(options.tooltip ?? [], { h, id: tooltip.id }, tip =>
+                        h.div(builders.tip.attrs(), [
+                          link(tip.trigger),
+                          ...(tip.isVisible
+                            ? [
+                                h.div(tip.layer, [
+                                  h.div(tip.panel, [h.span(tip.arrow, []), row.label]),
+                                ]),
+                              ]
+                            : []),
+                        ]),
+                      ),
+                    },
+                    toParentMessage: message => onMessage(Message.GotTip({ row: row.id, message })),
+                  }),
+              }),
           }),
         ],
       ),
@@ -583,17 +616,6 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
               h.AriaValuemax(max),
               h.AriaValuenow(model.collapsed ? 0 : size),
               h.Tabindex(0),
-              h.OnKeyDownSelfPreventDefault(pressed => {
-                const key = readingKey(pressed, options.direction)
-                const to = (width: number) =>
-                  Option.some(onMessage(Message.SetWidth({ size: width })))
-                if (key === 'Home') return to(min)
-                if (key === 'End') return to(max)
-                if (key === 'ArrowLeft') return to(size - STEP)
-                if (key === 'ArrowRight') return to(size + STEP)
-                if (key === 'Enter') return Option.some(onMessage(Message.ToggledCollapsed()))
-                return Option.none()
-              }),
               h.OnDoubleClick(onMessage(Message.ToggledCollapsed())),
               h.OnMount(Mount.mapMessage(Widen(), onMessage)),
             ]),

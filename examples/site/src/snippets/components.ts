@@ -5247,8 +5247,9 @@ export const numberField = <Message>(
       id: 'servings',
       label: 'Servings',
       description: 'From 1 to 12; the arrow keys step it.',
-      value,
-      onChange,
+      value: Option.some(value),
+      // The demo's Model holds a number, so a cleared field keeps the last one.
+      onChange: next => onChange(Option.getOrElse(next, () => value)),
       min: 1,
       max: 12,
       style,
@@ -6596,7 +6597,7 @@ export const API_KEY = 'sk-live-4f9a2c71'
 
 export const inputCopy = <Message>(
   style: NamedStyle<typeof InputCopySlots>,
-  copied: boolean,
+  model: InputCopy.Model,
   onCopy: (text: string) => Message,
   h: HtmlBuilder<Message>,
 ): Html =>
@@ -6605,7 +6606,8 @@ export const inputCopy = <Message>(
       id: 'preview-api-key',
       label: 'API key',
       value: API_KEY,
-      copied,
+      copied: model.copied,
+      failed: model.failed,
       onCopy: onCopy(API_KEY),
       style,
     },
@@ -7324,6 +7326,7 @@ export const segmented = <Message>(
 ): Html =>
   Segmented.view(
     {
+      id: 'range',
       label: 'Range',
       options: Range.literals.map(value => ({
         value,
@@ -7359,6 +7362,7 @@ export const segmentedIcons = <Message>(
 ): Html =>
   Segmented.view(
     {
+      id: 'view',
       label: 'View',
       options: ViewMode.literals.map(value => ({
         value,
