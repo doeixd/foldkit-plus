@@ -1,6 +1,15 @@
 import { AnchorConfig, anchorSetup } from '@foldkit/ui/anchor'
 import { Effect, Option, Schema } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import {
+  Attr,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+} from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -464,8 +473,12 @@ export const update = (config: Config) => {
     })
 }
 
-/** The keys the open panel takes from the page. */
-const PANEL_KEYS = new Set([
+/**
+ * The named keys the open panel takes from the page; every printable one is
+ * the typeahead's. Tab is neither: it goes through, and focus leaving closes
+ * the panel.
+ */
+const PANEL_KEYS = [
   'ArrowDown',
   'ArrowUp',
   'ArrowLeft',
@@ -473,10 +486,18 @@ const PANEL_KEYS = new Set([
   'Home',
   'End',
   'Enter',
-  ' ',
   'Escape',
-])
-const TRIGGER_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Enter', ' '])
+] as const satisfies ReadonlyArray<Behaviors.Keys.NamedKey>
+
+/** The keys that open the closed trigger; Space is a character, so it is a chord of its own. */
+const TRIGGER_KEYS = [
+  'ArrowDown',
+  'ArrowUp',
+  'Enter',
+] as const satisfies ReadonlyArray<Behaviors.Keys.NamedKey>
+
+/** A key the application answers on the open panel, beside its own. */
+export type Route<Message> = Behaviors.Keys.Route<undefined, Message>
 
 export interface CascadeSelectView<ParentMessage> {
   readonly model: Model
@@ -512,6 +533,14 @@ export interface CascadeSelectView<ParentMessage> {
   readonly direction?: 'ltr' | 'rtl' | undefined
   /** Where the panel opens against the trigger; default below it, at its start. */
   readonly anchor?: AnchorConfig | undefined
+  /**
+   * Keys the application answers on the open panel, such as Ctrl+A choosing
+   * every option. They share one keydown owner with the panel's own: the
+   * arrows, Home, End, Enter, Escape and every printable character (the
+   * typeahead's, Space included); a route on the same gesture is a diagnostic
+   * naming both. The closed trigger's keys are not open to routes.
+   */
+  readonly routes?: ReadonlyArray<Route<NoInfer<ParentMessage>>> | undefined
   /** A style of `CascadeSelectSlots`, for the look. */
   readonly style?: NamedStyle<typeof CascadeSelectSlots> | undefined
   /** Mixins beside the style. */
@@ -524,14 +553,51 @@ export const view = <ParentMessage>(
 ): Html => {
   if (options.label.trim() === '')
     throw new Error('CascadeSelect: a label is required, its accessible name')
-  const builders = SlotView.buildersFor(
-    CascadeSelectSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
-    { input: undefined, h },
-  )
   const { model, onMessage, config } = options
   const { id } = model
   const send = (message: Message) => onMessage(message)
+  const panelKeys = Behaviors.Keys.behavior(CascadeSelectSlots)<undefined, ParentMessage>({
+    slot: 'panel',
+    name: 'CascadeSelectPanelKeys',
+    routes: [
+      ...PANEL_KEYS.map(key =>
+        Behaviors.Keys.route<undefined, ParentMessage>(`Cascade ${key}`, {
+          on: [...Behaviors.Keys.withShift(key)],
+          // The key as a left-to-right reader presses it.
+          handle: () =>
+            Option.some(send(Message.Pressed({ key: readingKey(key, options.direction) }))),
+        }),
+      ),
+      Behaviors.Keys.route<undefined, ParentMessage>('Cascade typeahead', {
+        on: [Behaviors.Keys.printable],
+        handle: ({ key }) => Option.some(send(Message.Pressed({ key }))),
+      }),
+      ...(options.routes ?? []),
+    ],
+  })
+  const triggerKeys = Behaviors.Keys.behavior(CascadeSelectSlots)<undefined, ParentMessage>({
+    slot: 'trigger',
+    name: 'CascadeSelectTriggerKeys',
+    routes: [
+      Behaviors.Keys.route<undefined, ParentMessage>('Cascade open', {
+        on: [
+          Behaviors.Keys.chord(' '),
+          ...TRIGGER_KEYS.flatMap(key => Behaviors.Keys.withShift(key)),
+        ],
+        handle: () => Option.some(send(Message.Opened())),
+      }),
+    ],
+  })
+  const builders = SlotView.buildersFor(
+    CascadeSelectSlots,
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      panelKeys.mixin,
+      ...(options.disabled === true ? [] : [triggerKeys.mixin]),
+      ...(options.mixins ?? []),
+    ],
+    { input: undefined, h },
+  )
   const value = Option.getOrElse(model.value, () => [])
   const shown = Option.flatMap(model.value, path => labelsOf(config.nodes, path))
   const disabled = options.disabled === true
@@ -554,14 +620,7 @@ export const view = <ParentMessage>(
       h.AriaControls(panelId(id)),
       h.AriaLabel(options.label),
       ...(options.invalid === true ? [h.AriaInvalid(true)] : []),
-      ...(disabled
-        ? [h.Disabled(true)]
-        : [
-            h.OnClick(send(Message.Opened())),
-            h.OnKeyDownPreventDefault(key =>
-              TRIGGER_KEYS.has(key) ? Option.some(send(Message.Opened())) : Option.none(),
-            ),
-          ]),
+      ...(disabled ? [h.Disabled(true)] : [h.OnClick(send(Message.Opened()))]),
     ]),
     [
       h.span(
@@ -704,15 +763,6 @@ export const view = <ParentMessage>(
                 ...Option.match(activeId, {
                   onNone: () => [],
                   onSome: active => [h.AriaActiveDescendant(active)],
-                }),
-                h.OnKeyDownPreventDefault((pressed, modifiers) => {
-                  if (modifiers.ctrlKey || modifiers.metaKey || modifiers.altKey)
-                    return Option.none()
-                  const key = readingKey(pressed, options.direction)
-                  // Tab goes through, and focus leaving closes the panel.
-                  return PANEL_KEYS.has(key) || key.length === 1
-                    ? Option.some(send(Message.Pressed({ key })))
-                    : Option.none()
                 }),
                 h.OnFocusLeave(send(Message.Left())),
               ]),

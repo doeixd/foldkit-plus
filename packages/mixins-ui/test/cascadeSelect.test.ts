@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Cascade Select as a transition and as markup: opening starts at the value
  * or the first option, the keys move within a level and between levels,
@@ -6,14 +7,15 @@
  * `aria-activedescendant` names.
  */
 import { Option } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y } from 'foldkit-mixins'
+import { A11y, Behaviors, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 // From the modules, not the index: the test reads nothing else.
 import { CascadeSelectSlots, type Config, type Node } from '../src/cascadeSelect.js'
 import { CascadeSelect, Patterns } from '../src/index.js'
-import { h, message } from './fixture.js'
+import { diagnosticFrom, h, message, sends } from './fixture.js'
 
 const { Message, init } = CascadeSelect
 
@@ -294,6 +296,92 @@ describe('CascadeSelect.view', () => {
       Scene.keydown(trigger, 'ArrowDown'),
       placed(),
       Scene.expect(tree).toHaveAttr('aria-activedescendant', 'place-item-0'),
+    )
+  })
+
+  const highlightsMexico = (
+    name: string,
+    chord: Behaviors.Keys.Gesture,
+  ): CascadeSelect.Route<CascadeSelect.Message> =>
+    Behaviors.Keys.route(name, {
+      on: [chord],
+      handle: () => Option.some(Message.Highlighted({ path: ['mx'] })),
+    })
+
+  it("answers the application's routes on the panel beside its own keys", () => {
+    scene(
+      open(),
+      { routes: [highlightsMexico('Last', Behaviors.Keys.chord('a', { ctrl: true }))] },
+      placed(),
+      Scene.expect(tree).toHaveAttr('aria-activedescendant', 'place-item-0'),
+      Scene.keydown(tree, 'a', { ctrlKey: true }),
+      Scene.expect(tree).toHaveAttr('aria-activedescendant', 'place-item-2'),
+    )
+  })
+
+  it.each([
+    ['Home', Behaviors.Keys.chord('Home'), 'Cascade Home'],
+    ['Escape', Behaviors.Keys.chord('Escape'), 'Cascade Escape'],
+    ['a printable character', Behaviors.Keys.chord('a'), 'Cascade typeahead'],
+  ])('names both routes when one overlaps %s', (_, chord, built) => {
+    const diagnostic = diagnosticFrom(() =>
+      CascadeSelect.view(
+        {
+          model: open(),
+          config,
+          onMessage: message => message,
+          label: 'Place',
+          routes: [highlightsMexico('Mine', chord)],
+        },
+        SlotView.inertBuilder<CascadeSelect.Message>(),
+      ),
+    )
+    expect(diagnostic?.code).toBe('mixins:key-conflict')
+    expect(diagnostic?.details?.['contributors']).toEqual([built, 'Mine'])
+  })
+
+  it('takes the panel keys with Shift, and none of them with Ctrl, Alt or Meta', () => {
+    scene(
+      open(),
+      {},
+      placed(),
+      Scene.keydown(tree, 'ArrowDown', { shiftKey: true }),
+      revealed(),
+      Scene.expect(tree).toHaveAttr('aria-activedescendant', 'place-item-1'),
+      Scene.keydown(tree, 'ArrowDown', { ctrlKey: true }),
+      Scene.expectIgnored(),
+      Scene.keydown(tree, 'ArrowDown', { altKey: true }),
+      Scene.expectIgnored(),
+      Scene.keydown(tree, 'ArrowDown', { metaKey: true }),
+      Scene.expectIgnored(),
+      Scene.expect(tree).toHaveAttr('aria-activedescendant', 'place-item-1'),
+    )
+  })
+
+  it('sends a printable character on the panel as a press, Space too', () => {
+    sends(
+      (h: HtmlBuilder<CascadeSelect.Message>) =>
+        CascadeSelect.view(
+          { model: open(), config, onMessage: message => message, label: 'Place' },
+          h,
+        ),
+      placed(),
+      Scene.keydown(tree, 'm'),
+      Scene.expectOutMessage(Message.Pressed({ key: 'm' })),
+      Scene.keydown(tree, ' '),
+      Scene.expectOutMessage(Message.Pressed({ key: ' ' })),
+      Scene.keydown(tree, 'F13'),
+      Scene.expectIgnored(),
+    )
+  })
+
+  it('opens from a trigger key with Shift, and Space', () => {
+    scene(
+      init({ id: 'place' }),
+      {},
+      Scene.keydown(trigger, ' '),
+      placed(),
+      Scene.expect(tree).toExist(),
     )
   })
 

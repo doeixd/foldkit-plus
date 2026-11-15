@@ -129,11 +129,54 @@ export default [
     edits: [
       {
         file,
-        find: 'const key = readingKey(pressed, options.direction)',
-        replace: 'const key = pressed',
+        find: 'Message.Pressed({ key: readingKey(key, options.direction) })',
+        replace: 'Message.Pressed({ key })',
       },
     ],
     tests: [unit, browser],
+  },
+  {
+    name: "the application's routes on the panel are dropped",
+    edits: [{ file, find: '...(options.routes ?? []),', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'the typeahead takes no character',
+    edits: [
+      {
+        file,
+        find: 'on: [Behaviors.Keys.printable],',
+        replace: "on: [Behaviors.Keys.chord('F13')],",
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'Shift stops a panel key',
+    edits: [
+      {
+        file,
+        find: 'on: [...Behaviors.Keys.withShift(key)],',
+        replace: 'on: [Behaviors.Keys.chord(key)],',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a closed trigger opens on no key',
+    edits: [{ file, find: "Behaviors.Keys.chord(' '),", replace: "Behaviors.Keys.chord('F13')," }],
+    tests: [unit],
+  },
+  {
+    name: 'a disabled trigger still answers keys',
+    edits: [
+      {
+        file,
+        find: '...(options.disabled === true ? [] : [triggerKeys.mixin]),',
+        replace: '...[triggerKeys.mixin],',
+      },
+    ],
+    tests: [unit],
   },
   {
     name: 'the active row is not named',
