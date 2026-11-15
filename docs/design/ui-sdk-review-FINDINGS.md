@@ -120,6 +120,38 @@ Ideas for the catalog once the fixes above land:
 - **A6. Named key routes in existing widgets** that hand-write a `keydown`
   switch, so an application can add a route without a conflict.
 
+## After merging `main` (2026-11-14)
+
+While this branch worked, `main` built and merged its own implementations of
+#531 and #551 to #558. The branch merged `main` at `d96611dd4` with `main`'s
+version winning wherever both sides built the same thing:
+
+| This branch's (deleted) | `main`'s (kept) |
+| --- | --- |
+| `Behaviors.Keyboard` | `Behaviors.Keys` |
+| `Assembly.describe` | `SlotView.describe`, `SlotView.resolution` |
+| string obligations, `supplies`, support lists | obligation values, a slot's `provides`, `A11y.base` / `native` / `delegated`, `A11y.check` |
+| `Leaving` | `Presence.behavior` |
+| `FocusRecovery.part` | `FocusRecovery.behavior({ owner, parts })`, `FocusReturn` |
+| `Lasso` | `Marquee` |
+| `Agent.Ui` | `Agent.part` |
+| refusing a child `OnMount` (#531) | composing it |
+| the test-only conformance harness | `Conformance` in `foldkit-mixins/testing` |
+| `Dialog` and `Sheet` `focusFallback` | `Dialog.focusReturn` |
+| Listbox and Combobox drawn in place by default | the portaled default with `Anchor.inheritRegion` |
+| the `dismissible-list` and `leaving-rows` demos | `examples/authoring` |
+
+So findings F1 to F3, F5, F6, F8, D1 to D7 above describe code that no longer
+exists; their fixes went with it. What this branch still adds over `main`:
+the catalog fixes and new widgets (`ui-catalog-review-FINDINGS.md`), the
+pattern catalog's `support` and its gates on `main`'s obligation model,
+`SearchField`, `WindowList`'s held row, reveal and find stand-ins, `Selection`
+ranges, `GridNavigation` paging, `SpatialNavigation`, `InlineEdit`, `Box`,
+`Move.nudge` and `resizeKeys`, `Repeat`, `SwipeActions`, the hotkey,
+announcement and history changes, the theme streams and the scheme hint, key
+routes in every widget that hand-wrote a keydown switch, and the reworked
+choice controls.
+
 ## Status
 
 | Finding | Status |

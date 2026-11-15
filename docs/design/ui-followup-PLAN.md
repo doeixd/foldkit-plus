@@ -7,6 +7,19 @@ are the ledger (`ui-sdk-audit-LEDGER.md`), the review of that work
 waits on a consumer. Items marked *lead* came from reading source and need a
 failing test before any change.
 
+## Done since this plan was written
+
+Table cells, row headers and its expansion heading; the invalid state of
+Checkbox, Switch and RadioGroup; Slider's commit and description; Segmented
+as a radio group; RadioGroup's keys on both axes; Rating's key routes;
+Marquee's clone ids; the Sidebar's tooltips; the Resizable focus ring; Badge
+and Carousel sizes; named key routes in menubar, cascade select, tour,
+floating panel, picker, nav and tabs; focus return by rule for the tour and
+the floating panel; the three families of section 5 (now in the ledger); and
+the reusable rendered suite, which is `main`'s `Conformance`, run over the
+shipped Listbox, TreeView, Tabs, Dialog and Checkbox. The items below that
+name these are kept for their remaining parts only.
+
 ## 1. Conformance, run rather than declared
 
 - **One rendered suite per APG pattern.** A table-driven browser suite (keys,
