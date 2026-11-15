@@ -171,7 +171,8 @@ import { studioPanel, titled, type Direction } from './studio.js'
 import { StudioSlots } from './slots.js'
 import { StudioStyle } from './style.js'
 import { initialTheme, tokenGroups } from './themeData.js'
-import { ThemeName, chooseTheme } from './themeRuntime.js'
+import { chooseTheme } from 'foldkit-mixins/theme/runtime'
+import { ThemeName, looks } from './looks.js'
 import { TweakName, Tweaks, hasTweaks, noTweaks, tweaksCss, withTweak } from './tweaks.js'
 
 // --- model -------------------------------------------------------------------
@@ -404,7 +405,7 @@ export const initModel = (
 const ApplyTheme = Command.define('ApplyTheme', {
   args: { name: ThemeName },
   messages: [Message.Applied],
-  execute: ({ name }) => chooseTheme(name).pipe(Effect.as(Message.Applied())),
+  execute: ({ name }) => chooseTheme(looks, name).pipe(Effect.as(Message.Applied())),
 })
 
 const ApplyScheme = Command.define('ApplyScheme', {

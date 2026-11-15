@@ -25,12 +25,14 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // 199.9 kB (199,9xx bytes) on 2026-11-15, after the theme studio: +3.5 kB over the reading above for
 // the Segmented radio groups, six Sliders, the tweak/theme Messages and Commands, the generated
 // theme data and the token table. The compiler-side `Themes` runtime cannot be imported in this
-// client (`modules` refuses it), so the studio carries a small local one (`themeRuntime.ts`).
+// client (`modules` refuses it), and the studio now uses the compiler-free `theme/runtime` and `theme/knob-data`.
 // The ceiling is that plus about 1%.
 // 201.8 kB on 2026-11-15, after the catalog additions: +1.9 kB for the Segmented plan picker, a
 // SearchField, a TagsInput and the notification filter (the rebuilt `foldkit-mixins` dist also moved
 // with other work in the tree; not bisected). The ceiling is that plus about 1%.
-const CEILING = 204_000
+// 205.9 kB after adopting `foldkit-mixins/theme/runtime` and `theme/knob-data`: `knob-data` keeps the
+// knob tables and the style code under them (about 4 kB); a generated table is proposed.
+const CEILING = 208_000
 
 clientBudget({
   name: 'design-system',

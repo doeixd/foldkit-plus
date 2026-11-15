@@ -1,11 +1,12 @@
 import { Effect } from 'effect'
 import { Calendar, Runtime } from 'foldkit'
 import { currentScheme, schemeScript } from 'foldkit-mixins/theme'
+import { themeScript } from 'foldkit-mixins/theme/runtime'
 import { href } from 'virtual:foldkit-styles'
 
 import { Message, Model, initModel, update, view } from './main.js'
 import { subscriptions } from './subscriptions.js'
-import { showKeptTheme } from './themeRuntime.js'
+import { looks, shownTheme } from './looks.js'
 
 // Page tokens, palette, reset, body defaults and every class the Styles compile
 // to, as one hashed file (`foldkit-mixins/vite`). The page loads no style
@@ -13,9 +14,9 @@ import { showKeptTheme } from './themeRuntime.js'
 // The kept theme and scheme show before the sheet loads, so a reader who chose
 // one never sees the other for a frame.
 const kept = document.createElement('script')
-kept.textContent = schemeScript()
+kept.textContent = `${schemeScript()};${themeScript(looks)}`
 document.head.append(kept)
-const theme = showKeptTheme()
+const theme = shownTheme()
 
 const sheet = document.createElement('link')
 sheet.rel = 'stylesheet'

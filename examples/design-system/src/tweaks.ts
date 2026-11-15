@@ -5,12 +5,23 @@
  * declarations without touching them.
  */
 import { Option, Schema } from 'effect'
-import { knobs, themeValues } from './themeData.js'
-import type { ThemeName } from './themeRuntime.js'
+import { knobData } from 'foldkit-mixins/theme/knob-data'
+import type { ThemeName } from './looks.js'
+import { themeValues } from './themeData.js'
 
 export const TweakName = Schema.Literals(['hue', 'density', 'radius', 'text', 'motion', 'shadow'])
 export type TweakName = typeof TweakName.Type
 export const tweakNames: ReadonlyArray<TweakName> = TweakName.literals
+
+/** The standard knob each tweak moves, for its range and the variable it writes. */
+export const tweakKnobs = {
+  hue: knobData['accent.hue'],
+  density: knobData['shape.density'],
+  radius: knobData['shape.radius'],
+  text: knobData['type.scale'],
+  motion: knobData['motion.scale'],
+  shadow: knobData['shadow.strength'],
+} as const
 
 const Tweak = Schema.Option(Schema.Number)
 
@@ -57,7 +68,7 @@ export const tweaksCss = (tweaks: Tweaks): string => {
   const declared = tweakNames.flatMap(name =>
     Option.match(tweaks[name], {
       onNone: () => [],
-      onSome: value => [`--fk-knob-${knobs[name].variable}:${value}${knobs[name].unit}`],
+      onSome: value => [`--fk-knob-${tweakKnobs[name].variable}:${value}${tweakKnobs[name].unit}`],
     }),
   )
   return declared.length === 0 ? '' : `:root{${declared.join(';')}}`

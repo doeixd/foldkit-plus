@@ -2,15 +2,6 @@
 export const themeNames = ['shadcn', 'compact', 'soft', 'hard'] as const
 export const initialTheme = 'shadcn' as const
 export const themeAttribute = 'data-theme'
-export const themeKey = 'foldkit:theme'
-export const knobs = {
-  hue: { title: 'Hue', variable: 'accent-h', unit: '', min: 0, max: 360, step: 1 },
-  density: { title: 'Density', variable: 'density', unit: '', min: 0.75, max: 1.3, step: 0.05 },
-  radius: { title: 'Radius', variable: 'radius-factor', unit: '', min: 0, max: 2.5, step: 0.05 },
-  text: { title: 'Text size', variable: 'text-scale', unit: '', min: 0.8, max: 1.3, step: 0.025 },
-  motion: { title: 'Motion', variable: 'motion', unit: '', min: 0, max: 2, step: 0.1 },
-  shadow: { title: 'Shadow', variable: 'shadow-strength', unit: '%', min: 0, max: 100, step: 1 },
-} as const
 export const themeValues = {
   shadcn: { hue: 235, density: 1.1, radius: 0.45, text: 1.025, motion: 0.5, shadow: 100 },
   compact: { hue: 235, density: 0.85, radius: 0.3, text: 1.025, motion: 0.5, shadow: 60 },

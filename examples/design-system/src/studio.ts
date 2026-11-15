@@ -9,9 +9,16 @@ import { SlotView } from 'foldkit-mixins'
 import { Button, Segmented, Slider } from 'foldkit-mixins-ui'
 import { GhostButtonStyle, PlanStyle, SliderStyle, StudioStyle } from './style.js'
 import { StudioSlots } from './slots.js'
-import { knobs, themeNames } from './themeData.js'
-import type { ThemeName } from './themeRuntime.js'
-import { hasTweaks, tweakNames, valueOf, type TweakName, type Tweaks } from './tweaks.js'
+import type { ThemeName } from './looks.js'
+import { themeNames } from './themeData.js'
+import {
+  hasTweaks,
+  tweakKnobs,
+  tweakNames,
+  valueOf,
+  type TweakName,
+  type Tweaks,
+} from './tweaks.js'
 
 export type Scheme = 'system' | 'light' | 'dark'
 export type Direction = 'ltr' | 'rtl'
@@ -76,12 +83,12 @@ export const studioPanel = <Message>(
         Slider.view(
           {
             id: `tweak-${name}`,
-            label: knobs[name].title,
+            label: tweakKnobs[name].title,
             value: valueOf(state.theme, state.tweaks, name),
-            min: knobs[name].min,
-            max: knobs[name].max,
-            step: knobs[name].step,
-            format: value => `${value}${knobs[name].unit}`,
+            min: tweakKnobs[name].min,
+            max: tweakKnobs[name].max,
+            step: tweakKnobs[name].step,
+            format: value => `${value}${tweakKnobs[name].unit}`,
             showValue: true,
             onChange: value => on.tweak(name, value),
             style: SliderStyle,

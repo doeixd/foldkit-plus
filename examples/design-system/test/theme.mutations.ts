@@ -44,7 +44,7 @@ export default [
       {
         file: '../src/tweaks.ts',
         find: '      onNone: () => [],',
-        replace: '      onNone: () => [`--fk-knob-${knobs[name].variable}:0`],',
+        replace: '      onNone: () => [`--fk-knob-${tweakKnobs[name].variable}:0`],',
       },
     ],
     tests: unit,
