@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-richtext-dom`: `richTextInput(hostId, placement, { codec })` takes a codec (`value`, `fill`, and an optional `blank` value for a blank document), so a form key can hold another type, such as Markdown text, while the editor holds a Document. A blank document is never passed to `value`; a `fill` that throws fails the form's `fill`.
+- `foldkit-richtext-dom`: an editor placement takes `label` (`aria-label`) or `labelledBy` (`aria-labelledby`), not both, naming the `role="textbox"` root, in server markup too. Without either, an editor drawn in a labelled `role="group"` (the group `foldkit-mixins-form` draws around a control) takes the group's label, and a click on that label focuses the editor.
+- `foldkit-mixins-richtext`: `formattingToolbar`, the standard formatting bar: one tab stop with arrow, Home and End keys, undo and redo (availability from the caller), the text style menu, marks, link, lists, quote and an insert menu, with pressed state and `aria-disabled` unavailable controls. `items` may hold the application's own `{ control }` (message, pressed, disabled, an optional popup) and `{ low: item }` controls that are not drawn when `compact`; `inserts` is one ordered list of `InsertEntry.Editor` and `InsertEntry.App` entries; `returned` is what Escape sends to go back to the text. The application keeps the open menu, the tab stop and the width signal.
 - `foldkit-mixins`: a page built with `foldkit-mixins/vite`'s `modules`, which ships no style compiler, can
   switch, keep and follow a named theme. `foldkit-mixins/theme/runtime` exports `applyTheme`, `chooseTheme`,
   `themeScript`, `themeChanges`, `THEME_KEY` and `ThemeNames` (names, initial, attribute); `Themes.apply`,
@@ -773,6 +776,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-cms`: `Cms.bySlug` takes a `ContentReader` (`name`, `entity`, `roles`; a `Content` is one), so a public site can find content by address without importing its form.
 - `foldkit-mixins`: **Breaking:** composing a conditional rule (media, pseudo, nest, container,
   supports, `states`, or a rule inside `whenInput`) beside an inline declaration of the same
   property, or a shorthand and its longhand, throws `mixins:dead-conditional-rule`: an inline
@@ -1017,6 +1021,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-richtext-dom`: a content redraw (another person's edit, an undo from a toolbar) restored the editor's selection while focus was on a control beside it, which pulled the focus into the text. The editor now owns the selection only while the focus is not on another control, one rule for content and decoration redraws.
 - `foldkit-mixins-data-grid`: on a touch screen the header's funnel and menu buttons were 24px high. Each now reaches
   the touch floor across the row (a pseudo-element, so the header keeps its height) and the funnel 12px into
   its label's side; the menu button keeps its width, since the column's resize handle covers the edge beside it.
