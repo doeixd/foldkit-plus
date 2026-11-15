@@ -881,8 +881,11 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     redecorate: () => {
       if (composing) return
       const selection = readSelection(current)
+      // A selection kept in the editor while focus is on a control beside it is not the user's
+      // to put back: restoring it would pull the focus into the text.
+      const focused = current.root.contains(current.root.ownerDocument.activeElement)
       redraw(patchInto(current, current.content, unchanged, options.decorate?.(current.content)))
-      if (selection !== null) restoreSelection(current, selection)
+      if (selection !== null && focused) restoreSelection(current, selection)
     },
     focus: selection => {
       current.root.focus({ preventScroll: true })

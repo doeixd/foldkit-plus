@@ -983,6 +983,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-richtext-dom`: a decoration refresh (`overlay`, `redecorateEditor`) put the editor's selection
+  back even while focus was on a control beside it, which pulled the focus into the text a moment after
+  the user tabbed to a toolbar button. It restores the selection only while the editor holds the focus.
 - `foldkit-mixins-data-grid`: a mouse click on a column's filter funnel left its form open for about 25 ms.
   Foldkit's Vite plugin brands each node with the function that returned it and the differ replaces a node
   whose brand changed; the funnel (and the column menu's button) came from one arrow while the form was shut
