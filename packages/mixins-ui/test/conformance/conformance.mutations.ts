@@ -583,13 +583,7 @@ export default [
   },
   {
     name: 'a dialog does not give focus back',
-    edits: [
-      edit(
-        focusScope,
-        'if (restore && previous instanceof HTMLElement',
-        'if (false && previous instanceof HTMLElement',
-      ),
-    ],
+    edits: [edit(focusScope, 'if (!restore || backToOpener(way)) return', 'return')],
     tests: dialog,
   },
   {

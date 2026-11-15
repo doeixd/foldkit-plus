@@ -30,6 +30,7 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `Move` | nothing (a Mount) | pointer drag deltas |
 | `Targets` | nothing (a Mount) | which marked descendant is hovered or pressed |
 | `PointerDrag` | nothing (a Mount) | dragging one marked descendant onto another |
+| `Marquee` | nothing (a Mount) | a lasso over the marked descendants, from a press on empty space |
 | `Reorder` | `{ held, over }`; out `Moved`, `PickedUp`, `PassedOver`, `PutBack` | moving an item in a list or tree, by keys and by pointer |
 | `EditableText` | nothing (a Mount) | text typed into a `contenteditable` field |
 | `FocusVisible` | `InputModality`'s `{ modality }` | a focus ring for keyboard users only |
@@ -359,7 +360,11 @@ attaches it to a container slot. On insert the container focuses
 (default), Tab from the last tabbable wraps to the first, Shift+Tab from the
 first wraps to the last, and focus that lands outside comes straight back; Tab
 in the middle is the browser's. On unmount, with `restore` (default), focus
-returns to the element that had it, if it is still in the document. A native
+returns to the element that had it; when that is gone (removed by the action
+the overlay was opened for, or drawn again) and focus went with the scope, it
+goes by the rules of [`FocusReturn`](../dom/README.md): an element with the
+same `id`, the opener's `FocusRecovery` steps, the layer below, the page's
+first tabbable element. Focus the user moved elsewhere stays. A native
 `<dialog>` does all of this itself; this is for a custom overlay, a menu, or a
 command palette.
 
@@ -616,7 +621,9 @@ is over and in which third of its box, `{ id, zone: 'before' | 'inside' |
 cancelled pointer, or a button found released mid-drag is
 `DragCancelled { id }`. An Escape that cancels is heard on the way down and
 goes no further, so the focused element's own Escape (a canvas's deselect)
-does not also run. It follows the pointer that pressed and ignores a second
+does not also run; one pressed before the press became a drag ends the press
+and goes on to the page (a dialog closing on it), as it does for `Marquee`
+before the lasso starts. It follows the pointer that pressed and ignores a second
 one; the element under it is found by position, so a touch or a pen, which the
 browser captures to where it went down, drags too, once the marked elements
 have `touch-action: none` so a finger drags rather than scrolls. The click a
@@ -647,6 +654,173 @@ an element marked by both `attribute` (or `targets.attribute`) and `part` is
 reported as `{ id, zone: 'inside', part }`, whatever third of it the pointer
 is in. An editor draws a node's empty Region that way, so a drop can name the
 Region it goes into.
+
+**Edge scrolling.** A list longer than its box cannot be dragged past the
+visible rows unless something scrolls it. `edgeScroll: {}` (or `{ edge, speed }`)
+on `PointerDrag`, and on `Marquee`, scrolls the nearest ancestor that can scroll
+the way the pointer pulls, on a frame clock, while the press is held in its
+last `edge` pixels (default 40, at most a third of the box) at up to `speed`
+pixels a second (default 600), less the nearer the strip's inner side. A box
+at its end hands over to the next ancestor and then the page. Only a box the
+pointer is over (within its span across) is pulled, nothing above a
+`position: fixed` box is, and the page is not while it or its body has
+`overflow: hidden` or `clip` (a scroll lock's, under a modal). After every step
+the place under the still pointer is reported again (`DraggedOver`), so the
+list moving is a place changing. Each step is `scrollTo` with `behavior:
+'instant'`, so a page's own `scroll-behavior: smooth` does not glide it; under
+`prefers-reduced-motion: reduce` the scroll moves in jumps every 150ms by what
+the same time would have moved it, not in a glide. The frame loop runs only
+while something scrolls, and ends with the drag, a cancel, or the Mount. The
+scrolling code is loaded when a Mount that asks for it starts, so a page whose
+drags never scroll does not carry it.
+`PointerDrag` scrolls nothing unless asked; `Reorder` asks for it itself
+(`edgeScroll: false` turns it off).
+
+## `Marquee`: a lasso over marked items
+
+`PointerDrag` starts only from a marked element, so a press on a canvas's empty
+space is nobody's. `Marquee` is that press: it is a Mount beside `PointerDrag`
+on the same container (`Behavior.attach` both; a press on a marked descendant
+is the drag's, a press on anything else is the lasso's). It owns no state and
+draws nothing. A primary press on empty space that moves `DRAG_THRESHOLD`
+starts `MarqueeStarted { additive }` (`additive` when Shift, Ctrl or Meta was
+held), then `MarqueeChanged { rect, ids, additive }` as the pointer moves or
+`edgeScroll` scrolls the container under it, then `MarqueeEnded` with the same fields, or
+`MarqueeCancelled` on Escape or a cancelled pointer. `rect` is `{ x, y, width,
+height }` in the container's content coordinates (its padding box's top left,
+scrolled with it, and clipped to what the container holds), so a view draws the
+band in a Slot of its own at `left: x; top: y`, and `ids` are the marked
+descendants the rectangle overlaps, in document order. A press is not empty
+space when it is on a marked descendant, a link, button, field, label,
+`summary` or editable text, or on the container's own scrollbar, and a finger
+never starts one (it scrolls). The click a lasso ends with is swallowed, as a
+drop's is. The container must be a box (not `display: contents`). Each change
+measures every marked descendant (a `querySelectorAll` and a box each), so a
+container of thousands draws only the rows that show, or marks fewer.
+
+It selects nothing. The ids are for `update` to hand to `Selection`, whose
+`replace(ids)` helper sets the selection, so there is one way to select;
+`Marquee.selected(before, fact)` is the pure combination, the ids alone, or
+after `before` when the press was additive:
+
+```ts standalone
+import { Match, Option, Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { Bundle } from 'foldkit-bundle'
+import { Behavior, Behaviors, Capability, Slot, SlotView, Slots } from 'foldkit-mixins'
+import { Marquee, PointerDrag, Selection } from 'foldkit-primitives/interaction'
+
+const Picks = Bundle.declare(Selection.bundle, 'picks')
+const Model = Schema.Struct({
+  ...Picks.fields,
+  ids: Schema.Array(Schema.String),
+  // What was selected when the press began, for an additive lasso and for Escape.
+  before: Schema.Array(Schema.String),
+  band: Schema.OptionFromNullOr(Marquee.MarqueeRect),
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ...Picks.cases,
+  LassoStarted: {},
+  LassoChanged: {
+    rect: Marquee.MarqueeRect,
+    ids: Schema.Array(Schema.String),
+    additive: Schema.Boolean,
+  },
+  LassoEnded: {},
+  LassoCancelled: {},
+})
+type Message = typeof Message.Type
+
+const pickArgs = { mode: 'multiple', allowEmpty: true } as const
+const Parent = Bundle.parent({ Model, Message })
+const Picked = Parent.at(Picks, { args: pickArgs })
+const assembly = Parent.assemble(Picked)
+
+const update = assembly.update((model, message) =>
+  Match.valueTags(message, {
+    LassoStarted: () => ({
+      model: modifyFields(model, { before: () => model.picks.selected }),
+    }),
+    LassoChanged: ({ rect, ids, additive }) =>
+      Picked.helpers.replace(Marquee.selected(model.before, { ids, additive }))(
+        modifyFields(model, { band: () => Option.some(rect) }),
+      ),
+    LassoEnded: () => ({ model: modifyFields(model, { band: () => Option.none() }) }),
+    LassoCancelled: () =>
+      Picked.helpers.replace(model.before)(
+        modifyFields(model, { band: () => Option.none() }),
+      ),
+  }),
+)
+
+const CanvasSlots = Slots.define({
+  canvas: Slot.make({ capability: Capability.Container }),
+  node: Slot.make({ capability: Capability.Interactive }),
+  band: Slot.make({ capability: Capability.Base }),
+})
+const Canvas = SlotView.over(CanvasSlots)<Model, Message>()
+const items = (model: Model) => Behaviors.Collection.of(model.ids, { id: id => id })
+
+const view = Canvas.define((model, slots, h: HtmlBuilder<Message>) =>
+  h.div(
+    slots.canvas.attrs([h.Style({ position: 'relative', height: '240px' })]),
+    [
+      ...model.ids.map((id, index) =>
+        h.div(slots.node.attrs([h.Key(id), h.DataAttribute('node', id)], { index, id }), [id]),
+      ),
+      ...Option.match(model.band, {
+        onNone: () => [],
+        onSome: rect => [
+          h.div(
+            slots.band.attrs([
+              h.Style({
+                position: 'absolute',
+                left: `${rect.x}px`,
+                top: `${rect.y}px`,
+                width: `${rect.width}px`,
+                height: `${rect.height}px`,
+                'pointer-events': 'none',
+              }),
+            ]),
+            [],
+          ),
+        ],
+      }),
+    ],
+  ),
+).pipe(
+  Behavior.attach(
+    Marquee.behavior(Canvas)({
+      container: 'canvas',
+      attribute: 'data-node',
+      edgeScroll: {},
+      toMessage: fact =>
+        Match.valueTags(fact, {
+          MarqueeStarted: () => Message.LassoStarted(),
+          MarqueeChanged: ({ rect, ids, additive }) =>
+            Message.LassoChanged({ rect, ids, additive }),
+          MarqueeEnded: () => Message.LassoEnded(),
+          MarqueeCancelled: () => Message.LassoCancelled(),
+        }),
+    }),
+  ),
+  Behavior.attach(
+    Selection.behavior(Picks, pickArgs)(Canvas)({ container: 'canvas', item: 'node', items }),
+  ),
+)
+void update
+void view
+```
+
+Nodes are dragged by `PointerDrag` on the same container and keep their own
+click through `Selection`. The keyboard's way to select more than one is not a
+lasso: it is Shift-extending from the roving item (`Selection`'s `Ranged`,
+fed by `Press`'s `Pressed { shiftKey }`) or `replace(ids)` from a "select all"
+chord the parent routes. A lasso is a pointer gesture only, as a drag is
+without `Reorder`.
 
 ## `Reorder`: moving an item by keys and by pointer
 

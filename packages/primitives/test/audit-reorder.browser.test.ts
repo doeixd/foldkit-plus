@@ -1,13 +1,14 @@
 /**
  * Audit of #558 item 3 against `PointerDrag` in a real page: what a drag
- * reports, and what it does not (edge scrolling, a key path, announcements, a
- * press on empty space). A test named "today" pins current behaviour that a
+ * reports, and what it does not (a key path, announcements; edge scrolling and
+ * a press on empty space are `edgeScroll` and `Marquee`). A test named "today" pins current behaviour that a
  * finding in `docs/design/558-audit-FINDINGS.md` calls a gap; the fix
  * changes the assertion, not the scenario.
  */
 import { Effect, Fiber, Stream } from 'effect'
 import { liveViewStateChanges } from 'foldkit/mount'
 import { afterEach, expect, it } from 'vitest'
+import { Marquee, type MarqueeFact } from '../src/dom/marquee.js'
 import { type DragFact, PointerDrag } from '../src/dom/pointer-drag.js'
 
 afterEach(() => {
@@ -38,6 +39,7 @@ const drive = (
   options: {
     readonly attribute: string
     readonly targets?: { readonly attribute: string; readonly within: string }
+    readonly edgeScroll?: {}
   },
 ) => {
   const facts: Array<DragFact> = []
@@ -69,9 +71,9 @@ const scrollingList = () => {
   return { box, list }
 }
 
-it('does not scroll the list while a drag is held at its edge (today: no edge scrolling)', async () => {
+it('scrolls the list while a drag is held at its edge, with `edgeScroll`', async () => {
   const { box, list } = scrollingList()
-  const run = drive(list, { attribute: 'data-row' })
+  const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
   try {
     await later(20)
     pointer(under(10, 15), 'pointerdown', 10, 15)
@@ -80,7 +82,7 @@ it('does not scroll the list while a drag is held at its edge (today: no edge sc
     pointer(under(10, 98), 'pointermove', 10, 98)
     await later(500)
     expect(run.facts.map(fact => fact._tag)).toContain('DragStarted')
-    expect(box.scrollTop).toBe(0)
+    expect(box.scrollTop).toBeGreaterThan(100)
     pointer(under(10, 98), 'pointerup', 10, 98)
   } finally {
     await run.stop()
@@ -184,7 +186,7 @@ it('moves a row to another list through `targets`, reporting its empty space as 
   }
 })
 
-it('starts no drag from a press on empty space (today: nothing a lasso could ride)', async () => {
+it('starts no drag from a press on empty space: the lasso is `Marquee`, on the same container', async () => {
   const { list } = scrollingList()
   const canvas = document.createElement('div')
   canvas.style.cssText = 'position:absolute;left:300px;top:0;width:200px;height:200px'
@@ -192,6 +194,12 @@ it('starts no drag from a press on empty space (today: nothing a lasso could rid
   document.body.append(canvas)
   void list
   const run = drive(canvas, { attribute: 'data-node' })
+  const lassos: Array<MarqueeFact> = []
+  const fiber = Effect.runFork(
+    Stream.runForEach(Marquee({ attribute: 'data-node' }).f(canvas, liveViewStateChanges), fact =>
+      Effect.sync(() => void lassos.push(fact)),
+    ),
+  )
   try {
     await later(20)
     pointer(under(320, 20), 'pointerdown', 320, 20)
@@ -199,7 +207,19 @@ it('starts no drag from a press on empty space (today: nothing a lasso could rid
     pointer(under(400, 100), 'pointerup', 400, 100)
     await later(20)
     expect(run.facts).toEqual([])
+    expect(lassos.at(-1)).toMatchObject({
+      _tag: 'MarqueeEnded',
+      rect: { x: 20, y: 20, width: 80, height: 80 },
+      ids: [],
+    })
+    // The same press that reaches the corner node's box lassos it.
+    pointer(under(320, 20), 'pointerdown', 320, 20)
+    pointer(under(470, 170), 'pointermove', 470, 170)
+    pointer(under(470, 170), 'pointerup', 470, 170)
+    await later(20)
+    expect(lassos.at(-1)).toMatchObject({ _tag: 'MarqueeEnded', ids: ['n'] })
   } finally {
+    await Effect.runPromise(Fiber.interrupt(fiber))
     await run.stop()
   }
 })

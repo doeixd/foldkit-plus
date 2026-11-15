@@ -9,6 +9,59 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-site`, `foldkit-ssr`: route code from the Site tree (#438). A page placed with
+  `Site.placement` from a `Bundle.lazy` carries it as `page.code`, and `Site.routing`
+  returns `codeFor(route)`, the code of every page of its `pages` on a route's chain,
+  typed by the tree's routes. `SSR.entry`, `SSR.render` and `SSR.hydrate` take `lazy` as
+  a function of the Model (`model => Routing.codeFor(model.route)`): the server asks it
+  with the Model the page is drawn from, after `prepare`, running `init` once; the
+  browser with the resumed Model; so a page loads no other route's code. The two must
+  name the same bundles, or the render fails with `ResumeUnsafe`
+  `LazyDependsOnUnsentState`. `Site.routing` returns `boot(model)`, the Model's route
+  told to its pages as an arrival, for an `init` with no server render. A `preload`
+  given `code: fetchCode` (a top-level export, so a site with no lazy page keeps none of
+  it, and required with a lazy page) fetches a pointed-at route's unloaded code beside
+  its read, once (`Site.LoadCode`, which completes with `completed` whether the chunk
+  loads or not). `examples/auth` gains `/account`, a lazy page, with a build test and an
+  e2e test counting one chunk request on hover.
+
+- `foldkit-mixins-ui`: `Anchor.inheritRegion(mount)`, and the `Anchor` Mount itself, give a
+  panel the anchor relocates to the portal root the custom properties its region set (a
+  region set compact, a density), unless the panel sets them itself (judged by a copy of
+  the panel put back where it was drawn, so a value equal to the document's still counts,
+  and a property registered not to inherit is not carried). Menu, Listbox and
+  Combobox wrap their upstream anchor Mounts with it, so a region reaches a portaled panel
+  as it reaches an in-place one. A Popover or Tooltip with `portal: true` is not
+  covered (audit O3, #558).
+- `foldkit-primitives`: edge scrolling while dragging and a lasso on empty space (audit
+  R1 and R6, #558). `edgeScroll: {}` (or `{ edge, speed }`) on `PointerDrag` (the Mount and
+  its Behavior) scrolls the nearest scrolling ancestor, then the page, while a drag is held
+  near its edge, in instant steps (jumps every 150ms under reduced motion), and reports the
+  place under the still pointer after each; `Reorder.behavior` turns it on itself
+  (`edgeScroll: false` opts out). `Marquee` (`foldkit-primitives/interaction`, Mount in
+  `/dom`) reports `MarqueeStarted`, `MarqueeChanged { rect, ids, additive }`,
+  `MarqueeEnded` and `MarqueeCancelled` for a press on empty space, beside `PointerDrag`
+  on one container; `Marquee.selected(before, fact)` combines the ids with a selection
+  that `Selection`'s `replace` sets.
+- `foldkit-remote`: `policies` on `Data.wiring`, a policy per active entry by its
+  key, so two Surfaces active on one route read under two policies; an entry it
+  does not name reads under `policy`. A key the active record lacks is a type
+  error, and refused where given for a record typed by `string`. A list two
+  entries read is held stale once left unless both policies age it.
+  `RemoteWiring`'s `subscriptions` is no longer optional, and is named by the active
+  record's keys (`wiring.subscriptions['grid.read']`, no `!`; a key no entry is active
+  under is a type error) (#236).
+- `foldkit-primitives`: `FocusReturn()`, a Mount (`foldkit-primitives/dom`) that gives an
+  overlay whose own restoring is not ours a way back when its opener is gone as it closes,
+  and `Dialog.focusReturn` in `foldkit-mixins-ui` attaching it to the panel. Focus goes to an
+  element with the opener's `id`, the opener's `FocusRecovery` steps for its slot, the layer
+  below (`LayerStack.below`), then the page's first tabbable element, and is left alone
+  when the user moved it (audit O2, #558).
+- `foldkit-surface`: a `Derived` as an entry of `Projection.struct`. `Projection.derive(on,
+  derive, { Model })`, given the Schema of its value, returns a `ModeledDerived`: the
+  struct reads its memoized value, declares its paths, plans nothing for it and
+  checks the value against `Model`. A Derived without `Model` is a type error there,
+  and throws if the type is bypassed.
 - `foldkit-remote-domain`: lists and `one` relations. `DomainRemote.query(Query,
   Api, 'PagedQuery', { input, id })` binds a Remote query to a paged Domain
   Query, given to `DomainRemote.layer` as `queries`: the Query decides what is
@@ -464,6 +517,24 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-site`: a `Bundle.lazy` page's `changed` is required and returns a Message (a
+  type error otherwise, and refused by `Site.placement` at run time), since a page whose
+  arrival says nothing draws its placeholder for good. `Site.sources` and
+  `Site.sourcesFor` return `SiteSources`, an entry per tag of a node with a Surface,
+  instead of `Record<string, …>`: a node, a mount and a tree carry those tags in their
+  types (`SiteNode`'s, `SiteMount`'s and `SiteTree`'s second parameter), so the keys
+  survive a spread beside the application's own entries, `Data.wiring`'s `policies` can
+  name them, and a tag of no surfaced node is a type error.
+
+- `foldkit-primitives`: `Reorder.behavior`'s pointer drag scrolls the list, then the page,
+  while held near an edge (`edgeScroll` on by default; `edgeScroll: false` keeps the old
+  behaviour). It pulls only a box the pointer is over, nothing above a `position: fixed`
+  box, and not a page held by a scroll lock (`overflow: hidden` on the root or body).
+- `foldkit-primitives`: `FocusScope`'s restore, with the element that had focus gone and
+  focus lost with the scope (on `body`, or inside it), goes by the rules of `FocusReturn`
+  instead of leaving focus on `body`. Focus the user moved elsewhere is left alone, a
+  scope opened with focus on nothing gives nothing back, and the element that had focus
+  is still `activeElement` at mount. Focus returns to an opener without scrolling the page.
 - **Breaking:** `foldkit-crud`: `Crud.list`'s `live` takes Remote's live read,
   not a flag: write `live: liveQuery` (from `foldkit-remote/live`) where
   `live: true` was. Crud imported `liveQuery` itself for the flag, so every

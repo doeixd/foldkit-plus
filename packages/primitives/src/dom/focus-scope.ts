@@ -1,13 +1,10 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { FOCUSABLE, isVisible } from './focusable.js'
+import { activeOutside, backToOpener, fallBack, lostIn, returnOf } from './focus-way.js'
+import { tabbableWithin } from './focusable.js'
 import * as LayerStack from './layer-stack.js'
 
-/** Tabbable descendants in DOM order: focusable, visible, and not `tabindex="-1"`. */
-export const tabbableWithin = (root: Element): ReadonlyArray<HTMLElement> =>
-  Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    element => element.tabIndex >= 0 && isVisible(element),
-  )
+export { tabbableWithin }
 
 const focusFirst = (elements: ReadonlyArray<HTMLElement>): boolean => {
   const first = elements[0]
@@ -19,7 +16,9 @@ const focusFirst = (elements: ReadonlyArray<HTMLElement>): boolean => {
 /**
  * A focus scope as a Mount: on insert it remembers what was focused, focuses
  * an initial element inside, and with `contain` keeps Tab and Shift+Tab
- * cycling inside; on unmount it gives focus back. It is a layer of the
+ * cycling inside; on unmount it gives focus back to what had it, or, when that
+ * is gone and focus is lost with the scope, where `fallBack` finds a place. It
+ * is a layer of the
  * document's stack while mounted, and a scope with a layer opened after it
  * still open contains nothing: the topmost layer owns containment, so a
  * dialog drawn beside this one, as a portaled one is, keeps its focus.
@@ -43,7 +42,8 @@ export const FocusScope = Mount.defineStream('FocusScope', {
       Effect.acquireRelease(
         Effect.sync(() => {
           const ownerDocument = element.ownerDocument
-          const previous = ownerDocument.activeElement
+          // Focus is still where it was: this Mount is what moves it inside.
+          const way = returnOf(activeOutside(element))
           const release = LayerStack.open(element)
           const focusInitial = () => {
             const initial =
@@ -91,19 +91,21 @@ export const FocusScope = Mount.defineStream('FocusScope', {
             element.addEventListener('keydown', onKeyDown)
             ownerDocument.addEventListener('focusin', onFocusIn)
           }
-          return { previous, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }
+          return { way, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }
         }),
-        ({ previous, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }) =>
+        ({ way, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }) =>
           Effect.sync(() => {
             stopWaiting()
+            const below = LayerStack.below(element)
             release()
             if (contain) {
               element.removeEventListener('keydown', onKeyDown)
               ownerDocument.removeEventListener('focusin', onFocusIn)
             }
-            if (restore && previous instanceof HTMLElement && ownerDocument.contains(previous)) {
-              previous.focus()
-            }
+            if (!restore || backToOpener(way)) return
+            // An opener that is gone is replaced only while focus is lost: focus the user moved
+            // on stays, and a scope opened with focus on nothing has nothing to give back.
+            if (way.opener !== undefined && lostIn(element)) fallBack(element, way, below)
           }),
       ),
     ),

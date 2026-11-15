@@ -16,16 +16,16 @@ from a name in UI SDK's index; each gap is a behaviour a test observed.
 
 | # | Behaviour | Verdict | Severity | Fixed by |
 | --- | --- | --- | --- | --- |
-| R1 | Edge scrolling during a drag | missing | medium | U-WP13 (new) |
+| R1 | Edge scrolling during a drag | built (U-WP13, `edgeScroll`) | medium | U-WP13 |
 | R2 | A key path for a drag | built (U-WP12, `Reorder`) | high | U-WP12 |
 | R3 | Announcements for a drag | built (U-WP12, `Reorder.announcement`) | medium | U-WP12 |
 | R4 | A drop over a descendant of what is dragged | present, unguarded | low | U-WP12 (the parent's guard in its `update`, `Reorder.movesIntoItself`; the held row's own rows lose their mark) |
 | R5 | Cross-list transfer | present | none | none |
-| R6 | A press on empty space starts a selection | missing | low | U-WP13 (new) |
+| R6 | A press on empty space starts a selection | built (U-WP13, `Marquee`) | low | U-WP13 |
 | R7 | A drop after the list scrolled under the pointer | present | none | none |
 | O1 | Nested modal dialogs: Escape and focus return | present | none | none |
-| O2 | A trigger removed while its dialog is open | wrong | medium | U-WP14 (new) |
-| O3 | A portaled panel inherits a region's custom properties | wrong | medium | U-WP14 (new) |
+| O2 | A trigger removed while its dialog is open | built (U-WP14, `FocusReturn`, `Dialog.focusReturn`) | medium | U-WP14 |
+| O3 | A portaled panel inherits a region's custom properties | built for Menu, Listbox, Combobox and the Anchor Mount (U-WP14, `Anchor.inheritRegion`); a Popover or Tooltip with `portal: true` is not | medium | U-WP14 |
 | V1 | Focus in a virtual row that scrolls out | by design, undocumented | low | U-WP10 (guide), D12's recipe |
 | V2 | Shift range over a virtual list | present, caller-fed | low | U-WP10 (guide) |
 | V3 | `GridNavigation` against a wrapped layout | missing (spatial) | low | not built, see below |
@@ -39,7 +39,9 @@ box of twenty marked rows, a tree of nested marked nodes, two lists joined by
 `targets`, and a canvas of absolutely placed nodes, driven with `PointerEvent`
 dispatched at the element under each point (as a real pointer's target is).
 
-**R1. Edge scrolling: missing.** A drag held 2px from the bottom of a 100px
+**R1. Edge scrolling: built (U-WP13).** The finding below is what was observed before it; `edgeScroll` on `PointerDrag` (and `Marquee`; on by default in `Reorder`) is the fix, and the test, renamed "scrolls the list while a drag is held at its edge, with `edgeScroll`", now asserts the scroll. `edgeScroll.browser.test.ts` holds the rest (both edges, depth, the end of a list, hand-over to the page, smooth-scrolling pages, reduced motion, release and stop).
+
+**R1 as observed.** A drag held 2px from the bottom of a 100px
 box for 500ms started (`DragStarted`) and reported its place, and the box's
 `scrollTop` stayed 0. `PointerDrag` has no scrolling code. A list longer than
 its box cannot be reordered past the visible rows by pointer unless the
@@ -90,7 +92,9 @@ under the pointer with `region: true`, and released over `to`'s empty space
 reported `over: null, region: true`. Test: "moves a row to another list
 through `targets`, reporting its empty space as the region".
 
-**R6. A press on empty space: missing.** A press on a canvas's empty area,
+**R6. A press on empty space: built (U-WP13).** `Marquee`, a Mount beside `PointerDrag` rather than an option of it (one more fact in `DragFact` would reach every `Reorder` and builder match), reports the rectangle in container coordinates and the marked ids it touches. The audit's scenario now runs both Mounts on the canvas: `PointerDrag` reports nothing, `Marquee` the lasso (`marquee.browser.test.ts` holds the geometry).
+
+**R6 as observed.** A press on a canvas's empty area,
 moved 100px, produced no fact: `PointerDrag` starts only from a marked
 element. A marquee (lasso) selection has nothing to ride on. Test: "starts no
 drag from a press on empty space (today: nothing a lasso could ride)". No
@@ -122,7 +126,7 @@ the outer, a second Escape closes the outer and focus returns to its opener.
 Test: "Escape closes the inner dialog only, and focus returns to each opener in
 turn".
 
-**O2. A removed trigger: wrong.** With the outer dialog open, the view stopped
+**O2. A removed trigger: built (U-WP14).** Fixed as below; the original finding: With the outer dialog open, the view stopped
 drawing its trigger; closing the dialog left `document.activeElement` on
 `<body>`. The user's place in the page is lost, and a keyboard or screen
 reader user starts again from the top. Test: "a trigger removed while its
@@ -133,7 +137,7 @@ as D9 (`same`, `next`, `previous`, `parent`, `owner`), applied to the
 dialog's opener instead of a roving row. U-WP5 builds `FocusRecovery` for
 roving stops; its use for an overlay's opener is a new package, U-WP14.
 
-**O3. Portaled theme inheritance: wrong.** A custom property set on a region
+**O3. Portaled theme inheritance: built (U-WP14).** Fixed as below, for what this package can wrap; the original finding: A custom property set on a region
 that holds the Popover's trigger reached the panel with the default anchor
 (the panel stays under the region), and did not with `portal: true`: the panel
 moved to the document and read `''`. This is the trap CLAUDE.md records for
@@ -144,6 +148,34 @@ property no longer reaches it (today)". Severity medium for an application
 that scopes a theme to a region. Fix: the portal's root takes the owner's
 resolved custom properties, or the Style adds the region's scope to the
 panel's slot; U-WP14.
+
+What was built. O2: `FocusReturn()` (a Mount, `foldkit-primitives/dom`) and
+`Dialog.focusReturn` (the mixin that attaches it to the panel; upstream's
+Dialog returns to its opener and to `body` with none) go by one rule when the
+opener is gone: an element with its `id`, the opener's `FocusRecovery` steps
+for its slot (read from the owner's registered fallback, with the neighbours
+seen when the overlay opened), the layer below (`LayerStack.below`), the page's
+first tabbable element; `FocusScope`'s restore uses the same. Tests: the
+audit's `dialog-nesting` scenarios (the "today" test is now the control without
+the mixin, and three more with it) and `focus-return.browser.test.ts`. O3: a
+portaled panel is given the custom properties its region set, written inline
+on it once relocated, when they differ from what it inherits there and the
+panel would take the region's value where it was drawn (a copy of the panel,
+put back in its old place for the read, says so: comparing values took a
+panel's own `--fk-knob-step: 0` for an inherited one wherever the document's
+value was also 0, and carried a property registered not to inherit). The
+names are read from the document's sheets and the inline styles above the
+panel, not from a computed style, which not every engine lists custom
+properties of (`Anchor.inheritRegion` around upstream's Menu,
+Listbox and Combobox anchor Mounts, and inside the `Anchor` Mount; a MutationObserver
+set in the Mount's own acquire sees the move). The copy is made when the panel
+leaves, not kept in step with the region afterwards. A Popover with
+`portal: true` is not fixed: its anchor is upstream's Mount inside an opaque
+bundle that this package cannot wrap, and its `layer` Mount runs after the
+panel's, too late to see the move; the Popover draws in place (`anchor()`'s
+default), which the top layer already lifts out of every stacking context, and
+the audit test pins the portaled case as unsupported. Tests:
+`popupRegion.browser.test.ts`, `popupLadder.browser.test.ts`.
 
 Not audited, said plainly: `DismissLayer` in a runtime with portaled layers.
 It orders layers by DOM order at the event, so a portaled child that lands
@@ -216,8 +248,8 @@ are the existing evidence and were not re-read for this audit.
 | WP | Scope | Size |
 | --- | --- | --- |
 | U-WP12 (existing) | `Reorder`: R2, R3, the descendant guard of R4; `place` stays `DragPlace` | as designed |
-| U-WP13 (new) | `PointerDrag`: edge scrolling option (R1) and a marquee fact stream (R6) | medium |
-| U-WP14 (new) | Overlay restoration fallback for a removed opener (O2) and the portal's inherited custom properties (O3) | medium |
+| U-WP13 (built) | `PointerDrag`/`Marquee`/`Reorder`: the `edgeScroll` option (R1) and the `Marquee` Mount (R6) | medium |
+| U-WP14 (built) | Overlay restoration fallback for a removed opener (O2) and the portal's inherited custom properties (O3) | medium |
 | U-WP15 (new) | `MessageScroller` re-seats the end when its frame resizes (C1) | small |
 | U-WP10 (existing) | The guide: virtual-row focus recipe (V1), ranges over the whole order (V2) | docs |
 

@@ -183,6 +183,23 @@ was last given, and an empty `on` throws, since nothing could tell it to work
 the value out again. What it returns is `{ dependencies, read }`, which
 `foldkit-mixins`' `SlotView.region` takes, and a region uses the same rule.
 
+A Derived can be an entry of `Projection.struct` when it names the Schema of its
+value, `Projection.derive(on, derive, { Model: Schema.Number })`. The struct then
+reads the memoized value, declares the Derived's paths and checks the value
+against `Model` like any entry, so a Surface can show it:
+
+```ts
+const Count = Projection.derive([App.model.todos], model => model.todos.length, {
+  Model: Schema.Number,
+})
+const Board = Projection.struct({ count: Count, selected: App.model.selectedTodoId })
+```
+
+A Derived carries no metadata, so the struct plans no requirements for it,
+whatever `on` holds: a Remote read it works from is planned by the Remote read
+itself, not by the struct that shows the value. A Derived without `Model` is a
+type error in a `struct`, and throws if the type is bypassed.
+
 ### Metadata
 
 `Metadata` is [`foldkit-metadata`](../metadata/README.md), re-exported so an

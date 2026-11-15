@@ -87,6 +87,7 @@ import {
   HEAD_END_MARKER,
   HEAD_MARKER,
   tagOf,
+  lazyFor,
   type Loadable,
   type PlanSurface,
   type ResumableConfig,
@@ -618,6 +619,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'UndeclaredStartup',
     'Uncovered',
     'ViewDependsOnUnsentState',
+    'LazyDependsOnUnsentState',
     'DuplicateStaticRegion',
     'UngeneratablePath',
     'UnrestorablePart',
@@ -691,9 +693,40 @@ const unplacedKeeps = (html: string): ReadonlyArray<string> => {
   return found
 }
 
-/** Loads every lazy bundle's bodies, so the view renders whole. */
-const loadLazy = (config: { readonly lazy?: ReadonlyArray<Loadable> | undefined }) =>
-  Effect.promise(() => Promise.all((config.lazy ?? []).map(bundle => bundle.load())))
+/**
+ * Loads the lazy bundles the page draws, so the view renders whole, and
+ * returns the config the render starts from. A list loads whole; a function
+ * of the Model is asked with the Model `init` starts this page from, so the
+ * render starts from that start rather than running `init` a second time.
+ * `known` is that Model when the config already starts from it (`prepare`'s,
+ * a post's), which no render need work out again.
+ */
+const loadLazy = <Model>(
+  config: ResumableConfig<Model>,
+  options: { readonly url?: string | undefined; readonly flags?: unknown },
+  known: Option.Option<Model>,
+): Effect.Effect<ResumableConfig<Model>, RenderError> =>
+  Effect.gen(function* () {
+    const { lazy } = config
+    if (typeof lazy !== 'function') {
+      yield* Effect.promise(() => Promise.all((lazy ?? []).map(each => each.load())))
+      return config
+    }
+    if (Option.isSome(known)) {
+      yield* Effect.promise(() => Promise.all(lazy(known.value).map(each => each.load())))
+      return config
+    }
+    const started = yield* startOf(config, options)
+    yield* Effect.promise(() => Promise.all(lazy(started.model).map(each => each.load())))
+    return startingFrom(config, started) as ResumableConfig<Model>
+  })
+
+/** A lazy list by its bundles' names, in a stable order, to compare two. */
+const codeNames = (code: ReadonlyArray<Loadable>): string =>
+  code
+    .map(each => each.name)
+    .sort()
+    .join(', ')
 
 /** Foldkit's own Flags script, which a resumed page never carries. */
 const FLAGS_SCRIPT = new RegExp(
@@ -855,9 +888,11 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     readonly metaInRoot?: boolean | undefined
   },
   match: RouteMatch,
+  /** The Model `config` already starts from, when the caller has worked it out. */
+  known: Option.Option<Model> = Option.none(),
 ): Effect.Effect<Served<Model>, RenderError | ResumeUnsafe> =>
   Effect.gen(function* () {
-    yield* loadLazy(config)
+    config = yield* loadLazy(config, options, known)
     let served: ReturnType<ResumableConfig<Model>['init']> | undefined
     const regions = new Map<string, Region>()
     const duplicates = new Set<string>()
@@ -930,6 +965,17 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       return yield* new ResumeUnsafe({ reason: 'UnrestorablePart', message: resumed.failure })
     }
     const browser = resumed.success
+
+    // The browser asks `lazy` of the Model it resumes: a field it reads and
+    // the plan does not send would boot the page without bodies it draws.
+    const drawnCode = codeNames(lazyFor(config, started.model))
+    const bootedCode = codeNames(lazyFor(config, browser))
+    if (drawnCode !== bootedCode) {
+      return yield* new ResumeUnsafe({
+        reason: 'LazyDependsOnUnsentState',
+        message: `lazy names [${drawnCode}] for the Model the server draws and [${bootedCode}] for the one the browser resumes: send what it reads in the plan's state`,
+      })
+    }
 
     const eager = eagerEntries(config, plan, started.model)
     if (eager.length > 0) {
@@ -1235,15 +1281,15 @@ const reportedUnnamed = new Set<string>()
 /**
  * Reports, once per process, each handler that keeps a page from answering
  * before boot. Only a page that waits to boot is held up: one started
- * `'now'`, with no lazy bundle to load, boots before any event.
+ * `'now'`, with no lazy bundle to load for the Model it shows, boots before any event.
  */
 const reportUnnamed = <Model, Fields extends Schema.Struct.Fields>(
   config: ResumableConfig<Model>,
   plan: ResumePlan<Model, Fields>,
-  unnamed: ReadonlyArray<UnnamedHandler>,
+  { model, page: { unnamed } }: Served<Model>,
 ): Effect.Effect<void> =>
   Effect.suspend(() => {
-    if (plan.start === 'now' && (config.lazy ?? []).length === 0) return Effect.void
+    if (plan.start === 'now' && lazyFor(config, model).length === 0) return Effect.void
     const first = unnamed.filter(({ element, event }) => {
       const key = JSON.stringify([plan.id, element, event])
       if (reportedUnnamed.has(key)) return false
@@ -1314,9 +1360,8 @@ const generate = <
         },
         'path',
       ).pipe(
-        Effect.map(served => served.page),
-        Effect.tap(result => reportUnnamed(config, plan, result.unnamed)),
-        Effect.map(result => ({
+        Effect.tap(served => reportUnnamed(config, plan, served)),
+        Effect.map(({ page: result }) => ({
           path,
           file: fileOf(path),
           html: page(options.template, result, { head: options.head }),
@@ -1657,6 +1702,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
               plan,
               { buildId: options.buildId, ...start, ...styled },
               matchOf(request.url),
+              Option.map(started, ({ model }) => model),
             )
         // `headers` or `status` that throws is a defect, answered 500 and reported.
         const extra = yield* Effect.sync(() => headersOf(request, Option.some(served.model)))
@@ -1678,7 +1724,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
             ),
           )
         }
-        yield* reportUnnamed(config, plan, served.page.unnamed)
+        yield* reportUnnamed(config, plan, served)
         // No `headers` or `status` key unless given: a `Rendered` that carries
         // neither stays generatable as a static file.
         return Rendered(served.page.rendered, {
@@ -2171,6 +2217,7 @@ const handleServed = <Model, Fields extends Schema.Struct.Fields>(
         ...(options.metaInRoot === true ? { metaInRoot: true } : {}),
       },
       'full',
+      Option.some(model),
     ),
   )
 

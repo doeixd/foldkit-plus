@@ -35,7 +35,14 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // remote 52, outboxStore 13), never raised for. Then -1,425 (244,420): Crud.list's `live` takes
 // Remote's `liveQuery` from the caller, so Crud no longer keeps liveEvents, liveReads and live
 // (5.8 kB minified, `absent` below). Ceiling 245,800 + 131 - 1,425, rounded up.
-const CEILING = 244_550
+// +451 (2026-11-14, `foldkit-site` built from b7b4ccd35 and from the route-code change in
+// one tree: 244,368 against 244,819): `Site.codeFor`, the code a placed page carries and
+// its fetch on intent (#438), which every page on `Site.routing` pays (foldkit-site's
+// index 8,739 -> 9,305 minified). Ceiling raised by that, rounded up.
+// -236 on 2026-11-15 (#560 review): the Site fixes made the fetch of a route's code on intent
+// opt-in (`fetchCode`), measured -236 by that fix; the review's UI fixes add 26 (244,583 against
+// 244,609 in one tree). Ceiling lowered by the 236.
+const CEILING = 244_814
 
 clientBudget({
   name: 'chirp',

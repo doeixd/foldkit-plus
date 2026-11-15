@@ -8,7 +8,17 @@ import { Layer } from 'effect'
 import { Resource } from 'foldkit-bundle'
 import { Remote } from 'foldkit-remote'
 import { FOLDKIT_APP_ATTRIBUTE, SSR } from 'foldkit-ssr/client'
-import { AppClient, Message, Model, belief, init, plan, subscriptions, update } from './app.js'
+import {
+  AppClient,
+  Message,
+  Model,
+  belief,
+  codeOf,
+  init,
+  plan,
+  subscriptions,
+  update,
+} from './app.js'
 import { view } from './view.js'
 
 // Every page is rendered by the server, and its root is the application's own.
@@ -41,6 +51,8 @@ SSR.hydrate(
       Resource.lazy(AppClient, () => import('./authClient.js').then(chunk => chunk.layer)),
     ),
     devTools: { Message },
+    // A page served at `/account` boots once its bodies load; any other loads none.
+    lazy: codeOf,
   },
   plan,
   { buildId: import.meta.env.FOLDKIT_BUILD_ID },

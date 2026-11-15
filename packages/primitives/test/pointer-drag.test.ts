@@ -471,9 +471,11 @@ describe('PointerDrag, one pointer at a time', () => {
   it('drops Escape’s press before it is a drag, and clears a waiting swallow on any press', () =>
     withList(async ({ list, a, b, c }) => {
       let later: Event | undefined
+      let escape: Event | undefined
       const facts = await run(list, 3, () => {
         fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
-        fire(document, 'keydown', { key: 'Escape' })
+        // Not yet a drag: the Escape is the page's too (a dialog closing on it).
+        escape = fire(document, 'keydown', { key: 'Escape' })
         fire(b, 'pointermove', { clientX: 10, clientY: 45 })
         // A drop inside waits to swallow its click; a press on nothing marked comes first.
         fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
@@ -488,6 +490,7 @@ describe('PointerDrag, one pointer at a time', () => {
         DragDropped.make({ id: 'a', over: { id: 'c', zone: 'inside' } }),
       ])
       expect(later?.defaultPrevented).toBe(false)
+      expect(escape?.defaultPrevented).toBe(false)
     }))
 
   it('finds what is under a touch by its position, not its captured target', () =>

@@ -5,9 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# A newer push to a pull request makes its older run moot; main keeps every run.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -44,6 +50,7 @@ jobs:
 
   typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -66,6 +73,7 @@ jobs:
   # Sharded: alone it took over ten minutes, the slowest job by four.
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -96,6 +104,31 @@ jobs:
 
       - run: pnpm test --shard=${{ matrix.shard }}/4
 
+  # The tests that make a production build of a page or a package
+  # (`buildTests` in vitest.shared.ts). In the shards they starved the runner
+  # of memory until it lost contact with GitHub; here two at a time.
+  builds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FOLDKIT_BUILDS: '1'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: >-
+          pnpm exec vitest run --project unit --maxWorkers=2
+          test/bundle.test.ts auth/test/boot.test.ts auth/test/split.test.ts
+          scripts/test/readOnlyPage.test.ts scripts/test/publishedBuild.test.ts
+
   # PGlite's database collates by `C`, so a collation the Drizzle compiler
   # forgets to write passes every other test (expr-operations-DESIGN §17). These
   # run the conformance suite and the call orders on a Postgres in a locale; the
@@ -103,6 +136,7 @@ jobs:
   # runs here too: PGlite runs one transaction at a time.
   postgres-locale:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:18
@@ -141,6 +175,7 @@ jobs:
   # Vite, and drives a real Chromium.
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -173,6 +208,7 @@ jobs:
   # table lands in the job's summary, and a miss fails the job.
   perf:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       FOLDKIT_PERF: '1'
       PERF_REPORT: ${{ github.workspace }}/perf-report.jsonl
@@ -221,6 +257,7 @@ jobs:
 
   demo:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -243,6 +280,7 @@ jobs:
 
   pack:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -265,6 +303,7 @@ jobs:
   # install step, then the scaffold's own typecheck and lint, from the tarballs.
   scaffold:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:

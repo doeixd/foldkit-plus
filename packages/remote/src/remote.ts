@@ -161,6 +161,7 @@ import {
   type ActiveEntry,
   type RemoteEntry,
   type SubscriptionEntries,
+  type RemoteWiring,
   type SubscriptionsOptions,
   type RemoteDomain,
   type RemoteFold,
@@ -1782,6 +1783,72 @@ const bindDomain = <
       },
     }
   }
+  // `subscriptions`, each key reading under the policy `policyOf` gives it.
+  const subscriptionsOf = (
+    active: Readonly<Record<string, ActiveEntry<AppModel>>>,
+    options: SubscriptionsOptions<AppModel>,
+    policyOf: (key: string) => PolicyOption<AppModel> | undefined,
+  ): Record<string, RemoteEntry<AppModel, any>> => {
+    // Dependencies differ per entry, as in Foldkit's own `Subscriptions` record.
+    const entries: Record<string, RemoteEntry<AppModel, any>> = {}
+    // Checked before any reader joins the domain, so a refused call adds none.
+    for (const entry of Object.values(active)) assertOwned(entry)
+    const persist = persistOf(options.persist)
+    for (const [key, entry] of Object.entries(active)) {
+      const resolvedAt = readers.get(entry) ?? memoizedResolved(entry)
+      readers.set(entry, resolvedAt)
+      if (persist !== undefined)
+        persisting.set(entry, combinePersist(persisting.get(entry), persist))
+      const policy = policyOf(key)
+      policies.set(entry, new Map(policies.get(entry)).set(key, policy))
+      const asked = (model: AppModel) =>
+        askedUnion(resolvedAt(model).map(({ projection }) => projection))
+      entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, {
+        ...options,
+        policy,
+      })
+      entries[`${key}.live`] = liveEntry(
+        bound,
+        model => liveAskOf(asked(model)),
+        identityMessage,
+        options,
+      )
+    }
+    for (const identity of options.connections ?? [])
+      keptConnections.add(connectionIdentity(identity))
+    if (persist !== undefined && options.connections !== undefined)
+      persistedLists.push(marked(rootsOf([], { connections: options.connections }), persist))
+    entries.retain = {
+      dependenciesSchema: retentionRootsSchema,
+      modelToDependencies: model => {
+        const unaged = new Set<string>()
+        const said: Array<RetentionRoots> = [...persistedLists]
+        const projections = [...readers].flatMap(([entry, resolvedAt]) => {
+          const read = resolvedAt(model).map(({ projection }) => projection)
+          // A list only readers that age it read keeps its age once left,
+          // rather than going stale.
+          if (!readsUnder(entry, model, 'StaleWhileRevalidate'))
+            for (const { identity } of read.flatMap(connectionsOf)) unaged.add(identity)
+          const persist = persisting.get(entry)
+          if (persist !== undefined) said.push(marked(rootsOf(read, {}), persist))
+          return read
+        })
+        const roots = withPersist(rootsOf(projections, { connections: [...keptConnections] }), said)
+        return {
+          ...roots,
+          connections: roots.connections.map(root =>
+            root.select === undefined || unaged.has(root.identity) ? root : { ...root, ages: true },
+          ),
+        }
+      },
+      dependenciesToStream: (current: RetentionRoots) =>
+        Stream.fromEffect(
+          retentionChanged(current, { budget, historyWindow, grace: options.grace }),
+        ),
+    }
+    markAll(entries)
+    return entries
+  }
   const domain: RemoteDomain<AppModel, Store, Entities, Queries, Mutations> = {
     ...definition,
     ...bound,
@@ -1794,69 +1861,12 @@ const bindDomain = <
         )
       return { name, owner, messages: [], projectionOf }
     },
-    subscriptions: (active, options = {}) => {
-      // Dependencies differ per entry, as in Foldkit's own `Subscriptions` record.
-      const entries: Record<string, RemoteEntry<AppModel, any>> = {}
-      // Checked before any reader joins the domain, so a refused call adds none.
-      for (const entry of Object.values(active)) assertOwned(entry)
-      const persist = persistOf(options.persist)
-      for (const [key, entry] of Object.entries(active)) {
-        const resolvedAt = readers.get(entry) ?? memoizedResolved(entry)
-        readers.set(entry, resolvedAt)
-        if (persist !== undefined)
-          persisting.set(entry, combinePersist(persisting.get(entry), persist))
-        policies.set(entry, new Map(policies.get(entry)).set(key, options.policy))
-        const asked = (model: AppModel) =>
-          askedUnion(resolvedAt(model).map(({ projection }) => projection))
-        entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
-        entries[`${key}.live`] = liveEntry(
-          bound,
-          model => liveAskOf(asked(model)),
-          identityMessage,
-          options,
-        )
-      }
-      for (const identity of options.connections ?? [])
-        keptConnections.add(connectionIdentity(identity))
-      if (persist !== undefined && options.connections !== undefined)
-        persistedLists.push(marked(rootsOf([], { connections: options.connections }), persist))
-      entries.retain = {
-        dependenciesSchema: retentionRootsSchema,
-        modelToDependencies: model => {
-          const unaged = new Set<string>()
-          const said: Array<RetentionRoots> = [...persistedLists]
-          const projections = [...readers].flatMap(([entry, resolvedAt]) => {
-            const read = resolvedAt(model).map(({ projection }) => projection)
-            // A list only readers that age it read keeps its age once left,
-            // rather than going stale.
-            if (!readsUnder(entry, model, 'StaleWhileRevalidate'))
-              for (const { identity } of read.flatMap(connectionsOf)) unaged.add(identity)
-            const persist = persisting.get(entry)
-            if (persist !== undefined) said.push(marked(rootsOf(read, {}), persist))
-            return read
-          })
-          const roots = withPersist(
-            rootsOf(projections, { connections: [...keptConnections] }),
-            said,
-          )
-          return {
-            ...roots,
-            connections: roots.connections.map(root =>
-              root.select === undefined || unaged.has(root.identity)
-                ? root
-                : { ...root, ages: true },
-            ),
-          }
-        },
-        dependenciesToStream: (current: RetentionRoots) =>
-          Stream.fromEffect(
-            retentionChanged(current, { budget, historyWindow, grace: options.grace }),
-          ),
-      }
-      markAll(entries)
-      // The loop above wrote exactly the keys the mapped type names.
-      return entries as SubscriptionEntries<AppModel, typeof active>
-    },
+    subscriptions: (active, options = {}) =>
+      // The loop in `subscriptionsOf` writes exactly the keys the mapped type names.
+      subscriptionsOf(active, options, () => options.policy) as SubscriptionEntries<
+        AppModel,
+        typeof active
+      >,
     plan: (model, projection, options) => plan(bound, model, projection, options),
     meta: (model, projection) => meta(bound, model, projection),
     storeOf: model => storeOf(bound, model),
@@ -1972,27 +1982,45 @@ const bindDomain = <
     reduce,
     inspect: model => inspectRemote(store.get(model)),
     verifiesPredictions: verify.on,
-    wiring: (active, options = {}) => ({
-      key: `remote:${bound.contract.name}`,
-      shared: options.shared ?? [],
-      // Every domain claims the same tags with no per-domain discriminator, so
-      // the assembly's claimant check keeps one assembly to one domain.
-      handles: Record.keys(remoteMessageCases),
-      route: (model, message) =>
-        isRemoteMessage(message)
-          ? Option.some(
-              reduceReporting(
-                bound.store,
-                reduce,
-                model,
-                message,
-                (options.shared ?? []).some(tag => tag === 'MutationFailed'),
-              ),
-            )
-          : Option.none(),
-      subscriptions: brandEntries(domain.subscriptions(active, options)),
-      contract: bound.contract,
-    }),
+    wiring: (active, options = {}) => {
+      const byKey: Readonly<Record<string, PolicyOption<AppModel> | undefined>> =
+        options.policies ?? {}
+      // The types refuse such a key; a record typed by `string` reaches here.
+      for (const key of Object.keys(byKey))
+        if (!Object.hasOwn(active, key))
+          throw new Error(
+            `[foldkit-remote] policies names "${key}", which the active record does not hold; its keys are ${Object.keys(active).join(', ') || 'none'}`,
+          )
+      return {
+        key: `remote:${bound.contract.name}`,
+        shared: options.shared ?? [],
+        // Every domain claims the same tags with no per-domain discriminator, so
+        // the assembly's claimant check keeps one assembly to one domain.
+        handles: Record.keys(remoteMessageCases),
+        route: (model, message) =>
+          isRemoteMessage(message)
+            ? Option.some(
+                reduceReporting(
+                  bound.store,
+                  reduce,
+                  model,
+                  message,
+                  (options.shared ?? []).some(tag => tag === 'MutationFailed'),
+                ),
+              )
+            : Option.none(),
+        // The loop in `subscriptionsOf` writes exactly the keys the mapped type names.
+        subscriptions: brandEntries(
+          subscriptionsOf(
+            active,
+            options,
+            // A key the record holds, never one `Object.prototype` answers.
+            key => (Object.hasOwn(byKey, key) ? byKey[key] : undefined) ?? options.policy,
+          ),
+        ) as RemoteWiring<AppModel, never, typeof active>['subscriptions'],
+        contract: bound.contract,
+      }
+    },
   }
   // What `foldkit-remote/why` reads of this domain: its lists as reads show them.
   const whyReader = (model: AppModel): WhyReader => {

@@ -786,12 +786,15 @@ Foldkit's own behaviour that we work around is listed in
   `inline-flex` Button it did nothing (a 20px line stayed 20px; on a block it
   was 10px), and it does not inherit into the anonymous box holding the
   words. Measure a trimmed element's height before claiming the trim works.
-- **A knob set on a region does not reach a portaled panel.** Upstream's
+- **A knob set on a region does not reach a portaled panel, unless the Mount that portals it is wrapped.** Upstream's
   Menu, Listbox and Combobox portal their panel to the document by default,
   so a popup's `size` that set the step on its `wrapper` never reached its
   rows, and a test that drew the slots as static markup passed. Set what a
   panel needs on the panel's own slot, and test a popup by opening the real
-  component (`popupLadder.browser.test.ts`).
+  component (`popupLadder.browser.test.ts`). `Anchor.inheritRegion` now
+  carries the region's custom properties onto such a panel; it must watch from
+  the panel's own Mount, since a parent's Mount (the Popover's `layer`) runs
+  after its children's and misses the move.
 - **A linked `export * as` is an object, and a page keeps all of it.** tsdown
   linked `foldkit-mixins-ui` into one file, and rolldown wrote `export * as
   Recipes` as an object of getters; reading `Recipes.Avatar` kept every recipe,
@@ -2260,6 +2263,13 @@ of its own named a form field "fits the Catalog". Read words with
   release run succeeded, 15 of 37 new versions were still absent from
   `registry.npmjs.org`, and the count fell as they landed. Read `gh run view`
   for the verdict; use `npm view` only to confirm afterwards.
+- **A runner a job starves loses its log, not only its job.** PR #564's
+  fourth test shard ran the Foldkit ports' 19-page bundle build beside the
+  browser and workerd tests; the runner "lost communication with the server",
+  the job hung 48 minutes, and GitHub kept no log at all. Only the check run's
+  annotations (`gh api …/check-runs/<id>/annotations`) said why. Production
+  builds run in their own `builds` job (`buildTests`), and every job has a
+  `timeout-minutes`.
 - **A fast red hides slower reds.** Fixing the 30s install failure above
   revealed a `tags:check` failure the red main had masked for days. After
   any CI repair, watch a full run to green — a green gate is not a green

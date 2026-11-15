@@ -32,7 +32,16 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // -189 bytes (#560 review): the read-after half of #544 (tokens, floors, waits) moved behind the
 // write capability, which this page never installs, -320; asking again a row the server is behind
 // on, +131. Measured with and without both in one tree on 2026-11-14 (195,829 against 195,640).
-const CEILING = 196_011
+// +58 bytes for `policies` on `Data.wiring` (#236), measured in one tree on 2026-11-14 with and
+// without it (197,919 and 197,977): every subscriptions call goes through one function taking
+// each key's policy. The page was over the ceiling already from other growth (197,919), which
+// this does not cover.
+// +1,481 on 2026-11-15 (#560 review): measured 197,500. 197,185 without the review's UI fixes and
+// 197,500 with them in one tree, +315 (FocusScope's way back without the trail, but checked for a
+// frame's realm; a portaled panel's region read from the sheets through a probe). The other
+// 1,166 is U-WP14 and the A3, F2 and C2 fixes the investigation attributed, which put the page
+// over before the review. Ceiling raised to the reading, rounded up.
+const CEILING = 197_550
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))

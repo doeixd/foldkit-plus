@@ -153,7 +153,7 @@ export default [
     edits: [
       {
         file: server,
-        find: "    if (plan.start === 'now' && (config.lazy ?? []).length === 0) return Effect.void",
+        find: "    if (plan.start === 'now' && lazyFor(config, model).length === 0) return Effect.void",
         replace: '',
       },
     ],
@@ -164,7 +164,7 @@ export default [
     edits: [
       {
         file: server,
-        find: '        Effect.tap(result => reportUnnamed(config, plan, result.unnamed)),',
+        find: '        Effect.tap(served => reportUnnamed(config, plan, served)),',
         replace: '',
       },
     ],

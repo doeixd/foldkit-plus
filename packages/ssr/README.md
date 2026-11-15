@@ -1367,7 +1367,22 @@ const config = {
 
 The server loads the code before it renders, so the page carries the real
 view. The browser loads it before it boots and answers from the markers
-meanwhile, whatever `start` says. A binding inside a placement dispatches the
+meanwhile, whatever `start` says.
+
+A list loads whole on every page. When each route has code of its own, give
+`lazy` as a function of the Model instead, and only what the page draws loads:
+
+```ts sketch
+lazy: model => Routing.codeFor(model.route), // Routing = Site.routing({ pages, … })
+```
+
+The server asks it with the Model the page is drawn from (`init`'s, after
+`SSR.entry`'s `prepare`), and runs `init` once for it; the browser asks it
+with the resumed Model. The two must name the same bundles, or the render
+fails with `LazyDependsOnUnsentState`: send in the plan's `state` what `lazy`
+reads. A page on another route fetches none of this route's code, and
+`Site.routing`'s `preload` fetches it when the reader points at a link there
+(`foldkit-site`'s README, "Code split by route"). A binding inside a placement dispatches the
 parent's Message, as Foldkit's own handlers do, so the plan's Surface lists the
 wrapper variant, `Message.GotUploadMessage`.
 
@@ -1768,6 +1783,7 @@ of:
 | `reason`                   | What it means                                                                 | The fix                                                             |
 | -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `ViewDependsOnUnsentState` | The view, or its head, renders differently from the browser's Model           | Add the field the message names to `state`, name it `restored` with a `restore`, or stop the view reading it |
+| `LazyDependsOnUnsentState` | `lazy`, a function of the Model, names other bundles for the browser's Model than for the server's | Add the field it reads to `state`, or stop `lazy` reading it |
 | `UndeclaredStartup`        | `init` returned Commands and the plan has no `boot`                           | Name them in `boot`                                                  |
 | `Uncovered`                | An active Surface reads or is activated by an unsent field, or a binding sends a Message no active Surface lists | Send the field, name it `restored` or `local`, or list the Message on the Surface |
 | `UnrestorablePart`         | A part cannot restore its own capture                                          | A bug in that part                                                   |

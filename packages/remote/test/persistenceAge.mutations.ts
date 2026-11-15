@@ -200,7 +200,7 @@ export default [
     edits: [
       {
         file: '../src/remote.ts',
-        find: 'const roots = withPersist(\n            rootsOf(projections, { connections: [...keptConnections] }),\n            said,\n          )',
+        find: 'const roots = withPersist(rootsOf(projections, { connections: [...keptConnections] }), said)',
         replace: 'const roots = rootsOf(projections, { connections: [...keptConnections] })',
       },
     ],

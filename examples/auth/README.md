@@ -136,6 +136,24 @@ Read the files in this order.
    sign-out loads it on the press). That keeps 42 kB (13 kB gzipped) out of
    the chunk every page loads; [`test/split.test.ts`](test/split.test.ts)
    builds the entry and checks it.
+7. [`src/account.ts`](src/account.ts) and
+   [`src/account.body.ts`](src/account.body.ts): `/account`, a page whose
+   code is a chunk of its own. `account.ts` declares it with `Bundle.lazy`
+   (its Model, Messages and `init`, which the parent's Schema needs at boot)
+   and imports `account.body.ts`, its `update` and `view`, only behind an
+   `import()`. `app.ts` places it on its node with `Site.placement`, hands
+   it to `Site.routing`'s `pages`, and `codeOf` is the routing's `codeFor`:
+   the server's `SSR.entry` and `client.ts`'s `SSR.hydrate` take it as
+   `lazy`, so only a page at `/account` loads the chunk to render or boot.
+   The routing's `preload` fetches it when the reader points at the Account
+   link (`code: fetchCode`), its arrival (`changed`) loads it when nothing
+   fetched it first, and `init` starts through the routing's `boot`, so a
+   page opened at `/account` with no server render loads it too. The bodies are 0.5 kB,
+   so the split saves nothing here; it shows the path. It also costs nothing:
+   left to rolldown, the boot graph split into three chunks (5.6 kB brotli
+   more at start), so `vite.config.ts` puts every module two chunks share in
+   one `boot` chunk, and [`test/boot.test.ts`](test/boot.test.ts) holds the
+   loader out of it.
 
 What some calls do, and do not:
 
@@ -241,8 +259,9 @@ only for an `http:` origin.
   sign-in, sign-out reaching the other tab, a member's notes, the refusal
   after a restart, the host's `303` and a sign-in returning to the notes, a
   reader's notes in the page before any script runs, a sign-out on `/notes`
-  replacing the address, and typing, a submission and a Sign out press made
-  on the served page while `client.ts` is held, each answered once it runs.
+  replacing the address, typing, a submission and a Sign out press made
+  on the served page while `client.ts` is held, each answered once it runs,
+  and the account page's chunk asked for once, on pointing at its link.
 
 ## Limits
 

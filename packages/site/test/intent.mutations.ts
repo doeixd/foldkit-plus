@@ -46,8 +46,8 @@ export default [
     edits: [
       {
         file,
-        find: 'sameRoute(config.route.get(model), next)\n                  ? { model }',
-        replace: 'false\n                  ? { model }',
+        find: 'if (sameRoute(config.route.get(model), next)) return { model }',
+        replace: 'if (false) return { model }',
       },
     ],
     tests,

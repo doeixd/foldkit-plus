@@ -36,7 +36,7 @@ export default [
     name: 'it focuses without preventScroll',
     edits: [
       {
-        file: source,
+        file: '../src/dom/focusable.ts',
         find: 'target.focus({ preventScroll: true })',
         replace: 'target.focus()',
       },
@@ -47,7 +47,7 @@ export default [
     name: 'it never scrolls the target to the nearest edge',
     edits: [
       {
-        file: source,
+        file: '../src/dom/focusable.ts',
         find: "target.scrollIntoView({ block: 'nearest', inline: 'nearest' })",
         replace: 'void 0',
       },
@@ -59,8 +59,8 @@ export default [
     edits: [
       {
         file: source,
-        find: "part => markOf(part, 'part') === slot && markOf(part, 'key') === key,",
-        replace: 'part => part.matches(`[data-fk-focus-key="${key}"]`),',
+        find: "part => markOf(part, 'part') === slot && markOf(part, 'key') === key)",
+        replace: 'part => part.matches(`[data-fk-focus-key="${key}"]`))',
       },
     ],
     tests: [browser],
@@ -113,8 +113,8 @@ export default [
     edits: [
       {
         file: source,
-        find: '            setHeld(undefined)\n            const steps',
-        replace: '            const steps',
+        find: '            setHeld(undefined)\n            if (!recoverFrom',
+        replace: '            if (!recoverFrom',
       },
     ],
     tests: [browser],
@@ -136,8 +136,8 @@ export default [
     edits: [
       {
         file: source,
-        find: "step === 'next'\n                      ?",
-        replace: "step !== 'next'\n                      ?",
+        find: "step === 'next'\n            ?",
+        replace: "step !== 'next'\n            ?",
       },
     ],
     tests: [browser],
@@ -158,7 +158,7 @@ export default [
     edits: [
       {
         file: source,
-        find: 'while (part !== null && !owns(element, part)) {',
+        find: 'while (part !== null && !owns(owner, part)) {',
         replace: 'while (false) {',
       },
     ],

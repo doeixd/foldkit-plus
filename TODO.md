@@ -303,7 +303,8 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    build the feature"). Thirty items are un-deferred and not yet built, #439's `reaches` and
    #438's route code among them, in work packages with disjoint files;
    what stays deferred has a measured, upstream, unsound or ownership
-   reason beside it. First, in parallel: A1, A2, B1, B2, C1, E2, F2, H1.
+   reason beside it. First, in parallel: A1, A2, B1, B2, C1, E2, F2, H1. Built in
+   wave 7: C2 (route code from the routing), F2, A3.
    [decisions-2026-11-12-build-deferred.md](./docs/design/decisions-2026-11-12-build-deferred.md)
 4. **Laws on every state owner** (#541 and its parts #533 to #540, #542,
    #543), fifteen work packages. Built on the branch: WP1, WP5, WP8a (wave 1), WP2,
@@ -380,8 +381,8 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    audit. Work packages U-WP1 to U-WP15 (with U-WP1b and U-WP3b). Built:
    U-WP1, U-WP8, U-WP11 (the audit, `docs/design/558-audit-FINDINGS.md`),
    U-WP15 (PR #559), U-WP1b, U-WP3 (PR #560), U-WP2, U-WP3b (PR #561), U-WP4,
-   U-WP5, U-WP6, U-WP7, U-WP12 (wave 5, PR #562), U-WP9 (wave 6). The rest
-   (U-WP10, U-WP13, U-WP14): not started.
+   U-WP5, U-WP6, U-WP7, U-WP12 (wave 5, PR #562), U-WP9 (wave 6, PR #563),
+   U-WP13, U-WP14 (wave 7). The rest (U-WP10, the guide): not started.
    First, in parallel: U-WP1, U-WP8, U-WP11.
    [551-558-ui-authoring-DESIGN.md](./docs/design/551-558-ui-authoring-DESIGN.md) §12
    - U-WP1 attachments a view remembers, contributors named in conflicts,

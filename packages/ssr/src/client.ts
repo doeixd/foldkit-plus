@@ -41,6 +41,7 @@ import {
   arrival,
   bindings,
   bindingsAndEvents,
+  lazyFor,
   metaEntry,
   plan,
   resume,
@@ -277,7 +278,9 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
         { buildId: options.buildId },
       )
     }
-    const pending = (config.lazy ?? []).filter(bundle => !bundle.isLoaded())
+    // What the served page draws: a function of the Model is asked with the
+    // resumed one, so another route's code is not fetched to boot this page.
+    const pending = lazyFor(config, model).filter(bundle => !bundle.isLoaded())
     // A loader ran this chunk when the plan's `start` said to.
     const start = Option.isSome(arrived) || Option.isSome(loader) ? 'now' : plan.start
     const eager = start === 'now' && pending.length === 0

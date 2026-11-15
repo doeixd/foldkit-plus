@@ -20,7 +20,17 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // `live` takes Remote's `liveQuery` from the caller, so Crud no longer keeps liveEvents, liveReads
 // and live (5.8 kB minified, `absent` below); the live entry and its state stay, which every
 // `Data.subscriptions` entry carries. Ceiling lowered by that, rounded up.
-const CEILING = 291_800
+// +89 bytes for `policies` on `Data.wiring` (#236), measured in one tree on 2026-11-14 with and
+// without it (292,065 and 292,154): every subscriptions call goes through one function taking
+// each key's policy, and the wiring checks the keys it is given. Ceiling raised by that, rounded
+// up; the page was over it already from other growth (292,065), which this does not cover.
+// +750 on 2026-11-15 (#560 review): measured 292,599, over by 699. U-WP13's edge scrolling, which
+// the builder's drags never use, is now loaded only when a Mount asks for it: 292,903 without the
+// review's UI fixes and 292,599 with them in one tree (-304; the scroller's 1,443 minified bytes
+// leave, Vite's preload helper for the dynamic import comes in). The rest is the A3, F2 and C2
+// fixes and the wave's other growth the investigation attributed. Ceiling raised to the reading,
+// rounded up.
+const CEILING = 292_650
 
 clientBudget({
   name: 'cms',

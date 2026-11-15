@@ -1,6 +1,6 @@
 /**
- * Yielded's client, pulled back into the entry chunk two ways:
- * `pnpm mutate examples/auth/test/split.mutations.ts`.
+ * Yielded's client, pulled back into the entry chunk two ways, and the account
+ * page's bodies one way: `pnpm mutate examples/auth/test/split.mutations.ts`.
  */
 const tests = ['examples/auth/test/split.test.ts']
 
@@ -28,6 +28,23 @@ export default [
         file: '../src/domain.ts',
         find: "import { Schema } from 'effect'\n",
         replace: "import { Schema } from 'effect'\nexport { AuthApi } from './authApi.js'\n",
+      },
+    ],
+    tests,
+  },
+  {
+    name: "the account page's bodies are imported statically",
+    edits: [
+      {
+        file: '../src/account.ts',
+        find: "import { Bundle } from 'foldkit-bundle'\n",
+        replace:
+          "import { Bundle } from 'foldkit-bundle'\nimport { body } from './account.body.js'\n",
+      },
+      {
+        file: '../src/account.ts',
+        find: "() => import('./account.body.js').then(chunk => chunk.body),",
+        replace: 'async () => body,',
       },
     ],
     tests,

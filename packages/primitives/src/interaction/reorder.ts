@@ -20,6 +20,7 @@ import * as Mount from 'foldkit/mount'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
 import { Behavior, Behaviors, Capability, Event, SlotView, type SlotItem } from 'foldkit-mixins'
+import type { EdgeScroll } from '../dom/edge-scroll.js'
 import { DragPlace, PointerDrag, type DragFact } from '../dom/pointer-drag.js'
 import type { Direction, Orientation } from './roving-tabindex.js'
 
@@ -495,6 +496,12 @@ interface SlotOptions<Slots> {
   readonly container: keyof Slots & string
   /** The slot drawn once per item; it must carry the item's id (`attrs(…, { index, id })`). */
   readonly item: keyof Slots & string
+  /**
+   * How a pointer drag scrolls the nearest scrolling ancestor while it is held
+   * near its edge, so a list longer than its box can be reordered by pointer.
+   * On by default; `false` leaves scrolling to the application.
+   */
+  readonly edgeScroll?: EdgeScroll | false
 }
 
 /** A handle per item: a grip button in the row, or the row itself, takes the keys. */
@@ -663,8 +670,9 @@ export const behavior = <Field extends string>(declared: Declared<typeof bundle,
       spec[options.container] = Behavior.slot({
         requires: { capability: Capability.Container },
         mount: () =>
-          Mount.mapMessage(pointerPath(mark, handle === routed), (message: Message) =>
-            wrap(message),
+          Mount.mapMessage(
+            pointerPath(mark, handle === routed, options.edgeScroll ?? {}),
+            (message: Message) => wrap(message),
           ),
       })
       if (handle === routed || handle === options.item) {
@@ -740,8 +748,12 @@ const leaving = (element: Element): Stream.Stream<Message> =>
  * `PointerDrag` on the container, its facts as this Bundle's Messages: one
  * draft, whichever way it started. A routed list also hears focus leave it.
  */
-const pointerPath = (mark: string, routedList: boolean): Mount.MountAction<Message> => {
-  const drag = PointerDrag({ attribute: mark })
+const pointerPath = (
+  mark: string,
+  routedList: boolean,
+  edgeScroll: EdgeScroll | false,
+): Mount.MountAction<Message> => {
+  const drag = PointerDrag({ attribute: mark, ...(edgeScroll === false ? {} : { edgeScroll }) })
   return {
     ...drag,
     f: (element, viewStateChanges) => {

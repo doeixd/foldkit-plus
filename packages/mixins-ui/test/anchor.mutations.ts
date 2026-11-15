@@ -11,8 +11,9 @@ export default [
     edits: [
       {
         file: '../src/anchor.ts',
-        find: '): Mount.MountAction<Message, E> => ({\n  ...action,',
-        replace: '): Mount.MountAction<Message, E> => ({\n  name: action.name,',
+        find: 'export const topLayer = <Message, E>(\n  action: Mount.MountAction<Message, E>,\n): Mount.MountAction<Message, E> => ({\n  ...action,',
+        replace:
+          'export const topLayer = <Message, E>(\n  action: Mount.MountAction<Message, E>,\n): Mount.MountAction<Message, E> => ({\n  name: action.name,',
       },
     ],
     tests: unit,

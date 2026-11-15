@@ -35,7 +35,7 @@ import {
 } from './menuUtils.js'
 import { leaveDrawn } from './leaveDrawn.js'
 import { drawMenu } from './popupView.js'
-import { topLayer } from './anchor.js'
+import { inheritRegion, topLayer } from './anchor.js'
 
 export type MenuItemRender = Readonly<{
   key: string
@@ -316,7 +316,10 @@ const computeRender = <Item extends string>(
           h.Style({ ...placed, inset: 'auto' }),
           h.OnMount(topLayer(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor }))),
         ]
-      : [h.Style(placed), h.OnMount(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor }))]),
+      : [
+          h.Style(placed),
+          h.OnMount(inheritRegion(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor }))),
+        ]),
   ]
 
   const wrapper = [

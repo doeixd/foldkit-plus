@@ -1260,6 +1260,22 @@ Retention stays the domain's: a call's `retain` entry roots every read any call
 of the domain names, so neither call collects what the other reads. Keeping one
 `retain` entry is all it takes; it waits for its own call's `grace`.
 
+`Data.wiring` is one call, so it takes a policy per entry instead: `policies`
+is keyed by the active record's keys, and an entry it does not name reads under
+`policy`. Here the owner ages while the page reads `cacheFirst`:
+
+```ts
+const pageWiring = Data.wiring(
+  { page: projectPage, owner },
+  { policies: { owner: RemotePolicy.staleWhileRevalidate({ maxAge: 5_000 }) } },
+)
+```
+
+A key the record lacks is a type error. A list two entries read is held stale
+once left unless both age it, as with two calls. The wiring's `subscriptions`
+are named by the same keys, so a test reads `pageWiring.subscriptions['owner.read']`
+with no `!`.
+
 A call's `policy` can also be picked from the Model, so a screen that works
 offline reads what it holds while offline and asks once it is back. `isOnline`
 reads a field the application keeps, from `navigator.onLine` and its events or

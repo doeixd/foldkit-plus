@@ -15,7 +15,7 @@ import {
   keyToIndex,
   whenOption as when,
 } from './menuUtils.js'
-import { topLayer } from './anchor.js'
+import { inheritRegion, topLayer } from './anchor.js'
 
 export type ComboboxItemRender = Readonly<{
   key: string
@@ -403,10 +403,12 @@ export const computeRender = (
       : [
           h.Style(placed),
           h.OnMount(
-            UpstreamCombobox.AnchorCombobox({
-              buttonId: `${id}-input-wrapper`,
-              anchor,
-            }),
+            inheritRegion(
+              UpstreamCombobox.AnchorCombobox({
+                buttonId: `${id}-input-wrapper`,
+                anchor,
+              }),
+            ),
           ),
         ]),
   ]

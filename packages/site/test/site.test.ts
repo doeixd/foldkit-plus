@@ -477,7 +477,7 @@ describe('Surfaces that read the viewer', () => {
     route: routeOf(path),
     signedIn,
   })
-  const paramsAt = (tag: string, model: Model) =>
+  const paramsAt = (tag: keyof typeof sources, model: Model) =>
     Surface.instances(sources[tag]!, model).map(instance => instance.params)
 
   it('waits for a viewer on its route', () => {

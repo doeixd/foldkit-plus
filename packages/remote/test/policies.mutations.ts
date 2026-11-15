@@ -1,0 +1,60 @@
+/**
+ * `policies` on `Data.wiring` (#236), broken in turn:
+ * `pnpm mutate packages/remote/test/policies.mutations.ts`
+ *
+ * The type side (`policies.test-d.ts`) is mutated by hand, since `pnpm mutate`
+ * runs Vitest and Vitest does not typecheck: `RemoteWiring['subscriptions']`
+ * typed as the plain `Subscriptions` record again, and the wiring's
+ * `Omit<…, 'subscriptions'>` dropped, each made `npx tsc -b packages/remote`
+ * fail where the test reads `subscriptions['grid.read']` with no `!` and
+ * refuses `'gird.read'` (2026-11-15).
+ */
+const tests = ['packages/remote/test/policies.test.ts']
+const edit = (name: string, find: string, replace: string) => ({
+  name,
+  edits: [{ file: '../src/remote.ts', find, replace }],
+  tests,
+})
+
+export default [
+  edit(
+    'the wiring reads every entry under policy',
+    '(Object.hasOwn(byKey, key) ? byKey[key] : undefined) ?? options.policy',
+    'options.policy',
+  ),
+  edit(
+    'an entry policies names ignores policy where it says none',
+    '(Object.hasOwn(byKey, key) ? byKey[key] : undefined) ?? options.policy',
+    'Object.hasOwn(byKey, key) ? byKey[key] : options.policy',
+  ),
+  edit(
+    'a key the prototype holds reads what the prototype answers',
+    'Object.hasOwn(byKey, key) ? byKey[key] : undefined',
+    'byKey[key]',
+  ),
+  edit(
+    "a read entry plans under the call's policy, not its key's",
+    '      entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, {\n        ...options,\n        policy,\n      })',
+    '      entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)',
+  ),
+  edit(
+    "retention judges a list by the call's policy, not its key's",
+    '      policies.set(entry, new Map(policies.get(entry)).set(key, policy))',
+    '      policies.set(entry, new Map(policies.get(entry)).set(key, options.policy))',
+  ),
+  edit(
+    'a Surface one of its keys does not age keeps its age',
+    '    [...policies.get(entry)!.values()].every(policy => policyAt(policy, model)._tag === tag)',
+    '    [...policies.get(entry)!.values()].some(policy => policyAt(policy, model)._tag === tag)',
+  ),
+  edit(
+    'a list one entry does not age keeps its age',
+    'root.select === undefined || unaged.has(root.identity)',
+    'root.select === undefined',
+  ),
+  edit(
+    'a key the active record lacks is let through',
+    '        if (!Object.hasOwn(active, key))',
+    '        if (false)',
+  ),
+]

@@ -14,6 +14,7 @@ import { Access, Site } from 'foldkit-site'
 import { Resume, type ResumableBuilder } from 'foldkit-ssr/client'
 import { Surface } from 'foldkit-surface'
 import {
+  AccountPage,
   AppRoute,
   AppSite,
   Message,
@@ -21,6 +22,7 @@ import {
   NoteList,
   Session,
   accessOf,
+  accountHref,
   homeHref,
   notesHref,
 } from './app.js'
@@ -167,10 +169,19 @@ const notes = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
     h,
   )
 
+/** The account page, its bodies drawn by their own chunk once `accessOf` allows the reader. */
+const account = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
+  Access.match(accessOf(model), {
+    Allowed: () => AccountPage.placed.view(model, h),
+    Pending: () => waiting(slots, h, 'Loading…'),
+    Denied: () => waiting(slots, h, 'Taking you to sign in…'),
+  })
+
 const page = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
   AppRoute.match(model.route, {
     Home: () => [],
     Notes: () => [notes(model, slots, h)],
+    Account: () => [account(model, slots, h)],
     NotFound: ({ path }) => [
       h.p(slots.status.attrs([h.Id('not-found')]), [`Nothing is at ${path}.`]),
     ],
@@ -191,6 +202,7 @@ export const view = (model: Model, base: HtmlBuilder<Message>): Document => {
           h.nav(slots.links.attrs([h.AriaLabel('Pages')]), [
             h.a(slots.link.attrs([h.Href(homeHref)]), ['Home']),
             h.a(slots.link.attrs([h.Href(notesHref)]), ['Your notes']),
+            h.a(slots.link.attrs([h.Href(accountHref)]), ['Account']),
           ]),
           ...Option.match(model.notice, {
             onNone: () => [],

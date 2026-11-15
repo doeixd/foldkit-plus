@@ -106,8 +106,8 @@ export default [
   edit(
     'the last call alone says whether a reader ages',
     remote,
-    'policies.set(entry, new Map(policies.get(entry)).set(key, options.policy))',
-    'policies.set(entry, new Map([[key, options.policy]]))',
+    'policies.set(entry, new Map(policies.get(entry)).set(key, policy))',
+    'policies.set(entry, new Map([[key, policy]]))',
   ),
   edit(
     'a resumed list loses its age',

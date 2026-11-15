@@ -150,14 +150,32 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   found nearest the container first, and each fact carries `region: boolean`, so `over: null`
   with `region: true` is the region's empty space. `part: attribute` reports an element
   marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say.
+  `edgeScroll: {}` (or `{ edge, speed }`) scrolls the nearest scrolling ancestor, then the
+  page, while the drag is held near its edge (default 40px strip, 600px/s, instant steps,
+  jumps every 150ms under reduced motion) and reports the place under the still pointer after
+  each step; absent, a plain drag scrolls nothing. Only a box the pointer is over is pulled,
+  nothing above a `position: fixed` box, and not a page under a scroll lock.
+- **A lasso over marked items** (select by dragging a rectangle on empty space):
+  `Marquee.behavior(Slots)<Input, Message>({ container, attribute, edgeScroll?, toMessage })`
+  (Mount `Marquee({ attribute })` in `/dom`), attached beside `PointerDrag` on the same
+  container: a press on a marked descendant, control, link, field or scrollbar is not its,
+  and a finger never starts one. `MarqueeStarted { additive }` past 4px (Shift, Ctrl or Meta
+  at the press), `MarqueeChanged { rect, ids, additive }` as the pointer moves or `edgeScroll`
+  scrolls the container, `MarqueeEnded` (same fields), `MarqueeCancelled` (Escape, `pointercancel`). `rect`
+  is `{ x, y, width, height }` in the container's scrolled content coordinates, `ids` the
+  marked descendants it overlaps in document order. It draws and selects nothing: draw the
+  band in a Slot, and `update` applies `Selection`'s `replace(Marquee.selected(before, fact))`
+  (keep `before` from `MarqueeStarted`; restore it on a cancel). The click a lasso ends
+  with is swallowed. The keyboard's way is Selection's Shift range, not a lasso.
 - **Reorder a list or tree by keys and pointer:** place `Reorder.bundle` (no args; `onOut`
-  required) and attach `Reorder.behavior(Declared)(Slots)<Model, Message>({ container, item, handle, items, parent?, accepts?, orientation?, direction?, grab? })`.
+  required) and attach `Reorder.behavior(Declared)(Slots)<Model, Message>({ container, item, handle, items, parent?, accepts?, orientation?, direction?, grab?, edgeScroll? })`.
   Model `{ held: Option<{ id, by }>, over: Option<Place> }`, `Place` = `PointerDrag`'s
   `{ id, zone }`. Space/Enter grabs and drops, arrows/Home/End walk `Reorder.places`, Escape or
   blur puts back; `PointerDrag` on the container feeds the same Messages. Out:
   `PickedUp`, `PassedOver`, `Moved { id, by, to }`, `PutBack`; the parent applies `Moved`
   (`Reorder.apply(ids, moved)` for a flat list) or refuses it (`Reorder.movesIntoItself` for a
   tree), and reads each out with `LiveAnnounce`'s `announce(Reorder.announcement(fact, { label }))`.
+  The pointer drag scrolls a list longer than its box on its own (`edgeScroll: false` opts out).
   Items get `data-reorder="held"` and `data-reorder-over=zone`; nothing moves until the drop.
   Beside `ListNavigation`: `handle: Reorder.routed` with `current` returns `{ behavior, keys }`,
   the route built from the same options; list `Keys.first(placed.keys, ListNavigation.keys(...))`
@@ -180,7 +198,12 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
   `contain`, focus restored on unmount under `restore`. Scopes and `HideOutside` share a stack
   of layers whose topmost owns containment, so sibling (portaled) dialogs stack: the lower one
-  neither pulls focus back nor hides the upper. A native `<dialog>` needs none of it.
+  neither pulls focus back nor hides the upper. When the opener is gone on restore (removed,
+  or drawn again) and focus went with the scope, focus goes by rule (focus the user moved on
+  stays, and a scope opened with focus on nothing gives nothing back): an element with the opener's `id`, the opener's `FocusRecovery` steps for its slot, the
+  layer below, the page's first tabbable. A native `<dialog>` returns to its opener only:
+  `FocusReturn()` (`foldkit-primitives/dom`, a Mount that focuses nothing on mount) gives it the
+  same rules, and `Dialog.focusReturn` in `foldkit-mixins-ui` attaches it to the panel.
 - **Keep focus when its part goes away:** `FocusRecovery.behavior(Slots)<Input, Message>({ owner, parts: { row: ['next', 'previous', { part: 'input' }], input: [] }, parent? })`
   attaches the `foldkit-primitives/dom` `FocusRecovery` Mount to the owner and marks
   the parts (`data-fk-focus-*`, key from `item.id`). A removed, hidden, `inert` or

@@ -411,10 +411,22 @@ type OfValue<F extends Schema.Struct.Fields, Sel> = {
 }
 
 type EntryValue<E> =
-  E extends Projection<any, infer V> ? V : E extends ModelRef<any, infer V> ? V : never
+  E extends Projection<any, infer V>
+    ? V
+    : E extends ModelRef<any, infer V>
+      ? V
+      : E extends ModeledDerived<any, infer V>
+        ? V
+        : never
 
 type EntryRoot<E> =
-  E extends Projection<infer R, any> ? R : E extends ModelRef<infer R, any> ? R : never
+  E extends Projection<infer R, any>
+    ? R
+    : E extends ModelRef<infer R, any>
+      ? R
+      : E extends ModeledDerived<infer R, any>
+        ? R
+        : never
 
 type EntryRoots<Entries> = { readonly [K in keyof Entries]: EntryRoot<Entries[K]> }
 
@@ -454,6 +466,11 @@ const markedBy = <P extends object>(
 export interface Derived<Root, Value> {
   readonly dependencies: DependencyTree
   readonly read: (root: Root) => Value
+}
+
+/** A `Derived` that names the Schema of its value (`derive`'s `Model` option), so a `Projection.struct` can hold it. */
+export interface ModeledDerived<Root, Value> extends Derived<Root, Value> {
+  readonly Model: Schema.Codec<Value, unknown>
 }
 
 const valueAt = (root: unknown, path: ReadonlyArray<string>): unknown => {
@@ -535,27 +552,41 @@ export const Projection = {
       ) as unknown as Projection<Schema.Struct.Type<F>, OfValue<F, Sel>>
     },
 
-  struct: <const Entries extends Record<string, Projection<any, any> | ModelRef<any, any>>>(
+  struct: <
+    const Entries extends Record<
+      string,
+      Projection<any, any> | ModelRef<any, any> | ModeledDerived<any, any>
+    >,
+  >(
     entries: Entries & (IsUnion<EntryRoots<Entries>[keyof Entries]> extends true ? never : unknown),
   ): Projection<EntryRoot<Entries[keyof Entries]>, StructValue<Entries>> => {
     // Keys may be stored ids (a page's node ids), so `__proto__` must stay a key.
     const picked: Record<string, AnySchema> = Object.create(null)
     const dependencies: (readonly string[])[] = []
     const metadata: Metadata[] = []
-    const nesteds: Projection<unknown, unknown>[] = []
+    const nesteds: { readonly dependencies: DependencyTree }[] = []
     const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
     for (const key of Object.keys(entries)) {
-      const entry = entries[key] as Projection<unknown, unknown> | ModelRef<unknown, unknown>
+      const entry = entries[key] as
+        | Projection<unknown, unknown>
+        | ModelRef<unknown, unknown>
+        | ModeledDerived<unknown, unknown>
       if (ModelRef.is(entry)) {
         const focus = entry[RefTypeId]
         picked[key] = focus.Schema
         dependencies.push(focus.dependency)
         readers.push([key, focus.get])
       } else {
+        if (entry.Model === undefined) {
+          throw new Error(
+            `Projection.struct: "${key}" is a Derived with no Model. Pass the Schema of its value: Projection.derive(on, derive, { Model }).`,
+          )
+        }
         picked[key] = entry.Model
         dependencies.push(...entry.dependencies)
-        metadata.push(entry.metadata)
+        // A Derived has no metadata: it plans nothing, whatever it reads.
+        if ('metadata' in entry) metadata.push(entry.metadata)
         nesteds.push(entry)
         readers.push([key, entry.read])
       }
@@ -649,6 +680,11 @@ export const Projection = {
    * `import.meta.env?.DEV === true`, as `Remote.make`'s `verifyPredictions` takes it;
    * it doubles the work, so leave it off in production.
    *
+   * `Model`, the Schema of the value, makes the result a `ModeledDerived`, which
+   * a `Projection.struct` takes as an entry: the struct reads the memoized
+   * value, and the Surface checks it against `Model`. A Derived plans no
+   * requirements, whatever `on` holds.
+   *
    * @example
    * ```ts
    * const shown = Projection.derive([App.model.todos, App.model.filter], (model: Model) =>
@@ -657,10 +693,13 @@ export const Projection = {
    * // In the view: shown.read(model)
    * ```
    */
-  derive: <Root, Value>(
+  derive: (<Root, Value>(
     on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
     derive: (root: Root) => Value,
-    options: { readonly verify?: boolean | undefined } = {},
+    options: {
+      readonly verify?: boolean | undefined
+      readonly Model?: Schema.Codec<Value, unknown>
+    } = {},
   ): Derived<Root, Value> => {
     if (on.length === 0) {
       throw new Error(
@@ -674,7 +713,8 @@ export const Projection = {
     // No path changes when what such a read reads does, so none can skip it.
     const always = parts.some(unnamed)
     let last: { readonly values: ReadonlyArray<unknown>; readonly value: Value } | undefined
-    const derived: Derived<Root, Value> = {
+    const derived: Derived<Root, Value> & { Model?: Schema.Codec<Value, unknown> } = {
+      ...(options.Model === undefined ? {} : { Model: options.Model }),
       dependencies,
       read: root => {
         const values = dependencies.map(path => valueAt(root, path))
@@ -700,6 +740,20 @@ export const Projection = {
     }
     if (always) readsUnnamed.add(derived)
     return derived
+  }) as {
+    <Root, Value>(
+      on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
+      derive: (root: Root) => Value,
+      options: {
+        readonly verify?: boolean | undefined
+        readonly Model: Schema.Codec<Value, unknown>
+      },
+    ): ModeledDerived<Root, Value>
+    <Root, Value>(
+      on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
+      derive: (root: Root) => Value,
+      options?: { readonly verify?: boolean | undefined },
+    ): Derived<Root, Value>
   },
 
   /**

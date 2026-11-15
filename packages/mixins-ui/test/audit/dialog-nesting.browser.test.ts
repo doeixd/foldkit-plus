@@ -14,7 +14,7 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-import { Dialog, DialogSlots, Recipes } from '../../src/index.js'
+import { Dialog, DialogSlots, Dialog as DialogMixins, Recipes } from '../../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(DialogSlots)(Recipes.Dialog({}))
@@ -23,6 +23,7 @@ const Model = Schema.Struct({
   outer: UiDialog.Model,
   inner: UiDialog.Model,
   trigger: Schema.Boolean,
+  drawing: Schema.Number,
 })
 type Model = typeof Model.Type
 
@@ -32,6 +33,7 @@ type Message =
   | { readonly _tag: 'OpenedOuter' }
   | { readonly _tag: 'OpenedInner' }
   | { readonly _tag: 'HidTrigger' }
+  | { readonly _tag: 'RedrewTrigger' }
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
@@ -40,11 +42,12 @@ afterEach(() => {
 
 const dialogView =
   (
+    mixins: Parameters<typeof Dialog.toView<Message>>[0],
     title: string,
     content: (h: HtmlBuilder<Message>) => ReadonlyArray<ReturnType<HtmlBuilder<Message>['div']>>,
   ) =>
   (h: HtmlBuilder<Message>) =>
-    Dialog.toView([style.mixin], { h }, dialog =>
+    Dialog.toView(mixins, { h }, dialog =>
       h.dialog(
         dialog.dialog,
         dialog.isVisible
@@ -56,7 +59,8 @@ const dialogView =
       ),
     )
 
-const mount = () => {
+const mount = (options: { focusReturn: boolean }) => {
+  const mixins = options.focusReturn ? [style.mixin, ...DialogMixins.focusReturn] : [style.mixin]
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -84,6 +88,7 @@ const mount = () => {
           outer: UiDialog.init({ id: 'outer' }),
           inner: UiDialog.init({ id: 'inner' }),
           trigger: true,
+          drawing: 0,
         },
       }),
       update: (model: Model, message: Message) => {
@@ -98,6 +103,8 @@ const mount = () => {
             return lift('GotInner')(UiDialog.open(model.inner), model, 'inner')
           case 'HidTrigger':
             return { model: { ...model, trigger: false } }
+          case 'RedrewTrigger':
+            return { model: { ...model, drawing: model.drawing + 1 } }
         }
       },
       view: (model: Model, h: HtmlBuilder<Message>) =>
@@ -105,14 +112,24 @@ const mount = () => {
           [],
           [
             ...(model.trigger
-              ? [h.button([h.Id('open-outer'), h.OnClick({ _tag: 'OpenedOuter' })], ['Open outer'])]
+              ? [
+                  h.button(
+                    [
+                      h.Key(`open-${model.drawing}`),
+                      h.Id('open-outer'),
+                      h.OnClick({ _tag: 'OpenedOuter' }),
+                    ],
+                    ['Open outer'],
+                  ),
+                ]
               : []),
+            h.button([h.Id('elsewhere')], ['Elsewhere']),
             h.submodel({
               slotId: model.outer.id,
               model: model.outer,
               view: UiDialog.view,
               viewInputs: {
-                toView: dialogView('Outer', h => [
+                toView: dialogView(mixins, 'Outer', h => [
                   h.button(
                     [h.Id('open-inner'), h.OnClick({ _tag: 'OpenedInner' })],
                     ['Open inner'],
@@ -120,6 +137,10 @@ const mount = () => {
                   h.button(
                     [h.Id('hide-trigger'), h.OnClick({ _tag: 'HidTrigger' })],
                     ['Hide trigger'],
+                  ),
+                  h.button(
+                    [h.Id('redraw-trigger'), h.OnClick({ _tag: 'RedrewTrigger' })],
+                    ['Redraw trigger'],
                   ),
                 ])(h),
               },
@@ -132,7 +153,7 @@ const mount = () => {
               slotId: model.inner.id,
               model: model.inner,
               view: UiDialog.view,
-              viewInputs: { toView: dialogView('Inner', () => [])(h) },
+              viewInputs: { toView: dialogView(mixins, 'Inner', () => [])(h) },
               toParentMessage: (message: UiDialog.Message): Message => ({
                 _tag: 'GotInner',
                 message,
@@ -150,7 +171,7 @@ const byId = (id: string) => document.getElementById(id)!
 const settle = () => new Promise(resolve => setTimeout(resolve, 150))
 
 test('Escape closes the inner dialog only, and focus returns to each opener in turn', async () => {
-  const handle = mount()
+  const handle = mount({ focusReturn: false })
   try {
     await vi.waitFor(() => expect(byId('open-outer')).not.toBeNull())
     await userEvent.click(byId('open-outer'))
@@ -168,18 +189,60 @@ test('Escape closes the inner dialog only, and focus returns to each opener in t
   }
 })
 
-test('a trigger removed while its dialog is open leaves focus on the body when it closes (today)', async () => {
-  const handle = mount()
+const closeOuterAfter = async (press: string) => {
+  await vi.waitFor(() => expect(byId('open-outer')).not.toBeNull())
+  const opener = byId('open-outer')
+  await userEvent.click(opener)
+  await vi.waitFor(() => expect(opened()).toBe(1))
+  await userEvent.click(byId(press))
+  await vi.waitFor(() => expect(document.activeElement).not.toBe(opener))
+  await userEvent.keyboard('{Escape}')
+  await vi.waitFor(() => expect(opened()).toBe(0))
+  await settle()
+}
+
+test('without focusReturn, a trigger removed while its dialog is open leaves focus on the body', async () => {
+  const handle = mount({ focusReturn: false })
+  try {
+    await closeOuterAfter('hide-trigger')
+    expect(document.getElementById('open-outer')).toBeNull()
+    expect(document.activeElement).toBe(document.body)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('with focusReturn, a trigger removed while its dialog is open sends focus to the first element of the page', async () => {
+  const handle = mount({ focusReturn: true })
+  try {
+    await closeOuterAfter('hide-trigger')
+    expect(document.getElementById('open-outer')).toBeNull()
+    expect(document.activeElement).toBe(byId('elsewhere'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('with focusReturn, a trigger drawn again while its dialog is open gets focus back', async () => {
+  const handle = mount({ focusReturn: true })
+  try {
+    await closeOuterAfter('redraw-trigger')
+    expect(document.activeElement).toBe(byId('open-outer'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('with focusReturn, a trigger that is still there gets focus back as before', async () => {
+  const handle = mount({ focusReturn: true })
   try {
     await vi.waitFor(() => expect(byId('open-outer')).not.toBeNull())
     await userEvent.click(byId('open-outer'))
     await vi.waitFor(() => expect(opened()).toBe(1))
-    await userEvent.click(byId('hide-trigger'))
-    await vi.waitFor(() => expect(document.getElementById('open-outer')).toBeNull())
     await userEvent.keyboard('{Escape}')
     await vi.waitFor(() => expect(opened()).toBe(0))
     await settle()
-    expect(document.activeElement).toBe(document.body)
+    expect(document.activeElement).toBe(byId('open-outer'))
   } finally {
     handle.dispose()
   }

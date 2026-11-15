@@ -125,8 +125,11 @@ or a Command that wrote the URL; never for an echo. Remote takes it as
 then shows a list left within `historyWindow` as it was, asking nothing.
 
 **Attached Surfaces.** `surface: { surface, params: route => params }` on a
-node; `Site.sources(site, App.owner, App.model.route)` is each surfaced node
-as its `Surface.when`, keyed by tag, for `Data.wiring` / `subscriptions` /
+node; `Site.sources(site, App.owner, App.model.route)` is each node with a
+Surface as its `Surface.when`, keyed by tag (`SiteSources`: a key per tag of a
+node with a Surface, which the tree's type carries, so the keys survive
+`{ ...Site.sources(…), editor }` and `Data.wiring`'s `policies` cannot name a
+surfaceless node), for `Data.wiring` / `subscriptions` /
 `satisfy` / SSR `surfaces`. Refuses a foreign surface. Each entry answers its
 own tag only. `Site.sourcesFor(site, App.owner, App.model.route,
 target.route)` is the same entries for the target's chain only — what
@@ -162,6 +165,21 @@ tells the child on arrival (`undefined` = nothing needed; absent = never
 informed). `Site.routing({ ..., pages: [...] })` informs arrivals, and `arrived: (model, route) => Update.Return` runs after
 them for a new route (focus, say), never for an echo. Bundles
 with OutMessages and non-Bundle children stay on `Bundle.at` / `Link.child`.
+
+**Code split by route.** A page placed from a `Bundle.lazy` carries it as
+`page.code`; its `changed` is required and returns a Message (a type error
+otherwise, and refused at run time), since its arrival is what loads it.
+`Site.routing({ pages })` returns `codeFor(route)`, the code of every page of
+that one list on the route's chain, root first, typed by the tree's routes;
+pure. Give it to `SSR.entry` and `SSR.hydrate` as `lazy: model =>
+Routing.codeFor(model.route)`. `Routing.boot(model)` tells the Model's route
+to its pages as an arrival: an `init` with no server render starts through it,
+or a lazy page opened at its address draws its placeholder for good. With a
+`preload`, `code: fetchCode` (a top-level export, so a site without lazy pages
+keeps none of it; required with a lazy page) fetches a pointed-at route's
+unloaded code beside its read, once (a `Site.LoadCode` Command completing with
+`completed`, failure or not). `examples/auth`'s `/account`. The split can cost
+more than it defers: measure the start bundle before and after.
 
 ## Gotchas
 
