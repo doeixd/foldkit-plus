@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-plus`: the package ships the agent skill (`skill/`) and the conceptual guides the
+  site publishes (`guides/`), copied at build time, so they are the version of the installed
+  code; relative links in a guide, and the skill's links to `main`, point at the release's tag.
+  `npx foldkit-plus docs` answers from them (labelled `foldkit-plus@<version> skill …` and
+  `guide …`), and notes on stderr a dot-folder skill of another version instead of reading it.
+  `npx foldkit-plus skill [--force]` installs the shipped skill under `.claude` and `.agents`
+  (or where one already is); `setup`'s skill step uses it, and `npx skills add` stays the way
+  to get the skill without the package.
 - `foldkit-mixins-ui`: `Sheet.view` takes `style`, a style of `DialogSlots`, beside `mixins`,
   as `Drawer.view`, `Command.view` and `Picker.view` do.
 - `foldkit-mixins-ui`: a `Sheet` with more than one point draws its handle as a focusable

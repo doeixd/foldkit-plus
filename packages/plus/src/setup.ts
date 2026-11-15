@@ -488,10 +488,10 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     '## 3. Add the agent skill',
     '',
     '```bash',
-    'npx skills add doeixd/foldkit-plus --skill foldkit-plus',
+    'npx foldkit-plus skill',
     '```',
     '',
-    'It teaches you which package owns which kind of state, when to reach for each, and a working example of each. Read its `SKILL.md` before writing code with Foldkit Plus, and the reference for the package at hand before changing it. To look one symbol or topic up in the docs of the versions installed here, run `npx foldkit-plus docs <symbol or words>` (`--list` for what there is).',
+    'That copies the skill shipped inside the installed `foldkit-plus` (the same version as the code; run it after the install, and again after an upgrade with `--force`). Without the package, `npx skills add doeixd/foldkit-plus --skill foldkit-plus` fetches the latest from the repository instead. The skill teaches you which package owns which kind of state, when to reach for each, and a working example of each. Read its `SKILL.md` before writing code with Foldkit Plus, and the reference for the package at hand before changing it. To look one symbol or topic up in the docs of the versions installed here, run `npx foldkit-plus docs <symbol or words>` (`--list` for what there is).',
     // An empty folder was sent to the guide in step 1.
     ...Option.match(project, {
       onNone: () => [],

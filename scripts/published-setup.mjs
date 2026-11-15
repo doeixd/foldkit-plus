@@ -117,6 +117,18 @@ const tools = join(home, 'tools')
 mkdirSync(tools, { recursive: true })
 copyFileSync(tarballs.get('foldkit-plus'), join(tools, 'plus.tgz'))
 if (run('tar -xzf plus.tgz', tools).status !== 0) fail('could not unpack foldkit-plus')
+// The skill and the guides ship in the tarball, and no design note does.
+const listing = run('tar -tzf plus.tgz', tools)
+if (listing.status !== 0) fail('could not list foldkit-plus')
+const shipped = listing.stdout.split(/\r?\n/)
+for (const [what, pattern] of [
+  ['skill/SKILL.md', /^package\/skill\/SKILL\.md$/],
+  ['a skill reference', /^package\/skill\/references\/[^/]+\.md$/],
+  ['a guide', /^package\/guides\/[^/]+\.md$/],
+])
+  if (!shipped.some(path => pattern.test(path))) fail(`the foldkit-plus tarball has no ${what}`)
+const designs = shipped.filter(path => /docs\/design|guides\/design/.test(path))
+if (designs.length > 0) fail(`the foldkit-plus tarball holds design notes: ${designs.join(', ')}`)
 mkdirSync(join(tools, 'node_modules'))
 renameSync(join(tools, 'package'), join(tools, 'node_modules', 'foldkit-plus'))
 const cli = join(tools, 'node_modules', 'foldkit-plus', 'dist', 'cli.mjs')

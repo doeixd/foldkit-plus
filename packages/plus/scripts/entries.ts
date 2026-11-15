@@ -186,6 +186,7 @@ export const OWN_FILES: ReadonlyArray<string> = [
   'laws.ts',
   'project.ts',
   'setup.ts',
+  'skill.ts',
   'testing/peer.ts',
   'testing/playwright.ts',
   'testing/workers.ts',

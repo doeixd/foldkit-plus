@@ -671,11 +671,13 @@
   },
   "files": [
     "dist",
+    "skill",
+    "guides",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "node ../../scripts/declarations.mjs . && tsdown && node ../../scripts/declared-any.mjs .",
+    "build": "node ../../scripts/declarations.mjs . && tsdown && node ../../scripts/declared-any.mjs . && tsx scripts/bundle.ts",
     "generate": "tsx scripts/generate.ts",
     "typecheck": "tsc -b"
   },

@@ -118,10 +118,10 @@ describe('setupGuide', () => {
     )
   })
 
-  it('points at the agent skill', () => {
-    expect(guide(Option.none())).toContain(
-      'npx skills add doeixd/foldkit-plus --skill foldkit-plus',
-    )
+  it('installs the agent skill from the package, and names the route without it', () => {
+    const text = guide(Option.none())
+    expect(text).toContain('npx foldkit-plus skill\n')
+    expect(text).toContain('npx skills add doeixd/foldkit-plus --skill foldkit-plus')
   })
 
   it("gives a project the skill's AGENTS.md block, and an empty folder the greenfield guide's", () => {
