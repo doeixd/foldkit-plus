@@ -6,7 +6,7 @@
  * Model and Message types; the list only ever reads the shared fields.
  */
 import { Runtime } from 'foldkit'
-import { type StylesheetSource } from 'foldkit-mixins'
+import { define, merged } from './island.js'
 import * as Accordion from './accordion/app.js'
 import {
   Accordion as AccordionView,
@@ -145,20 +145,23 @@ import {
   toolbarStyle,
 } from './style.js'
 
-export interface Island {
-  readonly id: string
-  readonly title: string
-  readonly runDemo: () => ReadonlyArray<string>
-  readonly style: () => StylesheetSource
-  readonly mount: (container: HTMLElement) => void
-}
-
-const define = <T extends Island>(island: T): T => island
-
-/** One source of several, for an island drawn with more than one style. */
-const merged = (...sources: ReadonlyArray<StylesheetSource>): StylesheetSource => ({
-  rules: sources.flatMap(source => source.rules),
-  globalRules: sources.flatMap(source => source.globalRules),
+/** Last on the page: its thousand rows make it long, which is the point. */
+export const windowListIsland = define({
+  id: WindowListApp.ISLAND,
+  title: 'Window list',
+  runDemo: runWindowListDemo,
+  style: () => merged(...windowListStyles),
+  mount: container => {
+    Runtime.embed(
+      Runtime.makeElement({
+        Model: WindowListApp.Model,
+        init: () => ({ model: WindowListApp.initial }),
+        update: WindowListApp.update,
+        view: (model, h) => WindowListIsland(model, h),
+        container,
+      }),
+    )
+  },
 })
 
 export const islands = [
@@ -537,22 +540,5 @@ export const islands = [
       )
     },
   }),
-  // Last: its thousand rows make the page long, which is the point.
-  define({
-    id: WindowListApp.ISLAND,
-    title: 'Window list',
-    runDemo: runWindowListDemo,
-    style: () => merged(...windowListStyles),
-    mount: container => {
-      Runtime.embed(
-        Runtime.makeElement({
-          Model: WindowListApp.Model,
-          init: () => ({ model: WindowListApp.initial }),
-          update: WindowListApp.update,
-          view: (model, h) => WindowListIsland(model, h),
-          container,
-        }),
-      )
-    },
-  }),
+  windowListIsland,
 ] as const

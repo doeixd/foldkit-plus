@@ -20,6 +20,10 @@
         border-top: 1px solid var(--fk-outline-default, #e4e4e7);
         padding: 1.25rem 0;
       }
+      /* A section not yet loaded still takes room, so those far down stay unloaded. */
+      section > div:empty {
+        min-height: 14rem;
+      }
       h2 {
         font-size: 1rem;
         margin: 0 0 0.75rem;
