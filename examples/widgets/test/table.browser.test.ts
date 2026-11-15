@@ -81,6 +81,9 @@ it('names each cell under its row heading and its column heading, as Chromium an
   ])
 })
 
+// ADOPT when Table keeps focus on a row's button as keyed rows move (approved fix in mixins-ui).
+it.todo('focus on Archive Annie Easley stays on that button after the Name heading sorts the rows')
+
 it('presses the markup cell button with Enter and Space, and keeps focus on it', async () => {
   mount()
   await vi.waitFor(() => expect(button('Archive Ada Lovelace')).toBeDefined())

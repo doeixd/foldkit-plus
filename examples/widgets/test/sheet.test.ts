@@ -49,6 +49,11 @@ describe('update flows', () => {
   })
 })
 
+// ADOPT when Sheet.close returns the Model it was given on a closed sheet (approved fix in mixins-ui).
+it.todo(
+  'Sheet.close on a closed sheet returns the same Model, so Escape while closed re-renders nothing',
+)
+
 describe('demo', () => {
   it('traces opening, two handle keys and Escape', () => {
     expect(island.runDemo()).toEqual([

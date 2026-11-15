@@ -126,6 +126,7 @@ const refusal = (draw: () => unknown): Option.Option<string> => {
     draw()
     return Option.none()
   } catch (error) {
+    // ADOPT: a non-throwing key-clash check in foldkit-mixins (approved) replaces this catch.
     if (error instanceof Diagnostics.DiagnosticError) {
       return Option.some(`${error.diagnostic.code}: ${error.diagnostic.message}`)
     }
