@@ -90,6 +90,8 @@ layers a page installs. [Style](#style-appearance-as-data) and
 | Redraw only what changed | [Parts](#parts-redraw-only-what-changed), [Regions](#regions-redraw-by-the-model-paths-read) |
 | Test a view, or render it with no runtime | [Testing and static output](#testing-and-static-output) |
 
+To build a component of your own from Slots, primitives and a recipe, one concept at a time, follow [Authoring components](../../docs/authoring-components.md).
+
 ## Why not just `className` and props?
 
 A class name says only "append this string." A slot is a **typed public customization point**.

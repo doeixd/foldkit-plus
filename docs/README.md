@@ -80,6 +80,7 @@ Link and Placement to Connection and Segment, are in the
 | Tell who is asking from what they may do, and wire the two | [Auth and Guard](./auth-and-guard.md) | `foldkit-auth`, `foldkit-guard` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Use a ready-made widget (menus, dialogs, tabs, tables, toolbars, search fields) in the application's theme | [Widget catalog](../packages/mixins-ui/README.md) | `foldkit-mixins-ui`, `foldkit-primitives` |
+| Build a component, widget, recipe or primitive of your own when the catalog lacks one, with the tests that prove it | [Authoring components](./authoring-components.md) | `foldkit-mixins`, `foldkit-mixins-ui`, `foldkit-primitives`, `foldkit-bundle` |
 | Build on the shared UI vocabulary (anatomy, capability, recipe, theme) before adding widgets | [UI architecture](./ui-architecture.md) | `foldkit-mixins`, `foldkit-mixins-ui` |
 | Understand the long-term path from one Foldkit state machine to Web, native iOS, native Android, and desktop without requiring a JavaScript runtime on mobile | [Native cross-platform Foldkit](./native-cross-platform.md) | `foldkit-surface`, `foldkit-mixins`, platform adapters, reffect |
 | Understand how a replica is actually bound to a running Foldkit app | [Runtime binding](./sync-runtime-binding.md) | `Sync.mount` |

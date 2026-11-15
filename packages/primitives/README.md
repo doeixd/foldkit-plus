@@ -37,6 +37,8 @@ Command   does a DOM effect the Model caused    (focus this row once it is drawn
 
 A widget's keys are `Behaviors.Keys` routes, the one `keydown` owner of a slot,
 so an application adds a key beside them instead of fighting them.
+[Authoring components](../../docs/authoring-components.md) assembles a component
+from these step by step, and says what a new primitive must carry.
 
 ## Which form a primitive takes
 

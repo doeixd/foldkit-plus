@@ -46,6 +46,8 @@ element-level attributes and optional Mount behavior; it is not a hidden state
 container. If you are building your own view rather than adapting a widget,
 publish Slots directly with [`foldkit-mixins`](../mixins); for Slot / Style /
 Behavior itself, read [Inside-out view composition](../../docs/mixins.md) first.
+[Authoring components](../../docs/authoring-components.md) builds such a view from
+primitives step by step, and lists what a widget for this catalog must carry.
 
 ## The mental model
 

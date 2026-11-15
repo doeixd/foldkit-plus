@@ -84,7 +84,10 @@ export const subsites: ReadonlyArray<Subsite> = [
       shelf: 'Foundations',
       packages: ['mixins', 'mixins-surface', 'mixins-ui'],
     },
-    [doc('composition', 'Inside-out composition', 'mixins')],
+    [
+      doc('composition', 'Inside-out composition', 'mixins'),
+      doc('authoring', 'Authoring components', 'authoring-components'),
+    ],
   ),
   family(
     {
