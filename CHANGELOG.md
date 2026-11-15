@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-primitives`: `Repeat.behavior` takes the `SlotView.over` binder as `Press.behavior` does (options
+  and Message inferred, bare slots with named generics still work), gains `disabled`, and supplies the
+  `activation` obligation on its target. The pointer leaving a held button ends the hold, as documented.
+- `foldkit-primitives`: `Selection` gains the `Selected { id }` Message and the `select(id)` (replace with
+  one item and anchor) and `range(id, order)` helpers.
+- `foldkit-primitives`: `GridNavigation.behavior` takes `routes`, the application's keys on the grid's one
+  `keydown` owner; a route on a key the grid takes is a `mixins:key-conflict`.
 - `foldkit-data-grid`: what an application asks of a grid from outside its view. `Placed.helpers.reveal(rows,
   { row, column?, rowHeight, headerHeight })` scrolls a row (and column) into view by the least scroll and
   moves no focus, for a "go to row" control; `Grid.rangeSize(rows, model.grid)` is the selected cell range's
@@ -752,6 +759,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-primitives`: **Breaking:** `Press`'s `Pressed` and the `PointerUp`, `KeyUp` and `Clicked`
+  facts of `Press`, `Repeat` and `LongPress` carry `modifiers: { shiftKey, ctrlKey, metaKey, altKey }`
+  in place of `shiftKey`. Migrate `out.shiftKey` to `out.modifiers.shiftKey`.
 - `foldkit-data-grid`: **Breaking:** the grid's `Out` has a `Copied({ rows, columns })`, sent when the view's copy
   has put a box on the clipboard (a cut still reports its cleared cells as `Pasted`). An `onOut` that matches
   every variant needs a `Copied` arm, which may ignore it.
@@ -983,6 +993,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-data-grid`: on a touch screen the header's funnel and menu buttons were 24px high. Each now reaches
+  the touch floor across the row (a pseudo-element, so the header keeps its height) and the funnel 12px into
+  its label's side; the menu button keeps its width, since the column's resize handle covers the edge beside it.
+- `foldkit-primitives`: `Press.events` no longer drops the end of a press that began while the element
+  was enabled. An `aria-disabled` element refuses new presses, but its release or key up arrives as a
+  cancel (`PointerCancelled`, new `KeyCancelled`), so a stepper that disables itself at its bound while
+  held does not leave `Repeat` held and ignoring every later press.
 - `foldkit-richtext-dom`: a decoration refresh (`overlay`, `redecorateEditor`) put the editor's selection
   back even while focus was on a control beside it, which pulled the focus into the text a moment after
   the user tabbed to a toolbar button. It restores the selection only while the editor holds the focus.
