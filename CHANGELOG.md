@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: a `Table` column's `sortKey` keeps its literal type, so `sort.onSort` receives
+  the union of the keys and `Table.TableSort` and `Table.nextSort` carry it (`TableColumn`, `TableSort`
+  and `TableView` take a `Key` parameter, defaulting to `string`). `Table.defineColumns<Row>()([...])`
+  keeps the literals of columns written once and hoisted.
 - `foldkit-mixins-ui`: `FileInput.cases`, the Messages `FileInput.Sync` and `FileInput.Focus` answer with
   (`CompletedSync`, `CompletedFocus`), to spread into the application's Message union:
   `defineMessageUnion({ ..., ...FileInput.cases })`. A union without them is a type error where the

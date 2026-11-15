@@ -1419,7 +1419,12 @@ Icon.view({ icon: check, style: Mark }, h)
 A column with `rowHeader` draws its cells as `th scope="row"`, so a screen reader
 names a row by it. A column with a `sortKey` heads with a button that sends
 `sort.onSort(column)`, and the sorted column carries `aria-sort`;
-`Table.nextSort(sort, column)` cycles ascending, descending and none. `selection`
+`Table.nextSort(sort, column)` cycles ascending, descending and none. A column's
+`sortKey` keeps the literal it is written as, so `onSort` receives `'name' | 'price'`
+and not a `string`: a Message field of `Schema.Literals(['name', 'price'])` needs no guard
+in `update`. Columns written in the call infer it; columns hoisted into a constant go
+through `Table.defineColumns<Row>()([...])` (or `as const`), and a call that names its
+type arguments (`Table.view<Row, Message>`) gets `string`. `selection`
 puts a checkbox on every row and one in the heading, mixed while only some are
 chosen; `expansion` opens a row's detail in a row below it (`aria-expanded`,
 `aria-controls`; its buttons' column is headed `Details` for a screen reader,
@@ -1447,17 +1452,17 @@ interface Product {
   readonly price: string
 }
 
-const Sort = defineMessageUnion({ Sorted: { column: Schema.String } })
+const Sort = defineMessageUnion({ Sorted: { column: Schema.Literal('name') } })
 type Sort = typeof Sort.Type
 
 const ProductsStyle = Style.forSlots(TableSlots)(Recipes.Table({}))
 
 const productsTable = (
   rows: ReadonlyArray<Product>,
-  sorted: Option.Option<Table.TableSort>,
+  sorted: Option.Option<Table.TableSort<'name'>>,
   h: HtmlBuilder<Sort>,
 ) =>
-  Table.view<Product, Sort>(
+  Table.view(
     {
       columns: [
         { header: 'Product', sortKey: 'name', rowHeader: true, value: row => row.name },

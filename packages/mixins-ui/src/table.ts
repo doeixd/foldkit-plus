@@ -55,8 +55,8 @@ export const TableSlots = Slots.define({
   emptyCell: Slot.make({ capability: Capability.Container }),
 })
 
-/** One column: its heading, and each row's cell for it. */
-export interface TableColumn<Row> {
+/** One column: its heading, and each row's cell for it. `Key` is the type of its `sortKey`. */
+export interface TableColumn<Row, Key extends string = string> {
   readonly header: string
   /** Right-align values that read as numbers. */
   readonly numeric?: boolean | undefined
@@ -65,12 +65,12 @@ export interface TableColumn<Row> {
   /** Draws the cell as the row's heading (`th scope="row"`), so a screen reader names a row by it. */
   readonly rowHeader?: boolean | undefined
   /** Makes the heading a button that sends `sort.onSort` with this key. */
-  readonly sortKey?: string | undefined
+  readonly sortKey?: Key | undefined
 }
 
 /** The column the rows are sorted by, and which way. */
-export interface TableSort {
-  readonly column: string
+export interface TableSort<Key extends string = string> {
+  readonly column: Key
   readonly direction: 'ascending' | 'descending'
 }
 
@@ -78,10 +78,10 @@ export interface TableSort {
  * The sort after a press on `column`'s heading: ascending first, then
  * descending, then none. The rows are the application's to sort by it.
  */
-export const nextSort = (
-  sort: Option.Option<TableSort>,
-  column: string,
-): Option.Option<TableSort> =>
+export const nextSort = <Key extends string>(
+  sort: Option.Option<TableSort<Key>>,
+  column: Key,
+): Option.Option<TableSort<Key>> =>
   Option.match(
     Option.filter(sort, current => current.column === column),
     {
@@ -128,8 +128,8 @@ export interface TableExpansion<Row, Message> {
  * upstream component stands behind it, except the checkboxes, which are
  * `@foldkit/ui`'s.
  */
-export interface TableView<Row, Message = never> {
-  readonly columns: ReadonlyArray<TableColumn<Row>>
+export interface TableView<Row, Message = never, Key extends string = string> {
+  readonly columns: ReadonlyArray<TableColumn<Row, Key>>
   readonly rows: ReadonlyArray<Row>
   readonly caption?: string | undefined
   /** Each row's key, so a sorted row keeps its element; by default its place. */
@@ -137,8 +137,8 @@ export interface TableView<Row, Message = never> {
   /** The sort the rows are drawn in, and the Message a press on a sortable heading sends. */
   readonly sort?:
     | {
-        readonly by: Option.Option<TableSort>
-        readonly onSort: (column: string) => Message
+        readonly by: Option.Option<TableSort<Key>>
+        readonly onSort: (column: Key) => Message
       }
     | undefined
   /** A checkbox on every row, and one in the heading for all of them. */
@@ -177,8 +177,18 @@ const resting = {
 // The detail and empty rows are not rows a reader picks out.
 const dataRow = 'tbody > tr:not([data-detail], [data-empty])'
 
-export const view = <Row, Message = never>(
-  options: TableView<Row, Message>,
+/**
+ * Columns written once and used by name: `Table.defineColumns<Row>()([...])` keeps each `sortKey` as the
+ * literal it was written, so `sort.onSort` receives `'name' | 'role'` and not `string`. Columns
+ * written inline in `Table.view` need no helper.
+ */
+export const defineColumns =
+  <Row>() =>
+  <const Columns extends ReadonlyArray<TableColumn<Row>>>(each: Columns): NoInfer<Columns> =>
+    each
+
+export const view = <Row, Message = never, Key extends string = string>(
+  options: TableView<Row, Message, Key>,
   h: HtmlBuilder<Message>,
 ): Html => {
   const builders = SlotView.buildersFor(
@@ -187,7 +197,7 @@ export const view = <Row, Message = never>(
     { input: undefined, h },
   )
   const { columns, rows, selection, expansion } = options
-  const numeric = (column: TableColumn<Row>) =>
+  const numeric = (column: TableColumn<Row, Key>) =>
     column.numeric === true ? [h.DataAttribute('numeric', '')] : []
   const keyOf = (row: Row, index: number) => options.rowKey?.(row) ?? String(index)
   const span =
@@ -219,7 +229,7 @@ export const view = <Row, Message = never>(
       h,
     )
 
-  const heading = (column: TableColumn<Row>) => {
+  const heading = (column: TableColumn<Row, Key>) => {
     if (column.sortKey === undefined || options.sort === undefined)
       return h.th(builders.headerCell.attrs([h.Scope('col'), ...numeric(column)]), [column.header])
     const key = column.sortKey

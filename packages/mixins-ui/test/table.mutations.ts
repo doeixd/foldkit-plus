@@ -255,4 +255,15 @@ export default [
     edits: [{ file: view, find: '  control: Slot.make({', replace: '  controlz: Slot.make({' }],
     tests: focus,
   },
+  {
+    name: 'defineColumns drops the columns',
+    edits: [
+      {
+        file: view,
+        find: '(each: Columns): NoInfer<Columns> =>',
+        replace: '(each: Columns): NoInfer<Columns> => [] as never ||',
+      },
+    ],
+    tests,
+  },
 ]
