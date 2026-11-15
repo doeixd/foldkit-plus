@@ -698,15 +698,22 @@ const unplacedKeeps = (html: string): ReadonlyArray<string> => {
  * returns the config the render starts from. A list loads whole; a function
  * of the Model is asked with the Model `init` starts this page from, so the
  * render starts from that start rather than running `init` a second time.
+ * `known` is that Model when the config already starts from it (`prepare`'s,
+ * a post's), which no render need work out again.
  */
 const loadLazy = <Model>(
   config: ResumableConfig<Model>,
   options: { readonly url?: string | undefined; readonly flags?: unknown },
+  known: Option.Option<Model>,
 ): Effect.Effect<ResumableConfig<Model>, RenderError> =>
   Effect.gen(function* () {
     const { lazy } = config
     if (typeof lazy !== 'function') {
       yield* Effect.promise(() => Promise.all((lazy ?? []).map(each => each.load())))
+      return config
+    }
+    if (Option.isSome(known)) {
+      yield* Effect.promise(() => Promise.all(lazy(known.value).map(each => each.load())))
       return config
     }
     const started = yield* startOf(config, options)
@@ -881,9 +888,11 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     readonly metaInRoot?: boolean | undefined
   },
   match: RouteMatch,
+  /** The Model `config` already starts from, when the caller has worked it out. */
+  known: Option.Option<Model> = Option.none(),
 ): Effect.Effect<Served<Model>, RenderError | ResumeUnsafe> =>
   Effect.gen(function* () {
-    config = yield* loadLazy(config, options)
+    config = yield* loadLazy(config, options, known)
     let served: ReturnType<ResumableConfig<Model>['init']> | undefined
     const regions = new Map<string, Region>()
     const duplicates = new Set<string>()
@@ -1693,6 +1702,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
               plan,
               { buildId: options.buildId, ...start, ...styled },
               matchOf(request.url),
+              Option.map(started, ({ model }) => model),
             )
         // `headers` or `status` that throws is a defect, answered 500 and reported.
         const extra = yield* Effect.sync(() => headersOf(request, Option.some(served.model)))
@@ -2207,6 +2217,7 @@ const handleServed = <Model, Fields extends Schema.Struct.Fields>(
         ...(options.metaInRoot === true ? { metaInRoot: true } : {}),
       },
       'full',
+      Option.some(model),
     ),
   )
 

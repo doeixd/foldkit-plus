@@ -32,6 +32,28 @@ export default [
     tests: server,
   },
   {
+    name: 'a start already worked out is worked out again',
+    edits: [
+      {
+        file: index,
+        find: '    if (Option.isSome(known)) {',
+        replace: '    if (false) {',
+      },
+    ],
+    tests: ['packages/ssr/test/lazyOnce.test.ts'],
+  },
+  {
+    name: 'the entry says what its prepared config starts from',
+    edits: [
+      {
+        file: index,
+        find: '              Option.map(started, ({ model }) => model),\n',
+        replace: '',
+      },
+    ],
+    tests: ['packages/ssr/test/lazyOnce.test.ts'],
+  },
+  {
     name: 'a list still loads whole',
     edits: [
       {
