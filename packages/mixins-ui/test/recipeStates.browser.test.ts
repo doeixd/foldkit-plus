@@ -327,35 +327,30 @@ const CONTROLS: ReadonlyArray<Control> = [
     states: ['hover', 'focus', 'disabled', 'checked'],
     focusing: ['focus', 'focus-visible'],
     looks: buttons,
-    known: ['checked:primary'],
   },
   {
     name: 'Input',
     states: ['hover', 'focus', 'disabled', 'invalid'],
     focusing: ['focus', 'focus-visible'],
     looks: inputs,
-    known: ['hover:filled'],
   },
   {
     name: 'Textarea',
     states: ['hover', 'focus', 'disabled', 'invalid'],
     focusing: ['focus', 'focus-visible'],
     looks: textareas,
-    known: ['hover:filled'],
   },
   {
     name: 'Select',
     states: ['hover', 'focus', 'disabled', 'invalid'],
     focusing: ['focus', 'focus-visible'],
     looks: selects,
-    known: ['hover:filled', 'invalid:filled'],
   },
   {
     name: 'Listbox trigger',
     states: ['hover', 'focus', 'disabled', 'invalid'],
     focusing: ['focus', 'focus-visible'],
     looks: listboxes,
-    known: ['hover:filled'],
   },
   {
     name: 'Combobox field',
@@ -387,7 +382,6 @@ const CONTROLS: ReadonlyArray<Control> = [
     states: ['hover', 'focus', 'disabled', 'checked'],
     focusing: ['focus', 'focus-visible'],
     looks: segmenteds,
-    known: ['disabled'],
   },
   {
     name: 'Slider',
@@ -402,7 +396,6 @@ const CONTROLS: ReadonlyArray<Control> = [
     focusing: ['focus-within'],
     inner: 'input',
     looks: numberFields,
-    known: ['disabledHover'],
   },
   {
     name: 'OtpField cell',

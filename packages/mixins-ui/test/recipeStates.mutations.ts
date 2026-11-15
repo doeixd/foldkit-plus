@@ -17,6 +17,59 @@ export default [
     tests,
   },
   {
+    name: 'a filled Select shows no invalid edge',
+    edits: [
+      {
+        file: '../src/recipes/select.ts',
+        find: `Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),`,
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a hovered filled Input keeps its resting fill',
+    edits: [{ file: '../src/recipes/field.ts', find: '  filledHover,', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a hovered filled Select keeps its resting fill',
+    edits: [{ file: '../src/recipes/select.ts', find: '          filledHover,', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a hovered filled Listbox trigger keeps its resting fill',
+    edits: [{ file: '../src/recipes/listbox.ts', find: '    filledHover,', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a pressed primary Button looks unpressed',
+    edits: [
+      {
+        file: '../src/recipes/button.ts',
+        find: '          on({ backgroundColor: primaryActive, borderColor: primaryActive }),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a disabled Segmented option is not dimmed',
+    edits: [{ file: '../src/recipes/segmented.ts', find: '      disabled,', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a disabled number field changes its edge under the pointer',
+    edits: [
+      {
+        file: '../src/recipes/numberField.ts',
+        find: ':hover:not(:focus-within, :has(> input:disabled))',
+        replace: ':hover:not(:focus-within)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a hovered Input keeps its resting edge',
     edits: [
       {

@@ -116,6 +116,9 @@ const press = (fill: string, fillHover: string, fillActive: string): ReadonlyArr
   }),
 ]
 
+const primaryHover = `color-mix(in oklab, ${ref.text.overt} 85%, ${ref.surface.base})`
+const primaryActive = `color-mix(in oklab, ${ref.text.overt} 72%, ${ref.surface.base})`
+
 export const Button = Style.recipeFor(ButtonSlots)({
   base: {
     button: component(
@@ -203,15 +206,13 @@ export const Button = Style.recipeFor(ButtonSlots)({
       primary: {
         button: variant(
           Style.self({ backgroundColor: ref.text.overt, color: ref.surface.base }),
-          hover({
-            backgroundColor: `color-mix(in oklab, ${ref.text.overt} 85%, ${ref.surface.base})`,
-          }),
-          ...press(
-            ref.text.overt,
-            `color-mix(in oklab, ${ref.text.overt} 85%, ${ref.surface.base})`,
-            `color-mix(in oklab, ${ref.text.overt} 72%, ${ref.surface.base})`,
-          ),
+          hover({ backgroundColor: primaryHover }),
+          ...press(ref.text.overt, primaryHover, primaryActive),
           ...raised,
+          // On, it rests on the active fill and keeps it hovered, as a solid
+          // toggle does; the border follows, or the resting fill would ring it.
+          on({ backgroundColor: primaryActive, borderColor: primaryActive }),
+          Style.pseudo(onHovered, { backgroundColor: primaryActive, borderColor: primaryActive }),
         ),
       },
       /**

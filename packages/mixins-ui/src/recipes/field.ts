@@ -12,6 +12,7 @@ import {
   disabled,
   focusRing,
   focusWithin,
+  HOVERED,
   onLadder,
   ref,
   steps,
@@ -59,10 +60,22 @@ const description = component(
   }),
 )
 
+/**
+ * A filled control's hover: the field fill with the state ink laid over it,
+ * as a ghost's hover is laid over nothing. Its edge is transparent, so the
+ * border the outline looks change on hover has nothing to show. Skips a
+ * disabled control, and a frame holding one. The fill's longhand, so a
+ * select's chevron stays.
+ */
+export const filledHover: StyleValue = Style.pseudo(`${HOVERED}:not(:has(:disabled))`, {
+  backgroundColor: `color-mix(in oklab, var(--_fk-state-ink, ${ref.state.ink}) ${ref.knob['state-hover']}, ${ref.surface.field})`,
+})
+
 // A variant beats the base layer, so `filled`'s transparent edge would hide an
 // invalid control's: the invalid rules sit here too, for the control and its frame.
 const filled: StyleValue = variant(
   Style.self({ background: ref.surface.field, borderColor: 'transparent' }),
+  filledHover,
   Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
   Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
 )

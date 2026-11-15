@@ -16,6 +16,7 @@ import { ladder, nested, nests } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import {
   component,
+  disabled,
   glide,
   heldHighlight,
   hover,
@@ -119,6 +120,8 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
       }),
       // An icon alone, in a square.
       Style.pseudo('[data-icon="only"]', { inlineSize: optionHeight, paddingInline: '0' }),
+      // Every unavailable option, the group's `disabled` included, is drawn natively disabled.
+      disabled,
     ),
     content: component(
       Style.self({

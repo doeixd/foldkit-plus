@@ -12,6 +12,7 @@
 import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { ListboxSlots } from '../listbox.js'
+import { filledHover } from './field.js'
 import {
   component,
   controlCorner,
@@ -133,6 +134,7 @@ export const triggerLooks = {
   // A variant beats the base layer, so these write the invalid edge again.
   filled: variant(
     Style.self({ background: ref.surface.field, borderColor: 'transparent' }),
+    filledHover,
     invalidEdge,
   ),
   ghost: variant(

@@ -9,6 +9,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { SelectSlots } from '../select.js'
+import { filledHover } from './field.js'
 import { ladder, role } from 'foldkit-mixins/theme'
 import {
   component,
@@ -96,6 +97,9 @@ export const Select = Style.recipeFor(SelectSlots)({
       filled: {
         select: variant(
           Style.self({ backgroundColor: ref.surface.field, borderColor: 'transparent' }),
+          filledHover,
+          // The variant's transparent edge beats the base's error edge.
+          Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
         ),
       },
     },
