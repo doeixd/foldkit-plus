@@ -113,6 +113,8 @@ const writing = Style.compose(
     outline: 'none',
     caretColor: t.accent.default,
   }),
+  // Code is read left to right whatever the page's direction.
+  Style.nest('pre', { direction: 'ltr', textAlign: 'left' }),
   Style.nest('[contenteditable="true"] > * + *', { marginBlockStart: t.space.sm }),
   // An empty line is drawn with a `<br>` (foldkit-richtext-dom's filler), so it has a line of its
   // own; this keeps a heading or paragraph from collapsing if a browser drops it. Not a callout:
@@ -404,6 +406,8 @@ const writing = Style.compose(
   ),
 )
 
+/** A phone: touch, narrow. The less used controls step aside there; the slash menu still offers them. */
+const PHONE = '(max-width: 40rem) and (pointer: coarse)'
 export const Page = demoStyle.slots({
   page: Style.compose(
     arrival,
@@ -412,6 +416,11 @@ export const Page = demoStyle.slots({
     // over text too; `!important` because the text's caret cursor is a closer rule.
     Style.global(
       `@layer app { [data-richtext-drop] { block-size: 3px; margin-block-start: -1px; border-radius: 2px; background: ${t.accent.default}; pointer-events: none; z-index: 20; } [data-richtext-drag], [data-richtext-drag] * { cursor: grabbing !important; } }`,
+    ),
+    // The sticky bar covers the top of the window, so the caret and what is scrolled to stop
+    // below it; on a phone the bar is three rows of 44px targets.
+    Style.global(
+      `@layer app { html { scroll-padding-block-start: 5rem; } @media ${PHONE} { html { scroll-padding-block-start: 10rem; } } }`,
     ),
     Style.self({
       boxSizing: 'border-box',
@@ -716,6 +725,26 @@ export const Page = demoStyle.slots({
       fontSize: t.size.sm,
     }),
   ),
+  source: Style.self({
+    display: 'grid',
+    gap: t.space.xs,
+    padding: t.space.sm,
+    borderBlockStart: `1px solid ${t.outline.subtle}`,
+    background: t.surface.subtle,
+  }),
+  sourceText: Style.self({
+    margin: '0',
+    maxBlockSize: '16rem',
+    overflow: 'auto',
+    padding: t.space.sm,
+    border: `1px solid ${t.outline.subtle}`,
+    borderRadius: t.radius.md,
+    background: t.surface.base,
+    fontFamily: 'ui-monospace, monospace',
+    fontSize: t.size.xs,
+    lineHeight: '1.5',
+    whiteSpace: 'pre',
+  }),
   file: Style.self({
     position: 'absolute',
     inlineSize: '1px',
@@ -781,9 +810,10 @@ export const LinkEditorStyle = demoStyle.forSlots(LinkEditorSlots)({
   remove: control,
 })
 
-/** A phone: touch, narrow. The less used controls step aside there; the slash menu still offers them. */
-const PHONE = '(max-width: 40rem) and (pointer: coarse)'
 const LESS_USED = [
+  'app-comment',
+  'app-source',
+  'app-direction',
   'mark-Strikethrough',
   'mark-Code',
   'mark-Highlight',

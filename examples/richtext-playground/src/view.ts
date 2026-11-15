@@ -21,6 +21,7 @@ import {
   slashMove,
   tableOfContents,
   tableToolbar,
+  InsertEntry,
   type FormattingItem,
   type FormattingMenu,
   type RichTextIconName,
@@ -42,6 +43,7 @@ import {
   codeBlockAt,
   openMenu,
   openThreads,
+  sourceOf,
   quoteOf,
   threadAt,
   type Model,
@@ -91,13 +93,16 @@ const menuText = (model: Model): string => menuTextOf(editorView(model))
 /** The marks the bars offer, this vocabulary's beside the editor's own. */
 const MARKS = ['Bold', 'Italic', 'Underline', 'Strikethrough', 'Code', 'Highlight'] as const
 
-const BAR_ITEMS: ReadonlyArray<FormattingItem> = [
+/** The bar's controls; the page's own (`app`) end it, in the same tab stop. */
+const barItems = (
+  app: ReadonlyArray<FormattingItem<Message>>,
+): ReadonlyArray<FormattingItem<Message>> => [
   'undo',
   'redo',
   'separator',
   'style',
   'separator',
-  ...MARKS.map((mark): FormattingItem => ({ mark })),
+  ...MARKS.map((mark): FormattingItem<Message> => ({ mark })),
   'link',
   'separator',
   'bulleted-list',
@@ -105,13 +110,15 @@ const BAR_ITEMS: ReadonlyArray<FormattingItem> = [
   'checklist',
   'quote',
   'insert',
+  'separator',
+  ...app,
 ]
 
 /** Over selected text the edits that are not marks are left to the slash menu and the main bar. */
-const SELECTION_ITEMS: ReadonlyArray<FormattingItem> = [
+const SELECTION_ITEMS: ReadonlyArray<FormattingItem<Message>> = [
   'style',
   'separator',
-  ...MARKS.map((mark): FormattingItem => ({ mark })),
+  ...MARKS.map((mark): FormattingItem<Message> => ({ mark })),
   'link',
 ]
 
@@ -124,7 +131,21 @@ const SHORTCUTS = {
 
 /** What the insert menu offers, by slash entry id, in this order; a file has its own button. */
 const INSERTS = ['table', 'callout', 'toggle', 'divider', 'footnote'] as const
-const inserts = INSERTS.flatMap(id => playgroundSlashEntries.filter(entry => entry.id === id))
+const inserts: ReadonlyArray<InsertEntry<Message>> = [
+  // A file is the page's own to read, so it is not an editor entry.
+  InsertEntry.App({
+    id: 'file',
+    label: 'Image, video or file',
+    description: 'From your device, up to 8 MB',
+    icon: 'file',
+    message: Message.OpenedFileDialog(),
+  }),
+  ...INSERTS.flatMap(id =>
+    playgroundSlashEntries.flatMap(entry =>
+      entry.id === id ? [InsertEntry.Editor({ entry })] : [],
+    ),
+  ),
+]
 
 /**
  * What a bar's control sends. A block goes at the top level, beside the caret's, and every edit
@@ -149,6 +170,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
   .define(Page.slots, (model: Model, slots, h): Html => {
     const open = openMenu(model)
     const covers = RichText.coversText(model.editor.selection)
+    const sourceOpen = Option.isSome(model.source)
     const tool = (
       name: RichTextIconName,
       title: string,
@@ -245,6 +267,45 @@ export const PlaygroundView = SlotView.forMessages<Message>()
       { align: 'end', label: 'Export' },
     )
     // One bar for the formatting, and beside it the actions that are the page's own.
+    const appControls: ReadonlyArray<FormattingItem<Message>> = [
+      {
+        control: {
+          id: 'comment',
+          label: 'Comment',
+          icon: 'comment',
+          disabled: !covers,
+          message: Message.StartedComment(),
+        },
+      },
+      {
+        control: {
+          id: 'find',
+          label: 'Find and replace',
+          icon: 'search',
+          shortcut: 'mod+f',
+          pressed: Option.isSome(model.find),
+          message: Message.OpenedFind(),
+        },
+      },
+      {
+        control: {
+          id: 'source',
+          label: 'Source',
+          icon: 'code-block',
+          pressed: sourceOpen,
+          message: sourceOpen ? Message.HidSource() : Message.ShowedSource({ format: 'Markdown' }),
+        },
+      },
+      {
+        control: {
+          id: 'direction',
+          label: 'Right to left',
+          icon: 'paragraph',
+          pressed: model.direction === 'rtl',
+          message: Message.ToggledDirection(),
+        },
+      },
+    ]
     const formatting = (place: 'toolbar' | 'floating'): Html => {
       const onToolbar = place === 'toolbar'
       return (onToolbar ? Bar : SelectionBar)(
@@ -254,7 +315,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
           selection: model.editor.selection,
           storedMarks: model.editor.storedMarks,
           wrap: barEdit,
-          items: onToolbar ? BAR_ITEMS : SELECTION_ITEMS,
+          items: onToolbar ? barItems(appControls) : SELECTION_ITEMS,
           history: {
             undo: RichText.canUndo(model.editor.history),
             redo: RichText.canRedo(model.editor.history),
@@ -274,26 +335,14 @@ export const PlaygroundView = SlotView.forMessages<Message>()
           onFocus: id => Message.FocusedControl({ id }),
           shortcuts: SHORTCUTS,
           words: onToolbar ? undefined : { toolbar: 'Selection' },
+          direction: model.direction,
         },
         h,
       )
     }
     const toolbar = h.div(slots.bar.attrs(), [
       formatting('toolbar'),
-      h.div(slots.barActions.attrs([h.Role('group'), h.AriaLabel('Document')]), [
-        tool('comment', 'Comment on the selection', Message.StartedComment(), {
-          disabled: !covers,
-          label: 'Comment',
-          priority: 'low',
-        }),
-        tool('search', 'Find and replace (Ctrl+F)', Message.OpenedFind(), {
-          pressed: Option.isSome(model.find),
-        }),
-        tool('image', 'Insert an image, video or file', Message.OpenedFileDialog(), {
-          label: 'Image',
-        }),
-        exportMenu,
-      ]),
+      h.div(slots.barActions.attrs([h.Role('group'), h.AriaLabel('Export')]), [exportMenu]),
       h.input(
         slots.file.attrs([
           h.Id(FILE_INPUT),
@@ -438,7 +487,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
     return AppShell.view(
       { title: 'Rich text playground', actions: [reset], style: ShellStyle },
       [
-        h.div(slots.page.attrs([h.OnMount(findShortcut())]), [
+        h.div(slots.page.attrs([h.Dir(model.direction), h.OnMount(findShortcut())]), [
           h.p(slots.lede.attrs(), [
             'One document to try foldkit-richtext on: blocks to move, text to discuss, tables, code, media and footnotes. Type / to add anything.',
           ]),
@@ -503,6 +552,32 @@ export const PlaygroundView = SlotView.forMessages<Message>()
               ),
               discussions(model, slots, h),
             ]),
+            ...Option.match(model.source, {
+              onNone: () => [],
+              onSome: format => [
+                h.section(slots.source.attrs([h.AriaLabel('Source')]), [
+                  h.div(slots.actions.attrs([h.Role('group'), h.AriaLabel('Source format')]), [
+                    ...ExportFormat.literals.map(each =>
+                      h.button(
+                        slots.tool.attrs([
+                          h.Type('button'),
+                          h.AriaPressed(each === format ? 'true' : 'false'),
+                          h.OnClick(Message.ShowedSource({ format: each })),
+                        ]),
+                        [each],
+                      ),
+                    ),
+                    h.button(slots.tool.attrs([h.Type('button'), h.OnClick(Message.HidSource())]), [
+                      'Hide',
+                    ]),
+                  ]),
+                  // Left to right whatever the page's direction: it is code, not prose.
+                  h.pre(slots.sourceText.attrs([h.Dir('ltr'), h.Tabindex(0)]), [
+                    sourceOf(model.document, format),
+                  ]),
+                ]),
+              ],
+            }),
             h.footer(slots.footer.attrs(), [
               Status({ document: model.document }, h),
 

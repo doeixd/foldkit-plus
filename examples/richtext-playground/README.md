@@ -33,10 +33,25 @@ The bar above the page and the one over selected text are `foldkit-mixins-richte
 menu and an Insert menu that open with ArrowDown, marks that show whether the selection carries
 them. The package ships no styles ([style.ts](src/style.ts) styles its slots) and holds no
 state, so two things are this page's: which menu is open (`Model.menu`) and where the tab stop is
-(`Model.tabStop`, an `Option`, set by `FocusedControl`). What the bar does not know sits in a
-group beside it: Comment, Find, Image (which asks for the file dialog through a Command, so it
-is a button and not a label) and Export. On a touch screen under 40rem the less used marks and
-lists step aside (the slash menu still offers them) and every control is 44px.
+(`Model.tabStop`, an `Option`, set by `FocusedControl`).
+
+What the bar does not know is handed to it: Comment, Find, Source and Right to left are
+application controls (`{ control }` items) ending the same tab stop, and "Image, video or file" is
+an `InsertEntry.App` in the Insert menu, which asks for the file dialog through a Command (a
+button cannot open it; only the file field can be asked to). Export keeps a menu of its own. On a
+touch screen under 40rem the less used marks and lists step aside (the slash menu still offers
+them) and every control is 44px.
+
+## Source and direction
+
+Source shows the document as Markdown, JSON or HTML under the editor, read again as it changes
+(`sourceOf`, kept by the document's identity so a render that left the document alone reads
+nothing). Right to left sets `dir` on the page: the bar's arrow keys, the menus and the text
+follow it, and the source stays left to right because it is code.
+
+Code is coloured by Shiki, whose grammars are large and not in the first screen: they load after
+the first frame (`LoadHighlighting`, [highlight.ts](src/highlight.ts)) and the editor draws its
+decorations again. Until then, or if the import fails, code is plain text.
 
 ## A discussion is two halves
 

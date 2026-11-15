@@ -318,6 +318,86 @@ test('on a phone the bar fits, keeps touch-sized controls and sets the rare ones
   await context.close()
 })
 
+test('code is coloured once its grammars have loaded after the first frame', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  await expect
+    .poll(() => page.locator('[contenteditable=true] > pre [data-decoration*="syntax-"]').count())
+    .toBeGreaterThan(0)
+  expect(errors).toEqual([])
+})
+
+test('the source panel shows the document as Markdown, then JSON, and follows an edit', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  const bar = page.getByRole('toolbar', { name: 'Formatting' })
+  await bar.locator('[data-item="app-source"]').click()
+  const panel = page.getByRole('region', { name: 'Source' })
+  await expect.poll(() => panel.locator('pre').textContent()).toContain('# A little room to think.')
+  await panel.getByRole('button', { name: 'JSON' }).click()
+  await expect.poll(() => panel.locator('pre').textContent()).toContain('"version": 1')
+  await panel.getByRole('button', { name: 'Markdown' }).click()
+  await caretAtEnd(page.locator('[contenteditable=true] > p').last())
+  await page.keyboard.type('and a tail')
+  await expect.poll(() => panel.locator('pre').textContent()).toContain('and a tail')
+  await panel.getByRole('button', { name: 'Hide' }).click()
+  await expect.poll(() => panel.count()).toBe(0)
+  expect(errors).toEqual([])
+})
+
+test('right to left mirrors the page, and the bar’s arrow keys follow', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors)
+  const bar = page.getByRole('toolbar', { name: 'Formatting' })
+  await bar.locator('[data-item="app-direction"]').click()
+  await expect.poll(() => page.locator('[dir=rtl]').count()).toBeGreaterThan(0)
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute('data-item'))
+  await bar.locator('[data-item="mark-Bold"]').focus()
+  // Under rtl the arrow that points toward the line's start moves forward.
+  await page.keyboard.press('ArrowLeft')
+  await expect.poll(focused).toBe('mark-Italic')
+  expect(errors).toEqual([])
+})
+
+// A package defect, proposed to the coordinator: typing Enter at the end of the document on a short
+// screen leaves the caret's line below the window, since the editor sets the selection without
+// scrolling it into view. `test.fails` says so, and goes red the day it is fixed.
+// ADOPT: the coordinator approved the fix in foldkit-richtext-dom; when it lands, change
+// `test.fails` to `test` (this is its acceptance test).
+test.fails('with a short screen (the keyboard up) the caret stays in view, below the sticky bar', async () => {
+  const errors: Array<string> = []
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 420 },
+    hasTouch: true,
+    isMobile: true,
+  })
+  const page = await context.newPage()
+  page.on('pageerror', error => errors.push(String(error)))
+  await page.goto(origin)
+  await page.waitForSelector('[contenteditable=true] h1', { timeout: 120_000 })
+  await newLine(page)
+  for (let line = 0; line < 12; line++)
+    await page.keyboard.type(`Line ${line}
+`)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        // The caret is in the last line: a collapsed range in an empty line has no rectangle.
+        const caret = document
+          .querySelector('[contenteditable=true] > p:last-of-type')
+          ?.getBoundingClientRect()
+        const bar = document
+          .querySelector('[role="toolbar"]')
+          ?.parentElement?.getBoundingClientRect()
+        if (caret === undefined || bar === undefined) return false
+        return caret.top >= bar.bottom - 1 && caret.bottom <= innerHeight + 1
+      }),
+    )
+    .toBe(true)
+  expect(errors).toEqual([])
+  await context.close()
+})
+
 test('the formatting bar is one tab stop, and its arrow keys move between controls', async () => {
   const errors: Array<string> = []
   const page = await open(errors)
@@ -327,17 +407,17 @@ test('the formatting bar is one tab stop, and its arrow keys move between contro
   await page.keyboard.press('ArrowRight')
   await expect.poll(focused).toBe('mark-Italic')
   await page.keyboard.press('End')
-  await expect.poll(focused).toBe('insert')
+  await expect.poll(focused).toBe('app-direction')
   await page.keyboard.press('Home')
   await expect.poll(focused).toBe('undo')
   await page.keyboard.press('ArrowLeft')
-  await expect.poll(focused).toBe('insert')
+  await expect.poll(focused).toBe('app-direction')
   // One tab stop: every other control is out of the tab order, and the stop is the last one used.
   expect(
     await bar
       .locator('button[tabindex="0"]')
       .evaluateAll(buttons => buttons.map(b => b.getAttribute('data-item'))),
-  ).toEqual(['insert'])
+  ).toEqual(['app-direction'])
   expect(errors).toEqual([])
 })
 
@@ -351,7 +431,7 @@ test('the formatting bar’s Insert menu opens with the arrow keys and inserts a
   await page.keyboard.press('ArrowDown')
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-insert')))
-    .toBe('table')
+    .toBe('file')
   await page.keyboard.press('Escape')
   await expect.poll(() => page.getByRole('menu', { name: 'Insert' }).count()).toBe(0)
   await expect
@@ -412,6 +492,8 @@ test('a table has its toolbar, and Tab moves from cell to cell, adding a row at 
     .toBe('next row')
   // Outside a table and code, Tab is not the editor's.
   await page.click('[contenteditable=true] > h1')
+  // Tab is the editor's while the Model still has the caret in the table: wait for it to leave.
+  await page.getByRole('toolbar', { name: 'Table' }).waitFor({ state: 'detached' })
   await page.keyboard.press('Tab')
   expect(
     await page.evaluate(() => document.activeElement?.getAttribute('contenteditable')),
@@ -622,7 +704,7 @@ test('Enter in a callout breaks its line, and on an empty last line leaves it', 
   await caretAtEnd(callout)
   await page.keyboard.press('Enter')
   await page.keyboard.type('Second line')
-  await expect.poll(() => callout.textContent()).toMatch(/new\.\nSecond line$/)
+  await expect.poll(() => callout.textContent()).toMatch(/quote\.\nSecond line$/)
   await page.keyboard.press('Enter')
   await page.keyboard.press('Enter')
   await page.keyboard.type('After')
