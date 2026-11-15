@@ -74,8 +74,8 @@ export default [
     edits: [
       {
         file,
-        find: 'enabled[(at + by + enabled.length) % enabled.length]',
-        replace: 'enabled[Math.max(0, Math.min(at + by, enabled.length - 1))]',
+        find: 'at((from + by + enabled.length) % enabled.length)',
+        replace: 'at(Math.max(0, Math.min(from + by, enabled.length - 1)))',
       },
     ],
     tests: [unit],
@@ -152,7 +152,7 @@ export default [
   },
   {
     name: 'what is typed before the next frame is not kept for Backspace',
-    edits: [{ file, find: '          typed.query = query\n', replace: '' }],
+    edits: [{ file, find: '          reached.query = query\n', replace: '' }],
     tests: [browser],
   },
   {
@@ -228,8 +228,8 @@ export default [
     edits: [
       {
         file,
-        find: 'Math.min(Math.max(position + by, 0), enabled.length - 1)',
-        replace: '(position + by + enabled.length) % enabled.length',
+        find: 'Math.min(Math.max(positionOf() + by, 0), enabled.length - 1)',
+        replace: '(positionOf() + by + enabled.length) % enabled.length',
       },
     ],
     tests: [unit],
@@ -248,6 +248,11 @@ export default [
         replace: `selector: '[data-nothing]'`,
       },
     ],
+    tests: [browser],
+  },
+  {
+    name: 'a key reads the highlight the last drawing showed, not where the previous key left it',
+    edits: [{ file, find: '        reached.current = Option.some(value)\n', replace: '' }],
     tests: [browser],
   },
   {

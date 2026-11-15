@@ -573,3 +573,48 @@ test('PageDown and PageUp move the highlight; typing and the caret keys, Home an
     handle.dispose()
   }
 })
+
+/**
+ * Holds `requestAnimationFrame`, as a loaded page does, so keys pressed meanwhile meet the
+ * view the last frame drew; the returned function runs what was asked for.
+ */
+const holdFrames = () => {
+  const real = window.requestAnimationFrame.bind(window)
+  const held: Array<FrameRequestCallback> = []
+  window.requestAnimationFrame = callback => held.push(callback)
+  return () => {
+    window.requestAnimationFrame = real
+    for (const callback of held.splice(0)) real(callback)
+  }
+}
+
+test('keys pressed before the next frame each move the highlight from where the one before left it, and Enter runs the row the last reached', async () => {
+  const handle = mountList({})
+  try {
+    const input = await vi.waitFor(() => {
+      const found = field()
+      expect(found).not.toBeNull()
+      return found!
+    })
+    input.focus()
+    await vi.waitFor(() => expect(activeRow()?.textContent).toContain('Row 0'))
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard('{ArrowDown}{ArrowDown}{PageDown}{PageDown}{ArrowUp}')
+    } finally {
+      release()
+    }
+    // 0 + 1 + 1 + 10 + 10 - 1: each press counted, none read the first drawing's highlight.
+    await vi.waitFor(() => expect(activeRow()?.textContent).toBe('Row 21'))
+    const second = holdFrames()
+    try {
+      await userEvent.keyboard('{ArrowDown}{Enter}')
+    } finally {
+      second()
+    }
+    // Enter runs (here: highlights) the row ArrowDown reached, not the one drawn.
+    await vi.waitFor(() => expect(activeRow()?.textContent).toBe('Row 22'))
+  } finally {
+    handle.dispose()
+  }
+})

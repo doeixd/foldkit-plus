@@ -214,34 +214,36 @@ export const view = <Value extends string, Message>(
   const rowId = (value: Value) => `${options.id}-${value}`
   const listId = `${options.id}-list`
   const crumbsId = `${options.id}-page`
-  const step = (by: 1 | -1): Option.Option<Value> => {
-    if (enabled.length === 0) return Option.none()
-    const at = Option.match(current, {
-      onNone: () => (by === 1 ? -1 : 0),
-      onSome: value => enabled.findIndex(item => item.value === value),
-    })
-    return Option.fromNullishOr(enabled[(at + by + enabled.length) % enabled.length]?.value)
-  }
-  // What the field holds since this drawing: a key handler reads the query it was drawn with,
-  // so a character typed before the next frame would leave Backspace deciding on an empty field.
-  // This drawing's own input handler keeps it, and the next drawing starts from the query again.
-  const typed = { query: options.query }
+  // What the field and the highlight hold since this drawing: a key handler reads the view it
+  // was drawn with, so a character typed, or a row moved to, before the next frame would be
+  // lost to the next key (Backspace deciding on an empty field, two ArrowDowns moving one row).
+  // `onActive` sets a row, so the move cannot be relative; this drawing's handlers keep the
+  // record instead, and the next drawing starts from the Model again.
+  const reached = { query: options.query, current }
   const keyInput: CommandKeyInput<Value> = {
     get query() {
-      return typed.query
+      return reached.query
     },
-    current,
+    get current() {
+      return reached.current
+    },
     rows: enabled.map(item => item.value),
   }
+  const positionOf = (): number =>
+    Option.match(reached.current, {
+      onNone: () => -1,
+      onSome: value => enabled.findIndex(item => item.value === value),
+    })
   const at = (index: number): Option.Option<Value> => Option.fromNullishOr(enabled[index]?.value)
-  const position = Option.match(current, {
-    onNone: () => -1,
-    onSome: value => enabled.findIndex(item => item.value === value),
-  })
+  const step = (by: 1 | -1): Option.Option<Value> => {
+    if (enabled.length === 0) return Option.none()
+    const from = Option.isNone(reached.current) && by === -1 ? 0 : positionOf()
+    return at((from + by + enabled.length) % enabled.length)
+  }
   const jump = (by: number): Option.Option<Value> =>
     enabled.length === 0
       ? Option.none()
-      : at(Math.min(Math.max(position + by, 0), enabled.length - 1))
+      : at(Math.min(Math.max(positionOf() + by, 0), enabled.length - 1))
   const keyRoutes = Behaviors.Keys
   const route = (
     name: string,
@@ -250,7 +252,12 @@ export const view = <Value extends string, Message>(
   ): CommandRoute<Value, Message> =>
     keyRoutes.route(name, { on: [keyRoutes.chord(key)], handle: ({ input }) => handle(input) })
   const moves = (name: string, key: Behaviors.Keys.NamedKey, to: () => Option.Option<Value>) =>
-    route(name, key, () => Option.map(to(), options.onActive))
+    route(name, key, () =>
+      Option.map(to(), value => {
+        reached.current = Option.some(value)
+        return options.onActive(value)
+      }),
+    )
   const keyboard = keyRoutes.behavior(CommandSlots)<CommandKeyInput<Value>, Message>({
     slot: 'input',
     name: 'CommandKeys',
@@ -385,7 +392,7 @@ export const view = <Value extends string, Message>(
         }),
         h.Value(options.query),
         h.OnInput(query => {
-          typed.query = query
+          reached.query = query
           return options.onQuery(query)
         }),
       ]),

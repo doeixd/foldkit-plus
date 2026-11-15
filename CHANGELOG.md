@@ -933,6 +933,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: `Command.view`'s keys continue from the highlight the drawing's
+  previous key reached, so ArrowDown, PageDown and the like pressed before the next frame
+  each count, and Enter (and an application route) reads the row the last one reached
+  instead of the drawn one.
 - `foldkit-mixins-ui`: a filled `Input`, `Textarea`, `Select` and `Listbox` trigger show
   their hover as a change of fill (the border is transparent in that look), and a filled
   `Select` shows its invalid edge.
