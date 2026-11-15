@@ -8,7 +8,7 @@ const file = '../src/styleValue.ts'
 export default [
   {
     name: 'nothing is checked',
-    edits: [{ file, find: '  checkInlineShorthands(style, conditions)\n', replace: '' }],
+    edits: [{ file, find: '    checkInlineShorthands(style, conditions)\n', replace: '' }],
     tests,
   },
   {
