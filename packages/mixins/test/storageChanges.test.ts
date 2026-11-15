@@ -11,6 +11,7 @@ import {
   schemeOfHint,
   SCHEME_KEY,
   Theme,
+  themeChanges,
   THEME_KEY,
   Themes,
   type Scheme,
@@ -43,18 +44,18 @@ afterEach(() => {
   localStorage.clear()
 })
 
-describe('Themes.changes', () => {
+describe('themeChanges', () => {
   it.each([
     ['a theme', 'square', 'square'],
     ['the initial theme', 'round', 'round'],
     ['a name no theme has', 'oval', 'round'],
     ['a removed key', null, 'round'],
   ])('reads %s', async (_, written, expected) => {
-    expect(await heard(Themes.changes(themes), () => write(THEME_KEY, written))).toEqual([expected])
+    expect(await heard(themeChanges(themes), () => write(THEME_KEY, written))).toEqual([expected])
   })
 
   it('hears only its own key, in local storage', async () => {
-    const seen = await heard(Themes.changes(themes, 'mine'), () => {
+    const seen = await heard(themeChanges(themes, 'mine'), () => {
       write('other', 'square')
       write('mine', 'square', sessionStorage)
       write('mine', 'square')
@@ -63,12 +64,12 @@ describe('Themes.changes', () => {
   })
 
   it('reads a cleared storage as the initial theme', async () => {
-    expect(await heard(Themes.changes(themes), () => write(null, null))).toEqual(['round'])
+    expect(await heard(themeChanges(themes), () => write(null, null))).toEqual(['round'])
   })
 
   it('stops listening when the stream ends', async () => {
     const removed = vi.spyOn(window, 'removeEventListener')
-    await heard(Themes.changes(themes), () => {})
+    await heard(themeChanges(themes), () => {})
     expect(removed).toHaveBeenCalledWith('storage', expect.any(Function))
     removed.mockRestore()
   })

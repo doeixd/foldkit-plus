@@ -742,7 +742,7 @@ export const stylesheet: string = Style.stylesheet(
   `Theme.schemeScript()` in a head `<script>` applies the kept one before the first paint,
   `Theme.chooseScheme(scheme)` is a Command's Effect that applies and keeps it, and
   `Theme.currentScheme()` reads it back for the Model. Another tab's choice arrives as a Stream,
-  `Themes.changes(themes)` or `Theme.schemeChanges()`, from `storage` events (never the writing
+  `themeChanges(themes)` or `schemeChanges()` (named exports), from `storage` events (never the writing
   tab's): map it to a Message in `Subscription.persistentEntry`, and `update` stores it and
   returns `Themes.apply` or `Theme.chooseScheme`. On a server, `schemeOfHint(header)` reads
   `Sec-CH-Prefers-Color-Scheme` into `Option<'light' | 'dark'>`; send `COLOR_SCHEME_HINT_HEADERS`

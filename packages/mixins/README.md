@@ -504,9 +504,11 @@ is declared, so knobs set below the root change nothing derived from them there:
 ### Following another tab
 
 `Themes.choose` and `Theme.chooseScheme` write this tab's `localStorage`, and another tab hears
-that as a `storage` event. `Themes.changes(themes)` and `Theme.schemeChanges()` are Streams of
+that as a `storage` event. `themeChanges(themes)` and `schemeChanges()` are Streams of
 what another tab chose, decoded as the head scripts decode it: a name no theme has, a removed key
-and anything else read as the initial theme or `'system'`. The writing tab hears nothing. They
+and anything else read as the initial theme or `'system'`. The writing tab hears nothing. They are
+named exports, not members of `Themes` or `Theme`, so a page that reads neither ships no storage
+listener. They
 apply nothing, because the Model owns the choice: map each to a Message, and let `update` store
 it and answer with the Command that shows it.
 
@@ -514,7 +516,7 @@ it and answer with the Command that shows it.
 import { Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
-import { Theme, Themes } from 'foldkit-mixins/theme'
+import { schemeChanges, themeChanges, Themes } from 'foldkit-mixins/theme'
 
 const Followed = defineMessageUnion({
   ThemeFollowed: { name: themes.Name },
@@ -524,10 +526,10 @@ type Shown = { readonly theme: typeof themes.Name.Type }
 
 export const followed = Subscription.make<Shown, typeof Followed.Type>()(() => ({
   theme: Subscription.persistentEntry(
-    Themes.changes(themes).pipe(Stream.map(name => Followed.ThemeFollowed({ name }))),
+    themeChanges(themes).pipe(Stream.map(name => Followed.ThemeFollowed({ name }))),
   ),
   scheme: Subscription.persistentEntry(
-    Theme.schemeChanges().pipe(Stream.map(scheme => Followed.SchemeFollowed({ scheme }))),
+    schemeChanges().pipe(Stream.map(scheme => Followed.SchemeFollowed({ scheme }))),
   ),
 }))
 ```

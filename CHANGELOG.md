@@ -519,7 +519,7 @@ version changed; `pnpm` skips versions already in the registry.
   `AriaReadonly`, `AriaRequired`, `AriaCurrent` and `AriaValuenow`, for a slot to
   declare what it writes (#558).
 
-- `foldkit-mixins`: `Themes.changes(themes)` and `Theme.schemeChanges()` stream the theme
+- `foldkit-mixins`: `themeChanges(themes)` and `schemeChanges()` stream the theme
   or scheme another tab chose (a `storage` event, decoded as the head scripts decode
   it), for a Subscription whose Message `update` answers with `Themes.apply` or
   `Theme.chooseScheme`. `schemeOfHint` reads a `Sec-CH-Prefers-Color-Scheme` request

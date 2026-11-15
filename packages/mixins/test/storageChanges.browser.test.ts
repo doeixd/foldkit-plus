@@ -5,7 +5,14 @@
  */
 import { Effect, Fiber, Stream } from 'effect'
 import { afterEach, expect, test } from 'vitest'
-import { chooseScheme, schemeChanges, Theme, THEME_KEY, Themes } from '../src/theme.js'
+import {
+  chooseScheme,
+  schemeChanges,
+  Theme,
+  themeChanges,
+  THEME_KEY,
+  Themes,
+} from '../src/theme.js'
 
 const themes = Themes.make(
   { round: Theme.make({}), square: Theme.make({ shape: { radius: 0 } }) },
@@ -44,7 +51,7 @@ afterEach(() => {
 
 test('a write in another tab reaches this page, as the name this page decodes', async () => {
   const other = await otherTab()
-  const seen = await heard(Themes.changes(themes), () => {
+  const seen = await heard(themeChanges(themes), () => {
     other.localStorage.setItem(THEME_KEY, 'square')
     other.localStorage.setItem(THEME_KEY, 'oval')
     other.localStorage.removeItem(THEME_KEY)
@@ -54,7 +61,7 @@ test('a write in another tab reaches this page, as the name this page decodes', 
 
 test('the tab that writes hears nothing, for a theme or a scheme', async () => {
   await otherTab()
-  const themed = await heard(Themes.changes(themes), () => {
+  const themed = await heard(themeChanges(themes), () => {
     localStorage.setItem(THEME_KEY, 'square')
     Effect.runSync(Themes.choose(themes, 'round'))
   })
