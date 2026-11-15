@@ -194,10 +194,14 @@ style picker: `{ document, selection, wrap }` in, `BlockStyleSlots` (`root`, `to
 `RichText.textBlockAt`, all disabled without a text selection; `blockStyleMenu<Message>()` is the
 same as one trigger and a menu (`{ …, open, toggled }`, `BlockStyleMenuSlots`). `formattingToolbar<Message>()` is the
 standard bar, one `role="toolbar"` with one tab stop: `{ id, document, selection, storedMarks?, wrap, menu?, toggled(menu, open),
-roving: { current }, onFocus(id), items?, history?, inserts?, shortcuts?, words?, direction? }` in, `FormattingToolbarSlots` out;
+roving: { current }, onFocus(id), items?, history?, inserts?, returned?, shortcuts?, words?, direction? }` in, `FormattingToolbarSlots` out;
 `items` (default `standardFormattingItems`) lists `'undo' | 'redo' | 'style' | 'link' | 'bulleted-list' | 'numbered-list' | 'checklist' |
-'quote' | 'insert' | 'separator' | { mark }`; the application keeps which menu is open and the tab stop id; an unavailable control is
-`aria-disabled`, focusable, and sends nothing; `history` lets the application say what undo and redo apply to. `linkEditor<Message>()` is the link
+'quote' | 'insert' | 'separator' | { mark } | { control: ApplicationControl }` (the application's own control, in the same tab stop:
+`{ id, label, icon?, shortcut?, pressed?, disabled?, message, popup?: { kind, open } }`); `inserts` is one ordered list of
+`InsertEntry.Editor({ entry })` and `InsertEntry.App({ id, label, message })`; the application keeps which menu is open and the tab stop id;
+an unavailable control (its own too: `update` must refuse its Message) is `aria-disabled`, focusable, and sends nothing; `history` lets the
+application say what undo and redo apply to. A command leaves the focus on its button; Escape on a control sends
+`returned` (run the editor's `focus` Command) to return to the text. `linkEditor<Message>()` is the link
 editor: `{ document, selection, draft, drafted, wrap, closed?, submitted? }` in (Escape sends `closed`; Enter sends `submitted`, for `update` to apply `linkEdit(document, selection, draft)` to the Model's draft), `LinkEditorSlots` (`root`, `input`,
 `apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
 `RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range
@@ -261,7 +265,7 @@ editor. An `Edited` OutMessage carries the `transactions` the edit applied.
 `foldkit-richtext-dom/input`'s `richTextInput(hostId, placement)` is the editor as a
 `foldkit-form` control (`Input.bundle`): `EditorInput` holds the document in its own Model,
 a blank document is no value, `fill` starts a fresh history, and `settled` keeps caret, stored
-marks, and history for a resumed draft. A third argument `{ codec: { value, fill } }` makes the
+marks, and history for a resumed draft. An editor placement takes `label` or `labelledBy` (not both) as its accessible name (`aria-label` / `aria-labelledby` on the `role="textbox"` root, in server markup too); a form-drawn editor takes its group's label and a click on the label focuses it. `richTextInput`'s third argument `{ codec: { value, fill } }` makes the
 key hold another type (Markdown text: `print(document).markdown` and `parse(text, { mint }).document`)
 while the editor holds a document; `value` is never called with a blank document (a codec may give `blank: A` as that document's value instead of "required"), and a `fill`
 that throws fails the form's `fill`.

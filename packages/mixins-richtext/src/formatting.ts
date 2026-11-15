@@ -11,7 +11,7 @@
  * used. An unavailable control is `aria-disabled` and stays focusable, so the arrows still reach
  * it and a screen reader can say why nothing happened; its press sends nothing.
  */
-import { Equal, Option } from 'effect'
+import { Data, Equal, Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { Behaviors, Capability, Event, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { ariaKeyshortcuts, formatHotkey } from 'foldkit-primitives/events'
@@ -44,11 +44,34 @@ export const FormattingToolbarSlots = Slots.define({
 export type FormattingMenu = 'style' | 'insert' | 'link'
 
 /**
- * One control, in the order drawn. A `mark` is a mark of the document's vocabulary, by name: the
- * toolbar cannot know which marks an application declared, so it lists none by itself beyond
- * `standardFormattingItems`'.
+ * A control of the application's own in the bar: it joins the same tab stop and the same arrow
+ * keys, in the place `items` gives it. `message` is what a press sends. A press of a `disabled`
+ * control sends nothing (the control is `aria-disabled` and stays focusable), and the
+ * application's `update` must refuse the Message in that state too, since a Message can arrive
+ * from elsewhere.
  */
-export type FormattingItem =
+export interface ApplicationControl<Message> {
+  /** Unique among the application's controls; the element's id and `data-item` are `app-<id>`. */
+  readonly id: string
+  /** The control's accessible name, and its visible text where it has no `icon`. */
+  readonly label: string
+  readonly icon?: RichTextIconName | undefined
+  /** A `foldkit-primitives` pattern (`'mod+k'`), shown in the title and as `aria-keyshortcuts`. */
+  readonly shortcut?: string | undefined
+  /** `aria-pressed`, for a control that is on; absent for one that is not a toggle. */
+  readonly pressed?: boolean | undefined
+  readonly disabled?: boolean | undefined
+  readonly message: Message
+  /**
+   * A control that opens something the application draws, as `link` opens the link editor:
+   * `aria-haspopup` says which kind and, for a `menu`, `aria-expanded` says whether it is `open`.
+   * `message` then toggles it. ArrowDown on a closed menu's trigger and Escape on an open popup's
+   * trigger send `message`, as for the built-in menus.
+   */
+  readonly popup?: { readonly kind: 'menu' | 'dialog'; readonly open: boolean } | undefined
+}
+
+type PlacedItem<Message> =
   | 'undo'
   | 'redo'
   | 'style'
@@ -60,6 +83,41 @@ export type FormattingItem =
   | 'insert'
   | 'separator'
   | { readonly mark: string }
+  | { readonly control: ApplicationControl<Message> }
+
+/**
+ * One control, in the order drawn. A `mark` is a mark of the document's vocabulary, by name: the
+ * toolbar cannot know which marks an application declared, so it lists none by itself beyond
+ * `standardFormattingItems`'. A `control` is the application's own. `{ low: item }` is a control
+ * that gives way when the bar is `compact`: it is not drawn then, so it is neither a tab stop nor
+ * an arrow-key target.
+ */
+export type FormattingItem<Message = never> =
+  | PlacedItem<Message>
+  | { readonly low: Exclude<PlacedItem<Message>, 'separator'> }
+
+type InsertEntryUnion<Message> = Data.TaggedEnum<{
+  /** An entry of the slash menu's catalogue: its Message is the editor's, sent through `wrap`. */
+  Editor: { readonly entry: SlashEntry<EditorEvent> }
+  /** An entry of the application's own, such as a file dialog: its Message is the application's. */
+  App: {
+    readonly id: string
+    readonly label: string
+    readonly description?: string | undefined
+    readonly icon?: string | undefined
+    readonly message: Message
+  }
+}>
+
+interface InsertEntries extends Data.TaggedEnum.WithGenerics<1> {
+  readonly taggedEnum: InsertEntryUnion<this['A']>
+}
+
+/** One entry of the insert menu. A caller lists editor and application entries in one order. */
+export type InsertEntry<Message> = Data.TaggedEnum.Kind<InsertEntries, Message>
+
+/** Builds an insert entry: `InsertEntry.Editor({ entry })` or `InsertEntry.App({ id, label, message })`. */
+export const InsertEntry = Data.taggedEnum<InsertEntries>()
 
 /** What a plain bar offers: the marks `foldkit-richtext` ships, the lists and the quote. */
 export const standardFormattingItems: ReadonlyArray<FormattingItem> = [
@@ -128,7 +186,12 @@ export interface FormattingToolbarInput<Message> {
   /** An editor Message as this caller's, usually its `edited(...)` wrapper. */
   readonly wrap: (message: EditorEvent) => Message
   /** The controls and their order; default `standardFormattingItems`. Leave a control out to hide it. */
-  readonly items?: ReadonlyArray<FormattingItem> | undefined
+  readonly items?: ReadonlyArray<FormattingItem<NoInfer<Message>>> | undefined
+  /**
+   * Draw only the controls not marked `{ low }`: the application's answer to a narrow screen, from
+   * the width signal it keeps in its Model (a media-query Subscription). Default `false`.
+   */
+  readonly compact?: boolean | undefined
   /**
    * Whether undo and redo apply. The editor cannot know what the application undoes (a page may
    * undo only this tab's own steps), so the caller says. Default: both available.
@@ -139,10 +202,17 @@ export interface FormattingToolbarInput<Message> {
   /** What a menu's trigger sends: open (`true`) or close (`false`) that menu. Also what Escape sends. */
   readonly toggled: (menu: FormattingMenu, open: boolean) => NoInfer<Message>
   /**
-   * What the insert menu lists, with each entry's Message wrapped by `wrap`: the slash menu's
-   * entries, so the two never disagree. Default: the editor's own blocks (`group: 'Blocks'`).
+   * What the insert menu lists, in order: the slash menu's own entries (`InsertEntry.Editor`, sent
+   * through `wrap`, so the two never disagree) and the application's (`InsertEntry.App`, sent as
+   * they are). Default: the editor's own blocks (`group: 'Blocks'`).
    */
-  readonly inserts?: ReadonlyArray<SlashEntry<EditorEvent>> | undefined
+  readonly inserts?: ReadonlyArray<InsertEntry<NoInfer<Message>>> | undefined
+  /**
+   * What Escape sends from a control when it closes no popup: usually a Message whose `update` runs
+   * the editor's `focus` Command, so Escape returns to the text, as in a conventional toolbar. Without
+   * it Escape does nothing there.
+   */
+  readonly returned?: NoInfer<Message> | undefined
   /** Where the one tab stop is: the caller's `RovingTabindex.Model`, as for `foldkit-mixins-ui`'s Toolbar. */
   readonly roving: RovingTabindex.Model
   /** Sent with a control's id when it takes focus, by a key or a press; answer it by storing the id as `roving.current`. */
@@ -180,19 +250,68 @@ const wraps: Readonly<
   quote: { icon: 'quote', word: 'quote', message: entry('quote') },
 }
 
-const defaultInserts = editorEntries.filter(each => each.group === 'Blocks')
+const defaultInserts: ReadonlyArray<InsertEntry<never>> = editorEntries
+  .filter(each => each.group === 'Blocks')
+  .map(each => InsertEntry.Editor({ entry: each }))
 
 /** A control, resolved: what the arrows move between and what `Keys` finds focus on. */
-interface Control {
+interface Control<Message> {
   readonly id: string
-  readonly item: Exclude<FormattingItem, 'separator'>
+  readonly item: Exclude<PlacedItem<Message>, 'separator'>
 }
 
-const controlId = (item: Exclude<FormattingItem, 'separator'>): string =>
-  typeof item === 'string' ? item : `mark-${item.mark}`
+const controlId = <Message>(item: Exclude<PlacedItem<Message>, 'separator'>): string =>
+  typeof item === 'string' ? item : 'mark' in item ? `mark-${item.mark}` : `app-${item.control.id}`
 
-const controlsOf = (items: ReadonlyArray<FormattingItem>): ReadonlyArray<Control> =>
+const controlsOf = <Message>(
+  items: ReadonlyArray<PlacedItem<Message>>,
+): ReadonlyArray<Control<Message>> =>
   items.flatMap(item => (item === 'separator' ? [] : [{ id: controlId(item), item }]))
+
+/** Every item with its `{ low }` wrapper off, in order. */
+const unwrapped = <Message>(
+  items: ReadonlyArray<FormattingItem<Message>>,
+): ReadonlyArray<PlacedItem<Message>> =>
+  items.map(item => (typeof item === 'object' && 'low' in item ? item.low : item))
+
+/**
+ * What is drawn: every item, or without the `{ low }` ones when `compact`, and with no separator
+ * left at an end or beside another, which a hidden group would otherwise leave behind.
+ */
+const visibleItems = <Message>(
+  input: FormattingToolbarInput<Message>,
+): ReadonlyArray<PlacedItem<Message>> => {
+  const given = input.items ?? standardFormattingItems
+  const kept = given.flatMap(item =>
+    typeof item === 'object' && 'low' in item ? (input.compact === true ? [] : [item.low]) : [item],
+  )
+  const tidy = kept.reduce<Array<PlacedItem<Message>>>((drawn, item) => {
+    if (item !== 'separator' || (drawn.length > 0 && drawn[drawn.length - 1] !== 'separator')) {
+      drawn.push(item)
+    }
+    return drawn
+  }, [])
+  return tidy[tidy.length - 1] === 'separator' ? tidy.slice(0, -1) : tidy
+}
+
+/**
+ * Where the tab stop is among the controls drawn: the control `roving` names, else the one nearest
+ * to it in the full list (after it, then before it) when it is not drawn, else the first.
+ */
+const stopOf = <Message>(
+  input: FormattingToolbarInput<Message>,
+  shown: ReadonlyArray<Control<Message>>,
+): number => {
+  const named = shown.findIndex(control => control.id === input.roving.current)
+  if (named !== -1) return named
+  const all = controlsOf(unwrapped(input.items ?? standardFormattingItems))
+  const from = all.findIndex(control => control.id === input.roving.current)
+  if (from === -1) return 0
+  const neighbours = [...all.slice(from + 1), ...all.slice(0, from).reverse()]
+  const near = neighbours.find(control => shown.some(each => each.id === control.id))
+  const at = shown.findIndex(control => control.id === near?.id)
+  return at === -1 ? 0 : at
+}
 
 const MENU_OF: Readonly<Record<string, FormattingMenu>> = {
   style: 'style',
@@ -202,15 +321,46 @@ const MENU_OF: Readonly<Record<string, FormattingMenu>> = {
 const menuOf = (id: string): FormattingMenu | undefined =>
   Object.hasOwn(MENU_OF, id) ? MENU_OF[id] : undefined
 
-/** The ids a popup's items draw, in order; only `style` and `insert` list items of the toolbar's own. */
+/** One row of a popup the toolbar draws, whichever list it came from. */
+interface MenuEntry<Message> {
+  readonly id: string
+  readonly label: string
+  readonly description?: string | undefined
+  readonly icon?: string | undefined
+  readonly message: Message
+  readonly style?: SlashEntry<EditorEvent> | undefined
+}
+
+/** The rows of the popup `menu`: the text styles, or the insert list with each entry resolved. */
+const menuEntries = <Message>(
+  input: FormattingToolbarInput<Message>,
+  menu: FormattingMenu,
+): ReadonlyArray<MenuEntry<Message>> => {
+  if (menu === 'style') {
+    return styles.map(each => ({ ...each, message: input.wrap(each.message), style: each }))
+  }
+  if (menu === 'insert') {
+    return (input.inserts ?? defaultInserts).map(each =>
+      InsertEntry.$match(each, {
+        Editor: ({ entry }) => ({ ...entry, message: input.wrap(entry.message) }),
+        App: ({ id, label, description, icon, message }) => ({
+          id,
+          label,
+          description,
+          icon,
+          message,
+        }),
+      }),
+    )
+  }
+  return []
+}
+
+/** The ids a popup's rows draw, in order. */
 const menuItemIds = <Message>(
   input: FormattingToolbarInput<Message>,
   menu: FormattingMenu,
-): ReadonlyArray<string> => {
-  const entries =
-    menu === 'style' ? styles : menu === 'insert' ? (input.inserts ?? defaultInserts) : []
-  return entries.map(each => `${input.id}-${menu}-${each.id}`)
-}
+): ReadonlyArray<string> => menuEntries(input, menu).map(each => `${input.id}-${menu}-${each.id}`)
 
 /**
  * The toolbar as a slot view, with the APG toolbar's keys: one tab stop (the control `roving`
@@ -249,7 +399,7 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
           Behaviors.Keys.chord('Escape'),
         ],
         handle: ({ key, modifiers, input }) => {
-          const controls = controlsOf(input.items ?? standardFormattingItems)
+          const controls = controlsOf(visibleItems(input))
           const at = (control: string) => `${input.id}-${control}`
           // Read at the press: a render may lag a held key, and only the DOM knows where focus is.
           const active = document.activeElement?.id
@@ -281,12 +431,21 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
           if (focused === -1) return Option.none()
           const control = controls[focused]
           const menu = control === undefined ? undefined : menuOf(control.id)
+          const own =
+            control === undefined || typeof control.item !== 'object' || 'mark' in control.item
+              ? undefined
+              : control.item.control
           if (key === 'Escape') {
-            return input.menu === undefined || input.menu !== menu
-              ? Option.none()
-              : Option.some(input.toggled(input.menu, false))
+            if (menu !== undefined && input.menu === menu) {
+              return Option.some(input.toggled(menu, false))
+            }
+            if (own?.popup?.open === true) return Option.some(own.message)
+            return input.returned === undefined ? Option.none() : Option.some(input.returned)
           }
           if (key === 'ArrowDown') {
+            if (own?.popup?.kind === 'menu' && !own.popup.open && own.disabled !== true) {
+              return Option.some(own.message)
+            }
             if (menu === undefined || modifiers.shiftKey) return Option.none()
             const first = menuItemIds(input, menu)[0]
             if (input.menu !== menu) return Option.some(input.toggled(menu, true))
@@ -313,10 +472,9 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
   return SlotView.forMessages<Message>()
     .define(FormattingToolbarSlots, (input: FormattingToolbarInput<Message>, slots, h): Html => {
       const words = { ...defaultWords, ...input.words }
-      const items = input.items ?? standardFormattingItems
+      const items = visibleItems(input)
       const controls = controlsOf(items)
-      const stopped = controls.findIndex(control => control.id === input.roving.current)
-      const stop = stopped === -1 ? 0 : stopped
+      const stop = stopOf(input, controls)
       const state = {
         document: input.document,
         selection: input.selection,
@@ -337,7 +495,7 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
 
       /** What a control draws and means, before it becomes a button. */
       const describe = (
-        control: Control,
+        control: Control<Message>,
       ): {
         readonly name: string
         readonly icon: ReadonlyArray<Html>
@@ -346,9 +504,23 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
         readonly pressed?: boolean
         readonly expanded?: boolean
         readonly popup?: 'menu' | 'dialog'
+        readonly shortcut?: string
         readonly press: Message
       } => {
         const { item } = control
+        if (typeof item === 'object' && 'control' in item) {
+          const own = item.control
+          return {
+            name: own.label,
+            icon: own.icon === undefined ? [] : icon(own.icon),
+            ...(own.icon === undefined ? { label: own.label } : {}),
+            available: own.disabled !== true,
+            ...(own.pressed === undefined ? {} : { pressed: own.pressed }),
+            ...(own.popup === undefined ? {} : { popup: own.popup.kind, expanded: own.popup.open }),
+            ...(own.shortcut === undefined ? {} : { shortcut: own.shortcut }),
+            press: own.message,
+          }
+        }
         if (typeof item === 'object') {
           return {
             name: item.mark,
@@ -416,9 +588,9 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
         }
       }
 
-      const button = (control: Control, index: number): Html => {
+      const button = (control: Control<Message>, index: number): Html => {
         const made = describe(control)
-        const pattern = shortcuts[control.id]
+        const pattern = made.shortcut ?? shortcuts[control.id]
         const keyshortcuts = pattern === undefined ? Option.none() : ariaKeyshortcuts(pattern)
         const shown = pattern === undefined ? Option.none() : formatHotkey(pattern)
         return h.button(
@@ -459,7 +631,7 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
       }
 
       const popup = (menu: 'style' | 'insert'): Html => {
-        const entries = menu === 'style' ? styles : (input.inserts ?? defaultInserts)
+        const entries = menuEntries(input, menu)
         return h.div(
           slots.menu.attrs([
             h.Role('menu'),
@@ -473,9 +645,9 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
                   h.Id(`${input.id}-${menu}-${each.id}`),
                   h.Tabindex(-1),
                   h.Role(menu === 'style' ? 'menuitemradio' : 'menuitem'),
-                  ...(menu === 'style' ? [h.AriaChecked(each === chosen)] : []),
+                  ...(menu === 'style' ? [h.AriaChecked(each.style === chosen)] : []),
                   h.DataAttribute(menu, each.id),
-                  h.OnClick(input.wrap(each.message)),
+                  h.OnClick(each.message),
                 ],
                 { index, id: each.id, count: entries.length },
               ),

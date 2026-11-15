@@ -55,10 +55,22 @@ const Message = defineMessageUnion({
   LeftSource: {},
   ToggledMenu: { menu: Schema.Literals(['style', 'insert', 'link']), open: Schema.Boolean },
   FocusedControl: { id: Schema.String },
+  ToggledFind: {},
+  PickedFile: {},
+  ReturnedToText: {},
 })
 type Message = typeof Message.Type
-const { DraftedLink, DraftedSource, MovedInSource, LeftSource, ToggledMenu, FocusedControl } =
-  Message
+const {
+  DraftedLink,
+  DraftedSource,
+  MovedInSource,
+  LeftSource,
+  ToggledMenu,
+  FocusedControl,
+  ToggledFind,
+  PickedFile,
+  ReturnedToText,
+} = Message
 const edited = (message: EditorEvent): Message => Message.GotEditor({ message })
 declare const model: {
   readonly document: RichText.Document
@@ -201,11 +213,15 @@ returns to the control last used. The first control holds the stop until one has
 
 Choose controls with `items`, in order. Each is `'undo'`, `'redo'`, `'style'`, `'link'`,
 `'bulleted-list'`, `'numbered-list'`, `'checklist'`, `'quote'`, `'insert'`, `'separator'`, or
-`{ mark: 'Underline' }` for a mark of the document's vocabulary; the default is
+`{ mark: 'Underline' }` for a mark of the document's vocabulary, or `{ control }` for one of the
+application's own (below); the default is
 `standardFormattingItems`, which lists the marks `foldkit-richtext` ships. A control left out is
 not drawn, so it is not a tab stop: an application that drops the less used ones on a phone
-passes a shorter list there. `inserts` is the insert menu's entries (`SlashEntry`, the slash
-menu's own type), defaulting to the editor's blocks. `history` says whether undo and redo apply:
+passes a shorter list there. `inserts` is the insert menu's entries in one list the caller
+orders: `InsertEntry.Editor({ entry })` for an entry of the slash menu's catalogue (sent through
+`wrap`, so the two menus never disagree) and `InsertEntry.App({ id, label, description?, icon?,
+message })` for the application's own, whose Message is sent as it is. The default is the editor's
+blocks. `history` says whether undo and redo apply:
 the editor cannot know what the application undoes, so a page that undoes only its own steps
 passes `{ undo: false, redo: true }`. `words` overrides the toolbar's name and its controls'.
 `shortcuts` adds `foldkit-primitives` patterns (`'mod+u'`) by control id (`mark-Underline`) beside
@@ -223,6 +239,57 @@ covers no text, undo or redo as `history` says) is `aria-disabled`, stays focusa
 still reach it, and sends nothing. It is never natively `disabled`, which would take it out of
 the tab order. The package ships no styles: the application styles the slots, and a bar that
 should fit a phone wraps (`flex-wrap`) or scrolls in its own `root`.
+
+### The application's own controls and entries
+
+An item `{ control: { id, label, icon?, shortcut?, pressed?, disabled?, message, popup? } }` joins
+the same tab stop and arrow order, where `items` puts it; its element and `data-item` are
+`app-<id>`. A press sends `message`. While `disabled` it is `aria-disabled`, stays focusable and
+sends nothing, but the view cannot make a Message unsendable from elsewhere: the application's
+`update` must refuse it in that state too. `popup: { kind, open }` makes it a trigger for something
+the application draws, as `link` is: `aria-haspopup` says which kind, a `menu` is `aria-expanded`
+while `open`, and `message` toggles it. ArrowDown on a closed menu's trigger, and Escape on an open
+popup's, send `message`.
+
+```ts
+import { formattingToolbar, InsertEntry } from 'foldkit-mixins-richtext'
+
+formattingToolbar<Message>()(
+  {
+    id: 'body-bar',
+    document: model.document,
+    selection: model.editor.selection,
+    wrap: edited,
+    toggled: (menu, open) => ToggledMenu({ menu, open }),
+    roving: { current: model.tabStop },
+    onFocus: id => FocusedControl({ id }),
+    items: [
+      'undo',
+      'redo',
+      'separator',
+      { mark: 'Bold' },
+      { control: { id: 'find', label: 'Find', icon: 'search', message: ToggledFind() } },
+      'insert',
+    ],
+    inserts: [InsertEntry.App({ id: 'file', label: 'Image, video or file', message: PickedFile() })],
+    returned: ReturnedToText(),
+  },
+  h,
+)
+```
+
+### Where the focus goes
+
+A command leaves the focus on the control that sent it, so a keyboard user can press the next
+one: after Bold, a list wrap or undo (by Enter or Space on the button, or a click) the focus is
+still on that button, and the editor keeps its selection in the Model. Typing then is not typing in
+the text: a letter reaches the button, and Space presses it again.
+
+To go back to the text, press Escape on a control. It sends `returned`, usually
+a Message whose `update` runs `foldkit-richtext-dom/editor-bundle`'s `focus(hostId, selection)`;
+without `returned` Escape does nothing there. It closes an open popup first, and then returns.
+Typing while a button has the focus is not typing in the text: Space presses the button again. To
+come back to the bar, Tab or Shift+Tab reaches the control last used.
 
 A press does not move the editor's selection: the browser may move focus to the button, but the
 editor keeps its own selection in the Model, which every command reads, so the mark lands on the

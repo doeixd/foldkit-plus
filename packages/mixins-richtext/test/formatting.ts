@@ -16,6 +16,8 @@ export const Message = defineMessageUnion({
   Sent: { editor: Schema.String },
   Toggled: { menu: Schema.Literals(['style', 'insert', 'link']), open: Schema.Boolean },
   Focused: { id: Schema.String },
+  Picked: { what: Schema.String },
+  Returned: {},
 })
 export type Message = typeof Message.Type
 
@@ -60,11 +62,24 @@ export const update = (model: Model, message: Message): { readonly model: Model 
     Sent: ({ editor }) => ({ model: { ...model, sent: [...model.sent, editor] } }),
     Toggled: ({ menu, open }) => ({ model: { ...model, menu: open ? menu : undefined } }),
     Focused: ({ id: focused }) => ({ model: { ...model, current: focused } }),
+    Picked: ({ what }) => ({ model: { ...model, sent: [...model.sent, `picked:${what}`] } }),
+    Returned: () => ({ model: { ...model, sent: [...model.sent, 'returned'] } }),
   })
 
 export const wrap = (editor: unknown): Message => Message.Sent({ editor: JSON.stringify(editor) })
 
 export const Toolbar = formattingToolbar<Message>()
+
+/** The input every drawing shares: what is not an option of the test at hand. */
+export const base = {
+  id: 'bar',
+  document,
+  selection: caret('a'),
+  wrap,
+  toggled: (menu: FormattingMenu, open: boolean) => Message.Toggled({ menu, open }),
+  roving: { current: null },
+  onFocus: (id: string) => Message.Focused({ id }),
+}
 
 export const view =
   (options: Partial<FormattingToolbarInput<Message>> = {}) =>
@@ -74,14 +89,10 @@ export const view =
       [
         Toolbar(
           {
-            id: 'bar',
-            document,
+            ...base,
             selection: model.selection,
-            wrap,
             menu: model.menu,
-            toggled: (menu, open) => Message.Toggled({ menu, open }),
             roving: { current: model.current },
-            onFocus: focused => Message.Focused({ id: focused }),
             ...options,
           },
           h,

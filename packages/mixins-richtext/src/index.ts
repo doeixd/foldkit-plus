@@ -79,8 +79,10 @@ export {
 /** The formatting toolbar's view and its slots: one tab stop over undo, style, marks, link, lists and insert. */
 export {
   FormattingToolbarSlots,
+  InsertEntry,
   formattingToolbar,
   standardFormattingItems,
+  type ApplicationControl,
   type FormattingItem,
   type FormattingMenu,
   type FormattingToolbarInput,

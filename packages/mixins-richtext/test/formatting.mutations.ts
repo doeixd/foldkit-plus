@@ -20,7 +20,7 @@ export default [
   },
   {
     name: 'the tab stop is always the first control',
-    edits: [{ file, find: 'const stop = stopped === -1 ? 0 : stopped', replace: 'const stop = 0' }],
+    edits: [{ file, find: 'const stop = stopOf(input, controls)', replace: 'const stop = 0' }],
     tests: [unit, browser],
   },
   {
@@ -97,6 +97,81 @@ export default [
         file,
         find: 'const opened = open(menu) && describe(control).available',
         replace: 'const opened = open(menu)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an editor entry of the insert menu is sent without wrap',
+    edits: [
+      {
+        file,
+        find: 'Editor: ({ entry }) => ({ ...entry, message: input.wrap(entry.message) }),',
+        replace: 'Editor: ({ entry }) => ({ ...entry, message: entry.message as never }),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an application control sends while disabled',
+    edits: [{ file, find: 'available: own.disabled !== true,', replace: 'available: true,' }],
+    tests: [unit, browser],
+  },
+  {
+    name: 'ArrowDown on an application menu trigger does nothing',
+    edits: [
+      {
+        file,
+        find: "if (own?.popup?.kind === 'menu' &&",
+        replace: "if (false && own?.popup?.kind === 'menu' &&",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'Escape from a control returns nowhere',
+    edits: [
+      {
+        file,
+        find: 'return input.returned === undefined ? Option.none() : Option.some(input.returned)',
+        replace: 'return Option.none()',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'an application popup that is open reads as closed',
+    edits: [{ file, find: 'expanded: own.popup.open }', replace: 'expanded: false }' }],
+    tests: [unit],
+  },
+  {
+    name: 'a compact bar still draws the low controls',
+    edits: [{ file, find: '(input.compact === true ? [] : [item.low])', replace: '[item.low]' }],
+    tests: [unit, browser],
+  },
+  {
+    name: 'a hidden current control sends the tab stop to the first',
+    edits: [
+      {
+        file,
+        find: 'const at = shown.findIndex(control => control.id === near?.id)',
+        replace: 'const at = -1',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'separators stack up where a group is hidden',
+    edits: [{ file, find: "drawn[drawn.length - 1] !== 'separator'", replace: 'true' }],
+    tests: [unit],
+  },
+  {
+    name: 'a separator is left at the end',
+    edits: [
+      {
+        file,
+        find: "tidy[tidy.length - 1] === 'separator' ? tidy.slice(0, -1) : tidy",
+        replace: 'tidy',
       },
     ],
     tests: [unit],

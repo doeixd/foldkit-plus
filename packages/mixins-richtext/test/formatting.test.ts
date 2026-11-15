@@ -4,13 +4,16 @@
  * document and selection, and the one tab stop. Keys and focus are in the browser test.
  */
 import { Scene } from 'foldkit/test'
+import type { HtmlBuilder } from 'foldkit/html'
 import { SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, it } from 'vitest'
-import type { FormattingItem } from '../src/index.js'
+import { slashEntries as editorSlashEntries } from 'foldkit-richtext-dom/editor'
+import { InsertEntry, type FormattingItem } from '../src/index.js'
 import {
   Message,
   Toolbar,
+  base,
   caret,
   document,
   given,
@@ -220,5 +223,159 @@ describe('what is configurable', () => {
       Scene.expect(control('mark-Bold')).toHaveAttr('aria-keyshortcuts', 'Control+B'),
       Scene.expect(control('mark-Underline')).toHaveAttr('aria-keyshortcuts', 'Control+U'),
     )
+  })
+})
+
+const file = InsertEntry.App({
+  id: 'file',
+  label: 'Image, video or file',
+  description: 'Choose from your device',
+  message: Message.Picked({ what: 'file' }),
+})
+const mixed = [
+  InsertEntry.Editor({
+    entry: editorSlashEntries.find(entry => entry.id === 'code-block')!,
+  }),
+  file,
+]
+
+describe('the insert menu holds the application’s entries beside the editor’s', () => {
+  it('lists them in the order given, whichever kind', () => {
+    const root = Toolbar(
+      {
+        ...base,
+        items: ['insert'],
+        menu: 'insert',
+        inserts: [file, ...mixed.slice(0, 1)],
+      },
+      SlotView.inertBuilder(),
+    )
+    expect(
+      Inert.all(root)
+        .filter(node => node.data?.attrs?.['role'] === 'menuitem')
+        .map(node => node.data?.attrs?.['data-insert']),
+    ).toEqual(['file', 'code-block'])
+  })
+
+  it('sends an application entry as it is, and an editor entry through wrap', () => {
+    scene(
+      { inserts: mixed },
+      given({ menu: 'insert' }),
+      Scene.click('[data-insert="file"]'),
+      Scene.click('[data-insert="code-block"]'),
+      Scene.expect(Scene.selector('#sent')).toHaveText(
+        `picked:file|${JSON.stringify({ _tag: 'ConvertedBlock', to: { kind: 'CodeBlock' } })}`,
+      ),
+    )
+  })
+})
+
+describe('the application’s own controls', () => {
+  const find = {
+    id: 'find',
+    label: 'Find',
+    icon: 'search' as const,
+    message: Message.Picked({ what: 'find' }),
+  }
+  const bar = (control: Partial<typeof find> & { disabled?: boolean; pressed?: boolean }) => ({
+    items: ['undo', { control: { ...find, ...control } }, { mark: 'Bold' }] satisfies ReadonlyArray<
+      FormattingItem<Message>
+    >,
+  })
+
+  it('sends its Message, and is named by its label', () => {
+    scene(
+      bar({}),
+      given(),
+      Scene.expect(control('app-find')).toHaveAttr('aria-label', 'Find'),
+      Scene.click('[data-item="app-find"]'),
+      Scene.expect(Scene.selector('#sent')).toHaveText('picked:find'),
+    )
+  })
+
+  it('refuses while disabled: aria-disabled, focusable, no handler', () => {
+    const root = Toolbar({ ...base, ...bar({ disabled: true }) }, SlotView.inertBuilder())
+    const node = Inert.all(root).find(each => each.data?.attrs?.['data-item'] === 'app-find')
+    expect(node?.data?.attrs?.['aria-disabled']).toBe('true')
+    expect(node?.data?.attrs?.['disabled']).toBeUndefined()
+    expect(node?.data?.on?.['click']).toBeUndefined()
+  })
+
+  it('shows its pressed state, and a popup it opens', () => {
+    scene(
+      {
+        items: [
+          {
+            control: {
+              ...find,
+              pressed: true,
+              popup: { kind: 'menu', open: true },
+            },
+          },
+        ],
+      },
+      given(),
+      Scene.expect(control('app-find')).toHaveAttr('aria-pressed', 'true'),
+      Scene.expect(control('app-find')).toHaveAttr('aria-haspopup', 'menu'),
+      Scene.expect(control('app-find')).toHaveAttr('aria-expanded', 'true'),
+    )
+  })
+
+  it('shares the one tab stop, in the place items gives it', () => {
+    const stops = (current: string | null) =>
+      Inert.all(Toolbar({ ...base, ...bar({}), roving: { current } }, SlotView.inertBuilder()))
+        .filter(node => node.sel === 'button')
+        .map(node => node.data?.props?.['tabIndex'])
+    expect(stops(null)).toEqual([0, -1, -1])
+    expect(stops('app-find')).toEqual([-1, 0, -1])
+  })
+})
+
+describe('a compact bar', () => {
+  const items: ReadonlyArray<FormattingItem> = [
+    'undo',
+    'separator',
+    { low: { mark: 'Bold' } },
+    { low: 'quote' },
+    'separator',
+    'insert',
+  ]
+  const drawn = (options: Partial<Parameters<typeof Toolbar>[0]>) =>
+    Inert.all(Toolbar({ ...base, items, ...options }, SlotView.inertBuilder()))
+  const names = (options: Partial<Parameters<typeof Toolbar>[0]>) =>
+    drawn(options)
+      .filter(node => node.sel === 'button')
+      .map(node => node.data?.attrs?.['data-item'])
+
+  it('draws every control when it is not compact', () => {
+    expect(names({})).toEqual(['undo', 'mark-Bold', 'quote', 'insert'])
+  })
+
+  it('does not draw the low ones, so they are not a tab stop, and leaves no separator behind', () => {
+    expect(names({ compact: true })).toEqual(['undo', 'insert'])
+    expect(
+      drawn({ compact: true }).filter(node => node.data?.attrs?.['role'] === 'separator'),
+    ).toHaveLength(1)
+  })
+
+  it('leaves no separator at either end', () => {
+    const separators = drawn({
+      compact: true,
+      items: ['separator', 'undo', 'separator', { low: 'quote' }],
+    }).filter(node => node.data?.attrs?.['role'] === 'separator')
+    expect(separators).toHaveLength(0)
+  })
+
+  it('moves the tab stop to the nearest control that is drawn when the current one goes', () => {
+    const stops = (current: string, list: ReadonlyArray<FormattingItem>) =>
+      drawn({ compact: true, items: list, roving: { current } })
+        .filter(node => node.sel === 'button')
+        .map(node => node.data?.props?.['tabIndex'])
+    // After it first: Bold goes, and quote after it goes too, so insert holds the stop.
+    expect(stops('mark-Bold', items)).toEqual([-1, 0])
+    // Nothing drawn after it: the one before.
+    expect(stops('quote', ['undo', { mark: 'Bold' }, { low: 'quote' }])).toEqual([-1, 0])
+    // A control the list never had: the first.
+    expect(stops('gone', items)).toEqual([0, -1])
   })
 })

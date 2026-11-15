@@ -12,7 +12,7 @@ import * as Runtime from 'foldkit/runtime'
 import type * as Update from 'foldkit/update'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
-import { EditorView, editorView } from 'foldkit-richtext-dom/editor-bundle'
+import { EditorView, editorView, focus } from 'foldkit-richtext-dom/editor-bundle'
 import { EditorInput, richTextInput } from 'foldkit-richtext-dom/input'
 import { afterEach, expect, test, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
@@ -26,6 +26,8 @@ const App = defineMessageUnion({
   GotEditor: { message: EditorMessage },
   Toggled: { menu: Schema.Literals(['style', 'insert', 'link']), open: Schema.Boolean },
   Focused: { id: Schema.String },
+  Picked: { what: Schema.String },
+  Returned: {},
 })
 type App = typeof App.Type
 
@@ -33,6 +35,7 @@ const Model = Schema.Struct({
   editor: EditorView,
   menu: Schema.UndefinedOr(Schema.Literals(['style', 'insert', 'link'])),
   current: Schema.NullOr(Schema.String),
+  picked: Schema.Array(Schema.String),
 })
 type Model = typeof Model.Type
 
@@ -63,9 +66,23 @@ const update = (model: Model, message: App): Update.Return<Model, App> =>
     },
     Toggled: ({ menu, open }) => ({ model: { ...model, menu: open ? menu : undefined } }),
     Focused: ({ id }) => ({ model: { ...model, current: id } }),
+    Picked: ({ what }) => ({ model: { ...model, picked: [...model.picked, what] } }),
+    // What an application does with Escape from the bar: puts the caret back in the text.
+    Returned: () => {
+      const { selection } = model.editor
+      return selection === null
+        ? { model }
+        : {
+            model,
+            commands: [focus(hostId, selection)].map(command => ({
+              ...command,
+              effect: Effect.map(command.effect, inner => App.GotEditor({ message: inner })),
+            })),
+          }
+    },
   })
 
-const items: ReadonlyArray<FormattingItem> = [
+const items: ReadonlyArray<FormattingItem<App>> = [
   'undo',
   { mark: 'Bold' },
   { mark: 'Italic' },
@@ -74,8 +91,9 @@ const items: ReadonlyArray<FormattingItem> = [
 ]
 
 interface Options {
-  readonly items?: ReadonlyArray<FormattingItem>
+  readonly items?: ReadonlyArray<FormattingItem<App>>
   readonly history?: { readonly undo: boolean; readonly redo: boolean }
+  readonly compact?: boolean
 }
 
 const view = (options: Options) => (model: Model, h: HtmlBuilder<App>) =>
@@ -92,10 +110,12 @@ const view = (options: Options) => (model: Model, h: HtmlBuilder<App>) =>
           wrap: message => App.GotEditor({ message }),
           items: options.items ?? items,
           history: options.history,
+          compact: options.compact,
           menu: model.menu,
           toggled: (menu, open) => App.Toggled({ menu, open }),
           roving: { current: model.current },
           onFocus: id => App.Focused({ id }),
+          returned: App.Returned(),
         },
         h,
       ),
@@ -118,6 +138,7 @@ const view = (options: Options) => (model: Model, h: HtmlBuilder<App>) =>
         ],
       ),
       h.pre([h.Id('selection')], [JSON.stringify(model.editor.selection)]),
+      h.pre([h.Id('picked')], [model.picked.join('|')]),
     ],
   )
 
@@ -130,7 +151,7 @@ const mount = (options: Options = {}) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   // What an application's own style must give: a bar that may wrap.
-  sheet.textContent = `[role="toolbar"] { display: flex; flex-wrap: wrap; gap: 4px; }`
+  sheet.textContent = `[role="toolbar"] { display: flex; flex-wrap: wrap; gap: 2px; } [role="toolbar"] button { padding: 2px 4px; }`
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'fmt-browser'
@@ -140,7 +161,12 @@ const mount = (options: Options = {}) => {
       Model,
       container,
       init: () => ({
-        model: { editor: control.data.fill(initial, hello), menu: undefined, current: null },
+        model: {
+          editor: control.data.fill(initial, hello),
+          menu: undefined,
+          current: null,
+          picked: [],
+        },
       }),
       update,
       view: view(options),
@@ -291,6 +317,173 @@ test('a bar of every standard control fits a phone without a sideways scroll', a
     expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth)
     const bar = document.querySelector('[role="toolbar"]')!.getBoundingClientRect()
     expect(bar.right).toBeLessThanOrEqual(root.clientWidth)
+  } finally {
+    await handle.dispose()
+    await page.viewport(1440, 900)
+  }
+})
+
+const picked = () => document.querySelector('#picked')?.textContent
+const find = (extra: { readonly disabled?: boolean; readonly popup?: boolean } = {}) =>
+  ({
+    control: {
+      id: 'find',
+      label: 'Find',
+      icon: 'search',
+      message: App.Picked({ what: 'find' }),
+      ...(extra.disabled === true ? { disabled: true } : {}),
+      ...(extra.popup === true ? { popup: { kind: 'menu', open: false } } : {}),
+    },
+  }) satisfies FormattingItem<App>
+
+test('the application’s controls take their place in the arrow order', async () => {
+  const handle = mount({ items: ['undo', find(), { mark: 'Bold' }] })
+  try {
+    await ready()
+    document.querySelector<HTMLElement>('#before')!.focus()
+    await userEvent.tab()
+    expect(active()).toBe('undo')
+    await userEvent.keyboard('{ArrowRight}')
+    expect(active()).toBe('app-find')
+    await userEvent.keyboard('{ArrowRight}')
+    expect(active()).toBe('mark-Bold')
+    await userEvent.keyboard('{Home}')
+    expect(active()).toBe('undo')
+    await userEvent.keyboard('{End}')
+    expect(active()).toBe('mark-Bold')
+    // One tab stop: the roving control is the only one Tab reaches.
+    await userEvent.tab()
+    expect(active()).toBe('after')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('an application control sends its Message when pressed, and not while disabled', async () => {
+  const handle = mount({
+    items: [find(), { control: { ...find().control, id: 'off', disabled: true } }],
+  })
+  try {
+    await ready()
+    await userEvent.click(item('app-find'))
+    await vi.waitFor(() => expect(picked()).toBe('find'))
+    expect(item('app-off').getAttribute('aria-disabled')).toBe('true')
+    item('app-off').click()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(picked()).toBe('find')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('ArrowDown on an application menu trigger sends its Message', async () => {
+  const handle = mount({ items: [find({ popup: true })] })
+  try {
+    await ready()
+    item('app-find').focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(picked()).toBe('find'))
+  } finally {
+    await handle.dispose()
+  }
+})
+
+const inEditor = () => document.activeElement?.closest('[contenteditable]') !== null
+
+test('a command from the keyboard leaves the focus on the button, and Escape returns to the text', async () => {
+  const handle = mount()
+  try {
+    await ready()
+    await selectWord()
+    item('mark-Bold').focus()
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(runs()).toBe('[["hello",["Bold"]]]'))
+    expect(active()).toBe('mark-Bold')
+    // Typing here is not typing in the text: the key reaches the button.
+    await userEvent.keyboard('x')
+    expect(runs()).toBe('[["hello",["Bold"]]]')
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(inEditor()).toBe(true))
+    await userEvent.keyboard('x')
+    await vi.waitFor(() => expect(runs()).toBe('[["x",["Bold"]]]'))
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('Escape from a control returns to the text with nothing changed', async () => {
+  const handle = mount()
+  try {
+    await ready()
+    await selectWord()
+    item('mark-Italic').focus()
+    await userEvent.keyboard('x')
+    expect(runs()).toBe('[["hello",[]]]')
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(inEditor()).toBe(true))
+    expect(runs()).toBe('[["hello",[]]]')
+    await userEvent.keyboard('x')
+    await vi.waitFor(() => expect(runs()).toBe('[["x",[]]]'))
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('at a phone width a compact bar draws only what fits, in one row, and the arrows visit just those', async () => {
+  await page.viewport(390, 800)
+  const handle = mount({
+    compact: window.matchMedia('(max-width: 480px)').matches,
+    items: [
+      'undo',
+      'redo',
+      'separator',
+      'style',
+      'separator',
+      { mark: 'Bold' },
+      { mark: 'Italic' },
+      { low: { mark: 'Code' } },
+      'link',
+      'separator',
+      { low: 'bulleted-list' },
+      { low: 'numbered-list' },
+      'quote',
+      'separator',
+      'insert',
+    ],
+  })
+  try {
+    await ready()
+    const shown = [...document.querySelectorAll('[role="toolbar"] button')].map(button =>
+      button.getAttribute('data-item'),
+    )
+    expect(shown).toEqual([
+      'undo',
+      'redo',
+      'style',
+      'mark-Bold',
+      'mark-Italic',
+      'link',
+      'quote',
+      'insert',
+    ])
+    const root = document.documentElement
+    expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth)
+    const tops = new Set(
+      [...document.querySelectorAll('[role="toolbar"] button')].map(
+        button => button.getBoundingClientRect().top,
+      ),
+    )
+    expect(tops.size).toBe(1)
+    document.querySelector<HTMLElement>('#before')!.focus()
+    await userEvent.tab()
+    const visited = [active()]
+    for (let step = 1; step < shown.length; step++) {
+      await userEvent.keyboard('{ArrowRight}')
+      visited.push(active())
+    }
+    expect(visited).toEqual(shown)
+    await userEvent.keyboard('{ArrowRight}')
+    expect(active()).toBe('undo')
   } finally {
     await handle.dispose()
     await page.viewport(1440, 900)
