@@ -516,9 +516,11 @@ version changed; `pnpm` skips versions already in the registry.
   own entries, so `Data.wiring`'s `policies` can name them, and a tag the tree lacks is a
   type error.
 
-- `foldkit-primitives`: `FocusScope`'s restore, with the element that had focus gone, goes by
-  the rules of `FocusReturn` instead of leaving focus on `body`; the element that had focus
-  is read from the last elements focused, not only `activeElement` at mount.
+- `foldkit-primitives`: `FocusScope`'s restore, with the element that had focus gone and
+  focus lost with the scope (on `body`, or inside it), goes by the rules of `FocusReturn`
+  instead of leaving focus on `body`. Focus the user moved elsewhere is left alone, a
+  scope opened with focus on nothing gives nothing back, and the element that had focus
+  is still `activeElement` at mount. Focus returns to an opener without scrolling the page.
 - **Breaking:** `foldkit-crud`: `Crud.list`'s `live` takes Remote's live read,
   not a flag: write `live: liveQuery` (from `foldkit-remote/live`) where
   `live: true` was. Crud imported `liveQuery` itself for the flag, so every

@@ -1,6 +1,6 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { giveBack, returnOf } from './focus-return.js'
+import { activeOutside, backToOpener, fallBack, lostIn, returnOf } from './focus-return.js'
 import { tabbableWithin } from './focusable.js'
 import * as LayerStack from './layer-stack.js'
 
@@ -17,8 +17,8 @@ const focusFirst = (elements: ReadonlyArray<HTMLElement>): boolean => {
  * A focus scope as a Mount: on insert it remembers what was focused, focuses
  * an initial element inside, and with `contain` keeps Tab and Shift+Tab
  * cycling inside; on unmount it gives focus back to what had it, or, when that
- * is gone, where `giveBack` finds a place (never `body` while a page element can
- * take it). It is a layer of the
+ * is gone and focus is lost with the scope, where `fallBack` finds a place. It
+ * is a layer of the
  * document's stack while mounted, and a scope with a layer opened after it
  * still open contains nothing: the topmost layer owns containment, so a
  * dialog drawn beside this one, as a portaled one is, keeps its focus.
@@ -42,7 +42,8 @@ export const FocusScope = Mount.defineStream('FocusScope', {
       Effect.acquireRelease(
         Effect.sync(() => {
           const ownerDocument = element.ownerDocument
-          const way = returnOf(element)
+          // Focus is still where it was: this Mount is what moves it inside.
+          const way = returnOf(activeOutside(element))
           const release = LayerStack.open(element)
           const focusInitial = () => {
             const initial =
@@ -101,7 +102,10 @@ export const FocusScope = Mount.defineStream('FocusScope', {
               element.removeEventListener('keydown', onKeyDown)
               ownerDocument.removeEventListener('focusin', onFocusIn)
             }
-            if (restore) giveBack(element, way, below)
+            if (!restore || backToOpener(way)) return
+            // An opener that is gone is replaced only while focus is lost: focus the user moved
+            // on stays, and a scope opened with focus on nothing has nothing to give back.
+            if (way.opener !== undefined && lostIn(element)) fallBack(element, way, below)
           }),
       ),
     ),

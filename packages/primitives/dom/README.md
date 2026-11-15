@@ -96,9 +96,11 @@ overlay. On insert the container focuses `initialFocus`, else its first
 tabbable descendant, else itself. With `contain` (default), Tab from the last
 tabbable wraps to the first, Shift+Tab from the first wraps to the last, and
 focus that lands outside comes straight back; Tab in the middle is the
-browser's. On unmount, with `restore` (default), focus goes back by the rules
-under `FocusReturn` below: the element that had it, else a place chosen by
-rule, never `body` while the page has an element that can take it. Scopes and `HideOutside` share one
+browser's. On unmount, with `restore` (default), focus goes back to the
+element that was focused at mount; when that is gone and focus went with the
+scope (it is on `body`, or inside), to a place chosen by the rules under
+`FocusReturn` below. Focus the user moved elsewhere stays, and a scope opened
+with focus on nothing gives nothing back. Scopes and `HideOutside` share one
 stack of layers, in the order they opened, and the topmost owns containment:
 a scope with a layer open above it contains nothing, so a second dialog drawn
 beside the first (as a dialog portaled to the body is) keeps its focus, and
@@ -143,8 +145,9 @@ inside the overlay), focuses the first of these that can take it:
    first tabbable element, else itself;
 5. the first tabbable element of the page.
 
-Focus the user moved elsewhere is left alone. `FocusScope` restores by the same
-rules, always. `FocusReturn` is a layer of the stack while mounted, and takes
+Focus the user moved elsewhere is left alone, and the opener is focused
+without scrolling the page to it. `FocusScope` restores by the same rules,
+with its opener read from `activeElement` alone. `FocusReturn` is a layer of the stack while mounted, and takes
 the opener from the last elements that had focus, not only `activeElement`,
 which a Command that shows a dialog has usually moved already. It is one
 document-level `focusin` listener, installed when the module loads.

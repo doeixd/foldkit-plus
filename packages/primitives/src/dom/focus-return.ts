@@ -23,14 +23,20 @@ if (typeof document !== 'undefined') {
   )
 }
 
-/** What had focus before the overlay took it: the focused element outside it, else the latest one that was. */
-export const openerOf = (overlay: Element): HTMLElement | undefined => {
+/** The focused element, when it is outside the overlay and not `body`. */
+export const activeOutside = (overlay: Element): HTMLElement | undefined => {
   const active = overlay.ownerDocument.activeElement
-  if (active instanceof HTMLElement && active !== overlay.ownerDocument.body) {
-    if (!overlay.contains(active)) return active
-  }
-  return [...trail].reverse().find(each => each.isConnected && !overlay.contains(each))
+  return active instanceof HTMLElement &&
+    active !== overlay.ownerDocument.body &&
+    !overlay.contains(active)
+    ? active
+    : undefined
 }
+
+/** What had focus before the overlay took it: the focused element outside it, else the latest one that was. */
+export const openerOf = (overlay: Element): HTMLElement | undefined =>
+  activeOutside(overlay) ??
+  [...trail].reverse().find(each => each.isConnected && !overlay.contains(each))
 
 type OpenerRecovery = (opener: HTMLElement) => (() => boolean) | undefined
 let openerRecovery: OpenerRecovery = () => undefined
@@ -46,36 +52,43 @@ export interface Return {
   readonly recovery: (() => boolean) | undefined
 }
 
-export const returnOf = (overlay: Element): Return => {
-  const opener = openerOf(overlay)
-  return { opener, recovery: opener === undefined ? undefined : openerRecovery(opener) }
+/** The way back from an overlay that `opener` opened. */
+export const returnOf = (opener: HTMLElement | undefined): Return => ({
+  opener,
+  recovery: opener === undefined ? undefined : openerRecovery(opener),
+})
+
+/** Focus is on nothing, or still inside the overlay that is going. */
+export const lostIn = (overlay: Element): boolean => {
+  const active = overlay.ownerDocument.activeElement
+  return active === null || active === overlay.ownerDocument.body || overlay.contains(active)
+}
+
+/** Focuses the opener when it can take focus, without scrolling the page to it, as focus always came back. */
+export const backToOpener = ({ opener }: Return): boolean => {
+  if (opener === undefined || !canTakeFocus(opener)) return false
+  opener.focus({ preventScroll: true })
+  return opener.ownerDocument.activeElement === opener
 }
 
 /**
- * Gives focus back as the overlay goes, by the first rule that finds an
- * element that can take it:
+ * Gives focus a place when the overlay goes and its opener cannot take it
+ * back, by the first rule that finds an element that can take it:
  *
- * 1. the opener itself;
- * 2. an element with the opener's id, for an opener drawn again;
- * 3. the opener's `FocusRecovery` fallback steps for its slot, when it was a
+ * 1. an element with the opener's id, for an opener drawn again;
+ * 2. the opener's `FocusRecovery` fallback steps for its slot, when it was a
  *    part of an owner (`same`, `next`, `previous`, `parent`, `stop`, `{ part }`, `owner`);
- * 4. the layer below this one, its first tabbable element or itself;
- * 5. the page's first tabbable element.
+ * 3. the layer below this one, its first tabbable element or itself;
+ * 4. the page's first tabbable element.
  *
- * It never leaves focus on `body` while any of those exists. `below` is read
- * by the caller before the overlay leaves the stack.
+ * `below` is read by the caller before the overlay leaves the stack.
  */
-export const giveBack = (
+export const fallBack = (
   overlay: Element,
   { opener, recovery }: Return,
   below: Element | undefined,
 ): void => {
   const doc = overlay.ownerDocument
-  if (opener !== undefined && canTakeFocus(opener)) {
-    // As focus always came back: without scrolling the page to it.
-    opener.focus()
-    if (doc.activeElement === opener) return
-  }
   const redrawn = opener === undefined || opener.id === '' ? null : doc.getElementById(opener.id)
   if (redrawn instanceof HTMLElement && take(redrawn)) return
   if (recovery?.() === true) return
@@ -90,8 +103,8 @@ export const giveBack = (
  * Gives focus a way back for an overlay whose own restoring is not ours (a
  * Dialog's: it returns to its opener, and to `body` when that is gone). It
  * takes the opener when the overlay mounts; when the overlay unmounts with
- * focus lost (on `body`, or inside it), focus goes by the rules of
- * `giveBack`. Focus the user moved elsewhere is left alone, and nothing is
+ * focus lost (on `body`, or inside it), focus goes back to the opener, else
+ * by the rules of `fallBack`. Focus the user moved elsewhere is left alone, and nothing is
  * focused on mount: `FocusScope` does that. It sends no Message.
  */
 export const FocusReturn = Mount.defineStream('FocusReturn', {
@@ -99,15 +112,15 @@ export const FocusReturn = Mount.defineStream('FocusReturn', {
   execute: ({ element }) =>
     Stream.callback<never>(() =>
       Effect.acquireRelease(
-        Effect.sync(() => ({ way: returnOf(element), release: LayerStack.open(element) })),
+        Effect.sync(() => ({
+          way: returnOf(openerOf(element)),
+          release: LayerStack.open(element),
+        })),
         ({ way, release }) =>
           Effect.sync(() => {
             const below = LayerStack.below(element)
             release()
-            const active = element.ownerDocument.activeElement
-            const lost =
-              active === null || active === element.ownerDocument.body || element.contains(active)
-            if (lost) giveBack(element, way, below)
+            if (lostIn(element) && !backToOpener(way)) fallBack(element, way, below)
           }),
       ),
     ),

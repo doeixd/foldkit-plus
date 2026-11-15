@@ -198,8 +198,8 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   `contain`, focus restored on unmount under `restore`. Scopes and `HideOutside` share a stack
   of layers whose topmost owns containment, so sibling (portaled) dialogs stack: the lower one
   neither pulls focus back nor hides the upper. When the opener is gone on restore (removed,
-  or drawn again), focus goes by rule, never `body` while the page has an element that can take
-  it: an element with the opener's `id`, the opener's `FocusRecovery` steps for its slot, the
+  or drawn again) and focus went with the scope, focus goes by rule (focus the user moved on
+  stays, and a scope opened with focus on nothing gives nothing back): an element with the opener's `id`, the opener's `FocusRecovery` steps for its slot, the
   layer below, the page's first tabbable. A native `<dialog>` returns to its opener only:
   `FocusReturn()` (`foldkit-primitives/dom`, a Mount that focuses nothing on mount) gives it the
   same rules, and `Dialog.focusReturn` in `foldkit-mixins-ui` attaches it to the panel.

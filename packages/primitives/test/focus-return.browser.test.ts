@@ -60,28 +60,31 @@ const rows = `<div id="list" data-fk-focus-owner>
     .join('')}
 </div>`
 
-/** The overlay opens from `opener`: focus is on the opener, then moves inside. */
-const open = (by: (id: string) => HTMLElement, opener: string) => {
+/**
+ * The overlay opens from `opener`: focus is on the opener, and with `early`
+ * moves inside before the Mount runs, as a Command that shows a dialog does;
+ * a `FocusScope` moves it itself.
+ */
+const open = (by: (id: string) => HTMLElement, opener: string, early = true) => {
   by(opener).focus()
   const overlay = document.createElement('div')
   overlay.id = 'overlay'
   overlay.innerHTML = '<button id="inside">inside</button>'
   document.body.append(overlay)
-  // Before its Mount runs, as a Command that shows a dialog does.
-  by('inside').focus()
+  if (early) by('inside').focus()
   return overlay
 }
 
 describe.each([
-  ['FocusReturn', returning],
-  ['FocusScope', scoped],
-] as const)('%s', (_name, mountOn) => {
+  ['FocusReturn', returning, true],
+  ['FocusScope', scoped, false],
+] as const)('%s', (_name, mountOn, early) => {
   const closeAfter = async (
     by: (id: string) => HTMLElement,
     opener: string,
     change: () => void,
   ) => {
-    const overlay = open(by, opener)
+    const overlay = open(by, opener, early)
     const release = await mountOn(overlay)
     by('inside').focus()
     change()
@@ -143,6 +146,7 @@ describe.each([
     const lower = document.createElement('div')
     lower.innerHTML = '<button id="lower-first">lower</button><button id="lower-opener">o</button>'
     document.body.append(lower)
+    by('top').focus()
     const releaseLower = await scoped(lower)
     by('lower-opener').focus()
     const upper = document.createElement('div')
@@ -176,5 +180,36 @@ describe('FocusReturn', () => {
     by('inside').focus()
     await returning(overlay)
     expect(document.activeElement).toBe(by('inside'))
+  })
+})
+
+describe('FocusScope', () => {
+  it('leaves focus the user moved on when its opener is gone', async () => {
+    const by = page(
+      '<button id="top">top</button><button id="opener">open</button><input id="search" />',
+    )
+    const overlay = open(by, 'opener', false)
+    const release = await scoped(overlay)
+    expect(document.activeElement).toBe(by('inside'))
+    by('opener').remove()
+    by('search').focus()
+    overlay.remove()
+    await release()
+    expect(document.activeElement).toBe(by('search'))
+  })
+
+  it('opened with focus on nothing, gives back nothing an earlier focus left behind', async () => {
+    const by = page('<button id="top">top</button><input id="earlier" />')
+    by('earlier').focus()
+    by('earlier').blur()
+    expect(document.activeElement).toBe(document.body)
+    const overlay = document.createElement('div')
+    overlay.innerHTML = '<button id="inside">inside</button>'
+    document.body.append(overlay)
+    const release = await scoped(overlay)
+    expect(document.activeElement).toBe(by('inside'))
+    overlay.remove()
+    await release()
+    expect(document.activeElement).toBe(document.body)
   })
 })

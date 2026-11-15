@@ -62,8 +62,8 @@ export default [
     edits: [
       {
         file: source,
-        find: '  return [...trail].reverse().find(each => each.isConnected && !overlay.contains(each))',
-        replace: '  return undefined',
+        find: '  [...trail].reverse().find(each => each.isConnected && !overlay.contains(each))',
+        replace: '  undefined',
       },
     ],
     tests,
@@ -73,8 +73,8 @@ export default [
     edits: [
       {
         file: source,
-        find: 'if (lost) giveBack(element, way, below)',
-        replace: 'giveBack(element, way, below)',
+        find: 'if (lostIn(element) && !backToOpener(way)) fallBack(element, way, below)',
+        replace: 'if (!backToOpener(way)) fallBack(element, way, below)',
       },
     ],
     tests,
@@ -98,7 +98,49 @@ export default [
   {
     name: 'FocusScope does not give focus back',
     edits: [
-      { file: scope, find: '            if (restore) giveBack(element, way, below)', replace: '' },
+      {
+        file: scope,
+        find: '            if (!restore || backToOpener(way)) return',
+        replace: '            return',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'FocusScope replaces a gone opener although the user moved focus on',
+    edits: [
+      {
+        file: scope,
+        find: 'if (way.opener !== undefined && lostIn(element)) fallBack',
+        replace: 'if (way.opener !== undefined) fallBack',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'FocusScope opened with focus on nothing still falls back',
+    edits: [
+      {
+        file: scope,
+        find: 'if (way.opener !== undefined && lostIn(element)) fallBack',
+        replace: 'if (lostIn(element)) fallBack',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'FocusScope takes its opener from the focus trail',
+    edits: [
+      {
+        file: scope,
+        find: 'const way = returnOf(activeOutside(element))',
+        replace: 'const way = returnOf(openerOf(element))',
+      },
+      {
+        file: scope,
+        find: 'import { activeOutside, backToOpener,',
+        replace: 'import { activeOutside, openerOf, backToOpener,',
+      },
     ],
     tests,
   },
