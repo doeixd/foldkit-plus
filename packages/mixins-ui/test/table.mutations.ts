@@ -5,6 +5,7 @@
  */
 const tests = ['packages/mixins-ui/test/table.test.ts']
 const browser = ['packages/mixins-ui/test/table.browser.test.ts']
+const focus = ['packages/mixins-ui/test/tableFocus.browser.test.ts']
 const view = '../src/table.ts'
 const recipe = '../src/recipes/table.ts'
 
@@ -248,5 +249,10 @@ export default [
       },
     ],
     tests: browser,
+  },
+  {
+    name: 'there is no control slot to name a part',
+    edits: [{ file: view, find: '  control: Slot.make({', replace: '  controlz: Slot.make({' }],
+    tests: focus,
   },
 ]

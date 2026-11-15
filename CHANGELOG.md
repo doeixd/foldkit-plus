@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `Table` has a `control` slot, the name of a `FocusRecovery` part for a control
+  the application draws in a cell. With `FocusRecovery.behavior(TableSlots)` on the `frame`, focus stays
+  on the same control (that, the open button or a sort heading) when a re-sort moves its row.
 - `foldkit-plus`: the package ships the agent skill (`skill/`) and the conceptual guides the
   site publishes (`guides/`), copied at build time, so they are the version of the installed
   code; relative links in a guide, and the skill's links to `main`, point at the release's tag.

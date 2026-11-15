@@ -1368,7 +1368,7 @@ with `U.srOnly` from `foldkit-mixins/utilities`.
 
 | Widget | What it is | Recipe and Slots |
 | --- | --- | --- |
-| `Table` | The presentational table. `Table.view({ columns: { header, value, numeric?, sortKey?, rowHeader? }[], rows, rowKey?, caption?, fluid?, sort?, selection?, expansion?, empty? }, h)`. A column's `value` returns text or markup. Sorting, selection and expansion are the application's. See [Table](#table). | `rows`: `lined`, `striped`, `plain`; `density`: `compact`, `regular`, `comfortable`; `header`: `static`, `sticky`. Slots `frame`, `highlight`, `root`, `caption`, `head`, `headerRow`, `headerCell`, `sortButton`, `sortIcon`, `body`, `row`, `cell`, `controlCell`, `checkboxLabel`, `expandButton`, `expandIcon`, `detailRow`, `detailCell`, `emptyRow`, `emptyCell`. |
+| `Table` | The presentational table. `Table.view({ columns: { header, value, numeric?, sortKey?, rowHeader? }[], rows, rowKey?, caption?, fluid?, sort?, selection?, expansion?, empty? }, h)`. A column's `value` returns text or markup. Sorting, selection and expansion are the application's. See [Table](#table). | `rows`: `lined`, `striped`, `plain`; `density`: `compact`, `regular`, `comfortable`; `header`: `static`, `sticky`. Slots `frame`, `highlight`, `root`, `caption`, `head`, `headerRow`, `headerCell`, `sortButton`, `sortIcon`, `body`, `row`, `cell`, `control`, `controlCell`, `checkboxLabel`, `expandButton`, `expandIcon`, `detailRow`, `detailCell`, `emptyRow`, `emptyCell`. |
 | `Card` | `{ title?, description?, content?, image?, media?, action?, footer?, press?, label?, selected?, disabled?, dismiss?, headingLevel?, recoveryPart? }`. See [Card and Item](#card-and-item). | `orientation`: `stacked`, `inline`; `surface`: `outlined`, `elevated`, `filled`, `plain`; `padding`: `compact`, `comfortable`, `roomy`, `flush`; `elevation`: `0` to `3`; `lift`: `none`, `hover`. Slots `root`, `image`, `media`, `header`, `title`, `description`, `action`, `content`, `footer`, `overlay`, `dismiss`. |
 | `Card.group` | `{ cards: (CardView & { key })[], columns?, fluidHover?, label?, cardStyle? }`: a keyed list of cards in up to `columns` (default 1), wrapping to fewer where a column would be narrower than the recipe's `minColumn`. With `fluidHover` (default) one highlight follows the pointer through `FluidHover` from `foldkit-primitives/dom`, and a press in a gap presses the highlighted card. | `Recipes.CardGroup`: `layout`: `divided` (default), `separated`; `minColumn`: `none`, `sm`, `md` (default), `lg`; `border`: `none`, `outlined`. The highlight is a film over the card the pointer is on, and is that card's hover. Slots `root`, `list`, `item`, `highlight`. |
 | `Item` | The row primitive: `{ content?, media?, title?, description?, actions?, press?, label?, selected?, disabled? }`; `content` follows the title and description. `Item.group({ items: (ItemView & { key })[], label?, style?, itemStyle? })` is a list of them. Field is for form controls. | `variant`: `plain`, `outline`, `muted`; `density`: `comfortable`, `compact`; `media`: `plain`, `icon`, `image`. Slots `root`, `media`, `content`, `title`, `description`, `actions`, `overlay`. `Recipes.ItemGroup({ layout: 'divided' \| 'separated' })` over `ItemGroupSlots` (`root`, `row`). |
@@ -1430,6 +1430,13 @@ screen (under a `static` header; a `sticky` one sticks to the application's scro
 which scrolls it). With `fluid`, one highlight behind the body rows follows the
 pointer, skipping detail and empty rows. Filtering, column reorder and resize, and
 virtualized rows stay with `foldkit-data-grid`.
+
+A keyed row that a re-sort moves is taken out of the tree and put back, which
+blurs the control focused inside it. `FocusRecovery.behavior(TableSlots)({ owner: 'frame',
+parts: { expandButton: ['same'], sortButton: ['same'], control: ['same'] } })`, given
+in `mixins`, finds the control again at its new place. A control you draw in a cell is
+a part when you mark it: `h.DataAttribute(FOCUS_MARK.part, 'control')` and
+`h.DataAttribute(FOCUS_MARK.key, rowKey)` (`FOCUS_MARK` is from `foldkit-primitives/dom`).
 
 ```ts
 import { Option } from 'effect'

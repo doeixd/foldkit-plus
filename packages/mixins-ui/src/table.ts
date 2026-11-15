@@ -36,6 +36,8 @@ export const TableSlots = Slots.define({
   body: Slot.make({ capability: Capability.Container }),
   row: Slot.make({ capability: Capability.Container }),
   cell: Slot.make({ capability: Capability.Container }),
+  /** A control the application draws in a cell, marked a `FocusRecovery` part so a re-sort keeps its focus. */
+  control: Slot.make({ capability: Capability.Container }),
   /** The narrow cell holding a row's checkbox or its open button. */
   controlCell: Slot.make({ capability: Capability.Container }),
   /** A name drawn for a screen reader alone: a checkbox's, or the expansion column's. */
