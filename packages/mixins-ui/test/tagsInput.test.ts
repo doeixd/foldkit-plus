@@ -262,6 +262,75 @@ describe('TagsInput.view', () => {
     })
   })
 
+  describe('chips by keyboard', () => {
+    const three = init({ id: 'topics', tags: ['a', 'b', 'c'] })
+    const chips =
+      (direction: 'ltr' | 'rtl' = 'ltr') =>
+      (h: HtmlBuilder<TagsInput.Message>) =>
+        TagsInput.view({ model: three, onMessage: m => m, label: 'Topics', direction }, h)
+    const moved = (tag: string) => Message.FocusMoved({ chip: Option.some(tag) })
+
+    it('holds one tab stop, the chip last moved to, else the last', () => {
+      const stops = (model: TagsInput.Model) =>
+        Inert.byTag(
+          TagsInput.view({ model, onMessage: () => message('Clicked'), label: 'Topics' }, h),
+          'button',
+        ).map(button => Inert.value(button, 'tabindex'))
+      expect(stops(three)).toEqual([-1, -1, 0])
+      expect(stops(update(three, moved('a')).model)).toEqual([0, -1, -1])
+      const gone = update(update(three, moved('a')).model, Message.Removed({ tag: 'a' })).model
+      expect(stops(gone)).toEqual([-1, 0])
+    })
+
+    it('records where focus went, and is no change when it is there already', () => {
+      expect(update(three, moved('b')).model.chip).toEqual(Option.some('b'))
+      const there = update(three, moved('b')).model
+      expect(update(there, moved('b')).model).toBe(there)
+      expect(update(there, Message.FocusMoved({ chip: Option.none() })).model.chip).toEqual(
+        Option.none(),
+      )
+    })
+
+    it.each([
+      ['ltr', 'b', 'ArrowLeft', moved('a')],
+      ['ltr', 'b', 'ArrowRight', moved('c')],
+      ['ltr', 'a', 'ArrowLeft', moved('a')],
+      ['ltr', 'c', 'ArrowRight', Message.FocusMoved({ chip: Option.none() })],
+      ['ltr', 'c', 'Home', moved('a')],
+      ['ltr', 'a', 'End', moved('c')],
+      ['rtl', 'b', 'ArrowLeft', moved('c')],
+      ['rtl', 'b', 'ArrowRight', moved('a')],
+      ['rtl', 'c', 'ArrowLeft', Message.FocusMoved({ chip: Option.none() })],
+      ['ltr', 'b', 'Backspace', Message.Removed({ tag: 'b' })],
+      ['ltr', 'b', 'Delete', Message.Removed({ tag: 'b' })],
+    ] as const)(
+      '%s: a key on chip %s, %s, sends the move or removal',
+      (direction, tag, key, sent) => {
+        sends(
+          chips(direction),
+          Scene.keydown(Scene.label(`Remove ${tag}`), key),
+          Scene.expectOutMessage(sent),
+        )
+      },
+    )
+
+    it.each([
+      ['ltr', 'ArrowLeft'],
+      ['rtl', 'ArrowRight'],
+    ] as const)('%s: %s in an empty input moves to the last chip', (direction, key) => {
+      sends(
+        chips(direction),
+        Scene.keydown(Scene.label('Topics'), key),
+        Scene.expectOutMessage(moved('c')),
+      )
+    })
+
+    it('takes no keys on a chip while disabled', () => {
+      const [remove] = Inert.byTag(drawn(['a'], true), 'button')
+      expect(remove?.data?.on?.['keydown']).toBeUndefined()
+    })
+  })
+
   it('removes the tag whose button is pressed', () => {
     const lifted: Array<TagsInput.Message> = []
     TagsInput.view(

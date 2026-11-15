@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `TagsInput`'s chips are one roving tab stop (`Model.chip`, set by
+  `Message.FocusMoved`, the last chip until an arrow moves it): ArrowLeft and ArrowRight
+  move among the chips, Home and End go to the ends, Backspace and Delete remove the
+  focused chip, ArrowRight past the last returns to the input, and ArrowLeft in the input
+  from the start of its text (nothing selected) enters the last chip. `TagsInput.view`
+  takes `direction: 'rtl'` to mirror the arrows. A model stored from before has no `chip`
+  field.
 - `foldkit-site`, `foldkit-ssr`: route code from the Site tree (#438). A page placed with
   `Site.placement` from a `Bundle.lazy` carries it as `page.code`, and `Site.routing`
   returns `codeFor(route)`, the code of every page of its `pages` on a route's chain,

@@ -261,6 +261,149 @@ export default [
     tests: [unit],
   },
   {
+    name: 'every chip is a tab stop',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'h.Tabindex(tag === stop ? 0 : -1)',
+        replace: 'h.Tabindex(0)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the tab stop starts on the first chip',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "model.tags.at(-1) ?? ''",
+        replace: "model.tags[0] ?? ''",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the tab stop ignores the chip last moved to',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Option.filter(model.chip, tag => model.tags.includes(tag))',
+        replace: 'Option.none()',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'focus moved to the same chip is a change',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Option.getOrNull(chip) === Option.getOrNull(model.chip)',
+        replace: 'false',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an arrow past the last chip stays on it',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'if (key === forwardKey && at === indices.length - 1) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the chips move by the arrows of a left-to-right page',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: '            direction,\n          })',
+        replace: "            direction: 'ltr',\n          })",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the way out of the chips ignores the direction',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "const forwardKey = direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'",
+        replace: "const forwardKey = 'ArrowRight'",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the arrows wrap round the chips',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'loop: false,',
+        replace: 'loop: true,',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'Delete does not remove a chip',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "on: [Keys.chord('Backspace'), Keys.chord('Delete')],",
+        replace: "on: [Keys.chord('Backspace')],",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the input leaves for the first chip',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'input.tags.at(-1)',
+        replace: 'input.tags.at(0)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the input leaves from any caret',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'caretAtStart(input)\n',
+        replace: 'true\n',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the input leaves with a selection',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'field.selectionStart === 0 && field.selectionEnd === 0',
+        replace: 'field.selectionStart === 0',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a chip cannot be found to focus',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'h.Id(chipId(model.id, tag)),\n',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'a disabled field still takes keys',
     edits: [
       {

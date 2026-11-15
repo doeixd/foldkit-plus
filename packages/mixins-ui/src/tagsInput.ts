@@ -16,6 +16,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
+import { RovingTabindex } from 'foldkit-primitives/interaction'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -26,9 +27,15 @@ import type { MixinList } from './resolve.js'
  * draft removes the last tag at once. A refusal is shown: the `message`
  * slot, a polite status region drawn always, says why, and the `control`
  * shakes once (not under reduced motion). The tags and the draft are a small Model of this
- * module's, which the application keeps and folds with `update`: the keys
- * reach `update` as Messages, so it decides from the current draft rather
- * than the one the last frame drew.
+ * module's, which the application keeps and folds with `update`; `Typed`
+ * carries the drawing it read the text from, so a frame behind the keys loses
+ * no draft.
+ *
+ * The chips are one tab stop. ArrowLeft and ArrowRight move among them (and
+ * ArrowRight past the last returns to the input), Home and End go to the
+ * ends, Backspace and Delete remove the focused one, and ArrowLeft in the
+ * input at the start of its text enters the last. Text keys stay the
+ * browser's.
  */
 export const TagsInputSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -38,7 +45,7 @@ export const TagsInputSlots = Slots.define({
   tag: Slot.make({ capability: Capability.Container }),
   remove: Slot.make({
     capability: Capability.Interactive,
-    events: [Event.Click],
+    events: [Event.Click, Event.KeyDown],
     attributes: [Attr.AriaLabel, Attr.Disabled],
   }),
   input: Slot.make({
@@ -77,6 +84,11 @@ export const Model = Schema.Struct({
   /** Commits that added tags; each drawing of the input sends the count it drew with what it reads. */
   commits: Schema.Number,
   /**
+   * The chip holding the tab stop: the one focus last moved to by an arrow
+   * key, and the last chip until then.
+   */
+  chip: Schema.OptionFromNullOr(Schema.String),
+  /**
    * The drafts of the latest commits, oldest first, back to the oldest
    * drawing a key has come from: an input drawn before a commit still holds
    * its draft, in front of the keys typed after it.
@@ -101,6 +113,8 @@ export const Message = defineMessageUnion({
   BackspacedEmpty: {},
   /** A tag's remove button was pressed; the tag names it, as tags are unique. */
   Removed: { tag: Schema.String },
+  /** Focus moved to a chip by a key, or, with `none`, back to the input. */
+  FocusMoved: { chip: Schema.OptionFromNullOr(Schema.String) },
   CompletedFocusInput: {},
 })
 export type Message = typeof Message.Type
@@ -121,11 +135,13 @@ export const init = (options: {
   refusal: Option.none(),
   refusals: 0,
   commits: 0,
+  chip: Option.none(),
   added: [],
 })
 
 const inputId = (id: string) => `${id}-input`
 const messageId = (id: string) => `${id}-message`
+const chipId = (id: string, tag: string) => `${id}-chip-${tag}`
 
 // A removed tag's button leaves the page with the focus on it.
 const FocusInput = Command.define('FocusInput', {
@@ -227,6 +243,10 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
             commands: [FocusInput({ id: model.id })],
           }
         : { model },
+    FocusMoved: ({ chip }) =>
+      Option.getOrNull(chip) === Option.getOrNull(model.chip)
+        ? { model }
+        : { model: modifyFields(model, { chip: () => chip }) },
     CompletedFocusInput: () => ({ model }),
   })
 
@@ -240,6 +260,8 @@ export interface TagsInputView<Message> {
   readonly label: string
   readonly placeholder?: string | undefined
   readonly disabled?: boolean | undefined
+  /** Default `ltr`; `rtl` swaps the arrows that move among the chips and out of the input. */
+  readonly direction?: 'ltr' | 'rtl' | undefined
   /**
    * Keys the application answers in the input, beside Enter, the delimiter and
    * Backspace in an empty field: a route on one of those is a diagnostic naming both.
@@ -261,20 +283,31 @@ const refusalText = (refusal: Refusal): string =>
   })
 
 /**
- * Whether the input holds no text, as the browser has it at this press: the
- * Model's draft is a frame behind keys typed in a burst, and a Backspace
- * taken for an empty field would be swallowed over a character. The Model
- * answers where no input is drawn (a Scene test).
+ * The input as the browser has it at this press: the Model's draft is a frame
+ * behind keys typed in a burst, so a key judged from it would act on text
+ * that is gone or miss text that is there. The Model answers where no input
+ * is drawn (a Scene test).
  */
 const fieldIsEmpty = (model: Model): boolean => {
   const field = document.getElementById(inputId(model.id))
   return field instanceof HTMLInputElement ? field.value === '' : model.draft === ''
 }
 
+/** Whether the caret is at the start of the input with nothing selected. */
+const caretAtStart = (model: Model): boolean => {
+  const field = document.getElementById(inputId(model.id))
+  return field instanceof HTMLInputElement
+    ? field.selectionStart === 0 && field.selectionEnd === 0
+    : model.draft === ''
+}
+
 export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>): Html => {
   const { model } = options
   const lift = options.onMessage
   const disabled = options.disabled === true
+  const direction = options.direction ?? 'ltr'
+  const { Keys } = Behaviors
+  const moved = (tag: Option.Option<string>) => lift(Message.FocusMoved({ chip: tag }))
   const keys = Behaviors.Keys.behavior(TagsInputSlots)<Model, Outer>({
     slot: 'input',
     name: 'TagsInputKeys',
@@ -290,9 +323,56 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
             ? Option.some(lift(Message.BackspacedEmpty()))
             : Option.none(),
       }),
+      Behaviors.Keys.route<Model, Outer>('ToChips', {
+        on: [Behaviors.Keys.chord(direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft')],
+        handle: ({ input }) =>
+          Option.flatMap(Option.fromNullishOr(input.tags.at(-1)), last =>
+            caretAtStart(input)
+              ? Option.some(Behaviors.Keys.focus(chipId(input.id, last), moved(Option.some(last))))
+              : Option.none(),
+          ),
+      }),
       ...(options.routes ?? []),
     ],
   })
+  const indices = model.tags.map((_, index) => index)
+  const forwardKey = direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'
+  const chipKeys = Keys.attribute<string, Outer>(
+    [
+      Keys.route<string, Outer>('Chips', {
+        on: [
+          ...Keys.withShift('Home'),
+          ...Keys.withShift('End'),
+          ...RovingTabindex.arrowChords('horizontal'),
+        ],
+        handle: ({ key, modifiers, input: tag }) => {
+          const at = model.tags.indexOf(tag)
+          // Past the last chip is the input, which `move` would clamp to the chip itself.
+          if (key === forwardKey && at === indices.length - 1) {
+            return Option.some(Keys.focus(inputId(model.id), moved(Option.none())))
+          }
+          const next = RovingTabindex.move(indices, at, key, modifiers, {
+            orientation: 'horizontal',
+            loop: false,
+            direction,
+          })
+          return Option.map(
+            Option.fromNullishOr(next === undefined ? undefined : model.tags[next]),
+            target => Keys.focus(chipId(model.id, target), moved(Option.some(target))),
+          )
+        },
+      }),
+      Keys.route<string, Outer>('Remove', {
+        on: [Keys.chord('Backspace'), Keys.chord('Delete')],
+        handle: ({ input: tag }) => Option.some(lift(Message.Removed({ tag }))),
+      }),
+    ],
+    { slot: 'remove' },
+  )
+  const stop = Option.getOrElse(
+    Option.filter(model.chip, tag => model.tags.includes(tag)),
+    () => model.tags.at(-1) ?? '',
+  )
   const builders = SlotView.buildersFor(
     TagsInputSlots,
     [
@@ -322,11 +402,13 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
                   tag,
                   h.button(
                     builders.remove.attrs([
+                      h.Id(chipId(model.id, tag)),
                       h.Type('button'),
+                      h.Tabindex(tag === stop ? 0 : -1),
                       h.AriaLabel(`Remove ${tag}`),
                       ...(disabled
                         ? [h.Disabled(true)]
-                        : [h.OnClick(lift(Message.Removed({ tag })))]),
+                        : [h.OnClick(lift(Message.Removed({ tag }))), chipKeys({ input: tag, h })]),
                     ]),
                     ['×'],
                   ),

@@ -34,7 +34,7 @@ afterEach(async () => {
  */
 let handled: Array<string> = []
 
-const mount = () => {
+const mount = (tags: ReadonlyArray<string> = []) => {
   handled = []
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -52,7 +52,7 @@ const mount = () => {
     Runtime.makeElement({
       Model: TagsInput.Model,
       container,
-      init: () => ({ model: TagsInput.init({ id: 'topics' }) }),
+      init: () => ({ model: TagsInput.init({ id: 'topics', tags }) }),
       update: (model: TagsInput.Model, message: TagsInput.Message) => {
         const next = TagsInput.update(model, message)
         const field = document.getElementById('topics-input') as HTMLInputElement | null
@@ -157,6 +157,60 @@ test('Backspace edits text typed since the last frame, and takes a tag only from
     expect(tagTexts()).toEqual(['x'])
     await userEvent.keyboard('{Backspace}')
     await vi.waitFor(() => expect(tagTexts()).toEqual([]))
+  } finally {
+    handle.dispose()
+  }
+})
+
+const focused = () =>
+  document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.id
+
+test('the chips are one tab stop, and the arrows, Home and End move focus among them', async () => {
+  const handle = mount(['a', 'b', 'c'])
+  try {
+    await vi.waitFor(() => expect(document.getElementById('topics-input')).not.toBeNull())
+    input().focus()
+    await userEvent.tab({ shift: true })
+    expect(focused()).toBe('Remove c')
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(focused()).toBe('Remove b')
+    await userEvent.keyboard('{Home}')
+    expect(focused()).toBe('Remove a')
+    // The tab stop followed focus: Tab from the input now comes back to `a`.
+    await vi.waitFor(() =>
+      expect(
+        [...document.querySelectorAll('li button')].map(button => button.getAttribute('tabindex')),
+      ).toEqual(['0', '-1', '-1']),
+    )
+    await userEvent.keyboard('{End}')
+    expect(focused()).toBe('Remove c')
+    await userEvent.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(input())
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('ArrowLeft in the input leaves it only from the start of its text', async () => {
+  const handle = mount(['a', 'b'])
+  try {
+    await vi.waitFor(() => expect(document.getElementById('topics-input')).not.toBeNull())
+    input().focus()
+    await userEvent.keyboard('xy')
+    await vi.waitFor(() => expect((input() as HTMLInputElement).value).toBe('xy'))
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(document.activeElement).toBe(input())
+    expect((input() as HTMLInputElement).selectionStart).toBe(1)
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(document.activeElement).toBe(input())
+    expect((input() as HTMLInputElement).selectionStart).toBe(0)
+    // A selection from the start is the browser's to collapse.
+    await userEvent.keyboard('{Shift>}{ArrowRight}{/Shift}{ArrowLeft}')
+    expect(document.activeElement).toBe(input())
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(focused()).toBe('Remove b')
+    // The text is still there to come back to.
+    expect((input() as HTMLInputElement).value).toBe('xy')
   } finally {
     handle.dispose()
   }
