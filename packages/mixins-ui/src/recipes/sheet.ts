@@ -18,7 +18,7 @@
  */
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { DialogSlots } from '../dialog.js'
-import { component, ref, travelled, variant } from './design.js'
+import { component, focusRing, ref, travelled, variant } from './design.js'
 import { closeAxis, Dialog, motionAxis, titleAxis } from './dialog.js'
 
 type Side = 'top' | 'right' | 'bottom' | 'left'
@@ -230,6 +230,8 @@ export const Sheet = Style.recipeFor(DialogSlots)({
           inset: `calc(-1 * ${ref.space.sm}) calc(-1 * ${ref.space.md})`,
         }),
         Style.nest(':where([data-dragging]) > &', { cursor: 'grabbing' }),
+        // Focusable when the sheet has points, so the arrow keys can move it.
+        focusRing,
       ),
       variant(
         ...allSides.map(side => Style.nest(`:where([data-sheet="${side}"]) > &`, grabber[side])),

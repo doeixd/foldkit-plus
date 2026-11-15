@@ -7,6 +7,7 @@
  *
  * ```text
  * handle: Swipe -> Grabbed / Dragged / Released -> update -> point, or close
+ * handle keys: Home / End / arrows -> SnappedTo -> update -> point
  * view: point -> --fk-sheet-snap; a drag -> --fk-sheet-offset -> the recipe's translate
  * ```
  *
@@ -26,9 +27,11 @@
  * `data-no-swipe` start no drag, and resting below its highest point the
  * panel does not scroll, so a swipe up raises it. A mouse drags it by the
  * handle, where text stays selectable; `from: 'handle'` keeps every pointer
- * there. The handle is hidden from assistive technology, which has Escape
- * and the sheet's own controls. Reduced motion keeps the drag (it follows
- * the finger) and snaps the slide. How fast a flick is and how far a slow
+ * there. With more than one point the handle is also a focusable separator
+ * whose arrow keys, Home and End step between the points (`SnappedTo`); with
+ * one it is hidden from assistive technology, which has Escape and the
+ * sheet's own controls. Reduced motion keeps the drag (it follows the
+ * finger) and snaps the slide. How fast a flick is and how far a slow
  * drag takes it away are `swipe.flickSpeed` and `swipe.closeShare`.
  */
 import * as UiDialog from '@foldkit/ui/dialog'
@@ -39,8 +42,11 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
+import { Behaviors } from 'foldkit-mixins'
 import { Swipe } from 'foldkit-primitives/dom'
+import { RovingTabindex } from 'foldkit-primitives/interaction'
 import {
+  DialogSlots,
   isLeaving,
   open as openDialog,
   resolve as resolveDialog,
@@ -89,6 +95,8 @@ export const Message = defineMessageUnion({
   Dragged: { delta: Schema.Number },
   /** Let go: the last delta and its speed toward the edge, or cancelled. */
   Released: { delta: Schema.Number, velocity: Schema.Number, completed: Schema.Boolean },
+  /** The sheet is to rest at point `at`, an index into `points`, as a release there leaves it. */
+  SnappedTo: { at: Schema.Number },
 })
 export type Message = typeof Message.Type
 
@@ -270,6 +278,10 @@ export const update = (model: Model, message: Message): Return =>
           })
         },
       }),
+    SnappedTo: ({ at }) =>
+      at === model.at || !Number.isInteger(at) || at < 0 || at >= model.points.length
+        ? { model }
+        : { model: modifyFields(model, { at: () => at }) },
   })
 
 /** Whether the Sheet is open, for a parent's `covered` or its own reading. */
@@ -293,12 +305,19 @@ export const dragged = (model: Model, drag: { readonly size: number; readonly de
   return shown >= 0 ? shown : -Math.max(0, 8 * (Math.log(1 - shown) - 2))
 }
 
+export interface SheetWords {
+  /** The handle's accessible name when the sheet has points; default `Resize sheet`. */
+  readonly handle?: string | undefined
+}
+
 export interface SheetView<Outer> {
   readonly model: Model
   /** Lifts the Sheet's Messages into the application's. */
   readonly onMessage: (message: Message) => NoInfer<Outer>
   /** The style (`Recipes.Sheet`) and any other mixins, on `DialogSlots`. */
   readonly mixins?: MixinList<Outer>
+  /** The handle's words. */
+  readonly words?: SheetWords | undefined
   /** As the Dialog's: whether `description` labels the dialog. */
   readonly hasDescription?: boolean
   /** As the Dialog's: a sheet opened from this one is above it. */
@@ -316,7 +335,10 @@ export interface SheetView<Outer> {
  * The Sheet: `@foldkit/ui`'s Dialog view, its bundles resolved as the
  * Dialog's are, with the drag on the handle and its place on the panel.
  * Draw `handle` in the panel; a sheet with points draws its content so that
- * what matters shows at the lowest.
+ * what matters shows at the lowest. With more than one point the handle is a
+ * focusable separator: its arrow keys (the one that raises it, and the one that
+ * lowers it, by the side), Home and End send `SnappedTo` as a release at that
+ * point does, and it does not close the sheet: Escape is the Dialog's.
  */
 export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): Html => {
   const { model, onMessage } = options
@@ -345,6 +367,40 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
           }),
         ),
     )
+  const snapping = model.points.length > 1
+  const last = model.points.length - 1
+  const percent = (index: number) => Math.round((model.points[index] ?? 1) * 100)
+  const orientation = axis === 'y' ? 'vertical' : 'horizontal'
+  // `move` steps on from ArrowDown and ArrowRight, which raise a top and a left sheet; a
+  // bottom and a right sheet are raised by the other arrow, so they list the points from the top.
+  const ascending = model.points.map((_, index) => index)
+  const order = model.side === 'top' || model.side === 'left' ? ascending : [...ascending].reverse()
+  const keys = Behaviors.Keys.behavior(DialogSlots)<Model, Outer>({
+    slot: 'handle',
+    name: 'SheetHandleKeys',
+    routes: [
+      Behaviors.Keys.route<Model, Outer>('Snap', {
+        on: [
+          ...Behaviors.Keys.withShift('Home'),
+          ...Behaviors.Keys.withShift('End'),
+          ...RovingTabindex.arrowChords(orientation),
+        ],
+        handle: ({ key, modifiers, input }) => {
+          const to =
+            key === 'Home'
+              ? 0
+              : key === 'End'
+                ? last
+                : RovingTabindex.move(order, input.at, key, modifiers, {
+                    orientation,
+                    loop: false,
+                    direction: 'ltr',
+                  })
+          return Option.map(Option.fromNullishOr(to), at => onMessage(Message.SnappedTo({ at })))
+        },
+      }),
+    ],
+  })
   const place = Option.match(model.drag, {
     onNone: () => [],
     onSome: drag => [
@@ -360,10 +416,12 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
       hasDescription: options.hasDescription ?? false,
       toView: (render: UiDialog.RenderInfo) =>
         options.draw(
-          resolveDialog(render, options.mixins ?? [], {
+          resolveDialog(render, [...(snapping ? [keys.mixin] : []), ...(options.mixins ?? [])], {
             h,
+            input: model,
             covered: options.covered ?? false,
             isLeaving: isLeaving(model.dialog),
+            interactiveHandle: snapping,
             attributes: {
               dialog: [h.DataAttribute('side', model.side)],
               panel: [
@@ -379,7 +437,23 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
                 ...place,
               ],
               // The browser's own pan would take the press away from the drag.
-              handle: [h.Style({ touchAction: 'none' }), h.OnMount(swipe(false))],
+              handle: [
+                h.Style({ touchAction: 'none' }),
+                h.OnMount(swipe(false)),
+                ...(snapping
+                  ? [
+                      h.Role('separator'),
+                      h.Tabindex(0),
+                      h.AriaLabel(options.words?.handle ?? 'Resize sheet'),
+                      // A separator's orientation is the line it draws, across the sheet's edge.
+                      h.AriaOrientation(axis === 'y' ? 'horizontal' : 'vertical'),
+                      h.AriaValuenow(percent(model.at)),
+                      h.AriaValuemin(percent(0)),
+                      h.AriaValuemax(percent(last)),
+                      h.AriaControls(`${model.dialog.id}-panel`),
+                    ]
+                  : []),
+              ],
             },
           }),
         ),

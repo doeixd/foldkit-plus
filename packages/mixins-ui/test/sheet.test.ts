@@ -138,6 +138,15 @@ describe('update', () => {
     expect(round.model.at).toBe(0)
   })
 
+  it('snaps to a point it is told of, and is no change at one it holds or has not got', () => {
+    const model = opened()
+    expect(Sheet.update(model, Sheet.Message.SnappedTo({ at: 1 })).model.at).toBe(1)
+    expect(Sheet.update(model, Sheet.Message.SnappedTo({ at: 0 })).model).toBe(model)
+    for (const at of [2, -1, 0.5, Number.NaN]) {
+      expect(Sheet.update(model, Sheet.Message.SnappedTo({ at })).model).toBe(model)
+    }
+  })
+
   it('a cancelled drag comes back to where it rested', () => {
     const model = Sheet.update(grabbed(), Sheet.Message.Dragged({ delta: 300 })).model
     const next = Sheet.update(

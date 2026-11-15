@@ -46,10 +46,15 @@ export const DialogSlots = Slots.define({
   }),
   /**
    * The Sheet's grabber, drawn in the panel: this package's, with no upstream
-   * bundle, and hidden from assistive technology. Draw it in a Sheet's panel
-   * only: the Sheet recipe hides it unless `handle: 'bar'`.
+   * bundle, and hidden from assistive technology unless the Sheet has more than
+   * one point, when it is a separator the arrow keys move. Draw it in a Sheet's
+   * panel only: the Sheet recipe hides it unless `handle: 'bar'`.
    */
-  handle: Slot.make({ capability: Capability.Container }),
+  handle: Slot.make({
+    capability: Capability.Container,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaValuenow],
+  }),
   /** The part between the heading and the footer, holding `scroll` and its bar. */
   body: Slot.make({ capability: Capability.Container }),
   /** What scrolls when the panel would outgrow the viewport. */
@@ -140,6 +145,11 @@ export interface DialogContext<Input, Message> extends ResolveContext<Input, Mes
    */
   readonly isLeaving?: boolean
   /**
+   * Whether the `handle` is a control, whose attributes the application adds
+   * with `attributes`, rather than decoration hidden from assistive technology.
+   */
+  readonly interactiveHandle?: boolean
+  /**
    * Attributes added to a bundle before the mixins resolve, as the Sheet adds
    * its drag to the panel and the handle.
    */
@@ -166,7 +176,7 @@ export const resolve = <Input, Message>(
     description: render.description,
     initialFocus: render.initialFocus,
     closeButton: render.closeButton,
-    handle: [h.AriaHidden(true)],
+    handle: context.interactiveHandle === true ? [] : [h.AriaHidden(true)],
     body: [],
     scroll: [],
     // Hidden from assistive technology: the body is what a reader scrolls.

@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: a `Sheet` with more than one point draws its handle as a focusable
+  `separator` (it was `aria-hidden` and drag-only), named by `words.handle` (default
+  `Resize sheet`), with `aria-valuenow` the percent shown and `aria-valuemin`, `-max` and
+  `-controls`. The arrow keys along the sheet's edge (the one toward the page raises it:
+  ArrowUp for a bottom sheet, ArrowDown for a top one, ArrowLeft for a right one, ArrowRight
+  for a left one), Home and End step between the points through `Message.SnappedTo { at }`,
+  the transition a release at that point leaves, and stop at the ends; Escape still closes
+  the sheet, and `Recipes.Sheet` rings the focused handle. With no `initialFocus` an opened
+  sheet with points takes focus on its handle, the first focusable element. A sheet with
+  one point keeps a decorative, hidden handle; a `handle: 'none'` application moves its
+  sheet with `SnappedTo` from a control of its own. `DialogContext` takes `interactiveHandle`.
 - `foldkit-mixins-ui`: `TagsInput.view` takes `words` (`TagsInput.TagsInputWords`): `remove`,
   a function of the tag for the remove button's accessible name (default `Remove <tag>`),
   and `mark`, what it draws (default `×`).
