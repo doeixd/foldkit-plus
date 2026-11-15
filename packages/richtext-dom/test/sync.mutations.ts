@@ -22,7 +22,13 @@ export default [
   },
   {
     name: 'a content redraw restores no selection',
-    edits: [{ file, find: 'if (owned) restoreSelection(current, state.selection)', replace: '' }],
+    edits: [
+      {
+        file,
+        find: 'if (!owned) return\n    restoreSelection(current, state.selection)\n',
+        replace: 'if (!owned) return\n',
+      },
+    ],
     tests: ['packages/richtext-dom/test/sync.browser.test.ts'],
   },
 ] satisfies ReadonlyArray<{

@@ -359,12 +359,7 @@ test('right to left mirrors the page, and the bar’s arrow keys follow', async 
   expect(errors).toEqual([])
 })
 
-// A package defect, proposed to the coordinator: typing Enter at the end of the document on a short
-// screen leaves the caret's line below the window, since the editor sets the selection without
-// scrolling it into view. `test.fails` says so, and goes red the day it is fixed.
-// ADOPT: the coordinator approved the fix in foldkit-richtext-dom; when it lands, change
-// `test.fails` to `test` (this is its acceptance test).
-test.fails('with a short screen (the keyboard up) the caret stays in view, below the sticky bar', async () => {
+test('with a short screen (the keyboard up) the caret stays in view, below the sticky bar', async () => {
   const errors: Array<string> = []
   const context = await browser.newContext({
     viewport: { width: 390, height: 420 },

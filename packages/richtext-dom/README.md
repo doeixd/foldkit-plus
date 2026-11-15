@@ -579,6 +579,15 @@ that transition committed.
   never takes the caret from another editor or an input. While an IME is composing, the latest
   state waits and is drawn when composition ends, so another person's edit never rewrites the
   text under the IME.
+  The caret is kept in view: after an edit, an undo or redo, or a caret the editor itself moved
+  (a held arrow key, select-all in code, an arrow onto an atom), the focus end of the
+  selection is scrolled into view by the least amount (`scrollIntoView({ block: 'nearest' })`,
+  but for the caret's own line, so the bottom of a tall block does not bring its top up),
+  in every scrolling box around the editor and in the window, instantly. A sticky toolbar
+  or header stays clear when the page names it: `html { scroll-padding-top: 3rem }` (and the
+  scrolling box's own `scroll-padding`). Another person's edit, a decoration refresh, a
+  focus held by a control beside the editor, and a pointer selection (the browser's own
+  autoscroll) scroll nothing; `focus(hostId, selection)` scrolls as described above.
   `detach()` removes the listeners.
 - **`patch(dom, content, changeSet, decorations?)`** removes what the change set removed,
   re-renders what it marked dirty, and places inserted or moved elements in document order.

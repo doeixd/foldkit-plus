@@ -53,7 +53,13 @@ export default [
   },
   {
     name: 'an edit nothing answers holds its keys for good',
-    edits: [{ file, find: '}, UNANSWERED_MS)', replace: '}, 60_000)' }],
+    edits: [
+      {
+        file,
+        find: '}, UNANSWERED_MS)\n    options.onIntent(command)',
+        replace: '}, 60_000)\n    options.onIntent(command)',
+      },
+    ],
     tests,
   },
   {

@@ -147,7 +147,7 @@ and clipboard events into editor intent while preventing the browser from mutati
 the subtree behind the document. `onSelection` reports a caret the application did
 not just commit; a press on an atom, or an arrow reaching it, reports a node selection of it, marked `data-selected`
 (Delete removes it, Enter opens a paragraph after it, typing replaces it), and a press below the
-last block writes after it (a new paragraph after a table or code), and `mountInto(host, content, options)` at
+last block writes after it (a new paragraph after a table or code), the caret the editor drew after the person's own edit, undo or key is scrolled into view by the least amount (scrolling boxes and the window, honouring `scroll-padding` for a sticky bar; never for another person's edit, a decoration refresh or a control holding the focus), and `mountInto(host, content, options)` at
 `foldkit-richtext-dom/host` renders into a view's host element and records the
 attachment a patch Command later finds; if the host already holds exactly the subtree it would
 build (server markup), it keeps those elements (`adopt`), and otherwise replaces what is there. A registry can also be `placeRendering`d for

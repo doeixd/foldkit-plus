@@ -15,6 +15,7 @@ import {
   type EditorDom,
 } from './index.js'
 import { parseHtml } from './html.js'
+import { caretRect, reveal as scrollTo } from './reveal.js'
 
 export interface Intent {
   /** The semantic command to run, when the event maps to one. */
@@ -495,9 +496,30 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     markSelected()
     options.onSelection?.(selection)
   }
+  /**
+   * Scrolls the focus end of a selection the editor just drew into view, by the least amount.
+   * It reads one rectangle after the patch, in the call that set the selection: a read forces
+   * the layout it needs, so it cannot see a stale one. A browser moving its own caret scrolls
+   * for itself; this is for the ones the editor sets, which `setBaseAndExtent` does not scroll.
+   */
+  const revealSelection = (selection: RichText.Selection | null): void => {
+    if (selection === null) return
+    if (selection.type === 'Node') {
+      const element = current.elements.get(selection.node)
+      if (element !== undefined) scrollTo(element, element.getBoundingClientRect())
+      return
+    }
+    const range = positionToRange(current, selection.focus)
+    if (range === undefined) return
+    const rect = caretRect(range)
+    const node = range.startContainer
+    const from = node instanceof Element ? node : node.parentElement
+    if (rect !== undefined && from !== null) scrollTo(from, rect)
+  }
   /** Takes a selection the editor made itself, as a click on an image or an arrow key does. */
-  const select = (selection: RichText.Selection): void => {
+  const select = (selection: RichText.Selection, reveal = false): void => {
     restoreSelection(current, selection)
+    if (reveal) revealSelection(selection)
     if (sameSelection(selection, lastSelection)) return
     lastSelection = selection
     hint()
@@ -555,6 +577,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       if (live === null || live === undefined || !ownsSelection()) return
       live.modify(move.extend ? 'extend' : 'move', move.direction, move.granularity)
       reportSelection()
+      revealSelection(readSelection(current))
     })
   }
   const ask = (command: RichText.Command): void => {
@@ -573,11 +596,23 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       ask(command)
     })
   }
+  /**
+   * An undo or redo asked for and not yet drawn. Unlike an edit it is never answered, so a
+   * timer ends the wait for one that changes nothing.
+   */
+  let undoing: ReturnType<typeof setTimeout> | undefined
   const draw = (state: RichText.EditorState, changeSet: RichText.ChangeSet): void => {
     const owned = ownsSelection()
+    // Only what the person's own input asked for follows the caret: another person's edit
+    // landing meanwhile must not move this one's page.
+    const asked = unanswered > 0 || undoing !== undefined
+    clearTimeout(undoing)
+    undoing = undefined
     lastSelection = state.selection
     redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
-    if (owned) restoreSelection(current, state.selection)
+    if (!owned) return
+    restoreSelection(current, state.selection)
+    if (asked) revealSelection(state.selection)
   }
   /** For Mod+A in a kind whose text keeps line breaks (code), its text, unless that is selected. */
   const codeToSelect = (event: KeyboardEvent): RichText.Selection | undefined => {
@@ -662,7 +697,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       if (after || key === 'ArrowLeft' || key === 'ArrowUp') {
         event.preventDefault()
         const beside = caretBeside(current.content, live.node, after)
-        if (beside !== null) select(beside)
+        if (beside !== null) select(beside, true)
         return
       }
     }
@@ -671,7 +706,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       const code = codeToSelect(event as KeyboardEvent)
       if (code !== undefined) {
         event.preventDefault()
-        select(code)
+        select(code, true)
         return
       }
     }
@@ -681,7 +716,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       const reached = atomReached(event as KeyboardEvent)
       if (reached !== undefined) {
         event.preventDefault()
-        select({ type: 'Node', node: reached })
+        select({ type: 'Node', node: reached }, true)
         return
       }
     }
@@ -705,7 +740,13 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       reportSelection()
       onIntent(intent.command)
     }
-    if (intent.history !== undefined) options.onHistory?.(intent.history)
+    if (intent.history !== undefined) {
+      clearTimeout(undoing)
+      undoing = setTimeout(() => {
+        undoing = undefined
+      }, UNANSWERED_MS)
+      options.onHistory?.(intent.history)
+    }
   }
   const onCompositionStart = (): void => {
     reportSelection()
@@ -943,6 +984,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     },
     detach: () => {
       clearTimeout(fallback)
+      clearTimeout(undoing)
       ownerDocument.removeEventListener('selectionchange', reportSelection)
       target.removeEventListener('beforeinput', onEvent)
       target.removeEventListener('keydown', onEvent)
