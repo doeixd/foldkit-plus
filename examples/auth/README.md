@@ -146,10 +146,12 @@ Read the files in this order.
    `client.ts`'s `SSR.hydrate` take it as `lazy`, so only a page at
    `/account` loads the chunk to render or boot. `Site.routing`'s `preload`
    fetches it when the reader points at the Account link, and its arrival
-   (`changed`) loads it when nothing fetched it first. The bodies are 0.5 kB;
-   the split itself costs 5.6 kB brotli at start in this build (the reason
-   is in [`test/bundle.test.ts`](test/bundle.test.ts)), so it is here to show
-   the path, not as a saving.
+   (`changed`) loads it when nothing fetched it first. The bodies are 0.5 kB,
+   so the split saves nothing here; it shows the path. It also costs nothing:
+   left to rolldown, the boot graph split into three chunks (5.6 kB brotli
+   more at start), so `vite.config.ts` puts every module two chunks share in
+   one `boot` chunk, and [`test/boot.test.ts`](test/boot.test.ts) holds the
+   loader out of it.
 
 What some calls do, and do not:
 
