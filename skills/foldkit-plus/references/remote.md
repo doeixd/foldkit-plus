@@ -315,6 +315,7 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // Data.wiring is one call: policies gives entries their own, by key, over policy (a key the record lacks is a type error):
 // Data.wiring({ page, editor }, { policy: ageing, policies: { editor: RemotePolicy.networkOnly } })
 // A list two entries read is held stale once left unless both policies age it.
+// Its subscriptions are named by the record's keys: wiring.subscriptions['editor.read'], no `!`.
 // Retention is the domain's: any call's `retain` entry roots the reads of every call.
 // `now` defaults to Date.now read at each use (fake timers move it; pass `now` under TestClock).
 // Entry dependencies are typed: ReadDependencies / LiveDependencies / RetentionRoots.

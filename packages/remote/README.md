@@ -1272,7 +1272,9 @@ const pageWiring = Data.wiring(
 ```
 
 A key the record lacks is a type error. A list two entries read is held stale
-once left unless both age it, as with two calls.
+once left unless both age it, as with two calls. The wiring's `subscriptions`
+are named by the same keys, so a test reads `pageWiring.subscriptions['owner.read']`
+with no `!`.
 
 A call's `policy` can also be picked from the Model, so a screen that works
 offline reads what it holds while offline and asks once it is back. `isOnline`

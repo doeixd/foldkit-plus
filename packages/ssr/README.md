@@ -1373,14 +1373,16 @@ A list loads whole on every page. When each route has code of its own, give
 `lazy` as a function of the Model instead, and only what the page draws loads:
 
 ```ts sketch
-lazy: model => Site.codeFor(AppSite, pages, model.route),
+lazy: model => Routing.codeFor(model.route), // Routing = Site.routing({ pages, … })
 ```
 
 The server asks it with the Model the page is drawn from (`init`'s, after
 `SSR.entry`'s `prepare`), and runs `init` once for it; the browser asks it
-with the resumed Model. A page on another route fetches none of this route's
-code, and `Site.routing`'s `preload` fetches it when the reader points at a
-link there (`foldkit-site`'s README, "Code split by route"). A binding inside a placement dispatches the
+with the resumed Model. The two must name the same bundles, or the render
+fails with `LazyDependsOnUnsentState`: send in the plan's `state` what `lazy`
+reads. A page on another route fetches none of this route's code, and
+`Site.routing`'s `preload` fetches it when the reader points at a link there
+(`foldkit-site`'s README, "Code split by route"). A binding inside a placement dispatches the
 parent's Message, as Foldkit's own handlers do, so the plan's Surface lists the
 wrapper variant, `Message.GotUploadMessage`.
 

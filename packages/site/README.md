@@ -323,8 +323,8 @@ const People = Site.route(peopleRouter, AppRoute.People, {
 })
 ```
 
-`Site.sources(site, App.owner, App.model.route)` is each surfaced node as its
-`Surface.when`, keyed by tag, for `Data.wiring`, `Data.subscriptions`,
+`Site.sources(site, App.owner, App.model.route)` is each node with a Surface
+as its `Surface.when`, keyed by its tag, for `Data.wiring`, `Data.subscriptions`,
 `Data.satisfy`, or an SSR plan's `surfaces`. A surface from another
 application is refused here. Each entry answers its own tag only: on a
 person page the person surface is active and the people surface is not.
@@ -741,9 +741,10 @@ const withEditor = Data.wiring(
 )
 ```
 
-A key the record lacks is a type error. `Site.sources` is keyed by the tree's
-tags, each optional since a node with no Surface has no entry, so a node's key
-(`Profile`) survives the spread and can be named beside `editor`. A list the
+A key the record lacks is a type error. `Site.sources` is keyed by the tags of
+the nodes with a Surface (the tree's type carries them, from `.surface` or
+`Site.route`'s `surface`), so a node's key (`Profile`) survives the spread and
+can be named beside `editor`, and a node with no Surface has no key to name. A list the
 editor and the page both read is held stale once left unless both policies
 age it.
 
@@ -793,19 +794,23 @@ page: a `Bundle.lazy` from `foldkit-bundle` keeps its `update` and `view`
 behind an `import()` the bundler makes a chunk of, while its Model, Messages
 and `init` stay in the boot chunk for the parent's Schema. The tree only says
 *when* that chunk is asked for. Placed with `Site.placement`, the page carries
-the bundle as its `code`, and `Site.codeFor(site, pages, route)` names the
-code of every page on a route's chain (a nested page and the lazy page above
-it), none for eager pages. It is pure; nothing loads until someone calls
-`load`. Four callers do, each once per chunk:
+the bundle as its `code`; handed to `Site.routing`'s `pages`, the one list of
+pages, it is named by the routing's `codeFor(route)`: the code of every page
+on a route's chain (a nested page and the lazy page above it), none for eager
+pages. It is pure; nothing loads until someone calls `load`. Five callers do,
+each once per chunk:
 
 ```text
-the reader points at a link   -> Site.routing's preload fetches codeFor(there)
-the server renders a route    -> SSR.entry's lazy: model => codeFor(model.route)
+the reader points at a link   -> preload's code: fetchCode loads codeFor(there)
+the server renders a route    -> SSR.entry's lazy: model => Routing.codeFor(model.route)
 the browser boots that page   -> SSR.hydrate's lazy, asked with the resumed Model
 the route arrives unfetched   -> the page's changed Message, which Bundle.lazy loads on
+the app starts on that route  -> init: () => Routing.boot(model), with no server render
 ```
 
 ```ts sketch
+import { Site, fetchCode } from 'foldkit-site'
+
 const Account = Bundle.lazy(
   { name: 'Account', Model: AccountModel, Message: AccountMessage, init },
   () => import('./account.body.js').then(chunk => chunk.body),
@@ -814,21 +819,31 @@ const AccountPage = Site.placement(AccountNode, Account, {
   link: Link.field<Model>()('account', Link.wrapper(Message.GotAccountMessage)),
   changed: () => AccountMessage.Arrived(),
 })
-const codeOf = (model: Model) => Site.codeFor(AppSite, [AccountPage], model.route)
-// Pass `pages: [AccountPage]` and a `preload` to Site.routing, and `lazy: codeOf`
-// to both SSR.entry and SSR.hydrate.
+const Routing = Site.routing<Model, Message, AppRoute, RemoteClient>({
+  // ...site, route, parse, tags and completed, as above
+  pages: [AccountPage],
+  preload: { links: pointedLinks(), intended: Message.PointedAtLink, read, code: fetchCode },
+})
+// `lazy: codeOf` to both SSR.entry and SSR.hydrate.
+const codeOf = (model: Model) => Routing.codeFor(model.route)
 ```
 
-`Site.placement` refuses a lazy page without `changed`: a page reached by
-Back or a key press, with nothing fetched ahead, would otherwise draw its
-placeholder until its first Message. A preload that fails to fetch is
-forgotten, so the arrival tries again and reports it. Once the bodies arrive,
-the page draws them though its Model did not change. `examples/auth`'s
-`/account` is the whole path, with a build test that keeps the bodies out of
-the entry chunk and an e2e test that counts one request on hover. Measure
-before splitting: there the bodies are 0.5 kB and the split adds 5.6 kB
-brotli at start, because the bundler cuts the shared boot chunk by which
-dynamic chunks import each module.
+A lazy page must have `changed`, returning a Message (a type error, and
+refused at run time past the types): a page reached by Back or a key press,
+with nothing fetched ahead, would otherwise draw its placeholder until its
+first Message. For the same reason an application that starts on a lazy
+page's address with no server render starts through `Routing.boot`, which
+tells the Model's route to its pages as an arrival; with a server render,
+`lazy` loaded the bodies before boot. `fetchCode` is an import of its own, so
+a site with no lazy page keeps none of it; a routing with a lazy page and a
+`preload` without it is refused. A fetch that fails is forgotten, so the
+arrival tries again and reports it. Once the bodies arrive, the page draws
+them though its Model did not change. `examples/auth`'s `/account` is the
+whole path, with a build test that keeps the bodies out of the entry chunk and
+an e2e test that counts one request on hover. Measure before splitting: there
+the bodies are 0.5 kB, so the split saves nothing, and the bundler's chunking
+can cost more than it saves (that example's README says how much, and how its
+build config avoids it).
 
 ## Limits / when not to use it
 

@@ -1207,8 +1207,9 @@ export const Site = {
      * reads what the Model would read there, the route already set:
      * `there => Data.preload(there, actives)`. An address no node holds, or
      * the route shown, reads nothing, and the Model is never changed: what
-     * was read lands as `read`'s own Messages. A `pages` entry that is a
-     * `Bundle.lazy` on that route's chain has its bodies fetched too, once.
+     * was read lands as `read`'s own Messages. With `code`, a `pages` entry
+     * that is a `Bundle.lazy` on that route's chain has its bodies fetched
+     * too, once.
      */
     readonly preload?:
       | {

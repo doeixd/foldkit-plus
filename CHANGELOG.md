@@ -10,16 +10,20 @@ version changed; `pnpm` skips versions already in the registry.
 ### Added
 
 - `foldkit-site`, `foldkit-ssr`: route code from the Site tree (#438). A page placed with
-  `Site.placement` from a `Bundle.lazy` carries it as `page.code`, and
-  `Site.codeFor(site, pages, route)` names the code of every page on a route's chain.
-  `SSR.entry`, `SSR.render` and `SSR.hydrate` take `lazy` as a function of the Model
-  (`model => Site.codeFor(AppSite, pages, model.route)`): the server asks it with the
-  Model the page is drawn from, after `prepare`, running `init` once; the browser with
-  the resumed Model; so a page loads no other route's code. With `pages` and a
-  `preload`, `Site.routing` fetches a pointed-at route's unloaded code beside its read,
-  once (`Site.LoadCode`, which completes with `completed` whether the chunk loads or
-  not). `examples/auth` gains `/account`, a lazy page, with a build test and an e2e test
-  counting one chunk request on hover.
+  `Site.placement` from a `Bundle.lazy` carries it as `page.code`, and `Site.routing`
+  returns `codeFor(route)`, the code of every page of its `pages` on a route's chain,
+  typed by the tree's routes. `SSR.entry`, `SSR.render` and `SSR.hydrate` take `lazy` as
+  a function of the Model (`model => Routing.codeFor(model.route)`): the server asks it
+  with the Model the page is drawn from, after `prepare`, running `init` once; the
+  browser with the resumed Model; so a page loads no other route's code. The two must
+  name the same bundles, or the render fails with `ResumeUnsafe`
+  `LazyDependsOnUnsentState`. `Site.routing` returns `boot(model)`, the Model's route
+  told to its pages as an arrival, for an `init` with no server render. A `preload`
+  given `code: fetchCode` (a top-level export, so a site with no lazy page keeps none of
+  it, and required with a lazy page) fetches a pointed-at route's unloaded code beside
+  its read, once (`Site.LoadCode`, which completes with `completed` whether the chunk
+  loads or not). `examples/auth` gains `/account`, a lazy page, with a build test and an
+  e2e test counting one chunk request on hover.
 
 - `foldkit-mixins-ui`: `Anchor.inheritRegion(mount)`, and the `Anchor` Mount itself, give a
   panel the anchor relocates to the portal root the custom properties its region set (a
@@ -44,7 +48,9 @@ version changed; `pnpm` skips versions already in the registry.
   does not name reads under `policy`. A key the active record lacks is a type
   error, and refused where given for a record typed by `string`. A list two
   entries read is held stale once left unless both policies age it.
-  `RemoteWiring`'s `subscriptions` is no longer optional (#236).
+  `RemoteWiring`'s `subscriptions` is no longer optional, and is named by the active
+  record's keys (`wiring.subscriptions['grid.read']`, no `!`; a key no entry is active
+  under is a type error) (#236).
 - `foldkit-primitives`: `FocusReturn()`, a Mount (`foldkit-primitives/dom`) that gives an
   overlay whose own restoring is not ours a way back when its opener is gone as it closes,
   and `Dialog.focusReturn` in `foldkit-mixins-ui` attaching it to the panel. Focus goes to an
@@ -511,12 +517,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
-- `foldkit-site`: `Site.placement` refuses a `Bundle.lazy` page without `changed`, which
-  would draw its placeholder after an arrival nothing fetched ahead. `Site.sources` and
-  `Site.sourcesFor` return `SiteSources`, an optional entry per tag of the tree's routes,
-  instead of `Record<string, …>`: the node keys survive a spread beside the application's
-  own entries, so `Data.wiring`'s `policies` can name them, and a tag the tree lacks is a
-  type error.
+- `foldkit-site`: a `Bundle.lazy` page's `changed` is required and returns a Message (a
+  type error otherwise, and refused by `Site.placement` at run time), since a page whose
+  arrival says nothing draws its placeholder for good. `Site.sources` and
+  `Site.sourcesFor` return `SiteSources`, an entry per tag of a node with a Surface,
+  instead of `Record<string, …>`: a node, a mount and a tree carry those tags in their
+  types (`SiteNode`'s, `SiteMount`'s and `SiteTree`'s second parameter), so the keys
+  survive a spread beside the application's own entries, `Data.wiring`'s `policies` can
+  name them, and a tag of no surfaced node is a type error.
 
 - `foldkit-primitives`: `Reorder.behavior`'s pointer drag scrolls the list, then the page,
   while held near an edge (`edgeScroll` on by default; `edgeScroll: false` keeps the old

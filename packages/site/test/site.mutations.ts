@@ -161,7 +161,7 @@ export default [
     edits: [
       {
         file,
-        find: '            ...pages.map(\n              page => (model: Root) =>\n                Option.getOrElse(page.inform(model, next), () => ({ model })),\n            ),',
+        find: '            ...informed(next),',
         replace: '',
       },
     ],
@@ -194,8 +194,8 @@ export default [
     edits: [
       {
         file,
-        find: '      surface: config => at(Object.freeze({ ...built, bound: config as BoundSurface })),',
-        replace: '      surface: _config => at(built),',
+        find: 'Object.freeze({ ...built, bound: config as BoundSurface })',
+        replace: 'built',
       },
     ],
     tests,
@@ -205,8 +205,8 @@ export default [
     edits: [
       {
         file,
-        find: '      pipe: <A>(fn: (builder: NodeBuilder<Route>) => A): A => fn(at(built)),',
-        replace: '      pipe: <A>(fn: (builder: NodeBuilder<Route>) => A): A => at(built) as A,',
+        find: '): A => fn(at(built)),',
+        replace: '): A => at(built) as A,',
       },
     ],
     tests,
