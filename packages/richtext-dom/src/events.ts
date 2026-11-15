@@ -242,6 +242,13 @@ export interface AttachOptions {
   readonly decorate?: Decorate | undefined
   /** What a blank document shows (`RichText.isBlank`): "Write something…". */
   readonly placeholder?: string | undefined
+  /** The editor's accessible name, as `aria-label` on the editable root. */
+  readonly label?: string | undefined
+  /**
+   * The id of the element that names the editor, as `aria-labelledby`. Without a `label` or this,
+   * the editor takes the name of the group it is drawn in (the label a form gives its control).
+   */
+  readonly labelledBy?: string | undefined
   /**
    * What the empty paragraph a collapsed caret is in shows, as `data-hint` on it, which a
    * stylesheet draws as it draws the placeholder (usually only while the editor has the focus).
@@ -353,6 +360,19 @@ const sameSelection = (
  * content the adapter reads back or the caret mapping. The block, not the root, carries it,
  * so the text sits on the line the caret is on.
  */
+const setOrRemove = (element: Element, name: string, value: string | undefined): void => {
+  if (value === undefined) element.removeAttribute(name)
+  else element.setAttribute(name, value)
+}
+
+/**
+ * The element that names an editor drawn in a labelled group, such as the `role="group"` a form
+ * draws around a control it labels: a form's `label for` names that group, which the label cannot
+ * focus, so the editable root is named by the same label instead.
+ */
+const groupLabelOf = (root: Element): string | undefined =>
+  root.closest('[role="group"][aria-labelledby]')?.getAttribute('aria-labelledby') ?? undefined
+
 const drawPlaceholder = (
   dom: EditorDom,
   placeholder: string,
@@ -445,8 +465,12 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     target?.setAttribute('data-hint', options.lineHint)
     hinted = target
   }
+  const labelledBy =
+    options.label === undefined ? (options.labelledBy ?? groupLabelOf(current.root)) : undefined
   const redraw = (next: EditorDom): void => {
     current = next
+    setOrRemove(current.root, 'aria-label', options.label)
+    setOrRemove(current.root, 'aria-labelledby', labelledBy)
     if (options.placeholder !== undefined) {
       marked = drawPlaceholder(current, options.placeholder, marked)
     }
@@ -879,6 +903,11 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   target.addEventListener('paste', onPaste)
   target.addEventListener('click', onClick)
   target.addEventListener('mousedown', onMouseDown)
+  // A label the browser cannot hand the focus to (a form's `for` names a group) sends it here.
+  const labelElement = labelledBy === undefined ? null : ownerDocument.getElementById(labelledBy)
+  const labelFor = labelElement?.tagName === 'LABEL' ? labelElement : null
+  const focusFromLabel = (): void => current.root.focus({ preventScroll: true })
+  labelFor?.addEventListener('click', focusFromLabel)
   return {
     current: () => current,
     held: () => deferred?.state.document ?? current.content,
@@ -924,6 +953,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       target.removeEventListener('paste', onPaste)
       target.removeEventListener('click', onClick)
       target.removeEventListener('mousedown', onMouseDown)
+      labelFor?.removeEventListener('click', focusFromLabel)
     },
   }
 }

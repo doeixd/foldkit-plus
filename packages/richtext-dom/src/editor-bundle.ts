@@ -34,6 +34,8 @@ import {
   inputRulesFor,
   placeDecorations,
   placeInputRules,
+  nameFor,
+  placeName,
   placeOverlay,
   placePlaceholders,
   placeRendering,
@@ -44,6 +46,7 @@ import {
   renderingFor,
   serverRenderedFor,
   slashEntriesFor,
+  type EditorName,
   type Vocabulary,
   vocabularyFor,
 } from './host.js'
@@ -486,6 +489,7 @@ export const editorView = Submodel.defineView<EditorView, Message>((model, h) =>
             model.document,
             renderingFor(model.hostId),
             decorationsFor(model.hostId)(model.document),
+            nameFor(model.hostId),
           ),
         ]
       : [],
@@ -778,7 +782,7 @@ const editorLink: Link<
  * What a placement gives its editor. Each is placed by host id rather than passed as an arg
  * (§122): each holds functions or schemas, which a schema-decoded arg cannot describe.
  */
-export interface EditorPlacement {
+interface PlacementOptions {
   /** How this editor's marks and node kinds render (§121). Defaults to `noRendering`. */
   readonly rendering?: RichText.Rendering | undefined
   /** The vocabulary its edits resolve against (§125). Defaults to none. */
@@ -818,10 +822,23 @@ export interface EditorPlacement {
 }
 
 /**
+ * A placement, with at most one way to name the editor for assistive technology: `label`, written
+ * as `aria-label` on the editable root, or `labelledBy`, the id of the element that names it,
+ * written as `aria-labelledby`. Passing both is a type error. Without either, an editor drawn in a
+ * labelled group (a form's control) takes the group's label.
+ */
+export type EditorPlacement = PlacementOptions & EditorName
+
+/**
  * Records everything a placement names for its host id, replacing what the id had: one call,
  * so a placement cannot half-apply. `editorAt` and the form control both place through it.
  */
 export const placeEditor = (hostId: string, placement: EditorPlacement): void => {
+  const { label, labelledBy } = placement
+  placeName(
+    hostId,
+    label !== undefined ? { label } : labelledBy !== undefined ? { labelledBy } : {},
+  )
   placeRendering(hostId, placement.rendering ?? RichText.noRendering)
   placeVocabulary(hostId, placement.vocabulary ?? {})
   placeInputRules(hostId, placement.inputRules ?? [])

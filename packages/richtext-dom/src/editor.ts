@@ -16,6 +16,7 @@ import {
   decorationsFor,
   mountInto,
   keymapFor,
+  nameFor,
   placeholdersFor,
   releaseMount,
   renderingFor,
@@ -353,6 +354,9 @@ export interface EditorDrawing {
   readonly placeholder?: string | undefined
   /** What the empty paragraph the caret is in shows. */
   readonly lineHint?: string | undefined
+  /** The editor's accessible name (`EditorName`): `aria-label` or `aria-labelledby` on its root. */
+  readonly label?: string | undefined
+  readonly labelledBy?: string | undefined
   /** The node vocabulary, which says where Tab means something (`RichText.takesTab`). */
   readonly nodes?: RichText.NodeRegistry | undefined
   /** Chords beside the built-in ones, checked first (`AttachOptions.keymap`). */
@@ -385,6 +389,8 @@ export const attachEditor = (
       nodes: drawing.nodes,
       placeholder: drawing.placeholder,
       lineHint: drawing.lineHint,
+      label: drawing.label,
+      labelledBy: drawing.labelledBy,
       keymap: drawing.keymap,
     },
     drawing.rendering,
@@ -486,6 +492,7 @@ export const events = Mount.defineStream('RichTextDomEvents', {
             rendering: renderingFor(element.id),
             decorate: decorationsFor(element.id),
             ...placeholdersFor(element.id),
+            ...nameFor(element.id),
             nodes: vocabularyFor(element.id).nodes,
             keymap: keymapFor(element.id),
           }),

@@ -125,6 +125,18 @@ What each part does, and does not do:
   caret in an empty text node nor move one there with the arrow keys, so without it a new line
   made with Enter had no height and could not be reached. The caret on an empty line stands
   before it; it holds no text or position, server markup draws it too, and an import drops it.
+- **`label` / `labelledBy`**: the editor's accessible name. The editable root is a
+  `role="textbox"`, which a screen reader announces as an unnamed field unless it has one.
+  `label` is written as `aria-label` on it, `labelledBy` (the id of the element that names it)
+  as `aria-labelledby`, and passing both is a type error. Server markup carries them. With
+  neither, an editor drawn inside a `role="group"` that is itself labelled (the group
+  `foldkit-mixins-form` draws around a control, named by the key's label) takes that group's
+  label, and a click on the label focuses the editor, which the label's own `for` cannot do
+  since it names the group. That is discovered in the browser, so server markup has no name from
+  the group until hydration: give a `labelledBy` where the page must be named before then. An
+  editor given no name and not in a labelled group has none: this package keeps no diagnostics
+  channel (the accessibility obligations are `foldkit-mixins`'), so nothing warns.
+
 - **`placeholder`**: what a blank document shows (`RichText.isBlank`). It is put on the block as
   `data-placeholder`, and the root, a `role="textbox"`, carries it as `aria-placeholder`.
   Drawing it is the stylesheet's, so the text never enters the content:
