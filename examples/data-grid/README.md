@@ -18,11 +18,18 @@ grid's OutMessage (`Edited`, `Pasted`, or `Filled`, whose cells `Grid.fill` work
 into the products. A refused cell stays in the editor with its message, or is
 listed under `refused` in a paste.
 
-The page says what to try (edit, select a range, copy, filter, pin or hide),
-and its status line says how many products a filter keeps ("42 of 100,000
-products match") beside a Clear filters button. The filters are the page's, so
-`ClearedFilters` writes `Grid.noFilters` in `update`; the button stays drawn
-(`aria-disabled` when no filter is on) so pressing it never drops focus.
+The filters are the page's too: the grid reports each as `Filtered`, and
+`rowsOf` filters the products before the grid sees a row. Around the grid the
+page says what to try, shows how many products a filter keeps ("42 of 100,000
+products match") beside a Clear filters button, and announces what an action
+did in a live region of its own. The selection count stays outside it: it
+changes on every key, and a screen reader would read it each time. The button
+stays drawn (`aria-disabled` when no filter is on), so pressing it never drops
+focus.
+
+On a phone (40rem or narrower), a viewer with no saved layout starts with the
+UPC at 124px and the description at 200px, so the second column shows beside
+the pinned one. The rest scrolls sideways inside the grid; the page does not.
 
 The columns stay as you leave them, in this browser. After any transition
 that changes the column state (a width, the order, a pin, a hidden column),
@@ -64,6 +71,10 @@ The workspace packages resolve to their source, so no build is needed first.
   save, and reads a save naming a removed column.
 - `test/filters.test.ts` clears filters, and a clear with none on returns the
   same Model.
+- `test/layout.test.ts` also starts a narrow screen with the narrower columns,
+  and keeps a saved layout over them.
+- `e2e/grid.e2e.ts` drives the page: a price edit, a filter by keyboard with
+  its live announcement and Clear filters, and the page at 390px.
 - `test/registry.browser.test.ts` (Chromium) scrolls to the last product at
   full size, checks that a window of rows is drawn, and checks that the UPC
   stays at the left edge while the rest scrolls sideways.
