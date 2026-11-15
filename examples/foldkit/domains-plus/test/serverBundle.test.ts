@@ -31,7 +31,17 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // Worker renders the page, so it carries this branch's kept `WindowList` growth (the focus-holding
 // row, reveal, find-in-page stand-ins) and the widgets' source as main's primitives reshaped them;
 // not bisected between the two. Ceiling raised to the reading, rounded up.
-const CEILING = 3_273_000
+// +1,500 on 2026-11-15, the widget round on this branch: 3,274,129 against 3,271,654 for main
+// (ab3421ba6) in fresh builds of both, +2,475 raw. It read 3,292,532 until two fixes: the
+// Sheet's handle keys took `Behaviors.Keys` and `RovingTabindex` into every page that draws a
+// Sheet, one-point sheets included (-11.8 kB), and the Select
+// and Listbox recipes imported `filledHover` from recipes/field.js, which brought the Input and
+// Textarea recipes and their slots (input.js, textarea.js) into a Worker that draws neither
+// (-6.6 kB). What remains, by module (raw): sheet.js +1,582 (the handle's key handler and
+// separator attributes, and `SnappedTo`), unmapped +429 and recipes/design.js +204 (`filledHover`),
+// attr.js +115 and dialog.js +104 (the handle's slot attributes). Ceiling raised to the reading,
+// rounded up.
+const CEILING = 3_274_500
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

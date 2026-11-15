@@ -33,7 +33,14 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +293 on 2026-11-14, after merging main: measured 292,943 (main's reading 292,599). The page draws
 // the builder's widgets, which carry this branch's kept widget work beside main's primitives; not
 // bisected. Ceiling raised to the reading, rounded up.
-const CEILING = 293_000
+// +100 on 2026-11-15, the widget round on this branch: measured 293,074 against 292,830 for main
+// (ab3421ba6) in fresh builds of both, +244. By module (minified): recipes/design.js +165
+// (`filledHover`, a filled field's hover fill, for Input, Select and Listbox), recipes/select.js
+// +67 (its filled look's invalid edge), recipes/button.js +42 (a pressed primary Button's fill),
+// foldkit-builder and foldkit-mixins-builder +50 between them; the other 40-odd moved modules are
+// within +-14 each and sum to about -80. It was 293,068 before `filledHover` moved from
+// recipes/field.js to design.js; it is the same page. Ceiling raised to the reading, rounded up.
+const CEILING = 293_100
 
 clientBudget({
   name: 'cms',
