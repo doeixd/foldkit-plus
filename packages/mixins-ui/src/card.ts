@@ -8,7 +8,6 @@ import {
 } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { FLUID_PRESS_ATTRIBUTE, FluidHover, fluidHovered } from 'foldkit-primitives/dom'
-import { FocusRecovery } from 'foldkit-primitives/interaction'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -21,9 +20,9 @@ import type { MixinList } from './resolve.js'
  * one announcement. The action, the footer and the dismiss button sit above
  * it and stay pressable on their own. The root carries `data-selected`,
  * `data-disabled`, `data-pressable` and `data-dismissible` for a style to read.
- * A dismissible card is a `FocusRecovery` part: with that Mount on the list
- * holding the cards, dismissing one hands its focus to its neighbour (or the
- * fallback the list names) instead of dropping it to the page.
+ * Given `recoveryPart`, its dismiss button is a `FocusRecovery` part: with
+ * `FocusRecovery.behavior` on the list holding the cards, dismissing one hands its focus to
+ * the fallback the list's `parts` name for it instead of dropping it to the page.
  */
 export const CardSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -82,6 +81,11 @@ export interface CardView<Message> {
   readonly selected?: boolean | undefined
   readonly disabled?: boolean | undefined
   readonly dismiss?: CardDismiss<Message> | undefined
+  /**
+   * The name of the dismiss button in the `parts` of the `FocusRecovery.behavior` on the list
+   * holding the cards, which the application owns: the button marks itself that part.
+   */
+  readonly recoveryPart?: string | undefined
   /** A style of `CardSlots`, for the card's look. */
   readonly style?: NamedStyle<typeof CardSlots> | undefined
   /** Mixins beside the style. */
@@ -165,7 +169,6 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
       h.DataAttribute('disabled', flag(disabled)),
       h.DataAttribute('pressable', flag(press !== undefined)),
       h.DataAttribute('dismissible', flag(dismiss !== undefined)),
-      ...(dismiss === undefined ? [] : FocusRecovery.part(h)),
     ]),
     [
       ...(options.image === undefined ? [] : [h.div(builders.image.attrs(), [options.image])]),
@@ -212,6 +215,11 @@ export const view = <Message>(options: CardView<Message>, h: HtmlBuilder<Message
                 h.AriaLabel(dismiss.label ?? (name === undefined ? 'Dismiss' : `Dismiss ${name}`)),
                 h.DataAttribute('reveal', dismiss.always === true ? 'always' : 'hover'),
                 h.OnClick(dismiss.onDismiss),
+                // The mark `FocusRecovery.behavior` writes on a part slot (`FOCUS_MARK.part`): the
+                // card is drawn inside a list the application owns, so it has no such slot.
+                ...(options.recoveryPart === undefined
+                  ? []
+                  : [h.DataAttribute('fk-focus-part', options.recoveryPart)]),
               ]),
               // Named by its label, so the glyph is never read.
               ['✕'],

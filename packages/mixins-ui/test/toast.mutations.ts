@@ -221,17 +221,17 @@ export default [
     tests: unit,
   },
   {
-    name: 'the entries are not focus recovery parts',
-    edits: [{ file, find: '...FocusRecovery.part(h),', replace: '' }],
+    name: 'the close buttons are not focus recovery parts',
+    edits: [{ file, find: "close: ['next', 'previous'],", replace: 'close: [],' }],
     tests: browser,
   },
   {
-    name: 'keepFocus mounts nothing',
+    name: 'an action with no neighbour does not fall back to a close button',
     edits: [
       {
         file,
-        find: "FocusRecovery.behavior(ToastSlots)<unknown, never>({ container: 'container' }).mixin,",
-        replace: '',
+        find: "action: ['next', 'previous', { part: 'close' }],",
+        replace: "action: ['next', 'previous'],",
       },
     ],
     tests: browser,

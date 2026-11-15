@@ -60,8 +60,8 @@ export default [
     edits: [
       {
         file: '../src/card.ts',
-        find: '...(dismiss === undefined ? [] : FocusRecovery.part(h)),',
-        replace: '',
+        find: "h.DataAttribute('fk-focus-part', options.recoveryPart)",
+        replace: "h.DataAttribute('fk-focus-part', 'unrelated')",
       },
     ],
     tests: ['packages/mixins-ui/test/dismissFocus.browser.test.ts'],

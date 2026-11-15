@@ -1,16 +1,15 @@
 import { Match } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { FocusRecovery } from 'foldkit-primitives/interaction'
 import type { MixinList } from './resolve.js'
 
 /**
  * An alert publishes its regions as slots; it owns no state. Shown or
  * dismissed is the application's: `onDismiss` asks, and the next view leaves
  * the alert out. The root carries `data-layout` and `data-dismissible` for a
- * style to read. A dismissible alert is a `FocusRecovery` part: with that
- * Mount on the list holding the alerts, dismissing one hands its focus to its
- * neighbour (or the fallback the list names) instead of dropping it to the page.
+ * style to read. Given `recoveryPart`, its dismiss button is a `FocusRecovery` part: with
+ * `FocusRecovery.behavior` on the list holding the alerts, dismissing one hands its focus to
+ * the fallback the list's `parts` name for it instead of dropping it to the page.
  */
 export const AlertSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] }),
@@ -42,6 +41,11 @@ interface AlertContent<Message> {
   readonly actions?: ReadonlyArray<AlertAction<NoInfer<Message>>> | undefined
   /** Draws a dismiss button that sends this. */
   readonly onDismiss?: NoInfer<Message> | undefined
+  /**
+   * The name of the dismiss button in the `parts` of the `FocusRecovery.behavior` on the list
+   * holding the alerts, which the application owns: the button marks itself that part.
+   */
+  readonly recoveryPart?: string | undefined
   /** The dismiss button's name; default `Dismiss <title>` inline, `Dismiss <label>` as a banner. */
   readonly dismissLabel?: string | undefined
   /** A style of `AlertSlots`, for the alert's look. */
@@ -89,7 +93,6 @@ export const view = <Message = never>(
     h.DataAttribute('layout', options.layout),
     // Whether the root holds a dismiss button, for a recipe that keeps room for it.
     h.DataAttribute('dismissible', String(onDismiss !== undefined)),
-    ...(onDismiss === undefined ? [] : FocusRecovery.part(h)),
   ]
   const region = Match.value(options).pipe(
     Match.discriminatorsExhaustive('layout')({
@@ -132,6 +135,11 @@ export const view = <Message = never>(
               h.Type('button'),
               h.AriaLabel(options.dismissLabel ?? `Dismiss ${region.name}`),
               h.OnClick(onDismiss),
+              // The mark `FocusRecovery.behavior` writes on a part slot (`FOCUS_MARK.part`): the
+              // alert is drawn inside a list the application owns, so it has no such slot.
+              ...(options.recoveryPart === undefined
+                ? []
+                : [h.DataAttribute('fk-focus-part', options.recoveryPart)]),
             ]),
             // Named by its label, so the glyph is never read.
             ['✕'],

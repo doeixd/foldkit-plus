@@ -1,17 +1,23 @@
 /**
- * A dismissed alert or card takes the focus with it. With `FocusRecovery` on
- * the list that holds them, it goes to the neighbour's dismiss button, the
- * next one first and the previous one when the last goes.
+ * A dismissed alert or card takes the focus with it. With `FocusRecovery.behavior` on
+ * the list that holds them, and the part's name given as `recoveryPart`, it goes to the
+ * neighbour's dismiss button, the next one first and the previous one when the last goes.
  */
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { modifyFields } from 'foldkit/struct'
-import { FocusRecovery } from 'foldkit-primitives/dom'
+import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { FocusRecovery } from 'foldkit-primitives/interaction'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Alert, Card } from '../src/index.js'
+
+const ListSlots = Slots.define({
+  list: Slot.make({ capability: Capability.Container }),
+  item: Slot.make({ capability: Capability.Container }),
+})
 
 const Model = Schema.Struct({ names: Schema.Array(Schema.String) })
 type Model = typeof Model.Type
@@ -37,11 +43,22 @@ const mount = (draw: (name: string, h: HtmlBuilder<Message>) => ReturnType<typeo
             modifyFields(model, { names: names => names.filter(each => each !== name) }),
         }),
       }),
-      view: (model: Model, h: HtmlBuilder<Message>) =>
-        h.div(
-          [h.OnMount(FocusRecovery())],
+      view: (model: Model, h: HtmlBuilder<Message>) => {
+        const builders = SlotView.buildersFor(
+          ListSlots,
+          [
+            FocusRecovery.behavior(ListSlots)<undefined, Message>({
+              owner: 'list',
+              parts: { item: ['next', 'previous'] },
+            }).mixin,
+          ],
+          { input: undefined, h },
+        )
+        return h.div(
+          builders.list.attrs(),
           model.names.map(name => h.keyed('div')(name, [], [draw(name, h)])),
-        ),
+        )
+      },
     }),
   )
 }
@@ -63,7 +80,15 @@ const dismissAll = async () => {
 
 test('dismissing an alert hands its focus to its neighbour', async () => {
   const handle = mount((name, h) =>
-    Alert.view({ layout: 'inline', title: name, onDismiss: Message.Dismissed({ name }) }, h),
+    Alert.view(
+      {
+        layout: 'inline',
+        title: name,
+        onDismiss: Message.Dismissed({ name }),
+        recoveryPart: 'item',
+      },
+      h,
+    ),
   )
   try {
     await dismissAll()
@@ -75,7 +100,11 @@ test('dismissing an alert hands its focus to its neighbour', async () => {
 test('dismissing a card hands its focus to its neighbour', async () => {
   const handle = mount((name, h) =>
     Card.view(
-      { title: name, dismiss: { onDismiss: Message.Dismissed({ name }), always: true } },
+      {
+        title: name,
+        dismiss: { onDismiss: Message.Dismissed({ name }), always: true },
+        recoveryPart: 'item',
+      },
       h,
     ),
   )

@@ -440,6 +440,29 @@ test('dismissing the toast that holds focus moves focus to a neighbour, and the 
   }
 })
 
+test('an action pressed with no other action to go to hands focus to a close button', async () => {
+  const { handle, send } = mount(
+    { duration: 60_000 },
+    { s0: show('One'), s1: show('Two', { action: { label: 'Undo', value: 'undo' } }) },
+    Toast.keepFocus,
+  )
+  try {
+    await away()
+    await send('s0')
+    await send('s1')
+    await vi.waitFor(() => expect(card(1)).not.toBeNull())
+    await settled()
+    const action = card(1)!.querySelector<HTMLElement>('button')!
+    action.focus()
+    action.click()
+    await vi.waitFor(() => expect(card(1)).toBeNull())
+    await vi.waitFor(() => expect(card(0)!.contains(document.activeElement)).toBe(true))
+    expect(document.activeElement).toBe(card(0)!.querySelector('[aria-label="Dismiss"]'))
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('a loading toast waits to be settled, then counts down as its outcome', async () => {
   const { handle, send } = mount(
     { duration: 300 },
