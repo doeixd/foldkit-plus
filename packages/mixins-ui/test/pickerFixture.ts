@@ -27,8 +27,8 @@ const options = [
 
 const Model = Schema.Struct({ picker: Picker.Model, sort: Schema.Option(Schema.Literals(SORTS)) })
 type Model = typeof Model.Type
-const Message = defineMessageUnion({ GotPicker: { message: Picker.Message } })
-type Message = typeof Message.Type
+export const Message = defineMessageUnion({ GotPicker: { message: Picker.Message } })
+export type Message = typeof Message.Type
 
 /** The sorts the application heard chosen, in order. */
 export const chosen: Array<string> = []
@@ -36,6 +36,7 @@ export const chosen: Array<string> = []
 export const mount = async (
   recipe: Parameters<typeof Recipes.Picker>[0] = {},
   sort: Option.Option<Sort> = Option.none(),
+  routes: ReadonlyArray<Picker.Route<Message>> = [],
 ) => {
   const style = Style.forSlots(PickerSlots)(Recipes.Picker(recipe))
   const listbox = Style.forSlots(ListboxSlots)(Recipes.Listbox({ width: 'trigger' }))
@@ -73,6 +74,7 @@ export const mount = async (
         style,
         listbox: [listbox.mixin],
         sheet: [sheet.mixin],
+        routes,
       },
       h,
     )

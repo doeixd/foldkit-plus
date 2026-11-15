@@ -9,11 +9,14 @@
  * is the recipe's `sheetBelow`.
  */
 import { Option } from 'effect'
+import { Behaviors } from 'foldkit-mixins'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
+import { Picker } from '../src/index.js'
 import {
   chosen,
   drawn,
+  Message,
   mount,
   opener,
   panel,
@@ -138,6 +141,29 @@ describe('on a phone', () => {
     expect(chosen).toEqual(['relevance'])
     expect(opener().textContent).toContain('Most relevant')
     await vi.waitFor(() => expect(document.activeElement).toBe(opener()))
+  })
+
+  test("an application's key on an option joins the arrows through the one keydown owner", async () => {
+    await page.viewport(390, 844)
+    const toLast = Behaviors.Keys.route<undefined, Message>('Jump to the last', {
+      on: [Behaviors.Keys.chord('PageDown')],
+      handle: ({ item }) =>
+        Option.map(Option.fromNullishOr(item), () =>
+          Message.GotPicker({ message: Picker.Message.Stepped({ to: 2 }) }),
+        ),
+    })
+    handle = await mount({}, Option.some('relevance'), [toLast])
+    await userEvent.click(opener())
+    await settled(await vi.waitFor(() => (expect(panel()).not.toBeNull(), panel()!)))
+    const ids = sheetOptions().map(option => option.id)
+    await vi.waitFor(() => expect(focusedId()).toBe(ids[0]))
+    await userEvent.keyboard('{PageDown}')
+    await vi.waitFor(() => expect(focusedId()).toBe(ids[2]))
+    await userEvent.keyboard('{ArrowUp}')
+    await vi.waitFor(() => expect(focusedId()).toBe(ids[1]))
+    // Shift does not stop an option's own keys.
+    await userEvent.keyboard('{Shift>}{ArrowDown}{/Shift}')
+    await vi.waitFor(() => expect(focusedId()).toBe(ids[2]))
   })
 
   test('opened with nothing chosen, focus starts on the first option', async () => {

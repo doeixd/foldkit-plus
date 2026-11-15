@@ -74,15 +74,15 @@ export default [
     edits: [
       {
         file,
-        find: "if (key === 'ArrowDown') return Option.some(Math.min(count - 1, index + 1))",
-        replace: "if (key === 'ArrowDown') return Option.some(Math.max(0, index - 1))",
+        find: 'ArrowDown: (index, count) => Math.min(count - 1, index + 1),',
+        replace: 'ArrowDown: index => Math.max(0, index - 1),',
       },
     ],
     tests: browser,
   },
   {
-    name: 'Home moves nowhere',
-    edits: [{ file, find: "  if (key === 'Home') return Option.some(0)\n", replace: '' }],
+    name: 'Home moves to the second option',
+    edits: [{ file, find: 'Home: () => 0,', replace: 'Home: () => 1,' }],
     tests: browser,
   },
   {
@@ -153,6 +153,38 @@ export default [
   {
     name: "the sheet's rows keep an inverted popup's ink",
     edits: [{ file: recipe, find: "'--fk-popup-ink': ref.text.default,", replace: '' }],
+    tests: browser,
+  },
+  {
+    name: "the application's routes on an option are dropped",
+    edits: [{ file, find: '...(options.routes ?? []),', replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'the options install no keydown owner',
+    edits: [{ file, find: '      keys.mixin,', replace: '' }],
+    tests: browser,
+  },
+  {
+    name: 'every option is the first as far as its keys go',
+    edits: [
+      {
+        file,
+        find: '{ index, id: option.value, count: choices.length },',
+        replace: '{ index: 0, id: option.value, count: choices.length },',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'Shift stops an option key',
+    edits: [
+      {
+        file,
+        find: 'on: [...Behaviors.Keys.withShift(key)],',
+        replace: 'on: [Behaviors.Keys.chord(key)],',
+      },
+    ],
     tests: browser,
   },
 ]
