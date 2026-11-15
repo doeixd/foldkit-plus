@@ -171,6 +171,69 @@ describe('Selection placement', () => {
   })
 })
 
+describe('Selection helpers', () => {
+  const multi = { mode: 'multiple', allowEmpty: true } as const
+  const single = { mode: 'single', allowEmpty: false } as const
+  const helpers = (args: Selection.Args) => Bundle.helpersOf(Selection.bundle, args)
+  const held = { selected: ['a', 'c'], anchor: 'c', ranged: ['c'] }
+
+  it('select replaces the selection with one item and anchors there, whatever the mode keeps', () => {
+    expect(helpers(multi).select(held, 'e').model).toEqual({
+      selected: ['e'],
+      anchor: 'e',
+      ranged: [],
+    })
+    expect(helpers(single).select(fresh.picks, 'b').model).toEqual({
+      selected: ['b'],
+      anchor: 'b',
+      ranged: [],
+    })
+    // Where `activate` would toggle the item off, `select` keeps it selected.
+    expect(
+      helpers(multi).activate({ selected: ['a'], anchor: 'a', ranged: [] }, 'a').model.selected,
+    ).toEqual([])
+    expect(
+      helpers(multi).select({ selected: ['a'], anchor: 'a', ranged: [] }, 'a').model.selected,
+    ).toEqual(['a'])
+  })
+
+  it('select of what is already the whole selection, anchored there, is the Model it was given', () => {
+    const same = { selected: ['b'], anchor: 'b', ranged: [] }
+    expect(helpers(multi).select(same, 'b').model).toBe(same)
+    // The anchor or a remembered range still moves, so it is not a no-op.
+    expect(
+      helpers(multi).select({ selected: ['b'], anchor: 'a', ranged: [] }, 'b').model.anchor,
+    ).toBe('b')
+    expect(
+      helpers(multi).select({ selected: ['b'], anchor: 'b', ranged: ['b'] }, 'b').model.ranged,
+    ).toEqual([])
+  })
+
+  it('select selects nothing in none mode', () => {
+    expect(helpers({ mode: 'none', allowEmpty: true }).select(fresh.picks, 'a').model).toBe(
+      fresh.picks,
+    )
+  })
+
+  it('range extends from the anchor in the order given, as a Shift activation does', () => {
+    const anchored = { selected: ['b'], anchor: 'b', ranged: [] }
+    expect(helpers(multi).range(anchored, 'd', order).model).toEqual({
+      selected: ['b', 'c', 'd'],
+      anchor: 'b',
+      ranged: ['c', 'd'],
+    })
+    expect(helpers(single).range(anchored, 'd', order).model).toBe(anchored)
+  })
+
+  it('Selected is a Message a placement answers like select', () => {
+    expect(run(multi, fresh, M.Activated({ id: 'a' }), M.Selected({ id: 'c' }))).toEqual({
+      selected: ['c'],
+      anchor: 'c',
+      ranged: [],
+    })
+  })
+})
+
 describe('Selection.behavior', () => {
   interface Fruit {
     readonly id: string

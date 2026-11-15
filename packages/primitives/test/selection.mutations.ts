@@ -74,4 +74,89 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'select does not anchor',
+    edits: [
+      {
+        file,
+        find: `        : { model: { selected: [id], anchor: id, ranged: [] } }
+    },
+    Replaced`,
+        replace: `        : { model: { selected: [id], anchor: model.anchor, ranged: [] } }
+    },
+    Replaced`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'select toggles an item that is selected already',
+    edits: [
+      {
+        file,
+        find: 'return sameIds(model.selected, [id]) && model.anchor === id',
+        replace: `if (args.mode === 'multiple' && model.selected.includes(id)) {
+        return { model: { selected: without(model.selected, id), anchor: id, ranged: [] } }
+      }
+      return sameIds(model.selected, [id]) && model.anchor === id`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'select leaves the anchor out of its no-op',
+    edits: [{ file, find: ' && model.anchor === id && model.ranged', replace: ' && model.ranged' }],
+    tests,
+  },
+  {
+    name: 'select leaves the remembered range out of its no-op',
+    edits: [
+      {
+        file,
+        find: ` && model.ranged.length === 0
+        ? { model }
+        : { model: { selected: [id]`,
+        replace: `
+        ? { model }
+        : { model: { selected: [id]`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'select selects in none mode',
+    edits: [
+      {
+        file,
+        find: `Selected: ({ id }) => {
+      if (args.mode === 'none') return { model }
+`,
+        replace: `Selected: ({ id }) => {
+`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the range helper drops the order',
+    edits: [
+      {
+        file,
+        find: 'update(model, Message.Ranged({ id, order }), args)',
+        replace: 'update(model, Message.Ranged({ id, order: [] }), args)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the select helper only activates',
+    edits: [
+      {
+        file,
+        find: 'update(model, Message.Selected({ id }), args)',
+        replace: 'update(model, Message.Activated({ id }), args)',
+      },
+    ],
+    tests,
+  },
 ]

@@ -32,6 +32,9 @@ export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   /** A plain activation: replaces in single mode, toggles in multiple mode. */
   Activated: { id: Schema.String },
+  /** A plain click where the application owns the modifiers: replaces the selection with `id` and
+   *  anchors there, in any mode but `'none'`. */
+  Selected: { id: Schema.String },
   /** A Shift activation: selects everything between the anchor and `id` in
    *  `order`, taking back what the previous range added. */
   Ranged: { id: Schema.String, order: Schema.Array(Schema.String) },
@@ -97,6 +100,12 @@ const update = (model: Model, message: Message, args: Args): Update.Return<Model
         ? { model }
         : { model: { selected, anchor, ranged: added } }
     },
+    Selected: ({ id }) => {
+      if (args.mode === 'none') return { model }
+      return sameIds(model.selected, [id]) && model.anchor === id && model.ranged.length === 0
+        ? { model }
+        : { model: { selected: [id], anchor: id, ranged: [] } }
+    },
     Replaced: ({ ids }) => {
       const selected = args.mode === 'none' ? [] : [...new Set(ids)]
       if (args.mode === 'single' && selected.length > 1) return { model }
@@ -118,10 +127,15 @@ export const bundle = Bundle.make('Selection', {
   update,
   /**
    * What a parent decides, rather than a press: `placed.helpers.activate(id)`
-   * selects as a click does, `replace(ids)` and `clear()` set the selection.
+   * selects as a click does, `select(id)` replaces the selection with one item
+   * and anchors there, `range(id, order)` extends from the anchor as a Shift
+   * click does, `replace(ids)` and `clear()` set the selection.
    */
   helpers: args => ({
     activate: (model: Model, id: string) => update(model, Message.Activated({ id }), args),
+    select: (model: Model, id: string) => update(model, Message.Selected({ id }), args),
+    range: (model: Model, id: string, order: ReadonlyArray<string>) =>
+      update(model, Message.Ranged({ id, order }), args),
     replace: (model: Model, ids: ReadonlyArray<string>) =>
       update(model, Message.Replaced({ ids }), args),
     clear: (model: Model) => update(model, Message.Cleared(), args),

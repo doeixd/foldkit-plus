@@ -199,7 +199,7 @@ the Bundle's helper, which runs the same `update` with the placement's args.
 
 | Bundle | Helpers on the placement |
 | --- | --- |
-| `Selection` | `activate(id)` (as a click), `replace(ids)`, `clear()` |
+| `Selection` | `activate(id)` (as a plain click), `select(id)` (replace with one item and anchor), `range(id, order)` (as a Shift click), `replace(ids)`, `clear()` |
 | `TreeNavigation` | `focus(id)`, `open(id)`, `close(id)`, `toggle(id)` (open or shut by the tree's own state) |
 | `RovingTabindex`, `ListNavigation`, `GridNavigation` | `focus(id)` |
 | `Typeahead` | `clear()` |
@@ -1536,7 +1536,11 @@ writes `aria-selected` on each item and `aria-multiselectable` on the
 container, and wires a plain click on each enabled item to `Activated`; pass
 `click: false` when `Press` or the view owns the click. For a Shift range,
 `Press`'s `Pressed { pointerType, shiftKey }` says whether Shift was held, and
-the placement's `onOut` dispatches `Ranged`. For a selection no slot has to
+the placement's `onOut` folds `Picks.helpers.range(id, order)(model)` (or
+`select(id)(model)` for a plain click, which replaces the selection with that
+item and anchors there; `Activated`, in `'multiple'` mode, would toggle it, so a
+file manager that reads Ctrl itself uses `activate` for Ctrl and `select` for the
+rest). For a selection no slot has to
 reflect, `SelectionSet` in [`state`](../state/README.md) is lighter.
 
 **`LiveAnnounce`** speaks to assistive technology: one Bundle, placed once,
