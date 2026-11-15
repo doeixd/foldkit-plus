@@ -112,3 +112,25 @@ test('the Toolbar has one tab stop, moves by arrows over the disabled tool, and 
   await expect.poll(() => bar.locator('button[tabindex="0"]').count()).toBe(1)
   await page.close()
 })
+
+test('under a coarse pointer every icon chip is a 44px target, and under a fine one it is not', async () => {
+  const { page } = await harness.visit(1280, 900)
+  await reveal(page, 'utilities')
+  const chips = () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('[data-icon]')].map(chip => {
+        const box = chip.getBoundingClientRect()
+        return [Math.round(box.width), Math.round(box.height)]
+      }),
+    )
+  const fine = await chips()
+  expect(fine).toHaveLength(2)
+  for (const [, height] of fine) expect(height).toBeLessThan(44)
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 })
+  await expect
+    .poll(async () => (await chips()).every(([, height]) => (height ?? 0) >= 44))
+    .toBe(true)
+  for (const [width] of await chips()) expect(width).toBeGreaterThanOrEqual(44)
+  await page.close()
+})
