@@ -217,11 +217,13 @@ submitted, and reported by `authoredChanged` like any other.
 - **Another stored type:** a field stored as text, Markdown say, cannot hold a `Document`
   without every reader of its Entity decoding one. Pass a codec and the key holds what it
   converts to, while the editor still holds a document. A blank document is no value before the
-  codec runs, so `value` is never called with one.
+  codec runs, so `value` is never called with one; a codec whose stored type has a value for
+  nothing (an empty text) gives it as `blank`, and a required key then accepts a blank document.
 - **Failure:** `fill` takes stored data, and a codec whose `fill` throws makes the form's
   `fill` throw, as any control that cannot show a value does: nothing catches it, so parse
   defensively where the stored text may be bad. An empty text parses to a document with no
-  block, where the editor has nowhere to put a caret: give a new record nothing rather than `''`.
+  block, where the editor has nowhere to put a caret: a codec that stores `''` for blank fills
+  an empty text with `EditorInput.init({ hostId }).model.document`, the editor's own blank.
   `value` runs on each read of the key, so keep it cheap.
 
 <!-- docs-check

@@ -149,6 +149,12 @@ const NoteForm = Form.make('NoteForm', NoteInput, {
   },
 })
 const noteBody = NoteForm.control('body')
+const stored = RichText.decodeDocument({
+  version: 1,
+  children: [
+    { type: 'Paragraph', id: 's', children: [{ type: 'Text', id: 's-t', text: 's', marks: [] }] },
+  ],
+})
 
 describe('the editor as a form control with a codec', () => {
   it('shows a stored text as a document and reads it back as the same text', () => {
@@ -182,6 +188,25 @@ describe('the editor as a form control with a codec', () => {
     ).model
     expect(noteBody.field(submitted)).toMatchObject({ _tag: 'Invalid', errors: ['Required'] })
     expect(calls).not.toContain('value')
+  })
+
+  it('reads a blank document as the codec’s blank value, which a required key accepts', () => {
+    const Lenient = Form.make('Lenient', NoteInput, {
+      inputs: {
+        body: richTextInput(
+          'lenient-body',
+          {},
+          { codec: { value: document => text(document) ?? '', fill: () => stored, blank: '' } },
+        ),
+      },
+    })
+    expect(Lenient.partial(Lenient.initial).body).toBe('')
+    const submitted = Lenient.bundle.update(
+      Lenient.initial,
+      Lenient.Message.Submitted(),
+      undefined,
+    ).model
+    expect(Lenient.control('body').field(submitted)).not.toMatchObject({ _tag: 'Invalid' })
   })
 
   it('starts a given text on a history and caret of its own', () => {

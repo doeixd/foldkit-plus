@@ -76,6 +76,11 @@ export const EditorInput = Bundle.make({
 export interface RichTextCodec<A> {
   /** The key's value for a document the editor holds. It is never called with a blank one. */
   readonly value: (document: RichText.Document) => A
+  /**
+   * The key's value for a blank document, where nothing entered is a value of its own (an empty
+   * text, not "required"). Absent, a blank document is no value and a required key refuses it.
+   */
+  readonly blank?: A | undefined
   /** The document the editor shows for a value the form was given. */
   readonly fill: (value: A) => RichText.Document
 }
@@ -90,7 +95,7 @@ const control = <A>(hostId: string, placement: EditorPlacement, codec: RichTextC
   return Input.bundle('RichText', {
     bundle: EditorInput,
     args: { hostId },
-    value: model => (RichText.isBlank(model.document) ? undefined : codec.value(model.document)),
+    value: model => (RichText.isBlank(model.document) ? codec.blank : codec.value(model.document)),
     // A given document starts its own history: undoing past it would reach the form's blank.
     fill: (model, value: A) => ({
       ...model,
@@ -110,7 +115,7 @@ const control = <A>(hostId: string, placement: EditorPlacement, codec: RichTextC
 /**
  * A form control editing a document, placed at `hostId` with everything `editorAt` places
  * (`EditorPlacement`). A blank document (`RichText.isBlank`) is nothing entered, so a required
- * key refuses it, and a `codec` is never asked about one. With a `codec` the key holds what it
+ * key refuses it, and a `codec` is never asked about one (it may give a `blank` value instead). With a `codec` the key holds what it
  * converts to (`value`) and from (`fill`); the editor holds a document either way.
  */
 export function richTextInput(

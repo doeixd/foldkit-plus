@@ -11,10 +11,15 @@ export default [
     edits: [
       {
         file,
-        find: 'RichText.isBlank(model.document) ? undefined : codec.value(model.document)',
+        find: 'RichText.isBlank(model.document) ? codec.blank : codec.value(model.document)',
         replace: 'codec.value(model.document)',
       },
     ],
+    tests,
+  },
+  {
+    name: 'a blank document reads as no value although the codec gives one',
+    edits: [{ file, find: '? codec.blank : codec.value', replace: '? undefined : codec.value' }],
     tests,
   },
   {
