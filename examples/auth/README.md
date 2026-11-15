@@ -141,12 +141,14 @@ Read the files in this order.
    code is a chunk of its own. `account.ts` declares it with `Bundle.lazy`
    (its Model, Messages and `init`, which the parent's Schema needs at boot)
    and imports `account.body.ts`, its `update` and `view`, only behind an
-   `import()`. `app.ts` places it on its node with `Site.placement`, and
-   `codeOf` is `Site.codeFor` over that page: the server's `SSR.entry` and
-   `client.ts`'s `SSR.hydrate` take it as `lazy`, so only a page at
-   `/account` loads the chunk to render or boot. `Site.routing`'s `preload`
-   fetches it when the reader points at the Account link, and its arrival
-   (`changed`) loads it when nothing fetched it first. The bodies are 0.5 kB,
+   `import()`. `app.ts` places it on its node with `Site.placement`, hands
+   it to `Site.routing`'s `pages`, and `codeOf` is the routing's `codeFor`:
+   the server's `SSR.entry` and `client.ts`'s `SSR.hydrate` take it as
+   `lazy`, so only a page at `/account` loads the chunk to render or boot.
+   The routing's `preload` fetches it when the reader points at the Account
+   link (`code: fetchCode`), its arrival (`changed`) loads it when nothing
+   fetched it first, and `init` starts through the routing's `boot`, so a
+   page opened at `/account` with no server render loads it too. The bodies are 0.5 kB,
    so the split saves nothing here; it shows the path. It also costs nothing:
    left to rolldown, the boot graph split into three chunks (5.6 kB brotli
    more at start), so `vite.config.ts` puts every module two chunks share in

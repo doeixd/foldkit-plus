@@ -17,13 +17,15 @@ afterEach(() => {
 
 const text = (id: string) => document.getElementById(id)?.textContent
 
-it('draws the placeholder on arrival, then the bodies once they load, with no Model change', async () => {
+/** The fixture's pages and routing on the real runtime, started on `start`'s route. */
+const mount = (start: Model) => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
-  const { AccountPage, NotesPage, SettingsPage, accountLoad, routing } = make()
-  const Routing = routing()
+  const parts = make()
+  const { AccountPage, NotesPage, SettingsPage } = parts
+  const Routing = parts.routing()
   const assembly = Bundle.assemble<Model, Message>()([
     AccountPage.placed,
     SettingsPage.placed,
@@ -38,7 +40,7 @@ it('draws the placeholder on arrival, then the bodies once they load, with no Mo
       assembly.complete({
         Model,
         container,
-        init: () => ({ model: home }),
+        init: () => Routing.boot(start),
         update: assembly.update(model => ({ model })),
         view: (model: Model, h: HtmlBuilder<Message>) =>
           h.main(
@@ -62,12 +64,31 @@ it('draws the placeholder on arrival, then the bodies once they load, with no Mo
       }),
     ),
   )
+  return { ...parts, handle }
+}
+
+it('draws the placeholder on arrival, then the bodies once they load, with no Model change', async () => {
+  const { accountLoad, handle } = mount(home)
   try {
     await vi.waitFor(() => expect(text('page')).toBe('Home'))
     document.getElementById('go')!.click()
     // The route arrived and told the page, whose bodies are on their way.
     await vi.waitFor(() => expect(text('page')).toBe('Account loading'))
     expect(accountLoad.calls()).toBe(1)
+    accountLoad.release()
+    await vi.waitFor(() => expect(text('page')).toBe('Account body'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+it('draws the bodies of a lazy page the application starts on, with no server render', async () => {
+  // Opened at /account directly: no route change ever arrives, so `boot` tells it.
+  const { accountLoad, handle } = mount({ ...home, route: AppRoute.Account() })
+  try {
+    await vi.waitFor(() => expect(text('page')).toBe('Account loading'))
+    // The boot Commands run after the first render, which drew the placeholder.
+    await vi.waitFor(() => expect(accountLoad.calls()).toBe(1))
     accountLoad.release()
     await vi.waitFor(() => expect(text('page')).toBe('Account body'))
   } finally {

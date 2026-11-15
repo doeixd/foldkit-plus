@@ -168,7 +168,7 @@ export interface RouteField<Root, Route> {
 export interface SitePage<Parent, ParentMessage, R, P> {
   readonly node: SiteNode<any>
   readonly placed: P
-  /** The page's bodies when its Bundle is a `Bundle.lazy`, which `Site.codeFor` names. */
+  /** The page's bodies when its Bundle is a `Bundle.lazy`, which the routing's `codeFor` names. */
   readonly code: Option.Option<Bundle.Loadable>
   /**
    * The child told of a route arrival: `None` for another node's route, for
@@ -547,6 +547,34 @@ const freezeMount = (mount: SiteMount): SiteMount =>
     node: mount.node,
     children: Object.freeze(mount.children.map(freezeMount)),
   })
+
+/**
+ * What fetches a route's code ahead of its arrival, given the routing's
+ * completion: `fetchCode`, passed as `Site.routing`'s `preload.code`.
+ */
+export type CodeFetch = <Message>(completed: () => Message) => (
+  code: ReadonlyArray<Bundle.Loadable>,
+) => {
+  readonly name: string
+  readonly args: Readonly<Record<string, unknown>>
+  readonly effect: Effect.Effect<Message>
+}
+
+/**
+ * Loads the code of a route the reader points at, for `Site.routing`'s
+ * `preload.code`: one Command, `Site.LoadCode`, that completes with the
+ * routing's `completed` whether the chunks load or not. A load that fails is
+ * forgotten by `Bundle.lazy`, so the page's own arrival loads again and
+ * reports it; a guess at intent reports nothing. An import of its own, not a
+ * member of `Site`, so a site with no lazy page keeps none of it.
+ */
+export const fetchCode: CodeFetch = completed => code => ({
+  name: 'Site.LoadCode',
+  args: { code: code.map(each => each.name).join(', ') },
+  effect: Effect.promise(() => Promise.allSettled(code.map(each => each.load()))).pipe(
+    Effect.as(completed()),
+  ),
+})
 
 /** Whether a Bundle is a `Bundle.lazy`, whose bodies load on demand. */
 const isLoadable = (bundle: object): bundle is Bundle.Loadable =>
@@ -1088,29 +1116,6 @@ export const Site = {
   ): SiteSources<Root, Surfaced> => sourcesOn(Site.chainOf(site, route), owner, place),
 
   /**
-   * The lazy bodies a route draws: the `code` of each page placed on its
-   * chain, root first, so a page nested under a node with lazy code of its
-   * own loads both. None for a route whose pages are all eager, or a tag the
-   * tree does not hold. Pure: nothing loads until a caller calls `load`.
-   *
-   * ```ts
-   * // Only this route's code loads to render or boot its page.
-   * SSR.entry({ ...config, lazy: model => Site.codeFor(AppSite, pages, model.route) }, plan, options)
-   * ```
-   *
-   * `Site.routing` reads the same when the reader points at a link, so a
-   * page's chunk is fetched before they follow it.
-   */
-  codeFor: (
-    site: SiteTree,
-    pages: ReadonlyArray<Pick<SitePage<any, any, any, any>, 'node' | 'code'>>,
-    route: { readonly _tag: string },
-  ): ReadonlyArray<Bundle.Loadable> =>
-    Site.chainOf(site, route).flatMap(node =>
-      pages.flatMap(page => (page.node === node ? Option.toArray(page.code) : [])),
-    ),
-
-  /**
    * The application's link-click and URL-change lifecycle as one wiring, so
    * `update` stops hand-writing those two branches. A click on a link the
    * tree holds navigates (pushing or replacing per `Site.historyOf`); on any
@@ -1202,11 +1207,35 @@ export const Site = {
           readonly intended: Schema.Schema<Message> &
             ((fields: { readonly url: UrlValue }) => Message)
           readonly read: (there: Root) => Command.Command<Message, never, R>
+          /**
+           * Fetches the code of a `Bundle.lazy` page on the route pointed at,
+           * once, beside its read: `fetchCode`, an import of its own so a site
+           * with no lazy page keeps none of it. Required when `pages` holds a
+           * lazy page.
+           */
+          readonly code?: CodeFetch | undefined
         }
       | undefined
   }): Wiring<Root, Message, R> & {
     /** Whether the routing owns a message: its click, its URL change, or its preload intent. */
     readonly reduces: (message: Message) => boolean
+    /**
+     * The code a route draws: each `Bundle.lazy` page of `pages` on its chain,
+     * root first, so a page nested under a node with lazy code of its own
+     * loads both; none for a route whose pages are eager. Pure: nothing loads
+     * until a caller calls `load`. The `lazy` of `SSR.entry`, `SSR.render`
+     * and `SSR.hydrate`, from the one list of pages the routing holds:
+     * `lazy: model => Routing.codeFor(model.route)`.
+     */
+    readonly codeFor: (route: Route) => ReadonlyArray<Bundle.Loadable>
+    /**
+     * The Model's route told to its pages as an arrival, for an `init` that
+     * starts on it with no server render: a `Bundle.lazy` page loads its
+     * bodies on that Message, so without it a page opened at its own address
+     * draws its placeholder for good. `init: () => Routing.boot(initial)`.
+     * A page the server rendered has its bodies loaded already (`lazy`).
+     */
+    readonly boot: (model: Root) => Update.Return<Root, Message, R>
   } => {
     const completedTag = tagOfConstructor(
       config.completed,
@@ -1234,18 +1263,24 @@ export const Site = {
       execute: ({ href }) => Navigation.load(href).pipe(Effect.as(config.completed())),
     })
     const pages = config.pages ?? []
-    const unloadedAt = (route: { readonly _tag: string }) =>
-      Site.codeFor(config.site, pages, route).filter(code => !code.isLoaded())
-    // A load that fails is forgotten by `Bundle.lazy`, so the page's own
-    // arrival loads again and reports it; a guess at intent reports nothing.
-    const LoadCode = Command.define('Site.LoadCode', {
-      args: { tag: Schema.String },
-      messages: [config.completed],
-      execute: ({ tag }) =>
-        Effect.promise(() =>
-          Promise.allSettled(unloadedAt({ _tag: tag }).map(code => code.load())),
-        ).pipe(Effect.as(config.completed())),
-    })
+    const codeFor = (route: { readonly _tag: string }): ReadonlyArray<Bundle.Loadable> =>
+      Site.chainOf(config.site, route).flatMap(node =>
+        pages.flatMap(page => (page.node === node ? Option.toArray(page.code) : [])),
+      )
+    const fetch = preload?.code?.(config.completed)
+    if (
+      preload !== undefined &&
+      fetch === undefined &&
+      pages.some(page => Option.isSome(page.code))
+    )
+      throw new Error(
+        'Site.routing: a Bundle.lazy page needs preload.code (fetchCode), or nothing fetches it ahead',
+      )
+    // Each page on the route told of its arrival, through its own `changed`.
+    const informed = (route: Route): Array<Update.Step<Root, Message, R>> =>
+      pages.map(
+        page => (model: Root) => Option.getOrElse(page.inform(model, route), () => ({ model })),
+      )
     // Route values are plain data from the same constructors, so equal
     // addresses compare equal. Checked before every write, so an echo of our
     // own navigation touches nothing: same Model back, no re-render.
@@ -1291,17 +1326,19 @@ export const Site = {
             Option.match(Site.routeAt(config.site, url), {
               // Another document's page, which this application cannot read ahead.
               onNone: () => ({ model }),
-              onSome: next =>
-                sameRoute(config.route.get(model), next)
-                  ? { model }
-                  : {
-                      model,
-                      commands: [
-                        preload.read(config.route.set(model, next)),
-                        // Its page's chunk too, once: a loaded one asks for nothing.
-                        ...(unloadedAt(next).length === 0 ? [] : [LoadCode({ tag: next._tag })]),
-                      ],
-                    },
+              onSome: next => {
+                if (sameRoute(config.route.get(model), next)) return { model }
+                // Its page's chunk too, once: a loaded one asks for nothing.
+                const unloaded =
+                  fetch === undefined ? [] : codeFor(next).filter(code => !code.isLoaded())
+                return {
+                  model,
+                  commands: [
+                    preload.read(config.route.set(model, next)),
+                    ...(fetch === undefined || unloaded.length === 0 ? [] : [fetch(unloaded)]),
+                  ],
+                }
+              },
             }),
           )
         }
@@ -1344,10 +1381,7 @@ export const Site = {
               ? []
               : [(model: Root) => ({ model: navigated(model, navigationKind()) })]),
             model => ({ model: setRoute(model, next) }),
-            ...pages.map(
-              page => (model: Root) =>
-                Option.getOrElse(page.inform(model, next), () => ({ model })),
-            ),
+            ...informed(next),
             ...(arrived === undefined ? [] : [(model: Root) => arrived(model, next)]),
           ]
           return Option.some(Update.combine(model, steps))
@@ -1365,7 +1399,12 @@ export const Site = {
         metadata: [],
       } satisfies Contract,
     }
-    return { ...wiring, reduces }
+    return {
+      ...wiring,
+      reduces,
+      codeFor,
+      boot: model => Update.combine(model, informed(config.route.get(model))),
+    }
   },
 
   /**
@@ -1391,8 +1430,10 @@ export const Site = {
    * page is never informed. Bundles with OutMessages, and children that are
    * not Bundles, stay on `Bundle.at` and `Link.child` directly.
    *
-   * A `Bundle.lazy` page becomes the page's `code` (`Site.codeFor`), and
-   * must have `changed`: its arrival is the Message that loads its bodies.
+   * A `Bundle.lazy` page becomes the page's `code` (the routing's
+   * `codeFor`), and must have `changed`: its arrival is the Message that
+   * loads its bodies. A page opened at its own address with no server render
+   * has no arrival: its `init` starts through the routing's `boot`.
    */
   placement: <
     Route extends { readonly _tag: string },
@@ -1463,7 +1504,7 @@ export const Site = {
     // reached by Back or a key press would draw its placeholder for good.
     if (Option.isSome(code) && changed === undefined)
       throw new Error(
-        `Site.placement: "${bundle.name}" is a Bundle.lazy, so its route's arrival must tell it (changed), which loads its bodies`,
+        `Site.placement: "${bundle.name}" is a Bundle.lazy, so its route's arrival must tell it (changed), which loads its bodies (an init on its route: the routing's boot)`,
       )
     // `link` and `changed` are this helper's own: `Bundle.at` reads its
     // known keys, and a non-literal tolerates the extra properties.

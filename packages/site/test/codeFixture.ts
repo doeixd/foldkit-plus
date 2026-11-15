@@ -11,7 +11,7 @@ import { defineRouteUnion, literal, mapTo, root, slash } from 'foldkit/route'
 import { modifyFields } from 'foldkit/struct'
 import { Url, fromString } from 'foldkit/url'
 import { Bundle, Link } from 'foldkit-bundle'
-import { Site } from '../src/index.js'
+import { Site, fetchCode } from '../src/index.js'
 
 export const AppRoute = defineRouteUnion({
   Home: {},
@@ -124,7 +124,8 @@ export const make = () => {
   })
   const pages = [AccountPage, SettingsPage, NotesPage]
   const read: Array<AppRoute> = []
-  const routing = (links: Stream.Stream<Url> = Stream.empty) =>
+  /** `fetches: false` leaves `preload.code` out. */
+  const routing = (links: Stream.Stream<Url> = Stream.empty, fetches = true) =>
     Site.routing<Model, Message, AppRoute>({
       site: AppSite,
       route: {
@@ -143,6 +144,7 @@ export const make = () => {
           read.push(there.route)
           return { name: 'Read', effect: Effect.succeed(Message.CompletedNavigation()) }
         },
+        code: fetches ? fetchCode : undefined,
       },
     })
   return {

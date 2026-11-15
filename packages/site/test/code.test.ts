@@ -1,7 +1,8 @@
 /**
  * Route code from the Site tree (#438): a page placed from a `Bundle.lazy` is
- * its node's code, `Site.codeFor` names what a route draws, and `preload`
- * fetches a pointed-at route's chunk once, beside its reads.
+ * its node's code, the routing's `codeFor` names what a route draws from the
+ * pages it holds, `boot` tells a page its route at start, and `preload`
+ * fetches a pointed-at route's chunk once, beside its reads (`fetchCode`).
  */
 import { Effect, Option, Schema } from 'effect'
 import { Bundle, Link } from 'foldkit-bundle'
@@ -21,17 +22,18 @@ import {
 
 const pointed = (path: string) => Message.PointedAtLink({ url: urlOf(path) })
 
-describe('Site.codeFor', () => {
+describe("the routing's codeFor", () => {
   it("names each lazy page on the route's chain, root first, and none for eager pages", () => {
-    const { Account, Settings, pages } = make()
-    expect(Site.codeFor(AppSite, pages, AppRoute.Account())).toEqual([Account])
-    const nested = Site.codeFor(AppSite, pages, AppRoute.Settings())
+    const { Account, Settings, routing } = make()
+    const { codeFor } = routing()
+    expect(codeFor(AppRoute.Account())).toEqual([Account])
+    const nested = codeFor(AppRoute.Settings())
     expect(nested).toHaveLength(2)
     expect(nested[0]).toBe(Account)
     expect(nested[1]).toBe(Settings)
-    expect(Site.codeFor(AppSite, pages, AppRoute.Notes())).toEqual([])
-    expect(Site.codeFor(AppSite, pages, AppRoute.Home())).toEqual([])
-    expect(Site.codeFor(AppSite, pages, AppRoute.NotFound({ path: '/x' }))).toEqual([])
+    expect(codeFor(AppRoute.Notes())).toEqual([])
+    expect(codeFor(AppRoute.Home())).toEqual([])
+    expect(codeFor(AppRoute.NotFound({ path: '/x' }))).toEqual([])
   })
 
   it('is the placement: a lazy page carries its bundle, an eager one nothing', () => {
@@ -64,7 +66,35 @@ describe('Site.codeFor', () => {
   })
 })
 
+describe("the routing's boot", () => {
+  it("tells the Model's route to its page, whose Message loads a lazy page's bodies", () => {
+    const { routing, accountLoad } = make()
+    const { boot } = routing()
+    const there: Model = { ...home, route: AppRoute.Account() }
+    const started = boot(there)
+    expect(started.model).toBe(there)
+    // The page's own arrival, through Bundle.lazy, which answers it by loading.
+    expect((started.commands ?? []).map(command => command.name)).toEqual(['LoadAccount'])
+    expect(accountLoad.calls()).toBe(0)
+  })
+
+  it('tells nothing on a route with no page, and an eager page what it says', () => {
+    const { routing } = make()
+    const { boot } = routing()
+    expect(boot(home)).toEqual({ model: home, commands: [] })
+    const notes: Model = { ...home, route: AppRoute.Notes() }
+    expect(boot(notes).commands ?? []).toEqual([])
+  })
+})
+
 describe("preload fetches a pointed-at route's code", () => {
+  it('is refused without fetchCode when a page is lazy, which would fetch nothing ahead', () => {
+    const { routing } = make()
+    expect(() => routing(undefined, false)).toThrow(
+      /a Bundle.lazy page needs preload.code \(fetchCode\), or nothing fetches it ahead/,
+    )
+  })
+
   it('beside its reads, once: a loaded chunk is asked for nothing more', async () => {
     const { routing, read, accountLoad, Account } = make()
     const wiring = routing()

@@ -696,7 +696,7 @@ export interface ResumableConfig<Model, Message = any> extends ApplicationOption
    * from the markers meanwhile, so a page never shows a bundle's placeholder.
    * A function is asked with the Model the page is drawn from (the server's
    * after `prepare`, the browser's as resumed), so only what that page draws
-   * loads: `model => Site.codeFor(AppSite, pages, model.route)`.
+   * loads: `model => Routing.codeFor(model.route)` (`Site.routing`).
    */
   readonly lazy?: ReadonlyArray<Loadable> | ((model: Model) => ReadonlyArray<Loadable>) | undefined
 }

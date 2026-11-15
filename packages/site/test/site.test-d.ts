@@ -202,16 +202,29 @@ export const LazyChildPage = Site.placement(ChildNode, LazyChild, {
 })
 export const lazyCode: Option.Option<Bundle.Loadable> = LazyChildPage.code
 const CodeSite = Site.make(Home, ChildNode)
-// Lazy and eager pages in one list; what comes back loads.
-export const routeCode: ReadonlyArray<Bundle.Loadable> = Site.codeFor(
-  CodeSite,
-  [LazyChildPage, ChildPageBadChanged],
+const CodeMessage = defineMessageUnion({ GotChild: { message: ChildMessage }, Completed: {} })
+type CodeMessage = typeof CodeMessage.Type
+// Lazy and eager pages in the routing's one list, which names what a route loads.
+const CodeRouting = Site.routing<ChildModelApp, CodeMessage, AppRoute>({
+  site: CodeSite,
+  route: { dependency: ['route'], get: model => model.route, set: (model, route) => model },
+  parse: () => AppRoute.Home(),
+  tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
+  completed: CodeMessage.Completed,
+  pages: [LazyChildPage, ChildPageBadChanged],
+})
+export const routeCode: ReadonlyArray<Bundle.Loadable> = CodeRouting.codeFor(
   AppRoute.People({ searchText: Option.none() }),
 )
-// @ts-expect-error: a page names its code, or `Site.codeFor` cannot read it
-Site.codeFor(CodeSite, [{ node: ChildNode }], AppRoute.Home())
 // @ts-expect-error: a route value, not its tag
-Site.codeFor(CodeSite, [LazyChildPage], 'People')
+CodeRouting.codeFor('People')
+const Stranger = defineRouteUnion({ Away: {} })
+// @ts-expect-error: a route of another union, which no node of the tree holds
+CodeRouting.codeFor(Stranger.Away())
+export const booted: ChildModelApp = CodeRouting.boot({
+  route: AppRoute.Home(),
+  child: { text: '' },
+}).model
 
 // The tree carries its routes: parsed to their union, built only from one of them.
 const Other = defineRouteUnion({ Away: {}, Lost: { path: Schema.String } })

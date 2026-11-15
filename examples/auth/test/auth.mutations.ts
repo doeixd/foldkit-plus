@@ -529,8 +529,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'Site.codeFor(AppSite, [AccountPage], model.route)',
-        replace: 'Site.codeFor(AppSite, [AccountPage], AppRoute.Account())',
+        find: 'Routing.codeFor(model.route)',
+        replace: 'Routing.codeFor(AppRoute.Account())',
       },
     ],
     tests: page,

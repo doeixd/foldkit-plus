@@ -13,8 +13,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'Site.chainOf(site, route).flatMap(node =>',
-        replace: '[Site.nodeOf(site, route)].flatMap(node =>',
+        find: 'Site.chainOf(config.site, route).flatMap(node =>',
+        replace: '[Site.nodeOf(config.site, route)].flatMap(node =>',
       },
     ],
     tests,
@@ -42,11 +42,33 @@ export default [
     tests,
   },
   {
+    name: 'a preload with a lazy page and no fetchCode is refused',
+    edits: [
+      {
+        file: index,
+        find: '      fetch === undefined &&\n',
+        replace: '      false &&\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'only a lazy page makes the routing ask for fetchCode',
+    edits: [
+      {
+        file: index,
+        find: 'pages.some(page => Option.isSome(page.code))',
+        replace: 'true',
+      },
+    ],
+    tests: ['packages/site/test/intent.test.ts'],
+  },
+  {
     name: 'an intent fetches the code of the route it points at',
     edits: [
       {
         file: index,
-        find: '...(unloadedAt(next).length === 0 ? [] : [LoadCode({ tag: next._tag })]),',
+        find: '...(fetch === undefined || unloaded.length === 0 ? [] : [fetch(unloaded)]),',
         replace: '',
       },
     ],
@@ -57,8 +79,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'Site.codeFor(config.site, pages, route).filter(code => !code.isLoaded())',
-        replace: 'Site.codeFor(config.site, pages, route)',
+        find: 'codeFor(next).filter(code => !code.isLoaded())',
+        replace: 'codeFor(next)',
       },
     ],
     tests,
@@ -67,6 +89,17 @@ export default [
     name: 'a chunk that fails to load is no defect',
     edits: [{ file: index, find: 'Promise.allSettled(', replace: 'Promise.all(' }],
     tests,
+  },
+  {
+    name: "boot tells the Model's route to its pages",
+    edits: [
+      {
+        file: index,
+        find: 'boot: model => Update.combine(model, informed(config.route.get(model))),',
+        replace: 'boot: model => ({ model }),',
+      },
+    ],
+    tests: [...tests, ...arrival],
   },
   {
     name: "a placed page's arrival is drawn though the Model is the same",

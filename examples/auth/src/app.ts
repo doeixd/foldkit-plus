@@ -25,7 +25,7 @@ import { ME } from 'foldkit-guard'
 import { pointedLinks } from 'foldkit-primitives/dom'
 import { BroadcastMessage, broadcastMessages, postBroadcast } from 'foldkit-primitives/net'
 import { Remote, RemoteData, type RemoteClient, type RemoteError } from 'foldkit-remote'
-import { Access, Site } from 'foldkit-site'
+import { Access, Site, fetchCode } from 'foldkit-site'
 import { SSR } from 'foldkit-ssr/client'
 import { ModelRef, Projection, Surface } from 'foldkit-surface'
 import { Account, AccountMessage, AccountModel, initialAccount } from './account.js'
@@ -222,12 +222,6 @@ export const AccountPage = Site.placement(AccountNode, Account, {
 })
 
 /**
- * The code a page draws, for the server's render and the browser's boot
- * (`lazy`): the account page's bodies on `/account`, nothing elsewhere.
- */
-export const codeOf = (model: Model) => Site.codeFor(AppSite, [AccountPage], model.route)
-
-/**
  * Every read the page may make: `Me` on every page, the notes on theirs.
  * The subscriptions, the server's render and the handover read the same.
  */
@@ -414,8 +408,15 @@ const Routing = Site.routing<Model, Message, AppRoute, Services>({
     links: pointedLinks(),
     intended: Message.PointedAtLink,
     read: there => foldData.preload(there, actives),
+    code: fetchCode,
   },
 })
+
+/**
+ * The code a page draws, for the server's render and the browser's boot
+ * (`lazy`): the account page's bodies on `/account`, nothing elsewhere.
+ */
+export const codeOf = (model: Model) => Routing.codeFor(model.route)
 
 const assembly = Bundle.assemble<Model, Message, Services>()([AccountPage.placed, Routing])
 
@@ -493,10 +494,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 /** The page at an address, before anything is read. */
 export const unreadAt = (url: Url): Model => modifyFields(initial, { route: () => routeOf(url) })
 
-/** Where a page starts without a server render; the server's reads `unreadAt` first. */
-export const init = (url: Url): Update.Return<Model, Message, Services> => ({
-  model: unreadAt(url),
-})
+/**
+ * Where a page starts without a server render, its route told to its page so
+ * `/account` loads its bodies; the server's reads `unreadAt` first.
+ */
+export const init = (url: Url): Update.Return<Model, Message, Services> =>
+  Routing.boot(unreadAt(url))
 
 const isSubjectChanged = (error: RemoteError): boolean =>
   Option.exists(RemoteData.denied(error), refusal =>
