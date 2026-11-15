@@ -74,3 +74,29 @@ test('two tabs of one browser edit one page through the journal in the browser',
   expect(errors).toEqual([])
   await context.close()
 })
+
+const focused = (page: Page) =>
+  page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName)
+
+test('focus follows a new page, Enter in its title, a delete, and its undo', async () => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  await page.goto(url)
+  await page.waitForSelector('#new-page', { timeout: 120_000 })
+  await page.click('#new-page')
+  await expect.poll(() => focused(page)).toBe('page-title')
+  await page.keyboard.type('Plans')
+  await page.keyboard.press('Enter')
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.closest('#page-body') !== null))
+    .toBe(true)
+  await page.keyboard.type('Ship it')
+
+  await page.click('#delete-page')
+  await expect.poll(() => focused(page)).toBe('undo-trash')
+  await page.getByRole('status').filter({ hasText: 'moved to the trash' }).waitFor()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => focused(page)).toBe('page-title')
+  await expect.poll(() => body(page).textContent()).toBe('Ship it')
+  await context.close()
+})

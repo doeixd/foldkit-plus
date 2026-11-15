@@ -106,6 +106,8 @@ export const Model = Schema.Struct({
   hovered: Schema.Option(RichText.NodeId),
   /** The address in the link editor, while it is open. */
   linkDraft: Schema.String,
+  /** The page this tab just moved to the trash, which the empty page offers to bring back. */
+  justTrashed: Schema.Option(Schema.String),
   /**
    * This tab's own edits, newest last, each as the ops that take it back: undo applies
    * them as a new edit, so it reverses only what this tab did and keeps everyone else's.
@@ -133,6 +135,10 @@ export const Message = defineMessageUnion({
   AddedPage: { title: Schema.String },
   OpenedPage: { id: Schema.String },
   TrashedPage: { id: Schema.String },
+  /** The notice's Undo: the page just trashed, restored and opened again. */
+  UndidTrash: { id: Schema.String },
+  /** Enter in the title: on to the text. */
+  EnteredTitle: {},
   GotEditor: { message: EditorMessage },
   GotPeers: { peers: Schema.Array(Peer) },
   ExchangeChanged: Exchange.fields,
@@ -193,6 +199,7 @@ export const initialModel = (session: string): Model => ({
   menu: Option.none(),
   hovered: Option.none(),
   linkDraft: '',
+  justTrashed: Option.none(),
   undo: [],
   redo: [],
   undoGroup: Option.none(),
@@ -214,6 +221,8 @@ const afresh = (model: Model, open: Option.Option<string>): Model =>
     menu: () => Option.none(),
     hovered: () => Option.none(),
     linkDraft: () => '',
+    // Closing a page is how the notice appears, and an exchange closes one too.
+    justTrashed: held => (Option.isSome(open) ? Option.none() : held),
     undoGroup: () => Option.none(),
   })
 
@@ -594,13 +603,34 @@ export const update = (model: Model, message: Message): Return =>
       const id = `${model.session}:${model.minted}`
       return {
         model: modifyFields(afresh(model, Option.some(id)), { minted: () => model.minted + 1 }),
-        commands: [durableFact(Message.CreatedPage({ id, title, key: `${id}:seed` }))],
+        // A new page is named first, so the title takes the focus.
+        commands: [
+          durableFact(Message.CreatedPage({ id, title, key: `${id}:seed` })),
+          FocusField({ selector: '#page-title' }),
+        ],
       }
     },
-    // Closes the page here if it is open, then trashes it everywhere.
+    // Closes the page here if it is open, then trashes it everywhere. The notice that takes its
+    // place holds the focus, so a keyboard user is not dropped on the page.
     TrashedPage: ({ id }) => ({
-      model: Option.contains(model.open, id) ? afresh(model, Option.none()) : model,
-      commands: [durableFact(Message.DeletedPage({ id }))],
+      model: Option.contains(model.open, id)
+        ? modifyFields(afresh(model, Option.none()), { justTrashed: () => Option.some(id) })
+        : model,
+      commands: [
+        durableFact(Message.DeletedPage({ id })),
+        ...(Option.contains(model.open, id) ? [FocusField({ selector: '#undo-trash' })] : []),
+      ],
+    }),
+    UndidTrash: ({ id }) => ({
+      model: afresh(model, Option.some(id)),
+      commands: [
+        durableFact(Message.RestoredPage({ id })),
+        FocusField({ selector: '#page-title' }),
+      ],
+    }),
+    EnteredTitle: () => ({
+      model,
+      commands: [FocusField({ selector: '#page-body [contenteditable]' })],
     }),
     OpenedPage: ({ id }) => {
       if (Option.contains(model.open, id)) return { model }

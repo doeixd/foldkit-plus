@@ -634,6 +634,14 @@ export const Page = demoStyle.slots({
     padding: t.space.lg,
     textAlign: 'center',
   }),
+  notice: Style.self({
+    display: 'flex',
+    alignItems: 'center',
+    gap: t.space.xs,
+    margin: `0 0 ${t.space.md}`,
+    color: t.text.default,
+    fontSize: t.size.sm,
+  }),
   emptyTitle: Style.self({ margin: '0', fontWeight: t.weight.semibold, color: t.text.overt }),
   hint: Style.self({ margin: `0 0 ${t.space.sm}`, color: t.text.muted, fontSize: t.size.sm }),
   primary: Style.compose(

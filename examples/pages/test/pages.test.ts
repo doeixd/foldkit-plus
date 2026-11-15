@@ -23,6 +23,7 @@ import {
   Message,
   pageInEditor,
   pageOf,
+  reinstalled,
   savedOf,
   update,
   type Model,
@@ -630,11 +631,50 @@ describe('two people on one page', () => {
   it('closes the page it trashes, and trashes it through the log', () => {
     const result = update(carried(), Message.TrashedPage({ id: 'mine' }))
     expect(result.model).toMatchObject({ open: Option.none(), ...nothingCarried })
-    expect(result.commands?.map(command => command.name)).toEqual(['foldkit-sync/fact'])
-    // Another page trashed leaves the open one alone.
-    expect(update(carried(), Message.TrashedPage({ id: 'other' })).model.open).toEqual(
+    expect(result.commands?.map(command => command.name)).toEqual([
+      'foldkit-sync/fact',
+      'FocusField',
+    ])
+    expect(result.model.justTrashed).toEqual(Option.some('mine'))
+    // Another page trashed leaves the open one alone, and offers nothing to undo.
+    const other = update(carried(), Message.TrashedPage({ id: 'other' }))
+    expect(other.model.open).toEqual(Option.some('mine'))
+    expect(other.model.justTrashed).toEqual(Option.none())
+    expect(other.commands?.map(command => command.name)).toEqual(['foldkit-sync/fact'])
+  })
+
+  it('keeps the notice through the exchange that trashes the page, and drops it on the next page', () => {
+    const model = { ...carried(), justTrashed: Option.some('mine') }
+    expect(reinstalled({ ...model, open: Option.none() }, model).model.justTrashed).toEqual(
       Option.some('mine'),
     )
+    expect(update(model, Message.AddedPage({ title: 'T' })).model.justTrashed).toEqual(
+      Option.none(),
+    )
+    expect(update(model, Message.OpenedPage({ id: 'x' })).model.justTrashed).toEqual(Option.none())
+  })
+
+  it('restores the page the notice offers back, opens it, and focuses its title', () => {
+    const result = update(
+      { ...carried(), open: Option.none(), justTrashed: Option.some('mine') },
+      Message.UndidTrash({ id: 'mine' }),
+    )
+    expect(result.model).toMatchObject({ open: Option.some('mine'), justTrashed: Option.none() })
+    expect(result.commands?.map(command => command.name)).toEqual([
+      'foldkit-sync/fact',
+      'FocusField',
+    ])
+  })
+
+  it('gives a new page’s title the focus, and Enter in it the text', () => {
+    expect(
+      update(initialModel('alice'), Message.AddedPage({ title: 'T' })).commands?.map(
+        command => command.name,
+      ),
+    ).toEqual(['foldkit-sync/fact', 'FocusField'])
+    expect(
+      update(carried(), Message.EnteredTitle()).commands?.map(command => command.name),
+    ).toEqual(['FocusField'])
   })
 
   it('ends a run of typing when the caret is put elsewhere, so undo takes back what followed', async () => {

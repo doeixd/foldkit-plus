@@ -77,6 +77,10 @@ const INSERTS = ['callout', 'table', 'divider', 'code-block'] as const
 const iconOf = (name: string | undefined): RichTextIconName =>
   name !== undefined && isRichTextIcon(name) ? name : 'plus'
 
+/** The page with this id, when it is in the trash. */
+const trashedPage = (model: Model, id: string): Option.Option<PageState> =>
+  Option.fromUndefinedOr(model.pages.find(page => page.id === id && page.trashed === true))
+
 const titleOf = (page: PageState): string => (page.title === '' ? 'Untitled' : page.title)
 
 /** A person's initials, for the circle that stands for them: "Guest 3f2a" is G3. */
@@ -100,6 +104,25 @@ export const PagesView = SlotView.forMessages<Message>()
         Option.match(pageInEditor(model), {
           onNone: () => [
             h.div(slots.empty.attrs(), [
+              ...Option.match(
+                Option.flatMap(model.justTrashed, id => trashedPage(model, id)),
+                {
+                  onNone: () => [],
+                  onSome: page => [
+                    h.p(slots.notice.attrs([h.Role('status')]), [
+                      `${titleOf(page)} moved to the trash. `,
+                      h.button(
+                        slots.restore.attrs([
+                          h.Id('undo-trash'),
+                          h.Type('button'),
+                          h.OnClick(Message.UndidTrash({ id: page.id })),
+                        ]),
+                        ['Undo'],
+                      ),
+                    ]),
+                  ],
+                },
+              ),
               h.p(slots.emptyTitle.attrs(), ['No page open']),
               h.p(slots.hint.attrs(), ['Choose one from the list, or start a new one.']),
               h.button(
@@ -236,6 +259,9 @@ const openPage = (model: Model, open: PageState, slots: Slots, h: H): ReadonlyAr
           h.Placeholder('Untitled'),
           h.Value(open.title),
           h.OnInput(title => Message.RenamedPage({ id: open.id, title })),
+          h.OnKeyDownPreventDefault(key =>
+            key === 'Enter' ? Option.some(Message.EnteredTitle()) : Option.none(),
+          ),
         ]),
       ),
       toolbar(model, open, view, slots, h),
