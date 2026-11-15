@@ -266,4 +266,15 @@ export default [
     edits: [{ file, find: 'mount: () => FocusReturn(),', replace: 'attributes: () => [],' }],
     tests: [browser],
   },
+  {
+    name: "a panel's root is unkeyed, so the next panel takes its element when it closes",
+    edits: [
+      {
+        file,
+        find: 'builders.root.attrs([h.Key(id), h.Style({ display: ',
+        replace: 'builders.root.attrs([h.Style({ display: ',
+      },
+    ],
+    tests: [browser],
+  },
 ]

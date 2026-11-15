@@ -549,7 +549,9 @@ export const view = <ParentMessage>(
           ...(stage === 'minimized' ? {} : { height: `${rect.height}px` }),
         }
 
-  return h.div(builders.root.attrs([h.Style({ display: 'contents' })]), [
+  // Keyed by the panel: a closed panel draws nothing, so without a key the next
+  // panel's view takes its place and the element holding focus becomes that panel.
+  return h.div(builders.root.attrs([h.Key(id), h.Style({ display: 'contents' })]), [
     h.div(
       builders.boundary.attrs([
         h.AriaHidden(true),

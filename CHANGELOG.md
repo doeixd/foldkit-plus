@@ -899,6 +899,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: with two `FloatingPanel`s drawn side by side, closing the first left focus on the second: the closed panel draws nothing, so the second panel's view took over its element, holding focus, and focus stayed in it. The panel's root is keyed by its `id`, so `FloatingPanel.focusReturn` gives focus back to what opened the closed panel, and a panel closed from elsewhere leaves focus where the reader put it.
+
 - `foldkit-primitives`: modal layers drawn as siblings, as portaled dialogs
   are, stack. `FocusScope` and `HideOutside` share a stack of open layers whose
   topmost owns containment: a scope with a layer open above it no longer pulls

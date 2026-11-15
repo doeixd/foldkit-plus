@@ -374,6 +374,44 @@ test('with FloatingPanel.focusReturn, a panel gives focus back to what opened it
   }
 })
 
+/** Both panels shut, then each opened from its own button, the notes first: focus ends on the chat. */
+const bothOpenedByTheirButtons = async () => {
+  await closeChat()
+  await userEvent.click(panel('notes')!.querySelector('[aria-label="Close"]')!)
+  await vi.waitFor(() => expect(panel('notes')).toBeNull())
+  await userEvent.click(document.getElementById('opener')!)
+  await vi.waitFor(() => expect(document.activeElement).toBe(panel('notes')))
+  await userEvent.click(document.getElementById('chat-opener')!)
+  await vi.waitFor(() => expect(document.activeElement).toBe(panel('chat')))
+}
+
+test('with two panels open, closing one gives focus back to what opened it, not to the other panel', async () => {
+  const both = { mixins: FloatingPanel.focusReturn }
+  const mounted = mount('ltr', both, both)
+  try {
+    await bothOpenedByTheirButtons()
+    await userEvent.click(panel('notes')!.querySelector('[aria-label="Close"]')!)
+    await vi.waitFor(() => expect(panel('notes')).toBeNull())
+    await vi.waitFor(() => expect(document.activeElement).toBe(document.getElementById('opener')))
+    expect(panel('chat')).not.toBeNull()
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('with two panels open, a panel closed from outside leaves focus where the reader put it', async () => {
+  const both = { mixins: FloatingPanel.focusReturn }
+  const mounted = mount('ltr', both, both)
+  try {
+    await bothOpenedByTheirButtons()
+    await userEvent.click(document.getElementById('close-notes')!)
+    await vi.waitFor(() => expect(panel('notes')).toBeNull())
+    expect(document.activeElement).toBe(document.getElementById('close-notes'))
+  } finally {
+    mounted.dispose()
+  }
+})
+
 test('an arrow with Ctrl held is left to the browser, not taken by the drag trigger', async () => {
   const mounted = mount()
   try {
