@@ -37,6 +37,15 @@ in [toolbarBody.ts](src/toolbarBody.ts)) are a chunk fetched right after the
 page starts. `test/bundle.test.ts` holds both the size and that those widget
 modules are absent at start.
 
+Go to row takes a number from one and scrolls the least that shows it
+(`Placed.helpers.reveal`, which moves no focus); a Command then puts the keyboard
+on that row's UPC cell, since the reveal does not. A range of cells says its size
+in the counts (`Grid.rangeSize`), and a copy says what it took ("Copied 3 rows by
+2 columns") through the grid's `Out.Copied`. The toolbar's "Keyboard shortcuts"
+disclosure lists the keys with `formatHotkey`, so a Mac reads `⌘C` where
+Windows reads `Ctrl+C`; it is in the toolbar's chunk, so the first load does not
+carry it.
+
 On a phone (40rem or narrower), a viewer with no saved layout starts with the
 UPC at 124px and the description at 200px, so the second column shows beside
 the pinned one. The rest scrolls sideways inside the grid; the page does not.
