@@ -69,7 +69,7 @@ export default [
     edits: [
       {
         file: source,
-        find: "value === '' ? Option.none() : Option.some(options.onClear)",
+        find: "input === '' ? Option.none() : Option.some(options.onClear)",
         replace: 'Option.some(options.onClear)',
       },
     ],
@@ -80,7 +80,7 @@ export default [
     edits: [
       {
         file: source,
-        find: "value === '' ? Option.none() : Option.some(options.onClear)",
+        find: "input === '' ? Option.none() : Option.some(options.onClear)",
         replace: 'Option.none()',
       },
     ],
