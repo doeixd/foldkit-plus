@@ -474,6 +474,8 @@ const Page = Base.pipe(
         Pasted: ({ accepted }) => edited(model, accepted),
         // What a fill writes is worked out from the rows as the page shows them now.
         Filled: request => edited(model, Grid.fill(rowsOf(model), model.grid, request).accepted),
+        // ADOPT: say the copy in the device's live region once it has one.
+        Copied: () => ({ model }),
         UndoRequested: () => replay(model, 'undo'),
         RedoRequested: () => replay(model, 'redo'),
         RowsRequested: request => ({
