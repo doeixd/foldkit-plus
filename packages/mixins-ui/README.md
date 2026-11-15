@@ -688,6 +688,12 @@ remove? }`). `name`, `accept`, `multiple` and `required` are the native
 attributes; `invalid` is `aria-invalid`, and `description` is read after the name.
 A disabled field takes no pick and its rows no remove.
 
+Keeping the `File`s in the Model or a Message (`Schema.instanceOf(File)`) has a cost under
+`vite dev`: a `File` is not JSON, and Foldkit's dev-tools relay, which exists only where
+`import.meta.hot` does, has been seen to reject with `SchemaError: Expected JSON value` as an
+unhandled rejection. A production build has no relay; a test that fails on page errors (an
+end-to-end run against `vite dev`) should expect it.
+
 ```ts
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
