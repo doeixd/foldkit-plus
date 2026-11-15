@@ -1021,6 +1021,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-richtext-dom`: the editor did not scroll the caret into view as the document grew, since it sets the selection itself and `setBaseAndExtent` does not scroll: on a short screen, Enter and typing left the caret's line below the window. After the person's own edit, undo or redo, or a caret the editor moved itself, the selection's focus end is scrolled into view by the least amount, in the scrolling boxes around the editor and the window, instantly, honouring `scroll-padding` for a sticky bar. Another person's edit, a decoration refresh and a control holding the focus scroll nothing.
 - `foldkit-richtext-dom`: a content redraw (another person's edit, an undo from a toolbar) restored the editor's selection while focus was on a control beside it, which pulled the focus into the text. The editor now owns the selection only while the focus is not on another control, one rule for content and decoration redraws.
 - `foldkit-mixins-data-grid`: on a touch screen the header's funnel and menu buttons were 24px high. Each now reaches
   the touch floor across the row (a pseudo-element, so the header keeps its height) and the funnel 12px into
