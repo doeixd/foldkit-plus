@@ -145,7 +145,10 @@ test('on a phone the pinned UPC leaves room for the next column, and the page do
     ),
   ).toBe(true)
   const clear = (await page.getByRole('button', { name: 'Clear filters' }).boundingBox())!
-  expect(clear.height).toBeGreaterThanOrEqual(32)
+  expect(clear.height).toBeGreaterThanOrEqual(40)
+  for (const control of [page.getByLabel('Go to row'), page.getByRole('button', { name: 'Go' })]) {
+    expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(40)
+  }
   await context.close()
 })
 
@@ -233,5 +236,33 @@ test('a click on a funnel opens its form and keeps it open with focus in its fie
   expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('INPUT')
   await funnel.click()
   await expect.poll(() => form.count(), slow).toBe(0)
+  await page.close()
+})
+
+test('the toolbar is reachable by keyboard alone: Tab walks its controls and the arrows pick a density', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  await page.goto(vite.resolvedUrls!.local[0]!)
+  await page.getByRole('radiogroup', { name: 'Row density' }).waitFor({ timeout: 120_000 })
+  const focused = () =>
+    page.evaluate(() => {
+      const element = document.activeElement
+      return element?.getAttribute('aria-label') ?? element?.textContent ?? element?.tagName
+    })
+
+  await page.getByRole('searchbox', { name: 'Search products' }).focus()
+  await page.keyboard.type('bolt')
+  await page.keyboard.press('Escape')
+  // Escape clears the text and leaves the key on the field.
+  await expect.poll(() => page.getByRole('searchbox').inputValue(), slow).toBe('')
+  expect(await focused()).toBe('Search products')
+
+  // One tab stop in the density group: the chosen option.
+  await page.keyboard.press('Tab')
+  await expect.poll(focused, slow).toBe('comfortable')
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(focused, slow).toBe('spacious')
+  await expect
+    .poll(() => page.getByRole('radio', { name: 'spacious' }).getAttribute('aria-checked'), slow)
+    .toBe('true')
   await page.close()
 })
