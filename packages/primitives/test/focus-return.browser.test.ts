@@ -174,6 +174,28 @@ describe('FocusReturn', () => {
     expect(document.activeElement).toBe(by('top'))
   })
 
+  it("follows focus in a frame's document too, from its first overlay on", async () => {
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const doc = frame.contentDocument!
+    doc.body.innerHTML =
+      '<button id="top">top</button><button id="opener">open</button><div id="first"></div>'
+    // The frame's document is followed from its first overlay.
+    await (
+      await returning(doc.getElementById('first')!)
+    )()
+    const by = (id: string) => doc.getElementById(id) as HTMLElement
+    by('opener').focus()
+    const overlay = doc.createElement('div')
+    overlay.innerHTML = '<button id="inside">inside</button>'
+    doc.body.append(overlay)
+    by('inside').focus()
+    const release = await returning(overlay)
+    overlay.remove()
+    await release()
+    expect(doc.activeElement).toBe(by('opener'))
+  })
+
   it('moves no focus on mount', async () => {
     const by = page('<button id="opener">open</button>')
     const overlay = open(by, 'opener')

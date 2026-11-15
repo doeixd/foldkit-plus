@@ -3,6 +3,7 @@
  * `pnpm mutate packages/primitives/test/focus-return.mutations.ts`.
  */
 const source = '../src/dom/focus-return.ts'
+const way = '../src/dom/focus-way.ts'
 const recovery = '../src/dom/focus-recovery.ts'
 const stack = '../src/dom/layer-stack.ts'
 const scope = '../src/dom/focus-scope.ts'
@@ -16,7 +17,7 @@ export default [
     name: 'a redrawn opener is not found by its id',
     edits: [
       {
-        file: source,
+        file: way,
         find: "opener === undefined || opener.id === '' ? null : doc.getElementById(opener.id)",
         replace: 'null',
       },
@@ -27,7 +28,7 @@ export default [
     name: "the opener's owner is not asked for its fallback",
     edits: [
       {
-        file: source,
+        file: way,
         find: 'if (recovery?.() === true) return',
         replace: '',
       },
@@ -42,7 +43,7 @@ export default [
   {
     name: 'the layer below is not tried',
     edits: [
-      { file: source, find: '  if (below !== undefined) {', replace: '  if (false as boolean) {' },
+      { file: way, find: '  if (below !== undefined) {', replace: '  if (false as boolean) {' },
     ],
     tests,
   },
@@ -50,7 +51,7 @@ export default [
     name: 'the page is not the last resort',
     edits: [
       {
-        file: source,
+        file: way,
         find: 'take(tabbableWithin(doc.body).find(each => !overlay.contains(each)))',
         replace: 'take(undefined)',
       },
@@ -62,8 +63,8 @@ export default [
     edits: [
       {
         file: source,
-        find: '  [...trail].reverse().find(each => each.isConnected && !overlay.contains(each))',
-        replace: '  undefined',
+        find: '    activeOutside(overlay) ??\n    trail',
+        replace: '    activeOutside(overlay) ??\n    []',
       },
     ],
     tests,
@@ -138,10 +139,33 @@ export default [
       },
       {
         file: scope,
-        find: 'import { activeOutside, backToOpener,',
-        replace: 'import { activeOutside, openerOf, backToOpener,',
+        find: "import * as LayerStack from './layer-stack.js'",
+        replace:
+          "import * as LayerStack from './layer-stack.js'\nimport { openerOf } from './focus-return.js'",
       },
     ],
     tests,
+  },
+  {
+    name: "a frame's document is never followed",
+    edits: [
+      {
+        file: source,
+        find: 'const trail = follow(overlay.ownerDocument)',
+        replace: 'const trail = follow(document)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'FocusScope brings the focus trail along',
+    edits: [
+      {
+        file: scope,
+        find: "import * as LayerStack from './layer-stack.js'",
+        replace: "import * as LayerStack from './layer-stack.js'\nimport './focus-return.js'",
+      },
+    ],
+    tests: ['packages/primitives/test/focus-trail.test.ts'],
   },
 ]

@@ -149,8 +149,11 @@ Focus the user moved elsewhere is left alone, and the opener is focused
 without scrolling the page to it. `FocusScope` restores by the same rules,
 with its opener read from `activeElement` alone. `FocusReturn` is a layer of the stack while mounted, and takes
 the opener from the last elements that had focus, not only `activeElement`,
-which a Command that shows a dialog has usually moved already. It is one
-document-level `focusin` listener, installed when the module loads.
+which a Command that shows a dialog has usually moved already. That trail is
+one `focusin` listener on the page's document, installed when the
+`FocusReturn` module loads (a frame's document is followed from its first
+`FocusReturn`), and holds its elements weakly; a page with only `FocusScope` or
+`FocusRecovery` installs none.
 
 **`ScrollLock`** locks the document's scroll while its element is mounted,
 refcounted so nested overlays release together, with Foldkit's iOS handling;

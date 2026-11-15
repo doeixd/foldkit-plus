@@ -1,6 +1,6 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { activeOutside, backToOpener, fallBack, lostIn, returnOf } from './focus-return.js'
+import { activeOutside, backToOpener, fallBack, lostIn, returnOf } from './focus-way.js'
 import { tabbableWithin } from './focusable.js'
 import * as LayerStack from './layer-stack.js'
 

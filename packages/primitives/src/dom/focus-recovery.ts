@@ -1,6 +1,6 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { setOpenerRecovery } from './focus-return.js'
+import { setOpenerRecovery } from './focus-way.js'
 import { canTakeFocus, FOCUS_MARK, markOf, ownerAbove, take } from './focusable.js'
 
 /** Where focus goes when the part that had it is gone, tried in order. */
@@ -151,7 +151,7 @@ const fallbacks = new WeakMap<Element, Readonly<Record<string, ReadonlyArray<Ste
  * Returns what to run when the opener is gone: it focuses the first element
  * the owner's `fallback` steps for the opener's slot find, as they stand
  * then, and says whether one took focus. `undefined` when the opener is a part
- * of no owner. Registered with `FocusReturn`, which does not import this
+ * of no owner. Registered with `focus-way`, which does not import this
  * module: a page with an overlay and no owner does not carry it.
  */
 setOpenerRecovery(opener => {
