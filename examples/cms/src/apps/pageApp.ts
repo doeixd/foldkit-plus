@@ -23,6 +23,7 @@ import * as Subscription from 'foldkit/subscription'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { NodeId, type Document } from 'foldkit-composition'
 import { QueryBlock } from 'foldkit-composition/remote'
+import { focusOn, opened } from './focus.js'
 import { Post, PostById, RecentPosts } from '../content/domain.js'
 import { Page, PageForm, PageId, PageView, Pages } from '../content/pageDomain.js'
 import { PageBuilder, Site } from '../content/site.js'
@@ -191,7 +192,11 @@ const placed = placements.update((model, message) => {
     OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
     AskedForPage: () => ({ model, commands: [newPage] }),
     StartedPage: ({ entry }) => leaving(EditorSlot.helpers.create(entry)),
-    ClosedEditor: () => leaving(EditorSlot.helpers.close()),
+    // The back button is gone once closed: focus goes to the list it returns to.
+    ClosedEditor: () => {
+      const closed = leaving(EditorSlot.helpers.close())
+      return { ...closed, commands: [...closed.commands, focusOn('#sitePages', Message.Ticked())] }
+    },
     RetriedList: () => ({ model: Data.refresh(model, sitePages) }),
     UrlChanged: ({ url }) => {
       const { stored, fresh, ...asked } = linkIn(url)
@@ -297,7 +302,21 @@ const begun = (result: ReturnType<typeof stepped>): ReturnType<typeof stepped> =
 
 export const update = (model: Model, message: Message) => {
   const next = follow(begun(stepped(model, message)))
-  return { ...next, model: revisionsAfterChange(model, next.model) }
+  const settled = revisionsAfterChange(model, next.model)
+  return {
+    ...next,
+    model: settled,
+    // The row that opened the page is gone: writing starts at its title.
+    commands: [
+      ...(next.commands ?? []),
+      ...opened(
+        PageEditor.status(model),
+        PageEditor.status(settled),
+        'PageForm-title',
+        Message.Ticked(),
+      ),
+    ],
+  }
 }
 
 export const initial: Model = placements.initial({

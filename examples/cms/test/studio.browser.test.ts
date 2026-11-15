@@ -83,3 +83,35 @@ it('moves between sections in place, keeping the address and each section’s st
     (document.querySelector('input[aria-label="Search posts"]') as HTMLInputElement).value,
   ).toBe('milk')
 })
+
+it('keeps focus in the page as a post opens and closes', async () => {
+  await mount('/', 'as=wren')
+  await expect.poll(() => document.querySelector('#Worklist button') !== null, answered).toBe(true)
+  const row = document.querySelector('#Worklist button') as HTMLButtonElement
+  row.focus()
+  row.click()
+  // The row that held focus is gone once the editor is drawn: writing starts at the title.
+  await expect.poll(() => document.activeElement?.id, answered).toBe('PostForm-title')
+
+  // Writing elsewhere in the form, and the draft saved under the writer's hands, leaves focus there.
+  const body = document.querySelector('#PostForm-body') as HTMLTextAreaElement
+  body.focus()
+  type('#PostForm-body', 'Another line.')
+  await expect.poll(() => text('#status'), answered).toBe('Draft saved.')
+  expect(document.activeElement?.id).toBe('PostForm-body')
+
+  click('#close')
+  await expect.poll(() => document.activeElement?.id, answered).toBe('Worklist')
+})
+
+it('keeps focus in the page as a page opens and closes', async () => {
+  await mount('/pages', 'as=wren')
+  await expect.poll(() => document.querySelector('#sitePages button') !== null, answered).toBe(true)
+  const row = document.querySelector('#sitePages button') as HTMLButtonElement
+  row.focus()
+  row.click()
+  await expect.poll(() => document.activeElement?.id, answered).toBe('PageForm-title')
+
+  click('#close')
+  await expect.poll(() => document.activeElement?.id, answered).toBe('sitePages')
+})

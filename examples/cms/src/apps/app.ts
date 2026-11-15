@@ -30,6 +30,7 @@ import {
   writeAddress,
   type EntryEditor,
 } from '../routing/address.js'
+import { focusOn, opened } from './focus.js'
 import { EntryRow, Post, PostForm, PostId, PostPreview, Posts } from '../content/domain.js'
 import { FormStyle, WritingFieldStyle } from '../styles/formStyles.js'
 
@@ -199,7 +200,11 @@ const placed = placements.update((model, message) => {
     OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
     AskedForPost: () => ({ model, commands: [newPost] }),
     StartedPost: ({ entry }) => leaving(EditorSlot.helpers.create(entry)),
-    ClosedEditor: () => leaving(EditorSlot.helpers.close()),
+    // The back button is gone once closed: focus goes to the list it returns to.
+    ClosedEditor: () => {
+      const closed = leaving(EditorSlot.helpers.close())
+      return { ...closed, commands: [...closed.commands, focusOn('#Worklist', Message.Ticked())] }
+    },
     TypedSchedule: ({ text }) => ({
       model: modifyFields(model, {
         scheduleDraft: () => ({ entry: PostEditor.entry(model), text }),
@@ -322,7 +327,21 @@ const clearedWhenScheduled = (before: Model, after: Model): Model =>
 
 export const update = (model: Model, message: Message) => {
   const next = follow(begun(stepped(model, message)))
-  return { ...next, model: clearedWhenScheduled(model, next.model) }
+  const settled = clearedWhenScheduled(model, next.model)
+  return {
+    ...next,
+    model: settled,
+    // The row that opened the post is gone: writing starts at its title.
+    commands: [
+      ...(next.commands ?? []),
+      ...opened(
+        PostEditor.status(model),
+        PostEditor.status(settled),
+        'PostForm-title',
+        Message.Ticked(),
+      ),
+    ],
+  }
 }
 
 export const initial: Model = placements.initial({

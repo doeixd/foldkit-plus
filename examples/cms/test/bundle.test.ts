@@ -40,7 +40,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // foldkit-builder and foldkit-mixins-builder +50 between them; the other 40-odd moved modules are
 // within +-14 each and sum to about -80. It was 293,068 before `filledHover` moved from
 // recipes/field.js to design.js; it is the same page. Ceiling raised to the reading, rounded up.
-const CEILING = 293_100
+// +100 on 2026-11-15 for the studio's focus Commands (focus.ts): measured 293,138 against 293,074
+// before it, +64 (a Command per open and close of an editor, in both sections). Ceiling raised to
+// the reading, rounded up.
+const CEILING = 293_200
 
 clientBudget({
   name: 'cms',
