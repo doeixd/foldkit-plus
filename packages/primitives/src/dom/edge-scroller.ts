@@ -1,4 +1,10 @@
-import { EDGE_BAND, EDGE_SPEED, type EdgeScroll, REDUCED_STEP_MS } from './edge-scroll.js'
+import {
+  EDGE_BAND,
+  EDGE_DWELL_MS,
+  EDGE_SPEED,
+  type EdgeScroll,
+  REDUCED_STEP_MS,
+} from './edge-scroll.js'
 
 type Axis = 'x' | 'y'
 
@@ -68,6 +74,8 @@ export const edgeScroller = (
   let point: { readonly x: number; readonly y: number } | null = null
   let frame: number | undefined
   let last: number | undefined
+  /** When the pointer reached a strip that scrolls, until it leaves. */
+  let since: number | undefined
   let owed = 0
   let reduced = false
 
@@ -117,12 +125,14 @@ export const edgeScroller = (
     if (point === null) return steps
     for (const axis of ['x', 'y'] as const) {
       for (const scroller of scrollers(axis)) {
-        // Beside a scroller, not over it, is no edge of its: the pointer must be within its span across.
-        const across =
-          axis === 'y'
-            ? point.x >= scroller.left && point.x <= scroller.right
-            : point.y >= scroller.top && point.y <= scroller.bottom
-        if (!across) continue
+        // Beside, above or below a scroller, over another panel, is no edge of its: the pointer
+        // must be over it, or a drag from the palette to the layers beneath scrolls the palette away.
+        const over =
+          point.x >= scroller.left &&
+          point.x <= scroller.right &&
+          point.y >= scroller.top &&
+          point.y <= scroller.bottom
+        if (!over) continue
         const by =
           axis === 'y'
             ? pull(point.y, scroller.top, scroller.bottom, band)
@@ -141,7 +151,15 @@ export const edgeScroller = (
   const tick = (now: number) => {
     frame = undefined
     const steps = plan()
-    if (steps.length === 0) return
+    if (steps.length === 0) {
+      since = undefined
+      return
+    }
+    since ??= now
+    if (now - since < EDGE_DWELL_MS) {
+      frame = view?.requestAnimationFrame(tick)
+      return
+    }
     // The first frame has no earlier one to measure from: one at 60Hz.
     owed += last === undefined ? 1 / 60 : Math.max(0, Math.min(now - last, 50)) / 1000
     last = now
@@ -177,12 +195,14 @@ export const edgeScroller = (
       point = { x, y }
       if (frame !== undefined || view === null) return
       last = undefined
+      since = undefined
       owed = 0
       reduced = view.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
       frame = view.requestAnimationFrame(tick)
     },
     stop: () => {
       point = null
+      since = undefined
       if (frame !== undefined) view?.cancelAnimationFrame(frame)
       frame = undefined
     },

@@ -162,14 +162,14 @@ Pick by task:
   press is a drag once held still `HOLD_TO_DRAG_MS` (400ms); one that moves `HOLD_SLOP`
   (8px) first is a scroll, so leave the marked elements' `touch-action` alone and a list of
   them still scrolls. No roles or keys: `Reorder` is the keyboard's way. Swallows the click a drop ends with. Onto another region (a palette onto a
-  page): `targets: { attribute, within: selector }`, so `over` is one of those; `within` is
+  page): `targets: [{ attribute, within: selector }]` (one entry per region), so `over` is one of those; `within` is
   found nearest the container first, and each fact carries `region: boolean`, so `over: null`
   with `region: true` is the region's empty space. `part: attribute` reports an element
   marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say.
   `edgeScroll: {}` (or `{ edge, speed }`) scrolls the nearest scrolling ancestor, then the
   page, while the drag is held near its edge (default 40px strip, 600px/s, instant steps,
   jumps every 150ms under reduced motion) and reports the place under the still pointer after
-  each step; absent, a plain drag scrolls nothing. Only a box the pointer is over is pulled,
+  each step; absent, a plain drag scrolls nothing. Only a box the pointer is over is pulled, and only after 150ms in its strip,
   nothing above a `position: fixed` box, and not a page under a scroll lock.
   While a drag lasts it writes `--fk-drag-x`, `--fk-drag-y` (viewport px) and
   `data-fk-drag="mouse|touch|pen"` on the root (`DRAGGING`), so a preview follows the

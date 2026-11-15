@@ -912,16 +912,17 @@ Boxes are measured as the pointer moves and never kept; an element drawn as
 attaches it, and `zoneOf(box, y)` is the pure split.
 
 A drag may also land somewhere other than among its own: with
-`targets: { attribute: 'data-composition-node', within: '#page' }`, what is
+`targets: [{ attribute: 'data-composition-node', within: '#page' }]`, what is
 dragged is still one of the container's marked descendants (a palette's
 tiles), and `over` is an element marked by that attribute inside the one
-`within` selects (the page's nodes). Its own tiles, and a matching element
-outside that one, are then over nothing. `within` is looked for nearest first,
+`within` selects (the page's nodes). Several entries are several regions
+(a page and its layers), each with its own attribute. Its own tiles, and a
+matching element outside its region, are then over nothing. `within` is looked for nearest first,
 under the container's closest ancestor that holds a match, so two editors on
 one page each drop onto their own page. Such a drag's `DraggedOver` and
 `DragDropped` also carry `region`: whether the pointer is inside that element,
-so `over: null` with `region: true` is its empty space (an empty page, the
-space below its last node), and with `false`, elsewhere.
+so `over: null` with `region: true` is the empty space of one of the regions (an empty
+page, the space below its last node), and with `false`, elsewhere.
 
 A place can be a named part of what it is over: with `part: 'data-composition-region'`,
 an element marked by both `attribute` (or `targets.attribute`) and `part` is
@@ -936,7 +937,9 @@ the way the pointer pulls, on a frame clock, while the press is held in its
 last `edge` pixels (default 40, at most a third of the box) at up to `speed`
 pixels a second (default 600), less the nearer the strip's inner side. A box
 at its end hands over to the next ancestor and then the page. Only a box the
-pointer is over (within its span across) is pulled, nothing above a
+pointer is over is pulled (not one it is beside, above or below, over another panel), and
+only once it has stayed in the strip for 150ms, so a pointer passing through scrolls
+nothing. Nothing above a
 `position: fixed` box is, and the page is not while it or its body has
 `overflow: hidden` or `clip` (a scroll lock's, under a modal). After every step
 the place under the still pointer is reported again (`DraggedOver`), so the

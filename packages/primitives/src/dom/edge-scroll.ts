@@ -16,6 +16,12 @@ export type EdgeScroll = typeof EdgeScroll.Type
 export const EDGE_BAND = 40
 export const EDGE_SPEED = 600
 
+/**
+ * How long a pointer stays in a strip before it scrolls: one passing through on its way to
+ * another panel (a tile from a palette to the layers below it) scrolls nothing.
+ */
+export const EDGE_DWELL_MS = 150
+
 /** Under reduced motion the scroll jumps this often, by what the same time would have moved it. */
 export const REDUCED_STEP_MS = 150
 

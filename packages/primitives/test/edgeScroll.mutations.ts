@@ -161,8 +161,19 @@ export default [
     tests: edgeTests,
   },
   {
-    name: 'a scroller the pointer is only beside is pulled too',
-    edits: [{ file: scroll, find: '        if (!across) continue\n', replace: '' }],
+    name: 'a scroller the pointer is only beside, above or below is pulled too',
+    edits: [{ file: scroll, find: '        if (!over) continue\n', replace: '' }],
+    tests: edgeTests,
+  },
+  {
+    name: 'a pointer passing through the strip scrolls it at once',
+    edits: [
+      {
+        file: scroll,
+        find: 'if (now - since < EDGE_DWELL_MS) {',
+        replace: 'if (false as boolean) {',
+      },
+    ],
     tests: edgeTests,
   },
   {
@@ -224,8 +235,8 @@ export default [
     edits: [
       {
         file: scroll,
-        find: 'if (steps.length === 0) return',
-        replace: 'if (steps.length === 0) { frame = view?.requestAnimationFrame(tick); return }',
+        find: '      since = undefined\n      return\n',
+        replace: '      since = undefined\n      frame = view?.requestAnimationFrame(tick)\n      return\n',
       },
     ],
     tests: edgeTests,

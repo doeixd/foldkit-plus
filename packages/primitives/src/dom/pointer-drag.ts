@@ -136,13 +136,15 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
     attribute: Schema.String,
     /**
      * Where a drag may land, when not on the element's own marked descendants:
-     * the elements marked by `attribute` inside the one `within` selects, such
-     * as a palette's Blocks dragged onto a page. A drop's `over` is then one of
-     * those; what is dragged is still one of the element's own. `within` is
-     * looked for nearest first, under the element's closest ancestor that holds
-     * a match, so two editors on one page each drop onto their own.
+     * the elements marked by each `attribute` inside the one its `within` selects,
+     * such as a palette's Blocks dragged onto a page and onto its layers. A drop's
+     * `over` is then one of those; what is dragged is still one of the element's own.
+     * `within` is looked for nearest first, under the element's closest ancestor that
+     * holds a match, so two editors on one page each drop onto their own.
      */
-    targets: Schema.optionalKey(Schema.Struct({ attribute: Schema.String, within: Schema.String })),
+    targets: Schema.optionalKey(
+      Schema.Array(Schema.Struct({ attribute: Schema.String, within: Schema.String })),
+    ),
     /**
      * An attribute that names a part of what a drop lands on, on an element
      * also marked as one: a place over it carries the part and is `inside`.
@@ -161,9 +163,10 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
         Effect.sync(() => {
           const owner = element.ownerDocument
           // What a drop lands on: the element's own marked descendants, or those of `targets`.
-          const landsOn = targets?.attribute ?? attribute
+          const lands = targets ?? [{ attribute, within: '' }]
           // Looked for at each move, so a redraw that replaced it is followed.
           const regionOf = (within: string): Element | null => {
+            if (targets === undefined) return element
             for (let at = element.parentElement; at !== null; at = at.parentElement) {
               const found = at.querySelector(within)
               if (found !== null) return found
@@ -171,14 +174,19 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             return null
           }
           const find = (from: EventTarget | null) => {
-            if (!(from instanceof Element)) return { marked: null, inRegion: false }
-            const region = targets === undefined ? element : regionOf(targets.within)
-            const marked = from.closest(`[${landsOn}]`)
-            return {
-              marked: marked !== null && region !== null && region.contains(marked) ? marked : null,
-              // Only a drag onto `targets` tells its region's empty space from elsewhere.
-              inRegion: targets !== undefined && region !== null && region.contains(from),
+            if (!(from instanceof Element))
+              return { marked: null, landsOn: attribute, inRegion: false }
+            let inRegion = false
+            for (const land of lands) {
+              const region = regionOf(land.within)
+              if (region === null) continue
+              const marked = from.closest(`[${land.attribute}]`)
+              if (marked !== null && region.contains(marked))
+                return { marked, landsOn: land.attribute, inRegion: targets !== undefined }
+              // Only a drag onto `targets` tells its regions' empty space from elsewhere.
+              inRegion ||= targets !== undefined && region.contains(from)
             }
+            return { marked: null, landsOn: attribute, inRegion }
           }
           // A press not yet a drag, or a drag under way: one pointer's, the first down.
           let pressed: {
@@ -226,7 +234,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
               typeof owner.elementFromPoint === 'function' && event.clientX !== undefined
                 ? owner.elementFromPoint(event.clientX, event.clientY ?? 0)
                 : null
-            const { marked, inRegion: region } = find(under ?? event.target)
+            const { marked, landsOn, inRegion: region } = find(under ?? event.target)
             const id = marked?.getAttribute(landsOn) ?? null
             // Over itself is over nothing, where what is dragged is among what it lands on.
             const named = part === undefined ? null : (marked?.getAttribute(part) ?? null)

@@ -444,7 +444,7 @@ describe('PointerDrag onto another region', () => {
             takeMessages(
               PointerDrag({
                 attribute: 'data-row',
-                targets: { attribute: 'data-node', within: '#page' },
+                targets: [{ attribute: 'data-node', within: '#page' }],
               }).f(palette, Mount.liveViewStateChanges),
               6,
             ),
@@ -478,6 +478,71 @@ describe('PointerDrag onto another region', () => {
   })
 })
 
+describe('PointerDrag onto two regions', () => {
+  it('lands on the marked descendants of each, by each one’s own attribute', async () => {
+    const palette = document.createElement('ul')
+    const tile = row('Heading', 0)
+    palette.append(tile)
+    const marked = (attribute: string, id: string, top: number) => {
+      const element = document.createElement('div')
+      element.setAttribute(attribute, id)
+      element.getBoundingClientRect = () =>
+        DOMRect.fromRect({ x: 0, y: top, width: 100, height: 30 })
+      return element
+    }
+    const page = document.createElement('div')
+    page.id = 'page'
+    const node = marked('data-node', 'n1', 100)
+    page.append(node)
+    const layers = document.createElement('ol')
+    layers.id = 'layers'
+    const layer = marked('data-layer', 'n2', 200)
+    layers.append(layer)
+    // A layer marked outside the layers, and a node inside the layers: neither is a place.
+    const strayLayer = marked('data-layer', 'stray', 300)
+    const wrongNode = marked('data-node', 'wrong', 210)
+    layers.append(wrongNode)
+    document.body.append(palette, page, layers, strayLayer)
+    try {
+      const facts = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(
+              PointerDrag({
+                attribute: 'data-row',
+                targets: [
+                  { attribute: 'data-node', within: '#page' },
+                  { attribute: 'data-layer', within: '#layers' },
+                ],
+              }).f(palette, Mount.liveViewStateChanges),
+              6,
+            ),
+          )
+          for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+          fire(tile, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+          fire(node, 'pointermove', { clientX: 10, clientY: 105 })
+          fire(layer, 'pointermove', { clientX: 10, clientY: 225 })
+          fire(wrongNode, 'pointermove', { clientX: 10, clientY: 215 })
+          fire(strayLayer, 'pointermove', { clientX: 10, clientY: 310 })
+          fire(layer, 'pointerup', { clientX: 10, clientY: 205 })
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(facts).toEqual([
+        DragStarted.make({ id: 'Heading' }),
+        DraggedOver.make({ over: { id: 'n1', zone: 'before' }, region: true }),
+        DraggedOver.make({ over: { id: 'n2', zone: 'after' }, region: true }),
+        // Over the layers' own space, not over a layer: no place, still in a region.
+        DraggedOver.make({ over: null, region: true }),
+        DraggedOver.make({ over: null, region: false }),
+        DragDropped.make({ id: 'Heading', over: { id: 'n2', zone: 'before' }, region: true }),
+      ])
+    } finally {
+      for (const each of [palette, page, layers, strayLayer]) each.remove()
+    }
+  })
+})
+
 describe('PointerDrag onto another region, in the second of two editors', () => {
   it('lands on the region nearest its own element, not the first on the page', async () => {
     /** An editor: a palette with one tile, and a page with one node. */
@@ -506,7 +571,7 @@ describe('PointerDrag onto another region, in the second of two editors', () => 
             takeMessages(
               PointerDrag({
                 attribute: 'data-row',
-                targets: { attribute: 'data-node', within: '.page' },
+                targets: [{ attribute: 'data-node', within: '.page' }],
               }).f(second.palette, Mount.liveViewStateChanges),
               3,
             ),

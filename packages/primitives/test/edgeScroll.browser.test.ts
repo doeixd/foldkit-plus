@@ -297,6 +297,46 @@ it('scrolls no box the pointer is beside rather than over', async () => {
   }
 })
 
+it('scrolls no box the pointer is below, over another panel', async () => {
+  const { box, list } = rows(20)
+  const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
+  try {
+    await later(20)
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    // Past the box's bottom edge, in the span across it: the pull would be full if this were its edge.
+    pointer(10, 140, 'pointermove')
+    await later(300)
+    expect(box.scrollTop).toBe(0)
+    pointer(10, 140, 'pointerup')
+  } finally {
+    await run.stop()
+  }
+})
+
+it('scrolls nothing for a pointer that only passes through the strip, and scrolls once it stays', async () => {
+  const { box, list } = rows(20)
+  const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
+  try {
+    await later(20)
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    // In the strip for a few frames, then out of it: a tile on its way elsewhere.
+    pointer(10, 95, 'pointermove')
+    await later(60)
+    pointer(10, 50, 'pointermove')
+    await later(300)
+    expect(box.scrollTop).toBe(0)
+    // Held there, it does scroll.
+    pointer(10, 95, 'pointermove')
+    await until(() => box.scrollTop > 0)
+    expect(box.scrollTop).toBeGreaterThan(0)
+    pointer(10, 95, 'pointerup')
+  } finally {
+    await run.stop()
+  }
+})
+
 it('walks the ancestors once a frame, not once a move, while nothing scrolls', async () => {
   const { list } = rows(20)
   const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
