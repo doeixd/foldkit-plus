@@ -193,6 +193,8 @@ const placed = placements.update((model, message) => {
     AskedForPage: () => ({ model, commands: [newPage] }),
     StartedPage: ({ entry }) => leaving(EditorSlot.helpers.create(entry)),
     // The back button is gone once closed: focus goes to the list it returns to.
+    // WAITING ON foldkit-mixins-crud (`data-row-key` on rows, approved): focus the row that
+    // was open, `[data-row-key="<entry>"] button`, instead of the list.
     ClosedEditor: () => {
       const closed = leaving(EditorSlot.helpers.close())
       return { ...closed, commands: [...closed.commands, focusOn('#sitePages', Message.Ticked())] }
