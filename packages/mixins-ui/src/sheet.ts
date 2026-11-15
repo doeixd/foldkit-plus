@@ -42,7 +42,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
-import { Behaviors } from 'foldkit-mixins'
+import { Behaviors, type NamedStyle } from 'foldkit-mixins'
 import { Swipe } from 'foldkit-primitives/dom'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
 import {
@@ -314,7 +314,9 @@ export interface SheetView<Outer> {
   readonly model: Model
   /** Lifts the Sheet's Messages into the application's. */
   readonly onMessage: (message: Message) => NoInfer<Outer>
-  /** The style (`Recipes.Sheet`) and any other mixins, on `DialogSlots`. */
+  /** A style of `DialogSlots` (`Recipes.Sheet`), for the sheet's look. */
+  readonly style?: NamedStyle<typeof DialogSlots> | undefined
+  /** Mixins beside the style, on `DialogSlots`. */
   readonly mixins?: MixinList<Outer>
   /** The handle's words. */
   readonly words?: SheetWords | undefined
@@ -416,46 +418,54 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
       hasDescription: options.hasDescription ?? false,
       toView: (render: UiDialog.RenderInfo) =>
         options.draw(
-          resolveDialog(render, [...(snapping ? [keys.mixin] : []), ...(options.mixins ?? [])], {
-            h,
-            input: model,
-            covered: options.covered ?? false,
-            isLeaving: isLeaving(model.dialog),
-            interactiveHandle: snapping,
-            attributes: {
-              dialog: [h.DataAttribute('side', model.side)],
-              panel: [
-                h.DataAttribute('sheet', model.side),
-                ...(options.scalesPage === true ? [h.DataAttribute('scales-page', '')] : []),
-                h.Style({ '--fk-sheet-snap': String(model.points[model.at] ?? 1) }),
-                // A sheet resting partway takes its full extent, so a point is
-                // a share of that and not of a panel only as tall as its content.
-                ...(model.points.some(point => point < 1) ? [h.DataAttribute('snaps', '')] : []),
-                // Below its highest point a swipe up raises it, so its content holds still.
-                ...(model.at < model.points.length - 1 ? [h.DataAttribute('lowered', '')] : []),
-                ...(model.swipeFrom === 'panel' ? [h.OnMount(swipe(true))] : []),
-                ...place,
-              ],
-              // The browser's own pan would take the press away from the drag.
-              handle: [
-                h.Style({ touchAction: 'none' }),
-                h.OnMount(swipe(false)),
-                ...(snapping
-                  ? [
-                      h.Role('separator'),
-                      h.Tabindex(0),
-                      h.AriaLabel(options.words?.handle ?? 'Resize sheet'),
-                      // A separator's orientation is the line it draws, across the sheet's edge.
-                      h.AriaOrientation(axis === 'y' ? 'horizontal' : 'vertical'),
-                      h.AriaValuenow(percent(model.at)),
-                      h.AriaValuemin(percent(0)),
-                      h.AriaValuemax(percent(last)),
-                      h.AriaControls(`${model.dialog.id}-panel`),
-                    ]
-                  : []),
-              ],
+          resolveDialog(
+            render,
+            [
+              ...(options.style === undefined ? [] : [options.style.mixin]),
+              ...(snapping ? [keys.mixin] : []),
+              ...(options.mixins ?? []),
+            ],
+            {
+              h,
+              input: model,
+              covered: options.covered ?? false,
+              isLeaving: isLeaving(model.dialog),
+              interactiveHandle: snapping,
+              attributes: {
+                dialog: [h.DataAttribute('side', model.side)],
+                panel: [
+                  h.DataAttribute('sheet', model.side),
+                  ...(options.scalesPage === true ? [h.DataAttribute('scales-page', '')] : []),
+                  h.Style({ '--fk-sheet-snap': String(model.points[model.at] ?? 1) }),
+                  // A sheet resting partway takes its full extent, so a point is
+                  // a share of that and not of a panel only as tall as its content.
+                  ...(model.points.some(point => point < 1) ? [h.DataAttribute('snaps', '')] : []),
+                  // Below its highest point a swipe up raises it, so its content holds still.
+                  ...(model.at < model.points.length - 1 ? [h.DataAttribute('lowered', '')] : []),
+                  ...(model.swipeFrom === 'panel' ? [h.OnMount(swipe(true))] : []),
+                  ...place,
+                ],
+                // The browser's own pan would take the press away from the drag.
+                handle: [
+                  h.Style({ touchAction: 'none' }),
+                  h.OnMount(swipe(false)),
+                  ...(snapping
+                    ? [
+                        h.Role('separator'),
+                        h.Tabindex(0),
+                        h.AriaLabel(options.words?.handle ?? 'Resize sheet'),
+                        // A separator's orientation is the line it draws, across the sheet's edge.
+                        h.AriaOrientation(axis === 'y' ? 'horizontal' : 'vertical'),
+                        h.AriaValuenow(percent(model.at)),
+                        h.AriaValuemin(percent(0)),
+                        h.AriaValuemax(percent(last)),
+                        h.AriaControls(`${model.dialog.id}-panel`),
+                      ]
+                    : []),
+                ],
+              },
             },
-          }),
+          ),
         ),
     },
     toParentMessage: message => onMessage(Message.GotDialog({ message })),

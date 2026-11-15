@@ -421,3 +421,14 @@ test('title: hidden takes the heading out of sight and leaves it naming the shee
     dispose()
   }
 })
+
+test('a style given as `style` styles the sheet as one given among the mixins', async () => {
+  const sheet = await open({}, {}, { via: 'style' })
+  try {
+    const look = getComputedStyle(sheet.panel)
+    expect(look.position).toBe('relative')
+    expect(look.borderTopWidth).toBe('1px')
+  } finally {
+    sheet.dispose()
+  }
+})

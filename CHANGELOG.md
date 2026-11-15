@@ -9,6 +9,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `Sheet.view` takes `style`, a style of `DialogSlots`, beside `mixins`,
+  as `Drawer.view`, `Command.view` and `Picker.view` do.
 - `foldkit-mixins-ui`: a `Sheet` with more than one point draws its handle as a focusable
   `separator` (it was `aria-hidden` and drag-only), named by `words.handle` (default
   `Resize sheet`), with `aria-valuenow` the percent shown and `aria-valuemin`, `-max` and

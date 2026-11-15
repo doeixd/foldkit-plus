@@ -298,4 +298,15 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a style given as `style` is ignored',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: '...(options.style === undefined ? [] : [options.style.mixin]),',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
 ]
