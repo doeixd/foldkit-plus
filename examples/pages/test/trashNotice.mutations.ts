@@ -83,4 +83,20 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a control focused leaves the tab stop where it was',
+    edits: [
+      {
+        file,
+        find: ': { model: modifyFields(model, { tabStop: () => Option.some(id) }) },',
+        replace: ': { model },',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the tab stop is rewritten when it is the same control',
+    edits: [{ file, find: 'Option.contains(model.tabStop, id)', replace: 'false' }],
+    tests,
+  },
 ]

@@ -666,6 +666,16 @@ describe('two people on one page', () => {
     ])
   })
 
+  it('holds the bar’s tab stop on the control focused last, and renders nothing for the same one', () => {
+    const model = initialModel('alice')
+    const stopped = update(model, Message.FocusedControl({ id: 'mark-Bold' })).model
+    expect(stopped.tabStop).toEqual(Option.some('mark-Bold'))
+    expect(update(stopped, Message.FocusedControl({ id: 'mark-Bold' })).model).toBe(stopped)
+    expect(update(stopped, Message.FocusedControl({ id: 'link' })).model.tabStop).toEqual(
+      Option.some('link'),
+    )
+  })
+
   it('gives a new page’s title the focus, and Enter in it the text', () => {
     expect(
       update(initialModel('alice'), Message.AddedPage({ title: 'T' })).commands?.map(

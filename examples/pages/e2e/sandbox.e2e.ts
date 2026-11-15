@@ -86,6 +86,7 @@ test('focus follows a new page, Enter in its title, a delete, and its undo', asy
   await page.click('#new-page')
   await expect.poll(() => focused(page)).toBe('page-title')
   await page.keyboard.type('Plans')
+  await expect.poll(() => page.inputValue('#page-title')).toBe('Plans')
   await page.keyboard.press('Enter')
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.closest('#page-body') !== null))
@@ -125,15 +126,71 @@ test('a keyboard reaches the block handle from the text, and its menu opens', as
   await page.goto(url)
   await page.waitForSelector('#new-page', { timeout: 120_000 })
   await page.click('#new-page')
+  await expect.poll(() => focused(page)).toBe('page-title')
   await page.keyboard.type('Notes')
   await page.keyboard.press('Enter')
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.closest('#page-body') !== null))
+    .toBe(true)
   await page.keyboard.type('First')
   await page.getByRole('button', { name: 'Block handle' }).waitFor()
   await page.keyboard.press('Tab')
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.getAttribute('aria-label')))
     .toBe('Block handle')
+  // A decoration refresh (presence redraws the carets) must not pull the focus back to the text.
+  await page.waitForTimeout(600)
+  expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe(
+    'Block handle',
+  )
   await page.keyboard.press('Enter')
   await page.getByRole('menu', { name: 'Block' }).waitFor()
+  await context.close()
+})
+
+test('the formatting bar is one tab stop with arrows, keeps the selection, and refuses an unavailable control', async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 800 } })
+  const page = await context.newPage()
+  await page.goto(url)
+  await page.waitForSelector('#new-page', { timeout: 120_000 })
+  await page.click('#new-page')
+  await expect.poll(() => focused(page)).toBe('page-title')
+  const bar = page.locator('[role="toolbar"][aria-label="Formatting"]')
+  const control = (item: string) => bar.locator(`[data-item="${item}"]`)
+
+  // Tab from the title lands on the bar's one stop; the arrows walk it, an unavailable control
+  // (nothing to undo) included, and the stop follows focus.
+  expect(await bar.locator('button[tabindex="0"]').count()).toBe(1)
+  await page.keyboard.press('Tab')
+  await expect.poll(() => focused(page)).toBe('bar-undo')
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(() => focused(page)).toBe('bar-redo')
+  await page.keyboard.press('End')
+  await expect.poll(() => focused(page)).toBe('bar-insert')
+  expect(await bar.locator('button[tabindex="0"]').getAttribute('id')).toBe('bar-insert')
+  await page.keyboard.press('Home')
+  await expect.poll(() => focused(page)).toBe('bar-undo')
+  expect(await control('undo').getAttribute('aria-disabled')).toBe('true')
+
+  // Pressing Bold toggles it on the selected text, and the selection stays for the next press.
+  await body(page).click()
+  await page.keyboard.type('Milk')
+  await page.keyboard.press('Shift+Home')
+  await control('mark-Bold').click()
+  await expect.poll(() => control('mark-Bold').getAttribute('aria-pressed')).toBe('true')
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('Milk')
+  await control('mark-Bold').click()
+  await expect.poll(() => control('mark-Bold').getAttribute('aria-pressed')).toBe('false')
+  await expect.poll(() => control('undo').getAttribute('aria-disabled')).toBe('false')
+
+  // Redo has nothing to redo: a press on it changes nothing.
+  expect(await control('redo').getAttribute('aria-disabled')).toBe('true')
+  await control('redo').dispatchEvent('click')
+  expect(await control('undo').getAttribute('aria-disabled')).toBe('false')
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    ),
+  ).toBe(0)
   await context.close()
 })

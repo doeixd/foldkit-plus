@@ -82,6 +82,16 @@ it on the projection, `translate` restates it as ops, and it is shared, undone a
 typing is. The slash catalogue (`src/vocabulary.ts`) is handed to `placeEditor`, so the menu
 the view draws and what Enter chooses are one list.
 
+The formatting bar, over the page and over selected text, is `formattingToolbar` from
+`foldkit-mixins-richtext`: one `role="toolbar"` with one tab stop, the arrows, Home and End
+moving between its controls, and a control that does not apply (nothing to undo) kept focusable but
+`aria-disabled`. The page owns the two things the bar cannot know: which menu is open (`menu`) and
+which control last had focus (`tabStop`, an `Option` in the Model, set by `FocusedControl`).
+What is pressed or unavailable is read from the document and selection, and a press sends an
+editor Message through `MenuEdit`, which also closes the open menu. Undo and redo are offered from
+this tab's own steps (`history`), not the editor's. Shortcuts the page binds beyond the
+editor's (Ctrl+U, Ctrl+Shift+H, Ctrl+K) are passed as `shortcuts`, so they show on the controls.
+
 
 The two-replica trace, which is what CI runs:
 

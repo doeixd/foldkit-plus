@@ -106,6 +106,8 @@ export const Model = Schema.Struct({
   hovered: Schema.Option(RichText.NodeId),
   /** The address in the link editor, while it is open. */
   linkDraft: Schema.String,
+  /** The formatting bar's control that has the tab stop: the one focused last. */
+  tabStop: Schema.Option(Schema.String),
   /** The page this tab just moved to the trash, which the empty page offers to bring back. */
   justTrashed: Schema.Option(Schema.String),
   /**
@@ -137,6 +139,8 @@ export const Message = defineMessageUnion({
   TrashedPage: { id: Schema.String },
   /** The notice's Undo: the page just trashed, restored and opened again. */
   UndidTrash: { id: Schema.String },
+  /** A formatting bar control took focus, so Tab returns to it. */
+  FocusedControl: { id: Schema.String },
   /** Enter in the title: on to the text. */
   EnteredTitle: {},
   GotEditor: { message: EditorMessage },
@@ -199,6 +203,7 @@ export const initialModel = (session: string): Model => ({
   menu: Option.none(),
   hovered: Option.none(),
   linkDraft: '',
+  tabStop: Option.none(),
   justTrashed: Option.none(),
   undo: [],
   redo: [],
@@ -630,6 +635,10 @@ export const update = (model: Model, message: Message): Return =>
         FocusField({ selector: '#page-title' }),
       ],
     }),
+    FocusedControl: ({ id }) =>
+      Option.contains(model.tabStop, id)
+        ? { model }
+        : { model: modifyFields(model, { tabStop: () => Option.some(id) }) },
     EnteredTitle: () => ({
       model,
       commands: [FocusField({ selector: '#page-body [contenteditable]' })],

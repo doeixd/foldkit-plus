@@ -9,22 +9,23 @@ import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
-  blockStyleMenu,
-  isRichTextIcon,
+  formattingToolbar,
+  type FormattingItem,
+  type FormattingMenu,
+  type RichTextIconName,
   linkEditor,
   richTextIcon,
   slashMenu,
   slashMenuView,
   slashMove,
   tableToolbar,
-  type RichTextIconName,
 } from 'foldkit-mixins-richtext'
 import { pagesDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import { editorView, menuTextOf, type EditorView } from 'foldkit-richtext-dom/editor-bundle'
-import { blockAnchor, blockDrag, markActive, selectionAnchor } from 'foldkit-richtext-dom/toolbar'
+import { blockAnchor, blockDrag, selectionAnchor } from 'foldkit-richtext-dom/toolbar'
 import { print } from 'foldkit-richtext-markdown'
 import {
   editorViewOf,
@@ -39,9 +40,10 @@ import {
 } from './app.js'
 import { dismissOnOutside, hoverTracking } from './canvas.js'
 import {
-  BlockStyleMenuStyle,
+  FormattingBarStyle,
   LinkEditorStyle,
   Page,
+  SelectionBarStyle,
   SlashMenuStyle,
   TableToolbarStyle,
 } from './style.js'
@@ -55,27 +57,48 @@ const slashEntries = pageSlashEntries.map(entry => ({ ...entry, message: wrap(en
 
 const SlashMenu = slashMenuView<Message>().pipe(Style.attach(SlashMenuStyle))
 const LinkEditor = linkEditor<Message>().pipe(Style.attach(LinkEditorStyle))
-const StyleMenu = blockStyleMenu<Message>().pipe(Style.attach(BlockStyleMenuStyle))
 const TableTools = tableToolbar<Message>().pipe(Style.attach(TableToolbarStyle))
+const Bar = formattingToolbar<Message>().pipe(Style.attach(FormattingBarStyle))
+const SelectionBar = formattingToolbar<Message>().pipe(Style.attach(SelectionBarStyle))
 const DemoGuide = demoGuide<Message>()
-
-/** The marks the toolbars offer; the less used ones step aside on a phone. */
-const MARKS: ReadonlyArray<
-  readonly [mark: string, icon: RichTextIconName, title: string, priority: 'high' | 'low']
-> = [
-  ['Bold', 'bold', 'Bold (Ctrl+B)', 'high'],
-  ['Italic', 'italic', 'Italic (Ctrl+I)', 'high'],
-  ['Underline', 'underline', 'Underline (Ctrl+U)', 'low'],
-  ['Strikethrough', 'strikethrough', 'Strikethrough (Ctrl+Shift+S)', 'low'],
-  ['Code', 'code', 'Inline code (Ctrl+E)', 'low'],
-  ['Highlight', 'highlight', 'Highlight (Ctrl+Shift+H)', 'low'],
-]
 
 /** What the toolbar's insert menu offers, by slash entry id, in this order. */
 const INSERTS = ['callout', 'table', 'divider', 'code-block'] as const
 
-const iconOf = (name: string | undefined): RichTextIconName =>
-  name !== undefined && isRichTextIcon(name) ? name : 'plus'
+const inserts = INSERTS.flatMap(id => pageSlashEntries.filter(entry => entry.id === id))
+
+/** This vocabulary's marks beside the editor's own, in the order a bar draws them. */
+const MARKS = ['Bold', 'Italic', 'Underline', 'Strikethrough', 'Code', 'Highlight'] as const
+
+/** The chords this page's keymap binds beyond the editor's own, shown on their controls. */
+const SHORTCUTS = {
+  'mark-Underline': 'mod+u',
+  'mark-Highlight': 'mod+shift+h',
+  link: 'mod+k',
+}
+
+const BAR_ITEMS: ReadonlyArray<FormattingItem> = [
+  'undo',
+  'redo',
+  'separator',
+  'style',
+  'separator',
+  ...MARKS.map((mark): FormattingItem => ({ mark })),
+  'link',
+  'separator',
+  'bulleted-list',
+  'numbered-list',
+  'checklist',
+  'quote',
+  'insert',
+]
+
+const SELECTION_ITEMS: ReadonlyArray<FormattingItem> = [
+  'style',
+  'separator',
+  ...MARKS.map((mark): FormattingItem => ({ mark })),
+  'link',
+]
 
 /** The page with this id, when it is in the trash. */
 const trashedPage = (model: Model, id: string): Option.Option<PageState> =>
@@ -128,7 +151,7 @@ export const PagesView = SlotView.forMessages<Message>()
               h.button(
                 slots.primary.attrs([
                   h.Type('button'),
-                  h.OnClick(Message.AddedPage({ title: 'Untitled' })),
+                  h.OnClick(Message.AddedPage({ title: '' })),
                 ]),
                 ['New page'],
               ),
@@ -154,7 +177,7 @@ const sidebar = (model: Model, slots: Slots, h: H): Html => {
       slots.newPage.attrs([
         h.Id('new-page'),
         h.Type('button'),
-        h.OnClick(Message.AddedPage({ title: 'Untitled' })),
+        h.OnClick(Message.AddedPage({ title: '' })),
       ]),
       [richTextIcon(h, 'plus'), 'New page'],
     ),
@@ -276,7 +299,7 @@ const openPage = (model: Model, open: PageState, slots: Slots, h: H): ReadonlyAr
         ]),
       ),
       toolbar(model, open, view, slots, h),
-      canvas(model, view, slots, h),
+      canvas(model, open, view, slots, h),
       h.details(slots.markdown.attrs(), [
         h.summary([], ['Markdown']),
         h.pre([], [print(view.document).markdown]),
@@ -284,45 +307,6 @@ const openPage = (model: Model, open: PageState, slots: Slots, h: H): ReadonlyAr
     ]),
   ]
 }
-
-/** One tool: an icon, named by its label or by its title without the shortcut. */
-const toolOf =
-  (slots: Slots, h: H) =>
-  (
-    name: RichTextIconName,
-    title: string,
-    message: Message,
-    {
-      pressed,
-      disabled = false,
-      label,
-      priority = 'high',
-    }: {
-      readonly pressed?: boolean
-      readonly disabled?: boolean
-      readonly label?: string
-      /** A low one is left out on a phone, where the slash menu still offers it. */
-      readonly priority?: 'high' | 'low'
-    } = {},
-  ): Html =>
-    h.button(
-      slots.tool.attrs([
-        h.Type('button'),
-        h.Title(title),
-        h.AriaLabel(label ?? title.replace(/ \(.*\)$/, '')),
-        h.DataAttribute('priority', priority),
-        ...(pressed === undefined ? [] : [h.AriaPressed(pressed ? 'true' : 'false')]),
-        h.Disabled(disabled),
-        ...(disabled ? [] : [h.OnClick(message)]),
-      ]),
-      [
-        richTextIcon(h, name),
-        ...(label === undefined ? [] : [h.span(slots.toolLabel.attrs(), [label])]),
-      ],
-    )
-
-const toggleMenu = (menu: Menu, isOpen: boolean): Message =>
-  isOpen ? Message.ClosedMenu() : Message.OpenedMenu({ menu })
 
 /** What is open, read once so the view asks plain questions of it. */
 const openMenu = (
@@ -349,144 +333,66 @@ const openMenu = (
 const dismiss = (slots: Slots, h: H): Html =>
   h.span(slots.dismiss.attrs([h.OnMount(dismissOnOutside())]), [])
 
-const markTools = (model: Model, view: EditorView, slots: Slots, h: H): ReadonlyArray<Html> => {
-  const state = {
-    document: view.document,
-    selection: view.selection,
-    storedMarks: model.storedMarks,
-  }
-  return MARKS.map(([mark, name, title, priority]) =>
-    toolOf(slots, h)(name, title, wrap(EditorMessage.ToggledMark({ mark })), {
-      pressed: markActive(state, mark),
-      priority,
-    }),
+/** The formatting bar over the open page, or the one over selected text. */
+const formatting = (
+  model: Model,
+  open: PageState,
+  view: EditorView,
+  place: 'toolbar' | 'floating',
+  h: H,
+): Html => {
+  const menus = openMenu(model)
+  const has = (steps: Model['undo']) => steps.some(step => step.page === open.id)
+  const menu: FormattingMenu | undefined =
+    menus.style === place ? 'style' : menus.link ? 'link' : menus.insert ? 'insert' : undefined
+  const onToolbar = place === 'toolbar'
+  return (onToolbar ? Bar : SelectionBar)(
+    {
+      id: onToolbar ? 'bar' : 'selection',
+      document: view.document,
+      selection: view.selection,
+      storedMarks: model.storedMarks,
+      // A choice closes the menu it was made in, as the edit is made.
+      wrap: message => Message.MenuEdit({ message }),
+      items: onToolbar ? BAR_ITEMS : SELECTION_ITEMS,
+      // Undo takes back this tab's own edits on this page, so it is offered while there are some.
+      history: { undo: has(model.undo), redo: has(model.redo) },
+      menu,
+      toggled: (which, isOpen) =>
+        isOpen ? Message.OpenedMenu({ menu: menuOf(which, place) }) : Message.ClosedMenu(),
+      inserts,
+      roving: { current: Option.getOrNull(model.tabStop) },
+      onFocus: id => Message.FocusedControl({ id }),
+      shortcuts: SHORTCUTS,
+      words: onToolbar ? undefined : { toolbar: 'Selection' },
+    },
+    h,
   )
 }
 
-const styleMenu = (
-  model: Model,
-  view: EditorView,
-  place: 'toolbar' | 'floating',
-  slots: Slots,
-  h: H,
-): Html => {
-  const isOpen = openMenu(model).style === place
-  return h.div(slots.anchor.attrs(), [
-    StyleMenu(
-      {
-        document: view.document,
-        selection: view.selection,
-        open: isOpen,
-        toggled: toggleMenu(Menu.Style({ place }), isOpen),
-        // A choice closes the menu as it retypes the block.
-        wrap: message => Message.MenuEdit({ message }),
-      },
-      h,
-    ),
-    ...(isOpen ? [dismiss(slots, h)] : []),
-  ])
-}
+const menuOf = (which: FormattingMenu, place: 'toolbar' | 'floating'): Menu =>
+  which === 'style' ? Menu.Style({ place }) : which === 'insert' ? Menu.Insert() : Menu.Link()
 
-// ADOPT: `formattingToolbar` from foldkit-mixins-richtext (approved, not yet built) replaces this
-// bar: one roving tab stop over undo and redo, the block style menu, the six marks, link, the
-// bullet, numbered and checklist wraps and quote, and the Insert menu (callout, table, divider,
-// code block); undo and redo disabled by this tab's own steps; the narrow-width `priority`.
+/** The bar, with a marker that closes an open menu on a press outside the bar or on Escape. */
 const toolbar = (model: Model, open: PageState, view: EditorView, slots: Slots, h: H): Html => {
-  const tool = toolOf(slots, h)
   const menus = openMenu(model)
-  const separator = (priority: 'high' | 'low' = 'high') =>
-    h.span(slots.separator.attrs([h.AriaHidden(true), h.DataAttribute('priority', priority)]), [])
-  // Undo takes back this tab's own edits on this page, so it is offered while there are some.
-  const has = (steps: Model['undo']) => steps.some(step => step.page === open.id)
-  const insert = h.div(slots.anchor.attrs(), [
-    tool('plus', 'Insert a block', toggleMenu(Menu.Insert(), menus.insert), {
-      pressed: menus.insert,
-      label: 'Insert',
-    }),
-    ...(menus.insert
-      ? [
-          h.div(
-            slots.dropdown.attrs([
-              h.Role('menu'),
-              h.AriaLabel('Insert'),
-              h.DataAttribute('align', 'end'),
-            ]),
-            INSERTS.flatMap(id => {
-              const entry = pageSlashEntries.find(each => each.id === id)
-              return entry === undefined
-                ? []
-                : [
-                    h.button(
-                      slots.menuItem.attrs([
-                        h.Type('button'),
-                        h.Role('menuitem'),
-                        h.OnClick(Message.MenuEdit({ message: entry.message })),
-                      ]),
-                      [
-                        richTextIcon(h, iconOf(entry.icon)),
-                        h.span(slots.menuLabel.attrs(), [entry.label]),
-                        h.span(slots.menuDescription.attrs(), [entry.description ?? '']),
-                      ],
-                    ),
-                  ]
-            }),
-          ),
-          dismiss(slots, h),
-        ]
-      : []),
-  ])
-  const wrapIn = (containers: ReadonlyArray<RichText.Container>) =>
-    wrap(EditorMessage.WrappedBlock({ containers }))
-  return h.div(slots.bar.attrs([h.Role('toolbar'), h.AriaLabel('Formatting')]), [
-    tool('undo', 'Undo (Ctrl+Z)', wrap(EditorMessage.Undone()), { disabled: !has(model.undo) }),
-    tool('redo', 'Redo (Ctrl+Shift+Z)', wrap(EditorMessage.Redone()), {
-      disabled: !has(model.redo),
-    }),
-    separator(),
-    styleMenu(model, view, 'toolbar', slots, h),
-    separator(),
-    ...markTools(model, view, slots, h),
-    tool('link', 'Link (Ctrl+K)', toggleMenu(Menu.Link(), menus.link), {
-      pressed: menus.link || RichText.linkAt(view.document, view.selection) !== undefined,
-      disabled: !RichText.coversText(view.selection),
-    }),
-    separator('low'),
-    tool('bulleted-list', 'Bulleted list', wrapIn([{ kind: 'List' }, { kind: 'ListItem' }]), {
-      priority: 'low',
-    }),
-    tool(
-      'numbered-list',
-      'Numbered list',
-      wrapIn([{ kind: 'List', props: { ordered: true } }, { kind: 'ListItem' }]),
-      { priority: 'low' },
-    ),
-    tool(
-      'checklist',
-      'Checklist',
-      wrapIn([{ kind: 'List' }, { kind: 'TaskItem', props: { checked: false } }]),
-    ),
-    tool('quote', 'Quote', wrapIn([{ kind: 'Quote' }]), { priority: 'low' }),
-    h.span(slots.spacer.attrs(), []),
-    insert,
+  return h.div(slots.barRegion.attrs(), [
+    formatting(model, open, view, 'toolbar', h),
+    ...(menus.style === 'toolbar' || menus.insert ? [dismiss(slots, h)] : []),
   ])
 }
 
 // --- over the editor -----------------------------------------------------------------------
 
-const canvas = (model: Model, view: EditorView, slots: Slots, h: H): Html => {
+const canvas = (model: Model, open: PageState, view: EditorView, slots: Slots, h: H): Html => {
   const menus = openMenu(model)
   const menuText = menuTextOf(view)
   const slash = slashMenu(slashEntries, menuText, model.menuIndex)
-  const tool = toolOf(slots, h)
   const floating =
     RichText.coversText(view.selection) && !menus.insert && menus.block === undefined
       ? [
           h.div(
-            slots.floating.attrs([
-              h.Role('toolbar'),
-              h.AriaLabel('Selection'),
-              h.OnMount(selectionAnchor({ hostId, gap: 8 })),
-            ]),
+            slots.floating.attrs([h.OnMount(selectionAnchor({ hostId, gap: 8 }))]),
             menus.link
               ? [
                   LinkEditor(
@@ -501,14 +407,18 @@ const canvas = (model: Model, view: EditorView, slots: Slots, h: H): Html => {
                     },
                     h,
                   ),
-                  tool('close', 'Close', Message.ClosedMenu()),
+                  h.button(
+                    slots.tool.attrs([
+                      h.Type('button'),
+                      h.AriaLabel('Close'),
+                      h.OnClick(Message.ClosedMenu()),
+                    ]),
+                    [richTextIcon(h, 'close')],
+                  ),
                 ]
               : [
-                  styleMenu(model, view, 'floating', slots, h),
-                  ...markTools(model, view, slots, h),
-                  tool('link', 'Link (Ctrl+K)', Message.OpenedMenu({ menu: Menu.Link() }), {
-                    pressed: RichText.linkAt(view.document, view.selection) !== undefined,
-                  }),
+                  formatting(model, open, view, 'floating', h),
+                  ...(menus.style === 'floating' ? [dismiss(slots, h)] : []),
                 ],
           ),
         ]
