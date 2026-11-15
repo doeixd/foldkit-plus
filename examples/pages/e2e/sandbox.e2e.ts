@@ -118,3 +118,22 @@ test('the sidebar opens a second tab, and each tab then says the other is online
     await expect.poll(() => tab.getByText('1 other online').count(), { timeout: 30_000 }).toBe(1)
   await context.close()
 })
+
+test('a keyboard reaches the block handle from the text, and its menu opens', async () => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  await page.goto(url)
+  await page.waitForSelector('#new-page', { timeout: 120_000 })
+  await page.click('#new-page')
+  await page.keyboard.type('Notes')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('First')
+  await page.getByRole('button', { name: 'Block handle' }).waitFor()
+  await page.keyboard.press('Tab')
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.getAttribute('aria-label')))
+    .toBe('Block handle')
+  await page.keyboard.press('Enter')
+  await page.getByRole('menu', { name: 'Block' }).waitFor()
+  await context.close()
+})

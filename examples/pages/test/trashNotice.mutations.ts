@@ -1,6 +1,6 @@
 /**
- * The trash notice and where focus goes after a page is made, entered or deleted, broken in
- * turn: `pnpm mutate examples/pages/test/trashNotice.mutations.ts`.
+ * The trash notice, where focus goes after a page is made, entered or deleted, and the handle
+ * following the caret, broken in turn: `pnpm mutate examples/pages/test/trashNotice.mutations.ts`.
  */
 const file = '../src/app.ts'
 const tests = ['examples/pages/test/pages.test.ts']
@@ -68,6 +68,17 @@ export default [
         file,
         find: "commands: [FocusField({ selector: '#page-body [contenteditable]' })],",
         replace: 'commands: [],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a caret moved by the keys leaves the handle where the pointer was',
+    edits: [
+      {
+        file,
+        find: 'undoGroup: moved ? Option.none() : model.undoGroup,',
+        replace: 'undoGroup: moved ? Option.none() : model.undoGroup, hovered: model.hovered,',
       },
     ],
     tests,

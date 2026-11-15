@@ -677,6 +677,22 @@ describe('two people on one page', () => {
     ).toEqual(['FocusField'])
   })
 
+  it('hands the handle from the pointer to the caret when the caret moves', async () => {
+    const replica = await open('bob')
+    replicas.push(replica)
+    let model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'P' }))
+    const page = Option.getOrThrow(model.open)
+    const run = () =>
+      Replicated.project(Option.getOrThrow(pageOf(model, page)).body).children[0]!.children[0]!.id
+    const editor = async (message: EditorMessage) => {
+      model = await bobEdits(replica, model, Message.GotEditor({ message }))
+    }
+    const hovered = Option.some(RichText.NodeId.make('x'))
+    model = { ...model, hovered }
+    await editor(EditorMessage.Selected({ selection: caretAt(run(), 0) }))
+    expect(model.hovered).toEqual(Option.none())
+  })
+
   it('ends a run of typing when the caret is put elsewhere, so undo takes back what followed', async () => {
     const replica = await open('bob')
     replicas.push(replica)

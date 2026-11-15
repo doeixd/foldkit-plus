@@ -430,6 +430,8 @@ const commit = (
       model: {
         ...model,
         selection: translated.selection,
+        // The caret is where the handle goes next, as the pointer was.
+        hovered: Option.none(),
         undoGroup: moved ? Option.none() : model.undoGroup,
       },
       commands,

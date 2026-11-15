@@ -387,6 +387,10 @@ const styleMenu = (
   ])
 }
 
+// ADOPT: `formattingToolbar` from foldkit-mixins-richtext (approved, not yet built) replaces this
+// bar: one roving tab stop over undo and redo, the block style menu, the six marks, link, the
+// bullet, numbered and checklist wraps and quote, and the Insert menu (callout, table, divider,
+// code block); undo and redo disabled by this tab's own steps; the narrow-width `priority`.
 const toolbar = (model: Model, open: PageState, view: EditorView, slots: Slots, h: H): Html => {
   const tool = toolOf(slots, h)
   const menus = openMenu(model)
@@ -533,13 +537,18 @@ const canvas = (model: Model, view: EditorView, slots: Slots, h: H): Html => {
             [TableTools({ document: view.document, selection: view.selection, wrap }, h)],
           ),
         ]
-  const handle = Option.match(model.hovered, {
-    onNone: () => [],
-    onSome: node =>
-      RichText.locateBlock(view.document, node) === undefined
-        ? []
-        : [blockHandle(model, view, node, slots, h)],
-  })
+  // The block under the pointer, or else the one holding the caret, so that a keyboard user
+  // reaches a handle too: it comes right after the text in the tab order.
+  const handle = Option.match(
+    Option.orElse(model.hovered, () => caretBlock(view)),
+    {
+      onNone: () => [],
+      onSome: node =>
+        RichText.locateBlock(view.document, node) === undefined
+          ? []
+          : [blockHandle(model, view, node, slots, h)],
+    },
+  )
   return h.div(
     slots.canvas.attrs([
       h.OnMount(hoverTracking()),
@@ -574,6 +583,21 @@ const canvas = (model: Model, view: EditorView, slots: Slots, h: H): Html => {
 }
 
 // --- the block handle ----------------------------------------------------------------------
+
+/** The top-level block the caret is in. */
+const caretBlock = ({ document, selection }: EditorView): Option.Option<RichText.NodeId> => {
+  if (selection?.type !== 'Range') return Option.none()
+  const caret = selection.focus.node
+  return Option.fromUndefinedOr(
+    document.children.find(top => {
+      let holds = false
+      RichText.eachBlock([top], inner => {
+        holds ||= inner.children.some(run => run.id === caret)
+      })
+      return holds
+    })?.id,
+  )
+}
 
 const blockMenu = (view: EditorView, node: RichText.NodeId, slots: Slots, h: H): Html => {
   const block = RichText.locateBlock(view.document, node)?.block

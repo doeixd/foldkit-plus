@@ -12,7 +12,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // rounded up to the next 500 bytes.
 // +36 bytes over 227,000 on 2026-11-14 (226,702 at 28bf08e31, fresh builds of both): conformed.js, 137 bytes minified,
 // the obligations' carry through `SlotView`'s detach and replace (#552), and a few bytes of Schema and Sync.
-const CEILING = 227_500
+// +15 bytes over 227,500 on 2026-11-15 (227,515): the demo's own notice, second-tab link and caret
+// handle (about 1.2 kB minified of app code), and whatever the shared tree's packages changed meanwhile.
+const CEILING = 228_000
 
 clientBudget({
   name: 'pages',
