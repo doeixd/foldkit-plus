@@ -583,13 +583,7 @@ export default [
   },
   {
     name: 'a dialog does not give focus back',
-    edits: [
-      edit(
-        focusScope,
-        'if (restore) giveBack(element, way, below)',
-        'if (false) giveBack(element, way, below)',
-      ),
-    ],
+    edits: [edit(focusScope, 'if (!restore || backToOpener(way)) return', 'return')],
     tests: dialog,
   },
   {
