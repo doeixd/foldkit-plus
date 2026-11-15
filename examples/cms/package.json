@@ -30,6 +30,7 @@
     "foldkit-mixins-builder": "workspace:*",
     "foldkit-mixins-crud": "workspace:*",
     "foldkit-mixins-form": "workspace:*",
+    "foldkit-mixins-richtext": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
     "foldkit-primitives": "workspace:*",
     "foldkit-remote": "workspace:*",

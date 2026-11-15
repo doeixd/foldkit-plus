@@ -498,6 +498,9 @@ importers:
       foldkit-mixins-form:
         specifier: workspace:*
         version: link:../../packages/mixins-form
+      foldkit-mixins-richtext:
+        specifier: workspace:*
+        version: link:../../packages/mixins-richtext
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui
