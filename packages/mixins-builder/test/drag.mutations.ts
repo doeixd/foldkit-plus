@@ -125,4 +125,104 @@ export default [
     ],
     tests: touch,
   },
+  {
+    name: 'a tile cannot be dropped on a layer row',
+    edits: [
+      {
+        file: view,
+        find: '  { attribute: `data-${ROW_ATTRIBUTE}`, within: \'[data-panel="layers"] [role="tree"]\' },\n',
+        replace: '',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'a drag held below the palette, over the layers, scrolls the palette',
+    edits: [
+      {
+        file: '../../primitives/src/dom/edge-scroller.ts',
+        find: '        if (!over) continue\n',
+        replace: '',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'what is carried never says it has no place',
+    edits: [
+      {
+        file: view,
+        find: "Option.isSome(each.at) ? 'here' : 'nowhere'",
+        replace: "'here'",
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'the end of the page is marked over a node too',
+    edits: [
+      {
+        file: view,
+        find: 'Option.isSome(each.at) && Option.isNone(each.over)',
+        replace: 'Option.isSome(each.at)',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'the end of the page is never marked',
+    edits: [
+      {
+        file: view,
+        find: 'Option.isSome(each.at) && Option.isNone(each.over)',
+        replace: 'false',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'the canvas does not say where a drag is',
+    edits: [
+      {
+        file: view,
+        find: '            h.Tabindex(0),\n            ...placeMark(input.drag, h),\n',
+        replace: '            h.Tabindex(0),\n',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'the node’s commands inherit the handle’s refusal of the pointer',
+    edits: [
+      {
+        file: view,
+        find: "        // The handle takes no pointer, and a descendant inherits that: the commands are pressed.\n        pointerEvents: 'auto',\n",
+        replace: '',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'a look’s display on the menu leaves it open while closed',
+    edits: [
+      {
+        file: view,
+        find: "      Style.nest('&:not(:popover-open)', { display: 'none !important' }),\n",
+        replace: '',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'a finger’s preview hangs off the finger’s right, which a phone’s edge cuts',
+    edits: [
+      {
+        file: view,
+        find: "'translate(calc(var(--fk-drag-x, 0px) - 50%), calc(var(--fk-drag-y, 0px) - 72px))'",
+        replace:
+          "'translate(calc(var(--fk-drag-x, 0px) + 12px), calc(var(--fk-drag-y, 0px) - 72px))'",
+      },
+    ],
+    tests: touch,
+  },
 ]

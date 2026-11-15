@@ -256,12 +256,19 @@ const FrameDefaults = Style.forSlots(BuilderSlots)(
       // What is carried must not be under the pointer, or it would hide the drop from it.
       Style.nest(':root[data-fk-drag] &', { pointerEvents: 'none' }),
     ),
-    nodeMenu: Style.self({
-      // The popover's own box: placed beside the grip where anchors position, else in the middle.
-      margin: '0',
-      positionAnchor: '--builder-grip',
-      positionArea: 'block-end span-inline-start',
-    }),
+    nodeMenu: Style.compose(
+      Style.self({
+        // The popover's own box: placed beside the grip where anchors position, else in the middle.
+        margin: '0',
+        positionAnchor: '--builder-grip',
+        positionArea: 'block-end span-inline-start',
+        // The handle takes no pointer, and a descendant inherits that: the commands are pressed.
+        pointerEvents: 'auto',
+      }),
+      // A `display` an application's look gives the menu would beat the browser's hiding of a
+      // closed popover, and leave every selected node's commands open over the page.
+      Style.nest('&:not(:popover-open)', { display: 'none !important' }),
+    ),
     nodeAction: Style.media('(pointer: coarse)', { minBlockSize: '2.75rem' }),
     // Physical `top` and `left`: the pointer's coordinates are physical, whatever the direction.
     dragPreview: Style.compose(
@@ -280,10 +287,10 @@ const FrameDefaults = Style.forSlots(BuilderSlots)(
         transform:
           'translate(calc(var(--fk-drag-x, 0px) + 12px), calc(var(--fk-drag-y, 0px) + 12px))',
       }),
-      // A finger's is lifted clear of the finger.
+      // A finger's is lifted clear of the finger, and centred over it so a phone's edge cuts neither side.
       Style.nest(':root[data-fk-drag="touch"] &', {
         transform:
-          'translate(calc(var(--fk-drag-x, 0px) + 12px), calc(var(--fk-drag-y, 0px) - 72px))',
+          'translate(calc(var(--fk-drag-x, 0px) - 50%), calc(var(--fk-drag-y, 0px) - 72px))',
       }),
     ),
     // A container, so what it holds may be laid out by the editor's width, not the window's.
@@ -410,6 +417,12 @@ const dragMessage =
         return Message.DragCancelled()
     }
   }
+
+/** Where a drag from outside the page lands: the canvas's nodes and the layers' rows, which share ids. */
+const pageTargets = [
+  { attribute: `data-${NODE_ATTRIBUTE}`, within: '[data-builder-canvas]' },
+  { attribute: `data-${ROW_ATTRIBUTE}`, within: '[data-panel="layers"] [role="tree"]' },
+] as const
 
 /** A row or a node dragged: a node on the page. */
 const nodeDrag = dragMessage(id => ({ _tag: 'Existing', id: NodeId.make(id) }))
@@ -1190,6 +1203,30 @@ export const BuilderView = {
     // A drop is marked only where it would land: `at` is none where the page refuses it.
     const dropOf = (drag: Model['drag']) =>
       Option.flatMap(drag, each => (Option.isSome(each.at) ? each.over : Option.none()))
+    /**
+     * What a drag under way says of where it is: on `data-drag-place`, `here` where a drop would
+     * land and `nowhere` where it would be refused or is over nothing, so a stylist can show both.
+     * Absent while nothing is carried.
+     */
+    const placeMark = (drag: Model['drag'], h: HtmlBuilder<Message>) =>
+      Option.match(drag, {
+        onNone: () => [],
+        onSome: each => [
+          h.DataAttribute('drag-place', Option.isSome(each.at) ? 'here' : 'nowhere'),
+        ],
+      })
+    /**
+     * The end of the page, or of the layers, as a drop place: a drag over the page's own space,
+     * over no node, where it would land last. A node's own place is marked on the node.
+     */
+    const endMark = (drag: Model['drag'], h: HtmlBuilder<Message>) =>
+      Option.match(drag, {
+        onNone: () => [],
+        onSome: each =>
+          Option.isSome(each.at) && Option.isNone(each.over)
+            ? [h.DataAttribute(ROW_DROP_ATTRIBUTE, 'end')]
+            : [],
+      })
 
     // The shortcuts, on the layers and on the canvas; each part draws one of the two.
     const Shortcuts = Behavior.forSlots(BuilderSlots)<
@@ -1277,8 +1314,8 @@ export const BuilderView = {
             container: 'palette',
             attribute: 'data-block',
             edgeScroll: {},
-            // Its own canvas, found from the palette, whatever the Builder's name holds.
-            targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: '[data-builder-canvas]' },
+            // Its own canvas and layers, found from the palette, whatever the Builder's name holds.
+            targets: pageTargets,
             part: `data-${REGION_ATTRIBUTE}`,
             toMessage: tileDrag,
           }),
@@ -1477,7 +1514,12 @@ export const BuilderView = {
         )
         const shown = TreeNavigation.shown(rowsOf(document), input.layers, layersArgs)
         const tree = h.ul(
-          slots.tree.attrs([h.Role('tree'), h.AriaLabel(wordsOf(input.words).layers)]),
+          slots.tree.attrs([
+            h.Role('tree'),
+            h.AriaLabel(wordsOf(input.words).layers),
+            ...placeMark(input.drag, h),
+            ...endMark(input.drag, h),
+          ]),
           // Each row drawn again only when what it shows changed: a new selection
           // redraws the row it left and the row it reached.
           shown.map((row, index) =>
@@ -1749,7 +1791,7 @@ export const BuilderView = {
           PointerDrag.behavior(BuilderSlots)<Pick<BuilderInput, never>, Message>({
             container: 'nodeHandle',
             attribute: `data-${HANDLE_ATTRIBUTE}`,
-            targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: '[data-builder-canvas]' },
+            targets: pageTargets,
             part: `data-${REGION_ATTRIBUTE}`,
             edgeScroll: {},
             toMessage: nodeDrag,
@@ -1789,11 +1831,13 @@ export const BuilderView = {
             h.Role('region'),
             h.AriaLabel(wordsOf(input.words).canvas),
             h.Tabindex(0),
+            ...placeMark(input.drag, h),
           ]),
           [
             h.div(
               slots.frame.attrs([
                 h.DataAttribute('viewport', input.viewport),
+                ...endMark(input.drag, h),
                 // The width is the frame's own; the rule that reads it is `FrameDefaults`.
                 h.Style({ '--fk-frame-width': viewportWidths[input.viewport] }),
               ]),
@@ -1871,6 +1915,7 @@ export const BuilderView = {
                 h.AriaHidden(true),
                 h.Attribute('popover', 'manual'),
                 h.DataAttribute('drag-source', kind),
+                ...placeMark(input.drag, h),
               ]),
               [
                 h.span(slots.dragPreviewLabel.attrs(), [block]),

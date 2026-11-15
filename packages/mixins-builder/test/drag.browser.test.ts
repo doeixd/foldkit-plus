@@ -209,3 +209,94 @@ it('draws nothing again for pointer moves that stay in one place, over a page of
   }
   expect(mounted.views()).toBe(before)
 })
+
+const tile = (block: string) => {
+  const found = document.querySelector<HTMLElement>(`button[data-block="${block}"]`)
+  if (found === null) throw new Error(`no tile ${block}`)
+  return found
+}
+
+/** Presses a palette tile and moves in steps to a point. */
+const dragTileTo = async (block: string, to: { clientX: number; clientY: number }) => {
+  const from = tile(block)
+  const start = centre(from)
+  pointer(from, 'pointerdown', start)
+  for (let step = 1; step <= 6; step++) {
+    pointer(document.body, 'pointermove', {
+      clientX: start.clientX + ((to.clientX - start.clientX) * step) / 6,
+      clientY: start.clientY + ((to.clientY - start.clientY) * step) / 6,
+    })
+    await frame()
+  }
+}
+
+it('adds a tile where it is dropped on a layer row, marking the row first, and leaves the palette where it was', async () => {
+  mounted = mountBuilder()
+  await ready()
+  const target = rowOf('h5')
+  if (target === undefined) throw new Error('no row')
+  const palette = document.querySelector<HTMLElement>('nav[data-panel="insert"]')
+  if (palette === null) throw new Error('no palette')
+  await dragTileTo('Heading', centre(target, 0.9))
+  await vi.waitFor(() => expect(target.getAttribute('data-builder-drop')).toBe('after'))
+  expect(document.querySelectorAll('[data-builder-drop]')).toHaveLength(1)
+  expect(document.querySelector('[data-builder-drop="end"]')).toBeNull()
+  // Held below the palette, over another panel: the palette is not scrolled away from under the drag.
+  await new Promise(resolve => setTimeout(resolve, 300))
+  expect(palette.scrollTop).toBe(0)
+  const before = order().length
+  pointer(document.body, 'pointerup', centre(target, 0.9))
+  await vi.waitFor(() => expect(order()).toHaveLength(before + 1))
+  // After h5: the old h6 is pushed to the eighth place.
+  expect(order().slice(5, 8)).toEqual(['Heading 5', order()[6], 'Heading 6'])
+  expect(order()[6]).not.toMatch(/^Heading \d/)
+  expect(document.querySelector('[data-builder-drop]')).toBeNull()
+})
+
+it('says where a tile would land: here, marked at the end of the page over its empty space, and nowhere away from the page', async () => {
+  mounted = mountBuilder(longPage(4))
+  await ready()
+  const page = canvas()
+  if (page === null) throw new Error('no canvas')
+  const box = page.getBoundingClientRect()
+  const carried = () => document.querySelector('[data-drag-source]')
+  const tree = document.querySelector('[role="tree"]')
+
+  // The page's own space, below the last node: it would land last, which the frame and the layers mark.
+  await dragTileTo('Heading', { clientX: box.left + box.width / 2, clientY: box.bottom - 8 })
+  await vi.waitFor(() => expect(carried()?.getAttribute('data-drag-place')).toBe('here'))
+  expect(document.querySelectorAll('[data-builder-drop="end"]')).toHaveLength(2)
+  expect(tree?.getAttribute('data-builder-drop')).toBe('end')
+  expect(page.getAttribute('data-drag-place')).toBe('here')
+
+  // Past the page and the layers: no place, and what is carried says so.
+  pointer(document.body, 'pointermove', { clientX: box.right + 400, clientY: box.bottom + 300 })
+  await vi.waitFor(() => expect(carried()?.getAttribute('data-drag-place')).toBe('nowhere'))
+  expect(document.querySelector('[data-builder-drop]')).toBeNull()
+  expect(page.getAttribute('data-drag-place')).toBe('nowhere')
+  const before = order().length
+  pointer(document.body, 'pointerup', { clientX: box.right + 400, clientY: box.bottom + 300 })
+  await vi.waitFor(() => expect(mounted?.model()?.editor.drag._tag).toBe('None'))
+  expect(order()).toHaveLength(before)
+  expect(page.hasAttribute('data-drag-place')).toBe(false)
+  expect(document.querySelector('[data-builder-drop]')).toBeNull()
+})
+
+it('keeps the selected node’s commands closed until the grip opens them, whatever display a look gives the menu', async () => {
+  mounted = mountBuilder(longPage(12), '[role="group"][popover] { display: grid; }')
+  await ready()
+  const box = boxOfNode('h2')
+  if (box === null) throw new Error('no node')
+  box.click()
+  const menu = () => document.querySelector<HTMLElement>('[role="group"][popover]')
+  await vi.waitFor(() => expect(menu()).not.toBeNull())
+  expect(getComputedStyle(menu()!).display).toBe('none')
+  document.querySelector<HTMLElement>('[data-builder-handle]')?.click()
+  await vi.waitFor(() => expect(menu()?.matches(':popover-open')).toBe(true))
+  expect(getComputedStyle(menu()!).display).toBe('grid')
+  // A command can be pressed: the handle takes no pointer, and its menu must not inherit that.
+  const action = menu()?.querySelector<HTMLElement>('button[data-action="duplicate"]')
+  if (action === null || action === undefined) throw new Error('no command')
+  const at = centre(action)
+  expect(document.elementFromPoint(at.clientX, at.clientY)).toBe(action)
+})

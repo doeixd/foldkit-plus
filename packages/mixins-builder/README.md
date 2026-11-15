@@ -133,9 +133,9 @@ Five Behaviors are attached, each from `foldkit-primitives`:
 | `canvas` | `EditableText` | A double-click on text the page draws as a field, or Enter on its node, edits it where it is: typing sets the prop, Enter or leaving commits, Escape puts it back. A press in it selects text rather than dragging the node. |
 | `layers`, `canvas` | `KeepInView` | Whatever became selected (a click, a shortcut, an insert, the address) is scrolled into view, its row in the layers and its element on the page. |
 | `tree`, `canvas` | `PointerDrag` | A row or a node pressed and moved 4px (a finger's: held still 400ms) is dragged; over another, the drop lands before it, inside it or after it by which third of it the pointer is in; releasing moves it where the pointer let go, and Escape or a cancelled pointer drops nothing. Held near the edge of the layers or the canvas, the drag scrolls it. |
-| `nodeHandle` | `PointerDrag`, onto the canvas | The selected node's grip drags it as a row or a node is dragged. A tap or a click on the grip opens `nodeMenu` instead: the node's commands (move, indent, duplicate, delete) as buttons, a `popover` the platform opens and closes, so a finger has every move a key has. |
-| `dragPreview` | `DragPreview` | What a drag carries, in the top layer above every panel, `aria-hidden` and taking no pointer, following the pointer by the custom properties `PointerDrag` writes on the root (`--fk-drag-x`, `--fk-drag-y`), so a move redraws nothing; a finger's sits above the finger. Drawn by the `Carried` part. |
-| `palette` | `PointerDrag`, onto the canvas | A Block's tile dragged onto the page lands the same way and adds a new node of it there; a press without a drag adds it where its title says. A pattern's tile is pressed, not dragged. |
+| `nodeHandle` | `PointerDrag`, onto the canvas and the layers | The selected node's grip drags it as a row or a node is dragged. A tap or a click on the grip opens `nodeMenu` instead: the node's commands (move, indent, duplicate, delete) as buttons, a `popover` the platform opens and closes, so a finger has every move a key has. The menu takes the pointer the handle refuses, and a closed one stays hidden whatever `display` a look gives `nodeMenu` (an important rule in `components`): give it `display` for when it is open. |
+| `dragPreview` | `DragPreview` | What a drag carries, in the top layer above every panel, `aria-hidden` and taking no pointer, following the pointer by the custom properties `PointerDrag` writes on the root (`--fk-drag-x`, `--fk-drag-y`), so a move redraws nothing; a finger's sits above it, centred on it. Drawn by the `Carried` part. |
+| `palette` | `PointerDrag`, onto the canvas and the layers | A Block's tile dragged onto the page, or onto a layer row, lands the same way (a row by its thirds, as a node is) and adds a new node of it there; a press without a drag adds it where its title says. A pattern's tile is pressed, not dragged. |
 
 The shortcuts are on the layers panel and the canvas, not the whole editor,
 so Delete in a text box edits the text. The canvas is focusable, so a press on
@@ -237,6 +237,13 @@ measured from, and `data-composition-drop` (`before`, `inside` or `after`) on
 the node a drop would land at. A wrapper is `display: contents` and draws
 nothing, so style the element inside it. The layer rows carry
 `data-builder-drop` and `data-builder-dragging` the same way.
+
+A drop over the page's own space (over no node) lands last, which the frame
+and the layers' `tree` mark as `data-builder-drop="end"`. While a drag is under
+way `dragPreview`, `canvas` and `tree` carry `data-drag-place`: `here` where a
+drop would land and `nowhere` where it would be refused or the pointer is over
+nothing, so a look can show the one and refuse the other (a dashed preview, a
+`not-allowed` cursor).
 
 A drag under way also writes the pointer's place on the document root, for
 the preview and for any style of yours that follows the pointer: `--fk-drag-x`

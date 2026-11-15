@@ -118,6 +118,8 @@ it('drags the node by a hold on the handle, lifts the preview clear of the finge
   const handle = grip()
   const target = boxOfNode('h6')
   if (handle === null || target === null) throw new Error('no handle')
+  // A finger can only be put where the canvas shows the target: past its edge is another panel's.
+  target.scrollIntoView({ block: 'center' })
   finger(handle, 'pointerdown', centre(handle))
   const menu = new Event('contextmenu', { bubbles: true, cancelable: true })
   handle.dispatchEvent(menu)
@@ -139,6 +141,9 @@ it('drags the node by a hold on the handle, lifts the preview clear of the finge
   await frame()
   // Above the finger, not under it.
   expect(preview()?.getBoundingClientRect().bottom).toBeLessThanOrEqual(to.clientY)
+  // And centred over it, so the edge of a phone cuts neither side.
+  const lifted = preview()?.getBoundingClientRect()
+  expect((lifted?.left ?? 0) + (lifted?.width ?? 0) / 2).toBeCloseTo(to.clientX, 0)
   finger(document.body, 'pointerup', to)
   await vi.waitFor(() => expect(order().indexOf('Heading 2')).toBe(6))
   expect(preview()).toBeNull()

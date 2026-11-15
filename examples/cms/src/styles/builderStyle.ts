@@ -237,7 +237,19 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       Style.self({ flex: '1', minHeight: '0' }),
       Style.container(narrowBuilder, { maxHeight: '40vh' }),
     ),
-    tree: Style.self({ listStyle: 'none', margin: '0', padding: '0' }),
+    tree: Style.compose(
+      Style.self({ listStyle: 'none', margin: '0', padding: '0' }),
+      // A drop over the layers' own space lands last: a line under the last row says so.
+      Style.nest('&[data-builder-drop="end"]::after', {
+        background: t.accent.default,
+        blockSize: '2px',
+        content: '""',
+        display: 'block',
+        marginBlockStart: t.space['3xs'],
+      }),
+      // A drag with no place under it: the pointer says it is refused where it is.
+      Style.nest('&[data-drag-place="nowhere"] *', { cursor: 'not-allowed' }),
+    ),
     row: Style.compose(
       blockIcons,
       Style.self({
@@ -495,6 +507,7 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         minBlockSize: '4rem',
         padding: t.space.sm,
       }),
+      Style.nest('&[data-drag-place="nowhere"] *', { cursor: 'not-allowed' }),
       Style.nest('[data-composition-region][data-composition-drop]', {
         background: t.accent.subtle,
         borderColor: selection,
@@ -533,6 +546,14 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         transition: 'max-width 200ms ease',
       }),
       Style.container('builder (max-width: 30rem)', { padding: t.space.xs }),
+      // A drop over the page's own space lands last: a line under the page says so.
+      Style.nest('&[data-builder-drop="end"]::after', {
+        background: selection,
+        blockSize: '3px',
+        borderRadius: t.radius.full,
+        content: '""',
+        display: 'block',
+      }),
     ),
     empty: Style.self({
       border: `2px dashed ${t.outline.default}`,
@@ -597,6 +618,13 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         opacity: '0.95',
         padding: `${t.space['2xs']} ${t.space.sm}`,
       }),
+      // Where a drop would be refused: the card goes dashed and faint, in the error's colour.
+      Style.nest('&[data-drag-place="nowhere"]', {
+        borderColor: t.error.ink,
+        borderStyle: 'dashed',
+        opacity: '0.7',
+      }),
+      Style.nest('&[data-drag-place="nowhere"] > :first-child', { color: t.error.ink }),
     ),
     dragPreviewLabel: Style.self({
       color: t.accent.ink,

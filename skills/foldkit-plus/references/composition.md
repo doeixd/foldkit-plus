@@ -389,7 +389,7 @@ const DrawnPageForm = Form.make('PageForm', PageInput, {
   `display: contents`): `[data-composition-mark='selected'|'hovered'] > *` (selected
   wins on a node that is both), `[data-composition-drop='before'|'inside'|'after'] > *`;
   an empty Region is its own element, `[data-composition-region]` (with the node's id, and
-  `data-composition-drop` on it while a drop aims there): give it a box to drop into; rows carry `data-builder-drop` and `data-builder-dragging`.
+  `data-composition-drop` on it while a drop aims there): give it a box to drop into; rows carry `data-builder-drop` and `data-builder-dragging`; the frame and the layers' tree carry `data-builder-drop="end"` over the page's own space; `dragPreview`, `canvas` and `tree` carry `data-drag-place` (`here` or `nowhere`).
 
 ## Gotchas
 
