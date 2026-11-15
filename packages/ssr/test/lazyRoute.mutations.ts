@@ -43,6 +43,28 @@ export default [
     tests: server,
   },
   {
+    name: 'a lazy that reads what the plan does not send is let through',
+    edits: [
+      {
+        file: index,
+        find: 'if (drawnCode !== bootedCode) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: "the browser's code is compared with the Model it resumes",
+    edits: [
+      {
+        file: index,
+        find: 'const bootedCode = codeNames(lazyFor(config, browser))',
+        replace: 'const bootedCode = codeNames(lazyFor(config, started.model))',
+      },
+    ],
+    tests: server,
+  },
+  {
     name: 'the browser asks with the resumed Model',
     edits: [
       {

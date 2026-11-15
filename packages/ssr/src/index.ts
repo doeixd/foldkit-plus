@@ -88,6 +88,7 @@ import {
   HEAD_MARKER,
   tagOf,
   lazyFor,
+  type Loadable,
   type PlanSurface,
   type ResumableConfig,
   type ResumePlan,
@@ -618,6 +619,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'UndeclaredStartup',
     'Uncovered',
     'ViewDependsOnUnsentState',
+    'LazyDependsOnUnsentState',
     'DuplicateStaticRegion',
     'UngeneratablePath',
     'UnrestorablePart',
@@ -711,6 +713,13 @@ const loadLazy = <Model>(
     yield* Effect.promise(() => Promise.all(lazy(started.model).map(each => each.load())))
     return startingFrom(config, started) as ResumableConfig<Model>
   })
+
+/** A lazy list by its bundles' names, in a stable order, to compare two. */
+const codeNames = (code: ReadonlyArray<Loadable>): string =>
+  code
+    .map(each => each.name)
+    .sort()
+    .join(', ')
 
 /** Foldkit's own Flags script, which a resumed page never carries. */
 const FLAGS_SCRIPT = new RegExp(
@@ -947,6 +956,17 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       return yield* new ResumeUnsafe({ reason: 'UnrestorablePart', message: resumed.failure })
     }
     const browser = resumed.success
+
+    // The browser asks `lazy` of the Model it resumes: a field it reads and
+    // the plan does not send would boot the page without bodies it draws.
+    const drawnCode = codeNames(lazyFor(config, started.model))
+    const bootedCode = codeNames(lazyFor(config, browser))
+    if (drawnCode !== bootedCode) {
+      return yield* new ResumeUnsafe({
+        reason: 'LazyDependsOnUnsentState',
+        message: `lazy names [${drawnCode}] for the Model the server draws and [${bootedCode}] for the one the browser resumes: send what it reads in the plan's state`,
+      })
+    }
 
     const eager = eagerEntries(config, plan, started.model)
     if (eager.length > 0) {

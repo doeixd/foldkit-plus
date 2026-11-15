@@ -148,7 +148,7 @@ export const make = (load: () => Promise<typeof body>) => {
       start,
       ...(fallback === undefined ? {} : { fallback }),
     })
-  return { Clicker, config, plan }
+  return { App, Clicker, config, plan }
 }
 
 export const template =
