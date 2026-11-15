@@ -1,7 +1,15 @@
-import { Effect, Option, Queue, Schema, Stream } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Option } from 'effect'
+import {
+  Attr,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+} from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import * as Mount from 'foldkit/mount'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -9,7 +17,7 @@ import type { MixinList } from './resolve.js'
  * `role="radiogroup"` named by its `label`, and a `star` per value, an
  * `input type="radio"` sharing one name, so the browser moves the focus and
  * the choice with the arrows and a form submits the value; Home and End,
- * which a native group lacks, go to the ends through the `Ends` Mount. The
+ * which a native group lacks, go to the ends through a key route on each star. The
  * rating is the application's: the view draws `value` (none before anyone
  * rates) and sends `onChange` with the star chosen, and `onClear` when the
  * star already chosen is pressed again. With `precision: 0.5` each star is
@@ -28,7 +36,7 @@ export const RatingSlots = Slots.define({
   label: Slot.make({ capability: Capability.Container }),
   star: Slot.make({
     capability: Capability.Interactive,
-    events: [Event.Change],
+    events: [Event.Change, Event.KeyDown],
     attributes: [Attr.AriaLabel, Attr.Disabled, Attr.Value],
   }),
   /** The rating in words, `starLabel` of it, shown beside the stars. */
@@ -79,54 +87,41 @@ export interface RatingDisplay<Message> extends RatingCommon<Message> {
 
 export type RatingView<Message> = RatingInput<Message> | RatingDisplay<Message>
 
-const EndChosen = Schema.TaggedStruct('EndChosen', { value: Schema.Number })
-
-/**
- * Home and End in a group of radios, as a Mount: the first or last enabled
- * radio takes the focus, and its value is sent, as the arrows would have
- * chosen it. A Scene test resolves it with the Message of a choice.
- */
-export const Ends = Mount.defineStream('RatingEnds', {
-  messages: [EndChosen],
-  execute: ({ element }) =>
-    Stream.callback<typeof EndChosen.Type>(queue =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          // An `Element`'s listeners are typed for any event.
-          const pressed = (event: Event) => {
-            if (!(event instanceof KeyboardEvent)) return
-            if (event.key !== 'Home' && event.key !== 'End') return
-            const radios = Array.from(
-              element.querySelectorAll<HTMLInputElement>('input[type="radio"]:enabled'),
-            )
-            if (!(event.target instanceof HTMLInputElement) || !radios.includes(event.target))
-              return
-            const to = event.key === 'Home' ? radios[0] : radios[radios.length - 1]
-            if (to === undefined) return
-            event.preventDefault()
-            to.focus()
-            Queue.offerUnsafe(queue, EndChosen.make({ value: Number(to.value) }))
-          }
-          element.addEventListener('keydown', pressed)
-          return () => element.removeEventListener('keydown', pressed)
-        }),
-        stop => Effect.sync(stop),
-      ),
-    ),
-})
-
 /** A star's share of `left` stars, 0 to 1, rid of the float noise of a subtraction (4.3 - 4). */
 const share = (left: number): number => Math.round(Math.min(1, Math.max(0, left)) * 1000) / 1000
 
 const stars = (value: number): string => (value === 1 ? '1 star' : `${value} stars`)
 
 export const view = <Message>(options: RatingView<Message>, h: HtmlBuilder<Message>): Html => {
+  const max = options.max ?? 5
+  const step = options.readOnly === true ? 1 : (options.precision ?? 1)
+  const values = Array.from({ length: max / step }, (_, index) => (index + 1) * step)
+  const idOf = (value: number) => `${options.id}-${value}`
+  // Home and End, which a native radio group lacks: the first or last star takes the focus and the choice, as the arrows would.
+  const ends = Behaviors.Keys.behavior(RatingSlots)<unknown, Message>({
+    slot: 'star',
+    name: 'RatingEnds',
+    routes: [
+      Behaviors.Keys.route<unknown, Message>('Ends', {
+        on: [Behaviors.Keys.chord('Home'), Behaviors.Keys.chord('End')],
+        handle: ({ key }) => {
+          const value = key === 'Home' ? values[0] : values[values.length - 1]
+          return options.readOnly === true || value === undefined
+            ? Option.none()
+            : Option.some(Behaviors.Keys.focus(idOf(value), options.onChange(value)))
+        },
+      }),
+    ],
+  })
   const builders = SlotView.buildersFor(
     RatingSlots,
-    [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
+    [
+      ...(options.style === undefined ? [] : [options.style.mixin]),
+      ...(options.readOnly === true || options.disabled === true ? [] : [ends.mixin]),
+      ...(options.mixins ?? []),
+    ],
     { input: undefined, h },
   )
-  const max = options.max ?? 5
   const starLabel = options.starLabel ?? stars
   const given = Option.getOrElse(options.value, () => 0)
   const labelId = `${options.id}-label`
@@ -161,43 +156,33 @@ export const view = <Message>(options: RatingView<Message>, h: HtmlBuilder<Messa
     ])
   }
 
-  const step = options.precision ?? 1
-  const values = Array.from({ length: max / step }, (_, index) => (index + 1) * step)
   const disabled = options.disabled === true
   const { onClear } = options
-  return h.div(
-    builders.root.attrs([
-      h.Role('radiogroup'),
-      h.AriaLabelledBy(labelId),
-      ...(disabled
-        ? []
-        : [h.OnMount(Mount.mapMessage(Ends(), ({ value }) => options.onChange(value)))]),
-    ]),
-    [
-      h.span(builders.label.attrs([h.Id(labelId)]), [options.label]),
-      ...values.map(value =>
-        h.input(
-          builders.star.attrs([
-            h.Key(String(value)),
-            h.Type('radio'),
-            h.Name(options.name ?? options.id),
-            h.Attribute('value', String(value)),
-            h.AriaLabel(starLabel(value)),
-            h.Checked(value === given),
-            filled(value),
-            // The first half of a star, drawn as the star's start.
-            ...(Number.isInteger(value) ? [] : [h.DataAttribute('half', 'start')]),
-            ...(disabled
-              ? [h.Disabled(true)]
-              : [
-                  h.OnChange(() => options.onChange(value)),
-                  // A radio already checked sends no change: a press on it is a click alone.
-                  ...(onClear !== undefined && value === given ? [h.OnClick(onClear())] : []),
-                ]),
-          ]),
-        ),
+  return h.div(builders.root.attrs([h.Role('radiogroup'), h.AriaLabelledBy(labelId)]), [
+    h.span(builders.label.attrs([h.Id(labelId)]), [options.label]),
+    ...values.map(value =>
+      h.input(
+        builders.star.attrs([
+          h.Key(String(value)),
+          h.Id(idOf(value)),
+          h.Type('radio'),
+          h.Name(options.name ?? options.id),
+          h.Attribute('value', String(value)),
+          h.AriaLabel(starLabel(value)),
+          h.Checked(value === given),
+          filled(value),
+          // The first half of a star, drawn as the star's start.
+          ...(Number.isInteger(value) ? [] : [h.DataAttribute('half', 'start')]),
+          ...(disabled
+            ? [h.Disabled(true)]
+            : [
+                h.OnChange(() => options.onChange(value)),
+                // A radio already checked sends no change: a press on it is a click alone.
+                ...(onClear !== undefined && value === given ? [h.OnClick(onClear())] : []),
+              ]),
+        ]),
       ),
-      ...shown,
-    ],
-  )
+    ),
+    ...shown,
+  ])
 }

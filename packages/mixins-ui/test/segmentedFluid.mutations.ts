@@ -31,7 +31,13 @@ export default [
   },
   {
     name: 'the hover follows nothing',
-    edits: [{ file: adapter, find: "item: '[aria-pressed]',", replace: "item: '[data-never]'," }],
+    edits: [
+      {
+        file: adapter,
+        find: "item: ':is([aria-pressed], [aria-checked])',",
+        replace: "item: '[data-never]',",
+      },
+    ],
     tests,
   },
   {

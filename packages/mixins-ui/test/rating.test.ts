@@ -111,9 +111,6 @@ describe('Rating.view', () => {
           },
           h,
         ),
-      // Home and End's Mount, resolved as a press of End would: the last star.
-      Scene.Mount.resolveAll([Rating.Ends, Rated.Rated({ value: 5 })]),
-      Scene.expectOutMessage(Rated.Rated({ value: 5 })),
       Scene.change(Scene.label('4 stars'), '4'),
       Scene.expectOutMessage(Rated.Rated({ value: 4 })),
     )
@@ -207,7 +204,6 @@ describe('Rating cleared', () => {
   it('sends a clear for a press on the star already chosen', () => {
     sends(
       (h: HtmlBuilder<Cleared>) => clearable(Option.some(3), h),
-      Scene.Mount.resolveAll([Rating.Ends, Cleared.Rated({ value: 3 })]),
       Scene.click(Scene.label('3 stars')),
       Scene.expectOutMessage(Cleared.Cleared()),
     )
@@ -245,18 +241,22 @@ describe('Rating in words', () => {
 })
 
 describe('Rating ends', () => {
-  it('draws the Home and End Mount on a group that takes a choice, and none on a disabled one', () => {
-    const scene = (disabled: boolean, ...steps: Parameters<typeof sends<TestMessage>>[1][]) =>
-      sends((h: HtmlBuilder<TestMessage>) => drawn(Option.none(), { disabled }, h), ...steps)
-    scene(
-      false,
-      Scene.Mount.expectExact(Rating.Ends),
-      Scene.Mount.resolveAll([Rating.Ends, message('Clicked')]),
-    )
-    scene(true, Scene.Mount.expectNone())
+  const keyed = (shown: ReturnType<typeof drawn>) =>
+    Inert.byTag(shown, 'input').map(radio => radio.data?.on?.['keydown'] !== undefined)
+
+  it('puts a Home and End route on each star of a group that takes a choice, and none on a disabled one', () => {
+    expect(keyed(drawn(Option.none()))).toEqual(Array(5).fill(true))
+    expect(keyed(drawn(Option.none(), { disabled: true }))).toEqual(Array(5).fill(false))
   })
 
-  it('takes no keys read-only, so it needs no Mount', () => {
+  it('gives each star an id, which the route moves focus by', () => {
+    expect(
+      Inert.byTag(drawn(Option.none()), 'input').map(radio => Inert.value(radio, 'id')),
+    ).toEqual(['stay-1', 'stay-2', 'stay-3', 'stay-4', 'stay-5'])
+  })
+
+  it('draws no Mount on a group that takes keys, read-only or not', () => {
+    sends((h: HtmlBuilder<TestMessage>) => drawn(Option.none(), {}, h), Scene.Mount.expectNone())
     sends((h: HtmlBuilder<TestMessage>) => shownOnly(Option.some(3), h), Scene.Mount.expectNone())
   })
 })
