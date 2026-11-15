@@ -256,7 +256,10 @@ editor. An `Edited` OutMessage carries the `transactions` the edit applied.
 `foldkit-richtext-dom/input`'s `richTextInput(hostId, placement)` is the editor as a
 `foldkit-form` control (`Input.bundle`): `EditorInput` holds the document in its own Model,
 a blank document is no value, `fill` starts a fresh history, and `settled` keeps caret, stored
-marks, and history for a resumed draft.
+marks, and history for a resumed draft. A third argument `{ codec: { value, fill } }` makes the
+key hold another type (Markdown text: `print(document).markdown` and `parse(text, { mint }).document`)
+while the editor holds a document; `value` is never called with a blank document, and a `fill`
+that throws fails the form's `fill`.
 
 The read-only view (`foldkit-richtext-dom/view`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM

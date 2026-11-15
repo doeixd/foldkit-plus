@@ -116,3 +116,97 @@ describe('the editor as a form control', () => {
     expect(RichText.inspectHistory(settled.history).past).toBe(1)
   })
 })
+
+/** A body stored as text, one paragraph a line: the smallest codec that is not the identity. */
+const Note = Entity.define('Note', Schema.Struct({ id: Schema.String, body: Schema.String }))
+const NoteInput = Entity.input(Note, Schema.Struct({ body: Note.fields.body.schema }))
+const calls: Array<string> = []
+const NoteForm = Form.make('NoteForm', NoteInput, {
+  inputs: {
+    body: richTextInput(
+      'note-body',
+      {},
+      {
+        codec: {
+          value: document => {
+            calls.push('value')
+            return text(document) ?? ''
+          },
+          fill: stored => {
+            calls.push('fill')
+            return RichText.decodeDocument({
+              version: 1,
+              children: stored.split('\n').map((line, index) => ({
+                type: 'Paragraph',
+                id: `n${index}`,
+                children: [{ type: 'Text', id: `n${index}-t`, text: line, marks: [] }],
+              })),
+            })
+          },
+        },
+      },
+    ),
+  },
+})
+const noteBody = NoteForm.control('body')
+
+describe('the editor as a form control with a codec', () => {
+  it('shows a stored text as a document and reads it back as the same text', () => {
+    const filled = NoteForm.fill(NoteForm.initial, { body: 'one\ntwo' }).model
+    expect(text(noteBody.field(filled).value.document)).toBe('one\ntwo')
+    expect(NoteForm.partial(filled).body).toBe('one\ntwo')
+  })
+
+  it('holds what is typed as the codec’s value', () => {
+    const placed = NoteForm.bundle.update(
+      NoteForm.initial,
+      noteBody.send(Message.Selected({ selection: caret('blank-t', 0) })),
+      undefined,
+    ).model
+    const typed = NoteForm.bundle.update(
+      placed,
+      noteBody.send(Message.Typed({ text: 'Hi' })),
+      undefined,
+    ).model
+    expect(NoteForm.partial(typed).body).toBe('Hi')
+  })
+
+  it('never asks the codec about a blank document', () => {
+    calls.length = 0
+    expect(NoteForm.partial(NoteForm.initial).body).toBeUndefined()
+    expect(calls).toEqual([])
+    const submitted = NoteForm.bundle.update(
+      NoteForm.initial,
+      NoteForm.Message.Submitted(),
+      undefined,
+    ).model
+    expect(noteBody.field(submitted)).toMatchObject({ _tag: 'Invalid', errors: ['Required'] })
+    expect(calls).not.toContain('value')
+  })
+
+  it('starts a given text on a history and caret of its own', () => {
+    const filled = NoteForm.fill(NoteForm.initial, { body: 'x' }).model
+    expect(RichText.inspectHistory(noteBody.field(filled).value.history).past).toBe(0)
+    expect(noteBody.field(filled).value.selection).toBeNull()
+  })
+
+  it('fails the form’s fill when the codec’s fill throws, naming nothing it hides', () => {
+    const Strict = Form.make('Strict', NoteInput, {
+      inputs: {
+        body: richTextInput(
+          'strict-body',
+          {},
+          {
+            codec: {
+              value: document => text(document) ?? '',
+              fill: () => {
+                throw new Error('not markdown')
+              },
+            },
+          },
+        ),
+      },
+    })
+    expect(() => Strict.fill(Strict.initial, { body: 'x' })).toThrow('not markdown')
+  })
+})

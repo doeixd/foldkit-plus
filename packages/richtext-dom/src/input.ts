@@ -68,20 +68,33 @@ export const EditorInput = Bundle.make({
 })
 
 /**
- * A form control editing a document, placed at `hostId` with everything `editorAt` places
- * (`EditorPlacement`). A blank
- * document (`RichText.isBlank`) is nothing entered, so a required key refuses it.
+ * How a key holds a type other than a `RichText.Document` while the editor still holds one: a
+ * stored Markdown text, say. `value` runs on every read of the key and `fill` on a given value, so
+ * both stay a plain function of their argument. `fill` is called with stored data and may throw,
+ * which fails the form's `fill` as any control that cannot show a value does.
  */
-export const richTextInput = (hostId: string, placement: EditorPlacement = {}) => {
+export interface RichTextCodec<A> {
+  /** The key's value for a document the editor holds. It is never called with a blank one. */
+  readonly value: (document: RichText.Document) => A
+  /** The document the editor shows for a value the form was given. */
+  readonly fill: (value: A) => RichText.Document
+}
+
+const documentCodec: RichTextCodec<RichText.Document> = {
+  value: document => document,
+  fill: document => document,
+}
+
+const control = <A>(hostId: string, placement: EditorPlacement, codec: RichTextCodec<A>) => {
   placeEditor(hostId, placement)
   return Input.bundle('RichText', {
     bundle: EditorInput,
     args: { hostId },
-    value: model => (RichText.isBlank(model.document) ? undefined : model.document),
+    value: model => (RichText.isBlank(model.document) ? undefined : codec.value(model.document)),
     // A given document starts its own history: undoing past it would reach the form's blank.
-    fill: (model, document: RichText.Document) => ({
+    fill: (model, value: A) => ({
       ...model,
-      document,
+      document: codec.fill(value),
       selection: null,
       history: RichText.emptyHistory,
       storedMarks: null,
@@ -92,4 +105,28 @@ export const richTextInput = (hostId: string, placement: EditorPlacement = {}) =
     // whichever one the draft was stored from.
     settled: model => ({ ...model, menuIndex: 0, slashDismissed: Option.none(), hostId }),
   })
+}
+
+/**
+ * A form control editing a document, placed at `hostId` with everything `editorAt` places
+ * (`EditorPlacement`). A blank document (`RichText.isBlank`) is nothing entered, so a required
+ * key refuses it, and a `codec` is never asked about one. With a `codec` the key holds what it
+ * converts to (`value`) and from (`fill`); the editor holds a document either way.
+ */
+export function richTextInput(
+  hostId: string,
+  placement?: EditorPlacement,
+): ReturnType<typeof control<RichText.Document>>
+export function richTextInput<A>(
+  hostId: string,
+  placement: EditorPlacement,
+  options: { readonly codec: RichTextCodec<A> },
+): ReturnType<typeof control<A>>
+export function richTextInput(
+  hostId: string,
+  placement: EditorPlacement = {},
+  // The overloads above are what a caller sees; no codec is the Document one.
+  options?: { readonly codec: RichTextCodec<any> },
+) {
+  return control(hostId, placement, options?.codec ?? documentCodec)
 }

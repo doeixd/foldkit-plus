@@ -183,7 +183,7 @@ the `transactions` the edit applied, which is what `RichText.Replicated.translat
 ## As a form control
 
 `foldkit-richtext-dom/input` puts the editor in a `foldkit-form` form: a key whose value is a
-`RichText.Document`. It is the one entry that imports `foldkit-form`, an optional peer.
+`RichText.Document`, or whatever a codec converts it to. It is the one entry that imports `foldkit-form`, an optional peer.
 
 <!-- docs-check
 import { Schema } from 'effect'
@@ -207,13 +207,55 @@ holding its document in its own Model, with each committed edit and undo folded 
 form owns that Model as the key's draft; the document is the key's value, validated,
 submitted, and reported by `authoredChanged` like any other.
 
-- **Placement:** `richTextInput(hostId, placement)` places what `editorAt` places, under that
+- **Placement:** `richTextInput(hostId, placement, { codec }?)` places what `editorAt` places, under that
   host id. Since one host id is one editor, a key repeated in a form's rows cannot be a
   rich-text control yet.
 - **Nothing entered:** a new record starts on one empty paragraph, which is where a caret can
   go. A blank document reads as no value, so a required key refuses it.
 - **Filling:** `fill` shows a given document with a history of its own and no selection, since
   the caret was in runs the given document does not have.
+- **Another stored type:** a field stored as text, Markdown say, cannot hold a `Document`
+  without every reader of its Entity decoding one. Pass a codec and the key holds what it
+  converts to, while the editor still holds a document. A blank document is no value before the
+  codec runs, so `value` is never called with one.
+- **Failure:** `fill` takes stored data, and a codec whose `fill` throws makes the form's
+  `fill` throw, as any control that cannot show a value does: nothing catches it, so parse
+  defensively where the stored text may be bad. An empty text parses to a document with no
+  block, where the editor has nowhere to put a caret: give a new record nothing rather than `''`.
+  `value` runs on each read of the key, so keep it cheap.
+
+<!-- docs-check
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+const Note = Entity.define('Note', Schema.Struct({ id: Schema.String, body: Schema.String }))
+const NoteInput = Entity.input(Note, Schema.Struct({ body: Note.fields.body.schema }))
+-->
+```ts
+import { Form } from 'foldkit-form'
+import { parse, print } from 'foldkit-richtext-markdown'
+import { richTextInput } from 'foldkit-richtext-dom/input'
+
+const NoteForm = Form.make('NoteForm', NoteInput, {
+  inputs: {
+    body: richTextInput(
+      'note-body',
+      {},
+      {
+        codec: {
+          value: document => print(document).markdown,
+          fill: text => {
+            let next = 0
+            // The editor mints ids starting with `e`, so these never meet them.
+            return parse(text, { mint: () => `m${next++}` }).document
+          },
+        },
+      },
+    ),
+  },
+})
+```
+
+`foldkit-richtext-markdown` is the application's to import: this entry does not depend on it.
 - **Resuming:** `settled`, for a stored draft shown again, keeps the caret, the stored marks,
   and the history, clears only the slash menu's highlight and dismissal, and takes this placement's host id
   in case the draft was stored under another.
