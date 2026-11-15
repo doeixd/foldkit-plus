@@ -13,24 +13,25 @@ import { FOCUS_MARK } from '../dom/focusable.js'
 export { FocusRecovery as mount, UNRECOVERED } from '../dom/focus-recovery.js'
 export { FOCUS_MARK } from '../dom/focusable.js'
 
-/** A step in slot terms: `{ part }` names a slot of the contract. */
-export type Steps<Slot extends string> = ReadonlyArray<
-  Exclude<Step, { readonly part: string }> | { readonly part: Slot }
+/** A step in part terms: `{ part }` names a key of `parts`. */
+export type Steps<Part extends string> = ReadonlyArray<
+  Exclude<Step, { readonly part: string }> | { readonly part: Part }
 >
 
-export interface BehaviorOptions<Slots, Input> {
+export interface BehaviorOptions<Slots, Input, Part extends string = string> {
   /** The slot drawn once around every part: the container the Mount watches. */
   readonly owner: keyof Slots & string
   /**
-   * Each part slot and where focus goes when its element is gone, tried in
-   * order until one can take it: `same` (drawn again, as after a reorder),
-   * `next`, `previous`, `parent`, `stop` (the roving stop), `{ part }` (the first
-   * part of that slot), `owner`. With none left, the next owner out decides;
-   * with none, focus stays where the browser put it.
+   * Each part and where focus goes when its element is gone, tried in order
+   * until one can take it: `same` (drawn again, as after a reorder), `next`,
+   * `previous`, `parent`, `stop` (the roving stop), `{ part }` (the first part
+   * of that name, which must be a key of `parts`), `owner`. With none left, the
+   * next owner out decides; with none, focus stays where the browser put it.
+   * A key that is a slot is marked on it; any other key names a part a widget
+   * draws itself, as an Alert's or a Card's `recoveryPart` does, and draws
+   * nothing here.
    */
-  readonly parts: {
-    readonly [Part in keyof Slots & string]?: Steps<keyof Slots & string>
-  }
+  readonly parts: { readonly [P in Part]?: Steps<NoInfer<Part>> }
   /** For a tree drawn flat: the id of a row's parent row, which `parent` goes to. */
   readonly parent?: (input: Input, item: SlotItem) => Option.Option<string>
 }
@@ -44,18 +45,21 @@ export interface BehaviorOptions<Slots, Input> {
  */
 export function behavior<Slots, Input, ParentMessage>(
   bound: SlotView.Bound<Slots, Input, ParentMessage>,
-): (options: BehaviorOptions<Slots, Input>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+): <Part extends string = string>(
+  options: BehaviorOptions<Slots, Input, Part>,
+) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
 export function behavior<Slots>(
   slots: SlotView.Unbound<Slots>,
-): <Input, ParentMessage>(
-  options: BehaviorOptions<Slots, Input>,
+): <Input, ParentMessage, Part extends string = string>(
+  options: BehaviorOptions<Slots, Input, Part>,
 ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
 export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
   const slots = SlotView.boundSlots(given)
-  return <Input, ParentMessage>(
-    options: BehaviorOptions<Slots, Input>,
+  return <Input, ParentMessage, Part extends string = string>(
+    options: BehaviorOptions<Slots, Input, Part>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
     const parts = Object.entries(options.parts) as Array<[string, Steps<string>]>
+    const known = slots as Record<string, unknown>
     if (Object.hasOwn(options.parts, options.owner)) {
       throw new Error(`FocusRecovery: "${options.owner}" is the owner, so it cannot also be a part`)
     }
@@ -63,6 +67,7 @@ export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) 
     for (const [slot, steps] of parts) fallback[slot] = [...steps]
     const spec: Record<string, ReturnType<typeof Behavior.slot>> = Object.create(null)
     for (const [slot] of parts) {
+      if (!Object.hasOwn(known, slot)) continue
       spec[slot] = Behavior.slot({
         attributes: ({
           input,

@@ -325,6 +325,12 @@ page). Its Model slice and item attributes are `RovingTabindex`'s. Like
 `A11y.FocusStrategy` on each item. Its one arg, `id`, names the board on the
 page, so two boards each find their own items.
 
+The `item` slot must have `Capability.Focusable`, since each item takes the tab stop and
+focus; a slot of another capability (a `Container`) throws `mixins:capability-mismatch`
+(`Behavior requires capability "Focusable" on slot "card", which has "Container"`) when the
+Behavior is defined. A `Container` or an `Interactive` slot is fine for the `container`. A card that
+`Selection` also drives takes `Focusable` too, which satisfies Selection's `Interactive` item.
+
 <!-- docs-check
 const Card = Schema.Struct({ id: Schema.String, disabled: Schema.Boolean })
 type Card = typeof Card.Type
@@ -568,8 +574,14 @@ const Recovers = FocusRecovery.behavior(RecoveryView)({
 })
 ```
 
-`owner` and every key of `parts` are slots of the contract, and so is
-`{ part }`, so a misspelling is a type error. The Behavior draws marks, which a
+`owner` is a slot of the contract, and a `{ part }` step names a key of `parts`, so a step
+to a part `parts` does not declare is a type error. A key of `parts` that is a slot is marked on
+it. A key that is no slot names a part a widget draws itself: an Alert's or a Card's
+`recoveryPart: 'dismiss'` marks its dismiss button as that part, so `parts: { dismiss: ['next',
+'previous', { part: 'add' }], add: [] }` recovers to it without declaring a `dismiss` slot that is
+never drawn. Such a name is not checked against the widget, so a misspelling on either side finds
+nothing; and type arguments written out (`behavior(Slots)<Input, Message>(…)`) leave the `{ part }`
+check at any string. The Behavior draws marks, which a
 server render has: `data-fk-focus-owner` on the owner, `data-fk-focus-part`
 on each part, and `data-fk-focus-key` from `item.id` on a slot drawn per item.
 Attach it beside the Behaviors already on the owner: the resolver composes

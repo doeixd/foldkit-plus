@@ -265,4 +265,15 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a part key that is no slot reaches the Behavior as a slot',
+    edits: [
+      {
+        file: '../src/interaction/focus-recovery.ts',
+        find: '      if (!Object.hasOwn(known, slot)) continue\n',
+        replace: '',
+      },
+    ],
+    tests: ['packages/primitives/test/focus-recovery.test.ts'],
+  },
 ] as const

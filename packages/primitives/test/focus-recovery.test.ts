@@ -70,6 +70,17 @@ describe('FocusRecovery behavior', () => {
     expect(marks(b.row.attrs([], { index: 0, id: 'a' }))).toEqual({})
   })
 
+  it('takes a part key that is no slot as a part a widget marks itself, and draws no mark for it', () => {
+    const widget = FocusRecovery.behavior(SearchSlots)<SearchInput, never>({
+      owner: 'root',
+      parts: { dismiss: ['next', { part: 'input' }], input: [] },
+    })
+    const b = SlotView.buildersFor(SearchSlots, [widget.mixin], { input, h })
+    expect(marks(b.root.attrs())).toEqual({ 'fk-focus-owner': '' })
+    expect(marks(b.input.attrs())).toEqual({ 'fk-focus-part': 'input' })
+    expect(marks(b.row.attrs([], { index: 0, id: 'a' }))).toEqual({})
+  })
+
   it('refuses an owner that is also a part', () => {
     expect(() =>
       FocusRecovery.behavior(SearchSlots)<SearchInput, never>({
