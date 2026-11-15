@@ -65,6 +65,31 @@ rejects ambiguous ownership instead of silently choosing a winner.
           ordinary Foldkit attributes
 ```
 
+Styling has a pipeline of its own, read left to right, and each step is checked by the one before:
+
+```text
+tokens -> ref -> pieces -> slots -> sheet
+```
+
+`Theme.tokens` are the only values; `Theme.ref` reads them by name; a Style piece is built from the
+refs; `Style.forSlots` puts pieces on a Slot; `Style.stylesheet` collects the rules into the
+layers a page installs. [Style](#style-appearance-as-data) and
+[Themes](#themes-as-typed-knobs) cover it.
+
+### Where to look
+
+| You want to | Read |
+| --- | --- |
+| Make a view customizable | [Quick start](#quick-start), [Slots](#slots-the-public-contract) |
+| Restyle a view, or install a theme | [Style](#style-appearance-as-data), [Themes as typed knobs](#themes-as-typed-knobs) |
+| Add behavior to an element | [Behavior](#behavior-reusable-element-level-interaction) |
+| Let an application add a key to a widget | [Keys](#keys-one-owner-for-a-slots-keydown): the widget takes `routes`, and a clash is `mixins:key-conflict` |
+| Declare and check who provides an accessibility obligation | [Obligations](#obligations-who-does-what-a-pattern-asks): `provides`, `A11y.base`, `A11y.native`, `A11y.delegated`, `A11y.conform` |
+| Run the conformance scenarios over a widget | [Conformance](#conformance-the-rendered-check): `Conformance.listbox`, `.tree`, `.dialog`, `.tabs`, `.checkbox`, `.server` |
+| See what a view's attachments do | [Describing a view](#describing-a-view-and-what-one-input-resolves-to): `SlotView.describe`, `SlotView.resolution` |
+| Redraw only what changed | [Parts](#parts-redraw-only-what-changed), [Regions](#regions-redraw-by-the-model-paths-read) |
+| Test a view, or render it with no runtime | [Testing and static output](#testing-and-static-output) |
+
 ## Why not just `className` and props?
 
 A class name says only "append this string." A slot is a **typed public customization point**.
@@ -104,7 +129,8 @@ projection, and `foldkit-mixins-ui` adapts `@foldkit/ui` components.
 
 The design-system pieces are subpaths, so an application that only attaches classes pays for
 none of them: `foldkit-mixins/layers`, `/theme`, `/layout`, `/defaults`, `/prose`, `/utilities`
-and `/app`.
+and `/app`. `foldkit-mixins/testing` holds `Conformance`, and `/foundations` the first-paint
+rules.
 
 ## Quick start
 
@@ -1007,6 +1033,63 @@ the view's input; none owns anything.
   press-and-hold repeat and the wheel are not handled: Foldkit's wheel
   attribute carries no delta, and a repeat is a timer the Model would own.
 
+### Keys: one owner for a slot's `keydown`
+
+The resolver allows one owner of an event on a slot, so a widget's own keys and the keys an
+application wants to add cannot be two Behaviors on `keydown`. `Behaviors.Keys` is the one owner:
+a widget's keys are named **routes**, and `Keys.behavior` folds the routes it is given into the
+slot's single handler. A route says which presses it takes (`Keys.chord('Escape')`,
+`Keys.printable`, or a `Keys.where` predicate) and what a press means: a Message, or `Keys.focus(id,
+message)` to also move focus to the element with that id. A route that returns `Option.none()`
+declines, and the press goes on to the page.
+
+<!-- docs-check
+import { Option } from 'effect'
+-->
+
+```ts
+const SearchSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  input: Slot.make({ capability: Capability.TextInput, events: [Event.Input, Event.KeyDown] }),
+})
+type SearchInput = { readonly query: string }
+const { Keys } = Behaviors
+
+const clearOnEscape = Keys.route<SearchInput, Message>('ClearOnEscape', {
+  on: [Keys.chord('Escape')],
+  // With nothing to clear the route declines, so Escape reaches the dialog around the field.
+  handle: ({ input }) =>
+    input.query === '' ? Option.none() : Option.some(Message.ChangedValue({ value: '' })),
+})
+
+// A widget takes the application's routes beside its own: this is how foldkit-mixins-ui's
+// Command, SearchField, Tabs, Menubar and others take their `routes` option.
+const searchKeys = (routes: ReadonlyArray<Behaviors.Keys.Route<SearchInput, Message>> = []) =>
+  Keys.behavior(SearchSlots)<SearchInput, Message>({
+    slot: 'input',
+    routes: [clearOnEscape, ...routes],
+  })
+
+// The application adds a key without touching the widget:
+const Submits = searchKeys([
+  Keys.route('Submit', {
+    on: [Keys.chord('Enter')],
+    handle: ({ input }) => Option.some(Message.ChangedValue({ value: input.query.trim() })),
+  }),
+])
+```
+
+Two routes that declare the same chord throw `mixins:key-conflict` when the Behavior is defined,
+naming both, because nothing chains at run time and one press sends at most one Message. Where one
+must win, `Keys.first(a, b)` asks `a` and falls to `b` only if `a` declines. A chord matches the
+`key` a press reports, so Shift+a is `Keys.chord('A')`; a name that is neither one character nor a
+named key (`'Esc'`) throws `mixins:unknown-key` and says what was meant. A handled press is
+default-prevented, an unhandled one untouched, a key of an IME composition reaches no route, and a
+held key runs its route on every repeat. A Behavior that writes other attributes on the same slot
+(a roving tab stop) installs its keys with `Keys.attribute(routes, { slot })` inside its own
+`attributes`, which is how the primitives expose theirs (`ListNavigation.keys`, `SwipeActions.keys`,
+`Move.nudge`). A key the application only watches, without owning, is a Subscription
+(`keyboardEvents` in `foldkit-primitives/events`), not a route.
 
 ## SlotView
 
@@ -1266,6 +1349,8 @@ Three words stay apart here. A slot contract or a `provides` is **declared**: th
 together. Only a browser test is **rendered**: it says the behaviour happened on a page. None of
 them is WCAG conformance.
 
+### Conformance: the rendered check
+
 `Conformance` from `foldkit-mixins/testing` is the rendered word. Each scenario takes a harness
 and returns its findings as plain data, so a widget and a view assembled from primitives are held
 to one behaviour. `Conformance.harness({ cdp, userEvent })` is the harness for Vitest's browser
@@ -1314,10 +1399,10 @@ attachment must say it does on that slot.
 
 | Obligation | Means | Supplied by |
 | --- | --- | --- |
-| `A11y.Navigation` | arrows, Home and End move among the items | `ListNavigation`, `RovingTabindex`, `TreeNavigation`, `GridNavigation` (container slot) |
-| `A11y.FocusStrategy` | each item is reachable: a roving stop, `aria-activedescendant`, or a native control | the same four (item slot); `A11y.native` |
+| `A11y.Navigation` | arrows, Home and End move among the items | `ListNavigation`, `RovingTabindex`, `TreeNavigation`, `GridNavigation`, `SpatialNavigation` (container slot) |
+| `A11y.FocusStrategy` | each item is reachable: a roving stop, `aria-activedescendant`, or a native control | the same five (item slot); `A11y.native` |
 | `A11y.Activation` | Enter, Space or a press activates it | `Selection` (unless `click: false`), `Press`; `A11y.native` |
-| `A11y.State(attr)` | the attribute is written with a value on every draw | `Selection` (`aria-selected`), `Behaviors.ToggleState`, `Behaviors.Disclosure` (`aria-expanded`) |
+| `A11y.State(attr)` | the attribute is written with a value on every draw | `Selection` (`aria-selected`), `Behaviors.ToggleState` (`aria-checked` or `aria-pressed`), `Behaviors.Disclosure` (`aria-expanded`) |
 | `A11y.Name` | the element has an accessible name | `Behaviors.FieldAssociation`; the view's own label, as `A11y.base` |
 
 Something supplies an obligation in one of four ways: a Behavior slot's `provides`
