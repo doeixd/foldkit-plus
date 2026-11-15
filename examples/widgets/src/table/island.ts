@@ -1,8 +1,20 @@
-import type { IslandBody } from '../island.js'
+import { Runtime } from 'foldkit'
+import { type IslandBody, merged } from '../island.js'
+import { Model, initial, update } from './app.js'
+import { ButtonStyle, TableIsland, TableStyle, runDemo } from './view.js'
 
-// A placeholder the section's author replaces.
 export const island: IslandBody = {
-  runDemo: () => [],
-  style: () => ({ rules: [], globalRules: [] }),
-  mount: () => {},
+  runDemo,
+  style: () => merged(TableStyle, ButtonStyle),
+  mount: container => {
+    Runtime.embed(
+      Runtime.makeElement({
+        Model,
+        init: () => ({ model: initial }),
+        update,
+        view: (model, h) => TableIsland(model, h),
+        container,
+      }),
+    )
+  },
 }
