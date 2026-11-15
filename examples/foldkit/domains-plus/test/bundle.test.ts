@@ -44,7 +44,9 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // 199,053 on 2026-11-14, after merging main: +1,553 over main's 197,500, from this branch's
 // kept `WindowList` work (the row holding focus kept drawn, revealing a row, find-in-page
 // stand-ins; 4.4 kB to 9.7 kB minified) that the page draws. The ceiling is that plus about 1%.
-const CEILING = 201_500
+// -500 on 2026-11-15: 198,986 after the theme's storage streams left the `Theme` object (it read
+// 199,053 with them); the ceiling is that plus about 1%, rounded up.
+const CEILING = 201_000
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))
