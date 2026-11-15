@@ -308,7 +308,11 @@ are the row's first and last enabled cell, Ctrl+Home and Ctrl+End the grid's.
 RTL swaps left and right, and `virtual` works as it does for `RovingTabindex`.
 Given a `page` in its args, PageUp and PageDown move that many rows (at the
 same column, stopping at the first and last row); without one they are left to
-the page.
+the page. `routes`, an option of `GridNavigation.behavior` as of `InlineEdit.behavior`
+and `Tabs`, are the application's keys (Space, Ctrl+A) on the grid's one
+`keydown` owner: the grid answers its own keys, then yours, and a route on a key
+the grid takes, Shift+arrow included, throws `mixins:key-conflict` at definition,
+naming both.
 
 **`SpatialNavigation`** is arrow keys over freely placed items (a board, a
 canvas, a dashboard of cards), where there are no rows or columns: each arrow
@@ -691,7 +695,7 @@ technology) counts, and the ghost click that follows a touch is ignored inside
 a window of `clickSuppressionMs` that a Command on Effect's clock closes. Enter
 and Space are default-prevented on the element, so a native control does not
 also click and Space does not scroll. Activation is the OutMessage
-`Pressed { pointerType, shiftKey }`, and the placement must handle it:
+`Pressed { pointerType, modifiers }`, and the placement must handle it:
 
 <!-- docs-check
 import { Effect } from 'effect'
@@ -735,6 +739,11 @@ up arrives as a cancel (`PointerCancelled`, `KeyCancelled`), so the press ends
 without activating. That matters for a control that disables itself mid-press,
 such as a stepper at its bound. The Model slice is `{ pressed, pointerId, key,
 suppressing, generation }`; only `pressed` is meant for a view.
+`modifiers` is `{ shiftKey, ctrlKey, metaKey, altKey }` as the pointer release,
+the key release or the click that completed the press reported them, so a range
+or a toggle needs no `Mount` of its own. A placement is one pressed state for
+one element: `Pressed` says how it was pressed, not which of several rows
+under a shared container was.
 
 **`LongPress`** is holding for `thresholdMs`. It reads the same facts
 `Press.events` reports, so it needs no Mount of its own; the threshold is a
@@ -1086,7 +1095,7 @@ void view
 Nodes are dragged by `PointerDrag` on the same container and keep their own
 click through `Selection`. The keyboard's way to select more than one is not a
 lasso: it is Shift-extending from the roving item (`Selection`'s `Ranged`,
-fed by `Press`'s `Pressed { shiftKey }`) or `replace(ids)` from a "select all"
+fed by `Press`'s `Pressed { modifiers }`) or `replace(ids)` from a "select all"
 chord the parent routes. A lasso is a pointer gesture only, as a drag is
 without `Reorder`.
 
@@ -1535,7 +1544,7 @@ Behavior, `Selection.behavior(Declared, args)(Slots)<Model, Message>({ container
 writes `aria-selected` on each item and `aria-multiselectable` on the
 container, and wires a plain click on each enabled item to `Activated`; pass
 `click: false` when `Press` or the view owns the click. For a Shift range,
-`Press`'s `Pressed { pointerType, shiftKey }` says whether Shift was held, and
+`Press`'s `Pressed { pointerType, modifiers }` says whether Shift (or Ctrl, Meta, Alt) was held, and
 the placement's `onOut` folds `Picks.helpers.range(id, order)(model)` (or
 `select(id)(model)` for a plain click, which replaces the selection with that
 item and anchors there; `Activated`, in `'multiple'` mode, would toggle it, so a
