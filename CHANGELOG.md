@@ -9,6 +9,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-builder`: a Block's tile and the selected node's grip can be dropped on a layer row, which takes the drop by its thirds as a node does, and a drop over the page's own space is marked: the frame and the layers' `tree` carry `data-builder-drop="end"`. While a drag is under way `dragPreview`, `canvas` and `tree` carry `data-drag-place`, `here` where a drop would land and `nowhere` where it would be refused, so a look can show a dashed preview and a `not-allowed` cursor.
 - `foldkit-mixins-ui`: `Command`, `SearchField`, `Menubar`, `CascadeSelect`, `Tour`, `FloatingPanel`, `Picker`, `Nav`, `Tabs`, `TagsInput` and `Toolbar` export `conflict(routes, input?)`, the `mixins:key-conflict` that drawing the widget with those application key routes would throw, as an `Option` of the diagnostic and without drawing. It is built from the one list of own routes the view draws and `Keys.conflict`, so a settings screen that lets a user rebind keys can judge a candidate set without catching a throw. `input` is the part of the view's options that decides the widget's own keys (`direction`, `closeOnEscape`, `orientation`, `close`, `delimiter`, `panelRoutes`); Command, SearchField, CascadeSelect and Picker take `routes` alone.
 - `foldkit-richtext-dom`: `richTextInput(hostId, placement, { codec })` takes a codec (`value`, `fill`, and an optional `blank` value for a blank document), so a form key can hold another type, such as Markdown text, while the editor holds a Document. A blank document is never passed to `value`; a `fill` that throws fails the form's `fill`.
 - `foldkit-richtext-dom`: an editor placement takes `label` (`aria-label`) or `labelledBy` (`aria-labelledby`), not both, naming the `role="textbox"` root, in server markup too. Without either, an editor drawn in a labelled `role="group"` (the group `foldkit-mixins-form` draws around a control) takes the group's label, and a click on that label focuses the editor.
@@ -777,6 +778,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-primitives`: **Breaking:** `PointerDrag`'s `targets` (and `PointerDrag.behavior`'s) is an array of `{ attribute, within }`, one entry per region a drag may land on, each with its own attribute; a single region is `targets: [{ attribute, within }]`.
+- `foldkit-primitives`: edge scrolling scrolls a box only while the pointer is over it, and only after it has stayed 150ms in the strip. A tile dragged from a palette to the layers below it no longer scrolls the palette away.
+- `foldkit-mixins-builder`: a finger's drag preview is centred over the finger, so a phone's edge cuts neither side of it.
 - `foldkit-cms`: `Cms.bySlug` takes a `ContentReader` (`name`, `entity`, `roles`; a `Content` is one), so a public site can find content by address without importing its form.
 - `foldkit-mixins`: **Breaking:** composing a conditional rule (media, pseudo, nest, container,
   supports, `states`, or a rule inside `whenInput`) beside an inline declaration of the same
@@ -1022,6 +1026,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-builder`: the selected node's commands could not be pressed with a pointer: the handle takes none, and the menu inherited that, so a click or a tap went through it to the page (the tests clicked by script). The menu takes the pointer.
+- `foldkit-mixins-builder`: an application's `display` on `nodeMenu` overrode the browser's hiding of a closed popover, so every selected node's commands stood open over the page. A closed menu is hidden by an important rule in `components`, whatever the look sets.
 - `foldkit-richtext-dom`: the editor did not scroll the caret into view as the document grew, since it sets the selection itself and `setBaseAndExtent` does not scroll: on a short screen, Enter and typing left the caret's line below the window. After the person's own edit, undo or redo, or a caret the editor moved itself, the selection's focus end is scrolled into view by the least amount, in the scrolling boxes around the editor and the window, instantly, honouring `scroll-padding` for a sticky bar. Another person's edit, a decoration refresh and a control holding the focus scroll nothing.
 - `foldkit-richtext-dom`: a content redraw (another person's edit, an undo from a toolbar) restored the editor's selection while focus was on a control beside it, which pulled the focus into the text. The editor now owns the selection only while the focus is not on another control, one rule for content and decoration redraws.
 - `foldkit-mixins-data-grid`: on a touch screen the header's funnel and menu buttons were 24px high. Each now reaches
