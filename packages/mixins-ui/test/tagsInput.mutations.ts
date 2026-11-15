@@ -386,8 +386,8 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: "on: [Keys.chord('Backspace'), Keys.chord('Delete')],",
-        replace: "on: [Keys.chord('Backspace')],",
+        find: "on: [Behaviors.Keys.chord('Backspace'), Behaviors.Keys.chord('Delete')],",
+        replace: "on: [Behaviors.Keys.chord('Backspace')],",
       },
     ],
     tests: [unit],

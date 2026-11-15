@@ -318,30 +318,34 @@ const refusalText = (refusal: Refusal): string =>
   })
 
 /**
- * The input as the browser has it at this press: the Model's draft is a frame
- * behind keys typed in a burst, so a key judged from it would act on text
- * that is gone or miss text that is there. The Model answers where no input
- * is drawn (a Scene test).
+ * The input as the browser has it at this press, which `fieldIsEmpty` and
+ * `caretAtStart` read: the Model's draft is a frame behind keys typed in a
+ * burst, so a key judged from it would act on text that is gone or miss text
+ * that is there. The Model answers where no input is drawn (a Scene test).
  */
-const fieldIsEmpty = (model: Model): boolean => {
+const fieldOf = (model: Model): Option.Option<HTMLInputElement> => {
   const field = document.getElementById(inputId(model.id))
-  return field instanceof HTMLInputElement ? field.value === '' : model.draft === ''
+  return field instanceof HTMLInputElement ? Option.some(field) : Option.none()
 }
 
+const fieldIsEmpty = (model: Model): boolean =>
+  Option.match(fieldOf(model), {
+    onNone: () => model.draft === '',
+    onSome: field => field.value === '',
+  })
+
 /** Whether the caret is at the start of the input with nothing selected. */
-const caretAtStart = (model: Model): boolean => {
-  const field = document.getElementById(inputId(model.id))
-  return field instanceof HTMLInputElement
-    ? field.selectionStart === 0 && field.selectionEnd === 0
-    : model.draft === ''
-}
+const caretAtStart = (model: Model): boolean =>
+  Option.match(fieldOf(model), {
+    onNone: () => model.draft === '',
+    onSome: field => field.selectionStart === 0 && field.selectionEnd === 0,
+  })
 
 export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>): Html => {
   const { model, name } = options
   const lift = options.onMessage
   const disabled = options.disabled === true
   const direction = options.direction ?? 'ltr'
-  const { Keys } = Behaviors
   const moved = (tag: Option.Option<string>) => lift(Message.FocusMoved({ chip: tag }))
   const keys = Behaviors.Keys.behavior(TagsInputSlots)<Model, Outer>({
     slot: 'input',
@@ -372,19 +376,19 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
   })
   const indices = model.tags.map((_, index) => index)
   const forwardKey = direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'
-  const chipKeys = Keys.attribute<string, Outer>(
+  const chipKeys = Behaviors.Keys.attribute<string, Outer>(
     [
-      Keys.route<string, Outer>('Chips', {
+      Behaviors.Keys.route<string, Outer>('Chips', {
         on: [
-          ...Keys.withShift('Home'),
-          ...Keys.withShift('End'),
+          ...Behaviors.Keys.withShift('Home'),
+          ...Behaviors.Keys.withShift('End'),
           ...RovingTabindex.arrowChords('horizontal'),
         ],
         handle: ({ key, modifiers, input: tag }) => {
           const at = model.tags.indexOf(tag)
           // Past the last chip is the input, which `move` would clamp to the chip itself.
           if (key === forwardKey && at === indices.length - 1) {
-            return Option.some(Keys.focus(inputId(model.id), moved(Option.none())))
+            return Option.some(Behaviors.Keys.focus(inputId(model.id), moved(Option.none())))
           }
           const next = RovingTabindex.move(indices, at, key, modifiers, {
             orientation: 'horizontal',
@@ -393,12 +397,12 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
           })
           return Option.map(
             Option.fromNullishOr(next === undefined ? undefined : model.tags[next]),
-            target => Keys.focus(chipId(model.id, target), moved(Option.some(target))),
+            target => Behaviors.Keys.focus(chipId(model.id, target), moved(Option.some(target))),
           )
         },
       }),
-      Keys.route<string, Outer>('Remove', {
-        on: [Keys.chord('Backspace'), Keys.chord('Delete')],
+      Behaviors.Keys.route<string, Outer>('Remove', {
+        on: [Behaviors.Keys.chord('Backspace'), Behaviors.Keys.chord('Delete')],
         handle: ({ input: tag }) => Option.some(lift(Message.Removed({ tag }))),
       }),
     ],
