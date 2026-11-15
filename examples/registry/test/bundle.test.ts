@@ -38,7 +38,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // and without it (257,263 and 257,462): every subscriptions call goes through one function
 // taking each key's policy, and the wiring checks the keys it is given. Ceiling raised by that,
 // rounded up.
-const CEILING = 257_600
+// 257,640 bytes on CI on 2026-11-15, 40 over, after the UI SDK work: the page draws Input,
+// Alert and Card, which gained the form options (`name`, `required`, `readOnly`, `attributes`),
+// the live description, `recoveryPart` and Card's `headingLevel`. Not measured module by
+// module; the ceiling is that reading plus about 200 bytes.
+const CEILING = 257_850
 
 clientBudget({
   name: 'registry',

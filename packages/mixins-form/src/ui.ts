@@ -182,9 +182,14 @@ export const field =
       ...(checking ? [options.words?.checking ?? 'Checking…'] : []),
       ...input.errors,
     ]
-    // The widget writes the name and the native `required`, and owns `blur` and `aria-busy` as given.
+    // `aria-required` only: the native `required` would have the browser judge the form
+    // before the Schema does, and move focus to the first empty field itself.
     const attributes = {
-      input: [h.OnBlur(options.toMessage(input.blurred)), ...(checking ? [h.AriaBusy(true)] : [])],
+      input: [
+        h.OnBlur(options.toMessage(input.blurred)),
+        ...(input.control.required ? [h.AriaRequired(true)] : []),
+        ...(checking ? [h.AriaBusy(true)] : []),
+      ],
     }
     const finish = (parts: FieldParts): Html => {
       const value: UiFieldParts = { ...parts, field: input.field }
@@ -216,7 +221,6 @@ export const field =
       described: description.length > 0,
       placeholder: input.attrs.placeholder,
       name: input.control.key,
-      required: input.control.required,
       input: input.field,
     }
     if (FormInput.Text.is(input.control.control))

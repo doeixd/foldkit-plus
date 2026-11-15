@@ -79,7 +79,7 @@ const hueOf = ([red, green, blue]: ReadonlyArray<number>): number => {
  */
 const hoverFilm = (page: Page) =>
   page.locator('[data-size="canvas"]').evaluate(preview => {
-    const group = preview.querySelector('[role="group"][aria-label="Range"]')
+    const group = preview.querySelector('[role="radiogroup"][aria-label="Range"]')
     if (group === null) throw new Error('the canvas draws no Segmented control')
     // The recipe draws the pressed pill, then the highlight that follows the pointer.
     const highlight = group.querySelectorAll('[aria-hidden="true"]')[1]
@@ -180,8 +180,8 @@ test('the hover knobs reach a fluid highlight in the preview', async () => {
   })
 
   const week = page
-    .locator('[data-size="canvas"] [role="group"][aria-label="Range"]')
-    .getByRole('button', { name: 'Week' })
+    .locator('[data-size="canvas"] [role="radiogroup"][aria-label="Range"]')
+    .getByRole('radio', { name: 'Week' })
   const lit = () => hoverFilm(page)
   const shown = async () => (await lit()).opacity
 
