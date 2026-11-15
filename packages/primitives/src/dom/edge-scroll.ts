@@ -83,6 +83,7 @@ export const edgeScroller = (
   let frame: number | undefined
   let last: number | undefined
   let owed = 0
+  let reduced = false
 
   /** The ancestors that scroll, nearest first, then the page. Read each frame: layout may have moved. */
   const scrollers = (axis: Axis): ReadonlyArray<Scroller> => {
@@ -155,7 +156,6 @@ export const edgeScroller = (
     owed += last === undefined ? 1 / 60 : Math.max(0, Math.min(now - last, 50)) / 1000
     last = now
     // Reduced motion keeps the scroll, but in jumps, not a glide.
-    const reduced = view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
     if (reduced && owed * 1000 < REDUCED_STEP_MS) {
       frame = view?.requestAnimationFrame(tick)
       return
@@ -181,11 +181,14 @@ export const edgeScroller = (
   }
 
   return {
+    // Moves only ask for a frame: the frame decides whether anything scrolls, so moves faster
+    // than frames walk the ancestors once a frame, not once a move.
     move: (x, y) => {
       point = { x, y }
-      if (frame !== undefined || view === null || plan().length === 0) return
+      if (frame !== undefined || view === null) return
       last = undefined
       owed = 0
+      reduced = view.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
       frame = view.requestAnimationFrame(tick)
     },
     stop: () => {

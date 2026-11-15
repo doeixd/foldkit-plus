@@ -297,6 +297,33 @@ it('scrolls no box the pointer is beside rather than over', async () => {
   }
 })
 
+it('walks the ancestors once a frame, not once a move, while nothing scrolls', async () => {
+  const { list } = rows(20)
+  const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
+  const frame = () => new Promise(resolve => requestAnimationFrame(resolve))
+  try {
+    await later(20)
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    await frame()
+    await frame()
+    const styles = vi.spyOn(window, 'getComputedStyle')
+    pointer(10, 50, 'pointermove')
+    await frame()
+    await frame()
+    const once = styles.mock.calls.length
+    styles.mockClear()
+    for (let y = 41; y < 61; y++) pointer(10, y, 'pointermove')
+    await frame()
+    await frame()
+    expect(once).toBeGreaterThan(0)
+    expect(styles.mock.calls.length).toBe(once)
+    pointer(10, 60, 'pointerup')
+  } finally {
+    await run.stop()
+  }
+})
+
 it('ignores a page that glides: each step lands at once', async () => {
   document.documentElement.style.scrollBehavior = 'smooth'
   const { box, list } = rows(40, 'height:100px;overflow:auto;scroll-behavior:smooth')

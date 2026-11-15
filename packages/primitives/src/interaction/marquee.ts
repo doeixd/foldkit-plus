@@ -41,8 +41,11 @@ export interface BehaviorOptions<Slots, ParentMessage> {
 export const selected = (
   before: ReadonlyArray<string>,
   fact: { readonly ids: ReadonlyArray<string>; readonly additive: boolean },
-): ReadonlyArray<string> =>
-  fact.additive ? [...before, ...fact.ids.filter(id => !before.includes(id))] : fact.ids
+): ReadonlyArray<string> => {
+  if (!fact.additive) return fact.ids
+  const held = new Set(before)
+  return [...before, ...fact.ids.filter(id => !held.has(id))]
+}
 
 export function behavior<Slots, Input, ParentMessage>(
   bound: SlotView.Bound<Slots, Input, ParentMessage>,

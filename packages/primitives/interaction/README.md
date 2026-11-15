@@ -690,7 +690,9 @@ descendants the rectangle overlaps, in document order. A press is not empty
 space when it is on a marked descendant, a link, button, field, label,
 `summary` or editable text, or on the container's own scrollbar, and a finger
 never starts one (it scrolls). The click a lasso ends with is swallowed, as a
-drop's is. The container must be a box (not `display: contents`).
+drop's is. The container must be a box (not `display: contents`). Each change
+measures every marked descendant (a `querySelectorAll` and a box each), so a
+container of thousands draws only the rows that show, or marks fewer.
 
 It selects nothing. The ids are for `update` to hand to `Selection`, whose
 `replace(ids)` helper sets the selection, so there is one way to select;

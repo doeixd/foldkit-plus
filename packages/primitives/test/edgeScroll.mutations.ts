@@ -13,6 +13,28 @@ const marqueeTests = ['packages/primitives/test/marquee.browser.test.ts']
 
 export default [
   {
+    name: 'an additive lasso adds what was already selected again',
+    edits: [
+      {
+        file: '../src/interaction/marquee.ts',
+        find: 'fact.ids.filter(id => !held.has(id))',
+        replace: 'fact.ids',
+      },
+    ],
+    tests: ['packages/primitives/test/marquee.test.ts'],
+  },
+  {
+    name: 'every move walks the ancestors',
+    edits: [
+      {
+        file: scroll,
+        find: '      if (frame !== undefined || view === null) return',
+        replace: '      if (frame !== undefined || view === null || plan().length === 0) return',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
     name: 'a page under a scroll lock still scrolls',
     edits: [
       {
@@ -81,7 +103,7 @@ export default [
     edits: [
       {
         file: scroll,
-        find: "view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true",
+        find: "view.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true",
         replace: 'false',
       },
     ],
