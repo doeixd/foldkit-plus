@@ -33,7 +33,7 @@ export default [
   },
   {
     name: 'the physical key is never consulted',
-    edits: [{ file, find: 'return press.code === (', replace: 'return false && press.code === (' }],
+    edits: [{ file, find: 'press.code === (', replace: 'false && press.code === (' }],
     tests,
   },
   {
