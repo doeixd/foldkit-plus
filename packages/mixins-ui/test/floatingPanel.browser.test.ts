@@ -13,7 +13,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
-import { Layers, Style } from 'foldkit-mixins'
+import { Behaviors, Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
@@ -31,12 +31,15 @@ const Model = Schema.Struct({
   notes: FloatingPanel.Model,
   chat: FloatingPanel.Model,
   order: Schema.Array(Schema.String),
+  /** Whether the button that opens the notes has been taken off the page. */
+  openerGone: Schema.Boolean,
 })
 type Model = typeof Model.Type
 const Got = defineMessageUnion({
   Notes: { message: FloatingPanel.Message },
   Chat: { message: FloatingPanel.Message },
   OpenNotes: {},
+  RemovedOpener: {},
 })
 type Got = typeof Got.Type
 
@@ -48,7 +51,13 @@ afterEach(() => {
   document.documentElement.removeAttribute('dir')
 })
 
-const mount = (direction: 'ltr' | 'rtl' = 'ltr') => {
+const mount = (
+  direction: 'ltr' | 'rtl' = 'ltr',
+  // What the notes panel is given beside the fixture's own.
+  view: Partial<FloatingPanel.FloatingPanelView<Got>> = {},
+  // Whether `open` is told what opened the panel.
+  named = true,
+) => {
   document.documentElement.dir = direction
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -96,6 +105,7 @@ const mount = (direction: 'ltr' | 'rtl' = 'ltr') => {
             open: true,
           }),
           order: ['notes', 'chat'],
+          openerGone: false,
         },
       }),
       update: (model: Model, message: Got) =>
@@ -103,13 +113,21 @@ const mount = (direction: 'ltr' | 'rtl' = 'ltr') => {
           Notes: ({ message: inner }) => fold(model, 'notes', update(model.notes, inner)),
           Chat: ({ message: inner }) => fold(model, 'chat', update(model.chat, inner)),
           OpenNotes: () =>
-            fold(model, 'notes', FloatingPanel.open(model.notes, { opener: 'opener' })),
+            fold(
+              model,
+              'notes',
+              FloatingPanel.open(model.notes, named ? { opener: 'opener' } : {}),
+            ),
+          RemovedOpener: () => ({ model: modifyFields(model, { openerGone: () => true }) }),
         }),
       view: (model: Model, h: HtmlBuilder<Got>) =>
         h.div(
           [],
           [
-            h.button([h.Id('opener'), h.OnClick(Got.OpenNotes())], ['Open notes']),
+            // A placeholder in its place, so the panels after it keep their positions.
+            model.openerGone
+              ? h.empty
+              : h.button([h.Id('opener'), h.OnClick(Got.OpenNotes())], ['Open notes']),
             FloatingPanel.view(
               {
                 model: model.notes,
@@ -119,6 +137,7 @@ const mount = (direction: 'ltr' | 'rtl' = 'ltr') => {
                 order: model.order,
                 direction,
                 style,
+                ...view,
               },
               h,
             ),
@@ -134,6 +153,7 @@ const mount = (direction: 'ltr' | 'rtl' = 'ltr') => {
               },
               h,
             ),
+            h.button([h.Id('after')], ['After the panels']),
           ],
         ),
     }),
@@ -287,6 +307,75 @@ test('the close button presses through the drag, and focus goes back to the open
     await userEvent.keyboard('{Escape}')
     await vi.waitFor(() => expect(panel('notes')).toBeNull())
     await vi.waitFor(() => expect(document.activeElement).toBe(document.getElementById('opener')))
+  } finally {
+    mounted.dispose()
+  }
+})
+
+/** Closes the other panel, whose own focus would otherwise be what the page is left on. */
+const closeChat = async () => {
+  await ready()
+  await userEvent.click(panel('chat')!.querySelector('[aria-label="Close"]')!)
+  await vi.waitFor(() => expect(panel('chat')).toBeNull())
+}
+
+const closedWithOpenerRemoved = async (view: Partial<FloatingPanel.FloatingPanelView<Got>>) => {
+  const removeOpener = Behaviors.Keys.route<undefined, Got>('Remove the opener', {
+    on: [Behaviors.Keys.chord('x')],
+    handle: () => Option.some(Got.RemovedOpener()),
+  })
+  const mounted = mount('ltr', { routes: [removeOpener], ...view })
+  try {
+    await closeChat()
+    await userEvent.click(panel('notes')!.querySelector('[aria-label="Close"]')!)
+    await vi.waitFor(() => expect(panel('notes')).toBeNull())
+    await userEvent.click(document.getElementById('opener')!)
+    await vi.waitFor(() => expect(document.activeElement).toBe(panel('notes')))
+    // An application key, taken on the panel by its one keydown owner.
+    await userEvent.keyboard('x')
+    await vi.waitFor(() => expect(document.getElementById('opener')).toBeNull())
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(panel('notes')).toBeNull())
+    return document.activeElement
+  } finally {
+    mounted.dispose()
+  }
+}
+
+test('with FloatingPanel.focusReturn, an opener taken off the page leaves focus on the page', async () => {
+  const active = await closedWithOpenerRemoved({ mixins: FloatingPanel.focusReturn })
+  // The page's first tabbable element: the opener's id names nothing.
+  expect(active?.id).toBe('after')
+})
+
+test('without it, an opener taken off the page leaves focus on body', async () => {
+  expect(await closedWithOpenerRemoved({})).toBe(document.body)
+})
+
+test('with FloatingPanel.focusReturn, a panel that was not told its opener gives focus back to what opened it', async () => {
+  const mounted = mount('ltr', { mixins: FloatingPanel.focusReturn }, false)
+  try {
+    await closeChat()
+    await userEvent.click(panel('notes')!.querySelector('[aria-label="Close"]')!)
+    await vi.waitFor(() => expect(panel('notes')).toBeNull())
+    await userEvent.click(document.getElementById('opener')!)
+    await vi.waitFor(() => expect(document.activeElement).toBe(panel('notes')))
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(panel('notes')).toBeNull())
+    await vi.waitFor(() => expect(document.activeElement).toBe(document.getElementById('opener')))
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('an arrow with Ctrl held is left to the browser, not taken by the drag trigger', async () => {
+  const mounted = mount()
+  try {
+    await ready()
+    ;(trigger('notes') as HTMLElement).focus()
+    await userEvent.keyboard('{Control>}{ArrowRight}{/Control}')
+    await frame()
+    expect(boxOf('notes').left).toBeCloseTo(100, 0)
   } finally {
     mounted.dispose()
   }

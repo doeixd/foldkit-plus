@@ -8,13 +8,13 @@
 import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y } from 'foldkit-mixins'
+import { A11y, Behaviors, SlotView } from 'foldkit-mixins'
 import { Move } from 'foldkit-primitives/dom'
 import { Bounds } from 'foldkit-primitives/observers'
 // From the modules, not the index: the test reads nothing else.
 import { FloatingPanelSlots, moveRect } from '../src/floatingPanel.js'
 import { FloatingPanel, Patterns } from '../src/index.js'
-import { h, message } from './fixture.js'
+import { diagnosticFrom, h, message } from './fixture.js'
 
 const { Message, init } = FloatingPanel
 const update = FloatingPanel.update()
@@ -327,8 +327,55 @@ describe('FloatingPanel.view', () => {
     ]
     scene(shown(), {}, Scene.keydown(dialog, 'Escape'), ...gone())
     scene(shown(), {}, Scene.click(Scene.role('button', { name: 'Close' })), ...gone())
-    expect(() => scene(shown(), { closeOnEscape: false }, Scene.keydown(dialog, 'Escape'))).toThrow(
-      /no keydown handler/,
+    scene(shown(), { closeOnEscape: false }, Scene.keydown(dialog, 'Escape'), Scene.expectIgnored())
+  })
+
+  const { Keys } = Behaviors
+  const closes = (
+    name: string,
+    chord: Behaviors.Keys.Gesture,
+  ): FloatingPanel.Route<FloatingPanel.Message> =>
+    Keys.route(name, {
+      on: [chord],
+      handle: () => Option.some(FloatingPanel.Message.Closed()),
+    })
+
+  it("answers the application's routes on the panel beside Escape", () => {
+    scene(
+      shown(),
+      { routes: [closes('Close on Q', Keys.chord('q'))] },
+      Scene.keydown(dialog, 'q'),
+      Scene.expect(dialog).toBeAbsent(),
+      Scene.Mount.expectEnded(Bounds, ...Array.from({ length: 9 }, () => Move)),
+    )
+  })
+
+  it.each([
+    ['Escape', Keys.chord('Escape')],
+    ['Escape with Shift', Keys.chord('Escape', { shift: true })],
+  ])('names both routes when one overlaps %s', (_, chord) => {
+    const diagnostic = diagnosticFrom(() =>
+      FloatingPanel.view(
+        {
+          model: shown(),
+          onMessage: message => message,
+          title: 'Notes',
+          content: h.p([], ['Body']),
+          routes: [closes('Mine', chord)],
+        },
+        SlotView.inertBuilder<FloatingPanel.Message>(),
+      ),
+    )
+    expect(diagnostic?.code).toBe('mixins:key-conflict')
+    expect(diagnostic?.details?.['contributors']).toEqual(['Close on Escape', 'Mine'])
+  })
+
+  it('leaves an arrow with Ctrl held to the browser', () => {
+    scene(
+      shown(),
+      {},
+      Scene.keydown(trigger, 'ArrowRight', { ctrlKey: true }),
+      Scene.expectIgnored(),
     )
   })
 
