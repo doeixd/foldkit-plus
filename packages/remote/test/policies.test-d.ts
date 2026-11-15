@@ -42,3 +42,14 @@ Data.wiring(
     },
   },
 )
+
+// The wiring's entries are named by the record's keys: a read entry needs no `!`.
+const wiring = Data.wiring(actives, { policies: { grid: ageing } })
+export const expires: number | undefined = wiring.subscriptions['grid.read'].modelToDependencies(
+  {} as Model,
+).expires?.at
+void wiring.subscriptions['feed.live']
+void wiring.subscriptions.retain
+
+// @ts-expect-error no Surface is active under `gird`
+void wiring.subscriptions['gird.read']

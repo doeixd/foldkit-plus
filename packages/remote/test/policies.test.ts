@@ -74,8 +74,8 @@ describe('Data.wiring with policies', () => {
     const wiring = Data.wiring(activesOf(Data), { policy: feed, policies: { grid }, now: () => 0 })
     const loaded = reduceAll(Data, [answered(mine, 'u1', 0), answered(theirs, 'u2', 0)])
 
-    const expiry = (key: string) =>
-      wiring.subscriptions[`${key}.read`]!.modelToDependencies(loaded).expires?.at
+    const expiry = (key: 'grid' | 'feed') =>
+      wiring.subscriptions[`${key}.read`].modelToDependencies(loaded).expires?.at
 
     expect(expiry('grid')).toBe(1_000)
     expect(expiry('feed')).toBe(60_000)
@@ -87,10 +87,10 @@ describe('Data.wiring with policies', () => {
       policy: RemotePolicy.cacheFirst,
       policies: { feed: RemotePolicy.cacheOnly },
     })
-    const queried = (key: string) =>
-      wiring.subscriptions[`${key}.read`]!.modelToDependencies(start).queries.map(
-        (query: { identity: string }) => query.identity,
-      )
+    const queried = (key: 'grid' | 'feed') =>
+      wiring.subscriptions[`${key}.read`]
+        .modelToDependencies(start)
+        .queries.map(query => query.identity)
 
     expect(queried('grid')).toEqual([mine.ref.identity])
     expect(queried('feed')).toEqual([])
@@ -104,7 +104,7 @@ describe('Data.wiring with policies', () => {
     })
     const loaded = reduceAll(Data, [answered(theirs, 'u2', 0)])
 
-    expect(wiring.subscriptions['feed.read']!.modelToDependencies(loaded).expires?.at).toBe(60_000)
+    expect(wiring.subscriptions['feed.read'].modelToDependencies(loaded).expires?.at).toBe(60_000)
   })
 
   it('reads an entry it does not name under the default when no policy is given', () => {
@@ -112,7 +112,7 @@ describe('Data.wiring with policies', () => {
     const wiring = Data.wiring(activesOf(Data), { policies: { grid }, now: () => 0 })
     const loaded = reduceAll(Data, [answered(theirs, 'u2', 0)])
 
-    expect(wiring.subscriptions['feed.read']!.modelToDependencies(loaded).expires).toBeNull()
+    expect(wiring.subscriptions['feed.read'].modelToDependencies(loaded).expires).toBeNull()
   })
 
   it('reads an entry it names with no policy under policy', () => {
@@ -124,7 +124,7 @@ describe('Data.wiring with policies', () => {
     })
     const loaded = reduceAll(Data, [answered(mine, 'u1', 0)])
 
-    expect(wiring.subscriptions['grid.read']!.modelToDependencies(loaded).expires?.at).toBe(1_000)
+    expect(wiring.subscriptions['grid.read'].modelToDependencies(loaded).expires?.at).toBe(1_000)
   })
 
   it('reads a key Object.prototype holds under policy, not under what the prototype answers', () => {
@@ -135,7 +135,7 @@ describe('Data.wiring with policies', () => {
     )
     const loaded = reduceAll(Data, [answered(mine, 'u1', 0)])
 
-    expect(wiring.subscriptions['constructor.read']!.modelToDependencies(loaded).expires?.at).toBe(
+    expect(wiring.subscriptions['constructor.read'].modelToDependencies(loaded).expires?.at).toBe(
       1_000,
     )
   })

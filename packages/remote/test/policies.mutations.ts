@@ -1,6 +1,13 @@
 /**
  * `policies` on `Data.wiring` (#236), broken in turn:
  * `pnpm mutate packages/remote/test/policies.mutations.ts`
+ *
+ * The type side (`policies.test-d.ts`) is mutated by hand, since `pnpm mutate`
+ * runs Vitest and Vitest does not typecheck: `RemoteWiring['subscriptions']`
+ * typed as the plain `Subscriptions` record again, and the wiring's
+ * `Omit<…, 'subscriptions'>` dropped, each made `npx tsc -b packages/remote`
+ * fail where the test reads `subscriptions['grid.read']` with no `!` and
+ * refuses `'gird.read'` (2026-11-15).
  */
 const tests = ['packages/remote/test/policies.test.ts']
 const edit = (name: string, find: string, replace: string) => ({

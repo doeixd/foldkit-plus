@@ -161,6 +161,7 @@ import {
   type ActiveEntry,
   type RemoteEntry,
   type SubscriptionEntries,
+  type RemoteWiring,
   type SubscriptionsOptions,
   type RemoteDomain,
   type RemoteFold,
@@ -2008,6 +2009,7 @@ const bindDomain = <
                 ),
               )
             : Option.none(),
+        // The loop in `subscriptionsOf` writes exactly the keys the mapped type names.
         subscriptions: brandEntries(
           subscriptionsOf(
             active,
@@ -2015,7 +2017,7 @@ const bindDomain = <
             // A key the record holds, never one `Object.prototype` answers.
             key => (Object.hasOwn(byKey, key) ? byKey[key] : undefined) ?? options.policy,
           ),
-        ),
+        ) as RemoteWiring<AppModel, never, typeof active>['subscriptions'],
         contract: bound.contract,
       }
     },

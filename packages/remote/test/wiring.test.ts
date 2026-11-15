@@ -96,9 +96,9 @@ describe('RemoteDomain.wiring', () => {
   })
 
   it('brings its Subscriptions and contract', () => {
-    expect(Object.keys(wiring.subscriptions!).sort()).toEqual(['home.live', 'home.read', 'retain'])
-    const read = wiring.subscriptions!['home.read']!
-    const expected = Data.subscriptions({ home: Home })['home.read']!
+    expect(Object.keys(wiring.subscriptions).sort()).toEqual(['home.live', 'home.read', 'retain'])
+    const read = wiring.subscriptions['home.read']
+    const expected = Data.subscriptions({ home: Home })['home.read']
     expect(read.modelToDependencies(initial)).toEqual(expected.modelToDependencies(initial))
     expect(wiring.contract).toBe(Data.contract)
   })
@@ -106,12 +106,11 @@ describe('RemoteDomain.wiring', () => {
   it('passes options through to the entries', () => {
     const loaded = Data.reduce(initial, receivedAda)
     // Cache-first sees nothing to fetch; network-only refetches what the store holds.
-    const cached = wiring.subscriptions!['home.read']!.modelToDependencies(loaded)
+    const cached = wiring.subscriptions['home.read'].modelToDependencies(loaded)
     expect(cached.requirements).toEqual([])
-    const refetch = Data.wiring(
-      { home: Home },
-      { policy: RemotePolicy.networkOnly },
-    ).subscriptions!['home.read']!.modelToDependencies(loaded)
+    const refetch = Data.wiring({ home: Home }, { policy: RemotePolicy.networkOnly }).subscriptions[
+      'home.read'
+    ].modelToDependencies(loaded)
     expect(refetch.requirements).toEqual([{ entity: 'User', id: 'u1', fields: ['name'] }])
   })
 })

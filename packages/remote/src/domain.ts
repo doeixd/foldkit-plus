@@ -16,7 +16,7 @@ import {
 import type * as Domain from 'foldkit-entity'
 import type { Command } from 'foldkit/command'
 import type * as Update from 'foldkit/update'
-import type { EntryWithoutKeepAlive, Subscriptions } from 'foldkit/subscription'
+import type { EntryWithoutKeepAlive, Subscription, Subscriptions } from 'foldkit/subscription'
 import {
   type ActiveSurface,
   type Contract,
@@ -321,22 +321,32 @@ export type RemoteEntry<AppModel, Dependencies> = EntryWithoutKeepAlive<
  */
 export type SubscriptionEntries<AppModel, Active, Message = RemoteMessage> = {
   // `Object.entries` turns a numeric key into a string, so numeric keys have entries too.
-  readonly [K in keyof Active & (string | number) as `${K}.read`]: EntryWithoutKeepAlive<
+  readonly [K in keyof Active & (string | number) as `${K}.read`]: RemoteSubscription<
     AppModel,
     Message,
     ReadDependencies,
     RemoteClient
   >
 } & {
-  readonly [K in keyof Active & (string | number) as `${K}.live`]: EntryWithoutKeepAlive<
+  readonly [K in keyof Active & (string | number) as `${K}.live`]: RemoteSubscription<
     AppModel,
     Message,
     LiveDependencies,
     RemoteClient
   >
 } & {
-  readonly retain: EntryWithoutKeepAlive<AppModel, Message, RetentionRoots, never>
+  readonly retain: RemoteSubscription<AppModel, Message, RetentionRoots, never>
 }
+
+/**
+ * One of Remote's entries as Foldkit's `Subscription.make` gives it: branded,
+ * so a record of them is `Subscriptions` (an assembly's wiring takes it), and
+ * without `keepAliveEquivalence`, so it is a `RemoteEntry` too.
+ */
+type RemoteSubscription<AppModel, Message, Dependencies, Services> = Extract<
+  Subscription<AppModel, Message, Dependencies, Services>,
+  EntryWithoutKeepAlive<AppModel, Message, Dependencies, Services>
+>
 
 /** The dependencies of a live entry: what it subscribes to, and where a restart resumes. */
 export interface LiveDependencies {
@@ -372,15 +382,24 @@ export interface SubscriptionsOptions<AppModel = never>
  * from the runtime's resources Layer. The `Shared` tags reach the
  * application's own update too, after Remote has reduced them.
  */
-export type RemoteWiring<AppModel, Shared extends RemoteMessageTag = never> = Wiring<
+export type RemoteWiring<
   AppModel,
-  RemoteMessage | RemoteMessageInput,
-  RemoteClient,
-  RemoteMessageTag
+  Shared extends RemoteMessageTag = never,
+  Active = Readonly<Record<string, ActiveEntry<AppModel>>>,
+> = Omit<
+  Wiring<AppModel, RemoteMessage | RemoteMessageInput, RemoteClient, RemoteMessageTag>,
+  'subscriptions'
 > & {
   readonly shared: ReadonlyArray<Shared>
-  /** Each active entry's read and live entries, keyed `${key}.read` and `${key}.live`, and `retain`. */
-  readonly subscriptions: Subscriptions<AppModel, RemoteMessage, RemoteClient>
+  /**
+   * Each active entry's read and live entries, keyed `${key}.read` and
+   * `${key}.live`, and `retain`: named by the active record's keys, so
+   * `wiring.subscriptions['grid.read']` needs no `!`. A wiring typed with no
+   * record (`ReturnType<typeof Data.wiring>`) keeps the plain record.
+   */
+  readonly subscriptions: string extends keyof Active
+    ? Subscriptions<AppModel, RemoteMessage, RemoteClient>
+    : SubscriptionEntries<AppModel, Active>
 }
 
 /** How `Data.wiring` joins an assembly: its Subscriptions' options, and what the application hears. */
@@ -749,7 +768,7 @@ export interface RemoteDomain<
   >(
     active: Active,
     options?: WiringOptions<Shared, AppModel, Active>,
-  ) => RemoteWiring<AppModel, Shared>
+  ) => RemoteWiring<AppModel, Shared, Active>
   /** `Remote.inspect` of the bound slice. */
   inspect(model: AppModel): RemoteInspection
   /** Whether the domain verifies its predictions (`verifyPredictions`), which a trace requires. */
