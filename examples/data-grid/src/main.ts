@@ -239,14 +239,21 @@ const SaveLayout = Command.define('SaveLayout', {
     }),
 })
 
+/** The widths a narrow screen starts with, until the viewer resizes a column. */
+const phoneWidths = [
+  { column: 'upc', width: 124 },
+  { column: 'description', width: 200 },
+] as const
+
 /**
  * The page as it opens: the products, and the columns as this browser left
  * them, read leniently, so a layout saved before a column was renamed keeps
- * the rest.
+ * the rest. A narrow screen with no saved layout starts with narrower columns.
  */
 export const init = (
   count = 100_000,
   saved: Option.Option<unknown> = Option.none(),
+  narrow = false,
 ): Update.Return<Model, Message, unknown> => {
   const start = application.initial({
     products: products(count),
@@ -254,7 +261,19 @@ export const init = (
     notice: '',
   })
   return Option.match(saved, {
-    onNone: () => start,
+    // A phone keeps the UPC pinned but narrow, so the next column shows beside it.
+    onNone: () =>
+      narrow
+        ? {
+            ...start,
+            model: modifyFields(start.model, {
+              grid: grid =>
+                modifyFields(grid, {
+                  columns: columns => ({ ...columns, widths: phoneWidths }),
+                }),
+            }),
+          }
+        : start,
     onSome: layout => ({
       ...start,
       model: modifyFields(start.model, {
@@ -342,7 +361,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           // The columns' 830px, the grid's border and this padding: no empty band beside the grid.
           maxWidth: '55rem',
           margin: '0 auto',
-          padding: '2.5rem 1.5rem',
+          padding: 'clamp(1rem, 4vw, 2.5rem) clamp(0.75rem, 4vw, 1.5rem)',
           font: '14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif',
           color: 'var(--fk-text-default)',
         }),
@@ -387,6 +406,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                   : `${total.toLocaleString()} products, `,
                 `${selectedCount.toLocaleString()} selected. `,
                 model.notice,
+                // GAP (package work pending): the copied-cells message and the selected range's size
+                // belong in this status; a "go to row" control and the header lock's title come from the grid too.
               ],
             ),
             // Always drawn, so pressing it never drops focus to the body, and so nothing shifts.
@@ -401,7 +422,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                   background: 'transparent',
                   border: '1px solid var(--fk-border-default, currentColor)',
                   borderRadius: '6px',
-                  padding: '0 0.5rem',
+                  minHeight: '2rem',
+                  padding: '0 0.75rem',
                   opacity: filtered ? '1' : '0.5',
                   cursor: filtered ? 'pointer' : 'default',
                 }),

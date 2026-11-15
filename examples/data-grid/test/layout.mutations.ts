@@ -7,6 +7,22 @@ const file = '../src/main.ts'
 
 export default [
   {
+    name: 'a narrow screen starts with the wide columns',
+    edits: [{ file, find: 'widths: phoneWidths', replace: 'widths: columns.widths' }],
+    tests,
+  },
+  {
+    name: 'a narrow screen overrides a saved layout',
+    edits: [
+      {
+        file,
+        find: '    onSome: layout => ({',
+        replace: '    onSome: layout => (narrow ? start : {',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'nothing is saved',
     edits: [
       {

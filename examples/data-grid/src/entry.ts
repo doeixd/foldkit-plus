@@ -13,7 +13,7 @@ if (container === null) throw new Error('#root is missing from index.html')
 Runtime.run(
   Runtime.makeApplication({
     Model,
-    init: () => init(100_000, savedLayout()),
+    init: () => init(100_000, savedLayout(), window.matchMedia('(max-width: 40rem)').matches),
     update,
     view,
     container,

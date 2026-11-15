@@ -118,3 +118,28 @@ test('a filter shows how many products match, and Clear filters takes it off', a
   ).toBe(true)
   await page.close()
 })
+
+test('on a phone the pinned UPC leaves room for the next column, and the page does not scroll sideways', async () => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 800 },
+    hasTouch: true,
+    isMobile: true,
+  })
+  const page = await context.newPage()
+  await page.goto(vite.resolvedUrls!.local[0]!)
+  await cell(page, 'p0', 'description').waitFor({ timeout: 120_000 })
+  const box = async (column: string) => (await cell(page, 'p0', column).boundingBox())!
+  expect((await box('upc')).width).toBe(124)
+  // Description starts well inside the screen, with a good part of its text in view.
+  const description = await box('description')
+  expect(390 - description.x).toBeGreaterThan(200)
+  // The layout viewport, not `innerWidth`: a phone zooms out to fit a page that overflows.
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true)
+  const clear = (await page.getByRole('button', { name: 'Clear filters' }).boundingBox())!
+  expect(clear.height).toBeGreaterThanOrEqual(32)
+  await context.close()
+})
