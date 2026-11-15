@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/menubar.ts',
-        find: 'const key = readingKey(pressed, options.direction)',
-        replace: 'const key = pressed',
+        find: "options.direction === 'rtl' ? RTL_KEYS[reading] : reading",
+        replace: 'reading',
       },
     ],
     tests,
