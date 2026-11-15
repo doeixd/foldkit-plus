@@ -29,8 +29,14 @@ export default [
     tests: [unit, page],
   },
   {
-    name: 'a button at its bound is disabled while it is still held',
-    edits: [{ file: view, find: ' && !model.more.holding', replace: '' }],
+    name: 'the more button is never disabled at its bound',
+    edits: [
+      {
+        file: view,
+        find: 'disabled: model => model.value >= MAX',
+        replace: 'disabled: () => false',
+      },
+    ],
     tests: [unit, page],
   },
   {
@@ -38,8 +44,8 @@ export default [
     edits: [
       {
         file: '../../../packages/primitives/src/interaction/press.ts',
-        find: "'pointerleave',",
-        replace: "'pointerleave-never',",
+        find: "['pointerleave', 'pointercancel']",
+        replace: "['pointerleave-never', 'pointercancel']",
       },
     ],
     tests: [page],

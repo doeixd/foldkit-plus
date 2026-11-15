@@ -92,13 +92,13 @@ describe('the stepper', () => {
     const disabled = (value: number) =>
       Inert.byTag(at(value), 'button').map(button => Inert.value(button, 'aria-disabled'))
     expect(Inert.text(at(START))).toContain(String(START))
-    expect(disabled(START)).toEqual(['false', 'false'])
-    expect(disabled(MIN)).toEqual(['true', 'false'])
-    expect(disabled(MAX)).toEqual(['false', 'true'])
-    // Disabled while held, a button would not hear its own release.
+    expect(disabled(START)).toEqual([undefined, undefined])
+    expect(disabled(MIN)).toEqual(['true', undefined])
+    expect(disabled(MAX)).toEqual([undefined, 'true'])
+    // Held to the bound the button reads disabled while the hold ends on release (the browser test).
     const held = press({ ...initial().model, value: MAX - 1 }, More).model
     expect(
       Inert.value(Inert.byTag(Inert.draw(NumberStepper, held), 'button')[1], 'aria-disabled'),
-    ).toBe('false')
+    ).toBe('true')
   })
 })

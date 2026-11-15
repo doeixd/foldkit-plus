@@ -17,9 +17,14 @@ export const StepperSlots = Slots.define({
 
 const Stepper = SlotView.over(StepperSlots)<Model, Message>()
 
-// ADOPT: Repeat.behavior(Less)(Stepper)({ target, disabled }) with inference and `provides: A11y.Activation` (approved).
-export const LessRepeats = Repeat.behavior(Less)(StepperSlots)<Model, Message>({ target: 'less' })
-export const MoreRepeats = Repeat.behavior(More)(StepperSlots)<Model, Message>({ target: 'more' })
+export const LessRepeats = Repeat.behavior(Less)(Stepper)({
+  target: 'less',
+  disabled: model => model.value <= MIN,
+})
+export const MoreRepeats = Repeat.behavior(More)(Stepper)({
+  target: 'more',
+  disabled: model => model.value >= MAX,
+})
 
 export const StepperStyle = Style.forSlots(StepperSlots)(
   {
@@ -43,28 +48,10 @@ export const StepperStyle = Style.forSlots(StepperSlots)(
   { name: 'StepperStyle' },
 )
 
-// A disabled button reports nothing, its release included: disabled mid-hold, `Repeat` would never
-// hear the pointer go up, and the button would stay held, ignoring every later press.
 export const NumberStepper = Stepper.define((model, slots, h) =>
   h.div(slots.root.attrs([h.Role('group'), h.AriaLabel('Quantity')]), [
-    h.button(
-      slots.less.attrs([
-        h.Type('button'),
-        h.AriaLabel('Less'),
-        // ADOPT: once Press delivers a release on an aria-disabled element (approved), drop the `!holding` dodge.
-        h.AriaDisabled(model.value <= MIN && !model.less.holding),
-      ]),
-      ['−'],
-    ),
+    h.button(slots.less.attrs([h.Type('button'), h.AriaLabel('Less')]), ['−']),
     h.output(slots.value.attrs([h.AriaLive('polite')]), [String(model.value)]),
-    h.button(
-      slots.more.attrs([
-        h.Type('button'),
-        h.AriaLabel('More'),
-        // ADOPT: as above.
-        h.AriaDisabled(model.value >= MAX && !model.more.holding),
-      ]),
-      ['+'],
-    ),
+    h.button(slots.more.attrs([h.Type('button'), h.AriaLabel('More')]), ['+']),
   ]),
 ).pipe(Behavior.attach(LessRepeats), Behavior.attach(MoreRepeats), Style.attach(StepperStyle))
