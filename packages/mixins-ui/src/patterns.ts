@@ -1,17 +1,17 @@
 /**
  * An accessibility pattern per adapted widget with an ARIA contract: the
  * slots a widget of that kind must publish, with the capability, events and
- * attributes each must expose, as `A11y.pattern` contracts. Timing and
- * positioning behaviors without an ARIA contract of their own (`Anchor`,
- * `HoverIntent`) get none — they borrow their content's. `catalog` lists
- * the patterns with their tier, the ARIA roles involved, and the platform
- * floor: what the widget relies on the browser for, so a reader or an agent
- * can ask. The gate test validates every adapter's Slots against its
- * pattern; a custom view built from `foldkit-primitives/interaction`
- * entries validates against the same one, and `Listbox` and `Checkbox` also
- * name obligations, which `A11y.conform` holds such a view to. An adapter
- * draws upstream's widget, whose keys and state are upstream's: it is
- * validated, never conformed.
+ * attributes each must expose, and the obligations (who navigates, who makes
+ * an item reachable, who activates it) as `A11y.pattern` contracts. `Anchor`
+ * has no ARIA contract of its own: it borrows its content's. `catalog` lists
+ * the patterns with their tier, the ARIA roles involved, the platform floor
+ * (what the widget relies on the browser for, so a reader or an agent can
+ * ask) and `support`, who supplies each obligation. The gate test validates
+ * every adapter's Slots against its pattern and holds `support` to the
+ * obligations; a custom view built from `foldkit-primitives/interaction`
+ * entries validates against the same pattern, and `A11y.conform` holds it to
+ * the obligations. An adapter draws upstream's widget, whose keys and state
+ * are upstream's: it is validated and its `support` checked, never conformed.
  */
 import { A11y, Attr, Capability, Event } from 'foldkit-mixins'
 import { AccordionSlots } from './accordion.js'
@@ -73,6 +73,17 @@ import { ChartSlots } from './chart.js'
 import { CascadeSelectSlots } from './cascadeSelect.js'
 import { FloatingPanelSlots } from './floatingPanel.js'
 import { TourSlots } from './tour.js'
+import { BreadcrumbSlots } from './breadcrumb.js'
+import { ButtonGroupSlots } from './buttonGroup.js'
+import { CardSlots } from './card.js'
+import { DrawerSlots } from './drawer.js'
+import { HoverIntentSlots } from './hoverIntent.js'
+import { PaginationSlots } from './pagination.js'
+import { PickerSlots } from './picker.js'
+import { ScrollAreaSlots } from './scrollArea.js'
+import { SearchFieldPattern, SearchFieldSlots } from './searchField.js'
+import { TableSlots } from './table.js'
+import { WindowListSlots } from './windowList.js'
 
 /** Whether the widget keeps state of its own (a Submodel) or only decorates. */
 export type Tier = 'stateful' | 'stateless'
@@ -131,7 +142,7 @@ export const Checkbox = A11y.pattern({
   checkbox: {
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Role],
+    attributes: [Attr.Role, Attr.AriaChecked, Attr.AriaLabelledby],
     obligations: [A11y.Activation, A11y.FocusStrategy, A11y.State(Attr.AriaChecked), A11y.Name],
   },
   label: { capability: Capability.Container },
@@ -139,7 +150,12 @@ export const Checkbox = A11y.pattern({
 })
 
 export const Switch = A11y.pattern({
-  button: { capability: Capability.Interactive, events: [Event.Click], attributes: [Attr.Role] },
+  button: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Role, Attr.AriaChecked, Attr.AriaLabelledby],
+    obligations: [A11y.Activation, A11y.FocusStrategy, A11y.State(Attr.AriaChecked), A11y.Name],
+  },
   label: { capability: Capability.Container },
   hiddenInput: { capability: Capability.Base, attributes: [Attr.Value], optional: true },
 })
@@ -154,6 +170,7 @@ export const Disclosure = A11y.pattern({
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.AriaExpanded],
+    obligations: [A11y.Activation, A11y.State(Attr.AriaExpanded)],
   },
   panel: { capability: Capability.Container },
 })
@@ -162,9 +179,10 @@ export const Accordion = A11y.pattern({
   trigger: {
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.AriaExpanded],
+    attributes: [Attr.AriaExpanded, Attr.AriaControls],
+    obligations: [A11y.Activation, A11y.State(Attr.AriaExpanded)],
   },
-  panel: { capability: Capability.Container, attributes: [Attr.Role] },
+  panel: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabelledby] },
 })
 
 export const CheckboxGroup = A11y.pattern({
@@ -173,7 +191,8 @@ export const CheckboxGroup = A11y.pattern({
   checkbox: {
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.Role],
+    attributes: [Attr.Role, Attr.AriaChecked],
+    obligations: [A11y.Activation, A11y.FocusStrategy, A11y.State(Attr.AriaChecked)],
   },
 })
 
@@ -199,12 +218,14 @@ export const Command = A11y.pattern({
     capability: Capability.Focusable,
     events: [Event.Input, Event.KeyDown],
     attributes: [Attr.Role, Attr.AriaExpanded],
+    obligations: [A11y.Navigation],
   },
   list: { capability: Capability.Container, attributes: [Attr.Role] },
   item: {
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.Role, Attr.AriaSelected],
+    obligations: [A11y.FocusStrategy, A11y.Activation],
   },
 })
 
@@ -212,7 +233,7 @@ export const Resizable = A11y.pattern({
   handle: {
     capability: Capability.Interactive,
     events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel],
+    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaValuenow],
   },
 })
 
@@ -231,7 +252,11 @@ export const Sidebar = A11y.pattern({
 })
 
 export const Menubar = A11y.pattern({
-  bar: { capability: Capability.Container, events: [Event.KeyDown] },
+  bar: {
+    capability: Capability.Container,
+    events: [Event.KeyDown],
+    obligations: [A11y.Navigation],
+  },
   menu: { capability: Capability.Container },
 })
 
@@ -263,6 +288,7 @@ export const Rating = A11y.pattern({
     capability: Capability.Interactive,
     events: [Event.Change],
     attributes: [Attr.AriaLabel],
+    obligations: [A11y.Navigation, A11y.FocusStrategy],
   },
 })
 
@@ -341,13 +367,19 @@ export const TreeView = A11y.pattern({
     capability: Capability.Container,
     events: [Event.KeyDown],
     attributes: [Attr.Role, Attr.AriaLabel],
+    obligations: [A11y.Navigation],
   },
   item: {
     capability: Capability.Focusable,
     events: [Event.Focus],
     attributes: [Attr.Role, Attr.AriaExpanded, Attr.AriaSelected],
+    obligations: [A11y.FocusStrategy],
   },
-  row: { capability: Capability.Interactive, events: [Event.Click] },
+  row: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    obligations: [A11y.Activation],
+  },
   group: { capability: Capability.Container, attributes: [Attr.Role] },
 })
 
@@ -359,6 +391,7 @@ export const Slider = A11y.pattern({
     capability: Capability.Interactive,
     events: [Event.Input],
     attributes: [Attr.AriaLabel],
+    obligations: [A11y.Navigation],
   },
 })
 
@@ -413,19 +446,35 @@ export const Tabs = A11y.pattern({
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.Role, Attr.AriaSelected],
+    obligations: [A11y.Navigation, A11y.FocusStrategy, A11y.Activation],
   },
-  panel: { capability: Capability.Container, attributes: [Attr.Role] },
+  panel: { capability: Capability.Container, attributes: [Attr.Role], obligations: [A11y.Name] },
 })
 
 export const RadioGroup = A11y.pattern({
   group: { capability: Capability.Container, attributes: [Attr.Role] },
-  option: { capability: Capability.Interactive, events: [Event.Click], attributes: [Attr.Role] },
+  option: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.Role, Attr.AriaChecked],
+    obligations: [
+      A11y.Navigation,
+      A11y.FocusStrategy,
+      A11y.State(Attr.AriaChecked),
+      A11y.Activation,
+      A11y.Name,
+    ],
+  },
   label: { capability: Capability.Container },
 })
 
 export const Calendar = A11y.pattern({
   root: { capability: Capability.Container },
-  grid: { capability: Capability.Container, attributes: [Attr.Role] },
+  grid: {
+    capability: Capability.Container,
+    attributes: [Attr.Role],
+    obligations: [A11y.Navigation, A11y.FocusStrategy],
+  },
   previousMonthButton: { capability: Capability.Interactive, events: [Event.Click] },
   nextMonthButton: { capability: Capability.Interactive, events: [Event.Click] },
 })
@@ -450,6 +499,7 @@ export const Segmented = A11y.pattern({
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.AriaPressed, Attr.Disabled, Attr.AriaDisabled],
+    obligations: [A11y.Activation, A11y.State(Attr.AriaPressed)],
   },
 })
 
@@ -468,12 +518,14 @@ export const Combobox = A11y.pattern({
     capability: Capability.TextInput,
     events: [Event.KeyDown],
     attributes: [Attr.Role, Attr.AriaExpanded],
+    obligations: [A11y.Navigation],
   },
   items: { capability: Capability.Container, attributes: [Attr.Role], optional: true },
   item: {
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.Role, Attr.AriaSelected],
+    obligations: [A11y.FocusStrategy, A11y.Activation],
   },
   toggleButton: {
     capability: Capability.Interactive,
@@ -517,11 +569,17 @@ export const Menu = A11y.pattern({
     attributes: [Attr.AriaExpanded],
   },
   backdrop: { capability: Capability.Container, optional: true },
-  items: { capability: Capability.Container, attributes: [Attr.Role], optional: true },
+  items: {
+    capability: Capability.Container,
+    attributes: [Attr.Role],
+    optional: true,
+    obligations: [A11y.Navigation, A11y.Name],
+  },
   item: {
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.Role],
+    obligations: [A11y.FocusStrategy, A11y.Activation],
   },
 })
 
@@ -576,6 +634,7 @@ export const AngleSlider = A11y.pattern({
     capability: Capability.Focusable,
     events: [Event.KeyDown],
     attributes: [Attr.Role, Attr.AriaLabel],
+    obligations: [A11y.Navigation],
   },
 })
 
@@ -656,11 +715,13 @@ export const CascadeSelect = A11y.pattern({
     capability: Capability.Interactive,
     events: [Event.KeyDown],
     attributes: [Attr.Role, Attr.AriaLabel],
+    obligations: [A11y.Navigation],
   },
   item: {
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.Role, Attr.AriaSelected, Attr.AriaExpanded],
+    obligations: [A11y.FocusStrategy, A11y.Activation],
   },
 })
 
@@ -681,9 +742,113 @@ export const FloatingPanel = A11y.pattern({
 
 /** A step's dialog taking the keys, with presses to go on and to skip. */
 export const Tour = A11y.pattern({
-  panel: { capability: Capability.Interactive, events: [Event.KeyDown], attributes: [Attr.Role] },
-  next: { capability: Capability.Interactive, events: [Event.Click] },
-  skip: { capability: Capability.Interactive, events: [Event.Click] },
+  panel: {
+    capability: Capability.Interactive,
+    events: [Event.KeyDown],
+    attributes: [Attr.Role],
+    obligations: [A11y.Navigation],
+  },
+  next: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    obligations: [A11y.Activation],
+  },
+  skip: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    obligations: [A11y.Activation],
+  },
+})
+
+/** A named navigation landmark of presses: previous, next and a button per page. */
+export const Pagination = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+  prev: { capability: Capability.Interactive, attributes: [Attr.AriaLabel] },
+  next: { capability: Capability.Interactive, attributes: [Attr.AriaLabel] },
+  page: { capability: Capability.Interactive, attributes: [Attr.AriaLabel, Attr.AriaCurrent] },
+})
+
+/** A named navigation landmark of links to the ancestors, and the page the trail ends on. */
+export const Breadcrumb = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+  list: { capability: Capability.Container },
+  link: { capability: Capability.Interactive },
+  current: { capability: Capability.Container, attributes: [Attr.AriaCurrent] },
+})
+
+/** A native table; a sort and a row's details are presses only where the table draws them. */
+export const Table = A11y.pattern({
+  root: { capability: Capability.Container },
+  headerCell: { capability: Capability.Container, attributes: [Attr.AriaSort] },
+  row: { capability: Capability.Container },
+  cell: { capability: Capability.Container },
+  sortButton: { capability: Capability.Interactive, events: [Event.Click], optional: true },
+  expandButton: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaExpanded, Attr.AriaLabel],
+    optional: true,
+  },
+})
+
+/** A region whose viewport scrolls; its bars are drawn over it. */
+export const ScrollArea = A11y.pattern({
+  root: { capability: Capability.Container },
+  viewport: { capability: Capability.Container },
+})
+
+/** A panel and the handle that opens and shuts it. */
+export const Drawer = A11y.pattern({
+  panel: { capability: Capability.Container },
+  handle: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaExpanded],
+  },
+})
+
+/** A card that opens on hover or focus of its trigger, and stays while either holds it. */
+export const HoverIntent = A11y.pattern({
+  trigger: {
+    capability: Capability.Interactive,
+    events: [Event.Hover, Event.Focus, Event.Blur],
+  },
+  panel: { capability: Capability.Container, events: [Event.Hover, Event.Focus, Event.Blur] },
+})
+
+/** A listbox on a fine pointer; on a coarse one a button opening a sheet of options, each a press. */
+export const Picker = A11y.pattern({
+  opener: {
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaExpanded, Attr.AriaLabel],
+  },
+  list: { capability: Capability.Container, attributes: [Attr.Role] },
+  option: {
+    capability: Capability.Interactive,
+    events: [Event.Click, Event.KeyDown],
+    attributes: [Attr.Role, Attr.AriaSelected],
+    obligations: [A11y.Navigation, A11y.FocusStrategy, A11y.Activation],
+  },
+})
+
+/** A named group of buttons. */
+export const ButtonGroup = A11y.pattern({
+  root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },
+})
+
+/** A list that draws only the rows in view. */
+export const WindowList = A11y.pattern({
+  root: { capability: Capability.Container },
+  row: { capability: Capability.Container },
+})
+
+/** A card; the stretched link over it and its dismiss are presses where the card draws them. */
+export const Card = A11y.pattern({
+  root: { capability: Capability.Container },
+  title: { capability: Capability.Container },
+  overlay: { capability: Capability.Interactive, optional: true },
+  dismiss: { capability: Capability.Interactive, optional: true },
 })
 
 export interface Entry {
@@ -694,7 +859,27 @@ export interface Entry {
   readonly tier: Tier
   readonly roles: ReadonlyArray<string>
   readonly floor: ReadonlyArray<FloorConcern>
+  /**
+   * Who supplies each obligation `pattern` declares on `slots`: Mixins that
+   * contribute nothing, whose name says where the claim was found. An adapter
+   * draws through `resolveFor` or upstream's bundle, with no view for
+   * `A11y.check` to read attachments from, so the gate attaches these to a
+   * view over `slots` and `check` judges it: an obligation no supply names is
+   * `a11y:unsatisfied-obligation`.
+   */
+  readonly support: ReadonlyArray<A11y.Supply<never>>
 }
+
+/** What the widget's own markup, or the upstream bundle it draws, supplies: `by` says which, and where. */
+const drawn = (by: string, slot: string, ...obligations: ReadonlyArray<A11y.Obligation>) =>
+  A11y.base({ [slot]: obligations }, { name: by })
+
+/** What a native element supplies by itself on the slot it is drawn as. */
+const native = (
+  element: A11y.NativeElement,
+  slot: string,
+  ...obligations: ReadonlyArray<A11y.Obligation>
+) => A11y.native({ [slot]: obligations }, { element })
 
 const entry = (
   name: string,
@@ -703,7 +888,10 @@ const entry = (
   tier: Tier,
   roles: ReadonlyArray<string>,
   floor: ReadonlyArray<FloorConcern> = [],
-): Entry => Object.freeze({ name, pattern, slots, tier, roles, floor })
+  support: ReadonlyArray<A11y.Supply<never>> = [],
+): Entry => Object.freeze({ name, pattern, slots, tier, roles, floor, support })
+
+const { Navigation, FocusStrategy, Activation, Name, State } = A11y
 
 /** Every adapted widget, for the gate, DevTools, and agents. */
 export const catalog: ReadonlyArray<Entry> = Object.freeze([
@@ -732,13 +920,116 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['combobox'],
     ['native-control', 'form-submission'],
   ),
-  entry('checkbox', Checkbox, CheckboxSlots, 'stateless', ['checkbox'], ['form-submission']),
-  entry('switch', Switch, SwitchSlots, 'stateless', ['switch'], ['form-submission']),
+  entry(
+    'checkbox',
+    Checkbox,
+    CheckboxSlots,
+    'stateless',
+    ['checkbox'],
+    ['form-submission'],
+    [
+      drawn('@foldkit/ui/checkbox: tabindex 0 (checkbox/index.js)', 'checkbox', FocusStrategy),
+      drawn(
+        '@foldkit/ui/checkbox: click and Space keyup (checkbox/index.js)',
+        'checkbox',
+        Activation,
+      ),
+      drawn(
+        '@foldkit/ui/checkbox: aria-checked (checkbox/index.js)',
+        'checkbox',
+        State(Attr.AriaChecked),
+      ),
+      drawn(
+        '@foldkit/ui/checkbox: aria-labelledby the label (checkbox/index.js)',
+        'checkbox',
+        Name,
+      ),
+    ],
+  ),
+  entry(
+    'switch',
+    Switch,
+    SwitchSlots,
+    'stateless',
+    ['switch'],
+    ['form-submission'],
+    [
+      drawn('@foldkit/ui/switch: tabindex 0 (switch/index.js)', 'button', FocusStrategy),
+      drawn('@foldkit/ui/switch: click and Space keyup (switch/index.js)', 'button', Activation),
+      drawn(
+        '@foldkit/ui/switch: aria-checked (switch/index.js)',
+        'button',
+        State(Attr.AriaChecked),
+      ),
+      drawn('@foldkit/ui/switch: aria-labelledby the label (switch/index.js)', 'button', Name),
+    ],
+  ),
   entry('fieldset', Fieldset, FieldsetSlots, 'stateless', ['group'], ['native-control']),
-  entry('disclosure', Disclosure, DisclosureSlots, 'stateless', ['button']),
-  entry('accordion', Accordion, AccordionSlots, 'stateless', ['button', 'region']),
-  entry('checkbox-group', CheckboxGroup, CheckboxGroupSlots, 'stateless', ['group', 'checkbox']),
-  entry('command', Command, CommandSlots, 'stateless', ['combobox', 'listbox', 'option']),
+  entry(
+    'disclosure',
+    Disclosure,
+    DisclosureSlots,
+    'stateless',
+    ['button'],
+    [],
+    [
+      drawn(
+        '@foldkit/ui/disclosure: click and keydown (disclosure/index.js)',
+        'button',
+        Activation,
+      ),
+      drawn(
+        '@foldkit/ui/disclosure: aria-expanded (disclosure/index.js)',
+        'button',
+        State(Attr.AriaExpanded),
+      ),
+    ],
+  ),
+  entry(
+    'accordion',
+    Accordion,
+    AccordionSlots,
+    'stateless',
+    ['button', 'region'],
+    [],
+    [
+      native('button', 'trigger', Activation),
+      drawn('Accordion.view: aria-expanded (accordion.ts)', 'trigger', State(Attr.AriaExpanded)),
+    ],
+  ),
+  entry(
+    'checkbox-group',
+    CheckboxGroup,
+    CheckboxGroupSlots,
+    'stateless',
+    ['group', 'checkbox'],
+    [],
+    [
+      native('button', 'checkbox', Activation, FocusStrategy),
+      drawn(
+        'CheckboxGroup.view: aria-checked on each role=checkbox button (checkboxGroup.ts)',
+        'checkbox',
+        State(Attr.AriaChecked),
+      ),
+    ],
+  ),
+  entry(
+    'command',
+    Command,
+    CommandSlots,
+    'stateless',
+    ['combobox', 'listbox', 'option'],
+    [],
+    [
+      drawn(
+        'Command.view: CommandKeys on the input, ArrowDown, ArrowUp, PageDown, PageUp, Enter (command.ts)',
+        'input',
+        Navigation,
+      ),
+      drawn('Command.view: aria-activedescendant on the input (command.ts)', 'item', FocusStrategy),
+      drawn('Command.view: click on each item (command.ts)', 'item', Activation),
+    ],
+  ),
   entry(
     'number-field',
     NumberField,
@@ -759,7 +1050,21 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['banner', 'main', 'contentinfo', 'link'],
     ['native-control'],
   ),
-  entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
+  entry(
+    'menubar',
+    Menubar,
+    MenubarSlots,
+    'stateful',
+    ['menubar', 'menuitem', 'menu'],
+    [],
+    [
+      drawn(
+        'Menubar.view: keydown on the bar, ArrowLeft, ArrowRight, Home, End (menubar.ts)',
+        'bar',
+        Navigation,
+      ),
+    ],
+  ),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
   entry('carousel', Carousel, CarouselSlots, 'stateful', ['group', 'button', 'status']),
@@ -770,8 +1075,29 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateless',
     ['group', 'slider'],
     ['native-control', 'form-submission'],
+    [native('input', 'thumb', Navigation)],
   ),
-  entry('tree-view', TreeView, TreeViewSlots, 'stateful', ['tree', 'treeitem', 'group']),
+  entry(
+    'tree-view',
+    TreeView,
+    TreeViewSlots,
+    'stateful',
+    ['tree', 'treeitem', 'group'],
+    [],
+    [
+      drawn(
+        'TreeView.view: keydown on the root, over TreeNavigation.move and Typeahead (treeView.ts)',
+        'root',
+        Navigation,
+      ),
+      drawn(
+        'TreeView.view: roving tabindex from TreeNavigation.tabStop (treeView.ts)',
+        'item',
+        FocusStrategy,
+      ),
+      drawn('TreeView.view: click on each row (treeView.ts)', 'row', Activation),
+    ],
+  ),
   entry(
     'color-picker',
     ColorPicker,
@@ -812,6 +1138,7 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateless',
     ['radiogroup', 'radio'],
     ['native-control', 'form-submission'],
+    [native('input', 'star', Navigation, FocusStrategy)],
   ),
   entry('steps', Steps, StepsSlots, 'stateless', ['list', 'listitem', 'button']),
   entry('virtual-list', VirtualList, VirtualListSlots, 'stateful', ['list', 'listitem']),
@@ -832,7 +1159,20 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     ['top-layer', 'escape-dismiss'],
   ),
   entry('tooltip', Tooltip, TooltipSlots, 'stateful', ['tooltip']),
-  entry('tabs', Tabs, TabsSlots, 'stateful', ['tablist', 'tab', 'tabpanel']),
+  entry(
+    'tabs',
+    Tabs,
+    TabsSlots,
+    'stateful',
+    ['tablist', 'tab', 'tabpanel'],
+    [],
+    [
+      drawn('@foldkit/ui/tabs: keydown on each tab (tabs/index.js)', 'tab', Navigation),
+      drawn('@foldkit/ui/tabs: roving tabindex on each tab (tabs/index.js)', 'tab', FocusStrategy),
+      drawn('@foldkit/ui/tabs: click on each tab (tabs/index.js)', 'tab', Activation),
+      drawn('@foldkit/ui/tabs: aria-labelledby the tab (tabs/index.js)', 'panel', Name),
+    ],
+  ),
   entry(
     'radioGroup',
     RadioGroup,
@@ -840,8 +1180,54 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['radiogroup', 'radio'],
     ['form-submission'],
+    [
+      drawn(
+        '@foldkit/ui/radioGroup: keydown on each option (radioGroup/index.js)',
+        'option',
+        Navigation,
+      ),
+      drawn(
+        '@foldkit/ui/radioGroup: roving tabindex on each option (radioGroup/index.js)',
+        'option',
+        FocusStrategy,
+      ),
+      drawn(
+        '@foldkit/ui/radioGroup: aria-checked (radioGroup/index.js)',
+        'option',
+        State(Attr.AriaChecked),
+      ),
+      drawn(
+        '@foldkit/ui/radioGroup: click on each option (radioGroup/index.js)',
+        'option',
+        Activation,
+      ),
+      drawn(
+        '@foldkit/ui/radioGroup: aria-labelledby the option label (radioGroup/index.js)',
+        'option',
+        Name,
+      ),
+    ],
   ),
-  entry('calendar', Calendar, CalendarSlots, 'stateful', ['grid', 'gridcell', 'button']),
+  entry(
+    'calendar',
+    Calendar,
+    CalendarSlots,
+    'stateful',
+    ['grid', 'gridcell', 'button'],
+    [],
+    [
+      drawn(
+        '@foldkit/ui/calendar: keydown on the grid, arrows, Home, End, PageUp, PageDown (calendar/index.js)',
+        'grid',
+        Navigation,
+      ),
+      drawn(
+        '@foldkit/ui/calendar: aria-activedescendant on the grid (calendar/index.js)',
+        'grid',
+        FocusStrategy,
+      ),
+    ],
+  ),
   entry(
     'fileDrop',
     FileDrop,
@@ -858,6 +1244,19 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['combobox', 'listbox', 'option', 'button'],
     ['native-control', 'form-submission', 'top-layer', 'backdrop'],
+    [
+      drawn(
+        'Combobox view: keydown on the input, ArrowDown, ArrowUp, Enter (comboboxShared.ts)',
+        'input',
+        Navigation,
+      ),
+      drawn(
+        'Combobox view: aria-activedescendant on the input (comboboxShared.ts)',
+        'item',
+        FocusStrategy,
+      ),
+      drawn('Combobox view: click on each item (comboboxShared.ts)', 'item', Activation),
+    ],
   ),
   entry(
     'datePicker',
@@ -874,6 +1273,10 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateless',
     ['group', 'button'],
     ['native-control'],
+    [
+      native('button', 'option', Activation),
+      drawn('Segmented.view: aria-pressed (segmented.ts)', 'option', State(Attr.AriaPressed)),
+    ],
   ),
   entry(
     'listbox',
@@ -882,6 +1285,29 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['listbox', 'option', 'button'],
     ['top-layer', 'backdrop', 'native-control', 'form-submission'],
+    [
+      drawn(
+        'Listbox view: keydown on the items, arrows, Home, End, typeahead (listboxShared.ts)',
+        'items',
+        Navigation,
+      ),
+      drawn(
+        'Listbox view: aria-labelledby the button on the items (listboxShared.ts)',
+        'items',
+        Name,
+      ),
+      drawn(
+        'Listbox view: aria-activedescendant on the items (listboxShared.ts)',
+        'item',
+        FocusStrategy,
+      ),
+      drawn('Listbox view: click on each item (listboxShared.ts)', 'item', Activation),
+      drawn(
+        'Listbox view: aria-selected on each item (listboxShared.ts)',
+        'item',
+        State(Attr.AriaSelected),
+      ),
+    ],
   ),
   entry(
     'menu',
@@ -890,6 +1316,16 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['menu', 'menuitem', 'button'],
     ['top-layer', 'backdrop', 'native-control'],
+    [
+      drawn(
+        'Menu view: keydown on the items, arrows, Home, End, typeahead (menuView.ts)',
+        'items',
+        Navigation,
+      ),
+      drawn('Menu view: aria-labelledby the button on the items (menuView.ts)', 'items', Name),
+      drawn('Menu view: aria-activedescendant on the items (menuView.ts)', 'item', FocusStrategy),
+      drawn('Menu view: click on each item (menuView.ts)', 'item', Activation),
+    ],
   ),
   entry('chat-message', ChatMessage, ChatMessageSlots, 'stateless', ['group', 'button']),
   entry('message-scroller', MessageScroller, MessageScrollerSlots, 'stateful', ['log', 'button']),
@@ -914,6 +1350,13 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['group', 'slider'],
     ['form-submission'],
+    [
+      drawn(
+        'AngleSlider.view: keydown on the thumb, the arrow keys (angleSlider.ts)',
+        'thumb',
+        Navigation,
+      ),
+    ],
   ),
   entry('timer', Timer, TimerSlots, 'stateful', ['group', 'timer', 'button']),
   entry('marquee', Marquee, MarqueeSlots, 'stateful', ['region', 'button']),
@@ -939,6 +1382,19 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['combobox', 'tree', 'group', 'treeitem', 'button'],
     ['top-layer', 'backdrop', 'form-submission'],
+    [
+      drawn(
+        'CascadeSelect.view: keydown on the panel, arrows, Home, End, typeahead (cascadeSelect.ts)',
+        'panel',
+        Navigation,
+      ),
+      drawn(
+        'CascadeSelect.view: aria-activedescendant on the panel (cascadeSelect.ts)',
+        'item',
+        FocusStrategy,
+      ),
+      drawn('CascadeSelect.view: click on each item (cascadeSelect.ts)', 'item', Activation),
+    ],
   ),
   entry(
     'floating-panel',
@@ -955,5 +1411,52 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['dialog', 'button'],
     ['top-layer', 'escape-dismiss', 'backdrop'],
+    [
+      drawn(
+        'Tour.view: keydown on the panel, ArrowLeft, ArrowRight, Escape (tour.ts)',
+        'panel',
+        Navigation,
+      ),
+      native('button', 'next', Activation),
+      native('button', 'skip', Activation),
+    ],
+  ),
+  entry('pagination', Pagination, PaginationSlots, 'stateless', ['navigation', 'button']),
+  entry('breadcrumb', Breadcrumb, BreadcrumbSlots, 'stateless', ['navigation', 'link', 'list']),
+  entry('table', Table, TableSlots, 'stateless', ['table', 'row', 'cell', 'columnheader']),
+  entry('scroll-area', ScrollArea, ScrollAreaSlots, 'stateless', ['region']),
+  entry('drawer', Drawer, DrawerSlots, 'stateful', ['button']),
+  entry('hover-intent', HoverIntent, HoverIntentSlots, 'stateful', ['tooltip']),
+  entry(
+    'picker',
+    Picker,
+    PickerSlots,
+    'stateful',
+    ['listbox', 'option', 'button', 'dialog'],
+    ['top-layer', 'backdrop'],
+    [
+      drawn(
+        'Picker.view: keydown on each sheet option, ArrowDown, ArrowUp (picker.ts)',
+        'option',
+        Navigation,
+      ),
+      drawn(
+        'Picker.view: roving tabindex on the sheet options (picker.ts)',
+        'option',
+        FocusStrategy,
+      ),
+      drawn('Picker.view: click on each sheet option (picker.ts)', 'option', Activation),
+    ],
+  ),
+  entry('button-group', ButtonGroup, ButtonGroupSlots, 'stateless', ['group']),
+  entry('window-list', WindowList, WindowListSlots, 'stateful', ['list', 'listitem']),
+  entry('card', Card, CardSlots, 'stateless', ['list', 'link', 'button']),
+  entry(
+    'search-field',
+    SearchFieldPattern,
+    SearchFieldSlots,
+    'stateless',
+    ['searchbox', 'button'],
+    ['native-control'],
   ),
 ])

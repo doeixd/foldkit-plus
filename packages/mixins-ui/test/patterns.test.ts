@@ -1,19 +1,43 @@
 /**
  * The gate: every adapter's Slots satisfy its pattern, every obligation the
- * pattern declares has a named provider, the catalog names each widget once,
- * and a pattern refuses a contract that lacks what it requires.
+ * pattern declares has a supplier in the catalog entry and each supplier is
+ * needed, the catalog names each widget once, and a pattern refuses a contract
+ * that lacks what it requires.
  */
-import { A11y, Capability, Slot, Slots } from 'foldkit-mixins'
+import { A11y, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { Patterns } from '../src/index.js'
 
+type Entry = (typeof Patterns.catalog)[number]
+
 /** The `slot/obligation` pairs a pattern declares on slots its contract publishes. */
-const declared = (entry: (typeof Patterns.catalog)[number]): ReadonlyArray<string> =>
+const declared = (entry: Entry): ReadonlyArray<string> =>
   Object.entries(entry.pattern.requirements).flatMap(([slot, requirement]) =>
     Object.hasOwn(entry.slots, slot)
-      ? (requirement.obligations ?? []).map(obligation => `${slot}/${obligation}`)
+      ? (requirement.obligations ?? []).map(obligation => `${slot}/${obligation.name}`)
       : [],
   )
+
+/** The `slot/obligation` pairs one supplier says it meets. */
+const suppliedBy = (supply: Entry['support'][number]): ReadonlyArray<string> =>
+  Object.entries(supply.meta?.slots ?? {}).flatMap(([slot, meta]) =>
+    meta.provides.map(obligation => `${slot}/${obligation}`),
+  )
+
+/** What `A11y.check` reports of the entry's contract once `support` is attached to a view over it. */
+const reported = (entry: Entry, support: Entry['support']): ReadonlyArray<string> => {
+  const bare = SlotView.define(
+    entry.slots as Readonly<Record<string, Slot.Any>>,
+    (_input: unknown, _slots, h) => h.div([], []),
+  )
+  const view = support.reduce<typeof bare>(
+    (built, supply) => built.pipe(SlotView.attach(supply)),
+    bare,
+  )
+  return A11y.check(entry.pattern, view).map(
+    item => `${item.slot}/${String(item.details?.['obligation'] ?? item.code)}`,
+  )
+}
 
 /** Widgets whose APG pattern implies obligations: each must declare at least one. */
 const obliged = [
@@ -31,6 +55,7 @@ const obliged = [
   'slider',
   'angle-slider',
   'accordion',
+  'disclosure',
   'segmented',
   'rating',
   'calendar',
@@ -39,29 +64,25 @@ const obliged = [
   'picker',
 ]
 
+const entries = Patterns.catalog.map(entry => [entry.name, entry] as const)
+
 describe('Patterns.catalog', () => {
-  it.each(Patterns.catalog.map(entry => [entry.name, entry] as const))(
-    '%s satisfies its pattern, and every obligation has a provider',
+  it.each(entries)(
+    '%s satisfies its pattern, and every obligation has a supplier',
     (_name, entry) => {
-      expect(A11y.validate(entry.pattern, entry.slots as never, entry.support)).toEqual([])
+      expect(A11y.validate(entry.pattern, entry.slots as never)).toEqual([])
+      expect(reported(entry, entry.support)).toEqual([])
     },
   )
 
-  it.each(Patterns.catalog.map(entry => [entry.name, entry] as const))(
-    '%s: each provider is needed, so dropping one is reported',
-    (_name, entry) => {
-      const unmet = (support: typeof entry.support) =>
-        A11y.validate(entry.pattern, entry.slots as never, support).map(
-          item => `${item.slot}/${item.details?.['obligation']}`,
-        )
-      expect(unmet([]).sort()).toEqual([...declared(entry)].sort())
-      for (const dropped of entry.support) {
-        expect(unmet(entry.support.filter(item => item !== dropped))).toEqual([
-          `${dropped.slot}/${dropped.obligation}`,
-        ])
-      }
-    },
-  )
+  it.each(entries)('%s: each supplier is needed, so dropping one is reported', (_name, entry) => {
+    expect([...reported(entry, [])].sort()).toEqual([...declared(entry)].sort())
+    for (const dropped of entry.support) {
+      const left = entry.support.filter(item => item !== dropped)
+      expect(suppliedBy(dropped)).not.toEqual([])
+      expect([...reported(entry, left)].sort()).toEqual([...suppliedBy(dropped)].sort())
+    }
+  })
 
   it.each(obliged)('%s declares obligations', name => {
     const entry = Patterns.catalog.find(item => item.name === name)
@@ -82,10 +103,13 @@ describe('Patterns.catalog', () => {
   /** The attributes a slot must publish for the pattern to hold, one pair per requirement the slots now declare. */
   it.each([
     ['checkbox', 'checkbox', 'aria-checked'],
+    ['checkbox', 'checkbox', 'aria-labelledby'],
     ['switch', 'button', 'aria-checked'],
+    ['switch', 'button', 'aria-labelledby'],
     ['checkbox-group', 'checkbox', 'aria-checked'],
     ['radioGroup', 'option', 'aria-checked'],
     ['accordion', 'trigger', 'aria-controls'],
+    ['accordion', 'panel', 'aria-labelledby'],
     ['resizable', 'handle', 'aria-valuenow'],
     ['pagination', 'root', 'aria-label'],
     ['pagination', 'root', 'role'],
@@ -107,12 +131,8 @@ describe('Patterns.catalog', () => {
       ),
     })
     expect(original.attributes).toHaveLength(without.attributes.length + 1)
-    const reported = A11y.validate(
-      entry.pattern,
-      { ...entry.slots, [slot]: without } as never,
-      entry.support,
-    )
-    expect(reported.map(item => [item.code, item.slot])).toEqual([['a11y:missing-attribute', slot]])
+    const findings = A11y.validate(entry.pattern, { ...entry.slots, [slot]: without } as never)
+    expect(findings.map(item => [item.code, item.slot])).toEqual([['a11y:missing-attribute', slot]])
   })
 
   it('can fail: a contract missing a required slot or capability is refused', () => {

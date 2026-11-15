@@ -1,5 +1,6 @@
 /**
- * Pattern obligations and the catalog, broken in turn: `pnpm mutate packages/mixins-ui/test/patterns.mutations.ts`.
+ * The catalog, its obligations and their suppliers, broken in turn: `pnpm mutate packages/mixins-ui/test/patterns.mutations.ts`.
+ * `Patterns.Listbox` and `Patterns.Checkbox` obligations are in `patternObligations.mutations.ts`.
  */
 const tests = [
   'packages/mixins-ui/test/patterns.test.ts',
@@ -8,47 +9,47 @@ const tests = [
 
 export default [
   {
-    name: 'a listbox does not ask for navigation',
-    edits: [
-      {
-        file: '../src/patterns.ts',
-        find: "obligations: ['navigation'],\n    optional: true,\n  },\n  item: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaSelected],\n",
-        replace:
-          'optional: true,\n  },\n  item: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaSelected],\n',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a listbox item does not ask for focus or activation',
-    edits: [
-      {
-        file: '../src/patterns.ts',
-        find: "    obligations: ['focus', 'activation'],\n  },\n})\n\nexport const Menu",
-        replace: '  },\n})\n\nexport const Menu',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a checkbox does not ask for checked or activation',
-    edits: [
-      {
-        file: '../src/patterns.ts',
-        find: "  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaChecked],\n    obligations: ['checked', 'activation'],\n  },\n  label:",
-        replace:
-          '  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaChecked],\n  },\n  label:',
-      },
-    ],
-    tests,
-  },
-  {
     name: 'a tab does not ask for navigation, focus or activation',
     edits: [
       {
         file: '../src/patterns.ts',
-        find: "    attributes: [Attr.Role, Attr.AriaSelected],\n    obligations: ['navigation', 'focus', 'activation'],\n  },\n  panel",
+        find: '    attributes: [Attr.Role, Attr.AriaSelected],\n    obligations: [A11y.Navigation, A11y.FocusStrategy, A11y.Activation],\n  },\n  panel',
         replace: '    attributes: [Attr.Role, Attr.AriaSelected],\n  },\n  panel',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a tab panel does not ask for a name',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: 'panel: { capability: Capability.Container, attributes: [Attr.Role], obligations: [A11y.Name] },',
+        replace: 'panel: { capability: Capability.Container, attributes: [Attr.Role] },',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the menu items do not ask for a name',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: '    optional: true,\n    obligations: [A11y.Navigation, A11y.Name],\n  },\n  item: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role],',
+        replace:
+          '    optional: true,\n    obligations: [A11y.Navigation],\n  },\n  item: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the picker option does not ask for navigation, focus or activation',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: '    attributes: [Attr.Role, Attr.AriaSelected],\n    obligations: [A11y.Navigation, A11y.FocusStrategy, A11y.Activation],\n  },\n})\n\n/** A named group of buttons. */',
+        replace:
+          '    attributes: [Attr.Role, Attr.AriaSelected],\n  },\n})\n\n/** A named group of buttons. */',
       },
     ],
     tests,
@@ -65,13 +66,34 @@ export default [
     tests,
   },
   {
-    name: 'the menu names its navigation provider on the wrong slot',
+    name: 'the tabs supplier of focus names the wrong slot',
     edits: [
       {
         file: '../src/patterns.ts',
-        find: "slot: 'items',\n        obligation: 'navigation',\n        provider: '@foldkit/ui/menu items keydown",
-        replace:
-          "slot: 'item',\n        obligation: 'navigation',\n        provider: '@foldkit/ui/menu items keydown",
+        find: "(tabs/index.js)', 'tab', FocusStrategy),",
+        replace: "(tabs/index.js)', 'panel', FocusStrategy),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the accordion native button claims navigation it does not supply',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: "native('button', 'trigger', Activation),",
+        replace: "native('button', 'trigger', Activation, Navigation),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the accordion drops its native activation',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: "      native('button', 'trigger', Activation),\n",
+        replace: '',
       },
     ],
     tests,
@@ -92,9 +114,9 @@ export default [
     edits: [
       {
         file: '../src/patterns.ts',
-        find: 'export const Checkbox = A11y.pattern({\n  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaChecked],',
+        find: 'export const Checkbox = A11y.pattern({\n  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaChecked, Attr.AriaLabelledby],',
         replace:
-          'export const Checkbox = A11y.pattern({\n  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role],',
+          'export const Checkbox = A11y.pattern({\n  checkbox: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaLabelledby],',
       },
     ],
     tests,
@@ -106,6 +128,17 @@ export default [
         file: '../src/patterns.ts',
         find: 'root: { capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] },\n  prev:',
         replace: 'root: { capability: Capability.Container },\n  prev:',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a breadcrumb current step does not require aria-current',
+    edits: [
+      {
+        file: '../src/patterns.ts',
+        find: 'current: { capability: Capability.Container, attributes: [Attr.AriaCurrent] },',
+        replace: 'current: { capability: Capability.Container },',
       },
     ],
     tests,

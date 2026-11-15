@@ -10,8 +10,9 @@ export default [
     edits: [
       {
         file: '../src/patterns.ts',
-        find: 'obligations: [A11y.Activation, A11y.FocusStrategy, A11y.State(Attr.AriaChecked), A11y.Name],',
-        replace: 'obligations: [A11y.Activation, A11y.FocusStrategy, A11y.Name],',
+        find: 'AriaLabelledby],\n    obligations: [A11y.Activation, A11y.FocusStrategy, A11y.State(Attr.AriaChecked), A11y.Name],\n  },\n  label: { capability: Capability.Container },\n  hiddenInput: { capability: Capability.Base, attributes: [Attr.Value], optional: true },\n})\n\nexport const Switch',
+        replace:
+          'AriaLabelledby],\n    obligations: [A11y.Activation, A11y.FocusStrategy, A11y.Name],\n  },\n  label: { capability: Capability.Container },\n  hiddenInput: { capability: Capability.Base, attributes: [Attr.Value], optional: true },\n})\n\nexport const Switch',
       },
     ],
     tests: unit,
@@ -21,8 +22,9 @@ export default [
     edits: [
       {
         file: '../src/patterns.ts',
-        find: '    obligations: [A11y.Navigation, A11y.Name],',
-        replace: '    obligations: [A11y.Name],',
+        find: 'optional: true,\n    obligations: [A11y.Navigation, A11y.Name],\n  },\n  item: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaSelected],',
+        replace:
+          'optional: true,\n    obligations: [A11y.Name],\n  },\n  item: {\n    capability: Capability.Interactive,\n    events: [Event.Click],\n    attributes: [Attr.Role, Attr.AriaSelected],',
       },
     ],
     tests: unit,
