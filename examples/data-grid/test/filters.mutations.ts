@@ -4,6 +4,16 @@ const file = '../src/main.ts'
 
 export default [
   {
+    name: 'a copy of one row is plural',
+    edits: [{ file, find: "count === 1 ? '' : 's'", replace: "'s'" }],
+    tests,
+  },
+  {
+    name: 'a copy says nothing',
+    edits: [{ file, find: '`Copied ${counted(rows', replace: '`Seen ${counted(rows' }],
+    tests,
+  },
+  {
     name: 'clearing leaves the filters on',
     edits: [
       { file, find: 'filters: () => Grid.noFilters,', replace: 'filters: filters => filters,' },

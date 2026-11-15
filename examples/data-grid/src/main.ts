@@ -178,6 +178,10 @@ const written = (model: Model, cells: ReadonlyArray<Cell>): ReadonlyArray<Produc
   return next
 }
 
+/** A count with its noun, "1 row" or "3 rows". */
+const counted = (count: number, noun: string): string =>
+  `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`
+
 /** A paste's or a fill's cells written, and what the columns refused said. */
 const laid = (
   model: Model,
@@ -213,6 +217,12 @@ const application = Bundle.assemble<Model, Message>()([
           }),
         }),
         Pasted: ({ accepted, refused }) => laid(model, 'Pasted', accepted, refused),
+        // The text is on the clipboard already: this only says how much.
+        Copied: ({ rows, columns }) => ({
+          model: modifyFields(model, {
+            notice: () => `Copied ${counted(rows, 'row')} by ${counted(columns, 'column')}.`,
+          }),
+        }),
         // What a fill writes is worked out from the products as they are now.
         Filled: request => {
           const { accepted, refused } = Grid.fill(rowsOf(model), model.grid, request)
