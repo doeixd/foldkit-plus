@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins-ui`: `TagsInput.view` takes `words` (`TagsInput.TagsInputWords`): `remove`,
+  a function of the tag for the remove button's accessible name (default `Remove <tag>`),
+  and `mark`, what it draws (default `×`).
 - `foldkit-mixins-ui`: `TagsInput.view` takes `name`, which draws one hidden input per tag
   (`TagsInputSlots.hiddenInput`) so a form submits the tags, in order, and not the draft.
 - `foldkit-mixins-ui`: `TagsInput.view` takes `addOnBlur`, which adds the draft when the input

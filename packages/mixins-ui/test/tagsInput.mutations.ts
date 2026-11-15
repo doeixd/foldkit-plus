@@ -459,6 +459,28 @@ export default [
     tests: [unit],
   },
   {
+    name: 'the remove button ignores the words for its name',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'options.words?.remove?.(tag) ?? ',
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the remove button ignores the words for its mark',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "options.words?.mark ?? '×'",
+        replace: "'×'",
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'a disabled field still takes keys',
     edits: [
       {

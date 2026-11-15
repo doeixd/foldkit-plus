@@ -270,6 +270,13 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
 
 export type Route<Message> = Behaviors.Keys.Route<Model, Message>
 
+export interface TagsInputWords {
+  /** A chip's remove button's accessible name; default `Remove <tag>`. */
+  readonly remove?: ((tag: string) => string) | undefined
+  /** What the remove button draws; default `×`. */
+  readonly mark?: string | undefined
+}
+
 export interface TagsInputView<Message> {
   readonly model: Model
   /** Lifts the field's own Messages into the application's. */
@@ -293,6 +300,8 @@ export interface TagsInputView<Message> {
    * Backspace in an empty field: a route on one of those is a diagnostic naming both.
    */
   readonly routes?: ReadonlyArray<Route<NoInfer<Message>>> | undefined
+  /** The remove button's words. */
+  readonly words?: TagsInputWords | undefined
   /** What the `message` slot says of a refusal; default English sentences. */
   readonly refusalText?: ((refusal: Refusal) => string) | undefined
   /** A style of `TagsInputSlots`, for the field's look. */
@@ -431,12 +440,12 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
                       h.Id(chipId(model.id, tag)),
                       h.Type('button'),
                       h.Tabindex(tag === stop ? 0 : -1),
-                      h.AriaLabel(`Remove ${tag}`),
+                      h.AriaLabel(options.words?.remove?.(tag) ?? `Remove ${tag}`),
                       ...(disabled
                         ? [h.Disabled(true)]
                         : [h.OnClick(lift(Message.Removed({ tag }))), chipKeys({ input: tag, h })]),
                     ]),
-                    ['×'],
+                    [options.words?.mark ?? '×'],
                   ),
                 ]),
               ),

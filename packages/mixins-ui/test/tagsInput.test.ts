@@ -397,6 +397,25 @@ describe('TagsInput.view', () => {
     })
   })
 
+  it('words the remove button as the application asks, and says `Remove` and × otherwise', () => {
+    const buttons = (words?: TagsInput.TagsInputWords) =>
+      Inert.byTag(
+        TagsInput.view(
+          {
+            model: init({ id: 'topics', tags: ['a$&b'] }),
+            onMessage: () => message('Clicked'),
+            label: 'Topics',
+            words,
+          },
+          h,
+        ),
+        'button',
+      ).map(button => [Inert.value(button, 'aria-label'), Inert.text(button)])
+    expect(buttons()).toEqual([['Remove a$&b', '×']])
+    expect(buttons({ remove: tag => `Retirer ${tag}`, mark: '✕' })).toEqual([['Retirer a$&b', '✕']])
+    expect(buttons({ mark: '✕' })).toEqual([['Remove a$&b', '✕']])
+  })
+
   it('removes the tag whose button is pressed', () => {
     const lifted: Array<TagsInput.Message> = []
     TagsInput.view(
