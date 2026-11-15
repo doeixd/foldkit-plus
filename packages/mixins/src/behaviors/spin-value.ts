@@ -8,9 +8,11 @@
  * no delta and a repeat is a timer the Model would have to own.
  */
 import { Option } from 'effect'
-import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
+import type { KeyboardModifiers } from 'foldkit/html'
 import * as Behavior from '../behavior.js'
 import * as Capability from '../capability.js'
+import { boundSlots, type Bound, type Unbound } from '../slotView.js'
+import * as Keys from './keys.js'
 
 export interface Bounds {
   readonly min?: number
@@ -55,30 +57,67 @@ export const spin = (
   }
 }
 
-export interface Options<Input, Message, Slots> extends Bounds {
-  readonly control: keyof Slots & string
+export interface KeyOptions<Input, Message> extends Bounds {
   readonly value: (input: Input) => number
   readonly onChange: (next: number) => Message
+}
+
+export interface Options<Input, Message, Slots> extends KeyOptions<Input, Message> {
+  readonly control: keyof Slots & string
   /** For `aria-valuetext`, when the number alone would not read well. */
   readonly text?: (input: Input) => string
 }
 
-export const behavior =
-  <Slots>(slots: Slots) =>
-  <Input, Message>(
+/**
+ * The route a spinbutton installs on its control: ArrowUp and ArrowDown by
+ * `step`, PageUp and PageDown by `page`, Home and End to the bounds. A key
+ * that would not change the value answers nothing. List it in a
+ * `Keys.behavior` beside routes of your own.
+ */
+export const keys = <Input, Message>(
+  options: KeyOptions<Input, Message>,
+): Keys.Route<Input, Message> =>
+  Keys.route<Input, Message>('SpinValue', {
+    on: [
+      ...Keys.withShift('ArrowUp'),
+      ...Keys.withShift('ArrowDown'),
+      ...Keys.withShift('PageUp'),
+      ...Keys.withShift('PageDown'),
+      ...Keys.withShift('Home'),
+      ...Keys.withShift('End'),
+    ],
+    handle: ({ key, modifiers, input }) => {
+      const value = options.value(input)
+      const next = spin(value, key, modifiers, options)
+      return next === undefined || next === value
+        ? Option.none()
+        : Option.some(options.onChange(next))
+    },
+  })
+
+export function behavior<Slots, Input, Message>(
+  bound: Bound<Slots, Input, Message>,
+): (options: Options<Input, Message, Slots>) => Behavior.NamedBehavior<Slots, Input, Message>
+export function behavior<Slots>(
+  slots: Unbound<Slots>,
+): <Input, Message>(
+  options: Options<Input, Message, Slots>,
+) => Behavior.NamedBehavior<Slots, Input, Message>
+export function behavior<Slots>(given: Slots | Bound<Slots, any, any>) {
+  const slots = boundSlots(given)
+  return <Input, Message>(
     options: Options<Input, Message, Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, Message> =>
-    Behavior.forSlots(slots)<Input, Message>(
+  ): Behavior.NamedBehavior<Slots, Input, Message> => {
+    const keydown = Keys.attribute<Input, Message>([keys<Input, Message>(options)], {
+      slot: options.control,
+      moveFocus: false,
+    })
+    return Behavior.forSlots(slots)<Input, Message>(
       {
         [options.control]: Behavior.slot({
           requires: { capability: Capability.Focusable },
-          attributes: ({
-            input,
-            h,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<Message>
-          }) => {
+          attributes: context => {
+            const { input, h } = context
             const value = options.value(input)
             return [
               h.Role('spinbutton'),
@@ -86,12 +125,7 @@ export const behavior =
               ...(options.min === undefined ? [] : [h.AriaValuemin(options.min)]),
               ...(options.max === undefined ? [] : [h.AriaValuemax(options.max)]),
               ...(options.text === undefined ? [] : [h.AriaValuetext(options.text(input))]),
-              h.OnKeyDownPreventDefault((key, modifiers) => {
-                const next = spin(value, key, modifiers, options)
-                return next === undefined || next === value
-                  ? Option.none()
-                  : Option.some(options.onChange(next))
-              }),
+              keydown(context),
             ]
           },
         }),
@@ -99,3 +133,5 @@ export const behavior =
       } as unknown as Behavior.BehaviorSpec<Slots, Input, Message>,
       { name: 'SpinValue' },
     )
+  }
+}

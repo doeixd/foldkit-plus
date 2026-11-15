@@ -11,9 +11,10 @@ import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability, type SlotItem } from 'foldkit-mixins'
+import { A11y, Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
 import * as RovingTabindex from './roving-tabindex.js'
 import * as Typeahead from './typeahead.js'
+import { ROVING_MARK } from '../dom/focusable.js'
 import { clearQuery, perInput } from '../internal.js'
 
 export const Model = Schema.Struct({
@@ -80,10 +81,7 @@ export const bundle = Bundle.make('ListNavigation', {
   }),
 })
 
-export interface BehaviorOptions<Input, Slots, ParentMessage> {
-  readonly container: keyof Slots & string
-  /** The slot rendered once per item; must carry the item's id (see `Behaviors.Collection`). */
-  readonly item: keyof Slots & string
+export interface KeyOptions<Input, ParentMessage> {
   readonly items: (input: Input) => Behaviors.Collection.Items<unknown>
   /** The text an item is matched by when typing. */
   readonly text: (input: Input, index: number) => string
@@ -96,9 +94,22 @@ export interface BehaviorOptions<Input, Slots, ParentMessage> {
   readonly typeahead?: boolean
   /**
    * Enter on the current enabled item. One handler with the arrows: a second
-   * key handler on the same slot would be a second owner of `keydown`.
+   * key handler on the same slot would be a second owner of `keydown`. Deprecated
+   * as a way to commit: list your own `Keys.route` for Enter beside `keys`.
    */
   readonly commit?: (input: Input, id: string) => ParentMessage
+}
+
+export interface BehaviorOptions<
+  Input,
+  Slots,
+  ParentMessage,
+  Container extends keyof Slots & string = keyof Slots & string,
+  Item extends keyof Slots & string = keyof Slots & string,
+> extends KeyOptions<Input, ParentMessage> {
+  readonly container: Container
+  /** The slot rendered once per item; must carry the item's id (see `Behaviors.Collection`). */
+  readonly item: Item
 }
 
 /**
@@ -128,155 +139,220 @@ export const keyOutcome = (
 }
 
 /**
- * Wires a placed `ListNavigation` to the slots. The container gets one key
- * handler: arrows, Home, End, PageUp and PageDown move by id; a printable key
- * extends the query and moves to its match. Each item gets `tabindex` and
- * `OnFocus` as under `RovingTabindex`. Under `virtual` nothing takes DOM focus
- * and the container carries `aria-activedescendant`.
+ * The route a `ListNavigation` installs on its container: arrows, Home, End,
+ * PageUp and PageDown move by id; a printable key extends the query and moves
+ * to its match (unless `typeahead` is off); Enter commits when `commit` is
+ * given. Focus moves to the item answered; under `virtual` the route sends the
+ * Message alone. List it in a `Keys.behavior` beside routes of your own, such
+ * as one that clears a search field on Escape.
  */
-export const behavior =
+export const keys =
   <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
-  <Slots>(slots: Slots) =>
   <Input extends { readonly [K in Field]: Model }, ParentMessage>(
-    options: BehaviorOptions<Input, Slots, ParentMessage>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
+    options: KeyOptions<Input, ParentMessage>,
+  ): Behaviors.Keys.Route<Input, ParentMessage> => {
     const wrap = (message: Message): ParentMessage =>
       declared.wrapper.make(message) as unknown as ParentMessage
-    const focused = (id: string): ParentMessage => wrap(Message.Focused({ id }))
-    const slice = (input: Input): Model => input[declared.field]
     const itemsOf = perInput(options.items)
-    const outcomeMessage = (outcome: KeyOutcome): ParentMessage =>
-      wrap(
-        Match.valueTags(outcome, {
+    const typeahead = options.typeahead !== false
+    type Answer = ParentMessage | Behaviors.Keys.Focus<ParentMessage>
+    const answerWith = (id: string | null, message: ParentMessage): Answer =>
+      args.virtual || id === null ? message : Behaviors.Keys.focus(id, message)
+    return Behaviors.Keys.route<Input, ParentMessage>('ListNavigation', {
+      on: [
+        ...Behaviors.Keys.withShift('Home'),
+        ...Behaviors.Keys.withShift('End'),
+        ...Behaviors.Keys.withShift('PageUp'),
+        ...Behaviors.Keys.withShift('PageDown'),
+        ...RovingTabindex.arrowChords(args.orientation),
+        ...(options.commit === undefined ? [] : [Behaviors.Keys.chord('Enter')]),
+        ...(typeahead ? [Behaviors.Keys.printable] : []),
+      ],
+      handle: ({ key, modifiers, input }): Option.Option<Answer> => {
+        const items = itemsOf(input)
+        const state = input[declared.field]
+        const { current } = state
+        if (key === 'Enter' && options.commit !== undefined && current !== null) {
+          const currentIndex = items.indexOf(current)
+          if (currentIndex !== -1 && !items.isDisabled(currentIndex)) {
+            return Option.some(answerWith(current, options.commit(input, current)))
+          }
+        }
+        const result = keyOutcome(
+          items,
+          // Read on a key, not on every render.
+          items.ids.map((_, index) => options.text(input, index)),
+          state,
+          key,
+          modifiers,
+          {
+            orientation: args.orientation,
+            loop: args.loop,
+            direction: options.direction?.(input) ?? 'ltr',
+            page: args.page,
+          },
+        )
+        if (result === undefined) return Option.none()
+        const message = Match.valueTags(result, {
           Navigate: ({ id }): Message => Message.Focused({ id }),
           Type: ({ char, match }): Message => Message.Typed({ char, match }),
-        }),
-      )
-    return Behavior.forSlots(slots)<Input, ParentMessage>(
-      {
-        [options.container]: Behavior.slot({
-          requires: { capability: Capability.Interactive },
-          supplies: options.commit === undefined ? ['navigation'] : ['navigation', 'activation'],
-          attributes: ({
-            input,
-            h,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-          }) => {
-            const items = itemsOf(input)
-            const state = slice(input)
-            const moveOptions: RovingTabindex.MoveOptions = {
-              orientation: args.orientation,
-              loop: args.loop,
-              direction: options.direction?.(input) ?? 'ltr',
-              page: args.page,
-            }
-            const typeahead = options.typeahead !== false
-            // Commit is already a parent message. A key outcome still has to
-            // become one, and the focus path needs the id it should move to.
-            type Decision =
-              | { readonly _tag: 'Commit'; readonly id: string; readonly message: ParentMessage }
-              | { readonly _tag: 'Key'; readonly outcome: KeyOutcome }
-            const decide = (key: string, modifiers: KeyboardModifiers): Option.Option<Decision> => {
-              const current = state.current
-              if (
-                key === 'Enter' &&
-                options.commit !== undefined &&
-                !modifiers.shiftKey &&
-                !modifiers.ctrlKey &&
-                !modifiers.altKey &&
-                !modifiers.metaKey &&
-                current !== null
-              ) {
-                const currentIndex = items.indexOf(current)
-                if (currentIndex !== -1 && !items.isDisabled(currentIndex)) {
-                  return Option.some({
-                    _tag: 'Commit',
-                    id: current,
-                    message: options.commit(input, current),
-                  })
-                }
-              }
-              const result = keyOutcome(
-                items,
-                // Read on a key, not on every render.
-                items.ids.map((_, index) => options.text(input, index)),
-                state,
-                key,
-                modifiers,
-                moveOptions,
-              )
-              // A text field owns printable keys. Arrows still move the pointer.
-              if (!typeahead && result !== undefined && result._tag === 'Type') return Option.none()
-              if (result === undefined) return Option.none()
-              return Option.some({ _tag: 'Key', outcome: result })
-            }
-            const messageOf = (decision: Decision): ParentMessage => {
-              if (decision._tag === 'Commit') return decision.message
-              const { outcome } = decision
-              return outcomeMessage(outcome)
-            }
-            const stop = RovingTabindex.tabStop(items, state.current)
-            const stopId = stop === -1 ? undefined : items.ids[stop]
-            if (args.virtual) {
-              return [
-                h.OnKeyDownPreventDefault((key, modifiers) =>
-                  Option.map(decide(key, modifiers), messageOf),
-                ),
-                ...(stopId === undefined ? [] : [h.AriaActiveDescendant(stopId)]),
-              ]
-            }
-            return [
-              h.OnKeyDownFocus((key, modifiers) =>
-                Option.map(decide(key, modifiers), decision => {
-                  if (decision._tag === 'Commit') {
-                    return {
-                      focusSelector: RovingTabindex.idSelector(decision.id),
-                      message: decision.message,
-                    }
-                  }
-                  const result = decision.outcome
-                  const target = Match.valueTags(result, {
-                    Navigate: ({ id }) => id,
-                    Type: ({ match }) => match ?? state.current,
-                  })
-                  return {
-                    // `:not(*)` matches nothing: a typed key with no match and
-                    // nothing current moves no focus but is still recorded.
-                    focusSelector: target === null ? ':not(*)' : RovingTabindex.idSelector(target),
-                    message: outcomeMessage(result),
-                  }
-                }),
-              ),
-            ]
-          },
-        }),
-        [options.item]: Behavior.slot({
-          requires: { capability: Capability.Focusable },
-          supplies: ['focus'],
-          attributes: ({
-            input,
-            h,
-            item,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-            readonly item?: SlotItem
-          }) =>
-            item === undefined
-              ? []
-              : RovingTabindex.itemAttributes(
-                  h,
-                  itemsOf(input),
-                  slice(input).current,
-                  item,
-                  args.virtual,
-                  focused,
-                ),
-        }),
-        // Keyed by values the caller chose; `forSlots` checks both keys exist.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
-      { name: 'ListNavigation' },
-    )
+        })
+        const target = Match.valueTags(result, {
+          Navigate: ({ id }): string | null => id,
+          Type: ({ match }): string | null => match ?? current,
+        })
+        return Option.some(answerWith(target, wrap(message)))
+      },
+    })
   }
+
+export interface ItemOptions<
+  Input,
+  Slots,
+  Item extends keyof Slots & string = keyof Slots & string,
+> {
+  /** The slot rendered once per item; must carry the item's id (see `Behaviors.Collection`). */
+  readonly item: Item
+  readonly items: (input: Input) => Behaviors.Collection.Items<unknown>
+}
+
+// What each item is given, under `behavior` and `item` alike.
+const itemSlot = <
+  Field extends string,
+  Input extends { readonly [K in Field]: Model },
+  ParentMessage,
+>(
+  declared: Declared<typeof bundle, Field>,
+  args: Args,
+  items: (input: Input) => Behaviors.Collection.Items<unknown>,
+) => {
+  const focused = (id: string): ParentMessage =>
+    declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
+  return Behavior.slot({
+    requires: { capability: Capability.Focusable },
+    provides: [A11y.FocusStrategy],
+    attributes: ({
+      input,
+      h,
+      item,
+    }: {
+      readonly input: Input
+      readonly h: HtmlBuilder<ParentMessage>
+      readonly item?: SlotItem
+    }) =>
+      item === undefined
+        ? []
+        : RovingTabindex.itemAttributes(
+            h,
+            items(input),
+            input[declared.field].current,
+            item,
+            args.virtual,
+            focused,
+          ),
+  })
+}
+
+/**
+ * The item half of `behavior`, for a container whose `keydown` is a router's
+ * (`Keys.behavior` listing `keys` beside routes of its own): each item gets
+ * `tabindex` (none under `virtual`) and an `OnFocus` reporting it current, so
+ * neither the items' attributes nor the `Focused` Message is written by hand.
+ */
+export const item = <Field extends string>(
+  declared: Declared<typeof bundle, Field>,
+  args: Args,
+) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): <Item extends keyof Slots & string>(
+    options: ItemOptions<Input, Slots, Item>,
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage, A11y.ProvidedOn<Item, 'focus-strategy'>>
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: ItemOptions<Input, Slots>,
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    const slots = SlotView.boundSlots(given)
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: ItemOptions<Input, Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
+      Behavior.forSlots(slots)<Input, ParentMessage>(
+        {
+          [options.item]: itemSlot<Field, Input, ParentMessage>(
+            declared,
+            args,
+            perInput(options.items),
+          ),
+          // Keyed by a value the caller chose; `forSlots` checks the key exists.
+        } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        { name: 'ListNavigation.item' },
+      )
+  }
+  return place
+}
+
+/**
+ * Wires a placed `ListNavigation` to the slots. The container gets the `keys`
+ * route as its one key handler. Each item gets `tabindex` and `OnFocus` as
+ * under `RovingTabindex`. Under `virtual` nothing takes DOM focus and the
+ * container carries `aria-activedescendant`.
+ */
+export const behavior = <Field extends string>(
+  declared: Declared<typeof bundle, Field>,
+  args: Args,
+) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): <Container extends keyof Slots & string, Item extends keyof Slots & string>(
+    options: BehaviorOptions<Input, Slots, ParentMessage, Container, Item>,
+  ) => Behavior.NamedBehavior<
+    Slots,
+    Input,
+    ParentMessage,
+    A11y.ProvidedOn<Container, 'navigation'> | A11y.ProvidedOn<Item, 'focus-strategy'>
+  >
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: BehaviorOptions<Input, Slots, ParentMessage>,
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    const slots = SlotView.boundSlots(given)
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: BehaviorOptions<Input, Slots, ParentMessage>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
+      const slice = (input: Input): Model => input[declared.field]
+      const itemsOf = perInput(options.items)
+      const keydown = Behaviors.Keys.attribute<Input, ParentMessage>(
+        [keys<Field>(declared, args)<Input, ParentMessage>(options)],
+        { slot: options.container, moveFocus: !args.virtual },
+      )
+      return Behavior.forSlots(slots)<Input, ParentMessage>(
+        {
+          [options.container]: Behavior.slot({
+            requires: { capability: Capability.Interactive },
+            provides: [A11y.Navigation],
+            attributes: context => {
+              const { input, h } = context
+              const items = itemsOf(input)
+              const stop = RovingTabindex.tabStop(items, slice(input).current)
+              const stopId = stop === -1 ? undefined : items.ids[stop]
+              return [
+                keydown(context),
+                // Whose `tabindex="0"` is this container's stop, for a `FollowTabStop` around it.
+                h.DataAttribute(ROVING_MARK, ''),
+                ...(args.virtual && stopId !== undefined ? [h.AriaActiveDescendant(stopId)] : []),
+              ]
+            },
+          }),
+          [options.item]: itemSlot<Field, Input, ParentMessage>(declared, args, itemsOf),
+          // Keyed by values the caller chose; `forSlots` checks both keys exist.
+        } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        { name: 'ListNavigation' },
+      )
+    }
+  }
+  return place
+}

@@ -12,6 +12,16 @@ export default defineConfig({
   clean: true,
   target: 'es2022',
   deps: {
-    neverBundle: [/^\.\.?\//, 'effect', '@alchemy.run/domain', 'alchemy'],
+    neverBundle: [
+      /^\.\.?\//,
+      'effect',
+      '@alchemy.run/domain',
+      'alchemy',
+      'foldkit-entity',
+      'foldkit-guard',
+      'foldkit-remote',
+      'foldkit-remote-server',
+      'foldkit-surface',
+    ],
   },
 })

@@ -13,7 +13,9 @@
 import { stableStringify } from './query.js'
 import { targetsOf } from './relation.js'
 import { Requirement, type RelationRequirement } from './requirement.js'
+import type { Schema } from 'effect'
 import { entityKey, missingFields, oldestOf, readField, type EntityStore } from './store.js'
+import { MAX_READ_AFTER, type RowToken } from './wire.js'
 
 type Window = NonNullable<Requirement['windows']>[string]
 
@@ -132,11 +134,16 @@ export const plan = (
   for (const group of Requirement.merge(requirements)) {
     const key = entityKey(group.entity, group.id)
     const expired = isExpired(store, key, group.fields, freshness)
+    // A row held to a read-after token is read again, with it, until an
+    // answer read at the token confirms what it holds.
+    const floored = store[key]?.floor !== undefined
     const windowKeys = Object.fromEntries(
       Object.entries(group.windows ?? {}).map(([field, window]) => [field, windowKey(window)]),
     )
     const missing =
-      force || expired ? group.fields : missingFields(store, key, group.fields, windowKeys)
+      force || expired || floored
+        ? group.fields
+        : missingFields(store, key, group.fields, windowKeys)
     const missingSet = new Set(missing)
 
     // A relation the store already holds is followed into its targets; one
@@ -164,6 +171,58 @@ export const plan = (
   return [...Requirement.merge([...planned, ...nested])].sort((a, b) =>
     entityKey(a.entity, a.id) < entityKey(b.entity, b.id) ? -1 : 1,
   )
+}
+
+/**
+ * `planned` split into what is read now and the floored rows the server was
+ * behind on (`EntityEntry.behind`), which wait: the first of them to come
+ * due, and when. The rest wait for the plan after its answer.
+ */
+export const waitingOf = (
+  store: EntityStore,
+  planned: ReadonlyArray<Requirement>,
+): {
+  readonly now: ReadonlyArray<Requirement>
+  readonly later: { readonly at: number; readonly requirements: ReadonlyArray<Requirement> } | null
+} => {
+  const atOf = (requirement: Requirement) => {
+    const held = store[entityKey(requirement.entity, requirement.id)]
+    return held?.floor === undefined ? undefined : held.behind?.at
+  }
+  let at = Infinity
+  for (const requirement of planned) at = Math.min(at, atOf(requirement) ?? Infinity)
+  if (at === Infinity) return { now: planned, later: null }
+  return {
+    now: planned.filter(requirement => atOf(requirement) === undefined),
+    later: { at, requirements: planned.filter(requirement => atOf(requirement) === at) },
+  }
+}
+
+/**
+ * The read-after tokens of the rows `planned` reads that hold one, at most
+ * `MAX_READ_AFTER`, with the requirements a read sends them with: those of
+ * the rows past the bound wait for the next plan, made once an answer ends
+ * the floors before them.
+ */
+export const withTokens = (
+  store: EntityStore,
+  planned: ReadonlyArray<Requirement>,
+): {
+  readonly requirements: ReadonlyArray<Requirement>
+  readonly after: ReadonlyArray<Schema.Schema.Type<typeof RowToken>>
+} => {
+  const after: Array<Schema.Schema.Type<typeof RowToken>> = []
+  const seen = new Set<string>()
+  const requirements = planned.filter(requirement => {
+    const key = entityKey(requirement.entity, requirement.id)
+    const token = store[key]?.floor
+    if (token === undefined || seen.has(key)) return true
+    if (after.length === MAX_READ_AFTER) return false
+    seen.add(key)
+    after.push({ entity: requirement.entity, id: requirement.id, token })
+    return true
+  })
+  return after.length === 0 ? { requirements: planned, after } : { requirements, after }
 }
 
 /**

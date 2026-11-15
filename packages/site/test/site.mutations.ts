@@ -2,6 +2,13 @@
  * The Site first cut, broken in turn:
  * `pnpm mutate packages/site/test/site.mutations.ts` checks that a test
  * fails for every one.
+ *
+ * The type side (`site.test-d.ts`) is mutated by hand, since `pnpm mutate`
+ * runs Vitest and Vitest does not typecheck. `SiteSources` keyed by every tag
+ * of the tree again, `NodeBuilder.surface` keeping the builder's `Surfaced`,
+ * and `Site.route` marking a node surfaced with no `surface` given, each made
+ * `npx tsc -b packages/site` fail where `Site.sources` names only the tags of
+ * nodes with a Surface (2026-11-15).
  */
 const tests = [
   'packages/site/test/site.test.ts',
@@ -21,9 +28,8 @@ export default [
     edits: [
       {
         file,
-        find: '    for (const node of Site.nodesOf(site)) {\n      const entry = sourceOf(node, owner, place)',
-        replace:
-          '    for (const node of [] as Array<SiteNode<any>>) {\n      const entry = sourceOf(node, owner, place)',
+        find: 'sourcesOn(Site.nodesOf(site), owner, place)',
+        replace: 'sourcesOn([], owner, place)',
       },
     ],
     tests: together,
@@ -155,7 +161,7 @@ export default [
     edits: [
       {
         file,
-        find: '            ...(config.pages ?? []).map(\n              page => (model: Root) =>\n                Option.getOrElse(page.inform(model, next), () => ({ model })),\n            ),',
+        find: '            ...informed(next),',
         replace: '',
       },
     ],
@@ -166,9 +172,8 @@ export default [
     edits: [
       {
         file,
-        find: '    for (const node of Site.chainOf(site, route)) {\n      const entry = sourceOf(node, owner, place)',
-        replace:
-          '    for (const node of Site.nodesOf(site)) {\n      const entry = sourceOf(node, owner, place)',
+        find: 'sourcesOn(Site.chainOf(site, route), owner, place)',
+        replace: 'sourcesOn(Site.nodesOf(site), owner, place)',
       },
     ],
     tests,
@@ -189,8 +194,8 @@ export default [
     edits: [
       {
         file,
-        find: '      surface: config => at(Object.freeze({ ...built, bound: config as BoundSurface })),',
-        replace: '      surface: _config => at(built),',
+        find: 'Object.freeze({ ...built, bound: config as BoundSurface })',
+        replace: 'built',
       },
     ],
     tests,
@@ -200,8 +205,8 @@ export default [
     edits: [
       {
         file,
-        find: '      pipe: <A>(fn: (builder: NodeBuilder<Route>) => A): A => fn(at(built)),',
-        replace: '      pipe: <A>(fn: (builder: NodeBuilder<Route>) => A): A => at(built) as A,',
+        find: '): A => fn(at(built)),',
+        replace: '): A => at(built) as A,',
       },
     ],
     tests,

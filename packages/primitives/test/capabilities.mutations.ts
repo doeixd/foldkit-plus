@@ -7,6 +7,28 @@ const dir = '../src/interaction'
 
 export default [
   {
+    name: 'Presence.hide shows',
+    edits: [
+      {
+        file: '../src/motion/presence.ts',
+        find: 'hide: (model: PresenceModel) => update(model, PresenceMessage.Hide(), args),',
+        replace: 'hide: (model: PresenceModel) => update(model, PresenceMessage.Show(), args),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'Presence.show hides',
+    edits: [
+      {
+        file: '../src/motion/presence.ts',
+        find: 'show: (model: PresenceModel) => update(model, PresenceMessage.Show(), args),',
+        replace: 'show: (model: PresenceModel) => update(model, PresenceMessage.Hide(), args),',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'Selection.activate replaces instead of activating',
     edits: [
       {

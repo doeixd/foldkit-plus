@@ -6,7 +6,7 @@
  * and an Effect 3 there crashed the CLI before it printed anything (#200).
  */
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { build } from 'tsdown'
@@ -85,4 +85,65 @@ test('the built CLI answers from the installed docs, and fails on nothing found'
   const unknown = run(app, ['docs', '--list', 'mirror'])
   expect(unknown.status).toBe(1)
   expect(unknown.stderr).toContain('The topics are: remote.')
+})
+
+// A project with no `tsx` anywhere above it (the temporary folder's ancestors hold none): the
+// module loads through Node's own TypeScript support, and `foldkit-entity` is the project's.
+const lawsApp = () => {
+  const app = join(root, 'laws-app')
+  const entity = join(app, 'node_modules', 'foldkit-entity')
+  mkdirSync(entity, { recursive: true })
+  writeFileSync(
+    join(entity, 'package.json'),
+    JSON.stringify({
+      name: 'foldkit-entity',
+      type: 'module',
+      exports: { '.': { import: './index.js' } },
+    }),
+  )
+  writeFileSync(
+    join(entity, 'index.js'),
+    'export const Laws = { show: report => `stub shows ${report.findings.length} findings`, check: () => ({ pairs: [], arrows: [], states: [], findings: [] }) }\n',
+  )
+  writeFileSync(
+    join(app, 'report.ts'),
+    "const findings: ReadonlyArray<{ readonly _tag: string }> = [{ _tag: 'Unreached' }]\nexport const report = { pairs: [], arrows: [], states: [], findings }\n",
+  )
+  writeFileSync(join(app, 'neither.ts'), 'export default 3\n')
+  writeFileSync(
+    join(app, 'imports.ts'),
+    "import { report } from './report.js'\nexport default report\n",
+  )
+  return app
+}
+
+test('the built CLI prints a report through Node alone, and a report with findings still exits 0', () => {
+  const printed = run(lawsApp(), ['laws', 'report.ts#report'])
+  expect(printed.stdout).toBe('stub shows 1 findings\n')
+  expect(printed.status).toBe(0)
+})
+
+test('without tsx, a `.js` specifier for a `.ts` file fails with the advice to install it', () => {
+  const failed = run(lawsApp(), ['laws', 'imports.ts'])
+  expect(failed.status).toBe(1)
+  expect(failed.stderr).toContain("with Node's own TypeScript support")
+  expect(failed.stderr).toContain('npm install --save-dev tsx')
+})
+
+test('a module of neither shape exits 1 and says what it found; no module is a usage error', () => {
+  const neither = run(lawsApp(), ['laws', 'neither.ts'])
+  expect(neither.status).toBe(1)
+  expect(neither.stderr).toContain('The default export of')
+  expect(neither.stderr).toContain('is number')
+  const usage = run(lawsApp(), ['laws'])
+  expect(usage.status).toBe(1)
+  expect(usage.stderr).toContain('npx foldkit-plus laws <module>')
+})
+
+test("the built CLI prints the writes example's report, through the tsx the repository holds", () => {
+  const kept = readFileSync(join(packageDir, '../../examples/writes/LAWS.md'), 'utf8')
+  const printed = run(resolve(packageDir, '../..'), ['laws', 'examples/writes/src/laws.ts#report'])
+  expect(printed.stderr).toBe('')
+  expect(printed.stdout).toBe(`${/```text\n([\s\S]*?)\n```/.exec(kept)![1]}\n`)
+  expect(printed.status).toBe(0)
 })

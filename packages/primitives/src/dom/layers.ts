@@ -5,14 +5,16 @@
  * - `ScrollLock` locks the document's scroll while mounted. Foldkit's lock is
  *   refcounted, so nested overlays release it only when the last one goes.
  * - `HideOutside` marks everything outside the element inert while mounted,
- *   through `Dom.inertOthers`, keyed by an id this Mount mints.
+ *   through `Dom.inertOthers`, keyed by an id this Mount mints. The element
+ *   is a layer of the document's stack, and a layer opened after it is never
+ *   marked, wherever it is drawn: the topmost layer decides what is hidden.
  *
  * Both emit no Messages; they are element lifecycle.
  */
-import { Cause, Effect, Queue, Schema, Stream } from 'effect'
+import { Effect, Schema, Stream } from 'effect'
 import * as Dom from 'foldkit/dom'
 import * as Mount from 'foldkit/mount'
-import { LEAVING } from './leaving.js'
+import * as LayerStack from './layer-stack.js'
 
 /** Locks the document's scroll while the element is mounted; nested locks release with the last. */
 export const ScrollLock = Mount.defineStream('ScrollLock', {
@@ -26,47 +28,38 @@ const HIDE_OUTSIDE_ATTRIBUTE = 'data-foldkit-plus-hide-outside'
 let minted = 0
 
 /**
- * Makes everything outside the element inert while it is mounted, and restores
- * it after. While the element is leaving, the rest of the page is reachable
- * again: focus is on its way out, and the fallback may be out there. Shown
- * again, the element hides the outside once more.
+ * Makes everything outside the element, and outside each layer opened after
+ * it, inert while it is mounted, and restores it after.
  */
 export const HideOutside = Mount.defineStream('HideOutside', {
   messages: [Schema.Never],
   execute: ({ element }) =>
-    Stream.unwrap(
-      Effect.gen(function* () {
-        // A per-mount id: Foldkit keys the inert set by it, so two overlays
-        // restore independently. The attribute is how the element is found.
-        const id = `hide-outside-${(minted += 1)}`
-        element.setAttribute(HIDE_OUTSIDE_ATTRIBUTE, id)
-        const conceal = () => Dom.inertOthers(id, [`[${HIDE_OUTSIDE_ATTRIBUTE}="${id}"]`])
-        const answers = yield* Queue.unbounded<boolean, Cause.Done>()
-        const changes = new MutationObserver(() => {
-          // Synchronous, in this observer turn: `Leaving` focuses on a later
-          // microtask, and that fallback may be an element this set made inert.
-          // `restoreInert` also drops a request `inertOthers` has not committed.
-          if (element.hasAttribute(LEAVING)) Effect.runSync(Dom.restoreInert(id))
-          else Queue.offerUnsafe(answers, false)
-        })
-        yield* Effect.addFinalizer(() =>
-          Effect.andThen(
+    Stream.callback<never>(() =>
+      Effect.acquireRelease(
+        Effect.gen(function* () {
+          // A per-mount id: Foldkit keys the inert set by it, so two overlays
+          // restore independently. The attribute is how the element is found.
+          const id = `hide-outside-${(minted += 1)}`
+          element.setAttribute(HIDE_OUTSIDE_ATTRIBUTE, id)
+          const isolate = () =>
+            Dom.inertOthers(id, [
+              `[${HIDE_OUTSIDE_ATTRIBUTE}="${id}"]`,
+              ...LayerStack.selectorsAbove(element),
+            ])
+          // Reusing the id swaps the inert set in place, so what stays outside stays inert.
+          const release = LayerStack.open(element, () =>
+            Effect.runFork(Effect.andThen(isolate(), Effect.sync(LayerStack.showed))),
+          )
+          yield* isolate()
+          return { id, release }
+        }),
+        ({ id, release }) =>
+          Effect.andThen(Dom.restoreInert(id), () =>
             Effect.sync(() => {
-              changes.disconnect()
-              Queue.endUnsafe(answers)
+              element.removeAttribute(HIDE_OUTSIDE_ATTRIBUTE)
+              release()
             }),
-            Effect.andThen(
-              Dom.restoreInert(id),
-              Effect.sync(() => element.removeAttribute(HIDE_OUTSIDE_ATTRIBUTE)),
-            ),
           ),
-        )
-        changes.observe(element, { attributes: true, attributeFilter: [LEAVING] })
-        if (!element.hasAttribute(LEAVING)) yield* conceal()
-        return Stream.fromQueue(answers).pipe(
-          Stream.mapEffect(() => (element.hasAttribute(LEAVING) ? Effect.void : conceal())),
-          Stream.drain,
-        )
-      }),
+      ),
     ),
 })

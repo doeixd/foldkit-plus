@@ -1,0 +1,425 @@
+/**
+ * Edge scrolling and the marquee, each part broken in turn: `pnpm mutate
+ * packages/primitives/test/edgeScroll.mutations.ts` checks that a test fails for every one.
+ */
+const scroll = '../src/dom/edge-scroller.ts'
+const drag = '../src/dom/pointer-drag.ts'
+const marquee = '../src/dom/marquee.ts'
+const edgeTests = [
+  'packages/primitives/test/edgeScroll.browser.test.ts',
+  'packages/primitives/test/audit-reorder.browser.test.ts',
+]
+const marqueeTests = ['packages/primitives/test/marquee.browser.test.ts']
+
+export default [
+  {
+    name: 'a pointer held before the scroller has loaded is never handed to it',
+    edits: [
+      {
+        file: '../src/dom/edge-scroll.ts',
+        find: '    if (held !== undefined) loaded.move(held.x, held.y)\n',
+        replace: '',
+      },
+    ],
+    tests: [...edgeTests, 'packages/primitives/test/reorder.browser.test.ts'],
+  },
+  {
+    name: 'an Escape before the press is under way is swallowed too',
+    edits: [
+      {
+        file: '../src/dom/press-session.ts',
+        find: '    if (started()) {',
+        replace: '    if (true as boolean) {',
+      },
+    ],
+    tests: [...marqueeTests, 'packages/primitives/test/pointer-drag.test.ts'],
+  },
+  {
+    name: "a right-to-left box's scroll starts at 0, so it never scrolls toward its start",
+    edits: [
+      {
+        file: scroll,
+        find: "axis === 'x' && style.direction === 'rtl' ? -room(element, axis) : 0",
+        replace: '0',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a right-to-left container is measured as if left to right',
+    edits: [
+      {
+        file: marquee,
+        find: "rtl = owner.defaultView?.getComputedStyle(element).direction === 'rtl'",
+        replace: 'rtl = false',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a scrollbar on the left is empty space',
+    edits: [
+      {
+        file: marquee,
+        find: '                  (x < inLeft ||',
+        replace: '                  (false ||',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a scrollbar along the bottom is empty space',
+    edits: [
+      {
+        file: marquee,
+        find: '                    y >= inTop + element.clientHeight)',
+        replace: '                    false)',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a lasso lets the browser select text under it',
+    edits: [
+      {
+        file: marquee,
+        find: "            ['selectstart', event => event.preventDefault()],\n",
+        replace: '',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a drag lets the browser select text under it',
+    edits: [
+      {
+        file: drag,
+        find: "            ['selectstart', event => event.preventDefault()],\n",
+        replace: '',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: "a lasso's waiting swallow outlives its release",
+    edits: [
+      {
+        file: marquee,
+        find: '            if (swallowClick) setTimeout(() => (swallowClick = false), 0)\n',
+        replace: '',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: "a drop's waiting swallow outlives its release",
+    edits: [
+      {
+        file: drag,
+        find: '            if (swallowClick) setTimeout(() => (swallowClick = false), 0)\n',
+        replace: '',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'an additive lasso adds what was already selected again',
+    edits: [
+      {
+        file: '../src/interaction/marquee.ts',
+        find: 'fact.ids.filter(id => !held.has(id))',
+        replace: 'fact.ids',
+      },
+    ],
+    tests: ['packages/primitives/test/marquee.test.ts'],
+  },
+  {
+    name: 'every move walks the ancestors',
+    edits: [
+      {
+        file: scroll,
+        find: '      if (frame !== undefined || view === null) return',
+        replace: '      if (frame !== undefined || view === null || plan().length === 0) return',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'a page under a scroll lock still scrolls',
+    edits: [
+      {
+        file: scroll,
+        find: ' && pageScrolls(view, owner, axis)) {',
+        replace: ') {',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'the walk goes on past a fixed box to the page',
+    edits: [{ file: scroll, find: '        fixed = true\n', replace: '' }],
+    tests: edgeTests,
+  },
+  {
+    name: 'a scroller the pointer is only beside is pulled too',
+    edits: [{ file: scroll, find: '        if (!across) continue\n', replace: '' }],
+    tests: edgeTests,
+  },
+  {
+    name: 'the strip is the whole box, so a pointer mid-box scrolls',
+    edits: [{ file: scroll, find: 'if (at < lo + strip) return', replace: 'if (at < hi) return' }],
+    tests: edgeTests,
+  },
+  {
+    name: 'a strip wider than a third of a small box overlaps its other edge',
+    edits: [{ file: scroll, find: 'Math.min(band, (hi - lo) / 3)', replace: 'band' }],
+    tests: edgeTests,
+  },
+  {
+    name: 'the speed does not grow with depth in the strip',
+    edits: [
+      {
+        file: scroll,
+        find: 'if (at > hi - strip) return Math.min(1, (at - (hi - strip)) / strip)',
+        replace: 'if (at > hi - strip) return 1',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'a scroller already at its end is still chosen, so the page never takes over',
+    edits: [
+      {
+        file: scroll,
+        find: 'if (by < 0 ? at <= low : at >= low + room(scroller.element, axis) - 0.5) continue',
+        replace: '',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'a smooth-scrolling page glides each step',
+    edits: [
+      {
+        file: scroll,
+        find: "{ top: before + by * speed * seconds, behavior: 'instant' }",
+        replace: "{ top: before + by * speed * seconds, behavior: 'auto' }",
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'reduced motion glides',
+    edits: [
+      {
+        file: scroll,
+        find: "view.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true",
+        replace: 'false',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'the loop never ends when nothing can scroll',
+    edits: [
+      {
+        file: scroll,
+        find: 'if (steps.length === 0) return',
+        replace: 'if (steps.length === 0) { frame = view?.requestAnimationFrame(tick); return }',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'the loop outlives the drag',
+    edits: [
+      {
+        file: drag,
+        find: '            scroller?.stop()\n            const id = dragging',
+        replace: '            const id = dragging',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'the loop outlives the Mount',
+    edits: [
+      {
+        file: drag,
+        find: '            clearTimeout(holding)\n            scroller?.stop()\n            release()',
+        replace: '            clearTimeout(holding)\n            release()',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'the place under a still pointer is not reported after a scroll',
+    edits: [
+      { file: drag, find: 'if (dragging !== null && heard !== null) report(heard)', replace: '' },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'a drag scrolls without being asked',
+    edits: [
+      {
+        file: drag,
+        find: 'edgeScroll === undefined\n              ? undefined\n              : edgeScrollerLater(element, edgeScroll,',
+        replace:
+          'false\n              ? undefined\n              : edgeScrollerLater(element, edgeScroll ?? {},',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'the pointer is not handed to the scroller',
+    edits: [
+      {
+        file: drag,
+        find: '                scroller?.move(positioned.clientX ?? 0, positioned.clientY ?? 0)\n',
+        replace: '',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'a finger starts a lasso',
+    edits: [{ file: marquee, find: " || down.pointerType === 'touch'", replace: '' }],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a press on a marked node starts a lasso',
+    edits: [
+      {
+        file: marquee,
+        find: 'if (marked !== null && element.contains(marked)) return',
+        replace: '',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a press on a control starts a lasso',
+    edits: [{ file: marquee, find: 'if (target.closest(CONTROLS) !== null) return', replace: '' }],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a press on the scrollbar starts a lasso',
+    edits: [{ file: marquee, find: 'element.clientWidth > 0 &&', replace: 'false &&' }],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a press that hardly moves is a lasso',
+    edits: [
+      {
+        file: marquee,
+        find: '                    DRAG_THRESHOLD\n',
+        replace: '                    0\n',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a second pointer takes over the press',
+    edits: [
+      { file: marquee, find: 'if (pressed !== null || (down.button', replace: 'if ((down.button' },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'the rectangle ignores what scrolled',
+    edits: [
+      {
+        file: marquee,
+        find: 'top: box.top + element.clientTop - element.scrollTop,',
+        replace: 'top: box.top + element.clientTop,',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'the rectangle leaves the container',
+    edits: [
+      {
+        file: marquee,
+        find: 'const clamp = (value: number, max: number) => Math.min(Math.max(value, 0), max)',
+        replace: 'const clamp = (value: number, _max: number) => value',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a node the lasso only meets at an edge is touched',
+    edits: [
+      { file: marquee, find: 'x < rect.x + rect.width &&', replace: 'x <= rect.x + rect.width &&' },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a node above the lasso is touched',
+    edits: [{ file: marquee, find: 'y + box.height > rect.y', replace: 'y + box.height >= 0' }],
+    tests: marqueeTests,
+  },
+  {
+    name: 'Escape ends the lasso as a drop',
+    edits: [
+      {
+        file: marquee,
+        find: '                () => end(false),\n              ),\n              true,',
+        replace: '                () => end(true),\n              ),\n              true,',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'the click a lasso ends with reaches the page',
+    edits: [
+      { file: marquee, find: 'swallowClick = ended && inside', replace: 'swallowClick = false' },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a lasso swallows the next click too',
+    edits: [
+      {
+        file: marquee,
+        find: '                swallowClick = false\n                event.preventDefault()',
+        replace: '                event.preventDefault()',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'an additive press is not told so',
+    edits: [
+      {
+        file: marquee,
+        find: 'down.shiftKey === true || down.ctrlKey === true || down.metaKey === true',
+        replace: 'down.shiftKey === true || down.ctrlKey === true',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a Mount ended mid-press keeps the document listeners',
+    edits: [
+      {
+        file: marquee,
+        find: '          const stop = () => {\n            scroller?.stop()\n            release()\n          }',
+        replace: '          const stop = () => {\n            scroller?.stop()\n          }',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'the lasso scrolls without being asked',
+    edits: [
+      {
+        file: marquee,
+        find: 'edgeScroll === undefined ? undefined : edgeScrollerLater(element, edgeScroll, report)',
+        replace: 'edgeScrollerLater(element, edgeScroll ?? {}, report)',
+      },
+    ],
+    tests: marqueeTests,
+  },
+]

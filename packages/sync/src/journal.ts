@@ -292,6 +292,24 @@ export const journalExchange = <Message, Shared, Principal>(
         )
       }
       const invalid = (opId: string, message: string) => reject(opId, invalidAs(message), message)
+      const broke = (
+        opId: string,
+        rule: string,
+        reason: string | undefined,
+        path: ReadonlyArray<string> | undefined,
+      ) => {
+        const message = fitWords(reason ?? 'It breaks a law of the document')
+        reject(
+          opId,
+          SyncRefusal.Invalid({
+            entity: Option.none(),
+            rule: Option.some(fitWords(rule)),
+            message,
+            path: (path ?? []).slice(0, 16).map(fitWords),
+          }),
+          message,
+        )
+      }
       const acknowledged: Array<string> = []
       for (const input of pending) {
         const decoded = operationOf(input)
@@ -341,8 +359,13 @@ export const journalExchange = <Message, Shared, Principal>(
           // other content fail the same way on every retry, so they are rejected; a
           // `JournalError` may not, so it still fails the exchange.
           Effect.catchTags({
+            // A rule is a law's id: the snapshot the operation leaves breaks it.
             OperationRejectedError: error =>
-              Effect.sync(() => forbid(error.opId, error.reason, 'Refused by the server')),
+              Effect.sync(() =>
+                error.rule === undefined
+                  ? forbid(error.opId, error.reason, 'Refused by the server')
+                  : broke(error.opId, error.rule, error.reason, error.path),
+              ),
             InvalidOperationError: () =>
               Effect.sync(() => invalid(operation.opId, 'Not a valid operation')),
             IdentityConflictError: () =>

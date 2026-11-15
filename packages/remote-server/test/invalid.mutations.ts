@@ -33,7 +33,7 @@ export default [
   edit(
     'a writer that judges no invariant is taken',
     server,
-    'if (judged.length > 0 && writer.invariants !== true) {',
+    'if (declared.length > 0 && writer.invariants !== true) {',
     'if (false) {',
   ),
   edit('the refusal names no rule', server, 'rule: refused.rule,', 'rule: Option.none(),'),
@@ -56,4 +56,30 @@ export default [
     'held => kind.hasBefore || !Entity.readsBefore(held),',
     'held => true || held,',
   ),
+  ...[
+    [
+      'a writer that judges no postcondition is taken',
+      'if (Option.isSome(write.ensures) && writer.postconditions !== true) {',
+      'if (false) {',
+    ],
+    [
+      'an update is handed no postcondition',
+      '                      when: yield* when,\n                      ensures: Option.getOrUndefined(write.ensures),',
+      '                      when: yield* when,',
+    ],
+    [
+      'an insert is handed no postcondition',
+      '                      request: yield* request,\n                      ensures: Option.getOrUndefined(write.ensures),',
+      '                      request: yield* request,',
+    ],
+    [
+      'an insert leaving unset what its postcondition reads is taken',
+      'const judged = [...declared, ...Option.toArray(write.ensures)]',
+      'const judged = declared',
+    ],
+  ].map(([name, find, replace]) => ({
+    name: name!,
+    edits: [{ file: server, find: find!, replace: replace! }],
+    tests: ['packages/remote-server/test/memoryWriter.test.ts'],
+  })),
 ]

@@ -8,10 +8,12 @@
 import { Effect, Option, Result, Schema } from 'effect'
 import type { AnyEntity } from 'foldkit-entity'
 import { RemoteClient, remoteError } from './client.js'
+import { innerOf } from './inner.js'
 import type { RemoteDomain } from './index.js'
-import type { MutationDescriptor } from './mutationDescriptor.js'
+import { Refusal, type MutationDescriptor } from './mutationDescriptor.js'
 import { stableStringify, type QueryRef } from './query.js'
 import { belongsEncoded } from './matching.js'
+import { judgedByWrite } from './mutation.js'
 import type { RemoteMessage, RemoteModel } from './model.js'
 import { patchedFields } from './shown.js'
 import { entityKey, type EntityStore } from './store.js'
@@ -83,6 +85,11 @@ const nothingCompared = (mutation: string): never => {
  * (`RemoteClient`: `Remote.clientLayer(RemoteServer.handlers(server, principal))`),
  * then compares each predicted field, each predicted deletion and each list's
  * order with what the server answers after the write.
+ *
+ * A server's `Invalid` meets a client that could not judge the row (its
+ * invariants undecided, as for a field the write moves): the write is
+ * reported in `unknown`, left to the server, not as a disagreement. One the
+ * client judged Valid is a disagreement, whatever else `Data.can` was unsure of.
  *
  * Fails when nothing was compared: two sides that both said nothing agree,
  * and that agreement is no evidence.
@@ -190,9 +197,36 @@ const check = <AppModel>(
       return { agreed, disagreed, unknown }
     }
     if (answer._tag === 'MutationFailed') {
+      const refusal = answer.error.refusal
+      // An invalid row the client could not judge (an invariant or a postcondition over a
+      // field the write moves) was left to the server: a verdict that is not Valid meets it.
+      // Judged by the invariants alone: `Data.can` is undecided for other reasons too (an
+      // unheld `may`), over a row it judged Valid, and that refusal is a disagreement.
+      if (
+        Option.exists(
+          Schema.decodeUnknownOption(config.mutation.Refusal)(refusal),
+          Refusal.isInvalid,
+        ) &&
+        // `input` is the mutation's own, which `Data.mutate` took above.
+        Option.match(
+          Option.flatMap(Option.fromUndefinedOr(config.mutation.write), write =>
+            judgedByWrite(
+              write,
+              config.input,
+              undefined,
+              innerOf<AppModel>(Data).context(model),
+              Data.storeOf(model),
+              tableOf(Data.operators),
+            ),
+          ),
+          { onNone: () => true, onSome: judged => judged._tag === 'Undecided' },
+        )
+      ) {
+        unknown.push(config.mutation.name)
+        return { agreed, disagreed, unknown }
+      }
       // The client showed the write as made, where it showed anything; the server refused it.
-      if (predicted.size > 0)
-        compare(config.mutation.name, 'applied', answer.error.refusal ?? answer.error)
+      if (predicted.size > 0) compare(config.mutation.name, 'applied', refusal ?? answer.error)
       return disagreed.length === 0
         ? nothingCompared(config.mutation.name)
         : { agreed, disagreed, unknown }

@@ -117,8 +117,8 @@ export default [
     edits: [
       {
         file: resolver,
-        find: 'onNone: () => ownedAttributes.set(attributeNameOf(tag, value), tag)',
-        replace: 'onNone: () => ownedAttributes.set(tag, tag)',
+        find: 'onNone: () => ownedAttributes.set(attributeNameOf(tag, value), { tag, source })',
+        replace: 'onNone: () => ownedAttributes.set(tag, { tag, source })',
       },
     ],
     tests,

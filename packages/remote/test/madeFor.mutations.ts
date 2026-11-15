@@ -68,8 +68,8 @@ export default [
   edit(
     'a read entry sends its answers with no generation',
     '../src/domain.ts',
-    'result: result.success,\n          now: at,\n          generation,',
-    'result: result.success,\n          now: at,',
+    '...(after.length === 0 ? {} : { after }),\n          generation,',
+    '...(after.length === 0 ? {} : { after }),',
   ),
   edit(
     'a list entry sends its pages with no generation',

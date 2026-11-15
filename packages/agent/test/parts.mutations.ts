@@ -1,94 +1,135 @@
 /**
- * Part binding, broken in turn: `pnpm mutate packages/agent/test/parts.mutations.ts`.
+ * Parts, broken in turn: `pnpm mutate packages/agent/test/parts.mutations.ts`.
  */
-const file = '../src/parts.ts'
+const parts = '../src/parts.ts'
+const runtime = '../src/runtime.ts'
 const tests = ['packages/agent/test/parts.test.ts']
 
-const swap = (name: string, find: string, replace: string) => ({
-  name,
-  edits: [{ file, find, replace }],
-  tests,
-})
-
 export default [
-  swap(
-    'unavailable capabilities stay listed',
-    'new Set((yield* runtime.messages.available)',
-    'new Set((yield* runtime.messages.list)',
-  ),
-  swap(
-    'a part by id ignores availability',
-    'return part !== undefined && offered.has(part.capability) ? [part] : []',
-    'return part !== undefined ? [part] : []',
-  ),
-  swap(
-    'a label ignores availability',
-    '.filter(part => part.label === label && offered.has(part.capability))',
-    '.filter(part => part.label === label)',
-  ),
-  swap(
-    'a shared label selects the first rendering',
-    'if (rest.length > 0) {',
-    'if (rest.length > 100) {',
-  ),
-  swap(
-    'a part shows every encoded field',
-    'part.fields.flatMap(field =>',
-    'Object.keys(encoded).flatMap(field =>',
-  ),
-  swap(
-    'an unknown part id dispatches that name',
-    'if (part === undefined) return Effect.fail(UnknownPartError.of(id))',
-    'if (part === undefined) return runtime.messages.dispatchUnknown(id, input, invocation)',
-  ),
-  swap(
-    'a stale occurrence selects another row',
-    '.filter(item => item.part === id && item.id === occurrence)',
-    '.filter(item => item.part === id)',
-  ),
-  swap(
-    "an occurrence answers for another part's rendering",
-    '.filter(item => item.part === id && item.id === occurrence)',
-    '.filter(item => item.id === occurrence)',
-  ),
-  swap(
-    'an unmounted part is not discoverable',
-    'return hits.length === 0 ? [{ part, occurrence: Option.none() }] : hits',
-    'return hits',
-  ),
-  swap(
-    'a runtime of another definition is accepted',
-    'runtime.definition === definitionOf(catalog)',
-    'true || runtime.definition === definitionOf(catalog)',
-  ),
-  swap(
-    'an id may be bound twice',
-    'if (index.has(part.id)) throw',
-    'if (index.has(part.id) && false) throw',
-  ),
-  swap(
-    'a label may be empty',
-    "if (part.label === '') throw",
-    "if (part.label === '' && false) throw",
-  ),
-  swap(
-    'an unexposed capability is accepted',
-    'if (capability === undefined) {',
-    'if (capability === undefined && false) {',
-  ),
-  swap(
-    'a field the context lacks is accepted',
-    'const missing = shown.find(field => !fields.has(field))',
-    'const missing = shown.find(field => !fields.has(field) && false)',
-  ),
-  swap(
-    'fields are checked against the decoded context',
-    'SchemaAST.toEncoded(definition.context.Model.ast)',
-    'definition.context.Model.ast',
-  ),
-  swap(
-    'the caller keeps the fields array',
-    'const shown = [...(part.fields ?? [])]',
-    'const shown = part.fields ?? []',
-  ),
+  {
+    name: 'a part of an unavailable capability is listed',
+    edits: [
+      {
+        file: parts,
+        find: 'if (Option.exists(declared.tag, tag => !snapshot.available.has(tag))) return []',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'value is read from the Model, not the projected context',
+    edits: [
+      {
+        file: runtime,
+        find: 'encoded: Option.map(projected, each => each.encoded),',
+        replace: 'encoded: Option.some(model),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'each and label are given the context as read, not as its Schema keeps it',
+    edits: [
+      {
+        file: runtime,
+        find: 'decoded: Option.map(projected, each => each.decoded),',
+        replace: 'decoded: Option.map(projected, () => declared!.read(model)),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an optional field left out reads as present',
+    edits: [
+      {
+        file: parts,
+        find: 'Object.hasOwn(context as object, field)',
+        replace: 'true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'find answers the first of two labels',
+    edits: [
+      {
+        file: runtime,
+        find: 'if (matches.length > 1) return Found.Ambiguous({ parts: matches })',
+        replace: 'if (matches.length > 1) return Found.One({ part: matches[0]! })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an unexposed capability is let in',
+    edits: [
+      {
+        file: parts,
+        find: 'if (named !== undefined && tag === undefined) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a field outside the context is let in',
+    edits: [
+      {
+        file: parts,
+        find: 'if (config.field !== undefined && !Option.exists(fields, keys => keys.has(config.field!))) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'two occurrences with one key are let through',
+    edits: [{ file: parts, find: 'if (seen.has(occurrence)) {', replace: 'if (false) {' }],
+    tests,
+  },
+  {
+    name: 'availability is read from a second snapshot',
+    edits: [
+      {
+        file: runtime,
+        find: 'const available = new Set(availableAt(model).map(variant => variant.tag))',
+        replace: 'const available = new Set(availableAt(host.model()).map(variant => variant.tag))',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the context is projected for parts that read none of it',
+    edits: [
+      {
+        file: runtime,
+        find: 'declared === undefined || !partsReadContext',
+        replace: 'declared === undefined',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'bind takes the parts of another definition',
+    edits: [
+      {
+        file: runtime,
+        find: 'if (options.parts !== undefined && options.parts.definition !== definition) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the manifest leaves out what a part invokes',
+    edits: [
+      {
+        file: '../src/docs.ts',
+        find: 'onSome: tag => ({ capability: nameOf.get(tag)! }),',
+        replace: 'onSome: () => ({}),',
+      },
+    ],
+    tests,
+  },
 ]

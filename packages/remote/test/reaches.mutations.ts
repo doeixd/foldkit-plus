@@ -130,9 +130,43 @@ export default [
     edits: [
       {
         file: '../src/reaches.ts',
-        find: "  if (declared === undefined) return Reach.Unknown({ why: 'Handler' })\n  if (query.body === undefined) return Reach.Unknown({ why: 'NoBody' })",
+        find: "  if (written === undefined) return Reach.Unknown({ why: 'Handler' })\n  if (query.body === undefined) return Reach.Unknown({ why: 'NoBody' })",
         replace:
-          "  if (query.body === undefined) return Reach.Unknown({ why: 'NoBody' })\n  if (declared === undefined) return Reach.Unknown({ why: 'Handler' })",
+          "  if (query.body === undefined) return Reach.Unknown({ why: 'NoBody' })\n  if (written === undefined) return Reach.Unknown({ why: 'Handler' })",
+      },
+    ],
+    tests: ['packages/remote/test/reaches.test.ts'],
+  },
+  {
+    name: 'a footprint is compared by its Entity name, not its identity',
+    edits: [
+      {
+        file: '../src/reaches.ts',
+        find: 'owner.token === touched.entity.token && writes.includes(key)',
+        replace:
+          '(owner as { readonly name?: string }).name === touched.entity.name && writes.includes(key)',
+      },
+    ],
+    tests: ['packages/remote/test/reaches.test.ts'],
+  },
+  {
+    name: 'an Unknown footprint is read as writing nothing',
+    edits: [
+      {
+        file: '../src/reaches.ts',
+        find: '    Unknown: () => undefined,',
+        replace: '    Unknown: () => () => false,',
+      },
+    ],
+    tests: ['packages/remote/test/reaches.test.ts'],
+  },
+  {
+    name: 'a footprint names its reads as its writes',
+    edits: [
+      {
+        file: '../src/reaches.ts',
+        find: '({ writes }: { readonly writes: ReadonlyArray<string> }): Wrote =>',
+        replace: '({ reads: writes }: { readonly reads: ReadonlyArray<string> }): Wrote =>',
       },
     ],
     tests: ['packages/remote/test/reaches.test.ts'],

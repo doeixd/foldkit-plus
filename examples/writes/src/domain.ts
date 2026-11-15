@@ -1,6 +1,7 @@
 /**
  * What client and server share: one Entity, who may change it, what every row
- * of it holds, what every change of it holds, and five declared writes. Nothing here runs a query or touches a table.
+ * of it holds, what every change of it holds, its states, and five declared
+ * writes. Nothing here runs a query or touches a table.
  */
 import { Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
@@ -62,6 +63,18 @@ export const Product = ProductFields.pipe(
   publishedStaysPublished,
 )
 
+/** A product's states, declared once: what a write starts from and leaves, and what a query asks for. */
+export const Draft = Entity.refine(Product, 'Draft', { status: 'draft' })
+export const Published = Entity.refine(Product, 'Published', { status: 'published' })
+export const Archived = Entity.refine(Product, 'Archived', { status: 'archived' })
+/**
+ * Stock left over what is reserved: over numbers, so a write declared to leave
+ * a product in it is held to that where it commits, not proved where declared.
+ */
+export const InStock = Entity.refine(Product, 'InStock', ({ row }) =>
+  Expr.gt(row.stock, row.reserved),
+)
+
 /** A guarded rename: the rules decide who may, the writer's revision pin when it lands. */
 export const Rename = Mutation.write(
   'Rename',
@@ -74,6 +87,7 @@ export const Rename = Mutation.write(
  * A transition that makes sense from one state only: a draft is published.
  * An archived product is not; a published one already is, so publishing it
  * again changes nothing and is answered as written, as a retry would be.
+ * That it leaves the product published is proved where it is declared.
  */
 export const Publish = Mutation.write(
   'Publish',
@@ -82,7 +96,7 @@ export const Publish = Mutation.write(
       Product,
       Schema.Struct({ id: Schema.String, status: Schema.Literal('published') }),
     ),
-    { id: 'id', when: () => Expr.eq(Product.fields.status, 'draft') },
+    { id: 'id', from: Draft, becomes: Published },
   ),
 )
 
@@ -116,7 +130,10 @@ export const Restock = Mutation.write(
  * A sale takes from the stock where it commits, expecting no revision: two
  * sales made from one read both land. The server's writer for it keeps a
  * ledger, so a retry of a sale is never sold twice; it is answered with the row
- * as it now is.
+ * as it now is. It leaves some stock unreserved (`becomes: InStock`): a stock
+ * moved by an amount cannot be enumerated, so the writer holds the sale to it
+ * in the statement, and refuses one that would leave none as `Invalid`, rule
+ * `becomes:InStock`.
  */
 export const Sell = Mutation.write(
   'Sell',
@@ -124,6 +141,6 @@ export const Sell = Mutation.write(
     Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
       quantity: Entity.unmapped,
     }),
-    { id: 'id', increment: { stock: 'quantity' } },
+    { id: 'id', increment: { stock: 'quantity' }, becomes: InStock },
   ),
 )

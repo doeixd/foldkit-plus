@@ -1,28 +1,92 @@
-// @vitest-environment jsdom
 /**
- * `part` writes the attribute names the `FocusRecovery` Mount reads.
+ * `FocusRecovery.behavior`: the marks it draws (which a server render carries,
+ * since they are attributes), its Mount on the owner, and what it refuses.
  */
-import { type Attribute, inertHtml as h } from 'foldkit/html'
+import { Option } from 'effect'
+import { Attributes, Capability, Slot, SlotView, Slots } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
-import { FOCUS_RECOVERY_PART, FOCUS_RECOVERY_TO, part } from '../src/dom/focus-recovery.js'
+import { FocusRecovery } from '../src/interaction/index.js'
 
-/** Each attribute the list sets, by name, as the DOM will hold it. */
-const attributesOf = (attributes: ReadonlyArray<Attribute<never>>) => {
-  const node = h.li(attributes, [])
-  return { ...node?.data?.attrs, ...node?.data?.props }
+const SearchSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  input: Slot.make({ capability: Capability.TextInput }),
+  row: Slot.make({ capability: Capability.Focusable }),
+})
+interface SearchInput {
+  readonly parents: Record<string, string>
 }
+const h = SlotView.inertBuilder<never>()
 
-describe('part', () => {
-  it('marks the element with the attribute the Mount reads', () => {
-    expect(FOCUS_RECOVERY_PART).toBe('data-fk-focus-recovery-part')
-    expect(attributesOf(part<never>(h))).toEqual({ [FOCUS_RECOVERY_PART]: '' })
+const wire = () =>
+  FocusRecovery.behavior(SearchSlots)<SearchInput, never>({
+    owner: 'root',
+    parts: { input: [], row: ['next', { part: 'input' }] },
+    parent: (input, item) =>
+      Option.fromNullishOr(
+        Object.hasOwn(input.parents, item.id ?? '') ? input.parents[item.id ?? ''] : undefined,
+      ),
   })
 
-  it('names the fallback with the attribute the Mount reads', () => {
-    expect(FOCUS_RECOVERY_TO).toBe('data-fk-focus-recovery-to')
-    expect(attributesOf(part<never>(h, { to: 'search' }))).toEqual({
-      [FOCUS_RECOVERY_PART]: '',
-      [FOCUS_RECOVERY_TO]: 'search',
+const builders = (input: SearchInput) =>
+  SlotView.buildersFor(SearchSlots, [wire().mixin], { input, h })
+
+/** The `data-` attributes a slot drew, by name. */
+const marks = (attributes: Parameters<typeof Attributes.filter>[0]) =>
+  Object.fromEntries(
+    Attributes.filter(attributes, 'DataAttribute').map(attribute => [
+      attribute.key,
+      attribute.value,
+    ]),
+  )
+
+describe('FocusRecovery behavior', () => {
+  const input: SearchInput = { parents: { child: 'parent' } }
+
+  it('marks the owner', () => {
+    expect(marks(builders(input).root.attrs())).toEqual({ 'fk-focus-owner': '' })
+  })
+
+  it('marks each part with its slot, and a row with its key and parent', () => {
+    const b = builders(input)
+    expect(marks(b.input.attrs())).toEqual({ 'fk-focus-part': 'input' })
+    expect(marks(b.row.attrs([], { index: 1, id: 'child' }))).toEqual({
+      'fk-focus-part': 'row',
+      'fk-focus-key': 'child',
+      'fk-focus-parent': 'parent',
     })
+    expect(marks(b.row.attrs([], { index: 0, id: 'parent' }))).toEqual({
+      'fk-focus-part': 'row',
+      'fk-focus-key': 'parent',
+    })
+  })
+
+  it('marks a slot with no steps as a part, and a slot it was not given as nothing', () => {
+    const only = FocusRecovery.behavior(SearchSlots)<SearchInput, never>({
+      owner: 'root',
+      parts: { input: [] },
+    })
+    const b = SlotView.buildersFor(SearchSlots, [only.mixin], { input, h })
+    expect(marks(b.input.attrs())).toEqual({ 'fk-focus-part': 'input' })
+    expect(marks(b.row.attrs([], { index: 0, id: 'a' }))).toEqual({})
+  })
+
+  it('refuses an owner that is also a part', () => {
+    expect(() =>
+      FocusRecovery.behavior(SearchSlots)<SearchInput, never>({
+        owner: 'root',
+        parts: { root: [] },
+      }),
+    ).toThrow(/owner/)
+  })
+
+  it("attaches the Mount to the owner, with each part slot's steps, and to nothing else", () => {
+    const b = builders(input)
+    const mount = Attributes.find(b.root.attrs(), 'OnMount')
+    expect(mount?.action.name).toContain('FocusRecovery')
+    expect(mount?.action.args).toEqual({
+      fallback: { input: [], row: ['next', { part: 'input' }] },
+    })
+    expect(Attributes.find(b.row.attrs([], { index: 0, id: 'a' }), 'OnMount')).toBeUndefined()
+    expect(Attributes.find(b.input.attrs(), 'OnMount')).toBeUndefined()
   })
 })

@@ -59,9 +59,12 @@ export class InvalidCompactionError extends Schema.TaggedError<InvalidCompaction
 ) {}
 
 /**
- * The application's authorization policy refused the operation. `reason` is the
- * refusing rule's own words, present only when `authorize` returned one; the
- * `message` repeats it so a caller that only forwards messages still shows it.
+ * The application refused the operation: its authorization policy, or a law
+ * `judge` found broken by the snapshot the operation leaves. `reason` is the
+ * refusing rule's own words, present only when `authorize` returned one or a
+ * law refused; the `message` repeats it so a caller that only forwards
+ * messages still shows it. `rule` and `path` are present only for a law: its
+ * id, and the snapshot fields it names.
  */
 export class OperationRejectedError extends Schema.TaggedError<OperationRejectedError>()(
   'OperationRejectedError',
@@ -69,6 +72,8 @@ export class OperationRejectedError extends Schema.TaggedError<OperationRejected
     opId: OpId,
     message: Schema.String,
     reason: Schema.optional(Schema.String),
+    rule: Schema.optional(Schema.String),
+    path: Schema.optional(Schema.Array(Schema.String)),
   },
 ) {}
 

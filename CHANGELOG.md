@@ -9,82 +9,463 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
-- `foldkit-mixins`: an accessibility obligation (`navigation`, `focus`, `activation`,
-  or `checked`) is satisfied only by a named provider. A Behavior declares `supplies`
-  on the slot it contributes to; `A11y.native` names the element; `A11y.delegated`
-  names another provider. `A11y.validate(pattern, slots)` stays structural, and
-  `A11y.validate(pattern, slots, support)` also judges obligations: a literal list
-  that misses one a literal pattern asks is a type error, and a wide one is judged
-  when it runs. A support entry naming a slot the pattern lacks, or an obligation
-  that slot does not ask, is `a11y:unknown-support`. `Patterns.Listbox` asks `items`
-  for navigation and `item` for focus; `Patterns.Checkbox` asks `checkbox` for
-  checked and activation. `ListNavigation` and `RovingTabindex` declare the
-  navigation and focus they implement, and `ListNavigation` declares activation
-  when a commit is given. `Behaviors.ToggleState` declares `checked` only for
-  `aria-checked`. A published attribute is not a provider, and none of this is a
-  WCAG claim (#552).
-- `foldkit-agent`: `Agent.Ui.catalog(definition, parts)` binds a part id and a
-  descriptive label to a capability `Agent.expose` already published. A part's
-  `capability` is the exposed Message's constructor and its `fields` are keys of
-  the context, so a capability the definition does not expose, a field the context
-  lacks or an undeclared part id is a type error, and where the names are not
-  literal `catalog` throws at definition. Only `catalog` makes a catalog, and
-  `catalog.part(id).label` gives a view the label an agent hears.
-  `Agent.Ui.discover(runtime, catalog, query, mounted)` takes an `Agent.UiQuery`
-  (`Part`, `Occurrence` or `Label`, also the Schema an adapter decodes an agent's
-  query with) and reads `messages.available` and the encoded context: a shared
-  label is ambiguous, a stale occurrence matches nothing, an unavailable
-  capability is absent, and only a part's named fields are copied.
-  `Agent.Ui.invoke` dispatches the bound capability through the runtime's own
-  checks, so a control, a mount or a `set`/`toggle` name grants nothing, and an
-  unknown part id is an `UnknownPartError` (#557).
-- `foldkit-mixins`: `Assembly.describe` returns a serializable description of an
-  assembled widget's public slots, attachment order, pattern obligations, and
-  contribution conflicts (both contributors by name and attachment order, the
-  slot, and the event or attribute). Omit `input` and a Behavior's claims stay
-  unknown; pass it and only the claim names are resolved. Closure reads stay
-  unknown. With a view, only a behavior the view attaches supplies an obligation.
-  A Surface contract or an Action contributes its kind and name.
-  `Assembly.textOf` is that description as text, so a document and a diagnostic
-  share one value. Inspection does not draw the view, call a Mount, or dispatch
-  a Message. `support` lists providers no Behavior declares (#556).
-- `foldkit-primitives`: `Leaving` (a Mount in `foldkit-primitives/dom`,
-  `Leaving.behavior` and `leaving(h)` in `foldkit-primitives/interaction`) moves
-  focus out of a part that stays drawn but is marked leaving, by the same
-  fallback as `FocusRecovery`, then makes the part inert. Clearing the marker
-  restores the part's own `inert` and does not take focus back. `Presence`
-  still owns the exit: mark the part while its phase is `hiding`, and a late
-  `Hidden` after `Show` does not remove it. Under reduced motion that `Hidden`
-  is sent at once. While an element is leaving, `FocusScope` stops containing
-  it and restores focus on unmount only when focus would otherwise be lost, and
-  `HideOutside` releases the rest of the page until the marker goes (#555).
-- `foldkit-primitives`: `FocusRecovery` (a Mount in `foldkit-primitives/dom`,
-  `FocusRecovery.behavior` in `foldkit-primitives/interaction`) with
-  `part(h, { to? })` moves focus out of a part the view removed: to the fallback
-  id the nearest marked part or marked ancestor names, else the next sibling,
-  else the previous sibling, else the enclosing part that can take focus, and
-  otherwise nowhere. Focus the reader moved elsewhere, a part that moved rather
-  than went, and teardown leave focus alone, and nested containers own only
-  their own parts; an id that matches two elements names none (#553).
-- `foldkit-mixins`: `Behaviors.Keyboard.behavior(Slots)({ target, routes, name? })`
-  composes named exact key/modifier gestures under one keydown owner, reports
-  overlapping routes by contributor and leaves native editing keys alone.
-  `InputSlots.input` publishes `keydown`, so a search field can route
-  Escape-to-clear and ArrowDown-to-open-results (#554).
-- `foldkit-mixins`: `Themes.changes(themes)` and `Theme.schemeChanges()` stream
-  the theme or scheme another tab chose (a `storage` event, decoded as the head
-  scripts decode it), for a Subscription whose Message `update` answers with
-  `Themes.apply` or `Theme.chooseScheme`. `schemeOfHint` reads a
-  `Sec-CH-Prefers-Color-Scheme` request header into `Option<'light' | 'dark'>`,
-  and `COLOR_SCHEME_HINT_HEADERS` names the response headers that make a browser
-  send it (#558).
-- `foldkit-primitives`: `GridNavigation` takes an optional `page` (rows). PageUp
-  and PageDown move that many rows down the column, stop at the first or last
-  row, and skip disabled cells in the direction of travel. Without it the keys
-  stay native (#558).
-- `foldkit-mixins-ui`: `TreeView.checkedAs(nodes, checked, 'leaf' | 'branch' |
-  'trunk')` and `TreeView.leavesOf(nodes, value)` convert the Model's checked
-  leaves to and from the branch and trunk shapes (#558).
+- `foldkit-site`, `foldkit-ssr`: route code from the Site tree (#438). A page placed with
+  `Site.placement` from a `Bundle.lazy` carries it as `page.code`, and `Site.routing`
+  returns `codeFor(route)`, the code of every page of its `pages` on a route's chain,
+  typed by the tree's routes. `SSR.entry`, `SSR.render` and `SSR.hydrate` take `lazy` as
+  a function of the Model (`model => Routing.codeFor(model.route)`): the server asks it
+  with the Model the page is drawn from, after `prepare`, running `init` once; the
+  browser with the resumed Model; so a page loads no other route's code. The two must
+  name the same bundles, or the render fails with `ResumeUnsafe`
+  `LazyDependsOnUnsentState`. `Site.routing` returns `boot(model)`, the Model's route
+  told to its pages as an arrival, for an `init` with no server render. A `preload`
+  given `code: fetchCode` (a top-level export, so a site with no lazy page keeps none of
+  it, and required with a lazy page) fetches a pointed-at route's unloaded code beside
+  its read, once (`Site.LoadCode`, which completes with `completed` whether the chunk
+  loads or not). `examples/auth` gains `/account`, a lazy page, with a build test and an
+  e2e test counting one chunk request on hover.
+
+- `foldkit-mixins-ui`: `Anchor.inheritRegion(mount)`, and the `Anchor` Mount itself, give a
+  panel the anchor relocates to the portal root the custom properties its region set (a
+  region set compact, a density), unless the panel sets them itself (judged by a copy of
+  the panel put back where it was drawn, so a value equal to the document's still counts,
+  and a property registered not to inherit is not carried). Menu, Listbox and
+  Combobox wrap their upstream anchor Mounts with it, so a region reaches a portaled panel
+  as it reaches an in-place one. A Popover or Tooltip with `portal: true` is not
+  covered (audit O3, #558).
+- `foldkit-primitives`: edge scrolling while dragging and a lasso on empty space (audit
+  R1 and R6, #558). `edgeScroll: {}` (or `{ edge, speed }`) on `PointerDrag` (the Mount and
+  its Behavior) scrolls the nearest scrolling ancestor, then the page, while a drag is held
+  near its edge, in instant steps (jumps every 150ms under reduced motion), and reports the
+  place under the still pointer after each; `Reorder.behavior` turns it on itself
+  (`edgeScroll: false` opts out). `Marquee` (`foldkit-primitives/interaction`, Mount in
+  `/dom`) reports `MarqueeStarted`, `MarqueeChanged { rect, ids, additive }`,
+  `MarqueeEnded` and `MarqueeCancelled` for a press on empty space, beside `PointerDrag`
+  on one container; `Marquee.selected(before, fact)` combines the ids with a selection
+  that `Selection`'s `replace` sets.
+- `foldkit-remote`: `policies` on `Data.wiring`, a policy per active entry by its
+  key, so two Surfaces active on one route read under two policies; an entry it
+  does not name reads under `policy`. A key the active record lacks is a type
+  error, and refused where given for a record typed by `string`. A list two
+  entries read is held stale once left unless both policies age it.
+  `RemoteWiring`'s `subscriptions` is no longer optional, and is named by the active
+  record's keys (`wiring.subscriptions['grid.read']`, no `!`; a key no entry is active
+  under is a type error) (#236).
+- `foldkit-primitives`: `FocusReturn()`, a Mount (`foldkit-primitives/dom`) that gives an
+  overlay whose own restoring is not ours a way back when its opener is gone as it closes,
+  and `Dialog.focusReturn` in `foldkit-mixins-ui` attaching it to the panel. Focus goes to an
+  element with the opener's `id`, the opener's `FocusRecovery` steps for its slot, the layer
+  below (`LayerStack.below`), then the page's first tabbable element, and is left alone
+  when the user moved it (audit O2, #558).
+- `foldkit-surface`: a `Derived` as an entry of `Projection.struct`. `Projection.derive(on,
+  derive, { Model })`, given the Schema of its value, returns a `ModeledDerived`: the
+  struct reads its memoized value, declares its paths, plans nothing for it and
+  checks the value against `Model`. A Derived without `Model` is a type error there,
+  and throws if the type is bypassed.
+- `foldkit-remote-domain`: lists and `one` relations. `DomainRemote.query(Query,
+  Api, 'PagedQuery', { input, id })` binds a Remote query to a paged Domain
+  Query, given to `DomainRemote.layer` as `queries`: the Query decides what is
+  listed, each listed row is read through its View (which leaves out a row it
+  hides, and gives each its revision), paging is forward only (`last`,
+  `before`, `first: 0` and a cursor over 1,024 characters are refused), a
+  write's answer carries the lists the client asks back read at its receipt,
+  and a live list is invalidated as its stream opens (read once more, for what
+  moved before it opened), asked again 50 ms after a change of a row it holds
+  (one ask for a burst), and
+  invalidated when it moved. A View's state holds a `one` relation as the target's id; a
+  read answers its ref key and reads a selected target through the target's
+  own View in the same batch. `DomainRemote.view` refuses an Entity whose `one`
+  relation its View's state lacks.
+- `examples/authoring`: a search field, an editable and reorderable list, a popup conformed to the listbox pattern, a sortable listbox and an editor an agent can save, each assembled from primitives; the save is asserted once for a person, an agent in the page and an agent headless, and the type cost of `SlotView.over` is measured (#551, #556, #557, #558).
+- `foldkit-remote-domain/server`: `pageReader(Api, { views, resolvePrincipal,
+  middleware })`, the reader a server render reads a Domain model through in
+  process, as the principal decided from the request (a navigation's resolver,
+  `AuthServer.host(…).navigation.resolvePrincipal`, fits without a cast) and through a
+  middleware built for that principal alone. It binds no command, opens no live stream and
+  notes every read private. The adapter's `live` sends no frame at or before a
+  revision the client names (`LiveRequirement.revisions`), so a page resumed
+  from a server render reads no row it was handed (a live list once more); `examples/writes-domain`
+  renders and hydrates its shop that way under jsdom.
+- `foldkit-remote`: a live stream names the revision it holds each row at,
+  every field it follows written at that revision, none stale and no floor
+  (`LiveRequirement.revisions`), so a server may leave out a frame the page
+  already has (a row whose revision a partial read moved is named at none; at
+  most 256, and `foldkit-remote-server` refuses more than the rows followed); a moved revision does not
+  restart the stream. `REMOTE_PROTOCOL_VERSION` is 7, so a client and server of
+  6 and 7 refuse each other. `Remote.resume`'s capture carries a row's
+  read-after floor, so a row a write in the render held (a form posted without
+  scripts) stays held in the browser and is read at its token.
+- Docs: the laws guide (`docs/laws.md`, the skill's `references/laws.md`) gains
+  states (`Entity.refine`, `from`, `becomes`), a document's `laws` with the
+  monotone form for live documents and `Board.judge` as the audit, `Laws.check`
+  with a repair for each finding, the evidence kinds and how `Graph.validate`'s
+  `law-unwitnessed` is cleared, `Data.can`, and "when a state depends on the
+  past, store the fact" (#540).
+- `foldkit-mixins/testing`: `Conformance` (#552 rendered, #558 item 1), scenarios
+  `listbox`, `checkbox`, `tree`, `dialog` (focus in, Tab contained, Escape,
+  restore, a dialog over a dialog) and `tabs`, each a function of a harness
+  that returns its findings as data, with roles and names read from Chromium's
+  accessibility tree, and `Conformance.server` for markup parsed back.
+  `Conformance.harness({ cdp, userEvent }, root?)` is the harness for Vitest's
+  browser mode, given Vitest's two so the package imports no runner.
+  `SlotView.describe(view)` gains `conforms`, the patterns `A11y.conform`
+  checked the view against.
+- `foldkit-primitives/interaction`: `Reorder`, a keyboard path for moving an
+  item in a list or a tree (#558 item 3). One Bundle holds the draft (`held`,
+  `over`); Space or Enter picks up and drops, the arrows, Home and End walk
+  `Reorder.places`, Escape or focus leaving puts back, and `PointerDrag`'s facts
+  feed the same Messages. Out-facts `PickedUp`, `PassedOver`, `Moved`, `PutBack`:
+  the parent applies or refuses `Moved` (`Reorder.apply`,
+  `Reorder.movesIntoItself`) and reads each out with `Reorder.announcement`
+  through `LiveAnnounce`, a refused move as refused (`refuses`). Beside
+  `ListNavigation`, `handle: Reorder.routed` hands back `{ behavior, keys }`,
+  the route built from the same options, for `Keys.first`; `grab` gives the
+  chords that pick up (Space and Enter by default), so a list that selects or
+  activates by key keeps those; RTL swaps Left and Right.
+- `foldkit-remote`: row revisions and read-after tokens on Remote's wire
+  (#544, #480's open item). `NormalizedEntity.revision` and
+  `EntityPatched.revision`: a row of a lower revision than the one held writes
+  nothing, from `ReadReceived`, `LiveReceived` or `MutationSucceeded`, and a
+  tombstone keeps the revision it was gone at, taking a row of it again only
+  while asked about again. `MutationResult.after` (`{
+  token, rows }`) holds each row to the token (`EntityEntry.floor`): the read
+  entry reads it again carrying the token (`ReadBatch.after`, at most
+  `MAX_READ_AFTER`, 256), a live stream subscribes with it
+  (`LiveRequirement.floors`), an answer read at it, a patch on a stream
+  opened at it, or either at a newer revision than held ends the floor, and a
+  row named in `ReadBatchResult.behind` keeps what the store holds and is
+  asked again after 1 second, doubling, at most 30 (`EntityEntry.behind`).
+  Revision and floor are kept by `persistence` and listed by `Data.inspect(model).floors`;
+  `why` names the wait (`ReadAfter`). `REMOTE_PROTOCOL_VERSION` is 6.
+  `foldkit-remote-server` sends an `EntityRecord.revision`, through
+  `GuardServer.filter` too;
+  `foldkit-remote-drizzle`'s `source(binding, { revision })` reads the column
+  with every row, and `pollLive` sends it.
+- `foldkit-remote-domain`: the adapter holds no rows and no floors. Each row
+  and live frame carries its View revision, a write whose View is behind
+  answers its receipt as `MutationResult.after` (`stream@version`), and a read
+  carrying a token asks the View `atLeast` it, naming a row still behind in
+  `behind`. A receipt whose token would pass 512 characters holds the row to
+  nothing. `DomainReads` and `PendingRead` are removed: Remote's Model keeps
+  both facts, and a reload keeps them.
+
+- `foldkit-mixins`: obligations (#552). An `A11y.pattern` slot may name
+  `obligations` (`A11y.Navigation`, `A11y.FocusStrategy`, `A11y.Activation`,
+  `A11y.State(attr)`, `A11y.Name`) that an attachment must say it meets; a
+  `Behavior.slot` says so with `provides`, and `A11y.base`, `A11y.native` and
+  `A11y.delegated` are meta-only Mixins for the view's own word, a native
+  element and another slot's Behavior. `A11y.check(pattern, view)` reports
+  what `validate` does plus `a11y:unsatisfied-obligation` and
+  `a11y:delegation-unmet`; `A11y.conform(pattern)` in a view's `pipe` is a
+  type error naming each missing `slot/obligation`, throws the first finding
+  where the module loads, and returns a view whose `SlotView.detach` and
+  `SlotView.replace` are checked again; a part's own Behaviors supply nothing
+  to it, which its finding on an assembly says. `SlotView` and `NamedBehavior` take a
+  fourth type parameter, what they supply (default `never`), which a binder's
+  `behavior` reads from each slot's `provides` (`Behavior.ProvidesOf`) and an
+  annotation may forget but never widen, and a SlotView's
+  own `pipe` types up to twenty steps that change it; `Attr.AriaChecked` is
+  new. `foldkit-primitives`: `ListNavigation`, `RovingTabindex`,
+  `TreeNavigation`, `GridNavigation`, `Selection` and `Press`, and
+  `Behaviors.ToggleState`, `Disclosure` and `FieldAssociation`, supply theirs,
+  stated in their type on the binder overload only where the run time is sure
+  to supply it (`A11y.ProvidedOn`: a literal slot name; `Selection`'s
+  activation for a literal `mode` that selects and its click on). `foldkit-mixins-ui`:
+  `Patterns.Listbox` and `Patterns.Checkbox` name their obligations.
+
+- `foldkit-surface`: the law half of the contract graph (#537). A `Contract`
+  may carry `laws?: ContractLaws`, its declarations as plain data: `model`, law
+  ids over its Model slice, and `entities`, `Laws.check`'s entries.
+  `Graph`, apart from `Module` so a page that reads only `Module` carries none
+  of its code, works over them. `Graph.of(module, { evidence })` derives their
+  nodes and edges (`GraphNode`: `Owner`, `Path`, `Transition` (a write's with
+  its Entity, so a delete, which writes no member, still joins its laws),
+  `Law`, `State`, `Level`;
+  `GraphEdge`: `Owns`, `Reads`, `Writes`, `Observes`, `From`, `To`, `Keeps`,
+  `Refines`), and joins them with a level and a `closure:<name>` law per
+  closed Surface, which level refines which, and a `Keeps` edge per record of
+  `evidence` that is issued and joins its pair. `Graph.validate(module,
+  { evidence })` reports `law-unwitnessed` (a transition writes a path a law
+  reads, and no evidence keeps it; with no evidence, every such pair),
+  `evidence-unmatched`, `level-declared-twice` and `transition-declared-twice`
+  (two contracts declare a write of one name); `Module.validate` asks none of
+  them and is unchanged. `Graph.breakersOf(graph, law)` names each transition
+  that could break a law and its evidence; `Graph.toMarkdown` writes a Laws
+  section to set beside `Module.toMarkdown`'s, and `Graph.toMermaid` draws
+  the laws as a flowchart. `Evidence` is re-exported beside `Metadata`. `foldkit-remote`: a domain's contract declares its
+  declared writes (`Mutation.write`), giving `write:<name>`, what it writes,
+  its Entity's invariants and states, and its `from` and `becomes`.
+  `foldkit-sync`: a document declares its law ids, giving `sync:<name>.<law>`
+  per law, reading the shared slice, and `durable:<tag>` per durable and
+  server-only tag, writing it. `foldkit-entity`: `lawFactsOf(entries)` gives
+  the graph's facts of `Laws.check`'s entries with no check run, what the graph
+  derives `laws.entities` with; `lawId` and `transitionId` are `Laws.law` and
+  `Laws.transition` by name; `Laws.facts`'s `Reads` and `Writes` carry
+  `space: 'entity'`, so its result is a `GraphFacts`, an `Unknown`
+  footprint writes every member a law of its Entity reads, and a transition
+  invariant (`LawPair.readsBefore`) reads its whole row, so every write to the
+  row can break it.
+  `examples/writes` validates its Module and keeps the evidence table in
+  `LAWS.md`.
+
+- `foldkit-remote-domain/testing`: `Fixture.make(Api, { model, handlers?,
+  middleware?, bindings, given?, as?, headers?, through? })` hosts a Domain model
+  in memory with every View delivery held until `drain`, commits the `given`
+  Events, calls as `as` (its headers added to a call's own, which win), and
+  answers `RemoteClient` and the Api's client, for client tests with no server
+  (#544); its `layer` requires what the Api's client needs that nothing hosted
+  provides, such as a session middleware left out. A test over `Domain.protocolHttp`
+  from a local Node server shows a reply lost after the commit reading
+  `RemoteUnreachable`, and a trace spanning Remote's mutation, the adapter's call
+  and Domain's `decide`. The package README is rewritten around who owns what,
+  and `skills/foldkit-plus/references/remote-domain.md` is new.
+- `examples/writes-domain`: its scenarios are `Scenario` of `foldkit-remote/testing`
+  (#538), typed by the shop's user.
+
+- `foldkit-primitives`: `FocusRecovery` (`/dom` Mount, `/interaction` Behavior):
+  when the focused part of a marked owner is removed, hidden, made `inert` or
+  `disabled`, or moved in the tree, focus goes to the first of the part's
+  fallback steps (`same`, `next`, `previous`, `parent`, `stop`, `{ part }`,
+  `owner`) that can take it, and never when focus moved elsewhere (#553).
+
+- `foldkit-primitives/interaction`: `Presence.behavior` draws the phase a placed
+  `Presence` holds as `data-presence` and `inert`, so a leaving row takes no
+  click, Tab or focus; with `FocusRecovery`, focus leaves in the frame it turns
+  `inert` and the removal moves nothing (#555). The `Presence` bundle gains
+  helpers, `show` and `hide`, so a parent's `update` starts an exit
+  (`placed.helpers.hide(id)(model)`) with no `Hide` built in the root.
+
+- `foldkit-remote/testing`: `Scenario`, a write (or a Message) as plain data run
+  by runners (#538). `Scenario.write` takes `given` rows, `principal`, `now`,
+  `when`, `operation` and an `expect` (`accepted`, `refused` by an invariant or
+  `'Unmet'`, `'Conflict'`, `'Taken'`, `'Referenced'`, `forbidden`,
+  `unauthenticated`); `Scenario.remote` runs it through `Law.check` and the
+  server; `Scenario.run` returns the mismatches (each naming its backend and
+  step) and issues a `Scenario` record per runner with no mismatch, and with a
+  `Laws.check` report throws before running a scenario that expects what the
+  report disproved; `Scenario.fromReport` derives scenarios from the report;
+  `Scenario.messages` and `Scenario.runMessages` do the same for an `update`.
+
+- `foldkit-metadata`: `Evidence`, records that a transition keeps a law
+  (`Enumerated`, `Walked`, `Scenario`, `RuntimeOnly`), stamped by the producer
+  that issued them (#537). `Evidence.issuedBy(record)` is that producer, none
+  for a record typed by hand or spread from an issued one, and a second
+  `Evidence.issuer` of a name throws;
+  `Evidence.runtimeOnly({ transition, law, why })` refuses an empty `why`. The
+  package now peers on `effect`. `foldkit-entity`: each `Laws.check` pair the
+  check keeps by reading the declarations carries an `Enumerated` record in
+  `evidence`, and a write's own `ensures` is marked `postcondition`; two
+  entries of one name throw, since records name a transition by it;
+  `Laws.facts(report)` gives the law half of the graph as plain data (a
+  `Keeps` edge only where every pair of that transition and law has a record),
+  and `Laws.transition` and `Laws.law` the ids it and evidence use.
+  `foldkit-remote/testing`: `Walk.run` takes `laws` (every law its
+  `violations` judges; another name throws, and a listed law it never checks
+  still gets records, on the author's word) and an optional `transition`, and
+  returns `evidence`, a `Walked` record per drawn transition per law when no
+  walk failed. `pnpm evidence:check` refuses an `Evidence.issuer` call outside
+  the producer modules.
+
+- `foldkit-primitives`, `foldkit-mixins`: `RovingTabindex`, `ListNavigation`,
+  `GridNavigation`, `TreeNavigation` and `Typeahead` each export `keys`, the
+  `Keys.route` their `behavior` installs as the container's one `keydown`
+  handler (and `Behaviors.SpinValue.keys` the spinbutton's), so a search input
+  lists `ListNavigation.keys(...)` beside an Escape route in one
+  `Keys.behavior` (#554). A route takes each of its navigation keys with Shift
+  up and down; `ListNavigation.keys` declares every printable key unless
+  `typeahead` is `false`. `Keys.attribute(routes, { slot?, moveFocus? })` is the
+  one `keydown` attribute for a Behavior that also writes other attributes on
+  the slot, `Keys.matches(gesture, key, modifiers)` asks one gesture, and
+  `Keys.withShift(key, modifiers?)` is a named key as two chords. Each
+  primitive's `behavior` is built on them; its attributes are unchanged.
+  `ListNavigation`'s `commit` option still works, and is better written as a
+  route of your own. `ListNavigation.item(declared, args)(slots)({ item,
+  items })` is the item half beside such a router: each item's tab stop and
+  the `OnFocus` reporting it current, stating `item/focus-strategy` on a
+  binder, so no item attribute or `Focused` Message is written by hand.
+
+- `foldkit-mixins`, `foldkit-mixins-surface`: `SlotView.describe(view)` is a
+  view as serializable data (its slots and each attachment in order, with what it
+  requires, supplies and contributes per slot, and findings for an unnamed or
+  doubly named attachment), `SlotView.resolution(view, input)` the names and
+  owners one input resolves to with no attribute or style value, Mount args or
+  handler call (class tokens as given), and
+  `SlotView.toMarkdown` prints a description (#556). `SurfaceView.describe` gains
+  `attachments` and `findings`; `SurfaceView.toMarkdown` prints them, and its
+  `Mixins` section is now `Attachments`.
+
+- `examples/writes-domain`: one write scenario through three backends (#546).
+  `WriteScenario` is data (rows, principal, clock, the write, its operation and
+  what it must come to); `sqliteRunner`, `memoryRunner` (`RemoteServer.memoryWriter`
+  behind the same guard) and `domainRunner` (the adapter over the lowered model,
+  and a Story) each answer one step per thing they own, and `run` reports every
+  step whose sides differ, naming the backend and the step. Ordering tests drive
+  the page's reducer over the adapter: a reply before and after the View's frame,
+  a frame older than one shown, and a lost reply retried as the same operation.
+
+- `foldkit-remote-domain/imported`: `Imported.mutation(Api, 'Command', { entity,
+  footprint?, refusal? })` declares a Domain command nobody wrote a `Write` for as
+  a mutation, `Imported.describe(Api, { views, commands, fields? })` lists what
+  the bindings import (each command with JSON Schemas of its input and reply,
+  its rejections and the form key each shows beside, and a `Derived`, `Declared`
+  or `Unknown` footprint; each View with its Entity), and `Imported.show` prints
+  it as Markdown (#547). `foldkit-remote`: a `MutationDescriptor` may carry a
+  `footprint`, which `reaches` and `explain`'s `reachedBy` read as the fields it
+  writes when `Declared`, and as no word when `Unknown`. `foldkit-entity`:
+  `Footprint.declared` takes `reads` and `writes` of different fields.
+
+- `foldkit-plus`: `npx foldkit-plus laws <module>[#export]` prints
+  `Laws.show` of a module's `LawReport`, or of the `{ writes }` that
+  `Laws.check` takes (#536). It loads the module through the project's `tsx`,
+  else Node's own TypeScript support, and exits 1 only when the module cannot
+  be loaded or the export is neither shape; findings do not fail it.
+
+- `foldkit-agent`, `foldkit-remote`: an agent capability over a declared write
+  (#533). A variant's `applies({ model, input, principal })` judges a call
+  against what the Model holds, after `authorize` and over the invocation's one
+  Model snapshot, and never for a call `authorize` refused; its refusal is
+  `AgentCapabilityUnavailableError` with the reason as the message, and
+  descriptors report `inputDependent`. `Data.capability(mutation, toInput)`
+  gives `{ authorize, applies }` from `Data.can` (a forbidding `may` refuses in
+  `authorize`, an unmet `when` or broken invariant in `applies`, `Undecided`
+  allows), and `Data.available(mutation, inputOf)` a discovery predicate.
+
+- `foldkit-entity`, `foldkit-form`, `foldkit-crud`: a form judges an Entity's
+  invariants over the row it edits (#542, #543). `form.over(model, row)` keeps
+  the encoded row (`model.over`, stored as null when none, so an older Model
+  decodes), and invariants are judged over it with the form's values laid
+  over it, transitions included, on each edit once every key setting a member
+  the rule reads, a field or a relation, has been edited (`model.reached`), and
+  on submit.
+  `Entity.rowFrom(entity, value)` gives the row from a read value, and
+  `Entity.judgedBy(input)` names what to load beside the input; `Crud.editor`
+  loads it and sets its form over the loaded row, so a quote form setting only
+  the discount loads `approvedBy` and refuses a discount over 15% as it is typed.
+  It reads each such member in a Selection of its own: one a Read rule
+  withholds from the reader is left out of the row, its invariant undecided,
+  and the form still fills.
+
+- `foldkit-mixins`: `Behaviors.Keys` gives a slot's `keydown` one owner built
+  from named routes (`chord`, `printable`, `where`, `route`, `first`,
+  `behavior`, `focus`, `answer`). Two routes declaring one press are refused
+  when the Behavior is defined (`mixins:key-conflict`, naming the slot and
+  both) unless `Keys.first` orders them; a key no press reports is refused
+  where it is written (`mixins:unknown-key`) (#554).
+- `foldkit-primitives`, `foldkit-mixins`: every Behavior factory (`ListNavigation`,
+  `Selection`, `TreeNavigation`, `FocusScope`, `Behaviors.Disclosure`, and the
+  rest) takes a `SlotView.over` binder where it takes the slots, so its options
+  are typed from the binder's input and Message with nothing annotated. The call
+  with bare slots is unchanged. (#551)
+- `foldkit-mixins`: `SlotView.over(slots)<Input, Message>()` names the slots, the
+  input and the Message universe once and returns `define`, `behavior` and
+  `parts` with them fixed; `SlotView.isBound` tells it from bare slots.
+  `foldkit-mixins-surface`'s `SurfaceView.over(surface, slots)` reads both types
+  from the Surface (#551). A Mixin carries a frozen `meta` (kind, and per slot
+  what it requires, provides and reads), filled by `Style.forSlots` and
+  `Behavior.forSlots`; `SlotView.detach(name)` and `SlotView.replace(name,
+  mixin)` address an attachment by name (`mixins:unknown-attachment`,
+  `mixins:ambiguous-attachment`). Every two-owner diagnostic names both
+  contributors in its message and `details.contributors` (#556).
+- `foldkit-agent`: parts (#557). `Agent.part({ label, role, field?, invokes?,
+  sets?, each?, key?, input? })` in `Agent.parts(definition, { … })` (also on
+  `forApplication`/`forModel`) names which control on the screen is which
+  exposed capability or key of the projected context; another is a type error
+  and throws. `bind({ parts })` adds `runtime.parts`: `list` reads one Model
+  snapshot, leaves out a part whose capability is unavailable, and reads
+  `value`, `each`, `key` and `label` from the context encoded through its
+  Schema and decoded again; `find({ label })` answers `Found.One`, `Found.None`
+  or `Found.Ambiguous`. A part adds no way to act. `Parts.attributes` writes
+  `data-fk-part`; `toManifest(definition, parts)` lists them.
+  `foldkit-agent-mcp` serves them as `app://parts`.
+- `foldkit-entity`: states and the law check (#535, #536). `Entity.refine(entity,
+  name, { field: value } or ({ row }) => predicate)` declares a named state of a
+  row on the Entity (`Entity.states`, `Entity.inState`, a narrowing `is`);
+  `Query.from(state)` queries it, and `Expr.show` prints it by name. A write takes
+  `from: state`, joined to its `when`, and `becomes: state`, proved where the
+  write is declared by enumerating the rows it can start from (one that cannot
+  be decided is the write's postcondition, held where it commits); a state
+  reaching another row is neither. `Laws.check({ writes })` judges each write, or a `{ name, entity,
+  footprint }` entry (`Footprint.declared`, `Footprint.unknown`), against each
+  invariant of its Entity by enumeration over finite fields, and reports the
+  arrows between states; `Laws.show` prints it, `Write.footprint` is a
+  write's own. `Write` gains `from` and `becomes`.
+- `foldkit-entity`, `foldkit-remote-server`, `foldkit-remote-drizzle`,
+  `foldkit-guard`, `foldkit-remote`: a `becomes` is enforced where the write
+  commits (#535). One the enumerator cannot decide is the write's `ensures`, an
+  invariant of that write alone with the id `becomes:<State>`;
+  `Write.ensured(write)` names it for `Refusal.isInvalidBy`. Writers declare
+  `postconditions` and are handed `ensures` on `update` and `insert`; the
+  Drizzle writer (SQLite, Postgres, D1) compiles it into the statement beside
+  the invariants, the memory writer and `GuardServer.writer` judge or forward
+  it, and each refuses as `Invalid`. `RemoteServer.write` refuses a write with
+  one over a writer without `postconditions`. The client judges it before
+  sending where it holds what it reads, and `Laws.check` reports the arrow
+  `enforced`. `Law.check` reports a server `Invalid` the client could not judge
+  (the row's invariants undecided) as `unknown` rather than a disagreement;
+  one over a row the client judged Valid stays a disagreement, though
+  `Data.can` was undecided for another reason, such as a `may` it does not hold.
+- `foldkit-sync`: a document's laws. `forApplication(...).make({ laws })` takes
+  `{ holds({ before, after }), message, path? }` per id, typed over the shared
+  fields alone; the journal judges each operation's resulting snapshot and
+  refuses one that breaks a law as `SyncRefusal.Invalid` with the law's id as
+  `rule`, which `Sync.isInvalidBy(refusal, contract.laws.id)` matches.
+  `appendAsServer` and reactions are judged too (a reaction's refused append
+  parks at once), and `replica.submit` fails with `LawBrokenError` before the
+  outbox. The contract gives back `laws` and `judge(before, after)`, an audit
+  of stored snapshots. `foldkit-durable`: `JournalOptions.judge`, run after
+  `reduce`; a broken law is an `OperationRejectedError` with `rule` and `path`.
+- `foldkit-remote-server`: `RemoteServer.memoryWriter(store, entity, { operators? })`,
+  the `EntityWriter` for a memory backend's rows: a declared write lands over them
+  as `foldkit-remote-drizzle`'s writer lands it over a table (revision, `when`,
+  increments, computed fields, invariants, a taken id), each refusal the
+  mutation's own. It holds no ledger and judges no rule reading another row.
+- `foldkit-remote-domain`: `DomainRemote`, a `RemoteClient` over an Alchemy
+  Domain Api (#544). `view` binds a View to an Entity by a numeric revision
+  field, `command` binds a command to a mutation with one `refuse`, `forbid`,
+  `unauthenticated` or `fail` per declared Rejection (each an `Outcome`,
+  answered as the mutation's refusal, `RemoteForbidden`,
+  `RemoteUnauthenticated` or `RemoteMutationError`), and `layer` answers reads and live reads
+  from the Views and writes from the commands. A write is sent under a
+  `commandId` of its operation and a digest of who asks, the target, the keys
+  and the input; a write whose View is behind answers with the row its reply
+  says it wrote, and its receipt as a read-after token that Remote holds the
+  row to. Every row carries its revision, never the View's cursor, which
+  Remote orders by: once a key reads as deleted or hidden at a revision, a
+  late row of that revision or an earlier one is not let back in.
+- `foldkit-remote-domain/lower`: `Lower.write` lowers a declared update into
+  one Domain aggregate (#545). It derives the command, a Rejection per
+  member of the mutation's `Refusal` plus `Forbidden`, `Unauthenticated` (a
+  visitor the guard refuses, answered as a server answers one), `NotFound` and
+  `Reused`, the aggregate's state (its row and the operations it decided),
+  `decide`, `evolve`, the reply and the by-id View's state and `evolve`, and
+  the adapter's two bindings (`binding(api)`, `reads(api, view)`); the author
+  gives the events, `record` and `apply`, the revision, who asks and the
+  middleware that provides it. `decide` restates no rule: it lands the write
+  through `RemoteServer.write` over `GuardServer.writer` over
+  `RemoteServer.memoryWriter`. To who may write the row, an operation sent
+  again with another request is `Reused`; a visitor or who the guard refuses
+  hears the guard instead. `Lower.check` lists, as data, each
+  rule, precondition, invariant or context value that reads another row and
+  each member the row does not hold; `Lower.write` refuses such a write.
+- `foldkit-remote/testing`: `Walk.run` runs seeded random walks of Messages over
+  a list of named starts and checks a law after every step (it may be
+  asynchronous, so a walk can go through a writer); `Walk.cases` requires a
+  generator for every Message variant, and `regressions` run first from their
+  own starts. `Walk.states(schema, { count, seed })` derives starts from a
+  Schema, decoded through it, deterministic per seed, and throws by kind and
+  path for a kind it cannot build.
+- `foldkit-remote`: `Data.can(model, mutation, input)` tells, from what the Model
+  holds, whether a declared write would be refused: `Can.No` with `Forbidden`,
+  `Unmet` or `Invalid` in the server's order, `Can.Undecided` with its reasons
+  where the row, a field or an input key is missing, else `Can.Yes`. A hint:
+  `Data.mutate` still asks the server.
+- `foldkit-surface`: `closed: true` on `Surface.make` and `App.surface` declares a
+  Surface closed, and `Closure.violations(app, surfaces)` is the step check a
+  walk calls: a Message in the Surface's set that reads outside it is a
+  `ClosureViolation.Reads` naming the fields, and any other Message that
+  changes its projection a `ClosureViolation.Outside`. A Surface not declared
+  closed is never tested. `Surface.contract` carries the
+  flag.
 - `foldkit-remote-domain` (new, Early: it tracks a beta): the start of the
   bridge from an Alchemy Domain Api to Remote. It exports `Receipt`, the
   `{ stream, version }` a Domain command answers with, and its tests pin the
@@ -133,115 +514,60 @@ version changed; `pnpm` skips versions already in the registry.
   (`FillLane`). `Option.none()` keeps `Fill.series`; of a longer answer the
   first `count` are taken, and each cell past a shorter one is reported in
   `refused` ("The column's series gave no text here"), not padded.
-- `foldkit-mixins`: the `Attr` tokens `AriaChecked`, `AriaLabelledby`,
-  `AriaControls`, `AriaReadonly`, `AriaRequired`, `AriaCurrent` and
-  `AriaValuenow`, for a slot to declare what it writes (#558). `Assembly.describe`
-  takes `support`: providers no Behavior declares (`A11y.native(...)`,
-  `A11y.delegated(...)`), so a pattern whose obligations the element or a
-  delegate supplies describes clean; an entry the pattern does not ask is
-  ignored (#552).
-- `foldkit-mixins-ui`: `SearchField` and `Recipes.SearchField`, a native
-  `type="search"` input named by `label` with a clear button drawn only while
-  there is text. The application owns the text; `onClear` is what the button and
-  Escape (on a field with text only) send, answered with `SearchField.Focus` to
-  put focus back on the input, and `routes` add keys beside Escape on the same
-  keydown owner (#558).
-- `foldkit-mixins-ui`: `Dialog.update(model, message, { focusFallback })` takes
-  the id of an element that gets focus when a close finds the opener removed from
-  the page, and an open that meets the exit puts focus back inside the dialog;
-  `Dialog.open(model, options?)` is `open` through it. `Dialog.isLeaving(model)`,
-  passed as `isLeaving` in the context of `Dialog.toView`, draws the panel `inert`
-  for the rest of its exit, so no press or key acts on it. `Sheet.init({
-  focusFallback })` does the same for a Sheet, which draws its own panel inert
-  while leaving (#558).
-- `foldkit-mixins-ui`: `Toast.keepFocus` hands focus to a neighbouring toast
-  when the one holding it is dismissed; `Command` takes `routes` (application
-  keys on its one keydown owner), moves the highlight ten rows on PageUp and
-  PageDown, and has `keepActiveInView`; `Drawer.keepFocus` moves focus to the
-  handle when the drawer closes with focus in its body; `HoverIntent.panelId(id)`
-  names the card's panel (#558).
-- `foldkit-mixins-ui`: the Combobox recipe takes `size: 'lg'`, and its clear
-  button stands on the touch floor (#558).
-- `foldkit-mixins-ui`: `Pagination` takes `words` (the stops' words and, through
-  `stopLabel`, their names), `Breadcrumb` and `ScrollArea` take `label`,
-  `Resizable.view` takes `id` (its handle's `aria-controls` names the first
-  panel), `Carousel.init` takes `reducedMotion` (with `autoplay` it begins
-  stopped, with the button to start it), `Card` takes `headingLevel`, `Steps`
-  takes `words` and draws each step's state in a `state` slot, and `CodeBlock`
-  announces a copy in a `status` slot (#558).
-- `foldkit-mixins-ui`: a dismissible `Alert` or `Card` is a `FocusRecovery` part:
-  with that Mount on the list holding them, dismissing the one that holds focus
-  hands it to a neighbour. `TreeView` opens the current row's siblings on `*`.
-  A Carousel slide out of view is `inert` (#558).
-- `foldkit-mixins-ui`: `Input.view` takes `name`, `readOnly`, `required`,
-  `autocomplete`, `inputMode`, `maxLength` and `attributes`, `Textarea.view`
-  takes `name`, `required`, `autocomplete` and `attributes`, and `PasswordInput`
-  and `NumberField` take `name` and `required`, so a form needs no hand-drawn
-  input; `foldkit-mixins-form` draws its fields through them. `Rating` takes a
-  `name` apart from its `id`. `CheckboxGroup` takes `name` and draws one
-  `hiddenInput` per checked value. `OtpField` takes `id`, `name`, `readOnly` and
-  `invalid`, and its cells have disabled and invalid looks. The FileDrop recipe
-  rings a zone whose input has keyboard focus and dims a disabled one (#558).
-- `foldkit-mixins-ui`: `NumberField.parseNumber(text, locale?)` reads text as a
-  locale writes a number, `locale` (or `format` with `parse`) makes the field
-  draw and accept the same text, and an empty field is `Option.none()` (see
-  Changed) (#558).
-- `foldkit-mixins-ui`: `WindowList` keeps the row holding focus drawn while it is
-  scrolled out of the window (`Message.Focused`, `Model.held`,
-  `WindowList.heldRow`), where `VirtualList` loses it; `WindowList.reveal(model,
-  index, align?)` and `WindowList.Reveal` scroll the page until a row far outside
-  the window is drawn and shown; and `findable` lets the browser's find in page
-  match rows that are not drawn, as `hidden="until-found"` stand-ins whose match
-  (`Message.Found`) reveals its row (`WindowList.supportsFindable`) (#558).
-- `foldkit-mixins-ui`: `Patterns.catalog` entries carry `support`, the provider
-  of each obligation their pattern declares, which the gate validates; Menu,
-  Menubar, Combobox, Command, CascadeSelect, Tabs, TreeView, RadioGroup, Switch,
-  CheckboxGroup, Slider, AngleSlider, Accordion, Disclosure, Segmented, Rating,
-  Calendar, Tour and Picker declare theirs. Patterns for Pagination, Breadcrumb,
-  Table, ScrollArea, Drawer, HoverIntent, Picker, ButtonGroup, WindowList, Card
-  and SearchField join the catalog, and a published `*Slots` that is neither in
-  the catalog nor on the gate's allowlist fails it (#558).
-- `foldkit-primitives`: `SpatialNavigation`: arrow keys move to the nearest item
-  drawn that way, for freely placed items (a board, a canvas). Items are measured
-  when the key is handled and never kept; Home and End follow the view's order;
-  directions are physical; disabled items are skipped; the tab stop is
-  RovingTabindex's; the rule is the pure `nearest(items, current, direction)`.
-- `foldkit-primitives`: `Lasso`: a rectangle drawn on a surface reports the
-  marked items it touches, again when the surface scrolls under a held pointer.
-  It starts on a press on the surface itself past the drag threshold (a finger
-  held still first), reads Shift at release, and Escape cancels. The parent folds
-  `Selection.replace` and `LiveAnnounce`.
-- `foldkit-primitives`: `InlineEdit`: a value edited in place in an input. Enter,
-  F2, a double click or a typed key starts; Enter saves, Escape cancels without
-  closing a dialog around it, and keys typed before the field is drawn are kept.
-  A changed value is the OutMessage `Committed`, which the parent can hand to
-  `refuse(committed, error)`; leaving the field commits or cancels per its args
-  and moves no focus.
 
 ### Changed
 
-- `foldkit-mixins-ui`: slots declare the role and ARIA attributes their elements
-  write, and the patterns require them: `aria-checked` on the Checkbox, Switch,
-  CheckboxGroup and TreeView items and on `RadioGroup.option` (which declared
-  `aria-selected`), `aria-controls` on `Accordion.trigger` and the
-  CheckboxGroup's select-all box, `aria-valuenow` on the AngleSlider and
-  ColorPicker thumbs and the Resizable handle, `aria-current` on the Pagination
-  page and the Breadcrumb's current step, and the names (`role`, `aria-label`,
-  `aria-labelledby`) of Pagination, Breadcrumb, ButtonGroup, Rating, Slider,
-  AngleSlider and ColorPicker (#552).
-- **Breaking:** `foldkit-primitives`: `Selection`'s Model gains `ranged`, the ids
-  the last range added. A Shift range from the same anchor takes those back
-  before adding its own span, so a shorter second range shrinks as in a file
-  manager. Ids picked before the range stay, and activating, `Replaced` and
-  `Cleared` forget it. Select all is `Replaced({ ids })` (#558).
-- `foldkit-primitives`: `Selection.Replaced` in single mode with more than one
-  distinct id returns the Model it was given; it used to select them all.
-- `foldkit-primitives`: `keyboardInset` reads the visual viewport's `scale` and
-  reports 0 while the page is pinch-zoomed in, so `KeyboardInset` writes no
-  inset after a pinch (#558).
-- `foldkit-mixins`: a Slot that would draw a child's `OnMount` beside another
-  Mount is refused with `mixins:attribute-conflict`. Foldkit keeps one `OnMount`
-  per element, so one of the two used to be dropped silently (#531).
+- `foldkit-site`: a `Bundle.lazy` page's `changed` is required and returns a Message (a
+  type error otherwise, and refused by `Site.placement` at run time), since a page whose
+  arrival says nothing draws its placeholder for good. `Site.sources` and
+  `Site.sourcesFor` return `SiteSources`, an entry per tag of a node with a Surface,
+  instead of `Record<string, …>`: a node, a mount and a tree carry those tags in their
+  types (`SiteNode`'s, `SiteMount`'s and `SiteTree`'s second parameter), so the keys
+  survive a spread beside the application's own entries, `Data.wiring`'s `policies` can
+  name them, and a tag of no surfaced node is a type error.
+
+- `foldkit-primitives`: `Reorder.behavior`'s pointer drag scrolls the list, then the page,
+  while held near an edge (`edgeScroll` on by default; `edgeScroll: false` keeps the old
+  behaviour). It pulls only a box the pointer is over, nothing above a `position: fixed`
+  box, and not a page held by a scroll lock (`overflow: hidden` on the root or body).
+- `foldkit-primitives`: `FocusScope`'s restore, with the element that had focus gone and
+  focus lost with the scope (on `body`, or inside it), goes by the rules of `FocusReturn`
+  instead of leaving focus on `body`. Focus the user moved elsewhere is left alone, a
+  scope opened with focus on nothing gives nothing back, and the element that had focus
+  is still `activeElement` at mount. Focus returns to an opener without scrolling the page.
+- **Breaking:** `foldkit-crud`: `Crud.list`'s `live` takes Remote's live read,
+  not a flag: write `live: liveQuery` (from `foldkit-remote/live`) where
+  `live: true` was. Crud imported `liveQuery` itself for the flag, so every
+  page drawing a list kept Remote's live modules whether it read live or not;
+  a page that passes no `live` now keeps none of them.
+
+- **Breaking:** `foldkit-mixins`: a view's `pipe` (and a Slot's and a knob
+  theme's) takes typed steps only, and no spread array. The catch-all that
+  took one was the overload TypeScript reported when the typed steps refused
+  a call, so an `A11y.conform` after several attachments was judged against
+  the view before them and listed every obligation, met or not; the error
+  now names only what the steps before it leave owed. A list of Behaviors is
+  one step, `Behavior.attachAll(list)`, which supplies what each member does:
+  write `.pipe(Behavior.attachAll(overlay), …)` where
+  `.pipe(...overlay.map(Behavior.attach))` was (`overlay` from
+  `Overlay.behaviors`).
+
+- `foldkit-primitives`: `DismissLayer` hears Escape in the bubble phase and
+  skips one whose `defaultPrevented` is set, so an input inside a layer that
+  handled Escape (a search field clearing itself) no longer also dismisses the
+  layer; an Escape nothing handled still does, as a native `<dialog>` already
+  behaves (#554). A page that prevented Escape on purpose and relied on the
+  layer dismissing anyway stops dismissing, and a handler that stops
+  propagation below the document now also hides the key from the layer.
+  `Typeahead.isPrintable` is `Keys.printable`: a character outside the Basic
+  Multilingual Plane (an emoji) is one printable key, where it counted as two.
+
+- `foldkit-mixins-surface`: `SurfaceView.inspect` is deprecated for one release
+  in favour of `SlotView.describe` (#556).
+
+- `Entity.judgeInput(input, value, { operators?, over? })` takes an options
+  object in place of the positional operator table (#542).
+
 - The workspace's Effect is `4.1.4` (was `4.1.1`), and `foldkit-plus setup`
   pins it and `@effect/*` at that release. Published packages still peer on
   `^4.1.0`. Since 4.1.4 `Headers.fromInput` joins a repeated header with
@@ -272,71 +598,37 @@ version changed; `pnpm` skips versions already in the registry.
   pass the one Guards.attach returned`. Before, such a descriptor was served
   as unguarded, and with `unguarded: 'allow'` a writer built from it let
   anyone write (#539). The client's hints (`may`, placement) are unchanged.
-- **Breaking:** `foldkit-mixins-ui`: `NumberField.view`'s `value` is an
-  `Option<number>` and `onChange` receives one (`Option.none()` once the text is
-  cleared); a number was required before, so an empty field could not be shown.
-  Its `format` now comes with a `parse` (or use `locale`), since what the field
-  draws is what it accepts (#558).
-- **Breaking:** `foldkit-mixins-ui`: `Drawer.view` takes `label` in place of
-  `labels: { open, closed }`; `aria-expanded` carries the state, so the name no
-  longer changes with it and is no longer announced twice (#558).
-- **Breaking:** `foldkit-mixins-ui`: `CascadeSelect` submits one hidden input per
-  level under `name`, where it joined the path with `/` (an id may hold any
-  character); its Model gains `typeahead` and its Message `QueryExpired`, so a
-  stored Model needs the field and a wrapping application passes the Message on.
-  Typing builds a query within half a second instead of jumping by one letter
-  (#558).
-- **Breaking:** `foldkit-mixins-ui`: `TreeView.Model` gains `typeahead` and the
-  Message `QueryExpired`, so a stored Model needs the field. Typed letters
-  accumulate into a word a pause clears, instead of matching the last key (#558).
-- **Breaking:** `foldkit-mixins-ui`: `WindowList.update` returns an
-  `Update.Return` (the model and, for a `Found` match, a Command) where it
-  returned `{ model }`, so an application's `update` returns the commands too;
-  `Model` gains `held` and `placed` (#558).
-- **Breaking:** `foldkit-mixins-ui`: `InputCopy.Model` gains `failed`, and its
-  Message `Failed`, which an application sends on `ClipboardMessage.CopyFailed`;
-  `InputCopy.view` takes `failed` and `failedLabel`. A refused copy was silent
-  (#558).
-- **Breaking:** `foldkit-mixins-ui`: Listbox and Combobox panels are drawn in
-  place, as the Menu's is, unless the application gives the anchor `portal: true`
-  (upstream portals by default), so a region's `size` and knobs reach their rows
-  (#558).
-- **Breaking:** `foldkit-mixins-ui`: in a Combobox, Home and End move the caret in
-  the text and no longer move the highlight. In a Command they stay the field's
-  too; an application adds them as `routes` (#558).
-- **Breaking:** `foldkit-mixins-ui`: Home in a Sidebar's resize handle collapses
-  the column (it went to the least width) and End goes to the widest; in a
-  Resizable, Home and End collapse a `collapsible` panel when they reach its side
-  (#558).
-- **Breaking:** `foldkit-mixins-ui`: a Pagination stop at an end and a disabled
-  Card's overlay are `aria-disabled` and send nothing, where each was a native
-  `disabled` button, so they keep focus; a selected Card link is
-  `aria-current="page"` (was `"true"`) (#558).
-- **Breaking:** `foldkit-mixins-ui`: `CheckboxGroup` writes `aria-invalid` on each
-  checkbox, and the `fieldset` is described by the error; a `fieldset` has no
-  such property (#558).
-- **Breaking:** `foldkit-mixins-ui`: `Skeleton` and `Spinner` are `role="status"`
-  only when given a `label`, and `aria-hidden` otherwise, so a page of
-  placeholders is not a page of empty live regions (#558).
-- `foldkit-mixins-ui`: a text field's description (`Input.field`,
-  `Textarea.field`) is an always-drawn `role="status"` span, so an error put into
-  it is announced; each toast is a keyed child of its own in the live regions and
-  is read by itself, the same words twice included; the HoverCard trigger carries
-  `aria-expanded` and, open, `aria-describedby` naming the panel; the
-  FloatingPanel's drag trigger is `role="button"`; the Drawer's body hides when
-  the slide ends, not as it starts; the Popover panel fades out as it leaves and
-  its open button keeps the hover film; the Nav names a panel in `aria-controls`
-  only while it is drawn and keys links by place as well as address (#558).
 
 ### Fixed
 
-- `foldkit-mixins-ui`: `MessageScroller` stops following on an upward wheel, or
-  on ArrowUp, PageUp, or Home, when that input arrives, before the scroll
-  position moves. A message that lands in between stays below the reader. A
-  Ctrl wheel, a wheel over a nested element that can still scroll up, and a key
-  that was prevented, has Ctrl, Meta or Alt down, or goes to an editable field
-  do not count. While following, a shorter viewport scrolls to the end. The
-  scroll position remains the browser's (#558).
+- `foldkit-primitives`: modal layers drawn as siblings, as portaled dialogs
+  are, stack. `FocusScope` and `HideOutside` share a stack of open layers whose
+  topmost owns containment: a scope with a layer open above it no longer pulls
+  focus back out of it, and a `HideOutside` no longer hides a layer opened over
+  it (it is re-isolated around it, and that layer's scope takes focus once it
+  is shown). Before, focus ended on the body.
+
+- `foldkit-primitives`: `FollowTabStop` on a container marked `data-fk-roving`
+  reads only the stops no nested roving container holds, so a row holding
+  another roving widget no longer takes the focus of a removed row (#553).
+  `RovingTabindex`, `ListNavigation`, `GridNavigation` and `TreeNavigation`
+  mark their containers; the mark is no focus owner, so a `FocusRecovery`
+  around a tree still owns the rows inside it.
+
+- `foldkit-remote/outbox`: a durable write is sent once across tabs. The answer
+  settles the sending tab's queue, which ends its send; where that came before
+  the store was written, the send's lock went with the store still saying
+  waiting, and another tab holding the lock sent the write again. Recording
+  the answer is no longer interruptible; a store that does not take it within
+  5 seconds is given up on, so the lock still goes.
+- `foldkit-mixins`: a Mount inside a `ChildAttribute` on a Slot is composed with
+  the Slot's other Mounts, instead of drawn beside them where Foldkit kept one,
+  and still sends through its own boundary (#531).
+- `MessageScroller` keeps following the end when its scrolling frame shrinks (a
+  keyboard opening, a window resized): the Mount observes the scrolling parent as
+  well as the log, so the end is re-seated instead of left out of view.
+- `foldkit-remote`: `Data.can` answers `Can.Undecided`, naming the member (`Doc.gate`),
+  where a `may` member of the row is not held, instead of `Can.Yes`.
 - `foldkit-mixins`: a family's pressed fill (`active`) no longer turns a grey
   red. It added 0.05 of chroma at the fill's hue, which a grey does not have:
   shadcn's black accent pressed its secondary as a dark red, and a fill set to
@@ -360,18 +652,6 @@ version changed; `pnpm` skips versions already in the registry.
   slice on the page and was stored as another; it is now neither applied nor
   submitted, and `onPersistenceFailure` gets a `ReplayError` that names the
   fields. It costs one more `update` per durable dispatch (#543).
-- `foldkit-mixins-ui`: a control in a leaving Dialog or Sheet no longer acts (the
-  panel is `inert` for the rest of the exit); a pressed action on a toast that is
-  already leaving no longer reports `Acted` again; a portaled Listbox panel is
-  placed for a right-to-left page; an invalid Listbox trigger or Combobox field is
-  announced and drawn, and a disabled one shows no hover; the filled Input and
-  Textarea keep the invalid edge; number, tags, password, OTP and InputCopy
-  controls and the segmented control keep the touch floor (#558).
-- `foldkit-mixins-ui`: a Pagination of one page still draws its summary and
-  page-size select; a Pagination end stop no longer drops focus; a Carousel slide
-  out of view no longer takes Tab and scrolls the track; a CodeBlock's final line
-  break is no extra numbered line; a windowed row holding focus no longer loses
-  it when scrolled out (#558).
 
 ## 0.40.0
 

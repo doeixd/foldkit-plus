@@ -13,8 +13,11 @@ tool can inspect it without running anything.
   dependency paths, opaque metadata; `Metadata` is re-exported from
   `foldkit-metadata`). Also application identity
   (`Surface.application`), typed Message subsets (`MessageSet`), named Surfaces
-  with their renderer binding, `Module` (static checks across contracts), and
-  `Diagnostics`, the channel every package reports quiet failures on.
+  with their renderer binding, `Module` (static checks across contracts),
+  `Graph` (the law graph: which transitions can break which laws, asked in
+  `Graph.validate`, while each contract owns its declared laws and the producers of
+  `Evidence` its records), and `Diagnostics`, the channel every package
+  reports quiet failures on.
 - **Does NOT own:** I/O, transport, state, transitions, or Commands. A Surface is
   an *observation + capability contract*, not a Submodel. It has no private
   Model, no child update, and no Message wrapping. Submodels divide state by
@@ -110,6 +113,16 @@ whose reset changes the projection after `message` (compared with its codec);
 `WritableProjection`; `app` needs only `initial` and `update`. `Sync.mount` uses
 it for every durable dispatch.
 
+**Declare a Surface closed.** `closed: true` in `Surface.make` / `App.surface`
+says its projection after a Message in `messages` depends only on the projection
+before and the Message, and that no other Message changes it. Nothing enforces
+it at run time: `Closure.violations(app, surfaces)` returns `(before, message,
+after) => violations` for a walk, testing only closed Surfaces
+(a `ClosureViolation`, `Reads({ surface, fields })` or `Outside({ surface })`,
+read through `ClosureViolation.$match`); a
+closed Surface with params is refused. `Surface.contract` carries `closed`.
+`examples/kitchen-sink` declares its agent context closed and walks it.
+
 **A Surface with params, made active by the Model.** Give `params` as the fields
 of a `Schema.Struct`, or as a schema. A ref's string keys are only the Model's
 fields (any name works, `index` and `at` included); its own members are its
@@ -152,7 +165,10 @@ works the value out again on every memo hit and throws when it differs
 (`Equal.equals`), naming `on`'s paths. A Remote read declares no path, alone or in a `struct`, so while
 `on` holds one the value is worked out on every read; naming the store's field
 (`App.model.remote`) in its place, and making the read inside `derive`, keeps
-the value while the store holds.
+the value while the store holds. Given `{ Model: schema }` (the value's Schema),
+the result can be an entry of `Projection.struct`: the struct reads the memoized
+value, declares its paths, plans nothing for it, and the Surface checks the
+value against `Model`. Without `Model`, `struct` refuses it.
 
 ```ts
 const Open = Projection.derive([App.model.todos], m => m.todos.filter(t => !t.done))
@@ -210,7 +226,46 @@ Surface.inspect(TodoDetail, { id: 't1' })   // { name, dependencies, metadata, e
 `Module.make` accepts a Surface without params, a `Contract`, or any value with a
 `contract` field (Sync, Remote, and Agent values). `validate` can report these
 rules: `foreign-contract`, `duplicate-name`, `ownership-overlap`,
-`message-claimed-twice`, `unknown-path`, `unknown-message`.
+`message-claimed-twice`, `unknown-path`, and `unknown-message`. `Graph.validate`
+reports four more, over the law graph below.
+
+**Which transitions can break which laws, and what shows they do not.** A
+contract's `laws?: { model?, entities? }` holds its declarations, and
+`Graph.of` derives `GraphNode`s (`Law`, `Transition`, `State`, `Path`,
+...) and `GraphEdge`s (`Reads`, `Writes`, `From`, `To`, `Keeps`, ...) only when
+asked: `entities` (`Laws.check`'s entries; a Remote domain's declared writes)
+give `write:<name>` and its Entity's invariants (`Product.reservedWithinStock`),
+`model` (a Sync document's law ids) `sync:<name>.<law>` reading the owned slice
+and `durable:<tag>` per Message writing it, a closed Surface a level and a
+`closure:<name>` law over its paths. Evidence (`Evidence`, re-exported
+here) says a transition keeps a law; the graph never decides it. `Graph` is
+apart from `Module`, so a page that calls only `Module` keeps none of its code:
+
+```ts
+import { Evidence, Graph, Module } from 'foldkit-surface'
+
+declare const records: ReadonlyArray<Evidence> // Laws.check's Enumerated, Walk.run's and Scenario.run's `evidence`
+const evidence = [
+  ...records,
+  Evidence.runtimeOnly({ transition: 'write:Revert', law: 'Product.publishedStaysPublished', why: 'the writer refuses it' }),
+]
+Graph.validate(Project, { evidence })   // law-unwitnessed, evidence-unmatched, level-declared-twice, transition-declared-twice
+Graph.breakersOf(Graph.of(Project, { evidence }), 'Product.reservedWithinStock')
+// [{ transition, paths, evidence }]: each transition writing what the law reads
+Graph.toMarkdown(Project, { evidence }) // a Laws section: law, transition, evidence, findings
+Graph.toMermaid(Project, { evidence })  // the same as a flowchart
+```
+
+`law-unwitnessed`: a transition writes a path a law reads (one path within the
+other; a transition invariant reads its whole row) and no admitted record joins them. `evidence-unmatched`: a record typed
+by hand or copied (no issuer), or naming a transition or law no contract
+declares, or a write and a law of two Entities, or a Message and a law over disjoint Model paths
+(two documents'). `transition-declared-twice`: two contracts declare a write of one name, which
+evidence cannot tell apart. `level-declared-twice`: two
+closed Surfaces over the same paths and Messages. With no `evidence`, every pair a
+transition can break is `law-unwitnessed`. A local Message has
+no `writes` edge yet (foldkit/foldkit#1655). `examples/writes/test/graph.test.ts`
+is the worked case.
 
 **Seeing what packages kept going past.** A fallback, a refusal answered
 generically, or a failure a package swallowed is a typed `Diagnostic`
@@ -270,6 +325,14 @@ package directly only when writing a carrier that is not a Projection: it holds
 a `Metadata` per node (`Metadata.empty` by default) and merges its parts with
 `Metadata.combine(parts)`, which runs each key's own `merge`. `Metadata.is`
 rejects copies and hand-built values.
+
+`foldkit-metadata` also holds `Evidence`, records that a transition keeps a law
+(`Enumerated` from `Laws.check`, `Walked` from `Walk.run`, `RuntimeOnly` by hand
+with a reason). `Evidence.issuedBy(record)` is the producer, none for a record
+typed by hand or spread from an issued one (or issued through another copy of
+the package); a name has one `Evidence.issuer`, and a second throws.
+`Evidence.runtimeOnly({ transition, law, why })` throws on an empty `why`. Not
+re-exported by Surface.
 
 - `Surface.when(surface, place, TaggedCase, value => params)` is `Surface.at`
   with the activation **readable**: it records the Model path and the tag, so a

@@ -94,6 +94,7 @@ type Hooks = Partial<
     | 'legacyReplicaId'
     | 'operation'
     | 'stamp'
+    | 'judge'
   >
 >
 
@@ -2265,4 +2266,128 @@ describe('a commit stamp', () => {
       },
       { stamp: value => ({ ...value, opId: 'elsewhere' }) },
     ))
+})
+
+describe('judge', () => {
+  /** At most `cap()` ids: read when judged, so a test can tighten a law over a live document. */
+  const capped =
+    (cap: () => number): NonNullable<Hooks['judge']> =>
+    ({ after }) =>
+      after.ids.length <= cap() || {
+        rule: 'capped',
+        message: `A list holds ${cap()} ids`,
+        path: ['ids'],
+      }
+
+  it('refuses the operation whose snapshot breaks a law, committing nothing', () =>
+    withJournal(
+      function* (journal) {
+        yield* journal.append(todos, add(1, 'a'), principal)
+        yield* journal.append(todos, add(2, 'b'), principal)
+        const result = yield* Effect.result(journal.append(todos, add(3, 'c'), principal))
+        expect(result).toMatchObject({
+          _tag: 'Failure',
+          failure: {
+            _tag: 'OperationRejectedError',
+            opId: 'a:3',
+            rule: 'capped',
+            reason: 'A list holds 2 ids',
+            path: ['ids'],
+            message: 'Operation "a:3" breaks the law "capped": A list holds 2 ids',
+          },
+        })
+        expect(yield* journal.load(todos)).toEqual({ snapshot: { ids: ['a', 'b'] }, cursor: 2 })
+        // The refused id was not consumed.
+        yield* journal.append(todos, remove(3, 'a'), principal)
+        expect((yield* journal.load(todos)).cursor).toBe(3)
+      },
+      { judge: capped(() => 2) },
+    ))
+
+  it('judges the snapshot the operation leaves against the one before it', () => {
+    const seen: Array<{
+      readonly before: Snapshot
+      readonly after: Snapshot
+      readonly id: string
+    }> = []
+    return withJournal(
+      function* (journal) {
+        yield* journal.append(todos, add(1, 'a'), principal)
+        yield* journal.append(todos, add(2, 'b'), principal)
+        const result = yield* Effect.result(journal.append(todos, remove(3, 'a'), principal))
+        expect(result).toMatchObject({ failure: { rule: 'neverShrinks' } })
+        expect(seen).toEqual([
+          { before: { ids: [] }, after: { ids: ['a'] }, id: 'a' },
+          { before: { ids: ['a'] }, after: { ids: ['a', 'b'] }, id: 'b' },
+          { before: { ids: ['a', 'b'] }, after: { ids: ['b'] }, id: 'a' },
+        ])
+      },
+      {
+        judge: ({ before, after, operation }) => {
+          seen.push({ before, after, id: operation.id })
+          return (
+            after.ids.length >= before.ids.length || {
+              rule: 'neverShrinks',
+              message: 'Nothing is removed',
+              path: [],
+            }
+          )
+        },
+      },
+    )
+  })
+
+  it('judges the operation as stamped', () =>
+    withJournal(
+      function* (journal) {
+        const result = yield* Effect.result(journal.append(todos, add(1, 'a'), principal))
+        expect(result).toMatchObject({ failure: { rule: 'stamped' } })
+      },
+      {
+        stamp: value => ({ ...value, id: 'stamped' }),
+        judge: ({ operation }) =>
+          operation.id !== 'stamped' || { rule: 'stamped', message: 'Saw the stamp', path: [] },
+      },
+    ))
+
+  it('maps a throwing law to an InvalidOperationError without committing', () =>
+    withJournal(
+      function* (journal) {
+        const result = yield* Effect.result(journal.append(todos, add(1, 'a'), principal))
+        expect(result).toMatchObject({ failure: { _tag: 'InvalidOperationError' } })
+        expect((yield* journal.load(todos)).cursor).toBe(0)
+      },
+      {
+        judge: () => {
+          throw new Error('law exploded')
+        },
+      },
+    ))
+
+  it('takes the operation that repairs a document already breaking a law, and refuses one that does not', () => {
+    let cap = 3
+    return withJournal(
+      function* (journal) {
+        yield* journal.append(todos, add(1, 'a'), principal)
+        yield* journal.append(todos, add(2, 'b'), principal)
+        yield* journal.append(todos, add(3, 'c'), principal)
+        // The law tightens over a document that now breaks it.
+        cap = 1
+        const partial = yield* Effect.result(journal.append(todos, remove(4, 'a'), principal))
+        expect(partial).toMatchObject({ failure: { rule: 'capped' } })
+        const grows = yield* Effect.result(journal.append(todos, add(4, 'd'), principal))
+        expect(grows).toMatchObject({ failure: { rule: 'capped' } })
+        yield* journal.appendAll(todos, [remove(4, 'a'), remove(5, 'b')], principal).pipe(
+          Effect.flip,
+          Effect.map(error => expect(error).toMatchObject({ rule: 'capped' })),
+        )
+        // A batch is judged per operation, so its first, still breaking, refuses it whole.
+        expect((yield* journal.load(todos)).cursor).toBe(3)
+        cap = 2
+        yield* journal.append(todos, remove(4, 'a'), principal)
+        expect(yield* journal.load(todos)).toEqual({ snapshot: { ids: ['b', 'c'] }, cursor: 4 })
+      },
+      { judge: capped(() => cap) },
+    )
+  })
 })

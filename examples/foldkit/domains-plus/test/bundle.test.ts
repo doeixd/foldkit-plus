@@ -23,12 +23,25 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // 193,520 bytes on CI on 2026-11-12, 20 over: the review fixes added the
 // resolver's tables of each Foldkit handler's DOM event (#523) and of the CSS
 // declarations a style key writes, its shorthands included.
-// 196.1 kB on 2026-11-14, after the UI SDK work: `WindowList` keeps the row
-// holding focus drawn, reveals a row, and can draw find-in-page stand-ins
-// (its module went from 4.4 kB to 9.7 kB minified), and the Listbox and
-// Combobox gained their invalid state, in-place panels and direction. The
-// ceiling is that plus about 1%.
-const CEILING = 198_000
+// 2026-11-14, U-WP1 (#551, #556, #531): foldkit-mixins' resolver.js grew 814
+// bytes minified (both contributors named in every ownership diagnostic, and a
+// child attribute's Mount composed through its own boundary) and behavior.js
+// 406 (each Behavior's attachment metadata, which describe reads), measured by
+// minifying the two sources before and after. The page then measured 194,714.
+// +1146 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
+// -189 bytes (#560 review): the read-after half of #544 (tokens, floors, waits) moved behind the
+// write capability, which this page never installs, -320; asking again a row the server is behind
+// on, +131. Measured with and without both in one tree on 2026-11-14 (195,829 against 195,640).
+// +58 bytes for `policies` on `Data.wiring` (#236), measured in one tree on 2026-11-14 with and
+// without it (197,919 and 197,977): every subscriptions call goes through one function taking
+// each key's policy. The page was over the ceiling already from other growth (197,919), which
+// this does not cover.
+// +1,481 on 2026-11-15 (#560 review): measured 197,500. 197,185 without the review's UI fixes and
+// 197,500 with them in one tree, +315 (FocusScope's way back without the trail, but checked for a
+// frame's realm; a portaled panel's region read from the sheets through a probe). The other
+// 1,166 is U-WP14 and the A3, F2 and C2 fixes the investigation attributed, which put the page
+// over before the review. Ceiling raised to the reading, rounded up.
+const CEILING = 197_550
 
 test('the search page loads at most the budgeted brotli JavaScript', async () => {
   const report = await measure(resolve(import.meta.dirname, '..'))

@@ -8,8 +8,9 @@
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Effect, Layer, Optic, Option, Schema } from 'effect'
+import { Write } from 'foldkit-entity'
 import { databaseLayer } from 'foldkit-remote-drizzle'
-import { Remote } from 'foldkit-remote'
+import { Refusal, Remote } from 'foldkit-remote'
 import { Law } from 'foldkit-remote/testing'
 import { RemoteServer } from 'foldkit-remote-server'
 import { ModelRef } from 'foldkit-surface'
@@ -90,5 +91,25 @@ describe('the law over the declared writes', () => {
     const report = await checked(mutation, input)
     expect(report.disagreed).toEqual([])
     expect(report.agreed).toEqual(expect.arrayContaining(compares))
+  })
+
+  it('a sale that would leave nothing unreserved: refused by its becomes, which the page left to the server', async () => {
+    // The page cannot hold the stock a sale moves, so it cannot judge InStock and sends it.
+    const report = await checked(Sell, { id: 'p1', quantity: -8 })
+    expect(report).toEqual({ agreed: [], disagreed: [], unknown: ['Sell'] })
+    const served = await Effect.runPromise(
+      RemoteServer.handlers(server, Option.some({ id: 'ada' }))
+        .FoldkitRemoteMutate({
+          requestId: 'r',
+          mutation: 'Sell',
+          input: { id: 'p1', quantity: -8 },
+          operation: 'op',
+        })
+        .pipe(Effect.flip, Effect.provide(seeded())),
+    )
+    const refusal = Schema.decodeUnknownSync(Sell.Refusal)(
+      (served as { readonly refusal: unknown }).refusal,
+    )
+    expect(Refusal.isInvalidBy(refusal, Write.ensured(Sell.write))).toBe(true)
   })
 })

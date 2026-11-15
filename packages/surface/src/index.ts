@@ -19,8 +19,27 @@ import type * as Update from 'foldkit/update'
 import type { Url } from 'foldkit/url'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 
-export { Metadata, MetadataTypeId, type MetadataKey, type MetadataSummary } from 'foldkit-metadata'
-export { Closure, type ClosureProjection } from './closure.js'
+export {
+  Evidence,
+  Metadata,
+  MetadataTypeId,
+  type MetadataKey,
+  type MetadataSummary,
+} from 'foldkit-metadata'
+export { Closure, type ClosureProjection, ClosureViolation } from './closure.js'
+import type { ContractLaws } from './graph.js'
+import { labelOf, pathText, tableCell } from './text.js'
+export {
+  Graph,
+  GraphEdge,
+  GraphNode,
+  type Breaker,
+  type ContractLaws,
+  type GraphFacts,
+  type GraphOptions,
+  type GraphSpace,
+} from './graph.js'
+import { hasTagIn, messageTag, messageTags } from './messageTags.js'
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnostics.js'
 export {
   CachedRead,
@@ -218,23 +237,6 @@ function optionalReader(value: unknown): Option.Option<unknown> {
   return value === undefined ? Option.none() : Option.some(value)
 }
 
-/** Reads the tag off a Foldkit Message constructor without constructing one. */
-const messageTag = (constructor: unknown): string | undefined => {
-  const literal = (constructor as { fields?: { _tag?: { ast?: { literal?: unknown } } } }).fields
-    ?._tag?.ast?.literal
-  return typeof literal === 'string' ? literal : undefined
-}
-
-/** Whether a Message, of an application this cannot name, has one of `tags`. */
-const hasTagIn = (tags: ReadonlySet<string>, message: unknown): boolean =>
-  Predicate.hasProperty(message, '_tag') &&
-  typeof message._tag === 'string' &&
-  tags.has(message._tag)
-
-/** The tags of the Messages a Surface lists in `messages`. */
-const messageTags = (surface: { readonly messages: readonly unknown[] }): ReadonlyArray<string> =>
-  surface.messages.map(messageTag).filter((tag): tag is string => tag !== undefined)
-
 function makeTree(
   schema: AnySchema,
   path: readonly string[],
@@ -409,10 +411,22 @@ type OfValue<F extends Schema.Struct.Fields, Sel> = {
 }
 
 type EntryValue<E> =
-  E extends Projection<any, infer V> ? V : E extends ModelRef<any, infer V> ? V : never
+  E extends Projection<any, infer V>
+    ? V
+    : E extends ModelRef<any, infer V>
+      ? V
+      : E extends ModeledDerived<any, infer V>
+        ? V
+        : never
 
 type EntryRoot<E> =
-  E extends Projection<infer R, any> ? R : E extends ModelRef<infer R, any> ? R : never
+  E extends Projection<infer R, any>
+    ? R
+    : E extends ModelRef<infer R, any>
+      ? R
+      : E extends ModeledDerived<infer R, any>
+        ? R
+        : never
 
 type EntryRoots<Entries> = { readonly [K in keyof Entries]: EntryRoot<Entries[K]> }
 
@@ -452,6 +466,11 @@ const markedBy = <P extends object>(
 export interface Derived<Root, Value> {
   readonly dependencies: DependencyTree
   readonly read: (root: Root) => Value
+}
+
+/** A `Derived` that names the Schema of its value (`derive`'s `Model` option), so a `Projection.struct` can hold it. */
+export interface ModeledDerived<Root, Value> extends Derived<Root, Value> {
+  readonly Model: Schema.Codec<Value, unknown>
 }
 
 const valueAt = (root: unknown, path: ReadonlyArray<string>): unknown => {
@@ -533,27 +552,41 @@ export const Projection = {
       ) as unknown as Projection<Schema.Struct.Type<F>, OfValue<F, Sel>>
     },
 
-  struct: <const Entries extends Record<string, Projection<any, any> | ModelRef<any, any>>>(
+  struct: <
+    const Entries extends Record<
+      string,
+      Projection<any, any> | ModelRef<any, any> | ModeledDerived<any, any>
+    >,
+  >(
     entries: Entries & (IsUnion<EntryRoots<Entries>[keyof Entries]> extends true ? never : unknown),
   ): Projection<EntryRoot<Entries[keyof Entries]>, StructValue<Entries>> => {
     // Keys may be stored ids (a page's node ids), so `__proto__` must stay a key.
     const picked: Record<string, AnySchema> = Object.create(null)
     const dependencies: (readonly string[])[] = []
     const metadata: Metadata[] = []
-    const nesteds: Projection<unknown, unknown>[] = []
+    const nesteds: { readonly dependencies: DependencyTree }[] = []
     const readers: (readonly [string, (root: unknown) => unknown])[] = []
 
     for (const key of Object.keys(entries)) {
-      const entry = entries[key] as Projection<unknown, unknown> | ModelRef<unknown, unknown>
+      const entry = entries[key] as
+        | Projection<unknown, unknown>
+        | ModelRef<unknown, unknown>
+        | ModeledDerived<unknown, unknown>
       if (ModelRef.is(entry)) {
         const focus = entry[RefTypeId]
         picked[key] = focus.Schema
         dependencies.push(focus.dependency)
         readers.push([key, focus.get])
       } else {
+        if (entry.Model === undefined) {
+          throw new Error(
+            `Projection.struct: "${key}" is a Derived with no Model. Pass the Schema of its value: Projection.derive(on, derive, { Model }).`,
+          )
+        }
         picked[key] = entry.Model
         dependencies.push(...entry.dependencies)
-        metadata.push(entry.metadata)
+        // A Derived has no metadata: it plans nothing, whatever it reads.
+        if ('metadata' in entry) metadata.push(entry.metadata)
         nesteds.push(entry)
         readers.push([key, entry.read])
       }
@@ -647,6 +680,11 @@ export const Projection = {
    * `import.meta.env?.DEV === true`, as `Remote.make`'s `verifyPredictions` takes it;
    * it doubles the work, so leave it off in production.
    *
+   * `Model`, the Schema of the value, makes the result a `ModeledDerived`, which
+   * a `Projection.struct` takes as an entry: the struct reads the memoized
+   * value, and the Surface checks it against `Model`. A Derived plans no
+   * requirements, whatever `on` holds.
+   *
    * @example
    * ```ts
    * const shown = Projection.derive([App.model.todos, App.model.filter], (model: Model) =>
@@ -655,10 +693,13 @@ export const Projection = {
    * // In the view: shown.read(model)
    * ```
    */
-  derive: <Root, Value>(
+  derive: (<Root, Value>(
     on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
     derive: (root: Root) => Value,
-    options: { readonly verify?: boolean | undefined } = {},
+    options: {
+      readonly verify?: boolean | undefined
+      readonly Model?: Schema.Codec<Value, unknown>
+    } = {},
   ): Derived<Root, Value> => {
     if (on.length === 0) {
       throw new Error(
@@ -672,7 +713,8 @@ export const Projection = {
     // No path changes when what such a read reads does, so none can skip it.
     const always = parts.some(unnamed)
     let last: { readonly values: ReadonlyArray<unknown>; readonly value: Value } | undefined
-    const derived: Derived<Root, Value> = {
+    const derived: Derived<Root, Value> & { Model?: Schema.Codec<Value, unknown> } = {
+      ...(options.Model === undefined ? {} : { Model: options.Model }),
       dependencies,
       read: root => {
         const values = dependencies.map(path => valueAt(root, path))
@@ -698,6 +740,20 @@ export const Projection = {
     }
     if (always) readsUnnamed.add(derived)
     return derived
+  }) as {
+    <Root, Value>(
+      on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
+      derive: (root: Root) => Value,
+      options: {
+        readonly verify?: boolean | undefined
+        readonly Model: Schema.Codec<Value, unknown>
+      },
+    ): ModeledDerived<Root, Value>
+    <Root, Value>(
+      on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
+      derive: (root: Root) => Value,
+      options?: { readonly verify?: boolean | undefined },
+    ): Derived<Root, Value>
   },
 
   /**
@@ -865,6 +921,8 @@ export interface Surface<Root, Model, Message, Params> {
   readonly Params: ParamsSchema<Params>
   readonly Message: Schema.Schema<Message>
   readonly messages: readonly unknown[]
+  /** Declared `closed: true`: `Closure.violations` tests it in a walk. */
+  readonly closed: boolean
   readonly projection: (params: Params) => Projection<Root, Model>
 }
 
@@ -1104,6 +1162,7 @@ export interface Application<
         readonly params: ParamsOf<Params>
       }) => Shape
       readonly messages?: Ms
+      readonly closed?: boolean
     },
   ) => Surface<Root, ModelOf<Root, Shape>, MsgOf<Ms>, ParamsOf<Params>>
   /**
@@ -1238,6 +1297,7 @@ function application(config: any): any {
       readonly params?: ParamsShape | undefined
       readonly model: (context: { readonly model: unknown; readonly params: unknown }) => unknown
       readonly messages?: readonly unknown[]
+      readonly closed?: boolean
     },
   ) =>
     Surface.make(scope, name, {
@@ -1253,6 +1313,7 @@ function application(config: any): any {
         return isProjection(shape) ? shape : Projection.struct(shape as never)
       },
       messages: surfaceConfig.messages,
+      closed: surfaceConfig.closed,
     } as never)
   const made = { ...scope, fields: scope.model, surface }
   const runnable = (run: { readonly initial: unknown; readonly update: unknown }): unknown => ({
@@ -1615,6 +1676,11 @@ export const Surface = {
         readonly params: Params
       }) => Projection<Root, Model>
       readonly messages?: Ms
+      /**
+       * The projection after a Message in `messages` depends only on the projection before and
+       * the Message, and no other Message changes it; `Closure.violations` tests both.
+       */
+      readonly closed?: boolean
     },
   ): Surface<Root, Model, MsgOf<Ms>, Params> => {
     // Deliberately no eager `projection(undefined)`: a parameterized Surface's
@@ -1638,6 +1704,7 @@ export const Surface = {
       Params: config.Params as ParamsSchema<Params>,
       Message: Schema.Never as unknown as Schema.Schema<MsgOf<Ms>>,
       messages: config.messages ?? [],
+      closed: config.closed ?? false,
       projection,
     }
   },
@@ -1710,6 +1777,7 @@ export const Surface = {
       observes: projection.dependencies,
       messages: messageTags(surface),
       metadata: Metadata.summarize(projection.metadata),
+      ...(surface.closed ? { closed: true as const } : {}),
     }
   },
 
@@ -1756,6 +1824,15 @@ export interface Contract {
   readonly messages: readonly string[]
   /** What interpreters attached to the contract's reads, as text. */
   readonly metadata: readonly MetadataSummary[]
+  /** A Surface declared `closed: true`; absent for any other contract. */
+  readonly closed?: true
+  /**
+   * The laws the contract holds and the transitions that can break them, as
+   * the declarations themselves: `Graph.of` derives their nodes and edges
+   * when asked, so a page that never imports `Graph` carries none of that code. Absent
+   * for a contract with none.
+   */
+  readonly laws?: ContractLaws | undefined
 }
 
 /**
@@ -1808,6 +1885,7 @@ export interface Module<
 }
 
 export interface Finding {
+  /** The last four are `Graph.validate`'s, over the laws; the rest are `Module.validate`'s. */
   readonly rule:
     | 'foreign-contract'
     | 'duplicate-name'
@@ -1815,6 +1893,10 @@ export interface Finding {
     | 'message-claimed-twice'
     | 'unknown-path'
     | 'unknown-message'
+    | 'law-unwitnessed'
+    | 'evidence-unmatched'
+    | 'level-declared-twice'
+    | 'transition-declared-twice'
   /** `kind:name` of each contract involved. */
   readonly contracts: readonly string[]
   readonly message: string
@@ -1830,7 +1912,7 @@ export interface ModuleManifest {
   readonly fields: readonly string[]
   readonly messages: readonly string[]
   readonly ownership: readonly Ownership[]
-  readonly contracts: readonly Omit<Contract, 'owner'>[]
+  readonly contracts: readonly Omit<Contract, 'owner' | 'laws'>[]
   readonly findings: readonly Finding[]
 }
 
@@ -1840,14 +1922,8 @@ export type ModuleItem<Root> =
   | { readonly contract: Contract }
   | Surface<Root, any, any, void>
 
-const label = (contract: Contract): string => `${contract.kind}:${contract.name}`
-/** Metadata summaries are application data (a query's input), so they cannot break the table. */
-const tableCell = (text: string): string =>
-  text
-    .replace(/\\/g, '\\\\')
-    .replace(/\|/g, '\\|')
-    .replace(/\r\n?|\n/g, ' ')
-const pathKey = (path: readonly string[]): string => path.join('.')
+const label = labelOf
+const pathKey = pathText
 const isPrefix = (prefix: readonly string[], path: readonly string[]): boolean =>
   prefix.length <= path.length && prefix.every((segment, index) => segment === path[index])
 
@@ -1897,7 +1973,8 @@ export const Module = {
    * Cross-contract invariants the types cannot express: a contract from another
    * application, a duplicate `kind:name`, two owners of overlapping Model paths,
    * a Message recorded by two replication contracts, and a path or Message the
-   * application does not declare.
+   * application does not declare. The rules over the contracts' laws are
+   * `Graph.validate`'s.
    */
   validate: (module: Module<any, any, any>): readonly Finding[] => {
     const findings: Finding[] = []
@@ -1968,7 +2045,6 @@ export const Module = {
           })
         else recorded.set(tag, contract)
       }
-
     return findings
   },
 
@@ -1997,12 +2073,15 @@ export const Module = {
       fields: Object.keys(module.app.Model.fields),
       messages: applicationTags(module.app),
       ownership,
-      contracts: module.contracts.map(({ owner: _owner, ...rest }) => rest),
+      contracts: module.contracts.map(({ owner: _owner, laws: _laws, ...rest }) => rest),
       findings: Module.validate(module),
     }
   },
 
-  /** The manifest as Markdown: the ownership tree, a table of contracts, and findings. */
+  /**
+   * The manifest as Markdown: the ownership tree, a table of contracts, and
+   * findings. `Graph.toMarkdown` writes the laws.
+   */
   toMarkdown: (module: Module<any, any, any>): string => {
     const manifest = Module.manifest(module)
     const lines: string[] = ['```text', 'Model']
@@ -2034,6 +2113,7 @@ export const Module = {
   /**
    * The manifest as a Mermaid flowchart: Model fields in a subgraph, one node
    * per contract, a solid edge for ownership and a dotted edge for observation.
+   * `Graph.toMermaid` draws the laws.
    */
   toMermaid: (module: Module<any, any, any>): string => {
     const manifest = Module.manifest(module)

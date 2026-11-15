@@ -20,6 +20,55 @@ export type PresenceMessage = typeof PresenceMessage.Type
 /** Whether the content renders: shown or mid-exit. */
 export const isVisible = (model: PresenceModel): boolean => model.phase !== 'hidden'
 
+const PresenceArgs = Schema.Struct({
+  durationMs: Schema.Number.pipe(
+    Schema.check(Schema.isGreaterThan(0)),
+    Schema.check(Schema.isFinite()),
+  ),
+})
+
+const update = (
+  model: PresenceModel,
+  message: PresenceMessage,
+  args: typeof PresenceArgs.Type,
+): Update.ReturnWithOutMessage<PresenceModel, PresenceMessage, never> =>
+  PresenceMessage.match<Update.ReturnWithOutMessage<PresenceModel, PresenceMessage, never>>(
+    message,
+    {
+      // Every new transition invalidates pending timeouts. While shown none is
+      // pending, and hiding what is hidden would show it for `durationMs`.
+      Show: () =>
+        model.phase === 'shown'
+          ? { model }
+          : { model: { ...model, phase: 'shown' as const, generation: model.generation + 1 } },
+      Hide: () => {
+        if (model.phase === 'hidden') return { model }
+        const generation = model.generation + 1
+        return {
+          model: { ...model, phase: 'hiding' as const, generation },
+          commands: [
+            {
+              name: 'Presence.hide',
+              args: { generation },
+              effect: Effect.flatMap(reducedMotion, reduced =>
+                reduced
+                  ? Effect.succeed(PresenceMessage.Hidden({ generation }))
+                  : Effect.as(
+                      Effect.sleep(args.durationMs),
+                      PresenceMessage.Hidden({ generation }),
+                    ),
+              ),
+            },
+          ],
+        }
+      },
+      Hidden: ({ generation }) =>
+        generation === model.generation
+          ? { model: { ...model, phase: 'hidden' as const } }
+          : { model },
+    },
+  )
+
 /**
  * Presence as a bundle: mount-transition state for exit animations. `Hide`
  * starts a timed `hiding` phase; the `Hidden` fact it yields carries the
@@ -29,48 +78,16 @@ export const isVisible = (model: PresenceModel): boolean => model.phase !== 'hid
 export const Presence = Bundle.make('Presence', {
   Model: PresenceModel,
   Message: PresenceMessage,
-  args: Schema.Struct({
-    durationMs: Schema.Number.pipe(
-      Schema.check(Schema.isGreaterThan(0)),
-      Schema.check(Schema.isFinite()),
-    ),
-  }),
+  args: PresenceArgs,
   init: () => ({ model: { phase: 'hidden', generation: 0 } }),
-  update: (model, message, args) =>
-    PresenceMessage.match<Update.ReturnWithOutMessage<PresenceModel, PresenceMessage, never>>(
-      message,
-      {
-        // Every new transition invalidates pending timeouts. While shown none is
-        // pending, and hiding what is hidden would show it for `durationMs`.
-        Show: () =>
-          model.phase === 'shown'
-            ? { model }
-            : { model: { ...model, phase: 'shown' as const, generation: model.generation + 1 } },
-        Hide: () => {
-          if (model.phase === 'hidden') return { model }
-          const generation = model.generation + 1
-          return {
-            model: { ...model, phase: 'hiding' as const, generation },
-            commands: [
-              {
-                name: 'Presence.hide',
-                args: { generation },
-                effect: Effect.flatMap(reducedMotion, reduced =>
-                  reduced
-                    ? Effect.succeed(PresenceMessage.Hidden({ generation }))
-                    : Effect.as(
-                        Effect.sleep(args.durationMs),
-                        PresenceMessage.Hidden({ generation }),
-                      ),
-                ),
-              },
-            ],
-          }
-        },
-        Hidden: ({ generation }) =>
-          generation === model.generation
-            ? { model: { ...model, phase: 'hidden' as const } }
-            : { model },
-      },
-    ),
+  update,
+  /**
+   * What a parent decides: `placed.helpers.hide()` starts the exit a dismiss
+   * button asks for and `show()` brings the content back, as `Hide` and
+   * `Show` do; a placement per row (`each`) takes the row's key first.
+   */
+  helpers: args => ({
+    show: (model: PresenceModel) => update(model, PresenceMessage.Show(), args),
+    hide: (model: PresenceModel) => update(model, PresenceMessage.Hide(), args),
+  }),
 })

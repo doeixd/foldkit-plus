@@ -33,6 +33,16 @@ export interface AuthorizationRequest<Input, Model, Principal = unknown> {
   readonly transport: Transport
 }
 
+/** What `applies` answers: it applies, it does not, or it does not with a reason the caller reads. */
+export type ApplicabilityDecision = boolean | { readonly applies: false; readonly reason: string }
+
+/** What an `applies` hook is asked, once `authorize` has allowed the call. */
+export interface ApplicabilityRequest<Input, Model, Principal = unknown> {
+  readonly principal: Principal
+  readonly input: Input
+  readonly model: Model
+}
+
 /** A callable Foldkit Message constructor, as produced by `defineMessageUnion`. */
 export type MessageConstructor<Message extends AnyMessage = AnyMessage> = (
   ...args: never
@@ -135,6 +145,18 @@ export interface VariantConfig<
       ) => AuthorizationDecision | Effect.Effect<AuthorizationDecision, AuthorizationError>)
     | undefined
 
+  /**
+   * Optional check of this call against the Model, for a capability whose
+   * availability depends on its input (the row it names). Run after
+   * `authorize`, over the same Model, and never for a call `authorize`
+   * refused: whether it applies says what the Model holds, which a caller who
+   * may not act must not learn. A refusal is `CapabilityUnavailableError`, its
+   * `reason` the error's message.
+   */
+  readonly applies?:
+    | ((request: ApplicabilityRequest<ExternalInput, Model, Principal>) => ApplicabilityDecision)
+    | undefined
+
   /** Optional completion contract. Dispatch then waits for a completing Message or state. */
   readonly completion?:
     | Completion<CompletionRequest, CompletionSuccess, CompletionFailure>
@@ -159,6 +181,8 @@ export interface MessageDescriptor {
   readonly modelDependent: boolean
   /** True when the variant declares an `authorize` hook that runs before dispatch. */
   readonly requiresAuthorization: boolean
+  /** True when the variant declares `applies`, so a call can be unavailable for its input. */
+  readonly inputDependent: boolean
   /** The declared completion contract, if any. */
   readonly completion?: AnyCompletion | undefined
 }

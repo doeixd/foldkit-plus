@@ -398,11 +398,50 @@ is excused it. A form has no row before, so it judges none; Crud shows the
 server's refusal beside its path. A `CHECK` sees one row, so `checkConstraints`
 leaves it out, and lists it under `serverOnly`.
 
+### What one write leaves: `becomes`
+
+An invariant is every write's. A claim about one write, that it leaves its row
+in a state (`Entity.refine`), is that write's `becomes`:
+
+```ts
+const CrateFields = Entity.define(
+  'Crate',
+  Schema.Struct({ id: Schema.String, stock: Schema.Int, reserved: Schema.Int }),
+)
+const InStock = Entity.refine(CrateFields, 'InStock', ({ row }) =>
+  Expr.gt(row.stock, row.reserved),
+)
+const SellCrate = Mutation.write(
+  'SellCrate',
+  Write.update(
+    Entity.input(CrateFields, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
+      quantity: Entity.unmapped,
+    }),
+    { id: 'id', increment: { stock: 'quantity' }, becomes: InStock },
+  ),
+)
+const soldOut = Write.ensured(SellCrate.write) // { id: 'becomes:InStock', entity: 'Crate', … }
+```
+
+Where the write is declared, `Write.update` enumerates every row it can start
+from over finite fields: a claim it proves costs nothing at run time, and one it
+disproves throws there, naming a row. A stock moved by an amount cannot be
+enumerated, so this claim is the write's postcondition, `ensures`: an invariant
+of that write alone, with the id `becomes:InStock`. The writer judges it beside
+the Entity's invariants, in the same `WHERE`, and refuses a sale that would
+leave nothing unreserved as `Invalid`, naming `becomes:InStock`; like an
+invariant, it speaks after a stale revision and an unmet precondition.
+`Refusal.isInvalidBy(refusal, soldOut)` tells it apart. A writer that cannot judge one is refused where the write is served,
+by name (`postconditions`): the Drizzle writer, the memory writer and a guarded
+writer over either judge them. `Laws.check` reports such an arrow `enforced`.
+
 All three kinds must hold for a write to land:
 
 ```text
 authorization (Forbidden) AND precondition (Unmet) AND invariants (Invalid)
 ```
+
+A write's postcondition is judged with the invariants.
 
 ### Retries: three different guarantees
 
@@ -587,12 +626,66 @@ each incremented field, the revision), and `Write.writes(write)` what it may
 change.
 
 Two refusals are made at once, before anything is sent, because the store can
-already tell: an invariant definitely broken by the row the write would leave
-(`Invalid`, above), and a write a held `may` says no to (`Forbidden`, with the
+already tell: an invariant, or the write's postcondition, definitely broken by
+the row the write would leave (`Invalid`, above; a field the write moves is not
+held, so a sale like `SellCrate` is the server's to refuse), and a write a held `may` says no to (`Forbidden`, with the
 rule's `explain` as `reason`; see [Guard's "What the client may
 do"](../packages/guard/README.md#what-the-client-may-do)). Each spares a round
 trip and decides nothing for the server, which judges every write that reaches
 it.
+
+### Asking before sending: `Data.can`
+
+A button for a write can be grey before it is pressed. `Data.can` answers, from
+what the Model holds and with no I/O, whether the server would refuse the
+write, judging in the server's own order: a held `may` (`Forbidden`), then the
+write's `when` (`Unmet`), then the invariants of the row the write leaves
+(`Invalid`). The first definite refusal answers `No`.
+
+<!-- docs-check
+const Publish = Mutation.write(
+  'Publish',
+  Write.update(
+    Entity.input(
+      Product,
+      Schema.Struct({ id: Schema.String, status: Schema.Literal('published') }),
+    ),
+    { id: 'id', when: () => Expr.eq(Product.fields.status, 'draft') },
+  ),
+)
+const Gate = Remote.make({ model: App.model.remote, entities: [Product], mutations: [Publish] })
+-->
+```ts
+import { Can } from 'foldkit-remote'
+
+const answer = Gate.can(model, Publish, { id: 'p1', status: 'published' })
+const label = Can.match(answer, {
+  Yes: () => 'Publish',
+  No: ({ refusal }) => `Cannot publish: ${refusal._tag}`,
+  Undecided: ({ reasons }) => `Publish (unchecked: ${reasons.join('; ')})`,
+})
+```
+
+- **`Can.Yes`**: nothing the client holds refuses it.
+- **`Can.No({ refusal })`**: the refusal is `Forbidden { reason }`, `Unmet`, or
+  `Invalid { entity, rule, message, path }`, the shape the server's refusal
+  has, so one component can show either.
+- **`Can.Undecided({ reasons })`**: the client cannot tell. The row is not held,
+  a field or operator a rule reads is missing, an increment or computed field
+  would have to be worked out, an input key the `when` reads was left out, or
+  a `may` member of the row is not held (the reason names it, `Doc.gate`): a
+  gate the client has not read could refuse the write. The rows a delete clears
+  or takes with it are not asked; the server judges them.
+  `input` is `Partial`: ask with the id alone and a `when` over the input says
+  `Undecided`, ask per value and it decides. Invariants are judged over the row
+  as it would be with the keys given.
+
+`No` is a hint, not a refusal. `Data.mutate` does not consult it: a write the
+client calls `Unmet` is still sent, because the server answers some of them as
+written (publishing a published product is answered as a retry would be, not
+refused), and a row the client holds may be stale. `Data.can` never decides for
+the server. It throws for a mutation that was not declared as a `Write`, since
+nothing is declared to judge.
 
 ### Checking the prediction against the server
 

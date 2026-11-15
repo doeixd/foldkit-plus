@@ -23,6 +23,7 @@ import {
   remoteError,
   type RemoteClient,
 } from './client.js'
+import { availableOf, canOf, capabilityOf } from './canOf.js'
 import { installLayers } from './layers.js'
 import { mutationStatus } from './ledger.js'
 import { reduceIn, type RemoteMessage, type RemoteModel } from './model.js'
@@ -34,6 +35,7 @@ import { assertRegistered } from './registered.js'
 import type { RemoteError } from './remoteData.js'
 import type { RelationRequirement } from './requirement.js'
 import { parsedQueryRequest } from './queryRequest.js'
+import { installReadAfter } from './readAfter.js'
 import { isPatch, patchedFields, shownOf } from './shown.js'
 import { entityKey } from './store.js'
 import { tableOf } from './table.js'
@@ -348,6 +350,7 @@ const writes: WriteCapability = {
                             deleted: outcome.deleted,
                             ...(outcome.read === undefined ? {} : { read: outcome.read }),
                             ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
+                            ...(outcome.after === undefined ? {} : { after: outcome.after }),
                             ...(outcome.principal === undefined
                               ? {}
                               : {
@@ -383,10 +386,17 @@ const writes: WriteCapability = {
     return { mutate, retry }
   },
   unpredicted,
+  can: canOf,
+  capability: capabilityOf,
+  available: availableOf,
 }
 
-/** Installs the write capability, and the layer capability a write's pending layer needs. */
+/**
+ * Installs the write capability, the layer capability a write's pending layer
+ * needs, and the read-after capability its answer's tokens need.
+ */
 export const installWrites: Install = capabilities => {
   installLayers(capabilities)
+  installReadAfter(capabilities)
   capabilities.writes = Option.some(writes)
 }

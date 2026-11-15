@@ -312,6 +312,10 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // Policy for fields already cached (default RemotePolicy.cacheFirst), as the second argument:
 // Data.subscriptions({ page: Surface.at(...) }, { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' })
 // A policy covers one call: use one call per policy and spread the records together.
+// Data.wiring is one call: policies gives entries their own, by key, over policy (a key the record lacks is a type error):
+// Data.wiring({ page, editor }, { policy: ageing, policies: { editor: RemotePolicy.networkOnly } })
+// A list two entries read is held stale once left unless both policies age it.
+// Its subscriptions are named by the record's keys: wiring.subscriptions['editor.read'], no `!`.
 // Retention is the domain's: any call's `retain` entry roots the reads of every call.
 // `now` defaults to Date.now read at each use (fake timers move it; pass `now` under TestClock).
 // Entry dependencies are typed: ReadDependencies / LiveDependencies / RetentionRoots.
@@ -675,6 +679,8 @@ order (the server's `orderBy` decides it) by any change to a row it holds. `Data
 `Mutation.write`, and a query descriptor) compares `Write.writes` with what the body reads (`fields`, and `reaches`:
 a path, an exists with its `where`, a path from the viewer) by owner identity, and answers a `Reach`: `Reads`,
 `Unaffected`, or `Unknown({ why: 'NoBody' | 'Handler' })` for a `Query.make` query or a `Mutation.make` handler.
+A mutation that is no `Write` may carry a `footprint` (`{ entity, footprint }`, which `Imported.mutation` of
+`foldkit-remote-domain/imported` sets): a `Declared` one is read as an in-place update of those fields only (a command that creates or deletes rows, or changes relations, must declare `Footprint.unknown`, or `reachedBy` under-reports), an `Unknown` one as a handler.
 Never `Unaffected` where the declarations are silent; `explain`'s `reachedBy` lists the registered mutations that `Reads` a list.
 
 **Declared writes.** `Mutation.write(name, Write.update(input, { id }))` (or
@@ -718,6 +724,18 @@ seconds, `0` never) of its Effect clock, else its own clock, reporting `ClockSke
 `Data.retry` sends the same `now`. `Data.mutate` also sends an operation id, kept across a retry with the
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and
 invariants: [entity.md](entity.md).
+
+`Data.can(model, M, partialInput)` reads what the Model holds and answers `Can.Yes`,
+`Can.No({ refusal })` (`Forbidden { reason }`, `Unmet`, `Invalid { entity, rule, message, path }`,
+the server's order) or `Can.Undecided({ reasons })` (row, field, `may` member or input key missing; an
+increment or computed field not worked out). A hint: `Data.mutate` still asks the server.
+Throws for a mutation not declared with `Mutation.write`. Match with `Can.match`.
+`Data.capability(M, toInput)` gives a `foldkit-agent` variant `{ authorize, applies }` from it
+(`Forbidden` refuses in `authorize` with its words, `Unmet` and `Invalid` in `applies`, `Undecided`
+allows), and `Data.available(M, model => Option<partialInput>)` an `available` (false with no row
+named or on `No`). Judged as the Model's viewer, so compose `authorize` with the agent's principal
+check, and `available` (asked at discovery, before `authorize`) shows any caller the viewer's answer;
+plain functions, so Remote needs no agent package.
 
 **Refusals.** `Mutation.make(name, { Input, Output, Refusal })` declares what
 the server may refuse with (`Refusal.field(key, reason)`, `Refusal.conflict`,
@@ -1025,6 +1043,79 @@ expect(report.agreed).toEqual(expect.arrayContaining(['Card:c9.createdAt']))
 Pin the server's `Clock` to `now`. What the client left unknown is not
 compared; a check that compared nothing throws.
 
+**Walking Messages from starts you did not build.** `Walk.run`
+(`foldkit-remote/testing`) applies seeded random Messages to a Model and
+checks a law after every step. It begins from a list of named starts, because
+a law that holds from the Model an example builds may break from one no
+Message produces (a checkpoint, a hydrated snapshot, a row written by SQL):
+
+```ts sketch
+const cases = Walk.cases<Model, Message>()({
+  Add: { 'one': () => ({ _tag: 'Add', by: 1 }), 'two': () => ({ _tag: 'Add', by: 2 }) },
+}) // a Message variant with no entry does not compile
+const result = await Walk.run({
+  cases: cases.list,
+  from: [{ name: 'loaded', start: loaded }, ...Walk.states(Model, { count: 20, seed: 7 })],
+  step: (model, message) => Data.reduce(model, message), // may return a Promise
+  violations: (before, message, after) => [{ law: 'below 100', message: '…' }], // [] when it holds
+  laws: ['below 100'], // every law violations judges; another name throws
+  transition: tag => `write:${tag}`, // its id in evidence; the tag by default
+  seeds: 200,
+  steps: 12,
+  regressions: [{ name: 'a fixed case', from: loaded, case: () => message }], // run first
+})
+expect(result.failures).toEqual([]) // each: { start, seed, path, broken }
+```
+
+With no failure, `result.evidence` holds a `Walked` record (`foldkit-metadata`'s `Evidence`, issued
+by `foldkit-remote/walk`) for each transition a walk drew against each law; with any failure, none.
+A listed law that `violations` never checks still gets its records, on the author's word: list only
+laws `violations` judges, named as the graph names them (`Laws.law(invariant)`), and walk a check
+that is no law (what the writer answers) with a `Walk.run` of its own.
+
+Those records, `Laws.check`'s `Enumerated` ones and scenarios' are what `Graph.validate(module,
+{ evidence })` takes: the domain's contract declares each declared write (`Mutation.write`) in
+`contract.laws.entities`, from which `Graph.of` derives `write:<name>`, the members it writes,
+its Entity's invariants and what each reads, its states, `from` and `becomes`; each write that
+writes what an invariant reads is `law-unwitnessed` until a record keeps it
+(`examples/writes/test/graph.test.ts`). Only a page that asks for the graph carries that code.
+
+A failure names its start, seed and the cases applied. The same seed draws
+the same walk, so a seed in a test name stays reproducible. `Walk.states`
+builds values over the Schema's encoded side, decodes each through the
+Schema (a check refuses what it should; a refused value is drawn again, up to
+a bound), and gives the same starts for the same seed. A kind it has no
+generator for (`Option`, `Date`, a recursive Schema) throws at the call,
+naming the kind and its path: give such a Model's starts by hand.
+
+**Scenarios: a write as data.** `Scenario` (`foldkit-remote/testing`) is a write,
+the rows it starts from and what must come of it, as plain data run by runners:
+
+```ts sketch
+const scenario = Scenario.write<User>({
+  name: 'a published product does not go back to draft',
+  given: [{ entity: Product, row: { id: 'p2', /* every field, encoded */ } }],
+  principal: Option.some({ id: 'ada' }), now: 0, operation: 'op-1',
+  when: [Revert, { id: 'p2', status: 'draft' }],
+  expect: Scenario.refused({ entity: 'Product', id: 'publishedStaysPublished' }),
+  // Scenario.accepted({ status: 'draft' }) | refused('Unmet' | 'Conflict' | 'Taken' | 'Referenced') | forbidden | unauthenticated
+})
+const runner = Scenario.remote({ data: Data, model, backend: (rows, principal) => layerOver(rows, principal) })
+const { mismatches, evidence } = await Effect.runPromise(Scenario.run(scenario, [runner], { report }))
+const generated = Scenario.fromReport(report, { writes: [Revert], starts, principal, now: 0 })
+```
+
+`Scenario.remote` runs it through `Law.check` and the server alone (`backend` is called twice,
+once per run, and must give a fresh backend each time); its steps are `law`, `decision`, `row`
+(`Forbidden`/`Unauthenticated` have no `law` or `row`). A scenario outside any runner's reach
+is a `ScenarioRunner<Principal>` of its own (`{ name, run }` giving `ScenarioStep`s). With
+`report`, a scenario that expects what `Laws.check` disproved (a refused write landing) throws
+before running, naming the invariant; a run issues one `Scenario` record per runner with no
+mismatch, for each invariant the accepted write could break. `Scenario.fromReport` gives an
+acceptance per holding arrow and a rejection per refused pair, over your `starts`.
+`Scenario.messages` / `Scenario.runMessages(scenario, { app, readers, judge, evidence })` do the
+same for a history of Messages (`Scenario.reads(reader, value)`, `Scenario.breaks(law)`).
+
 **The same properties in a real browser.** `foldkit-plus/testing/playwright`
 checks the drawn page over the real network, where SSR, persistence and the
 Worker take part (`playwright` is an optional peer, for its types):
@@ -1116,6 +1207,12 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // No server yet: RemoteServer.memory({ domain: Data, rows: { Project: [...] } }).layer.
 // Rows in wire shape (a relation is 'User:u1'); Query.define bodies run over them;
 // mutations: store => [...] write through store.write. No live.
+// A declared write over the rows: mutations: store => [RemoteServer.write(Reserve,
+//   RemoteServer.memoryWriter(store, Stock, { operators }))] decides what the Drizzle writer
+// decides (expect, when, increments, computed fields over the row before, invariants, a
+// taken id), refused as Conflict, Unmet, Invalid or Taken. It holds no ledger and judges no
+// rule reading another row, nor cascades, restricts or clears: RemoteServer.write and
+// GuardServer.writer refuse, by name, what needs one where it is served.
 // authorize: { Project: (principal: Principal, fields) => ... } plus principal: the layer's.
 // filter: { Project: (principal, fields) => Effect<{ fields, apply }> } decides per record;
 // readable: (principal, row) => Effect<(entity, values) => boolean> hides rows from reads,
@@ -1444,8 +1541,26 @@ handler's write and raw SQL are held to the invariants and move the revision too
   restart clears it, not a later in-order event. A stream the 256-stream
   ledger dropped meets its next event as a gap.
 - Coalescing is per `RemoteClient` layer; separate layers do not share batches.
-- Wire limits: 256 fields per entity request, relation depth 8; protocol version
-  mismatch fails with `RemoteProtocolError`.
+- Wire limits: 256 fields per entity request, relation depth 8, 256 rows per
+  `after`/`floors`/`behind`; protocol version (7) mismatch fails with
+  `RemoteProtocolError`.
+- **Revisions and read-after tokens (#544).** A row may carry `revision`
+  (`NormalizedEntity`, `EntityPatched`): one lower than the row held writes
+  nothing, from a read, a live patch or an answer; a tombstone keeps the
+  revision it was gone at, and takes a row of it again only while asked about
+  again (a row hidden from the reader, then shown unchanged). A write's
+  answer may carry `after: { token, rows }`: each row is held to the token
+  (`EntityEntry.floor`, kept by `persistence` and `Remote.resume`), read again carrying it
+  (`ReadBatch.after`, `LiveRequirement.floors`), and written only by an answer
+  read at it, a live patch on a stream opened at it, or either at a newer
+  revision than held; a row the server names in `behind` keeps what is held
+  and is asked again after 1s, doubling, at most 30s. `Data.inspect(model).floors`, `why`'s `ReadAfter`.
+  A live stream names the revision it holds each row at, unfloored and with every
+  field it follows written at that revision (a partial read that moved it names none), as it
+  starts (`LiveRequirement.revisions`, at most 256, never more than its rows; a moved one does not restart it): a
+  server may leave out a frame at or before it, as `foldkit-remote-domain` does.
+  `source(binding, { revision })` in `foldkit-remote-drizzle` sends the revision;
+  `foldkit-remote-domain` sends both.
 - `RemoteServer.handlers` takes an already-authenticated principal; it never reads
   headers/cookies. Pass a Context key instead of a value and each call reads it, so
   one handler set serves every request: `handlers(Server, CurrentUser)`, then

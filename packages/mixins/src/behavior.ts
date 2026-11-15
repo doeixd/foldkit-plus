@@ -7,13 +7,13 @@
  */
 import type { Attribute, ChildAttribute, HtmlBuilder } from 'foldkit/html'
 import type { MountAction } from 'foldkit/mount'
+import type { Obligation, ProvidedOn, Supplies } from './a11y.js'
 import * as Capability from './capability.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
 import { DiagnosticError, type DiagnosticCode } from './diagnostics.js'
 import * as MetadataToken from './metadataToken.js'
 import * as Mixin from './mixin.js'
-import type { Mixin as MixinValue } from './mixin.js'
-import { isObligation, type ObligationName } from './a11y.js'
+import type { Mixin as MixinValue, SlotMeta } from './mixin.js'
 import type { Any as AnySlot, AttributeName, EventName, HiddenOf, SlotCapability } from './slot.js'
 import * as SlotView from './slotView.js'
 
@@ -25,8 +25,11 @@ export interface SlotRequirements {
 
 export interface BehaviorSlotOptions<Input, Message> {
   readonly requires?: SlotRequirements
-  /** Obligations this contribution declares. The declaration is not the handler. */
-  readonly supplies?: readonly ObligationName[]
+  /**
+   * The obligations (`A11y.Navigation`, …) this slot's contributions meet,
+   * which `A11y.conform` reads. Declared, not inferred from the attributes.
+   */
+  readonly provides?: ReadonlyArray<Obligation>
   /**
    * Attributes for one resolution of the slot. `item` is present when the view
    * passed one to `slots.x.attrs(base, item)`, that is, when the slot is
@@ -47,15 +50,42 @@ export type BehaviorSpec<Slots, Input, Message> = {
   >
 }
 
-export interface NamedBehavior<Slots, Input, Message> {
+/**
+ * What a spec's slots say they supply, as `` `${slot}/${obligation}` ``: each
+ * slot's `provides`, when its obligations' names are known.
+ */
+export type ProvidesOf<Spec> = {
+  [K in keyof Spec & string]-?: NonNullable<Spec[K]> extends {
+    readonly provides: ReadonlyArray<infer Supplied>
+  }
+    ? ProvidedOn<K, MetadataToken.NameOf<Supplied>>
+    : never
+}[keyof Spec & string]
+
+/**
+ * A Behavior. `Provides` names, as `` `${slot}/${obligation}` ``, what it
+ * supplies for `A11y.conform` at the type level: `forSlots` and a binder's
+ * `behavior` read it from each slot's `provides`, and a factory given a
+ * `SlotView.over` binder states it from the slot names it was given.
+ */
+export interface NamedBehavior<
+  Slots,
+  Input,
+  Message,
+  Provides extends string = never,
+> extends Supplies<Provides> {
   readonly name?: string
   readonly spec: BehaviorSpec<Slots, Input, Message>
   readonly mixin: MixinValue<Message>
 }
 
-/** Identity helper; `forSlots` supplies the contextual `Input`/`Message`. */
-export const slot = <Options extends BehaviorSlotOptions<any, any>>(options: Options): Options =>
-  options
+/**
+ * Identity helper; `forSlots` supplies the contextual `Input`/`Message`, and
+ * reads what the slot supplies from its `provides`.
+ */
+export const slot = <const Options extends BehaviorSlotOptions<any, any>>(
+  options: Options,
+): Options => options
 
 function fail(
   code: DiagnosticCode,
@@ -113,14 +143,36 @@ const validateRequirements = (
   }
 }
 
+const slotMeta = (
+  requirements: SlotRequirements,
+  provides: ReadonlyArray<Obligation>,
+  reads: SlotMeta['reads'],
+): SlotMeta =>
+  Object.freeze({
+    requires: Object.freeze({
+      ...(requirements.capability === undefined
+        ? {}
+        : { capability: MetadataToken.nameOf(requirements.capability) }),
+      events: Object.freeze((requirements.events ?? []).map(MetadataToken.nameOf)),
+      attributes: Object.freeze((requirements.attributes ?? []).map(MetadataToken.nameOf)),
+    }),
+    provides: Object.freeze(provides.map(MetadataToken.nameOf)),
+    reads,
+  })
+
 export const forSlots =
   <Slots>(slots: Slots) =>
-  <Input, Message>(
-    spec: BehaviorSpec<Slots, Input, Message>,
+  <
+    Input,
+    Message,
+    const Spec extends BehaviorSpec<Slots, Input, Message> = BehaviorSpec<Slots, Input, Message>,
+  >(
+    spec: Spec,
     options?: { readonly name?: string },
-  ): NamedBehavior<Slots, Input, Message> => {
+  ): NamedBehavior<Slots, Input, Message, ProvidesOf<Spec>> => {
     const source = slots as unknown as Record<string, AnySlot>
     const contributions: Record<string, SlotContribution<Message>> = Object.create(null)
+    const meta: Record<string, SlotMeta> = Object.create(null)
     for (const [name, slotOptions] of Object.entries(
       spec as Record<string, BehaviorSlotOptions<Input, Message> | undefined>,
     )) {
@@ -134,10 +186,13 @@ export const forSlots =
       if (slotOptions?.requires !== undefined) {
         validateRequirements(name, target, slotOptions.requires)
       }
-      const unknown = slotOptions?.supplies?.find(name => !isObligation(name))
-      if (unknown !== undefined) throw new Error(`Unknown obligation: ${unknown}`)
       const attributes = slotOptions?.attributes
       const mount = slotOptions?.mount
+      meta[name] = slotMeta(
+        slotOptions?.requires ?? {},
+        slotOptions?.provides ?? [],
+        attributes === undefined && mount === undefined ? 'static' : 'input',
+      )
       if (attributes === undefined && mount === undefined) continue
       contributions[name] = context => ({
         ...(attributes === undefined
@@ -155,7 +210,11 @@ export const forSlots =
     return Object.freeze({
       ...(options?.name === undefined ? {} : { name: options.name }),
       spec,
-      mixin: Mixin.dynamic<Message>(options?.name ?? 'Behavior', contributions),
+      mixin: Mixin.dynamic<Message>(
+        options?.name ?? 'Behavior',
+        contributions,
+        Object.freeze({ kind: 'behavior', slots: Object.freeze(meta) }),
+      ),
     })
   }
 
@@ -167,10 +226,52 @@ export const forSlots =
  * input type.
  */
 export const attach =
-  <BehaviorSlots, Message, Input>(behavior: NamedBehavior<BehaviorSlots, Input, Message>) =>
-  <ViewSlots>(
-    view: SlotView.SlotView<ViewSlots, Input, Message>,
-  ): SlotView.SlotView<ViewSlots, Input, Message> =>
-    SlotView.attach(behavior.mixin)(view)
+  <BehaviorSlots, Message, Input, Provides extends string = never>(
+    behavior: NamedBehavior<BehaviorSlots, Input, Message, Provides>,
+  ) =>
+  <ViewSlots, ViewProvides extends string = never>(
+    view: SlotView.SlotView<ViewSlots, Input, Message, ViewProvides>,
+  ): SlotView.SlotView<ViewSlots, Input, Message, ViewProvides | Provides> =>
+    // The one place a view's supplies grow: by what the Behavior's own type says it supplies.
+    SlotView.attach(behavior.mixin)(view) as SlotView.SlotView<
+      ViewSlots,
+      Input,
+      Message,
+      ViewProvides | Provides
+    >
 
-export const Behavior = { slot, forSlots, attach } as const
+/** What each Behavior of a list supplies, as one union. */
+type ProvidesOfAll<Behaviors> =
+  Behaviors extends NamedBehavior<any, any, any, infer Provides> ? Provides : never
+
+/**
+ * Attaches a list of Behaviors in one step, in order, and the view supplies
+ * what each of them does: for a factory that hands back several
+ * (`Overlay.behaviors`), so a pipe that then calls `A11y.conform` stays typed.
+ */
+export const attachAll =
+  <
+    BehaviorSlots,
+    Message,
+    Input,
+    // `const`, so a literal list keeps each member's own supplies.
+    const Behaviors extends ReadonlyArray<NamedBehavior<BehaviorSlots, Input, Message, never>>,
+  >(
+    // Typed again beside `Behaviors`, so `Input` and `Message` are inferred from the members
+    // and a member over another `Input` is refused where it stands.
+    behaviors: Behaviors & ReadonlyArray<NamedBehavior<BehaviorSlots, Input, Message, never>>,
+  ) =>
+  <ViewSlots, ViewProvides extends string = never>(
+    view: SlotView.SlotView<ViewSlots, Input, Message, ViewProvides>,
+  ): SlotView.SlotView<
+    ViewSlots,
+    Input,
+    Message,
+    ViewProvides | ProvidesOfAll<Behaviors[number]>
+  > =>
+    behaviors.reduce<SlotView.SlotView<ViewSlots, Input, Message, any>>(
+      (built, behavior) => SlotView.attach(behavior.mixin)(built),
+      view,
+    )
+
+export const Behavior = { slot, forSlots, attach, attachAll } as const

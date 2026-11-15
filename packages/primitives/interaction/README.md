@@ -21,27 +21,26 @@ the handler dispatches    →  update moves the fact; the view redraws from it
 | `Typeahead` | `{ query, generation }` | type-to-find, for a host whose focus is managed elsewhere |
 | `ListNavigation` | `{ current, query, generation }` | a list host that wants both, in one placement |
 | `GridNavigation` | `{ current }` | cells in rows: a calendar, a swatch picker |
-| `SpatialNavigation` | `{ current }` | freely placed items: a board, a canvas, a dashboard |
 | `TreeNavigation` | `{ current, toggled }` | a tree: a file explorer, a layers panel |
 | `FocusScope` | nothing (a Mount) | keep focus inside an overlay |
-| `FocusRecovery` | nothing (a Mount) | move focus out of a part the view removed |
-| `Leaving` | nothing (a Mount) | move focus out of a part that stays drawn but is no longer eligible |
+| `FocusRecovery` | nothing (a Mount) | keep focus when its part is removed or hidden |
+| `Presence` | nothing (draws the Model's phase) | a leaving row that takes no click, Tab or focus |
 | `Press` | `{ pressed, … }`; out `Pressed` | pointer, touch, Enter, Space, and AT clicks as one fact |
 | `LongPress` | `{ … }`; out `LongPressed` | holding for a threshold |
 | `Move` | nothing (a Mount) | pointer drag deltas |
 | `Targets` | nothing (a Mount) | which marked descendant is hovered or pressed |
 | `PointerDrag` | nothing (a Mount) | dragging one marked descendant onto another |
-| `Lasso` | nothing (a Mount) | a rectangle drawn on a surface, and the items it touches |
+| `Marquee` | nothing (a Mount) | a lasso over the marked descendants, from a press on empty space |
+| `Reorder` | `{ held, over }`; out `Moved`, `PickedUp`, `PassedOver`, `PutBack` | moving an item in a list or tree, by keys and by pointer |
 | `EditableText` | nothing (a Mount) | text typed into a `contenteditable` field |
-| `InlineEdit` | `{ editing }`; out `Committed` | a value edited in place in an `<input>` |
 | `FocusVisible` | `InputModality`'s `{ modality }` | a focus ring for keyboard users only |
 | `DismissLayer` | `{ layers }`; out `Dismiss { ids }` | close overlays on Escape or an outside press |
 | `Layers` | nothing (Mounts) | scroll lock and inert-outside for an overlay |
-| `Selection` | `{ selected, anchor, ranged }` | selected items with `aria-selected` and Shift ranges |
+| `Selection` | `{ selected, anchor }` | selected items with `aria-selected` and Shift ranges |
 | `LiveAnnounce` | the live regions' text | speak to assistive technology |
 
 The pure rule behind each (`move`, `match`, `between`, `toDismiss`,
-`targetOf`, `zoneOf`, `nearest`, `touches`) is exported beside it, for a view that wires its own.
+`targetOf`, `zoneOf`) is exported beside it, for a view that wires its own.
 
 ## Start with one: a toolbar with a roving tab stop
 
@@ -229,6 +228,26 @@ const Keys = ListNavigation.behavior(Nav, navArgs)(ListSlots)<ListModel, ListMes
 })
 ```
 
+**Routes.** `RovingTabindex`, `ListNavigation`, `GridNavigation`,
+`TreeNavigation` and `Typeahead` each export `keys`, the route their Behavior
+installs as the container's one `keydown` handler (and `SpinValue.keys` in
+`foldkit-mixins`). `keys` takes the same placed Bundle and args as `behavior`,
+then the options without the slot names, and returns a `Keys.route`, so a
+field that also wants Escape to clear lists it beside its own route in one
+`Keys.behavior` instead of failing `mixins:event-conflict`. A route declares
+the chords it takes, each with Shift up and down (the moves ignore Shift), so
+`Keys.chord('ArrowDown')` beside `ListNavigation.keys` throws
+`mixins:key-conflict` at definition, and `ListNavigation.keys` declares every
+printable key unless `typeahead` is `false`. Under `virtual` the route
+answers the Message alone; otherwise it also moves focus to the item. A
+`Keys.behavior` writes only `keydown`: the router's slot gets none of the
+primitive's other attributes. `ListNavigation.item(Nav, args)(Slots)({ item,
+items })` is its item half, each item's tab stop and the `OnFocus` reporting
+it current; for the other primitives draw `RovingTabindex.itemAttributes` on
+the items. Draw `aria-activedescendant` on the container yourself under
+`virtual`, or attach the primitive's own `behavior` when no other route
+shares its slot.
+
 **`GridNavigation`** is the two-dimensional counterpart for cells laid out in
 rows of `columns` (a calendar grid, a swatch picker, an emoji palette). Its
 Model slice and item attributes are `RovingTabindex`'s, so the two are
@@ -237,12 +256,7 @@ within the row and up and down within the column, skipping disabled cells;
 under `wrap` a horizontal key continues into the next row and a vertical key
 into the next column, otherwise the key is consumed at the edge. Home and End
 are the row's first and last enabled cell, Ctrl+Home and Ctrl+End the grid's.
-With `page` (rows per page), PageUp and PageDown move that many rows in the same
-column, stop at the first or last row and never wrap; a disabled landing cell
-continues in the direction of travel as the arrows do, and if nothing beyond it
-is enabled the nearest enabled cell back toward the current one is taken.
-Without `page` the keys are left to the browser. RTL swaps left and right,
-and `virtual` works as it does for `RovingTabindex`.
+RTL swaps left and right, and `virtual` works as it does for `RovingTabindex`.
 
 <!-- docs-check
 const Day = Schema.Struct({ id: Schema.String })
@@ -268,71 +282,11 @@ type CalendarMessage = typeof CalendarMessage.Type
 import { GridNavigation } from 'foldkit-primitives/interaction'
 
 const Cells = Bundle.declare(GridNavigation.bundle, 'cells')
-const gridArgs = { columns: 7, wrap: false, virtual: false, page: 2 } as const
+const gridArgs = { columns: 7, wrap: false, virtual: false } as const
 const DayKeys = GridNavigation.behavior(Cells, gridArgs)(CalendarSlots)<CalendarModel, CalendarMessage>({
   container: 'grid',
   item: 'day',
   items: model => describeDays(model.days),
-})
-```
-
-**`SpatialNavigation`** is for items placed freely (a board of cards, a
-canvas, a dashboard) where there are no rows or columns: each arrow moves to
-the nearest item drawn that way. The Model slice is `{ current }`, an
-`Option` of the current item's id, and each item takes `RovingTabindex`'s
-`tabindex` and `OnFocus`, so the tab stop works as it does there; only how the
-next item is chosen differs. An arrow sends `Arrowed { direction }`, and
-`update` answers with a Command that waits for the frame the Model last asked
-for to be drawn, measures the items then, and focuses the nearest one,
-scrolling it into view the least amount that shows it, so the page does not
-jump. Nothing measured is kept: an item that moved between two presses is
-found where it is now, and a second press before the first's answer reaches
-`update` moves on from where focus went. Home and End go to the first and
-last enabled item in the order the view gives. Directions are physical, left
-is left in a right-to-left page too, and arrows with Ctrl, Alt or Meta are
-left to the page.
-
-The rule is the pure `nearest(items, current, direction)`, over boxes keyed by
-id: only an item whose centre lies ahead counts; those within 45° of the
-direction come first, and among them the score is the distance ahead plus
-twice the distance aside, so an item straight ahead beats a nearer one to the
-side; a tie goes to the item listed first. Where nothing lies ahead, focus
-stays (`Stayed`). An item centred where the current one is lies ahead of it in
-no direction (Home, End or Tab reach it), and a box of no size is a point;
-an item not drawn at all (`display: none`) is skipped, as is a disabled one.
-The container is marked with the navigation's `id` and each item with its id,
-compared as text, so any id is safe; a navigation inside another keeps to its
-own items.
-
-<!-- docs-check
-const Card = Schema.Struct({ id: Schema.String, x: Schema.Number, y: Schema.Number })
-type Card = typeof Card.Type
-const describeCards = (cards: ReadonlyArray<Card>) =>
-  Behaviors.Collection.of(cards, { id: card => card.id })
-const BoardSlots = Slots.define({
-  board: Slot.make({ capability: Capability.Interactive }),
-  card: Slot.make({ capability: Capability.Focusable }),
-})
-const BoardModel = Schema.Struct({
-  ...Bundle.declare(SpatialNavigation.bundle, 'board').fields,
-  cards: Schema.Array(Card),
-})
-type BoardModel = typeof BoardModel.Type
-const BoardMessage = defineMessageUnion({
-  ...Bundle.declare(SpatialNavigation.bundle, 'board').cases,
-})
-type BoardMessage = typeof BoardMessage.Type
--->
-
-```ts
-import { SpatialNavigation } from 'foldkit-primitives/interaction'
-
-const Board = Bundle.declare(SpatialNavigation.bundle, 'board')
-const boardArgs = { id: 'board' } as const
-const CardKeys = SpatialNavigation.behavior(Board, boardArgs)(BoardSlots)<BoardModel, BoardMessage>({
-  container: 'board',
-  item: 'card',
-  items: model => describeCards(model.cards),
 })
 ```
 
@@ -352,7 +306,12 @@ each showing row's `id` (through `domId`, by default the row's own),
 `OnFocus`; the container's keys move focus by id, or open and close the
 current row in place. Focus in the tree follows its stop when a transition it
 did not see moves it or removes the focused row (the `FollowTabStop` Mount in
-`foldkit-primitives/dom`, which never takes focus from outside the container).
+`foldkit-primitives/dom`, which never takes focus from outside the container,
+and reads only the tree's own stops: each roving primitive marks its container
+`data-fk-roving`, so a row holding a `RovingTabindex` toolbar keeps the toolbar's).
+A tree that also wants a fallback when the last row goes has `FocusRecovery` on its container or
+around it, with the rows as parts: while a row is left, `FollowTabStop` takes the tree's stop, and
+`FocusRecovery`'s steps run once none is.
 The level is also the custom property `--fk-tree-level`, 1 at the top, so one
 rule indents any depth: `padding-inline-start: calc(var(--fk-tree-level) * 1rem)`.
 
@@ -392,40 +351,179 @@ const TreeKeys = TreeNavigation.behavior(Layers, { openByDefault: true })(TreeSl
 The pure `move(shown, current, key, modifiers, model, args, direction?)`
 answers with `Focus`, `Open`, or `Close`.
 
-**`FocusScope`** is a Mount, not a Bundle: which element has focus is a DOM
-fact, so nothing crosses to the Model. The Mount lives in
-`foldkit-primitives/dom`;
+**`FocusScope`** is the one entry here that is a Mount, not a Bundle: which
+element has focus is a DOM fact, so nothing crosses to the Model. The Mount
+lives in `foldkit-primitives/dom`;
 `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
 attaches it to a container slot. On insert the container focuses
 `initialFocus`, else its first tabbable descendant, else itself. With `contain`
 (default), Tab from the last tabbable wraps to the first, Shift+Tab from the
 first wraps to the last, and focus that lands outside comes straight back; Tab
-in the middle is the browser's. While the container is marked leaving, that
-containment stops, so the handoff out is not pulled back. On unmount, with
-`restore` (default), focus returns to the element that had it when focus would
-otherwise be lost and that element is still in the document. A surface that
-took focus keeps it. A native `<dialog>` does all of this itself; this is for
-a custom overlay, a menu, or a command palette.
+in the middle is the browser's. On unmount, with `restore` (default), focus
+returns to the element that had it; when that is gone (removed by the action
+the overlay was opened for, or drawn again) and focus went with the scope, it
+goes by the rules of [`FocusReturn`](../dom/README.md): an element with the
+same `id`, the opener's `FocusRecovery` steps, the layer below, the page's
+first tabbable element. Focus the user moved elsewhere stays. A native
+`<dialog>` does all of this itself; this is for a custom overlay, a menu, or a
+command palette.
 
-**`FocusRecovery`** is the other Mount here: it answers a part that goes with
-focus in it, so a list does not drop focus to the body. Mark a part with
-`part(h)`, name a fallback with `part(h, { to: 'search' })`, and attach
-`FocusRecovery.behavior(Slots)<Input, Message>({ container })` to the container
-slot that holds them. When the focused descendant of a part leaves the
-document, focus goes to the named id (read on the nearest marked part or marked
-ancestor inside the container), else the next sibling, else the previous
-sibling, else the enclosing part that can take focus, and otherwise nowhere.
-Focus the reader moved elsewhere, a part that moved rather than went, and
-teardown leave focus alone; nested containers own only their own parts. The
-Mount and `part` live in `foldkit-primitives/dom`.
+**`FocusRecovery`** keeps focus when the element that has it goes away: a
+removed row, a clear button that leaves with the text, a part made `inert`,
+`hidden` or `disabled`. The browser drops focus to `body` (probes in the design
+note, not guesses); the Mount runs in the same task as the change, before that,
+and moves focus along a fallback the application declares. Like `FocusScope` it
+is DOM, not state: nothing crosses to the Model except what the target's own
+`OnFocus` already reports. Where `FocusScope` acts when a scope appears or goes
+and `FollowTabStop` follows a roving stop, `FocusRecovery` acts only on focus
+that was lost with a part.
 
-**`Leaving`** is the Mount for a part that stays drawn but is no longer
-eligible. `Leaving.behavior(Slots)<Input, Message>({ container })` attaches it
-to the container that holds the parts; `Leaving.leaving(h)` marks one while it
-should be skipped. Focus moves by `FocusRecovery`'s fallback, then the part
-becomes `inert`. Clearing the marker restores the part's own `inert` and does
-not take focus back. How long the exit lasts stays with `Presence`: mark the
-part while its phase is `hiding`. The Mount sends nothing.
+```text
+focus on a marked part, remembered with its slot, key and neighbours
+  -> the part is removed, hidden, made inert/disabled, or moved in the tree
+  -> focus is lost (not moved: a dialog the action opened keeps it)
+  -> the part's steps in order, until one can take focus
+  -> none: the next owner out decides; with none, focus stays where it is
+```
+
+<!-- docs-check
+const RecoverySlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  input: Slot.make({ capability: Capability.TextInput }),
+  clear: Slot.make({ capability: Capability.Interactive }),
+  row: Slot.make({ capability: Capability.Focusable }),
+})
+interface RecoveryInput {
+  readonly rows: ReadonlyArray<{ readonly id: string }>
+}
+const RecoveryView = SlotView.over(RecoverySlots)<RecoveryInput, never>()
+-->
+
+```ts
+import { FocusRecovery } from 'foldkit-primitives/interaction'
+
+const Recovers = FocusRecovery.behavior(RecoveryView)({
+  owner: 'root',
+  parts: {
+    input: [],
+    clear: [{ part: 'input' }],
+    row: ['next', 'previous', { part: 'input' }],
+  },
+})
+```
+
+`owner` and every key of `parts` are slots of the contract, and so is
+`{ part }`, so a misspelling is a type error. The Behavior draws marks, which a
+server render has: `data-fk-focus-owner` on the owner, `data-fk-focus-part`
+on each part, and `data-fk-focus-key` from `item.id` on a slot drawn per item.
+Attach it beside the Behaviors already on the owner: the resolver composes
+their Mounts. It is opt-in, since a Mount that sends no Message cannot be
+resolved by a Scene test of every page that draws the component.
+
+The steps of a part, in order, until one finds an element that is connected,
+showing, and focusable (and this owner's own):
+
+| Step | Finds |
+| --- | --- |
+| `same` | the part with the held slot and key, drawn again (a keyed reorder moves a focused row, and the browser drops focus) |
+| `next`, `previous` | the nearest part of the same slot after or before the held one, in the order last seen while it was focused |
+| `parent` | the part named by `parent: (input, item) => Option<id>` (a tree drawn flat), else the closest part around it |
+| `stop` | this owner's part with `tabindex="0"` |
+| `{ part }` | the first part of that slot |
+| `owner` | the owner element, when it is focusable |
+
+Focus moves with `preventScroll`, then `scrollIntoView({ block: 'nearest' })`,
+which moves nothing when the target is showing. It never moves when focus is
+somewhere else (the user, or an action that opened a dialog, got there first),
+and a claim ends once decided, so a part drawn later takes nothing. Owners
+nest: the innermost one decides; one with no step left sends a bubbling
+`foldkit-plus:focus-unrecovered`, and the next owner out with a part of its
+own around the inner one acts for that part (an owner between with none lets
+it pass); with none left focus stays on `body`, and it
+never goes outside the owners it was in. A whole owner removed decides
+nothing; its outer owner does.
+
+A row that is not drawn yet is not found: `next` sees what is drawn. For a
+windowed list, let `update`, which knows the row it wants, scroll and focus by
+Command after the scroll settles (`ListNavigation`'s `helpers.focus`, then
+`Dom.focus`); a Mount that held "focus row 41 when it appears" would take
+focus from a user who has moved on. Ids are read as attributes and compared as
+strings, never put in a selector, so `a:b` and `x"y` work.
+
+## `Presence`: a leaving row is out of reach
+
+`Presence` (from `foldkit-primitives/motion`) owns *when* a row leaves: its
+Model holds `shown`, `hiding` or `hidden`, and `Hide` yields a timed `Hidden`
+fact. The Behavior here owns what the row is *while* it leaves: it reads the
+phase the Model already holds and draws `data-presence="shown|hiding"` and, for
+every phase but `shown`, `inert`. It sends no Message and mounts nothing, so a
+Scene test resolves it.
+
+```text
+Hide -> the frame draws inert  -> FocusRecovery moves focus  -> Hidden -> the row is removed
+        (no click, Tab, focus)     (one move, in that frame)      (finds focus elsewhere: moves nothing)
+```
+
+Five facts, kept apart: the application's Model says whether the user wants
+the row; `isVisible(presence)` says to keep drawing it; `phase === 'shown'` says
+it may be pressed and read; removal is the view ceasing to draw it. The row's
+data and its presence are two facts with two owners, joined in one `update`:
+the parent sends `Hide` to the row's placement on dismiss and removes the row
+from its own data on that placement's `Hidden`.
+
+<!-- docs-check
+const LeaveSlots = Slots.define({
+  list: Slot.make({ capability: Capability.Container }),
+  row: Slot.make({ capability: Capability.Focusable }),
+})
+interface LeaveInput {
+  readonly rows: ReadonlyMap<string, { readonly phase: 'shown' | 'hiding' | 'hidden' }>
+}
+const LeaveView = SlotView.over(LeaveSlots)<LeaveInput, never>()
+-->
+
+```ts
+import type { SlotItem } from 'foldkit-mixins'
+import { FocusRecovery, Presence } from 'foldkit-primitives/interaction'
+
+// Every row drawn has a placement, so a row without one is a bug to report, not a phase to guess.
+const phaseOf = (input: LeaveInput, item: SlotItem | undefined): Presence.Phase => {
+  const placed = item?.id === undefined ? undefined : input.rows.get(item.id)
+  if (placed === undefined) throw new Error(`row ${item?.id} is drawn with no Presence placed`)
+  return placed.phase
+}
+
+const Leaves = Presence.behavior(LeaveView)({ content: 'row', phase: phaseOf })
+const RecoversLeaving = FocusRecovery.behavior(LeaveView)({
+  owner: 'list',
+  parts: { row: ['next', 'previous', 'owner'] },
+})
+```
+
+Place one `Presence` per row with `Presence.bundle.each(link, { args: { durationMs } })`
+(the bundle is `foldkit-primitives/motion`'s `Presence`, re-exported as `bundle`).
+`content` is a slot of the contract, so a misspelling is a type error; `phase`
+is given the slot's item, or `undefined` for a slot drawn once, such as a popup.
+Read the rows by id from a `Map` (an object indexed by an id reads `constructor`
+from its prototype), and refuse a row with no placement rather than guess a
+phase: `'hidden'` would draw a live row `inert`.
+A recipe styles the exit on `[data-presence="hiding"]`, its duration the theme's
+motion token times `travel`, the same number `durationMs` is given. Under
+`Motion.reduced` the `Hidden` fact arrives at once, through the same two
+Messages.
+
+`inert`, not `aria-hidden` (which leaves focus inside the row) and not `hidden`
+(which would end the animation). Focus leaves a part in the frame it turns
+`inert`, before the browser would drop it to `body`, so attach `FocusRecovery`
+beside it; at removal focus is already elsewhere and nothing moves a second
+time. A `Show` before `Hidden` wins (the late fact carries an older generation
+and is refused): `inert` goes with the next frame and nothing refocuses the row,
+since `FocusRecovery` acts only on lost focus. A surface that took focus during
+the exit, such as a dialog the press opened, keeps it. The completion owner is
+the timeout Command; a `transitionend` listener would be a second one. A popup
+that restores focus to its trigger keeps `FocusScope`'s `restore` as the one
+owner of the return, and `FocusRecovery` there uses `{ part: 'trigger' }` with
+`restore` off.
 
 ## Pressing and dragging
 
@@ -523,14 +621,16 @@ is over and in which third of its box, `{ id, zone: 'before' | 'inside' |
 cancelled pointer, or a button found released mid-drag is
 `DragCancelled { id }`. An Escape that cancels is heard on the way down and
 goes no further, so the focused element's own Escape (a canvas's deselect)
-does not also run. It follows the pointer that pressed and ignores a second
+does not also run; one pressed before the press became a drag ends the press
+and goes on to the page (a dialog closing on it), as it does for `Marquee`
+before the lasso starts. It follows the pointer that pressed and ignores a second
 one; the element under it is found by position, so a touch or a pen, which the
 browser captures to where it went down, drags too, once the marked elements
 have `touch-action: none` so a finger drags rather than scrolls. The click a
 drop ends with is swallowed, so a `Targets` on the same container does not
 also press. A press in `contenteditable` text selects text and starts no drag.
 It writes no roles, `tabindex`, or keys, so it sits beside a tree's or a
-listbox's own; the keyboard's way to do what a drag does is yours to give.
+listbox's own; for the keyboard's way to move an item, see `Reorder` below.
 Boxes are measured as the pointer moves and never kept; an element drawn as
 `display: contents` is measured by its first child (`boxOf`). The Mount is
 `PointerDrag({ attribute })` in `foldkit-primitives/dom`;
@@ -555,99 +655,429 @@ reported as `{ id, zone: 'inside', part }`, whatever third of it the pointer
 is in. An editor draws a node's empty Region that way, so a drop can name the
 Region it goes into.
 
-**`Lasso`** is a rectangle drawn on a surface to pick the items it touches,
-marked the way `Targets` marks them. It begins on a primary press on the
-surface itself, not on an item, a control or the surface's scrollbar, once the
-pointer moves `DRAG_THRESHOLD`; a finger's begins once held still
-`HOLD_TO_DRAG_MS`, and one that moves first is a scroll, as with
-`PointerDrag`. Then it reports `LassoStarted { x, y }`, and at every move
-`LassoMoved { rect, ids, shiftKey }`: the rectangle in the surface's own
-coordinates (from its padding box's corner, scrolled with its content, which
-is where an absolutely placed child of a positioned surface is drawn) and the
-items it overlaps, measured then; sharing only an edge is not touching. A
-scroll of the surface under a still pointer reports again, with the press kept
-where it was on the content. Releasing is `LassoEnded { ids, shiftKey }`,
-Shift read at the release; Escape (kept from the page, as `PointerDrag`'s is),
-a cancelled pointer or a release nothing reported is `LassoCancelled`. The
-click a release makes does not reach the surface, so a click that clears the
-selection does not undo the lasso. Only the press listener lives as long as
-the surface; the rest come and go with one press.
+**Edge scrolling.** A list longer than its box cannot be dragged past the
+visible rows unless something scrolls it. `edgeScroll: {}` (or `{ edge, speed }`)
+on `PointerDrag`, and on `Marquee`, scrolls the nearest ancestor that can scroll
+the way the pointer pulls, on a frame clock, while the press is held in its
+last `edge` pixels (default 40, at most a third of the box) at up to `speed`
+pixels a second (default 600), less the nearer the strip's inner side. A box
+at its end hands over to the next ancestor and then the page. Only a box the
+pointer is over (within its span across) is pulled, nothing above a
+`position: fixed` box is, and the page is not while it or its body has
+`overflow: hidden` or `clip` (a scroll lock's, under a modal). After every step
+the place under the still pointer is reported again (`DraggedOver`), so the
+list moving is a place changing. Each step is `scrollTo` with `behavior:
+'instant'`, so a page's own `scroll-behavior: smooth` does not glide it; under
+`prefers-reduced-motion: reduce` the scroll moves in jumps every 150ms by what
+the same time would have moved it, not in a glide. The frame loop runs only
+while something scrolls, and ends with the drag, a cancel, or the Mount. The
+scrolling code is loaded when a Mount that asks for it starts, so a page whose
+drags never scroll does not carry it.
+`PointerDrag` scrolls nothing unless asked; `Reorder` asks for it itself
+(`edgeScroll: false` turns it off).
 
-Nothing is selected inside: the parent keeps the rectangle to draw it and
-gives the ids to `Selection`, adding to what is selected when Shift was held,
-and says the count through `LiveAnnounce`. A lasso is no way in for a
-keyboard: `Selection`'s Shift ranges and plain activation are that way, beside
-it. The Mount is `Lasso({ attribute })` in `foldkit-primitives/dom`, and
-`Lasso.behavior(Slots)<Input, Message>({ surface, attribute, toMessage })`
-attaches it:
+## `Marquee`: a lasso over marked items
 
-<!-- docs-check
-import { Match, Option } from 'effect'
-import type * as Update from 'foldkit/update'
-import * as Interaction from 'foldkit-primitives/interaction'
-const SurfaceSlots = Slots.define({ surface: Slot.make({ capability: Capability.Container }) })
-const Picked = Bundle.declare(Interaction.Selection.bundle, 'picked')
-const Said = Bundle.declare(Interaction.LiveAnnounce.bundle, 'said')
-const SurfaceModel = Schema.Struct({
-  ...Picked.fields,
-  ...Said.fields,
-  lasso: Schema.Option(Interaction.Lasso.LassoRect),
+`PointerDrag` starts only from a marked element, so a press on a canvas's empty
+space is nobody's. `Marquee` is that press: it is a Mount beside `PointerDrag`
+on the same container (`Behavior.attach` both; a press on a marked descendant
+is the drag's, a press on anything else is the lasso's). It owns no state and
+draws nothing. A primary press on empty space that moves `DRAG_THRESHOLD`
+starts `MarqueeStarted { additive }` (`additive` when Shift, Ctrl or Meta was
+held), then `MarqueeChanged { rect, ids, additive }` as the pointer moves or
+`edgeScroll` scrolls the container under it, then `MarqueeEnded` with the same fields, or
+`MarqueeCancelled` on Escape or a cancelled pointer. `rect` is `{ x, y, width,
+height }` in the container's content coordinates (its padding box's top left,
+scrolled with it, and clipped to what the container holds), so a view draws the
+band in a Slot of its own at `left: x; top: y`, and `ids` are the marked
+descendants the rectangle overlaps, in document order. A press is not empty
+space when it is on a marked descendant, a link, button, field, label,
+`summary` or editable text, or on the container's own scrollbar, and a finger
+never starts one (it scrolls). The click a lasso ends with is swallowed, as a
+drop's is. The container must be a box (not `display: contents`). Each change
+measures every marked descendant (a `querySelectorAll` and a box each), so a
+container of thousands draws only the rows that show, or marks fewer.
+
+It selects nothing. The ids are for `update` to hand to `Selection`, whose
+`replace(ids)` helper sets the selection, so there is one way to select;
+`Marquee.selected(before, fact)` is the pure combination, the ids alone, or
+after `before` when the press was additive:
+
+```ts standalone
+import { Match, Option, Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { Bundle } from 'foldkit-bundle'
+import { Behavior, Behaviors, Capability, Slot, SlotView, Slots } from 'foldkit-mixins'
+import { Marquee, PointerDrag, Selection } from 'foldkit-primitives/interaction'
+
+const Picks = Bundle.declare(Selection.bundle, 'picks')
+const Model = Schema.Struct({
+  ...Picks.fields,
+  ids: Schema.Array(Schema.String),
+  // What was selected when the press began, for an additive lasso and for Escape.
+  before: Schema.Array(Schema.String),
+  band: Schema.OptionFromNullOr(Marquee.MarqueeRect),
 })
-type SurfaceModel = typeof SurfaceModel.Type
-const SurfaceMessage = defineMessageUnion({
-  ...Picked.cases,
-  ...Said.cases,
-  Lassoed: {
-    fact: Schema.Union([
-      Interaction.Lasso.LassoStarted,
-      Interaction.Lasso.LassoMoved,
-      Interaction.Lasso.LassoEnded,
-      Interaction.Lasso.LassoCancelled,
-    ]),
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ...Picks.cases,
+  LassoStarted: {},
+  LassoChanged: {
+    rect: Marquee.MarqueeRect,
+    ids: Schema.Array(Schema.String),
+    additive: Schema.Boolean,
   },
+  LassoEnded: {},
+  LassoCancelled: {},
 })
-type SurfaceMessage = typeof SurfaceMessage.Type
-const SurfacePage = Bundle.parent({ Model: SurfaceModel, Message: SurfaceMessage })
-const surfacePlacements = SurfacePage.assemble(
-  SurfacePage.at(Picked, { args: { mode: 'multiple', allowEmpty: true } }),
-  SurfacePage.at(Said, { args: { debounceMs: 100, clearAfterMs: 5000 } }),
-)
-const [picked, said] = surfacePlacements.placements
-type SurfaceReturn = Update.Return<SurfaceModel, SurfaceMessage>
--->
+type Message = typeof Message.Type
 
-```ts
-import { Lasso } from 'foldkit-primitives/interaction'
+const pickArgs = { mode: 'multiple', allowEmpty: true } as const
+const Parent = Bundle.parent({ Model, Message })
+const Picked = Parent.at(Picks, { args: pickArgs })
+const assembly = Parent.assemble(Picked)
 
-const Drawing = Lasso.behavior(SurfaceSlots)<SurfaceModel, SurfaceMessage>({
-  surface: 'surface',
-  attribute: 'data-item',
-  toMessage: fact => SurfaceMessage.Lassoed({ fact }),
-})
-
-const lassoed = (model: SurfaceModel, fact: Lasso.LassoFact): SurfaceReturn =>
-  Match.valueTags(fact, {
-    LassoStarted: ({ x, y }): SurfaceReturn => ({
-      model: { ...model, lasso: Option.some({ left: x, top: y, width: 0, height: 0 }) },
+const update = assembly.update((model, message) =>
+  Match.valueTags(message, {
+    LassoStarted: () => ({
+      model: modifyFields(model, { before: () => model.picks.selected }),
     }),
-    LassoMoved: ({ rect }): SurfaceReturn => ({ model: { ...model, lasso: Option.some(rect) } }),
-    LassoCancelled: (): SurfaceReturn => ({ model: { ...model, lasso: Option.none() } }),
-    LassoEnded: ({ ids, shiftKey }): SurfaceReturn => {
-      const chosen = picked.helpers.replace(shiftKey ? [...model.picked.selected, ...ids] : ids)({
-        ...model,
-        lasso: Option.none(),
-      })
-      const told = said.helpers.announce(`${chosen.model.picked.selected.length} selected`)(
-        chosen.model,
-      )
-      return { model: told.model, commands: [...(chosen.commands ?? []), ...(told.commands ?? [])] }
-    },
-  })
+    LassoChanged: ({ rect, ids, additive }) =>
+      Picked.helpers.replace(Marquee.selected(model.before, { ids, additive }))(
+        modifyFields(model, { band: () => Option.some(rect) }),
+      ),
+    LassoEnded: () => ({ model: modifyFields(model, { band: () => Option.none() }) }),
+    LassoCancelled: () =>
+      Picked.helpers.replace(model.before)(
+        modifyFields(model, { band: () => Option.none() }),
+      ),
+  }),
+)
+
+const CanvasSlots = Slots.define({
+  canvas: Slot.make({ capability: Capability.Container }),
+  node: Slot.make({ capability: Capability.Interactive }),
+  band: Slot.make({ capability: Capability.Base }),
+})
+const Canvas = SlotView.over(CanvasSlots)<Model, Message>()
+const items = (model: Model) => Behaviors.Collection.of(model.ids, { id: id => id })
+
+const view = Canvas.define((model, slots, h: HtmlBuilder<Message>) =>
+  h.div(
+    slots.canvas.attrs([h.Style({ position: 'relative', height: '240px' })]),
+    [
+      ...model.ids.map((id, index) =>
+        h.div(slots.node.attrs([h.Key(id), h.DataAttribute('node', id)], { index, id }), [id]),
+      ),
+      ...Option.match(model.band, {
+        onNone: () => [],
+        onSome: rect => [
+          h.div(
+            slots.band.attrs([
+              h.Style({
+                position: 'absolute',
+                left: `${rect.x}px`,
+                top: `${rect.y}px`,
+                width: `${rect.width}px`,
+                height: `${rect.height}px`,
+                'pointer-events': 'none',
+              }),
+            ]),
+            [],
+          ),
+        ],
+      }),
+    ],
+  ),
+).pipe(
+  Behavior.attach(
+    Marquee.behavior(Canvas)({
+      container: 'canvas',
+      attribute: 'data-node',
+      edgeScroll: {},
+      toMessage: fact =>
+        Match.valueTags(fact, {
+          MarqueeStarted: () => Message.LassoStarted(),
+          MarqueeChanged: ({ rect, ids, additive }) =>
+            Message.LassoChanged({ rect, ids, additive }),
+          MarqueeEnded: () => Message.LassoEnded(),
+          MarqueeCancelled: () => Message.LassoCancelled(),
+        }),
+    }),
+  ),
+  Behavior.attach(
+    Selection.behavior(Picks, pickArgs)(Canvas)({ container: 'canvas', item: 'node', items }),
+  ),
+)
+void update
+void view
 ```
 
-The view draws the rectangle from `model.lasso` as an absolutely placed child
-of the surface, with `pointer-events: none`; `touches(a, b)` is the pure
-overlap test.
+Nodes are dragged by `PointerDrag` on the same container and keep their own
+click through `Selection`. The keyboard's way to select more than one is not a
+lasso: it is Shift-extending from the roving item (`Selection`'s `Ranged`,
+fed by `Press`'s `Pressed { shiftKey }`) or `replace(ids)` from a "select all"
+chord the parent routes. A lasso is a pointer gesture only, as a drag is
+without `Reorder`.
+
+## `Reorder`: moving an item by keys and by pointer
+
+`Reorder` is the keyboard path a drag lacks, and the pointer's drag mapped
+onto the same draft. One Bundle holds what is held and where it would land;
+the parent owns the list and decides whether the move happens.
+
+```text
+Space/Enter on an item  →  Grabbed   (held, over its own place)   out PickedUp
+arrows, Home, End       →  Stepped   (over the next place)         out PassedOver
+Space/Enter             →  Dropped                                 out Moved { id, to } | PutBack
+Escape, focus leaving   →  Cancelled                               out PutBack
+pointer press and move  →  the same Messages, from PointerDrag's facts
+```
+
+Nothing moves while an item is held: the view draws a drop line from the
+marks the Behavior writes (`data-reorder="held"` on the held item,
+`data-reorder-over="before|inside|after"` on the place), so focus stays on the
+held item. On the drop the parent applies `Moved` to its own data, or refuses
+it, and the facts are what it reads out through `LiveAnnounce`:
+
+```ts standalone
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { Bundle } from 'foldkit-bundle'
+import { Behavior, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
+import { FocusRecovery, LiveAnnounce, Reorder } from 'foldkit-primitives/interaction'
+
+const Rows = Bundle.declare(Reorder.bundle, 'rows')
+const Live = Bundle.declare(LiveAnnounce.bundle, 'live')
+const Model = Schema.Struct({ ...Rows.fields, ...Live.fields, ids: Schema.Array(Schema.String) })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Rows.cases, ...Live.cases })
+type Message = typeof Message.Type
+
+const Parent = Bundle.parent({ Model, Message })
+const Announcer = Parent.at(Live, { args: { debounceMs: 150, clearAfterMs: 5000 } })
+const assembly = Parent.assemble(
+  Announcer,
+  Parent.at(Rows, {
+    onOut: (fact: Reorder.OutMessage) => (model: Model) => {
+      const moved = Reorder.OutMessage.match(fact, {
+        Moved: move => modifyFields(model, { ids: ids => Reorder.apply(ids, move) }),
+        PickedUp: () => model,
+        PassedOver: () => model,
+        PutBack: () => model,
+      })
+      return Announcer.helpers.announce(Reorder.announcement(fact, { label: id => id }))(moved)
+    },
+  }),
+)
+
+const ListSlots = Slots.define({
+  list: Slot.make({ capability: Capability.Container }),
+  row: Slot.make({ capability: Capability.Base }),
+  grip: Slot.make({ capability: Capability.Focusable, events: [Event.KeyDown, Event.Blur] }),
+})
+const List = SlotView.over(ListSlots)<Model, Message>()
+
+const SortableList = List.define((model, slots, h) =>
+  h.ul(
+    slots.list.attrs([]),
+    model.ids.map((id, index) =>
+      h.li(slots.row.attrs([h.Key(id)], { index, id }), [
+        h.button(slots.grip.attrs([h.Type('button')], { index, id }), [id]),
+      ]),
+    ),
+  ),
+).pipe(
+  Behavior.attach(
+    Reorder.behavior(Rows)(List)({
+      container: 'list',
+      item: 'row',
+      handle: 'grip',
+      items: model => model.ids,
+    }),
+  ),
+  // A keyed move takes the element out and back, and the browser drops its focus.
+  Behavior.attach(FocusRecovery.behavior(List)({ owner: 'list', parts: { grip: ['same'] } })),
+)
+
+const view = (model: Model, h: HtmlBuilder<Message>) =>
+  h.main([], [SortableList(model, h), LiveAnnounce.view(model.live, h)])
+void assembly
+void view
+```
+
+`Reorder.behavior` puts the pointer path (`PointerDrag`) on the container, the
+marks on each item, and the key route on the handle, which may be the row
+itself. Nothing here fetches or writes your list: `Moved` is a fact, and
+`Reorder.apply(ids, moved)` is the pure move for a flat list (it returns the
+list it was given when nothing changes). The pointer's middle third over a row
+that takes nothing is that row's own slot, before or after it as the keys walk
+it, so a flat list never shows, announces or drops `inside`.
+
+**Beside a roving tab stop.** A list with `ListNavigation` already owns its
+container's `keydown`, and both take the arrows. Give the placement
+`handle: Reorder.routed` and `current`, the item the keyboard is on: it hands
+back `{ behavior, keys }`, where `keys` is the route built from the same
+options (`items`, `parent`, `accepts`, `orientation`, `grab`), to list first in
+the container's router. Before a grab the route answers only its grab chords,
+so the arrows navigate; while an item is held it takes them, and focus stays on
+the held row. Focus leaving the row, or the list (whose rows never take focus
+under `aria-activedescendant`), puts the grab back.
+
+**Space and Enter are the list's too.** A grab is Space or Enter by default,
+and a listbox that selects with Space, activates with Enter or types a space
+into its typeahead wants them as well: the route, listed first, would take
+every one. Give such a list a grab chord of its own. Here Space selects and
+Alt+Enter picks the row up (while it is held, Space, Enter and Alt+Enter drop
+it):
+
+```ts standalone
+import { Match, Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { Bundle } from 'foldkit-bundle'
+import { Behavior, Behaviors, Capability, Event, Slot, SlotView, Slots } from 'foldkit-mixins'
+import { ListNavigation, Reorder, Selection } from 'foldkit-primitives/interaction'
+
+const { Keys } = Behaviors
+const Rows = Bundle.declare(Reorder.bundle, 'rows')
+const Nav = Bundle.declare(ListNavigation.bundle, 'nav')
+const Picks = Bundle.declare(Selection.bundle, 'picks')
+const Model = Schema.Struct({
+  ...Rows.fields,
+  ...Nav.fields,
+  ...Picks.fields,
+  ids: Schema.Array(Schema.String),
+})
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ...Rows.cases,
+  ...Nav.cases,
+  ...Picks.cases,
+  Selected: { id: Schema.String },
+})
+type Message = typeof Message.Type
+
+const navArgs = { orientation: 'vertical', loop: false, virtual: false, timeoutMs: 500, page: 5 } as const
+const pickArgs = { mode: 'single', allowEmpty: false } as const
+const Parent = Bundle.parent({ Model, Message })
+const Picked = Parent.at(Picks, { args: pickArgs })
+const assembly = Parent.assemble(
+  Parent.at(Nav, { args: navArgs }),
+  Picked,
+  Parent.at(Rows, {
+    onOut: (fact: Reorder.OutMessage) => (model: Model) => ({
+      model: Reorder.OutMessage.match(fact, {
+        Moved: move => modifyFields(model, { ids: ids => Reorder.apply(ids, move) }),
+        PickedUp: () => model,
+        PassedOver: () => model,
+        PutBack: () => model,
+      }),
+    }),
+  }),
+)
+
+const ListboxSlots = Slots.define({
+  list: Slot.make({ capability: Capability.Container, events: [Event.KeyDown] }),
+  option: Slot.make({ capability: Capability.Focusable, events: [Event.Focus, Event.Blur] }),
+})
+const Listbox = SlotView.over(ListboxSlots)<Model, Message>()
+const items = (model: Model) => Behaviors.Collection.of(model.ids, { id: id => id })
+
+const Sorting = Reorder.behavior(Rows)(Listbox)({
+  container: 'list',
+  item: 'option',
+  handle: Reorder.routed,
+  items: model => model.ids,
+  current: model => Option.fromNullishOr(model.nav.current),
+  grab: [Keys.chord('Enter', { alt: true })],
+})
+// Space selects the row the keyboard is on, unless typeahead is mid-word: the parent's own
+// Message, which `update` applies through Selection's helper.
+const select = Keys.route<Model, Message>('Select', {
+  on: [Keys.chord(' ')],
+  handle: ({ input }) =>
+    input.nav.query === ''
+      ? Option.map(Option.fromNullishOr(input.nav.current), id => Message.Selected({ id }))
+      : Option.none(),
+})
+const update = assembly.update((model, message) =>
+  Match.valueTags(message, { Selected: ({ id }) => Picked.helpers.activate(id)(model) }),
+)
+const navigation = ListNavigation.keys(Nav, navArgs)<Model, Message>({
+  items,
+  text: (model, index) => model.ids[index] ?? '',
+})
+
+const SortableListbox = Listbox.define((model, slots, h) =>
+  h.ul(
+    slots.list.attrs([h.Role('listbox'), h.AriaLabel('Priorities')]),
+    model.ids.map((id, index) =>
+      h.li(slots.option.attrs([h.Key(id), h.Id(id), h.Role('option')], { index, id }), [id]),
+    ),
+  ),
+).pipe(
+  Behavior.attach(
+    Keys.behavior(Listbox)({
+      slot: 'list',
+      routes: [Keys.first(Sorting.keys, Keys.first(select, navigation))],
+    }),
+  ),
+  Behavior.attach(Sorting.behavior),
+  Behavior.attach(
+    Selection.behavior(Picks, pickArgs)(Listbox)({ container: 'list', item: 'option', items }),
+  ),
+  // The roving tab stop: ListNavigation's item half, since its key half is in the router above.
+  Behavior.attach(ListNavigation.item(Nav, navArgs)(Listbox)({ item: 'option', items })),
+)
+void update
+void SortableListbox
+```
+
+**A tree.** Give `items` the rows that show, flat, with `parent` and
+`accepts`. The places then walk the tree: before each row, `inside` a row that
+accepts items and shows none of its own (as its last child), and `after` each
+level that ends. The held row's own rows are never offered, and the Behavior
+takes its mark off them while it is held, so the pointer finds no place there.
+A drag that reached one in the frame before that drawing can still drop on it,
+and only the parent knows the tree, so the guard is the parent's: its `update`
+refuses such a `Moved` with `Reorder.movesIntoItself`, and `announcement`
+reads the same test as `words.refused`:
+
+```ts
+const parents = new Map([
+  ['intro', 'docs'],
+  ['guide', 'docs'],
+])
+const parent = (id: string) => Option.fromNullishOr(parents.get(id))
+// The one test: `onOut` leaves the list alone on a `Moved` it holds for, and the words say so.
+const refuses = (move: Reorder.Move) => Reorder.movesIntoItself({ ...move, parent })
+
+const intoItself = Reorder.OutMessage.Moved({
+  id: 'docs',
+  by: 'pointer',
+  to: { id: 'intro', zone: 'after' },
+})
+Reorder.announcement(intoItself, { label: id => id, refuses }) // 'docs cannot go there; put back where it was.'
+```
+
+`Reorder.places` is the walk itself, for a view that shows "position 2 of 5".
+
+**Words, direction, keys faster than a frame.** `announcement` reads each
+fact with `words` (English templates with `{item}` and `{target}`; pass your
+own). `orientation: 'horizontal'` walks with Left and Right, and
+`direction: () => 'rtl'` swaps them. Each arrow carries the places as drawn
+and steps from the Model's `over`, and the route remembers its own grab on a
+drawing, so keys pressed faster than a frame each count.
+
+Limits: one draft per placement (a second grab while an item is held is
+refused, and the pointer never steers a key grab, nor the keys a pointer one);
+a pointer drag onto `targets` elsewhere is `PointerDrag`'s, not this one's; an
+empty list offers no place, since a place names an item.
 
 ## Editing in place
 
@@ -683,79 +1113,6 @@ The Mount is `EditableText({ attribute })` in `foldkit-primitives/dom`;
 attaches it. What a change means (a prop set, an undo group) is the parent's
 `update`.
 
-**`InlineEdit`** is the ordinary "click a title, it becomes a text field":
-Enter, F2 or a double click where a value shows edits it in an `<input>`, its
-text selected; Enter saves and Escape puts the value back. The Model slice is
-`{ editing }`, an `Option` of the item being edited, the value it began from,
-its draft and a refusal's reason. Nothing is read back from the field: every
-key it takes arrives as a Message, so Enter commits what `update` has, whatever
-the last frame drew. Keys typed before the field is drawn are kept: a
-printable key where the value shows starts the edit over with that key, as a
-spreadsheet does, and the keys after it, still reaching the value's element,
-go on the draft (Backspace deletes, a second Enter commits).
-
-A changed value is the OutMessage `Committed { id, value, initial }`, and an
-unchanged one commits nothing. The placement's `onOut` saves it, or hands it to
-the `refuse(committed, error)` helper, which keeps the editor open on the same
-draft with the reason; the field is then `aria-invalid` and described by the
-error slot, and the reason clears once the draft changes. Leaving the field
-commits (`blur: 'commit'`) or drops the draft (`blur: 'cancel'`), and leaves
-focus where the user put it, a refused commit included, so a refusal traps no
-one. After Enter or Escape focus returns to the value's element, but only when
-focus was left on nothing. Enter and Escape are `Behaviors.Keyboard` routes on
-the field, so the Escape that cancels the edit is default-prevented and closes
-no dialog around it; `routes` adds keys beside them (Tab to the next cell). A
-key an input method is composing reaches none of them. `start(id, text)` edits
-an item from elsewhere, as a Rename menu item would.
-
-<!-- docs-check
-import { Event } from 'foldkit-mixins'
-const Row = Schema.Struct({ id: Schema.String, title: Schema.String })
-const RowSlots = Slots.define({
-  title: Slot.make({ capability: Capability.Focusable }),
-  field: Slot.make({ capability: Capability.TextInput, events: [Event.KeyDown] }),
-  error: Slot.make({ capability: Capability.Base }),
-})
--->
-
-```ts
-import { InlineEdit } from 'foldkit-primitives/interaction'
-
-const Title = Bundle.declare(InlineEdit.bundle, 'title')
-const RowsModel = Schema.Struct({ ...Title.fields, rows: Schema.Array(Row) })
-type RowsModel = typeof RowsModel.Type
-const RowsMessage = defineMessageUnion({ ...Title.cases })
-type RowsMessage = typeof RowsMessage.Type
-const RowsPage = Bundle.parent({ Model: RowsModel, Message: RowsMessage })
-
-const titleArgs = { id: 'titles', blur: 'commit' } as const
-const titled = RowsPage.at(Title, {
-  args: titleArgs,
-  onOut:
-    (out: InlineEdit.Committed) =>
-    (model: RowsModel): Update.Return<RowsModel, RowsMessage> =>
-      out.value.trim() === ''
-        ? titled.helpers.refuse(out, 'A title is needed')(model)
-        : {
-            model: {
-              ...model,
-              rows: model.rows.map(row => (row.id === out.id ? { ...row, title: out.value } : row)),
-            },
-          },
-})
-const Editor = InlineEdit.behavior(Title, titleArgs)(RowSlots)<RowsModel, RowsMessage>({
-  display: 'title',
-  input: 'field',
-  error: 'error',
-  value: (model, id) => model.rows.find(row => row.id === id)?.title ?? '',
-})
-```
-
-The view draws the field in place of the display of `model.title.editing`'s
-item, the display with its item (`{ index, id }`), and the error slot with
-`InlineEdit.errorOf(model.title)`. The field has no visible label, so give it
-an `aria-label` of its own, such as "Rename Plan".
-
 ## Focus rings, overlays, selection, announcements
 
 **`FocusVisible`** is the one entry whose Bundle lives elsewhere:
@@ -768,8 +1125,10 @@ in the Model, or show the same answer somewhere other than the focused
 element.
 
 **`DismissLayer`** closes overlays that are not native `<dialog>` or `popover`
-elements: Escape closes the topmost open layer, and a pointer press closes the
-layers it is outside of. One Bundle, **placed once**, owns the document
+elements: Escape closes the topmost open layer, unless a handler below it already
+took the key (`defaultPrevented`: a search field clearing itself on Escape
+keeps its layer open, and the next Escape, with nothing to clear, dismisses),
+and a pointer press closes the layers it is outside of. One Bundle, **placed once**, owns the document
 listeners; each layer's Behavior marks its container with
 `data-foldkit-plus-layer="<id>"` and its trigger with the matching trigger
 attribute. The stack is the DOM order of the marked elements at the moment of
@@ -822,9 +1181,7 @@ for DevTools and agents. `toDismiss(layers, inside)` is the pure rule.
 `HideOutside` Mounts from `foldkit-primitives/dom`: the first locks the
 document's scroll while the container is mounted, refcounted so nested
 overlays release together; the second marks everything outside the container
-inert while it is mounted, and releases that set while the container itself is
-marked leaving so focus can move out. Shown again, the outside is hidden once
-more. A native `<dialog>` shown modally needs neither.
+inert while it is mounted, except a layer opened over it. A native `<dialog>` shown modally needs neither.
 
 **`Overlay`** is one policy value instead of nine overlay implementations:
 `Overlay.modal` (dismissed by Escape and outside press, focused, locked,
@@ -832,7 +1189,8 @@ inert) and `Overlay.nonModal` (dismissed, focus restored, page usable), or
 an explicit `Policy`. `Overlay.behaviors(Slots)<Model, Message,
 StackField>({ stack, layer, trigger?, id, policy })` turns the value into
 the existing pieces — `DismissLayer` marking, `FocusScope`, and the scroll
-and inert mounts the policy keeps — to spread into the view's pipe. Nothing
+and inert mounts the policy keeps — attached as one step of the view's pipe
+with `Behavior.attachAll`. Nothing
 is reimplemented: the mounts are the shared implementation. Positioning
 stays per-widget (`Anchor.behavior` binds a floating element to an external
 id, a different shape), and presence stays CSS. The stack bundle is placed
@@ -861,7 +1219,7 @@ const DrawerOverlay = Overlay.behaviors(DrawerSlots)<typeof DrawerModel.Type, Dr
 })
 const Drawer = SlotView.forMessages<DrawerMessage>()
   .define(DrawerSlots, (model: typeof DrawerModel.Type, slots, h) => h.div([], [/* … */]))
-  .pipe(...DrawerOverlay.map(Behavior.attach))
+  .pipe(Behavior.attachAll(DrawerOverlay))
 ```
 
 **`Placing`** keeps a floating panel inside the viewport, and can put it
@@ -902,32 +1260,10 @@ Behavior.attach(Placing.keepWithin(WidgetSlots)({ panel: 'popup' })),
 **`Selection`** is which items are selected, with `mode` `'single'` (a click
 replaces; `allowEmpty` says whether clicking the selected item deselects it),
 `'multiple'` (a click toggles), or `'none'`, and the `anchor` a range extends
-from. The Model slice is `{ selected, anchor, ranged }`. A range needs the
-items' order, which the view knows and the Bundle does not, so `Ranged { id,
-order }` carries it; `Selection.between(order, from, to)` is the pure span.
-`ranged` is the ids the last range added: the next `Ranged` from the same
-anchor takes those back before adding its own span, so a shorter second
-Shift-click shrinks the range as a file manager does, while an id picked before
-the range began stays. Activating, `Replaced` and `Cleared` forget the range,
-and a range only acts in `'multiple'` mode. A parent may replace or clear the
-selection explicitly, including with `allowEmpty: false`. In single mode
-`replace(ids)` and `Replaced` refuse more than one distinct id by returning the
-Model they were given; duplicates of one id are accepted. Select all needs no
-Message of its own: it is `Replaced` with every id.
-
-<!-- docs-check standalone
-declare const model: Selection.Model
--->
-
-```ts
-import { Selection } from 'foldkit-primitives/interaction'
-
-const args = { mode: 'multiple', allowEmpty: true } as const
-const order = ['a', 'b', 'c', 'd']
-const everything = Selection.bundle.update(model, Selection.Message.Replaced({ ids: order }), args)
-```
-
-The Behavior, `Selection.behavior(Declared, args)(Slots)<Model, Message>({ container?, item, items, click? })`,
+from. The Model slice is `{ selected, anchor }`. A range needs the items'
+order, which the view knows and the Bundle does not, so `Ranged { id, order }`
+carries it; `Selection.between(order, from, to)` is the pure span. The
+Behavior, `Selection.behavior(Declared, args)(Slots)<Model, Message>({ container?, item, items, click? })`,
 writes `aria-selected` on each item and `aria-multiselectable` on the
 container, and wires a plain click on each enabled item to `Activated`; pass
 `click: false` when `Press` or the view owns the click. For a Shift range,
@@ -941,15 +1277,10 @@ A parent says something through the placement's `announce(text, politeness?)`
 helper, folded in `update` or an `onOut`; an announcement waits `debounceMs` so a burst reads once, then
 clears after `clearAfterMs`, both on Effect's clock with a generation so a
 superseded timer changes nothing; the same text twice gets a trailing no-break
-space toggled, which is what makes a screen reader read it again. Blank text
-is ignored, and a polite announcement still waiting when an assertive one
-arrives (or the reverse) is read at once, not dropped; a second one of the same
-politeness replaces it, as a burst does.
-`LiveAnnounce.view(slice, h)` renders the two regions (`role="status"` and
-`role="alert"`): draw it in the page's first view and hide the regions
-visually with a rule on `[data-foldkit-plus-live]`, never `display: none`.
-Assistive technology ignores a region that arrives together with its text, so
-a view that adds the regions on the first message loses that message.
+space toggled, which is what makes a screen reader read it again.
+`LiveAnnounce.view(slice, h)` renders the two regions: put it once in the page
+and hide them visually with a rule on `[data-foldkit-plus-live]`, never
+`display: none`.
 
 ## In the examples
 

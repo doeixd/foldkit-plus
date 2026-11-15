@@ -647,6 +647,31 @@ export type {
   Judgement,
 } from './invariant.js'
 export type { ContextValue, EntitySet, SetOn } from './sets.js'
+export type {
+  AnyRefinement,
+  Refinement,
+  RefinementBuild,
+  RefinementLiteral,
+  RefinementOf,
+} from './refine.js'
+export { Footprint, type DeclaredFootprint } from './footprint.js'
+export {
+  Laws,
+  Finding,
+  LawEdge,
+  LawNode,
+  LawVerdict,
+  lawFactsOf,
+  type Arrow,
+  type FootprintEntry,
+  type LawEntry,
+  type LawFacts,
+  type LawPair,
+  type LawReport,
+  type WriteEntry,
+} from './laws.js'
+export type { Step } from './enumerate.js'
+export { lawId, transitionId } from './lawIds.js'
 export {
   Write,
   type AnyWrite,

@@ -69,3 +69,20 @@ const TodoListView = SurfaceView.define(TodoList, TodoSlots, (model, slots, h) =
 const renderer = Surface.view(TodoList, SurfaceView.toRenderer(TodoListView))
 
 void renderer
+
+// `SurfaceView.over`.
+const Todos = SurfaceView.over(TodoList, TodoSlots)
+
+const Archives = Todos.behavior({
+  archive: {
+    attributes: ({ input, h }) =>
+      Option.match(input.selectedId, {
+        onNone: () => [],
+        onSome: id => [h.OnClick(Message.ArchivedTodo({ id }))],
+      }),
+  },
+})
+const BoundTodoListView = Todos.define((model, slots, h) =>
+  h.section(slots.root.attrs(), [h.button(slots.archive.attrs(), ['Archive selected'])]),
+).pipe(Behavior.attach(Archives))
+void BoundTodoListView

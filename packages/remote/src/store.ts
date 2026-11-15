@@ -52,6 +52,28 @@ export interface EntityEntry {
    * A later request with a *known, different* window is planned as missing.
    */
   readonly windows: Readonly<Record<string, string>>
+  /**
+   * The row's revision, as the server last sent it: a write of a lower one
+   * is dropped (`writeEntities`). Absent while no answer carried one.
+   */
+  readonly revision?: number | undefined
+  /**
+   * The fields a write at `revision` carried: a partial write moves the
+   * revision while the row's other fields were read at an older one, so only
+   * these hold their values at it. Not persisted: a restored row names none.
+   */
+  readonly revisionFields?: ReadonlySet<string> | undefined
+  /**
+   * The read-after token of the newest write to the row whose read no answer
+   * has confirmed (`MutationResult.after`): a read of the row is planned while
+   * it is set, carries it, and writes nothing until an answer read at it.
+   */
+  readonly floor?: string | undefined
+  /**
+   * How often a read at `floor` was answered `behind`, and when the read
+   * entry asks again (`behindAgain`). Not persisted: a reload asks at once.
+   */
+  readonly behind?: { readonly tries: number; readonly at: number } | undefined
 }
 
 export type EntityStore = Readonly<Record<EntityKey, EntityEntry>>
@@ -83,12 +105,33 @@ const replace = (store: EntityStore, key: EntityKey, entry: EntityEntry): Entity
   [key]: entry,
 })
 
+/**
+ * The fields known at the revision a write leaves the row at. A write at the
+ * held revision adds to them; one at a newer revision starts them again; one
+ * with none (an overlay) leaves its fields no longer known at the revision
+ * the row keeps.
+ */
+const fieldsAtRevision = (
+  previous: EntityEntry,
+  values: Readonly<Record<string, unknown>>,
+  revision: number | undefined,
+): ReadonlySet<string> => {
+  const fields = new Set(
+    revision === undefined || revision === previous.revision ? previous.revisionFields : [],
+  )
+  for (const field of Object.keys(values))
+    if (revision === undefined) fields.delete(field)
+    else fields.add(field)
+  return fields
+}
+
 const written = (
   previous: EntityEntry,
   values: Readonly<Record<string, unknown>>,
   now: number,
   windows?: Readonly<Record<string, string>>,
   kept?: number,
+  revision?: number,
 ): EntityEntry => {
   const present = new Set(previous.present)
   const stale = new Set(previous.stale)
@@ -118,6 +161,8 @@ const written = (
     for (const field of Object.keys(values)) put(dated, field, now)
     fieldAt = dated
   }
+  const revisionFields = fieldsAtRevision(previous, values, revision)
+  const nextRevision = revision ?? previous.revision
   return {
     // Equal data keeps the object it was, so what is derived from it by
     // identity (a read's decoded row) survives a refetch that changed nothing.
@@ -136,6 +181,8 @@ const written = (
     oldestAt: kept ?? (whole ? now : Math.min(previous.oldestAt, now)),
     fieldAt,
     windows: nextWindows,
+    ...(previous.floor === undefined ? {} : { floor: previous.floor }),
+    ...(nextRevision === undefined ? {} : { revision: nextRevision, revisionFields }),
   }
 }
 
@@ -157,7 +204,26 @@ export interface EntityWrite {
   readonly updatedAt?: number | undefined
   /** The row's freshness to keep, instead of what the write would make it (an overlay's). */
   readonly oldestAt?: number | undefined
+  /** The row's revision, as the server sent it with these values. */
+  readonly revision?: number | undefined
 }
+
+/**
+ * Whether a write of `revision` is older than the row the store holds: the
+ * server sent a newer revision of it already. A tombstone keeps the revision
+ * the row was gone at, and a row of that revision is from a read begun before
+ * it went, unless the tombstone is being asked about again (`askAgain`): a row
+ * a read left out because the reader lost sight of it comes back unchanged
+ * when the reader may see it again, and only asking again can bring that
+ * answer. A write or a row with no revision is never older.
+ */
+export const olderThanHeld = (
+  held: EntityEntry | undefined,
+  revision: number | undefined,
+): boolean =>
+  revision !== undefined &&
+  held?.revision !== undefined &&
+  (held.tombstone && held.stale.size === 0 ? revision <= held.revision : revision < held.revision)
 
 /**
  * Merges known values into many entities, copying the store once. Every
@@ -170,17 +236,21 @@ export const writeEntities = (
   now = 0,
 ): EntityStore => {
   if (writes.length === 0) return store
-  const next: Record<EntityKey, EntityEntry> = { ...store }
+  let next: Record<EntityKey, EntityEntry> | undefined
   for (const write of writes) {
+    const held = (next ?? store)[write.key]
+    if (olderThanHeld(held, write.revision)) continue
+    next ??= { ...store }
     next[write.key] = written(
-      next[write.key] ?? emptyEntry,
+      held ?? emptyEntry,
       write.values,
       write.updatedAt ?? now,
       write.windows,
       write.oldestAt,
+      write.revision,
     )
   }
-  return next
+  return next ?? store
 }
 
 /** `writeEntities` for one entity. */
@@ -271,19 +341,21 @@ export const isFieldUnavailable = (store: EntityStore, key: EntityKey, field: st
  * Records that the entity is known to be absent, so it is not refetched. On a
  * tombstone being asked about again, the answer: still absent, so the asking ends.
  */
-export const tombstone = (store: EntityStore, key: EntityKey): EntityStore =>
-  isTombstone(store, key) && store[key]!.stale.size === 0
-    ? store
-    : replace(store, key, {
-        values: {},
-        present: new Set(),
-        stale: new Set(),
-        unavailable: new Set(),
-        tombstone: true,
-        updatedAt: 0,
-        oldestAt: 0,
-        windows: {},
-      })
+export const tombstone = (store: EntityStore, key: EntityKey): EntityStore => {
+  if (isTombstone(store, key) && store[key]!.stale.size === 0) return store
+  const revision = store[key]?.revision
+  return replace(store, key, {
+    values: {},
+    present: new Set(),
+    stale: new Set(),
+    unavailable: new Set(),
+    tombstone: true,
+    updatedAt: 0,
+    oldestAt: 0,
+    windows: {},
+    ...(revision === undefined ? {} : { revision }),
+  })
+}
 
 /**
  * Asks about tombstoned entities again: each stays absent, so a list keeps
@@ -303,6 +375,72 @@ export const askAgain = (
     if (asked.size === previous.stale.size) continue
     next ??= { ...store }
     next[key] = { ...previous, stale: asked }
+  }
+  return next ?? store
+}
+
+/**
+ * Holds each row to a read-after token: it keeps what the store holds of it
+ * until a read at the token answers. A row the store does not hold gets an
+ * entry holding only the token.
+ */
+export const setFloors = (
+  store: EntityStore,
+  floors: ReadonlyArray<{ readonly key: EntityKey; readonly token: string }>,
+): EntityStore => {
+  let next: Record<EntityKey, EntityEntry> | undefined
+  for (const { key, token } of floors) {
+    const held = (next ?? store)[key] ?? emptyEntry
+    if (held.floor === token) continue
+    next ??= { ...store }
+    // A newer write is asked about at once, however long the last one waited.
+    const { behind: _waited, ...rest } = held
+    next[key] = { ...rest, floor: token }
+  }
+  return next ?? store
+}
+
+/** Ends each row's read-after token: a read answered at it. */
+export const clearFloors = (store: EntityStore, keys: Iterable<EntityKey>): EntityStore => {
+  let next: Record<EntityKey, EntityEntry> | undefined
+  for (const key of keys) {
+    const held = (next ?? store)[key]
+    if (held?.floor === undefined) continue
+    next ??= { ...store }
+    const { floor: _cleared, ...rest } = held
+    next[key] = rest
+  }
+  return next ?? store
+}
+
+/**
+ * Whether a row of `revision` is newer than the floored row held, whose
+ * revision a write's answer set: the server has it past that write, whatever
+ * token it was read at.
+ */
+export const pastFloor = (held: EntityEntry | undefined, revision: number | undefined): boolean =>
+  revision !== undefined && held?.revision !== undefined && revision > held.revision
+
+/** The wait before asking a row again after its `tries`-th answer `behind`: 1s, doubling, at most 30s. */
+export const behindDelay = (tries: number): number => Math.min(30_000, 1000 * 2 ** (tries - 1))
+
+/**
+ * Records, of each floored row, that a read at its floor was answered
+ * `behind` at `now`: the read entry asks again once the wait for that try is
+ * over, since nothing in the answer changes what it plans.
+ */
+export const behindAgain = (
+  store: EntityStore,
+  keys: Iterable<EntityKey>,
+  now: number,
+): EntityStore => {
+  let next: Record<EntityKey, EntityEntry> | undefined
+  for (const key of keys) {
+    const held = (next ?? store)[key]
+    if (held?.floor === undefined) continue
+    const tries = (held.behind?.tries ?? 0) + 1
+    next ??= { ...store }
+    next[key] = { ...held, behind: { tries, at: now + behindDelay(tries) } }
   }
   return next ?? store
 }

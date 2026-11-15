@@ -19,14 +19,16 @@ import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Url } from 'foldkit/url'
 import { SUBJECT_CHANGED, believing } from 'foldkit-auth'
-import { Bundle, Resource } from 'foldkit-bundle'
+import { Bundle, Link, Resource } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { ME } from 'foldkit-guard'
+import { pointedLinks } from 'foldkit-primitives/dom'
 import { BroadcastMessage, broadcastMessages, postBroadcast } from 'foldkit-primitives/net'
 import { Remote, RemoteData, type RemoteClient, type RemoteError } from 'foldkit-remote'
-import { Access, Site } from 'foldkit-site'
+import { Access, Site, fetchCode } from 'foldkit-site'
 import { SSR } from 'foldkit-ssr/client'
 import { ModelRef, Projection, Surface } from 'foldkit-surface'
+import { Account, AccountMessage, AccountModel, initialAccount } from './account.js'
 import type { AuthApi } from './authApi.js'
 import { Me, Note, Notes, served } from './domain.js'
 
@@ -67,6 +69,8 @@ export const AppRoute = defineRouteUnion({
   Home: { returnTo: Schema.OptionFromNullOr(Schema.String) },
   /** The notes this reader may read. */
   Notes: {},
+  /** The reader's account: a page whose code is a chunk of its own. */
+  Account: {},
   NotFound: { path: Schema.String },
 })
 export type AppRoute = typeof AppRoute.Type
@@ -80,6 +84,7 @@ export const Model = Schema.Struct({
   notice: Schema.Option(Schema.String),
   route: AppRoute,
   remote: Remote.Model,
+  account: AccountModel,
 })
 export type Model = typeof Model.Type
 
@@ -96,8 +101,11 @@ export const Message = defineMessageUnion({
   /** This tab's post, or another tab's, on `PRINCIPAL_CHANNEL`. */
   GotBroadcastMessage: { message: BroadcastMessage },
   GotRemoteMessage: { message: Remote.Message },
+  GotAccountMessage: { message: AccountMessage },
   ClickedLink: { request: UrlRequest },
   ChangedUrl: { url: Url },
+  /** The reader means to follow a link here: `Site.routing` reads its page and fetches its code. */
+  PointedAtLink: { url: Url },
   CompletedNavigation: {},
   /** Another tab changed who this browser is, and this tab's `belief` has let go. */
   ForgotBelief: {},
@@ -114,6 +122,7 @@ export const initial: Model = {
   notice: Option.none(),
   route: AppRoute.Home({ returnTo: Option.none() }),
   remote: Remote.initial,
+  account: initialAccount,
 }
 
 const App = Surface.application({ Model, Message })
@@ -157,6 +166,15 @@ export const NoteList = App.surface('NoteList', {
   model: () => ({ notes: Data.query(Notes, {}, { select: NoteRow }) }),
 })
 
+/**
+ * The account page's own state. Its press is drawn by the server inside the
+ * placement, so it is the parent's wrapped Message that is replayed.
+ */
+export const AccountPanel = App.surface('AccountPanel', {
+  model: ({ model }) => ({ account: model.account }),
+  messages: [Message.GotAccountMessage],
+})
+
 /** What a page's `access` reads of its reader. */
 interface Reader {
   readonly signedIn: boolean
@@ -181,12 +199,27 @@ const NotesNode = Site.node(pipe(literal('notes'), mapTo(AppRoute.Notes)), AppRo
     otherwise: requested => Site.target(HomeNode, { returnTo: Option.some(requested) }),
   }).node
 
-export const AppSite = Site.make(HomeNode, NotesNode)
+const AccountNode = Site.node(pipe(literal('account'), mapTo(AppRoute.Account)), AppRoute.Account)
+  .title(() => 'Your account')
+  .surface({ surface: AccountPanel, params: () => undefined })
+  .access<Reader>({
+    allow: reader => reader.signedIn,
+    otherwise: requested => Site.target(HomeNode, { returnTo: Option.some(requested) }),
+  }).node
+
+export const AppSite = Site.make(HomeNode, NotesNode, AccountNode)
 export const routeOf = Site.parse(AppSite, AppRoute.NotFound)
 
 /** A link to the home page, as a visitor who was sent nowhere reaches it. */
 export const homeHref = Site.href(HomeNode, { returnTo: Option.none() })
 export const notesHref = Site.href(NotesNode, {})
+export const accountHref = Site.href(AccountNode, {})
+
+/** The account page, placed on its node: its arrival is the Message that loads its bodies. */
+export const AccountPage = Site.placement(AccountNode, Account, {
+  link: Link.field<Model>()('account', Link.wrapper(Message.GotAccountMessage)),
+  changed: () => AccountMessage.Arrived(),
+})
 
 /**
  * Every read the page may make: `Me` on every page, the notes on theirs.
@@ -238,7 +271,7 @@ export const plan = SSR.plan(
     id: 'auth',
     state: Projection.pick(App.model.route),
     // The form starts empty on both sides; what is typed before boot is replayed on top.
-    local: [App.model.email, App.model.password, App.model.passwordShown],
+    local: [App.model.email, App.model.password, App.model.passwordShown, App.model.account],
     surfaces: Object.values(actives),
     parts: [Remote.resume(Data)],
   },
@@ -354,10 +387,11 @@ const returning = (route: AppRoute) =>
     Home: ({ returnTo }) =>
       Option.toArray(Option.map(Option.flatMap(returnTo, ownPath), url => ReplaceUrl({ url }))),
     Notes: () => [],
+    Account: () => [],
     NotFound: () => [],
   })
 
-const Routing = Site.routing<Model, Message, AppRoute>({
+const Routing = Site.routing<Model, Message, AppRoute, Services>({
   site: AppSite,
   owner: App.owner,
   route: {
@@ -368,9 +402,23 @@ const Routing = Site.routing<Model, Message, AppRoute>({
   parse: routeOf,
   tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
   completed: Message.CompletedNavigation,
+  pages: [AccountPage],
+  // A link the reader points at is read ahead, and its page's chunk fetched.
+  preload: {
+    links: pointedLinks(),
+    intended: Message.PointedAtLink,
+    read: there => foldData.preload(there, actives),
+    code: fetchCode,
+  },
 })
 
-const assembly = Bundle.assemble<Model, Message, Services>()([Routing])
+/**
+ * The code a page draws, for the server's render and the browser's boot
+ * (`lazy`): the account page's bodies on `/account`, nothing elsewhere.
+ */
+export const codeOf = (model: Model) => Routing.codeFor(model.route)
+
+const assembly = Bundle.assemble<Model, Message, Services>()([AccountPage.placed, Routing])
 
 const routed = assembly.update((model, message) =>
   Message.match<Update.Return<Model, Message, Services>>(message, {
@@ -403,8 +451,11 @@ const routed = assembly.update((model, message) =>
       }),
     GotRemoteMessage: ({ message }) =>
       changedElsewhere(message) ? { model: Data.forget(model) } : foldData(model, message),
+    // The account page's: the assembly folds them into its placement.
+    GotAccountMessage: () => ({ model }),
     // Site.routing's: it claims the click and has set the route by now.
     ClickedLink: () => ({ model }),
+    PointedAtLink: () => ({ model }),
     ChangedUrl: () => ({ model }),
     CompletedNavigation: () => ({ model }),
     // What this tab typed stays; what Remote read was the old principal's.
@@ -443,10 +494,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
 /** The page at an address, before anything is read. */
 export const unreadAt = (url: Url): Model => modifyFields(initial, { route: () => routeOf(url) })
 
-/** Where a page starts without a server render; the server's reads `unreadAt` first. */
-export const init = (url: Url): Update.Return<Model, Message, Services> => ({
-  model: unreadAt(url),
-})
+/**
+ * Where a page starts without a server render, its route told to its page so
+ * `/account` loads its bodies; the server's reads `unreadAt` first.
+ */
+export const init = (url: Url): Update.Return<Model, Message, Services> =>
+  Routing.boot(unreadAt(url))
 
 const isSubjectChanged = (error: RemoteError): boolean =>
   Option.exists(RemoteData.denied(error), refusal =>
@@ -468,21 +521,24 @@ const changedElsewhere = Match.type<typeof Remote.Message.Type>().pipe(
 
 const foldData = Remote.fold(Data, message => Message.GotRemoteMessage({ message }))
 
-export const subscriptions = Subscription.make<Model, Message, Services>()(entry => ({
-  ...foldData.subscriptions(actives),
-  // Yielded's client starts loading once the reader types an email, so the
-  // sign-in waits for no chunk. A sign-out loads it on the press.
-  authClient: entry(
-    { signingIn: Schema.Boolean },
-    {
-      modelToDependencies: model => ({ signingIn: model.email !== '' }),
-      dependenciesToStream: ({ signingIn }) =>
-        signingIn ? Stream.drain(Stream.fromEffect(Resource.prefetch(AppClient))) : Stream.empty,
-    },
-  ),
-  principal: Subscription.persistentEntry(
-    Stream.map(broadcastMessages(PRINCIPAL_CHANNEL), message =>
-      Message.GotBroadcastMessage({ message }),
+/** The page's own Subscriptions, with the routing's (the links pointed at) and the account page's. */
+export const subscriptions = assembly.subscriptions(
+  Subscription.make<Model, Message, Services>()(entry => ({
+    ...foldData.subscriptions(actives),
+    // Yielded's client starts loading once the reader types an email, so the
+    // sign-in waits for no chunk. A sign-out loads it on the press.
+    authClient: entry(
+      { signingIn: Schema.Boolean },
+      {
+        modelToDependencies: model => ({ signingIn: model.email !== '' }),
+        dependenciesToStream: ({ signingIn }) =>
+          signingIn ? Stream.drain(Stream.fromEffect(Resource.prefetch(AppClient))) : Stream.empty,
+      },
     ),
-  ),
-}))
+    principal: Subscription.persistentEntry(
+      Stream.map(broadcastMessages(PRINCIPAL_CHANNEL), message =>
+        Message.GotBroadcastMessage({ message }),
+      ),
+    ),
+  })),
+)

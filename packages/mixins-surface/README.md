@@ -125,6 +125,28 @@ A Behavior's `Input` parameter still has to be exactly the projected type — a
 `SlotView` is invariant in it, so a narrower "just the fields I happen to read"
 type is rejected by `Behavior.attach`.
 
+`SurfaceView.over(surface, slots)` reads both types from the Surface once, so a
+Behavior needs neither written out. It is `SlotView.over` from `foldkit-mixins`
+with the projection as the input and the exposed subset as the Messages, and its
+`define` names the view after the Surface:
+
+```ts
+const Todos = SurfaceView.over(TodoList, TodoSlots)
+
+const Archives = Todos.behavior({
+  archive: {
+    attributes: ({ input, h }) =>
+      Option.match(input.selectedId, {
+        onNone: () => [],
+        onSome: id => [h.OnClick(Message.ArchivedTodo({ id }))],
+      }),
+  },
+})
+const BoundTodoListView = Todos.define((model, slots, h) =>
+  h.section(slots.root.attrs(), [h.button(slots.archive.attrs(), ['Archive selected'])]),
+).pipe(Behavior.attach(Archives))
+```
+
 `toRenderer` is the single boundary adaptation. `Surface.view` hands a renderer
 a `ViewBuilder` with its `MessageUniverse` phantom removed; the SlotView is sound
 there because `SurfaceView.define` already restricted what it can construct to
@@ -174,12 +196,13 @@ const html = SurfaceView.render(TodoListView, TodoList, undefined, {
 
 ## Introspection
 
-`SurfaceView.inspect(view)` returns serializable `{ name, slots, mixins }` with
-no functions. `SurfaceView.describe(surface, params, view)` merges that with
-`Surface.inspect` — what the Surface observes, its projection `metadata`, and
-what it may emit, with emitted Messages as tags — into one value.
-`SurfaceView.toMarkdown` renders it deterministically for docs or a CI drift
-check.
+`SurfaceView.describe(surface, params, view)` is `SlotView.describe(view)` (the slots, and each
+attachment in order with what it requires and contributes per slot, plus `findings`) merged with
+`Surface.inspect`: what the Surface observes, its projection `metadata`, and what it may emit, with
+emitted Messages as tags. `mixins` stays as the attachments' names. `SurfaceView.toMarkdown`
+renders it deterministically for docs or a CI drift check. `SurfaceView.inspect(view)` is
+deprecated for one release in favour of `SlotView.describe`; it still returns `{ name, slots,
+mixins }`.
 
 Each of `define`, `toRenderer`, `render`, `inspect`, `describe`, and `toMarkdown` is also a
 direct named export if you prefer that to the `SurfaceView` namespace.

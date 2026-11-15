@@ -9,7 +9,7 @@
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Surface, type MetadataSummary, type Renderer } from 'foldkit-surface'
-import { Slots, SlotView, type SlotViewRender } from 'foldkit-mixins'
+import { Slots, SlotView, type SlotViewRender, type ViewDescription } from 'foldkit-mixins'
 
 export const define = <Root, Model, Message, Params, Slots_>(
   surface: Surface<Root, Model, Message, Params>,
@@ -19,6 +19,23 @@ export const define = <Root, Model, Message, Params, Slots_>(
 ): SlotView.SlotView<Slots_, Model, Message> =>
   SlotView.define<Slots_, Model, Message>(slots, render, {
     name: options?.name ?? surface.name,
+  })
+
+/**
+ * `SlotView.over` with the input the Surface's projected Model and the Message
+ * universe the subset it exposes, both read from `surface`, so nothing is
+ * annotated. Its `define` names the view after the Surface unless told otherwise.
+ */
+export const over = <Root, Model, Message, Params, Slots_>(
+  surface: Surface<Root, Model, Message, Params>,
+  slots: Slots_,
+): SlotView.Bound<Slots_, Model, Message> =>
+  Object.freeze({
+    ...SlotView.over(slots)<Model, Message>(),
+    define: (
+      render: SlotViewRender<Slots_, Model, Message>,
+      options?: { readonly name?: string },
+    ) => define(surface, slots, render, options),
   })
 
 /**
@@ -56,8 +73,11 @@ export interface SurfaceViewInspection {
 
 /**
  * Serializable metadata for DevTools and docs: the published slots and the
- * names of the attached Mixins, with no functions. It composes with
- * `Surface.inspect`, which reports what the Surface observes and emits.
+ * names of the attached Mixins, with no functions.
+ *
+ * @deprecated Use `SlotView.describe`, or `SurfaceView.describe` with a
+ * Surface: they add each attachment's requirements and contributions. This
+ * stays for one release.
  */
 export const inspect = <Slots_, Model, Message>(
   view: SlotView.SlotView<Slots_, Model, Message>,
@@ -82,7 +102,13 @@ export interface SurfaceViewDescription {
   readonly metadata: ReadonlyArray<MetadataSummary>
   /** Emitted Message tags, not constructors, so the value stays serializable. */
   readonly emits: ReadonlyArray<string>
-  readonly slots: ReturnType<typeof Slots.describe>['slots']
+  readonly slots: ViewDescription['slots']
+  /** The patterns the view was conformed to. */
+  readonly conforms: ViewDescription['conforms']
+  /** Each attachment in order, with what it requires and contributes per slot. */
+  readonly attachments: ViewDescription['attachments']
+  readonly findings: ViewDescription['findings']
+  /** The attachments' names; `attachments` has them and more. */
   readonly mixins: ReadonlyArray<string>
 }
 
@@ -97,14 +123,17 @@ export const describe = <Root, Model, Message, Params, Slots_>(
   view: SlotView.SlotView<Slots_, Model, Message>,
 ): SurfaceViewDescription => {
   const inspection = Surface.inspect(surface, params)
-  const ui = inspect(view)
+  const ui = SlotView.describe(view)
   return {
     name: ui.name === '' ? inspection.name : ui.name,
     observes: inspection.dependencies,
     metadata: inspection.metadata,
     emits: inspection.emits.map(constructorTag),
     slots: ui.slots,
-    mixins: ui.mixins,
+    conforms: ui.conforms,
+    attachments: ui.attachments,
+    findings: ui.findings,
+    mixins: ui.attachments.map(attachment => attachment.name),
   }
 }
 
@@ -114,12 +143,6 @@ export const toMarkdown = (description: SurfaceViewDescription): string => {
   for (const path of description.observes) lines.push(`- \`${path.join('.')}\``)
   lines.push('', '## May emit', '')
   for (const tag of description.emits) lines.push(`- \`${tag}\``)
-  lines.push('', '## Slots', '')
-  for (const [name, slot] of Object.entries(description.slots)) {
-    const events = slot.events.length === 0 ? '' : ` (events: ${slot.events.join(', ')})`
-    lines.push(`- \`${name}\` — ${slot.capability}${events}`)
-  }
-  lines.push('', '## Mixins', '')
-  for (const name of description.mixins) lines.push(`- \`${name}\``)
+  lines.push('', SlotView.toMarkdown(description))
   return lines.join('\n')
 }

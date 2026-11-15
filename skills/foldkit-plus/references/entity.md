@@ -358,7 +358,9 @@ const Restock = Write.update(
   `Expr.or(Expr.isNull(after.x), …)` to allow it. Text compares only under a declared collation.
 - **Judged everywhere it can be.** `Entity.judge(entity, { after, before? })` is the pure reference
   (`Valid`, `Invalid` with the failures, or `Undecided` when a row lacks a field one reads);
-  `Entity.check(entity)` the state invariants as a Schema check; a form judges them on submit; the Drizzle
+  `Entity.check(entity)` the state invariants as a Schema check; `Entity.judgeInput(input, value, { over })`
+  an edit over the row it edits (`Entity.rowFrom(entity, value)`), transitions included, and
+  `Entity.judgedBy(input)` names what to load beside the input to decide them; a form judges them; the Drizzle
   writer judges them in the statement that writes, and refuses a breaking write as `Refusal.invalid`.
 - **Not a rule.** No guard alternative excuses an invariant, and a valid row grants no one anything.
 - **A handle, not a string.** `Entity.invariant` returns the pipe step, carrying its `id` and, once attached,
@@ -371,6 +373,71 @@ const Restock = Write.update(
 
 How the declaration, its guard, its writer and the client fit together:
 [declared writes guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/declared-writes.md).
+
+## States, and checking every write
+
+A state is a named predicate over the row, a value declared once on the Entity
+(never a second descriptor, which every reader of an Entity would have to tell
+apart). A write starts from one and leaves another; `Laws.check` enumerates
+what every write does to every invariant and state.
+
+```ts
+import { Footprint, Laws } from 'foldkit-entity'
+
+const Draft = Entity.refine(Product, 'Draft', { status: 'draft' }) // literal form: one eq per field
+const Published = Entity.refine(Product, 'Published', { status: 'published' })
+const InStock = Entity.refine(Product, 'InStock', ({ row }) => Expr.gt(row.stock, row.reserved))
+
+const Publishing = Write.update(
+  Entity.input(Product, Schema.Struct({ id: Schema.String, status: Schema.Literal('published') })),
+  { id: 'id', from: Draft, becomes: Published },
+)
+
+const report = Laws.check({
+  writes: [
+    { name: 'Publish', write: Publishing }, // a Mutation.write result fits
+    { name: 'Import', entity: Product, footprint: Footprint.unknown },
+  ],
+})
+Laws.show(report)
+```
+
+- **`from: Draft`** joins the state's predicate to the write's `when`: refused as `Unmet` from any
+  other state, a `ConditionedWrite`.
+- **`becomes: Published`** is proved where the write is declared, by enumerating every row it can
+  start from over finite fields (literals, unions of them, booleans). A row it leaves outside throws
+  there, naming it; a claim enumeration cannot decide (a number moved, `becomes: InStock` on a sale)
+  is the write's postcondition `ensures` (id `becomes:InStock`), judged by the writer where it
+  commits beside the invariants and refused as `Invalid`; `Write.ensured(write)` names it for
+  `Refusal.isInvalidBy`, and a writer without `postconditions` is refused at `RemoteServer.write`.
+- **`Query.from(Draft)`** is the Entity's query with the predicate in `where`; `Expr.show` prints it
+  `Product.Draft`. `Entity.inState(Draft, storedRow)` is an `Option` (none when the row lacks a field
+  it reads); `Draft.is(row)` narrows the literal form's fields. A Selection is never narrowed by state.
+- **Another row.** A state may use `Expr.path`/`Expr.exists`: queried as any predicate, but not
+  `local`, so no `from` or `becomes` and no `inState`. `build` gets `row` only: no past.
+- **Verdicts.** A state invariant the write writes nothing of is `Kept` by disjointness; a transition
+  invariant never is. All-finite members changed only by `set` are enumerated (`Kept` or `Refused` with
+  rows; the `when` drops rows it definitely refuses). Anything else (a number, an increment, a computed
+  field, a link, a missing operator, over 4,096 rows) is `Undecided` with a reason. Findings (`holds`,
+  `enforced` for a `becomes` held where it commits, `undeclared`, `refused`, `unreached`, `terminal`)
+  are reports, not faults.
+- **Footprints.** An entry that is no declared write is `{ name, entity, footprint }`:
+  `Footprint.declared({ writes: [Product.fields.name], by })` keeps a state invariant by disjointness
+  only (another Entity's field is a type error); `Footprint.unknown` writes every member and is
+  `Undecided` against every invariant. `Write.footprint(write)` is a declared write's.
+- **Evidence.** A pair kept by disjointness, enumeration, a create or a delete carries an `Enumerated`
+  record in `pair.evidence` (`Evidence` from `foldkit-metadata`, issued by `foldkit-entity/laws`); one
+  kept on its author's word, refused or undecided has none, and needs a walk, a scenario or
+  `Evidence.runtimeOnly({ transition, law, why })`. Ids: `Laws.transition(entry)` is `write:Sell`,
+  `Laws.law(invariant)` `Product.reservedWithinStock` (`transitionId` and `lawId` are the same functions
+  by name, without the check). `Laws.facts(report)` is the law half of Surface's graph in its own shape
+  (`GraphFacts`; `LawNode`: Path, Transition, Law, State; `LawEdge`: Reads and Writes with
+  `space: 'entity'`, From, To, Keeps, drawn only where every pair of that transition and law has a
+  record); a write's own `ensures` (`pair.postcondition`) is left out, an `Unknown` footprint
+  writes each member a law reads, and a transition invariant (`pair.readsBefore`) reads its whole row. `lawFactsOf(entries)` is that shape read off the entries with no
+  check run, which `Graph.of` derives a contract's `laws.entities` with. Pass `pair.evidence` records to `Graph.validate`'s `evidence`. Entries are told apart by name: `Laws.check` throws for two of one.
+- Keep the report as a checked-in file (`examples/writes/LAWS.md`, `toMatchFileSnapshot`) so a new write
+  changes it.
 
 ## Typed ids
 
@@ -458,7 +525,7 @@ arguments. `foldkit-cms`'s `Cms.published(entity)` is one, over the `published` 
 Without `definedAs` an operator is **primitive**: each interpreter implements it.
 In memory, `Operators.memory(Operators.implement(op, (a, b, { collation }) => …))`
 is a table passed to `evaluate(body, input, rows, { operators })`, `Entity.judge`,
-`judgeInput` and `Entity.check(entity, { operators })` (which throws where it is made
+`judgeInput` (`{ operators }`) and `Entity.check(entity, { operators })` (which throws where it is made
 for an operator the table lacks); `Operators.kernel` is the
 default and holds `Text.startsWith(text, prefix, { collation? })`. A strict operator
 (the default) never sees a null; `nulls: 'handled'` with

@@ -5,8 +5,10 @@
  */
 import { Effect, Fiber, Stream } from 'effect'
 import { liveViewStateChanges } from 'foldkit/mount'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { FollowTabStop } from '../src/dom/follow-tab-stop.js'
+import { boot } from './treeToolbar.fixture.js'
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -60,4 +62,24 @@ it('moves focus to the stop as it moves or its row goes, and only while focus is
   } finally {
     await Effect.runPromise(Fiber.interrupt(fiber))
   }
+})
+
+describe('in a tree whose row holds a toolbar, each a real roving primitive', () => {
+  let handle: ReturnType<typeof boot> | undefined
+  afterEach(() => {
+    handle?.dispose()
+    handle = undefined
+  })
+
+  it('takes the stop of the tree when the focused row goes, not the one the toolbar holds (B2c)', async () => {
+    handle = boot(['a', 'b', 'c'], { recovery: false })
+    await expect.poll(() => document.getElementById('c')).not.toBeNull()
+    // The toolbar in row `a` has a stop of its own, before the tree's next stop in document order.
+    expect(document.querySelector('[data-tool="x"]')!.getAttribute('tabindex')).toBe('0')
+    await userEvent.click(document.getElementById('c')!)
+    await expect.poll(() => document.activeElement).toBe(document.getElementById('c'))
+    handle.ports.remove.send('c')
+    await expect.poll(() => document.getElementById('c')).toBeNull()
+    await expect.poll(() => document.activeElement).toBe(document.getElementById('b'))
+  })
 })

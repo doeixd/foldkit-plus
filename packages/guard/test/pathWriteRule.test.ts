@@ -273,6 +273,13 @@ describe('a write rule over a path, over a writer that cannot judge it', () => {
       'inOrg reads another row, which only a writer judging rules in its statement can hold it to',
     )
   })
+
+  it('refuses RemoteServer.memoryWriter, which judges no rule in a statement', () => {
+    const store = { rows: () => [], write: () => undefined, remove: () => undefined }
+    expect(() => GuardServer.writer(Note, Policy, RemoteServer.memoryWriter(store, Note))).toThrow(
+      'inOrg reads another row, which only a writer judging rules in its statement can hold it to',
+    )
+  })
 })
 
 // A rule reaching through a relation to an exists reads that relation of its own

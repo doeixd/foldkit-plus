@@ -1,5 +1,5 @@
 import { Agent } from 'foldkit-agent'
-import { Effect, Result } from 'effect'
+import { Effect, Option, Result } from 'effect'
 import type { ReportDiagnostic } from 'foldkit-surface'
 import { capabilityDefect, reportTo, requestDefect, toolListDefect } from './diagnostics.js'
 import {
@@ -53,6 +53,28 @@ const textResult = (text: string, structured?: Record<string, unknown>) => ({
 const toolError = (text: string) => ({ content: [{ type: 'text', text }], isError: true })
 
 /**
+ * A part as JSON: an absent occurrence, capability, input or value is left
+ * out, so a `null` value is a value.
+ */
+const partJson = (part: Agent.PartDescriptor) => ({
+  id: part.id,
+  ...Option.match(part.occurrence, { onNone: () => ({}), onSome: occurrence => ({ occurrence }) }),
+  label: part.label,
+  role: part.role,
+  ...Option.match(part.capability, {
+    onNone: () => ({}),
+    onSome: capability => ({
+      capability: {
+        name: capability.name,
+        ...Option.match(capability.input, { onNone: () => ({}), onSome: input => ({ input }) }),
+        requiresAuthorization: capability.requiresAuthorization,
+      },
+    }),
+  }),
+  ...Option.match(part.value, { onNone: () => ({}), onSome: value => ({ value }) }),
+})
+
+/**
  * Which agent failures are the caller's fault at the protocol level.
  *
  * The spec puts an unknown tool and arguments that fail the advertised schema in
@@ -95,6 +117,9 @@ export const handler = <Model, Context_, Principal, ByName, ByTag>(
    */
   const contextIsDeclared = agent.definition.resources.some(r => r.name === 'context')
   const projectsContext = agent.definition.context !== undefined && !contextIsDeclared
+  // `app://parts` gives way to a declared resource of that name in the same way.
+  const servesParts =
+    agent.parts.ids.length > 0 && !agent.definition.resources.some(r => r.name === 'parts')
 
   const listTools = async () => {
     const available = await Effect.runPromise(agent.messages.available)
@@ -197,6 +222,15 @@ export const handler = <Model, Context_, Principal, ByName, ByTag>(
     }
     const name = uri.slice('app://'.length)
 
+    if (name === 'parts' && servesParts) {
+      const parts = await Effect.runPromise(agent.parts.list)
+      return success(id, {
+        contents: [
+          { uri, mimeType: 'application/json', text: JSON.stringify(parts.map(partJson)) },
+        ],
+      })
+    }
+
     if (name === 'context' && !contextIsDeclared) {
       const context = await Effect.runPromise(agent.context)
       return context === undefined
@@ -223,7 +257,9 @@ export const handler = <Model, Context_, Principal, ByName, ByTag>(
     if (method === 'initialize') {
       initialized = true
       const resources =
-        agent.definition.resources.length > 0 || agent.definition.context !== undefined
+        agent.definition.resources.length > 0 ||
+        agent.definition.context !== undefined ||
+        servesParts
       return success(id, {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: { listChanged: true }, ...(resources ? { resources: {} } : {}) },
@@ -261,17 +297,30 @@ export const handler = <Model, Context_, Principal, ByName, ByTag>(
           mimeType: 'application/json',
         }))
         return success(id, {
-          resources: !projectsContext
-            ? resources
-            : [
-                {
-                  uri: 'app://context',
-                  name: 'context',
-                  description: 'The Model state projected for agents',
-                  mimeType: 'application/json',
-                },
-                ...resources,
-              ],
+          resources: [
+            ...(projectsContext
+              ? [
+                  {
+                    uri: 'app://context',
+                    name: 'context',
+                    description: 'The Model state projected for agents',
+                    mimeType: 'application/json',
+                  },
+                ]
+              : []),
+            ...(servesParts
+              ? [
+                  {
+                    uri: 'app://parts',
+                    name: 'parts',
+                    description:
+                      'The controls on the screen, with what each invokes; call its capability as a tool',
+                    mimeType: 'application/json',
+                  },
+                ]
+              : []),
+            ...resources,
+          ],
         })
       }
 

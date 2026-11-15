@@ -37,6 +37,7 @@ const relinked = (name: string, entries: ReadonlyArray<string>) => {
 
 export default [
   relinked('entity', ['src/index.ts', 'src/conformance/index.ts']),
+  relinked('metadata', ['src/index.ts']),
   linked('crud', ['src/index.ts']),
   linked('form', ['src/index.ts']),
   linked('ssr', ['src/index.ts', 'src/client.ts', 'src/vite.ts']),

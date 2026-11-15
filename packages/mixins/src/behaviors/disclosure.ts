@@ -5,24 +5,43 @@
  * none of this.
  */
 import type { HtmlBuilder } from 'foldkit/html'
+import * as A11y from '../a11y.js'
+import * as Attr from '../attr.js'
 import * as Behavior from '../behavior.js'
 import * as Capability from '../capability.js'
+import { boundSlots, type Bound, type Unbound } from '../slotView.js'
 
-export interface Options<Input, Slots> {
-  readonly trigger: keyof Slots & string
+export interface Options<
+  Input,
+  Slots,
+  Trigger extends keyof Slots & string = keyof Slots & string,
+> {
+  readonly trigger: Trigger
   readonly content: keyof Slots & string
   readonly open: (input: Input) => boolean
   /** The content's id, which `aria-controls` names. */
   readonly id: (input: Input) => string
 }
 
-export const behavior =
-  <Slots>(slots: Slots) =>
-  <Input, Message>(options: Options<Input, Slots>): Behavior.NamedBehavior<Slots, Input, Message> =>
+/** Supplies `A11y.State(Attr.AriaExpanded)` on `trigger`. */
+export function behavior<Slots, Input, Message>(
+  bound: Bound<Slots, Input, Message>,
+): <Trigger extends keyof Slots & string>(
+  options: Options<Input, Slots, Trigger>,
+) => Behavior.NamedBehavior<Slots, Input, Message, `${Trigger}/state:aria-expanded`>
+export function behavior<Slots>(
+  slots: Unbound<Slots>,
+): <Input, Message>(options: Options<Input, Slots>) => Behavior.NamedBehavior<Slots, Input, Message>
+export function behavior<Slots>(given: Slots | Bound<Slots, any, any>) {
+  const slots = boundSlots(given)
+  return <Input, Message>(
+    options: Options<Input, Slots>,
+  ): Behavior.NamedBehavior<Slots, Input, Message> =>
     Behavior.forSlots(slots)<Input, Message>(
       {
         [options.trigger]: Behavior.slot({
           requires: { capability: Capability.Interactive },
+          provides: [A11y.State(Attr.AriaExpanded)],
           attributes: ({
             input,
             h,
@@ -45,3 +64,4 @@ export const behavior =
       } as unknown as Behavior.BehaviorSpec<Slots, Input, Message>,
       { name: 'Disclosure' },
     )
+}

@@ -8,6 +8,8 @@ import { Projection, Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import { Site } from '../src/index.js'
 
+type Equals<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
+
 const AppRoute = defineRouteUnion({
   Home: {},
   People: { searchText: Schema.Option(Schema.String) },
@@ -155,6 +157,92 @@ export const ChildPageBadChanged = Site.placement(ChildNode, ChildBundle, {
   // @ts-expect-error: the arrival message is the child's, not a number
   changed: () => 42,
 })
+
+// `Site.sources` is keyed by the tags of the nodes with a Surface, so the keys
+// survive a spread beside the application's own entries (an index signature
+// would not), and a surfaceless node's tag is no key.
+const sourced = {
+  ...Site.sources(Site.make(Home, Surfaced), App.owner, App.model.route),
+  own: Surface.at(Page, { searchText: Option.none() }),
+}
+export const sourcedKeys: Equals<keyof typeof sourced, 'People' | 'own'> = true
+export const peopleSource = sourced.People
+// @ts-expect-error: Home has no Surface, so it activates nothing to key
+export const homeSource = sourced.Home
+// @ts-expect-error: no node of the tree holds this tag
+export const strangerSource = sourced.Person
+// A Surface given in steps, or under a mount, is keyed the same way.
+const stepped = Site.sources(
+  Site.make(Site.mount(Home, [ViewedInSteps.node])),
+  App.owner,
+  App.model.route,
+)
+export const stepKeys: Equals<keyof typeof stepped, 'People'> = true
+// A destination's Sources are keyed the same way.
+export const sourcedFor = Site.sourcesFor(
+  Site.make(Home, Surfaced),
+  App.owner,
+  App.model.route,
+  AppRoute.Home(),
+).People
+
+// A `Bundle.lazy` page pairs with its node as an eager one does, and is its code.
+const LazyChild = Bundle.lazy(
+  {
+    name: 'LazyChild',
+    Model: ChildModel,
+    Message: ChildMessage,
+    init: () => ({ model: { text: '' } }),
+  },
+  async () => ({ update: (model: ChildModel) => ({ model }) }),
+)
+export const LazyChildPage = Site.placement(ChildNode, LazyChild, {
+  link: Link.field<ChildModelApp>()('child', Link.wrapper(ChildAppMessage.GotChild)),
+  changed: () => ChildMessage.Told({ text: 'arrived' }),
+})
+export const lazyCode: Option.Option<Bundle.Loadable> = LazyChildPage.code
+// A lazy page loads its bodies on its arrival's Message, so it must say one.
+Site.placement(
+  ChildNode,
+  LazyChild,
+  // @ts-expect-error: a lazy page's arrival must be told (changed)
+  { link: Link.field<ChildModelApp>()('child', Link.wrapper(ChildAppMessage.GotChild)) },
+)
+Site.placement(ChildNode, LazyChild, {
+  link: Link.field<ChildModelApp>()('child', Link.wrapper(ChildAppMessage.GotChild)),
+  // @ts-expect-error: and always a Message, never nothing
+  changed: () => undefined,
+})
+// An eager page may say nothing.
+export const QuietEager = Site.placement(ChildNode, ChildBundle, {
+  link: Link.field<ChildModelApp>()('child', Link.wrapper(ChildAppMessage.GotChild)),
+  args: () => ({ text: 'hi' }),
+  changed: () => undefined,
+})
+const CodeSite = Site.make(Home, ChildNode)
+const CodeMessage = defineMessageUnion({ GotChild: { message: ChildMessage }, Completed: {} })
+type CodeMessage = typeof CodeMessage.Type
+// Lazy and eager pages in the routing's one list, which names what a route loads.
+const CodeRouting = Site.routing<ChildModelApp, CodeMessage, AppRoute>({
+  site: CodeSite,
+  route: { dependency: ['route'], get: model => model.route, set: (model, route) => model },
+  parse: () => AppRoute.Home(),
+  tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
+  completed: CodeMessage.Completed,
+  pages: [LazyChildPage, ChildPageBadChanged],
+})
+export const routeCode: ReadonlyArray<Bundle.Loadable> = CodeRouting.codeFor(
+  AppRoute.People({ searchText: Option.none() }),
+)
+// @ts-expect-error: a route value, not its tag
+CodeRouting.codeFor('People')
+const Stranger = defineRouteUnion({ Away: {} })
+// @ts-expect-error: a route of another union, which no node of the tree holds
+CodeRouting.codeFor(Stranger.Away())
+export const booted: ChildModelApp = CodeRouting.boot({
+  route: AppRoute.Home(),
+  child: { text: '' },
+}).model
 
 // The tree carries its routes: parsed to their union, built only from one of them.
 const Other = defineRouteUnion({ Away: {}, Lost: { path: Schema.String } })

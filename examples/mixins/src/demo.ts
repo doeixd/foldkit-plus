@@ -83,12 +83,6 @@ const classTokens = (attributes: SlotAttributes<CardMessage>): ReadonlyArray<str
   Attributes.find(attributes, 'Class')?.value.split(/\s+/) ?? []
 
 export const runDemo = (): ReadonlyArray<string> => {
-  const inspection = Surface.inspect(ProjectCard, undefined)
-  const lines: string[] = [
-    `surface: ${inspection.name}`,
-    `observes: ${inspection.dependencies.map(path => path.join('.')).join(', ')}`,
-  ]
-
   let seen: unknown
   const resolved: {
     root: SlotAttributes<CardMessage>
@@ -114,13 +108,15 @@ export const runDemo = (): ReadonlyArray<string> => {
     ])
   }).pipe(Style.attach(ProjectCardStyle), Behavior.attach(ArchiveBehavior))
 
-  const viewInfo = SurfaceView.inspect(ProjectCardView)
-  lines.push(
-    `slots: ${Object.entries(viewInfo.slots)
+  const description = SurfaceView.describe(ProjectCard, undefined, ProjectCardView)
+  const lines: string[] = [
+    `surface: ${description.name}`,
+    `observes: ${description.observes.map(path => path.join('.')).join(', ')}`,
+    `slots: ${Object.entries(description.slots)
       .map(([name, slot]) => `${name}(${slot.capability})`)
       .join(', ')}`,
-  )
-  lines.push(`mixins: ${viewInfo.mixins.join(', ')}`)
+    `mixins: ${description.mixins.join(', ')}`,
+  ]
 
   const Accessibility = A11y.pattern({
     root: { capability: Capability.Container },
@@ -146,7 +142,6 @@ export const runDemo = (): ReadonlyArray<string> => {
   )
   lines.push(`stylesheet: ${Style.stylesheet(ProjectCardStyle)}`)
 
-  const description = SurfaceView.describe(ProjectCard, undefined, ProjectCardView)
   lines.push(`description: ${JSON.stringify(description)}`)
   lines.push('')
   lines.push(...SurfaceView.toMarkdown(description).split('\n'))

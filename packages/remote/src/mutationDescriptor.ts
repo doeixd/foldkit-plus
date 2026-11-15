@@ -4,7 +4,15 @@
  * (#378), so a domain that registers none never loads it.
  */
 import { Match, Option, Schema } from 'effect'
-import type { AnyWrite, ConditionedWrite, Invariant, Write, WriteKind } from 'foldkit-entity'
+import type {
+  AnyWrite,
+  ConditionedWrite,
+  EntityIdentity,
+  Footprint,
+  Invariant,
+  Write,
+  WriteKind,
+} from 'foldkit-entity'
 import { Installs, type Install } from './capability.js'
 import { installWrites } from './writes.js'
 import { schemaOf, type SchemaOrFields, type TypeOf } from './schema.js'
@@ -25,6 +33,15 @@ export interface MutationDescriptor<Name extends string, Input, Output, Refused 
    * patch a client shows, and what a server can run without a handler.
    */
   readonly write?: AnyWrite | undefined
+  /**
+   * What a mutation that is no `Write` says it touches, of the Entity whose
+   * rows it changes: `reaches` reads a `Declared` one as it would a write's
+   * members, and an `Unknown` one as it reads a handler's, which is no word at
+   * all. It predicts nothing: only a `Write` shows a patch while pending.
+   */
+  readonly footprint?:
+    | { readonly entity: EntityIdentity<string>; readonly footprint: Footprint }
+    | undefined
   /** What a domain that registers the mutation installs: the code that shows it pending. */
   readonly [Installs]: Install
 }

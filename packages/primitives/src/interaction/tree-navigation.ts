@@ -19,9 +19,10 @@ import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
 import type { Declared } from 'foldkit-bundle'
-import { Behavior, Capability, type SlotItem } from 'foldkit-mixins'
+import { A11y, Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
 import { FollowTabStop } from '../dom/follow-tab-stop.js'
-import { idSelector } from './roving-tabindex.js'
+import { ROVING_MARK } from '../dom/focusable.js'
+import { arrowChords } from './roving-tabindex.js'
 import { perInput } from '../internal.js'
 
 export const Model = Schema.Struct({
@@ -205,16 +206,24 @@ export const tabStop = (rows: ReadonlyArray<Shown>, current: string | null): str
   return (here ?? rows.find(row => row.disabled !== true))?.id
 }
 
-export interface BehaviorOptions<Input, Slots> {
-  /** The slot that receives the keys: the element with `role="tree"`. */
-  readonly container: keyof Slots & string
-  /** The slot rendered once per showing row, with `item.id` or `item.index` into `shown`. */
-  readonly item: keyof Slots & string
+export interface KeyOptions<Input> {
   /** Every row, open or not, in tree order. */
   readonly rows: (input: Input) => ReadonlyArray<Row>
   /** The DOM id a row's element carries. Default: the row's own id. */
   readonly domId?: (id: string) => string
   readonly direction?: (input: Input) => 'ltr' | 'rtl'
+}
+
+export interface BehaviorOptions<
+  Input,
+  Slots,
+  Container extends keyof Slots & string = keyof Slots & string,
+  Item extends keyof Slots & string = keyof Slots & string,
+> extends KeyOptions<Input> {
+  /** The slot that receives the keys: the element with `role="tree"`. */
+  readonly container: Container
+  /** The slot rendered once per showing row, with `item.id` or `item.index` into `shown`. */
+  readonly item: Item
 }
 
 /** The rows showing for one input, with what each row's attributes look up. */
@@ -226,7 +235,69 @@ interface Prepared {
 }
 
 /**
- * Wires a placed `TreeNavigation` to the slots. The container's keys move focus
+ * Every row's attributes read the same rows: work them out once per input, or
+ * a tree of n rows costs n times its whole.
+ */
+const preparedFor = <Field extends string, Input extends { readonly [K in Field]: Model }>(
+  declared: Declared<typeof bundle, Field>,
+  args: Args,
+  rows: (input: Input) => ReadonlyArray<Row>,
+) =>
+  perInput((input: Input): Prepared => {
+    const model = input[declared.field]
+    const showing = shown(rows(input), model, args)
+    return {
+      model,
+      rows: showing,
+      byId: new Map(showing.map(row => [row.id, row])),
+      stop: tabStop(showing, model.current),
+    }
+  })
+
+/**
+ * The route a `TreeNavigation` installs on its container: Up and Down, Home
+ * and End, Right and Left. Each answers the Message it means and focuses the
+ * row it acted on; opening or closing keeps focus on that row.
+ */
+export const keys =
+  <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
+  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: KeyOptions<Input>,
+  ): Behaviors.Keys.Route<Input, ParentMessage> => {
+    const wrap = (message: Message): ParentMessage =>
+      declared.wrapper.make(message) as unknown as ParentMessage
+    const domId = options.domId ?? ((id: string) => id)
+    const prepare = preparedFor(declared, args, options.rows)
+    return Behaviors.Keys.route<Input, ParentMessage>('TreeNavigation', {
+      on: [
+        ...Behaviors.Keys.withShift('Home'),
+        ...Behaviors.Keys.withShift('End'),
+        ...arrowChords('both'),
+      ],
+      handle: ({ key, modifiers, input }) => {
+        const { model, rows } = prepare(input)
+        const action = move(
+          rows,
+          model.current,
+          key,
+          modifiers,
+          model,
+          args,
+          options.direction?.(input) ?? 'ltr',
+        )
+        if (action === undefined) return Option.none()
+        const message = Match.valueTags(action, {
+          Focus: ({ id }) => Message.Focused({ id }),
+          Open: ({ id }) => Message.Opened({ id }),
+          Close: ({ id }) => Message.Closed({ id }),
+        })
+        return Option.some(Behaviors.Keys.focus(domId(action.id), wrap(message)))
+      },
+    })
+  }
+
+/**
+ * Wires a placed `TreeNavigation` to the slots. The container's keys (`keys`) move focus
  * to the row they pick, or open or close the current row with focus left where
  * it is. Each showing row gets its id, `role="treeitem"`, `aria-level` (and
  * the same level as `--fk-tree-level`, so one `calc` indents any depth),
@@ -234,93 +305,82 @@ interface Prepared {
  * `aria-disabled` when disabled, a roving `tabindex`, and `OnFocus` reporting
  * it current. Every handled key is default-prevented.
  */
-
-export const behavior =
-  <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
-  <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+export const behavior = <Field extends string>(
+  declared: Declared<typeof bundle, Field>,
+  args: Args,
+) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): <Container extends keyof Slots & string, Item extends keyof Slots & string>(
+    options: BehaviorOptions<Input, Slots, Container, Item>,
+  ) => Behavior.NamedBehavior<
+    Slots,
+    Input,
+    ParentMessage,
+    A11y.ProvidedOn<Container, 'navigation'> | A11y.ProvidedOn<Item, 'focus-strategy'>
+  >
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
-    const wrap = (message: Message): ParentMessage =>
-      declared.wrapper.make(message) as unknown as ParentMessage
-    const slice = (input: Input): Model => input[declared.field]
-    const domId = options.domId ?? ((id: string) => id)
-    // Every row's attributes read the same rows: work them out once per input,
-    // or a tree of n rows costs n times its whole.
-    const prepare = perInput((input: Input): Prepared => {
-      const model = slice(input)
-      const rows = shown(options.rows(input), model, args)
-      return {
-        model,
-        rows,
-        byId: new Map(rows.map(row => [row.id, row])),
-        stop: tabStop(rows, model.current),
-      }
-    })
-    return Behavior.forSlots(slots)<Input, ParentMessage>(
-      {
-        [options.container]: Behavior.slot({
-          requires: { capability: Capability.Interactive },
-          // Focus in the tree stays on its stop when an edit elsewhere moves or removes it.
-          mount: () => FollowTabStop(),
-          attributes: ({
-            input,
-            h,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-          }) => {
-            const { model, rows } = prepare(input)
-            const direction = options.direction?.(input) ?? 'ltr'
-            return [
-              h.OnKeyDownFocus((key, modifiers) => {
-                const action = move(rows, model.current, key, modifiers, model, args, direction)
-                if (action === undefined) return Option.none()
-                // Opening or closing keeps focus on the row it acted on.
-                const message = Match.valueTags(action, {
-                  Focus: ({ id }) => Message.Focused({ id }),
-                  Open: ({ id }) => Message.Opened({ id }),
-                  Close: ({ id }) => Message.Closed({ id }),
-                })
-                return Option.some({
-                  focusSelector: idSelector(domId(action.id)),
-                  message: wrap(message),
-                })
-              }),
-            ]
-          },
-        }),
-        [options.item]: Behavior.slot({
-          requires: { capability: Capability.Focusable },
-          attributes: ({
-            input,
-            h,
-            item,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-            readonly item?: SlotItem
-          }) => {
-            if (item === undefined) return []
-            const { model, rows, byId, stop } = prepare(input)
-            const row = item.id === undefined ? rows[item.index] : byId.get(item.id)
-            if (row === undefined) return []
-            return [
-              h.Id(domId(row.id)),
-              h.Role('treeitem'),
-              h.AriaLevel(row.level),
-              h.Style({ '--fk-tree-level': String(row.level) }),
-              h.AriaPosinset(row.position),
-              h.AriaSetsize(row.siblings),
-              ...(row.branch ? [h.AriaExpanded(isOpen(model, args, row.id))] : []),
-              ...(row.disabled === true ? [h.AriaDisabled(true)] : []),
-              h.Tabindex(stop === row.id ? 0 : -1),
-              h.OnFocus(wrap(Message.Focused({ id: row.id }))),
-            ]
-          },
-        }),
-        // Keyed by values the caller chose; `forSlots` checks both keys exist.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
-      { name: 'TreeNavigation' },
-    )
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    const slots = SlotView.boundSlots(given)
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: BehaviorOptions<Input, Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
+      const wrap = (message: Message): ParentMessage =>
+        declared.wrapper.make(message) as unknown as ParentMessage
+      const domId = options.domId ?? ((id: string) => id)
+      const prepare = preparedFor(declared, args, options.rows)
+      const keydown = Behaviors.Keys.attribute<Input, ParentMessage>(
+        [keys<Field>(declared, args)<Input, ParentMessage>(options)],
+        { slot: options.container },
+      )
+      return Behavior.forSlots(slots)<Input, ParentMessage>(
+        {
+          [options.container]: Behavior.slot({
+            requires: { capability: Capability.Interactive },
+            provides: [A11y.Navigation],
+            // Focus in the tree stays on its stop when an edit elsewhere moves or removes it.
+            mount: () => FollowTabStop(),
+            attributes: context => [keydown(context), context.h.DataAttribute(ROVING_MARK, '')],
+          }),
+          [options.item]: Behavior.slot({
+            requires: { capability: Capability.Focusable },
+            provides: [A11y.FocusStrategy],
+            attributes: ({
+              input,
+              h,
+              item,
+            }: {
+              readonly input: Input
+              readonly h: HtmlBuilder<ParentMessage>
+              readonly item?: SlotItem
+            }) => {
+              if (item === undefined) return []
+              const { model, rows, byId, stop } = prepare(input)
+              const row = item.id === undefined ? rows[item.index] : byId.get(item.id)
+              if (row === undefined) return []
+              return [
+                h.Id(domId(row.id)),
+                h.Role('treeitem'),
+                h.AriaLevel(row.level),
+                h.Style({ '--fk-tree-level': String(row.level) }),
+                h.AriaPosinset(row.position),
+                h.AriaSetsize(row.siblings),
+                ...(row.branch ? [h.AriaExpanded(isOpen(model, args, row.id))] : []),
+                ...(row.disabled === true ? [h.AriaDisabled(true)] : []),
+                h.Tabindex(stop === row.id ? 0 : -1),
+                h.OnFocus(wrap(Message.Focused({ id: row.id }))),
+              ]
+            },
+          }),
+          // Keyed by values the caller chose; `forSlots` checks both keys exist.
+        } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        { name: 'TreeNavigation' },
+      )
+    }
   }
+  return place
+}

@@ -13,9 +13,12 @@ import type { OptimisticState } from './optimistic.js'
 import type { LiveInsertion, LivePolicy } from './query.js'
 import { own } from './record.js'
 import {
+  clearFloors,
   entityKey,
   tombstone,
-  writeEntity,
+  olderThanHeld,
+  pastFloor,
+  writeEntities,
   type EntityEntry,
   type EntityKey,
   type EntityStore,
@@ -256,6 +259,8 @@ export const applyEntityEvent = (
     readonly kept?: Kept | undefined
     /** The requests in flight, which a patch is kept beside. */
     readonly pending?: ReadonlySet<string> | undefined
+    /** The read-after token the stream was opened with for the event's row (`LiveRequirement.floors`). */
+    readonly token?: string | undefined
   } = {},
 ): EntityApplied => {
   const echoes = context.echoes ?? {}
@@ -278,13 +283,35 @@ export const applyEntityEvent = (
       contradicted: [],
     }
   }
+  // Older than the row held: the stream has moved past it, and so has the store.
+  // A floored row is written only by a patch at or after the write that set
+  // its floor: one on a stream opened at its token, which the server answers
+  // at or after it, or one of a newer revision. Such a patch ends the floor;
+  // any other may be older than the write.
+  const floor = store[key]?.floor
+  if (
+    olderThanHeld(store[key], event.revision) ||
+    (floor !== undefined && context.token !== floor && !pastFloor(store[key], event.revision))
+  )
+    return { state: next, store, outcome, written: {}, echoes, kept, contradicted: [] }
   const heard =
     awaited === undefined ? undefined : heardBack(awaited, context.stream ?? '', event.values)
   const written = heard?.values ?? event.values
   const unexpiredKept = unexpired(kept, context.now ?? 0)
+  const patched = writeEntities(
+    store,
+    [
+      {
+        key,
+        values: written,
+        ...(event.revision === undefined ? {} : { revision: event.revision }),
+      },
+    ],
+    context.now ?? 0,
+  )
   return {
     state: next,
-    store: writeEntity(store, key, written, context.now ?? 0),
+    store: floor === undefined ? patched : clearFloors(patched, [key]),
     outcome,
     written,
     echoes:

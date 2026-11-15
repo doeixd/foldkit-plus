@@ -697,6 +697,13 @@ Foldkit's own behaviour that we work around is listed in
   Holding the placement for that report placed the list a frame late, after
   domains-plus's first reads, which then looped (#399). Read what is drawn
   synchronously when observing starts.
+- **A stream's own Message can interrupt it.** The outbox's send emitted
+  its answer, which took the write out of the queue, so Foldkit restarted
+  the send entry and interrupted the store write after it; the lock went
+  while the store still said waiting, and a second tab sent the write again
+  (once on CI, never under throttling). What must finish after an emit runs
+  `Effect.uninterruptible` (with a timeout), and a lagged store per tab
+  reproduces it (`outboxTabs.browser.test.ts`).
 - **A Subscription's restart speaks after the Messages already queued.**
   Foldkit derives dependencies on a fiber of its own (a PubSub of Models), so
   the first Messages of a restarted stream land behind answers queued
@@ -779,12 +786,15 @@ Foldkit's own behaviour that we work around is listed in
   `inline-flex` Button it did nothing (a 20px line stayed 20px; on a block it
   was 10px), and it does not inherit into the anonymous box holding the
   words. Measure a trimmed element's height before claiming the trim works.
-- **A knob set on a region does not reach a portaled panel.** Upstream's
-  popups portal their panel to the document by default (our Listbox and Combobox
-  draw in place unless given `portal: true`), so a portaled popup's `size`
-  that set the step on its `wrapper` never reached its rows, and a test that drew the slots as static markup passed. Set what a
+- **A knob set on a region does not reach a portaled panel, unless the Mount that portals it is wrapped.** Upstream's
+  Menu, Listbox and Combobox portal their panel to the document by default,
+  so a popup's `size` that set the step on its `wrapper` never reached its
+  rows, and a test that drew the slots as static markup passed. Set what a
   panel needs on the panel's own slot, and test a popup by opening the real
-  component (`popupLadder.browser.test.ts`).
+  component (`popupLadder.browser.test.ts`). `Anchor.inheritRegion` now
+  carries the region's custom properties onto such a panel; it must watch from
+  the panel's own Mount, since a parent's Mount (the Popover's `layer`) runs
+  after its children's and misses the move.
 - **A linked `export * as` is an object, and a page keeps all of it.** tsdown
   linked `foldkit-mixins-ui` into one file, and rolldown wrote `export * as
   Recipes` as an object of getters; reading `Recipes.Avatar` kept every recipe,
@@ -806,6 +816,17 @@ Foldkit's own behaviour that we work around is listed in
   reading source with library checks skipped, never did. Name an exported type
   for what a public function returns; `pack:check`'s consumer compile
   (`scripts/published-types.mjs`) catches the rest.
+- **A member typed with a form's Model can push a nesting form past TS7056.**
+  `form.over`'s signature named the whole form Model a second time, and
+  `examples/entity`'s `writeForm.ts`, a form nesting another form, failed
+  `typecheck:force` ("inferred type exceeds the maximum length the compiler
+  will serialize") while the package's own check passed. Type such a member
+  by the one field it reads or writes (`<M extends Pick<Model, 'over'>>`).
+- **A helper reached through a namespace object carries the namespace.**
+  Primitives read `Behaviors.idSelector`, and every page with roving focus
+  kept every Behavior module, `Keys` included (registry +300 bytes brotli).
+  Import a shared helper by name from a module that holds it; a budget that
+  creeps after a "share one helper" commit is this.
 - **A reference directive after a statement is ignored, silently.** The
   consumer `published-types.mjs` wrote `/// <reference types=
   "foldkit-media/client" />` after the imports, so `client.d.ts` was never
@@ -916,6 +937,11 @@ Foldkit's own behaviour that we work around is listed in
   bytes, failing one run in two (#504). Two guesses (a lock, an import sort)
   fixed real but different things. Make a flaky size explain itself (which
   modules differ, `explainDifference`) before guessing again.
+- **A flag that switches a capability on keeps it in every page.** `Crud.list`'s
+  `live: boolean` made Crud import `liveQuery` to honour it, so every page
+  drawing a list kept Remote's live reads (about 1.5 kB brotli) and read
+  nothing live. Take the capability from the caller (`live: liveQuery`) and
+  import only its type, and pin it with a budget's `absent`.
 - **A namespace object (`Sync.forApplication`) keeps every member's module.**
   The cloudflare Worker read `Sync.forApplication` and carried Sync's client
   mount, sockets, presence and IndexedDB, 492 kB raw, until it imported
@@ -1362,6 +1388,13 @@ of its own named a form field "fits the Catalog". Read words with
 
 **Types**
 
+- **A hand-written type beside a schema breaks inference when they drift.**
+  `NormalizedEntity` gained an optional `revision`; `ConnectionMerged`'s
+  hand-typed rows did not, so `RemoteMessage` stopped being a strict subtype
+  of the app's Message, and `Effect.provide` over a union of commands
+  inferred `unknown` while plain assignability still passed. Every agent
+  read the error as another's for a day. Type a wire shape once, from the
+  schema (`Schema.Schema.Type<typeof NormalizedEntity>`).
 - **An `Option` compared with `undefined` or `null` type-checks and is always
   unequal.** Moving `projectionOf` to `Option` left `projection === undefined`
   in a test helper; it compiled, never matched, and failed 27 cms-drizzle
@@ -2230,6 +2263,13 @@ of its own named a form field "fits the Catalog". Read words with
   release run succeeded, 15 of 37 new versions were still absent from
   `registry.npmjs.org`, and the count fell as they landed. Read `gh run view`
   for the verdict; use `npm view` only to confirm afterwards.
+- **A runner a job starves loses its log, not only its job.** PR #564's
+  fourth test shard ran the Foldkit ports' 19-page bundle build beside the
+  browser and workerd tests; the runner "lost communication with the server",
+  the job hung 48 minutes, and GitHub kept no log at all. Only the check run's
+  annotations (`gh api …/check-runs/<id>/annotations`) said why. Production
+  builds run in their own `builds` job (`buildTests`), and every job has a
+  `timeout-minutes`.
 - **A fast red hides slower reds.** Fixing the 30s install failure above
   revealed a `tags:check` failure the red main had masked for days. After
   any CI repair, watch a full run to green — a green gate is not a green

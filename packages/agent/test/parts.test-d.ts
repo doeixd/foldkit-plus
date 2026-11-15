@@ -1,66 +1,121 @@
 /**
- * Compile-time expectations for the part catalog. Type-checked, not executed:
- * every `@ts-expect-error` must stay an error, and each holds one defect.
+ * Compile-time expectations for parts. Type-checked, not executed: every
+ * `@ts-expect-error` must stay an error.
  */
-import { Effect } from 'effect'
-import { expectTypeOf } from 'vitest'
+import { Schema } from 'effect'
 import { Agent } from '../src/index.js'
-import { Message, definition, partCatalog } from './draftApp.js'
+import { Projection, Surface } from 'foldkit-surface'
+import { Message, Model } from './todoApp.js'
 
-const runtime = Agent.bind({
-  definition,
-  host: {
-    model: () => {
-      throw new Error('type test')
-    },
-    dispatch: () => {},
-    principal: () => ({ id: 'ada', editor: true }),
-  },
+const App = Surface.application({ Model, Message })
+const TodoAgent = Agent.forApplication(App)
+
+const AppAgent = TodoAgent.make({
+  context: Projection.pick(App.model.todos, App.model.selectedTodoId),
+  messages: TodoAgent.expose(Message, {
+    RequestedCreateTodo: 'Create a todo',
+    RequestedDeleteTodo: 'Delete a todo',
+  }),
 })
 
-// The ids are the declared literals, so a view reads a label by one of them.
-expectTypeOf(partCatalog.part)
-  .parameter(0)
-  .toEqualTypeOf<'search' | 'search.clear' | 'draft.save'>()
-expectTypeOf(partCatalog.part('search').label).toEqualTypeOf<string>()
-// @ts-expect-error No part has this id.
-partCatalog.part('serach')
+const Parts = TodoAgent.parts(AppAgent, {
+  selected: Agent.part({ label: 'Selected todo', role: 'status', field: 'selectedTodoId' }),
+  create: Agent.part({ label: 'New todo', role: 'button', invokes: Message.RequestedCreateTodo }),
+  remove: Agent.part({
+    role: 'button',
+    invokes: Message.RequestedDeleteTodo,
+    // The projected context, typed from the definition.
+    each: context => context.todos,
+    key: todo => todo.id,
+    label: todo => `Delete ${todo.title}`,
+    input: todo => ({ id: todo.id }),
+  }),
+})
 
-// A capability is the exposed Message's constructor.
-// @ts-expect-error `DraftChanged` is a Message the definition does not expose.
-Agent.Ui.catalog(definition, [{ id: 'draft', label: 'Draft', capability: Message.DraftChanged }])
+// The free function infers the same from the definition.
+Agent.parts(AppAgent, {
+  create: Agent.part({ label: 'New todo', role: 'button', invokes: Message.RequestedCreateTodo }),
+})
 
-// A field is a key of the context.
-Agent.Ui.catalog(definition, [
-  // @ts-expect-error The context projects `query` and `draft`, not `token`.
-  { id: 'search', label: 'Search', capability: Message.Typed, fields: ['token'] },
-])
+TodoAgent.parts(AppAgent, {
+  // @ts-expect-error `RequestedRenameTodo` is not exposed.
+  rename: Agent.part({ label: 'Rename', role: 'button', invokes: Message.RequestedRenameTodo }),
+})
 
-// A definition with no context offers no field.
-const blind = Agent.make({ messages: definition.messages })
-Agent.Ui.catalog(blind, [{ id: 'search', label: 'Search', capability: Message.Typed }])
-Agent.Ui.catalog(blind, [
-  // @ts-expect-error There is no context to show `query` from.
-  { id: 'search', label: 'Search', capability: Message.Typed, fields: ['query'] },
-])
+TodoAgent.parts(AppAgent, {
+  // @ts-expect-error the context does not project `lastError`.
+  error: Agent.part({ label: 'Error', role: 'alert', field: 'lastError' }),
+})
 
-// Only `Ui.catalog` makes a catalog.
-// @ts-expect-error A hand-built object has no catalog's private index.
-export const forged: Agent.UiCatalog<'search'> = {
-  part: () => ({ id: 'search', label: 'Search', capability: 'set_query', fields: [] }),
-}
+TodoAgent.parts(AppAgent, {
+  remove: Agent.part({
+    role: 'button',
+    invokes: Message.RequestedDeleteTodo,
+    each: context => context.todos,
+    key: todo => todo.id,
+    label: 'Delete',
+    // @ts-expect-error the capability takes `{ id }`, not `{ todoId }`.
+    input: todo => ({ todoId: todo.id }),
+  }),
+})
 
-// A query names its variant; an object with both an id and a label is not one.
-// @ts-expect-error A query is built by a `UiQuery` variant.
-Agent.Ui.discover(runtime, partCatalog, { id: 'search', label: 'Search' })
+TodoAgent.parts(AppAgent, {
+  remove: Agent.part({
+    role: 'button',
+    each: context => context.todos,
+    // @ts-expect-error a todo has no `name`.
+    key: todo => todo.name,
+    label: 'Delete',
+  }),
+})
 
-// The host's mounted renderings name declared parts.
-Agent.Ui.discover(runtime, partCatalog, Agent.UiQuery.Part({ id: 'search' }), [
-  // @ts-expect-error No part has this id.
-  { part: 'serach', id: 'first' },
-])
+TodoAgent.parts(AppAgent, {
+  // @ts-expect-error `sets` names the capability that changes a `field`, so it needs one.
+  create: Agent.part({ label: 'New', role: 'textbox', sets: Message.RequestedCreateTodo }),
+})
 
-// An agent's part id is a string, refused at run time when unknown.
-expectTypeOf(Agent.Ui.invoke(runtime, partCatalog, 'from an agent', {})).toEqualTypeOf<
-  Effect.Effect<Agent.DispatchResult, Agent.DispatchError | Agent.UnknownPartError>
->()
+TodoAgent.parts(AppAgent, {
+  // @ts-expect-error a label is text unless the part is repeated.
+  create: Agent.part({ label: () => 'New', role: 'button', invokes: Message.RequestedCreateTodo }),
+})
+
+TodoAgent.parts(AppAgent, {
+  // @ts-expect-error a role is an ARIA role.
+  create: Agent.part({ label: 'New', role: 'clicky', invokes: Message.RequestedCreateTodo }),
+})
+
+declare const h: Parameters<typeof Parts.attributes>[0]
+Parts.attributes(h, 'create')
+Parts.attributes(h, 'remove', 't1')
+// @ts-expect-error a repeated part's occurrence needs its key.
+Parts.attributes(h, 'remove')
+// @ts-expect-error a part drawn once has no occurrence key.
+Parts.attributes(h, 'create', 't1')
+// @ts-expect-error no part is declared `rename`.
+Parts.attributes(h, 'rename')
+
+// A definition without a context has no field to name.
+const NoContext = Agent.forModel<Model>()
+const Bare = NoContext.make({ messages: NoContext.expose(Message, { ClearedSelection: 'Clear' }) })
+NoContext.parts(Bare, {
+  // @ts-expect-error there is no context, so no field.
+  todos: Agent.part({ label: 'Todos', role: 'list', field: 'todos' }),
+})
+NoContext.parts(Bare, {
+  // @ts-expect-error there is no context, so nothing to repeat over.
+  rows: Agent.part({
+    role: 'row',
+    each: (model: Model) => model.todos,
+    key: (todo: { readonly id: string }) => todo.id,
+    label: 'Row',
+  }),
+})
+
+TodoAgent.bind({
+  definition: AppAgent,
+  host: {
+    model: () => Schema.decodeUnknownSync(Model)({ todos: [], selectedTodoId: { _tag: 'None' } }),
+    dispatch: () => {},
+  },
+  parts: Parts,
+})

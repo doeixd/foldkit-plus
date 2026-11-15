@@ -12,8 +12,9 @@ import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability, type SlotItem } from 'foldkit-mixins'
+import { A11y, Behavior, Behaviors, Capability, SlotView, type SlotItem } from 'foldkit-mixins'
 import * as RovingTabindex from './roving-tabindex.js'
+import { ROVING_MARK } from '../dom/focusable.js'
 import { perInput } from '../internal.js'
 
 export const Model = Schema.Struct({
@@ -37,10 +38,6 @@ export const Args = Schema.Struct({
   /** Keep DOM focus on the container and point at the current cell with
    *  `aria-activedescendant` instead of moving focus. */
   virtual: Schema.Boolean,
-  /** Rows PageUp and PageDown move; absent, they are left to the browser. */
-  page: Schema.optionalKey(
-    Schema.Number.pipe(Schema.check(Schema.isInt()), Schema.check(Schema.isGreaterThan(0))),
-  ),
 })
 export type Args = typeof Args.Type
 
@@ -64,8 +61,6 @@ export interface MoveOptions {
   readonly columns: number
   readonly wrap: boolean
   readonly direction: RovingTabindex.Direction
-  /** Rows PageUp and PageDown move; absent, they are not handled. */
-  readonly page?: number
 }
 
 /**
@@ -75,11 +70,7 @@ export interface MoveOptions {
  * under `wrap`; up and down step within the column, and across columns under
  * `wrap`. Home and End are the row's first and last enabled cell; with Ctrl
  * they are the grid's. At an edge without `wrap` the key is consumed and
- * `current` is returned. PageUp and PageDown, when `page` is given, move that
- * many rows in the same column and stop at the first or last row, never
- * wrapping; a disabled landing cell continues in the direction of travel as
- * the arrows do, and when nothing beyond it is enabled the nearest enabled
- * cell back toward `current` is taken, else `current`. From `-1` (nothing current) a forward key lands on
+ * `current` is returned. From `-1` (nothing current) a forward key lands on
  * the first enabled cell and a backward key on the last. Under `rtl`, left
  * and right swap.
  */
@@ -104,28 +95,6 @@ export const move = (
     return key === 'Home' ? (inRow[0] ?? current) : (inRow[inRow.length - 1] ?? current)
   }
   if (modifiers.ctrlKey) return undefined
-
-  if (options.page !== undefined && (key === 'PageUp' || key === 'PageDown')) {
-    const down = key === 'PageDown'
-    if (current === -1) return down ? first : last
-    const column = current % columns
-    const bottom = column + columns * Math.floor((count - 1 - column) / columns)
-    const landing = down
-      ? Math.min(bottom, current + options.page * columns)
-      : Math.max(column, current - options.page * columns)
-    const step = down ? columns : -columns
-    for (let index = landing; index >= column && index <= bottom; index += step) {
-      if (isEnabled(index)) return index
-    }
-    for (
-      let index = landing - step;
-      index !== current && index >= column && index <= bottom;
-      index -= step
-    ) {
-      if (isEnabled(index)) return index
-    }
-    return current
-  }
 
   const forwardKey = options.direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'
   const backwardKey = options.direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft'
@@ -168,101 +137,153 @@ export const move = (
   }
 }
 
-export interface BehaviorOptions<Input, Slots> {
-  /** The slot that receives the arrow keys. */
-  readonly container: keyof Slots & string
-  /** The slot rendered once per cell; must carry the cell's id (see `Behaviors.Collection`). */
-  readonly item: keyof Slots & string
+export interface KeyOptions<Input> {
   readonly items: (input: Input) => Behaviors.Collection.Items<unknown>
   /** Default `'ltr'`; return `'rtl'` to swap left and right. */
   readonly direction?: (input: Input) => RovingTabindex.Direction
 }
 
+export interface BehaviorOptions<
+  Input,
+  Slots,
+  Container extends keyof Slots & string = keyof Slots & string,
+  Item extends keyof Slots & string = keyof Slots & string,
+> extends KeyOptions<Input> {
+  /** The slot that receives the arrow keys. */
+  readonly container: Container
+  /** The slot rendered once per cell; must carry the cell's id (see `Behaviors.Collection`). */
+  readonly item: Item
+}
+
+/**
+ * The route a `GridNavigation` installs on its container: the four arrows,
+ * Home and End, and Ctrl+Home and Ctrl+End for the grid's corners, each
+ * answering `Focused` and moving focus to the cell (under `virtual`, only the
+ * Message).
+ */
+export const keys =
+  <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
+  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: KeyOptions<Input>,
+  ): Behaviors.Keys.Route<Input, ParentMessage> => {
+    const wrap = (id: string): ParentMessage =>
+      declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
+    const itemsOf = perInput(options.items)
+    return Behaviors.Keys.route<Input, ParentMessage>('GridNavigation', {
+      on: [
+        ...Behaviors.Keys.withShift('Home'),
+        ...Behaviors.Keys.withShift('End'),
+        ...Behaviors.Keys.withShift('Home', { ctrl: true }),
+        ...Behaviors.Keys.withShift('End', { ctrl: true }),
+        ...RovingTabindex.arrowChords('both'),
+      ],
+      handle: ({ key, modifiers, input }) => {
+        const items = itemsOf(input)
+        const current = input[declared.field].current
+        const next = move(
+          items.enabled,
+          items.size,
+          current === null ? -1 : items.indexOf(current),
+          key,
+          modifiers,
+          {
+            columns: args.columns,
+            wrap: args.wrap,
+            direction: options.direction?.(input) ?? 'ltr',
+          },
+        )
+        const id = next === undefined ? undefined : items.ids[next]
+        if (id === undefined) return Option.none()
+        return Option.some(args.virtual ? wrap(id) : Behaviors.Keys.focus(id, wrap(id)))
+      },
+    })
+  }
+
 /**
  * Wires a placed `GridNavigation` to the slots exactly as `RovingTabindex`
  * does, with `move` above deciding the cell: the container's arrows, Home and
- * End focus the next cell (synchronously, then dispatch) or, under `virtual`,
+ * End (`keys`) focus the next cell (synchronously, then dispatch) or, under `virtual`,
  * only dispatch and point with `aria-activedescendant`; each cell gets
  * `tabindex` 0 or -1 and reports `Focused` when focused.
  */
-export const behavior =
-  <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
-  <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+export const behavior = <Field extends string>(
+  declared: Declared<typeof bundle, Field>,
+  args: Args,
+) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): <Container extends keyof Slots & string, Item extends keyof Slots & string>(
+    options: BehaviorOptions<Input, Slots, Container, Item>,
+  ) => Behavior.NamedBehavior<
+    Slots,
+    Input,
+    ParentMessage,
+    A11y.ProvidedOn<Container, 'navigation'> | A11y.ProvidedOn<Item, 'focus-strategy'>
+  >
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
-    const wrap = (id: string): ParentMessage =>
-      declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
-    const slice = (input: Input): Model => input[declared.field]
-    const itemsOf = perInput(options.items)
-    return Behavior.forSlots(slots)<Input, ParentMessage>(
-      {
-        [options.container]: Behavior.slot({
-          requires: { capability: Capability.Interactive },
-          attributes: ({
-            input,
-            h,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-          }) => {
-            const items = itemsOf(input)
-            const current = slice(input).current
-            const from = current === null ? -1 : items.indexOf(current)
-            const direction = options.direction?.(input) ?? 'ltr'
-            const stop = RovingTabindex.tabStop(items, current)
-            const stopId = stop === -1 ? undefined : items.ids[stop]
-            const target = (key: string, modifiers: KeyboardModifiers): string | undefined => {
-              const next = move(items.enabled, items.size, from, key, modifiers, {
-                columns: args.columns,
-                wrap: args.wrap,
-                direction,
-                ...(args.page === undefined ? {} : { page: args.page }),
-              })
-              return next === undefined ? undefined : items.ids[next]
-            }
-            if (args.virtual) {
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    const slots = SlotView.boundSlots(given)
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: BehaviorOptions<Input, Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
+      const wrap = (id: string): ParentMessage =>
+        declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
+      const slice = (input: Input): Model => input[declared.field]
+      const itemsOf = perInput(options.items)
+      const keydown = Behaviors.Keys.attribute<Input, ParentMessage>(
+        [keys<Field>(declared, args)<Input, ParentMessage>(options)],
+        { slot: options.container, moveFocus: !args.virtual },
+      )
+      return Behavior.forSlots(slots)<Input, ParentMessage>(
+        {
+          [options.container]: Behavior.slot({
+            requires: { capability: Capability.Interactive },
+            provides: [A11y.Navigation],
+            attributes: context => {
+              const { input, h } = context
+              const items = itemsOf(input)
+              const stop = RovingTabindex.tabStop(items, slice(input).current)
+              const stopId = stop === -1 ? undefined : items.ids[stop]
               return [
-                h.OnKeyDownPreventDefault((key, modifiers) =>
-                  Option.map(Option.fromNullishOr(target(key, modifiers)), wrap),
-                ),
-                ...(stopId === undefined ? [] : [h.AriaActiveDescendant(stopId)]),
+                keydown(context),
+                // Whose `tabindex="0"` is this container's stop, for a `FollowTabStop` around it.
+                h.DataAttribute(ROVING_MARK, ''),
+                ...(args.virtual && stopId !== undefined ? [h.AriaActiveDescendant(stopId)] : []),
               ]
-            }
-            return [
-              h.OnKeyDownFocus((key, modifiers) =>
-                Option.map(Option.fromNullishOr(target(key, modifiers)), id => ({
-                  focusSelector: RovingTabindex.idSelector(id),
-                  message: wrap(id),
-                })),
-              ),
-            ]
-          },
-        }),
-        [options.item]: Behavior.slot({
-          requires: { capability: Capability.Focusable },
-          attributes: ({
-            input,
-            h,
-            item,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-            readonly item?: SlotItem
-          }) => {
-            if (item === undefined) return []
-            return RovingTabindex.itemAttributes(
+            },
+          }),
+          [options.item]: Behavior.slot({
+            requires: { capability: Capability.Focusable },
+            provides: [A11y.FocusStrategy],
+            attributes: ({
+              input,
               h,
-              itemsOf(input),
-              slice(input).current,
               item,
-              args.virtual,
-              wrap,
-            )
-          },
-        }),
-        // Keyed by values the caller chose; `forSlots` checks both keys exist.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
-      { name: 'GridNavigation' },
-    )
+            }: {
+              readonly input: Input
+              readonly h: HtmlBuilder<ParentMessage>
+              readonly item?: SlotItem
+            }) => {
+              if (item === undefined) return []
+              return RovingTabindex.itemAttributes(
+                h,
+                itemsOf(input),
+                slice(input).current,
+                item,
+                args.virtual,
+                wrap,
+              )
+            },
+          }),
+          // Keyed by values the caller chose; `forSlots` checks both keys exist.
+        } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
+        { name: 'GridNavigation' },
+      )
+    }
   }
+  return place
+}

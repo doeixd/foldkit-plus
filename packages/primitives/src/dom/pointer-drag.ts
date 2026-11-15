@@ -1,5 +1,7 @@
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
+import { EdgeScroll, edgeScrollerLater } from './edge-scroll.js'
+import { escapeEnds, whilePressed } from './press-session.js'
 import { targetOf } from './targets.js'
 
 export const DragZone = Schema.Literals(['before', 'inside', 'after'])
@@ -76,11 +78,18 @@ export const zoneOf = (box: Box, y: number): DragZone => {
  * An element's box. An element drawn as `display: contents` has none, so its
  * first child's stands for it, as an editor's node wrapper's does.
  */
-export const boxOf = (element: Element): Box => {
+export const boxOf = (element: Element): DOMRect => {
   const own = element.getBoundingClientRect()
   if (own.width > 0 || own.height > 0) return own
   const child = element.firstElementChild
   return child === null ? own : boxOf(child)
+}
+
+/** Where the pointer is, and what it was over when last heard. */
+interface Point {
+  readonly clientX?: number | undefined
+  readonly clientY?: number | undefined
+  readonly target: EventTarget | null
 }
 
 type Positioned = Event & {
@@ -127,8 +136,14 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
      * also marked as one: a place over it carries the part and is `inside`.
      */
     part: Schema.optionalKey(Schema.String),
+    /**
+     * Scroll the nearest scrolling ancestor while the drag is held near its
+     * edge, and report the place under the still pointer after each step.
+     * Absent: a drag scrolls nothing.
+     */
+    edgeScroll: Schema.optionalKey(EdgeScroll),
   },
-  execute: ({ element, attribute, targets, part }) =>
+  execute: ({ element, attribute, targets, part, edgeScroll }) =>
     Stream.callback<DragFact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -174,7 +189,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           // The click that ends a drag is not a press on what it ends over.
           let swallowClick = false
 
-          const placeAt = (event: Positioned) => {
+          const placeAt = (event: Point) => {
             // Touch and pen capture the pointer to where it went down, so the
             // event's target is the dragged element: ask what is under it instead.
             const under =
@@ -206,6 +221,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           const end = (dropped: boolean, at?: Positioned, inside = false) => {
             clearTimeout(holding)
             holding = undefined
+            scroller?.stop()
             const id = dragging
             if (id !== null && at?.clientX !== undefined && at.clientY !== undefined) {
               const { place, region } = placeAt(at)
@@ -221,6 +237,9 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             release()
             if (id === null) return
             swallowClick = dropped && inside
+            // The click comes in the release's own task, or never (a release a browser sends no click
+            // for): past it, a keyboard's click on a button is no part of the drop.
+            if (swallowClick) setTimeout(() => (swallowClick = false), 0)
             Queue.offerUnsafe(
               queue,
               dropped
@@ -229,6 +248,28 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             )
           }
 
+          /** Reports where the pointer is, if that is not where it last was reported. */
+          const report = (point: Point) => {
+            const { place, region } = placeAt(point)
+            if (
+              place?.id === over?.id &&
+              place?.zone === over?.zone &&
+              place?.part === over?.part &&
+              region === inRegion
+            )
+              return
+            over = place
+            inRegion = region
+            Queue.offerUnsafe(queue, DraggedOver.make({ over: place, ...withRegion(region) }))
+          }
+          // The last move, kept to measure again when the list scrolled under a still pointer.
+          let heard: Point | null = null
+          const scroller =
+            edgeScroll === undefined
+              ? undefined
+              : edgeScrollerLater(element, edgeScroll, () => {
+                  if (dragging !== null && heard !== null) report(heard)
+                })
           const onDocument: ReadonlyArray<readonly [string, (event: Event) => void]> = [
             [
               'pointermove',
@@ -248,17 +289,13 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                   if (moved < DRAG_THRESHOLD) return
                   begin(pressed.id)
                 }
-                const { place, region } = placeAt(positioned)
-                if (
-                  place?.id === over?.id &&
-                  place?.zone === over?.zone &&
-                  place?.part === over?.part &&
-                  region === inRegion
-                )
-                  return
-                over = place
-                inRegion = region
-                Queue.offerUnsafe(queue, DraggedOver.make({ over: place, ...withRegion(region) }))
+                heard = {
+                  clientX: positioned.clientX,
+                  clientY: positioned.clientY,
+                  target: positioned.target,
+                }
+                report(heard)
+                scroller?.move(positioned.clientX ?? 0, positioned.clientY ?? 0)
               },
             ],
             [
@@ -281,14 +318,11 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
               },
             ],
           ]
-          // Heard on the way down, and kept there: an Escape that ends a drag is the
-          // drag's, not also the focused element's (a canvas that would deselect).
-          const onEscape = (event: Event) => {
-            if (pressed === null || (event as Positioned).key !== 'Escape') return
-            event.preventDefault()
-            event.stopPropagation()
-            end(false)
-          }
+          const onEscape = escapeEnds(
+            () => pressed !== null,
+            () => dragging !== null,
+            () => end(false),
+          )
           // Once a finger's drag is under way, the browser must not take its moves for a scroll,
           // and a held finger opens no menu of its own (Android's `contextmenu`). Not passive:
           // only a listener that may cancel can keep the page still.
@@ -299,23 +333,14 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             if (pressed?.touch === true) event.preventDefault()
           }
           // The document is listened to only while a press is under way.
-          let listening = false
-          const listen = () => {
-            if (listening) return
-            listening = true
-            for (const [type, listener] of onDocument) owner.addEventListener(type, listener)
-            owner.addEventListener('keydown', onEscape, true)
-            owner.addEventListener('touchmove', heldStill, { passive: false })
-            owner.addEventListener('contextmenu', noMenu)
-          }
-          const release = () => {
-            if (!listening) return
-            listening = false
-            for (const [type, listener] of onDocument) owner.removeEventListener(type, listener)
-            owner.removeEventListener('keydown', onEscape, true)
-            owner.removeEventListener('touchmove', heldStill)
-            owner.removeEventListener('contextmenu', noMenu)
-          }
+          const { listen, release } = whilePressed(owner, [
+            ...onDocument,
+            ['keydown', onEscape, true],
+            ['touchmove', heldStill, { passive: false }],
+            ['contextmenu', noMenu],
+            // The browser's own text selection would extend under a drag; removing it once is not enough.
+            ['selectstart', event => event.preventDefault()],
+          ])
 
           const onElement: ReadonlyArray<readonly [string, (event: Event) => void, boolean]> = [
             [
@@ -379,6 +404,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           // Ended mid-hold: the hold must not start a drag after it.
           const stop = () => {
             clearTimeout(holding)
+            scroller?.stop()
             release()
             if (!(element instanceof HTMLElement)) return
             if (callout === undefined || callout === '') {

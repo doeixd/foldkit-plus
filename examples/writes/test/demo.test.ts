@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { runDemo } from '../src/demo.js'
 
 describe('foldkit-example-writes', () => {
-  it('answers a guarded rename, a conditional transition, increments retried with and without a ledger, a state invariant and a transition invariant', async () => {
+  it('answers a guarded rename, a conditional transition, increments retried with and without a ledger, a state invariant, a transition invariant and the state a sale leaves', async () => {
     expect(await runDemo()).toEqual([
+      'can publish the draft: Yes',
+      'can publish a published product: No(Unmet)',
+      'can publish an archived product: No(Unmet)',
+      'can put the published product back to draft: No(Invalid publishedStaysPublished)',
       'rename by its owner: written {"id":"p1","name":"Bolt, M6","revision":2}',
       'rename by another: Forbidden',
       'publish the draft: written {"id":"p1","status":"published","revision":3}',
@@ -16,6 +20,7 @@ describe('foldkit-example-writes', () => {
       'sell 3, from the same read: written {"id":"p1","stock":10,"revision":6}',
       'the first sale again, its answer lost: written {"id":"p1","stock":10,"revision":6}',
       'sell 9 of the 10, 2 of them reserved: Invalid reservedWithinStock',
+      'sell 8 of the 10, leaving only the 2 reserved: Invalid becomes:InStock',
       'row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":6}',
     ])
   })

@@ -263,8 +263,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'allow: reader => reader.signedIn,',
-        replace: 'allow: () => true,',
+        find: 'of the notes with none.\n  .access<Reader>({\n    allow: reader => reader.signedIn,',
+        replace: 'of the notes with none.\n  .access<Reader>({\n    allow: () => true,',
       },
     ],
     tests: [...app, ...page],
@@ -518,5 +518,21 @@ export default [
       },
     ],
     tests: host,
+  },
+  {
+    name: "the server loads no page's code",
+    edits: [{ file: '../src/page.ts', find: ' lazy: codeOf ', replace: ' ' }],
+    tests: page,
+  },
+  {
+    name: "the server loads the account page's code for every page",
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Routing.codeFor(model.route)',
+        replace: 'Routing.codeFor(AppRoute.Account())',
+      },
+    ],
+    tests: page,
   },
 ]

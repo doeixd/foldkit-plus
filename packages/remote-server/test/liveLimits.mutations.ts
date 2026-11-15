@@ -65,6 +65,39 @@ export default [
     tests,
   },
   {
+    name: 'more revisions than rows are admitted',
+    edits: [
+      {
+        file: index,
+        find: 'if ((revisions?.length ?? 0) > requirements.length)',
+        replace: 'if (false)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'as many revisions as rows are refused',
+    edits: [
+      {
+        file: index,
+        find: 'if ((revisions?.length ?? 0) > requirements.length)',
+        replace: 'if ((revisions?.length ?? 0) >= requirements.length)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a live subscription decodes any number of revisions',
+    edits: [
+      {
+        file: '../../remote/src/wire.ts',
+        find: 'revisions: Schema.optional(Schema.Array(RowRevision).check(Schema.isMaxLength(MAX_READ_AFTER))),',
+        replace: 'revisions: Schema.optional(Schema.Array(RowRevision)),',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'serveFetch sends a refusal as a plain error frame',
     edits: [
       {

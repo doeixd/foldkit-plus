@@ -1,153 +1,181 @@
 /**
- * Accessibility obligations, broken in turn: `pnpm mutate packages/mixins/test/a11y.mutations.ts`.
+ * Obligations: what `check` counts as supplied, the delegation rule, and the
+ * check `conform` leaves for `detach` and `replace`:
+ * `pnpm mutate packages/mixins/test/a11y.mutations.ts`. The type-level half
+ * (`a11y.test-d.ts`) was mutated by hand: a `Conforms` that always holds, a
+ * `delegated` taking any obligation, an `Owed` judging unknown slot names and
+ * a `detach` keeping what the view supplied each leave its negative cases
+ * unused; so do a bivariant `ProvidesRecord` (the annotations claiming more)
+ * and a `ProvidedOn` reading `Obligation<string>` (the unknown obligation),
+ * and a `ProvidesOf` reading nothing fails the inferred binder cases. A
+ * `Pipeable` typed to eight steps fails the eleven-step case. The catch-all
+ * `pipe(...fns: (self: Self) => Self)` put back makes `pipeError.test.ts`
+ * read every obligation in the error (it compiles the fixture from disk, out
+ * of `pnpm mutate`'s reach), and `attachAll` stating nothing of its members
+ * fails the list cases.
  */
-const tests = ['packages/mixins/test/a11y.test.ts']
+const unit = ['packages/mixins/test/a11y.test.ts']
 
 export default [
   {
-    name: 'a support list is not read',
+    name: 'any provides covers any obligation',
     edits: [
       {
         file: '../src/a11y.ts',
-        find: 'if (support !== undefined && requirement.obligations !== undefined)',
-        replace: 'if (false)',
+        find: '(Object.hasOwn(meta.slots, slot) && meta.slots[slot]!.provides.includes(obligation)) ||',
+        replace: '(Object.hasOwn(meta.slots, slot) && meta.slots[slot]!.provides.length > 0) ||',
       },
     ],
-    tests,
+    tests: unit,
   },
   {
-    name: 'two arguments start requiring providers',
+    name: 'what a slot supplies counts on every slot',
     edits: [
       {
         file: '../src/a11y.ts',
-        find: 'if (support !== undefined && requirement.obligations !== undefined)',
-        replace: 'if (requirement.obligations !== undefined)',
+        find: '(Object.hasOwn(meta.slots, slot) && meta.slots[slot]!.provides.includes(obligation)) ||',
+        replace: '(Object.values(meta.slots).some(own => own.provides.includes(obligation))) ||',
       },
     ],
-    tests,
+    tests: unit,
   },
   {
-    name: 'an empty provider still satisfies',
+    name: 'a composed Behavior is not read',
     edits: [
       {
         file: '../src/a11y.ts',
-        find: "item.slot === slot && item.obligation === obligation && item.provider !== ''",
-        replace: 'item.slot === slot && item.obligation === obligation',
+        find: '    (meta.parts ?? []).some(part => suppliedOn(part.meta, slot, obligation)))',
+        replace: '    false)',
       },
     ],
-    tests,
+    tests: unit,
   },
   {
-    name: 'an empty provider is accepted',
+    name: 'a delegation is accepted without its provider',
     edits: [
       {
         file: '../src/a11y.ts',
-        find: "if (provider === '') throw new Error(`A ${kind} obligation names its provider`)",
+        find: '      if (held && suppliedOn(delegation.provider.meta, delegation.to, owed)) continue',
+        replace: '      continue',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a delegation is accepted when its provider is merely attached',
+    edits: [
+      {
+        file: '../src/a11y.ts',
+        find: '      if (held && suppliedOn(delegation.provider.meta, delegation.to, owed)) continue',
+        replace: '      if (held) continue',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: "a delegation takes any attachment of its provider's name",
+    edits: [
+      {
+        file: '../src/a11y.ts',
+        find: '      const held = mixins.includes(delegation.provider)',
+        replace: '      const held = mixins.some(mixin => mixin.name === delegation.providerName)',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'detach does not check the view again',
+    edits: [
+      {
+        file: '../src/slotView.ts',
+        find: '      view.mixins.filter((_, index) => index !== at),\n      view.render,\n    )\n    carry(view, next, true)',
         replace:
-          "if (provider === 'skip') throw new Error(`A ${kind} obligation names its provider`)",
+          '      view.mixins.filter((_, index) => index !== at),\n      view.render,\n    )\n    carry(view, next, false)',
       },
     ],
-    tests,
+    tests: unit,
   },
   {
-    name: 'an unknown pattern obligation is kept',
+    name: 'replace does not check the view again',
     edits: [
       {
-        file: '../src/a11y.ts',
-        find: 'for (const obligation of obligations) {\n        if (!isObligation(obligation)) throw new Error(`Unknown obligation: ${obligation}`)\n      }',
-        replace: 'for (const obligation of obligations) {\n        void obligation\n      }',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'an unknown behavior supply is kept',
-    edits: [
-      {
-        file: '../src/a11y.ts',
-        find: 'for (const obligation of supplies) {\n      if (!isObligation(obligation)) throw new Error(`Unknown obligation: ${obligation}`)',
+        file: '../src/slotView.ts',
+        find: '      view.mixins.map((held, index) => (index === at ? mixin : held)),\n      view.render,\n    )\n    carry(view, next, true)',
         replace:
-          'for (const obligation of supplies) {\n      if (false) throw new Error(`Unknown obligation: ${obligation}`)',
+          '      view.mixins.map((held, index) => (index === at ? mixin : held)),\n      view.render,\n    )\n    carry(view, next, false)',
       },
     ],
-    tests,
+    tests: unit,
   },
   {
-    name: 'an absent optional slot is still required',
+    name: 'attach forgets the conformance',
+    edits: [
+      {
+        file: '../src/slotView.ts',
+        find: '    carry(view, next, false)\n    return next',
+        replace: '    return next',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'conform marks the view it was given',
     edits: [
       {
         file: '../src/a11y.ts',
-        find: 'if (requirement.optional === true) continue',
-        replace:
-          'if (requirement.optional === true && requirement.obligations === undefined) continue',
+        find: '    Conformed.record(conformed, [',
+        replace: '    Conformed.record(view, [',
       },
     ],
-    tests,
+    tests: unit,
   },
   {
-    name: 'a hidden slot is obligation-checked too',
+    name: 'an optional slot left out is owed its obligations',
     edits: [
       {
         file: '../src/a11y.ts',
-        find: 'if (slot.hidden)',
-        replace: 'if (false)',
+        find: 'if (obligations === undefined || !Object.hasOwn(slots, name) || slots[name]!.hidden) continue',
+        replace: 'if (obligations === undefined) continue',
       },
     ],
-    tests,
+    tests: unit,
   },
   {
-    name: 'validate does not judge the support list',
-    edits: [
-      {
-        file: '../src/a11y.ts',
-        find: 'if (support !== undefined && requirement.obligations !== undefined) {',
-        replace: 'if (false) {',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a support entry naming a slot the pattern lacks passes',
-    edits: [
-      {
-        file: '../src/a11y.ts',
-        find: 'if (required?.includes(item.obligation) === true) continue',
-        replace: 'continue',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a support entry for an obligation the slot does not require passes',
-    edits: [
-      {
-        file: '../src/a11y.ts',
-        find: 'if (required?.includes(item.obligation) === true) continue',
-        replace: 'if (required !== undefined) continue',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'forSlots keeps an unknown supply',
+    name: 'a Behavior slot records nothing it provides',
     edits: [
       {
         file: '../src/behavior.ts',
-        find: 'const unknown = slotOptions?.supplies?.find(name => !isObligation(name))\n      if (unknown !== undefined) throw new Error(`Unknown obligation: ${unknown}`)\n',
-        replace: '',
+        find: '    provides: Object.freeze(provides.map(MetadataToken.nameOf)),',
+        replace: '    provides: Object.freeze([]),',
       },
     ],
-    tests,
+    tests: unit,
   },
   {
-    name: 'checked state declares nothing',
+    name: 'an assembly is not told that its parts are unread',
     edits: [
       {
-        file: '../src/behaviors/toggle-state.ts',
-        find: "...(options.as === 'checked' ? { supplies: ['checked'] as const } : {}),\n",
-        replace: '',
+        file: '../src/a11y.ts',
+        find: 'const assembly = Conformed.assemblies.has(view.render)',
+        replace: 'const assembly = false',
       },
     ],
-    tests,
+    tests: unit,
+  },
+  {
+    name: 'assemble does not record its drawing',
+    edits: [{ file: '../src/slotView.ts', find: '      assemblies.add(drawn)\n', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'every view is told its parts are unread',
+    edits: [
+      {
+        file: '../src/a11y.ts',
+        find: 'const assembly = Conformed.assemblies.has(view.render)',
+        replace: 'const assembly = true',
+      },
+    ],
+    tests: unit,
   },
 ]

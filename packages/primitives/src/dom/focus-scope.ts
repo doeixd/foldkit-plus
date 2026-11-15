@@ -1,27 +1,10 @@
 import { Effect, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { isLeaving } from './leaving.js'
+import { activeOutside, backToOpener, fallBack, lostIn, returnOf } from './focus-way.js'
+import { tabbableWithin } from './focusable.js'
+import * as LayerStack from './layer-stack.js'
 
-const FOCUSABLE = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]',
-  '[contenteditable="true"]',
-].join(', ')
-
-const isVisible = (element: Element): boolean => {
-  const probe = element as { checkVisibility?: () => boolean }
-  return element.closest('[hidden], [inert]') === null && (probe.checkVisibility?.() ?? true)
-}
-
-/** Tabbable descendants in DOM order: focusable, visible, and not `tabindex="-1"`. */
-export const tabbableWithin = (root: Element): ReadonlyArray<HTMLElement> =>
-  Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    element => element.tabIndex >= 0 && isVisible(element),
-  )
+export { tabbableWithin }
 
 const focusFirst = (elements: ReadonlyArray<HTMLElement>): boolean => {
   const first = elements[0]
@@ -33,7 +16,13 @@ const focusFirst = (elements: ReadonlyArray<HTMLElement>): boolean => {
 /**
  * A focus scope as a Mount: on insert it remembers what was focused, focuses
  * an initial element inside, and with `contain` keeps Tab and Shift+Tab
- * cycling inside; on unmount it gives focus back. Nothing crosses to the
+ * cycling inside; on unmount it gives focus back to what had it, or, when that
+ * is gone and focus is lost with the scope, where `fallBack` finds a place. It
+ * is a layer of the
+ * document's stack while mounted, and a scope with a layer opened after it
+ * still open contains nothing: the topmost layer owns containment, so a
+ * dialog drawn beside this one, as a portaled one is, keeps its focus.
+ * Nothing crosses to the
  * Model: which element had focus is a DOM fact, so this is element lifecycle,
  * not state. It emits no Messages.
  */
@@ -53,16 +42,27 @@ export const FocusScope = Mount.defineStream('FocusScope', {
       Effect.acquireRelease(
         Effect.sync(() => {
           const ownerDocument = element.ownerDocument
-          const previous = ownerDocument.activeElement
-          const initial =
-            initialFocus === null ? null : element.querySelector<HTMLElement>(initialFocus)
-          if (initial !== null) initial.focus()
-          else if (!focusFirst(tabbableWithin(element)) && element instanceof HTMLElement) {
-            element.focus()
+          // Focus is still where it was: this Mount is what moves it inside.
+          const way = returnOf(activeOutside(element))
+          const release = LayerStack.open(element)
+          const focusInitial = () => {
+            const initial =
+              initialFocus === null ? null : element.querySelector<HTMLElement>(initialFocus)
+            if (initial !== null) initial.focus()
+            else if (!focusFirst(tabbableWithin(element)) && element instanceof HTMLElement) {
+              element.focus()
+            }
           }
+          focusInitial()
+          // Drawn where a lower layer hid it, nothing in it takes focus until that one stops
+          // hiding it, and nothing outside it can take focus meanwhile: focus it then.
+          const landed = () => element.contains(ownerDocument.activeElement)
+          const stopWaiting = LayerStack.whenShown(() => {
+            if (!landed()) focusInitial()
+            if (landed()) stopWaiting()
+          })
+          if (landed()) stopWaiting()
           const onKeyDown = (event: Event) => {
-            // Leaving content gives its keys to whatever takes focus next.
-            if (isLeaving(element)) return
             const key = event as KeyboardEvent
             if (key.key !== 'Tab') return
             const tabbable = tabbableWithin(element)
@@ -82,35 +82,30 @@ export const FocusScope = Mount.defineStream('FocusScope', {
             }
           }
           const onFocusIn = (event: Event) => {
-            // Leaving content does not call focus back: the handoff is going out.
-            if (isLeaving(element)) return
             const target = event.target
             if (target instanceof Node && element.contains(target)) return
+            if (LayerStack.isCovered(element)) return
             focusFirst(tabbableWithin(element))
           }
           if (contain) {
             element.addEventListener('keydown', onKeyDown)
             ownerDocument.addEventListener('focusin', onFocusIn)
           }
-          return { previous, onKeyDown, onFocusIn, ownerDocument }
+          return { way, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }
         }),
-        ({ previous, onKeyDown, onFocusIn, ownerDocument }) =>
+        ({ way, onKeyDown, onFocusIn, ownerDocument, release, stopWaiting }) =>
           Effect.sync(() => {
+            stopWaiting()
+            const below = LayerStack.below(element)
+            release()
             if (contain) {
               element.removeEventListener('keydown', onKeyDown)
               ownerDocument.removeEventListener('focusin', onFocusIn)
             }
-            if (!restore || !(previous instanceof HTMLElement)) return
-            if (!ownerDocument.contains(previous)) return
-            // Restore only focus that would otherwise be lost. A surface that
-            // took it while this one left keeps it.
-            const active = ownerDocument.activeElement
-            const lost =
-              active === null ||
-              active === ownerDocument.body ||
-              !ownerDocument.contains(active) ||
-              element.contains(active)
-            if (lost) previous.focus()
+            if (!restore || backToOpener(way)) return
+            // An opener that is gone is replaced only while focus is lost: focus the user moved
+            // on stays, and a scope opened with focus on nothing has nothing to give back.
+            if (way.opener !== undefined && lostIn(element)) fallBack(element, way, below)
           }),
       ),
     ),

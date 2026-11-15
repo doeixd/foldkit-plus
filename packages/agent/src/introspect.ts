@@ -24,6 +24,7 @@ export const messages = (
     inputSchema: variant.inputJsonSchema,
     modelDependent: variant.available !== undefined,
     requiresAuthorization: variant.authorize !== undefined,
+    inputDependent: variant.applies !== undefined,
     completion: variant.completion,
   }))
 

@@ -210,8 +210,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'DomainEntity.judgeAgainst(invariants, change, binding.operators.memory)',
-        replace: 'DomainEntity.judgeAgainst(invariants, change)',
+        find: 'DomainEntity.judgeAgainst(judged, change, binding.operators.memory)',
+        replace: 'DomainEntity.judgeAgainst(judged, change)',
       },
     ],
     tests,

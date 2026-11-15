@@ -453,6 +453,8 @@ const cursorId = (cursor: string): string => {
   return parts.id === '' ? cursor : parts.id
 }
 
+const REVISION_ALIAS = '\u0000revision'
+
 /**
  * A `RemoteServer.entity` source backed by the `DrizzleDatabase` service. It
  * selects the requested columns in one batch, then resolves each selected
@@ -468,8 +470,8 @@ const cursorId = (cursor: string): string => {
  * server it is mounted in says (`RemoteServer.make`'s `viewer`), which is
  * refused without one; a read made outside a server is refused it.
  */
-export const source = <P = unknown>(
-  binding: AnyEntityBinding,
+export const source = <P = unknown, B extends AnyEntityBinding = AnyEntityBinding>(
+  binding: B,
   options?: {
     readonly authorize?: EntitySource<P, DrizzleDatabase>['authorize'] | undefined
     readonly filter?: EntitySource<P, DrizzleDatabase>['filter'] | undefined
@@ -483,9 +485,32 @@ export const source = <P = unknown>(
      * hold for one row; a read finding more is refused. Default 100.
      */
     readonly maxCollection?: number | undefined
+    /**
+     * The field holding the row's revision: every read sends it with each
+     * row (`EntityRecord.revision`), asked for or not, so a client never lets
+     * an older answer over a newer row. It must be a column holding a number.
+     */
+    readonly revision?: (keyof B['fields'] & string) | undefined
   },
 ): EntitySource<P, DrizzleDatabase> => {
   const maxCollection = options?.maxCollection ?? 100
+  const revisionColumn =
+    options?.revision === undefined || !Object.hasOwn(binding.columns, options.revision)
+      ? undefined
+      : binding.columns[options.revision]
+  if (options?.revision !== undefined && revisionColumn === undefined) {
+    throw new Error(
+      `[foldkit-remote-drizzle] ${binding.name} has no column for its revision "${options.revision}"`,
+    )
+  }
+  if (
+    revisionColumn !== undefined &&
+    !String((revisionColumn as { readonly dataType?: unknown }).dataType).startsWith('number')
+  ) {
+    throw new Error(
+      `[foldkit-remote-drizzle] ${binding.name}'s revision "${options?.revision}" is not a number column`,
+    )
+  }
   if (!Number.isInteger(maxCollection) || maxCollection < 1) {
     throw new Error(
       `[foldkit-remote-drizzle] ${binding.name}'s maxCollection must be a whole number above 0`,
@@ -532,6 +557,8 @@ export const source = <P = unknown>(
         if (!projectsAny(binding, context.fields)) return []
         const database = yield* DrizzleDatabase
         const columns = selectColumns(binding, context.fields)
+        // Under a name no field has, so a revision not asked for is never sent as a value.
+        if (revisionColumn !== undefined) columns[REVISION_ALIAS] = revisionColumn
         for (const field of context.fields) {
           const computed = binding.computed[field]
           if (computed === undefined) continue
@@ -836,7 +863,14 @@ export const source = <P = unknown>(
             })
         }
 
-        return rows.map(row => ({ id: String(row.id), values: row }))
+        return rows.map(row => {
+          const revision = row[REVISION_ALIAS]
+          return {
+            id: String(row.id),
+            values: row,
+            ...(typeof revision === 'number' ? { revision } : {}),
+          }
+        })
       }),
     ...(options?.authorize === undefined ? {} : { authorize: options.authorize }),
     ...(options?.filter === undefined ? {} : { filter: options.filter }),
@@ -1342,6 +1376,9 @@ export const writer = <P = unknown>(
 
   const { invariants } = binding
   const invariantName = (held: Invariant) => `${binding.name}'s invariant "${held.id}"`
+  /** The Entity's invariants and, after them, the write's own postcondition, when it has one. */
+  const judging = (ensures: Invariant | undefined): ReadonlyArray<Invariant> =>
+    ensures === undefined ? invariants : [...invariants, ensures]
   // Checked and compiled once, so one this binding cannot run, in SQL or in
   // memory, fails where the writer is built.
   for (const held of invariants) {
@@ -1359,6 +1396,7 @@ export const writer = <P = unknown>(
    * the write leaves as it is. The rows the statement writes are the rows judged.
    */
   const holdingInvariants = (
+    judged: ReadonlyArray<Invariant>,
     values: Readonly<Record<string, unknown>>,
     increments: Readonly<Record<string, number>>,
     assignments: Readonly<Record<string, Computation>>,
@@ -1382,7 +1420,7 @@ export const writer = <P = unknown>(
         next,
         operators: binding.operators,
       }
-      return invariants.flatMap(held =>
+      return judged.flatMap(held =>
         compilePredicates(
           [Expr.substituteNext(held.predicate, values)],
           target,
@@ -1644,8 +1682,8 @@ export const writer = <P = unknown>(
     )
 
   /** The refusal for the first invariant a row or a change breaks; none for what it cannot judge. */
-  const brokenIn = (change: Change) =>
-    Match.value(DomainEntity.judgeAgainst(invariants, change, binding.operators.memory)).pipe(
+  const brokenIn = (judged: ReadonlyArray<Invariant>, change: Change) =>
+    Match.value(DomainEntity.judgeAgainst(judged, change, binding.operators.memory)).pipe(
       Match.tagsExhaustive({
         Valid: () => Option.none(),
         Undecided: () => Option.none(),
@@ -2177,6 +2215,7 @@ export const writer = <P = unknown>(
     operators: binding.operators.memory,
     commutes,
     invariants: true,
+    postconditions: true,
     cascades: true,
     restricts: true,
     clears: true,
@@ -2194,6 +2233,25 @@ export const writer = <P = unknown>(
       ...Option.match(write.when, {
         onNone: () => [],
         onSome: body => operatorProblems(body.where, binding, 'its precondition', writeOperations),
+      }),
+      // So does its postcondition, which is judged beside the invariants.
+      ...Option.match(write.ensures, {
+        onNone: () => [],
+        onSome: held => {
+          const named = `its postcondition "${held.id}"`
+          const problems = operatorProblems([held.predicate], binding, named, [
+            ...writeOperations,
+            'next',
+          ])
+          if (problems.length > 0) return problems
+          try {
+            compilePredicates([held.predicate], binding, {}, named)
+            return []
+          } catch (error) {
+            if (error instanceof QueryCompileError) return [error.message]
+            throw error
+          }
+        },
       }),
       // So does each assignment, which a miss's row is worked out by.
       ...write.assignments.flatMap(({ field, expr }) =>
@@ -2241,18 +2299,25 @@ export const writer = <P = unknown>(
       expect,
       when,
       requires,
+      ensures,
       operation,
       request,
       principal,
     }) =>
       Effect.gen(function* () {
         yield* serverOnly
+        const judged = judging(ensures)
         const at = yield* rowOf(id, expect, when)
         const required = yield* requiredOf(requires)
         const where = and(
           at.where,
           ...required,
-          ...(yield* holdingInvariants({ ...values, ...linkIds(links) }, increments, assignments)),
+          ...(yield* holdingInvariants(
+            judged,
+            { ...values, ...linkIds(links) },
+            increments,
+            assignments,
+          )),
         )
         const { bump } = at
         const set = {
@@ -2319,27 +2384,30 @@ export const writer = <P = unknown>(
         const conditioned =
           Option.isSome(expect) ||
           Option.isSome(when) ||
-          invariants.length > 0 ||
+          judged.length > 0 ||
           requires !== undefined
         if (Option.isSome(written) || !conditioned) return written
         // The write missed. Why is read from the row as it is now: gone, moved
         // past the expected revision, not holding the precondition, or else
-        // leaving a row that breaks an invariant. What those read is read too.
-        const judged = returning(binding, [
+        // leaving a row that breaks an invariant or the postcondition. What those read is read too.
+        const explained = returning(binding, [
           ...new Set([
             ...answeredFields,
             ...Option.match(when, {
               onNone: () => [],
               onSome: ({ body }) => Query.dependencies(body).predicate.map(field => field.key),
             }),
-            ...invariants.flatMap(held => [...held.before, ...held.after]),
+            ...judged.flatMap(held => [...held.before, ...held.after]),
             ...Write.boundReads({ increments, assignments }),
           ]),
         ])
-        const current = yield* selectRows(yield* DrizzleDatabase, binding.table, judged.columns, {
-          where: eq(idColumn(binding), id),
-        })
-        const whole = answeredOf(current, judged)
+        const current = yield* selectRows(
+          yield* DrizzleDatabase,
+          binding.table,
+          explained.columns,
+          { where: eq(idColumn(binding), id) },
+        )
+        const whole = answeredOf(current, explained)
         if (Option.isNone(whole)) return whole
         // Who may write it is refused first, as a guard refuses before all else.
         yield* refusedBy(id, requires, required)
@@ -2383,7 +2451,7 @@ export const writer = <P = unknown>(
           const before = judgedRow(row)
           const written = { ...values, ...linkIds(links) }
           const after = proposedOf(before, { values: written, increments, assignments })
-          const broken = brokenIn(retried ? { after } : { before, after })
+          const broken = brokenIn(judged, retried ? { after } : { before, after })
           if (Option.isSome(broken)) return yield* broken.value
         }
         if (retried) return now
@@ -2393,13 +2461,13 @@ export const writer = <P = unknown>(
           `${binding.name} ${id} does not hold what the write asks of it`,
         )
       }),
-    insert: ({ id, values, links, operation, request, principal }) =>
+    insert: ({ id, values, links, ensures, operation, request, principal }) =>
       Effect.gen(function* () {
         yield* serverOnly
         // There is no row yet: the row it would make is its values, judged before it is written.
         yield* Match.value(
           DomainEntity.judgeAgainst(
-            invariants,
+            judging(ensures),
             { after: { ...values, ...linkIds(links), id } },
             binding.operators.memory,
           ),

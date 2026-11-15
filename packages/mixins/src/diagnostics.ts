@@ -18,9 +18,13 @@ export type DiagnosticCode =
   | 'mixins:attribute-conflict'
   | 'mixins:structural-override'
   | 'mixins:duplicate-mount-name'
+  | 'mixins:unknown-attachment'
+  | 'mixins:ambiguous-attachment'
   | 'mixins:duplicate-item-id'
   | 'mixins:ragged-grid-areas'
   | 'mixins:inline-shorthand-conflict'
+  | 'mixins:unknown-key'
+  | 'mixins:key-conflict'
   | 'style:duplicate-layer'
   | 'style:conflicting-layer-order'
   | 'style:unlayered-rule'
@@ -36,7 +40,7 @@ export type DiagnosticCode =
   | 'a11y:missing-event'
   | 'a11y:missing-attribute'
   | 'a11y:unsatisfied-obligation'
-  | 'a11y:unknown-support'
+  | 'a11y:delegation-unmet'
 
 export interface Diagnostic {
   readonly source: 'mixins' | 'a11y' | 'style' | 'theme'

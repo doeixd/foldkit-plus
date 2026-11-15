@@ -19,6 +19,7 @@ import {
 import { type BoundAgent } from './forModel.js'
 import { type Resource, resource } from './resource.js'
 import { bind } from './runtime.js'
+import { parts } from './parts.js'
 
 /**
  * A projection an agent can read: a read-only `Projection`, a writable pick, or
@@ -150,6 +151,7 @@ const buildAgent = <Model, Principal>(
     expose: expose as ApplicationAgent<Model, Principal>['expose'],
     exposeSubset: appExposeSubset,
     resource,
+    parts,
     bind,
     make: agentMake,
     withPrincipal: <P>(_key?: Context.Key<any, P>) => buildAgent<Model, P>(app),

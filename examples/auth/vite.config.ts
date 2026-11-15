@@ -24,6 +24,34 @@ export const configFor = (options: {
   ssr: { resolve: { conditions: ['foldkit-plus:source'] } },
   // Read by the server entry only; the page's script never names it.
   define: { 'import.meta.env.AUTH_SERVER': JSON.stringify(options.authServer) },
+  // The browser's build only: the server's has no chunks to load.
+  environments: {
+    client: {
+      build: {
+        rolldownOptions: {
+          output: {
+            // Without this, rolldown groups the boot graph by which dynamic chunks import each
+            // module, and the account page's bodies import a different set from Yielded's client:
+            // one shared chunk became three, and the lazy page cost 5.6 kB of brotli more than
+            // its eager self. Every module two chunks share goes in one `boot` chunk instead,
+            // except what the loader runs ahead of it (it must not wait for `boot`), and a
+            // module the group only reaches through another stays where the graph puts it.
+            codeSplitting: {
+              groups: [
+                {
+                  name: 'boot',
+                  minShareCount: 2,
+                  includeDependenciesRecursively: false,
+                  test: (id: string) =>
+                    !/\0vite\/|ssr\/dist\/(loader|marks|handoff)\.js|\/loader\.ts/.test(id),
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  },
   server: {
     host: '127.0.0.1',
     port: Number(new URL(options.origin).port),

@@ -223,17 +223,31 @@ export class UnreadableHistoryError extends Schema.TaggedError<UnreadableHistory
 ) {}
 
 /**
- * `replay` threw for a submitted Message, so it could never be applied here or
- * on any other replica; nothing was written.
+ * `replay` threw for a submitted Message, or a law threw over its result, so
+ * it could never be applied here or on any other replica; nothing was written.
  */
 export class ReplayError extends Schema.TaggedError<ReplayError>()('ReplayError', {
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown),
 }) {}
 
+/**
+ * `submit` replayed the Message over the optimistic snapshot, and the result
+ * breaks one of the document's laws: nothing was written. A hint, not the
+ * verdict: the optimistic snapshot holds pending edits the server may refuse,
+ * and the server judges again over the snapshot it commits on.
+ */
+export class LawBrokenError extends Schema.TaggedError<LawBrokenError>()('LawBrokenError', {
+  /** The law's id, as declared in `laws`. */
+  rule: Schema.String,
+  message: Schema.String,
+  path: Schema.Array(Schema.String),
+}) {}
+
 export type ReplicaError =
   | StorageError
   | ReplayError
+  | LawBrokenError
   | WrongReplicaStorageError
   | InvalidReplicaHistoryError
   | InvalidExchangeError

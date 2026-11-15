@@ -24,9 +24,9 @@ export default [
     edits: [
       {
         file: guard,
-        find: 'return yield* Effect.mapError(writer.insert(context), told)',
+        find: 'return yield* Effect.mapError(writer.insert(context), told(context.ensures))',
         replace:
-          'return yield* Effect.mapError(writer.insert({ ...context, operation: Option.none() }), told)',
+          'return yield* Effect.mapError(writer.insert({ ...context, operation: Option.none() }), told(context.ensures))',
       },
     ],
     tests,

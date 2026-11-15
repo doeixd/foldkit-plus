@@ -5,7 +5,7 @@
  * function shows a refusal whichever path made it. Sync keeps its own codec
  * because its core does not depend on `foldkit-remote`.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineTaggedUnion } from 'foldkit/schema'
 
 /** The most UTF-16 units a refusal's words may hold: a refusal is not a document. */
@@ -31,9 +31,10 @@ export const SyncRefusal = defineTaggedUnion({
   Forbidden: { reason: Schema.OptionFromOptionalKey(Words) },
   /**
    * It breaks a rule, or the server could not apply it. `message` is a fixed
-   * sentence of the server's, never an error's message. `entity`, `rule` and
+   * sentence of the server's, or a law's own words. `entity`, `rule` and
    * `path` name an Entity's invariant, as Remote's do; `journalExchange`
-   * knows none, so it sends them empty.
+   * sends a document's law as `rule` and `path`, with no `entity`, and
+   * leaves all three empty otherwise. Match a law with `Sync.isInvalidBy`.
    */
   Invalid: {
     entity: Schema.OptionFromOptionalNullOr(Words),
@@ -45,3 +46,10 @@ export const SyncRefusal = defineTaggedUnion({
   Unreadable: { version: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)) },
 })
 export type SyncRefusal = typeof SyncRefusal.Type
+
+/**
+ * Whether `refusal` is the server's answer that `law` broke: an `Invalid`
+ * naming the law's id. A replica is one document's, so the id is enough.
+ */
+export const isInvalidBy = (refusal: SyncRefusal, law: { readonly id: string }): boolean =>
+  refusal._tag === 'Invalid' && Option.contains(refusal.rule, law.id)

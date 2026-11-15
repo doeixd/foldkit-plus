@@ -93,41 +93,6 @@ transition is `update`; a network call is Message → Command; an element-scoped
 `Mount`. A Behavior that "needs state" is a signal to reach for a Submodel, not to hide an atom
 inside the mixin.
 
-### Using, customizing, assembling, authoring
-
-These are four jobs.
-
-- **Use** a shipped control. `Input.view` from `foldkit-mixins-ui` draws a field. The caller
-  passes its value and the Message an edit sends.
-- **Customize** that control where it is drawn. `Recipes.Input.extend` replaces one class,
-  `Style.forSlots` binds the recipe to the input's slots, and a `mixins` entry or
-  `Behavior.attach` adds element behavior. The shipped recipe and the original view stay.
-- **Assemble** a widget from those pieces and place it. A `Schema` Model, a Message union, and
-  `Bundle.make` define the child once. `Bundle.declare`, `Bundle.parent`, and `Parent.at` place
-  it. Two placements are two slices of the parent Model; each child's `update` writes only its
-  own. The parent view draws `placed.view` and does not construct the child's Message.
-- **Author a primitive** when the same element behavior belongs on more than one widget.
-  `Behaviors.Keyboard` and `FocusRecovery` take a slot contract and return a Behavior. They hold
-  no Model.
-
-The runnable pair is in `examples/widgets`.
-[`search-field`](../../examples/widgets/src/search-field/view.ts) is the assembly: the shipped
-`SearchField.view` with a recipe, an application key route beside its own, and two `Bundle`
-placements. [`dismissible-list`](../../examples/widgets/src/dismissible-list/view.ts)
-is the edit-and-remove widget on the same path: one `update`, `SlotView.forMessages`, and
-`FocusRecovery` attached. A popup that commits a selection is the autocomplete widget, not a
-third assembly API.
-
-What the callbacks do not mention still has to be written down. `SlotView.forMessages<Message>()`
-names the universe, because the render callback does not annotate `h`. The `(model: Model)`
-parameter is how the view's input is inferred. `Behavior.forSlots(slots)<Model, Message>` is
-required when the slot callback mentions neither type, and on `Behaviors.Keyboard` when a route
-reads the model: without those arguments the model is `unknown` and `Behavior.attach` does not
-match the view. `Submodel.defineView<Model, Message>(view)` keeps the placed view at
-`(model, h)`. Leaving the arguments off typechecks the call and infers a view-input parameter,
-so the placement then expects a third argument. `Bundle.make` takes the Schemas as values, which
-is the declaration. A wrapper that only moved the same pair would restate it.
-
 ## Install
 
 ```bash
@@ -249,13 +214,15 @@ Attachments are not concatenated and left to renderer order. The resolver applie
   `insetInlineEnd`), and `translate`, `rotate` or `scale` beside `transform`;
 - `Key`, `InnerHTML` and a `Prop` that replaces the children are structural and cannot be
   overridden;
-- ordinary Mount contributions compose into one `OnMount`. A child `OnMount` keeps its
-  Submodel dispatch boundary, so it is preserved on its own; alongside another Mount the
-  resolver throws `mixins:attribute-conflict` instead of silently dropping one.
+- multiple mount contributions compose into exactly one `OnMount`, a Mount inside a
+  `ChildAttribute` (a Submodel's) included; that one still sends through its own boundary.
 
 Conflicts throw `Diagnostics.DiagnosticError` with stable codes such as
 `mixins:event-conflict`, `mixins:style-property-conflict` and `mixins:protected-attribute`, so tests,
-DevTools and editor tooling can all speak the same diagnostic language. The style rule exists
+DevTools and editor tooling can all speak the same diagnostic language. A conflict between two
+owners (an event, an attribute, a style property, a Mount name) names both contributors in its
+message and in `details.contributors`: each attachment by its name, and `the view` for the base
+attributes the render passed. The style rule exists
 because a positioning Behavior that writes `top` and a Style that also sets `top` would otherwise
 fight silently, last writer winning.
 A theme refuses its values the same way: `Theme.make` with a value out of a knob's range throws
@@ -292,60 +259,6 @@ Scene test of a page that draws it cannot resolve it.
 The resolver's thrown `Diagnostics` namespace here is a different thing: import one of the two
 under another name.
 
-## Inspecting an assembly
-
-`Assembly.describe` reads the same slots, behaviors, styles and pattern the resolver does, and
-returns one serializable description: public slots, attachments in order, pattern obligations,
-pattern diagnostics, known links, and contribution conflicts. A document and a diagnostic both
-consume that value (`Assembly.textOf`). It does not draw the view, call a Mount, or dispatch a
-Message. `support` lists providers no Behavior declares (`A11y.native(...)`,
-`A11y.delegated(...)`), so a pattern whose obligations the element or a delegate supplies
-describes clean.
-
-Pass the behaviors and styles you still hold. A behavior records only its mixin on the view, so
-the description names an attachment by the `NamedBehavior` or `NamedStyle` whose mixin is that
-one. With a `view`, only a behavior whose mixin the view attaches supplies a pattern obligation: a
-behavior listed in `behaviors` but not attached supplies nothing. Without a view (`slots`,
-`behaviors`, `styles`), every listed behavior counts. Omit `input` and a behavior's events and attributes stay `'unknown'`. Pass `input` and the
-description records the event and attribute names, so a conflict names both contributors, the
-slot, and the event or attribute, in attachment order. A conflict also carries the two
-attachments' `order`s (`orders`, printed as `Name#order` by `textOf`), since two attachments may
-share a name, as two `Keyboard` behaviors do. One attachment never conflicts with itself. What a closure reads stays `'unknown'`.
-Classes, attribute values, and mount actions are not copied. A Surface contract or an Action
-contributes its kind and name. A part the render closure builds, such as a nested input, is a
-`parts` entry: describe does not call the view to find it. Replacing an attachment is a new
-view; describing either one leaves the other unchanged.
-
-```ts
-import { Assembly } from 'foldkit-mixins'
-
-const ClearLabel = Behavior.forSlots(FieldSlots)<FieldInput, Message>(
-  {
-    input: Behavior.slot({
-      attributes: ({ input, h }) => [h.AriaLabel(input.value)],
-    }),
-  },
-  { name: 'ClearLabel' },
-)
-const labeled = Field.pipe(Behavior.attach(ClearLabel))
-// No input: the label claim stays unknown. The text is not read.
-const pending = Assembly.describe({
-  name: 'Field',
-  view: labeled,
-  behaviors: [Validation, ClearLabel],
-  styles: [FieldStyle],
-})
-// Input resolves claim names. The description still has no label text and calls no Mount.
-const described = Assembly.describe({
-  name: 'Field',
-  view: labeled,
-  behaviors: [Validation, ClearLabel],
-  styles: [FieldStyle],
-  input: { value: 'Ada', invalid: false },
-})
-const inspection = Assembly.textOf(described)
-```
-
 ## Slots: the public contract
 
 A slot is metadata, not a DOM node:
@@ -365,10 +278,7 @@ Slot.make({
   `Base → Collection`. A behavior that requires `Interactive` may attach to a `TextInput`.
   Extend it with `Capability.make(name, { extends })`.
 - **Event** and **Attr** are branded metadata tokens. `Event.make` and `Attr.make` add custom ones;
-  declaring them does not install handlers. `Attr` ships `Role`, `AriaLabel`, `AriaDescribedby`,
-  `AriaExpanded`, `AriaSelected`, `AriaInvalid`, `AriaPressed`, `AriaDisabled`, `Disabled` and
-  `Value`, and `AriaChecked`, `AriaLabelledby`, `AriaControls`, `AriaReadonly`, `AriaRequired`,
-  `AriaCurrent` and `AriaValuenow`, for a slot to declare what it writes.
+  declaring them does not install handlers.
 - **Requirement** tokens name platform needs such as `Keyboard`, `Pointer` and `Clipboard` for
   tooling to inspect.
 - `hidden` reserves an internal extension point: public Style and Behavior specs do not even offer
@@ -587,50 +497,6 @@ is declared, so knobs set below the root change nothing derived from them there:
 `Theme.scoped`'s token overrides do not. `AppStyle.make({ theme })` takes one theme, and its
 `tokens` an application's own groups beside the shipped ones. The design is in
 `docs/theme-knobs.md`.
-
-### Following another tab
-
-`Themes.choose` and `Theme.chooseScheme` write this tab's `localStorage`, and another tab hears
-that as a `storage` event. `Themes.changes(themes)` and `Theme.schemeChanges()` are Streams of
-what another tab chose, decoded as the head scripts decode it: a name no theme has, a removed key
-and anything else read as the initial theme or `'system'`. The writing tab hears nothing. They
-apply nothing, because the Model owns the choice: map each to a Message, and let `update` store
-it and answer with the Command that shows it.
-
-```ts
-import { Schema, Stream } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
-import * as Subscription from 'foldkit/subscription'
-import { Theme, Themes } from 'foldkit-mixins/theme'
-
-const Followed = defineMessageUnion({
-  ThemeFollowed: { name: themes.Name },
-  SchemeFollowed: { scheme: Schema.Literals(['system', 'light', 'dark']) },
-})
-type Shown = { readonly theme: typeof themes.Name.Type }
-
-export const followed = Subscription.make<Shown, typeof Followed.Type>()(() => ({
-  theme: Subscription.persistentEntry(
-    Themes.changes(themes).pipe(Stream.map(name => Followed.ThemeFollowed({ name }))),
-  ),
-  scheme: Subscription.persistentEntry(
-    Theme.schemeChanges().pipe(Stream.map(scheme => Followed.SchemeFollowed({ scheme }))),
-  ),
-}))
-```
-
-On `ThemeFollowed`, `update` sets the Model's field and returns `Themes.apply(themes, name)`; on
-`SchemeFollowed` it returns `Theme.chooseScheme(scheme)`. Kept knobs have no stream:
-`Theme.chooseKnobs` stores CSS variable declarations, which do not map back to a theme's knobs.
-
-### The server's first render of the scheme
-
-A server that builds the Model per request reads the browser's hint with
-`schemeOfHint(request.headers.get('sec-ch-prefers-color-scheme'))`, which is
-`Option.some('light' | 'dark')` or `Option.none()`. A browser sends the hint only after a
-response asks for it, so send `COLOR_SCHEME_HINT_HEADERS` on pages: `Accept-CH` opts in,
-`Critical-CH` has the browser retry the first request with the hint, and `Vary` keeps a cache
-from serving one scheme's page to the other. Both are exported from `foldkit-mixins/theme`.
 
 ### What the palette derives
 
@@ -1070,8 +936,7 @@ roving tab stop or a press, live in `foldkit-primitives` as a Bundle plus its Be
 
 Four more stateless Behaviors say a parent's state in ARIA, so a custom view
 gets it right without hand-writing it. Each takes slot names and functions of
-the view's input; none owns anything. A fifth, Keyboard, routes gestures, and
-has a section of its own below.
+the view's input; none owns anything.
 
 - `Behaviors.Disclosure.behavior(Slots)<Input, Message>({ trigger, content, open, id })`
   writes `aria-expanded` and `aria-controls` on the trigger, `id` and `hidden`
@@ -1093,30 +958,6 @@ has a section of its own below.
   press-and-hold repeat and the wheel are not handled: Foldkit's wheel
   attribute carries no delta, and a repeat is a timer the Model would own.
 
-### Keyboard routes: one owner, several gestures
-
-`Behaviors.Keyboard.behavior(Slots)({ target, routes, name? })` composes exact key and
-modifier gestures into one `OnKeyDownPreventDefault` owner. A route is
-`{ name, key, modifiers?, toMessage }`; the slot must publish `Event.KeyDown`.
-Omitted modifiers must be up. Two routes for the same chord are refused at
-definition with a `mixins:event-conflict` naming both contributors, the slot,
-the event and the key. Routes compose inside one behavior; a second keydown owner on the same
-slot still conflicts in the resolver, whatever it is named. `name` (default `'Keyboard'`) is how
-the behavior is named in a description or diagnostic.
-
-`toMessage(input)` returns `Option.some(message)` to dispatch and cancel the
-native default, or `Option.none()` to leave it alone. Foldkit skips IME
-composition. Repeated keys take the same route, and handled events continue to
-propagate; this callback has no repeat filter or propagation control. The base
-view's key handler, `ChildAttribute` routing and protected events keep their
-usual single-owner checks: a router never replaces them implicitly.
-
-Observation, routing and replacement are separate choices. Use an ordinary
-base `OnKeyDown` to observe every non-IME key without cancelling its default;
-use Keyboard to choose Messages per gesture; replace a base keydown by removing
-it before attaching a Behavior, not by attaching a second owner. The runnable
-[`examples/widgets/src/search-field/view.ts`](../../examples/widgets/src/search-field/view.ts)
-adds ArrowDown-to-open-results beside the `SearchField`'s own Escape-to-clear.
 
 ## SlotView
 
@@ -1131,6 +972,85 @@ infers it from an explicit `h: HtmlBuilder<Message>` annotation. Without one, `M
 
 `Behavior.attach` uses the behavior's `Input` as the attached view's `Input`, so declare a
 behavior over the view's input type, not merely the subset of fields it happens to read.
+
+### Naming the slots, input and Messages once: `SlotView.over`
+
+A Behavior is made before the view it meets, so `Behavior.forSlots(S)<Input, Message>` names
+both types again for every Behavior. `SlotView.over(S)<Input, Message>()` names them once and
+hands back `define`, `behavior` and `parts` with all three fixed, so nothing passed to them is
+annotated:
+
+```ts
+const Fields = SlotView.over(FieldSlots)<FieldInput, Message>()
+
+const Validates = Fields.behavior(
+  { input: { attributes: ({ input, h }) => [h.AriaInvalid(input.invalid)] } },
+  { name: 'Validates' },
+)
+const BoundField = Fields.define((input, slots, h) =>
+  h.label(slots.root.attrs(), [
+    h.input(
+      slots.input.attrs([
+        h.Value(input.value),
+        h.OnInput(value => Message.ChangedValue({ value })),
+      ]),
+    ),
+  ]),
+).pipe(Behavior.attach(Validates))
+```
+
+`Fields.define` is `SlotView.define`, `Fields.behavior` is `Behavior.forSlots` and
+`Fields.parts` is `SlotView.parts`: the binder makes no new kind of value and holds no state. A
+Behavior from a binder over another Message universe is still refused at `Behavior.attach`.
+`foldkit-mixins-surface`'s `SurfaceView.over(surface, slots)` is the same binder with both types
+read from the Surface. A factory that takes slots can take a binder in their place, telling the
+two apart with `SlotView.isBound`.
+
+### What a view remembers of its attachments
+
+Each attachment keeps its name, and a Style or Behavior also its `meta`: its kind and, per slot,
+what it requires, what it supplies (its `provides`, see [Obligations](#obligations-who-does-what-a-pattern-asks))
+and whether it reads the input. A Mixin made with `Mixin.make` or
+`Mixin.dynamic` carries none; `Mixin.compose` records its parts in order. A name addresses an
+attachment:
+
+```ts
+const Unchecked = BoundField.pipe(SlotView.detach('Validates'))
+const Checked = Unchecked.pipe(Behavior.attach(Validates))
+const Swapped = Checked.pipe(SlotView.replace('Validates', Validates.mixin))
+```
+
+`detach` and `replace` return a new view, `replace` keeping the attachment's place in the
+resolution order. Each throws `mixins:unknown-attachment` for a name the view does not hold and
+`mixins:ambiguous-attachment` for one it holds twice, so name a Behavior you mean to address
+(an unnamed one is called `Behavior`).
+
+### Describing a view, and what one input resolves to
+
+`SlotView.describe(view)` is the view as data: its slots, and each attachment in order with, per
+slot, what it requires, what it supplies and the classes and Mounts it contributes. It needs no
+input and calls no contribution; one that is a function of the input reads `'unknown'`. It
+reads the view value, so a view you attach to or detach from has a description of its own and
+the first one's does not change. A `JSON.parse(JSON.stringify(description))` equals it, and
+`SlotView.toMarkdown(description)` prints it.
+
+```ts
+const description = SlotView.describe(Checked)
+// description.attachments[0]: { order, name, kind, slots: { input: { requires, provides, contributes } } }
+const markdown = SlotView.toMarkdown(description)
+```
+
+`SlotView.resolution(view, input)` evaluates every contribution for one input and reports, per
+slot, the class tokens, style property names, attribute names, event names and Mount names, each
+with the attachment that gave it. It reports no attribute value, style value or Mount args, since
+any of them may be the input's (a password in `Value`); class tokens are reported as given, so a
+class built from input text surfaces it. It builds handlers with the inert builder
+and calls none, runs no Mount, and returns a conflict as a finding where `resolve` would throw.
+It does not draw the view, so a clash with the view's own base attributes is not reported.
+Attribute and event names are as the resolver compares them (lower case, no hyphens).
+
+`findings` also warn (`severity: 'warning'`) of an unnamed attachment and of two with one name,
+which `detach` and `replace` cannot address.
 
 For per-item groups such as tabs, options or calendar cells, use
 `SlotView.buildersFor(slots, mixins, { input, h })` and map the items yourself. One contribution
@@ -1163,7 +1083,10 @@ is not redrawn for. `Panel` is an ordinary SlotView: Styles and Behaviors attach
 to it and reach every part's Slots.
 
 - **A part's own Behaviors** go in its `behaviors` option, declared over the
-  part's selection (`Pick<Input, 'count'>`), and are resolved against it.
+  part's selection (`Pick<Input, 'count'>`), and are resolved against it. A part
+  is found only by drawing it, so `A11y.conform` reads none of its Behaviors'
+  obligations, at the type level or at run time: attach a Behavior that must
+  count to the assembly, and the finding says so when it is put on a part.
 - **A Mixin attached to the whole view that reads the input** (a Behavior's
   `attributes`, `Style.whenInput`) is resolved against the whole input, so the
   parts it reaches are drawn again on every change: correct, not cached. Static
@@ -1285,42 +1208,198 @@ const DialogPattern = A11y.pattern({
 A11y.validate(DialogPattern, DialogSlots)
 ```
 
-`A11y.validate` with two arguments is pure and DOM-independent. It checks the declared contract
-for missing or hidden slots, capability mismatches, and unpublished events or attributes. An
-optional requirement tolerates an absent slot but still checks a present one.
+`A11y.validate` is pure and DOM-independent. It checks the declared contract for missing or hidden
+slots, capability mismatches and unpublished events or attributes. An optional requirement
+tolerates an absent slot but still checks a present one. It does **not** certify WCAG compliance.
 
-Obligations are a second check, and only when a support list is the third argument of the same
-call: `A11y.validate(pattern, slots, support)`. A present slot may require `navigation`, `focus`,
-`activation`, or `checked`. A Behavior declares what it supplies; `A11y.native` names the
-element (such as `input`); `A11y.delegated` names another provider. Both refuse an empty
-provider, and an entry whose provider is empty (built by hand) does not satisfy. Publishing an
-attribute does not supply an obligation. When the pattern and the support list are literals, a
-list that misses a required `slot/obligation` is a type error. A wide `Pattern`, or a list typed
-only as `ObligationSupport[]` (including what `A11y.suppliedBy` reads off a Behavior), is judged
-when the call runs. `slot` in a support entry is a `string`, so the call also reports
-`a11y:unknown-support` for an entry that names a slot the pattern does not list, or an
-obligation that slot does not require. Neither check certifies WCAG conformance.
+Three words stay apart here. A slot contract or a `provides` is **declared**: the author says so.
+`A11y.validate`, `A11y.check` and `A11y.conform` are **structural**: they say the declarations fit
+together. Only a browser test is **rendered**: it says the behaviour happened on a page. None of
+them is WCAG conformance.
+
+`Conformance` from `foldkit-mixins/testing` is the rendered word. Each scenario takes a harness
+and returns its findings as plain data, so a widget and a view assembled from primitives are held
+to one behaviour. `Conformance.harness({ cdp, userEvent })` is the harness for Vitest's browser
+mode: keys from `userEvent.keyboard`, roles and names from Chromium's own accessibility tree
+(which Vitest's locators do not match), read inside its root (the document by default) with each
+node's DOM element, and a pointer press as dispatched events. It takes the two from you, so
+`foldkit-mixins` imports no test runner. `cdp` is the Playwright provider's, so a test file
+names it first (`/// <reference types="@vitest/browser-playwright" />`, which types the session):
+
+<!-- docs-check
+declare const cdp: Conformance.BrowserTools['cdp']
+declare const userEvent: Conformance.BrowserTools['userEvent']
+-->
 
 ```ts
-const ListPattern = A11y.pattern({
-  list: { obligations: ['navigation'] },
-  row: { obligations: ['focus'] },
+import { Conformance } from 'foldkit-mixins/testing'
+// import { cdp, userEvent } from 'vitest/browser'
+
+declare const button: HTMLElement
+
+const harness = Conformance.harness({ cdp, userEvent })
+const result = await Conformance.listbox(harness, {
+  name: 'Frequency',
+  options: ['Hourly', 'Daily', 'Weekly'],
+  disabled: 'Daily',
+  orientation: 'horizontal',
+  direction: 'rtl',
+  enter: async () => button.focus(), // gives the keyboard to the widget, options drawn
 })
-const ListNavigation = Behavior.forSlots(ListSlots)<FieldInput, Message>(
-  {
-    list: Behavior.slot({ supplies: ['navigation'] }),
-    row: Behavior.slot({ supplies: ['focus'] }),
-  },
-  { name: 'ListNavigation' },
-)
-A11y.validate(ListPattern, ListSlots, A11y.suppliedBy(ListNavigation))
+console.log(Conformance.failures(result)) // []
 ```
+
+`Conformance.listbox`, `.checkbox`, `.tree`, `.dialog` (focus in, Tab contained, Escape, focus
+restored, a second dialog opened over the first) and `.tabs` read what the page did: roles and
+names from the accessibility tree, `aria-selected`, `aria-checked` and `aria-expanded` from the
+page, focus from `document`. They read no Model, Slot or obligation. `Conformance.server(scenario,
+root, expected)` is the server half: parse a rendered string and it checks each expected role,
+name and attribute. Another runner gives a `Conformance.Harness` of its own (`{ root, press,
+accessibility, click }`). `SlotView.describe(view).conforms` lists the patterns a view was conformed to.
+
+### Obligations: who does what a pattern asks
+
+A contract that publishes `keydown` on a list does not navigate it, and one that publishes
+`aria-selected` does not write it. A pattern's slot can also name **obligations**: things an
+attachment must say it does on that slot.
+
+| Obligation | Means | Supplied by |
+| --- | --- | --- |
+| `A11y.Navigation` | arrows, Home and End move among the items | `ListNavigation`, `RovingTabindex`, `TreeNavigation`, `GridNavigation` (container slot) |
+| `A11y.FocusStrategy` | each item is reachable: a roving stop, `aria-activedescendant`, or a native control | the same four (item slot); `A11y.native` |
+| `A11y.Activation` | Enter, Space or a press activates it | `Selection` (unless `click: false`), `Press`; `A11y.native` |
+| `A11y.State(attr)` | the attribute is written with a value on every draw | `Selection` (`aria-selected`), `Behaviors.ToggleState`, `Behaviors.Disclosure` (`aria-expanded`) |
+| `A11y.Name` | the element has an accessible name | `Behaviors.FieldAssociation`; the view's own label, as `A11y.base` |
+
+Something supplies an obligation in one of four ways: a Behavior slot's `provides`
+(`Behavior.slot({ provides: [A11y.Navigation], ... })`, as the primitives above declare theirs);
+`A11y.base({ slot: [...] })`, the view's own attributes on the author's word; `A11y.native({ slot:
+[...] }, { element: 'button' })`, what a native element does by itself; and
+`A11y.delegated({ slot: [...] }, { to, provider })`, an obligation met on another slot by an
+attached Behavior. The last three are Mixins that contribute nothing, attached with
+`SlotView.attach`. `A11y.conform` checks the assembled view:
+
+<!-- docs-check
+import { Bundle } from 'foldkit-bundle'
+const List = Bundle.declare(ListNavigation.bundle, 'list')
+const Sel = Bundle.declare(Selection.bundle, 'selection')
+const FruitMessage = defineMessageUnion({ ...List.cases, ...Sel.cases, Cleared: {} })
+type FruitMessage = typeof FruitMessage.Type
+interface FruitInput {
+  readonly list: ListNavigation.Model
+  readonly selection: Selection.Model
+  readonly fruit: ReadonlyArray<string>
+}
+const ListboxSlots = Slots.define({
+  listbox: Slot.make({ capability: Capability.Interactive, events: [Event.KeyDown] }),
+  option: Slot.make({ capability: Capability.Focusable, attributes: [Attr.AriaSelected] }),
+  clear: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+})
+const listArgs = { orientation: 'vertical', loop: true, virtual: false, timeoutMs: 500, page: 10 } as const
+const selArgs = { mode: 'single', allowEmpty: false } as const
+-->
+
+```ts
+import { ListNavigation, Selection } from 'foldkit-primitives/interaction'
+
+const Listbox = A11y.pattern({
+  listbox: { capability: Capability.Interactive, obligations: [A11y.Navigation, A11y.Name] },
+  option: {
+    capability: Capability.Focusable,
+    obligations: [A11y.FocusStrategy, A11y.Activation, A11y.State(Attr.AriaSelected)],
+  },
+})
+
+const Options = SlotView.over(ListboxSlots)<FruitInput, FruitMessage>()
+const itemsOf = (input: FruitInput) => Behaviors.Collection.of(input.fruit, { id: name => name })
+
+export const FruitList = Options.define((input, slots, h) =>
+  h.ul(
+    slots.listbox.attrs([h.AriaLabel('Fruit')]),
+    input.fruit.map((name, index) => h.li(slots.option.attrs([], { id: name, index }), [name])),
+  ),
+).pipe(
+  Behavior.attach(
+    ListNavigation.behavior(List, listArgs)(Options)({
+      container: 'listbox',
+      item: 'option',
+      items: itemsOf,
+      text: (input, index) => input.fruit[index] ?? '',
+    }),
+  ),
+  Behavior.attach(Selection.behavior(Sel, selArgs)(Options)({ item: 'option', items: itemsOf })),
+  SlotView.attach(A11y.base({ listbox: [A11y.Name] })),
+  A11y.conform(Listbox),
+)
+```
+
+What each call means:
+
+- `A11y.pattern` and the obligation tokens are data. Obligations are compared by name, so two
+  `A11y.State(Attr.AriaSelected)` are one.
+- The view restates nothing `ListNavigation` and `Selection` supply. Given the binder, each
+  factory states what it supplies from the slot names it was given (`'listbox/navigation'`,
+  `'option/focus-strategy'`), and a view's type collects them through `pipe`. Leave `Selection`
+  out and the `conform` line is a type error naming `'option/activation' |
+  'option/state:aria-selected'`, and nothing the steps before it supply. A factory that hands
+  back several Behaviors (`Overlay.behaviors`) is one step, `Behavior.attachAll(list)`: `pipe`
+  takes typed steps only, so a spread array is refused. A factory called with bare slots (`(slots)<Input, Message>`)
+  states nothing, so such a view is judged at run time only. A factory states only what its run
+  time is sure to supply: `Selection` states activation for a literal `mode` of `'single'` or
+  `'multiple'` with its click on (left out or `true`), and a slot name known only at run time (a
+  union, `string`) states nothing, through `A11y.ProvidedOn`. The type may then refuse a view the
+  run time would pass; call that factory with bare slots and it is judged at run time alone.
+- At run time `conform` runs `A11y.check(pattern, view)` once, where the module loads, and throws
+  a `DiagnosticError` for the first finding (`a11y:unsatisfied-obligation`, with `slot` and
+  `details.obligation`; `a11y:delegation-unmet`, naming the provider), every finding in
+  `details.diagnostics`. Run time reads each attachment's `meta`, never a type, so a type that
+  claims more than its value supplies still fails here. An assembly whose slot names are not known
+  to the type checker (built from a `Record<string, …>`) is judged here alone.
+- `conform` returns a new view that remembers the pattern: `SlotView.detach` and
+  `SlotView.replace` check the view they make again, so detaching `ListNavigation` from
+  `FruitList` throws. The view `conform` was given is unchanged.
+- It reads no input, runs no Mount and draws nothing. `A11y.check` returns the same findings as
+  data, and `A11y.validate` stays the check of a bare contract.
+- A page pays for the check only where it conforms: every SlotView carries the record `conform`
+  leaves for `detach` and `replace` (331 bytes minified, 228 brotli), and the module holding
+  `conform`, `check` and the obligation tokens adds 4.0 kB minified, 1.2 kB brotli, to a page
+  that imports it (measured with esbuild over the source, 2026-11-14).
+
+A Behavior written by hand on the binder states its names from its slots' `provides`, with no
+annotation; this one's type supplies `'clear/activation'`:
+
+```ts
+const Clears = Options.behavior(
+  {
+    clear: Behavior.slot({
+      provides: [A11y.Activation],
+      attributes: ({ h }) => [h.OnClick(FruitMessage.Cleared())],
+    }),
+  },
+  { name: 'Clears' },
+)
+```
+
+`Behavior.forSlots(slots)<Input, Message>(spec)` reads no `provides`, since TypeScript infers no
+type argument once one is given: use the binder. An annotation may forget what a value supplies,
+never claim more: a `SlotView.SlotView<Slots, Input, Message>` written out supplies nothing, so
+`conform` on it is a type error until the annotation names what it supplies (or is dropped), and
+typing `Options.behavior({})` as supplying `'clear/activation'` is refused. A view that
+`SlotView.detach` or `SlotView.replace` makes supplies nothing at the type level, whichever
+attachment it took: names are not in the type, and taking away what one attachment supplied may
+leave another supplying it. `conform` after either is a type error until something is attached
+again, and the run-time check, made again for a conformed view, is the judge of the result. A
+delegation names only
+what its `provider` supplies on `to`, and `to` is one of the provider's slots; both are type
+errors otherwise. A pattern without obligations, and a Behavior without `provides`, behave as
+before.
 
 ## Introspection
 
 The contracts are data:
 
-- `Slots.describe(contract)` and `Slot.describe(slot)` return serializable metadata.
+- `Slots.describe(contract)` and `Slot.describe(slot)` return serializable metadata;
+  `SlotView.describe(view)` and `SlotView.resolution(view, input)` describe an assembled view.
 - `Mixin.compose` combines mixins; `Mixin.make`, `Mixin.dynamic` and `Mixin.empty` build them.
 - diagnostics have stable codes and structured `details`, so the same information can feed tests,
   DevTools, documentation or agent tooling.

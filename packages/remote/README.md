@@ -1260,6 +1260,22 @@ Retention stays the domain's: a call's `retain` entry roots every read any call
 of the domain names, so neither call collects what the other reads. Keeping one
 `retain` entry is all it takes; it waits for its own call's `grace`.
 
+`Data.wiring` is one call, so it takes a policy per entry instead: `policies`
+is keyed by the active record's keys, and an entry it does not name reads under
+`policy`. Here the owner ages while the page reads `cacheFirst`:
+
+```ts
+const pageWiring = Data.wiring(
+  { page: projectPage, owner },
+  { policies: { owner: RemotePolicy.staleWhileRevalidate({ maxAge: 5_000 }) } },
+)
+```
+
+A key the record lacks is a type error. A list two entries read is held stale
+once left unless both age it, as with two calls. The wiring's `subscriptions`
+are named by the same keys, so a test reads `pageWiring.subscriptions['owner.read']`
+with no `!`.
+
 A call's `policy` can also be picked from the Model, so a screen that works
 offline reads what it holds while offline and asks once it is back. `isOnline`
 reads a field the application keeps, from `navigator.onLine` and its events or
@@ -2313,6 +2329,12 @@ mutations whose write `Reads` the list; a handler mutation is never listed.
 The answer says what a declaration allows, not what a given invocation
 changed, so a `Reads` is a possibility and `Unaffected` is a guarantee.
 
+A mutation that is no `Write` may carry a `footprint` (`MutationDescriptor.footprint`). A
+`Declared` footprint covers in-place updates of the fields it lists, and nothing else: a command
+that creates or deletes rows, or changes relations, must declare `Footprint.unknown`, or `reaches`
+reads it `Unaffected` for a list the command does change and `reachedBy` under-reports. `reaches`
+serves `explain`, not the refresh after a mutation, which does not read it.
+
 ### What became of a write
 
 `Data.mutation(model, requestId)` reads what became of it from the Model:
@@ -2526,6 +2548,20 @@ one write from here to the statement that lands it. `keys` names the input keys
 an author changed: only those are shown, and the request carries them for the
 server to write; the input is still sent and validated whole.
 
+`Data.can(model, Mutation, input)` tells, before anything is sent, whether the
+server would refuse a declared write, from what the Model holds: `Can.No` with
+`Forbidden` (a held `may`), `Unmet` (the `when`) or `Invalid` (an invariant),
+checked in the server's order; `Can.Undecided` with its reasons where the row,
+a field it reads, a `may` member or an input key is missing; otherwise `Can.Yes`. It is a hint
+to grey a control: `Data.mutate` does not read it, and still asks the server. See
+[Asking before sending](../../docs/declared-writes.md#asking-before-sending-datacan).
+`Data.capability(Mutation, toInput)` and `Data.available(Mutation, inputOf)` turn
+the same answer into a `foldkit-agent` capability's `authorize`, `applies` and
+`available` ([Agents](../../docs/agents.md#a-capability-over-a-declared-write)).
+They judge as the Model's viewer: as an agent's only `authorize` they give it
+the viewer's write rights, so compose them with a check of the agent's
+principal.
+
 <!-- docs-check standalone use bare-app
 import { Entity as DomainEntity, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
@@ -2624,6 +2660,61 @@ feed reads, though the write stored none of them, and the feed never reads
 is shown. A row the answer does not name is not read; the server names the
 rows a write changed. Each `Data.subscriptions` call registers what it reads, so
 a `Data.mutate` with none registered sends nothing to show.
+
+### When the server's reads lag its writes: revisions and read-after tokens
+
+Some servers answer a read from a copy that catches up after a write: a
+Domain View, a database read replica. Two things on Remote's wire, both
+optional and both opaque to Remote, keep such a server from showing a row
+older than one the client already holds:
+
+```text
+a row's revision   NormalizedEntity.revision, EntityPatched.revision
+                   a row of a lower revision than the one held writes nothing
+a write's token    MutationResult.after = { token, rows }
+                   each row is held to the token (its floor) until a read at it answers
+```
+
+The store keeps both beside the row (`EntityEntry.revision`, `.floor`), so a
+snapshot `persistence` restores keeps them, as does a server render's capture
+(`Remote.resume`), and nothing else owns them. Only a
+domain that registers a Mutation reads with tokens: a page that writes nothing
+carries none of that code, and keeps a floor a snapshot brought without
+asking at it. The
+server owns what they mean: Remote only compares revisions and sends a token
+back. While a row has a floor:
+
+- the read entry reads it again, even with every field held, and the read
+  carries its token (`ReadBatch.after`, at most `MAX_READ_AFTER` = 256 rows; the
+  rest wait for the next plan);
+- an answer read at the token, or one of a newer revision than the row held
+  (the server has it past the write), writes the row and ends the floor; a
+  row the server names in `behind` (its copy has not caught up) keeps what the
+  store holds and the floor, and is asked again with the token after a wait
+  (1 second, doubling with each answer `behind`, at most 30;
+  `EntityEntry.behind`, not persisted, so a reload asks at once); any other
+  answer to a read asked without the token writes nothing of the row;
+- a live stream subscribes with the tokens of the rows it watches
+  (`LiveRequirement.floors`), and restarts when they change. A server sends a
+  floored row's patch only once it reads at the token, so a patch on a stream
+  opened at the row's token, or one of a newer revision, writes it and ends
+  the floor, and any other on a stream opened before writes nothing of it;
+- a live stream also names the revision it holds each row at whole, with no
+  field stale and no floor (`LiveRequirement.revisions`), as it starts; a
+  moved revision does not restart it. A server may leave out a row's state at
+  or before that revision, which the store has: a page resumed from a server
+  render opens its stream without being sent back what it was handed;
+- `Data.inspect(model).floors` lists them, and `why` names the wait
+  (`ReadAfter`).
+
+A tombstone keeps the revision the row was gone at, so a late
+answer to a read begun before it went does not bring it back; a server whose
+revisions restart when a row is created again should send none. A tombstone
+asked about again (`Data.refresh`, a freshness running out) takes a row of
+that revision: a row a read left out because the reader lost sight of it
+comes back unchanged once the reader may see it again.
+`foldkit-remote-drizzle`'s `source` sends the bound revision
+(`source(binding, { revision })`); `foldkit-remote-domain` sends both.
 
 ### Checking an answer against what was shown
 
@@ -3522,6 +3613,11 @@ const Page = SSR.plan(App, {
   where the server stopped.
 - **Live cursors cross with the entities they follow**, so a live
   subscription started in the browser asks from where the server's left off.
+- **Revisions and floors cross with their rows.** The browser's live stream
+  names the revisions it was handed (`LiveRequirement.revisions`), so a
+  server that keeps them sends no frame the page already has, and a row a
+  write in the render held to a token (a form posted without scripts) stays
+  held, and is read at that token.
 - **Nothing else crosses.** Loading marks, failures, the mutation ledger,
   optimistic layers, gaps and retention start at their initial values.
 
@@ -3692,7 +3788,7 @@ wire yourself, each `POST` body is one of these, `version` being
 `REMOTE_PROTOCOL_VERSION`:
 
 ```json
-{ "operation": "read", "payload": { "version": 5, "requests": [{ "entity": "Post", "id": "p1", "fields": ["title"] }] } }
+{ "operation": "read", "payload": { "version": 6, "requests": [{ "entity": "Post", "id": "p1", "fields": ["title"] }] } }
 { "operation": "query", "payload": { "query": "PostsByAuthor", "input": { "authorId": "a1" }, "window": { "first": 20 } } }
 { "operation": "mutate", "payload": { "requestId": "r1", "mutation": "RenamePost", "input": { "id": "p1", "title": "Hello" } } }
 ```
@@ -4045,6 +4141,53 @@ expect(report.agreed).toEqual(expect.arrayContaining(['Card:c9.createdAt', ByRan
   nothing of: two sides that both said nothing agree, and that is no evidence.
   Name the parts you expect compared, as above, so a prediction that silently
   stops is caught too.
+
+### Scenarios: a write as data, run against the real thing
+
+A `Scenario` is a declared write (`Mutation.write`), the rows it starts from
+and what must come of it, written once as plain data. It holds no function and names no backend; a
+runner seeds its backend from `given`, sends `when` as `principal` at `now`
+under `operation`, and reports one step for each thing it owns and checked.
+`Scenario.run` gives the mismatches, each naming its backend and step.
+
+```ts sketch
+const reverted = Scenario.write<User>({
+  name: 'a published product does not go back to draft',
+  given: [{ entity: Product, row: { id: 'p2', ownerId: 'ada', name: 'Rivet', status: 'published', stock: 5, reserved: 0, revision: 1 } }],
+  principal: Option.some({ id: 'ada' }),
+  now: 0,
+  when: [Revert, { id: 'p2', status: 'draft' }],
+  operation: 'op-1',
+  expect: Scenario.refused({ entity: 'Product', id: 'publishedStaysPublished' }),
+})
+// Scenario.accepted({ status: 'draft' }), Scenario.refused('Unmet'), Scenario.forbidden, Scenario.unauthenticated
+
+const remote = Scenario.remote({ data: Data, model, backend: (rows, principal) => serverOver(rows, principal) })
+const { mismatches, evidence } = await Effect.runPromise(Scenario.run(reverted, [remote], { report }))
+```
+
+- **`Scenario.remote`** runs the write through `Law.check` (the client's
+  prediction against the server's answer) and through the server alone for the
+  decision and the row it leaves. `backend` is called twice per scenario and
+  must give a backend of its own each time. A `Forbidden` or `Unauthenticated`
+  scenario skips the prediction and the row: the client cannot know who asks,
+  and nobody refused may read the row. Another backend (SQLite's table and
+  ledger, a Domain story) is a `ScenarioRunner` of its own.
+- **`report`, a `Laws.check` report, is checked before anything runs.** A
+  scenario that expects a write to land where enumeration found an invariant
+  refusing it, or expects a refusal by an invariant the report kept the write
+  from breaking, throws naming the invariant. It also lets `run` issue
+  evidence: one `Scenario` record per runner with no mismatch, for each
+  invariant the (accepted) write could break.
+- **`Scenario.fromReport(report, { writes, starts, principal, now })`** gives
+  an acceptance for each arrow that holds and a rejection for each refused
+  pair, over the first of your `starts` that fits; one that fits none throws
+  naming the arrow or pair.
+- **`Scenario.messages` and `Scenario.runMessages`** are the same idea for an
+  `update`: a history of Messages from `initial`, one more, and a named
+  reading of the Model (`Scenario.reads`) or a law the step breaks
+  (`Scenario.breaks`), judged with a contract's `judge`.
+- External effects are not executed.
 
 ## Advanced: the kernel
 

@@ -29,6 +29,8 @@ import {
   RemoteUnreachable,
   type LiveChange,
   type LiveRequirement,
+  type RowRevision,
+  type RowToken,
 } from './wire.js'
 
 /**
@@ -66,6 +68,10 @@ export class RemoteClient extends Context.Service<
       /** The lists read live, each as its read sends it. */
       readonly queries: ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>>
       readonly after: LiveCursor
+      /** Rows of `requirements` held to a read-after token: `LiveRequirement.floors`. */
+      readonly floors?: ReadonlyArray<Schema.Schema.Type<typeof RowToken>> | undefined
+      /** Rows of `requirements` held whole at a revision: `LiveRequirement.revisions`. */
+      readonly revisions?: ReadonlyArray<Schema.Schema.Type<typeof RowRevision>> | undefined
     }) => Stream.Stream<
       LiveEvent,
       RemoteLiveError | RemoteLiveRefused | RemoteProtocolError | RemoteUnauthenticated
@@ -154,6 +160,7 @@ export const liveEventOf = (change: Schema.Schema.Type<typeof LiveChange>): Live
         values: change.values,
         changed: change.changed,
         cursor: change.cursor,
+        ...(change.revision === undefined ? {} : { revision: change.revision }),
       }
     case 'EntityDeleted':
       return {
@@ -295,5 +302,6 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     read: result.read,
     lists: result.lists,
     principal: result.principal,
+    after: result.after,
   }
 })

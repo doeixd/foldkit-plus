@@ -11,7 +11,7 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Behaviors, Capability } from 'foldkit-mixins'
+import { A11y, Attr, Behavior, Behaviors, Capability, SlotView } from 'foldkit-mixins'
 import { perInput, sameIds } from '../internal.js'
 import { BundleBehavior } from './bundle-behavior.js'
 
@@ -128,15 +128,20 @@ export const bundle = Bundle.make('Selection', {
   }),
 })
 
-export interface BehaviorOptions<Input, Slots> {
+export interface BehaviorOptions<
+  Input,
+  Slots,
+  Item extends keyof Slots & string = keyof Slots & string,
+  Click extends boolean = boolean,
+> {
   /** The slot holding the items, for `aria-multiselectable`. */
   readonly container?: keyof Slots & string
   /** The slot rendered once per item; must carry the item's id. */
-  readonly item: keyof Slots & string
+  readonly item: Item
   readonly items: (input: Input) => Behaviors.Collection.Items<unknown>
   /** Wire a plain click on each item to `Activated`. Default `true`; turn off
-   *  when `Press` or the view owns the click. */
-  readonly click?: boolean
+   *  when `Press` or the view owns the click, which then supplies activation. */
+  readonly click?: Click
 }
 
 /**
@@ -144,40 +149,73 @@ export interface BehaviorOptions<Input, Slots> {
  * `aria-multiselectable` on the container in multiple mode; wires `OnClick`
  * to `Activated` unless told not to. A disabled item gets no click.
  */
-export const behavior =
-  <Field extends string>(declared: Declared<typeof bundle, Field>, args: Args) =>
-  <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+export const behavior = <Field extends string, const A extends Args = Args>(
+  declared: Declared<typeof bundle, Field>,
+  args: A,
+) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): <Item extends keyof Slots & string, Click extends boolean = true>(
+    options: BehaviorOptions<Input, Slots, Item, Click>,
+  ) => Behavior.NamedBehavior<
+    Slots,
+    Input,
+    ParentMessage,
+    | A11y.ProvidedOn<Item, 'state:aria-selected'>
+    | ([Click] extends [true]
+        ? [A['mode']] extends ['single' | 'multiple']
+          ? A11y.ProvidedOn<Item, 'activation'>
+          : never
+        : never)
+  >
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
     options: BehaviorOptions<Input, Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
-    const itemsOf = perInput(options.items)
-    const selectedOf = perInput((input: Input) => new Set(input[declared.field].selected))
-    return BundleBehavior.fromBundle(declared)(slots)<Input, ParentMessage>(
-      {
-        ...(options.container === undefined
-          ? {}
-          : {
-              [options.container]: {
-                requires: { capability: Capability.Container },
-                attributes: ({ h }) => [h.AriaMultiSelectable(args.mode === 'multiple')],
-              },
-            }),
-        [options.item]: {
-          requires: { capability: Capability.Interactive },
-          attributes: ({ input, h, item, send }) => {
-            if (item === undefined) return []
-            const items = itemsOf(input)
-            const id = item.id ?? items.ids[item.index]
-            if (id === undefined) return []
-            const clickable =
-              options.click !== false && args.mode !== 'none' && !items.isDisabled(item.index)
-            return [
-              h.AriaSelected(selectedOf(input).has(id)),
-              ...(clickable ? [h.OnClick(send(Message.Activated({ id })))] : []),
-            ]
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    // `boundSlots` took a binder apart, so this is a slot set `fromBundle` accepts. `Unbound<Slots>`
+    // is a conditional on a generic, which no plain `Slots` is known to satisfy: the cast is the
+    // only way in without a second, unchecked entry on `fromBundle`.
+    const slots = SlotView.boundSlots(given) as SlotView.Unbound<Slots>
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: BehaviorOptions<Input, Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
+      const itemsOf = perInput(options.items)
+      const selectedOf = perInput((input: Input) => new Set(input[declared.field].selected))
+      return BundleBehavior.fromBundle(declared)<Slots>(slots)<Input, ParentMessage>(
+        {
+          ...(options.container === undefined
+            ? {}
+            : {
+                [options.container]: {
+                  requires: { capability: Capability.Container },
+                  attributes: ({ h }) => [h.AriaMultiSelectable(args.mode === 'multiple')],
+                },
+              }),
+          [options.item]: {
+            requires: { capability: Capability.Interactive },
+            provides: [
+              A11y.State(Attr.AriaSelected),
+              ...(options.click !== false && args.mode !== 'none' ? [A11y.Activation] : []),
+            ],
+            attributes: ({ input, h, item, send }) => {
+              if (item === undefined) return []
+              const items = itemsOf(input)
+              const id = item.id ?? items.ids[item.index]
+              if (id === undefined) return []
+              const clickable =
+                options.click !== false && args.mode !== 'none' && !items.isDisabled(item.index)
+              return [
+                h.AriaSelected(selectedOf(input).has(id)),
+                ...(clickable ? [h.OnClick(send(Message.Activated({ id })))] : []),
+              ]
+            },
           },
         },
-      },
-      { name: 'Selection' },
-    )
+        { name: 'Selection' },
+      )
+    }
   }
+  return place
+}

@@ -105,6 +105,13 @@ export interface OutboxWiring<AppModel> extends Wiring<
 }
 
 /**
+ * How long a send waits for the store to take its outcome before it lets the
+ * lock go regardless: past it the store still says waiting, and the next
+ * sender sends the write again under the same operation id.
+ */
+const storeWithin = '5 seconds'
+
+/**
  * Keeps a domain's durable writes (`mutate`'s `durable`) across a reload and
  * sends them, as a wiring beside `Data.wiring`: the queue is written to `key`
  * before a write is sent, sent oldest first by one tab (a Web Lock), sent
@@ -312,16 +319,24 @@ export const outbox = <AppModel>(
       /**
        * The outcome told this tab and the others first, so each settles
        * with the server's answer, then written to the store before the
-       * lock goes, so the next sender reads it.
+       * lock goes, so the next sender reads it. Not interruptible: the
+       * answer settles this page's queue, which ends this send, and a send
+       * ended before the write lets the lock go with the store still saying
+       * waiting, so a tab holding it sends the write again. A store that
+       * never answers is given up on after `storeWithin`, so the lock still
+       * goes.
        */
       const settle = (message: RemoteMessage, change: StoredOutbox) =>
-        emit(message).pipe(
-          Effect.andThen(announce(key, Option.some(message))),
-          Effect.andThen(writeStored(key, scope, change)),
-          Effect.andThen(announce(key, Option.none())),
-          // Unwritten, the store still says waiting: the next sender sends it
-          // again, and the operation id has the server answer from its record.
-          Effect.ignore,
+        Effect.uninterruptible(
+          emit(message).pipe(
+            Effect.andThen(announce(key, Option.some(message))),
+            Effect.andThen(writeStored(key, scope, change)),
+            Effect.andThen(announce(key, Option.none())),
+            Effect.timeout(storeWithin),
+            // Unwritten, the store still says waiting: the next sender sends it
+            // again, and the operation id has the server answer from its record.
+            Effect.ignore,
+          ),
         )
       const operation = write.operation
       return withLock(
@@ -350,22 +365,24 @@ export const outbox = <AppModel>(
             )
             if (Result.isSuccess(result)) {
               const outcome = result.success
-              const at = yield* Clock.currentTimeMillis
-              return yield* settle(
-                {
-                  _tag: 'MutationSucceeded',
-                  requestId: operation,
-                  entities: outcome.entities,
-                  connections: outcome.connections,
-                  deleted: outcome.deleted,
-                  ...(outcome.read === undefined ? {} : { read: outcome.read }),
-                  ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
-                  ...(outcome.principal === undefined
-                    ? {}
-                    : { principal: madeAsOf(outcome.principal), generation }),
-                  now: at,
-                },
-                storedChange([], [operation]),
+              return yield* Effect.flatMap(Clock.currentTimeMillis, at =>
+                settle(
+                  {
+                    _tag: 'MutationSucceeded',
+                    requestId: operation,
+                    entities: outcome.entities,
+                    connections: outcome.connections,
+                    deleted: outcome.deleted,
+                    ...(outcome.read === undefined ? {} : { read: outcome.read }),
+                    ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
+                    ...(outcome.after === undefined ? {} : { after: outcome.after }),
+                    ...(outcome.principal === undefined
+                      ? {}
+                      : { principal: madeAsOf(outcome.principal), generation }),
+                    now: at,
+                  },
+                  storedChange([], [operation]),
+                ),
               )
             }
             const error = remoteError(result.failure)
@@ -388,7 +405,21 @@ export const outbox = <AppModel>(
                 revision: write.revision + 1,
                 state: { _tag: 'WaitingForSignIn', error },
               } as const
-              return yield* Effect.flatMap(saved(key, scope, storedChange([waiting], [])), emit)
+              const change = storedChange([waiting], [])
+              return yield* Effect.uninterruptible(
+                Effect.flatMap(
+                  saved(key, scope, change).pipe(
+                    Effect.timeoutOrElse({
+                      duration: storeWithin,
+                      orElse: () =>
+                        Effect.succeed(
+                          readOf(key, scope, change, { unsaved: 'The store did not answer.' }),
+                        ),
+                    }),
+                  ),
+                  emit,
+                ),
+              )
             }
             // Nothing answered: kept waiting, and sent again after a wait.
             if (next === 'sendAgain') {

@@ -119,8 +119,8 @@ export default [
     edits: [
       {
         file: crud,
-        find: '? liveQuery<Root>(data, query, value, { select: selection, first: pageSize })',
-        replace: '? data.query(query, value, { select: selection, first: pageSize })',
+        find: ': live<Root>(data, query, value, { select: selection, first: pageSize })',
+        replace: ': data.query(query, value, { select: selection, first: pageSize })',
       },
     ],
     tests: ['packages/crud/test/list.test.ts'],

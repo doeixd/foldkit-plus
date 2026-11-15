@@ -58,7 +58,7 @@ What does cross requests is D1. So `TodoLive` is a `LiveSource` that polls D1
 **from inside the subscriber's own request**, re-reading each subscribed row
 through the entity's own source under the subscriber's principal, and emitting
 a patch for what moved. The page reads the `AllTodos` list live
-(`Crud.list('Todos', { …, live: true })`), so the stream
+(`Crud.list('Todos', { …, live: liveQuery })`), so the stream
 (`httpWithLive` (`foldkit-remote/live`)) also diffs it: an id that joins or leaves is a
 connection event, and the page draws a joining row where the list's order puts
 it. The read does not change with a local edit, so the stream stays open

@@ -503,6 +503,26 @@
       "types": "./dist/remote-domain.d.mts",
       "import": "./dist/remote-domain.mjs"
     },
+    "./remote-domain/imported": {
+      "foldkit-plus:source": "./src/remote-domain/imported.ts",
+      "types": "./dist/remote-domain/imported.d.mts",
+      "import": "./dist/remote-domain/imported.mjs"
+    },
+    "./remote-domain/lower": {
+      "foldkit-plus:source": "./src/remote-domain/lower.ts",
+      "types": "./dist/remote-domain/lower.d.mts",
+      "import": "./dist/remote-domain/lower.mjs"
+    },
+    "./remote-domain/server": {
+      "foldkit-plus:source": "./src/remote-domain/server.ts",
+      "types": "./dist/remote-domain/server.d.mts",
+      "import": "./dist/remote-domain/server.mjs"
+    },
+    "./remote-domain/testing": {
+      "foldkit-plus:source": "./src/remote-domain/testing.ts",
+      "types": "./dist/remote-domain/testing.d.mts",
+      "import": "./dist/remote-domain/testing.mjs"
+    },
     "./remote-drizzle": {
       "foldkit-plus:source": "./src/remote-drizzle.ts",
       "types": "./dist/remote-drizzle.d.mts",

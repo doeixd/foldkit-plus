@@ -2,7 +2,7 @@
  * `FocusScope` as a Behavior: attaches the `foldkit-primitives/dom` Mount to a
  * container slot. No Bundle, because which element has focus is a DOM fact.
  */
-import { Behavior, Capability } from 'foldkit-mixins'
+import { Behavior, Capability, SlotView } from 'foldkit-mixins'
 import { FocusScope as FocusScopeMount } from '../dom/focus-scope.js'
 
 export { FocusScope as mount, tabbableWithin } from '../dom/focus-scope.js'
@@ -24,9 +24,17 @@ export interface BehaviorOptions<Slots> {
  * `restore`, focus returns to the element that had it. A dialog that is not
  * a native `<dialog>`, a menu, or a command palette takes this.
  */
-export const behavior =
-  <Slots>(slots: Slots) =>
-  <Input, ParentMessage>(
+export function behavior<Slots, Input, ParentMessage>(
+  bound: SlotView.Bound<Slots, Input, ParentMessage>,
+): (options: BehaviorOptions<Slots>) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function behavior<Slots>(
+  slots: SlotView.Unbound<Slots>,
+): <Input, ParentMessage>(
+  options: BehaviorOptions<Slots>,
+) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+  const slots = SlotView.boundSlots(given)
+  return <Input, ParentMessage>(
     options: BehaviorOptions<Slots>,
   ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
     Behavior.forSlots(slots)<Input, ParentMessage>(
@@ -44,3 +52,4 @@ export const behavior =
       } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
       { name: 'FocusScope' },
     )
+}

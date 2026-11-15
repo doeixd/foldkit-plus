@@ -12,14 +12,23 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // plus about 2%, rounded up to the next 500 bytes. Never raise one without saying here what
 // the growth bought.
 const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
-  ['api-cache', 198_500], // 194,578 bytes
+  // 199,529 bytes on 2026-11-14: the page registers Mutations, so the declared-write work
+  // reaches it (`foldkit-entity` enumerate 2.8 kB minified, write 0.8, refine 0.6, footprint
+  // 0.6, invariant 0.5; `foldkit-remote` remote 0.4); ceiling that plus about 0.5%.
+  // api-cache: +209 bytes were raised for the law graph's facts (#537), which then left the page for `Module.graph`'s path; measured with and without the move in one tree on 2026-11-14 the page
+  // declares no write and moved +43 bytes (70 fewer minified), so the ceiling stays.
+  // api-cache +996 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14.
+  ['api-cache', 202_000], // 194,578 bytes
   ['auth', 151_000], // 148,015 bytes
   ['counter', 116_000], // 113,631 bytes
   ['domains', 191_000], // 187,092 bytes
   ['form', 147_000], // 143,904 bytes
   ['job-application', 187_500], // 183,490 bytes
   ['kanban', 137_500], // 134,653 bytes
-  ['pixel-art', 155_500], // 152,276 bytes
+  // pixel-art +200 on 2026-11-15 (#560 review): 155,275 without the review's focus fixes and 155,637
+  // with them in one tree, +362 (its dialogs' FocusReturn: the way back split from the trail, a
+  // frame's own trail held weakly, the realm check); ceiling raised to the reading, rounded up.
+  ['pixel-art', 155_700], // 155,637 bytes
   ['query-sync', 140_000], // 137,018 bytes
   ['route-transitions', 117_500], // 114,792 bytes
   ['routing', 135_500], // 132,800 bytes

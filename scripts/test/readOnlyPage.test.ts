@@ -164,6 +164,12 @@ describe('a read-only Remote page', () => {
     expect(kept.readOnly.entity).not.toContain('write.js')
   })
 
+  // Only a write's answer holds a row to a token, so a page that makes none never
+  // plans one, waits on one or frees one (#544).
+  it('keeps no read-after token code', () => {
+    expect(kept.readOnly.remote).not.toContain('readAfter.js')
+  })
+
   it('keeps no outbox or persistence code (#378 phase 5)', () => {
     expect(kept.readOnly.remote).not.toContain('outbox.js')
     expect(kept.readOnly.remote).not.toContain('outboxStore.js')
@@ -213,7 +219,13 @@ describe('a page that builds an Expr body and evaluates it', () => {
 describe('a Remote page that writes', () => {
   it('keeps the write code', () => {
     expect(kept.writes.remote).toEqual(
-      expect.arrayContaining(['mutation.js', 'writes.js', 'layers.js', 'optimistic.js']),
+      expect.arrayContaining([
+        'mutation.js',
+        'writes.js',
+        'layers.js',
+        'optimistic.js',
+        'readAfter.js',
+      ]),
     )
     expect(kept.writes.entity).toContain('write.js')
   })

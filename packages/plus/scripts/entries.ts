@@ -183,6 +183,7 @@ export const OWN_FILES: ReadonlyArray<string> = [
   'index.ts',
   'cli.ts',
   'docs.ts',
+  'laws.ts',
   'project.ts',
   'setup.ts',
   'testing/peer.ts',

@@ -68,8 +68,8 @@ export default [
     edits: [
       {
         file: '../../remote-drizzle/src/index.ts',
-        find: '...(yield* holdingInvariants({ ...values, ...linkIds(links) }, increments, assignments)),',
-        replace: '...(yield* holdingInvariants(values, increments, assignments)),',
+        find: '            judged,\n            { ...values, ...linkIds(links) },',
+        replace: '            judged,\n            values,',
       },
     ],
     tests: drizzleTests,

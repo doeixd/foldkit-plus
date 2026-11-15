@@ -66,6 +66,7 @@ sell 2, from the read at revision 4: written {"id":"p1","stock":13,"revision":5}
 sell 3, from the same read: written {"id":"p1","stock":10,"revision":6}
 the first sale again, its answer lost: written {"id":"p1","stock":10,"revision":6}
 sell 9 of the 10, 2 of them reserved: Invalid reservedWithinStock
+sell 8 of the 10, leaving only the 2 reserved: Invalid becomes:InStock
 row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":6}
 ```
 
@@ -76,8 +77,9 @@ row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":
   over, and the revision moves on with the write (1 to 2). Had the owner changed
   between the check and the write, the write would miss and be decided again
   against the new owner. Grace is not the owner: `Forbidden`, nothing written.
-- **A conditional transition.** `Publish` has `when: () => Expr.eq(status,
-  'draft')`, compiled into the statement's `WHERE`. The draft is published. An
+- **A conditional transition.** `Publish` declares `from: Draft`, whose
+  predicate (`status = 'draft'`) is its `when`, compiled into the statement's
+  `WHERE`; its `becomes: Published` is proved where it is declared. The draft is published. An
   archived product does not hold it: `Unmet`. Publishing the published product
   again is answered as written and changes nothing (the revision stays 3): a row
   already holding everything a write sets is how a retry of a write that landed
@@ -107,6 +109,15 @@ row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":
   cannot break it either. The demo tells which one a refusal names with
   `Refusal.isInvalidBy(refusal, reservedWithinStock)`: `domain.ts` exports each
   invariant as declared, so no id is spelled twice.
+- **A state the sale leaves.** `Sell` is declared `becomes: InStock`, a state
+  over numbers (`stock > reserved`). A stock moved by an amount cannot be
+  enumerated where the write is declared, so the claim is the sale's
+  postcondition (`Write.ensured(Sell.write)`, id `becomes:InStock`): the writer
+  holds it in the same statement as the invariants, and selling 8 of 10 with 2
+  reserved, which every invariant allows, is refused as `Invalid`, naming
+  `becomes:InStock`. The page cannot hold the stock a sale moves, so it sends
+  the sale and leaves that refusal to the server; `LAWS.md` shows the arrow as
+  `enforced`.
 
 `GuardServer.validate` runs at startup in `server.ts`. It refuses a write that
 lands through no guarded writer, one whose interaction (here `Update`) has no

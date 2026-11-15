@@ -12,6 +12,7 @@ export * as Attr from './attr.js'
 export * as Attributes from './attributes.js'
 export * as Behavior from './behavior.js'
 export * as Behaviors from './behaviors/index.js'
+export { idSelector } from './behaviors/id-selector.js'
 export * as Capability from './capability.js'
 export * as DevOverlay from './devOverlay.js'
 export * as Diagnostics from './diagnostics.js'
@@ -58,6 +59,15 @@ export type {
   StaticContribution,
   StaticContributionMap,
 } from './contribution.js'
+export type {
+  AttachmentDescription,
+  Finding,
+  Owned,
+  Resolution,
+  SlotDescription,
+  SlotResolution,
+  ViewDescription,
+} from './describe.js'
 export type { Diagnostic, DiagnosticCode } from './diagnostics.js'
 export type { EventToken } from './event.js'
 export type { AnyMixin, Mixin as MixinValue, MixinFor, StaticMixin } from './mixin.js'

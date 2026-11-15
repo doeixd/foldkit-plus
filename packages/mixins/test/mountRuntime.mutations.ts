@@ -22,13 +22,8 @@ export default [
     edits: [
       {
         file,
-        find: 'Reported.dispatch(element, mountFailed(mount.name, slotOf, cause))',
+        find: 'Reported.dispatch(element, mountFailed(held.action.name, slotOf, cause))',
         replace: 'Effect.void',
-      },
-      {
-        file,
-        find: "import { Cause, Match, Option, Stream } from 'effect'",
-        replace: "import { Cause, Effect, Match, Option, Stream } from 'effect'",
       },
     ],
     tests,
@@ -49,8 +44,8 @@ export default [
     edits: [
       {
         file,
-        find: 'mountFailed(mount.name, slotOf, cause)',
-        replace: 'mountFailed(mount.name, Option.none(), cause)',
+        find: 'mountFailed(held.action.name, slotOf, cause)',
+        replace: 'mountFailed(held.action.name, Option.none(), cause)',
       },
     ],
     tests,
@@ -71,8 +66,8 @@ export default [
     edits: [
       {
         file,
-        find: 'Reported.dispatch(element, mountFailed(mount.name, slotOf, cause))',
-        replace: 'Reported.report(mountFailed(mount.name, slotOf, cause))',
+        find: 'Reported.dispatch(element, mountFailed(held.action.name, slotOf, cause))',
+        replace: 'Reported.report(mountFailed(held.action.name, slotOf, cause))',
       },
     ],
     tests,

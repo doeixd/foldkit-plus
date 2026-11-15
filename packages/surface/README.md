@@ -183,6 +183,23 @@ was last given, and an empty `on` throws, since nothing could tell it to work
 the value out again. What it returns is `{ dependencies, read }`, which
 `foldkit-mixins`' `SlotView.region` takes, and a region uses the same rule.
 
+A Derived can be an entry of `Projection.struct` when it names the Schema of its
+value, `Projection.derive(on, derive, { Model: Schema.Number })`. The struct then
+reads the memoized value, declares the Derived's paths and checks the value
+against `Model` like any entry, so a Surface can show it:
+
+```ts
+const Count = Projection.derive([App.model.todos], model => model.todos.length, {
+  Model: Schema.Number,
+})
+const Board = Projection.struct({ count: Count, selected: App.model.selectedTodoId })
+```
+
+A Derived carries no metadata, so the struct plans no requirements for it,
+whatever `on` holds: a Remote read it works from is planned by the Remote read
+itself, not by the struct that shows the value. A Derived without `Model` is a
+type error in a `struct`, and throws if the type is bypassed.
+
 ### Metadata
 
 `Metadata` is [`foldkit-metadata`](../metadata/README.md), re-exported so an
@@ -250,6 +267,52 @@ field that holds any path of the projection is never named. `Sync.mount` runs it
 on every durable dispatch; see the
 [Sync README](https://github.com/doeixd/foldkit-plus/blob/main/packages/sync/README.md#what-makes-a-message-durable).
 
+### A closed Surface
+
+`closed: true` on a Surface declares the same property of the whole Surface: for
+a Message in its `messages`, the projection after depends only on the projection
+before and the Message, and no other Message changes it. Declaring it enforces
+nothing at run time; it is a law of the application, tested in a walk.
+`Closure.violations(app, surfaces)` returns a step check,
+`(before, message, after) => violations`, to call at every step of a walk. It
+tests only the Surfaces declared closed, and refuses a closed Surface with
+params, which has no one projection.
+
+```ts standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Closure, Surface } from 'foldkit-surface'
+
+const Model = Schema.Struct({ todos: Schema.Array(Schema.String), tally: Schema.Number })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ Emptied: {}, Counted: {} })
+const initial: Model = { todos: ['a'], tally: 0 }
+const update = (model: Model, message: typeof Message.Type) => ({
+  model: Message.match(message, {
+    Emptied: () => ({ ...model, todos: [] }),
+    Counted: () => ({ ...model, tally: model.tally + 1 }),
+  }),
+})
+
+const App = Surface.application({ Model, Message, initial, update })
+const Shown = App.surface('Shown', {
+  model: ({ model }) => ({ todos: model.todos }),
+  messages: [Message.Emptied],
+  closed: true,
+})
+
+const check = Closure.violations(App, [Shown])
+const counted = Message.Counted()
+check(initial, counted, update(initial, counted).model)
+// []: Counted is outside the Surface and leaves its projection alone
+```
+
+A violation is a `ClosureViolation`: `Reads({ surface, fields })` for a Message
+in the set that reads fields outside the Surface (the fields are named), or
+`Outside({ surface })` for a Message outside the set that changed the
+projection. Read one through `ClosureViolation.$match`.
+`Surface.contract` carries `closed: true` for such a Surface.
+
 ## Applications
 
 `Surface.application({ Model, Message })` returns an `Application`: the schemas
@@ -269,7 +332,7 @@ returns a `RunnableApplication` with the same references and the same owner.
 A second `Surface.application` for the update would be another application,
 whose references `Projection.pick` refuses to mix with the first's:
 
-<!-- docs-check standalone
+<!-- docs-check standalone define todoApp
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { ModelRef, Projection, Surface } from 'foldkit-surface'
@@ -429,6 +492,90 @@ recorded by two replication contracts, and a path or Message the application
 does not declare. `Module.add(module, ...more)` returns a new Module, so feature
 modules can contribute their contracts independently.
 
+### Laws in the graph
+
+A contract may also say which laws it holds and which transitions can break
+them. `Contract.laws` holds the declarations themselves, and `Graph.of`
+derives their nodes and edges only when it is asked. `Graph` is apart from
+`Module`: a page that reads only `Module` (to draw who owns what) carries
+none of the graph's code. `laws.entities` lists transitions over
+Entities as `Laws.check` takes them: Remote declares each declared write, which
+becomes `write:Sell` beside a law per invariant of its Entity
+(`Product.reservedWithinStock`). `laws.model` names laws over the contract's
+Model slice: Sync declares its document's, each `sync:<name>.<id>` reading the
+whole slice, and each of its Messages is `durable:<tag>` writing it. A closed
+Surface is a level with a `closure:<name>` law over its paths.
+`Graph.of(module, { evidence })` joins them.
+
+```text
+transition --writes--> path <--reads-- law
+transition ----------keeps(evidence)--> law
+```
+
+A transition that writes a path a law reads could break it. The graph does not
+decide whether it does; evidence says so: `Laws.check`'s `Enumerated` records,
+what a walk or a scenario returns, or `Evidence.runtimeOnly` for a pair only
+the writer or the journal refuses. `Graph.validate(module, { evidence })` asks
+the one question of the graph; with no `evidence`, every pair a transition can
+break is unwitnessed. `Module.validate` asks none of these rules, and
+`Graph.validate` none of `Module`'s, so a test that wants both asks both.
+
+```ts standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Evidence, Graph, Module, Surface } from 'foldkit-surface'
+
+const App = Surface.application({
+  Model: Schema.Struct({ todos: Schema.Array(Schema.String) }),
+  Message: defineMessageUnion({ Added: { title: Schema.String } }),
+})
+
+// What `Sync.forApplication(App).make` declares for a document with one law.
+const todos = {
+  kind: 'sync',
+  name: 'todos',
+  owner: App.owner,
+  owns: [['todos']],
+  observes: [['todos']],
+  messages: ['Added'],
+  metadata: [],
+  laws: { model: ['capped'] },
+}
+const Todos = Module.make(App, [todos])
+
+Module.validate(Todos) // []: one owner per path, every name declared
+Graph.validate(Todos)
+// [{ rule: 'law-unwitnessed', message: 'durable:Added writes todos, which sync:todos.capped reads, …' }]
+
+const judged = Evidence.runtimeOnly({
+  transition: 'durable:Added',
+  law: 'sync:todos.capped',
+  why: 'the journal judges every append, and refuses one past the cap',
+})
+Graph.validate(Todos, { evidence: [judged] }) // []
+Graph.breakersOf(Graph.of(Todos, { evidence: [judged] }), 'sync:todos.capped')
+// [{ transition: 'durable:Added', paths: [['todos']], evidence: [judged] }]
+```
+
+The rules over the graph:
+
+| Rule | Reported when |
+| --- | --- |
+| `law-unwitnessed` | A transition writes a path a law reads (one within the other), and no evidence joins them. A pair sharing no path is never reported, but a law over a row's change (one reading `before`) reads the whole row, since a write leaving its members alone can still break it. |
+| `evidence-unmatched` | A record was issued by no producer (typed by hand, or a copy of one), or names a transition or law no contract declares, or a pair the graph does not join: a write and a law of two Entities, or a Message and a law over Model paths that do not overlap (two documents'). |
+| `level-declared-twice` | Two closed Surfaces observe the same paths and list the same Messages. |
+| `transition-declared-twice` | Two contracts declare a write of one name (`write:Sell` in two Remote domains): the graph and evidence name a write by its name, so neither can tell them apart. |
+
+So a durable Message added to a document, or a write added to a domain, is
+reported until a walk or a scenario draws it, or a line says why only
+production refuses it. `Graph.toMarkdown` takes the same options and writes a
+Laws section, to set beside `Module.toMarkdown`'s: each law, each transition
+that can break it, its evidence, then `Graph.validate`'s findings.
+`Graph.toMermaid` draws the same as a flowchart of its own. The graph holds no transition for a local Message: what
+`modifyFields` writes is known only at run time, so a law over the local Model
+has no `law-unwitnessed` yet, though a walk over it still runs.
+`examples/writes` keeps its table in `LAWS.md`.
+
 ## Diagnostics
 
 `Diagnostics` is the one channel every Foldkit Plus package reports into what
@@ -509,6 +656,10 @@ Submodel          = state-machine ownership boundary
 
 They compose; none replaces the others. Each line below changes
 or reads the same field, `todos` (`restoredTodos` is an already-decoded value):
+
+<!-- docs-check standalone use todoApp
+const App = Surface.application({ Model, Message }).runnable({ initial, update })
+-->
 
 ```ts
 import { modifyFields } from 'foldkit/struct'
@@ -692,6 +843,12 @@ that may observe across those runtime boundaries without creating another one.
 - Application scopes (`Surface.application`) and their identity token.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
 - `Closure.reads`: whether a projection after a Message depends on the rest of the Model.
+- `Closure.violations`: the closed Surfaces a step broke, as `ClosureViolation`s; `Surface.make`'s and `App.surface`'s `closed`.
+- The law half of the contract graph: `Contract.laws`, and `Graph`: `Graph.of`,
+  `Graph.validate` (`law-unwitnessed`, `evidence-unmatched`,
+  `level-declared-twice`, `transition-declared-twice`), `Graph.breakersOf`,
+  `Graph.toMarkdown` and `Graph.toMermaid`. It owns the question, not the answers: each contract
+  owns its declared laws, and the producers of `Evidence` own its records.
 - Actions (`Action.define`, `Action.run`): a named capability ending in a Message.
 - Named Surfaces and their renderer binding.
 - The `Diagnostics` channel and its default reporter; each package owns its own

@@ -246,6 +246,7 @@ export interface ExposedVariant<Model = unknown, Principal = unknown> {
   readonly messageConstructor: unknown
   readonly available?: ((model: Model) => boolean) | undefined
   readonly authorize?: VariantConfig<any, any, Model, Principal>['authorize']
+  readonly applies?: VariantConfig<any, any, Model, Principal>['applies']
   readonly completion?: AnyCompletion | undefined
   /** The completion contract compiled to the tags and predicate the runtime matches on. */
   readonly compiledCompletion?: CompiledCompletion | undefined
@@ -360,6 +361,7 @@ export type Variant<
     context: InvocationContext<Model, Principal>,
   ) => MessageInput
   readonly authorize?: VariantConfig<MessageInput, ExternalInput, Model, Principal>['authorize']
+  readonly applies?: VariantConfig<MessageInput, ExternalInput, Model, Principal>['applies']
   // Erased: the contract was checked against this variant's own input, and
   // `expose`'s constraint types `completion` for the inline form, which is a
   // different (internal) request type.
@@ -419,6 +421,7 @@ export const variant = <
     context: InvocationContext<Model, Principal>,
   ) => MessageInput
   readonly authorize?: VariantConfig<MessageInput, ExternalInput, Model, Principal>['authorize']
+  readonly applies?: VariantConfig<MessageInput, ExternalInput, Model, Principal>['applies']
   readonly completion?: VariantCompletion<ExternalInput, Success, Failure> | State | undefined
 }): Variant<
   ExternalInput,
@@ -433,7 +436,7 @@ export const variant = <
 /**
  * A `foldkit-surface` Action as a variant: its name, description and input,
  * ending in the Message it makes. `extras` adds what only an agent needs,
- * `available` and `authorize`. Expose it under the tag of the Message it makes:
+ * `available`, `authorize` and `applies`. Expose it under the tag of the Message it makes:
  *
  * ```ts
  * Agent.expose(Message, { AddedToCart: Agent.action(AddToCart, { authorize }) })
@@ -455,6 +458,9 @@ export const action = <
     readonly available?: ((model: Model) => boolean) | undefined
     readonly authorize?:
       | VariantConfig<Omit<ActionMessage, '_tag'>, Input, Model, Principal>['authorize']
+      | undefined
+    readonly applies?:
+      | VariantConfig<Omit<ActionMessage, '_tag'>, Input, Model, Principal>['applies']
       | undefined
   } = {},
 ) =>
@@ -589,6 +595,7 @@ export const expose = <
         ? {}
         : { compiledCompletion: compileCompletion(config.completion, name) }),
       authorize: config.authorize,
+      applies: config.applies,
       completion: config.completion,
     }
   })

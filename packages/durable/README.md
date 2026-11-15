@@ -9,7 +9,7 @@ it keeps an ordered operation log, the current snapshot, and a cursor into the
 log, on SQLite.
 
 > **`append` is the commit boundary.** It decodes, validates, authorizes,
-> reduces, assigns the next sequence, and persists the operation with the new
+> reduces, judges the result, assigns the next sequence, and persists the operation with the new
 > snapshot in one transaction. Send the same operation twice and it is answered,
 > not applied again.
 
@@ -221,7 +221,7 @@ server's.
 For a new operation, inside one SQLite transaction:
 
 ```text
-decode → validate → authorize → assign sequence → stamp → reduce → persist op + snapshot + cursor → Committed
+decode → validate → authorize → assign sequence → stamp → reduce → judge → persist op + snapshot + cursor → Committed
 ```
 
 For a retransmission, the stable `opId` is what matters:
@@ -319,6 +319,28 @@ With Sync, the rules declared per Message on the contract arrive here through
 The `principal` is whatever your transport established for the connection. It is
 never decoded from the operation, which is why a client cannot claim to be
 someone else.
+
+**Laws.** `judge` runs after `reduce`, over the snapshot before the operation
+and the one it leaves, with the operation as stamped, and answers `true` or
+the first law the result breaks:
+
+```ts
+const capped: Pick<JournalOptions<Operation, Snapshot, Principal>, 'judge'> = {
+  judge: ({ after }) =>
+    after.todos.length <= 100 || {
+      rule: 'atMost100Todos',
+      message: 'A list holds 100 todos',
+      path: ['todos'],
+    },
+}
+```
+
+A broken law is an `OperationRejectedError` with `rule` and `path` set and the
+law's words as `reason`; nothing is written. One that throws is an
+`InvalidOperationError`, as a throwing `reduce` is. It judges `after`
+strictly, whatever `before` held, so a document that already breaks a law
+takes only an operation that repairs it. With Sync, a contract's `laws` arrive
+here through `journalContract()`.
 
 **Replica binding.** When operations carry the replica that made them
 (`replicaId: operation => …`, which `journalContract()` supplies), the first
@@ -627,7 +649,8 @@ What changes, and what does not:
 - A commit retries on a uniqueness conflict instead of holding a write
   lock: whoever loses the sequence race re-reads the cursor and replays the
   decision, so concurrent appends still land gap-free. `validate` and
-  `authorize` see the latest committed snapshot.
+  `authorize` see the latest committed snapshot, and a commit that lost the
+  race is reduced and judged again over the snapshot it lands on.
 - `appendAll` commits each operation on its own rather than atomically.
 - Reads are separate statements: a snapshot replays only the prefix its
   cursor names, and a tail a compaction cut short mid-read is refused rather
@@ -649,7 +672,7 @@ a D1 `SqlClient` through `foldkit-durable/core`, not a file.
   or `@effect/sql-d1` on Cloudflare (with `d1: true`).
   `vacuum` reclaims a file's space and checkpoints its write-ahead log, which
   an in-memory database has nothing of; on D1 it is a no-op (see above).
-- `reduce`, `validate`, and `authorize` hold the write lock. Keep them pure,
+- `reduce`, `validate`, `authorize` and `judge` hold the write lock. Keep them pure,
   fast, and service-free.
 - One Journal handle per file. Uniqueness of `[key, op_id]` and
   `[key, sequence]` is enforced by the database, but the intended deployment is

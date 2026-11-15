@@ -27,7 +27,7 @@ export default [
   {
     name: 'a move between parts of one id is not a new place',
     edits: [
-      { file: primitive, find: '                  place?.part === over?.part &&\n', replace: '' },
+      { file: primitive, find: '              place?.part === over?.part &&\n', replace: '' },
     ],
     tests: dragTests,
   },

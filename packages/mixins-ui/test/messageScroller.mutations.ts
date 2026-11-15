@@ -15,6 +15,11 @@ export default [
     tests: browser,
   },
   {
+    name: 'the scrolling frame is not observed',
+    edits: [{ file: view, find: 'observer.observe(scroller)', replace: '' }],
+    tests: ['packages/mixins-ui/test/audit/chat-following.browser.test.ts'],
+  },
+  {
     name: 'a scroll up never leaves the end',
     edits: [
       { file: view, find: 'else if (scroller.scrollTop < lastTop) report(false)', replace: '' },

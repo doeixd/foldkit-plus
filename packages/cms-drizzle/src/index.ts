@@ -480,7 +480,7 @@ export const CmsServer = {
             const row = rows[index]!
             const known = facts.get(record.id)!
             return {
-              id: record.id,
+              ...record,
               values: {
                 ...Object.fromEntries(
                   Object.entries(record.values).filter(

@@ -73,7 +73,7 @@ export const AlertDialog = SlotView.forMessages<Message>()
       ],
     ),
   )
-  .pipe(...AlertOverlay.map(Behavior.attach), Style.attach(alertDialogStyle(AlertDialogSlots)))
+  .pipe(Behavior.attachAll(AlertOverlay), Style.attach(alertDialogStyle(AlertDialogSlots)))
 
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial.model

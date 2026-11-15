@@ -8,6 +8,10 @@
  * crosses with the entities it covers, so a subscription started in the
  * browser resumes where the server's left off.
  *
+ * A row the render wrote to (a form posted to the server) crosses with its
+ * read-after token, so the browser keeps it held to that write until a read
+ * at the token answers, as the server would have.
+ *
  * This is not a `Snapshot`, which is built for a cache that survived a reload
  * and deliberately keeps no cursors. Nothing else of `RemoteModel` crosses:
  * loading marks, failures, the mutation ledger, optimistic layers, gaps and
@@ -24,6 +28,7 @@ import { own, put } from './record.js'
 import { targetsOf } from './relation.js'
 import { RemoteConnections, RemoteRequirements, type RelationRequirement } from './requirement.js'
 import { entityKey, readField, type EntityEntry } from './store.js'
+import { ReadAfterToken } from './wire.js'
 
 const CapturedEntry = Schema.Struct({
   values: Schema.Record(Schema.String, Schema.Unknown),
@@ -35,6 +40,15 @@ const CapturedEntry = Schema.Struct({
   updatedAt: Schema.Number,
   /** Absent from a capture an older server wrote: read as `updatedAt`. */
   oldestAt: Schema.optional(Schema.Number),
+  /** The row's revision, when the server sent one: the browser orders what comes after by it. */
+  revision: Schema.optional(Schema.Finite),
+  /** The captured fields a write at `revision` carried; absent from an older server's capture, which names none. */
+  revisionFields: Schema.optional(Schema.Array(Schema.String)),
+  /**
+   * The read-after token of a write the server made while rendering whose
+   * read no answer confirmed: the browser keeps the row held to it.
+   */
+  floor: Schema.optional(ReadAfterToken),
 })
 
 const CapturedBoundary = Schema.Union([
@@ -86,6 +100,8 @@ type MutableEntry = {
   tombstone: boolean
   updatedAt: number
   oldestAt: number
+  revision: number | undefined
+  floor: string | undefined
 }
 
 /** What some projections read, from their metadata. */
@@ -183,6 +199,8 @@ export const captureRemote = (
       tombstone: stored.tombstone,
       updatedAt: stored.updatedAt,
       oldestAt: stored.oldestAt,
+      revision: stored.revision,
+      floor: stored.floor,
     }
     entries.set(key, entry)
     for (const field of requirement.fields) {
@@ -234,6 +252,15 @@ export const captureRemote = (
           tombstone: entry.tombstone,
           updatedAt: entry.updatedAt,
           oldestAt: entry.oldestAt,
+          ...(entry.revision === undefined
+            ? {}
+            : {
+                revision: entry.revision,
+                revisionFields: [...entry.present].filter(
+                  field => store[key]?.revisionFields?.has(field) === true,
+                ),
+              }),
+          ...(entry.floor === undefined ? {} : { floor: entry.floor }),
         },
       ]),
     ),
@@ -278,6 +305,10 @@ export const restoreRemote = <Store extends RemoteModel>(
           tombstone: entry.tombstone,
           updatedAt: entry.updatedAt,
           oldestAt: entry.oldestAt ?? entry.updatedAt,
+          ...(entry.revision === undefined
+            ? {}
+            : { revision: entry.revision, revisionFields: new Set(entry.revisionFields) }),
+          ...(entry.floor === undefined ? {} : { floor: entry.floor }),
         } satisfies EntityEntry,
       ]),
     ),

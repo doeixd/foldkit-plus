@@ -46,4 +46,4 @@ export const Drawer = SlotView.forMessages<Message>()
         : []),
     ]),
   )
-  .pipe(...DrawerOverlay.map(Behavior.attach))
+  .pipe(Behavior.attachAll(DrawerOverlay))

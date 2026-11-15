@@ -107,6 +107,8 @@ describe('SurfaceView', () => {
     expect(description.emits).toEqual(['SelectedTodo', 'ArchivedTodo'])
     expect(Object.keys(description.slots)).toEqual(['root', 'archive'])
     expect(description.mixins).toEqual(['Style'])
+    expect(description.attachments).toEqual(SlotView.describe(view).attachments)
+    expect(description.attachments[0]).toMatchObject({ order: 0, name: 'Style', kind: 'style' })
     expect(JSON.parse(JSON.stringify(description))).toEqual(description)
   })
 
@@ -141,5 +143,6 @@ describe('SurfaceView', () => {
     expect(markdown).toContain('- `todos`')
     expect(markdown).toContain('- `SelectedTodo`')
     expect(markdown).toContain('- `archive` — Interactive (events: click)')
+    expect(markdown).toContain('## Attachments')
   })
 })

@@ -1,0 +1,133 @@
+/**
+ * What `DomainRemote`'s bindings refuse at the type level: each rejection is
+ * one `@ts-expect-error` of its own, beside the call it accepts, so a check
+ * that fails open shows as an unused directive.
+ */
+import { type Effect, Layer, type Option } from 'effect'
+import type { NavigationRequest, RemoteUnauthenticated, ScriptedRequest } from 'foldkit-remote'
+import { expectTypeOf } from 'vitest'
+import { DomainRemote, type Forbid, type Outcome } from '../src/index.js'
+import type { RejectionsOf } from '../src/lower/index.js'
+import { pageReader } from '../src/adapter/resume.js'
+import { Fixture } from '../src/testing.js'
+import { ProductEntity, Reserve, Session, SessionLive, Shop, ShopApi } from './adapter/fixture.js'
+
+const target = (input: { readonly id: string }) => input.id
+const input = (input: { readonly quantity: number; readonly revision: number }) => ({
+  quantity: input.quantity,
+  revision: input.revision,
+})
+const refusals = {
+  Moved: () => DomainRemote.refuse({ _tag: 'Conflict' }),
+  Invalid: () => DomainRemote.fail('invalid'),
+  NotOwner: () => DomainRemote.forbid(),
+  Missing: () => DomainRemote.fail('missing'),
+} as const
+
+// Accepted: the View the Api serves, by a numeric field.
+DomainRemote.view(ProductEntity, ShopApi, 'ProductRow', { revision: 'revision' })
+
+// @ts-expect-error a View the Api does not serve
+DomainRemote.view(ProductEntity, ShopApi, 'ProductList', { revision: 'revision' })
+
+// @ts-expect-error a revision that is no field of the Entity
+DomainRemote.view(ProductEntity, ShopApi, 'ProductRow', { revision: 'version' })
+
+// @ts-expect-error a revision that is a field, but not a number
+DomainRemote.view(ProductEntity, ShopApi, 'ProductRow', { revision: 'note' })
+
+// Accepted: every Rejection mapped, each to the mutation's Refusal.
+DomainRemote.command(Reserve, ShopApi, 'ReserveStock', {
+  target,
+  input,
+  refusals,
+  written: reply => reply,
+})
+
+// @ts-expect-error a command the Api does not serve
+DomainRemote.command(Reserve, ShopApi, 'Restock', {
+  target,
+  input,
+  refusals,
+  written: reply => reply,
+})
+
+DomainRemote.command(Reserve, ShopApi, 'ReserveStock', {
+  target,
+  input,
+  // @ts-expect-error a Rejection the command declares with no mapper
+  refusals: {
+    Moved: () => DomainRemote.refuse({ _tag: 'Conflict' }),
+    Invalid: () => DomainRemote.fail('invalid'),
+    NotOwner: () => DomainRemote.forbid(),
+  },
+  written: reply => reply,
+})
+
+DomainRemote.command(Reserve, ShopApi, 'ReserveStock', {
+  target,
+  input,
+  refusals: {
+    ...refusals,
+    // @ts-expect-error a refusal the mutation's Refusal does not hold
+    Moved: () => DomainRemote.refuse({ _tag: 'Taken' }),
+  },
+  written: reply => reply,
+})
+
+// @ts-expect-error a declared write's binding without `written`
+DomainRemote.command(Reserve, ShopApi, 'ReserveStock', { target, input, refusals })
+
+// A signed-out visitor is a Rejection of its own beside Forbidden, and an Outcome of its own too.
+declare const lowered: RejectionsOf<typeof Reserve>
+new lowered.Unauthenticated({})._tag satisfies 'Unauthenticated'
+new lowered.Forbidden({})._tag satisfies 'Forbidden'
+// @ts-expect-error the visitor's Rejection is no Forbidden
+new lowered.Unauthenticated({})._tag satisfies 'Forbidden'
+
+DomainRemote.unauthenticated() satisfies Outcome<never>
+DomainRemote.unauthenticated('sign in first')._tag satisfies 'Unauthenticated'
+// @ts-expect-error the visitor's Outcome is no Forbid
+DomainRemote.unauthenticated() satisfies Forbid
+
+DomainRemote.command(Reserve, ShopApi, 'ReserveStock', {
+  target,
+  input,
+  refusals: { ...refusals, NotOwner: () => DomainRemote.unauthenticated() },
+  written: reply => reply,
+})
+
+// A fixture's layer needs what the Api's client needs that nothing hosted provides: without the
+// middleware, the session it reads the actor from.
+const hostedBindings = { views: [], commands: [], denied: () => 'Unauthenticated' as const }
+const unsessioned = Fixture.make(ShopApi, { model: Shop, bindings: hostedBindings })
+expectTypeOf<Layer.Services<typeof unsessioned.layer>>().toEqualTypeOf<Session>()
+const sessioned = Fixture.make(ShopApi, {
+  model: Shop,
+  middleware: SessionLive,
+  bindings: hostedBindings,
+})
+expectTypeOf<Layer.Services<typeof sessioned.layer>>().toEqualTypeOf<never>()
+
+// A page reader takes a navigation's resolver, as `AuthServer.host(…).navigation` holds it,
+// and refuses one typed for a script's request, which would refuse every signed-in reader.
+declare const navigation: (
+  request: NavigationRequest,
+) => Effect.Effect<Option.Option<string>, RemoteUnauthenticated>
+declare const scripted: (
+  request: ScriptedRequest,
+) => Effect.Effect<Option.Option<string>, RemoteUnauthenticated>
+const pageViews = [
+  DomainRemote.view(ProductEntity, ShopApi, 'ProductRow', { revision: 'revision' }),
+]
+pageReader(ShopApi, {
+  views: pageViews,
+  resolvePrincipal: navigation,
+  middleware: () => Layer.empty,
+})
+pageReader(ShopApi, {
+  views: pageViews,
+  // @ts-expect-error a script's resolver reads a header a navigation never carries
+  resolvePrincipal: scripted,
+  middleware: () => Layer.empty,
+})

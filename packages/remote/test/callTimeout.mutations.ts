@@ -31,8 +31,8 @@ export default [
   edit(
     'a read ignores the entry’s timeout',
     '../src/domain.ts',
-    'withCallTimeout(readMessage(requirements, now, generation), timeout)',
-    'readMessage(requirements, now, generation)',
+    'withCallTimeout(readMessage(requirements, after, now, generation), timeout)',
+    'readMessage(requirements, after, now, generation)',
   ),
   edit(
     'a query ignores the entry’s timeout',

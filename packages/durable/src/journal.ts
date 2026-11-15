@@ -79,6 +79,30 @@ export interface AuthorizationRequest<Operation, Snapshot, Principal> {
   readonly snapshot: Snapshot
 }
 
+/**
+ * What a law sees: the snapshot before the operation and the one it leaves,
+ * with the operation as stamped.
+ */
+export interface JudgeRequest<Operation, Snapshot, Principal> {
+  readonly key: DocumentId
+  readonly principal: Principal
+  readonly operation: Operation
+  readonly before: Snapshot
+  readonly after: Snapshot
+}
+
+/**
+ * What `judge` answers: `true` when every law holds, or the first broken one,
+ * by its id, its words and the snapshot fields it names.
+ */
+export type JudgeDecision =
+  | true
+  | {
+      readonly rule: string
+      readonly message: string
+      readonly path: ReadonlyArray<string>
+    }
+
 export interface JournalOptions<
   Operation,
   Snapshot,
@@ -133,6 +157,15 @@ export interface JournalOptions<
   readonly authorize?: (
     request: AuthorizationRequest<Operation, Snapshot, Principal>,
   ) => AuthorizationDecision | Effect.Effect<AuthorizationDecision, JournalError>
+  /**
+   * The document's laws, run inside the append transaction after `reduce` and
+   * before the operation is written, over the snapshot it leaves. A broken law
+   * refuses the operation (`OperationRejectedError` with `rule` and `path`);
+   * one that throws is an `InvalidOperationError`, as a throwing `reduce` is.
+   * On D1 a commit that lost a race reduces and judges again over the
+   * snapshot it then lands on.
+   */
+  readonly judge?: (request: JudgeRequest<Operation, Snapshot, Principal>) => JudgeDecision
   /**
    * How many commits pass between writes of the snapshot; `load` replays the
    * operations since the last one. Default 1, a write per commit. A larger value
@@ -1251,6 +1284,29 @@ const makeShape = <
         try: () => options.reduce(snapshot, stamped),
         catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
       })
+      if (options.judge !== undefined) {
+        const judged = yield* Effect.try({
+          try: () =>
+            options.judge!({
+              key,
+              principal,
+              operation: stamped,
+              before: snapshot,
+              after: reduced,
+            }),
+          catch: cause => new InvalidOperationError({ message: 'Invalid operation', cause }),
+        })
+        if (judged !== true)
+          return yield* Effect.fail(
+            new OperationRejectedError({
+              opId,
+              message: `Operation "${opId}" breaks the law "${judged.rule}": ${judged.message}`,
+              reason: judged.message,
+              rule: judged.rule,
+              path: judged.path,
+            }),
+          )
+      }
       const encodeSnapshot = (value: Snapshot) =>
         Effect.try({
           try: () => JSON.stringify(snapshotCodec.encode(value)),

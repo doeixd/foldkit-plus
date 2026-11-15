@@ -3,14 +3,28 @@ import {
   A11y,
   Attr,
   Behavior,
-  Behaviors,
   Capability,
+  Diagnostics,
   Event,
+  Mixin,
   Slot,
   Slots,
+  SlotView,
   type A11yDiagnostic,
 } from '../src/index.js'
+import {
+  Clears,
+  List,
+  ListSlots,
+  Listbox,
+  Named,
+  Nav,
+  Picks,
+  bare,
+  type ListInput,
+} from './a11y.fixture.js'
 import { FieldSlots } from './fixture.js'
+import type { TestMessage } from './resolverFixture.js'
 
 const codes = (diagnostics: ReadonlyArray<A11yDiagnostic>): ReadonlyArray<string> =>
   diagnostics.map(diagnostic => diagnostic.code)
@@ -110,159 +124,302 @@ describe('A11y', () => {
     const pattern = A11y.pattern({ ['__proto__']: { capability: Capability.Container } })
     expect(A11y.validate(pattern, contract)).toEqual([])
   })
+})
 
-  const Options = Slots.define({
-    items: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-    item: Slot.make({
-      capability: Capability.Interactive,
-      attributes: [Attr.Role, Attr.AriaSelected],
-    }),
-  })
-  const options = A11y.pattern({
-    items: { capability: Capability.Container, obligations: ['navigation'] },
-    item: { capability: Capability.Interactive, obligations: ['focus'] },
-  })
-  const navigation = Behavior.forSlots(Options)<unknown, never>(
-    {
-      items: Behavior.slot({ supplies: ['navigation'] }),
-      item: Behavior.slot({ supplies: ['focus'] }),
-    },
-    { name: 'ListNavigation' },
-  )
+const thrown = (run: () => unknown): Diagnostics.Diagnostic => {
+  try {
+    run()
+  } catch (error) {
+    if (error instanceof Diagnostics.DiagnosticError) return error.diagnostic
+    throw error
+  }
+  throw new Error('expected a DiagnosticError')
+}
 
-  // Typed wide on purpose: a literal list that misses an obligation is a type error.
-  const unsupplied: ReadonlyArray<A11y.ObligationSupport> = []
+const owing = (diagnostics: ReadonlyArray<A11yDiagnostic>) =>
+  diagnostics.map(({ code, slot, details }) => ({ code, slot, details }))
 
-  it('does not treat a published attribute as a supplied obligation', () => {
-    expect(A11y.validate(options, Options)).toEqual([])
-    const reported = A11y.validate(options, Options, unsupplied)
-    expect(codes(reported)).toEqual(['a11y:unsatisfied-obligation', 'a11y:unsatisfied-obligation'])
-    expect(reported.map(item => `${item.slot} ${item.details?.['obligation']}`)).toEqual([
-      'items navigation',
-      'item focus',
+describe('A11y obligations', () => {
+  const complete = bare.pipe(Behavior.attach(Nav), Behavior.attach(Picks), SlotView.attach(Named))
+
+  it('a contract that publishes what a pattern asks still owes what nothing does (A1, A2)', () => {
+    expect(A11y.validate(Listbox, ListSlots)).toEqual([])
+    expect(owing(A11y.check(Listbox, bare))).toEqual([
+      {
+        code: 'a11y:unsatisfied-obligation',
+        slot: 'listbox',
+        details: { obligation: 'navigation' },
+      },
+      { code: 'a11y:unsatisfied-obligation', slot: 'listbox', details: { obligation: 'name' } },
+      {
+        code: 'a11y:unsatisfied-obligation',
+        slot: 'option',
+        details: { obligation: 'focus-strategy' },
+      },
+      {
+        code: 'a11y:unsatisfied-obligation',
+        slot: 'option',
+        details: { obligation: 'activation' },
+      },
+      {
+        code: 'a11y:unsatisfied-obligation',
+        slot: 'option',
+        details: { obligation: 'state:aria-selected' },
+      },
     ])
   })
 
-  it('takes navigation from the behavior that declares it, and again after that behavior is gone', () => {
-    expect(codes(A11y.validate(options, Options, A11y.suppliedBy(navigation)))).toEqual([])
-    const arrows = Behavior.forSlots(Options)<unknown, never>(
-      { items: Behavior.slot({ supplies: ['navigation'] }) },
-      { name: 'Arrows' },
+  it('is met by what attached Behaviors provide and the view says of itself', () => {
+    expect(A11y.check(Listbox, complete)).toEqual([])
+  })
+
+  describe('an assembly of parts', () => {
+    const ListParts = List.parts
+    const Rows = ListParts.part(
+      'Rows',
+      { reads: ['ids'], behaviors: [Nav, Picks] },
+      (input, slots, h) =>
+        h.ul(
+          slots.listbox.attrs(),
+          input.ids.map((id, index) => h.li(slots.option.attrs([], { id, index }), [id])),
+        ),
     )
-    const reported = A11y.validate(options, Options, A11y.suppliedBy(arrows))
-    expect(reported.map(item => `${item.slot} ${item.details?.['obligation']}`)).toEqual([
-      'item focus',
+    const assembled = ListParts.assemble((_input, slots, h, draw) =>
+      h.div([], [draw(Rows), h.button(slots.clear.attrs(), ['Clear'])]),
+    ).pipe(SlotView.attach(Named))
+
+    it('reads no part Behaviors, and says so where it finds one owed', () => {
+      const found = A11y.check(Listbox, assembled)
+      expect(codes(found)).toEqual(Array(4).fill('a11y:unsatisfied-obligation'))
+      expect(found[0]!.message).toContain("a part's own Behaviors are not read")
+      // A view that is no assembly is told nothing of parts.
+      expect(A11y.check(Listbox, bare)[0]!.message).not.toContain('part')
+    })
+
+    it('is met by the same Behaviors attached to the assembly', () => {
+      expect(
+        A11y.check(Listbox, assembled.pipe(Behavior.attach(Nav), Behavior.attach(Picks))),
+      ).toEqual([])
+    })
+  })
+
+  it('compares obligations by name, so two State tokens of one attribute are one', () => {
+    expect(A11y.State(Attr.AriaSelected)).not.toBe(A11y.State(Attr.AriaSelected))
+    expect(A11y.check(Listbox, complete)).toEqual([])
+  })
+
+  it('reports exactly what is left when one supplier is missing', () => {
+    const noNav = bare.pipe(Behavior.attach(Picks), SlotView.attach(Named))
+    expect(owing(A11y.check(Listbox, noNav))).toEqual([
+      {
+        code: 'a11y:unsatisfied-obligation',
+        slot: 'listbox',
+        details: { obligation: 'navigation' },
+      },
+      {
+        code: 'a11y:unsatisfied-obligation',
+        slot: 'option',
+        details: { obligation: 'focus-strategy' },
+      },
     ])
   })
 
-  it('checks a support list built at runtime', () => {
-    const support: ReadonlyArray<A11y.ObligationSupport> = A11y.suppliedBy(navigation).slice(0, 1)
-    expect(codes(A11y.validate(options, Options, support))).toEqual(['a11y:unsatisfied-obligation'])
+  it('does not count what is provided on another slot', () => {
+    const elsewhere = List.behavior(
+      { clear: Behavior.slot({ provides: [A11y.Navigation, A11y.FocusStrategy] }) },
+      { name: 'Elsewhere' },
+    )
+    const view = bare.pipe(
+      Behavior.attach(elsewhere),
+      Behavior.attach(Picks),
+      SlotView.attach(Named),
+    )
+    expect(owing(A11y.check(Listbox, view)).map(({ slot }) => slot)).toEqual(['listbox', 'option'])
   })
 
-  it('accepts a native control and a named delegate, and refuses a delegate with no name, and a forged one does not satisfy', () => {
-    const box = Slots.define({
-      checkbox: Slot.make({ capability: Capability.Interactive, attributes: [Attr.Role] }),
+  it('owes nothing on an optional slot the contract leaves out', () => {
+    const pattern = A11y.pattern({
+      legend: { optional: true, obligations: [A11y.Name] },
+      listbox: { obligations: [A11y.Navigation] },
     })
-    const checks = A11y.pattern({
-      checkbox: { obligations: ['checked', 'activation'] },
-    })
-    expect(
-      codes(
-        A11y.validate(
-          checks,
-          box,
-          A11y.native({
-            slot: 'checkbox',
-            obligations: ['checked', 'activation'],
-            provider: 'input',
-          }),
+    expect(A11y.check(pattern, bare.pipe(Behavior.attach(Nav)))).toEqual([])
+  })
+
+  it('reports what validate reports, beside the obligations', () => {
+    const pattern = A11y.pattern({ legend: { obligations: [A11y.Name] } })
+    expect(codes(A11y.check(pattern, bare))).toEqual(['a11y:missing-slot'])
+  })
+
+  it('reads a Behavior composed with others', () => {
+    const view = bare.pipe(
+      SlotView.attach(Mixin.compose(Nav.mixin, Picks.mixin)),
+      SlotView.attach(Named),
+    )
+    expect(A11y.check(Listbox, view)).toEqual([])
+  })
+
+  it('a native element supplies what it says', () => {
+    const view = bare.pipe(
+      Behavior.attach(Nav),
+      SlotView.attach(
+        A11y.native(
+          { option: [A11y.Activation, A11y.State(Attr.AriaSelected)] },
+          { element: 'option' },
         ),
       ),
-    ).toEqual([])
-    const state = Behaviors.ToggleState.behavior(box)<{ on: boolean }, never>({
-      control: 'checkbox',
-      state: input => input.on,
-      as: 'checked',
-    })
-    expect(
-      codes(
-        A11y.validate(checks, box, [
-          ...A11y.suppliedBy(state),
-          A11y.delegated({ slot: 'checkbox', obligation: 'activation', provider: 'press' }),
-        ]),
-      ),
-    ).toEqual([])
-    const pressed = Behaviors.ToggleState.behavior(box)<{ on: boolean }, never>({
-      control: 'checkbox',
-      state: input => input.on,
-      as: 'pressed',
-    })
-    expect(A11y.suppliedBy(pressed)).toEqual([])
-    expect(() =>
-      A11y.delegated({ slot: 'checkbox', obligation: 'activation', provider: '' }),
-    ).toThrow(/names its provider/)
-    const forged: A11y.ObligationSupport = {
-      slot: 'checkbox',
-      obligation: 'activation',
-      by: 'delegated',
-      provider: '',
-    }
-    // A provider-less entry does not satisfy: the obligation reads as unsupplied.
-    expect(codes(A11y.validate(checks, box, [forged, ...A11y.suppliedBy(state)]))).toEqual([
-      'a11y:unsatisfied-obligation',
-    ])
-  })
-
-  it('refuses an obligation the set does not name', () => {
-    expect(() => A11y.pattern({ item: { obligations: ['hover' as A11y.ObligationName] } })).toThrow(
-      /Unknown obligation: hover/,
+      SlotView.attach(Named),
     )
-    expect(() =>
-      Behavior.forSlots(Options)<unknown, never>(
-        { items: Behavior.slot({ supplies: ['hover' as A11y.ObligationName] }) },
-        { name: 'Hover' },
-      ),
-    ).toThrow(/Unknown obligation: hover/)
-    expect(() =>
-      A11y.suppliedBy({ name: 'Hover', spec: { items: { supplies: ['hover'] } } }),
-    ).toThrow(/Unknown obligation: hover/)
+    expect(A11y.check(Listbox, view)).toEqual([])
+    expect(view.mixins.map(mixin => mixin.name)).toContain('A11y.native(option)')
   })
 
-  it('skips obligations on an absent optional slot and on a hidden slot', () => {
-    const absent = A11y.pattern({
-      legend: { optional: true, obligations: ['navigation'] },
+  describe('a delegation', () => {
+    const OnList: Behavior.NamedBehavior<
+      typeof ListSlots,
+      ListInput,
+      TestMessage,
+      'listbox/navigation'
+    > = List.behavior(
+      { listbox: Behavior.slot({ provides: [A11y.Navigation] }) },
+      { name: 'OnList' },
+    )
+    const pattern = A11y.pattern({ clear: { obligations: [A11y.Navigation] } })
+    const toList = A11y.delegated({ clear: [A11y.Navigation] }, { to: 'listbox', provider: OnList })
+
+    it('is met when its provider is attached and supplies it on the slot named', () => {
+      expect(
+        A11y.check(pattern, bare.pipe(Behavior.attach(OnList), SlotView.attach(toList))),
+      ).toEqual([])
     })
-    expect(A11y.validate(absent, FieldSlots, unsupplied)).toEqual([])
-    const hidden = A11y.pattern({ internals: { obligations: ['focus'] } })
-    expect(codes(A11y.validate(hidden, FieldSlots, unsupplied))).toEqual(['a11y:hidden-slot'])
+
+    it('names its provider when the view does not hold it', () => {
+      const [unmet, ...rest] = A11y.check(pattern, bare.pipe(SlotView.attach(toList)))
+      expect(rest).toEqual([])
+      expect(unmet).toMatchObject({
+        code: 'a11y:delegation-unmet',
+        slot: 'clear',
+        details: { obligation: 'navigation', provider: 'OnList', to: 'listbox' },
+      })
+      expect(unmet?.message).toContain('"OnList"')
+    })
+
+    it('asks for the provider itself, not an attachment of its name', () => {
+      const wrongSlot = A11y.delegated(
+        { clear: [A11y.FocusStrategy] },
+        { to: 'option', provider: Nav },
+      )
+      const focusPattern = A11y.pattern({ clear: { obligations: [A11y.FocusStrategy] } })
+      const blank = List.behavior({ listbox: {} }, { name: 'Nav' })
+      expect(
+        codes(
+          A11y.check(focusPattern, bare.pipe(Behavior.attach(blank), SlotView.attach(wrongSlot))),
+        ),
+      ).toEqual(['a11y:delegation-unmet'])
+      expect(
+        A11y.check(focusPattern, bare.pipe(Behavior.attach(Nav), SlotView.attach(wrongSlot))),
+      ).toEqual([])
+    })
+
+    it('is unmet when its attached provider claims in its type what its value does not supply', () => {
+      // @ts-expect-error the lie under test: `{ listbox: {} }` supplies nothing.
+      const Liar: Behavior.NamedBehavior<
+        typeof ListSlots,
+        ListInput,
+        TestMessage,
+        'listbox/navigation'
+      > = List.behavior({ listbox: {} }, { name: 'Liar' })
+      const toLiar = A11y.delegated({ clear: [A11y.Navigation] }, { to: 'listbox', provider: Liar })
+      const [unmet] = A11y.check(pattern, bare.pipe(Behavior.attach(Liar), SlotView.attach(toLiar)))
+      expect(unmet).toMatchObject({ code: 'a11y:delegation-unmet', slot: 'clear' })
+      expect(unmet?.message).toContain('which does not supply it there')
+    })
+
+    it('supplies nothing once composed into another Mixin', () => {
+      const view = bare.pipe(
+        Behavior.attach(OnList),
+        SlotView.attach(Mixin.compose<TestMessage>(toList, Clears.mixin)),
+      )
+      expect(codes(A11y.check(pattern, view))).toEqual(['a11y:unsatisfied-obligation'])
+    })
   })
 
-  it('judges a wide support list when validate runs', () => {
-    const dynamic: ReadonlyArray<A11y.ObligationSupport> = []
-    expect(codes(A11y.validate(options, Options, dynamic))).toEqual([
-      'a11y:unsatisfied-obligation',
-      'a11y:unsatisfied-obligation',
-    ])
-  })
+  describe('conform', () => {
+    it('hands back a new view with the same attachments when it conforms', () => {
+      const view = A11y.conform(Listbox)(complete)
+      expect(view).not.toBe(complete)
+      expect(view.mixins).toEqual(complete.mixins)
+      expect(view.render).toBe(complete.render)
+      expect(view.slots).toBe(complete.slots)
+    })
 
-  it('reports support for a slot or an obligation the pattern does not require', () => {
-    const typoed: ReadonlyArray<A11y.ObligationSupport> = [
-      ...A11y.suppliedBy(navigation),
-      A11y.delegated({ slot: 'itms', obligation: 'focus', provider: 'Typo' }),
-      A11y.delegated({ slot: 'items', obligation: 'activation', provider: 'Extra' }),
-    ]
-    const reported = A11y.validate(options, Options, typoed).filter(
-      item => item.code === 'a11y:unknown-support',
-    )
-    expect(
-      reported.map(item => [item.slot, item.details?.['obligation'], item.details?.['provider']]),
-    ).toEqual([
-      ['itms', 'focus', 'Typo'],
-      ['items', 'activation', 'Extra'],
-    ])
-    expect(codes(A11y.validate(options, Options, A11y.suppliedBy(navigation)))).not.toContain(
-      'a11y:unknown-support',
-    )
+    it('throws the first finding where the module loads, every finding in details', () => {
+      const diagnostic = thrown(() =>
+        // A contract whose slot names are not known is judged here, not by the type checker.
+        A11y.conform(Listbox)(
+          SlotView.forMessages<TestMessage>().define(
+            Slots.define(
+              Object.fromEntries(
+                ['listbox', 'option'].map(name => [name, { capability: Capability.Focusable }]),
+              ),
+            ),
+            (_input: unknown, slots, h) => h.ul(slots['listbox']!.attrs(), []),
+          ),
+        ),
+      )
+      expect(diagnostic).toMatchObject({
+        source: 'a11y',
+        code: 'a11y:unsatisfied-obligation',
+        slot: 'listbox',
+      })
+      expect(diagnostic.message).toBe(
+        'slot "listbox" owes navigation, which nothing attached supplies (and 4 more)',
+      )
+      expect(
+        (diagnostic.details?.['diagnostics'] as ReadonlyArray<A11yDiagnostic>).map(
+          ({ slot, details }) => `${slot}/${String(details?.['obligation'])}`,
+        ),
+      ).toEqual([
+        'listbox/navigation',
+        'listbox/name',
+        'option/focus-strategy',
+        'option/activation',
+        'option/state:aria-selected',
+      ])
+    })
+
+    // Made in each test, so a mutation that breaks `conform` fails the test, not the file.
+    const conformedView = () => A11y.conform(Listbox)(complete.pipe(Behavior.attach(Clears)))
+
+    it('refuses a detach that takes away what the pattern needs', () => {
+      expect(thrown(() => conformedView().pipe(SlotView.detach('Nav')))).toMatchObject({
+        code: 'a11y:unsatisfied-obligation',
+        slot: 'listbox',
+      })
+    })
+
+    it('lets a detach through that takes away nothing it needs', () => {
+      expect(() => conformedView().pipe(SlotView.detach('Clears'))).not.toThrow()
+    })
+
+    it('refuses a replace whose Mixin supplies less', () => {
+      expect(
+        thrown(() => conformedView().pipe(SlotView.replace('Picks', Clears.mixin))),
+      ).toMatchObject({
+        code: 'a11y:unsatisfied-obligation',
+        slot: 'option',
+      })
+    })
+
+    it('still checks after another attachment and a detach that was let through', () => {
+      const later = conformedView().pipe(
+        Behavior.attach(List.behavior({ clear: {} }, { name: 'Later' })),
+        SlotView.detach('Later'),
+      )
+      expect(() => later.pipe(SlotView.detach('Picks'))).toThrow(Diagnostics.DiagnosticError)
+    })
+
+    it('leaves a view never conformed free to lose anything', () => {
+      expect(() => complete.pipe(SlotView.detach('Nav'))).not.toThrow()
+    })
   })
 })

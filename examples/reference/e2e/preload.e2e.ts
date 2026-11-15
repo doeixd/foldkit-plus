@@ -98,6 +98,11 @@ test('a note on screen is read before the tap: tap to drawn, with and without vi
   await page.getByRole('button', { name: 'Add' }).click()
   await answered
   await page.getByText('Ada, you have written 1 note.').waitFor()
+  // The outbox stores the answer after the Model shows it: wait until the
+  // queue it keeps no longer holds the note, or the next page sends it again.
+  await expect
+    .poll(() => page.evaluate(() => Object.values(localStorage).join('')))
+    .not.toContain('First light')
   await page.close()
 
   // Reads (not writes) are answered late, as a distant server would.

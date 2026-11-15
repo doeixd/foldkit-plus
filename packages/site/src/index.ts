@@ -93,6 +93,20 @@ export interface NodeSurface<Route, SRoot, SModel, SMessage, SParams, Viewer> {
   readonly params: (route: Route, viewer: Viewer) => SParams
 }
 
+/** What `Site.route` annotates a node with, beside its Surface. */
+export interface RouteOptions<Route extends { readonly _tag: string }> {
+  readonly title?: ((route: Route) => string) | undefined
+  readonly section?: string | undefined
+  readonly landing?: Omit<Route, '_tag'> | undefined
+  readonly shortcut?: KeySequence | undefined
+  readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
+  readonly layout?: NodeLayout | undefined
+  readonly view?: NodeView | undefined
+  readonly meta?: NodeMeta<Route> | undefined
+  readonly indexed?: boolean | undefined
+  readonly access?: NodeAccess<never> | undefined
+}
+
 /**
  * A layout around everything under a node: it receives the composed child
  * explicitly — no Outlet, no context, no hidden route state. Ancestors with
@@ -154,6 +168,8 @@ export interface RouteField<Root, Route> {
 export interface SitePage<Parent, ParentMessage, R, P> {
   readonly node: SiteNode<any>
   readonly placed: P
+  /** The page's bodies when its Bundle is a `Bundle.lazy`, which the routing's `codeFor` names. */
+  readonly code: Option.Option<Bundle.Loadable>
   /**
    * The child told of a route arrival: `None` for another node's route, for
    * a page with nothing to say, or when the child says nothing is needed.
@@ -170,7 +186,10 @@ export interface SitePage<Parent, ParentMessage, R, P> {
  * never mutates it, so the same node serves targets, hrefs, and inspection
  * wherever it is mounted.
  */
-export interface SiteNode<Route extends { readonly _tag: string }> {
+export interface SiteNode<
+  Route extends { readonly _tag: string },
+  Surfaced extends string = never,
+> {
   readonly tag: string
   readonly router: Router<Route>
   readonly case: RouteCase<Route>
@@ -200,6 +219,7 @@ export interface SiteNode<Route extends { readonly _tag: string }> {
   readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
   /** The Surface this route activates, if the node declares one. */
   readonly bound?: BoundSurface | undefined
+  readonly [surfaced]?: (tag: Surfaced) => void
   /** A layout wrapping everything under this node, if it declares one. */
   readonly layout?: NodeLayout | undefined
   /** What this node draws for its own route, if it draws anything. */
@@ -246,11 +266,24 @@ export type Access = typeof Access.Type
 /** Carries the routes a mount or tree holds, in its type only: nothing sets it. */
 declare const routes: unique symbol
 
-/** A node mounted with its children: structure, not state. `Route` is every route it holds. */
-export interface SiteMount<Route extends { readonly _tag: string } = any> {
+/**
+ * Carries the tags of the nodes with a Surface, in their types only: nothing
+ * sets it. `Site.sources` keys its entries by these.
+ */
+declare const surfaced: unique symbol
+
+/**
+ * A node mounted with its children: structure, not state. `Route` is every
+ * route it holds, `Surfaced` the tags of those whose node has a Surface.
+ */
+export interface SiteMount<
+  Route extends { readonly _tag: string } = any,
+  Surfaced extends string = never,
+> {
   readonly node: SiteNode<any>
   readonly children: ReadonlyArray<SiteMount>
   readonly [routes]?: (route: Route) => void
+  readonly [surfaced]?: (tag: Surfaced) => void
 }
 
 /** The routes a bare node or a mount holds. */
@@ -261,6 +294,14 @@ export type RoutesOf<Mounted> =
       ? Route
       : never
 
+/** The tags of the nodes with a Surface that a bare node or a mount holds. */
+export type SurfacedOf<Mounted> =
+  Mounted extends SiteNode<any, infer Tag>
+    ? Tag
+    : Mounted extends SiteMount<any, infer Tag>
+      ? Tag
+      : never
+
 /**
  * A node under construction, from `Site.node`: each method annotates and
  * returns the builder, so nodes compose in steps and annotation bundles are
@@ -268,9 +309,12 @@ export type RoutesOf<Mounted> =
  * a pipe is a separate generic call and could not infer the route. Read
  * `.node` at any stage for the frozen node so far.
  */
-export interface NodeBuilder<Route extends { readonly _tag: string }> {
+export interface NodeBuilder<
+  Route extends { readonly _tag: string },
+  Surfaced extends string = never,
+> {
   /** The node so far: frozen, usable for targets and hrefs at any stage. */
-  readonly node: SiteNode<Route>
+  readonly node: SiteNode<Route, Surfaced>
   /**
    * One named bundle through the builder, Effect-style: the bundle stays
    * generic over the builder it meets, so it instantiates to this node's
@@ -286,33 +330,33 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
    * Free `pipe(builder, bundle)` from `effect` composes the same way; this
    * method is the same spelling without the import.
    */
-  pipe<A>(fn: (builder: NodeBuilder<Route>) => A): A
+  pipe<A>(fn: (builder: NodeBuilder<Route, Surfaced>) => A): A
   /** The page's title for this route, once the route value is known. */
-  title(title: (route: Route) => string): NodeBuilder<Route>
+  title(title: (route: Route) => string): NodeBuilder<Route, Surfaced>
   /** The navigation section this route belongs to. */
-  section(section: string): NodeBuilder<Route>
+  section(section: string): NodeBuilder<Route, Surfaced>
   /** Where the section's nav item points, as this node's params. */
-  landing(landing: Omit<Route, '_tag'>): NodeBuilder<Route>
+  landing(landing: Omit<Route, '_tag'>): NodeBuilder<Route, Surfaced>
   /** The keys that go to this node's landing. */
-  shortcut(shortcut: KeySequence): NodeBuilder<Route>
+  shortcut(shortcut: KeySequence): NodeBuilder<Route, Surfaced>
   /** Which history step a move within this node is. */
   history(
     history: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent),
-  ): NodeBuilder<Route>
+  ): NodeBuilder<Route, Surfaced>
   /** A layout wrapping everything under this node. */
-  layout(layout: NodeLayout): NodeBuilder<Route>
+  layout(layout: NodeLayout): NodeBuilder<Route, Surfaced>
   /** What this node draws for its own route. */
-  view(view: NodeView): NodeBuilder<Route>
+  view(view: NodeView): NodeBuilder<Route, Surfaced>
   /** What this node says of itself in the head, from its route and the Model. */
-  meta<Model = any>(meta: NodeMeta<Route, Model>): NodeBuilder<Route>
+  meta<Model = any>(meta: NodeMeta<Route, Model>): NodeBuilder<Route, Surfaced>
   /** Whether search engines index this node and the nodes below it. */
-  indexed(indexed: boolean): NodeBuilder<Route>
+  indexed(indexed: boolean): NodeBuilder<Route, Surfaced>
   /** Who may be shown this node and the nodes below it, and where anyone else goes. */
-  access<Who>(access: NodeAccess<Who>): NodeBuilder<Route>
+  access<Who>(access: NodeAccess<Who>): NodeBuilder<Route, Surfaced>
   /** The Surface this route activates, and the viewer its params read, if any. */
   surface<SRoot, SModel, SMessage, SParams, Viewer = void>(
     config: NodeSurface<Route, SRoot, SModel, SMessage, SParams, Viewer>,
-  ): NodeBuilder<Route>
+  ): NodeBuilder<Route, Route['_tag']>
 }
 
 /**
@@ -320,9 +364,13 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
  * `Route` is the union of every node's route, so the tree parses an address
  * to it (`Site.parse`) and builds one back (`Site.hrefOf`).
  */
-export interface SiteTree<Route extends { readonly _tag: string } = any> {
+export interface SiteTree<
+  Route extends { readonly _tag: string } = any,
+  Surfaced extends string = never,
+> {
   readonly roots: ReadonlyArray<SiteMount>
   readonly [routes]?: (route: Route) => void
+  readonly [surfaced]?: (tag: Surfaced) => void
 }
 
 /** One address a node's `Site.paths` lists: the route's params, and when its content last changed. */
@@ -463,6 +511,33 @@ const sourceOf = <Root>(
   return [node.tag, { ...gated, activation: { path: focus.dependency, tag: node.tag } }]
 }
 
+/**
+ * What `Site.sources` gives: an entry per node with a Surface, keyed by its
+ * tag (`Surfaced`, which the tree's type carries). A node with none has no
+ * key, so a key named where the entries are keyed (`Data.wiring`'s
+ * `policies`) is one that reads. A literal key, unlike an index signature,
+ * survives a spread beside the application's own entries. Each is optional:
+ * `Site.sourcesFor` gives one chain's.
+ */
+export type SiteSources<Root, Surfaced extends string> = {
+  readonly [Tag in Surfaced]?: ActiveSurface<Root> & SurfaceSource<Root>
+}
+
+/** The surfaced entries among `nodes`, keyed by tag. */
+const sourcesOn = <Root, Surfaced extends string>(
+  nodes: ReadonlyArray<SiteNode<any>>,
+  owner: object,
+  place: ModelPlace<Root>,
+): SiteSources<Root, Surfaced> => {
+  const out: Record<string, ActiveSurface<Root> & SurfaceSource<Root>> = {}
+  for (const node of nodes) {
+    const entry = sourceOf(node, owner, place)
+    if (entry !== undefined) out[entry[0]] = entry[1]
+  }
+  // Keyed by the tag of each node with a Surface, which the tree's type carries.
+  return out as SiteSources<Root, Surfaced>
+}
+
 /** The fields a `Meta` gives, so one left `undefined` does not erase an ancestor's. */
 const saidOf = (meta: Meta): Meta =>
   Object.fromEntries(Object.entries(meta).filter(([, value]) => value !== undefined))
@@ -472,6 +547,50 @@ const freezeMount = (mount: SiteMount): SiteMount =>
     node: mount.node,
     children: Object.freeze(mount.children.map(freezeMount)),
   })
+
+/**
+ * How a placed page hears its route arrive: optional, and free to say nothing,
+ * for an eager Bundle; required, and always a Message, for a `Bundle.lazy`,
+ * whose bodies load on that Message.
+ */
+export type ChangedFor<Kind, Route, ChildMessage> = Kind extends Bundle.Loadable
+  ? { readonly changed: (route: Route) => ChildMessage }
+  : { readonly changed?: ((route: Route) => ChildMessage | undefined) | undefined }
+
+/**
+ * What fetches a route's code ahead of its arrival, given the routing's
+ * completion: `fetchCode`, passed as `Site.routing`'s `preload.code`.
+ */
+export type CodeFetch = <Message>(completed: () => Message) => (
+  code: ReadonlyArray<Bundle.Loadable>,
+) => {
+  readonly name: string
+  readonly args: Readonly<Record<string, unknown>>
+  readonly effect: Effect.Effect<Message>
+}
+
+/**
+ * Loads the code of a route the reader points at, for `Site.routing`'s
+ * `preload.code`: one Command, `Site.LoadCode`, that completes with the
+ * routing's `completed` whether the chunks load or not. A load that fails is
+ * forgotten by `Bundle.lazy`, so the page's own arrival loads again and
+ * reports it; a guess at intent reports nothing. An import of its own, not a
+ * member of `Site`, so a site with no lazy page keeps none of it.
+ */
+export const fetchCode: CodeFetch = completed => code => ({
+  name: 'Site.LoadCode',
+  args: { code: code.map(each => each.name).join(', ') },
+  effect: Effect.promise(() => Promise.allSettled(code.map(each => each.load()))).pipe(
+    Effect.as(completed()),
+  ),
+})
+
+/** Whether a Bundle is a `Bundle.lazy`, whose bodies load on demand. */
+const isLoadable = (bundle: object): bundle is Bundle.Loadable =>
+  'load' in bundle &&
+  typeof bundle.load === 'function' &&
+  'isLoaded' in bundle &&
+  typeof bundle.isLoaded === 'function'
 
 /** A bare node: its tag from its route case, nothing annotated. */
 const baseNode = <Route extends { readonly _tag: string }>(
@@ -504,20 +623,11 @@ export const Site = {
   route: <Route extends { readonly _tag: string }, SRoot, SModel, SMessage, SParams, Viewer = void>(
     router: Router<Route>,
     routeCase: RouteCase<Route>,
-    options?: {
-      readonly title?: ((route: Route) => string) | undefined
-      readonly section?: string | undefined
-      readonly landing?: Omit<Route, '_tag'> | undefined
-      readonly shortcut?: KeySequence | undefined
-      readonly history?: HistoryIntent | ((prev: Route, next: Route) => HistoryIntent) | undefined
-      readonly layout?: NodeLayout | undefined
-      readonly view?: NodeView | undefined
-      readonly meta?: NodeMeta<Route> | undefined
-      readonly indexed?: boolean | undefined
-      readonly access?: NodeAccess<never> | undefined
+    options?: RouteOptions<Route> & {
       readonly surface?: NodeSurface<Route, SRoot, SModel, SMessage, SParams, Viewer> | undefined
     },
-  ): SiteNode<Route> => {
+    // With no `surface`, nothing infers the Surface's root, which stays `unknown`.
+  ): SiteNode<Route, unknown extends SRoot ? never : Route['_tag']> => {
     let built = Site.node(router, routeCase)
     if (options?.title !== undefined) built = built.title(options.title)
     if (options?.section !== undefined) built = built.section(options.section)
@@ -531,7 +641,9 @@ export const Site = {
     if (options?.access !== undefined) built = built.access(options.access)
     if (options?.surface !== undefined)
       built = built.surface<SRoot, SModel, SMessage, SParams, Viewer>(options.surface)
-    return built.node
+    // The builder's type forgets the Surface across the `if`; the return type
+    // says it again, from whether `surface` was given.
+    return built.node as SiteNode<Route, unknown extends SRoot ? never : Route['_tag']>
   },
 
   /**
@@ -557,9 +669,11 @@ export const Site = {
     router: Router<Route>,
     routeCase: RouteCase<Route>,
   ): NodeBuilder<Route> => {
-    const at = (built: SiteNode<Route>): NodeBuilder<Route> => ({
+    const at = <Surfaced extends string>(
+      built: SiteNode<Route, Surfaced>,
+    ): NodeBuilder<Route, Surfaced> => ({
       node: built,
-      pipe: <A>(fn: (builder: NodeBuilder<Route>) => A): A => fn(at(built)),
+      pipe: <A>(fn: (builder: NodeBuilder<Route, Surfaced>) => A): A => fn(at(built)),
       title: title => at(Object.freeze({ ...built, title })),
       section: section => at(Object.freeze({ ...built, section })),
       landing: landing => at(Object.freeze({ ...built, landing })),
@@ -570,7 +684,14 @@ export const Site = {
       meta: meta => at(Object.freeze({ ...built, meta })),
       indexed: indexed => at(Object.freeze({ ...built, indexed })),
       access: access => at(Object.freeze({ ...built, access })),
-      surface: config => at(Object.freeze({ ...built, bound: config as BoundSurface })),
+      // The node now has a Surface, which its type says by its tag.
+      surface: config =>
+        at(
+          Object.freeze({ ...built, bound: config as BoundSurface }) as SiteNode<
+            Route,
+            Route['_tag']
+          >,
+        ),
     })
     return at(baseNode(router, routeCase))
   },
@@ -583,10 +704,11 @@ export const Site = {
   mount: <
     Route extends { readonly _tag: string },
     const Children extends ReadonlyArray<SiteNode<any> | SiteMount> = [],
+    Surfaced extends string = never,
   >(
-    node: SiteNode<Route>,
+    node: SiteNode<Route, Surfaced>,
     children?: Children,
-  ): SiteMount<Route | RoutesOf<Children[number]>> =>
+  ): SiteMount<Route | RoutesOf<Children[number]>, Surfaced | SurfacedOf<Children[number]>> =>
     Object.freeze({ node, children: Object.freeze((children ?? []).map(asMount)) }),
 
   /**
@@ -596,8 +718,8 @@ export const Site = {
    */
   make: <const Roots extends ReadonlyArray<SiteNode<any> | SiteMount>>(
     ...roots: Roots
-  ): SiteTree<RoutesOf<Roots[number]>> => {
-    const tree: SiteTree<RoutesOf<Roots[number]>> = Object.freeze({
+  ): SiteTree<RoutesOf<Roots[number]>, SurfacedOf<Roots[number]>> => {
+    const tree: SiteTree<RoutesOf<Roots[number]>, SurfacedOf<Roots[number]>> = Object.freeze({
       roots: Object.freeze(roots.map(asMount).map(freezeMount)),
     })
     // Fail at definition time, not at the first inspection.
@@ -968,20 +1090,16 @@ export const Site = {
    * What the tree's surfaced nodes activate, keyed by tag, for `Data.wiring`,
    * `Data.subscriptions`, `Data.satisfy`, or an SSR plan's `surfaces`: each
    * node's `Surface.when` over the application's route place. A surface from
-   * another application is refused here, not at its reads.
+   * another application is refused here, not at its reads. The keys are the
+   * tags of the nodes with a Surface (`SiteSources`), so they survive a spread
+   * beside the application's own entries and can be named where the entries
+   * are keyed (`Data.wiring`'s `policies`); a surfaceless node's tag cannot.
    */
-  sources: <Root>(
-    site: SiteTree,
+  sources: <Root, Surfaced extends string>(
+    site: SiteTree<any, Surfaced>,
     owner: object,
     place: ModelPlace<Root>,
-  ): Record<string, ActiveSurface<Root> & SurfaceSource<Root>> => {
-    const out: Record<string, ActiveSurface<Root> & SurfaceSource<Root>> = {}
-    for (const node of Site.nodesOf(site)) {
-      const entry = sourceOf(node, owner, place)
-      if (entry !== undefined) out[entry[0]] = entry[1]
-    }
-    return out
-  },
+  ): SiteSources<Root, Surfaced> => sourcesOn(Site.nodesOf(site), owner, place),
 
   /**
    * The route-level Sources for one destination: the same entries as
@@ -999,19 +1117,12 @@ export const Site = {
    * There is deliberately no `SitePlan` object: the chain is already
    * `Site.chainOf`, and the head is `Site.metaOf`.
    */
-  sourcesFor: <Root>(
-    site: SiteTree,
+  sourcesFor: <Root, Surfaced extends string>(
+    site: SiteTree<any, Surfaced>,
     owner: object,
     place: ModelPlace<Root>,
     route: { readonly _tag: string },
-  ): Record<string, ActiveSurface<Root> & SurfaceSource<Root>> => {
-    const out: Record<string, ActiveSurface<Root> & SurfaceSource<Root>> = {}
-    for (const node of Site.chainOf(site, route)) {
-      const entry = sourceOf(node, owner, place)
-      if (entry !== undefined) out[entry[0]] = entry[1]
-    }
-    return out
-  },
+  ): SiteSources<Root, Surfaced> => sourcesOn(Site.chainOf(site, route), owner, place),
 
   /**
    * The application's link-click and URL-change lifecycle as one wiring, so
@@ -1096,7 +1207,9 @@ export const Site = {
      * reads what the Model would read there, the route already set:
      * `there => Data.preload(there, actives)`. An address no node holds, or
      * the route shown, reads nothing, and the Model is never changed: what
-     * was read lands as `read`'s own Messages.
+     * was read lands as `read`'s own Messages. With `code`, a `pages` entry
+     * that is a `Bundle.lazy` on that route's chain has its bodies fetched
+     * too, once.
      */
     readonly preload?:
       | {
@@ -1104,11 +1217,35 @@ export const Site = {
           readonly intended: Schema.Schema<Message> &
             ((fields: { readonly url: UrlValue }) => Message)
           readonly read: (there: Root) => Command.Command<Message, never, R>
+          /**
+           * Fetches the code of a `Bundle.lazy` page on the route pointed at,
+           * once, beside its read: `fetchCode`, an import of its own so a site
+           * with no lazy page keeps none of it. Required when `pages` holds a
+           * lazy page.
+           */
+          readonly code?: CodeFetch | undefined
         }
       | undefined
   }): Wiring<Root, Message, R> & {
     /** Whether the routing owns a message: its click, its URL change, or its preload intent. */
     readonly reduces: (message: Message) => boolean
+    /**
+     * The code a route draws: each `Bundle.lazy` page of `pages` on its chain,
+     * root first, so a page nested under a node with lazy code of its own
+     * loads both; none for a route whose pages are eager. Pure: nothing loads
+     * until a caller calls `load`. The `lazy` of `SSR.entry`, `SSR.render`
+     * and `SSR.hydrate`, from the one list of pages the routing holds:
+     * `lazy: model => Routing.codeFor(model.route)`.
+     */
+    readonly codeFor: (route: Route) => ReadonlyArray<Bundle.Loadable>
+    /**
+     * The Model's route told to its pages as an arrival, for an `init` that
+     * starts on it with no server render: a `Bundle.lazy` page loads its
+     * bodies on that Message, so without it a page opened at its own address
+     * draws its placeholder for good. `init: () => Routing.boot(initial)`.
+     * A page the server rendered has its bodies loaded already (`lazy`).
+     */
+    readonly boot: (model: Root) => Update.Return<Root, Message, R>
   } => {
     const completedTag = tagOfConstructor(
       config.completed,
@@ -1135,6 +1272,25 @@ export const Site = {
       messages: [config.completed],
       execute: ({ href }) => Navigation.load(href).pipe(Effect.as(config.completed())),
     })
+    const pages = config.pages ?? []
+    const codeFor = (route: { readonly _tag: string }): ReadonlyArray<Bundle.Loadable> =>
+      Site.chainOf(config.site, route).flatMap(node =>
+        pages.flatMap(page => (page.node === node ? Option.toArray(page.code) : [])),
+      )
+    const fetch = preload?.code?.(config.completed)
+    if (
+      preload !== undefined &&
+      fetch === undefined &&
+      pages.some(page => Option.isSome(page.code))
+    )
+      throw new Error(
+        'Site.routing: a Bundle.lazy page needs preload.code (fetchCode), or nothing fetches it ahead',
+      )
+    // Each page on the route told of its arrival, through its own `changed`.
+    const informed = (route: Route): Array<Update.Step<Root, Message, R>> =>
+      pages.map(
+        page => (model: Root) => Option.getOrElse(page.inform(model, route), () => ({ model })),
+      )
     // Route values are plain data from the same constructors, so equal
     // addresses compare equal. Checked before every write, so an echo of our
     // own navigation touches nothing: same Model back, no re-render.
@@ -1180,10 +1336,19 @@ export const Site = {
             Option.match(Site.routeAt(config.site, url), {
               // Another document's page, which this application cannot read ahead.
               onNone: () => ({ model }),
-              onSome: next =>
-                sameRoute(config.route.get(model), next)
-                  ? { model }
-                  : { model, commands: [preload.read(config.route.set(model, next))] },
+              onSome: next => {
+                if (sameRoute(config.route.get(model), next)) return { model }
+                // Its page's chunk too, once: a loaded one asks for nothing.
+                const unloaded =
+                  fetch === undefined ? [] : codeFor(next).filter(code => !code.isLoaded())
+                return {
+                  model,
+                  commands: [
+                    preload.read(config.route.set(model, next)),
+                    ...(fetch === undefined || unloaded.length === 0 ? [] : [fetch(unloaded)]),
+                  ],
+                }
+              },
             }),
           )
         }
@@ -1226,10 +1391,7 @@ export const Site = {
               ? []
               : [(model: Root) => ({ model: navigated(model, navigationKind()) })]),
             model => ({ model: setRoute(model, next) }),
-            ...(config.pages ?? []).map(
-              page => (model: Root) =>
-                Option.getOrElse(page.inform(model, next), () => ({ model })),
-            ),
+            ...informed(next),
             ...(arrived === undefined ? [] : [(model: Root) => arrived(model, next)]),
           ]
           return Option.some(Update.combine(model, steps))
@@ -1247,7 +1409,12 @@ export const Site = {
         metadata: [],
       } satisfies Contract,
     }
-    return { ...wiring, reduces }
+    return {
+      ...wiring,
+      reduces,
+      codeFor,
+      boot: model => Update.combine(model, informed(config.route.get(model))),
+    }
   },
 
   /**
@@ -1272,6 +1439,11 @@ export const Site = {
    * Message, or nothing when the arrival needs no answer. Without it the
    * page is never informed. Bundles with OutMessages, and children that are
    * not Bundles, stay on `Bundle.at` and `Link.child` directly.
+   *
+   * A `Bundle.lazy` page becomes the page's `code` (the routing's
+   * `codeFor`), and must have `changed`: its arrival is the Message that
+   * loads its bodies. A page opened at its own address with no server render
+   * has no arrival: its `init` starts through the routing's `boot`.
    */
   placement: <
     Route extends { readonly _tag: string },
@@ -1289,34 +1461,36 @@ export const Site = {
     Helpers extends Readonly<Record<string, Helper<ChildModel, ChildMessage, never, BundleR>>> =
       never,
     ObserverR = never,
+    Kind = unknown,
   >(
     node: SiteNode<Route>,
-    bundle: Bundle.Bundle<
-      Name,
-      Args,
-      ChildModel,
-      ChildMessage,
-      never,
-      BundleR,
-      BundleS,
-      ViewInputs,
-      Resources,
-      Helpers
-    >,
+    bundle: Kind &
+      Bundle.Bundle<
+        Name,
+        Args,
+        ChildModel,
+        ChildMessage,
+        never,
+        BundleR,
+        BundleS,
+        ViewInputs,
+        Resources,
+        Helpers
+      >,
     config: {
       readonly link: Link<Parent, LinkMessage, ChildModel, ChildMessage, Field>
-      readonly changed?: (route: Route) => ChildMessage | undefined
-    } & PlacementConfig<
-      Args,
-      Parent,
-      LinkMessage,
-      ChildMessage,
-      never,
-      never,
-      ObserverR,
-      SeedFor<Parent, Field>,
-      ViewInputs
-    >,
+    } & NoInfer<ChangedFor<Kind, Route, ChildMessage>> &
+      PlacementConfig<
+        Args,
+        Parent,
+        LinkMessage,
+        ChildMessage,
+        never,
+        never,
+        ObserverR,
+        SeedFor<Parent, Field>,
+        ViewInputs
+      >,
   ): SitePage<
     Parent,
     LinkMessage,
@@ -1337,12 +1511,20 @@ export const Site = {
     >
   > => {
     const { link, changed } = config
+    const code = isLoadable(bundle) ? Option.some(bundle) : Option.none()
+    // A lazy page loads on its first Message: with none on arrival, a page
+    // reached by Back or a key press would draw its placeholder for good.
+    if (Option.isSome(code) && changed === undefined)
+      throw new Error(
+        `Site.placement: "${bundle.name}" is a Bundle.lazy, so its route's arrival must tell it (changed), which loads its bodies (an init on its route: the routing's boot)`,
+      )
     // `link` and `changed` are this helper's own: `Bundle.at` reads its
     // known keys, and a non-literal tolerates the extra properties.
     const placed = bundle.at(link, config)
     return {
       node,
       placed,
+      code,
       inform: (model, route) => {
         if (!Predicate.isTagged(route, node.tag) || changed === undefined) return Option.none()
         // Guarded by the tag the node was built from, which `Site.make`

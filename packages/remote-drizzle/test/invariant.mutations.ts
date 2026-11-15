@@ -19,8 +19,8 @@ export default [
   edit(
     'the statement does not judge the row',
     drizzle,
-    '...(yield* holdingInvariants({ ...values, ...linkIds(links) }, increments, assignments)),',
-    '',
+    '...(yield* holdingInvariants(\n            judged,',
+    '...(yield* holdingInvariants(\n            [],',
   ),
   edit(
     'the statement judges the row before the write',
@@ -50,13 +50,13 @@ export default [
   edit(
     'a miss judges no transition',
     drizzle,
-    'brokenIn(retried ? { after } : { before, after })',
-    'brokenIn({ after })',
+    'brokenIn(judged, retried ? { after } : { before, after })',
+    'brokenIn(judged, { after })',
   ),
   edit(
     'a miss reads no field an invariant reads',
     drizzle,
-    '...invariants.flatMap(held => [...held.before, ...held.after]),',
+    '...judged.flatMap(held => [...held.before, ...held.after]),',
     '',
   ),
   edit(
@@ -115,8 +115,8 @@ export default [
     ...edit(
       'an invariant over a hidden member is named',
       '../../guard/src/server.ts',
-      '.filter(held => [...held.before, ...held.after].some(key => readRuled(ruled, key)))',
-      '.filter(() => false)',
+      '[...held.before, ...held.after].some(key => readRuled(ruled, key)),',
+      'false,',
     ),
     tests: ['packages/guard/test/invariant.test.ts'],
   },
@@ -125,8 +125,8 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: 'brokenIn(retried ? { after } : { before, after })',
-        replace: 'brokenIn({ before, after })',
+        find: 'brokenIn(judged, retried ? { after } : { before, after })',
+        replace: 'brokenIn(judged, { before, after })',
       },
     ],
     tests: ['packages/remote-drizzle/test/transition.test.ts'],

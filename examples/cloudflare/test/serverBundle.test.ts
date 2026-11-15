@@ -18,8 +18,14 @@ import { record } from '../../../scripts/perf-report.mjs'
 // 2026-11-03, the Sync journal's refusals and typed upcasting (#190) added
 // 14.5 kB of real server code (`foldkit-sync` `sync`, `journal`, `refusal`,
 // `migrations`, `errors`).
+// 4,500.2 kB measured on 2026-11-13, 32.8 kB up from 4,467.4 kB before the declared-write
+// work, all of it the features' own: `foldkit-entity` +15.6 kB (a Write's `becomes`
+// enumeration, footprint and `Entity.refine` states), `foldkit-remote-server` +8.5 kB
+// (`RemoteServer.memoryWriter`, held by the namespace object this Worker reads
+// `RemoteServer.write` through), `foldkit-remote` +4.7 kB (the write judges, `Data.can`),
+// `foldkit-sync` +2.6 kB (laws). The ceiling is 4,500.2 kB plus about 1.7%.
 // Never raise it without saying here what the growth bought.
-const CEILING = 4_485_000
+const CEILING = 4_577_000
 
 // The replica side of `foldkit-sync`. A server reaches `Sync` through the namespace
 // object, or a shared module does, and the bundler then keeps all of these.

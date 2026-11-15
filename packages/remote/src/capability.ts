@@ -6,10 +6,12 @@
  * never makes one never loads it. While the Model holds no layer the read core
  * reads the committed store directly, which is what the visible store is then.
  */
-import { Option, type Stream } from 'effect'
+import { Option, type Schema, type Stream } from 'effect'
 import type { AnyQuery, AnyWrite, ExprContext, EntityRef, MemoryOperators } from 'foldkit-entity'
 import type { RemoteClient } from './client.js'
 import { items, type Connection, type Edge } from './connection.js'
+import type { Can } from './can.js'
+import type { availableOf, capabilityOf } from './canOf.js'
 import type { Asked, NamedProjection } from './active.js'
 import type { HeldConnection } from './impact.js'
 import type {
@@ -38,7 +40,10 @@ import type {
   OptimisticOperation,
   OptimisticState,
 } from './optimistic.js'
+import type { waitingOf, withTokens } from './plan.js'
 import type { LivePolicy } from './query.js'
+import type { Requirement } from './requirement.js'
+import type { ReadBatchResult, RowRevision, RowToken } from './wire.js'
 import { entityKey, isTombstone, type EntityKey, type EntityStore } from './store.js'
 
 /** Where a bound domain holds what its declarations installed. */
@@ -56,6 +61,8 @@ export interface Capabilities {
   live: Option.Option<LiveCapability>
   /** What a list's body does on the client; installed by a query declared with a body (`Query.define`). */
   bodies: Option.Option<BodyCapability>
+  /** Read-after tokens (#544); installed by a Mutation the domain registers, whose answers hold rows to them. */
+  readAfter: Option.Option<ReadAfterCapability>
 }
 
 export const noCapabilities = (domain: string): Capabilities => ({
@@ -64,6 +71,7 @@ export const noCapabilities = (domain: string): Capabilities => ({
   writes: Option.none(),
   live: Option.none(),
   bodies: Option.none(),
+  readAfter: Option.none(),
 })
 
 /** Where a declaration holds what it installs on a domain that registers it. */
@@ -190,10 +198,55 @@ export interface WriteCapability {
   ) => WriteMethods<AppModel>
   /** The members of `selected` a pending row of `write`, an insert, cannot hold (#342). */
   readonly unpredicted: (write: AnyWrite, selected: ReadonlyArray<string>) => ReadonlyArray<string>
+  /** `Data.can`: whether a declared write would be refused, told from what is held. */
+  readonly can: (
+    write: AnyWrite,
+    input: Readonly<Record<string, unknown>>,
+    context: ExprContext,
+    store: EntityStore,
+    operators: Option.Option<MemoryOperators>,
+  ) => Can
+  /** `Data.capability`: an agent capability's checks from `Data.can`, asked through `ask`. */
+  readonly capability: typeof capabilityOf
+  /** `Data.available`: a discovery predicate from `Data.can`, asked through `ask`. */
+  readonly available: typeof availableOf
+}
+
+/** The read-after capability (`readAfter.ts`): tokens on the reads of floored rows, and what answers do to floors. */
+export interface ReadAfterCapability {
+  /** The rows of `planned` that hold a token, at most `MAX_READ_AFTER`, with what a read sends them with. */
+  readonly withTokens: typeof withTokens
+  /** `planned` split into what is read now and the floored rows that wait (`EntityEntry.behind`). */
+  readonly waiting: typeof waitingOf
+  /**
+   * A read's answer written: floored rows it may not speak for left as they
+   * are (`held`), those it read at their token freed, those the server was
+   * behind on set to wait.
+   */
+  readonly read: (
+    store: EntityStore,
+    requests: ReadonlyArray<Requirement>,
+    result: Schema.Schema.Type<typeof ReadBatchResult>,
+    now: number,
+    after: ReadonlyArray<Schema.Schema.Type<typeof RowToken>> | undefined,
+  ) => { readonly store: EntityStore; readonly held: ReadonlySet<EntityKey> }
+  /** Each row a write's answer names held to its token (`MutationResult.after`). */
+  readonly hold: (
+    store: EntityStore,
+    after: {
+      readonly token: string
+      readonly rows: ReadonlyArray<{ readonly entity: string; readonly id: string }>
+    },
+  ) => EntityStore
 }
 
 /** The live capability: a live stream, and what its events do to the Model. */
 export interface LiveCapability {
+  /** The rows asked live the store holds whole and unheld, at their revisions (`LiveRequirement.revisions`). */
+  readonly heldRevisions: (
+    store: EntityStore,
+    requirements: ReadonlyArray<Requirement>,
+  ) => ReadonlyArray<Schema.Schema.Type<typeof RowRevision>>
   readonly applyEntity: typeof applyEntityEvent
   readonly applyConnection: typeof applyConnectionEvent
   /** What a write's answer leaves the streams to send back (#485). */

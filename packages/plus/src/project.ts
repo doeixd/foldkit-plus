@@ -144,7 +144,7 @@ export const familyOf = (manifest: ReturnType<typeof readManifest>): ReadonlyArr
  * dependencies are found beside it in pnpm's store. ESM reads neither
  * `NODE_PATH` nor the global folders, which `require.resolve.paths` adds.
  */
-const installedFrom = (base: string, name: string): Option.Option<string> => {
+export const installedFrom = (base: string, name: string): Option.Option<string> => {
   for (let at = base; ; at = dirname(at)) {
     const candidate = join(at, 'node_modules', name)
     if (existsSync(join(candidate, 'package.json'))) return Option.some(realpathSync(candidate))

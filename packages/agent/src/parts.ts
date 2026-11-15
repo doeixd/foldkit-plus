@@ -1,284 +1,375 @@
-/**
- * A typed alias table from a control's id and label to a capability
- * `Agent.expose` already published.
- *
- * Discovery reads `messages.available` and the encoded context; it does not
- * read the DOM, run `authorize`, or dispatch. Invocation resolves the part,
- * then calls `messages.dispatchUnknown`, so availability, decoding,
- * authorization, and completion stay on that path.
- *
- * The label is not an identifier. Two renderings that share one are
- * `Ambiguous`. An occurrence id names one mount; a stale one matches nothing
- * and does not fall through to another row. A part with no mount is still
- * discoverable and invocable: mounting is not authority.
- */
-import { Effect, Option, Schema, SchemaAST } from 'effect'
-import { defineTaggedUnion } from 'foldkit/schema'
-import { type DispatchError, UnknownPartError } from './errors.js'
+import { Data, Option } from 'effect'
+import type { Attribute, HtmlBuilder } from 'foldkit/html'
 import type { Definition } from './make.js'
-import type { DispatchResult, Invocation, MessageDescriptor } from './types.js'
 
 /**
- * The runtime seams a part lookup uses. A full `AgentRuntime` satisfies this.
- * `definition` is compared with the catalog's, so a catalog cannot resolve
- * its names against another application's capabilities.
+ * The ARIA role a part plays: what a person would see it as, and what an agent
+ * reads to tell a search box from a button.
  */
-export interface UiRuntime {
-  readonly definition: unknown
-  readonly context: Effect.Effect<unknown>
-  readonly messages: {
-    readonly available: Effect.Effect<ReadonlyArray<Pick<MessageDescriptor, 'name'>>>
-    readonly dispatchUnknown: (
-      name: string,
-      input: unknown,
-      invocation?: Partial<Invocation>,
-    ) => Effect.Effect<DispatchResult, DispatchError>
-  }
-}
+export type PartRole =
+  | 'alert'
+  | 'article'
+  | 'button'
+  | 'cell'
+  | 'checkbox'
+  | 'columnheader'
+  | 'combobox'
+  | 'dialog'
+  | 'figure'
+  | 'form'
+  | 'grid'
+  | 'gridcell'
+  | 'group'
+  | 'heading'
+  | 'img'
+  | 'link'
+  | 'list'
+  | 'listbox'
+  | 'listitem'
+  | 'log'
+  | 'main'
+  | 'menu'
+  | 'menubar'
+  | 'menuitem'
+  | 'menuitemcheckbox'
+  | 'menuitemradio'
+  | 'meter'
+  | 'navigation'
+  | 'note'
+  | 'option'
+  | 'progressbar'
+  | 'radio'
+  | 'radiogroup'
+  | 'region'
+  | 'row'
+  | 'rowheader'
+  | 'search'
+  | 'searchbox'
+  | 'separator'
+  | 'slider'
+  | 'spinbutton'
+  | 'status'
+  | 'switch'
+  | 'tab'
+  | 'table'
+  | 'tablist'
+  | 'tabpanel'
+  | 'textbox'
+  | 'timer'
+  | 'toolbar'
+  | 'tooltip'
+  | 'tree'
+  | 'treegrid'
+  | 'treeitem'
 
-/** One control the application offers an agent, as `Ui.catalog` declares it. */
-export interface UiPartSpec<Tag extends string, Field extends string> {
-  /** Stable application identity. A remount does not change it. */
-  readonly id: string
-  /** Accessible name, for a person to say. Not an authorization id. */
+/** The constructor of a Message the definition exposes: what `invokes` and `sets` take. */
+type Exposed<Tag extends string> = (...args: never) => { readonly _tag: Tag }
+
+/** The input a capability takes on the wire, for a repeated part's `input`. */
+type InputOf<ByTag, Tag> = Tag extends keyof ByTag
+  ? ByTag[Tag] extends { readonly input: infer Input }
+    ? Input
+    : never
+  : never
+
+/** A key of the projected context: a struct context's fields, and nothing without one. */
+type FieldOf<Context> = unknown extends Context ? never : keyof Context & string
+
+/** A part drawn once: a read-only value, a control that invokes, or a field a capability sets. */
+export type SinglePartConfig<Context, ByTag, Tag extends string> = {
+  /** Text a person reads on the control; `find` matches it exactly. */
   readonly label: string
-  /** The exposed Message's constructor. */
-  readonly capability: (...args: never) => { readonly _tag: Tag }
-  /** Fields of the encoded context this part shows. */
-  readonly fields?: ReadonlyArray<Field> | undefined
+  readonly role: PartRole
+  readonly each?: undefined
+  readonly key?: undefined
+  readonly input?: undefined
+} & (
+  | {
+      /** A key of the projected context: the value the part shows. */
+      readonly field?: FieldOf<Context> | undefined
+      /** The exposed capability the control invokes. */
+      readonly invokes?: Exposed<Tag> | undefined
+      readonly sets?: undefined
+    }
+  | {
+      readonly field: FieldOf<Context>
+      /** The exposed capability that changes `field`. */
+      readonly sets: Exposed<Tag>
+      readonly invokes?: undefined
+    }
+)
+
+/** A part drawn once per item of the projected context, told apart by `key`. */
+export interface RepeatedPartConfig<Context, ByTag, Item, Tag extends string> {
+  readonly role: PartRole
+  /** The items, read from the projected context. */
+  readonly each: (context: Context) => ReadonlyArray<Item>
+  /** The occurrence key: unique among the items, stable while the item is. */
+  readonly key: (item: Item) => string
+  readonly label: string | ((item: Item) => string)
+  readonly invokes?: Exposed<Tag> | undefined
+  /** The capability input this occurrence would be invoked with: a hint, decoded again at dispatch. */
+  readonly input?: ((item: Item) => InputOf<ByTag, Tag>) | undefined
+  readonly field?: undefined
+  readonly sets?: undefined
 }
 
-/** A declared part with its capability resolved to the protocol name. */
-export interface UiPart<Id extends string = string> {
-  readonly id: Id
-  readonly label: string
-  readonly capability: string
-  readonly fields: ReadonlyArray<string>
+/**
+ * A declared part, as `Agent.part` types it. `Repeated` says whether it has
+ * occurrences, which `attributes` reads to ask for a key. Types only.
+ */
+export interface Part<Context, ByTag, Repeated extends boolean = boolean> {
+  readonly '~part'?: {
+    // Invariant, so a part written against another context, or none, is refused.
+    readonly context: (context: Context) => Context
+    readonly byTag: ByTag
+    readonly repeated: Repeated
+  }
 }
 
-/** One mounted rendering of a part. A new mount uses a new id. */
-export interface UiOccurrence<Id extends string = string> {
-  /** `UiPart.id` this rendering belongs to. */
-  readonly part: Id
-  /** Identity of this mount. Not an authorization id. */
+/**
+ * Declares one part of the screen for an agent: a label, a role, and what it
+ * is, in terms the contract already has. `field` names a key of the
+ * definition's projected context, `invokes` and `sets` an exposed capability;
+ * a part with neither capability is read-only. `each`, `key`, `label` and
+ * `input` are given the projected context, never the Model.
+ *
+ * Typed by the `parts` call it is written in, so it needs no annotation there.
+ */
+export const part = <Context, ByTag, Item = never, const Tag extends keyof ByTag & string = never>(
+  config: SinglePartConfig<Context, ByTag, Tag> | RepeatedPartConfig<Context, ByTag, Item, Tag>,
+): Part<Context, ByTag, [Item] extends [never] ? false : true> => config as never
+
+/** What `runtime.parts.list` reads of one part: what an agent may know of the control. */
+export interface PartDescriptor {
+  /** The declaration's key: stable across renders, routes and remounts. */
   readonly id: string
-}
-
-// Set by the class's static block: only this module makes or reads a catalog.
-let makeCatalog: <Id extends string>(
-  parts: ReadonlyMap<string, UiPart<Id>>,
-  definition: unknown,
-) => UiCatalog<Id>
-let partsOf: (catalog: UiCatalog) => ReadonlyMap<string, UiPart>
-let definitionOf: (catalog: UiCatalog) => unknown
-
-/** The parts an application bound. Only `Ui.catalog` makes one. */
-class UiCatalog<Id extends string = string> {
-  readonly #parts: ReadonlyMap<string, UiPart<Id>>
-  readonly #definition: unknown
-
-  static {
-    makeCatalog = (parts, definition) => new UiCatalog(parts, definition)
-    partsOf = catalog => catalog.#parts
-    definitionOf = catalog => catalog.#definition
-  }
-
-  private constructor(parts: ReadonlyMap<string, UiPart<Id>>, definition: unknown) {
-    this.#parts = parts
-    this.#definition = definition
-  }
-
-  /**
-   * The declared part, so a view draws the label an agent hears. Throws for
-   * an undeclared id, which literal ids rule out at compile time.
-   */
-  part(id: Id): UiPart<Id> {
-    const found = this.#parts.get(id)
-    if (found === undefined) throw new Error(`No such part: ${id}`)
-    return found
-  }
-}
-export type { UiCatalog }
-
-/**
- * What an agent asks for: a part by id, one mounted rendering of a part, or
- * every part a label names. Decode an agent's JSON with this Schema.
- */
-export const UiQuery = defineTaggedUnion({
-  Part: { id: Schema.String },
-  Occurrence: { part: Schema.String, id: Schema.String },
-  Label: { label: Schema.String },
-})
-export type UiQuery = typeof UiQuery.Type
-
-/** A lookup: one rendering, several that share a label or a part, or nothing. */
-export const UiDiscovery = defineTaggedUnion({
-  Match: {
-    id: Schema.String,
-    label: Schema.String,
-    capability: Schema.String,
-    occurrence: Schema.OptionFromNullOr(Schema.String),
-    projection: Schema.Record(Schema.String, Schema.Unknown),
-  },
-  Ambiguous: {
-    label: Schema.String,
-    matches: Schema.Array(
-      Schema.Struct({ id: Schema.String, occurrence: Schema.OptionFromNullOr(Schema.String) }),
-    ),
-  },
-  None: {},
-})
-export type UiDiscovery = typeof UiDiscovery.Type
-
-/** The encoded context's field names, or none when it is not a struct. */
-const contextFields = (definition: Pick<Definition, 'context'>): ReadonlySet<string> => {
-  if (definition.context === undefined) return new Set()
-  const encoded = SchemaAST.toEncoded(definition.context.Model.ast)
-  if (!SchemaAST.isObjects(encoded)) return new Set()
-  return new Set(encoded.propertySignatures.map(signature => String(signature.name)))
-}
-
-/**
- * Resolves each part against `definition`. An id bound twice, an empty label,
- * a capability the definition does not expose, or a field its encoded context
- * lacks throws here, never at discovery.
- */
-export const catalog = <
-  Context_,
-  ByTag,
-  const Parts extends ReadonlyArray<UiPartSpec<keyof ByTag & string, keyof Context_ & string>>,
->(
-  definition: Definition<any, Context_, any, any, ByTag>,
-  parts: Parts,
-): UiCatalog<Parts[number]['id']> => {
-  const names = new Map<unknown, string>()
-  for (const variant of definition.messages.variants) {
-    names.set(variant.messageConstructor, variant.name)
-  }
-  const fields = contextFields(definition)
-  const index = new Map<string, UiPart<Parts[number]['id']>>()
-  for (const part of parts) {
-    if (part.id === '') throw new Error('A part needs an id')
-    if (part.label === '') throw new Error(`Part ${part.id} needs a label`)
-    if (index.has(part.id)) throw new Error(`A part id is already bound: ${part.id}`)
-    const capability = names.get(part.capability)
-    if (capability === undefined) {
-      throw new Error(`Part ${part.id} names a capability this definition does not expose`)
-    }
-    const shown = [...(part.fields ?? [])]
-    const missing = shown.find(field => !fields.has(field))
-    if (missing !== undefined) {
-      throw new Error(`Part ${part.id} shows ${missing}, which the encoded context lacks`)
-    }
-    index.set(part.id, { id: part.id, label: part.label, capability, fields: shown })
-  }
-  return makeCatalog(index, definition)
-}
-
-/** Refuses a runtime bound to another definition: a wiring mistake, so a defect. */
-const sameDefinition = (runtime: UiRuntime, catalog: UiCatalog): Effect.Effect<void> =>
-  runtime.definition === definitionOf(catalog)
-    ? Effect.void
-    : Effect.die(new Error('This part catalog was built for another definition'))
-
-interface Rendering {
-  readonly part: UiPart
+  /** `key(item)` for a repeated part's occurrence. */
   readonly occurrence: Option.Option<string>
+  readonly label: string
+  readonly role: PartRole
+  /** The capability the part names. Calling it is `messages.dispatch`, unchanged. */
+  readonly capability: Option.Option<{
+    readonly name: string
+    /** The input a repeated part declares for this occurrence. */
+    readonly input: Option.Option<unknown>
+    /** Whether the capability runs `authorize`, which needs an input and runs at dispatch. */
+    readonly requiresAuthorization: boolean
+  }>
+  /** The `field`'s value, from the encoded context `runtime.context` serves. */
+  readonly value: Option.Option<unknown>
 }
 
-/** Every mount of `part`, or the part off the page when none is mounted. */
-const renderingsOf = (part: UiPart, mounted: ReadonlyArray<UiOccurrence>): Rendering[] => {
-  const hits = mounted
-    .filter(item => item.part === part.id)
-    .map(item => ({ part, occurrence: Option.some(item.id) }))
-  return hits.length === 0 ? [{ part, occurrence: Option.none() }] : hits
+/** What `find({ label })` answers: one part, every part sharing the label, or none. */
+export type Found = Data.TaggedEnum<{
+  One: { readonly part: PartDescriptor }
+  Ambiguous: { readonly parts: ReadonlyArray<PartDescriptor> }
+  None: {}
+}>
+
+export const Found = Data.taggedEnum<Found>()
+
+/** The keys of the declarations that are, or are not, repeated. */
+type IdsOf<P, Repeated extends boolean> = {
+  readonly [K in keyof P]: P[K] extends Part<any, any, infer R>
+    ? R extends Repeated
+      ? K
+      : never
+    : never
+}[keyof P] &
+  string
+
+/** One part, compiled once by `parts`. */
+interface CompiledPart {
+  readonly id: string
+  readonly role: PartRole
+  readonly label: string | ((item: unknown) => string)
+  readonly field: Option.Option<string>
+  /** The tag of the capability it names, looked up by constructor once. */
+  readonly tag: Option.Option<string>
+  readonly each: Option.Option<{
+    readonly items: (context: unknown) => ReadonlyArray<unknown>
+    readonly key: (item: unknown) => string
+    readonly input: Option.Option<(item: unknown) => unknown>
+  }>
 }
 
-const projectionOf = (part: UiPart, encoded: unknown): Record<string, unknown> => {
-  if (encoded === null || typeof encoded !== 'object') return {}
-  // `fromEntries` defines own properties, so no field name reaches a prototype.
-  return Object.fromEntries(
-    part.fields.flatMap(field =>
-      Object.hasOwn(encoded, field) ? [[field, Reflect.get(encoded, field)]] : [],
-    ),
-  )
+/** A definition's parts, checked against it: what `bind({ parts })` takes. */
+export interface Parts<P = Record<string, Part<any, any>>> {
+  /** The definition the parts were checked against; `bind` refuses another. */
+  readonly definition: Definition<any, any, any, any, any>
+  /** The declared ids, in declaration order. */
+  readonly ids: ReadonlyArray<keyof P & string>
+  /**
+   * `data-fk-part` (and `data-fk-part-key` for an occurrence) for the drawn
+   * control, so an in-page adapter or a test can find it. Nothing reads them
+   * for authority.
+   */
+  readonly attributes: {
+    <Message>(h: HtmlBuilder<Message>, id: IdsOf<P, false>): ReadonlyArray<Attribute<Message>>
+    <Message>(
+      h: HtmlBuilder<Message>,
+      id: IdsOf<P, true>,
+      key: string,
+    ): ReadonlyArray<Attribute<Message>>
+  }
+  /** @internal The compiled declarations `bind` lists from. */
+  readonly compiled: ReadonlyArray<CompiledPart>
 }
 
 /**
- * Finds the rendering an agent named among the parts whose capability is
- * available now. `mounted` comes from the host, never from the agent. Does
- * not dispatch and does not read the DOM.
+ * The parts of a definition, keyed by id. Each `invokes`/`sets` must name a
+ * capability the definition exposes, and each `field` a key of its projected
+ * context; another is a type error, and throws here.
+ *
+ * @example
+ * ```ts
+ * const Parts = Agent.parts(AppAgent, {
+ *   save: Agent.part({ label: 'Save', role: 'button', invokes: Message.RequestedSave }),
+ * })
+ * ```
  */
-export const discover = <Id extends string>(
-  runtime: UiRuntime,
-  catalog: UiCatalog<Id>,
-  query: UiQuery,
-  mounted: ReadonlyArray<UiOccurrence<NoInfer<Id>>> = [],
-): Effect.Effect<UiDiscovery> =>
-  Effect.gen(function* () {
-    yield* sameDefinition(runtime, catalog)
-    const offered = new Set((yield* runtime.messages.available).map(item => item.name))
-    const parts = partsOf(catalog)
-    const availablePart = (id: string): UiPart[] => {
-      const part = parts.get(id)
-      return part !== undefined && offered.has(part.capability) ? [part] : []
+export const parts = <Context_, ByTag, const P extends Record<string, Part<Context_, ByTag>>>(
+  definition: Definition<any, Context_, any, any, ByTag>,
+  declarations: P,
+): Parts<P> => {
+  const tags = new Map<unknown, string>()
+  for (const variant of definition.messages.variants)
+    tags.set(variant.messageConstructor, variant.tag)
+  const fields = contextFields(definition)
+
+  const compiled = Object.keys(declarations).map((id): CompiledPart => {
+    const config = (declarations as unknown as Record<string, AnyConfig>)[id]!
+    const named = config.invokes ?? config.sets
+    const tag = named === undefined ? undefined : tags.get(named)
+    if (named !== undefined && tag === undefined) {
+      throw new Error(
+        `Agent.parts: "${id}" names a capability this definition does not expose. Expose its Message first.`,
+      )
     }
-    const candidates: ReadonlyArray<Rendering> = UiQuery.match(query, {
-      Part: ({ id }) => availablePart(id).flatMap(part => renderingsOf(part, mounted)),
-      Occurrence: ({ part: id, id: occurrence }) =>
-        availablePart(id).flatMap(part =>
-          mounted
-            .filter(item => item.part === id && item.id === occurrence)
-            .map(item => ({ part, occurrence: Option.some(item.id) })),
-        ),
-      Label: ({ label }) =>
-        [...parts.values()]
-          .filter(part => part.label === label && offered.has(part.capability))
-          .flatMap(part => renderingsOf(part, mounted)),
-    })
-    const [only, ...rest] = candidates
-    if (only === undefined) return UiDiscovery.None()
-    if (rest.length > 0) {
-      return UiDiscovery.Ambiguous({
-        label: only.part.label,
-        matches: candidates.map(rendering => ({
-          id: rendering.part.id,
-          occurrence: rendering.occurrence,
-        })),
-      })
+    if (config.field !== undefined && !Option.exists(fields, keys => keys.has(config.field!))) {
+      throw new Error(
+        `Agent.parts: "${id}" reads "${config.field}", which the definition's context does not project.`,
+      )
     }
-    return UiDiscovery.Match({
-      id: only.part.id,
-      label: only.part.label,
-      capability: only.part.capability,
-      occurrence: only.occurrence,
-      projection: projectionOf(only.part, yield* runtime.context),
-    })
+    if (config.each !== undefined && definition.context === undefined) {
+      throw new Error(
+        `Agent.parts: "${id}" is repeated over a context this definition does not declare.`,
+      )
+    }
+    return {
+      id,
+      role: config.role,
+      label: config.label,
+      field: Option.fromUndefinedOr(config.field),
+      tag: Option.fromUndefinedOr(tag),
+      each:
+        config.each === undefined
+          ? Option.none()
+          : Option.some({
+              items: config.each,
+              key: config.key!,
+              input: Option.fromUndefinedOr(config.input),
+            }),
+    }
   })
 
-/**
- * Dispatches the capability bound to part `id`.
- *
- * An id the catalog does not bind fails before dispatch, including when a
- * capability of that name exists. `dispatchUnknown` then applies the same
- * checks as any other caller.
- */
-export const invoke = (
-  runtime: UiRuntime,
-  catalog: UiCatalog,
-  // A string: the id comes from an agent, so an unknown one is a typed failure.
-  id: string,
-  input: unknown,
-  invocation?: Partial<Invocation>,
-): Effect.Effect<DispatchResult, DispatchError | UnknownPartError> =>
-  Effect.flatMap(
-    sameDefinition(runtime, catalog),
-    (): Effect.Effect<DispatchResult, DispatchError | UnknownPartError> => {
-      const part = partsOf(catalog).get(id)
-      if (part === undefined) return Effect.fail(UnknownPartError.of(id))
-      return runtime.messages.dispatchUnknown(part.capability, input, invocation)
-    },
-  )
+  return {
+    definition,
+    ids: compiled.map(each => each.id) as ReadonlyArray<keyof P & string>,
+    attributes: (<Message>(h: HtmlBuilder<Message>, id: string, key?: string) => [
+      h.DataAttribute('fk-part', id),
+      ...(key === undefined ? [] : [h.DataAttribute('fk-part-key', key)]),
+    ]) as Parts<P>['attributes'],
+    compiled,
+  }
+}
 
-/** The part catalog, its lookup, and its dispatch. */
-export const Ui = { catalog, discover, invoke }
+/** A declaration with its types erased, as `parts` reads it at run time. */
+interface AnyConfig {
+  readonly label: string | ((item: unknown) => string)
+  readonly role: PartRole
+  readonly field?: string | undefined
+  readonly invokes?: unknown
+  readonly sets?: unknown
+  readonly each?: ((context: unknown) => ReadonlyArray<unknown>) | undefined
+  readonly key?: ((item: unknown) => string) | undefined
+  readonly input?: ((item: unknown) => unknown) | undefined
+}
+
+/** The keys a struct context projects, read off its Schema; none without one. */
+const contextFields = (
+  definition: Definition<any, any, any, any, any>,
+): Option.Option<ReadonlySet<string>> =>
+  Option.flatMap(Option.fromUndefinedOr(definition.context), context => {
+    const fields = (context.Model as { readonly fields?: Record<string, unknown> }).fields
+    return fields === undefined ? Option.none() : Option.some(new Set(Object.keys(fields)))
+  })
+
+/** What the runtime gives `list`: one snapshot's context, and what is available in it. */
+export interface Snapshot {
+  /** The context as `runtime.context` serves it: encoded, undeclared properties dropped. */
+  readonly encoded: Option.Option<unknown>
+  /** The encoded context decoded again: the projected value, holding only what it declares. */
+  readonly decoded: Option.Option<unknown>
+  readonly available: ReadonlySet<string>
+  readonly capabilityOf: (tag: string) => {
+    readonly name: string
+    readonly requiresAuthorization: boolean
+  }
+}
+
+/**
+ * The parts one snapshot shows. A part whose capability is unavailable is left
+ * out, as the tool list leaves the capability out.
+ */
+export const listParts = (
+  compiled: ReadonlyArray<CompiledPart>,
+  snapshot: Snapshot,
+): ReadonlyArray<PartDescriptor> =>
+  compiled.flatMap(declared => {
+    if (Option.exists(declared.tag, tag => !snapshot.available.has(tag))) return []
+    const capability = (input: Option.Option<unknown>) =>
+      Option.map(declared.tag, tag => ({ ...snapshot.capabilityOf(tag), input }))
+
+    return Option.match(declared.each, {
+      onNone: () => [
+        {
+          id: declared.id,
+          occurrence: Option.none(),
+          label: declared.label as string,
+          role: declared.role,
+          capability: capability(Option.none()),
+          // Own keys only: an optional field left out must not read `Object.prototype`.
+          value: Option.flatMap(declared.field, field =>
+            Option.flatMap(snapshot.encoded, context =>
+              Object.hasOwn(context as object, field)
+                ? Option.some((context as Record<string, unknown>)[field])
+                : Option.none(),
+            ),
+          ),
+        },
+      ],
+      onSome: ({ items, key, input }) => {
+        const seen = new Set<string>()
+        // `parts` refused a repeated part over a definition with no context.
+        return items(Option.getOrThrow(snapshot.decoded)).map(item => {
+          const occurrence = key(item)
+          if (seen.has(occurrence)) {
+            throw new Error(
+              `Agent parts: "${declared.id}" has two occurrences keyed "${occurrence}". Its key must tell its items apart.`,
+            )
+          }
+          seen.add(occurrence)
+          return {
+            id: declared.id,
+            occurrence: Option.some(occurrence),
+            label: typeof declared.label === 'string' ? declared.label : declared.label(item),
+            role: declared.role,
+            capability: capability(Option.map(input, make => make(item))),
+            value: Option.none(),
+          }
+        })
+      },
+    })
+  })

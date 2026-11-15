@@ -38,7 +38,7 @@ import {
   type RemoteError,
   type RemoteMessage,
 } from 'foldkit-remote'
-import { liveQuery } from 'foldkit-remote/live'
+import type { liveQuery } from 'foldkit-remote/live'
 import { ModelRef, Projection, type ActiveSurface } from 'foldkit-surface'
 import { define as defineCommand, type Command } from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
@@ -71,6 +71,12 @@ export interface EditableForm<
   readonly input: EntityInput<E, Fields, Members>
   readonly initial: FormModel
   readonly fill: (model: FormModel, values: Partial<Value>) => { readonly model: FormModel }
+  // `NoInfer`: the form's `over` is generic in the Model it is given, and would
+  // otherwise offer its constraint as the editor's `FormModel`.
+  readonly over: (
+    model: NoInfer<FormModel>,
+    row: Readonly<Record<string, unknown>>,
+  ) => { readonly model: NoInfer<FormModel> }
   readonly authoredChanged: (before: FormModel, after: FormModel) => boolean
   readonly controls: ReadonlyArray<FormControl>
   readonly Message: {
@@ -120,6 +126,12 @@ export interface EditorModel<FormModel> {
    * only what changed.
    */
   readonly filledWith: Option.Option<Readonly<Record<string, unknown>>>
+  /**
+   * The members the invariants read beside the form's that the form is set
+   * over, none until it is set over the row: one arriving later sets it over
+   * the row again.
+   */
+  readonly judged: Option.Option<ReadonlyArray<string>>
 }
 
 /**
@@ -519,8 +531,12 @@ export const Crud = {
       readonly selection: Selection<EntityName, Members, S>
       /** How many rows a page holds. Default 25. */
       readonly pageSize?: number
-      /** Watch the list live while it is shown (`liveQuery` from `foldkit-remote/live`). */
-      readonly live?: boolean
+      /**
+       * Watch the list live while it is shown: pass `liveQuery` from
+       * `foldkit-remote/live`. The caller hands it over so that a page reading
+       * no list live keeps none of Remote's live modules.
+       */
+      readonly live?: typeof liveQuery
       /**
        * How a row reads as a choice in a relation picker: its id, and the words
        * that identify it to a person. Give it to a list that feeds pickers.
@@ -531,7 +547,7 @@ export const Crud = {
       }
     },
   ) => {
-    const { query, selection, pageSize = 25, live = false, choice } = config
+    const { query, selection, pageSize = 25, live, choice } = config
     const columns = columnsOf(selection)
 
     return {
@@ -553,9 +569,9 @@ export const Crud = {
         const { data, input } = where
         const projectionOf = (root: Root) =>
           Option.map(input(root), value =>
-            live
-              ? liveQuery<Root>(data, query, value, { select: selection, first: pageSize })
-              : data.query(query, value, { select: selection, first: pageSize }),
+            live === undefined
+              ? data.query(query, value, { select: selection, first: pageSize })
+              : live<Root>(data, query, value, { select: selection, first: pageSize }),
           )
         const page = (root: Root): RemoteData<Page<S['Type']>> =>
           Option.match(projectionOf(root), {
@@ -893,6 +909,7 @@ export const Crud = {
       settledFor: Option.none(),
       refusedFor: Option.none(),
       filledWith: Option.none(),
+      judged: Option.none(),
     }
     const Model = Schema.Struct({
       form: form.bundle.Model,
@@ -905,6 +922,7 @@ export const Crud = {
       settledFor: Schema.OptionFromNullOr(Schema.String),
       refusedFor: Schema.OptionFromNullOr(Schema.String),
       filledWith: Schema.OptionFromNullOr(Schema.Record(Schema.String, Schema.Unknown)),
+      judged: Schema.OptionFromNullOr(Schema.Array(Schema.String)),
     }) as unknown as Schema.Codec<Model, unknown>
 
     // The editor's Messages are the form's own: it adds state around the form,
@@ -939,9 +957,15 @@ export const Crud = {
       },
     })
 
-    // What is loaded: what the form writes, and what `locks` reads beside it,
-    // which the form never fills from.
+    // What is loaded and filled from: what the form writes, and what `locks` reads.
     const current = Entity.selectFor(form.input, { also: locks?.select })
+    // What the invariants read beside it, so the form judges them over the row:
+    // each member in a Selection of its own, since a Read rule may withhold one
+    // from this reader, which settles that Selection unavailable and leaves the
+    // form, and the other members, alone.
+    const judgedReads = Object.keys(Entity.judgedBy(form.input)).map(
+      member => [member, Entity.select(form.input.entity, { [member]: true } as never)] as const,
+    )
     type Row = (typeof current)['schema']['Type']
     /** The member each form key writes: a field's own key, or the relation it points. */
     const writes: ReadonlyArray<readonly [keyof Fields & string, string]> = Object.entries(
@@ -980,6 +1004,41 @@ export const Crud = {
           return mode === 'edit' && target !== null
             ? data.get(current, target).read(root)
             : undefined
+        }
+
+        /**
+         * Each member the invariants read that this reader has been sent. One
+         * withheld is left out, so an invariant reading it stays undecided
+         * rather than judged on a value the reader does not have.
+         */
+        const judgedHeld = (
+          root: Root,
+          target: string | null,
+        ): Readonly<Record<string, unknown>> => {
+          const held: Record<string, unknown> = Object.create(null)
+          if (target !== null)
+            for (const [member, selection] of judgedReads) {
+              const read = RemoteData.held(data.get(selection, target).read(root))
+              if (Option.isSome(read)) held[member] = read.value[member]
+            }
+          return held
+        }
+        /**
+         * The form set over the row a loaded value of `target` describes, with
+         * the judged members held beside it, and which those were.
+         */
+        const overOf = (
+          root: Root,
+          target: string | null,
+          formModel: Model['form'],
+          value: Readonly<Record<string, unknown>>,
+        ): Pick<Model, 'form' | 'judged'> => {
+          const held = judgedHeld(root, target)
+          return {
+            form: form.over(formModel, Entity.rowFrom(form.input.entity, { ...value, ...held }))
+              .model,
+            judged: Option.some(Object.keys(held)),
+          }
         }
 
         /**
@@ -1039,6 +1098,25 @@ export const Crud = {
             form: form.fill(editor.form, values).model,
             filled: true,
             filledWith: Option.some(values),
+          })
+        }
+
+        /**
+         * Once the form is filled, it is set over the row it edits, and set over
+         * it again when a member the invariants read arrives later (the value
+         * was already held, the member not).
+         */
+        const overLoaded = (root: Root): Root => {
+          const editor = slice.get(root)
+          const { target } = editor
+          if (!editor.filled || target === null) return root
+          const held = Object.keys(judgedHeld(root, target))
+          if (Option.exists(editor.judged, judged => held.every(m => judged.includes(m))))
+            return root
+          return Option.match(known(root), {
+            onNone: () => root,
+            onSome: value =>
+              slice.set(root, { ...editor, ...overOf(root, target, editor.form, value) }),
           })
         }
 
@@ -1112,20 +1190,25 @@ export const Crud = {
               onSome: value => ({ [expectKey!]: value }),
             }),
           })
+          const answered = Option.match(revision, {
+            onNone: () => editor.form,
+            onSome: value =>
+              form.fill(editor.form, { [expectKey!]: value } as Partial<Value>).model,
+          })
           return slice.set(root, {
             ...editor,
             settledFor,
             filledWith,
-            form: Option.match(revision, {
-              onNone: () => editor.form,
-              onSome: value =>
-                form.fill(editor.form, { [expectKey!]: value } as Partial<Value>).model,
+            // The row the form edits is now the one its save left.
+            ...Option.match(known(root), {
+              onNone: () => ({ form: answered }),
+              onSome: value => overOf(root, editor.target, answered, value),
             }),
           })
         }
 
         const sync: Update.Step<Root, never, never> = root => ({
-          model: settled(refused(filledOf(root))),
+          model: settled(refused(overLoaded(filledOf(root)))),
         })
 
         /** Why the server refused the last save, when it refused it as data. */
@@ -1240,13 +1323,30 @@ export const Crud = {
 
           /**
            * For `Data.subscriptions`: while an id is being edited, what it loads is
-           * a requirement like any Surface's, so Remote fetches and retains it.
+           * a requirement like any Surface's, so Remote fetches and retains it:
+           * the row it fills from, and each member the invariants read beside it.
            */
           active: data.active<RemoteData<Row>>(name, root => {
             const { mode, target } = slice.get(root)
-            return mode === 'edit' && target !== null
-              ? Option.some(data.get(current, target))
-              : Option.none()
+            if (mode !== 'edit' || target === null) return Option.none()
+            const row = data.get(current, target)
+            // It reads as the row; what it requires is the row and the judged members.
+            const required = Projection.struct({
+              row,
+              ...Object.fromEntries(
+                // Keyed apart from `row`, which a member may be called.
+                judgedReads.map(([member, selection]) => [
+                  `judged ${member}`,
+                  data.get(selection, target),
+                ]),
+              ),
+            })
+            return Option.some(
+              Projection.fromReader(row.Model, row.read, {
+                dependencies: required.dependencies,
+                metadata: required.metadata,
+              }),
+            )
           }),
 
           sync,

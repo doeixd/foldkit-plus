@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
  * `npx foldkit-plus`: `setup` prints `setup.ts`'s instructions for the project
- * in this folder; `docs` answers from the docs installed there (`docs.ts`).
+ * in this folder; `docs` answers from the docs installed there (`docs.ts`);
+ * `laws` prints a module's law report (`laws.ts`).
  */
 import { Option } from 'effect'
 import { fileURLToPath } from 'node:url'
 
 import { answer, answerJson, answerText, found, outlineText, topicsOf } from './docs.js'
 import { Refusal, familyOf, libraryIn, managerIn, projectIn, readManifest } from './project.js'
+import { type Printed, lawsReport } from './laws.js'
 import { setupGuide } from './setup.js'
 
 const usage = `Usage:
@@ -17,13 +19,11 @@ const usage = `Usage:
                                     docs (READMEs and the foldkit-plus skill) for
                                     a symbol (Remote.make) or words; --json for a program.
   npx foldkit-plus docs --list [topic]
-                                    The installed documents, or one topic's outline.`
-
-/** What a command prints, and whether it failed. */
-interface Printed {
-  readonly text: string
-  readonly isError: boolean
-}
+                                    The installed documents, or one topic's outline.
+  npx foldkit-plus laws <module>[#export]
+                                    What Laws.show says of the module's LawReport
+                                    (its default export, or the named one), or of
+                                    the { writes } that Laws.check takes.`
 
 // Beside `dist` and `src` alike.
 const own = readManifest(fileURLToPath(new URL('../package.json', import.meta.url)))
@@ -88,6 +88,16 @@ const docs = (args: ReadonlyArray<string>) => {
   print(refused(() => search(words.join(' '), flags.includes('--json'))))
 }
 
+const laws = async (args: ReadonlyArray<string>) => {
+  const [spec, ...extra] = args
+  if (spec === undefined || extra.length > 0) {
+    process.stderr.write(`${usage}\n`)
+    process.exitCode = 1
+    return
+  }
+  print(await lawsReport(spec, process.cwd()))
+}
+
 const [command = 'setup', ...rest] = process.argv.slice(2)
 if (command === 'setup') {
   const folder = process.cwd()
@@ -96,6 +106,8 @@ if (command === 'setup') {
   )
 } else if (command === 'docs') {
   docs(rest)
+} else if (command === 'laws') {
+  await laws(rest)
 } else {
   process.stdout.write(`${usage}\n`)
   process.exitCode = command === '--help' || command === '-h' || command === 'help' ? 0 : 1

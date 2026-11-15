@@ -16,7 +16,18 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // at 85e0f67 (2026-11-02) it grew steadily, about 39 kB over 337 commits with
 // no step above 17 kB: the SSR loader and redirect, Remote and Surface
 // features the page uses. Not an accident in one commit.
-const CEILING = 3_240_000
+// +9284 bytes for row revisions and read-after tokens on Remote's wire (#544), measured by building the page with and without them in one tree on 2026-11-14: the wire's schemas, the token in each coalesced read, the floors and revisions in the store and reducer. Ceiling raised by that, rounded up.
+// -610 bytes (#560 review): the read-after half of #544 moved behind the write capability, which
+// the Worker's domain never installs, and the wait on a row the server is behind on was added;
+// measured with and without both in one tree on 2026-11-14 (3,245,724 against 3,245,114).
+// +489 bytes for `policies` on `Data.wiring` (#236), measured in one tree on 2026-11-14 with and
+// without it (3,264,148 and 3,264,637). The Worker was over the ceiling already from other
+// growth (3,264,148), which this does not cover.
+// +10,371 on 2026-11-15 (#560 review): measured 3,259,503. 3,257,666 without the review's UI fixes
+// and 3,259,503 with them in one tree, +1,837 raw (their doc comments count here). The Worker was
+// over by 8,487 before them (3,264,148 at #236's measure, since cut by the Site and SSR fixes),
+// from the wave's A3, F2 and C2 fixes and the growth noted above. Ceiling raised to the reading.
+const CEILING = 3_259_550
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

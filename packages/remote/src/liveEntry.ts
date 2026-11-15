@@ -10,9 +10,9 @@ import { Capability, liveIn } from './capability.js'
 import type { RemoteClient } from './client.js'
 import type { BoundRemote, LiveDependencies, LiveOptions } from './index.js'
 import { liveStreamKey, type LiveAsk } from './liveState.js'
-import type { RemoteMessage, RemoteModel } from './model.js'
+import { readAfterIn, type RemoteMessage, type RemoteModel } from './model.js'
 import { parsedQueryRequest } from './queryRequest.js'
-import { QueryRequest, ReadRequest } from './wire.js'
+import { QueryRequest, ReadRequest, RowRevision, RowToken } from './wire.js'
 
 /**
  * The live rows and lists of what projections ask. A list read live is a
@@ -34,6 +34,12 @@ export const liveAskOf = (asked: Asked): LiveAsk => ({
 // application that spreads Remote's entries into its own.
 const resumeCursor = Schema.Number.pipe(Schema.overrideToEquivalence(() => () => true))
 
+// What the stream may leave out when it starts, not a reason to restart it: every
+// applied patch moves a row's revision.
+const startRevisions = Schema.Array(RowRevision).pipe(
+  Schema.overrideToEquivalence(() => () => true),
+)
+
 /** The live entry: subscribes to `liveOf(model)` from the Model's resume cursor. */
 export const liveEntry = <AppModel, Store extends RemoteModel, Message>(
   bound: BoundRemote<AppModel, Store>,
@@ -46,6 +52,8 @@ export const liveEntry = <AppModel, Store extends RemoteModel, Message>(
     queries: Schema.Array(QueryRequest),
     cursor: resumeCursor,
     floor: Schema.Number,
+    tokens: Schema.Array(RowToken),
+    revisions: startRevisions,
     restarts: Schema.Number,
     // Read when a break restarts the stream; an applied event resetting it is no reason to.
     failures: resumeCursor,
@@ -61,6 +69,12 @@ export const liveEntry = <AppModel, Store extends RemoteModel, Message>(
       cursor: remote.live[stream]?.cursor ?? 0,
       // A stream is the principal's: `forget` moves the floor, and it restarts.
       floor: remote.refresh.floor,
+      tokens: readAfterIn(bound[Capability]).withTokens(remote.entities, asked.requirements).after,
+      // Only a live read asks a row live, and it installed the capability.
+      revisions:
+        asked.requirements.length === 0
+          ? []
+          : liveIn(bound[Capability]).heldRevisions(remote.entities, asked.requirements),
       restarts: health?.restarts ?? 0,
       failures: health?.failures ?? 0,
     }

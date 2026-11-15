@@ -306,6 +306,7 @@ const isStaleUnasked = (reason: Why): boolean =>
     ListFailed: () => false,
     FieldsFailed: () => false,
     Unavailable: () => false,
+    ReadAfter: () => false,
     Undecodable: () => false,
     OverlayOnly: () => false,
     Deleted: () => false,

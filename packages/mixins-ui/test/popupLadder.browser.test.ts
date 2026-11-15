@@ -1,7 +1,8 @@
 /**
  * A real Listbox on the size ladder, opened: a chosen size reaches the rows
  * whether upstream portals the panel out of the page or not, and a region
- * set compact reaches a panel kept in place (`portal: false`).
+ * set compact reaches the panel too, kept in place (`portal: false`) or
+ * portaled, where a size of its own still wins over the region.
  */
 import { Option, Schema } from 'effect'
 import { Listbox as UiListbox } from '@foldkit/ui'
@@ -27,7 +28,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (options: { size?: 'sm'; portal: boolean; region?: boolean }) => {
+const mount = (options: { size?: 'sm' | 'lg'; portal: boolean; region?: boolean }) => {
   const style = Style.forSlots(ListboxSlots)(
     Recipes.Listbox(options.size === undefined ? {} : { size: options.size }),
   )
@@ -109,10 +110,25 @@ test.each([true, false])('a chosen compact size reaches the rows, portaled %s', 
   }
 })
 
-test('a region set compact reaches a panel kept in place', async () => {
-  const handle = mount({ portal: false, region: true })
+test.each([true, false])('a region set compact reaches the rows, portaled %s', async portal => {
+  const handle = mount({ portal, region: true })
   try {
     expect(await heights()).toEqual([28, 28])
+    const inPlace = document
+      .getElementById('popup-page')!
+      .contains(document.querySelector('[role="option"]'))
+    expect(inPlace).toBe(!portal)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a popup size of its own beats the region it was portaled out of', async () => {
+  const handle = mount({ size: 'lg', portal: true, region: true })
+  try {
+    const [, row] = await heights()
+    // The button follows the region; the rows, in a panel of their own size, stay a half step up.
+    expect(row).toBe(40)
   } finally {
     handle.dispose()
   }

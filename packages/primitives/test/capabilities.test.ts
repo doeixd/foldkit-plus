@@ -9,11 +9,13 @@ import {
   GridNavigation,
   ListNavigation,
   LiveAnnounce,
+  Presence,
   RovingTabindex,
   Selection,
   TreeNavigation,
   Typeahead,
 } from '../src/interaction/index.js'
+import { PresenceMessage } from '../src/motion/index.js'
 
 /** What a step is, Commands by name and args: their Effects are new objects per call. */
 const shape = (result: {
@@ -38,6 +40,9 @@ const listArgs = {
 const gridArgs = { columns: 3, wrap: false, virtual: false }
 const announceArgs = { debounceMs: 50, clearAfterMs: 1000 }
 const announcer = { polite: '', assertive: '', pending: null, generation: 3 }
+const presenceArgs = { durationMs: 200 }
+const shown = { phase: 'shown', generation: 4 } as const
+const hiding = { phase: 'hiding', generation: 5 } as const
 
 describe('a capability gives what its Message gives through update', () => {
   it.each([
@@ -137,6 +142,16 @@ describe('a capability gives what its Message gives through update', () => {
         LiveAnnounce.Message.Announced({ message: 'Failed', politeness: 'assertive' }),
         announceArgs,
       ),
+    ],
+    [
+      'Presence.hide',
+      Bundle.helpersOf(Presence.bundle, presenceArgs).hide(shown),
+      Presence.bundle.update(shown, PresenceMessage.Hide(), presenceArgs),
+    ],
+    [
+      'Presence.show',
+      Bundle.helpersOf(Presence.bundle, presenceArgs).show(hiding),
+      Presence.bundle.update(hiding, PresenceMessage.Show(), presenceArgs),
     ],
   ])('%s', (_, capability, message) => {
     expect(shape(capability)).toEqual(shape(message))

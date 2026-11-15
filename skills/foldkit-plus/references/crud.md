@@ -95,7 +95,11 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 
 - **Open it** from your own `update`: `Placed.helpers.open(id)` (edit: empties the
   form, fills it when the value arrives), `.blank()` (create: nothing to load),
-  `.close()`.
+  `.close()`. An edit loads what the Entity's invariants read beside the form's keys
+  (`Entity.judgedBy`) and sets the form over the loaded row (`form.over`), so the form
+  judges them, transitions included, as keys are edited, before any save. Each is
+  read in a Selection of its own: one a Read rule withholds is left out and its
+  invariant stays undecided, while a `redact`ed one is judged as its replacement.
 - **Dispatch form Messages** as before: the editor's Messages are the form's own
   (`EditPostForm.Message.Changed(...)` wrapped in `Message.GotEditorMessage`).
 - **Read state:** `PostEditor.status(model)` is `Closed`, `Loading`, `NotFound`,
@@ -153,15 +157,16 @@ const AuthorsQuery = Query.make('Authors', {
 
 ```ts
 import { Option } from 'effect'
+import { liveQuery } from 'foldkit-remote/live'
 
 const Authors = Crud.list('Authors', {
   query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
   selection: Entity.select(Blog.Author, { id: true, name: true }),
   pageSize: 25,
-  // Read live while shown, through `liveQuery` from foldkit-remote/live: rows
-  // written elsewhere join and leave it (the server's live source must serve
-  // the query; see remote.md).
-  live: true,
+  // Read live while shown: rows written elsewhere join and leave it (the
+  // server's live source must serve the query; see remote.md). Leave it out
+  // and the page keeps none of Remote's live modules.
+  live: liveQuery,
   // How a row reads as a choice, for a list that feeds relation pickers.
   choice: { value: row => row.id, label: row => row.name },
 })

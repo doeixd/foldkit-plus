@@ -13,7 +13,7 @@ import { view as scrollArea, type ScrollAreaSlots } from './scrollArea.js'
 /**
  * A message scroller: a conversation's messages in a `ScrollArea` that
  * keeps the newest in view while the reader is at the bottom, stops
- * following once they scroll up or aim up, and offers a button back to the latest
+ * following once they scroll up, and offers a button back to the latest
  * that counts what arrived meanwhile. Older messages loaded above leave
  * what the reader looks at where it was.
  *
@@ -124,22 +124,14 @@ export const ScrollToEnd = Command.define('MessageScroller.ScrollToEnd', {
  * Follows the log's end, as a Mount on the log, whose parent is what
  * scrolls. It tells the reader leaving the end (a scroll up) from the log
  * growing: a scroll that moves up and leaves the end stops following, and
- * one that reaches within `NEAR` of the end starts again. An upward wheel,
- * or ArrowUp, PageUp, or Home, stops following when the key or wheel
- * arrives, before that scroll, so a message landing in between does not
- * pull the end back. Not every such event scrolls the log, so these are
- * ignored: a Ctrl wheel (zoom), a wheel over a nested element that can scroll
- * up itself, and a key that another handler prevented, that has Ctrl, Meta or
- * Alt down, or that goes to an input, textarea, select or editable element.
- * While following, any growth (a message, a streamed
- * word, a picture loading) and a shorter viewport scroll to the end;
- * otherwise the first message in view is held where it was, so a page of
- * older messages lands above it unseen. It turns the browser's own scroll
- * anchoring off on the scroller, which would correct the same growth a
- * second time, and which Safari lacks. Without a `ResizeObserver` (a DOM
- * with no layout) it only reports the end reached. A Scene test of a page
- * that draws the scroller resolves it:
- * `Scene.Mount.resolve(FollowEnd, Message.ReachedEnd())`.
+ * one that reaches within `NEAR` of the end starts again. While following,
+ * any growth (a message, a streamed word, a picture loading) or a change of
+ * the scrolling frame's own size (a keyboard opening) scrolls to the end; otherwise the first message in view is held where it was, so a
+ * page of older messages lands above it unseen. It turns the browser's own
+ * scroll anchoring off on the scroller, which would correct the same growth
+ * a second time, and which Safari lacks. Without a `ResizeObserver` (a DOM with no
+ * layout) it only reports the end reached. A Scene test of a page that
+ * draws the scroller resolves it: `Scene.Mount.resolve(FollowEnd, Message.ReachedEnd())`.
  */
 export const FollowEnd = Mount.defineStream('MessageScroller.FollowEnd', {
   messages: [Message.LeftEnd, Message.ReachedEnd],
@@ -210,44 +202,6 @@ export const FollowEnd = Mount.defineStream('MessageScroller.FollowEnd', {
             else if (scroller.scrollTop < lastTop) report(false)
             remember()
           }
-          // An element between the wheel's target and the scroller that can still scroll up takes the wheel.
-          const consumesWheel = (target: EventTarget | null): boolean => {
-            for (
-              let each = target instanceof Element ? target : null;
-              each !== null && each !== scroller;
-              each = each.parentElement
-            ) {
-              if (each.scrollTop > 0 && /auto|scroll/.test(getComputedStyle(each).overflowY)) {
-                return true
-              }
-            }
-            return false
-          }
-          const editing = (target: EventTarget | null): boolean =>
-            target instanceof HTMLElement &&
-            (target.isContentEditable || target.matches('input, textarea, select'))
-          // Before the scroll event. A message that arrives in that gap would
-          // otherwise follow the end and undo the reader's move. Each guard
-          // is a case where no scroll follows, which would leave the reader
-          // at the end, not following, with nothing to resume it.
-          const leaving = (event: Event) => {
-            if (scroller.scrollHeight <= scroller.clientHeight) return
-            if (event instanceof WheelEvent) {
-              if (event.deltaY < 0 && !event.ctrlKey && !consumesWheel(event.target)) report(false)
-              return
-            }
-            if (
-              event instanceof KeyboardEvent &&
-              !event.defaultPrevented &&
-              !event.ctrlKey &&
-              !event.metaKey &&
-              !event.altKey &&
-              !editing(event.target) &&
-              (event.key === 'ArrowUp' || event.key === 'PageUp' || event.key === 'Home')
-            ) {
-              report(false)
-            }
-          }
           const grew = () => {
             if (following) toEnd()
             else if (held !== undefined && held.node.isConnected) {
@@ -262,10 +216,7 @@ export const FollowEnd = Mount.defineStream('MessageScroller.FollowEnd', {
           const anchoring = scroller.style.overflowAnchor
           scroller.style.overflowAnchor = 'none'
           scroller.addEventListener('scroll', scrolled, { passive: true })
-          scroller.addEventListener('wheel', leaving, { passive: true })
-          scroller.addEventListener('keydown', leaving)
           observer.observe(element)
-          // The log's box does not change when the viewport gets shorter.
           observer.observe(scroller)
           toEnd()
           remember()
@@ -273,8 +224,6 @@ export const FollowEnd = Mount.defineStream('MessageScroller.FollowEnd', {
           return () => {
             observer.disconnect()
             scroller.removeEventListener('scroll', scrolled)
-            scroller.removeEventListener('wheel', leaving)
-            scroller.removeEventListener('keydown', leaving)
             scroller.style.overflowAnchor = anchoring
           }
         }),

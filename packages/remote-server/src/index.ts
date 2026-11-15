@@ -38,6 +38,7 @@ import {
   type Computation,
   type EntityMember,
   type EntityRef,
+  type Invariant,
   type Row,
   type WriteAssignment,
 } from 'foldkit-entity'
@@ -71,6 +72,7 @@ import {
   type ConnectionSpec,
   type ConnectionIdentity,
   type LiveChange,
+  type LiveRequirement,
   type MutationDescriptor,
   type NormalizedPatch,
   type QueryDescriptor,
@@ -91,6 +93,7 @@ import {
 } from 'foldkit-remote'
 import { answerUnread, clockSkewed, publishFailed, serverDefect } from './diagnostics.js'
 import { unauthenticatedAnswer } from './refusal.js'
+import { memoryWriter } from './memoryWriter.js'
 
 /** What a call `RemoteServer.answer` makes can fail with, before the answer says so. */
 type AnswerError =
@@ -163,6 +166,11 @@ export class MutationRefused extends Schema.TaggedError<MutationRefused>()('Muta
 export interface EntityRecord {
   readonly id: string
   readonly values: Readonly<Record<string, unknown>>
+  /**
+   * The row's revision, when the source keeps one: sent with the row, and a
+   * client never lets a lower revision over a higher one it holds.
+   */
+  readonly revision?: number | undefined
 }
 
 export interface EntitySourceContext<P> {
@@ -273,7 +281,11 @@ const readAs = <P, R>(
           for (const field of allowed) {
             if (Object.hasOwn(record.values, field)) values[field] = record.values[field]
           }
-          return { id: record.id, values }
+          return {
+            id: record.id,
+            values,
+            ...(record.revision === undefined ? {} : { revision: record.revision }),
+          }
         }),
       ),
     ),
@@ -415,6 +427,14 @@ export interface EntityWriter<P, R = never> {
    */
   readonly invariants?: true
   /**
+   * Whether `update` and `insert` refuse a row they would leave that breaks
+   * the write's own postcondition (`ensures`, a `becomes` enumeration could
+   * not decide), with `RemoteInvalid`, judged as they judge the Entity's
+   * invariants. `RemoteServer.write` refuses a write with one through a
+   * writer without it, which would land a row outside the state.
+   */
+  readonly postconditions?: true
+  /**
    * Whether `delete` removes, in the transaction that deletes the row, every
    * row declared to go with it (`Entity.cascading`), and answers them as
    * `cascaded`; and holds those rows to the `cascading` requirements it is
@@ -491,6 +511,11 @@ export interface EntityWriter<P, R = never> {
     readonly when: Option.Option<WriteWhen>
     /** What the row must hold, judged where it is written; only a writer with `requires` is given one. */
     readonly requires?: WriteRequirement | undefined
+    /**
+     * The write's postcondition, judged over the row it leaves as an
+     * invariant is; only a writer with `postconditions` is given one.
+     */
+    readonly ensures?: Invariant | undefined
     readonly principal: P
   }) => Effect.Effect<
     Option.Option<Readonly<Record<string, unknown>>>,
@@ -516,6 +541,11 @@ export interface EntityWriter<P, R = never> {
     readonly request: string
     readonly values: Readonly<Record<string, unknown>>
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
+    /**
+     * The write's postcondition, judged over the row it would make as a
+     * state invariant is; only a writer with `postconditions` is given one.
+     */
+    readonly ensures?: Invariant | undefined
     readonly principal: P
   }) => Effect.Effect<
     Readonly<Record<string, unknown>>,
@@ -978,9 +1008,14 @@ const checkIdsPerEntity = (
 
 /** Why a live subscription asks more than a read may; `undefined` when it does not. */
 const liveRefusal = (
-  requirements: ReadonlyArray<Requirement>,
+  { requirements, revisions }: Pick<typeof LiveRequirement.Type, 'requirements' | 'revisions'>,
   maxIds: number,
 ): RemoteLiveRefused | undefined => {
+  // A revision names a row the subscription follows, so it cannot outnumber them.
+  if ((revisions?.length ?? 0) > requirements.length)
+    return new RemoteLiveRefused({
+      message: `More revisions than rows in one live subscription (${requirements.length})`,
+    })
   const over = checkIdsPerEntity(requirements, maxIds)
   if (over !== undefined) {
     return new RemoteLiveRefused({
@@ -1310,6 +1345,7 @@ const liveHub = <P, R>(
                 id: ref.id,
                 values,
                 changed,
+                ...(record.revision === undefined ? {} : { revision: record.revision }),
               })
             }
           })
@@ -2152,6 +2188,12 @@ export const RemoteServer = {
   /** A backend held in memory, for a first run, a test or a demo. See `memory`. */
   memory,
 
+  /**
+   * A declared write landed over a memory backend's rows (`MemoryStore`), as
+   * `foldkit-remote-drizzle`'s writer lands it over a table. See `memoryWriter`.
+   */
+  memoryWriter,
+
   /** A mutation outcome's report that `ref` now heads the connection. */
   prepend: (
     connection: ConnectionIdentity,
@@ -2330,7 +2372,10 @@ export const RemoteServer = {
    * a row already gone succeeds. A row that moved past the revision the write
    * `expect`s is refused as a conflict, and one that does not hold its `when`
    * as unmet; a write with a `when` needs a writer that checks it
-   * (`preconditions`), and is refused here without one.
+   * (`preconditions`), and is refused here without one. A row the write
+   * would leave outside its postcondition (`ensures`) is refused as
+   * invalid, as one breaking an invariant is; a write with one needs a
+   * writer that judges it (`postconditions`).
    */
   write: <P = unknown, R = never, Name extends string = string, Input = unknown>(
     // Its `Refusal` is the one `Mutation.write` derived from the write's kind; each
@@ -2402,14 +2447,20 @@ export const RemoteServer = {
       }),
     )
     // An update judges every invariant; an insert, with no row before, the state ones alone.
-    const judged = Entity.invariants(write.input.entity).filter(
+    const declared = Entity.invariants(write.input.entity).filter(
       held => kind.hasBefore || !Entity.readsBefore(held),
     )
-    if (judged.length > 0 && writer.invariants !== true) {
+    if (declared.length > 0 && writer.invariants !== true) {
       throw new Error(
         `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants, but its writer does not judge them (invariants)`,
       )
     }
+    if (Option.isSome(write.ensures) && writer.postconditions !== true) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" ensures ${write.ensures.value.id}, which enumeration could not prove where it was declared, but its writer for ${writer.entity} does not judge one (postconditions)`,
+      )
+    }
+    const judged = [...declared, ...Option.toArray(write.ensures)]
     // An insert's row is its values and its links (a `one` relation an invariant reads as the
     // id it points at): a member it leaves to a default the writer cannot judge.
     if (kind.inserts) {
@@ -2719,6 +2770,7 @@ export const RemoteServer = {
                       links: bound.links,
                       expect,
                       when: yield* when,
+                      ensures: Option.getOrUndefined(write.ensures),
                       principal,
                     }),
                   ),
@@ -2751,6 +2803,7 @@ export const RemoteServer = {
                       links: { ...bound.links, ...set.links },
                       operation,
                       request: yield* request,
+                      ensures: Option.getOrUndefined(write.ensures),
                       principal,
                     })
                     .pipe(
@@ -3104,7 +3157,12 @@ export const RemoteServer = {
                 values[renamed(renames, field)] = record.values[field]
               else if (asked?.has(field) === true) omitted.push(renamed(renames, field))
             }
-            entities.push({ entity: name, id: record.id, values })
+            entities.push({
+              entity: name,
+              id: record.id,
+              values,
+              ...(record.revision === undefined ? {} : { revision: record.revision }),
+            })
             settle(name, record.id, omitted)
 
             const key = `${name}:${record.id}`
@@ -3366,7 +3424,7 @@ export const RemoteServer = {
         // Admitted once, before any live source or the hub is asked, so every
         // live path is held to the bounds a read is.
         const maxIds = Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY)
-        const refusal = liveRefusal(payload.requirements, maxIds)
+        const refusal = liveRefusal(payload, maxIds)
         if (refusal !== undefined) return Stream.fail(refusal)
         return Stream.unwrap(
           Effect.gen(function* () {
@@ -3437,6 +3495,7 @@ export const RemoteServer = {
 }
 
 export * from './evaluate.js'
+export type { MemoryWriterOptions } from './memoryWriter.js'
 export { bodyLimit } from './body.js'
 export type {
   AnswerUnread,

@@ -37,7 +37,7 @@ import {
   resolveTypeaheadMatch,
   whenOption as when,
 } from './menuUtils.js'
-import { topLayer } from './anchor.js'
+import { inheritRegion, topLayer } from './anchor.js'
 
 /** One listbox item's bundle: element key, attributes, and caller content. */
 export type ListboxItemRender = Readonly<{
@@ -375,7 +375,9 @@ export const computeRender = (
         ]
       : [
           h.Style(placed),
-          h.OnMount(UpstreamListbox.AnchorListbox({ buttonId: `${id}-button`, anchor })),
+          h.OnMount(
+            inheritRegion(UpstreamListbox.AnchorListbox({ buttonId: `${id}-button`, anchor })),
+          ),
         ]),
   ]
 
