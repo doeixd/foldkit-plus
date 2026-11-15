@@ -16,6 +16,7 @@ import {
   type Live,
   type Selection,
 } from '../src/gallery/showcases.js'
+import { pagesWithTopics, topicsFor } from '../src/gallery/related.js'
 import * as Widgets from '../src/gallery/widgets.js'
 
 const live: Live<string> = {
@@ -95,6 +96,19 @@ describe('the showcases', () => {
     expect(markup(basic!.render({ density: 'compact' }, live))).not.toBe(
       markup(basic!.render({}, live)),
     )
+  })
+
+  it('list topics only for pages there are, each once', () => {
+    const slugs = new Set(showcases.map(showcase => showcase.slug))
+    for (const slug of pagesWithTopics()) {
+      expect(slugs.has(slug), slug).toBe(true)
+      const labels = topicsFor(slug).map(topic => topic.label)
+      expect(new Set(labels).size, slug).toBe(labels.length)
+    }
+    expect(topicsFor('toolbar').map(topic => topic.heading)).toEqual([
+      'Application key routes',
+      'Right to left',
+    ])
   })
 
   it('have one page each', () => {

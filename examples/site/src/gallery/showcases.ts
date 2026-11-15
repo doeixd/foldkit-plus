@@ -87,6 +87,10 @@ import {
   CascadeSelectSlots,
   FloatingPanelSlots,
   TourSlots,
+  SearchFieldSlots,
+  ToolbarSlots,
+  FileInputSlots,
+  PickerSlots,
   type Nav,
   type Carousel,
 } from 'foldkit-mixins-ui'
@@ -95,6 +99,7 @@ import * as Snippet from '../snippets/components.js'
 import { forSlots } from '../snippets/theme.js'
 import * as Widgets from './widgets.js'
 import * as Calendars from './calendars.js'
+import * as Fields from './fields.js'
 
 /** One variant axis of a recipe, and the value it takes when none is picked. */
 export interface Axis {
@@ -564,6 +569,7 @@ const segmentedBasic = <Message>(style: NamedStyle<typeof SegmentedSlots>, live:
     style,
     live.widgets.range,
     range => live.onWidget(Widgets.Message.ChoseRange({ range })),
+    live.direction,
     live.h,
   )
 
@@ -575,6 +581,7 @@ const segmentedIcons =
       live.widgets.viewMode,
       mode => live.onWidget(Widgets.Message.ChoseViewMode({ mode })),
       iconOnly,
+      live.direction,
       live.h,
     )
 
@@ -657,6 +664,14 @@ const fileDropBasic = <Message>(style: NamedStyle<typeof FileDropSlots>, live: L
     style,
     { drop: live.widgets.drop, attached: live.widgets.attachments },
     message => live.onWidget(Widgets.Message.GotDrop({ message })),
+    live.h,
+  )
+
+const numberBasic = <Message>(style: NamedStyle<typeof NumberFieldSlots>, live: Live<Message>) =>
+  Snippet.numberField(
+    style,
+    live.widgets.servings,
+    value => live.onWidget(Widgets.Message.ChangedServings({ value })),
     live.h,
   )
 
@@ -836,6 +851,69 @@ const tourBasic = <Message>(style: NamedStyle<typeof TourSlots>, live: Live<Mess
     live.onWidget(Widgets.Message.StartedTour()),
     live.h,
   )
+
+/** A Message of the field previews, as the page sends it. */
+const fields = <Message>(live: Live<Message>, message: Fields.Message): Message =>
+  live.onWidget(Widgets.Message.GotFields({ message }))
+
+const searchBasic = <Message>(style: NamedStyle<typeof SearchFieldSlots>, live: Live<Message>) =>
+  Snippet.searchField(
+    style,
+    live.widgets.fields.search,
+    {
+      onInput: value => fields(live, Fields.Message.TypedSearch({ value })),
+      onClear: fields(live, Fields.Message.ClearedSearch()),
+    },
+    live.h,
+  )
+
+const searchRoutes = <Message>(style: NamedStyle<typeof SearchFieldSlots>, live: Live<Message>) =>
+  Snippet.searchFieldRoutes(
+    style,
+    live.widgets.fields.keyed,
+    {
+      onInput: value => fields(live, Fields.Message.TypedKeyed({ value })),
+      onClear: fields(live, Fields.Message.ClearedKeyed()),
+      onMove: by => fields(live, Fields.Message.MovedKeyed({ by })),
+    },
+    live.h,
+  )
+
+const toolbarBasic = <Message>(style: NamedStyle<typeof ToolbarSlots>, live: Live<Message>) =>
+  Snippet.toolbar(
+    style,
+    live.widgets.fields.toolbar,
+    {
+      onFocus: id => fields(live, Fields.Message.FocusedTool({ id })),
+      onPress: id => fields(live, Fields.Message.PressedTool({ id })),
+    },
+    live.direction,
+    live.h,
+  )
+
+const filesOf =
+  (example: Fields.FilesExample, draw: typeof Snippet.fileInputMultiple) =>
+  <Message>(style: NamedStyle<typeof FileInputSlots>, live: Live<Message>) =>
+    draw(
+      style,
+      live.widgets.fields.files[example],
+      {
+        onChange: files => fields(live, Fields.Message.PickedFiles({ example, files })),
+        onRemove: file => fields(live, Fields.Message.RemovedFile({ example, file })),
+      },
+      live.h,
+    )
+
+const pickerBasic = <Message>(style: NamedStyle<typeof PickerSlots>, live: Live<Message>) =>
+  Snippet.picker(
+    style,
+    live.widgets.fields,
+    message => fields(live, Fields.Message.GotPicker({ message })),
+    live.h,
+  )
+
+const filesMultiple = filesOf('multiple', Snippet.fileInputMultiple)
+const filesRequired = filesOf('required', Snippet.fileInputRequired)
 
 export const showcases: ReadonlyArray<Showcase> = [
   fromRecipe(
@@ -1070,6 +1148,11 @@ export const showcases: ReadonlyArray<Showcase> = [
     InputSlots,
     Recipes.Input,
     style => Snippet.input(style, inert),
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: style => Snippet.input(style, inert) },
+      { name: 'form', title: 'In a form', draw: style => Snippet.inputForm(style, inert) },
+    ],
   ),
   fromRecipe(
     {
@@ -1546,6 +1629,17 @@ export const showcases: ReadonlyArray<Showcase> = [
         pins: { compact: 'always' },
         draw: paged(Snippet.paginationCompact, 'compact'),
       },
+      { name: 'words', title: 'Words of your own', draw: paged(Snippet.paginationWords, 'words') },
+      {
+        name: 'one-page',
+        title: 'One page',
+        draw: (style, live) =>
+          Snippet.paginationOnePage(
+            style,
+            page => live.onWidget(Widgets.Message.ChosePage({ example: 'words', page })),
+            live.h,
+          ),
+      },
     ],
   ),
   fromRecipe(
@@ -1704,13 +1798,22 @@ export const showcases: ReadonlyArray<Showcase> = [
     },
     NumberFieldSlots,
     Recipes.NumberField,
-    (style, live) =>
-      Snippet.numberField(
-        style,
-        live.widgets.servings,
-        value => live.onWidget(Widgets.Message.ChangedServings({ value })),
-        live.h,
-      ),
+    numberBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: numberBasic },
+      {
+        name: 'locale',
+        title: 'Empty, and in a locale',
+        draw: (style, live) =>
+          Snippet.numberFieldLocale(
+            style,
+            live.widgets.fields.price,
+            value => fields(live, Fields.Message.ChangedPrice({ value })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {
@@ -2464,6 +2567,18 @@ export const showcases: ReadonlyArray<Showcase> = [
           Snippet.segmentedSizes(
             live.widgets.range,
             range => live.onWidget(Widgets.Message.ChoseRange({ range })),
+            live.direction,
+            live.h,
+          ),
+      },
+      {
+        name: 'multiple',
+        title: 'Several at once',
+        draw: (style, live) =>
+          Snippet.segmentedMultiple(
+            style,
+            live.widgets.fields.repeatOn,
+            day => fields(live, Fields.Message.ToggledDay({ day })),
             live.h,
           ),
       },
@@ -2623,6 +2738,20 @@ export const showcases: ReadonlyArray<Showcase> = [
     undefined,
     [
       { name: 'basic', title: 'A number and a range', draw: sliderBasic },
+      {
+        name: 'commit',
+        title: 'Saved on release',
+        draw: (style, live) =>
+          Snippet.sliderCommit(
+            style,
+            live.widgets.fields.brightness,
+            {
+              onChange: value => fields(live, Fields.Message.MovedBrightness({ value })),
+              onCommit: value => fields(live, Fields.Message.CommittedBrightness({ value })),
+            },
+            live.h,
+          ),
+      },
       {
         name: 'vertical',
         title: 'Vertical',
@@ -3544,6 +3673,89 @@ export const showcases: ReadonlyArray<Showcase> = [
     tourBasic,
     undefined,
     [{ name: 'basic', title: 'Basic', draw: tourBasic }],
+  ),
+  fromRecipe(
+    {
+      slug: 'search-field',
+      title: 'Search field',
+      summary:
+        'A search input with a clear button, Escape to clear, and keys of your own beside it.',
+      recipe: 'SearchField',
+      file: 'searchField',
+      contract: 'SearchFieldSlots',
+    },
+    SearchFieldSlots,
+    Recipes.SearchField,
+    searchBasic,
+    undefined,
+    [
+      { name: 'basic', title: 'Basic', draw: searchBasic },
+      { name: 'routes', title: 'Keys of your own', draw: searchRoutes },
+      {
+        name: 'states',
+        title: 'Invalid and disabled',
+        draw: (style, live) =>
+          Snippet.searchFieldStates(
+            style,
+            {
+              onInput: value => fields(live, Fields.Message.TypedSearch({ value })),
+              onClear: fields(live, Fields.Message.ClearedSearch()),
+            },
+            live.h,
+          ),
+      },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'toolbar',
+      title: 'Toolbar',
+      summary:
+        'One tab stop over a row of controls, moved by the arrows, Home and End, with a group and a rule between sets.',
+      recipe: 'Toolbar',
+      file: 'toolbar',
+      contract: 'ToolbarSlots',
+    },
+    ToolbarSlots,
+    Recipes.Toolbar,
+    toolbarBasic,
+    undefined,
+    [{ name: 'basic', title: 'Formatting', draw: toolbarBasic }],
+  ),
+  fromRecipe(
+    {
+      slug: 'file-input',
+      title: 'File input',
+      summary:
+        'A native file picker with a button for a label, and the chosen files listed with a remove button each.',
+      recipe: 'FileInput',
+      file: 'fileInput',
+      contract: 'FileInputSlots',
+    },
+    FileInputSlots,
+    Recipes.FileInput,
+    filesMultiple,
+    undefined,
+    [
+      { name: 'multiple', title: 'Several files', draw: filesMultiple },
+      { name: 'required', title: 'One file, required', draw: filesRequired },
+    ],
+  ),
+  fromRecipe(
+    {
+      slug: 'picker',
+      title: 'Picker',
+      summary:
+        'One control that is a dropdown on a desktop and a bottom sheet on a phone, with one Model and one Message for a choice made either way.',
+      recipe: 'Picker',
+      file: 'picker',
+      contract: 'PickerSlots',
+    },
+    PickerSlots,
+    Recipes.Picker,
+    pickerBasic,
+    undefined,
+    [{ name: 'basic', title: 'Sort order', draw: pickerBasic }],
   ),
 ]
 

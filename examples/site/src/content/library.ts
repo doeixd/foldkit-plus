@@ -11,6 +11,7 @@ import { Option } from 'effect'
 
 import { compilerOptionsOf, extract, packageSource } from '../api/extract.js'
 import { allSubsites, type Subsite } from '../catalog.js'
+import { README, topicsFor } from '../gallery/related.js'
 import { showcaseOf, showcases } from '../gallery/showcases.js'
 import { COMPONENTS, CREATE, type Draw, type Library, type Region } from '../library.js'
 import { Page, type Example } from '../main.js'
@@ -20,7 +21,7 @@ import { packageName } from '../demos.js'
 import { apiPages, apiTargets, type ApiPage, type Mention } from './api.js'
 import { links, type Links, type Target } from './links.js'
 import { highlighter, type Highlight } from './highlight.js'
-import { guidePages, GITHUB, type Anchor, type GuidePage } from './guides.js'
+import { guidePages, GITHUB, slugger, type Anchor, type GuidePage } from './guides.js'
 import { blocks, codeBlock } from './render.js'
 
 type Ih = HtmlBuilder<never>
@@ -310,6 +311,25 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     else for (const example of showcase.examples) usage(`${showcase.slug}-${example.name}`)
   }
 
+  // The README's own resolver: a heading it no longer has leads to the README's first page, not nowhere.
+  const readmeLink = guides.linksFrom(README)
+  const related =
+    (slug: string): Draw =>
+    ih => [
+      ih.ul(
+        [],
+        topicsFor(slug).map(topic =>
+          ih.li(
+            [],
+            [
+              ih.a([ih.Href(readmeLink(`#${slugger()(topic.heading)}`))], [topic.label]),
+              ` ${topic.about}`,
+            ],
+          ),
+        ),
+      ),
+    ]
+
   return {
     paths: [HOME, DEMOS, COMPONENTS, ...componentPaths, CREATE, ...byPath.keys()],
     pageAt: path => {
@@ -333,5 +353,6 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     outline: path => outline(pageOf(path)),
     example,
     usage,
+    related,
   }
 }

@@ -23,6 +23,7 @@ import {
   valueAt,
   type Scheme,
 } from '../gallery/theme.js'
+import { topicsFor } from '../gallery/related.js'
 import { COMPONENTS, CREATE, type Library } from '../library.js'
 import { Message, type Model } from '../main.js'
 import type { H, Slots } from './layout.js'
@@ -280,4 +281,14 @@ export const componentPage = (
       ]),
     ]),
   ]),
+  ...(topicsFor(showcase.slug).length === 0
+    ? []
+    : [
+        h.section(slots.section.attrs([h.AriaLabelledBy('related')]), [
+          h.h2(slots.sectionTitle.attrs([h.Id('related')]), ['Related']),
+          h.div(slots.rowText.attrs(), [
+            SSR.static(`related-${showcase.slug}`, library.related(showcase.slug)),
+          ]),
+        ]),
+      ]),
 ]

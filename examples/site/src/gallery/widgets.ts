@@ -59,6 +59,7 @@ import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
 import * as Calendars from './calendars.js'
+import * as Fields from './fields.js'
 
 import {
   Billing,
@@ -142,6 +143,7 @@ export const PaginationExample = Schema.Literals([
   'range',
   'siblings',
   'compact',
+  'words',
   'group',
 ])
 export type PaginationExample = typeof PaginationExample.Type
@@ -415,6 +417,8 @@ export const Model = Schema.Struct({
   dropdownDay: DateSelection.Selection,
   /** The Calendar page's further examples: unavailable days, prices, events and more. */
   calendars: Calendars.Model,
+  /** The search fields, the toolbar and the file pickers. */
+  fields: Fields.Model,
   /** The region chosen in the card grid, and the plan chosen in the item list. */
   region: Schema.String,
   plan: Schema.String,
@@ -550,6 +554,7 @@ export const Message = defineMessageUnion({
   GotDropdownCalendar: { message: UiCalendar.Message },
   ShowedCalendar: { shown: DateSelection.Shown },
   GotCalendars: { message: Calendars.Message },
+  GotFields: { message: Fields.Message },
   SortedInvoices: { column: Schema.String },
   ChoseInvoice: { id: Schema.String, selected: Schema.Boolean },
   ChoseInvoices: { ids: Schema.Array(Schema.String) },
@@ -725,7 +730,16 @@ export const initial: Model = {
   teamPlan: false,
   trailExpanded: false,
   formats: ['bold'],
-  pages: { numbered: 4, simple: 2, ends: 9, range: 2, siblings: 18, compact: 5, group: 3 },
+  pages: {
+    numbered: 4,
+    simple: 2,
+    ends: 9,
+    range: 2,
+    siblings: 18,
+    compact: 5,
+    words: 3,
+    group: 3,
+  },
   perPage: 10,
   alerts: {
     alerts: ['mentions', 'replies'],
@@ -864,6 +878,7 @@ export const initial: Model = {
   dropdownCalendar: UiCalendar.init({ id: 'preview-calendar-selects', today }),
   dropdownDay: DateSelection.empty('Single'),
   calendars: Calendars.init(),
+  fields: Fields.init(),
   region: 'Frankfurt',
   plan: 'Team',
   notes: { grow: '', count: 'Arriving Thursday, two nights.', reply: '' },
@@ -2125,6 +2140,16 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         model: modifyFields(model, { calendars: () => next.model }),
         commands: Command.mapMessages(next.commands ?? [], inner =>
           Message.GotCalendars({ message: inner }),
+        ),
+      }
+    },
+    GotFields: ({ message }) => {
+      const next = Fields.update(model.fields, message)
+      return {
+        model:
+          next.model === model.fields ? model : modifyFields(model, { fields: () => next.model }),
+        commands: Command.mapMessages(next.commands ?? [], inner =>
+          Message.GotFields({ message: inner }),
         ),
       }
     },

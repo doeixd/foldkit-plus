@@ -50,6 +50,16 @@ const READ = [
   '/components/breadcrumb',
   '/components/scroll-area',
   '/components/date-picker',
+  '/components/search-field',
+  '/components/toolbar',
+  '/components/file-input',
+  '/components/menu',
+  '/components/table',
+  '/components/segmented',
+  '/components/input',
+  '/components/number-field',
+  '/components/slider',
+  '/components/toast',
   '/create',
 ]
 
@@ -359,6 +369,22 @@ describe('the generated site', () => {
       ],
       ['file-drop', [['basic', 'Dropped files', 'fileDrop']]],
       [
+        'search-field',
+        [
+          ['basic', 'Basic', 'SearchField.view('],
+          ['routes', 'Keys of your own', "Behaviors.Keys.chord('ArrowDown')"],
+          ['states', 'Invalid and disabled', 'invalid: true'],
+        ],
+      ],
+      ['toolbar', [['basic', 'Formatting', 'Toolbar.view(']]],
+      [
+        'file-input',
+        [
+          ['multiple', 'Several files', 'multiple: true'],
+          ['required', 'One file, required', 'required: true'],
+        ],
+      ],
+      [
         'button',
         [
           [
@@ -496,6 +522,179 @@ describe('the generated site', () => {
     )
     expect(zone?.textContent).toContain('Drop files or click to browse')
     expect(zone?.hasAttribute('data-drag-over')).toBe(false)
+  })
+
+  test('the table names each row by its first cell, and draws a status as a badge', () => {
+    const basic = page('/components/table').getElementById('basic')?.closest('section')
+    const rows = Array.from(basic?.querySelectorAll('[data-size="page"] tbody tr') ?? [])
+    expect(rows.map(row => row.querySelector('th[scope="row"]')?.textContent)).toEqual([
+      'INV-001',
+      'INV-002',
+      'INV-003',
+    ])
+    expect(rows.map(row => row.querySelector('td [data-tone]')?.getAttribute('data-tone'))).toEqual(
+      ['live', 'review', 'live'],
+    )
+  })
+
+  test('the page menu draws icons, hints and a shortcut, and tells two rows of one label apart', () => {
+    const actions = page('/components/menu').getElementById('actions')?.closest('section')
+    const items = Array.from(
+      actions?.querySelectorAll('[data-size="page"] [role="menuitem"]') ?? [],
+    )
+    const share = items.filter(item => item.textContent?.startsWith('Share'))
+    expect(share.map(item => item.textContent)).toEqual(['Sharelink', 'Shareemail'])
+    expect(new Set(share.map(item => item.id)).size).toBe(2)
+    const rename = items.find(item => item.textContent?.startsWith('Rename'))
+    expect(rename?.getAttribute('aria-keyshortcuts')).toBe('F2')
+    expect(rename?.querySelector('svg')).not.toBeNull()
+    expect(items.at(-1)?.getAttribute('data-tone')).toBe('destructive')
+  })
+
+  test('the multiple segmented control is a group of toggles that submits each chosen day', () => {
+    const section = page('/components/segmented').getElementById('multiple')?.closest('section')
+    const group = section?.querySelector('[data-size="page"] [role="group"]')
+    expect(group?.getAttribute('aria-label')).toBe('Repeat on')
+    const options = Array.from(group?.querySelectorAll('button') ?? [])
+    expect(
+      options.map(option => [option.textContent, option.getAttribute('aria-pressed')]),
+    ).toEqual([
+      ['Mon', 'true'],
+      ['Tue', 'false'],
+      ['Wed', 'true'],
+      ['Thu', 'false'],
+      ['Fri', 'false'],
+    ])
+    expect(
+      Array.from(group?.querySelectorAll('input[type="hidden"][name="repeat"]') ?? [], input =>
+        input.getAttribute('value'),
+      ),
+    ).toEqual(['mon', 'wed'])
+    // A single choice is the radio group.
+    const single = page('/components/segmented').getElementById('basic')?.closest('section')
+    expect(single?.querySelector('[data-size="page"] [role="radiogroup"]')).not.toBeNull()
+  })
+
+  test('the input in a form says what it submits, asks for and offers', () => {
+    const form = page('/components/input').getElementById('form')?.closest('section')
+    const [phone, order] = Array.from(form?.querySelectorAll('[data-size="page"] input') ?? [])
+    expect(phone?.getAttribute('name')).toBe('phone')
+    expect(phone?.getAttribute('autocomplete')).toBe('tel')
+    expect(phone?.getAttribute('inputmode')).toBe('tel')
+    expect(phone?.getAttribute('maxlength')).toBe('16')
+    expect(phone?.hasAttribute('required')).toBe(true)
+    expect(order?.hasAttribute('readonly')).toBe(true)
+    expect(order?.getAttribute('name')).toBe('order')
+  })
+
+  test('the number field with no value shows none, and the slider says what it is saved at', () => {
+    const empty = page('/components/number-field').getElementById('locale')?.closest('section')
+    const field = empty?.querySelector('[data-size="page"] input')
+    expect(field?.getAttribute('name')).toBe('price')
+    expect((field as HTMLInputElement | null)?.value).toBe('')
+    expect(field?.hasAttribute('aria-valuenow')).toBe(false)
+    expect(empty?.querySelector('[data-size="page"]')?.textContent).toContain('Empty: type 1.234,5')
+    const commit = page('/components/slider').getElementById('commit')?.closest('section')
+    expect(commit?.querySelector('[data-size="page"] p')?.textContent).toBe('Saved: 60%')
+    const basic = page('/components/slider').getElementById('basic')?.closest('section')
+    const described = basic?.querySelector('[data-size="page"] input[type="range"]')
+    expect(
+      basic?.querySelector(`[id="${described?.getAttribute('aria-describedby')}"]`)?.textContent,
+    ).toBe('Applies to this device only.')
+  })
+
+  test('the pagination in German names its stops in German, and one page draws no stops', () => {
+    const words = page('/components/pagination').getElementById('words')?.closest('section')
+    const nav = words?.querySelector('[data-size="page"] nav')
+    expect(nav?.getAttribute('aria-label')).toBe('Seitennavigation')
+    expect(
+      Array.from(nav?.querySelectorAll('button[aria-label]') ?? [], stop =>
+        stop.getAttribute('aria-label'),
+      ),
+    ).toEqual(['Erste Seite', 'Zurück Seite', 'Weiter Seite', 'Letzte Seite'])
+    const one = page('/components/pagination').getElementById('one-page')?.closest('section')
+    expect(one?.querySelectorAll('[data-size="page"] button')).toHaveLength(0)
+    expect(one?.querySelector('[data-size="page"] nav')?.textContent).toBe('1–7 of 7')
+  })
+
+  test('a component page links the guides on the mechanisms that apply to it', () => {
+    const related = page('/components/search-field').getElementById('related')?.closest('section')
+    const links = Array.from(related?.querySelectorAll('a') ?? [], a => [
+      a.textContent,
+      a.getAttribute('href') ?? '',
+    ])
+    expect(links.map(([text]) => text)).toEqual([
+      'Keys of your own',
+      'Keeping focus when something is removed',
+    ])
+    // Each leads to a page of the site, on the heading that explains it.
+    for (const [, href] of links) {
+      expect(href, href).toMatch(/^\/mixins\/guides\/.+#.+/)
+    }
+    expect(page('/components/button').getElementById('related')).toBeNull()
+  })
+
+  test('the search fields are search inputs named by their label, with no clear button while empty', () => {
+    const basic = page('/components/search-field').getElementById('basic')?.closest('section')
+    const input = basic?.querySelector('[data-size="page"] input[type="search"]')
+    expect(input?.getAttribute('aria-label')).toBe('Search recipes')
+    expect(basic?.querySelector('[data-size="page"] button')).toBeNull()
+    const states = page('/components/search-field').getElementById('states')?.closest('section')
+    const [invalid, disabled] = Array.from(
+      states?.querySelectorAll('[data-size="page"] input[type="search"]') ?? [],
+    )
+    expect(invalid?.getAttribute('aria-invalid')).toBe('true')
+    expect(disabled?.hasAttribute('disabled')).toBe(true)
+    // Typed text draws the clear button; the disabled field draws none either way.
+    expect(
+      states?.querySelectorAll('[data-size="page"] button[aria-label="Clear search"]'),
+    ).toHaveLength(1)
+  })
+
+  test('the toolbar has one tab stop, groups its alignment and skips the disabled link', () => {
+    const bar = page('/components/toolbar').querySelector(
+      'main [data-size="page"] [role="toolbar"]',
+    )
+    expect(bar?.getAttribute('aria-label')).toBe('Text formatting')
+    const buttons = Array.from(bar?.querySelectorAll('button') ?? [])
+    expect(buttons.filter(button => button.getAttribute('tabindex') === '0')).toHaveLength(1)
+    expect(buttons.map(button => button.getAttribute('aria-pressed'))).toEqual([
+      'true',
+      'false',
+      'false',
+      'true',
+      'false',
+      'false',
+      'false',
+    ])
+    expect(bar?.querySelector('[role="group"]')?.getAttribute('aria-label')).toBe('Alignment')
+    expect(bar?.querySelectorAll('[role="separator"]')).toHaveLength(2)
+    const link = buttons.at(-1)
+    expect(link?.textContent).toBe('Link')
+    expect(link?.hasAttribute('disabled') || link?.getAttribute('aria-disabled') === 'true').toBe(
+      true,
+    )
+  })
+
+  test('the file inputs submit under their names, with the trigger as the input’s label', () => {
+    const multiple = page('/components/file-input').getElementById('multiple')?.closest('section')
+    const input = multiple?.querySelector('[data-size="page"] input[type="file"]')
+    expect([input?.getAttribute('name'), input?.getAttribute('accept')]).toEqual([
+      'attachments',
+      'image/*',
+    ])
+    expect(input?.hasAttribute('multiple')).toBe(true)
+    const label = multiple?.querySelector(`[data-size="page"] label[for="${input?.id}"]`)
+    expect(label?.textContent).toBe('Attach files')
+    const required = page('/components/file-input').getElementById('required')?.closest('section')
+    const single = required?.querySelector('[data-size="page"] input[type="file"]')
+    expect(single?.hasAttribute('required')).toBe(true)
+    expect(single?.hasAttribute('multiple')).toBe(false)
+    expect(single?.getAttribute('aria-invalid')).toBe('true')
+    const described = single?.getAttribute('aria-describedby') ?? ''
+    expect(required?.querySelector(`[id="${described}"]`)?.textContent).toBe(
+      'A CSV file is required.',
+    )
   })
 
   test("a press on a radio option's words presses its radio", () => {
