@@ -25,7 +25,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // -1,519 on 2026-11-14 (220,522 to 219,003 in fresh builds of 8cca4a535 and the change): Crud.list's
 // `live` takes Remote's `liveQuery` from the caller, so Crud no longer keeps liveEvents, liveReads
 // and live (5.8 kB minified, `absent` below). Ceiling lowered by that, rounded up.
-const CEILING = 219_150
+// +200 on 2026-11-15 (219,003 to 219,197 in fresh builds of b7b4ccd35 and 5586fbe37, nothing
+// else in the tree differing): this page uses neither feature, and both sit in modules it
+// loads whole. 299 minified bytes in `foldkit-remote/remote.js` (the policies on
+// `Data.wiring`, #236) and 219 in `foldkit-surface/index.js` (a Derived as an entry of
+// `Projection.struct`). Shortening the one error message each carries moved brotli up, not down.
+const CEILING = 219_350
 
 clientBudget({
   name: 'entity',
