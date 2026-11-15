@@ -75,25 +75,9 @@ export const currentRow = (model: Model): Option.Option<string> =>
 export const update = assembly.update((model, message) =>
   Match.valueTags(message, {
     Chose: ({ id, shift, toggle }) => {
-      if (shift)
-        return Option.getOrElse(
-          Picked.update(
-            model,
-            // ADOPT: Selection's `helpers.range(id, order)` (approved) replaces this Message.
-            Picks.wrapper.make(Selection.Message.Ranged({ id, order: rows.ids })),
-          ),
-          () => ({ model }),
-        )
+      if (shift) return Picked.helpers.range(id, rows.ids)(model)
       if (toggle) return Picked.helpers.activate(id)(model)
-      // Choosing the one chosen row again changes nothing.
-      if (
-        model.picks.selected.length === 1 &&
-        model.picks.anchor === id &&
-        model.picks.selected[0] === id
-      )
-        return { model }
-      // A plain choice replaces what was chosen and moves the anchor: clear, then activate.
-      return Picked.helpers.activate(id)(Picked.helpers.clear()(model).model)
+      return Picked.helpers.select(id)(model)
     },
     ChoseAll: () => Picked.helpers.replace(rows.ids)(model),
   }),

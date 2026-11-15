@@ -2,9 +2,9 @@
  * The file grid as one SlotView. `GridNavigation` owns the grid's `keydown` and
  * every cell's tab stop; `Selection` writes `aria-selected` on each row and
  * leaves the click to the view (`click: false`), because a file manager reads
- * Shift and Ctrl on it. The keys the grid does not own (Space, Shift+arrow to
- * extend, Ctrl+A) are one `Keys` owner on the root, which a key from a cell
- * reaches by bubbling.
+ * Shift and Ctrl on it. Space and Ctrl+A are `routes` on the grid's own keydown
+ * owner; Shift+arrow, which the grid owns, is the one `Keys` owner on the root,
+ * which a key from a cell reaches by bubbling.
  */
 import { Effect, Option, Queue, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
@@ -52,6 +52,19 @@ export const Navigates = GridNavigation.behavior(Nav, navArgs)(Grid)({
   container: 'grid',
   item: 'cell',
   items: () => cells,
+  routes: [
+    Keys.route<Model, Message>('Choose', {
+      on: [Keys.chord(' '), Keys.chord(' ', { shift: true }), Keys.chord(' ', { ctrl: true })],
+      handle: ({ input, modifiers }) =>
+        Option.map(currentRow(input), id =>
+          Message.Chose({ id, shift: modifiers.shiftKey, toggle: modifiers.ctrlKey }),
+        ),
+    }),
+    Keys.route<Model, Message>('ChooseAll', {
+      on: [Keys.chord('a', { ctrl: true })],
+      handle: () => Option.some(Message.ChoseAll()),
+    }),
+  ],
 })
 
 export const Chooses = Selection.behavior(Picks, pickArgs)(Grid)({
@@ -66,7 +79,8 @@ export const Chooses = Selection.behavior(Picks, pickArgs)(Grid)({
  * Foldkit's `OnClick` reports neither, and its custom-event attribute is not
  * public. The row is the element the click's target sits in, named by its id.
  */
-// ADOPT: Press's Pressed carrying modifiers (approved) replaces this hand-written click Mount.
+// `Press`'s `Pressed` carries the modifiers but not which row was pressed, and one placement is one
+// pressed state for one element, so a click on any of many rows is read here.
 const RowClicks = Mount.defineStream('GridRowClicks', {
   messages: [Message.Chose],
   execute: ({ element }) =>
@@ -105,29 +119,20 @@ const rowAt = (model: Model, step: number): Option.Option<string> =>
     return Option.fromNullishOr(next)
   })
 
-/** Keys beside the grid's own: choose the current row, extend by arrow, choose all. */
+/**
+ * Shift+arrow extends the range to the row the grid's focus lands on. It stays a root route, not a
+ * grid `route`: the grid owns Shift+arrow, and a route on it would throw `mixins:key-conflict`.
+ */
 export const GridKeys = Keys.behavior(Grid)({
   slot: 'root',
   name: 'GridKeys',
   routes: [
-    Keys.route<Model, Message>('Choose', {
-      on: [Keys.chord(' '), Keys.chord(' ', { shift: true }), Keys.chord(' ', { ctrl: true })],
-      handle: ({ input, modifiers }) =>
-        Option.map(currentRow(input), id =>
-          Message.Chose({ id, shift: modifiers.shiftKey, toggle: modifiers.ctrlKey }),
-        ),
-    }),
-    // The grid moves focus on Shift+arrow; this extends the range to the row it lands on.
     Keys.route<Model, Message>('Extend', {
       on: [Keys.chord('ArrowDown', { shift: true }), Keys.chord('ArrowUp', { shift: true })],
       handle: ({ key, input }) =>
         Option.map(rowAt(input, key === 'ArrowDown' ? 1 : -1), id =>
           Message.Chose({ id, shift: true, toggle: false }),
         ),
-    }),
-    Keys.route<Model, Message>('ChooseAll', {
-      on: [Keys.chord('a', { ctrl: true })],
-      handle: () => Option.some(Message.ChoseAll()),
     }),
   ],
 })

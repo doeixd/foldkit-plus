@@ -135,8 +135,11 @@ test('Shift+arrow extends the range from the anchor, and moves focus with it', a
   expect(document.activeElement?.id).toBe(cell(5, 0).id)
   await press('{Shift>}{ArrowUp}{/Shift}')
   await vi.waitFor(() => expect(chosen()).toEqual(rowsNamed(3, 4)))
-  // Past the anchor, the other way.
-  await press('{Shift>}{ArrowUp}{ArrowUp}{/Shift}')
+  // Past the anchor, the other way. Each key waits for the row the last one chose: Extend reads
+  // the current row from the Model, which a key sent in the same frame as the last meets stale.
+  await press('{Shift>}{ArrowUp}{/Shift}')
+  await vi.waitFor(() => expect(chosen()).toEqual(rowsNamed(3)))
+  await press('{Shift>}{ArrowUp}{/Shift}')
   await vi.waitFor(() => expect(chosen()).toEqual(rowsNamed(2, 3)))
 })
 

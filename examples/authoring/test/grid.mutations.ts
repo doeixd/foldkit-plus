@@ -14,27 +14,22 @@ export default [
     edits: [
       {
         file: app,
-        find: 'return Picked.helpers.activate(id)(Picked.helpers.clear()(model).model)',
+        find: 'return Picked.helpers.select(id)(model)',
         replace: 'return Picked.helpers.activate(id)(model)',
       },
     ],
     tests: [unit, page],
   },
   {
-    name: 'a range is not read from the rows order',
-    edits: [{ file: app, find: 'order: rows.ids', replace: 'order: [...rows.ids].reverse()' }],
-    tests: [unit, page],
-  },
-  {
-    name: 'choosing the one chosen row again hands back a new Model',
+    name: 'a range is read from the first five rows only',
     edits: [
       {
         file: app,
-        find: 'model.picks.selected.length === 1 &&',
-        replace: 'false &&',
+        find: 'range(id, rows.ids)',
+        replace: 'range(id, rows.ids.slice(0, 5))',
       },
     ],
-    tests: [unit],
+    tests: [unit, page],
   },
   {
     name: 'a toggle replaces',
