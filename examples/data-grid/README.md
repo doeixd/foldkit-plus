@@ -27,6 +27,16 @@ changes on every key, and a screen reader would read it each time. The button
 stays drawn (`aria-disabled` when no filter is on), so pressing it never drops
 focus.
 
+Above the grid, a toolbar searches the products (description, line or UPC, on
+top of the column filters) and sets the row density. The search text and the
+density are the toolbar's Model slice; `rowsOf` reads the text, and the view
+reads the density as the grid's `rowHeight`. The toolbar is a `Bundle.lazy`
+in [toolbar.ts](src/toolbar.ts): its Model, Messages and a plain field that
+stands in are in the first load, and its widgets (`SearchField`, `Segmented`,
+in [toolbarBody.ts](src/toolbarBody.ts)) are a chunk fetched right after the
+page starts. `test/bundle.test.ts` holds both the size and that those widget
+modules are absent at start.
+
 On a phone (40rem or narrower), a viewer with no saved layout starts with the
 UPC at 124px and the description at 200px, so the second column shows beside
 the pinned one. The rest scrolls sideways inside the grid; the page does not.
@@ -69,6 +79,8 @@ The workspace packages resolve to their source, so no build is needed first.
   two rows with one refused cell, and selects every product.
 - `test/layout.test.ts` saves a resized column, opens the page from the
   save, and reads a save naming a removed column.
+- `test/registry.test.ts` also searches through the toolbar and sets a density;
+  `test/toolbar.mutations.ts` breaks each.
 - `test/filters.test.ts` clears filters, and a clear with none on returns the
   same Model.
 - `test/layout.test.ts` also starts a narrow screen with the narrower columns,

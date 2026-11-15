@@ -49,7 +49,7 @@ export const body: Bundle.Body<ToolbarModel, ToolbarMessage, void, never, never,
           {
             id: 'search',
             label: 'Search products',
-            placeholder: 'Search description, line or UPC',
+            placeholder: 'Search products',
             value: model.search,
             onInput: text => ToolbarMessage.Typed({ text }),
             onClear: ToolbarMessage.Cleared(),
