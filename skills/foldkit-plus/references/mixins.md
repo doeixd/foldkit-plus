@@ -911,8 +911,10 @@ export const stylesheet: string = Style.stylesheet(
   (no style compiler in the browser) cannot import `Themes.make`: it takes `applyTheme`, `chooseTheme`,
   `themeScript`, `themeChanges` and `type ThemeNames` (names, initial, attribute) from
   `foldkit-mixins/theme/runtime`, the same functions as the `Themes` members, and a slider's
-  `title`, `variable`, `unit`, `min`, `max`, `step` and `default` from `knobData['shape.density']` in
-  `foldkit-mixins/theme/knob-data` (`.light` and `.dark` for a two-scheme knob). On a server, `schemeOfHint(header)` reads
+  `title`, `variable`, `unit`, `min`, `max`, `step` and `default` from `shapeDensity` in
+  `foldkit-mixins/theme/knob-data` (one plain-data export per range knob, `accentChromaLight` and
+  `accentChromaDark` for a two-scheme knob; `knobData['shape.density']` is the table of all, so a page
+  keeps only what it imports). On a server, `schemeOfHint(header)` reads
   `Sec-CH-Prefers-Color-Scheme` into `Option<'light' | 'dark'>`; send `COLOR_SCHEME_HINT_HEADERS`
   so the browser sends it. Knob values a reader set get the same pair:
   `Theme.knobScript({ selector? })` in the head applies the kept knob variables, and

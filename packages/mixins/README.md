@@ -586,14 +586,17 @@ need no compiled theme: `foldkit-mixins/theme/runtime` exports them (the same fu
 `Themes.apply`, `Themes.choose`, `Themes.script` and `themeChanges`) over `ThemeNames`, the
 names, the initial name and the root attribute, which a compiled `Themes` already is. A page
 without the compiler declares its own, typed by a type-only import of the compiled set so the
-names cannot drift in type. `foldkit-mixins/theme/knob-data` is the table of every range knob of
-`Knobs.standard` (`knobData['shape.density']` is its `title`, `variable`, `unit`, `min`, `max`,
-`step` and `default`; a knob with a light and a dark value is two entries, `.light` and `.dark`),
-for a panel's sliders.
+names cannot drift in type. `foldkit-mixins/theme/knob-data` holds each range knob of
+`Knobs.standard` as plain data, one named export per knob (`shapeDensity` is `{ name: 'shape.density',
+title, variable, unit, min, max, step, default }`; a knob with a light and a dark value is two,
+`accentChromaLight` and `accentChromaDark`), for a panel's sliders. A page keeps only the knobs it
+imports; `knobData`, the same entries by name (`knobData['shape.density']`), is for a panel that
+draws every knob. The file is generated from `Knobs.standard` by
+`pnpm --filter foldkit-mixins generate:knob-data`, and a test fails when it differs.
 
 ```ts standalone
 import { Effect, Stream } from 'effect'
-import { knobData } from 'foldkit-mixins/theme/knob-data'
+import { shapeDensity } from 'foldkit-mixins/theme/knob-data'
 import {
   applyTheme,
   chooseTheme,
@@ -616,7 +619,7 @@ export const keep = (name: Look): Effect.Effect<void> => chooseTheme(looks, name
 export const followed: Stream.Stream<Look> = themeChanges(looks)
 // The text of the head `<script>`, which shows the kept theme before the first paint.
 export const head: string = themeScript(looks)
-export const density = knobData['shape.density']
+export const density = shapeDensity
 ```
 
 A name that is not one of `names` is a type error at a call. One read from storage, which nothing
