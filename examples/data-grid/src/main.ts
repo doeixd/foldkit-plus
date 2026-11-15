@@ -95,6 +95,8 @@ export const Model = Schema.Struct({
   filters: Grid.Filters,
   /** What the last change said: what it wrote, or why some cells were refused. */
   notice: Schema.String,
+  /** The row number typed into Go to row. */
+  goTo: Schema.String,
 })
 export type Model = typeof Model.Type
 
@@ -105,6 +107,9 @@ export const Message = defineMessageUnion({
   SavedLayout: {},
   /** Every column's filter was taken off at once. */
   ClearedFilters: {},
+  TypedRow: { text: Schema.String },
+  /** Go to row was pressed, or Enter in its field. */
+  WentToRow: {},
 })
 export type Message = typeof Message.Type
 
@@ -198,62 +203,56 @@ const laid = (
   }),
 })
 
-/** Whether a column's filter is on. A union of differently typed Options needs this widening to be asked. */
-const isOn = (filter: Option.Option<unknown>): boolean => Option.isSome(filter)
-
-const hasFilters = (filters: Model['filters']): boolean => Object.values(filters).some(isOn)
-
 const PlacedToolbar = Toolbar.at(Link.field<Model>()('toolbar', GotToolbarMessage))
 
-const application = Bundle.assemble<Model, Message>()([
-  PlacedToolbar,
-  Bundle.parent({ Model, Message }).at(Placement, {
-    onOut: out => model =>
-      Grid.Out.match(out, {
-        Edited: edited => ({
-          model: modifyFields(model, {
-            products: () => written(model, [edited]),
-            notice: () => `Saved ${edited.column} of ${edited.row}.`,
-          }),
-        }),
-        Pasted: ({ accepted, refused }) => laid(model, 'Pasted', accepted, refused),
-        // The text is on the clipboard already: this only says how much.
-        Copied: ({ rows, columns }) => ({
-          model: modifyFields(model, {
-            notice: () => `Copied ${counted(rows, 'row')} by ${counted(columns, 'column')}.`,
-          }),
-        }),
-        // What a fill writes is worked out from the products as they are now.
-        Filled: request => {
-          const { accepted, refused } = Grid.fill(rowsOf(model), model.grid, request)
-          return accepted.length === 0 && refused.length === 0
-            ? { model }
-            : laid(model, 'Filled', accepted, refused)
-        },
-        Filtered: ({ change }) => {
-          const filtered = modifyFields(model, {
-            filters: filters => Grid.setFilter(filters, change),
-          })
-          // The count is what a screen reader hears: the grid's rows change out of its sight.
-          const kept = addressableRows(rowsOf(filtered).count).toLocaleString()
-          return {
-            model: modifyFields(filtered, {
-              notice: () => `${change.column} filter: ${kept} products match.`,
-            }),
-          }
-        },
-        // These rows keep no history; the registry demo shows undo as new edits.
-        UndoRequested: () => ({ model }),
-        RedoRequested: () => ({ model }),
-        // Which rows a Shift-click spans is worked out from the products as they are now.
-        RowsRequested: request => ({
-          model: modifyFields(model, {
-            grid: () => Grid.extendRows(rowsOf(model), model.grid, request),
-          }),
+const PlacedGrid = Bundle.parent({ Model, Message }).at(Placement, {
+  onOut: out => model =>
+    Grid.Out.match(out, {
+      Edited: edited => ({
+        model: modifyFields(model, {
+          products: () => written(model, [edited]),
+          notice: () => `Saved ${edited.column} of ${edited.row}.`,
         }),
       }),
-  }),
-])
+      Pasted: ({ accepted, refused }) => laid(model, 'Pasted', accepted, refused),
+      // The text is on the clipboard already: this only says how much.
+      Copied: ({ rows, columns }) => ({
+        model: modifyFields(model, {
+          notice: () => `Copied ${counted(rows, 'row')} by ${counted(columns, 'column')}.`,
+        }),
+      }),
+      // What a fill writes is worked out from the products as they are now.
+      Filled: request => {
+        const { accepted, refused } = Grid.fill(rowsOf(model), model.grid, request)
+        return accepted.length === 0 && refused.length === 0
+          ? { model }
+          : laid(model, 'Filled', accepted, refused)
+      },
+      Filtered: ({ change }) => {
+        const filtered = modifyFields(model, {
+          filters: filters => Grid.setFilter(filters, change),
+        })
+        // The count is what a screen reader hears: the grid's rows change out of its sight.
+        const kept = addressableRows(rowsOf(filtered).count).toLocaleString()
+        return {
+          model: modifyFields(filtered, {
+            notice: () => `${change.column} filter: ${kept} products match.`,
+          }),
+        }
+      },
+      // These rows keep no history; the registry demo shows undo as new edits.
+      UndoRequested: () => ({ model }),
+      RedoRequested: () => ({ model }),
+      // Which rows a Shift-click spans is worked out from the products as they are now.
+      RowsRequested: request => ({
+        model: modifyFields(model, {
+          grid: () => Grid.extendRows(rowsOf(model), model.grid, request),
+        }),
+      }),
+    }),
+})
+
+const application = Bundle.assemble<Model, Message>()([PlacedToolbar, PlacedGrid])
 
 /** Where this browser keeps the column layout: one viewer's convenience, not shared state. */
 const layoutKey = 'foldkit-grid-demo:columns'
@@ -304,6 +303,7 @@ export const init = (
     products: products(count),
     filters: Grid.noFilters,
     notice: '',
+    goTo: '',
   })
   const start = { ...initial, commands: [...(initial.commands ?? []), LoadToolbar({})] }
   return Option.match(saved, {
@@ -339,14 +339,60 @@ const LoadToolbar = Command.define('LoadToolbar', {
     ),
 })
 
+/** The grid's header height, which the view and a reveal both need to agree on. */
+const headerHeight = 36
+
+/** Puts the keyboard on a cell the page scrolled to: the reveal moves no focus of its own. */
+const FocusRow = Command.define('FocusRow', {
+  args: { row: Schema.String },
+  messages: [Message.GotGridMessage],
+  execute: ({ row }) =>
+    Effect.sync(() => {
+      document.getElementById(Grid.id)?.focus()
+      return Message.GotGridMessage({
+        message: Grid.Message.Focused({ address: { row, column: 'upc' } }),
+      })
+    }),
+})
+
 const placed = application.update((model, message) =>
   Match.value(message).pipe(
     Match.tags({
+      TypedRow: ({ text }) =>
+        text === model.goTo ? { model } : { model: modifyFields(model, { goTo: () => text }) },
+      WentToRow: () => {
+        const rows = rowsOf(model)
+        const wanted = Number(model.goTo)
+        // `keyAt` is none for anything that is no index: a fraction, zero, NaN, past the end.
+        const key = rows.keyAt(wanted - 1)
+        return Option.match(key, {
+          onNone: () => ({
+            model: modifyFields(model, {
+              notice: () =>
+                `No row ${model.goTo.trim() === '' ? 'typed' : model.goTo.trim()}: rows run from 1 to ${addressableRows(rows.count).toLocaleString()}.`,
+            }),
+          }),
+          onSome: row => {
+            // Scrolls the least that shows it; the Command then moves the keyboard there.
+            const step = PlacedGrid.helpers.reveal(rows, {
+              row: wanted - 1,
+              rowHeight: rowHeights[model.toolbar.density],
+              headerHeight,
+            })(model)
+            return {
+              model: modifyFields(step.model, {
+                notice: () => `Went to row ${wanted.toLocaleString()}.`,
+              }),
+              commands: [...(step.commands ?? []), FocusRow({ row })],
+            }
+          },
+        })
+      },
       // Nothing to read back: the save is the Command's own.
       SavedLayout: () => ({ model }),
       // A no-op returns the Model it was given, so nothing is drawn again.
       ClearedFilters: () =>
-        hasFilters(model.filters)
+        Grid.hasFilters(model.filters)
           ? {
               model: modifyFields(model, {
                 filters: () => Grid.noFilters,
@@ -403,7 +449,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   const shownCount = addressableRows(rows.count)
   const total = model.products.length
   const searching = model.toolbar.search.trim() !== ''
-  const filtered = hasFilters(model.filters) || searching
+  const filtersOn = Grid.hasFilters(model.filters)
+  const filtered = filtersOn || searching
   return {
     title: 'Product registry',
     body: h.main(
@@ -459,8 +506,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                   ? `${shownCount.toLocaleString()} of ${total.toLocaleString()} products match, `
                   : `${total.toLocaleString()} products, `,
                 `${selectedCount.toLocaleString()} selected.`,
-                // GAP (package work pending): the selected range's size belongs here; a "go to row"
-                // control and the header lock's title come from the grid too.
+                Option.match(Grid.rangeSize(rows, model.grid), {
+                  onNone: () => '',
+                  onSome: range =>
+                    ` A range of ${counted(range.cells, 'cell')} (${counted(range.rows, 'row')} by ${counted(range.columns, 'column')}) is selected.`,
+                }),
               ],
             ),
             // Only what an action did is announced: a selection changes on every key, and a screen
@@ -471,7 +521,6 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                 searching
                   ? `${shownCount.toLocaleString()} products match “${model.toolbar.search.trim()}”. `
                   : '',
-                // GAP (package work pending): the copied-cells message joins the notice.
                 model.notice,
               ],
             ),
@@ -479,7 +528,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             h.button(
               [
                 h.Type('button'),
-                h.AriaDisabled(!hasFilters(model.filters)),
+                h.AriaDisabled(!filtersOn),
                 h.OnClick(Message.ClearedFilters()),
                 h.Style({
                   font: 'inherit',
@@ -489,11 +538,52 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                   borderRadius: '6px',
                   minHeight: '2rem',
                   padding: '0 0.75rem',
-                  opacity: hasFilters(model.filters) ? '1' : '0.5',
-                  cursor: hasFilters(model.filters) ? 'pointer' : 'default',
+                  opacity: filtersOn ? '1' : '0.5',
+                  cursor: filtersOn ? 'pointer' : 'default',
                 }),
               ],
               ['Clear filters'],
+            ),
+            // The grid scrolls the least that shows the row; Enter or the button then puts the keyboard on it.
+            h.form(
+              [
+                h.OnSubmit(Message.WentToRow()),
+                // The page says what is wrong with a number in its notice; the browser's own bubble would hide that.
+                h.Attribute('novalidate', ''),
+                h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' }),
+              ],
+              [
+                h.label([h.For('go-to-row')], ['Go to row']),
+                h.input([
+                  h.Id('go-to-row'),
+                  h.Type('number'),
+                  h.Min('1'),
+                  h.Max(String(total)),
+                  h.Value(model.goTo),
+                  h.OnInput(text => Message.TypedRow({ text })),
+                  h.Style({
+                    font: 'inherit',
+                    inlineSize: '6rem',
+                    minHeight: '2rem',
+                    boxSizing: 'border-box',
+                  }),
+                ]),
+                h.button(
+                  [
+                    h.Type('submit'),
+                    h.Style({
+                      font: 'inherit',
+                      color: 'inherit',
+                      background: 'transparent',
+                      border: '1px solid',
+                      borderRadius: '6px',
+                      minHeight: '2rem',
+                      padding: '0 0.75rem',
+                    }),
+                  ],
+                  ['Go'],
+                ),
+              ],
             ),
           ],
         ),
@@ -505,7 +595,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             wrap: wrapGrid,
             label: 'Products',
             rowHeight: rowHeights[model.toolbar.density],
-            headerHeight: 36,
+            headerHeight,
             overscan: { rows: 6, columns: 1 },
             columnMenu: true,
             filters: model.filters,

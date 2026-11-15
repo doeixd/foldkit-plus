@@ -184,3 +184,54 @@ test('the toolbar searches the products and sets the density, on a desktop and a
   ).toBe(true)
   await page.close()
 })
+
+test('Go to row scrolls to the product and puts the keyboard on it, and a range says its size', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  await page.goto(vite.resolvedUrls!.local[0]!)
+  await cell(page, 'p0', 'upc').waitFor({ timeout: 120_000 })
+
+  await page.getByLabel('Go to row').fill('5000')
+  await page.getByLabel('Go to row').press('Enter')
+  await cell(page, 'p4999', 'upc').waitFor(slow)
+  await expect
+    .poll(() => page.locator('#products').getAttribute('aria-activedescendant'), slow)
+    .toBe('products:p4999:upc')
+  expect(await page.evaluate(() => document.activeElement?.id)).toBe('products')
+  await expect
+    .poll(() => page.getByRole('status').textContent(), slow)
+    .toContain('Went to row 5,000.')
+
+  await page.keyboard.press('Shift+ArrowDown')
+  await page.keyboard.press('Shift+ArrowRight')
+  await expect
+    .poll(() => page.locator('#registry-counts').textContent(), slow)
+    .toContain('A range of 4 cells (2 rows by 2 columns) is selected.')
+  await page.keyboard.press('Control+c')
+  await expect
+    .poll(() => page.getByRole('status').textContent(), slow)
+    .toContain('Copied 2 rows by 2 columns.')
+
+  await page.getByLabel('Go to row').fill('0')
+  await page.getByLabel('Go to row').press('Enter')
+  await expect
+    .poll(() => page.getByRole('status').textContent(), slow)
+    .toContain('No row 0: rows run from 1 to 100,000.')
+  await page.close()
+})
+
+test('a click on a funnel opens its form and keeps it open with focus in its field; a second click closes it', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  await page.goto(vite.resolvedUrls!.local[0]!)
+  await cell(page, 'p0', 'line').waitFor({ timeout: 120_000 })
+  const funnel = page.getByRole('button', { name: 'Filter Line' })
+  const form = page.locator('#products [role="dialog"]')
+  await funnel.click()
+  await form.waitFor(slow)
+  // The defect closed it within a frame; wait well past that.
+  await page.waitForTimeout(500)
+  expect(await form.isVisible()).toBe(true)
+  expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('INPUT')
+  await funnel.click()
+  await expect.poll(() => form.count(), slow).toBe(0)
+  await page.close()
+})
