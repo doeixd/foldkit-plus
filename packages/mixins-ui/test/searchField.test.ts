@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * SearchField as markup: a native search input named by the label, a clear
  * button only while there is text, Escape and the application's keys through
@@ -8,7 +9,7 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, SlotView, Style } from 'foldkit-mixins'
+import { A11y, Behaviors, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Recipes, SearchField, SearchFieldSlots } from '../src/index.js'
 import { SearchFieldPattern } from '../src/searchField.js'
@@ -54,11 +55,15 @@ const bound = (
     h,
   )
 
-const open: SearchField.Route<Searched> = {
-  name: 'Open results',
-  key: 'ArrowDown',
-  toMessage: value => (value === '' ? Option.none() : Option.some(Searched.Opened())),
-}
+const { Keys } = Behaviors
+
+const openOn = (name: string, key: Behaviors.Keys.NamedKey): SearchField.Route<Searched> =>
+  Keys.route(name, {
+    on: [Keys.chord(key)],
+    handle: ({ input }) => (input === '' ? Option.none() : Option.some(Searched.Opened())),
+  })
+
+const open = openOn('Open results', 'ArrowDown')
 
 describe('SearchField.view', () => {
   it('meets the search field pattern', () => {
@@ -140,14 +145,14 @@ describe('SearchField.view', () => {
   })
 
   it.each([
-    ['a built-in', { ...open, name: 'Dismiss', key: 'Escape' }, ['Clear', 'Dismiss']],
-    ['another route', { ...open, name: 'Also open' }, ['Open results', 'Also open']],
+    ['a built-in', openOn('Dismiss', 'Escape'), ['Clear', 'Dismiss']],
+    ['another route', openOn('Also open', 'ArrowDown'), ['Open results', 'Also open']],
   ])('names both routes when one overlaps %s', (_, extra, names) => {
     const routes = names[0] === 'Clear' ? [extra] : [open, extra]
     const diagnostic = diagnosticFrom(() =>
       bound(SlotView.inertBuilder<Searched>(), 'lamp', { routes }),
     )
-    expect(diagnostic?.code).toBe('mixins:event-conflict')
+    expect(diagnostic?.code).toBe('mixins:key-conflict')
     expect(diagnostic?.details?.['contributors']).toEqual(names)
   })
 

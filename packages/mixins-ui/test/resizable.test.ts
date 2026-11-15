@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Resizable as a transition and as markup: a drag follows the pointer from
  * where it began over the measured group, keys step within the bounds, a

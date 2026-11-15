@@ -75,7 +75,7 @@ export const Focus = Command.define('SearchField.Focus', {
 })
 
 /** A key the field answers beside Escape; its input is the text. */
-export type Route<Message> = Behaviors.Keyboard.Route<string, Message>
+export type Route<Message> = Behaviors.Keys.Route<string, Message>
 
 export interface SearchFieldWords {
   /** The clear button's name; default `Clear search`. */
@@ -111,15 +111,14 @@ export interface SearchFieldView<Message> {
 
 export const view = <Message>(options: SearchFieldView<Message>, h: HtmlBuilder<Message>): Html => {
   const disabled = options.disabled === true
-  const keys = Behaviors.Keyboard.behavior(SearchFieldSlots)<string, Message>({
-    target: 'input',
+  const keys = Behaviors.Keys.behavior(SearchFieldSlots)<string, Message>({
+    slot: 'input',
     name: 'SearchFieldKeys',
     routes: [
-      {
-        name: 'Clear',
-        key: 'Escape',
-        toMessage: value => (value === '' ? Option.none() : Option.some(options.onClear)),
-      },
+      Behaviors.Keys.route<string, Message>('Clear', {
+        on: [Behaviors.Keys.chord('Escape')],
+        handle: ({ input }) => (input === '' ? Option.none() : Option.some(options.onClear)),
+      }),
       ...(options.routes ?? []),
     ],
   })

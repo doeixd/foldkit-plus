@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Command as a filter and as markup: what a query leaves, in its place, and
  * the field that points at the highlighted row, which moves to the first
@@ -7,7 +8,7 @@ import { Match, Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
-import { A11y, SlotView, Style } from 'foldkit-mixins'
+import { A11y, Behaviors, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Command, CommandSlots, Patterns, Recipes, type CommandGroup } from '../src/index.js'
 import { h, message } from './fixture.js'
@@ -255,12 +256,17 @@ describe('Command routes', () => {
   type Message = Readonly<{ _tag: 'Query'; query: string }> | Readonly<{ _tag: 'Other' }>
   type Step = Parameters<typeof Scene.scene<{ readonly query: string }, Message>>[1]
   const field = Scene.role('combobox')
-  const clear: Command.CommandRoute<string, Message> = {
-    name: 'Clear',
-    key: 'Escape',
-    toMessage: ({ query }) =>
-      query === '' ? Option.none() : Option.some({ _tag: 'Query', query: '' }),
-  }
+  const { Keys } = Behaviors
+  const clear: Command.CommandRoute<string, Message> = Keys.route('Clear', {
+    on: [Keys.chord('Escape')],
+    handle: ({ input }) =>
+      input.query === '' ? Option.none() : Option.some({ _tag: 'Query', query: '' }),
+  })
+  const takes = (
+    name: string,
+    key: Behaviors.Keys.NamedKey,
+  ): Command.CommandRoute<string, Message> =>
+    Keys.route(name, { on: [Keys.chord(key)], handle: () => Option.none() })
   const drawnWith = (
     routes: ReadonlyArray<Command.CommandRoute<string, Message>>,
     query: string,
@@ -298,21 +304,13 @@ describe('Command routes', () => {
 
   it('takes Home from the application, which the menu leaves to the field', () => {
     expect(() =>
-      drawnWith(
-        [{ name: 'First', key: 'Home', toMessage: () => Option.none() }],
-        'pa',
-        SlotView.inertBuilder<Message>(),
-      ),
+      drawnWith([takes('First', 'Home')], 'pa', SlotView.inertBuilder<Message>()),
     ).not.toThrow()
   })
 
   it('refuses a route on a key the menu answers, naming both', () => {
     expect(() =>
-      drawnWith(
-        [{ name: 'MyDown', key: 'ArrowDown', toMessage: () => Option.none() }],
-        'pa',
-        SlotView.inertBuilder<Message>(),
-      ),
+      drawnWith([takes('MyDown', 'ArrowDown')], 'pa', SlotView.inertBuilder<Message>()),
     ).toThrow(/"Next" and "MyDown"/)
   })
 })

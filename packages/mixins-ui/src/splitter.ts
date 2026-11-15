@@ -1,5 +1,5 @@
 import { Option } from 'effect'
-import type { Behaviors } from 'foldkit-mixins'
+import { Behaviors } from 'foldkit-mixins'
 
 /**
  * What the keys on a window splitter's handle send, for `Resizable` and
@@ -24,15 +24,15 @@ export interface SplitterKeys<Message> {
   readonly toggle: Option.Option<Message>
 }
 
-/** The keydown routes of a splitter's handle, for `Behaviors.Keyboard.behavior`. */
+/** The keydown routes of a splitter's handle, for `Behaviors.Keys.behavior`. */
 export const routes = <Message>(
   keys: SplitterKeys<Message>,
-): ReadonlyArray<Behaviors.Keyboard.Route<unknown, Message>> => {
-  const send = (name: string, key: string, message: Message) => ({
-    name,
-    key,
-    toMessage: () => Option.some(message),
-  })
+): ReadonlyArray<Behaviors.Keys.Route<unknown, Message>> => {
+  const send = (name: string, key: Behaviors.Keys.NamedKey, message: Message) =>
+    Behaviors.Keys.route<unknown, Message>(name, {
+      on: [Behaviors.Keys.chord(key)],
+      handle: () => Option.some(message),
+    })
   const [shrinking, growing] = keys.stacked
     ? (['ArrowUp', 'ArrowDown'] as const)
     : keys.direction === 'rtl'

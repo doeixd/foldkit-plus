@@ -13,7 +13,7 @@ import { mapMessages } from 'foldkit/command'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import * as Subscription from 'foldkit/subscription'
-import { Layers, Style } from 'foldkit-mixins'
+import { Behaviors, Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
@@ -514,12 +514,11 @@ test('without keepActiveInView the list stays where it was', async () => {
 test('PageDown and PageUp move the highlight; typing and the caret keys, Home and End included, stay the field’s', async () => {
   const handle = mountList({
     routes: [
-      {
-        name: 'Clear',
-        key: 'Escape',
-        toMessage: ({ query }) =>
-          query === '' ? Option.none() : Option.some({ _tag: 'Typed', query: '' }),
-      },
+      Behaviors.Keys.route('Clear', {
+        on: [Behaviors.Keys.chord('Escape')],
+        handle: ({ input }) =>
+          input.query === '' ? Option.none() : Option.some({ _tag: 'Typed', query: '' }),
+      }),
     ],
   })
   try {

@@ -205,8 +205,8 @@ export const view = <Outer>(options: ResizableView<Outer>, h: HtmlBuilder<Outer>
         ? Option.none()
         : Option.some(toggled)
       : Option.some(set(options.max ?? 0.9))
-  const keys = Behaviors.Keyboard.behavior(ResizableSlots)<unknown, Outer>({
-    target: 'handle',
+  const keys = Behaviors.Keys.behavior(ResizableSlots)<unknown, Outer>({
+    slot: 'handle',
     name: 'ResizableKeys',
     routes: Splitter.routes({
       stacked: vertical,

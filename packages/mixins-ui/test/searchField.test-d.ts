@@ -4,7 +4,7 @@
  * not executed.
  */
 import { Option } from 'effect'
-import { Behavior } from 'foldkit-mixins'
+import { Behavior, Behaviors } from 'foldkit-mixins'
 import { defineMessageUnion } from 'foldkit/message'
 import { SearchField, SearchFieldSlots } from '../src/index.js'
 import { h, message } from './fixture.js'
@@ -29,7 +29,12 @@ export const plain = SearchField.view(field, h)
 export const routed = SearchField.view(
   {
     ...field,
-    routes: [{ name: 'Open', key: 'ArrowDown', toMessage: () => Option.some(message('Clicked')) }],
+    routes: [
+      Behaviors.Keys.route('Open', {
+        on: [Behaviors.Keys.chord('ArrowDown')],
+        handle: () => Option.some(message('Clicked')),
+      }),
+    ],
   },
   h,
 )
@@ -38,12 +43,11 @@ export const foreignRoute = SearchField.view(
   {
     ...field,
     routes: [
-      {
-        name: 'Open',
-        key: 'ArrowDown',
-        // @ts-expect-error a route cannot send a Message the view does not
-        toMessage: () => Option.some(Foreign.SentElsewhere()),
-      },
+      // @ts-expect-error a route cannot send a Message the view does not
+      Behaviors.Keys.route('Open', {
+        on: [Behaviors.Keys.chord('ArrowDown')],
+        handle: () => Option.some(Foreign.SentElsewhere()),
+      }),
     ],
   },
   h,

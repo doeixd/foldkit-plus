@@ -457,8 +457,8 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
   const { model, onMessage } = options
   const setWidth = (size: number) => onMessage(Message.SetWidth({ size }))
   // Collapsed is the handle's least place, as `aria-valuemin` says: Home goes there.
-  const keys = Behaviors.Keyboard.behavior(SidebarSlots)<unknown, Message>({
-    target: 'resize',
+  const keys = Behaviors.Keys.behavior(SidebarSlots)<unknown, Message>({
+    slot: 'resize',
     name: 'SidebarResizeKeys',
     routes: Option.match(model.width, {
       onNone: () => [],

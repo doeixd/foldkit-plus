@@ -11,7 +11,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
-import { Layers, Style } from 'foldkit-mixins'
+import { Behaviors, Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -78,11 +78,10 @@ const mount = (options: { readonly disabled?: boolean; readonly dir?: 'rtl' } = 
             onClear: Msg.Cleared(),
             disabled: options.disabled,
             routes: [
-              {
-                name: 'Open results',
-                key: 'ArrowDown',
-                toMessage: () => Option.some(Msg.Opened()),
-              },
+              Behaviors.Keys.route('Open results', {
+                on: [Behaviors.Keys.chord('ArrowDown')],
+                handle: () => Option.some(Msg.Opened()),
+              }),
             ],
             style,
           },

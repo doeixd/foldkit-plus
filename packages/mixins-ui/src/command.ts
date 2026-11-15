@@ -128,7 +128,7 @@ export interface CommandKeyInput<Value extends string> {
 }
 
 /** A key the menu answers beside its own; see `CommandView.routes`. */
-export type CommandRoute<Value extends string, Message> = Behaviors.Keyboard.Route<
+export type CommandRoute<Value extends string, Message> = Behaviors.Keys.Route<
   CommandKeyInput<Value>,
   Message
 >
@@ -242,15 +242,17 @@ export const view = <Value extends string, Message>(
     enabled.length === 0
       ? Option.none()
       : at(Math.min(Math.max(position + by, 0), enabled.length - 1))
+  const keyRoutes = Behaviors.Keys
   const route = (
     name: string,
-    key: string,
-    toMessage: (input: CommandKeyInput<Value>) => Option.Option<Message>,
-  ): CommandRoute<Value, Message> => ({ name, key, toMessage })
-  const moves = (name: string, key: string, to: () => Option.Option<Value>) =>
+    key: Behaviors.Keys.NamedKey,
+    handle: (input: CommandKeyInput<Value>) => Option.Option<Message>,
+  ): CommandRoute<Value, Message> =>
+    keyRoutes.route(name, { on: [keyRoutes.chord(key)], handle: ({ input }) => handle(input) })
+  const moves = (name: string, key: Behaviors.Keys.NamedKey, to: () => Option.Option<Value>) =>
     route(name, key, () => Option.map(to(), options.onActive))
-  const keyboard = Behaviors.Keyboard.behavior(CommandSlots)<CommandKeyInput<Value>, Message>({
-    target: 'input',
+  const keyboard = keyRoutes.behavior(CommandSlots)<CommandKeyInput<Value>, Message>({
+    slot: 'input',
     name: 'CommandKeys',
     routes: [
       moves('Next', 'ArrowDown', () => step(1)),
