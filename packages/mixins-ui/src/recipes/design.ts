@@ -364,6 +364,17 @@ export const surfaceInk = (paint: string): string =>
 export const unfilledHover = `color-mix(in oklab, var(--_fk-state-ink, ${ref.state.ink}) ${ref.knob['state-hover']}, transparent)`
 
 /**
+ * A filled control's hover: the field fill with the state ink laid over it,
+ * as a ghost's hover is laid over nothing. Its edge is transparent, so the
+ * border the outline looks change on hover has nothing to show. Skips a
+ * disabled control, and a frame holding one. The fill's longhand, so a
+ * select's chevron stays.
+ */
+export const filledHover: StyleValue = Style.pseudo(`${HOVERED}:not(:has(:disabled))`, {
+  backgroundColor: `color-mix(in oklab, var(--_fk-state-ink, ${ref.state.ink}) ${ref.knob['state-hover']}, ${ref.surface.field})`,
+})
+
+/**
  * The same film held down: a press lays the hover's ink at 1.75, so a row, a
  * tab or a menu item answers a click instead of looking untouched once the
  * pointer is already on it. The twin of `unfilledHover` for the same reason

@@ -12,12 +12,12 @@
 import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { ListboxSlots } from '../listbox.js'
-import { filledHover } from './field.js'
 import {
   component,
   controlCorner,
   cornerSides,
   disabled,
+  filledHover,
   focusRing,
   hover,
   onLadder,

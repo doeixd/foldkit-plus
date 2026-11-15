@@ -29,7 +29,13 @@ export default [
   },
   {
     name: 'a hovered filled Input keeps its resting fill',
-    edits: [{ file: '../src/recipes/field.ts', find: '  filledHover,', replace: '' }],
+    edits: [
+      {
+        file: '../src/recipes/field.ts',
+        find: "borderColor: 'transparent' }),\n  filledHover,",
+        replace: "borderColor: 'transparent' }),",
+      },
+    ],
     tests,
   },
   {

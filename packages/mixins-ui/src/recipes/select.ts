@@ -9,10 +9,10 @@
  */
 import { Style } from 'foldkit-mixins'
 import { SelectSlots } from '../select.js'
-import { filledHover } from './field.js'
 import { ladder, role } from 'foldkit-mixins/theme'
 import {
   component,
+  filledHover,
   controlCorner,
   disabled,
   focusRing,
