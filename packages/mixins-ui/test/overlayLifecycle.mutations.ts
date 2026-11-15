@@ -82,33 +82,11 @@ export default [
     tests: [leave],
   },
   {
-    name: 'a closed Dialog adds no focus fallback',
-    edits: [
-      {
-        file: '../src/dialog.ts',
-        find: "if (message._tag === 'CompletedCloseDialog' && focusFallback !== undefined) {",
-        replace: 'if (false) {',
-      },
-    ],
-    tests: [lifecycle],
-  },
-  {
-    name: 'the focus fallback takes focus from wherever it was',
-    edits: [
-      {
-        file: '../src/dialog.ts',
-        find: 'if (focusLost()) document',
-        replace: 'if (true) document',
-      },
-    ],
-    tests: [lifecycle],
-  },
-  {
     name: 'an open that meets the exit puts no focus back in the Dialog',
     edits: [
       {
         file: '../src/dialog.ts',
-        find: 'extra.push(RestoreFocus({ id: model.id, selector }))',
+        find: 'RestoreFocus({ id: model.id, selector })',
         replace: '',
       },
     ],
@@ -126,17 +104,6 @@ export default [
     tests: [leave],
     survives:
       'The guard only matters when an open lands in the frame of the close, before the panel is drawn inert and focus has left; the runtime cannot be made to run both Messages in one frame from a test.',
-  },
-  {
-    name: 'a Sheet is not given the focus fallback it was configured with',
-    edits: [
-      {
-        file: '../src/sheet.ts',
-        find: 'onSome: focusFallback => ({ focusFallback }),',
-        replace: 'onSome: () => ({}),',
-      },
-    ],
-    tests: [lifecycle],
   },
   {
     name: "a Listbox's panel writes no dir, so a portaled panel places for left to right",
