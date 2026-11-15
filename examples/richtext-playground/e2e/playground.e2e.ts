@@ -286,6 +286,38 @@ test('Enter in code breaks the line, and on an empty last line leaves the block'
   expect(errors).toEqual([])
 })
 
+test('on a phone the bar fits, keeps touch-sized controls and sets the rare ones aside', async () => {
+  const errors: Array<string> = []
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  })
+  const page = await context.newPage()
+  page.on('pageerror', error => errors.push(String(error)))
+  await page.goto(origin)
+  await page.waitForSelector('[contenteditable=true] h1', { timeout: 120_000 })
+  const bar = page.getByRole('toolbar', { name: 'Formatting' })
+  const sizes = await bar.locator('button').evaluateAll(buttons =>
+    buttons
+      .filter(button => button.getBoundingClientRect().width > 0)
+      .map(button => ({
+        item: button.getAttribute('data-item'),
+        height: button.getBoundingClientRect().height,
+      })),
+  )
+  expect(sizes.map(size => size.item)).toContain('mark-Bold')
+  expect(sizes.map(size => size.item)).not.toContain('mark-Strikethrough')
+  expect(sizes.filter(size => size.height < 44)).toEqual([])
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true)
+  expect(errors).toEqual([])
+  await context.close()
+})
+
 test('the formatting bar is one tab stop, and its arrow keys move between controls', async () => {
   const errors: Array<string> = []
   const page = await open(errors)

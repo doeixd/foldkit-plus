@@ -26,6 +26,18 @@ editor commits is written back in the same transition ([app.ts](src/app.ts), `ed
 control around it (the toolbars, the handle's menu, the slash menu at the caret, the toolbar
 over selected text) sends those same Messages, or the application's own.
 
+## The toolbars
+
+The bar above the page and the one over selected text are `foldkit-mixins-richtext`'s
+`formattingToolbar`: one tab stop, the arrow keys, Home and End between controls, a text style
+menu and an Insert menu that open with ArrowDown, marks that show whether the selection carries
+them. The package ships no styles ([style.ts](src/style.ts) styles its slots) and holds no
+state, so two things are this page's: which menu is open (`Model.menu`) and where the tab stop is
+(`Model.tabStop`, an `Option`, set by `FocusedControl`). What the bar does not know sits in a
+group beside it: Comment, Find, Image (which asks for the file dialog through a Command, so it
+is a button and not a label) and Export. On a touch screen under 40rem the less used marks and
+lists step aside (the slash menu still offers them) and every control is 44px.
+
 ## A discussion is two halves
 
 The document holds which text a discussion is about, as a `Comment` mark carrying the thread's
