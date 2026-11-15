@@ -292,6 +292,26 @@ it('lets a click through once the release that sent none has passed', async () =
   }
 })
 
+it('starts no text selection while a press is held, and leaves it to the page after', async () => {
+  const element = canvas()
+  const run = drive(element, { attribute: 'data-node' })
+  const select = () => {
+    const event = new Event('selectstart', { bubbles: true, cancelable: true })
+    element.dispatchEvent(event)
+    return event.defaultPrevented
+  }
+  try {
+    await later(20)
+    pointer(...at(90, 90), 'pointerdown')
+    expect(select()).toBe(true)
+    pointer(...at(140, 40), 'pointermove')
+    pointer(...at(140, 40), 'pointerup')
+    expect(select()).toBe(false)
+  } finally {
+    await run.stop()
+  }
+})
+
 it('listens to the document only while a press is under way, and lets go when ended mid-press', async () => {
   const element = canvas()
   const added = vi.spyOn(document, 'addEventListener')

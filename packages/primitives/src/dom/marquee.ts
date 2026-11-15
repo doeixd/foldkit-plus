@@ -219,6 +219,8 @@ export const Marquee = Mount.defineStream('Marquee', {
               },
             ],
             ['pointercancel', event => ours(event as Positioned) && end(false)],
+            // The browser's own text selection would extend under the lasso; removing it once is not enough.
+            ['selectstart', event => event.preventDefault()],
             [
               'keydown',
               escapeEnds(

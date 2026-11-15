@@ -344,6 +344,26 @@ it('lets a click through once the drop that sent none has passed', async () => {
   }
 })
 
+it('starts no text selection while a drag is held, and leaves it to the page after', async () => {
+  const { list } = rows(4, 'height:120px')
+  const run = drive(list, { attribute: 'data-row' })
+  const select = () => {
+    const event = new Event('selectstart', { bubbles: true, cancelable: true })
+    list.dispatchEvent(event)
+    return event.defaultPrevented
+  }
+  try {
+    await later(20)
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    expect(select()).toBe(true)
+    pointer(10, 40, 'pointerup')
+    expect(select()).toBe(false)
+  } finally {
+    await run.stop()
+  }
+})
+
 it('ignores a page that glides: each step lands at once', async () => {
   document.documentElement.style.scrollBehavior = 'smooth'
   const { box, list } = rows(40, 'height:100px;overflow:auto;scroll-behavior:smooth')

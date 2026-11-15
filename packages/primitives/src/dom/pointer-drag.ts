@@ -337,6 +337,8 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             ['keydown', onEscape, true],
             ['touchmove', heldStill, { passive: false }],
             ['contextmenu', noMenu],
+            // The browser's own text selection would extend under a drag; removing it once is not enough.
+            ['selectstart', event => event.preventDefault()],
           ])
 
           const onElement: ReadonlyArray<readonly [string, (event: Event) => void, boolean]> = [

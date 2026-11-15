@@ -13,6 +13,28 @@ const marqueeTests = ['packages/primitives/test/marquee.browser.test.ts']
 
 export default [
   {
+    name: 'a lasso lets the browser select text under it',
+    edits: [
+      {
+        file: marquee,
+        find: "            ['selectstart', event => event.preventDefault()],\n",
+        replace: '',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: 'a drag lets the browser select text under it',
+    edits: [
+      {
+        file: drag,
+        find: "            ['selectstart', event => event.preventDefault()],\n",
+        replace: '',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
     name: "a lasso's waiting swallow outlives its release",
     edits: [
       {
