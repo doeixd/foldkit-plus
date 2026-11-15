@@ -10,6 +10,7 @@ import * as Mount from 'foldkit/mount'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
   formattingToolbar,
+  InsertEntry,
   type FormattingItem,
   type FormattingMenu,
   type RichTextIconName,
@@ -65,7 +66,9 @@ const DemoGuide = demoGuide<Message>()
 /** What the toolbar's insert menu offers, by slash entry id, in this order. */
 const INSERTS = ['callout', 'table', 'divider', 'code-block'] as const
 
-const inserts = INSERTS.flatMap(id => pageSlashEntries.filter(entry => entry.id === id))
+const inserts = INSERTS.flatMap(id => pageSlashEntries.filter(entry => entry.id === id)).map(
+  entry => InsertEntry.Editor({ entry }),
+)
 
 /** This vocabulary's marks beside the editor's own, in the order a bar draws them. */
 const MARKS = ['Bold', 'Italic', 'Underline', 'Strikethrough', 'Code', 'Highlight'] as const
