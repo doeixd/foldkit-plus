@@ -110,4 +110,15 @@ export default [
     edits: [{ file, find: 'beganKey = Option.some(key.key)', replace: '' }],
     tests,
   },
+  {
+    name: 'the pointer leaving is not a cancel',
+    edits: [
+      {
+        file,
+        find: "...['pointerleave', 'pointercancel'].map(",
+        replace: "...['pointercancel'].map(",
+      },
+    ],
+    tests: ['packages/primitives/test/repeat.browser.test.ts'],
+  },
 ]

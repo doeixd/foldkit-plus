@@ -120,6 +120,20 @@ describe('Repeat placement', () => {
     expect(ended.out.at(-1)).toEqual(Repeat.Ended.make({ count: 1 }))
   })
 
+  it('a pointer leaving ends a mouse hold for good: coming back while down does not resume it', () => {
+    const left = send(
+      fresh,
+      mouseDown,
+      M.Elapsed({ generation: 1 }),
+      M.PointerCancelled({ pointerId: 1 }),
+    )
+    expect(left.model.out.at(-1)).toEqual(Repeat.Ended.make({ count: 2 }))
+    expect(left.model.hold.holding).toBe(false)
+    expect(send(left.model, M.Elapsed({ generation: 1 })).model).toBe(left.model)
+    // Re-entering sends nothing, and the pointer's later up belongs to no press.
+    expect(send(left.model, mouseUp).model).toBe(left.model)
+  })
+
   it('a cancelled finger steps nothing', () => {
     expect(send(fresh, touchDown, M.PointerCancelled({ pointerId: 7 })).model.out).toEqual([])
   })

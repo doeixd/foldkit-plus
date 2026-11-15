@@ -135,3 +135,19 @@ it.each(['Enter', 'Space'])(
     await vi.waitFor(() => expect(value()).toBeGreaterThan(0))
   },
 )
+
+it('the pointer leaving the button with the press down ends the hold, and coming back does not resume it', async () => {
+  await boot()
+  const at = centre('more')
+  await mouse('mouseMoved', at)
+  await mouse('mousePressed', at)
+  await vi.waitFor(() => expect(value()).toBeGreaterThan(0))
+  await mouse('mouseMoved', centre('value'))
+  await vi.waitFor(() => expect(el('more').hasAttribute('data-holding')).toBe(false))
+  const rested = value()
+  await mouse('mouseMoved', at)
+  // Several repeat intervals, for a claim that nothing happens.
+  await new Promise(resolve => setTimeout(resolve, 150))
+  expect(value()).toBe(rested)
+  await mouse('mouseReleased', at)
+})

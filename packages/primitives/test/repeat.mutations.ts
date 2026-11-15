@@ -108,4 +108,15 @@ export default [
     edits: [{ file, find: 'events: Press.events(),', replace: '' }],
     tests,
   },
+  {
+    name: 'a cancelled press does not end the hold',
+    edits: [
+      {
+        file,
+        find: 'Option.contains(model.pointerId, pointerId) ? release(model) : { model },',
+        replace: '{ model },',
+      },
+    ],
+    tests,
+  },
 ]
