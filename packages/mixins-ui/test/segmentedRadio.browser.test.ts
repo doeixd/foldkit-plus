@@ -17,7 +17,7 @@ const style = Style.forSlots(SegmentedSlots)(Recipes.Segmented({}))
 
 const Model = Schema.Struct({ pressed: Schema.String })
 type Model = typeof Model.Type
-const Pressed = Schema.Struct({ value: Schema.String })
+const Pressed = Schema.TaggedStruct('Pressed', { value: Schema.String })
 type Message = typeof Pressed.Type
 
 const labels = ['Day', 'Week', 'Month', 'Year'] as const
@@ -65,7 +65,7 @@ const mount = (
                   disabled: label === 'Week',
                 })),
                 pressed: [model.pressed],
-                onPress: value => ({ value }),
+                onPress: value => Pressed.make({ value }),
                 direction: fixture.dir ?? 'ltr',
                 style,
                 ...(fixture.fluid === true ? { mixins: Segmented.fluid } : {}),
