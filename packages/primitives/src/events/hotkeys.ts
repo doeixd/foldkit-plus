@@ -131,7 +131,9 @@ const keyMatches = (chord: Chord, press: KeyPress): boolean => {
   if (letterOrDigit.test(typed)) return false
   // Option+N types "˜" on a Mac, and other alphabets type their own letters:
   // the physical key says which one was meant.
-  return press.code === (/\d/.test(chord.key) ? `Digit${chord.key}` : `Key${chord.key.toUpperCase()}`)
+  return (
+    press.code === (/\d/.test(chord.key) ? `Digit${chord.key}` : `Key${chord.key.toUpperCase()}`)
+  )
 }
 
 const hasCommandModifier = (chord: Chord): boolean => chord.ctrl || chord.alt || chord.meta

@@ -361,8 +361,8 @@ export default [
     edits: [
       edit(
         handTabs,
-        'selection: { selected: [tabs[0]!.id], anchor: tabs[0]!.id },',
-        'selection: { selected: [], anchor: null },',
+        'selection: { selected: [tabs[0]!.id], anchor: tabs[0]!.id, ranged: [] },',
+        'selection: { selected: [], anchor: null, ranged: [] },',
       ),
     ],
     tests: tabs,
