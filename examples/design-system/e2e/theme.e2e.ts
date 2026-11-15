@@ -19,7 +19,7 @@ afterAll(async () => {
 
 const shots = process.env['SHOTS']
 const shoot = async (page: Page, name: string) => {
-  if (shots !== undefined) await page.screenshot({ path: `${shots}/${name}.png` })
+  if (shots !== undefined) await page.screenshot({ path: `${shots}/ds2-${name}.png` })
 }
 
 const root = (page: Page, read: string) =>
@@ -86,8 +86,8 @@ test('the scheme and direction reach the root, and RTL swaps the arrow keys', as
   expect(await page.evaluate(() => document.documentElement.style.colorScheme)).toBe('dark')
   await shoot(page, 'shadcn-dark-1280')
   if (shots !== undefined) {
-    await page.locator('#tokens').screenshot({ path: `${shots}/tokens-dark.png` })
-    await page.locator('#cascade').screenshot({ path: `${shots}/cascade-dark.png` })
+    await page.locator('#tokens').screenshot({ path: `${shots}/ds2-tokens-dark.png` })
+    await page.locator('#cascade').screenshot({ path: `${shots}/ds2-cascade-dark.png` })
   }
   await page.getByRole('radio', { name: 'Rtl' }).click()
   expect(await page.evaluate(() => document.documentElement.dir)).toBe('rtl')
@@ -201,5 +201,52 @@ test('a tweaked hue is measured again', async () => {
   await hue.focus()
   await page.keyboard.press('End')
   await expect.poll(async () => (await contrastOf(page))['Link']).not.toBe(before)
+  await page.close()
+})
+
+test.skipIf(shots === undefined)(
+  'screenshots of the whole page, light and dark, at a phone and a desktop width',
+  async () => {
+    const islands = [
+      'buttons',
+      'form',
+      'choice',
+      'overlays',
+      'feedback',
+      'navigation',
+      'calendar',
+      'collections',
+      'utilities',
+    ]
+    for (const [width, height] of [
+      [390, 800],
+      [1280, 900],
+    ] as const) {
+      for (const scheme of ['Light', 'Dark']) {
+        const { page } = await harness.visit(width, height)
+        await page.getByRole('radio', { name: scheme }).click()
+        for (const island of islands) await reveal(page, island)
+        await page.evaluate(() => window.scrollTo(0, 0))
+        await page.screenshot({
+          path: `${shots}/ds2-full-${scheme.toLowerCase()}-${width}.png`,
+          fullPage: true,
+        })
+        await page.close()
+      }
+    }
+  },
+  600_000,
+)
+
+test('every link of the sidebar points at a section on the page', async () => {
+  const { page } = await harness.visit(1280, 900)
+  await page.getByRole('heading', { name: 'Theme', exact: true }).waitFor()
+  const missing = await page.evaluate(() =>
+    [...document.querySelectorAll('nav a[href^="#"]')]
+      .map(link => link.getAttribute('href')?.slice(1) ?? '')
+      .filter(id => id === '' || document.getElementById(id) === null),
+  )
+  expect(missing).toEqual([])
+  expect(await page.locator('nav a[href^="#"]').count()).toBeGreaterThan(8)
   await page.close()
 })
