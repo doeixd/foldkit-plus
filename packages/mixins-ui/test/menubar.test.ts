@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Menubar's update: the keys move the one tab stop while every menu is
  * shut and open the next menu while one is open, opening a menu shuts the
@@ -9,8 +10,10 @@ import { Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { Menubar, MenubarSlots, Patterns } from '../src/index.js'
-import { A11y } from 'foldkit-mixins'
+import { A11y, Behaviors, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
+import type { HtmlBuilder } from 'foldkit/html'
+import { diagnosticFrom, sends } from './fixture.js'
 
 const bar = Menubar.init(['file', 'edit', 'view'])
 const press = (model: Menubar.Model, key: 'ArrowRight' | 'ArrowLeft' | 'Home' | 'End') =>
@@ -160,6 +163,65 @@ describe('Menubar.view', () => {
       Scene.keydown(Scene.role('menubar'), key),
       Scene.Command.resolve(focus!, Menubar.Message.CompletedFocusTrigger()),
       stops(expected),
+    )
+  })
+
+  const { Keys } = Behaviors
+  const routeOn = (name: string, key: Behaviors.Keys.NamedKey) =>
+    Keys.route<unknown, Menubar.Message>(name, {
+      on: [Keys.chord(key)],
+      handle: () => Option.some(Menubar.Message.Hovered({ to: 2 })),
+    })
+  const drawnWith =
+    (routes: ReadonlyArray<Menubar.Route<Menubar.Message>>, direction?: 'rtl') =>
+    (h: HtmlBuilder<Menubar.Message>) =>
+      Menubar.view(
+        {
+          label: 'Editor',
+          model: bar,
+          menus: [{ label: 'File', rows: [{ label: 'New' }] }],
+          onMessage: message => message,
+          menuMixins: [],
+          routes,
+          ...(direction === undefined ? {} : { direction }),
+        },
+        h,
+      )
+  const pressed = Menubar.Message.Pressed({ key: 'End' })
+
+  it("answers the application's routes through the bar's one owner", () => {
+    sends(
+      drawnWith([routeOn('Open last', 'PageDown')]),
+      Scene.keydown(Scene.role('menubar'), 'PageDown'),
+      Scene.expectOutMessage(Menubar.Message.Hovered({ to: 2 })),
+      Scene.keydown(Scene.role('menubar'), 'End'),
+      Scene.expectOutMessage(pressed),
+    )
+  })
+
+  it.each([
+    ['one of the bar', routeOn('Jump', 'Home'), ['Menubar Home', 'Jump'], undefined],
+    [
+      'one of the bar, right to left',
+      routeOn('Jump', 'ArrowLeft'),
+      ['Menubar ArrowRight', 'Jump'],
+      'rtl',
+    ],
+  ] as const)('names both routes when one overlaps %s', (_, extra, names, direction) => {
+    const diagnostic = diagnosticFrom(() =>
+      drawnWith([extra], direction)(SlotView.inertBuilder<Menubar.Message>()),
+    )
+    expect(diagnostic?.code).toBe('mixins:key-conflict')
+    expect(diagnostic?.details?.['contributors']).toEqual(names)
+  })
+
+  it('takes a bar key with Shift, and with no Ctrl', () => {
+    sends(
+      drawnWith([]),
+      Scene.keydown(Scene.role('menubar'), 'End', { shiftKey: true }),
+      Scene.expectOutMessage(pressed),
+      Scene.keydown(Scene.role('menubar'), 'End', { ctrlKey: true }),
+      Scene.expectIgnored(),
     )
   })
 })
