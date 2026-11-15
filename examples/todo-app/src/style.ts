@@ -35,7 +35,7 @@ import {
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
 import { ButtonSlots, CheckboxSlots, Recipes } from 'foldkit-mixins-ui'
-import { Message, type Filter, type Priority, type Todo } from './app.js'
+import { Message, type Filter, type Priority, type SyncState, type Todo } from './app.js'
 import type { BoardMessage } from './surface.js'
 
 // --- theme: the shipped one ------------------------------------------------------
@@ -76,7 +76,7 @@ const app = Layers.standard.layer('app')
 export const BodyStyle: StyleValue = Layers.standard.in(
   'app',
   Style.global(
-    `:where(body){margin:0;min-height:100vh;display:grid;place-items:start center;padding:4rem 1rem;background:${t.surface.muted}}`,
+    `:where(body){margin:0;min-height:100vh;display:grid;place-items:start center;padding:4rem 1rem 6rem;background:${t.surface.muted}}`,
   ),
 )
 
@@ -95,10 +95,11 @@ export const PageStyle = Style.forSlots(PageSlots)(
         background: t.surface.base,
         color: t.text.default,
         border: `1px solid ${t.outline.subtle}`,
-        borderRadius: t.radius.card,
-        padding: '1.75rem',
         boxShadow: '0 12px 40px rgb(0 0 0 / 8%)',
       }),
+      // Rules, not inline declarations: `inline` sits outside every layer, so the
+      // phone's media rule below could never change what it wrote.
+      Style.self({ borderRadius: t.radius.card, padding: '1.75rem' }),
       Style.media('(max-width: 30rem)', { padding: '1rem', borderRadius: '0' }),
     ),
   },
@@ -115,6 +116,7 @@ export const HeaderSlots = Slots.define({
     attributes: [Attr.AriaLabel],
   }),
   tally: Slot.make({ capability: Capability.Container }),
+  intro: Slot.make({ capability: Capability.Container }),
 })
 
 export const HeaderStyle = Style.forSlots(HeaderSlots)(
@@ -142,6 +144,13 @@ export const HeaderStyle = Style.forSlots(HeaderSlots)(
       }),
     ),
     tally: Style.inline({ margin: '0', color: t.text.muted, fontSize: '0.85rem' }),
+    intro: Style.inline({
+      margin: '0',
+      flexBasis: '100%',
+      color: t.text.muted,
+      fontSize: '0.9rem',
+      lineHeight: '1.45',
+    }),
   },
   { name: 'HeaderStyle', layer: app },
 )
@@ -210,7 +219,7 @@ export const FilterSlots = Slots.define({
   button: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.AriaSelected],
+    attributes: [Attr.AriaPressed],
   }),
 })
 
@@ -238,18 +247,23 @@ export const FilterStyle = Style.forSlots(FilterSlots)(
         Style.self({ background: t.accent.subtle, color: t.accent.ink }),
       ),
       // Only an unchosen filter darkens on hover: the chosen one keeps its ink.
-      Style.pseudo(':not([aria-selected="true"]):hover', { color: t.text.default }),
+      Style.pseudo(':not([aria-pressed="true"]):hover', { color: t.text.default }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.outline.focus}`,
+        outlineOffset: '2px',
+      }),
+      Style.media('(pointer: coarse)', { padding: '0.6rem 1rem' }),
     ),
   },
   { name: 'FilterStyle', layer: app },
 )
 
-/** Interaction for the same slot: the selected filter announces itself. */
+/** Interaction for the same slot: the chosen filter is a pressed button, and says so. */
 export const FilterBehavior = Behavior.forSlots(FilterSlots)<FilterInput, BoardMessage>(
   {
     button: Behavior.slot({
-      requires: { events: [Event.Click], attributes: [Attr.AriaSelected] },
-      attributes: ({ input, h }) => [h.AriaSelected(input.active)],
+      requires: { events: [Event.Click], attributes: [Attr.AriaPressed] },
+      attributes: ({ input, h }) => [h.AriaPressed(input.active ? 'true' : 'false')],
     }),
   },
   { name: 'FilterBehavior' },
@@ -290,9 +304,6 @@ const badge = Style.recipe({
     Style.inline({
       border: '0',
       borderRadius: t.radius.full,
-      padding: '0.1rem 0.55rem',
-      // A finger's target: the chip is as tall as one, its words centred in it.
-      minBlockSize: '1.5rem',
       display: 'inline-flex',
       alignItems: 'center',
       font: 'inherit',
@@ -300,6 +311,14 @@ const badge = Style.recipe({
       cursor: 'pointer',
       background: `color-mix(in srgb, currentColor 12%, transparent)`,
     }),
+    // Rules, not inline declarations, so the touch rule below can change them.
+    // A finger's target: the chip is as tall as one, its words centred in it.
+    Style.self({ padding: '0.1rem 0.55rem', minBlockSize: '1.5rem' }),
+    Style.pseudo(':focus-visible', {
+      outline: `2px solid ${t.outline.focus}`,
+      outlineOffset: '2px',
+    }),
+    Style.media('(pointer: coarse)', { minBlockSize: '2.5rem', paddingInline: '0.8rem' }),
   ),
   variants: {
     priority: {
@@ -330,8 +349,24 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
       Style.at('@media (hover: hover)', Style.nest(' .item-remove', { opacity: '0' })),
       Style.pseudo(':is(:hover, :focus-within) .item-remove', { opacity: '1' }),
     ),
+    // A button, so Enter renames from the keyboard as a click does.
     title: Style.compose(
-      Style.inline({ flex: '1', cursor: 'text' }),
+      Style.inline({
+        flex: '1',
+        minWidth: '0',
+        cursor: 'text',
+        border: '0',
+        background: 'transparent',
+        color: 'inherit',
+        font: 'inherit',
+        padding: '0',
+        textAlign: 'start',
+        overflowWrap: 'anywhere',
+      }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.outline.focus}`,
+        outlineOffset: '2px',
+      }),
       Style.whenInput<ItemInput>(
         input => input.todo.completed,
         Style.inline({ color: t.text.done, textDecoration: 'line-through' }),
@@ -353,12 +388,16 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
         lineHeight: '1',
         // Flush with the row's edge, where the footer's Clear completed ends.
         padding: '0',
-        // A finger's target, however small the ×.
-        inlineSize: '1.5rem',
-        blockSize: '1.5rem',
         cursor: 'pointer',
       }),
+      // A finger's target, however small the ×.
+      Style.self({ inlineSize: '1.5rem', blockSize: '1.5rem' }),
       Style.pseudo(':hover', { color: t.error.ink }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.outline.focus}`,
+        outlineOffset: '2px',
+      }),
+      Style.media('(pointer: coarse)', { inlineSize: '2.75rem', blockSize: '2.75rem' }),
     ),
     editor: Style.compose(
       control,
@@ -420,6 +459,7 @@ export const ToggleStyle = Style.forSlots(CheckboxSlots)(
         outline: `2px solid ${t.outline.focus}`,
         outlineOffset: '2px',
       }),
+      Style.media('(pointer: coarse)', { width: '2.25rem', height: '2.25rem' }),
     ),
   },
   { name: 'ToggleStyle', layer: app },
@@ -430,6 +470,7 @@ export const ToggleStyle = Style.forSlots(CheckboxSlots)(
 export const FooterSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   status: Slot.make({ capability: Capability.Container }),
+  undo: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
 })
 
 export const FooterStyle = Style.forSlots(FooterSlots)(
@@ -444,8 +485,97 @@ export const FooterStyle = Style.forSlots(FooterSlots)(
       }),
     ),
     status: Style.inline({ margin: '0' }),
+    undo: Style.compose(
+      Style.inline({
+        border: '0',
+        background: 'transparent',
+        color: t.accent.ink,
+        font: 'inherit',
+        fontWeight: '600',
+        padding: '0 0.35rem',
+        cursor: 'pointer',
+        textDecoration: 'underline',
+      }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.outline.focus}`,
+        outlineOffset: '2px',
+      }),
+      Style.media('(pointer: coarse)', { minBlockSize: '2.5rem' }),
+    ),
   },
   { name: 'FooterStyle', layer: app },
+)
+
+// --- the connection strip ------------------------------------------------------------
+
+export interface ConnectionInput {
+  readonly state: SyncState
+}
+
+export const ConnectionSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  dot: Slot.make({ capability: Capability.Container }),
+  text: Slot.make({ capability: Capability.Container }),
+  toggle: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+})
+
+const stateInk: Record<SyncState, string> = {
+  synced: t.success.ink,
+  saving: t.warning.ink,
+  offline: t.text.muted,
+  retrying: t.error.ink,
+}
+
+export const ConnectionStyle = Style.forSlots(ConnectionSlots)(
+  {
+    root: Style.compose(
+      Layers.standard.in(
+        'layouts',
+        Layout.cluster({ justify: 'space-between', align: 'center', gap: '0.5rem' }),
+      ),
+      Style.inline({
+        padding: '0.5rem 0.75rem',
+        borderRadius: t.radius.control,
+        background: t.surface.muted,
+        fontSize: '0.85rem',
+      }),
+    ),
+    dot: Style.compose(
+      Style.inline({
+        display: 'inline-block',
+        inlineSize: '0.6rem',
+        blockSize: '0.6rem',
+        borderRadius: '50%',
+        marginInlineEnd: '0.5rem',
+        background: 'currentColor',
+      }),
+      ...(Object.keys(stateInk) as ReadonlyArray<SyncState>).map(state =>
+        Style.whenInput<ConnectionInput>(
+          input => input.state === state,
+          Style.inline({ color: stateInk[state] }),
+        ),
+      ),
+    ),
+    text: Style.inline({ margin: '0', color: t.text.default }),
+    toggle: Style.compose(
+      Style.inline({
+        border: `1px solid ${t.outline.default}`,
+        borderRadius: t.radius.full,
+        background: 'transparent',
+        color: 'inherit',
+        font: 'inherit',
+        cursor: 'pointer',
+      }),
+      Style.self({ padding: '0.2rem 0.8rem' }),
+      Style.pseudo(':hover', { background: t.surface.base }),
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.outline.focus}`,
+        outlineOffset: '2px',
+      }),
+      Style.media('(pointer: coarse)', { minBlockSize: '2.5rem', paddingInline: '1rem' }),
+    ),
+  },
+  { name: 'ConnectionStyle', layer: app },
 )
 
 export const ClearButtonStyle = Style.forSlots(ButtonSlots)(

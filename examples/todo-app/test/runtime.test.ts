@@ -3,6 +3,7 @@ import { Effect } from 'effect'
 import { ReplicaId, type Storage } from 'foldkit-sync'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Message } from '../src/app.js'
+import type { Network } from '../src/network.js'
 import { mountApp } from '../src/runtime.js'
 import { stylesheet } from '../src/sheet.js'
 import { TodoSync } from '../src/sync.js'
@@ -87,9 +88,9 @@ describe('the mounted app', () => {
       expect(document.body.textContent).toContain('1 active')
 
       // The row's checkbox is a `@foldkit/ui` Checkbox and the filter buttons
-      // carry the Behavior's aria-selected, both resolved through slots.
+      // carry the Behavior's aria-pressed, both resolved through slots.
       expect(document.querySelector('[role="checkbox"]')).not.toBeNull()
-      expect(document.querySelectorAll('[aria-selected="true"]')).toHaveLength(1)
+      expect(document.querySelectorAll('[aria-pressed="true"]')).toHaveLength(1)
 
       // The theme ships in the stylesheet on `:root`, not inline on the page, so
       // a scheme or theme override in a later rule can still reach it.
@@ -109,6 +110,44 @@ describe('the mounted app', () => {
       )
       expect(rendered.size).toBeGreaterThan(0)
       expect([...rendered].filter(name => !stylesheet.includes(`.${name}`))).toEqual([])
+    } finally {
+      await mounted.dispose()
+      await Effect.runPromise(replica.close)
+      container.remove()
+    }
+  })
+
+  it('shows the replica pending edits, and the Model offline switch moves the network', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(performance.now()), 0),
+    )
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    const container = document.createElement('div')
+    container.id = 'todo-app-connection'
+    document.body.appendChild(container)
+    const replica = await Effect.runPromise(
+      TodoSync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('connection') }),
+    )
+    const switched: Array<boolean> = []
+    const network: Network = { set: offline => switched.push(offline), socket: open => open }
+    const mounted = mountApp(replica, container, { network })
+    try {
+      await vi.waitFor(() => expect(document.body.textContent).toContain('Saved on this device'))
+
+      mounted.dispatch(Message.OfflineSet({ offline: true }))
+      await vi.waitFor(() => expect(switched).toEqual([false, true]))
+      await vi.waitFor(() => expect(document.body.textContent).toContain('Offline: edits are kept'))
+
+      // No exchange runs here, so a submitted edit stays pending in the outbox.
+      mounted.dispatch(Message.SubmittedTodo({ id: 'a', title: 'Queued', createdAt: 1 }))
+      await vi.waitFor(() => expect(mounted.model().pending).toBe(1))
+      await vi.waitFor(() =>
+        expect(document.body.textContent).toContain('Offline: 1 change waiting to sync'),
+      )
+
+      mounted.dispatch(Message.OfflineSet({ offline: false }))
+      await vi.waitFor(() => expect(switched).toEqual([false, true, false]))
+      await vi.waitFor(() => expect(document.body.textContent).toContain('Syncing 1 change'))
     } finally {
       await mounted.dispose()
       await Effect.runPromise(replica.close)

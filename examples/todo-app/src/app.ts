@@ -21,9 +21,11 @@
  *   never leave the tab.
  */
 import { Clock, Effect, Option, Schema } from 'effect'
+import * as Dom from 'foldkit/dom'
 import { modifyFields } from 'foldkit/struct'
 import { Url } from 'foldkit/url'
 import { Mirror } from 'foldkit-mirror'
+import { fact } from 'foldkit-sync'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
 
@@ -69,6 +71,14 @@ export const Model = Schema.Struct({
   editingId: Schema.OptionFromNullOr(Schema.String),
   editDraft: Schema.String,
   lastError: Schema.OptionFromNullOr(Schema.String),
+  /** The sandbox's "go offline" switch: this tab's connection, not shared state. */
+  offline: Schema.Boolean,
+  /** Edits the replica holds that the server has not confirmed. */
+  pending: Schema.Number,
+  /** The last exchange failed; the replica retries on its own. */
+  syncFailed: Schema.Boolean,
+  /** The todo just deleted, offered back until it expires or another is deleted. */
+  undo: Schema.OptionFromNullOr(Todo),
 })
 export type Model = typeof Model.Type
 
@@ -92,8 +102,14 @@ export const Message = defineMessageUnion({
    * key rather than an `Option`.
    */
   RequestedTodo: { title: Schema.String, requestId: Schema.optionalKey(Schema.String) },
-  /** The inline editor was committed. The Command emits `RenamedTodo`. */
+  /** The inline editor lost focus. The Command emits `RenamedTodo`; focus stays where the person went. */
   EditingCommitted: {},
+  /** Enter in the inline editor: as `EditingCommitted`, and focus returns to the title. */
+  EditingSubmitted: {},
+  /** A row's delete: the todo is kept to offer back, and its neighbour takes focus. */
+  DeleteRequested: { id: Schema.String },
+  /** Puts the last deleted todo back. */
+  UndoRequested: {},
 
   // --- durable facts: replicated, replayed, journaled ----------------------
   SubmittedTodo: {
@@ -107,6 +123,8 @@ export const Message = defineMessageUnion({
   RenamedTodo: { id: Schema.String, title: Schema.String },
   PrioritySet: { id: Schema.String, priority: Priority },
   DeletedTodo: { id: Schema.String },
+  /** Undo of a delete: the todo as it was, with its id, so a retry puts it back once. */
+  RestoredTodo: { todo: Todo },
   ClearedCompleted: {},
   RenamedList: { title: Schema.String },
 
@@ -116,6 +134,11 @@ export const Message = defineMessageUnion({
   EditingStarted: { id: Schema.String },
   EditDraftChanged: { value: Schema.String },
   EditingStopped: {},
+  UndoExpired: { id: Schema.String },
+  OfflineSet: { offline: Schema.Boolean },
+  SyncStatusChanged: { pending: Schema.Number, failed: Schema.Boolean },
+  /** A focus Command finished; nothing to do. */
+  CompletedFocus: {},
 })
 export type Message = typeof Message.Type
 
@@ -127,6 +150,10 @@ export const initialModel: Model = {
   editingId: Option.none(),
   editDraft: '',
   lastError: Option.none(),
+  offline: false,
+  pending: 0,
+  syncFailed: false,
+  undo: Option.none(),
 }
 
 type Return = Update.Return<Model, Message>
@@ -138,6 +165,19 @@ const mintTodo = (title: string, request: { readonly requestId?: string }) => ({
     Message.SubmittedTodo({ id: crypto.randomUUID(), title, createdAt, ...request }),
   ),
 })
+
+const focusSelector = (selector: string) => ({
+  name: 'Focus',
+  effect: Dom.focus(selector).pipe(Effect.ignore, Effect.as(Message.CompletedFocus())),
+})
+
+/** The title button's id: where focus returns after an edit, a delete or an undo. */
+export const titleId = (id: string): string => `todo-title-${id}`
+export const COMPOSER_ID = 'new-todo'
+const focusTitle = (id: string) => focusSelector(`[id="${titleId(id)}"]`)
+
+/** How long a deleted todo stays offered back. */
+const UNDO_FOR = '8 seconds'
 
 const nextPriority: Record<Priority, Priority> = { low: 'normal', normal: 'high', high: 'low' }
 
@@ -173,19 +213,45 @@ export const makeUpdate =
               model,
               commands: [mintTodo(title.trim(), requestId === undefined ? {} : { requestId })],
             },
-      EditingCommitted: () => {
-        if (Option.isNone(model.editingId)) return { model }
-        const id = model.editingId.value
-        const title = model.editDraft.trim()
-        const stopped = modifyFields(model, { editingId: () => Option.none(), editDraft: () => '' })
-        if (title === '' || model.todos.every(todo => todo.id !== id)) return { model: stopped }
+      EditingCommitted: () => commitEdit(model),
+      EditingSubmitted: () => {
+        const committed = commitEdit(model)
+        return Option.match(model.editingId, {
+          onNone: () => committed,
+          onSome: id => ({
+            ...committed,
+            commands: [...(committed.commands ?? []), focusTitle(id)],
+          }),
+        })
+      },
+      DeleteRequested: ({ id }) => {
+        const todo = model.todos.find(candidate => candidate.id === id)
+        if (todo === undefined) return { model }
+        const rows = visibleTodos(model)
+        const at = rows.findIndex(row => row.id === id)
+        const neighbour = rows[at + 1] ?? rows[at - 1]
         return {
-          model: stopped,
+          model: modifyFields(model, { undo: () => Option.some(todo) }),
           commands: [
-            { name: 'Rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) },
+            fact(Message.DeletedTodo({ id })),
+            neighbour === undefined ? focusSelector(`#${COMPOSER_ID}`) : focusTitle(neighbour.id),
+            {
+              name: 'ExpireUndo',
+              effect: Effect.sleep(UNDO_FOR).pipe(Effect.as(Message.UndoExpired({ id }))),
+            },
           ],
         }
       },
+      // The fact is applied within this transition (`fact`), so the todo is
+      // drawn again before focus looks for it.
+      UndoRequested: () =>
+        Option.match(model.undo, {
+          onNone: () => ({ model }),
+          onSome: todo => ({
+            model: modifyFields(model, { undo: () => Option.none() }),
+            commands: [fact(Message.RestoredTodo({ todo })), focusTitle(todo.id)],
+          }),
+        }),
 
       // Durable facts: pure over the shared slice, idempotent where a retry could
       // deliver one twice.
@@ -197,6 +263,10 @@ export const makeUpdate =
               : [...model.todos, { id, title, completed: false, priority: 'normal', createdAt }],
         }),
       }),
+      RestoredTodo: ({ todo }) =>
+        model.todos.some(({ id }) => id === todo.id)
+          ? { model }
+          : { model: modifyFields(model, { todos: () => [...model.todos, todo] }) },
       ToggledTodo: ({ id }) => ({
         model: modifyFields(model, {
           todos: () =>
@@ -238,8 +308,47 @@ export const makeUpdate =
       EditDraftChanged: ({ value }) => ({ model: modifyFields(model, { editDraft: () => value }) }),
       EditingStopped: () => ({
         model: modifyFields(model, { editingId: () => Option.none(), editDraft: () => '' }),
+        commands: Option.match(model.editingId, {
+          onNone: () => [],
+          onSome: id => [focusTitle(id)],
+        }),
       }),
+      UndoExpired: ({ id }) =>
+        Option.exists(model.undo, todo => todo.id === id)
+          ? { model: modifyFields(model, { undo: () => Option.none() }) }
+          : { model },
+      OfflineSet: ({ offline }) =>
+        offline === model.offline
+          ? { model }
+          : { model: modifyFields(model, { offline: () => offline }) },
+      SyncStatusChanged: ({ pending, failed }) =>
+        pending === model.pending && failed === model.syncFailed
+          ? { model }
+          : { model: modifyFields(model, { pending: () => pending, syncFailed: () => failed }) },
+      CompletedFocus: () => ({ model }),
     })
+
+/** An edit's end: the title is renamed through a fact unless it came out empty or the todo is gone. */
+const commitEdit = (model: Model): Return => {
+  if (Option.isNone(model.editingId)) return { model }
+  const id = model.editingId.value
+  const title = model.editDraft.trim()
+  const stopped = modifyFields(model, { editingId: () => Option.none(), editDraft: () => '' })
+  if (title === '' || model.todos.every(todo => todo.id !== id)) return { model: stopped }
+  return {
+    model: stopped,
+    commands: [{ name: 'Rename', effect: Effect.succeed(Message.RenamedTodo({ id, title })) }],
+  }
+}
+
+export type SyncState = 'synced' | 'saving' | 'offline' | 'retrying'
+
+/** What the connection strip says: where the replica stands against the server. */
+export const syncState = (model: Pick<Model, 'offline' | 'pending' | 'syncFailed'>): SyncState => {
+  if (model.offline) return 'offline'
+  if (model.syncFailed) return 'retrying'
+  return model.pending > 0 ? 'saving' : 'synced'
+}
 
 /** The priority a click on the badge moves to. Derived, so the view stays dumb. */
 export const bumpPriority = (priority: Priority): Priority => nextPriority[priority]

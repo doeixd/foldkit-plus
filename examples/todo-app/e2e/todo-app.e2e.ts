@@ -62,8 +62,7 @@ const open = async (token: string) => {
   await page.waitForSelector('input[aria-label="New todo"]', { timeout: 120_000 })
   return { page, errors }
 }
-const titles = (page: Page) =>
-  page.locator('li span[title="Double-click to rename"]').allTextContents()
+const titles = (page: Page) => page.locator('li button[title="Rename"]').allTextContents()
 
 test('a todo one person adds reaches another, and is kept across a reload', async () => {
   const alice = await open('alice')

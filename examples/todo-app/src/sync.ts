@@ -54,6 +54,7 @@ export const TodosFragment = TodoApp.fragment({
     Message.RenamedTodo,
     Message.PrioritySet,
     Message.DeletedTodo,
+    Message.RestoredTodo,
     Message.ClearedCompleted,
   ]),
 })
