@@ -13,6 +13,17 @@ const marqueeTests = ['packages/primitives/test/marquee.browser.test.ts']
 
 export default [
   {
+    name: 'an Escape before the press is under way is swallowed too',
+    edits: [
+      {
+        file: '../src/dom/press-session.ts',
+        find: '    if (started()) {',
+        replace: '    if (true as boolean) {',
+      },
+    ],
+    tests: [...marqueeTests, 'packages/primitives/test/pointer-drag.test.ts'],
+  },
+  {
     name: "a right-to-left box's scroll starts at 0, so it never scrolls toward its start",
     edits: [
       {

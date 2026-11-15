@@ -294,6 +294,24 @@ it('ends with Escape, and a press elsewhere starts afresh', async () => {
   }
 })
 
+it('lets an Escape pressed before the lasso starts reach the page, and ends the press', async () => {
+  const element = canvas()
+  const run = drive(element, { attribute: 'data-node' })
+  try {
+    await later(20)
+    pointer(...at(90, 90), 'pointerdown')
+    const key = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    document.body.dispatchEvent(key)
+    expect(key.defaultPrevented).toBe(false)
+    pointer(...at(140, 40), 'pointermove')
+    pointer(...at(140, 40), 'pointerup')
+    await later(20)
+    expect(run.facts).toEqual([])
+  } finally {
+    await run.stop()
+  }
+})
+
 it('says a Shift, Ctrl or Meta press adds to what was selected', async () => {
   const element = canvas()
   const run = drive(element, { attribute: 'data-node' })

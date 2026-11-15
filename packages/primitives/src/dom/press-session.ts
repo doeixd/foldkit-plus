@@ -28,14 +28,18 @@ export const whilePressed = (owner: Document, listeners: ReadonlyArray<Listener>
 }
 
 /**
- * An Escape that ends a press is the press's, not also the focused element's
- * (a canvas that would deselect): heard on the way down, and stopped.
+ * Escape ends a press. Once the press is under way (`started`) the Escape is
+ * the press's, not also the focused element's (a canvas that would
+ * deselect): heard on the way down, and stopped. Before that, a button merely
+ * held down, it goes on to the page, whose dialog may be closing on it.
  */
 export const escapeEnds =
-  (pressed: () => boolean, end: () => void) =>
+  (pressed: () => boolean, started: () => boolean, end: () => void) =>
   (event: Event): void => {
     if (!pressed() || (event as KeyboardEvent).key !== 'Escape') return
-    event.preventDefault()
-    event.stopPropagation()
+    if (started()) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
     end()
   }

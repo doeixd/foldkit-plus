@@ -320,6 +320,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           ]
           const onEscape = escapeEnds(
             () => pressed !== null,
+            () => dragging !== null,
             () => end(false),
           )
           // Once a finger's drag is under way, the browser must not take its moves for a scroll,

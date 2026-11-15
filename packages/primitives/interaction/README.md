@@ -621,7 +621,9 @@ is over and in which third of its box, `{ id, zone: 'before' | 'inside' |
 cancelled pointer, or a button found released mid-drag is
 `DragCancelled { id }`. An Escape that cancels is heard on the way down and
 goes no further, so the focused element's own Escape (a canvas's deselect)
-does not also run. It follows the pointer that pressed and ignores a second
+does not also run; one pressed before the press became a drag ends the press
+and goes on to the page (a dialog closing on it), as it does for `Marquee`
+before the lasso starts. It follows the pointer that pressed and ignores a second
 one; the element under it is found by position, so a touch or a pen, which the
 browser captures to where it went down, drags too, once the marked elements
 have `touch-action: none` so a finger drags rather than scrolls. The click a

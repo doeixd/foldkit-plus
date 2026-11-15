@@ -229,6 +229,7 @@ export const Marquee = Mount.defineStream('Marquee', {
               'keydown',
               escapeEnds(
                 () => pressed !== null,
+                () => started,
                 () => end(false),
               ),
               true,
