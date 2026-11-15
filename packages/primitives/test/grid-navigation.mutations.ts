@@ -92,4 +92,17 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the route does not take the paging keys',
+    edits: [
+      {
+        file,
+        find: `...(args.page === undefined
+          ? []
+          : [...Behaviors.Keys.withShift('PageUp'), ...Behaviors.Keys.withShift('PageDown')]),`,
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]
