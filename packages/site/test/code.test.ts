@@ -45,10 +45,14 @@ describe("the routing's codeFor", () => {
   it('refuses a lazy page its arrival never tells, which would draw its placeholder for good', () => {
     const { Account } = make()
     const AccountNode = Site.nodeOf(AppSite, AppRoute.Account())!
+    // The types refuse it too; this is the check for a caller past them.
     expect(() =>
-      Site.placement(AccountNode, Account, {
-        link: Link.field<Model>()('account', Link.wrapper('GotAccount', PageMessage)),
-      }),
+      Site.placement(
+        AccountNode,
+        Account,
+        // @ts-expect-error: a lazy page's arrival must be told
+        { link: Link.field<Model>()('account', Link.wrapper('GotAccount', PageMessage)) },
+      ),
     ).toThrow(/"Account" is a Bundle.lazy, so its route's arrival must tell it \(changed\)/)
     // An eager page without `changed` is still allowed.
     const Eager = Bundle.make('Eager', {

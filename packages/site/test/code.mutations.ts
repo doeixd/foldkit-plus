@@ -1,6 +1,14 @@
 /**
  * Route code from the Site tree (#438), broken in turn: `pnpm mutate
  * packages/site/test/code.mutations.ts` checks that a test fails for each.
+ *
+ * The type side is mutated by hand, since `pnpm mutate` runs Vitest and Vitest
+ * does not typecheck. `ChangedFor`'s lazy branch made optional and free to
+ * answer nothing, and `NoInfer` taken off it in `Site.placement`, each made
+ * `npx tsc -b packages/site` fail: the first leaves the `@ts-expect-error`s of
+ * a lazy page without `changed`, or with `() => undefined`, unused; the second
+ * loses the child's Message to `AnyMessage` where an eager page's `changed`
+ * takes no argument (2026-11-15).
  */
 const index = '../src/index.ts'
 const lazy = '../../bundle/src/lazy.ts'

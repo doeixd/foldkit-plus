@@ -201,6 +201,24 @@ export const LazyChildPage = Site.placement(ChildNode, LazyChild, {
   changed: () => ChildMessage.Told({ text: 'arrived' }),
 })
 export const lazyCode: Option.Option<Bundle.Loadable> = LazyChildPage.code
+// A lazy page loads its bodies on its arrival's Message, so it must say one.
+Site.placement(
+  ChildNode,
+  LazyChild,
+  // @ts-expect-error: a lazy page's arrival must be told (changed)
+  { link: Link.field<ChildModelApp>()('child', Link.wrapper(ChildAppMessage.GotChild)) },
+)
+Site.placement(ChildNode, LazyChild, {
+  link: Link.field<ChildModelApp>()('child', Link.wrapper(ChildAppMessage.GotChild)),
+  // @ts-expect-error: and always a Message, never nothing
+  changed: () => undefined,
+})
+// An eager page may say nothing.
+export const QuietEager = Site.placement(ChildNode, ChildBundle, {
+  link: Link.field<ChildModelApp>()('child', Link.wrapper(ChildAppMessage.GotChild)),
+  args: () => ({ text: 'hi' }),
+  changed: () => undefined,
+})
 const CodeSite = Site.make(Home, ChildNode)
 const CodeMessage = defineMessageUnion({ GotChild: { message: ChildMessage }, Completed: {} })
 type CodeMessage = typeof CodeMessage.Type

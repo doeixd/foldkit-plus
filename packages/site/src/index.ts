@@ -549,6 +549,15 @@ const freezeMount = (mount: SiteMount): SiteMount =>
   })
 
 /**
+ * How a placed page hears its route arrive: optional, and free to say nothing,
+ * for an eager Bundle; required, and always a Message, for a `Bundle.lazy`,
+ * whose bodies load on that Message.
+ */
+export type ChangedFor<Kind, Route, ChildMessage> = Kind extends Bundle.Loadable
+  ? { readonly changed: (route: Route) => ChildMessage }
+  : { readonly changed?: ((route: Route) => ChildMessage | undefined) | undefined }
+
+/**
  * What fetches a route's code ahead of its arrival, given the routing's
  * completion: `fetchCode`, passed as `Site.routing`'s `preload.code`.
  */
@@ -1451,34 +1460,36 @@ export const Site = {
     Helpers extends Readonly<Record<string, Helper<ChildModel, ChildMessage, never, BundleR>>> =
       never,
     ObserverR = never,
+    Kind = unknown,
   >(
     node: SiteNode<Route>,
-    bundle: Bundle.Bundle<
-      Name,
-      Args,
-      ChildModel,
-      ChildMessage,
-      never,
-      BundleR,
-      BundleS,
-      ViewInputs,
-      Resources,
-      Helpers
-    >,
+    bundle: Kind &
+      Bundle.Bundle<
+        Name,
+        Args,
+        ChildModel,
+        ChildMessage,
+        never,
+        BundleR,
+        BundleS,
+        ViewInputs,
+        Resources,
+        Helpers
+      >,
     config: {
       readonly link: Link<Parent, LinkMessage, ChildModel, ChildMessage, Field>
-      readonly changed?: (route: Route) => ChildMessage | undefined
-    } & PlacementConfig<
-      Args,
-      Parent,
-      LinkMessage,
-      ChildMessage,
-      never,
-      never,
-      ObserverR,
-      SeedFor<Parent, Field>,
-      ViewInputs
-    >,
+    } & NoInfer<ChangedFor<Kind, Route, ChildMessage>> &
+      PlacementConfig<
+        Args,
+        Parent,
+        LinkMessage,
+        ChildMessage,
+        never,
+        never,
+        ObserverR,
+        SeedFor<Parent, Field>,
+        ViewInputs
+      >,
   ): SitePage<
     Parent,
     LinkMessage,
