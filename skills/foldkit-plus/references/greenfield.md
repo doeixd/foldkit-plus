@@ -90,7 +90,9 @@ npx --legacy-peer-deps foldkit-plus setup
 Follow the second `setup` output: the `.gitattributes` it gives when the
 project has none, the block that pins every Effect package to the release
 Foldkit Plus is tested on (in a pnpm workspace it names the root's file, since
-pnpm reads pins only there), the install, the skill, and the imports. Install
+pnpm reads pins only there), the install, the skill (`npx foldkit-plus skill`
+copies the one shipped inside the installed package, the version of the code),
+and the imports. Install
 an adapter only when the mapping (phase 5) calls for it. Then:
 
 - Run the project's `typecheck` and `test` once, so a later failure is yours.

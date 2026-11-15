@@ -59,9 +59,10 @@ holds a write until the server judges it, and the answer is the truth; Sync's
 log holds client-authored edits every replica replays in the log's order.
 
 Read only the reference for the package at hand; its first line names the
-versions it was checked against. For one symbol or topic in the installed
-release, `npx foldkit-plus docs Data.preload` (or `"optimistic delete"`) prints
-the best README sections with the declaration; `docs --list remote`, an outline.
+versions it was checked against. This skill and the guides ship inside the
+`foldkit-plus` npm package, at the code's version; `npx foldkit-plus skill`
+installs that copy, and `npx foldkit-plus docs Data.preload` (or `"optimistic
+delete"`) answers offline from them and the READMEs; `docs --list remote`, an outline.
 An application's `AGENTS.md` takes the block in [agents-md.md](references/agents-md.md).
 
 ## How they connect

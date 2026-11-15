@@ -580,11 +580,15 @@ lists every package's current version.
 [Agent Skill](https://agentskills.io) that teaches a coding agent what each
 package owns, when to reach for it, and a basic example of each. Install it into
 Claude Code, Cursor, OpenCode, and other agents with
-[skills.sh](https://skills.sh):
+[skills.sh](https://skills.sh), which fetches the latest:
 
 ```bash
 npx skills add doeixd/foldkit-plus --skill foldkit-plus
 ```
+
+The skill and the guides also ship inside the `foldkit-plus` npm package, at the
+version of the code: `npx foldkit-plus skill` installs that copy into the project,
+and `npx foldkit-plus docs <query>` answers from them offline.
 
 ## Go deeper
 
