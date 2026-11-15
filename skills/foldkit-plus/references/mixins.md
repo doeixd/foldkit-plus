@@ -119,7 +119,7 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   (layerable, overridable); `Style.inline` sits outside every layer and beats
   everything, so only for values no theme may touch: a conditional rule (media, pseudo,
   nest, container, `states`) for the same property in the same composition is refused as
-  `mixins:dead-conditional-rule`, since it could never apply; put such a base in `Style.self`. Bases go in `components`,
+  `mixins:dead-conditional-rule`, since it could never apply (a development-time check, absent from production builds); put such a base in `Style.self`. Bases go in `components`,
   selections in `variants`, the page's own rules in `app` (always last).
 - `protected: { events, attributes, style }` forbids attachments from supplying those. An
   attribute is compared by the HTML attribute a contribution sets, so `h.Attribute('aria-label', …)`,
