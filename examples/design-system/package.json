@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "theme-data": "tsx scripts/themeData.mjs --write"
   },
   "dependencies": {
     "@foldkit/ui": "0.170.0",

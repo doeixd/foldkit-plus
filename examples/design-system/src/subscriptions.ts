@@ -2,13 +2,25 @@
  * Child subscriptions, lifted to the application: the toast's timers reach
  * its interaction state, which folds back through `Toast` in `update`.
  */
-import { Option } from 'effect'
+import { Option, Stream } from 'effect'
 import { Subscription } from 'foldkit'
+import { schemeChanges } from 'foldkit-mixins/theme'
 import { Message, ToastStack, type Model } from './main.js'
+import { themeChanges } from './themeRuntime.js'
 
 const toastSubscriptions = Subscription.lift(ToastStack.subscriptions)<Model, Message>({
   read: model => Option.some(model.toast),
   toParentMessage: message => Message.Toast({ message }),
 })
 
-export const subscriptions = Subscription.aggregate(toastSubscriptions)
+/** The theme and scheme another tab chose: this tab's Model takes them and its `update` applies them. */
+const otherTabs = Subscription.make<Model, Message>()(() => ({
+  theme: Subscription.persistentEntry(
+    themeChanges.pipe(Stream.map(name => Message.ThemeChangedElsewhere({ name }))),
+  ),
+  scheme: Subscription.persistentEntry(
+    schemeChanges().pipe(Stream.map(scheme => Message.SchemeChangedElsewhere({ scheme }))),
+  ),
+}))
+
+export const subscriptions = Subscription.aggregate(toastSubscriptions, otherTabs)

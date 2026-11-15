@@ -1,48 +1,69 @@
 # Design system demo
 
-An interactive showcase of the `foldkit-mixins` + `foldkit-mixins-ui` design
-system, styled to read like [shadcn](https://ui.shadcn.com/): near-zinc
-surfaces, hairline borders, `0.625rem` cards, black primary buttons, and a red
-destructive tone.
+One theme of a few knobs restyles every control on the page. The demo is a
+showcase of the `foldkit-mixins` styling system (tokens, pieces, slots, sheet)
+and the `foldkit-mixins-ui` recipes over it, styled to read like
+[shadcn](https://ui.shadcn.com/): near-zinc surfaces, hairline borders, black
+primary buttons and a red destructive tone.
 
 ```bash
 pnpm --filter foldkit-example-design-system dev
 ```
 
-What it shows:
+## What to try
 
-- **Colors** — every palette token family as swatches, with a hue picker
-  that re-derives the accent live, Faint/Soft/Full presets for the
-  `shadow-strength` knob, plus a light/dark switch.
-- **Buttons** — the shadcn mapping (`primary` = Default, `neutral` solid =
-  Secondary, `neutral` outline/ghost, `danger` = Destructive), sizes and
-  disabled, all live `@foldkit/ui` buttons through `Button.view`, plus a joined
-  `ButtonGroup` of bold/italic/underline toggles with a live preview line.
-- **Form** — `Input`, `Textarea`, and `InputGroup` recipes, live `Checkbox`
-  and `Switch`, a `Fieldset` with a live `RadioGroup`, and a `FileDrop` zone
-  that lists what it catches.
-- **Choice** — a native `Select`, a `Disclosure`, a live `Slider`, a `Listbox`,
-  and a filtering `ComboBox`, each through its slot contract.
-- **Menu** — grouped row actions with a disabled item; the choice reports back.
-- **Feedback** — `Badge` tones, `Alert` tones, a live modal `Dialog` (focus trap, Escape,
-  backdrop), and `Toast` entries that dismiss themselves.
-- **Overlays** — an anchored `Popover`, a `Tooltip`, and an `HoverIntent` card
-  positioned by the `Anchor` behavior; all show on hover/focus and dismiss on
-  leave, blur, or Escape.
-- **Navigation** — live `Tabs` (`line` and `pill`) with arrow-key movement and
-  per-tab panels, plus a `Segmented` plan picker, all driven by the Model;
-  a `Pagination` pager with live page state and a `Breadcrumb` trail.
-- **Date** — a `Calendar` month-grid preview plus a live `DatePicker` that
-  writes the due date.
-- **Utilities** — `Icons` + `Touch` mechanisms, a `ScrollArea` that chains
-  instead of paging, and the `Patterns`
-  accessibility catalog every adapter is gated against.
-- **Card** — drawn through the shipped `Card` slots and recipe.
-- **Display** — `Avatar` sizes, `Kbd` keys, `Separator` rules, `Skeleton`
-  placeholders, and an announcing `Spinner`, each in one view call.
-- **Collections** — an `Empty` state, a notification list of `Item` rows divided
-  by `Separator`s, and a `Table` with a numeric column.
+Open the **Theme** section at the top.
 
-The mapping the demo teaches: shadcn's look lives in the theme knobs (low
-`surfaceSaturation`, a larger `radius-factor`) and in which recipe selection
-each intent takes — no forked CSS.
+- Pick **Compact**, **Soft** or **Hard**. Each is a handful of knob values
+  (`Theme.make`) installed by name (`Themes.make`); the specimen beside the
+  panel, and every section below it, follows. The choice is kept, and another
+  open tab of the page takes it up.
+- Move a slider (hue, density, radius, text size, motion, shadow). It writes one
+  knob over the theme; picking a theme again clears it. Motion at 0 stills every
+  transition.
+- Switch the colour scheme (System, Light, Dark), also followed by other tabs,
+  and the direction (Ltr, Rtl): the arrow keys of a radio group swap with it.
+- Tab through the panel: every control is a real radio group or slider, and what
+  was applied is announced in a live region.
+
+Further down, **Tokens** lists the space and radius scales read from the theme
+(each bar is sized by its own token, so the knobs move it) and **Cascade** shows
+four boxes setting one property from the components, variants and app layers and
+from `Style.inline`.
+
+## Where the pieces are
+
+| Idea | File |
+| --- | --- |
+| The themes, as knob values | `src/appStyle.ts` |
+| Every recipe selection and Slot style | `src/style.ts` |
+| The panel (radio groups, one slider per knob) | `src/studio.ts` |
+| Knob tweaks over the theme, as a `:root` rule | `src/tweaks.ts` |
+| The Model, Messages and `update` | `src/main.ts` |
+
+The knob ranges, the themes' values and the token names are read from the real
+knobs and themes by `scripts/themeData.mjs` into `src/themeData.ts`
+(`pnpm --filter foldkit-example-design-system theme-data`), because the browser
+build loads no style compiler. `test/themeData.test.ts` fails when the file is
+stale. `src/themeRuntime.ts` shows, keeps and hears the theme in the browser for
+the same reason, and is to be replaced by the shipped `Themes` runtime once it
+can be imported without the compiler.
+
+## What else it shows
+
+The rest of the page is the component catalog, each one a live `@foldkit/ui`
+component drawn through a shipped recipe: Colors, Buttons, Form, Choice, Menu,
+Feedback, Overlays, Navigation, Date, Card, Display, Collections and Utilities.
+
+The mapping the demo teaches: shadcn's look lives in the theme knobs and in
+which recipe selection each intent takes, with no forked CSS.
+
+## Tests
+
+- `pnpm exec vitest run examples/design-system --project unit` for `update`, the
+  generated data, the icons and the size budget.
+- `npx vitest run --project browser --fsModuleCache=false examples/design-system/test/components.browser.test.ts`
+  for the pickers, menu, toast and date.
+- `pnpm e2e` includes `e2e/theme.e2e.ts`, which drives the real page: a theme,
+  a knob, the scheme, the direction, another tab, and a 390px phone.
+- `pnpm mutate examples/design-system/test/theme.mutations.ts`.

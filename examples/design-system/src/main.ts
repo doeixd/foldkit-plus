@@ -7,10 +7,11 @@
  * drafts, toggles, a click counter); every control draws through a shipped
  * recipe, so the page is the documentation.
  */
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Calendar as FoldkitCalendar, File, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { childAttributes } from 'foldkit/html'
+import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { makeModifyFieldsFor, modifyFields } from 'foldkit/struct'
 import {
@@ -33,6 +34,7 @@ import * as UiSelect from '@foldkit/ui/select'
 import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import { SlotView, type SlotBuilders } from 'foldkit-mixins'
+import { chooseScheme } from 'foldkit-mixins/theme'
 import {
   Alert,
   Anchor,
@@ -122,6 +124,8 @@ import {
   PaginationStyle,
   PillTabsStyle,
   PlanStyle,
+  CascadeStyle,
+  TokenStyle,
   PopoverStyle,
   PrimaryButtonStyle,
   RadioRowStyle,
@@ -153,10 +157,18 @@ import {
   IconSlots,
   InputGroupSlots,
   NoticeListSlots,
+  CascadeSlots,
   PageSlots,
   RadioRowSlots,
+  TokenSlots,
   ToastEntrySlots,
 } from './slots.js'
+import { studioPanel, titled, type Direction } from './studio.js'
+import { StudioSlots } from './slots.js'
+import { StudioStyle } from './style.js'
+import { initialTheme, tokenGroups } from './themeData.js'
+import { ThemeName, chooseTheme } from './themeRuntime.js'
+import { TweakName, Tweaks, hasTweaks, noTweaks, tweaksCss, withTweak } from './tweaks.js'
 
 // --- model -------------------------------------------------------------------
 
@@ -230,9 +242,11 @@ export const ToastStack: ReturnType<
 > = ToastView.make(ToastPayload)
 
 export const Model = Schema.Struct({
-  hue: Schema.Number,
+  theme: ThemeName,
   scheme: Scheme,
-  shadow: Schema.Number,
+  tweaks: Tweaks,
+  dir: Schema.Literals(['ltr', 'rtl']),
+  status: Schema.String,
   lineTab: LineTab,
   pillTab: PillTab,
   plan: Plan,
@@ -273,9 +287,14 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
-  HueSelected: { hue: Schema.Number },
+  ThemePicked: { name: ThemeName },
   SchemeSelected: { scheme: Scheme },
-  ShadowSelected: { strength: Schema.Number },
+  TweakChanged: { tweak: TweakName, value: Schema.Number },
+  TweaksReset: {},
+  DirectionSelected: { dir: Schema.Literals(['ltr', 'rtl']) },
+  ThemeChangedElsewhere: { name: ThemeName },
+  SchemeChangedElsewhere: { scheme: Scheme },
+  Applied: {},
   PlanSelected: { plan: Plan },
   NameTyped: { value: Schema.String },
   BioTyped: { value: Schema.String },
@@ -314,10 +333,18 @@ export type Message = typeof Message.Type
 export type CalendarDate = typeof FoldkitCalendar.CalendarDate.Type
 
 /** The initial Model for a day: the date picker opens on it. Tests pass a fixed date. */
-export const initModel = (today: CalendarDate): Model => ({
-  hue: 222,
-  scheme: 'system',
-  shadow: 100,
+export const initModel = (
+  today: CalendarDate,
+  shown: { readonly theme: ThemeName; readonly scheme: Scheme } = {
+    theme: initialTheme,
+    scheme: 'system',
+  },
+): Model => ({
+  theme: shown.theme,
+  scheme: shown.scheme,
+  tweaks: noTweaks,
+  dir: 'ltr',
+  status: '',
   lineTab: 'overview',
   pillTab: 'week',
   plan: 'pro',
@@ -361,13 +388,95 @@ export const initModel = (today: CalendarDate): Model => ({
   sidebar: Sidebar.init({ id: 'sections', rows: [] }),
 })
 
+/** Shows the theme on the root and keeps it for the next visit and the other tabs. */
+const ApplyTheme = Command.define('ApplyTheme', {
+  args: { name: ThemeName },
+  messages: [Message.Applied],
+  execute: ({ name }) => chooseTheme(name).pipe(Effect.as(Message.Applied())),
+})
+
+const ApplyScheme = Command.define('ApplyScheme', {
+  args: { scheme: Scheme },
+  messages: [Message.Applied],
+  execute: ({ scheme }) => chooseScheme(scheme).pipe(Effect.as(Message.Applied())),
+})
+
+const ApplyDirection = Command.define('ApplyDirection', {
+  args: { dir: Schema.Literals(['ltr', 'rtl']) },
+  messages: [Message.Applied],
+  execute: ({ dir }) =>
+    Effect.sync(() => {
+      document.documentElement.dir = dir
+    }).pipe(Effect.as(Message.Applied())),
+})
+
 export const update = (model: Model, message: Message) =>
   Message.match(message, {
-    HueSelected: ({ hue }) => ({ model: modifyFields(model, { hue: () => hue }) }),
-    SchemeSelected: ({ scheme }) => ({ model: modifyFields(model, { scheme: () => scheme }) }),
-    ShadowSelected: ({ strength }) => ({
-      model: modifyFields(model, { shadow: () => strength }),
-    }),
+    ThemePicked: ({ name }) =>
+      name === model.theme && !hasTweaks(model.tweaks)
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              theme: () => name,
+              tweaks: () => noTweaks,
+              status: () => `${titled(name)} theme applied`,
+            }),
+            commands: [ApplyTheme({ name })],
+          },
+    SchemeSelected: ({ scheme }) =>
+      scheme === model.scheme
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              scheme: () => scheme,
+              status: () => `${titled(scheme)} colour scheme`,
+            }),
+            commands: [ApplyScheme({ scheme })],
+          },
+    TweakChanged: ({ tweak, value }) => {
+      const tweaks = withTweak(model.tweaks, tweak, value)
+      return tweaks === model.tweaks
+        ? { model }
+        : { model: modifyFields(model, { tweaks: () => tweaks }) }
+    },
+    TweaksReset: () =>
+      hasTweaks(model.tweaks)
+        ? {
+            model: modifyFields(model, { tweaks: () => noTweaks, status: () => 'Tweaks reset' }),
+          }
+        : { model },
+    DirectionSelected: ({ dir }) =>
+      dir === model.dir
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              dir: () => dir,
+              status: () => `Direction ${dir === 'rtl' ? 'right to left' : 'left to right'}`,
+            }),
+            commands: [ApplyDirection({ dir })],
+          },
+    ThemeChangedElsewhere: ({ name }) =>
+      name === model.theme
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              theme: () => name,
+              tweaks: () => noTweaks,
+              status: () => `${titled(name)} theme chosen in another tab`,
+            }),
+            commands: [ApplyTheme({ name })],
+          },
+    SchemeChangedElsewhere: ({ scheme }) =>
+      scheme === model.scheme
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              scheme: () => scheme,
+              status: () => `${titled(scheme)} colour scheme chosen in another tab`,
+            }),
+            commands: [ApplyScheme({ scheme })],
+          },
+    Applied: () => ({ model }),
     PlanSelected: ({ plan }) => ({ model: modifyFields(model, { plan: () => plan }) }),
     NameTyped: ({ value }) => ({ model: modifyFields(model, { name: () => value }) }),
     BioTyped: ({ value }) => ({ model: modifyFields(model, { bio: () => value }) }),
@@ -634,26 +743,6 @@ const foldDropFiles = Update.foldChild({
 // --- views -------------------------------------------------------------------
 
 type PageBuilders = SlotBuilders<typeof PageSlots, Message>
-
-const hues: ReadonlyArray<{ readonly label: string; readonly hue: number }> = [
-  { label: 'Slate', hue: 222 },
-  { label: 'Violet', hue: 270 },
-  { label: 'Teal', hue: 172 },
-  { label: 'Amber', hue: 38 },
-  { label: 'Rose', hue: 336 },
-]
-
-const schemes: ReadonlyArray<{ readonly label: string; readonly scheme: Scheme }> = [
-  { label: 'System', scheme: 'system' },
-  { label: 'Light', scheme: 'light' },
-  { label: 'Dark', scheme: 'dark' },
-]
-
-const shadows: ReadonlyArray<{ readonly label: string; readonly strength: number }> = [
-  { label: 'Faint', strength: 30 },
-  { label: 'Soft', strength: 60 },
-  { label: 'Full', strength: 100 },
-]
 
 const lineTabs: ReadonlyArray<{ readonly value: LineTab; readonly label: string }> = [
   { value: 'overview', label: 'Overview' },
@@ -1366,17 +1455,113 @@ const IconsDemo = SlotView.forMessages<Message>()
   )
   .pipe(SlotView.attach(IconStyle.style.mixin))
 
-/**
- * The `:root` override the view renders from the Model. The hue and shadow
- * knobs and color scheme must be set on `:root`, not on the page: derived
- * tokens (`--fk-hue-accent`, every `light-dark()` color, every shadow layer)
- * are computed at `:root` and inherited already resolved, so a knob
- * overridden on a subtree never re-derives them. Unlayered, this wins over
- * the layered token declarations.
- */
-export const rootOverrideOf = (model: Pick<Model, 'hue' | 'scheme' | 'shadow'>): string =>
-  `:root{--fk-knob-accent-h:${model.hue};--fk-knob-shadow-strength:${model.shadow}%;color-scheme:${model.scheme === 'system' ? 'light dark' : model.scheme}}`
+/** What the knobs act on, at once: states of the controls that carry them, not a catalog. */
+const Specimen = (model: Model, h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(StudioSlots, [StudioStyle.style.mixin], { input: model, h })
+  return h.div(slots.specimen.attrs(), [
+    h.p(slots.specimenLabel.attrs(), [
+      'Buttons: rest and disabled. Hover, press or Tab to the rest.',
+    ]),
+    h.div(slots.specimenRow.attrs(), [
+      Button.view(
+        { label: 'Default', style: PrimaryButtonStyle, onClick: Message.ButtonClicked() },
+        h,
+      ),
+      Button.view(
+        { label: 'Secondary', style: SecondaryButtonStyle, onClick: Message.ButtonClicked() },
+        h,
+      ),
+      Button.view(
+        { label: 'Outline', style: OutlineButtonStyle, onClick: Message.ButtonClicked() },
+        h,
+      ),
+      Button.view(
+        { label: 'Destructive', style: DestructiveButtonStyle, onClick: Message.ButtonClicked() },
+        h,
+      ),
+      Button.view({ label: 'Disabled', style: PrimaryButtonStyle, disabled: true }, h),
+    ]),
+    Input.view(
+      {
+        id: 'specimen-email',
+        value: 'ada@',
+        invalid: true,
+        style: FieldStyle,
+        described: true,
+        draw: (resolved, h) =>
+          h.div(
+            [],
+            [
+              h.label(resolved.label, ['Email, invalid']),
+              h.input(resolved.input),
+              h.span(resolved.description, ['Add the domain after the @.']),
+            ],
+          ),
+      },
+      h,
+    ),
+    BadgesView(undefined, h),
+    Alert.view(
+      {
+        layout: 'inline',
+        title: 'Storage almost full',
+        description: 'Only 2 GB left on this project.',
+        icon: h.span([h.AriaHidden(true)], ['!']),
+        style: AlertWarningStyle,
+      },
+      neverH,
+    ),
+    h.div(slots.specimenRow.attrs(), [
+      Spinner.view({ label: 'Loading projects', style: SpinnerStyle }, neverH),
+      Skeleton.view({ label: 'Loading title', style: SkeletonStyle }, neverH),
+    ]),
+  ])
+}
 
+/** A scale from the theme, one row per token: its name, a bar the token itself sizes, and its expression. */
+const TokenTable = (kind: 'space' | 'radius', h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(TokenSlots, [TokenStyle.style.mixin], { input: undefined, h })
+  return h.div(
+    slots.table.attrs(),
+    tokenGroups[kind].map(([name, expression]) =>
+      h.div(slots.row.attrs([h.Key(`${kind}-${name}`)]), [
+        h.p(slots.name.attrs(), [name]),
+        h.div(
+          slots.bar.attrs([
+            h.AriaHidden(true),
+            h.Style(
+              kind === 'space'
+                ? { inlineSize: `var(--fk-space-${name})` }
+                : {
+                    inlineSize: '2.5rem',
+                    blockSize: '2.5rem',
+                    borderRadius: `var(--fk-radius-${name})`,
+                  },
+            ),
+          ]),
+          [],
+        ),
+        h.p(slots.expression.attrs(), [expression]),
+      ]),
+    ),
+  )
+}
+
+/** Four boxes setting one property from four places: the later layer wins, and `Style.inline` beats every layer. */
+const CascadeDemo = (h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(CascadeSlots, [CascadeStyle.style.mixin], {
+    input: undefined,
+    h,
+  })
+  return h.div(slots.row.attrs(), [
+    h.div(slots.base.attrs(), ['components layer']),
+    h.div(slots.variant.attrs(), ['+ variants layer']),
+    h.div(slots.app.attrs(), ['+ app layer']),
+    h.div(slots.inline.attrs(), ['+ Style.inline']),
+  ])
+}
+
+/** The knobs the reader tweaked, written on `:root`; the theme's own are in the sheet. */
 const fillSwatch = (
   slots: PageBuilders,
   h: HtmlBuilder<Message>,
@@ -1407,6 +1592,7 @@ const textSwatch = (slots: PageBuilders, h: HtmlBuilder<Message>, name: string):
 
 /** The page's sections, in order: the sidebar links to each by its id. */
 const sections = [
+  ['theme', 'Theme'],
   ['colors', 'Colors'],
   ['buttons', 'Buttons'],
   ['form', 'Form'],
@@ -1421,13 +1607,19 @@ const sections = [
   ['collections', 'Collections'],
   ['utilities', 'Utilities'],
   ['tokens', 'Tokens'],
+  ['cascade', 'Cascade'],
 ] as const
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   const slots = SlotView.buildersFor(PageSlots, [PageStyle.style.mixin], { input: model, h })
-  const rootOverride = rootOverrideOf(model)
+  const rootOverride = tweaksCss(model.tweaks)
+  const studioSlots = SlotView.buildersFor(StudioSlots, [StudioStyle.style.mixin], {
+    input: model,
+    h,
+  })
   const tokensCode = [
-    'AppStyle.make({})   the shipped theme',
+    "Themes.make({ shadcn, compact, soft, hard }, { initial: 'shadcn' })",
+    'AppStyle.make({ themes })',
     '',
     'Default     -> Button variant primary',
     'Secondary   -> tone neutral, solid',
@@ -1468,59 +1660,30 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               'Every control below draws through a shipped foldkit-mixins-ui recipe over the shipped tokens. The shadcn look is two decisions: near-zero surface saturation with a larger radius, and one recipe selection per intent.',
             ]),
           ]),
-          h.div(slots.controls.attrs(), [
-            h.div(slots.controlGroup.attrs(), [
-              h.p(slots.controlLabel.attrs(), ['Accent hue (re-derives live)']),
-              h.div(slots.row.attrs(), [
-                ...hues.map(preset =>
-                  Button.view(
-                    {
-                      label: preset.label,
-                      style: model.hue === preset.hue ? SecondaryButtonStyle : GhostButtonStyle,
-                      onClick: Message.HueSelected({ hue: preset.hue }),
-                    },
-                    h,
-                  ),
-                ),
-              ]),
+          h.section(slots.section.attrs([h.Id('theme')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Theme']),
+            h.p(slots.sectionText.attrs(), [
+              'A theme is a handful of knob values. Pick one, or move a knob over it, and every control on the page follows: spacing, corners, accent, shadow, text size and motion all derive from the same numbers.',
             ]),
-            h.div(slots.controlGroup.attrs(), [
-              h.p(slots.controlLabel.attrs(), ['Scheme']),
-              h.div(slots.row.attrs(), [
-                ...schemes.map(entry =>
-                  Button.view(
-                    {
-                      label: entry.label,
-                      style:
-                        model.scheme === entry.scheme ? SecondaryButtonStyle : GhostButtonStyle,
-                      onClick: Message.SchemeSelected({ scheme: entry.scheme }),
-                    },
-                    h,
-                  ),
-                ),
-              ]),
-            ]),
-            h.div(slots.controlGroup.attrs(), [
-              h.p(slots.controlLabel.attrs(), ['Shadow strength (dims every shadow)']),
-              h.div(slots.row.attrs(), [
-                ...shadows.map(preset =>
-                  Button.view(
-                    {
-                      label: preset.label,
-                      style:
-                        model.shadow === preset.strength ? SecondaryButtonStyle : GhostButtonStyle,
-                      onClick: Message.ShadowSelected({ strength: preset.strength }),
-                    },
-                    h,
-                  ),
-                ),
-              ]),
+            h.div(studioSlots.studio.attrs(), [
+              studioPanel(
+                model,
+                {
+                  theme: name => Message.ThemePicked({ name }),
+                  scheme: scheme => Message.SchemeSelected({ scheme }),
+                  dir: (dir: Direction) => Message.DirectionSelected({ dir }),
+                  tweak: (tweak, value) => Message.TweakChanged({ tweak, value }),
+                  reset: Message.TweaksReset(),
+                },
+                h,
+              ),
+              Specimen(model, h),
             ]),
           ]),
           h.section(slots.section.attrs([h.Id('colors')]), [
             h.h2(slots.sectionTitle.attrs(), ['Colors']),
             h.p(slots.sectionText.attrs(), [
-              'Token families, as var(--fk-group-name) references. Picking a hue above rewrites one knob and every family follows.',
+              'Token families, as var(--fk-group-name) references. The hue slider rewrites one knob and every family follows.',
             ]),
             h.div(slots.swatchGrid.attrs(), [
               ...['bedrock', 'base', 'subtle', 'muted', 'default', 'overt'].map(name =>
@@ -2063,9 +2226,20 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           h.section(slots.section.attrs([h.Id('tokens')]), [
             h.h2(slots.sectionTitle.attrs(), ['Tokens']),
             h.p(slots.sectionText.attrs(), [
-              'The whole skin, as application code. No forked CSS: knobs plus selections.',
+              'The whole skin, as application code. No forked CSS: knobs plus selections. The scales below are read from the theme, not typed here: each bar is sized by its own token, so a knob moves it.',
             ]),
+            h.p(slots.controlLabel.attrs(), ['Space (density multiplies it)']),
+            TokenTable('space', h),
+            h.p(slots.controlLabel.attrs(), ['Radius (radius factor multiplies it)']),
+            TokenTable('radius', h),
             h.div(slots.code.attrs(), [tokensCode]),
+          ]),
+          h.section(slots.section.attrs([h.Id('cascade')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Cascade']),
+            h.p(slots.sectionText.attrs(), [
+              'Each box sets background from one more place than the last. Components, variants and app are layers, so the later layer wins whatever the order in the source; Style.inline sits outside every layer and wins over all of them, which is why only values no theme may touch belong there.',
+            ]),
+            CascadeDemo(h),
           ]),
           h.p(slots.footer.attrs(), [
             'Recipes, tokens, and the full specimen page live in foldkit-mixins-ui. This demo is local state plus selections.',

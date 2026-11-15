@@ -9,20 +9,17 @@ import { Tabs as UiTabs } from '@foldkit/ui'
 import * as Animation from '@foldkit/ui/animation'
 import { File as FoldkitFile } from 'foldkit'
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import { Message, ToastStack, initModel, rootOverrideOf, update } from '../src/main.js'
+import { Message, ToastStack, initModel, update } from '../src/main.js'
+import { noTweaks, tweaksCss, valueOf, withTweak } from '../src/tweaks.js'
 
 const modelForTests = initModel({ year: 2026, month: 10, day: 8 })
 
 describe('design-system update', () => {
-  it('selects a hue, scheme, shadow strength, tabs, and plan', () => {
-    const hue = update(modelForTests, Message.HueSelected({ hue: 172 }))
-    expect(hue.model.hue).toBe(172)
-    const scheme = update(hue.model, Message.SchemeSelected({ scheme: 'dark' }))
+  it('selects a scheme, tabs, and plan', () => {
+    const scheme = update(modelForTests, Message.SchemeSelected({ scheme: 'dark' }))
     expect(scheme.model.scheme).toBe('dark')
-    const shadow = update(scheme.model, Message.ShadowSelected({ strength: 60 }))
-    expect(shadow.model.shadow).toBe(60)
     const tabs = update(
-      shadow.model,
+      scheme.model,
       Message.SectionsTabs({
         message: UiTabs.Message.SelectedTab({ index: 2, value: 'settings' }),
       }),
@@ -246,15 +243,61 @@ describe('design-system update', () => {
     expect(noFiles.model.files).toHaveLength(0)
   })
 
-  it('declares the hue knob, shadow knob, and scheme on :root, where derived tokens compute', () => {
-    expect(rootOverrideOf({ hue: 172, scheme: 'system', shadow: 100 })).toBe(
-      ':root{--fk-knob-accent-h:172;--fk-knob-shadow-strength:100%;color-scheme:light dark}',
+  it('writes only the tweaked knobs on :root, unlayered, where derived tokens compute', () => {
+    expect(tweaksCss(noTweaks)).toBe('')
+    const tweaked = withTweak(withTweak(noTweaks, 'hue', 172), 'shadow', 60)
+    expect(tweaksCss(tweaked)).toBe(':root{--fk-knob-accent-h:172;--fk-knob-shadow-strength:60%}')
+  })
+
+  it('shows the theme own value for a knob until a tweak covers it', () => {
+    expect(valueOf('compact', noTweaks, 'density')).toBe(0.85)
+    expect(valueOf('compact', withTweak(noTweaks, 'density', 1), 'density')).toBe(1)
+  })
+
+  it('picks a theme, clearing tweaks and announcing it, and applies it as a Command', () => {
+    const tweaked = update(modelForTests, Message.TweakChanged({ tweak: 'radius', value: 1.5 }))
+    expect(tweaked.model.tweaks.radius).toEqual(Option.some(1.5))
+    const picked = update(tweaked.model, Message.ThemePicked({ name: 'soft' }))
+    expect(picked.model.theme).toBe('soft')
+    expect(picked.model.tweaks).toEqual(noTweaks)
+    expect(picked.model.status).toBe('Soft theme applied')
+    expect('commands' in picked ? picked.commands.length : 0).toBe(1)
+  })
+
+  it('returns the Model it was given for a choice already made', () => {
+    expect(update(modelForTests, Message.ThemePicked({ name: 'shadcn' })).model).toBe(modelForTests)
+    expect(update(modelForTests, Message.SchemeSelected({ scheme: 'system' })).model).toBe(
+      modelForTests,
     )
-    expect(rootOverrideOf({ hue: 222, scheme: 'dark', shadow: 60 })).toBe(
-      ':root{--fk-knob-accent-h:222;--fk-knob-shadow-strength:60%;color-scheme:dark}',
+    expect(update(modelForTests, Message.DirectionSelected({ dir: 'ltr' })).model).toBe(
+      modelForTests,
     )
-    expect(rootOverrideOf({ hue: 38, scheme: 'light', shadow: 30 })).toBe(
-      ':root{--fk-knob-accent-h:38;--fk-knob-shadow-strength:30%;color-scheme:light}',
+    expect(update(modelForTests, Message.TweaksReset()).model).toBe(modelForTests)
+    expect(update(modelForTests, Message.ThemeChangedElsewhere({ name: 'shadcn' })).model).toBe(
+      modelForTests,
     )
+    expect(update(modelForTests, Message.SchemeChangedElsewhere({ scheme: 'system' })).model).toBe(
+      modelForTests,
+    )
+  })
+
+  it('keeps the Model when a tweak is set to the value it already holds', () => {
+    const once = update(modelForTests, Message.TweakChanged({ tweak: 'hue', value: 172 }))
+    expect(once.model).not.toBe(modelForTests)
+    expect(update(once.model, Message.TweakChanged({ tweak: 'hue', value: 172 })).model).toBe(
+      once.model,
+    )
+    const reset = update(once.model, Message.TweaksReset())
+    expect(reset.model.tweaks).toEqual(noTweaks)
+    expect(reset.model.status).toBe('Tweaks reset')
+  })
+
+  it('takes the theme and scheme another tab chose, and applies them here', () => {
+    const theme = update(modelForTests, Message.ThemeChangedElsewhere({ name: 'hard' }))
+    expect(theme.model.theme).toBe('hard')
+    expect('commands' in theme ? theme.commands.length : 0).toBe(1)
+    const scheme = update(modelForTests, Message.SchemeChangedElsewhere({ scheme: 'dark' }))
+    expect(scheme.model.scheme).toBe('dark')
+    expect('commands' in scheme ? scheme.commands.length : 0).toBe(1)
   })
 })

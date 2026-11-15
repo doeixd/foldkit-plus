@@ -22,7 +22,7 @@
       "foldkit-mixins/vite": ["../../packages/mixins/src/vite.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts"],
   "references": [
     {
       "path": "../../packages/mixins/tsconfig.build.json"

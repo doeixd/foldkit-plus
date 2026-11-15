@@ -22,7 +22,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // `FocusRecovery` and `Presence` behaviors beside this branch's kept widget work (SearchField,
 // the larger WindowList, Resizable, Sidebar); not bisected between the two. The ceiling is that
 // plus about 1%.
-const CEILING = 197_500
+// 199.9 kB (199,9xx bytes) on 2026-11-15, after the theme studio: +3.5 kB over the reading above for
+// the Segmented radio groups, six Sliders, the tweak/theme Messages and Commands, the generated
+// theme data and the token table. The compiler-side `Themes` runtime cannot be imported in this
+// client (`modules` refuses it), so the studio carries a small local one (`themeRuntime.ts`).
+// The ceiling is that plus about 1%.
+const CEILING = 202_000
 
 clientBudget({
   name: 'design-system',
