@@ -8507,8 +8507,9 @@ export interface Panels {
   readonly order: ReadonlyArray<string>
 }
 
-// Folded with `FloatingPanel.update()`; opened with `FloatingPanel.open(model,
-// { opener })`, and its `Raised` folded into `order` with `FloatingPanel.raise`.
+// Folded with `FloatingPanel.update()`; opened with `FloatingPanel.open(model)`,
+// and its `Raised` folded into `order` with `FloatingPanel.raise`. Closing it
+// gives focus back to the button that opened it, by `FloatingPanel.focusReturn`.
 export const floatingPanel = <Message>(
   style: NamedStyle<typeof FloatingPanelSlots>,
   panels: Panels,
@@ -8534,6 +8535,7 @@ export const floatingPanel = <Message>(
           content: h.p([], ['Drag the header, resize from an edge, or use the arrows.']),
           order: panels.order,
           style,
+          mixins: FloatingPanel.focusReturn,
         },
         h,
       ),
@@ -8544,7 +8546,7 @@ export const floatingPanel = <Message>(
 // #region tour-basic
 export const TourStyle = forSlots(TourSlots)(Recipes.Tour({}))
 
-/** Folded with `Tour.update(TOUR)`; started with `Tour.start(model, TOUR, { opener })`. */
+/** Folded with `Tour.update(TOUR)`; started with `Tour.start(model, TOUR)`. */
 export const TOUR: Tour.Config = {
   steps: [
     { title: 'Search', description: 'Find any page by its name.', target: 'preview-tour-search' },
@@ -8554,7 +8556,7 @@ export const TOUR: Tour.Config = {
 }
 
 // Each step beside its target, the page dimmed around it; the arrows move on
-// and back, Escape skips, and focus returns to the button that started it.
+// and back, Escape skips, and `Tour.focusReturn` gives focus back to the button that started it.
 export const tour = <Message>(
   style: NamedStyle<typeof TourSlots>,
   model: Tour.Model,
@@ -8581,7 +8583,7 @@ export const tour = <Message>(
         ]),
       ),
       h.button(button.attrs([h.Id('preview-tour-save'), h.Type('button')]), ['Save']),
-      Tour.view({ model, config: TOUR, onMessage, style }, h),
+      Tour.view({ model, config: TOUR, onMessage, style, mixins: Tour.focusReturn }, h),
     ],
   )
 }

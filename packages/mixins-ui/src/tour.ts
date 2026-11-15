@@ -34,7 +34,7 @@ import type { MixinList } from './resolve.js'
  * ```text
  * start -> step 0 -> ShowStep: the target scrolled into view, the step focused
  * Next / Back / ArrowRight / ArrowLeft -> step +/- 1; Next on the last -> Ended(completed)
- * Skip / Escape -> Ended(not completed), focus back to what started it
+ * Skip / Escape -> Ended(not completed); `focusReturn` gives focus back to what started it
  * view: step -> the panel anchored to its target, the cutout following the target
  * ```
  *
@@ -93,8 +93,6 @@ export const Model = Schema.Struct({
   step: Schema.Number,
   /** The step whose target was not on the page, drawn in the middle instead. */
   missing: Schema.Option(Schema.Number),
-  /** What to give focus back to when the tour ends. */
-  opener: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -108,7 +106,6 @@ export const Message = defineMessageUnion({
   Spotlit: { target: Schema.String, found: Schema.Boolean },
   Placed: {},
   CompletedShowStep: {},
-  CompletedFocus: {},
 })
 export type Message = typeof Message.Type
 
@@ -128,7 +125,6 @@ export const init = (options: { readonly id: string }): Model => ({
   open: false,
   step: 0,
   missing: Option.none(),
-  opener: Option.none(),
 })
 
 const panelId = (id: string): string => `${id}-panel`
@@ -163,37 +159,15 @@ export const ShowStep = Command.define('Tour.ShowStep', {
     ),
 })
 
-/** Focuses the element that started the tour, once the tour is drawn away. */
-export const FocusOpener = Command.define('Tour.FocusOpener', {
-  args: { elementId: Schema.String },
-  messages: [Message.CompletedFocus],
-  execute: ({ elementId }) =>
-    Render.afterCommit.pipe(
-      Effect.map(() => {
-        document.getElementById(elementId)?.focus()
-        return Message.CompletedFocus()
-      }),
-    ),
-})
-
 const targetOf = (steps: ReadonlyArray<Step>, step: number): Option.Option<string> =>
   Option.fromNullishOr(steps[step]?.target)
 
-/**
- * Starts the tour at its first step; `opener`, the id of what started it,
- * takes focus back when it ends. Starting a tour already running starts it
- * over.
- */
-export const start = (
-  model: Model,
-  config: Config,
-  options: { readonly opener?: string } = {},
-): Return => ({
+/** Starts the tour at its first step; one already running starts over. */
+export const start = (model: Model, config: Config): Return => ({
   model: modifyFields(model, {
     open: () => true,
     step: () => 0,
     missing: () => Option.none(),
-    opener: () => Option.fromNullishOr(options.opener),
   }),
   commands: [ShowStep({ id: model.id, target: targetOf(config.steps, 0) })],
 })
@@ -207,10 +181,6 @@ export const update = (config: Config) => {
     model.open
       ? {
           model: modifyFields(model, { open: () => false, missing: () => Option.none() }),
-          commands: Option.match(model.opener, {
-            onNone: () => [],
-            onSome: elementId => [FocusOpener({ elementId })],
-          }),
           outMessage: Ended.make({ completed }),
         }
       : { model }
@@ -251,7 +221,6 @@ export const update = (config: Config) => {
             },
       Placed: () => ({ model }),
       CompletedShowStep: () => ({ model }),
-      CompletedFocus: () => ({ model }),
     })
 }
 
@@ -279,13 +248,12 @@ export const PlaceStep = Mount.define('Tour.PlaceStep', {
 })
 
 /**
- * A way back for focus when the element that started the tour is gone when it
- * ends, or none was named to `start`: focus goes to what had it before the
- * tour, then by `FocusReturn`'s rules (an element with the opener's id, the
- * opener's `FocusRecovery` steps, the layer below, the page's first tabbable
- * element). Focus the reader moved elsewhere is left alone. Pass it among the
- * mixins; opt in, as it sends no Message. The `opener` given to `start` is
- * focused after it, by id, as without this.
+ * Gives focus back when the tour ends: to what had it before the tour, then
+ * by `FocusReturn`'s rules (an element with the opener's id, the opener's
+ * `FocusRecovery` steps, the layer below, the page's first tabbable element).
+ * Focus the reader moved elsewhere is left alone. The one way focus returns:
+ * the tour keeps no opener of its own. Pass it among the mixins; opt in, as it
+ * sends no Message.
  */
 export const focusReturn = [
   Behavior.forSlots(TourSlots)<unknown, never>(

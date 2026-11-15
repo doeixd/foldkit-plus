@@ -147,15 +147,15 @@ describe('FloatingPanel.update', () => {
     )
   })
 
-  it('opens with focus on the panel, and closes with focus back to its opener', () => {
-    const opened = FloatingPanel.open(init({ id: 'notes', rect }), { opener: 'notes-button' })
+  it('opens with focus on the panel, and closes sending no Command', () => {
+    const opened = FloatingPanel.open(init({ id: 'notes', rect }))
     expect(opened.model.open).toBe(true)
     expect(names(opened)).toEqual(['FloatingPanel.Focus'])
     expect(opened.commands?.[0]?.args).toEqual({ elementId: 'notes-panel' })
     const closed = update(opened.model, Message.Closed())
     expect(closed.model.open).toBe(false)
     expect(closed.model.rect).toEqual(rect)
-    expect(closed.commands?.[0]?.args).toEqual({ elementId: 'notes-button' })
+    expect(names(closed)).toEqual([])
     expect(names(update(shown(), Message.Closed()))).toEqual([])
     expect(update(closed.model, Message.Closed()).model).toBe(closed.model)
     expect(FloatingPanel.open(opened.model).model).toBe(opened.model)

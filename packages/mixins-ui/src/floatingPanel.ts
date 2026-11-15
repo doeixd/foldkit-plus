@@ -130,8 +130,6 @@ export const Model = Schema.Struct({
   boundary: Schema.Struct({ width: Schema.Number, height: Schema.Number }),
   /** While a drag runs: what it moves, and the rect as it began. */
   gesture: Schema.Option(Schema.Struct({ handle: Handle, from: Rect })),
-  /** The element to give focus back to on close, when opened from one. */
-  opener: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -179,7 +177,6 @@ export const init = (options: {
   rect: options.rect,
   boundary: { width: 0, height: 0 },
   gesture: Option.none(),
-  opener: Option.none(),
 })
 
 const panelId = (id: string): string => `${id}-panel`
@@ -200,31 +197,19 @@ export const Focus = Command.define('FloatingPanel.Focus', {
 
 export type Return = ReturnWithOutMessage<Model, Message, Raised>
 
-/**
- * Opens the panel where it last was and focuses it; `opener`, the id of
- * what opened it, takes focus back on close.
- */
-export const open = (model: Model, options: { readonly opener?: string } = {}): Return =>
+/** Opens the panel where it last was and focuses it. */
+export const open = (model: Model): Return =>
   model.open
     ? { model }
     : {
-        model: modifyFields(model, {
-          open: () => true,
-          opener: () => Option.fromNullishOr(options.opener),
-        }),
+        model: modifyFields(model, { open: () => true }),
         commands: [Focus({ elementId: panelId(model.id) })],
       }
 
-/** Closes the panel, keeping where it was, and gives focus back to its opener. */
+/** Closes the panel, keeping where it was; `focusReturn` gives focus back to what opened it. */
 export const close = (model: Model): Return =>
   model.open
-    ? {
-        model: modifyFields(model, { open: () => false, gesture: () => Option.none() }),
-        commands: Option.match(model.opener, {
-          onNone: () => [],
-          onSome: elementId => [Focus({ elementId })],
-        }),
-      }
+    ? { model: modifyFields(model, { open: () => false, gesture: () => Option.none() }) }
     : { model }
 
 /** `order` with `id` on top: the same array when it already is. */
@@ -357,13 +342,12 @@ const EDGES: ReadonlyArray<Edge> = ['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw']
 export type Route<ParentMessage> = Behaviors.Keys.Route<undefined, ParentMessage>
 
 /**
- * A way back for focus when the element that opened the panel is gone when it
- * closes, or none was named to `open`: focus goes to what had it before the
- * panel, then by `FocusReturn`'s rules (an element with the opener's id, the
+ * Gives focus back when the panel closes: to what had it before the panel,
+ * then by `FocusReturn`'s rules (an element with the opener's id, the
  * opener's `FocusRecovery` steps, the layer below, the page's first tabbable
- * element). Focus the reader moved elsewhere is left alone. Pass it among the
- * mixins; opt in, as it sends no Message. The `opener` given to `open` is
- * focused after it, by id, as without this.
+ * element). Focus the reader moved elsewhere is left alone. The one way focus
+ * returns: the panel keeps no opener of its own. Pass it among the mixins;
+ * opt in, as it sends no Message.
  */
 export const focusReturn = [
   Behavior.forSlots(FloatingPanelSlots)<unknown, never>(

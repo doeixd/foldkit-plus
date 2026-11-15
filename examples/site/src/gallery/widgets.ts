@@ -1713,7 +1713,7 @@ const foldTour = Update.foldChild({
 })
 const startTour = Update.foldChildStep({
   ...tourField,
-  update: (tour: Tour.Model) => Tour.start(tour, TOUR, { opener: 'preview-tour-start' }),
+  update: (tour: Tour.Model) => Tour.start(tour, TOUR),
   foldOutMessage: tourOut,
 })
 
@@ -2031,8 +2031,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotCascade: ({ message }) => foldCascade(model, message),
     GotCascadeDrill: ({ message }) => foldCascadeDrill(model, message),
     GotPanel: ({ message }) => panelStep(model, updatePanel(model.panels.notes, message)),
-    OpenedPanel: () =>
-      panelStep(model, FloatingPanel.open(model.panels.notes, { opener: 'preview-panel-opener' })),
+    OpenedPanel: () => panelStep(model, FloatingPanel.open(model.panels.notes)),
     GotTour: ({ message }) => foldTour(model, message),
     StartedTour: () => startTour(model),
     ChosePlan: ({ plan }) =>

@@ -674,10 +674,11 @@ version changed; `pnpm` skips versions already in the registry.
   triggers (`panelRoutes` for a panel's links) and `TabsContext.routes` for a tab. A tab
   with no key to answer draws no keydown at all. `Tour.focusReturn` and
   `FloatingPanel.focusReturn` are opt-in mixins that give focus a way back, by
-  `FocusReturn`'s rules, when the opener is gone or none was named; the `opener` given to
-  `start` or `open` is still focused after them.
+  `FocusReturn`'s rules, when the opener is gone or none was named.
 
 ### Changed
+
+- `foldkit-mixins-ui`: **Breaking:** `Tour.start` and `FloatingPanel.open` take no `opener`, and `Tour.Model` and `FloatingPanel.Model` have no `opener` field (nor `Tour` a `FocusOpener` Command and `CompletedFocus` Message): `Tour.focusReturn` and `FloatingPanel.focusReturn` are the one way focus returns, to what had it when the widget opened, by `FocusReturn`'s rules when that is gone. Without the mixin, ending a tour or closing a panel gives focus to nothing. A caller that named an opener passes the mixin instead (`mixins: Tour.focusReturn`).
 
 - `foldkit-mixins-ui`: `Menubar.view`'s `menuMixins` is optional, as the other views' `mixins` are; a bar given none draws its menus unstyled.
 

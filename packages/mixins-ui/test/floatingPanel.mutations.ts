@@ -135,13 +135,6 @@ export default [
     tests: [unit],
   },
   {
-    name: 'close gives focus to nothing',
-    edits: [
-      { file, find: 'onSome: elementId => [Focus({ elementId })],', replace: 'onSome: () => [],' },
-    ],
-    tests: [unit, browser],
-  },
-  {
     name: 'focus lands nowhere',
     edits: [{ file, find: 'document.getElementById(elementId)?.focus()', replace: '' }],
     tests: [browser],

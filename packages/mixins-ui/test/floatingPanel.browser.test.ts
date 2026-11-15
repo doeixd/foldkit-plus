@@ -39,6 +39,7 @@ const Got = defineMessageUnion({
   Notes: { message: FloatingPanel.Message },
   Chat: { message: FloatingPanel.Message },
   OpenNotes: {},
+  OpenChat: {},
   RemovedOpener: {},
 })
 type Got = typeof Got.Type
@@ -55,8 +56,8 @@ const mount = (
   direction: 'ltr' | 'rtl' = 'ltr',
   // What the notes panel is given beside the fixture's own.
   view: Partial<FloatingPanel.FloatingPanelView<Got>> = {},
-  // Whether `open` is told what opened the panel.
-  named = true,
+  // What the chat panel is given beside the fixture's own.
+  chatView: Partial<FloatingPanel.FloatingPanelView<Got>> = {},
 ) => {
   document.documentElement.dir = direction
   const sheet = document.createElement('style')
@@ -112,12 +113,8 @@ const mount = (
         Got.match(message, {
           Notes: ({ message: inner }) => fold(model, 'notes', update(model.notes, inner)),
           Chat: ({ message: inner }) => fold(model, 'chat', update(model.chat, inner)),
-          OpenNotes: () =>
-            fold(
-              model,
-              'notes',
-              FloatingPanel.open(model.notes, named ? { opener: 'opener' } : {}),
-            ),
+          OpenNotes: () => fold(model, 'notes', FloatingPanel.open(model.notes)),
+          OpenChat: () => fold(model, 'chat', FloatingPanel.open(model.chat)),
           RemovedOpener: () => ({ model: modifyFields(model, { openerGone: () => true }) }),
         }),
       view: (model: Model, h: HtmlBuilder<Got>) =>
@@ -128,6 +125,14 @@ const mount = (
             model.openerGone
               ? h.empty
               : h.button([h.Id('opener'), h.OnClick(Got.OpenNotes())], ['Open notes']),
+            h.button([h.Id('chat-opener'), h.OnClick(Got.OpenChat())], ['Open chat']),
+            h.button(
+              [
+                h.Id('close-notes'),
+                h.OnClick(Got.Notes({ message: FloatingPanel.Message.Closed() })),
+              ],
+              ['Close notes'],
+            ),
             FloatingPanel.view(
               {
                 model: model.notes,
@@ -150,6 +155,7 @@ const mount = (
                 order: model.order,
                 direction,
                 style,
+                ...chatView,
               },
               h,
             ),
@@ -296,8 +302,8 @@ test('minimized only the header shows', async () => {
   }
 })
 
-test('the close button presses through the drag, and focus goes back to the opener', async () => {
-  const mounted = mount()
+test('the close button presses through the drag, and focusReturn gives focus back to the opener', async () => {
+  const mounted = mount('ltr', { mixins: FloatingPanel.focusReturn })
   try {
     await ready()
     await userEvent.click(panel('notes')!.querySelector('[aria-label="Close"]')!)
@@ -344,16 +350,16 @@ const closedWithOpenerRemoved = async (view: Partial<FloatingPanel.FloatingPanel
 
 test('with FloatingPanel.focusReturn, an opener taken off the page leaves focus on the page', async () => {
   const active = await closedWithOpenerRemoved({ mixins: FloatingPanel.focusReturn })
-  // The page's first tabbable element: the opener's id names nothing.
-  expect(active?.id).toBe('after')
+  // The page's first tabbable element, the chat's opener now: the notes opener's id names nothing.
+  expect(active?.id).toBe('chat-opener')
 })
 
 test('without it, an opener taken off the page leaves focus on body', async () => {
   expect(await closedWithOpenerRemoved({})).toBe(document.body)
 })
 
-test('with FloatingPanel.focusReturn, a panel that was not told its opener gives focus back to what opened it', async () => {
-  const mounted = mount('ltr', { mixins: FloatingPanel.focusReturn }, false)
+test('with FloatingPanel.focusReturn, a panel gives focus back to what opened it', async () => {
+  const mounted = mount('ltr', { mixins: FloatingPanel.focusReturn })
   try {
     await closeChat()
     await userEvent.click(panel('notes')!.querySelector('[aria-label="Close"]')!)
