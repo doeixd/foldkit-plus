@@ -24,7 +24,7 @@
       "foldkit-surface": ["../surface/src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts", "tsdown.config.ts"],
   "references": [
     {
       "path": "../metadata/tsconfig.build.json"

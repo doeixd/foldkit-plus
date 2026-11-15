@@ -4,6 +4,7 @@
  */
 const runtime = '../src/theme/runtime.ts'
 const data = '../src/theme/knobData.ts'
+const generator = '../scripts/knobData.ts'
 const build = ['packages/mixins/test/themeRuntimeBuild.test.ts']
 const unit = ['packages/mixins/test/themeRuntime.test.ts']
 const table = ['packages/mixins/test/knobData.test.ts']
@@ -15,28 +16,48 @@ export default [
       {
         file: runtime,
         find: "export const THEME_KEY = 'foldkit:theme'",
-        replace:
-          "import { inline } from '../styleValue.js'\nexport const THEME_KEY = String(Object.keys(inline({}).style))",
+        replace: [
+          "import { inline } from '../styleValue.js'",
+          'export const THEME_KEY = String(Object.keys(inline({}).style))',
+        ].join('\n'),
       },
     ],
     tests: build,
   },
   {
-    name: 'the knob table reads a style value',
+    name: 'the knob table reads the knob definitions',
     edits: [
       {
         file: data,
-        find: "knob.control.kind === 'range' &&",
-        replace: "String(inline({})) !== '' && knob.control.kind === 'range' &&",
-      },
-      {
-        file: data,
-        find: "import type { Knob, Schemed } from './knob.js'",
-        replace:
-          "import type { Knob, Schemed } from './knob.js'\nimport { inline } from '../styleValue.js'\nexport const leaked = inline({}).classes",
+        find: 'export type { KnobData, RangeName }',
+        replace: [
+          "import { standard } from './knobs.js'",
+          'export type { KnobData, RangeName }',
+          'globalThis.leak = () => Object.keys(standard)',
+        ].join('\n'),
       },
     ],
     tests: build,
+  },
+  {
+    name: 'a page reading some knobs keeps all of them',
+    edits: [
+      {
+        file: data,
+        find: 'export type { KnobData, RangeName }',
+        replace: ['export type { KnobData, RangeName }', 'globalThis.all = () => knobData'].join(
+          '\n',
+        ),
+      },
+    ],
+    tests: build,
+  },
+  {
+    name: 'the generator writes the wrong step',
+    edits: [
+      { file: generator, find: 'step: knob.control.step', replace: 'step: knob.control.min' },
+    ],
+    tests: table,
   },
   {
     name: 'the stream passes on a name no theme has',
@@ -51,12 +72,14 @@ export default [
   },
   {
     name: 'a knob with two schemes is one entry',
-    edits: [{ file: data, find: "'light' in knob && 'dark' in knob", replace: 'false' }],
+    edits: [{ file: generator, find: "'light' in knob && 'dark' in knob", replace: 'false' }],
     tests: table,
   },
   {
     name: 'an entry names the knob, not the variable it writes',
-    edits: [{ file: data, find: 'variable: knob.control.variable', replace: 'variable: name' }],
+    edits: [
+      { file: generator, find: 'variable: knob.control.variable', replace: 'variable: name' },
+    ],
     tests: table,
   },
 ]
