@@ -313,8 +313,9 @@ export const TagsInput = A11y.pattern({
   list: { capability: Capability.Container },
   remove: {
     capability: Capability.Interactive,
-    events: [Event.Click],
+    events: [Event.Click, Event.KeyDown],
     attributes: [Attr.AriaLabel],
+    obligations: [A11y.Navigation, A11y.FocusStrategy],
   },
 })
 
@@ -1145,6 +1146,18 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['textbox', 'list', 'listitem', 'button'],
     ['native-control'],
+    [
+      drawn(
+        'TagsInput.view: Behaviors.Keys routes on each chip (the arrows, Home and End, Backspace and Delete), and a route on the input entering the last chip from the start of its text (tagsInput.ts)',
+        'remove',
+        Navigation,
+      ),
+      drawn(
+        'TagsInput.view: tabindex 0 on the one chip that holds the stop, -1 on the rest (tagsInput.ts)',
+        'remove',
+        FocusStrategy,
+      ),
+    ],
   ),
   entry(
     'password-input',
