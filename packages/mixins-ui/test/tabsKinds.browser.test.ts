@@ -12,7 +12,7 @@ import type { Return } from 'foldkit/update'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { modifyFields } from 'foldkit/struct'
-import { Layers, Style } from 'foldkit-mixins'
+import { Behaviors, Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
@@ -42,6 +42,8 @@ interface Fixture {
   readonly values: ReadonlyArray<string>
   readonly recipe?: Parameters<typeof Recipes.Tabs>[0]
   readonly closable?: boolean
+  /** An application key, F2, that closes the tab it is pressed on. */
+  readonly f2Closes?: boolean
   readonly orientation?: UiTabs.Orientation
   /** The tablist's width, to make a row overflow. */
   readonly width?: string
@@ -97,6 +99,16 @@ const mount = (fixture: Fixture) => {
             h,
             ...(fixture.closable === true
               ? { close: { onClose: value => Message.Closed({ value }) } }
+              : {}),
+            ...(fixture.f2Closes === true
+              ? {
+                  routes: [
+                    Behaviors.Keys.route<UiTabs.TabInfo<string>, Message>('F2Closes', {
+                      on: [Behaviors.Keys.chord('F2')],
+                      handle: ({ input }) => Option.some(Message.Closed({ value: input.value })),
+                    }),
+                  ],
+                }
               : {}),
           },
           ({ tablist, indicator, highlight, label, tabs }) =>
@@ -183,6 +195,22 @@ test('Delete on a tab closes it, and focus goes to the tab after it', async () =
       expect(document.activeElement).toBe(tab('three'))
       expect(tab('three')!.getAttribute('aria-selected')).toBe('true')
     })
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("an application's key on a tab goes through the tab's one keydown owner", async () => {
+  const handle = mount({ values: ['one', 'two', 'three'], f2Closes: true })
+  try {
+    await vi.waitFor(() => expect(tab('one')).toBeTruthy())
+    await userEvent.click(tab('two')!, { position: { x: 12, y: 12 } })
+    await vi.waitFor(() => expect(document.activeElement).toBe(tab('two')))
+    // Delete is not answered here: no tab is closable.
+    await userEvent.keyboard('{Delete}')
+    expect(names()).toEqual(['one', 'two', 'three'])
+    await userEvent.keyboard('{F2}')
+    await vi.waitFor(() => expect(names()).toEqual(['one', 'three']))
   } finally {
     handle.dispose()
   }

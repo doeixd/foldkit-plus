@@ -1,11 +1,12 @@
+// @vitest-environment jsdom
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Scene } from 'foldkit/test'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as TabsUi from '@foldkit/ui/tabs'
-import { Behavior, Event, Style, type MixinValue } from 'foldkit-mixins'
+import { Behavior, Behaviors, Event, Style, type MixinValue } from 'foldkit-mixins'
 import { Tabs, TabsSlots, type ResolvedTabs } from '../src/index.js'
-import { classValue, diagnosticFrom, preserves } from './fixture.js'
+import { classValue, diagnosticFrom, preserves, tagsOf } from './fixture.js'
 
 type DemoValue = 'overview' | 'settings'
 
@@ -97,6 +98,107 @@ describe('Tabs adapter', () => {
       runTabs([Steal.mixin], () => {})
     })
     expect(diagnostic?.code).toBe('mixins:event-conflict')
+  })
+})
+
+describe('Tabs keys', () => {
+  const { Keys } = Behaviors
+  const chosen = (value: DemoValue) => TabsUi.Message.SelectedTab({ index: 0, value })
+  const routeOn = (
+    name: string,
+    key: Behaviors.Keys.NamedKey,
+  ): Tabs.Route<DemoValue, TabsUi.Message> =>
+    Keys.route(name, {
+      on: [Keys.chord(key)],
+      handle: ({ input }) => Option.some(chosen(input.value)),
+    })
+  const closing = { onClose: (value: DemoValue) => chosen(value) }
+
+  // Each tab drawn as a button, a Message it sends coming back as the OutMessage.
+  const press = (
+    context: Partial<Tabs.TabsContext<DemoValue, undefined, TabsUi.Message>>,
+    ...steps: ReadonlyArray<
+      Parameters<typeof Scene.scene<TabsUi.Model, TabsUi.Message, TabsUi.Message>>[2]
+    >
+  ): void =>
+    Scene.scene<TabsUi.Model, TabsUi.Message, TabsUi.Message>(
+      {
+        update: (model, message) => ({ model, outMessage: message }),
+        view: (model, h) =>
+          DemoTabs.view(
+            model,
+            {
+              tabs: ['overview', 'settings'] as const,
+              selectedValue: 'overview',
+              ariaLabel: 'Sections',
+              isTabDisabled: value => value === 'settings',
+              toView: render => {
+                const resolved = Tabs.resolve(render, [], { input: undefined, h, ...context })
+                return h.div(
+                  [...resolved.tablist],
+                  resolved.tabs.map(item => h.button([...item.tab], [item.value])),
+                )
+              },
+            },
+            h,
+          ),
+      },
+      Scene.given(TabsUi.init({ id: 'test-tabs' })),
+      ...steps,
+    )
+
+  it('Delete on an enabled tab closes it, and nothing else does', () => {
+    press(
+      { close: closing },
+      Scene.keydown(Scene.role('tab', { name: 'overview' }), 'Delete'),
+      Scene.expectOutMessage(chosen('overview')),
+      Scene.keydown(Scene.role('tab', { name: 'overview' }), 'a'),
+      Scene.expectIgnored(),
+    )
+  })
+
+  it('draws no keydown for a disabled tab, and none when there is no key', () => {
+    press(
+      { close: closing },
+      Scene.keydown(Scene.role('tab', { name: 'settings' }), 'Delete'),
+      Scene.expectIgnored(),
+    )
+    press(
+      {},
+      Scene.keydown(Scene.role('tab', { name: 'overview' }), 'Delete'),
+      Scene.expectIgnored(),
+    )
+  })
+
+  it('listens for no key on a tab when nothing answers one', () => {
+    let captured: Captured | undefined
+    runTabs([], value => {
+      captured = value
+    })
+    expect(tagsOf(captured!.resolved.tabs[0]!.tab).filter(tag => tag.includes('KeyDown'))).toEqual(
+      [],
+    )
+  })
+
+  it("answers the application's routes beside Delete, each tab as the input", () => {
+    press(
+      { close: closing, routes: [routeOn('Choose', 'F2')] },
+      Scene.keydown(Scene.role('tab', { name: 'overview' }), 'F2'),
+      Scene.expectOutMessage(chosen('overview')),
+    )
+    press(
+      { routes: [routeOn('Choose', 'F2')] },
+      Scene.keydown(Scene.role('tab', { name: 'overview' }), 'F2'),
+      Scene.expectOutMessage(chosen('overview')),
+    )
+  })
+
+  it('names both routes when one overlaps Delete', () => {
+    const diagnostic = diagnosticFrom(() =>
+      press({ close: closing, routes: [routeOn('Remove', 'Delete')] }),
+    )
+    expect(diagnostic?.code).toBe('mixins:key-conflict')
+    expect(diagnostic?.details?.['contributors']).toEqual(['Close', 'Remove'])
   })
 })
 

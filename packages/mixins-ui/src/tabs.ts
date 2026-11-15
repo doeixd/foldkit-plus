@@ -1,6 +1,15 @@
 import { Option } from 'effect'
 import type { RenderInfo, TabInfo } from '@foldkit/ui/tabs'
-import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import {
+  Attr,
+  Behavior,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  type SlotAttributes,
+} from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { FluidHover, Measure } from 'foldkit-primitives/dom'
 import { FollowDirection, ReadingKeys } from './direction.js'
@@ -27,7 +36,7 @@ export const TabsSlots = Slots.define({
   item: Slot.make({ capability: Capability.Container }),
   tab: Slot.make({
     capability: Capability.Interactive,
-    events: [Event.Click],
+    events: [Event.Click, Event.KeyDown],
     attributes: [Attr.Role, Attr.AriaSelected, Attr.Disabled, Attr.AriaDisabled],
   }),
   label: Slot.make({ capability: Capability.Container }),
@@ -74,12 +83,22 @@ export interface TabsClose<Value extends string, Message> {
   readonly label?: ((value: Value) => string) | undefined
 }
 
+/** A key the application answers on a tab; its input is the tab. */
+export type Route<Value extends string, Message> = Behaviors.Keys.Route<TabInfo<Value>, Message>
+
 export interface TabsContext<Value extends string, Input, Message> extends ResolveContext<
   Input,
   Message
 > {
   /** Makes every enabled tab closable. */
   readonly close?: TabsClose<Value, Message> | undefined
+  /**
+   * Keys the application answers on a tab, such as F2 renaming it. They share
+   * one keydown owner with Delete, which a closable tab takes: a route on the
+   * same gesture is a diagnostic naming both. Upstream's arrows live on the
+   * tablist, so they cannot clash.
+   */
+  readonly routes?: ReadonlyArray<Route<Value, NoInfer<Message>>> | undefined
 }
 
 /**
@@ -187,6 +206,20 @@ export const resolve = <Value extends string, Input, Message>(
   const { h, close } = context
   const closable = (item: TabInfo<Value>) =>
     close === undefined || item.isDisabled ? Option.none() : Option.some(close)
+  const routes: ReadonlyArray<Route<Value, Message>> = [
+    ...(close === undefined
+      ? []
+      : [
+          Behaviors.Keys.route<TabInfo<Value>, Message>('Close', {
+            on: [Behaviors.Keys.chord('Delete')],
+            handle: ({ input }) =>
+              input.isDisabled ? Option.none() : Option.some(close.onClose(input.value)),
+          }),
+        ]),
+    ...(context.routes ?? []),
+  ]
+  // No keydown at all unless there is a key to answer.
+  const keys = routes.length === 0 ? undefined : Behaviors.Keys.attribute(routes, { slot: 'tab' })
   return {
     tablist: builders.tablist.attrs(render.tablist),
     indicator: builders.indicator.attrs([h.AriaHidden(true)]),
@@ -196,19 +229,13 @@ export const resolve = <Value extends string, Input, Message>(
     tabs: render.tabs.map(item => ({
       ...item,
       item: builders.item.attrs([h.Key(item.value)]),
-      tab: builders.tab.attrs(
-        Option.match(closable(item), {
-          onNone: () => item.tab,
-          onSome: ({ onClose }) => [
-            ...item.tab,
-            h.DataAttribute('closable', ''),
-            h.AriaKeyshortcuts('Delete'),
-            h.OnKeyDownPreventDefault(key =>
-              key === 'Delete' ? Option.some(onClose(item.value)) : Option.none(),
-            ),
-          ],
-        }),
-      ),
+      tab: builders.tab.attrs([
+        ...item.tab,
+        ...(Option.isSome(closable(item))
+          ? [h.DataAttribute('closable', ''), h.AriaKeyshortcuts('Delete')]
+          : []),
+        ...(keys === undefined ? [] : [keys({ input: item, h })]),
+      ]),
       panel: builders.panel.attrs(item.panel),
       close: Option.map(closable(item), ({ onClose, label }) =>
         builders.close.attrs([
