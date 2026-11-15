@@ -77,6 +77,73 @@ export default [
     tests: [unit],
   },
   {
+    name: 'a closing popup does not hand focus back to its trigger',
+    edits: [
+      {
+        file: '../src/popup/view.ts',
+        find: '  policy: Overlay.nonModal,',
+        replace: '  policy: { ...Overlay.nonModal, focus: { contain: false, restore: false } },',
+      },
+    ],
+    tests: [popupPage],
+  },
+  {
+    name: 'a dismissed child falls to its next sibling, not the row that holds it',
+    edits: [
+      {
+        file: '../src/list/view.ts',
+        find: "dismiss: ['parent', 'next', 'previous', { part: 'add' }],",
+        replace: "dismiss: ['next', 'previous', { part: 'add' }],",
+      },
+    ],
+    tests: [listPage],
+  },
+  {
+    name: 'an id is escaped for its colons only',
+    edits: [
+      {
+        file: '../src/list/app.ts',
+        find: 'Dom.focus(`[id="${CSS.escape(id)}"]`)',
+        replace: "Dom.focus(`#${id.replaceAll(':', '\\\\:')}`)",
+      },
+    ],
+    tests: [listPage],
+  },
+  {
+    name: 'a list ignores prefers-reduced-motion',
+    edits: [
+      {
+        file: '../src/list/mount.ts',
+        find: '        resources: Motion.live,',
+        replace: '',
+      },
+    ],
+    tests: [listPage],
+  },
+  {
+    name: 'two lists name their rows with the same ids',
+    edits: [
+      {
+        file: '../src/list/app.ts',
+        find: '`${list}:${id}:edit`',
+        replace: '`list:${id}:edit`',
+      },
+    ],
+    tests: [listPage],
+  },
+  {
+    name: 'a Hidden removes every row that is leaving',
+    edits: [
+      {
+        file: '../src/list/app.ts',
+        find: 'items: items => items.filter(item => item.id !== id),',
+        replace:
+          "items: items => items.filter(item => model.presence[item.id]?.phase === 'shown'),",
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'a dismiss starts no exit',
     edits: [
       {

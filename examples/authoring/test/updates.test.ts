@@ -136,6 +136,18 @@ describe('the list', () => {
     expect(after.presence['item-2']?.phase).toBe('shown')
   })
 
+  it('removes two rows dismissed before either exit finished, each on its own Hidden', async () => {
+    const first = listUpdate(listInitial().model, ListMessage.Dismissed({ id: 'item-1' }))
+    const second = listUpdate(first.model, ListMessage.Dismissed({ id: 'item-2' }))
+    const afterFirst = listUpdate(second.model, await run(first.commands![0]!)).model
+    // The first row is gone and the second is still leaving: it is drawn, inert, until its own fact.
+    expect(afterFirst.items.map(item => item.id)).toEqual(['item-2', 'item-3'])
+    expect(afterFirst.presence['item-2']?.phase).toBe('hiding')
+    const afterSecond = listUpdate(afterFirst, await run(second.commands![0]!)).model
+    expect(afterSecond.items.map(item => item.id)).toEqual(['item-3'])
+    expect(Object.keys(afterSecond.presence)).toEqual(['item-3'])
+  })
+
   it('applies a drop to its items, and a drop over no place leaves them as they were', () => {
     const ids = (model: ReturnType<typeof listInitial>['model']) => model.items.map(item => item.id)
     const grab = (model: ReturnType<typeof listInitial>['model']) =>
