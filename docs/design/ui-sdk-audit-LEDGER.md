@@ -213,9 +213,54 @@ Open: Escape for a hover card the pointer rests on while focus is elsewhere (WCA
 
 Open: one reusable keyboard and name suite run over listbox, tree, dialog and tabs, in both directions, as UI SDK's pattern checks do; forced-colors rules in the recipes.
 
-## Families not compared in this pass
+## Move, resize and gestures
 
-Move, resize and gestures; announcements and shortcuts; undo and change observation; styles and recipes beyond the findings in `ui-catalog-review-FINDINGS.md`. These are open: each needs the same source-and-browser comparison the families above had.
+**Disposition: built in part.** The pointer side overlapped: `Move` and `Swipe` report deltas and velocity, and `Reorder` and `PointerDrag` cover list order and drops. The gaps were two-dimensional boxes with limits, the keyboard way to move and resize them, Escape ending a drag, a held stepper, and swipe-to-reveal with a non-pointer way in. All are built. Resizing a box has no widget: `Resizable` is a one-dimensional splitter, and `Box` is the pure part a widget would use.
+
+Compared at UI SDK `d6996097` (`direct-manipulation/move.ts`, `resize.ts`, `repeat.ts`, `hold.ts`, `swipe-actions.ts`) and this tree:
+
+- **Constraints.** `createMove` clamps each item alone to a box and rounds a drag's drop to a grid. `createResize` has `resizeBox` with bounds, min, max and aspect. [`Box`](../../packages/primitives/src/state/box.ts) ports the resize rule and changes two things. `moveEach` limits the delta so a group stays in shape rather than each item stopping alone. `snap` lands the moving edge on the grid before the other limits apply, on the axes that move. A function that changes nothing returns the value it was given.
+- **Keys.** Upstream: Alt+arrows to move and arrows on a handle to resize, Shift for the larger step. [`Move.nudge`](../../packages/primitives/src/interaction/move.ts) and `Move.resizeKeys` are the same as `Behaviors.Keys` routes, and `resizeKeys` adds Home and End to the smallest and largest size, which `Box.resize` clamps. `Reorder` is the keyboard for list order (one-dimensional); it is not a second path for free positions.
+- **Cancellation.** Upstream's drag session ends on Escape. The [Move Mount](../../packages/primitives/src/dom/move.ts) now does: `completed: false`, the Escape is the drag's alone, and its document listener lives only while a pointer is down (same `whilePressed` and `escapeEnds` as `PointerDrag`). The Model, which kept the start, drops the draft.
+- **Held repeat.** [`Repeat`](../../packages/primitives/src/interaction/repeat.ts). Mouse and keys step on press; a finger steps on a tap or once held; a click with no pointer steps once; the parent sends `Stopped` at a bound. Upstream also pauses repeating while the pointer is off the button.
+- **Swipe actions.** Upstream's keyboard path: Left and Right open, Escape closes, hidden actions are `inert`. [`SwipeActions`](../../packages/primitives/src/interaction/swipe-actions.ts) holds the open side, `decide` is the release rule (half, flick, full swipe) in both reading directions, and `keys` is the route.
+- **Announcements.** Upstream announces every result assertively from inside the primitive. Here the parent says it through `LiveAnnounce`, since the Model owns the result.
+
+Evidence: [box.test.ts](../../packages/primitives/test/box.test.ts) (19 mutations killed), [move.test.ts](../../packages/primitives/test/move.test.ts) (6), [repeat.test.ts](../../packages/primitives/test/repeat.test.ts) (12), [swipe-actions.test.ts](../../packages/primitives/test/swipe-actions.test.ts) (10).
+
+Open: repeating pausing while the pointer is off the button, because `Press.events` reports no pointer-leave fact. A browser test of a real drag with Escape is not written; the Move tests are jsdom. A widget that draws resize handles with `Box` is not built.
+
+## Announcements and shortcuts
+
+**Disposition: built.** Both sides debounce, repeat identical text with a no-break space toggle, and clear. The gaps were the other-politeness drop, blank text, matching across platforms and layouts, the text-field policy, and one definition for matching, the attribute and the label.
+
+- **Announce.** Upstream keeps a timer per priority; [`LiveAnnounce`](../../packages/primitives/src/interaction/live-announce.ts) had one waiting slot, so a polite message was lost when an assertive one arrived inside the debounce. The waiting one is now read at once. Blank text is a no-op that starts no clock. The regions carry `role="status"` and `role="alert"`, and the doc says to draw them in the first view (a region added with its text is ignored by assistive technology). Upstream's `prepareAnnouncements` is not needed: the view draws both regions empty.
+- **Match.** Upstream's `matchesShortcut` takes `mod` (Meta on Apple, Control elsewhere) and falls back to `event.code` for a letter or digit when the layout typed another character, never overriding a Latin letter the layout did type. [`matchHotkey`](../../packages/primitives/src/events/hotkeys.ts) now does the same, with the platform as an argument so it stays pure. Names are looked up in a `Map`, so `constructor` is not inherited.
+- **Typing.** Upstream ignores a bare key while focus is in a field unless the shortcut has Control, Alt or Meta, or `allowInInput`. `keyboardEvents` now reports `typing` and `code` and drops IME presses; `matchHotkey` applies the rule.
+- **Display.** `ariaKeyshortcuts` and `formatHotkey` are `Option` from the same pattern, in a left-to-right isolate, and `None` for a pattern that matches nothing.
+- **Another owner.** Upstream's registry (scopes, a modal pausing the page's shortcuts) belongs to the Model, which holds the open layer; `update` decides whether a `Pressed` runs.
+
+Evidence: [hotkeys.test.ts](../../packages/primitives/test/hotkeys.test.ts) and [keyboard.test.ts](../../packages/primitives/test/keyboard.test.ts) (13 mutations killed), [live-announce.test.ts](../../packages/primitives/test/live-announce.test.ts) (6).
+
+Open: `?` and other shifted characters, because matching is exact on Shift as it is upstream. A browser test of an IME composition is not written.
+
+## Undo and change observation
+
+**Disposition: built in part.** Upstream's `createUndoStack` is a value-level stack. `History` already had grouping, a capacity, redo cleared by a push, `close` and `revert`. Added: a pause ends a grouped step, an equal push records nothing, and `map`. Labels and source attribution are not built, by design.
+
+- **Pause.** Upstream groups edits of one kind within `groupDelay` of the clock. [`History.push`](../../packages/primitives/src/state/history.ts) takes `at` and `within`: the Model reads no clock, the caller passes the time, and steady typing never splits because the window is measured from the previous push.
+- **No-op.** Upstream's `record` also records an unchanged state. A no-op must not record an undo step, so `equals` returns the Model it was given; it is opt-in because the Builder pushes values this package cannot compare.
+- **Map.** Upstream's `map` rewrites every entry. `History.map` does, and returns the Model it was given when no value changes.
+- **Labels and source.** Upstream's stack has neither. A step's label and source belong to the value (`{ document, label, source }`): "Undo rename" is `present.label` and "Redo paste" is `future[0].label`. A test and the README show this. A parallel notes array would change every `HistoryModel` consumer for no gain.
+- **Source of a change.** Upstream's `ChangeSource` (mouse, touch, keyboard, agent) is read from the input event and is for analytics and focus choices. Here the Message names who made it.
+
+Evidence: [history.test.ts](../../packages/primitives/test/history.test.ts) (38 tests, 6 mutations killed).
+
+Open: nothing. Each unbuilt point has a reason above.
+
+## Styles and recipes
+
+Not compared family by family. The catalog review in `ui-catalog-review-FINDINGS.md` covers recipe state coverage, tokens and layering for every shipped widget.
 
 ## Open
 
