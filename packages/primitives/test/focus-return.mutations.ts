@@ -14,6 +14,28 @@ const tests = [
 
 export default [
   {
+    name: 'only contenteditable="true" is editable',
+    edits: [
+      {
+        file: '../src/dom/focusable.ts',
+        find: `  '[contenteditable]:not([contenteditable="false"])',`,
+        replace: `  '[contenteditable="true"]',`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a details' summary takes no focus",
+    edits: [
+      {
+        file: '../src/dom/focusable.ts',
+        find: "  'details > summary:first-of-type',\n",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a redrawn opener is not found by its id',
     edits: [
       {

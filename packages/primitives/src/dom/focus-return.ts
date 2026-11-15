@@ -54,7 +54,10 @@ export const openerOf = (overlay: Element): HTMLElement | undefined => {
  * takes the opener when the overlay mounts; when the overlay unmounts with
  * focus lost (on `body`, or inside it), focus goes back to the opener, else
  * by the rules of `fallBack`. Focus the user moved elsewhere is left alone, and nothing is
- * focused on mount: `FocusScope` does that. It sends no Message.
+ * focused on mount: `FocusScope` does that. It sends no Message. It opens a
+ * layer of the document's stack while mounted, so the layers opened before it
+ * read as covered: a `FocusScope` below contains nothing meanwhile, and a
+ * `HideOutside` below leaves this overlay shown.
  */
 export const FocusReturn = Mount.defineStream('FocusReturn', {
   messages: [Schema.Never],

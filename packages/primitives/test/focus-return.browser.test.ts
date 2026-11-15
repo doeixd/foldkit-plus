@@ -196,6 +196,19 @@ describe('FocusReturn', () => {
     expect(doc.activeElement).toBe(by('opener'))
   })
 
+  it.each([
+    ['plaintext-only editable text', '<div id="opener" contenteditable="plaintext-only">x</div>'],
+    ['editable text with an empty value', '<div id="opener" contenteditable="">x</div>'],
+    ["a details' summary", '<details><summary id="opener">more</summary></details>'],
+  ])('returns to an opener of %s', async (_kind, opener) => {
+    const by = page('<button id="top">top</button>' + opener)
+    const overlay = open(by, 'opener')
+    const release = await returning(overlay)
+    overlay.remove()
+    await release()
+    expect(document.activeElement).toBe(by('opener'))
+  })
+
   it('moves no focus on mount', async () => {
     const by = page('<button id="opener">open</button>')
     const overlay = open(by, 'opener')

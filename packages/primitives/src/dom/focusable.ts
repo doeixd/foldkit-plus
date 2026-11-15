@@ -6,7 +6,10 @@ export const FOCUSABLE = [
   'select:not([disabled])',
   'textarea:not([disabled])',
   '[tabindex]',
-  '[contenteditable="true"]',
+  // Editable is any value but `false`: `plaintext-only` and the empty value too.
+  '[contenteditable]:not([contenteditable="false"])',
+  // Only a details' own summary is its toggle, and takes focus.
+  'details > summary:first-of-type',
 ].join(', ')
 
 export const isVisible = (element: Element): boolean => {
