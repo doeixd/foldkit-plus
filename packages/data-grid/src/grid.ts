@@ -32,7 +32,7 @@ import {
 } from './filter.js'
 import { GridFocus } from './focus.js'
 import { GridProjection } from './projection.js'
-import type { RowModel } from './rows.js'
+import { type RowModel, addressableRows } from './rows.js'
 import { GridSelection, RowSelection } from './selection.js'
 import { GridViewport } from './viewport.js'
 import { type GridWindow, type Viewport, VirtualGrid } from './virtual.js'
@@ -348,6 +348,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * their columns and reported as one `Pasted`, or nothing when none is left.
      */
     Pasted: { cells: Schema.Array(PastedCell) },
+    /** The view's copy wrote the text of a box of `rows` by `columns` cells to the clipboard. */
+    Copied: { rows: Schema.Number, columns: Schema.Number },
     /**
      * Ctrl or Meta with Z on the grid, or with Shift (or Ctrl+Y) for redo.
      * An open edit keeps them, since the editor's own undo is the field's.
@@ -403,6 +405,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       accepted: Schema.Array(CellText),
       refused: Schema.Array(Schema.Struct({ ...CellText.fields, error: Schema.String })),
     },
+    /** A copy of `rows` by `columns` cells, whose text is already on the clipboard. */
+    Copied: { rows: Schema.Number, columns: Schema.Number },
     UndoRequested: {},
     RedoRequested: {},
     /**
@@ -793,6 +797,56 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   const closeMenu = (model: Model): Model =>
     Option.isNone(model.menu) ? model : modifyFields(model, { menu: () => Option.none() })
 
+  /**
+   * The grid's `reveal` helper: scroll row `row` (counted from zero in `rows`
+   * as they are now), and column `column` when given, into view by the least
+   * scroll, and move no focus. Nothing happens when it is in view or the row
+   * is not in `rows`. `rowHeight` and `headerHeight` are the ones the view is
+   * given.
+   */
+  const reveal = (
+    model: Model,
+    rows: RowModel<Row>,
+    target: {
+      readonly row: number
+      readonly column?: Id
+      readonly rowHeight: number
+      readonly headerHeight: number
+    },
+  ): Update.ReturnWithOutMessage<Model, Message, PublicOutType, never> => {
+    const projection = project(rows, model.columns)
+    const column = Option.fromUndefinedOr(target.column).pipe(
+      Option.flatMap(projection.columnIndex),
+      Option.getOrElse(() => 0),
+    )
+    const scroll = VirtualGrid.reveal({
+      projection,
+      rowHeight: target.rowHeight,
+      width: columnState.widthOf(model.columns),
+      headerHeight: target.headerHeight,
+      viewport: model.viewport,
+      position: { row: target.row, column },
+    })
+    return Option.match(
+      Option.filter(
+        scroll,
+        () => target.row >= 0 && target.row < addressableRows(projection.rows.count),
+      ),
+      {
+        onNone: () => ({ model }),
+        onSome: ({ top, left }) => ({
+          model,
+          // Without a column the sideways scroll stays where it is.
+          commands: [
+            GridViewport.scrollTo(options.id, {
+              top,
+              left: target.column === undefined ? model.viewport.left : left,
+            }),
+          ],
+        }),
+      },
+    )
+  }
   const bundle = Bundle.make('DataGrid', {
     Model,
     Message,
@@ -810,6 +864,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         filtering: Option.none(),
       },
     }),
+    helpers: { reveal },
     // A grid that filters nothing never reports `Filtered`, so its Out is typed without it.
     update: (model: Model, message: Message) =>
       guarded(model, message) as unknown as Update.ReturnWithOutMessage<
@@ -831,7 +886,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       ? updated(model, message)
       : Match.value(message).pipe(
           // The form has the keyboard and the clipboard: these are not its.
-          Match.tag('Pasted', 'FillRequested', 'UndoRequested', 'RedoRequested', () => ({
+          Match.tag('Pasted', 'Copied', 'FillRequested', 'UndoRequested', 'RedoRequested', () => ({
             model,
           })),
           // What opens an edit, the menu or a fill, or moves focus, ends the form.
@@ -1240,6 +1295,10 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
           ? { model }
           : { model, outMessage: Out.Pasted({ accepted, refused }) }
       },
+      Copied: ({ rows, columns }): Return => ({
+        model,
+        outMessage: Out.Copied({ rows, columns }),
+      }),
       FillRequested: (request): Return =>
         Option.isSome(model.editing)
           ? { model }
@@ -1485,6 +1544,23 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       ...(input.overscan === undefined ? {} : { overscan: input.overscan }),
     })
 
+  /**
+   * The size of the cell range in the Model over `rows` as they are now, or
+   * none when there is no range (or a corner is hidden or gone): its rows,
+   * its columns, and so its `cells`.
+   */
+  const rangeSize = (rows: RowModel<Row>, model: Model) =>
+    Option.flatMap(model.selection.cells, range =>
+      Option.map(GridSelection.boxOf(project(rows, model.columns), range), box => {
+        const rowCount = box.rows.end - box.rows.start
+        return {
+          rows: rowCount,
+          columns: box.columns.length,
+          cells: rowCount * box.columns.length,
+        }
+      }),
+    )
+
   /** A column's filter kind; none for a column that does not filter. */
   const filterFor = (column: Id): Option.Option<CellEditor> =>
     Option.fromUndefinedOr(filterKinds.get(column))
@@ -1492,6 +1568,11 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   const noFilters = Object.fromEntries(
     filterIds.map(id => [id, Option.none()]),
   ) as unknown as Filters<Specs>
+  /** How many columns `filters` filters by. */
+  const filterCount = (filters: Filters<Specs>): number =>
+    Object.values<Option.Option<ColumnFilter>>(filters).filter(Option.isSome).length
+  /** Whether any column is filtered: what a Clear button or a badge asks. */
+  const hasFilters = (filters: Filters<Specs>): boolean => filterCount(filters) > 0
   /** `filters` with one `Out.Filtered`'s change written in. */
   const setFilter = (filters: Filters<Specs>, change: FilterChange<Specs>): Filters<Specs> => ({
     ...filters,
@@ -1529,6 +1610,8 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     filterFor,
     Filters,
     noFilters,
+    filterCount,
+    hasFilters,
     setFilter,
     keeps,
     matchEdit,
@@ -1543,6 +1626,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     columnState,
     project,
     window,
+    rangeSize,
     fill,
     extendRows,
     draftOf,

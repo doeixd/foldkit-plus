@@ -101,7 +101,7 @@ export default [
   one(
     'a filtered read-only header says only that it is filtered',
     view,
-    "                        ...(readOnly(id) ? [readOnlyWord] : []),\n",
+    '                        ...(readOnly(id) ? [readOnlyWord] : []),\n',
     '',
     browser,
   ),

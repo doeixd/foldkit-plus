@@ -120,7 +120,8 @@ the whole wiring, compiled.
   sets a cell's `width`, `position`, `insetInlineStart` or `boxSizing`, or a
   row's `height`, throws `slot "cell" protects style property`.
 - A grid has an OutMessage, `Grid.Out`: `Edited({ row, column, text })`,
-  `Pasted({ accepted, refused })`, `Filled({ source, to })` (Ctrl/Meta+D or
+  `Pasted({ accepted, refused })`, `Copied({ rows, columns })` (a copy's size, to say
+  "Copied 12 cells"), `Filled({ source, to })` (Ctrl/Meta+D or
   R, or the fill handle, whose drag scrolls the grid at its edge; write
   `Grid.fill(rows, model.grid, request).accepted`, and say what `refused`
   holds; `Fill.series` continues numbers and `YYYY-MM-DD` days, by months
@@ -141,6 +142,11 @@ the whole wiring, compiled.
   range as a cut does, reported as `Pasted`. A cell committed or pasted
   unchanged (the text it began from, or one decoding to the same value) is
   not reported, so the application needs no check of its own.
+- From outside the view: `Placed.helpers.reveal(rows, { row, column?, rowHeight,
+  headerHeight })` scrolls a row into view (a "go to row" control; no focus
+  moves), `Grid.rangeSize(rows, model.grid)` is the selected range's `{ rows,
+  columns, cells }` or none, and `Grid.hasFilters(filters)` / `Grid.filterCount(filters)`
+  say whether and how many columns are filtered.
 - Over a `Crud.list`: `foldkit-data-grid/crud`'s `GridCrud.columns(list,
   { columns })`, where `columns` gives a member `pinned`, `width` or `edit`,
   `GridCrud.rows(page, key)` and `GridCrud.status(page)`; give the view

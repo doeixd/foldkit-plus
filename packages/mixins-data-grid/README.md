@@ -212,7 +212,8 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   with a caret of it, so an edit does not look like a cell that only has focus.
 - **The clipboard** works on the range, or the focused cell. Copy puts it on
   the clipboard as tab-separated text, as spreadsheets read it, and as an
-  HTML table (`text/html`, cells escaped) for a target that reads that; paste lays
+  HTML table (`text/html`, cells escaped) for a target that reads that, and the
+  application hears one `Out.Copied({ rows, columns })`; paste lays
   text from the range's corner onto editable cells and the application
   hears one `Out.Pasted`; cut copies and clears the editable cells, and
   Delete or Backspace clears them without copying. While a

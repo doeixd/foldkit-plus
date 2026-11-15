@@ -61,6 +61,7 @@ const run = (model: Model, messages: ReadonlyArray<Message>) =>
               RedoRequested: () => state.reported,
               Filled: () => state.reported,
               RowsRequested: () => state.reported,
+              Copied: () => state.reported,
             }),
         }),
       }

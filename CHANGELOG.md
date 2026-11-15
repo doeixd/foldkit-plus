@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-data-grid`: what an application asks of a grid from outside its view. `Placed.helpers.reveal(rows,
+  { row, column?, rowHeight, headerHeight })` scrolls a row (and column) into view by the least scroll and
+  moves no focus, for a "go to row" control; `Grid.rangeSize(rows, model.grid)` is the selected cell range's
+  `{ rows, columns, cells }` or none; `Grid.hasFilters(filters)` and `Grid.filterCount(filters)` say whether
+  and how many columns are filtered, which the union of differently typed Options in `Filters` made awkward.
+- `foldkit-mixins-data-grid`: `words.readOnly` (default `Read-only`) is the `title` a column that does not
+  edit shows on hover, and the first word of its `aria-description`; the title was a fixed English literal.
 - `foldkit-primitives`: a `PointerDrag` under way writes the pointer's viewport place on the document root
   (`--fk-drag-x`, `--fk-drag-y`, and `data-fk-drag="mouse | touch | pen"`, named by `DRAGGING`) and removes them
   when it ends, so something follows the pointer with no draw per move. `DragPreview()` (`/dom`) is the
@@ -745,6 +752,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-data-grid`: **Breaking:** the grid's `Out` has a `Copied({ rows, columns })`, sent when the view's copy
+  has put a box on the clipboard (a cut still reports its cleared cells as `Pasted`). An `onOut` that matches
+  every variant needs a `Copied` arm, which may ignore it.
 - `examples/widgets`, `examples/authoring`: the examples show the newer capabilities, each section with
   its tests. Widgets gained file-input, tags-input, app-keys, menu-rows, choices, table, sheet,
   focus-kept and tour sections, and the window list's `findable` and `reveal`; authoring gained
@@ -973,6 +983,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-data-grid`: a mouse click on a column's filter funnel left its form open for about 25 ms.
+  Foldkit's Vite plugin brands each node with the function that returned it and the differ replaces a node
+  whose brand changed; the funnel (and the column menu's button) came from one arrow while the form was shut
+  and another while open, so the press that opened it replaced the focused button, and the header's
+  focus-leave handler took that for leaving and closed the form. Each button is now returned from the same
+  arrow either way. An installed package is not branded, so the fault showed in workspace builds.
 - `foldkit-mixins-builder`: a drop lands where the pointer let go. It landed where the last move had been
   over, so a list scrolled under a still pointer dropped a row away.
 - `foldkit-primitives`: an edge-scrolling drag no longer throws where the document has no `scrollingElement` (jsdom).

@@ -1032,6 +1032,14 @@ const view = <Message>() => ({
           const corner = cornerOf(box)
           return [
             h.OnCopyText(text),
+            h.OnCopy(
+              input.wrap(
+                grid.Message.Copied({
+                  rows: box.rows.end - box.rows.start,
+                  columns: box.columns.length,
+                }),
+              ),
+            ),
             // A cut clears the cells it copied that can be edited.
             h.OnCutText(text, input.wrap(grid.Message.Pasted({ cells: clearedOf(box) }))),
             h.OnPastePreventDefault(pasted =>
