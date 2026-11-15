@@ -239,6 +239,64 @@ it('hands over to the page once the box it scrolls is at its end', async () => {
   }
 })
 
+/** A list too short to scroll, a page that could, and a drag held at the viewport's bottom; `setUp` changes the page first. */
+const holdAtPageBottom = async (setUp: (box: HTMLElement) => void) => {
+  const { box, list } = rows(4, 'height:120px')
+  const spacer = document.createElement('div')
+  spacer.style.cssText = 'height:3000px'
+  document.body.append(spacer)
+  setUp(box)
+  const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
+  try {
+    await later(20)
+    const bottom = document.documentElement.clientHeight - 3
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    pointer(10, bottom, 'pointermove')
+    await later(300)
+    pointer(10, bottom, 'pointerup')
+  } finally {
+    await run.stop()
+  }
+  const scrolled = window.scrollY
+  window.scrollTo(0, 0)
+  document.documentElement.style.overflow = ''
+  return scrolled
+}
+
+it('leaves a page alone that a scroll lock holds', async () => {
+  expect(
+    await holdAtPageBottom(() => {
+      document.documentElement.style.overflow = 'hidden'
+    }),
+  ).toBe(0)
+})
+
+it('leaves the page alone behind a list in a fixed panel', async () => {
+  expect(
+    await holdAtPageBottom(box => {
+      box.style.position = 'fixed'
+      box.style.height = '100vh'
+    }),
+  ).toBe(0)
+})
+
+it('scrolls no box the pointer is beside rather than over', async () => {
+  const { box, list } = rows(20)
+  const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
+  try {
+    await later(20)
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    pointer(300, 98, 'pointermove')
+    await later(300)
+    expect(box.scrollTop).toBe(0)
+    pointer(300, 98, 'pointerup')
+  } finally {
+    await run.stop()
+  }
+})
+
 it('ignores a page that glides: each step lands at once', async () => {
   document.documentElement.style.scrollBehavior = 'smooth'
   const { box, list } = rows(40, 'height:100px;overflow:auto;scroll-behavior:smooth')

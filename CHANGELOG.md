@@ -518,6 +518,10 @@ version changed; `pnpm` skips versions already in the registry.
   own entries, so `Data.wiring`'s `policies` can name them, and a tag the tree lacks is a
   type error.
 
+- `foldkit-primitives`: `Reorder.behavior`'s pointer drag scrolls the list, then the page,
+  while held near an edge (`edgeScroll` on by default; `edgeScroll: false` keeps the old
+  behaviour). It pulls only a box the pointer is over, nothing above a `position: fixed`
+  box, and not a page held by a scroll lock (`overflow: hidden` on the root or body).
 - `foldkit-primitives`: `FocusScope`'s restore, with the element that had focus gone and
   focus lost with the scope (on `body`, or inside it), goes by the rules of `FocusReturn`
   instead of leaving focus on `body`. Focus the user moved elsewhere is left alone, a

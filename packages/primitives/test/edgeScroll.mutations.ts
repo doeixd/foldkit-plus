@@ -13,6 +13,27 @@ const marqueeTests = ['packages/primitives/test/marquee.browser.test.ts']
 
 export default [
   {
+    name: 'a page under a scroll lock still scrolls',
+    edits: [
+      {
+        file: scroll,
+        find: ' && pageScrolls(view, owner, axis)) {',
+        replace: ') {',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'the walk goes on past a fixed box to the page',
+    edits: [{ file: scroll, find: '        fixed = true\n', replace: '' }],
+    tests: edgeTests,
+  },
+  {
+    name: 'a scroller the pointer is only beside is pulled too',
+    edits: [{ file: scroll, find: '        if (!across) continue\n', replace: '' }],
+    tests: edgeTests,
+  },
+  {
     name: 'the strip is the whole box, so a pointer mid-box scrolls',
     edits: [{ file: scroll, find: 'if (at < lo + strip) return', replace: 'if (at < hi) return' }],
     tests: edgeTests,

@@ -659,7 +659,10 @@ on `PointerDrag`, and on `Marquee`, scrolls the nearest ancestor that can scroll
 the way the pointer pulls, on a frame clock, while the press is held in its
 last `edge` pixels (default 40, at most a third of the box) at up to `speed`
 pixels a second (default 600), less the nearer the strip's inner side. A box
-at its end hands over to the next ancestor and then the page. After every step
+at its end hands over to the next ancestor and then the page. Only a box the
+pointer is over (within its span across) is pulled, nothing above a
+`position: fixed` box is, and the page is not while it or its body has
+`overflow: hidden` or `clip` (a scroll lock's, under a modal). After every step
 the place under the still pointer is reported again (`DraggedOver`), so the
 list moving is a place changing. Each step is `scrollTo` with `behavior:
 'instant'`, so a page's own `scroll-behavior: smooth` does not glide it; under

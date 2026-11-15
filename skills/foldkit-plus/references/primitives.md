@@ -153,7 +153,8 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   `edgeScroll: {}` (or `{ edge, speed }`) scrolls the nearest scrolling ancestor, then the
   page, while the drag is held near its edge (default 40px strip, 600px/s, instant steps,
   jumps every 150ms under reduced motion) and reports the place under the still pointer after
-  each step; absent, a plain drag scrolls nothing.
+  each step; absent, a plain drag scrolls nothing. Only a box the pointer is over is pulled,
+  nothing above a `position: fixed` box, and not a page under a scroll lock.
 - **A lasso over marked items** (select by dragging a rectangle on empty space):
   `Marquee.behavior(Slots)<Input, Message>({ container, attribute, edgeScroll?, toMessage })`
   (Mount `Marquee({ attribute })` in `/dom`), attached beside `PointerDrag` on the same

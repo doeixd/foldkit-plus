@@ -37,14 +37,22 @@ const room = (element: Element, axis: Axis) =>
 const offset = (element: Element, axis: Axis) =>
   axis === 'y' ? element.scrollTop : element.scrollLeft
 
-const scrolls = (view: Window, element: Element, axis: Axis) => {
-  const style = view.getComputedStyle(element)
+const scrolls = (style: CSSStyleDeclaration, element: Element, axis: Axis) => {
   const overflow = axis === 'y' ? style.overflowY : style.overflowX
   return (
     (overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay') &&
     room(element, axis) > 0
   )
 }
+
+/** Whether the page itself can scroll that way: a scroll lock writes `overflow: hidden` on the root, which `scrollTo` would still move. */
+const pageScrolls = (view: Window, owner: Document, axis: Axis) =>
+  [owner.documentElement, owner.body].every(each => {
+    if (each === null) return true
+    const style = view.getComputedStyle(each)
+    const overflow = axis === 'y' ? style.overflowY : style.overflowX
+    return overflow !== 'hidden' && overflow !== 'clip'
+  })
 
 /** How hard a position pulls toward an edge of `lo`..`hi`: -1 to 1, by how deep into the strip it is. */
 const pull = (at: number, lo: number, hi: number, band: number) => {
@@ -81,19 +89,27 @@ export const edgeScroller = (
     if (view === null) return []
     const found: Array<Scroller> = []
     const root = owner.scrollingElement
+    let fixed = false
     for (let at = element as Element | null; at !== null; at = at.parentElement) {
       if (at === owner.documentElement || at === owner.body || at === root) continue
-      if (!scrolls(view, at, axis)) continue
-      const box = at.getBoundingClientRect()
-      found.push({
-        element: at,
-        left: box.left,
-        top: box.top,
-        right: box.right,
-        bottom: box.bottom,
-      })
+      const style = view.getComputedStyle(at)
+      if (scrolls(style, at, axis)) {
+        const box = at.getBoundingClientRect()
+        found.push({
+          element: at,
+          left: box.left,
+          top: box.top,
+          right: box.right,
+          bottom: box.bottom,
+        })
+      }
+      // Nothing above a fixed box moves it: the page scrolling behind a fixed panel shows nothing new in it.
+      if (style.position === 'fixed') {
+        fixed = true
+        break
+      }
     }
-    if (root !== null && room(root, axis) > 0) {
+    if (!fixed && root !== null && room(root, axis) > 0 && pageScrolls(view, owner, axis)) {
       found.push({
         element: root,
         left: 0,
@@ -111,6 +127,12 @@ export const edgeScroller = (
     if (point === null) return steps
     for (const axis of ['x', 'y'] as const) {
       for (const scroller of scrollers(axis)) {
+        // Beside a scroller, not over it, is no edge of its: the pointer must be within its span across.
+        const across =
+          axis === 'y'
+            ? point.x >= scroller.left && point.x <= scroller.right
+            : point.y >= scroller.top && point.y <= scroller.bottom
+        if (!across) continue
         const by =
           axis === 'y'
             ? pull(point.y, scroller.top, scroller.bottom, band)
