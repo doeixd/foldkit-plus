@@ -171,6 +171,10 @@ Pick by task:
   jumps every 150ms under reduced motion) and reports the place under the still pointer after
   each step; absent, a plain drag scrolls nothing. Only a box the pointer is over is pulled,
   nothing above a `position: fixed` box, and not a page under a scroll lock.
+  While a drag lasts it writes `--fk-drag-x`, `--fk-drag-y` (viewport px) and
+  `data-fk-drag="mouse|touch|pen"` on the root (`DRAGGING`), so a preview follows the
+  pointer with no draw per move: draw an element with `popover="manual"` while the drag
+  is in the Model and mount `DragPreview()` (`/dom`) on it (top layer); a rule reads the vars.
 - **A lasso over marked items** (select by dragging a rectangle on empty space):
   `Marquee.behavior(Slots)<Input, Message>({ container, attribute, edgeScroll?, toMessage })`
   (Mount `Marquee({ attribute })` in `/dom`), attached beside `PointerDrag` on the same
