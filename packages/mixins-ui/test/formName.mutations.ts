@@ -49,4 +49,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a file input drops its name',
+    edits: [
+      {
+        file: '../src/fileInput.ts',
+        find: '...(options.name === undefined ? [] : [h.Name(options.name)]),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

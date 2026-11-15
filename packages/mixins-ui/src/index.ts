@@ -30,6 +30,7 @@ export * as TagsInput from './tagsInput.js'
 export * as PasswordInput from './passwordInput.js'
 export * as SearchField from './searchField.js'
 export * as Toolbar from './toolbar.js'
+export * as FileInput from './fileInput.js'
 export * as Rating from './rating.js'
 export * as Steps from './steps.js'
 export * as VirtualList from './virtualList.js'
@@ -150,6 +151,8 @@ export type {
   ToolbarStop,
   ToolbarView,
 } from './toolbar.js'
+export { FileInputSlots } from './fileInput.js'
+export type { FileInputView, FileInputWords } from './fileInput.js'
 export type { Requirement as PasswordRequirement } from './passwordInput.js'
 export { RatingSlots } from './rating.js'
 export type { RatingDisplay, RatingInput, RatingView } from './rating.js'

@@ -83,6 +83,7 @@ import { PickerSlots } from './picker.js'
 import { ScrollAreaSlots } from './scrollArea.js'
 import { SearchFieldPattern, SearchFieldSlots } from './searchField.js'
 import { ToolbarPattern, ToolbarSlots } from './toolbar.js'
+import { FileInputPattern, FileInputSlots } from './fileInput.js'
 import { TableSlots } from './table.js'
 import { WindowListSlots } from './windowList.js'
 
@@ -1536,6 +1537,22 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
         FocusStrategy,
       ),
       drawn('Toolbar.view: aria-label on the root (toolbar.ts)', 'root', Name),
+    ],
+  ),
+  entry(
+    'file-input',
+    FileInputPattern,
+    FileInputSlots,
+    'stateless',
+    ['button', 'list', 'listitem'],
+    ['native-control', 'form-submission'],
+    [
+      native('input', 'input', Activation, FocusStrategy),
+      drawn(
+        'FileInput.view: the trigger is a label for the input, so its words name it (fileInput.ts)',
+        'input',
+        Name,
+      ),
     ],
   ),
 ])

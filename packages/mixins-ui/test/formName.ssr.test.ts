@@ -10,6 +10,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { expect, test } from 'vitest'
 import {
   CheckboxGroup,
+  FileInput,
   Input,
   Rating,
   Segmented,
@@ -196,4 +197,24 @@ test('a tags input submits each tag under its name, one hidden input apiece, and
     TagsInput.view({ model, onMessage: () => undefined as never, label: 'Topics' }, h),
   )
   expect(unnamed.querySelectorAll('input[name]')).toHaveLength(0)
+})
+
+test('a file input names its files and says it is required, so a form submits them unhydrated', async () => {
+  const page = await served(h =>
+    FileInput.view(
+      {
+        id: 'cv',
+        label: 'Attach a resume',
+        name: 'resume',
+        required: true,
+        files: [],
+        onChange: () => undefined as never,
+        onRemove: () => undefined as never,
+      },
+      h,
+    ),
+  )
+  const input = page.querySelector<HTMLInputElement>('input[name="resume"]')
+  expect(input?.getAttribute('type')).toBe('file')
+  expect(input?.hasAttribute('required')).toBe(true)
 })

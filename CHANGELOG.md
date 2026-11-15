@@ -574,6 +574,15 @@ version changed; `pnpm` skips versions already in the registry.
   not draw is left alone. `routes` adds keys on the same keydown owner. `examples/widgets`'
   toolbar is drawn with it, in place of the primitives it assembled by hand.
 
+- `foldkit-mixins-ui`: `FileInput` and `Recipes.FileInput`, a file picker: a native
+  `type="file"` input, hidden but focusable, and a button drawn on the `<label for>` that
+  names it, so a press and Enter or Space open the browser's dialog with no script. The
+  chosen files are rows with a named `remove` button. The application owns `files`: fold a
+  pick in with `FileInput.added`, and answer `onChange` and `onRemove` with
+  `FileInput.Sync`, which writes the list back into the input so a form submits what the
+  list shows and a removed file can be chosen again; answer `onRemove` with
+  `FileInput.Focus` so focus stays on the field.
+
 - `foldkit-mixins-ui`: `Dialog.update(model, message)` and `Dialog.open(model)` are
   `@foldkit/ui`'s `update` and `open` plus one focus repair: a dialog opened again during
   its exit gets focus back inside it (`Dialog.RestoreFocus`). `Dialog.isLeaving(model)`,

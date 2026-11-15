@@ -29,7 +29,7 @@ Three kinds of thing live here:
   `@foldkit/ui` component's bundles as Slots and run the Mixins resolver over
   them: Button, Dialog, Popover, Tooltip, Tabs, Listbox, Combobox and more.
 - **Stateless views** draw a vocabulary from what the application passes and
-  keep nothing: Card, Badge, Item, Avatar, Command, Slider, PasswordInput, SearchField, Toolbar.
+  keep nothing: Card, Badge, Item, Avatar, Command, Slider, PasswordInput, SearchField, Toolbar, FileInput.
 - **Components with a small Model of their own**: Menu, Menubar, Toast,
   Sheet, Picker, WindowList, Drawer, TagsInput, TreeView, Carousel, Resizable, ColorPicker, InputCopy,
   MessageScroller, Questionnaire, AngleSlider, Timer, Marquee, ImageCropper,
@@ -666,6 +666,7 @@ glyph with it, so the recipe's size is the drawing's.
 | `AspectRatio` | `{ content? }`. Slot `frame`. | `ratio`: `square` (default), `video` (16/9), `portrait` (3/4). The corner reads `radius`. |
 | `Avatar` | `{ name, src?, initials?, status?, statusLabel? }`. The root is one `role="img"` named by the person (and the status, "Ada Lovelace, Online"); initials show until the picture covers them, the picture's alt empty. `status` (`online`, `away`, `busy`, `offline`) is a dot on the lower end corner. `src` may be an `AvatarPicture` (`{ asset, provider, width }` from `foldkit-media`): the picture is drawn with its 1x and 2x candidates at `width` CSS pixels, and a provider with no URL for it leaves the initials. `Avatar.widthOf(size)` is a size's width in CSS pixels, for that `width`. `Avatar.group({ people, max?, label?, moreLabel?, style?, avatarStyle? })` overlaps them, each ringed in the page, and counts the rest as one more avatar. An avatar beside a name and a line is an `Item` with the avatar as its media. | `size`: `xs`, `sm`, `md` (default), `lg`, `xl`; `shape`: `circle` (default), `rounded`, `square`; `color`: `neutral` (default) or `name` (initials in a hue from the name); `ring`: `none`, `page`, `accent`. Slots `root`, `fallback`, `image`, `status`. `Recipes.AvatarGroup({ overlap: 'tight' \| 'loose' \| 'none' })` over `AvatarGroupSlots` (`root`). |
 | `Figure` | `{ content, caption? }`: a `figure` holding its content (an `Image.view`, a chart, a code block), then its caption in a `figcaption`, which names the figure for assistive technology by itself; no caption, no `figcaption`. | `align`: `start` (default) or `center`. The caption is the `caption` role, muted. Slots `root`, `caption`. |
+| `FileInput` | `FileInput.view({ id, label, files, onChange, onRemove, name?, accept?, multiple?, disabled?, required?, invalid?, description?, words?, style?, mixins? }, h)`: a file picker, not a drop zone (that is `FileDrop`). A native `type="file"` input, hidden but still focusable, and a button drawn on the `<label for>` that names it (`label` is its words), so a press on the button and Enter or Space on the focused input open the browser's dialog with no script. The chosen files are a list, each row with a `remove` button named `Remove {name}` (`words: { remove? }`). The application owns `files`, `File`s compared by identity: fold a pick in with `FileInput.added(files, picked, { multiple })` (a single field takes the newest pick, `multiple` appends and skips a file already held, by name, size, type and modification time) and answer `onChange` and `onRemove` with the `FileInput.Sync({ id, files })` Command, which writes the list back into the input, so a surrounding form submits exactly the list shown (Foldkit empties the input after each pick); an empty list resets its value, so a removed file can be chosen again. Answer `onRemove` with `FileInput.Focus({ id })` as well, which puts focus on the input, since the button that held it left with its row, as `SearchField.Focus` does; both answer `FileInput.Message.CompletedSync` and `CompletedFocus`. `name`, `accept`, `multiple` and `required` are the native attributes; `invalid` is `aria-invalid`, and `description` is read after the name. A disabled field takes no pick and its rows no remove. The view keeps nothing. | `size` is Button's ladder step. The trigger is Button's outlined neutral face, ringed when the hidden input has keyboard focus, dimmed when disabled and bordered in the error color when invalid; `remove` is Button's icon variant. Slots `root`, `input`, `trigger`, `description`, `list`, `item`, `name`, `remove`. |
 | `Image` | `{ asset, provider, layout, alt, priority?, sizes? }` from `foldkit-media`: a `picture` with a `source` per format the provider offers and an `img` with its candidates, `sizes`, `width` and `height` (the box is held before the file arrives), lazy unless `priority` (then `fetchpriority="high"`). `alt` is what the image shows in words (a string, or `Image.described(text)`) or `Image.decorative` (`alt=""`, `role="presentation"`), never omitted. `Provider.hosted` takes only a `HashedAsset`, so facts without a content hash are a type error there. The `img` carries `--fk-image-ratio`, `--fk-image-placeholder` (none behind a transparent image) and `data-layout` (`fixed`, `constrained`, `full`); a provider with no URL for the image leaves an empty frame marked `data-unavailable`. An unavailable image keeps its box and is `role="img"` named by its alt text (hidden when decorative). `--fk-image-focus` places a crop at the asset's focal point. `placeholder: 'detail' | 'average'` chooses how much of a ThumbHash to paint; by default the picture for `priority`, the color otherwise. `Image.watchLoad`, beside the style, marks the `img`'s `data-state` (`loading`, `loaded`, `failed`); the recipe hides a failed image, keeping its box. `Image.audit`, beside the style in a development build, warns in the console of an image drawn wider than its file (blurry) or far narrower (wasted bytes), and of more than one image drawn with `priority`. `Image.preloadsIn` is a `foldkit-ssr` `Head`: the `<link rel="preload">` of each image the rendered page drew with `priority`. | `fit`: `cover` (default) or `contain`; `edge`: `none` (default) or `line` (the faint inset line); `ratio`: `auto` (default), `square`, `video` (16:9), `portrait` (3:4), cropped at the asset's focal point (an unavailable image holds the cropped box); `radius`: `none` (default), `sm`, `md`, `lg`, `full`. The placeholder paints the `img`'s background. Slots `frame`, `source`, `image`. |
 | `Badge` | `{ text, tone? }` writes `data-tone`. | `Recipes.Badge({ attribute, tones, appearance? })` maps that attribute; values outside the map keep the base. `appearance`: `tinted` (default), `dot`, `outline`, `solid`. Slot `badge`. |
 | `Breadcrumb` | `{ label?, steps: { label, href?, current?, icon? }[], separator?, collapse? }`. `label` names the landmark (default `Breadcrumb`). `current` is text with `aria-current="page"`; the others are links. An `icon` draws before its label, hidden from assistive technology. `separator` is drawn between steps in place of the recipe's; `collapse: { max, onExpand, label? }` folds the middle of a long trail into an ellipsis (`Breadcrumb.collapsedOf(steps, max)` is the split). `collapse: { max, menu: { model, onMessage, mixins } }` makes the ellipsis open a Menu of the hidden steps instead: the Menu's Model is the application's, built from `Breadcrumb.menuRows(steps, max)`, and `Breadcrumb.chosen(steps, max, value)` is the step a row leads to (a row's value is its step's place among the hidden steps, so two steps of one label are two rows). | `separator`: `slash` (default), `chevron` or `dot`, drawn where the view is given no `separator` of its own. Slots `root`, `list`, `item`, `link`, `current`, `icon`, `separator`, `ellipsis`, `dots`. |
@@ -834,6 +835,72 @@ it. `control.attributes` goes on the one focusable element, and `control.disable
 says to draw it off: the arrows skip it. A control that needs the arrow keys
 itself keeps them: a text field gives the toolbar only the arrows at its edge,
 and never Home or End, so place it last or leave it with Tab.
+
+### A file input
+
+A `FileInput` is a native file input and the button that labels it. The
+application owns the chosen files; `FileInput.Sync` writes that list back into
+the input so a form submits what the list shows, and `FileInput.Focus` keeps
+focus on the field when a row, and the button that held it, goes.
+
+```ts
+import { modifyFields } from 'foldkit/struct'
+import type { Return } from 'foldkit/update'
+import { FileInput, FileInputSlots } from 'foldkit-mixins-ui'
+
+const FilesModel = Schema.Struct({ files: Schema.Array(Schema.instanceOf(File)) })
+const FilesMessage = defineMessageUnion({
+  Picked: { files: Schema.Array(Schema.instanceOf(File)) },
+  Removed: { file: Schema.instanceOf(File) },
+  CompletedSync: {},
+  CompletedFocus: {},
+})
+type FilesMessage = typeof FilesMessage.Type
+
+const FileFieldStyle = Style.forSlots(FileInputSlots)(Recipes.FileInput({}))
+
+const filesUpdate = (
+  model: typeof FilesModel.Type,
+  message: FilesMessage,
+): Return<typeof FilesModel.Type, FilesMessage> =>
+  FilesMessage.match(message, {
+    Picked: ({ files }) => {
+      const next = FileInput.added(model.files, files, { multiple: true })
+      return {
+        model: modifyFields(model, { files: () => next }),
+        commands: [FileInput.Sync({ id: 'cv', files: next })],
+      }
+    },
+    Removed: ({ file }) => {
+      const next = model.files.filter(each => each !== file)
+      return {
+        model: modifyFields(model, { files: () => next }),
+        commands: [FileInput.Sync({ id: 'cv', files: next }), FileInput.Focus({ id: 'cv' })],
+      }
+    },
+    CompletedSync: () => ({ model }),
+    CompletedFocus: () => ({ model }),
+  })
+
+const filesView = (model: typeof FilesModel.Type, h: HtmlBuilder<FilesMessage>) =>
+  FileInput.view(
+    {
+      id: 'cv',
+      label: 'Attach files',
+      name: 'attachments',
+      multiple: true,
+      files: model.files,
+      onChange: files => FilesMessage.Picked({ files }),
+      onRemove: file => FilesMessage.Removed({ file }),
+      style: FileFieldStyle,
+    },
+    h,
+  )
+```
+
+Nothing here reads the input: the browser's dialog, the native input and the
+form are the platform's, and the view declares them. `Sync` and `Focus` are
+the only calls that touch the page.
 
 ## Recipes
 
@@ -1292,7 +1359,7 @@ A test iterates the catalog and validates each adapter's own Slots and
 claims. The patterns are written separately from the Slots, which is what makes
 the check mean something.
 
-Where a pattern names obligations (who navigates, who makes an item reachable, who activates it, who names it), the entry's `support` lists who supplies each: Mixins that contribute nothing, made with `A11y.base` (the widget's own markup or the upstream bundle it draws, named by source file) or `A11y.native` (what a native element does by itself). An adapter draws through `resolveFor`, so it has no view for `A11y.check` to read; the gate attaches `support` to a view over the adapter's Slots and `check` judges it, so an obligation nobody supplies is a failure, and so is a supplier nothing needs. These are claims found in source, not a rendered check; the rendered check is `Conformance` from `foldkit-mixins/testing`. Pagination, breadcrumb, table, scroll area, drawer, hover intent, picker, button group, window list, card, search field and toolbar are in the catalog beside the older widgets, and a published `*Slots` that is neither in the catalog nor on the gate's list of Slots with nothing to require fails the gate. None of this is a WCAG claim.
+Where a pattern names obligations (who navigates, who makes an item reachable, who activates it, who names it), the entry's `support` lists who supplies each: Mixins that contribute nothing, made with `A11y.base` (the widget's own markup or the upstream bundle it draws, named by source file) or `A11y.native` (what a native element does by itself). An adapter draws through `resolveFor`, so it has no view for `A11y.check` to read; the gate attaches `support` to a view over the adapter's Slots and `check` judges it, so an obligation nobody supplies is a failure, and so is a supplier nothing needs. These are claims found in source, not a rendered check; the rendered check is `Conformance` from `foldkit-mixins/testing`. Pagination, breadcrumb, table, scroll area, drawer, hover intent, picker, button group, window list, card, search field, toolbar and file input are in the catalog beside the older widgets, and a published `*Slots` that is neither in the catalog nor on the gate's list of Slots with nothing to require fails the gate. None of this is a WCAG claim.
 
 ## Why some components needed a fork
 
