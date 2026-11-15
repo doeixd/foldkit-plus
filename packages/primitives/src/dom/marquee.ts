@@ -170,6 +170,9 @@ export const Marquee = Mount.defineStream('Marquee', {
             release()
             if (!wasStarted) return
             swallowClick = ended && inside
+            // The click comes in the release's own task, or never (a release a browser sends no click
+            // for): past it, a keyboard's click on a button is no part of the drop.
+            if (swallowClick) setTimeout(() => (swallowClick = false), 0)
             Queue.offerUnsafe(
               queue,
               ended && rect !== null

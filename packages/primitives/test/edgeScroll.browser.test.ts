@@ -324,6 +324,26 @@ it('walks the ancestors once a frame, not once a move, while nothing scrolls', a
   }
 })
 
+it('lets a click through once the drop that sent none has passed', async () => {
+  const { list } = rows(4, 'height:120px')
+  const run = drive(list, { attribute: 'data-row' })
+  const clicks = vi.fn()
+  document.body.addEventListener('click', clicks)
+  try {
+    await later(20)
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    pointer(10, 75, 'pointermove')
+    pointer(10, 75, 'pointerup')
+    await later(10)
+    list.querySelector('li')!.click()
+    expect(clicks).toHaveBeenCalledTimes(1)
+  } finally {
+    document.body.removeEventListener('click', clicks)
+    await run.stop()
+  }
+})
+
 it('ignores a page that glides: each step lands at once', async () => {
   document.documentElement.style.scrollBehavior = 'smooth'
   const { box, list } = rows(40, 'height:100px;overflow:auto;scroll-behavior:smooth')

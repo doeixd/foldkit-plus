@@ -13,6 +13,28 @@ const marqueeTests = ['packages/primitives/test/marquee.browser.test.ts']
 
 export default [
   {
+    name: "a lasso's waiting swallow outlives its release",
+    edits: [
+      {
+        file: marquee,
+        find: '            if (swallowClick) setTimeout(() => (swallowClick = false), 0)\n',
+        replace: '',
+      },
+    ],
+    tests: marqueeTests,
+  },
+  {
+    name: "a drop's waiting swallow outlives its release",
+    edits: [
+      {
+        file: drag,
+        find: '            if (swallowClick) setTimeout(() => (swallowClick = false), 0)\n',
+        replace: '',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
     name: 'an additive lasso adds what was already selected again',
     edits: [
       {

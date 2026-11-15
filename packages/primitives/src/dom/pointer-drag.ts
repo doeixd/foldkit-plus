@@ -237,6 +237,9 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             release()
             if (id === null) return
             swallowClick = dropped && inside
+            // The click comes in the release's own task, or never (a release a browser sends no click
+            // for): past it, a keyboard's click on a button is no part of the drop.
+            if (swallowClick) setTimeout(() => (swallowClick = false), 0)
             Queue.offerUnsafe(
               queue,
               dropped

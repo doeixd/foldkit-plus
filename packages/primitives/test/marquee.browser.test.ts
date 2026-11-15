@@ -274,6 +274,24 @@ it('swallows the click a lasso ends with, and no other', async () => {
   }
 })
 
+it('lets a click through once the release that sent none has passed', async () => {
+  const element = canvas()
+  const run = drive(element, { attribute: 'data-node' })
+  const clicks = vi.fn()
+  document.body.addEventListener('click', clicks)
+  try {
+    await later(20)
+    lasso(at(90, 90), at(140, 40))
+    await later(10)
+    // Enter on the button, a click with no pointer behind it.
+    element.querySelector('button')!.click()
+    expect(clicks).toHaveBeenCalledTimes(1)
+  } finally {
+    document.body.removeEventListener('click', clicks)
+    await run.stop()
+  }
+})
+
 it('listens to the document only while a press is under way, and lets go when ended mid-press', async () => {
   const element = canvas()
   const added = vi.spyOn(document, 'addEventListener')
