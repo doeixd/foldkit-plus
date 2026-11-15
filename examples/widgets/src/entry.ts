@@ -29,20 +29,27 @@ const sectionOf = (id: string, title: string): HTMLElement => {
   return container
 }
 
-const loadWhenNear = (island: LazyIsland, container: HTMLElement) => {
-  const watcher = new IntersectionObserver(
-    entries => {
-      if (!entries.some(entry => entry.isIntersecting)) return
-      watcher.disconnect()
-      void island.load().then(body => {
-        Style.install(Style.stylesheet(body.style()))
-        body.mount(container)
-      })
-    },
-    { rootMargin: '600px 0px' },
-  )
-  watcher.observe(container)
-}
+const boot = (island: LazyIsland, container: HTMLElement) =>
+  island.load().then(body => {
+    Style.install(Style.stylesheet(body.style()))
+    body.mount(container)
+  })
+
+// Decided once: with no observer to say a section is near, every section loads now.
+const loadWhenNear: (island: LazyIsland, container: HTMLElement) => void =
+  typeof IntersectionObserver === 'undefined'
+    ? (island, container) => void boot(island, container)
+    : (island, container) => {
+        const watcher = new IntersectionObserver(
+          entries => {
+            if (!entries.some(entry => entry.isIntersecting)) return
+            watcher.disconnect()
+            void boot(island, container)
+          },
+          { rootMargin: '600px 0px' },
+        )
+        watcher.observe(container)
+      }
 
 for (const island of eager) island.mount(sectionOf(island.id, island.title))
 for (const island of lazyIslands) loadWhenNear(island, sectionOf(island.id, island.title))
