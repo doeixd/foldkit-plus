@@ -248,7 +248,7 @@ export const update = (
   model: DialogModel,
   message: DialogMessage,
 ): ReturnType<typeof updateDialog> => {
-  if (message._tag === 'RequestedClose' && !model.isOpen) return { model, commands: [] }
+  if (isDismissal(message) && !model.isOpen) return { model, commands: [] }
   const next = updateDialog(model, message)
   if (message._tag !== 'RequestedOpen' || !isLeaving(model)) return next
   const selector = Option.getOrElse(model.maybeFocusSelector, () => initialFocusSelector)

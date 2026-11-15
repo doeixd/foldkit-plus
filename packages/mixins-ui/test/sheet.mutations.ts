@@ -314,7 +314,7 @@ export default [
     edits: [
       {
         file: '../src/dialog.ts',
-        find: "if (message._tag === 'RequestedClose' && !model.isOpen) return { model, commands: [] }",
+        find: 'if (isDismissal(message) && !model.isOpen) return { model, commands: [] }',
         replace: '',
       },
     ],
