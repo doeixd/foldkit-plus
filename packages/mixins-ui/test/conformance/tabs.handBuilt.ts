@@ -138,7 +138,7 @@ export const mount = (tabs: ReadonlyArray<Tab>, direction: 'ltr' | 'rtl') => {
       init: () => ({
         model: {
           roving: { current: null },
-          selection: { selected: [tabs[0]!.id], anchor: tabs[0]!.id },
+          selection: { selected: [tabs[0]!.id], anchor: tabs[0]!.id, ranged: [] },
         },
       }),
       update: (model: Model, message: Message) => {
@@ -169,7 +169,7 @@ export const served = (tabs: ReadonlyArray<Tab>, h: HtmlBuilder<Message>) =>
   view(
     {
       roving: { current: null },
-      selection: { selected: [tabs[2]!.id], anchor: tabs[2]!.id },
+      selection: { selected: [tabs[2]!.id], anchor: tabs[2]!.id, ranged: [] },
       tabs,
       direction: 'ltr',
     },

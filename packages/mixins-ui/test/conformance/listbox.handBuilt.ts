@@ -156,7 +156,7 @@ export const mount = (
       init: () => ({
         model: {
           list: { current: null, query: '', generation: 0 },
-          selection: { selected: [], anchor: null },
+          selection: { selected: [], anchor: null, ranged: [] },
         },
       }),
       update: (model: Model, message: Message) =>
@@ -182,7 +182,7 @@ export const served = (
   view('vertical')(
     {
       list: { current: null, query: '', generation: 0 },
-      selection: { selected: [options[2]!.id], anchor: null },
+      selection: { selected: [options[2]!.id], anchor: null, ranged: [] },
       options,
       direction: 'ltr',
     },
