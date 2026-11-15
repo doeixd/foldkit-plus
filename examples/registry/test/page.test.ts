@@ -263,7 +263,7 @@ const connectionButton = () =>
   Array.from(document.querySelectorAll<HTMLButtonElement>('header button')).find(button =>
     /^Go (offline|online)$/.test(button.textContent ?? ''),
   )!
-const SYNCED = 'Saved on this device and in sync'
+const SYNCED = 'In sync'
 const click = (element: Element) =>
   element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 const press = (target: Element, key: string) =>

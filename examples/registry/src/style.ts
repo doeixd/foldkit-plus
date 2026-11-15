@@ -166,14 +166,32 @@ export const DeviceBadgeStyle = demoStyle.forSlots(BadgeSlots)(
 export const Sandbox = demoStyle.slots(
   {
     content: L.in('layouts', Layout.stack({ gap: t.space.lg })),
-    intro: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
+    // The lede and the conflict steps side by side where there is room, so the devices start high.
+    intro: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
+      Style.at(
+        '@media (min-width: 64rem)',
+        Style.self({
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)',
+          columnGap: t.space.xl,
+          alignItems: 'start',
+        }),
+      ),
+    ),
     eyebrow: Style.self({
+      gridColumn: '1 / -1',
       margin: '0',
       fontSize: t.size.sm,
       fontWeight: t.weight.medium,
       color: t.text.subtle,
     }),
-    heading: Style.self({ margin: '0', fontSize: t.size['2xl'], color: t.text.overt }),
+    heading: Style.self({
+      margin: '0',
+      fontSize: t.size['2xl'],
+      color: t.text.overt,
+      gridColumn: '1 / -1',
+    }),
     lede: Style.self({ margin: '0', maxInlineSize: '44rem', color: t.text.muted }),
     steps: Style.self({
       margin: '0',
@@ -192,12 +210,19 @@ export const Sandbox = demoStyle.slots(
         display: 'grid',
         gap: t.space.md,
         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        position: 'relative',
       }),
       // One column on a phone, and only the chosen device: the other stays mounted, hidden.
       Style.media('(max-width: 63.99rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
       Style.at(
         '@media (max-width: 63.99rem)',
-        Style.nest('& > [data-chosen="false"]', { display: 'none' }),
+        // Not display: none, which a frame draws no frames under: the hidden device keeps
+        // its size, so its grid is measured and painted, and shows at once when chosen.
+        Style.nest('& > [data-chosen="false"]', {
+          position: 'absolute',
+          insetInline: '0',
+          visibility: 'hidden',
+        }),
       ),
     ),
     frame: Style.self({

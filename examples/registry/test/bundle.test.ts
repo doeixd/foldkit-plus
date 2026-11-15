@@ -42,7 +42,17 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // Alert and Card, which gained the form options (`name`, `required`, `readOnly`, `attributes`),
 // the live description, `recoveryPart` and Card's `headingLevel`. Not measured module by
 // module; the ceiling is that reading plus about 200 bytes.
-const CEILING = 257_850
+// 2026-11-15, measured in one tree: 258,080 at HEAD before this round (+230 over the line
+// above, from the data grid's new members `reveal`, `rangeSize`, `filterCount`, `hasFilters`
+// and `Copied`, which `DataGrid.make` returns as one object, so a page keeps them whether it
+// calls them or not), then 260,555 with the device's connection strip (+2,475). Nearly all of
+// that is `Button.view`: foldkit-mixins-ui 6.9 to 9.2 kB and foldkit-primitives 1.2 to 1.7 kB
+// brotli, the widget's module with its press handling and recipe; the page's own code is the
+// rest. A plain `h.button` over `ButtonSlots` measured 260,3xx, since the slots live in the
+// same module. Loading the ownership panel lazily was tried and measured worse (259,576):
+// its chunk is 1.5 kB and the split cost more than it saved. Ceiling: the measure plus about
+// 450 bytes.
+const CEILING = 261_000
 
 clientBudget({
   name: 'registry',

@@ -611,7 +611,7 @@ export const exchangeOf = (model: Model): string => {
       pending === 0
         ? `The server did not answer: retrying (${reason})`
         : `The server did not answer: ${edits} waiting to sync (${reason})`,
-    onNone: () => (pending === 0 ? 'Saved on this device and in sync' : `Syncing ${edits}…`),
+    onNone: () => (pending === 0 ? 'In sync' : `Syncing ${edits}…`),
   })
 }
 

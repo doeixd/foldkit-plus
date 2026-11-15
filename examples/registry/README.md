@@ -69,9 +69,8 @@ this example's own is below.
   pauses the transport (`pausable` in `sync.ts`): exchanges fail as an
   unreachable server would, so edits wait on the device, through a reload;
   *Go online* exchanges at once. The strip beside it says where the device
-  stands in words (`exchangeOf` in `app.ts`: "Saved on this device and in
-  sync", "Syncing 2 edits…", "Offline: 2 edits waiting to sync", the todo
-  app's wording), with a dot for online or offline, in a live region. An unreachable server is retried on a backoff (0.5 s up
+  stands in words (`exchangeOf` in `app.ts`: "In sync", "Syncing 2 edits…", "Offline: 2 edits waiting to sync", the todo
+  app's wording, with "In sync" shortened to fit a narrow header), with a dot for online or offline, in a live region. An unreachable server is retried on a backoff (0.5 s up
   to 30 s) and at once on the next edit.
 - **The rows drawn follow the table live.** The rows the grid draws are a
   live subscription, and each edit the journal writes to the table is told to
