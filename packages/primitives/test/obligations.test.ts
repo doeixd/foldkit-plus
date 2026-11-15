@@ -6,8 +6,10 @@ import {
   Press,
   RovingTabindex,
   Selection,
+  SpatialNavigation,
   TreeNavigation,
 } from '../src/interaction/index.js'
+import { Bundle } from 'foldkit-bundle'
 import {
   Grid,
   Keys,
@@ -28,6 +30,8 @@ import {
   type Input,
   type Message,
 } from './obligations.fixture.js'
+
+const Spatial = Bundle.declare(SpatialNavigation.bundle, 'spatial')
 
 /** Per slot, what a Behavior's metadata says it supplies. */
 const supplied = (mixin: MixinValue<any>): Readonly<Record<string, ReadonlyArray<string>>> =>
@@ -66,6 +70,14 @@ describe('what each primitive supplies', () => {
         item: 'option',
         items: itemsOf,
       }).mixin,
+      { listbox: ['navigation'], option: ['focus-strategy'] },
+    ],
+    [
+      'SpatialNavigation',
+      SpatialNavigation.behavior(Spatial, { id: 'board' })(ListboxSlots)<
+        Input & { readonly spatial: SpatialNavigation.Model },
+        Message
+      >({ container: 'listbox', item: 'option', items: itemsOf }).mixin,
       { listbox: ['navigation'], option: ['focus-strategy'] },
     ],
     ['Selection', Picks.mixin, { option: ['state:aria-selected', 'activation'] }],

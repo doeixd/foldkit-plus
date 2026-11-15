@@ -267,14 +267,14 @@ export interface BehaviorOptions<Input, Slots, ParentMessage> {
    * next cell. They share one keydown owner with them: a route on the same
    * key is a diagnostic naming both.
    */
-  readonly routes?: ReadonlyArray<Behaviors.Keyboard.Route<Input, ParentMessage>>
+  readonly routes?: ReadonlyArray<Behaviors.Keys.Route<Input, ParentMessage>>
 }
 
 /**
  * Wires a placed `InlineEdit` to the slots. Each display gets its `id`, a
  * double click and its keys; the field gets its `id`, its value from the
  * draft, `OnInput`, `OnBlur`, `aria-invalid` and `aria-describedby` while a
- * refusal stands, and Enter and Escape as `Behaviors.Keyboard` routes, so an
+ * refusal stands, and Enter and Escape as `Behaviors.Keys` routes, so an
  * Escape that cancels the edit is default-prevented and closes no dialog
  * around it. A key an input method is composing reaches none of them.
  *
@@ -292,27 +292,20 @@ export const behavior =
     const editingIn = (input: Input) => input[declared.field].editing
     const whileEditing = (input: Input, toMessage: (id: string) => Message) =>
       Option.map(editingIn(input), ({ id }) => send(toMessage(id)))
-    const keys = Behaviors.Keyboard.behavior(slots)<Input, ParentMessage>({
-      target: options.input,
-      name: 'InlineEditKeys',
-      routes: [
-        {
-          name: 'Commit',
-          key: 'Enter',
-          toMessage: input => whileEditing(input, id => Message.Entered({ id })),
-        },
-        {
-          name: 'Cancel',
-          key: 'Escape',
-          toMessage: input => whileEditing(input, id => Message.Escaped({ id })),
-        },
+    const fieldKeys = Behaviors.Keys.attribute<Input, ParentMessage>(
+      [
+        Behaviors.Keys.route('Commit', {
+          on: [Behaviors.Keys.chord('Enter')],
+          handle: ({ input }) => whileEditing(input, id => Message.Entered({ id })),
+        }),
+        Behaviors.Keys.route('Cancel', {
+          on: [Behaviors.Keys.chord('Escape')],
+          handle: ({ input }) => whileEditing(input, id => Message.Escaped({ id })),
+        }),
         ...(options.routes ?? []),
       ],
-    })
-    // The routes' one keydown handler, written beside the field's own attributes.
-    const keyAttributes = (
-      keys.spec as Readonly<Record<string, Behavior.BehaviorSlotOptions<Input, ParentMessage>>>
-    )[options.input]?.attributes
+      { slot: options.input, moveFocus: false },
+    )
     return Behavior.forSlots(slots)<Input, ParentMessage>(
       {
         [options.display]: Behavior.slot({
@@ -358,7 +351,7 @@ export const behavior =
                 ...(Option.isSome(editing.error)
                   ? [h.AriaInvalid(true), h.AriaDescribedBy(errorId(args))]
                   : []),
-                ...(keyAttributes?.({ input, h }) ?? []),
+                fieldKeys({ input, h }),
               ],
             }),
         }),

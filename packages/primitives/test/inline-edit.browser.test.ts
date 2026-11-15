@@ -169,7 +169,10 @@ it('keeps every key typed straight after the one that starts the edit', async ()
 it('Escape puts the value back and returns focus', async () => {
   await start()
   display('a')!.focus()
-  await userEvent.keyboard('{Enter}Gone{Escape}')
+  await userEvent.keyboard('{Enter}Gone')
+  // A key sent before the field takes focus reaches the display, which does not answer Escape.
+  await vi.waitFor(() => expect(document.activeElement).toBe(field()))
+  await userEvent.keyboard('{Escape}')
   await vi.waitFor(() => expect(document.activeElement).toBe(display('a')))
   expect(titles()).toEqual(['Plan', 'Build'])
 })
