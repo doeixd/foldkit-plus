@@ -4,6 +4,8 @@
  * last column draws a Button, markup the Table is handed as a cell's value.
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { FOCUS_MARK } from 'foldkit-primitives/dom'
+import { FocusRecovery } from 'foldkit-primitives/interaction'
 import { Style } from 'foldkit-mixins'
 import { Button, ButtonSlots, Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { Message, initial, sorted, update, type Member, type Model } from './app.js'
@@ -12,6 +14,12 @@ export const TableStyle = Style.forSlots(TableSlots)(Recipes.Table({}))
 export const ButtonStyle = Style.forSlots(ButtonSlots)(
   Recipes.Button({ tone: 'neutral', variant: 'outline' }),
 )
+
+// A sort moves keyed rows, which blurs the control inside one: the frame finds it again by its mark.
+const recovery = FocusRecovery.behavior(TableSlots)<undefined, Message>({
+  owner: 'frame',
+  parts: { control: ['same'], expandButton: ['same'], sortButton: ['same'] },
+}).mixin
 
 export const TableIsland = (model: Model, h: HtmlBuilder<Message>): Html =>
   Table.view(
@@ -31,6 +39,12 @@ export const TableIsland = (model: Model, h: HtmlBuilder<Message>): Html =>
               {
                 label: `${member.active ? 'Archive' : 'Restore'} ${member.name}`,
                 onClick: Message.Toggled({ id: member.id }),
+                attributes: {
+                  button: [
+                    h.DataAttribute(FOCUS_MARK.part, 'control'),
+                    h.DataAttribute(FOCUS_MARK.key, member.id),
+                  ],
+                },
                 style: ButtonStyle,
               },
               h,
@@ -38,6 +52,7 @@ export const TableIsland = (model: Model, h: HtmlBuilder<Message>): Html =>
         },
       ],
       style: TableStyle,
+      mixins: [recovery],
     },
     h,
   )

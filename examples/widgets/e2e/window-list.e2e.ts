@@ -24,12 +24,14 @@ test('go to row 700 brings it into view, and a number past the list does not sub
 
   await field.fill('1200')
   await field.scrollIntoViewIfNeeded()
-  const before = await page.evaluate(() => window.scrollY)
+  // The rows drawn tell what the list was scrolled to: lazy sections above it move the page itself.
+  const firstDrawn = () => list.getByRole('listitem').first().textContent()
+  const before = await firstDrawn()
   await page.getByRole('button', { name: 'Go' }).click()
   expect(
     await field.evaluate(element => (element as HTMLInputElement).validity.rangeOverflow),
   ).toBe(true)
-  expect(await page.evaluate(() => window.scrollY)).toBe(before)
+  expect(await firstDrawn()).toBe(before)
 
   await field.fill('700')
   await page.getByRole('button', { name: 'Go' }).click()

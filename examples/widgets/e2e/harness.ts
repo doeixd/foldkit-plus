@@ -52,7 +52,9 @@ export const startHarness = async (): Promise<Harness> => {
 
 /** The section under a heading, scrolled to so a lazy one loads, once it has drawn. */
 export const reveal = async (page: Page, heading: string): Promise<Locator> => {
-  const section = page.locator('section', { has: page.getByRole('heading', { name: heading }) })
+  const section = page.locator('section', {
+    has: page.getByRole('heading', { name: heading, exact: true }),
+  })
   await section.scrollIntoViewIfNeeded({ timeout: 120_000 })
   await section.locator('div > *').first().waitFor({ timeout: 120_000 })
   return section

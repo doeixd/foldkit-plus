@@ -81,8 +81,30 @@ it('names each cell under its row heading and its column heading, as Chromium an
   ])
 })
 
-// ADOPT when Table keeps focus on a row's button as keyed rows move (approved fix in mixins-ui).
-it.todo('focus on Archive Annie Easley stays on that button after the Name heading sorts the rows')
+it('keeps focus on a row button when sorting by the Name heading moves its row', async () => {
+  mount()
+  await vi.waitFor(() => expect(button('Archive Annie Easley')).toBeDefined())
+  const names = () =>
+    Array.from(document.querySelectorAll('tbody th')).map(cell => cell.textContent?.trim())
+  expect(names()[0]).toBe('Grace Hopper')
+  button('Archive Annie Easley')!.focus()
+  const heading = Array.from(document.querySelectorAll('thead button')).find(element =>
+    element.textContent?.includes('Name'),
+  )
+  heading!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  // Annie's row moved from the fourth place to the second.
+  await vi.waitFor(() =>
+    expect(document.querySelector('thead [aria-sort]')?.getAttribute('aria-sort')).toBe(
+      'ascending',
+    ),
+  )
+  expect(document.querySelector('thead [aria-sort]')?.textContent).toContain('Name')
+  await vi.waitFor(() => expect(names()[1]).toBe('Annie Easley'))
+  // Compared by text: a failed element comparison cannot be reported by the browser runner.
+  await vi.waitFor(() =>
+    expect(document.activeElement?.textContent?.trim()).toBe('Archive Annie Easley'),
+  )
+})
 
 it('presses the markup cell button with Enter and Space, and keeps focus on it', async () => {
   mount()

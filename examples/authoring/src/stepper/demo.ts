@@ -26,7 +26,11 @@ export const runDemo = (): ReadonlyArray<string> => {
   model = update(
     model,
     More.wrapper.make(
-      Repeat.Message.PointerUp({ pointerId: 1, pointerType: 'mouse', shiftKey: false }),
+      Repeat.Message.PointerUp({
+        pointerId: 1,
+        pointerType: 'mouse',
+        modifiers: { shiftKey: false, ctrlKey: false, metaKey: false, altKey: false },
+      }),
     ),
   ).model
   lines.push(`more released: holding=${model.more.holding}`)

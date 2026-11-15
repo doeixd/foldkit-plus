@@ -4,7 +4,8 @@
  * the row's heading.
  */
 import { Option } from 'effect'
-import { Scene } from 'foldkit/test'
+import { SlotView } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, it } from 'vitest'
 import { Message, initial, sorted, update } from '../src/table/app.js'
 import { TableIsland, runDemo } from '../src/table/view.js'
@@ -34,7 +35,7 @@ describe('update flows', () => {
     expect(update(descending, Message.Sorted({ column: 'name' })).model.sort).toEqual(Option.none())
   })
 
-  it('sorts by the column pressed, and ignores a name that is no column', () => {
+  it('sorts by the column pressed, and a name that is no column does not type-check', () => {
     const byRole = update(initial, Message.Sorted({ column: 'role' })).model
     expect(sorted(byRole).map(member => member.role)).toEqual([
       'Analyst',
@@ -42,7 +43,8 @@ describe('update flows', () => {
       'Engineer',
       'Engineer',
     ])
-    expect(update(initial, Message.Sorted({ column: 'active' })).model).toBe(initial)
+    // @ts-expect-error `active` is not a column a heading sorts by.
+    Message.Sorted({ column: 'active' })
   })
 
   it('toggles one member and leaves the others, and ignores an unknown id', () => {
@@ -52,49 +54,16 @@ describe('update flows', () => {
   })
 })
 
-const press = (name: string) => Scene.click(Scene.role('button', { name }))
-
 describe('the view', () => {
   it('draws each name as the row heading and each action as a button named for its row', () => {
-    Scene.scene(
-      { update, view: TableIsland },
-      Scene.given(initial),
-      Scene.expect(Scene.role('rowheader', { name: 'Ada Lovelace' })).toExist(),
-      Scene.expect(Scene.role('button', { name: 'Archive Ada Lovelace' })).toExist(),
-      Scene.expect(Scene.role('button', { name: 'Restore Katherine Johnson' })).toExist(),
-    )
-  })
-
-  it('sends a press on a row button to update, which turns Archive into Restore', () => {
-    Scene.scene(
-      { update, view: TableIsland },
-      Scene.given(initial),
-      press('Archive Ada Lovelace'),
-      Scene.expect(Scene.role('button', { name: 'Restore Ada Lovelace' })).toExist(),
-      Scene.expect(Scene.role('button', { name: 'Archive Ada Lovelace' })).toBeAbsent(),
-    )
-  })
-
-  it('marks the sorted heading with aria-sort after a press on it', () => {
-    Scene.scene(
-      { update, view: TableIsland },
-      Scene.given(initial),
-      press('Name'),
-      Scene.expect(Scene.role('columnheader', { name: 'Name' })).toHaveAttr(
-        'aria-sort',
-        'ascending',
-      ),
-    )
+    const table = TableIsland(initial, SlotView.inertBuilder<Message>())
+    const rowHeadings = Inert.byTag(table, 'th')
+      .filter(cell => Inert.value(cell, 'scope') === 'row')
+      .map(Inert.text)
+    expect(rowHeadings).toContain('Ada Lovelace')
+    expect(Inert.byLabel(table, 'Archive Ada Lovelace')).toHaveLength(1)
+    expect(Inert.byLabel(table, 'Restore Katherine Johnson')).toHaveLength(1)
   })
 })
-
-describe('demo', () => {
-  it('traces a sort, its reversal and an archive', () => {
-    expect(runDemo()).toEqual([
-      'start: Grace Hopper, Ada Lovelace, Katherine Johnson, Annie Easley',
-      'sorted by name: Ada Lovelace, Annie Easley, Grace Hopper, Katherine Johnson',
-      'pressed again: Katherine Johnson, Grace Hopper, Annie Easley, Ada Lovelace',
-      'archived Ada Lovelace: active=false',
-    ])
-  })
-})
+// A press on a heading or a row button reaches `update` in `table.browser.test.ts`: a Scene test
+// of this view cannot resolve the `FocusRecovery` Mount, which has no Message to answer with.

@@ -47,12 +47,11 @@ describe('update flows', () => {
     expect(percentShown(closed)).toEqual(Option.none())
     expect(percentShown(update(closed, Message.Opened()).model)).toEqual(Option.some(30))
   })
-})
 
-// ADOPT when Sheet.close returns the Model it was given on a closed sheet (approved fix in mixins-ui).
-it.todo(
-  'Sheet.close on a closed sheet returns the same Model, so Escape while closed re-renders nothing',
-)
+  it('keeps the Model for an Escape while closed', () => {
+    expect(update(initial, escape).model).toBe(initial)
+  })
+})
 
 describe('demo', () => {
   it('traces opening, two handle keys and Escape', () => {

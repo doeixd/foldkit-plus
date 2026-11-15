@@ -20,12 +20,13 @@ export type Member = typeof Member.Type
 
 /** The columns a heading sorts by, named as the heading's `sortKey`. */
 export const SORT_COLUMNS = ['name', 'role'] as const
+const SortColumn = Schema.Literals(SORT_COLUMNS)
 
 export const Model = Schema.Struct({
   members: Schema.Array(Member),
   sort: Schema.Option(
     Schema.Struct({
-      column: Schema.String,
+      column: SortColumn,
       direction: Schema.Literals(['ascending', 'descending']),
     }),
   ),
@@ -33,7 +34,7 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
-  Sorted: { column: Schema.String },
+  Sorted: { column: SortColumn },
   Toggled: { id: Schema.String },
 })
 export type Message = typeof Message.Type
@@ -48,16 +49,11 @@ export const initial: Model = {
   sort: Option.none(),
 }
 
-const isSortColumn = (column: string): column is (typeof SORT_COLUMNS)[number] =>
-  SORT_COLUMNS.some(known => known === column)
-
 export const update = (model: Model, message: Message): { readonly model: Model } =>
   Message.match(message, {
-    // A heading the Table draws as sortable is always one of `SORT_COLUMNS`.
-    Sorted: ({ column }) =>
-      isSortColumn(column)
-        ? { model: modifyFields(model, { sort: sort => Table.nextSort(sort, column) }) }
-        : { model },
+    Sorted: ({ column }) => ({
+      model: modifyFields(model, { sort: sort => Table.nextSort(sort, column) }),
+    }),
     Toggled: ({ id }) =>
       model.members.some(member => member.id === id)
         ? {
@@ -76,7 +72,6 @@ export const sorted = (model: Model): ReadonlyArray<Member> =>
   Option.match(model.sort, {
     onNone: () => model.members,
     onSome: ({ column, direction }) => {
-      if (!isSortColumn(column)) return model.members
       const order = [...model.members].sort((a, b) => a[column].localeCompare(b[column]))
       return direction === 'ascending' ? order : order.reverse()
     },

@@ -12,6 +12,7 @@ import { type Browser, type Page, chromium } from 'playwright'
 import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { onFreePort } from '../../../scripts/free-port.mjs'
+import { reveal } from './harness.js'
 
 let vite: ViteDevServer
 let browser: Browser
@@ -57,6 +58,8 @@ test('Bold presses, and the palette narrows to what was typed and picks from it'
   await page.keyboard.press('ArrowRight')
   await expect.poll(focused).toBe('Link')
 
+  // The palette is a lazy section: it loads when it nears the window.
+  await reveal(page, 'Command')
   const palette = page.getByRole('dialog', { name: 'Commands' })
   await expect.poll(() => palette.getByRole('option').count()).toBe(6)
   await palette.getByRole('searchbox', { name: 'Search commands' }).fill('new')
@@ -81,6 +84,7 @@ const visit = async (width: number, height: number) => {
 
 test('on a desktop the sort Picker drops its options down', async () => {
   const { page, problems } = await visit(1280, 900)
+  await reveal(page, 'Picker (a dropdown, and a sheet on a phone)')
   const trigger = page.getByRole('button', { name: 'Sort: Sort by' })
   await trigger.waitFor({ timeout: 120_000 })
   expect(await page.getByRole('button', { name: 'Sort: Sort by' }).count()).toBe(1)
@@ -93,6 +97,7 @@ test('on a desktop the sort Picker drops its options down', async () => {
 
 test('on a phone the sort Picker shows its options in a sheet', async () => {
   const { page, problems } = await visit(390, 844)
+  await reveal(page, 'Picker (a dropdown, and a sheet on a phone)')
   const opener = page.getByRole('button', { name: 'Sort: Sort by' })
   await opener.waitFor({ timeout: 120_000 })
   await opener.click()
@@ -122,6 +127,7 @@ const section = (page: Page, heading: string) =>
 
 test('the search field is on the page and works', async () => {
   const { page, problems } = await visit(1280, 900)
+  await reveal(page, 'Search field (placed twice)')
   const search = section(page, 'Search field (placed twice)')
   const first = search.getByRole('searchbox', { name: 'Search first' })
   await first.waitFor({ timeout: 120_000 })

@@ -31,8 +31,7 @@ export const Message = defineMessageUnion({
   Removed: { file: Schema.instanceOf(File) },
   Submitted: {},
   GotSubmission: { names: Schema.Array(Schema.String) },
-  CompletedSync: {},
-  CompletedFocus: {},
+  ...FileInput.cases,
 })
 export type Message = typeof Message.Type
 
