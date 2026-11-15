@@ -672,6 +672,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-mixins-ui`: `Menubar.view`'s `menuMixins` is optional, as the other views' `mixins` are; a bar given none draws its menus unstyled.
+
 - `foldkit-mixins-ui`: **Breaking:** a Menu row is named by a `value` of its own, beside its `label`. `Menu.ItemRow`, `CheckRow`, `SubmenuRow`, `LeafRow` and `Row` take `value` (and `Row<Value>` types it by the application's union); the menu's items, `isRowDisabled`, a submenu's `isItemDisabled`, `Selected`'s `value` and `submenu`, `Menu.checkChosen` and `Menubar`'s `Selected` and `isRowDisabled` go by it, so two rows with one label (a "Delete" in two groups) are told apart in the disabled state and in what is chosen. A submenu's `items` are `ItemRow`s, not strings. `label` is what is drawn and what typeahead matches. `Breadcrumb.menuRows` gives each hidden step's place as its row's value, and `Breadcrumb.chosen` reads it. `Menu.rowInputs` is the Menu view inputs for rows, shared by Menu and Menubar.
 
 - `foldkit-mixins-ui`: **Breaking:** `TagsInput`'s keys are `Behaviors.Keys` routes on its

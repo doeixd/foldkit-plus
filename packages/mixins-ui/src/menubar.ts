@@ -271,7 +271,7 @@ export interface MenubarView<ParentMessage, Value extends string = string> {
   /** A style of `MenubarSlots`, for the bar's look. */
   readonly style?: NamedStyle<typeof MenubarSlots> | undefined
   /** The menus' mixins: a style of `MenuSlots` (`Recipes.MenubarMenu`), and `Menu.fluid`. */
-  readonly menuMixins: MixinList<ParentMessage>
+  readonly menuMixins?: MixinList<ParentMessage> | undefined
   /** A style of `KbdSlots` for the rows' shortcuts (`Recipes.Kbd`); without one they are the keys' words. */
   readonly kbd?: NamedStyle<typeof KbdSlots> | undefined
 }
@@ -281,6 +281,7 @@ export const view = <ParentMessage, Value extends string = string>(
   h: HtmlBuilder<ParentMessage>,
 ): Html => {
   const { model, onMessage } = options
+  const menuMixins = options.menuMixins ?? []
   const keys = Behaviors.Keys.behavior(MenubarSlots)<unknown, ParentMessage>({
     slot: 'bar',
     name: 'MenubarKeys',
@@ -325,13 +326,13 @@ export const view = <ParentMessage, Value extends string = string>(
                 ...rowInputs(shown.rows, shown.isRowDisabled, h),
                 buttonContent: h.span([], [shown.label]),
                 // The bar's tab stop, and a trigger as the APG's menubar names it.
-                toView: menuToView(options.menuMixins, { h }, resolved =>
+                toView: menuToView(menuMixins, { h }, resolved =>
                   drawMenu(
                     {
                       ...withRows(
                         resolved,
                         shown.rows,
-                        { mixins: options.menuMixins, kbd: options.kbd },
+                        { mixins: menuMixins, kbd: options.kbd },
                         h,
                       ),
                       button: [

@@ -188,4 +188,9 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a bar given no menu mixins fails to draw',
+    edits: [{ file, find: 'options.menuMixins ?? []', replace: 'options.menuMixins' }],
+    tests: [unit],
+  },
 ]
