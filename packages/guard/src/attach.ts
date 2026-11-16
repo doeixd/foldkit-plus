@@ -290,6 +290,32 @@ export const attachedRules = (attachment: Attachment): ReadonlyArray<AnyRule> =>
 
 export const isAnyone = (rule: AnyRule): boolean => rule._tag === 'All' && rule.rules.length === 0
 
+/** Whether a row guard reads another row (a path, a path from the viewer, an exists): one row cannot judge it. */
+export const reachesOther = (guard: RowGuard<any, AnyEntity>): boolean =>
+  Query.dependencies(guard.query).reaches.length > 0
+
+/**
+ * The row guards among the row's rules for `interaction` that read another
+ * row, by name, each once. A check over one row read cannot judge one: a
+ * handler's (`GuardServer.mutation`), a Sync document's, and a writer's that
+ * holds no rule in its statement, each refused where it is made.
+ */
+export const reachingRules = (
+  attachment: Attachment,
+  interaction: string,
+): ReadonlyArray<string> => [
+  ...new Set(
+    flattenRules(attachment.row[interaction]?.rules ?? []).flatMap(rule =>
+      Match.valueTags(rule, {
+        PrincipalGuard: () => [],
+        RowGuard: guard => (reachesOther(guard) ? [guard.name] : []),
+        All: () => [],
+        Inherit: () => [],
+      }),
+    ),
+  ),
+]
+
 /** Whether a surface's rules restrict who passes: not when one of them is `anyone`. */
 export const restricts = (surface: Option.Option<Surface>): boolean =>
   Option.exists(surface, ({ rules }) => !rules.some(isAnyone))
@@ -388,7 +414,7 @@ const checkRules = (
             `[foldkit-guard] ${set}.attach: ${where} names ${guard.name}, a guard over another Entity named ${entity.name}`,
           )
         }
-        if (!reachingSurfaces.has(where) && Query.dependencies(guard.query).reaches.length > 0) {
+        if (!reachingSurfaces.has(where) && reachesOther(guard)) {
           throw new Error(
             `[foldkit-guard] ${set}.attach: ${where} names ${guard.name}, which reads another row (a path or an exists); only a row's Read rule may (judged in SQL), and its Update and Delete rules (judged in the write's statement), so name those rather than Write`,
           )

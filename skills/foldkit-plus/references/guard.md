@@ -248,7 +248,10 @@ export const Todo = TodoFields.pipe(
   rows back as the writer now sees them; what it writes is its own to check.
   It refuses as `Forbidden`, or a visitor as `Unauthenticated`, as the writer does.
   An `id` answering an `Option` (`Schema.OptionFromNullOr` in the input) is
-  create-or-edit: `none` is checked against `Create`.
+  create-or-edit: `none` is checked against `Create`. It throws where it is
+  made when the interaction's rule reads another row (a path, an exists): the
+  check reads one row and runs no statement, so land such a write as a
+  declared one through `GuardServer.writer`.
 
 ### Checked at startup
 
@@ -308,7 +311,9 @@ supplied: true } }`). Select `may: true` and read it with
   "who am I", and route-level `may`; `Remote.forget` on any change of principal
   drops it. `key` is shown to its own principal: an id, never a token.
 - Sync: `foldkit-guard/sync`. `GuardSync.document(ProductEdits, { readers: [G.isStaff] })`
-  (refused at definition when an edit could reach a reader its rows hide it from);
+  (refused at definition when an edit could reach a reader its rows hide it from,
+  or when the row's `Update` rule reads another row, which an edit admitted over
+  the one row read cannot judge);
   `authorize: { EditedProducts: GuardSync.authorize(Policy, Edits) }` under the
   journal's lock (principal guards only); `journalExchange({ …, opens:
   GuardSync.opens(Policy, Edits, principal), admit: GuardSync.admit(Policy, Edits,
