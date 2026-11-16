@@ -21,8 +21,8 @@ export default [
     edits: [
       {
         file,
-        find: 'return { marked, landsOn: land.attribute, inRegion: targets !== undefined }',
-        replace: 'return { marked, landsOn: lands[0]!.attribute, inRegion: targets !== undefined }',
+        find: 'landsOn: land.attribute,',
+        replace: 'landsOn: lands[0]!.attribute,',
       },
     ],
     tests,

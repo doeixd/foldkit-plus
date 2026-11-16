@@ -1,6 +1,7 @@
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 import { EdgeScroll, edgeScrollerLater } from './edge-scroll.js'
+import { gapPlace } from './drag-gap.js'
 import { escapeEnds, whilePressed } from './press-session.js'
 import { targetOf } from './targets.js'
 
@@ -151,13 +152,21 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
      */
     part: Schema.optionalKey(Schema.String),
     /**
+     * Over a container's own space (its padding, the gap between two children), where the
+     * descendants are nested, report the place between its children by where the pointer is
+     * along their flow, not the container's own thirds: before the first child whose middle is
+     * past the pointer, else after the last (past the last of the whole region, `over: null`).
+     * Only that one container's children are measured. Absent: a container is one place.
+     */
+    gaps: Schema.optionalKey(Schema.Boolean),
+    /**
      * Scroll the nearest scrolling ancestor while the drag is held near its
      * edge, and report the place under the still pointer after each step.
      * Absent: a drag scrolls nothing.
      */
     edgeScroll: Schema.optionalKey(EdgeScroll),
   },
-  execute: ({ element, attribute, targets, part, edgeScroll }) =>
+  execute: ({ element, attribute, targets, part, gaps, edgeScroll }) =>
     Stream.callback<DragFact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -175,18 +184,29 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           }
           const find = (from: EventTarget | null) => {
             if (!(from instanceof Element))
-              return { marked: null, landsOn: attribute, inRegion: false }
+              return { marked: null, landsOn: attribute, inRegion: false, scope: null }
             let inRegion = false
+            let scope: Element | null = null
+            let scopeAttribute = attribute
             for (const land of lands) {
               const region = regionOf(land.within)
               if (region === null) continue
               const marked = from.closest(`[${land.attribute}]`)
               if (marked !== null && region.contains(marked))
-                return { marked, landsOn: land.attribute, inRegion: targets !== undefined }
-              // Only a drag onto `targets` tells its regions' empty space from elsewhere.
-              inRegion ||= targets !== undefined && region.contains(from)
+                return {
+                  marked,
+                  landsOn: land.attribute,
+                  inRegion: targets !== undefined,
+                  scope: region,
+                }
+              if (region.contains(from)) {
+                scope = region
+                scopeAttribute = land.attribute
+                // Only a drag onto `targets` tells its regions' empty space from elsewhere.
+                inRegion ||= targets !== undefined
+              }
             }
-            return { marked: null, landsOn: attribute, inRegion }
+            return { marked: null, landsOn: scopeAttribute, inRegion, scope }
           }
           // A press not yet a drag, or a drag under way: one pointer's, the first down.
           let pressed: {
@@ -234,15 +254,38 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
               typeof owner.elementFromPoint === 'function' && event.clientX !== undefined
                 ? owner.elementFromPoint(event.clientX, event.clientY ?? 0)
                 : null
-            const { marked, landsOn, inRegion: region } = find(under ?? event.target)
+            const { marked, landsOn, inRegion: region, scope } = find(under ?? event.target)
             const id = marked?.getAttribute(landsOn) ?? null
             // Over itself is over nothing, where what is dragged is among what it lands on.
             const named = part === undefined ? null : (marked?.getAttribute(part) ?? null)
+            const skip = targets === undefined ? dragging : null
+            const x = event.clientX ?? 0
+            const y = event.clientY ?? 0
+            // Over a container's own space, not over one of its children: between its children, by
+            // where the pointer is now (the children of that one container are measured, no others).
+            const container = marked !== null ? (named === null ? marked : null) : undefined
+            if (
+              gaps === true &&
+              scope !== null &&
+              container !== null &&
+              (marked === null || (id !== null && id !== skip))
+            ) {
+              const gap = gapPlace({
+                scope: container ?? scope,
+                host: container ?? null,
+                attribute: landsOn,
+                part,
+                x,
+                y,
+                skip,
+              })
+              if (gap !== undefined) return { place: gap, region }
+            }
             const place: DragPlace | null =
-              marked === null || id === null || (targets === undefined && id === dragging)
+              marked === null || id === null || id === skip
                 ? null
                 : named === null
-                  ? { id, zone: zoneOf(boxOf(marked), event.clientY ?? 0) }
+                  ? { id, zone: zoneOf(boxOf(marked), y) }
                   : { id, zone: 'inside', part: named }
             return { place, region }
           }

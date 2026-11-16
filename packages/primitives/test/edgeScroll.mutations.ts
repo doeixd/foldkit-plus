@@ -177,6 +177,11 @@ export default [
     tests: edgeTests,
   },
   {
+    name: 'the window scrolls before a box under the pointer that still can',
+    edits: [{ file: scroll, find: 'under.find(each => canMove(each, by))', replace: 'undefined' }],
+    tests: edgeTests,
+  },
+  {
     name: 'the strip is the whole box, so a pointer mid-box scrolls',
     edits: [{ file: scroll, find: 'if (at < lo + strip) return', replace: 'if (at < hi) return' }],
     tests: edgeTests,
@@ -202,7 +207,7 @@ export default [
     edits: [
       {
         file: scroll,
-        find: 'if (by < 0 ? at <= low : at >= low + room(scroller.element, axis) - 0.5) continue',
+        find: 'if (!canMove(scroller, by)) continue',
         replace: '',
       },
     ],
@@ -236,7 +241,8 @@ export default [
       {
         file: scroll,
         find: '      since = undefined\n      return\n',
-        replace: '      since = undefined\n      frame = view?.requestAnimationFrame(tick)\n      return\n',
+        replace:
+          '      since = undefined\n      frame = view?.requestAnimationFrame(tick)\n      return\n',
       },
     ],
     tests: edgeTests,

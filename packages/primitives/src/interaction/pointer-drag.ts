@@ -35,6 +35,8 @@ export interface BehaviorOptions<Slots, ParentMessage> {
    * its layers for a palette.
    */
   readonly targets?: ReadonlyArray<{ readonly attribute: string; readonly within: string }>
+  /** Over a container's own space, the place between its children by the pointer's position (see the Mount's `gaps`). */
+  readonly gaps?: boolean
   /** An attribute naming a part of what a drop lands on, which the place then carries. */
   readonly part?: string
   /**
@@ -72,6 +74,7 @@ export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) 
                 attribute: options.attribute,
                 ...(options.targets === undefined ? {} : { targets: options.targets }),
                 ...(options.part === undefined ? {} : { part: options.part }),
+                ...(options.gaps === undefined ? {} : { gaps: options.gaps }),
                 ...(options.edgeScroll === undefined ? {} : { edgeScroll: options.edgeScroll }),
               }),
               options.toMessage,

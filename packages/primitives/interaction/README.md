@@ -924,6 +924,17 @@ one page each drop onto their own page. Such a drag's `DraggedOver` and
 so `over: null` with `region: true` is the empty space of one of the regions (an empty
 page, the space below its last node), and with `false`, elsewhere.
 
+With `gaps: true`, a pointer over a container's own space (its padding, the gap
+between two children) is not over the container: the place is between its
+children, `before` the first whose middle along their flow (a column, a row, a
+right-to-left row) is past the pointer, else `after` the last, found by halving
+so that only a few of the children of that one container are measured. The
+children are the elements marked by `attribute` whose nearest marked ancestor
+is the container; one marked by `part` is a place inside a node, not a child.
+Past the last child of the whole region, `over` is `null`. The release is
+hit-tested again, so the place is where the pointer let go. Without it a
+container is one place, by thirds.
+
 A place can be a named part of what it is over: with `part: 'data-composition-region'`,
 an element marked by both `attribute` (or `targets.attribute`) and `part` is
 reported as `{ id, zone: 'inside', part }`, whatever third of it the pointer
@@ -936,7 +947,9 @@ on `PointerDrag`, and on `Marquee`, scrolls the nearest ancestor that can scroll
 the way the pointer pulls, on a frame clock, while the press is held in its
 last `edge` pixels (default 40, at most a third of the box) at up to `speed`
 pixels a second (default 600), less the nearer the strip's inner side. A box
-at its end hands over to the next ancestor and then the page. Only a box the
+at its end hands over to the next ancestor and then the page; held at the
+window's edge over a box that can still scroll that way, the box goes before the
+window does. Only a box the
 pointer is over is pulled (not one it is beside, above or below, over another panel), and
 only once it has stayed in the strip for 150ms, so a pointer passing through scrolls
 nothing. Nothing above a

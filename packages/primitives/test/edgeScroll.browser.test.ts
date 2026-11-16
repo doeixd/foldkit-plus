@@ -337,6 +337,32 @@ it('scrolls nothing for a pointer that only passes through the strip, and scroll
   }
 })
 
+it('scrolls the box under a pointer held at the window’s edge before the window, while it can', async () => {
+  // A box that runs past the bottom of the window: its own strip is off screen.
+  const { box, list } = rows(
+    200,
+    `height:${document.documentElement.clientHeight + 300}px;overflow:auto`,
+  )
+  const spacer = document.createElement('div')
+  spacer.style.cssText = 'height:3000px'
+  document.body.append(spacer)
+  const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
+  try {
+    await later(20)
+    const bottom = document.documentElement.clientHeight - 3
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    pointer(10, bottom, 'pointermove')
+    await until(() => box.scrollTop > 100)
+    expect(box.scrollTop).toBeGreaterThan(100)
+    expect(window.scrollY).toBe(0)
+    pointer(10, bottom, 'pointerup')
+  } finally {
+    await run.stop()
+  }
+  window.scrollTo(0, 0)
+})
+
 it('walks the ancestors once a frame, not once a move, while nothing scrolls', async () => {
   const { list } = rows(20)
   const run = drive(list, { attribute: 'data-row', edgeScroll: {} })

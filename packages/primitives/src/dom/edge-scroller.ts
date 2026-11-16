@@ -124,6 +124,13 @@ export const edgeScroller = (
     const steps: Array<{ readonly element: Element; readonly axis: Axis; readonly by: number }> = []
     if (point === null) return steps
     for (const axis of ['x', 'y'] as const) {
+      const canMove = (scroller: Scroller, by: number) => {
+        const at = offset(scroller.element, axis)
+        return by < 0 ? at > scroller.low : at < scroller.low + room(scroller.element, axis) - 0.5
+      }
+      // The boxes the pointer is over that were not pulled: held at the window's edge, the
+      // one that can still scroll that way goes before the window does.
+      const under: Array<Scroller> = []
       for (const scroller of scrollers(axis)) {
         // Beside, above or below a scroller, over another panel, is no edge of its: the pointer
         // must be over it, or a drag from the palette to the layers beneath scrolls the palette away.
@@ -137,11 +144,16 @@ export const edgeScroller = (
           axis === 'y'
             ? pull(point.y, scroller.top, scroller.bottom, band)
             : pull(point.x, scroller.left, scroller.right, band)
-        if (by === 0) continue
-        const at = offset(scroller.element, axis)
-        const { low } = scroller
-        if (by < 0 ? at <= low : at >= low + room(scroller.element, axis) - 0.5) continue
-        steps.push({ element: scroller.element, axis, by })
+        if (by === 0) {
+          under.push(scroller)
+          continue
+        }
+        if (!canMove(scroller, by)) continue
+        const inner =
+          scroller.element === owner.scrollingElement
+            ? under.find(each => canMove(each, by))
+            : undefined
+        steps.push({ element: (inner ?? scroller).element, axis, by })
         break
       }
     }
