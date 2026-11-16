@@ -182,6 +182,14 @@ export const catalogue: ReadonlyArray<About> = [
     contract: 'EmptySlots',
   },
   {
+    slug: 'disclosure',
+    title: 'Disclosure',
+    summary: 'One button that shows and hides one panel, with a chevron that turns.',
+    recipe: 'Disclosure',
+    file: 'disclosure',
+    contract: 'DisclosureSlots',
+  },
+  {
     slug: 'accordion',
     title: 'Accordion',
     summary: 'Sections that open under their headings, one at a time or several.',

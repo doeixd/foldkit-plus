@@ -13,6 +13,7 @@ import {
   Combobox as UiCombobox,
   DatePicker as UiDatePicker,
   Dialog as UiDialog,
+  Disclosure as UiDisclosure,
   HoverIntent as UiHoverIntent,
   Nav as UiNav,
   Listbox as UiListbox,
@@ -37,6 +38,8 @@ import { Utilities } from 'foldkit-mixins/utilities'
 import {
   Accordion,
   AccordionSlots,
+  Disclosure,
+  DisclosureSlots,
   Anchor,
   HoverIntent,
   HoverIntentSlots,
@@ -5253,6 +5256,34 @@ export const toastPositions = <Message>(
   )
 // #endregion
 
+// #region disclosure-basic
+/** One button that shows and hides one panel; the application holds whether it is open. */
+export const disclosure = <Message>(
+  style: NamedStyle<typeof DisclosureSlots>,
+  isOpen: boolean,
+  onToggle: (isOpen: boolean) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  UiDisclosure.view(
+    {
+      id: 'details',
+      isOpen,
+      onToggle,
+      toView: attributes => {
+        const details = Disclosure.resolve(attributes, [style.mixin], { input: undefined, h })
+        return h.div(
+          [],
+          [
+            h.button(details.button, ['Shipping details']),
+            details.animatePanel(h.div(details.panel, ['Shipped in two days, tracked.'])),
+          ],
+        )
+      },
+    },
+    h,
+  )
+// #endregion
+
 // #region accordion-basic
 export const AccordionStyle = forSlots(AccordionSlots)(Recipes.Accordion({}))
 
@@ -7214,7 +7245,15 @@ export const colorPicker = <Message>(
   h: HtmlBuilder<Message>,
 ): Html =>
   ColorPicker.view(
-    { model, onMessage, label: 'Accent', presets: ACCENTS, style, slider: ChannelStyle, eyedropper },
+    {
+      model,
+      onMessage,
+      label: 'Accent',
+      presets: ACCENTS,
+      style,
+      slider: ChannelStyle,
+      eyedropper,
+    },
     h,
   )
 // #endregion

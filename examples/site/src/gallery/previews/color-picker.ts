@@ -34,7 +34,7 @@ export const showcase = fromRecipe(
           message => live.onWidget(Widgets.Message.GotBrand({ message })),
           message => live.onWidget(Widgets.Message.GotBrandPopover({ message })),
           // ADOPT: the picker will draw its eyedropper from the Model, with no environment read in its view; drop this workaround then.
-    live.ready && ColorPicker.canEyedrop(),
+          live.ready && ColorPicker.canEyedrop(),
           live.h,
         ),
     },

@@ -183,9 +183,7 @@ test('a preview is busy and cannot be pressed until the gallery application has 
     await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
     expect(await control.getAttribute('aria-checked')).toBe(before)
     release()
-    await expect
-      .poll(() => preview.getAttribute('aria-busy'), { timeout: 60_000 })
-      .toBeNull()
+    await expect.poll(() => preview.getAttribute('aria-busy'), { timeout: 60_000 }).toBeNull()
     expect(await preview.getAttribute('inert')).toBeNull()
     await control.click()
     await expect

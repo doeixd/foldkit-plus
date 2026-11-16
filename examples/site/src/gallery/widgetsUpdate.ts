@@ -1365,6 +1365,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     ToggledFaq: ({ id }) => ({
       model: modifyFields(model, { faq: () => Accordion.toggled(model.faq, id) }),
     }),
+    ToggledDetails: ({ isOpen }) =>
+      isOpen === model.details
+        ? { model }
+        : { model: modifyFields(model, { details: () => isOpen }) },
     ToggledTerms: ({ checked }) =>
       checked === model.terms
         ? { model }

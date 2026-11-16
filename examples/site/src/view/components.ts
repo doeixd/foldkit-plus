@@ -4,6 +4,7 @@
  * code that draws it. Every preview is drawn in the component theme
  * (`gallery/theme.ts`), declared on the preview itself.
  */
+import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { SSR } from 'foldkit-ssr/client'
 
@@ -18,7 +19,8 @@ import {
   valueAt,
   type Scheme,
 } from '../gallery/theme.js'
-import { topicsFor } from '../gallery/related.js'
+import { anchorOf, notesFor } from '../gallery/notes.js'
+import { README, topicsFor } from '../gallery/related.js'
 import { COMPONENTS, CREATE, type Library } from '../library.js'
 import { Message, type Model } from '../main.js'
 import type { H, Slots } from './layout.js'
@@ -283,6 +285,30 @@ export const componentPage = (
       ]),
     ]),
   ]),
+  ...Option.match(Option.fromNullishOr(notesFor(showcase.slug)), {
+    onNone: () => [],
+    onSome: ({ heading, lines }) => [
+      h.section(slots.section.attrs([h.AriaLabelledBy('accessibility')]), [
+        h.h2(slots.sectionTitle.attrs([h.Id('accessibility')]), ['Keyboard and accessibility']),
+        h.div(slots.rowText.attrs(), [
+          h.ul(
+            [],
+            lines.map(line =>
+              h.li(
+                [],
+                line.split('`').map((part, at) => (at % 2 === 1 ? h.code([], [part]) : part)),
+              ),
+            ),
+          ),
+        ]),
+        h.p(slots.rowActions.attrs(), [
+          h.a(slots.source.attrs([h.Href(onGitHub(`${README}#${anchorOf(heading)}`))]), [
+            `${heading} in the README ↗`,
+          ]),
+        ]),
+      ]),
+    ],
+  }),
   ...(topicsFor(showcase.slug).length === 0
     ? []
     : [

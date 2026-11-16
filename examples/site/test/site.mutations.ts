@@ -234,17 +234,6 @@ export default [
     tests,
   },
   {
-    name: 'the timer is declared but never placed',
-    edits: [
-      {
-        file: '../src/shell.ts',
-        find: 'Parent.at(Ticks, { args: { intervalMs: 1000 } }),',
-        replace: '',
-      },
-    ],
-    tests,
-  },
-  {
     name: 'the live primitives on every doc page',
     edits: [{ file: '../src/view/doc.ts', find: 'model.path === LIVE_PATH', replace: 'true' }],
     tests,

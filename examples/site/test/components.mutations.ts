@@ -12,6 +12,29 @@ const pages = ['examples/site/test/prerender.test.ts']
 
 export default [
   {
+    name: 'a page whose notes link a README heading that is not there',
+    edits: [
+      {
+        file: '../src/gallery/notes.ts',
+        find: "heading: 'Image',",
+        replace: "heading: 'Pictures',",
+        all: true,
+      },
+    ],
+    tests: ['examples/site/test/notes.test.ts'],
+  },
+  {
+    name: 'a preview left live before the page is taken over',
+    edits: [
+      {
+        file: '../src/view/components.ts',
+        find: "size !== 'thumb' && !model.addressRead",
+        replace: 'false',
+      },
+    ],
+    tests: ['examples/site/test/busy.test.ts'],
+  },
+  {
     name: 'an example forgets the values it pins',
     edits: [
       {

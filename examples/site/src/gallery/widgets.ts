@@ -238,6 +238,8 @@ export const Model = Schema.Struct({
   range: Range,
   /** The accordion's open sections. */
   faq: Schema.Array(Schema.String),
+  /** Whether the disclosure's panel is open. */
+  details: Schema.Boolean,
   /** The checkboxes': the terms accepted, how many toppings, and the card's plan. */
   terms: Schema.Boolean,
   toppings: Toppings,
@@ -445,6 +447,7 @@ export const Message = defineMessageUnion({
   SavedDraft: {},
   ChoseRange: { range: Range },
   ToggledFaq: { id: Schema.String },
+  ToggledDetails: { isOpen: Schema.Boolean },
   ToggledTerms: { checked: Schema.Boolean },
   ToggledToppings: { checked: Schema.Boolean },
   ToggledTeamPlan: { checked: Schema.Boolean },
@@ -678,6 +681,7 @@ export const initial: Model = {
   notices: Notices.init({ id: 'preview-notices' }),
   range: 'week',
   faq: ['billing'],
+  details: false,
   terms: false,
   toppings: 'some',
   teamPlan: false,

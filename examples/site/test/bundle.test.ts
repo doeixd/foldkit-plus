@@ -21,7 +21,9 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // 2026-11-16: the site was one start chunk of 372.8 kB for every page, the previews' state and
 // code in it. Split in two: a guide page loads 184.2 kB, and a component page 385.5 kB, the 12.7
 // kB more being the first application's own code beside the second's, loaded once per page.
-const CEILINGS = { shell: 188_000, gallery: 393_500 }
+// Later that day the component page grew 1.8 kB to 387.3 kB: the busy-until-taken-over flag, the Disclosure
+// page (its snippet, state and recipe) and the accessibility notes' text, about 0.2 kB per page with notes.
+const CEILINGS = { shell: 188_000, gallery: 395_000 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
 const PREVIEWS = ['preview-tabs', 'preview-trip-first']
