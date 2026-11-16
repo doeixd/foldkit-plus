@@ -8,6 +8,11 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
   edits: [{ file, find, replace }],
   tests,
 })
+/** The same, against the guide's own snippets (`docs/expressions.md`). */
+const guide = (name: string, file: string, find: string, replace: string) => ({
+  ...edit(name, file, find, replace),
+  tests: ['examples/entity/test/expressionsGuide.test.ts'],
+})
 
 export default [
   edit(
@@ -51,5 +56,23 @@ export default [
     '../src/language.ts',
     'viewer: question.viewer,\n          })',
     'viewer: Option.none(),\n          })',
+  ),
+  guide(
+    'the guide: not of an unknown comparison keeps the draft',
+    '../../../packages/entity/src/evaluate.ts',
+    "return truth === 'unknown' || isUnheld(truth) ? truth : !truth",
+    'return isUnheld(truth) ? truth : truth !== true',
+  ),
+  guide(
+    'the guide: a viewer of any Entity reads as an author',
+    '../../../packages/entity/src/context.ts',
+    'Option.filter(context.viewer, ref => ref.entity === entity.name),',
+    'Option.filter(context.viewer, () => true),',
+  ),
+  guide(
+    'the guide: a visitor reads as the first author',
+    '../../../packages/entity/src/context.ts',
+    'Option.some(Option.getOrNull(viewerIdOf(entity, context))),',
+    "Option.some(Option.getOrElse(viewerIdOf(entity, context), () => 'a1')),",
   ),
 ]
