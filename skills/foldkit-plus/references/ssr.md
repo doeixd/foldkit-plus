@@ -297,6 +297,9 @@ would rebuild those elements.
   generated pages, written beside them (`foldkit-media`'s `materialize` writes
   the image variants the pages name). A path outside the output, or on a file
   the build or the client build writes, is refused.
+- `staticSite`'s `plan` may be `(path) => plan` for a site of two applications
+  (`config` is already a function of the path): each page resumes with its own
+  application's plan, and a function that throws fails the build naming the path.
 - `SSR.page(template, result, { head? })` and `SSR.generate` take
   `head: (rendered, drawn) => string`, put before `</head>`: with
   `foldkit-mixins`, `` (_rendered, drawn) => `<style>${Style.usedDrawn(drawn)}</style>` ``
