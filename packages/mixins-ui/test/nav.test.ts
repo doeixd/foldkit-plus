@@ -144,19 +144,21 @@ describe('Nav.view keys', () => {
   const link = (name: string) => Scene.role('link', { name })
   const docs = Scene.role('button', { name: 'Docs' })
 
+  // The key moves focus itself, so the Message says only that it did; which entry it reached is
+  // asked of a real focus (navMenu.browser.test.ts).
   it('moves along the row with the arrows, Home and End, and enters a panel with ArrowDown', () => {
     sends(
       view(),
       Scene.keydown(link('Start'), 'Home'),
-      Scene.expectOutMessage(Nav.Message.MovedTop({ from: 1, count: 3, move: 'first' })),
+      Scene.expectOutMessage(Nav.Message.CompletedFocus()),
       Scene.keydown(link('Start'), 'ArrowRight'),
-      Scene.expectOutMessage(Nav.Message.MovedTop({ from: 1, count: 3, move: 'next' })),
+      Scene.expectOutMessage(Nav.Message.CompletedFocus()),
       Scene.keydown(link('Start'), 'ArrowDown'),
       Scene.expectIgnored(),
       Scene.keydown(docs, 'ArrowDown'),
       Scene.expectOutMessage(Nav.Message.Entered({ index: 2, panel: 'docs' })),
       Scene.keydown(docs, 'End', { shiftKey: true }),
-      Scene.expectOutMessage(Nav.Message.MovedTop({ from: 2, count: 3, move: 'last' })),
+      Scene.expectOutMessage(Nav.Message.CompletedFocus()),
       Scene.keydown(docs, 'End', { ctrlKey: true }),
       Scene.expectIgnored(),
     )
@@ -166,7 +168,7 @@ describe('Nav.view keys', () => {
     sends(
       view({ direction: 'rtl' }),
       Scene.keydown(link('Start'), 'ArrowLeft'),
-      Scene.expectOutMessage(Nav.Message.MovedTop({ from: 1, count: 3, move: 'next' })),
+      Scene.expectOutMessage(Nav.Message.CompletedFocus()),
     )
   })
 
@@ -176,7 +178,7 @@ describe('Nav.view keys', () => {
       Scene.keydown(docs, 'ArrowRight'),
       Scene.expectOutMessage(Nav.Message.Entered({ index: 2, panel: 'docs' })),
       Scene.keydown(docs, 'ArrowDown'),
-      Scene.expectOutMessage(Nav.Message.MovedTop({ from: 2, count: 3, move: 'next' })),
+      Scene.expectOutMessage(Nav.Message.CompletedFocus()),
     )
   })
 

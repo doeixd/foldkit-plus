@@ -18,6 +18,7 @@ import { Behaviors, Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
+import { holdFrames } from './frames.js'
 import * as Nav from '../src/nav.js'
 import { NavSlots } from '../src/nav.js'
 import { Nav as NavRecipe } from '../src/recipes/nav.js'
@@ -260,6 +261,72 @@ test.each([
     }
   },
 )
+
+// Keys come faster than frames: a held key repeating on a busy page sends several before the
+// next drawing, and each moves on from the link the previous one focused.
+test.each([
+  ['ltr', '{ArrowRight}{ArrowRight}', 'Docs'],
+  ['ltr', '{End}{ArrowLeft}', 'Docs'],
+  ['ltr', '{ArrowRight}{ArrowRight}{End}{Home}{ArrowRight}{ArrowRight}{ArrowRight}', 'Blog'],
+  ['rtl', '{ArrowLeft}{ArrowLeft}', 'Docs'],
+] as const)(
+  '%s: keys %s before the next frame walk the row to %s',
+  async (direction, keys, lands) => {
+    const { handle } = mount({ direction })
+    try {
+      await vi.waitFor(() => expect(byText('Home')).toBeTruthy())
+      byText('Home').focus()
+      const release = holdFrames()
+      try {
+        await userEvent.keyboard(keys)
+      } finally {
+        release()
+      }
+      await vi.waitFor(() => expect(document.activeElement).toBe(byText(lands)))
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+test('in a column, two ArrowDowns before the next frame move down two entries', async () => {
+  const { handle } = mount({ orientation: 'vertical' })
+  try {
+    await vi.waitFor(() => expect(byText('Home')).toBeTruthy())
+    byText('Home').focus()
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(document.activeElement).toBe(byText('Docs')))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test.each([
+  ['{ArrowDown}{ArrowDown}', 'Sync'],
+  ['{ArrowDown}{End}{ArrowUp}', 'Remote'],
+] as const)("keys %s before the next frame walk a panel's links to %s", async (keys, lands) => {
+  const { handle } = mount()
+  try {
+    await vi.waitFor(() => expect(byText('Products')).toBeTruthy())
+    byText('Products').focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(document.activeElement).toBe(byText('Mixins')))
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard(keys)
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(document.activeElement).toBe(byText(lands)))
+  } finally {
+    handle.dispose()
+  }
+})
 
 test('a press outside hides the panel, and so does focus leaving the menu', async () => {
   const { handle, outside } = mount()

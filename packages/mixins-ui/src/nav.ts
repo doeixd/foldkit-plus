@@ -245,11 +245,11 @@ export const Message = defineMessageUnion({
   Dismissed: {},
   /** Escape in the entry at `index`: its panel hides and its trigger takes focus. */
   Escaped: { index: Schema.Number },
-  /** A key among the `count` top-level entries, from the one at `from`. */
+  /** Moves focus among the `count` top-level entries, from the one at `from`: what an application's key route answers. */
   MovedTop: { from: Schema.Number, count: Schema.Number, move: Move },
   /** The key into a trigger's panel: it shows, and its first link takes focus. */
   Entered: { index: Schema.Number, panel: Schema.String },
-  /** A key among the `count` links of the panel of entry `entry`, from the one at `from`. */
+  /** Moves focus among the `count` links of the panel of entry `entry`, from the one at `from`: what an application's key route answers. */
   MovedInPanel: { entry: Schema.Number, from: Schema.Number, count: Schema.Number, move: Move },
   CompletedFocus: {},
 })
@@ -434,7 +434,7 @@ const ownTopRoutes = <Message>(
   answer: (
     key: (typeof TOP_KEYS)[number],
     press: Behaviors.Keys.Press<NavEntry>,
-  ) => Option.Option<Message>,
+  ) => Option.Option<Message | Behaviors.Keys.Focus<Message>>,
 ): ReadonlyArray<Route<Message>> =>
   TOP_KEYS.map(key =>
     Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {
@@ -448,7 +448,7 @@ const ownPanelRoutes = <Message>(
   answer: (
     key: (typeof PANEL_KEYS)[number],
     press: Behaviors.Keys.Press<NavPanelLink>,
-  ) => Option.Option<Message>,
+  ) => Option.Option<Message | Behaviors.Keys.Focus<Message>>,
 ): ReadonlyArray<PanelRoute<Message>> =>
   PANEL_KEYS.map(key =>
     Behaviors.Keys.route<NavPanelLink, Message>(`Nav panel ${key}`, {
@@ -497,19 +497,28 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
   // Physical keys: under `rtl` the arrows along a row swap, so each is read as a left-to-right reader presses it.
   const topRoutes = [
     ...ownTopRoutes<Message>((key, { input, item }) =>
-      Option.flatMap(Option.fromNullishOr(item), ({ index }) => {
-        const reading = readingKey(key, options.direction)
-        if (
-          isPanel(input) &&
-          reading === (vertical ? 'ArrowRight' : 'ArrowDown') &&
-          input.groups.some(group => group.links.length > 0)
-        ) {
-          return Option.some(onMessage(Message.Entered({ index, panel: input.id })))
-        }
-        return Option.map(moveOf(reading, along), move =>
-          onMessage(Message.MovedTop({ from: index, count, move })),
-        )
-      }),
+      Option.flatMap(
+        Option.fromNullishOr(item),
+        ({ index }): Option.Option<Message | Behaviors.Keys.Focus<Message>> => {
+          const reading = readingKey(key, options.direction)
+          if (
+            isPanel(input) &&
+            reading === (vertical ? 'ArrowRight' : 'ArrowDown') &&
+            input.groups.some(group => group.links.length > 0)
+          ) {
+            return Option.some(onMessage(Message.Entered({ index, panel: input.id })))
+          }
+          // Focus moves in the handler, not in a Command: a key pressed before the Command ran
+          // would meet the entry focus had not left and move from it again (two ArrowRights
+          // moved one).
+          return Option.map(moveOf(reading, along), move =>
+            Behaviors.Keys.focus(
+              entryId(model.id, target(index, count, move)),
+              onMessage(Message.CompletedFocus()),
+            ),
+          )
+        },
+      ),
     ),
     ...(options.routes ?? []),
   ]
@@ -528,7 +537,12 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
               move: moveOf(key, 'column'),
             }),
             ({ entry, count, move }) =>
-              Option.some(onMessage(Message.MovedInPanel({ entry, from, count, move }))),
+              Option.some(
+                Behaviors.Keys.focus(
+                  panelLinkId(model.id, entry, target(from, count, move)),
+                  onMessage(Message.CompletedFocus()),
+                ),
+              ),
           ),
         ),
       ),

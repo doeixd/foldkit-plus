@@ -246,4 +246,32 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a row key moves focus in a Command, which a key before it ran does not wait for',
+    edits: [
+      {
+        file: view,
+        find: `            Behaviors.Keys.focus(
+              entryId(model.id, target(index, count, move)),
+              onMessage(Message.CompletedFocus()),
+            ),`,
+        replace: '            onMessage(Message.MovedTop({ from: index, count, move })),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a panel link key moves focus in a Command, which a key before it ran does not wait for',
+    edits: [
+      {
+        file: view,
+        find: `                Behaviors.Keys.focus(
+                  panelLinkId(model.id, entry, target(from, count, move)),
+                  onMessage(Message.CompletedFocus()),
+                ),`,
+        replace: '                onMessage(Message.MovedInPanel({ entry, from, count, move })),',
+      },
+    ],
+    tests,
+  },
 ]
