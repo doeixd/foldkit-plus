@@ -63,6 +63,12 @@ export const Db = bind(Blog, {
   },
 })
 
+/** The tables, as SQLite creates them: what `Db` binds. */
+export const ddl = `
+    create table authors (id text primary key, name text not null);
+    create table posts (id text primary key, headline text not null, published integer not null, author_id text not null, editor_id text);
+    create table comments (id text primary key, body text not null, post_id text not null, author_id text not null, created_at text not null);`
+
 /**
  * An in-memory database with a little data, the server over it, and the layer
  * its sources read it through. A mutation is ordinary Drizzle: the binding only
@@ -70,10 +76,8 @@ export const Db = bind(Blog, {
  */
 export const openServer = () => {
   const sqlite = new DatabaseSync(':memory:')
+  sqlite.exec(ddl)
   sqlite.exec(`
-    create table authors (id text primary key, name text not null);
-    create table posts (id text primary key, headline text not null, published integer not null, author_id text not null, editor_id text);
-    create table comments (id text primary key, body text not null, post_id text not null, author_id text not null, created_at text not null);
     insert into authors values ('a1', 'Ada'), ('a2', 'Grace');
     insert into posts values ('p1', 'Notes on the Engine', 1, 'a1', null), ('p2', 'Compilers', 0, 'a1', 'a2');
     insert into comments values ('c1', 'Remarkable.', 'p1', 'a2', '2026-01-01'), ('c2', 'Thank you.', 'p1', 'a1', '2026-01-02');

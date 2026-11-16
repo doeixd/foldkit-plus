@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx src/dev.ts",
     "demo": "tsx src/main.ts",
+    "language": "tsx src/languageMain.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {
