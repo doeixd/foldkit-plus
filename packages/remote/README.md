@@ -3699,6 +3699,15 @@ treats either as any failure: a read or query is `Failed`, and a live stream
 restarts with its backoff, refused again each time, until the application
 signs in again and calls `Data.forget`.
 
+**The server failed.** When Remote's server breaks on its own side (a Source
+fails, something throws), the call's error says `Internal error` and carries
+an `incident`: the id the server reported the cause under. `RemoteData.incident(error)`
+reads it as an `Option<string>`, some for such a failure only, so a view
+tells "something went wrong on our side, quote this reference" from a refusal
+whose message was written for the reader. The message never says what broke;
+whoever runs the server finds it by the id. A failure on this side of the
+wire, and one from a server that sends no incident, read as none.
+
 A mutation naming someone other than who asks (a durable write's `principal`)
 fails with `_tag: 'PrincipalChanged'` over every transport: the 409 Remote's
 server answers it with over JSON, or the error itself over Effect RPC. It

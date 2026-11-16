@@ -1003,8 +1003,10 @@ The handler applies bounded, protocol-level safeguards before or around Sources:
   answering a list cut short;
 - returned field names are copied with `Object.hasOwn` into null-prototype
   objects, so names such as `__proto__` or `toString` cannot reach prototypes;
-- Source errors are remapped to protocol error types without echoing application
-  internals.
+- a Source's failure, a thrown error and a defect reach the caller as
+  `Internal error` and an incident id, never in their own words, unless the
+  Source wrote them for the caller with `RemoteServer.tell` (see
+  [When the server fails](#when-the-server-fails)).
 
 A live subscription is held to the same bounds, checked once by the handler
 before any live Source or the hub sees it: more than `maxIdsPerEntity` ids of
@@ -1276,11 +1278,15 @@ const route = async (request: Request): Promise<Response> => {
   for them.
 - **422** with `{ error, refusal }`: the mutation refused what was asked, in
   its own `Refusal`.
-- **500** with `{ error }`: the handler failed, and the message is its own;
-  or something on this side broke, and the message is `Internal error`,
-  nothing more. The cause is reported as a `ServerDefect`
-  [diagnostic](#diagnostics), by default to the log, so a Worker's log
-  (`wrangler tail`) shows what broke.
+- **500** with `{ error, incident }`: something on this side broke (a
+  Source's failure, a thrown error, a defect). The message is `Internal
+  error`, nothing more, and `incident` is the id the cause was reported
+  under, as a `ServerDefect` [diagnostic](#diagnostics), by default to the
+  log, so a Worker's log (`wrangler tail`) shows what broke.
+- **500** with `{ error }` and no `incident`: the server's own fixed sentence
+  about the request (an unknown query or mutation, an input its Schema
+  refuses, too many ids), or words a Source wrote for the caller with
+  `RemoteServer.tell`. See [When the server fails](#when-the-server-fails).
 
 It never answers 408, 429, 502, 503 or 504. Remote's client reads a body
 under one of those, or one that is not JSON, as no answer at all
@@ -1381,7 +1387,8 @@ pass the limit, its stream cancelled there. Give the client the same number
 (`Remote.clientLayer(Remote.http('/remote'), { maxBodyBytes })`) and it cuts its
 reads to fit; `Remote.http` reads a 413 as the call's own error, so a durable
 write is not resent. A body that is not UTF-8 JSON, or not a request, is a 400
-that reaches no handler; a handler's failure a 500 with its message. Every response, refusals
+that reaches no handler; a failure on this side a 500 that says `Internal error` and the
+`incident` its cause was reported under ([When the server fails](#when-the-server-fails)). Every response, refusals
 and errors included, says `cache-control: private, no-store` unless `headers` gives a
 `cache-control` of its own: each answer is one principal's rows (and `may`), so
 no shared cache may keep one. The one exception is a read the server proves
@@ -1392,7 +1399,7 @@ A resolver refuses the caller by failing with
 `{ error, unauthenticated: { reason? } }`, as `answer`'s 403 carries
 `forbidden`, and whose `reason` is the only thing the caller learns. Anything
 else this side breaks, the resolver's defects and the layer included, is a
-500 that says nothing of it. A visitor is not a refusal: resolve one to the
+500 that says nothing of it but its `incident`. A visitor is not a refusal: resolve one to the
 principal your Sources treat as nobody, and refuse only a credential that was
 sent and no longer holds.
 
@@ -1632,6 +1639,72 @@ export const checked = checkCache(
 `Cheap` is a Query a server registers with `RemoteServer.query`; its answer
 is kept for 30 seconds, the shorter of its own and `Price`'s.
 
+## When the server fails
+
+A call that does not succeed tells its caller one of two kinds of thing, and
+which is decided by the type of the error where it is made, never by reading
+its message:
+
+| What happened | What the caller reads |
+| --- | --- |
+| A refusal the application wrote: `RemoteServer.refuse`, `forbid`, `unauthenticated`, a writer's `unmet`, `taken` or `invalid` | the refusal, its message and its reason, as written |
+| `RemoteServer.tell(message)` | `message`, as written |
+| The request itself is at fault: an unknown query or mutation, an input its Schema refuses, too many ids, another protocol version | the server's fixed sentence, naming only what the request said |
+| Anything else: a `RemoteServerError` not made with `tell`, anything thrown in a Source, an `authorize`, a `filter`, `memory`'s `readable` or an operator, a defect, a mutation output its Schema refuses | `Internal error`, and an `incident` |
+
+So a failure nobody classified is this side's: its message and cause are
+reported as a `ServerDefect` [diagnostic](#diagnostics) and never sent. A
+Source says which it means:
+
+```ts standalone
+import { Effect, Schema } from 'effect'
+import { Entity } from 'foldkit-remote'
+import { RemoteServer, RemoteServerError } from 'foldkit-remote-server'
+
+const Report = Entity.make('Report', Schema.Struct({ id: Schema.String, total: Schema.Number }))
+
+declare const building: (id: string) => boolean
+declare const totals: (
+  ids: ReadonlyArray<string>,
+) => Promise<ReadonlyArray<{ readonly id: string; readonly total: number }>>
+
+const ReportSource = RemoteServer.entity(Report, {
+  read: ({ ids }) =>
+    ids.some(building)
+      ? // Words for whoever asked: sent as written.
+        Effect.fail(RemoteServer.tell('That report is still being built'))
+      : Effect.tryPromise({
+          try: () => totals(ids),
+          // What the driver said stays on this side: reported, never sent.
+          catch: cause => new RemoteServerError({ message: 'The totals query failed', cause }),
+        }).pipe(Effect.map(rows => rows.map(row => ({ id: row.id, values: row })))),
+})
+```
+
+`RemoteServer.tell` takes text, not what was caught: an error's own message
+may say anything, so `tell(caught)` does not compile. Write what it says from
+what the caller may know.
+
+The `incident` is 16 hex characters, made for each failure. The caller's
+error carries it (`{ error: 'Internal error', incident }` over JSON, the
+`incident` field of `RemoteReadError`, `RemoteQueryError`,
+`RemoteMutationError` and `RemoteLiveError` over RPC, and of a live stream's
+error frame), and the client reads it with `RemoteData.incident(error)`. The
+report carries the same id, what was asked (`during`), and the cause (its
+stack lines left out here):
+
+```text
+[foldkit-remote-server] incident 3f9c2a7be01d4c55: read Report failed on this side. No caller is told more of it than this id.
+RemoteServerError: The totals query failed
+  [cause]: Error: SQLITE_BUSY: database is locked
+```
+
+What this does not cover: a refusal's message, a `forbid` reason, an
+invariant's message and `tell`'s text are sent as written, so nothing a
+caller may not know belongs in them; and a 400's `error` is the protocol
+Schema's own account of the request's payload. There is no switch that puts
+the cause in a response: read the report.
+
 ## Diagnostics
 
 A server answers some failures without telling the caller why. Each is a
@@ -1640,7 +1713,7 @@ channel, re-exported by `foldkit-remote`), which by default is Effect's log:
 
 | `_tag` | `level` | When |
 | --- | --- | --- |
-| `ServerDefect` | `error` | Something on this side broke (a layer, a resolver, a handler's defect) and the caller was answered `Internal error`; it carries the `cause`. |
+| `ServerDefect` | `error` | Something on this side broke (a Source's failure not made with `RemoteServer.tell`, a thrown error, a layer, a resolver, a handler's defect). It carries the `cause`, the `incident` a caller was answered with, and `during`: what was asked (`read Note`, `query Notes`, `mutate SaveNote`, `live Note`, or `request` where no handler was reached). |
 | `AnswerUnread` | `warning` | A mutation committed, but reading its answer failed: the client reads those rows again. |
 | `PublishFailed` | `error` | A mutation committed, but its live publish failed: live subscribers do not hear it. |
 | `ClockSkewed` | `warning` | A write's time was past `clockSkew` from the server's clock (a client clock that is off, or a durable write that waited), so the server wrote its own; it carries `sent`, `own` and `bound`. |
