@@ -79,6 +79,17 @@ export default [
       'under pnpm mutate the row has settled within the two frames before the check; the same edit in a plain run fails the "still there" check by 28px, so the loop is kept for the runs where it has not',
   },
   {
+    name: 'a reveal goes on in whatever list holds its id when it began in another',
+    edits: [
+      {
+        file,
+        find: 'if (list === null || list !== began) return',
+        replace: 'if (list === null) return',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a row never reached is tried without end',
     edits: [{ file, find: 'attempt < REVEAL_ATTEMPTS', replace: 'attempt < 1' }],
     tests,

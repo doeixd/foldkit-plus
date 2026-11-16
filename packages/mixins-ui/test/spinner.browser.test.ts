@@ -162,7 +162,8 @@ test('under reduced motion every kind holds still', async () => {
 test('a size and a tone apply, and words beside it sit on its line', async () => {
   const handle = await mount('light')
   try {
-    expect([box(wheel('large')).width, box(wheel('large')).height]).toEqual([32, 32])
+    // Layout size: a turning wheel's bounding box grows and shrinks with its angle.
+    expect([wheel('large').offsetWidth, wheel('large').offsetHeight]).toEqual([32, 32])
     expect(getComputedStyle(wheel('large')).borderTopColor).toBe('rgb(200, 0, 0)')
     const status = document.querySelector('[role="status"]:not([aria-label])')!
     const [mark, words] = Array.from(status.children).map(box)

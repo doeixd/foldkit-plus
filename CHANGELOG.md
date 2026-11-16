@@ -1165,6 +1165,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 - `foldkit-primitives`: Escape during a `Move` drag ends it as not completed, and goes no
   further (#558).
+- `foldkit-mixins-ui`: `WindowList.reveal` stops when the list it began in is replaced. A reveal still scrolling when a page was remounted with a list of the same id scrolled the new list away from its first rows.
 
 ## 0.40.0
 

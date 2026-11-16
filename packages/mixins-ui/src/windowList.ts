@@ -430,10 +430,13 @@ const drawnRows = (list: Element): ReadonlyArray<HTMLElement> =>
  * of its own animated scroll (#406), and a reveal is a jump.
  */
 const revealRow = async (id: string, index: number, align: Align): Promise<void> => {
+  // The list it began on: a pass finding another of the same id (a remounted page)
+  // would scroll that one, which no one asked to reveal anything in.
+  const began = document.getElementById(id)
   let previous = Number.NaN
   for (let attempt = 0; attempt < REVEAL_ATTEMPTS; attempt++) {
     const list = document.getElementById(id)
-    if (list === null) return
+    if (list === null || list !== began) return
     const rows = drawnRows(list)
     const target = rows.find(row => row.getAttribute('aria-posinset') === String(index + 1))
     if (target !== undefined) {
