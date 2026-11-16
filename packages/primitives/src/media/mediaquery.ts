@@ -36,15 +36,29 @@ const matchMediaStream = (query: string): Stream.Stream<MediaQueryMessage> => {
 }
 
 /**
+ * What the query answers now, where there is a window to ask; false on a
+ * server and in a DOM without `matchMedia`.
+ */
+const matchesNow = (query: string): boolean =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia(query).matches
+
+/**
  * A media query as a bundle: `matches` in the Model, kept current by a
  * `matchMedia` change stream. State stays in the parent Model, so it replays
  * and time-travels like any other state; the browser only reports facts.
+ *
+ * `matches` starts as the window answers at `init`, so the first frame is
+ * drawn for the screen it is on: the stream's own first report comes with the
+ * Subscriptions, after that frame. `args.initial` says it instead, for a
+ * server that knows the device from a request hint, or a test.
  */
 export const MediaQuery = Bundle.make('MediaQuery', {
   Model: MediaQueryModel,
   Message: MediaQueryMessage,
-  args: Schema.Struct({ query: Schema.String }),
-  init: () => ({ model: { matches: false } }),
+  args: Schema.Struct({ query: Schema.String, initial: Schema.optionalKey(Schema.Boolean) }),
+  init: ({ query, initial }) => ({ model: { matches: initial ?? matchesNow(query) } }),
   update: (model, message) =>
     message.matches === model.matches ? { model } : { model: { matches: message.matches } },
   subscriptions: ({ query }): Subscription.Subscriptions<MediaQueryModel, MediaQueryMessage> =>

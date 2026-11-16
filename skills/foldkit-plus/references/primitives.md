@@ -44,6 +44,8 @@ const placements = Page.assemble(Page.at(Dark, { args: { query: '(prefers-color-
 const update = placements.update(model => ({ model }))
 ```
 
+`MediaQuery`'s `matches` starts as `matchMedia(query).matches` at `init` (false with no window), or as `args.initial` says, so the
+first frame is right; the Subscription's first report, after that frame, corrects it.
 `PrefersDark` and `PrefersReducedMotion` are presets that place with no args.
 `Online`, `Visibility`, and `WindowSize` (no args), `Timer` and `Interval`
 (`{ intervalMs }`), `Tween` (`{ from, to, ms }`), `Spring` (`{ from, to,
@@ -165,11 +167,14 @@ Pick by task:
   page): `targets: [{ attribute, within: selector }]` (one entry per region), so `over` is one of those; `within` is
   found nearest the container first, and each fact carries `region: boolean`, so `over: null`
   with `region: true` is the region's empty space. `part: attribute` reports an element
-  marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say.
+  marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say. `gaps: true`: over a
+  container's own space the place is between its children by the pointer along their flow
+  (before the first child whose middle is past it, else after the last; past the region's last,
+  `over: null`), measuring only that container's children.
   `edgeScroll: {}` (or `{ edge, speed }`) scrolls the nearest scrolling ancestor, then the
   page, while the drag is held near its edge (default 40px strip, 600px/s, instant steps,
   jumps every 150ms under reduced motion) and reports the place under the still pointer after
-  each step; absent, a plain drag scrolls nothing. Only a box the pointer is over is pulled, and only after 150ms in its strip,
+  each step; absent, a plain drag scrolls nothing. Only a box the pointer is over is pulled, and only after 150ms in its strip (at the window's edge a box under the pointer that can still scroll goes first),
   nothing above a `position: fixed` box, and not a page under a scroll lock.
   While a drag lasts it writes `--fk-drag-x`, `--fk-drag-y` (viewport px) and
   `data-fk-drag="mouse|touch|pen"` on the root (`DRAGGING`), so a preview follows the

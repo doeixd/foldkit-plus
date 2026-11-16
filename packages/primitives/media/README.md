@@ -6,7 +6,7 @@ the browser corrects. ([source](https://github.com/doeixd/foldkit-plus/blob/main
 
 | Name | Form | Model | Messages | Args |
 | --- | --- | --- | --- | --- |
-| `MediaQuery` | bundle | `{ matches }` | `Changed { matches }` | `{ query }` |
+| `MediaQuery` | bundle | `{ matches }` | `Changed { matches }` | `{ query, initial? }` |
 | `PrefersDark`, `PrefersReducedMotion` | bundle, preset | `{ matches }` | `Changed` | none |
 | `Breakpoints` | bundle | `{ width, breakpoint }` | `Changed { width }` | `{ breakpoints }` |
 | `breakpointFor(width, table)` | function | | | |
@@ -37,9 +37,15 @@ const config = placements.complete({
 })
 ```
 
-`dark` starts at `{ matches: false }`. When the runtime subscribes, the
-stream emits the current answer at once and then every change; nothing else
-performs I/O. A preset places with no args:
+`dark` starts as the window answers the query when `init` runs
+(`matchMedia(query).matches`), so the first frame is drawn for the screen it is
+on; where there is no window or no `matchMedia` (a server, a minimal DOM) it
+starts at `{ matches: false }`. `args.initial` says the first value instead: for
+a server that knows the device from a request hint, or a test. When the runtime
+subscribes, after the first frame, the stream emits the current answer and then
+every change, which corrects a seed that was wrong. A page resumed by
+`foldkit-ssr` runs no `init`: it keeps the value the server drew, so its first
+frame matches the markup, and the stream's first report corrects it. A preset places with no args:
 
 ```ts
 import { PrefersDark } from 'foldkit-primitives/media'
