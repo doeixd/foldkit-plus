@@ -68,7 +68,7 @@ export const Note = NoteFields.pipe(Guards.attach(G, { row: { Read: [G.isAuthor,
 
 This file is shared: the browser imports it too. `isAdmin` is a name here;
 its body is given only on the server. `isAuthor` is data, an `Expr`, which
-the server compiles to SQL.
+the server compiles to SQL ([Expressions](./expressions.md) is the language).
 
 On the server, the two packages are wired into one endpoint (from
 `examples/auth/src/server.ts`, reduced). `AppAuth` is Yielded's `Auth`

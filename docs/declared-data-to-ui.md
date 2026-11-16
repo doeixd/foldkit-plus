@@ -72,7 +72,9 @@ or compile it to SQL. A field's schema checks its values; the expression says
 how the field is used. Types and schemas alone do not reveal the behavior of an
 arbitrary function.
 
-The complete API and a worked server/client example are in the
+The language of such bodies, and how SQL, a server in memory and a client are
+held to one answer, is [Expressions](./expressions.md). The complete API and a
+worked server/client example are in the
 [`foldkit-entity` guide](../packages/entity/README.md) and
 [`examples/entity`](../examples/entity/README.md).
 
