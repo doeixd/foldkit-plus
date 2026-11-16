@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin, type ViteDevServer } from 'vite'
 import { foldkit } from '@foldkit/vite-plugin'
 import { staticSite } from 'foldkit-ssr/vite'
+import { styleFor } from './src/devRelay.js'
 
 /**
  * `vite preview` as a static host serves the build as Cloudflare Pages does:
@@ -39,13 +40,21 @@ const devHead = (): Plugin => {
       const { headScripts } = await server.ssrLoadModule('/src/head.ts')
       if (typeof headScripts !== 'string') throw new Error('src/head.ts exports no headScripts')
       // The classes the page's static regions drew, which the browser never registers.
-      const { usedStyleAt } = await server.ssrLoadModule('/src/devStyle.ts')
-      const url = new URL(context.originalUrl ?? '/', 'http://localhost')
-      const used = typeof usedStyleAt === 'function' ? await usedStyleAt(url) : ''
+      const used = await styleFor(new URL(context.originalUrl ?? '/', 'http://localhost').pathname)
       return html.replace('</head>', `${headScripts}${used}</head>`)
     },
   }
 }
+
+const viewIdentity = [foldkit()]
+  .flat(3)
+  .filter(
+    plugin =>
+      typeof plugin === 'object' &&
+      plugin !== null &&
+      'name' in plugin &&
+      plugin.name === 'foldkit:view-identity',
+  )
 
 export default defineConfig(({ isPreview }) => ({
   // Workspace packages resolve to their source, so an edit shows without a build.
@@ -60,7 +69,9 @@ export default defineConfig(({ isPreview }) => ({
   // `robots.txt` beside them.
   plugins: [
     foldkit({ ssr: { serverEntry: '/src/entry.server.ts' } }),
-    staticSite({ site: { module: '/src/site.ts' } }),
+    // The build renders the pages with a server of its own, which must brand the views as the
+    // client does: the browser rebuilds every element of a page whose markers it cannot match.
+    staticSite({ site: { module: '/src/site.ts' }, plugins: viewIdentity }),
     staticHost(),
     devHead(),
   ],

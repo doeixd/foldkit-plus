@@ -45,20 +45,24 @@ test.each(['light', 'dark'] as const)(
       await page.goto(`${url}/remote`, { timeout: 400_000 })
       const button = page.locator('[data-copy-code]').first()
       await button.waitFor({ timeout: 120_000 })
-      const look = await button.evaluate(element => {
-        const style = getComputedStyle(element)
-        const block = getComputedStyle(element.closest('figure') ?? element)
-        return {
-          cursor: style.cursor,
-          radius: style.borderTopLeftRadius,
-          border: style.borderTopWidth,
-          block: block.backgroundColor,
-        }
-      })
-      expect(look.cursor).toBe('pointer')
-      expect(look.radius).not.toBe('0px')
-      expect(look.border).not.toBe('0px')
-      expect(look.block).not.toBe('rgba(0, 0, 0, 0)')
+      const look = () =>
+        button.evaluate(element => {
+          const style = getComputedStyle(element)
+          const block = getComputedStyle(element.closest('figure') ?? element)
+          return {
+            cursor: style.cursor,
+            radius: style.borderTopLeftRadius,
+            border: style.borderTopWidth,
+            block: block.backgroundColor,
+          }
+        })
+      // The dev page's sheet is installed when the browser takes the page over; the
+      // code block's own classes must already be in the page by then.
+      await expect.poll(async () => (await look()).radius, { timeout: 120_000 }).not.toBe('0px')
+      const now = await look()
+      expect(now.cursor).toBe('pointer')
+      expect(now.border).not.toBe('0px')
+      expect(now.block).not.toBe('rgba(0, 0, 0, 0)')
     } finally {
       await context.close()
     }

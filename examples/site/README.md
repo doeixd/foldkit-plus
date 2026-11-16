@@ -28,6 +28,17 @@ main.ts: Model { path, page, and what the browser changes } ──▶ the browse
   the home page's coloured code are `SSR.static` regions: rendered once, at
   build time, and adopted by the browser as they are. The browser's bundle
   holds none of it; `src/library.ts`'s `browserLibrary` draws nothing.
+- **Two applications, one site.** The guides, API pages, demos and home page
+  are the first (`src/shell.ts`); the component pages and the theme creator are
+  the second (`src/main.ts`), which is the first plus the previews' state, every
+  recipe and the theme `/create` makes. `src/paths.ts` says which draws an
+  address, and the build, the dev server and the browser's entry all ask it:
+  `site.ts` gives each path its own config and plan (`SiteModule.plan` is a
+  function of the path), and `entry.ts` loads only that application's chunk. A
+  reader of a guide loads about half the JavaScript a component page does
+  (`test/bundle.test.ts` holds both). The shell's Model, Messages and update are
+  shared with the second application, which answers them through
+  `shell.updateOwn`.
 - **The browser owns little.** The plan sends the address and what the page is
   (its title and description). The phone menu, the home page's example tab and
   the copy button's state start fresh on every page. Links are ordinary links:
@@ -68,7 +79,9 @@ component, and `/create` a theme creator. Three files hold it:
   drawn as an application draws it, one `// #region <slug>` each. A
   component's page shows its region, coloured at build time, and its previews
   call the function the region defines, so the code is what drew them.
-- [`src/gallery/showcases.ts`](src/gallery/showcases.ts): the list. A
+- [`src/gallery/catalogue.ts`](src/gallery/catalogue.ts) and
+  [`src/gallery/previews/`](src/gallery/previews): the list, and one module per
+  showcase (`showcases.ts` gathers them for the server and the tests). A
   showcase's variant axes are read from its recipe (`recipe.def.variants`),
   and a value reaches the recipe only if the recipe has it.
 
@@ -111,9 +124,11 @@ renamed heading or a moved file fails the test rather than a reader.
 ## Files
 
 - `src/catalog.ts`: the subsites, their packages and their documents.
-- `src/main.ts`: the Model, the Messages, `update`, the resume plan and the
-  document's head.
-- `src/view/`: the frame and rail (`layout.ts`), the home page, the demos, the
+- `src/shell.ts`: the first application's Model, Messages, `update`, resume plan
+  and document head; `src/main.ts` is the second's, over it; `src/page.ts` the
+  pages both name; `src/paths.ts` which application draws an address.
+- `src/view/`: the frame and rail (`frame.ts`, written once over either
+  application's Message; `shellLayout.ts` and `layout.ts` give it each one's pages), the home page, the demos, the
   component pages and the theme creator, and a doc page's two regions.
 - `src/content/`: the build-time half: Markdown cut into guide pages, drawn with
   the inert builder, code tokenized by `foldkit-richtext-code-shiki` into the

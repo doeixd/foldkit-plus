@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { Message, initial, plan, update } from '../src/main.js'
+import * as Shell from '../src/shell.js'
 
 const commandNames = (result: ReturnType<typeof update>) =>
   (result.commands ?? []).map(command => command.name)
@@ -26,7 +27,14 @@ describe("the page's scheme", () => {
     expect(update(initial, Message.FoundPageScheme({ scheme: 'system' })).model).toBe(initial)
   })
 
-  it('is read back when the browser takes the page over, which the server cannot know', () => {
+  // Each application boots its own pages: the guides' and the component pages'.
+  it('is read back when the browser takes over a guide, which the server cannot know', () => {
+    expect((Shell.plan.boot?.(Shell.initial) ?? []).map(command => command.name)).toContain(
+      'ReadPageScheme',
+    )
+  })
+
+  it('is read back when the browser takes over a component page, too', () => {
     expect((plan.boot?.(initial) ?? []).map(command => command.name)).toContain('ReadPageScheme')
   })
 })

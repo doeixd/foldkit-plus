@@ -12,7 +12,6 @@ import { defaults, presets, sameTheme, valueAt, withValue } from '../src/gallery
 import { addressOf, queryOf } from '../src/gallery/themeUrl.js'
 import {
   Message,
-  Page,
   addressIn,
   initial,
   openedTheme,
@@ -20,6 +19,7 @@ import {
   update,
   type Model,
 } from '../src/main.js'
+import { Page } from '../src/page.js'
 
 const home = { values: defaults, scheme: 'system', canvas: 'components', direction: 'ltr' } as const
 

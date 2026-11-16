@@ -7,8 +7,8 @@ import type { Html } from 'foldkit/html'
 import { SSR } from 'foldkit-ssr/client'
 
 import type { Library } from '../library.js'
-import type { Model } from '../main.js'
-import type { H, Slots } from './layout.js'
+import type { Model } from '../shell.js'
+import type { H, Slots } from './shellLayout.js'
 import { LIVE_PATH, livePrimitives } from './live.js'
 
 export const docPage = (

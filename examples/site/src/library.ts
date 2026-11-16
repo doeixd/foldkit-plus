@@ -5,7 +5,7 @@
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
 
-import type { Example, Page } from './main.js'
+import type { Example, Page } from './page.js'
 
 /**
  * The attribute a code block's copy button carries for the page's script: a

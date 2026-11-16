@@ -1,29 +1,22 @@
 /**
- * The website: a home page, the demos, and a subsite of guides and API pages
- * per package family, every page rendered at build time and taken over in the
- * browser. Links are ordinary links, so a page is a new document; the Model
- * holds what a page is called and the little the browser changes on it: the
- * menu on a phone, which example the home page shows, the two primitives
- * the Primitives overview runs in the page, and what a reader sets on the
- * component pages: a variant, a preview's state, and `/create`'s knobs.
+ * The site's second application: the component pages and the theme creator.
+ * It is the first (`shell.ts`) with the state a reader sets on the previews
+ * added: a variant, a preview's state, `/create`'s knobs and the theme they
+ * make. Only these pages load it.
  */
 import { Effect, Match, Option, Schema, Stream } from 'effect'
 import { Command, Dom, Subscription, Update } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
-import { chooseScheme, currentScheme, type Scheme as ThemeScheme } from 'foldkit-mixins/theme'
-import { PrefersDark } from 'foldkit-primitives/media'
-import { Timer } from 'foldkit-primitives/time'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { Listbox as UiListbox, Tabs as UiTabs, Tooltip as UiTooltip } from '@foldkit/ui'
 import { Drawer } from 'foldkit-mixins-ui'
 
-import { allSubsites } from './catalog.js'
+import { aboutOf } from './gallery/catalogue.js'
 import { showcaseOf } from './gallery/showcases.js'
 import {
   Canvas,
@@ -64,39 +57,15 @@ import {
 import { addressOf, queryOf } from './gallery/themeUrl.js'
 import { COPY_ATTRIBUTE, CREATE, type Library } from './library.js'
 import { Body } from './view/layout.js'
+import { Page } from './page.js'
+import * as Shell from './shell.js'
 
 // MODEL
-
-/** What the page at an address is, as much as the browser needs to know. */
-export const Page = defineTaggedUnion({
-  Home: {},
-  Demos: {},
-  Components: {},
-  Component: { slug: Schema.String },
-  Create: {},
-  Doc: { subsite: Schema.String, title: Schema.String, description: Schema.String },
-  Missing: {},
-})
-export type Page = typeof Page.Type
-
-export const Example = Schema.Literals(['view', 'agent', 'sync', 'mirror'])
-export type Example = typeof Example.Type
-
-/** The page's own light or dark, which the head script applied before the first paint. */
-export const PageScheme: Schema.Codec<ThemeScheme> = Schema.Literals(['system', 'light', 'dark'])
-
-/** The primitives the Primitives overview shows running: each a field of this Model. */
-const Dark = Bundle.declare(PrefersDark, 'dark')
-const Ticks = Bundle.declare(Timer, 'ticks')
 
 const decodePack = Schema.decodeUnknownOption(Pack)
 
 export const Model = Schema.Struct({
-  path: Schema.String,
-  page: Page,
-  menuOpen: Schema.Boolean,
-  example: Example,
-  copied: Schema.Boolean,
+  ...Shell.fields,
   /** Whether a link to the theme was copied since the knobs last moved. */
   linkCopied: Schema.Boolean,
   /** Whether `/create` has read its address, before which it writes none. */
@@ -129,25 +98,16 @@ export const Model = Schema.Struct({
   scheme: Scheme,
   /** The icon pack the previews draw the components' own icons in. */
   pack: Pack,
-  pageScheme: PageScheme,
-  ...Dark.fields,
-  ...Ticks.fields,
 })
 export type Model = typeof Model.Type
 
 // MESSAGE
 
 export const Message = defineMessageUnion({
-  ToggledMenu: {},
-  ChoseExample: { example: Example },
-  PressedCopy: { text: Schema.String },
-  CopiedText: {},
+  ...Shell.cases,
   PressedCopyLink: {},
   CopiedLink: {},
   FoundThemeAddress: { query: Schema.String },
-  PressedCodeCopy: { index: Schema.Number },
-  CopiedCode: {},
-  FailedToCopy: {},
   PickedVariant: { axis: Schema.String, value: Schema.String },
   ToggledSwitch: { on: Schema.Boolean },
   ChoseCard: { key: Schema.String },
@@ -170,69 +130,17 @@ export const Message = defineMessageUnion({
   GotDrawer: { message: Drawer.Message },
   ChoseScheme: { scheme: Scheme },
   ChoseDirection: { direction: Direction },
-  ChosePageScheme: { scheme: PageScheme },
-  FoundPageScheme: { scheme: PageScheme },
-  AppliedPageScheme: {},
-  ...Dark.cases,
-  ...Ticks.cases,
 })
 export type Message = typeof Message.Type
 
 const Parent = Bundle.parent({ Model, Message })
 
 const placements = Parent.assemble(
-  Parent.at(Dark),
-  Parent.at(Ticks, { args: { intervalMs: 1000 } }),
+  Parent.at(Shell.Dark),
+  Parent.at(Shell.Ticks, { args: { intervalMs: 1000 } }),
 )
 
 // COMMAND
-
-/** The clipboard refuses outside a secure context, or when the reader denies it. */
-const writeClipboard = (text: string) =>
-  Effect.tryPromise(() => navigator.clipboard.writeText(text))
-
-const CopyText = Command.define('CopyText', {
-  args: { text: Schema.String },
-  messages: [Message.CopiedText, Message.FailedToCopy],
-  execute: ({ text }) =>
-    writeClipboard(text).pipe(
-      Effect.as(Message.CopiedText()),
-      Effect.orElseSucceed(() => Message.FailedToCopy()),
-    ),
-})
-
-/**
- * Copies the code of the code block whose button is the `index`th on the
- * page, and marks the button done. The block is in a static region, which
- * the browser never draws again, so the button is marked where it stands.
- */
-export const CopyCode = Command.define('CopyCode', {
-  args: { index: Schema.Number },
-  messages: [Message.CopiedCode, Message.FailedToCopy],
-  execute: ({ index }) =>
-    Effect.gen(function* () {
-      const button = document.querySelectorAll<HTMLElement>(`[${COPY_ATTRIBUTE}]`)[index]
-      const code = button?.closest('figure')?.querySelector('pre code')?.textContent
-      if (button === undefined || code === undefined || code === null) return Message.FailedToCopy()
-      yield* writeClipboard(code)
-      button.dataset['copied'] = 'true'
-      button.textContent = 'Copied'
-      return Message.CopiedCode()
-    }).pipe(Effect.orElseSucceed(() => Message.FailedToCopy())),
-})
-
-/** Applies the reader's scheme to the page and keeps it for the next visit. */
-const ApplyPageScheme = Command.define('ApplyPageScheme', {
-  args: { scheme: PageScheme },
-  messages: [Message.AppliedPageScheme],
-  execute: ({ scheme }) => chooseScheme(scheme).pipe(Effect.as(Message.AppliedPageScheme())),
-})
-
-/** What the head script applied, read once the browser takes the page over. */
-const ReadPageScheme = Command.define('ReadPageScheme', {
-  messages: [Message.FoundPageScheme],
-  execute: Effect.sync(() => Message.FoundPageScheme({ scheme: currentScheme() })),
-})
 
 /** Where the reader's theme is kept between pages: the query `/create` writes. */
 const THEME_KEY = 'foldkit-site-theme'
@@ -266,7 +174,9 @@ const CopyLink = Command.define('CopyLink', {
   args: { query: Schema.String },
   messages: [Message.CopiedLink, Message.FailedToCopy],
   execute: ({ query }) =>
-    writeClipboard(`${window.location.origin}${CREATE}${query === '' ? '' : `?${query}`}`).pipe(
+    Shell.writeClipboard(
+      `${window.location.origin}${CREATE}${query === '' ? '' : `?${query}`}`,
+    ).pipe(
       Effect.as(Message.CopiedLink()),
       Effect.orElseSucceed(() => Message.FailedToCopy()),
     ),
@@ -425,15 +335,30 @@ const foldWidget = Update.foldChild({
   update: WidgetsUpdate.update,
 })
 
+/**
+ * A Message the first application answers alike: its `updateOwn` takes it over
+ * this Model, and what it changed is written back.
+ */
+const asShell = (model: Model, message: Shell.OwnMessage): UpdateReturn => {
+  const step = Shell.updateOwn(model, message)
+  return {
+    model: step.model === model ? model : { ...model, ...step.model },
+    ...(step.commands === undefined ? {} : { commands: step.commands }),
+  }
+}
+
 const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
   Match.valueTags(message, {
-    ToggledMenu: () => ({ model: modifyFields(model, { menuOpen: open => !open }) }),
-    ChoseExample: ({ example }) =>
-      example === model.example
-        ? { model }
-        : { model: modifyFields(model, { example: () => example }) },
-    PressedCopy: ({ text }) => ({ model, commands: [CopyText({ text })] }),
-    CopiedText: () => ({ model: modifyFields(model, { copied: () => true }) }),
+    ToggledMenu: message => asShell(model, message),
+    ChoseExample: message => asShell(model, message),
+    PressedCopy: message => asShell(model, message),
+    CopiedText: message => asShell(model, message),
+    PressedCodeCopy: message => asShell(model, message),
+    CopiedCode: message => asShell(model, message),
+    FailedToCopy: message => asShell(model, message),
+    ChosePageScheme: message => asShell(model, message),
+    FoundPageScheme: message => asShell(model, message),
+    AppliedPageScheme: message => asShell(model, message),
     PressedCopyLink: () => ({
       model,
       commands: [CopyLink({ query: queryOf(addressIn(model)) })],
@@ -454,9 +379,6 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         }),
       }
     },
-    PressedCodeCopy: ({ index }) => ({ model, commands: [CopyCode({ index })] }),
-    CopiedCode: () => ({ model }),
-    FailedToCopy: () => ({ model }),
     PickedVariant: ({ axis, value }) =>
       Object.hasOwn(model.selection, axis) && model.selection[axis] === value
         ? { model }
@@ -517,32 +439,11 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       scheme === model.scheme
         ? { model }
         : { model: modifyFields(model, { scheme: () => scheme }) },
-    ChosePageScheme: ({ scheme }) =>
-      scheme === model.pageScheme
-        ? { model }
-        : {
-            model: modifyFields(model, { pageScheme: () => scheme }),
-            commands: [ApplyPageScheme({ scheme })],
-          },
-    FoundPageScheme: ({ scheme }) =>
-      scheme === model.pageScheme
-        ? { model }
-        : { model: modifyFields(model, { pageScheme: () => scheme }) },
-    AppliedPageScheme: () => ({ model }),
   })
 
 export const update = placements.update(updateOwn)
 
 // SUBSCRIPTION
-
-/** Which copy button a click landed on, counted in the page's order. */
-export const codeCopyOf = (event: MouseEvent): Option.Option<Message> => {
-  const button =
-    event.target instanceof Element ? event.target.closest(`[${COPY_ATTRIBUTE}]`) : null
-  if (button === null) return Option.none()
-  const index = Array.from(document.querySelectorAll(`[${COPY_ATTRIBUTE}]`)).indexOf(button)
-  return index === -1 ? Option.none() : Option.some(Message.PressedCodeCopy({ index }))
-}
 
 const onCreate = (page: Page): boolean => page._tag === 'Create'
 
@@ -627,13 +528,7 @@ export const subscriptions = placements.subscriptions(
             }),
         },
       ),
-      codeCopy: Subscription.persistentEntry(
-        Dom.streamFromEventFilterMap({
-          target: () => document,
-          type: 'click',
-          filterMapEvent: codeCopyOf,
-        }),
-      ),
+      codeCopy: Shell.codeCopy,
     })),
     Subscription.lift(WidgetsUpdate.subscriptions)<Model, Message>({
       read: model => Option.some(model.widgets),
@@ -647,6 +542,43 @@ export const subscriptions = placements.subscriptions(
 )
 
 // INIT
+
+const descriptionOf = (page: Page): string =>
+  Page.match(page, {
+    Components: () =>
+      'Components drawn by the recipes foldkit-mixins-ui ships: pick a variant, read the code, theme them all.',
+    Component: ({ slug }) =>
+      Option.match(aboutOf(slug), {
+        onNone: () => Shell.DESCRIPTION,
+        onSome: about => `${about.title}: ${about.summary}`,
+      }),
+    Create: () =>
+      'Make a theme for foldkit-mixins: turn its knobs, see every component change, and copy the code.',
+    Missing: () => Shell.DESCRIPTION,
+    Home: () => elsewhere('Home'),
+    Demos: () => elsewhere('Demos'),
+    Doc: () => elsewhere('Doc'),
+  })
+
+const titleOf = (page: Page): string =>
+  Page.match(page, {
+    Components: () => 'Components · Foldkit Plus',
+    Component: ({ slug }) =>
+      Option.match(aboutOf(slug), {
+        onNone: () => 'Components · Foldkit Plus',
+        onSome: about => `${about.title} · Components · Foldkit Plus`,
+      }),
+    Create: () => 'Create a theme · Foldkit Plus',
+    Missing: () => 'Not found · Foldkit Plus',
+    Home: () => elsewhere('Home'),
+    Demos: () => elsewhere('Demos'),
+    Doc: () => elsewhere('Doc'),
+  })
+
+/** A page of the guides application, which this one is never given: a routing mistake, said loudly. */
+const elsewhere = (page: string): never => {
+  throw new Error(`the ${page} page is drawn by the guides application, not this one`)
+}
 
 /** The Model a page starts from, before the server names it. */
 export const initial: Model = placements.initial({
@@ -684,26 +616,6 @@ export const modelAt = (library: Library, path: string): Model =>
 
 const App = Surface.application({ Model, Message, initial, update })
 
-const DESCRIPTION =
-  'Ready-made patterns for Foldkit: server data, offline sync, routing, forms, a CMS and AI agents, as packages that keep their state in your Model. Less code to write, fewer tokens to spend.'
-
-const descriptionOf = (page: Page): string =>
-  Page.match(page, {
-    Home: () => DESCRIPTION,
-    Demos: () => 'Examples from the Foldkit Plus repository, built as static files.',
-    Components: () =>
-      'Components drawn by the recipes foldkit-mixins-ui ships: pick a variant, read the code, theme them all.',
-    Component: ({ slug }) =>
-      Option.match(showcaseOf(slug), {
-        onNone: () => DESCRIPTION,
-        onSome: showcase => `${showcase.title}: ${showcase.summary}`,
-      }),
-    Create: () =>
-      'Make a theme for foldkit-mixins: turn its knobs, see every component change, and copy the code.',
-    Doc: ({ description }) => (description === '' ? DESCRIPTION : description),
-    Missing: () => DESCRIPTION,
-  })
-
 /**
  * The address and what the page is cross to the browser; the menu, the
  * example and the copy state start from `initial`. The guides, the API and the
@@ -711,7 +623,7 @@ const descriptionOf = (page: Page): string =>
  */
 const planOf = (withMeta: boolean) =>
   SSR.plan(App, {
-    id: 'site',
+    id: 'gallery',
     state: Projection.pick(App.model.path, App.model.page),
     local: [
       App.model.menuOpen,
@@ -731,7 +643,7 @@ const planOf = (withMeta: boolean) =>
     ],
     // The server cannot know a reader's scheme; the head script applied it.
     // Nor the theme a link carries, which every page's previews are drawn in.
-    boot: () => [ReadPageScheme(), ReadThemeAddress()],
+    boot: () => [Shell.ReadPageScheme(), ReadThemeAddress()],
     ...(withMeta ? { meta: (model: Model) => ({ description: descriptionOf(model.page) }) } : {}),
   })
 
@@ -742,33 +654,10 @@ export const servingPlan = planOf(false)
 
 // VIEW
 
-/** Where the site is served: a canonical address starts here. */
-export const ORIGIN = 'https://foldkit-plus.pages.dev'
-
-const titleOf = (page: Page): string =>
-  Page.match(page, {
-    Home: () => 'Foldkit Plus: ready-made patterns for Foldkit',
-    Demos: () => 'Demos · Foldkit Plus',
-    Components: () => 'Components · Foldkit Plus',
-    Component: ({ slug }) =>
-      Option.match(showcaseOf(slug), {
-        onNone: () => 'Components · Foldkit Plus',
-        onSome: showcase => `${showcase.title} · Components · Foldkit Plus`,
-      }),
-    Create: () => 'Create a theme · Foldkit Plus',
-    Doc: ({ subsite, title }) => {
-      const family = allSubsites.find(each => each.id === subsite)
-      return family === undefined || family.title === title
-        ? `${title} · Foldkit Plus`
-        : `${title} · ${family.title} · Foldkit Plus`
-    },
-    Missing: () => 'Not found · Foldkit Plus',
-  })
-
 export const viewWith =
   (library: Library) =>
   (model: Model, h: HtmlBuilder<Message>): Document => ({
     title: titleOf(model.page),
-    canonical: `${ORIGIN}${model.path}`,
+    canonical: `${Shell.ORIGIN}${model.path}`,
     body: Body({ model, library }, h),
   })

@@ -14,7 +14,7 @@ import { allSubsites, type Subsite } from '../catalog.js'
 import { README, topicsFor } from '../gallery/related.js'
 import { showcaseOf, showcases } from '../gallery/showcases.js'
 import { COMPONENTS, CREATE, type Draw, type Library, type Region } from '../library.js'
-import { Page, type Example } from '../main.js'
+import { Page, type Example } from '../page.js'
 import type { RootContent } from 'mdast'
 
 import { packageName } from '../demos.js'

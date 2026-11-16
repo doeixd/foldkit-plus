@@ -10,8 +10,9 @@ import { SSR } from 'foldkit-ssr/client'
 import { shelves, subsites, type Subsite } from '../catalog.js'
 import { chirpDemo, demos, onGitHub, packageName } from '../demos.js'
 import type { Library } from '../library.js'
-import { Message, type Example, type Model } from '../main.js'
-import type { H, Slots } from './layout.js'
+import { Message, type Model } from '../shell.js'
+import type { Example } from '../page.js'
+import type { H, Slots } from './shellLayout.js'
 
 /** What the reader hands their coding agent: the command prints the rest for their project. */
 const SETUP = 'Please run `npx --legacy-peer-deps foldkit-plus setup` and follow the instructions.'

@@ -157,12 +157,12 @@ export default [
   },
   {
     name: 'a click credited to the button after it',
-    edits: [{ file: '../src/main.ts', find: '.indexOf(button)', replace: '.indexOf(button) + 1' }],
+    edits: [{ file: '../src/shell.ts', find: '.indexOf(button)', replace: '.indexOf(button) + 1' }],
     tests,
   },
   {
     name: 'a copy that marks no button done',
-    edits: [{ file: '../src/main.ts', find: "button.textContent = 'Copied'", replace: '' }],
+    edits: [{ file: '../src/shell.ts', find: "button.textContent = 'Copied'", replace: '' }],
     tests,
   },
   {
@@ -237,7 +237,7 @@ export default [
     name: 'the timer is declared but never placed',
     edits: [
       {
-        file: '../src/main.ts',
+        file: '../src/shell.ts',
         find: 'Parent.at(Ticks, { args: { intervalMs: 1000 } }),',
         replace: '',
       },
