@@ -28,4 +28,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the site module is loaded without the plugins it was given',
+    edits: [
+      {
+        file: vite,
+        find: '...(options.plugins === undefined ? {} : { plugins: [options.plugins] }),',
+        replace: '',
+      },
+    ],
+    tests: ['packages/ssr/test/staticSitePlugins.test.ts'],
+  },
 ] as const

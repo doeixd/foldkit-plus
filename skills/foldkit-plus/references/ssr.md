@@ -300,6 +300,11 @@ would rebuild those elements.
 - `staticSite`'s `plan` may be `(path) => plan` for a site of two applications
   (`config` is already a function of the path): each page resumes with its own
   application's plan, and a function that throws fails the build naming the path.
+- `staticSite({ site, plugins })` loads the site module with those Vite
+  plugins (its server has none of the application's). Pass Foldkit's
+  view-identity branding: without it the pages carry no identity markers, the
+  browser cannot match them, and a production build rebuilds every element on
+  hydration with no warning (Foldkit warns in development only).
 - `SSR.page(template, result, { head? })` and `SSR.generate` take
   `head: (rendered, drawn) => string`, put before `</head>`: with
   `foldkit-mixins`, `` (_rendered, drawn) => `<style>${Style.usedDrawn(drawn)}</style>` ``

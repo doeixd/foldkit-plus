@@ -14,7 +14,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { Effect, Schema } from 'effect'
 import type { RenderError } from 'foldkit/experimental/server'
-import type { Plugin } from 'vite'
+import type { Plugin, PluginOption } from 'vite'
 import { SSR, type Head, type ResumeUnsafe } from './index.js'
 import type { ResumableConfig, ResumePlan } from './shared.js'
 
@@ -290,6 +290,13 @@ const conditions = ['foldkit-plus:source']
 export const staticSite = (options: {
   /** The site description's module, root-relative (`/src/site.ts`), and its export. */
   readonly site: { readonly module: string; readonly export?: string | undefined }
+  /**
+   * Vite plugins the site module is loaded with. The build renders the pages
+   * from a server of its own, which loads none of the application's: pass the
+   * ones that change what a view draws, such as Foldkit's view-identity
+   * branding, whose markers the browser compares with the page it adopts.
+   */
+  readonly plugins?: PluginOption | undefined
   /** What `vite build` wrote: defaults to the resolved `build.outDir`. */
   readonly outDir?: string | undefined
 }): Plugin => {
@@ -327,6 +334,7 @@ export const staticSite = (options: {
         server: { middlewareMode: true, hmr: false },
         resolve: { conditions },
         ssr: { resolve: { conditions } },
+        ...(options.plugins === undefined ? {} : { plugins: [options.plugins] }),
         optimizeDeps: { noDiscovery: true, include: [] },
       })
       try {

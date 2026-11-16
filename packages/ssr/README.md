@@ -877,6 +877,13 @@ export const site = {
 } satisfies SiteModule
 ```
 
+`staticSite({ site, plugins })` loads the site module with `plugins`: the build
+renders the pages from a Vite server of its own, which has none of the
+application's, so a plugin that changes what a view draws must be passed here
+too. Foldkit's view-identity branding is one: the browser compares the identity
+markers it computes with the page's, and a page drawn without them is rebuilt
+element by element rather than adopted, silently in a production build.
+
 `emit` adds files made from the generated pages, written beside them: what the
 pages reference and the build must also serve, such as the image variants
 their `srcset`s name (`foldkit-media`'s `materialize`). It takes the pages and
