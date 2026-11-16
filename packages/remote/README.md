@@ -1656,7 +1656,10 @@ richer declaration.
 
 What comes back is an ordinary descriptor — the same name, `Input`, `ref` and
 connection identity — carrying its `body` besides, and the result is a
-connection over the Entity the body reads, so it is not named twice. A server
+connection over the Entity the body reads, so it is not named twice. Its type
+is a `DefinedQuery`, whose `body` is always there and typed as built, so
+`Query.show(TasksByOwner.body)` and `evaluate(TasksByOwner.body, …)` need no
+check; it is a `QueryDescriptor` wherever one is taken. A server
 can compile that body rather than be told the same thing again in its own
 dialect; one that would rather answer the query its own way still can, and a
 descriptor from `Query.make` has no body at all. The descriptor also carries
