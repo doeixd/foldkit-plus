@@ -141,6 +141,11 @@ export const subsites: ReadonlyArray<Subsite> = [
     [
       doc('server-state', 'Server-derived state', 'remote'),
       doc('writes', 'Declared writes', 'declared-writes'),
+      doc(
+        'event-sourced-domains',
+        'An event-sourced domain behind Remote',
+        'event-sourced-domains',
+      ),
     ],
   ),
   family(
