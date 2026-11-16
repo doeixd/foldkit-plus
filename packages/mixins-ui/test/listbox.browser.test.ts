@@ -10,7 +10,7 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
-import { renderBehindTheQueue } from './frames.js'
+import { holdFrames, renderBehindTheQueue } from './frames.js'
 import { marksThrough } from './observe.js'
 import { Listbox, ListboxSlots, ListboxView, Recipes } from '../src/index.js'
 import * as UpstreamListbox from '@foldkit/ui/listbox'
@@ -27,7 +27,19 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = (isAnimated = false) => {
+const FREQUENCIES = ['Hourly', 'Daily', 'Overnight']
+
+/** What the listbox's `update` reported chosen, as upstream names it. */
+let chosen: ReadonlyArray<unknown> = []
+
+type Layout = {
+  readonly items?: ReadonlyArray<string>
+  readonly orientation?: 'Horizontal' | 'Vertical'
+  readonly direction?: 'ltr' | 'rtl'
+}
+
+const mount = (isAnimated = false, layout: Layout = {}) => {
+  chosen = []
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -49,12 +61,12 @@ const mount = (isAnimated = false) => {
           model,
           {
             anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
-            items: ['Hourly', 'Daily', 'Overnight'],
+            items: layout.items ?? FREQUENCIES,
             maybeSelectedValue: Option.none(),
             itemToConfig: (frequency: string) => ({ content: h.span([], [frequency]) }),
             buttonContent: h.span([], ['Frequency']),
             toView: Listbox.toView([style.mixin], { h }),
-            direction: 'rtl',
+            direction: layout.direction ?? 'rtl',
           },
           h,
         ),
@@ -66,11 +78,16 @@ const mount = (isAnimated = false) => {
       container,
       init: () => ({
         model: {
-          ...UpstreamListbox.init({ id: 'ladder', orientation: 'Horizontal' as const, isAnimated }),
+          ...UpstreamListbox.init({
+            id: 'ladder',
+            orientation: layout.orientation ?? ('Horizontal' as const),
+            isAnimated,
+          }),
         },
       }),
       update: (model: Model, message: Message) => {
         const next = Frequencies.update(model, message)
+        if (next.outMessage !== undefined) chosen = [...chosen, next.outMessage]
         return {
           model: next.model,
           commands: next.commands === undefined ? [] : next.commands,
@@ -138,6 +155,138 @@ test('a listbox leaving draws its fade though a render frame is put off (#400)',
       expect(states).toContain('closed leave')
     } finally {
       restore()
+    }
+  } finally {
+    handle.dispose()
+  }
+})
+
+const FRUIT = ['Apple', 'Avocado', 'Banana', 'Blueberry', 'Cherry', 'Damson']
+const column: Layout = { items: FRUIT, orientation: 'Vertical', direction: 'ltr' }
+
+const activeItem = () => {
+  const id = document.getElementById('ladder-items')?.getAttribute('aria-activedescendant')
+  return id === null || id === undefined ? '' : (document.getElementById(id)?.textContent ?? '')
+}
+
+const openOn = async (key: string) => {
+  await vi.waitFor(() => expect(document.getElementById('ladder-button')).not.toBeNull())
+  document.getElementById('ladder-button')!.focus()
+  await userEvent.keyboard(key)
+}
+
+/** Opens the listbox, then types `keys` in one frame: the page draws nothing in between. */
+const burst = async (keys: string, layout: Layout = column) => {
+  const handle = mount(false, layout)
+  await openOn('{Enter}')
+  await vi.waitFor(() => expect(activeItem()).toBe(layout.items?.[0] ?? ''))
+  const release = holdFrames()
+  try {
+    await userEvent.keyboard(keys)
+  } finally {
+    release()
+  }
+  return handle
+}
+
+// Keys come faster than frames: a held key repeating on a busy page sends several before the
+// next drawing, and each continues from where the previous one of this drawing left off.
+test.each([
+  ['{ArrowDown}{ArrowDown}{ArrowDown}', 'Blueberry'],
+  ['{ArrowDown}{ArrowDown}{ArrowUp}', 'Avocado'],
+  ['{ArrowUp}{ArrowUp}', 'Cherry'],
+  ['{End}{ArrowUp}', 'Cherry'],
+  ['{End}{ArrowDown}{ArrowDown}{ArrowDown}', 'Banana'],
+  ['{ArrowDown}{ArrowDown}{Home}{ArrowDown}{ArrowDown}', 'Banana'],
+] as const)('keys %s before the next frame leave the active item at %s', async (keys, last) => {
+  const handle = await burst(keys)
+  try {
+    await vi.waitFor(() => expect(activeItem()).toBe(last))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('Enter after two ArrowDowns before the next frame chooses the item the second reached', async () => {
+  const handle = await burst('{ArrowDown}{ArrowDown}{Enter}')
+  try {
+    await vi.waitFor(() => expect(JSON.stringify(chosen)).toContain('Banana'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a Space typed after letters before the next frame continues the search instead of choosing', async () => {
+  const handle = await burst('b ')
+  try {
+    await vi.waitFor(() => expect(activeItem()).toBe('Banana'))
+    await new Promise(done => setTimeout(done, 50))
+    expect(chosen).toEqual([])
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('type-ahead keys before the next frame refine one query from the item the first reached', async () => {
+  const handle = await burst('bl')
+  try {
+    await vi.waitFor(() => expect(activeItem()).toBe('Blueberry'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('an arrow after type-ahead before the next frame moves on from the item the search reached', async () => {
+  const handle = await burst('b{ArrowDown}')
+  try {
+    await vi.waitFor(() => expect(activeItem()).toBe('Blueberry'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('right to left, ArrowLeft keys before the next frame each move to the next item', async () => {
+  const handle = await burst('{ArrowLeft}{ArrowLeft}{ArrowRight}{ArrowLeft}', {
+    items: FRUIT,
+    orientation: 'Horizontal',
+    direction: 'rtl',
+  })
+  try {
+    await vi.waitFor(() => expect(activeItem()).toBe('Banana'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('ArrowDown twice before the next frame on a closed listbox opens it and moves to the second item', async () => {
+  const handle = mount(false, column)
+  try {
+    await vi.waitFor(() => expect(document.getElementById('ladder-button')).not.toBeNull())
+    document.getElementById('ladder-button')!.focus()
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(activeItem()).toBe('Avocado'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('one key a frame still moves one item each', async () => {
+  const handle = mount(false, column)
+  try {
+    await openOn('{Enter}')
+    await vi.waitFor(() => expect(activeItem()).toBe('Apple'))
+    for (const [key, item] of [
+      ['{ArrowDown}', 'Avocado'],
+      ['{ArrowDown}', 'Banana'],
+      ['{ArrowUp}', 'Avocado'],
+    ] as const) {
+      await userEvent.keyboard(key)
+      await vi.waitFor(() => expect(activeItem()).toBe(item))
     }
   } finally {
     handle.dispose()
