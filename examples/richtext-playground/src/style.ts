@@ -122,6 +122,10 @@ const writing = Style.compose(
   Style.nest(':is(p, h1, h2, h3, h4, h5, h6)', { minBlockSize: '1lh' }),
   // The block a handle is dragging, dimmed until it is dropped (`foldkit-richtext-dom`'s drag).
   Style.nest('[data-richtext-dragging]', { opacity: '0.4' }),
+  // The selection the editor draws while a toolbar control, not the text, holds the focus.
+  Style.nest('[data-decoration="selection"]', {
+    background: `color-mix(in oklab, ${t.accent.default} 30%, transparent)`,
+  }),
   Style.nest('h1', {
     fontSize: h1Size,
     lineHeight: '1.2',
