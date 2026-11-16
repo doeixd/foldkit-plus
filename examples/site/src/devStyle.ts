@@ -4,11 +4,13 @@
  * (`site.ts`); in development the page is made by Foldkit's pipeline with no
  * head of ours, so the head is made from a render of the same address.
  */
+import { Match } from 'effect'
 import { Style } from 'foldkit-mixins'
 
 import { renderPage } from './entry.server.js'
 
-export const usedStyleAt = async (url: URL): Promise<string> => {
-  const result = await renderPage(new Request(url))
-  return result._tag === 'Rendered' ? `<style>${Style.usedIn(result.application.html)}</style>` : ''
-}
+export const usedStyleAt = async (url: URL): Promise<string> =>
+  Match.valueTags(await renderPage(new Request(url)), {
+    Rendered: ({ application }) => `<style>${Style.usedIn(application.html)}</style>`,
+    Responded: () => '',
+  })
