@@ -11,8 +11,33 @@ export default [
     tests,
   },
   {
-    name: 'the room is left at every width',
-    edits: [{ file, find: "'@media (max-width: 48rem)',", replace: "'@media all'," }],
+    name: 'a page that asked for no room gets it',
+    edits: [{ file, find: ':not([data-reserve="false"])', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a top corner is drawn at the bottom',
+    edits: [
+      {
+        file,
+        find: String.raw`'&[data-corner="top-end"]', {
+        insetBlockStart: 'var(--demo-guide-inset, 1rem)',`,
+        replace: String.raw`'&[data-corner="top-end"]', {
+        insetBlockStart: 'auto',`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the compact pill keeps its width',
+    edits: [
+      {
+        file,
+        find: `width: '2.25rem',
+        padding: '0',`,
+        replace: `padding: '0',`,
+      },
+    ],
     tests,
   },
   {
