@@ -489,8 +489,15 @@ a `revision` field, `GuardServer.writer(Todo, Policy, writer(Db.Todo), {
 revision: 'revision' })`. Every update and delete then lands only on the
 revision its rules were decided over (the writer's `expect`, one compare and
 set statement). If the row moved after the check, it is decided again over
-the row as it now is, up to three times, then fails with "changed while it
-was written"; nothing is written over a version no rule saw. An input that
+the row as it now is, up to three times, then fails; nothing is written over a
+version no rule saw. That failure, like every failure on the guard's own side
+(a write that reads a member its writer may not, a Read rule that cannot be
+compiled for who asks, a value it cannot work out), is not a refusal: the
+caller reads `Internal error` and an incident, and the server's `ServerDefect`
+report says which ("changed while it was written"), so nothing a Read rule
+hides is named to the caller. A rule's `explain`, `Forbidden`, `Conflict` and
+the other declared refusals are written for the reader and arrive as they
+are. An input that
 `expect`s a revision the row is not at is a `Conflict`, decided before any
 rule, and not retried. An input may expect only the revision the writer pins:
 one expecting another field is refused, at startup by `GuardServer.validate`

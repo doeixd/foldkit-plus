@@ -222,7 +222,7 @@ describe('GuardServer.writer over a writer with a ledger', () => {
       _tag: 'Failure',
       failure: {
         message:
-          'Item i1: operation "op-1" was recorded for another request; a retry sends the same mutation, keys and input',
+          'Operation "op-1" cannot be sent again with another mutation, keys or input: a retry sends the same ones',
       },
     })
     // A new operation is decided now, and refused.

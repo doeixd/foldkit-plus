@@ -8,7 +8,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Result, Schema } from 'effect'
 import { Entity, Expr, Relation, Write } from 'foldkit-entity'
-import { Mutation, Remote } from 'foldkit-remote'
+import { Diagnostics, Mutation, Remote } from 'foldkit-remote'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer, type EntityWriter, type MutationSource } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -954,31 +954,46 @@ describe('GuardServer.writer over a write that reads a hidden member', () => {
       RemoteServer.write(ClaimAt, guarded),
     ],
   })
-  const send = (mutation: string, input: unknown) =>
-    Effect.runPromise(
+  /**
+   * The write fails, and its caller, who may not read `claimedBy`, is told nothing
+   * that names it: the member is in the report alone.
+   */
+  const withheld = async (mutation: string, input: unknown) => {
+    const collected = Diagnostics.collect()
+    const failed = await Effect.runPromise(
       RemoteServer.handlers(server, ada)
         .FoldkitRemoteMutate({ requestId: mutation, mutation, input })
-        .pipe(Effect.result, Effect.provide(open().layer)),
+        .pipe(
+          Effect.result,
+          Effect.provide(open().layer),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
+        ),
     )
+    expect(failed).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: 'Internal error', incident: expect.stringMatching(/^[0-9a-f]{16}$/) },
+    })
+    expect(JSON.stringify(failed)).not.toContain('claimedBy')
+    expect(collected.reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: `mutate ${mutation}`,
+        message: expect.stringContaining(
+          "Todo's write reads claimedBy, which a Read rule hides from its writer",
+        ),
+      }),
+    )
+  }
 
   it('refuses a precondition that reads it, whatever the row holds', async () => {
-    expect(await send('Probe', { id: 't1', title: 'Mine', guess: 'grace' })).toMatchObject({
-      _tag: 'Failure',
-      failure: { message: "Todo's write reads claimedBy, which a Read rule hides from its writer" },
-    })
+    await withheld('Probe', { id: 't1', title: 'Mine', guess: 'grace' })
   })
 
   it('refuses a precondition that reads it through an operator call', async () => {
-    expect(await send('ProbeThrough', { id: 't1', title: 'Mine', guess: 'grace' })).toMatchObject({
-      _tag: 'Failure',
-      failure: { message: "Todo's write reads claimedBy, which a Read rule hides from its writer" },
-    })
+    await withheld('ProbeThrough', { id: 't1', title: 'Mine', guess: 'grace' })
   })
 
   it('refuses an expected revision that names it', async () => {
-    expect(await send('ClaimAt', { id: 't1', title: 'Mine', claimedBy: null })).toMatchObject({
-      _tag: 'Failure',
-      failure: { message: "Todo's write reads claimedBy, which a Read rule hides from its writer" },
-    })
+    await withheld('ClaimAt', { id: 't1', title: 'Mine', claimedBy: null })
   })
 })

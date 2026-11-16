@@ -135,6 +135,7 @@ const open = (
   guarded: Guarded = GuardServer.writer(Tag, Policy, writer(Db.Tag), { revision: 'revision' }),
 ) => {
   const sqlite = seeded()
+  const collected = Diagnostics.collect()
   const server = RemoteServer.make<Option.Option<typeof User.Type>, DrizzleDatabase>({
     entities: [],
     mutations: [RemoteServer.write(Retag, guarded)],
@@ -143,10 +144,14 @@ const open = (
     Effect.runPromise(
       RemoteServer.handlers(server, Option.some({ id: by }))
         .FoldkitRemoteMutate({ requestId: 'r', mutation: 'Retag', input })
-        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+        .pipe(
+          Effect.result,
+          Effect.provide(databaseLayer(drizzle({ client: sqlite }))),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
+        ),
     )
   const row = () => sqlite.prepare('select title, label, stock, revision from tags').get()
-  return { retag, row }
+  return { retag, row, reported: collected.reported }
 }
 
 /** The guarded writer called as a caller that registers nothing would call it. */
@@ -257,7 +262,7 @@ describe('A guarded write that sets, moves and computes', () => {
   })
 
   it('answers an operator refusing its input as the writer would, not as a defect', async () => {
-    const { retag, row } = open()
+    const { retag, row, reported } = open()
     const answer = await retag({
       id: 't1',
       revision: 1,
@@ -265,14 +270,22 @@ describe('A guarded write that sets, moves and computes', () => {
       prefix: `o${String.fromCharCode(0)}`,
       by: 0,
     })
-    // A fixed message: an implementation's own may say anything.
+    // A failure the caller reads nothing of: an implementation's own message may say anything.
     expect(answer).toMatchObject({
       _tag: 'Failure',
       failure: {
         _tag: 'RemoteMutationError',
-        message: "Tag's write could not be worked out to judge its rules",
+        message: 'Internal error',
+        incident: expect.stringMatching(/^[0-9a-f]{16}$/),
       },
     })
+    expect(reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: 'mutate Retag',
+        message: expect.stringContaining("Tag's write could not be worked out to judge its rules"),
+      }),
+    )
     expect(row()).toEqual({ title: 'Old', label: 'plain', stock: 2, revision: 1 })
   })
 

@@ -163,15 +163,20 @@ const open = (
     ),
   })
   const layer = databaseLayer(drizzle({ client: sqlite }))
+  const collected = Diagnostics.collect()
   let requests = 0
   const mutate = (principal: Option.Option<User>, mutation: string, input: unknown) =>
     Effect.runPromise(
       RemoteServer.handlers(server, principal)
         .FoldkitRemoteMutate({ requestId: `r${++requests}`, mutation, input })
-        .pipe(Effect.result, Effect.provide(layer)),
+        .pipe(
+          Effect.result,
+          Effect.provide(layer),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
+        ),
     )
   const row = () => sqlite.prepare("select * from todos where id = 't1'").get()
-  return { mutate, row, reads: () => reads }
+  return { mutate, row, reads: () => reads, reported: collected.reported }
 }
 
 /** Runs `change` the first time only: one write landing in the window. */
@@ -205,12 +210,21 @@ describe('GuardServer.writer with a revision', () => {
   })
 
   it('fails after three moves, having written nothing', async () => {
-    const { mutate, row, reads } = open(sqlite =>
+    const { mutate, row, reads, reported } = open(sqlite =>
       sqlite.exec("update todos set revision = revision + 1 where id = 't1'"),
     )
     const failed = await mutate(ada, 'Edit', { id: 't1', title: 'Mine' })
-    expect(failed).toMatchObject({ _tag: 'Failure' })
-    expect(JSON.stringify(failed)).toContain('changed while it was written')
+    expect(failed).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: 'Internal error', incident: expect.stringMatching(/^[0-9a-f]{16}$/) },
+    })
+    expect(reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: 'mutate Edit',
+        message: expect.stringContaining('Todo t1 changed while it was written'),
+      }),
+    )
     expect(row()).toMatchObject({ title: 'Own', revision: 3 })
     expect(reads()).toBe(3)
   })
@@ -297,6 +311,7 @@ describe('GuardServer.writer with a revision', () => {
         ),
       ],
     })
+    const collected = Diagnostics.collect()
     const failed = await Effect.runPromise(
       RemoteServer.handlers(server, ada)
         .FoldkitRemoteMutate({
@@ -304,12 +319,26 @@ describe('GuardServer.writer with a revision', () => {
           mutation: 'OwnerAt',
           input: { id: 't1', title: 'Mine', ownerId: 'ada' },
         })
-        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+        .pipe(
+          Effect.result,
+          Effect.provide(databaseLayer(drizzle({ client: sqlite }))),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
+        ),
     )
+    // The server's own declaration, for whoever wrote it: the caller reads none of it.
     expect(failed).toMatchObject({
       _tag: 'Failure',
-      failure: { message: `Todo's input expects "ownerId", but its writer pins "revision"` },
+      failure: { message: 'Internal error', incident: expect.stringMatching(/^[0-9a-f]{16}$/) },
     })
+    expect(collected.reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: 'mutate OwnerAt',
+        message: expect.stringContaining(
+          `Todo's input expects "ownerId", but its writer pins "revision"`,
+        ),
+      }),
+    )
     // GuardServer.validate says so at startup.
     expect(() =>
       GuardServer.validate(Policy, {
