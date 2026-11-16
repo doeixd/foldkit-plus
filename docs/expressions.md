@@ -195,6 +195,11 @@ What keeps them equal is tested, not assumed:
   while it was pending with what the database then holds. See
   [Declared writes](./declared-writes.md#checking-the-prediction-against-the-server).
 
+To see it in a browser, run `pnpm --filter foldkit-example-entity page`. It
+opens `language.html`, where you choose a declared body and see its compiled
+statement, the rows SQLite answers (SQLite runs in the page), `evaluate`, and
+`Judge` holding everything and holding part, each refusal in its own words.
+
 ## The language
 
 The rest of this guide is the language itself, a part at a time. The snippets
