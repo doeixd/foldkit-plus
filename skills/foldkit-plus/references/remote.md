@@ -1206,6 +1206,9 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // and an incident, and its cause is reported as a ServerDefect diagnostic (Diagnostics.Reporter, by default the
 // log); serveFetch({ diagnostics: (diagnostic, request) => ... }) takes the request too. A
 // committed write whose answer read or live publish failed reports AnswerUnread / PublishFailed.
+// Outside a handler (a scheduled job, an adapter's own transport): yield* RemoteServer.report(
+// 'publish due', cause) reports a ServerDefect the same way and answers only
+// { message: 'Internal error', incident }.
 // No server yet: RemoteServer.memory({ domain: Data, rows: { Project: [...] } }).layer.
 // Rows in wire shape (a relation is 'User:u1'); Query.define bodies run over them;
 // mutations: store => [...] write through store.write. No live.

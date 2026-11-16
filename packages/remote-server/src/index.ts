@@ -91,7 +91,13 @@ import {
   aliasedField,
   type CachePolicy,
 } from 'foldkit-remote'
-import { answerUnread, clockSkewed, internalFailure, publishFailed } from './diagnostics.js'
+import {
+  answerUnread,
+  clockSkewed,
+  internalFailure,
+  publishFailed,
+  type InternalFailure,
+} from './diagnostics.js'
 import { unauthenticatedAnswer } from './refusal.js'
 import { memoryWriter } from './memoryWriter.js'
 
@@ -2374,6 +2380,16 @@ export const RemoteServer = {
   tell,
 
   /**
+   * Reports a failure on this side that no handler answers, as the server
+   * reports its own: a scheduled job's, or an adapter's on a transport of its
+   * own. `cause` goes to a `ServerDefect` under a new incident, with `during`
+   * (what was being done: `publish due e3`). It answers what a caller may be
+   * told of it, the fixed words and that id, and nothing of `cause`.
+   */
+  report: (during: string, cause: unknown): Effect.Effect<InternalFailure> =>
+    internalFailure(during, Cause.isCause(cause) ? cause : Cause.fail(cause)),
+
+  /**
    * A writer's refusal of a row that does not hold the write's `when`: fail
    * `update` or `delete` with it (`yield* RemoteServer.unmet()`), and
    * `RemoteServer.write` answers the mutation's `Unmet` refusal.
@@ -3604,6 +3620,7 @@ export type {
   AnswerUnread,
   CachedReadDiffers,
   ClockSkewed,
+  InternalFailure,
   PublishFailed,
   RemoteServerDiagnostic,
   ServerDefect,

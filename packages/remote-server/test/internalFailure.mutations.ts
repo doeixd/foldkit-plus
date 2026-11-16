@@ -299,4 +299,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'RemoteServer.report answers without reporting',
+    edits: [
+      {
+        file: index,
+        find: '    internalFailure(during, Cause.isCause(cause) ? cause : Cause.fail(cause)),',
+        replace: "    Effect.succeed({ message: 'Internal error', incident: '0000000000000000' }),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'RemoteServer.report wraps a Cause it was given as a failure',
+    edits: [
+      {
+        file: index,
+        find: '    internalFailure(during, Cause.isCause(cause) ? cause : Cause.fail(cause)),',
+        replace: '    internalFailure(during, Cause.fail(cause)),',
+      },
+    ],
+    tests,
+  },
 ]

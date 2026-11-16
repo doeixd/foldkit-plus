@@ -4,7 +4,7 @@
  */
 import { Effect } from 'effect'
 import { expectTypeOf } from 'vitest'
-import { RemoteServer, RemoteServerError } from '../src/index.js'
+import { RemoteServer, RemoteServerError, type InternalFailure } from '../src/index.js'
 
 expectTypeOf(
   RemoteServer.tell('That report is still being built'),
@@ -24,3 +24,12 @@ Effect.try({
   try: () => 1,
   catch: cause => new RemoteServerError({ message: 'The statement failed', cause }),
 })
+
+// A failure reported from outside a handler answers the fixed words and an id: nothing of the cause.
+expectTypeOf(RemoteServer.report('publish due e3', new Error('SQLITE_BUSY'))).toEqualTypeOf<
+  Effect.Effect<InternalFailure>
+>()
+expectTypeOf<InternalFailure>().toEqualTypeOf<{
+  readonly message: string
+  readonly incident: string
+}>()

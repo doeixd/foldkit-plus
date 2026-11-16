@@ -7,7 +7,7 @@
  * nowhere in the bytes sent. Words a Source wrote for its caller
  * (`RemoteServer.tell`, a refusal, a denial) still arrive as written.
  */
-import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Cause, Effect, Layer, Option, Schema, Stream } from 'effect'
 import { FetchHttpClient, HttpRouter, HttpServer } from 'effect/http'
 import { RpcClient, RpcSerialization, RpcServer } from 'effect/rpc'
 import { defineMessageUnion } from 'foldkit/message'
@@ -485,6 +485,41 @@ describe.each(transports)('a failure on the server’s side, over %s', (transpor
       incident: undefined,
       reported: [],
     })
+  })
+})
+
+describe('RemoteServer.report, for a failure no handler answers', () => {
+  const report = async (cause: unknown) => {
+    const collected = Diagnostics.collect()
+    const said = await Effect.runPromise(
+      RemoteServer.report('publish due e3', cause).pipe(
+        Effect.provideService(Diagnostics.Reporter, collected.report),
+      ),
+    )
+    return { said, reported: collected.reported }
+  }
+
+  it('reports what was caught under the incident it answers, and answers nothing of it', async () => {
+    const { said, reported } = await report(new Error('SECRET-CANARY-job'))
+    expect(said).toStrictEqual({
+      message: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
+    expect(reported).toEqual([
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        level: 'error',
+        incident: said.incident,
+        during: 'publish due e3',
+        message: expect.stringContaining('SECRET-CANARY-job'),
+      }),
+    ])
+  })
+
+  it('reports a Cause as it is, a defect still a defect', async () => {
+    const cause = Cause.die(new Error('SECRET-CANARY-defect'))
+    const { reported } = await report(cause)
+    expect(reported).toEqual([expect.objectContaining({ _tag: 'ServerDefect', cause })])
   })
 })
 

@@ -1705,6 +1705,34 @@ caller may not know belongs in them; and a 400's `error` is the protocol
 Schema's own account of the request's payload. There is no switch that puts
 the cause in a response: read the report.
 
+### Reporting from an adapter or a scheduled job
+
+A failure outside a handler has no caller's error to carry an incident: a job
+a cron trigger runs, or an adapter answering on a transport of its own.
+`RemoteServer.report(during, cause)` reports it as the server reports its own,
+a `ServerDefect` under a new incident, and answers the only thing that may go
+further: `{ message: 'Internal error', incident }`.
+
+```ts standalone
+import { Effect } from 'effect'
+import { RemoteServer } from 'foldkit-remote-server'
+
+declare const publishDue: Effect.Effect<void, unknown>
+declare const remember: (shown: string) => Effect.Effect<void>
+
+export const job = publishDue.pipe(
+  Effect.catchCause(cause =>
+    Effect.flatMap(RemoteServer.report('publish due', cause), ({ message, incident }) =>
+      // What a reader of the job's outcome may see: the words and the id.
+      remember(`${message} (incident ${incident})`),
+    ),
+  ),
+)
+```
+
+It takes what was caught, or a `Cause`, and returns nothing of either. It
+reports through the `Diagnostics.Reporter` of the Effect it runs in.
+
 ## Diagnostics
 
 A server answers some failures without telling the caller why. Each is a
