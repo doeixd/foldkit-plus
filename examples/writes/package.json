@@ -13,6 +13,7 @@
   },
   "scripts": {
     "demo": "tsx src/main.ts",
+    "laws": "tsx src/lawsMain.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {

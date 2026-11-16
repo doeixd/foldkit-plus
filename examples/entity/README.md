@@ -1,6 +1,16 @@
 # `foldkit-entity` example
 
-One domain declaration, read from both ends and written back through a form:
+One domain declaration, read from both ends and written back through a form,
+and its query language asked of three interpreters.
+
+| Run | It shows |
+| --- | --- |
+| `pnpm --filter foldkit-example-entity demo` | a read from plan to SQL to decoded value, then a list, an edit, a save and a delete through a form |
+| `pnpm --filter foldkit-example-entity language` | five query bodies answered by SQLite, by `evaluate` and by `Judge`, with the SQL each compiled to |
+| `pnpm --filter foldkit-example-entity dev` | the same application in a browser |
+
+The guides are [One domain declaration](../../docs/entity.md) and
+[Expressions](../../docs/expressions.md).
 
 ```text
                     domain.ts
@@ -252,6 +262,51 @@ the remover is asked about a `PostId`, the form's editor picker submits an
 `AuthorId`, and a list row's `id` arrives as one; passing one where the other
 belongs does not compile. On the wire and in SQLite they are plain text.
 
+## The language: one body, three interpreters
+
+```bash
+pnpm --filter foldkit-example-entity language
+```
+
+[`src/language.ts`](./src/language.ts) declares five query bodies over the
+blog and asks each of SQLite (through `foldkit-remote-drizzle`, with the
+statement it ran), of `evaluate` over every post, and of `Judge` twice: holding
+every row, and as a page holding one author and one comment.
+
+```text
+NotEditedBy: posts not edited by an author
+  FROM Post
+  WHERE not (Post.editor = $editor)
+  ORDER BY Post.title ASC
+  given {"editor":"a2"}, asked by a visitor
+  reads its own row's editor, title
+  SQLite ran: select "id", "headline", "id" from "posts" where not ("posts"."editor_id" = ?) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]
+  SQLite: p3
+  evaluate, every post: p3
+  Judge, every row held: p3
+  Judge, a page holding Ada and one comment: p1 out, p2 out, p3 in, p4 out
+```
+
+- **Two posts have no editor, and neither answer has them.** `null = 'a2'` is
+  unknown and so is its `not`, in SQLite and in memory alike. The next body,
+  `NotEditedByOrUnedited`, says what it means for them with `Expr.isNull`.
+- **`ByAuthorName` reads another row** (`Post.author.name`). SQLite answers it
+  with a subquery, `evaluate` refuses it by name (it is handed one table), and
+  the page, holding one author of three, says `unknown (Author a2 is not
+  held)` for the posts it cannot judge.
+- **`Discussed` asks about whoever asks** (`Expr.viewer`) and whether a comment
+  of theirs exists. The page holds one comment: enough to say `p1` is in, not
+  enough to say any other post is out.
+
+`test/language.test.ts` pins that trace, then generates rows and inputs from
+120 seeds (mixed case, accents, `%`, `_`, missing editors, a visitor) and holds
+the three interpreters to one answer for each, and a `Judge` holding half the
+rows to never being wrong where it says it knows.
+`test/language.mutations.ts` breaks `evaluate`, the SQL compiler and the
+page's claim to completeness in turn (`pnpm mutate
+examples/entity/test/language.mutations.ts`); each is caught.
+`test/expressionsGuide.test.ts` runs the snippets of the Expressions guide.
+
 ## What to read
 
 | File | Read it for |
@@ -263,6 +318,7 @@ belongs does not compile. On the wire and in SQLite they are plain text.
 | [`src/app.ts`](./src/app.ts) | The client application: `Crud.editor` placed as a Bundle (`at`, `onOut`, `after`, `status`), two `Crud.list`s, `Crud.options` joining them, and `Data.wiring` putting all three on screen |
 | [`src/view.ts`](./src/view.ts) | The page drawn: a table from `PostList.columns`, the form through `foldkit-mixins-form`, the editor's `status` and `saveError` |
 | [`src/demo.ts`](./src/demo.ts) | The trace above, over that application and the in-process server |
+| [`src/language.ts`](./src/language.ts) | The language trace: bodies as values, `query(...).run`, `evaluate`, `Held.rows`, `Judge.query` |
 | [`src/http.ts`](./src/http.ts) | The server behind one endpoint, answering with `RemoteServer.answer`; the browser reaches it with `Remote.http('/remote')` |
 | [`e2e/entity.e2e.ts`](./e2e/entity.e2e.ts) | The server and Vite started, and Chromium saving a title read back from the table (`pnpm e2e` from the root) |
 
@@ -271,9 +327,9 @@ are, so the client imports nothing of Remote's own `Entity` or `Selection`.
 
 ## What it leaves out
 
-The HTTP transport has no live stream and no authentication. Queries, live updates, and pagination work on these
-descriptors as they do on any other, and are covered by the
-[`remote`](../remote) example and the
-[`foldkit-remote-drizzle`](../../packages/remote-drizzle) README. A paginated
-relation is still written as a Remote `Selection.connection`, since an Entity
-Selection has no windows.
+The HTTP transport has no live stream and no authentication. Live updates and
+paginated lists work on these descriptors as they do on any other, and are
+covered by the [`remote`](../remote) example and the
+[`foldkit-remote-drizzle`](../../packages/remote-drizzle) README. Rules
+(invariants, states, guards) and writes that must hold where they commit are
+in [`examples/writes`](../writes).
