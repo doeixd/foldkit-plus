@@ -15,7 +15,7 @@ export default [
     name: 'an example forgets the values it pins',
     edits: [
       {
-        file: '../src/gallery/showcases.ts',
+        file: '../src/gallery/define.ts',
         find: 'drawExample(styleOf({ ...selection, ...pins }), live)',
         replace: 'drawExample(styleOf(selection), live)',
       },
@@ -26,7 +26,7 @@ export default [
     name: 'a picked value the recipe does not have reaches it',
     edits: [
       {
-        file: '../src/gallery/showcases.ts',
+        file: '../src/gallery/showcase.ts',
         find: 'picked !== undefined && axis.values.includes(picked)',
         replace: 'picked !== undefined',
       },
@@ -37,7 +37,7 @@ export default [
     name: "a picked value read through the selection's prototype",
     edits: [
       {
-        file: '../src/gallery/showcases.ts',
+        file: '../src/gallery/showcase.ts',
         find: 'Object.hasOwn(selection, axis.name) ? selection[axis.name] : undefined',
         replace: 'selection[axis.name]',
       },
@@ -48,7 +48,7 @@ export default [
     name: 'every value named in the code, the defaults too',
     edits: [
       {
-        file: '../src/gallery/showcases.ts',
+        file: '../src/gallery/showcase.ts',
         find: "value === axis.initial ? [] : [`${axis.name}: '${value}'`]",
         replace: "[`${axis.name}: '${value}'`]",
       },

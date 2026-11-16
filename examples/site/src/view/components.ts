@@ -8,13 +8,8 @@ import type { Html } from 'foldkit/html'
 import { SSR } from 'foldkit-ssr/client'
 
 import { onGitHub } from '../demos.js'
-import {
-  selectionCode,
-  showcases,
-  valueOf,
-  type Live,
-  type Showcase,
-} from '../gallery/showcases.js'
+import { showcases } from '../gallery/showcases.js'
+import { selectionCode, valueOf, type Live, type Showcase } from '../gallery/showcase.js'
 import {
   defaults,
   packStyleOf,

@@ -8,14 +8,8 @@ import type { Html } from 'foldkit/html'
 import { SlotView } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 
-import {
-  selectionCode,
-  showcaseOf,
-  showcases,
-  valueOf,
-  type Live,
-  type Selection,
-} from '../src/gallery/showcases.js'
+import { showcaseOf, showcases } from '../src/gallery/showcases.js'
+import { selectionCode, valueOf, type Live, type Selection } from '../src/gallery/showcase.js'
 import { pagesWithTopics, topicsFor } from '../src/gallery/related.js'
 import * as Widgets from '../src/gallery/widgets.js'
 

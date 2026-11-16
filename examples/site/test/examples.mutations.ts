@@ -10,9 +10,9 @@ export default [
     name: 'two examples share a name',
     edits: [
       {
-        file: '../src/gallery/showcases.ts',
-        find: "        name: 'banner',",
-        replace: "        name: 'inline',",
+        file: '../src/gallery/previews/alert.ts',
+        find: "      name: 'banner',",
+        replace: "      name: 'inline',",
       },
     ],
     tests,
@@ -21,7 +21,7 @@ export default [
     name: 'an example names no region',
     edits: [
       {
-        file: '../src/gallery/showcases.ts',
+        file: '../src/gallery/previews/badge.ts',
         find: "{ name: 'dot',",
         replace: "{ name: 'dotted',",
       },
