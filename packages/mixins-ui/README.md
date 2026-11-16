@@ -15,6 +15,13 @@ few widgets that keep a small Model of their own hold interaction state only
 (what is open, a drag, a countdown, a draft); the application places that Model
 and folds it with the widget's `update`, as it folds an `@foldkit/ui` Submodel.
 
+A widget's `view` also reads nothing from the environment (no `window`,
+`navigator`, feature test, clock or default locale): a server and a browser must
+draw the same markup from the same Model, or a server-rendered page is rebuilt
+when it takes over. A fact about the environment, such as whether the browser has
+an eyedropper, is an input the application keeps in its Model, read once in `init`
+or by a Command after hydration (see [ColorPicker](#colorpicker)).
+
 ```text
 @foldkit/ui          owns component state, accessibility behavior and base attributes
 foldkit-mixins       owns Slot / Style / Behavior and the resolver that merges them safely
@@ -801,7 +808,7 @@ natively take a `name` (see [Form participation](#form-participation)).
 | `Slider` | Native `input type="range"` thumbs, so drag, keys, right to left and the form value are the browser's. `Slider.view({ id, label, value, onChange, onCommit?, description?, min?, max?, step?, format?, marks?, showValue?, name?, disabled?, orientation?, ticks?, thumbLabels? }, h)`; `value` is a number or a `{ low, high }` range, and `onChange` is handed the same kind. See [Slider](#slider). | `tone`: `accent` (default), `neutral`; `size`: `sm`, `md` (default), `lg`; `track`: `thick` (default), `thin`, `paint`; `value`: `above` (default), `inside`, `end`; `label`: `shown` (default), `hidden`. Slots `root`, `label`, `description`, `control`, `track`, `fill`, `mark`, `value`, `thumb`. |
 | `AngleSlider` | After Zag's: a dial in degrees, 0 at the top and clockwise. A small Model: `AngleSlider.init({ id, value? })` is the angle and the drag, folded with `AngleSlider.update(layout)`, where `layout` (`step`, `largeStep`, `marks`, `restrictToMarks`) is the object the view spreads in too. `AngleSlider.view({ ...layout, model, onMessage, label, name?, format?, valueText?, showValue?, disabled?, readOnly?, invalid? }, h)`. A press or drag sends `Pointed` and `Released`; the APG's slider keys reach `update` as what was pressed, and go round past 0. | `tone`; `track`: `ring`, `plain`, `disc`; `value`: `inside`, `below`; `size`. Slots `root`, `label`, `control`, `needle`, `thumb`, `markers`, `marker`, `markerLabel`, `value`, `input`. |
 | `Rating` | A `radiogroup` of native radios named by its label, one per star under one name, so the browser's arrows move the choice and a form submits it. `Rating.view({ id, label, value, onChange, max?, starLabel?, readOnly?, disabled?, name?, precision?, onClear?, showValue? }, h)`; `value` is an `Option`, none is unrated. Read-only, it is one `img` whose name says the rating, and takes no `onChange`. | `tone`: `warning` (default, gold), `accent`, `error`; `glyph`: `star` (default), `heart`, `circle`; `size`. Slots `root`, `label`, `star`. |
-| `ColorPicker` | After ReUI's: a saturation and brightness area, hue and alpha Sliders, an eyedropper where the browser has one, text in hex, rgb, hsl or oklch, and `presets` as a radio group of swatches. A small Model: `ColorPicker.init({ id, color?, format? })` holds the color, its format and a draft being typed, folded with `ColorPicker.update`. `ColorPicker.view({ model, onMessage, label, presets?, alpha?, eyedropper?, labels?, disabled?, slider? }, h)`; `ColorPicker.popover({ ...options, popover, onPopover, anchor?, popoverMixins? }, h)` draws it behind a swatch in a Popover. See [ColorPicker](#colorpicker). | `size`. Its Sliders take `Recipes.Slider({ track: 'paint', label: 'hidden' })`. Slots `root`, `label`, `area`, `areaThumb`, `controls`, `eyedropper`, `channels`, `channel`, `swatch`, `fields`, `format`, `input`, `presets`, `preset`, `picker`, `trigger`, `value`. |
+| `ColorPicker` | After ReUI's: a saturation and brightness area, hue and alpha Sliders, an eyedropper when the application asks for one (`eyedropper`, default `false`), text in hex, rgb, hsl or oklch, and `presets` as a radio group of swatches. A small Model: `ColorPicker.init({ id, color?, format? })` holds the color, its format and a draft being typed, folded with `ColorPicker.update`. `ColorPicker.view({ model, onMessage, label, presets?, alpha?, eyedropper?, labels?, disabled?, slider? }, h)`; `ColorPicker.popover({ ...options, popover, onPopover, anchor?, popoverMixins? }, h)` draws it behind a swatch in a Popover. See [ColorPicker](#colorpicker). | `size`. Its Sliders take `Recipes.Slider({ track: 'paint', label: 'hidden' })`. Slots `root`, `label`, `area`, `areaThumb`, `controls`, `eyedropper`, `channels`, `channel`, `swatch`, `fields`, `format`, `input`, `presets`, `preset`, `picker`, `trigger`, `value`. |
 | `Calendar` | One date system, inline. `Calendar.Selection` is `Single`, `Range` or `Multiple`, owned by the application. See [Calendar and DatePicker](#calendar-and-datepicker). | `size`; `outside`: `shown` (default), `hidden`; `detail`: `text`, `dot`, unset by default. Slots `root`, `header`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton`. |
 | `DatePicker` | A Calendar in a popover, over a fork that keeps upstream's Popover and Calendar composition. A date, a range or many days. See [Calendar and DatePicker](#calendar-and-datepicker). | Slots `trigger`, `panel`, `backdrop`. |
 
@@ -933,6 +940,53 @@ last color. `ColorPicker.popover` takes a Popover made with `contentFocus: true`
 (it throws for one without): the panel opens on the area's thumb, a press or a
 drag inside never closes it, and focus leaving it closes one the keys or a finger
 opened (a mouse's stays open, as upstream's Popover does).
+
+The view reads nothing from the environment, so the eyedropper button is the
+`eyedropper` input, `false` by default on a server and in a browser alike.
+`ColorPicker.canEyedrop()` is the pure feature test; call it where the
+application learns its environment and keep the answer in the Model. An
+application that only runs in a browser reads it in `init`:
+
+```ts standalone
+import { Schema } from 'effect'
+import { ColorPicker } from 'foldkit-mixins-ui'
+
+const Model = Schema.Struct({ picker: ColorPicker.Model, eyedropper: Schema.Boolean })
+
+const init = () => ({
+  model: {
+    picker: ColorPicker.init({ id: 'accent' }),
+    eyedropper: ColorPicker.canEyedrop(),
+  },
+})
+```
+
+A server-rendered application starts `false`, so the served markup and the
+browser's first render agree, and learns the answer after it has taken over, so
+the button appears instead of the picker's controls being rebuilt:
+
+```ts standalone
+import { Effect, Schema } from 'effect'
+import * as Command from 'foldkit/command'
+import { defineMessageUnion } from 'foldkit/message'
+import { ColorPicker } from 'foldkit-mixins-ui'
+
+const Message = defineMessageUnion({ LearnedEyedropper: { available: Schema.Boolean } })
+
+// Send it from the Command that starts the application, with the first frame drawn.
+const LearnEyedropper = Command.define('LearnEyedropper', {
+  messages: [Message.LearnedEyedropper],
+  execute: Effect.sync(() =>
+    Message.LearnedEyedropper({ available: ColorPicker.canEyedrop() }),
+  ),
+})
+```
+
+Either way the view is given `eyedropper: model.eyedropper`. Pressing the button
+runs `ColorPicker.Eyedrop`, which answers `CancelledEyedropper` and nothing else
+when the runtime has no eyedropper or the user closes it: a cancel changes
+nothing and shows nothing.
+
 `ColorPicker.color('#3b82f6')` reads a literal in code (it throws on a typo);
 `format`, `parse` (an `Option`) and `toOklch` are pure. `ColorPicker.Eyedrop` and
 `canEyedrop` are the eyedropper's Command and check.

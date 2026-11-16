@@ -5,9 +5,43 @@
  */
 const unit = 'packages/mixins-ui/test/colorPicker.test.ts'
 const browser = 'packages/mixins-ui/test/colorPicker.browser.test.ts'
+const ssr = 'packages/mixins-ui/test/colorPicker.ssr.test.ts'
 const view = '../src/colorPicker.ts'
 
 export default [
+  {
+    name: 'the view asks the runtime whether it has an eyedropper',
+    edits: [
+      {
+        file: '../src/colorPicker.ts',
+        find: 'const eyedropper = options.eyedropper === true',
+        replace: 'const eyedropper = options.eyedropper ?? canEyedrop()',
+      },
+    ],
+    tests: [ssr],
+  },
+  {
+    name: 'the eyedropper is drawn unless refused',
+    edits: [
+      {
+        file: '../src/colorPicker.ts',
+        find: 'const eyedropper = options.eyedropper === true',
+        replace: 'const eyedropper = options.eyedropper !== false',
+      },
+    ],
+    tests: [ssr],
+  },
+  {
+    name: 'a closed eyedropper is a defect',
+    edits: [
+      {
+        file: '../src/colorPicker.ts',
+        find: 'onFailure: () => Message.CancelledEyedropper(),',
+        replace: 'onFailure: () => Message.GotEyedropperColor({ hex: "" }),',
+      },
+    ],
+    tests: [ssr],
+  },
   {
     name: 'an area key moves from the middle, not from the color update holds',
     edits: [
