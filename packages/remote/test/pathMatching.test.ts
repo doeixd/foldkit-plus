@@ -6,7 +6,7 @@
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity, Expr, Order, Relation } from 'foldkit-entity'
+import { Collation, Entity, Expr, Order, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, matching, type NormalizedPatch } from '../src/index.js'
@@ -25,7 +25,7 @@ const { Team, Member } = Org
 const OfTeam = Query.define('OfTeam', { name: Schema.String }, ({ input }) =>
   Query.from(Member).pipe(
     Query.where(Expr.eq(Expr.path(Member.relations.team, Team.fields.name), input.name)),
-    Query.orderBy(Order.desc(Member.fields.handle)),
+    Query.orderBy(Order.desc(Member.fields.handle, { collation: Collation.binary })),
   ),
 )
 /** Members of the viewer's own team. */
@@ -37,7 +37,7 @@ const Teammates = Query.define('Teammates', {}, () =>
         Expr.path(Expr.viewer(Member), Expr.path(Member.relations.team, Team.fields.name)),
       ),
     ),
-    Query.orderBy(Order.asc(Member.fields.handle)),
+    Query.orderBy(Order.asc(Member.fields.handle, { collation: Collation.binary })),
   ),
 )
 
