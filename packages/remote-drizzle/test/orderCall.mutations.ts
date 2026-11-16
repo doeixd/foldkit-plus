@@ -35,7 +35,7 @@ export default [
     edits: [
       {
         file: cursor,
-        find: 'terms.map((_, index) => row[`key${index}`])',
+        find: 'keyNames(terms, base).map(([name]) => row[name])',
         replace: 'terms.map(() => row.key0)',
       },
     ],

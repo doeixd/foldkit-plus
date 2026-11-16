@@ -1066,9 +1066,10 @@ export const query = <P = unknown, Input = unknown>(
                 : and(where, predicate)
         }
 
-        // Each order term under a key of its own: the id column may be named
-        // anything, and may be one of them.
-        const columns: Record<string, AnyColumn | SQL> = { id, ...cursorSelection(orderBy) }
+        // Each order term under a key of its own, unless it is the id column,
+        // which may be named anything and is selected once.
+        const own: Record<string, AnyColumn | SQL> = { id }
+        const columns = cursorSelection(orderBy, own)
         const rows = yield* selectRows(database, binding.table, columns, {
           where,
           orderBy: orderByTerms(orderBy, shape.traversal),
@@ -1083,7 +1084,7 @@ export const query = <P = unknown, Input = unknown>(
           cursor: shape.cursor,
           idOf: row => String(row.id),
           cursorOf: row =>
-            Option.getOrElse(keyCursor(keysOf(orderBy, row)), () => idCursor(String(row.id))),
+            Option.getOrElse(keyCursor(keysOf(orderBy, row, own)), () => idCursor(String(row.id))),
         })
       }),
   }

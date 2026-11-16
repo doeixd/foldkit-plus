@@ -1030,6 +1030,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-remote-drizzle`: a list page's statement selects each column once. The id, a page's row identity and its order's last key, was listed twice (`select "id", "headline", "id" from ...`); `cursorSelection` and `keysOf` take the columns already selected and read a key held there from it, so a cursor is the same one as before (#568).
 - `foldkit-mixins-ui`: keys pressed before the next frame, which a held key repeating on a
   busy page sends, each met the last drawing's state and acted as the first had. `Listbox`
   (and so `Picker`'s dropdown) and `Menu` continue arrows, Home, End, type-ahead,

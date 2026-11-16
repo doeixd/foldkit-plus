@@ -29,7 +29,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'Option.getOrElse(keyCursor(keysOf(orderBy, row)), () =>',
+        find: 'Option.getOrElse(keyCursor(keysOf(orderBy, row, own)), () =>',
         replace: 'Option.getOrElse(Option.none<string>(), () =>',
       },
     ],
@@ -96,7 +96,7 @@ export default [
     edits: [
       {
         file: '../src/cursor.ts',
-        find: 'terms.map((_, index) => row[`key${index}`])',
+        find: 'keyNames(terms, base).map(([name]) => row[name])',
         replace: 'terms.map(term => row[(term.key as { readonly name: string }).name])',
       },
     ],
