@@ -97,6 +97,11 @@ export const WritingFieldStyle = Style.forSlots(FieldSlots)(
           minBlockSize: '55vh',
         }),
         Style.nest('[contenteditable]', { minBlockSize: '55vh', outline: 'none' }),
+        // The editor's own selection, drawn while a tool of the bar has the focus: a tint of the
+        // accent over the text's own ink, so it reads in the light and the dark scheme.
+        Style.nest('[data-decoration="selection"]', {
+          background: `color-mix(in oklab, ${t.accent.default} 30%, transparent)`,
+        }),
         // The blocks are the editable's children, a level below where the prose piece spaces them.
         Style.nest('[contenteditable] > * + *', { marginBlockStart: '1em' }),
         Style.nest('[contenteditable] > h2', { marginBlockStart: '1.6em' }),

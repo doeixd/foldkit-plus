@@ -44,4 +44,26 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'Escape on a tool goes nowhere',
+    edits: [
+      {
+        file: '../src/views/bodyTools.ts',
+        find: 'returned: Message.ReturnedToBody(),',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'returning to the body runs no focus',
+    edits: [
+      {
+        file: '../src/apps/app.ts',
+        find: 'if (selection === null) return { model }',
+        replace: 'if (selection !== null) return { model }',
+      },
+    ],
+    tests: browser,
+  },
 ]

@@ -21,6 +21,7 @@ import * as Navigation from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
+import { focus as focusEditor } from 'foldkit-richtext-dom/editor-bundle'
 import { Url, toString as urlToString } from 'foldkit/url'
 import {
   beginMissing,
@@ -33,7 +34,7 @@ import {
 } from '../routing/address.js'
 import { focusOn, focusRow, opened } from './focus.js'
 import { EntryRow, Post, PostId, PostPreview, PostsBySlug } from '../content/domain.js'
-import { PostForm, Posts } from '../content/postForm.js'
+import { BODY_HOST, PostForm, Posts } from '../content/postForm.js'
 import { FormStyle, WritingFieldStyle } from '../styles/formStyles.js'
 
 export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 millis' })
@@ -120,6 +121,8 @@ export const Message = defineMessageUnion({
   /** A tool of the body toolbar was pressed: the form's Message for the body editor. */
   PressedTool: { message: PostForm.Message },
   ToggledToolsMenu: { menu: ToolsMenu, open: Schema.Boolean },
+  /** Escape on a tool of the body toolbar: back to the text, with the selection it had. */
+  ReturnedToBody: {},
   OpenedEntry: { entry: Schema.String },
   /** Asked for something new; its id is made in a Command, so `update` stays pure. */
   AskedForPost: {},
@@ -207,6 +210,8 @@ const routed = {
   close: () => EditorSlot.helpers.close(),
 } satisfies EntryEditor<Model, unknown>
 
+const bodyControl = PostForm.control('body')
+
 const placed = placements.update((model, message) => {
   // Leaving drops what is in the form, so what has not been saved is saved first:
   // an author who types and leaves within the rest loses nothing.
@@ -217,10 +222,27 @@ const placed = placements.update((model, message) => {
   return Match.valueTags(message, {
     OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
     AskedForPost: () => ({ model, commands: [newPost] }),
-    // The edit is made as the editor's own Message; the editor takes focus back as it patches.
     ToggledToolsMenu: ({ menu, open }) => ({
       model: modifyFields(model, { toolsMenu: () => (open ? Option.some(menu) : Option.none()) }),
     }),
+    // The editor keeps its selection while a tool has the focus, so it is there to return to.
+    ReturnedToBody: () => {
+      const { selection } = bodyControl.field(model.editor.form).value
+      if (selection === null) return { model }
+      return {
+        model,
+        commands: [
+          {
+            name: 'ReturnedToBody',
+            args: {},
+            effect: Effect.map(focusEditor(BODY_HOST, selection).effect, answer =>
+              Message.GotEditorMessage({ message: bodyControl.send(answer) }),
+            ),
+          },
+        ],
+      }
+    },
+    // The edit is made as the editor's own Message, on the selection the editor keeps.
     PressedTool: ({ message: pressed }) => ({
       // A choice in a popup is made: it closes.
       model: Option.isNone(model.toolsMenu)

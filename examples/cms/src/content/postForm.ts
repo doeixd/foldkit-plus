@@ -14,6 +14,9 @@ import { markdownInputRules, print } from 'foldkit-richtext-markdown'
 import { Post, PostId, PostInput } from './domain.js'
 import { documentOf } from './markdownBody.js'
 
+/** The id of the body editor's host element, which a Command finds the editor by. */
+export const BODY_HOST = 'post-body'
+
 export const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   // The address follows the title until the author writes it themselves.
   inputs: {
@@ -23,7 +26,7 @@ export const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
     excerpt: Input.multiline(),
     // The body is written in the rich-text editor and stored as Markdown.
     body: richTextInput(
-      'post-body',
+      BODY_HOST,
       {
         vocabulary: {
           nodes: RichText.nodeRegistry(RichText.standardNodes),
@@ -41,7 +44,7 @@ export const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
           fill: markdown => {
             const read = documentOf(markdown)
             return read.children.length === 0
-              ? EditorInput.init({ hostId: 'post-body' }).model.document
+              ? EditorInput.init({ hostId: BODY_HOST }).model.document
               : read
           },
         },

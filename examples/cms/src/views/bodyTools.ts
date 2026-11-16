@@ -3,7 +3,8 @@
  * marks pressed while the selection carries them, the text style and insert menus, and the
  * shortcut each tool names. It draws from the body editor's Model (the form's control) and sends
  * the editor's own Messages, wrapped as `PressedTool`; the tab stop and the open popup are the
- * posts application's own (`Roving`, `toolsMenu`).
+ * posts application's own (`Roving`, `toolsMenu`). A press leaves the focus in the text; from a
+ * tool reached by key, Escape returns there (`ReturnedToBody`).
  */
 import { Option } from 'effect'
 import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
@@ -120,6 +121,7 @@ export const BodyTools = SlotView.forMessages<Message>()
           wrap: message => Message.PressedTool({ message: body.send(message) }),
           menu: Option.getOrUndefined(model.toolsMenu),
           toggled: (menu, open) => Message.ToggledToolsMenu({ menu, open }),
+          returned: Message.ReturnedToBody(),
           roving: model.bodyTools,
           onFocus: id => Roving.wrapper.make(RovingTabindex.Message.Focused({ id })),
         },

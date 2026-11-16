@@ -7,6 +7,7 @@ import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import type { Url } from 'foldkit/url'
 import { afterEach, expect, it } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import * as Studio from '../src/apps/studioApp.js'
 import { openHost } from '../src/server/host.js'
 import { answered, hostedRemote } from './hosted.js'
@@ -146,40 +147,87 @@ it('keeps focus in the page as a page opens and closes', async () => {
     .toBe(key)
 })
 
-it('formats the body from its toolbar, which is one tab stop, and leaves the writer in the editor', async () => {
+/** Text without its white space: a selection's string breaks lines where the runs do not. */
+const spaceless = (text: string | undefined) => (text ?? '').replace(/\s+/g, '')
+
+/** The open post's body editor and its bar, with the first line selected by hand. */
+const bodyWithSelection = async () => {
   await mount('/', 'as=wren')
   await expect.poll(() => document.querySelector('#Worklist button') !== null, answered).toBe(true)
   click('#Worklist button')
   const editable = () => document.querySelector('#post-body [contenteditable]') as HTMLElement
   await expect.poll(() => editable() !== null, answered).toBe(true)
-
   const tools = () => [...document.querySelectorAll<HTMLButtonElement>('[role="toolbar"] button')]
   const bold = () => tools().find(tool => tool.getAttribute('aria-label') === 'Bold')!
-  expect(bold()).toBeDefined()
+  await expect.poll(() => bold() !== undefined, answered).toBe(true)
+  // As the writer does: a press in the first line, then keys to its ends.
+  await userEvent.click(editable().querySelector('[data-run]')!)
+  await userEvent.keyboard('{Home}{Shift>}{End}{/Shift}')
+  const selected = spaceless(window.getSelection()!.toString())
+  expect(selected.length).toBeGreaterThan(0)
+  // Bold is offered once the Model has the selection.
+  await expect.poll(() => bold().getAttribute('aria-disabled'), answered).toBe('false')
+  return { editable, tools, bold, selected }
+}
+/** Shift+Tab from the body, past the fields between, to the bar's one stop. */
+const backToBar = async (tools: () => ReadonlyArray<HTMLElement>) => {
+  for (let step = 0; step < 6 && !tools().includes(document.activeElement as HTMLElement); step++) {
+    await userEvent.tab({ shift: true })
+  }
+  expect(tools()).toContain(document.activeElement)
+}
+const inBody = (editable: () => HTMLElement) => editable().contains(document.activeElement)
+/** The text the editor draws as selected while a tool has the focus. */
+const drawnSelection = () =>
+  spaceless(
+    [...document.querySelectorAll('#post-body [data-decoration="selection"]')]
+      .map(element => element.textContent)
+      .join(''),
+  )
+const boldText = (editable: () => HTMLElement) =>
+  spaceless([...editable().querySelectorAll('strong')].map(element => element.textContent).join(''))
+
+it('a press on Bold formats the selection and leaves the focus and the selection in the body', async () => {
+  const { editable, tools, bold, selected } = await bodyWithSelection()
   expect(tools().filter(tool => tool.tabIndex === 0)).toHaveLength(1)
-
-  // Select the first run's words, as the writer does.
-  const run = editable().querySelector('[data-run]') as HTMLElement
-  const range = document.createRange()
-  range.selectNodeContents(run)
-  const selection = window.getSelection()!
-  selection.removeAllRanges()
-  selection.addRange(range)
-  document.dispatchEvent(new Event('selectionchange'))
-
-  // The tab stop follows focus.
-  bold().focus()
-  await expect.poll(() => tools().filter(tool => tool.tabIndex === 0), answered).toEqual([bold()])
-  tools()[1]!.focus()
-  await expect
-    .poll(() => tools().filter(tool => tool.tabIndex === 0), answered)
-    .toEqual([tools()[1]])
-
-  // Pressing a tool formats the selection, and gives focus back to the editor, still tabbable.
-  bold().focus()
-  bold().click()
-  await expect.poll(() => editable().querySelector('strong') !== null, answered).toBe(true)
+  await userEvent.click(bold())
   await expect.poll(() => bold().getAttribute('aria-pressed'), answered).toBe('true')
-  await expect.poll(() => document.activeElement === editable(), answered).toBe(true)
+  expect(boldText(editable)).toBe(selected)
+  expect(inBody(editable)).toBe(true)
+  expect(spaceless(window.getSelection()!.toString())).toBe(selected)
   expect(editable().getAttribute('tabindex')).toBeNull()
+})
+
+it('Bold from the keyboard leaves the focus on its tool, the bar one tab stop, and the selection shown', async () => {
+  const { editable, tools, bold, selected } = await bodyWithSelection()
+  await backToBar(tools)
+  await expect.poll(drawnSelection, answered).toBe(selected)
+  for (let step = 0; step < tools().length && document.activeElement !== bold(); step++) {
+    await userEvent.keyboard('{ArrowRight}')
+  }
+  expect(document.activeElement).toBe(bold())
+  // The tab stop follows focus.
+  await expect.poll(() => tools().filter(tool => tool.tabIndex === 0), answered).toEqual([bold()])
+  await userEvent.keyboard('{Enter}')
+  await expect.poll(() => bold().getAttribute('aria-pressed'), answered).toBe('true')
+  expect(boldText(editable)).toBe(selected)
+  expect(document.activeElement).toBe(bold())
+  await expect.poll(drawnSelection, answered).toBe(selected)
+})
+
+it('Escape on a tool returns to the body with the selection, and typing replaces it', async () => {
+  const { editable, tools, bold, selected } = await bodyWithSelection()
+  await backToBar(tools)
+  for (let step = 0; step < tools().length && document.activeElement !== bold(); step++) {
+    await userEvent.keyboard('{ArrowRight}')
+  }
+  await userEvent.keyboard('{Enter}')
+  await expect.poll(() => bold().getAttribute('aria-pressed'), answered).toBe('true')
+  await userEvent.keyboard('{Escape}')
+  await expect.poll(() => inBody(editable), answered).toBe(true)
+  await expect.poll(() => spaceless(window.getSelection()!.toString()), answered).toBe(selected)
+  expect(drawnSelection()).toBe('')
+  await userEvent.keyboard('Zed')
+  await expect.poll(() => boldText(editable), answered).toBe('Zed')
+  expect(spaceless(editable().textContent ?? undefined)).not.toContain(selected)
 })
