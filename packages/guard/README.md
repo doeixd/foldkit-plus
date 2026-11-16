@@ -633,17 +633,19 @@ remote-drizzle's `writer` holds the row to, refusing with `Forbidden` (and the
   viewer leaves it too: a member whose rule reads their team's organisation
   cannot move their own team.
 - `may` leaves such an interaction unanswered, since one row cannot decide it.
-  An interaction the answer does not name reads `false`, so `May.can`,
-  `May.canSet`, `May.locks` and `GuardAgent` treat it as refused, while the
-  client's own check of a write (`forbids`) refuses nothing: draw such a
-  control from something other than `may`.
+  `May.answer(may, 'Update')` reads it as none, apart from a yes and a no.
+  `May.locks`, `GuardAgent` and the client's own check of a write (`forbids`)
+  act only on a no, so the editor stays editable and the server's refusal is
+  shown when it comes. `May.can` and `May.canSet` are true only on a yes:
+  hide a control with `May.refused`, not `!May.can`.
 - `GuardServer.writer` over a writer without `requires` throws where it is
   made, rather than letting the rule go unchecked.
-- Only the declared writer judges such a rule. `GuardServer.mutation` (with
-  `interaction: 'Update'` or `'Delete'`) and `GuardSync.admit` judge a row in
-  memory, where it cannot be run: a request through either over an Entity
-  whose rule for that interaction reads another row fails, so serve such an
-  Entity's updates and deletes as declared writes.
+- Only the declared writer judges such a rule. `GuardServer.mutation` (for
+  the interaction it checks), `GuardSync.document` (for `Update`) and
+  `GuardServer.memory` (for `Read`) judge one row in memory, so each throws
+  where it is made for an Entity whose rule there reads another row, naming
+  the rule. Serve such an Entity's updates and deletes as declared writes,
+  and its reads through `GuardDrizzle.visible`.
 - Every other surface (`Create`, `Write`, a member, a relation, a named
   interaction, `always`) is judged over one row in memory, so `Guards.attach`
   refuses such a rule there and names the surfaces that may hold one.
@@ -776,8 +778,10 @@ May.canLink(row.may, Todo, 'project', 'Link')
   The write is checked when it is made, whatever `may` said.
 - A Source without the filter does not answer it: the client reads it as
   unavailable.
-- `foldkit-crud`'s editor locks the keys the reader may not set with
-  `locks: May.locks(Todo)`, for `foldkit-mixins-form`'s `locked`.
+- `foldkit-crud`'s editor locks the keys `may` refuses (the row's `Update`,
+  or the key's own rule, said no) with `locks: May.locks(Todo)`, for
+  `foldkit-mixins-form`'s `locked`; a key whose answer was not said stays
+  editable.
 
 For a row the client writes, which the server has not answered yet, Remote
 foresees `may` from the same rules (`Derived.make`'s `predict`): a row guard
@@ -1028,6 +1032,8 @@ has a `RequestedArchive` with the todo's `id`.
 
 - `Row` selects `may`. A row not read yet, or whose read failed, refuses:
   there is no answer to go on. One being read again answers as it last did.
+  A row whose `may` does not say (a rule reading another row) is allowed and
+  offered: the server decides.
   A refusal its rule explained is the agent's error message.
 - `available` is for a capability over a row the Model alone names (the one
   selected): a visitor is then not offered it at all.

@@ -122,7 +122,7 @@ export interface FormViewInputs<
   readonly submits?: boolean | undefined
   /**
    * Keys shown but not editable, drawn `disabled`: one the person may not set,
-   * such as a member `foldkit-guard`'s `May.canSet` says no to. A hint, not a
+   * such as a member `foldkit-guard`'s `May.locks` refuses. A hint, not a
    * check: the server checks the write. A key edited by a Bundle with no
    * renderer has its Bundle's view drawn in a disabled fieldset, which disables
    * the buttons and inputs it draws; a key in a nested row is not locked by this.
