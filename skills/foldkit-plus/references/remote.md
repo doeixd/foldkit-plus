@@ -1193,6 +1193,10 @@ const RenameSource = RemoteServer.mutation(RenameProject, ({ input }) =>
 const Server = RemoteServer.make({ entities: [ProjectSource], mutations: [RenameSource] })
 RemoteServer.validate(Remote.define({ entities: [User, Project], mutations: [RenameProject] }), Server)
 
+// A mutation's `entities` are patches of rows the caller may read: the answer cuts each to what
+// `authorize`/`filter` let the caller read (a source with neither rule is answered as is, unread);
+// what the caller may not read goes in `output`, not `entities`.
+
 declare const principal: Principal // authentication happens outside this package
 const handlers = RemoteServer.handlers(Server, principal) // once per authenticated principal
 const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker

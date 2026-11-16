@@ -2037,18 +2037,98 @@ const pickKeys = <T>(
   Object.fromEntries(Object.entries(record).filter(([key]) => keys.has(key)))
 
 /**
+ * What a mutation's answer may say of the rows its handler patched (#578): of
+ * each, the keys the caller may read, with the handler's own values. A source
+ * with neither `authorize` nor `filter` declares no reader rule, so its rows
+ * are answered as they are, with no read. Otherwise each such entity is read as
+ * the caller reads it, once, and a row the read does not return, or no field of
+ * it, is not answered. A read that fails answers none of that entity's rows:
+ * the write has committed, and the client reads what it lacks.
+ */
+const readablePatches = <P, R>(
+  server: ServerDefinition<P, R>,
+  principal: P,
+  options: HandlerOptions<P, R>,
+  mutation: string,
+  patches: ReadonlyArray<NormalizedPatch>,
+): Effect.Effect<ReadonlyArray<NormalizedPatch>, never, R> =>
+  Effect.gen(function* () {
+    const ruled = new Map<string, Array<NormalizedPatch>>()
+    for (const patch of patches) {
+      const source = server.entities.get(patch.entity)
+      if (source === undefined || (source.authorize === undefined && source.filter === undefined))
+        continue
+      const group = ruled.get(patch.entity) ?? []
+      group.push(patch)
+      ruled.set(patch.entity, group)
+    }
+    if (ruled.size === 0) return patches
+
+    const maxIds = Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY)
+    // Per ruled entity, the keys the caller may read of each row it read; an entity
+    // whose read failed has none, so none of its patches is sent.
+    const readable = new Map<string, Map<string, ReadonlySet<string>>>()
+    for (const [entity, group] of ruled) {
+      const source = server.entities.get(entity)!
+      const ids = [...new Set(group.map(patch => patch.id))]
+      const fields = [...new Set(group.flatMap(patch => Object.keys(patch.values)))]
+      const rows = new Map<string, ReadonlySet<string>>()
+      yield* Effect.forEach(
+        Array.from({ length: Math.ceil(ids.length / maxIds) }, (_, chunk) =>
+          ids.slice(chunk * maxIds, (chunk + 1) * maxIds),
+        ),
+        chunk =>
+          Effect.map(
+            readAs(source, { ids: chunk, fields, principal, viewer: viewerOf(server, principal) }),
+            records => {
+              if (Option.isNone(records)) return
+              for (const record of records.value)
+                rows.set(record.id, new Set(Object.keys(record.values)))
+            },
+          ),
+      ).pipe(
+        Effect.catchTag(
+          'RemoteServerError',
+          failingAs(`read ${entity}`, said => new RemoteReadError(said)).source,
+        ),
+        Effect.matchEffect({
+          onSuccess: () => Effect.sync(() => readable.set(entity, rows)),
+          onFailure: error =>
+            Diagnostics.report(answerUnread(mutation, reasonOf(error))).pipe(
+              Effect.andThen(Effect.sync(() => readable.set(entity, new Map()))),
+            ),
+        }),
+      )
+    }
+
+    return patches.flatMap(patch => {
+      const rows = readable.get(patch.entity)
+      if (rows === undefined) return [patch]
+      const keys = rows.get(patch.id)
+      if (keys === undefined) return []
+      const values: Record<string, unknown> = Object.create(null)
+      for (const key of Object.keys(patch.values)) {
+        if (keys.has(key)) values[key] = patch.values[key]
+      }
+      return Object.keys(values).length === 0 ? [] : [{ ...patch, values }]
+    })
+  })
+
+/**
  * A fresh read, after a mutation, of what the client shows of each row its
  * outcome names: of each, the shown fields the answer left out, and every
  * shown relation, since the answer's ref alone does not reach what the client
  * reads of its target. Read as any read is, so `authorize` and `filter` hold.
  * Only rows the read returned are answered: a row hidden from the asker keeps
- * what the answer gave it rather than reading as gone.
+ * what the answer gave it rather than reading as gone. `sent` is what the
+ * answer carries of the outcome's patches: a key cut from it is read, not answered.
  */
 const answerRead = <P, R>(
   server: ServerDefinition<P, R>,
   principal: P,
   options: HandlerOptions<P, R>,
   shown: ReadonlyArray<RelationRequirement>,
+  sent: ReadonlyArray<NormalizedPatch>,
   outcome: {
     readonly entities: ReadonlyArray<NormalizedPatch>
     readonly connections: ReadonlyArray<ConnectionChange>
@@ -2082,7 +2162,9 @@ const answerRead = <P, R>(
       for (const field of answered) row.answered.add(field)
       named.set(key, row)
     }
-    for (const patch of outcome.entities) name(patch.entity, patch.id, Object.keys(patch.values))
+    // A row is named by what the handler patched, but answered only for the keys sent of it.
+    for (const patch of outcome.entities) name(patch.entity, patch.id, [])
+    for (const patch of sent) name(patch.entity, patch.id, Object.keys(patch.values))
     for (const change of outcome.connections)
       if (change._tag === 'Insert') name(change.edge.entity, change.edge.id, [])
     for (const row of outcome.pointed ?? []) name(row.entity, row.id, [])
@@ -3436,7 +3518,24 @@ export const RemoteServer = {
           Effect.catchTag('SchemaError', error => failed.internal(Cause.fail(error))),
         )
 
-        const read = yield* answerRead(server, caller, options, payload.shown ?? [], outcome).pipe(
+        // The handler's values are the answer, but only of what the caller may read of
+        // the row; what it must tell a caller who may not goes in `output`.
+        const sent = yield* readablePatches(
+          server,
+          caller,
+          options,
+          payload.mutation,
+          outcome.entities,
+        )
+
+        const read = yield* answerRead(
+          server,
+          caller,
+          options,
+          payload.shown ?? [],
+          sent,
+          outcome,
+        ).pipe(
           // The write has committed: answering without the read leaves the
           // client to fetch those fields, where failing would have it retry.
           Effect.catchTag('RemoteReadError', error =>
@@ -3481,7 +3580,7 @@ export const RemoteServer = {
 
         return {
           output,
-          entities: outcome.entities.map(patch => ({
+          entities: sent.map(patch => ({
             entity: patch.entity,
             id: patch.id,
             values: patch.values,

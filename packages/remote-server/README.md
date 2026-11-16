@@ -394,7 +394,14 @@ const RenameProjectSource = RemoteServer.mutation(
 ```
 
 The input is decoded before the Source runs and the output is encoded before it
-crosses the wire. A Source refuses with a value of the mutation's `Refusal`:
+crosses the wire. The `entities` are cache patches of rows the caller may read:
+the answer carries your values, cut to what `authorize` and `filter` let the
+caller read of each row, and none for a row they may not read at all (a source
+with neither rule is answered as it is, with no read; if the read fails, none of
+that entity's patches is sent and an `AnswerUnread` is reported, and the write
+still succeeds). Live subscribers are told every patch and read each through
+their own rules. What a handler must tell a caller who may not read the row goes
+in `output`, which is its own Schema. A Source refuses with a value of the mutation's `Refusal`:
 `Effect.fail(RemoteServer.refuse(SetPrice, { _tag: 'Field', key: 'price', reason: 'too low' }))`.
 The value is type-checked against that mutation, encoded by its schema, and
 sent beside a message (a 422 over JSON); a refusal made for another mutation,

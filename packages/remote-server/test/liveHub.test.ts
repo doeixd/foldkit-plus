@@ -801,11 +801,13 @@ describe('Shared fields on the live hub', () => {
     expect(await observe(['member'], mutate('RenamePerson', 'Grace'))).toMatchObject([
       { values: { name: 'Grace' } },
     ])
-    expect(sourceReads).toEqual([])
+    // The one read is the mutation's own answer, cut to what its caller may read.
+    expect(sourceReads).toEqual([['name']])
     expect(await observe(['member'], mutate('RenameByHand', 'Hedy'))).toMatchObject([
       { values: { name: 'Hedy' } },
     ])
-    expect(sourceReads).toEqual([['name']])
+    // That read and the hub's, which re-reads what a handler only claimed.
+    expect(sourceReads).toEqual([['name'], ['name']])
   })
 
   it('refuses a shared field the source does not serve', () => {
