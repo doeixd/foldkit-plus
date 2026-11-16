@@ -442,7 +442,7 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
   if (asking.length > 0) {
     fail(
       input,
-      `its \`when\` reads the write's context (${asking.map(term => `Expr.${term}`).join(', ')}), which a precondition does not: it is judged on the row before the write and the input only; who is asking is a guard rule's`,
+      `its \`when\` reads ${asking.map(term => `Expr.${term}`).join(' and ')}; a precondition reads the row and the input only, and a guard rule says who is asking`,
     )
   }
   // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.

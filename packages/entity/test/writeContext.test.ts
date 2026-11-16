@@ -37,13 +37,13 @@ const conditions: Readonly<Record<string, () => Predicate & Reads<'Post'>>> = {
 }
 
 const message = (terms: string) =>
-  `[foldkit-entity] Write of Post: its \`when\` reads the write's context (${terms}), which a precondition does not: it is judged on the row before the write and the input only; who is asking is a guard rule's`
+  `[foldkit-entity] Write of Post: its \`when\` reads ${terms}; a precondition reads the row and the input only, and a guard rule says who is asking`
 
 describe('A write whose when reads the write’s context', () => {
   it.each([
     ['viewer', 'Expr.viewer'],
     ['now', 'Expr.now'],
-    ['both, together', 'Expr.viewer, Expr.now'],
+    ['both, together', 'Expr.viewer and Expr.now'],
     ['now inside an exists', 'Expr.now'],
     ['a path from the viewer', 'Expr.viewer'],
   ] as const)('is refused where it is declared, for %s', (name, terms) => {
