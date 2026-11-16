@@ -24,7 +24,8 @@ between them, and no Remote server is involved.
 | The receipts and replies of the last 1,024 commands that answered, so a retry of one is not sent | the adapter, in memory: a cache. A reload loses it, and a retry then reaches Domain, whose command id answers it with the first receipt |
 
 The page still declares the write as Plus declares any write
-(`Mutation.write`), so prediction, `Data.refusal` and `Refusal.isInvalidBy` read
+(`Mutation.write`; [One domain declaration](../../docs/entity.md) teaches the
+declarations), so prediction, `Data.refusal` and `Refusal.isInvalidBy` read
 the same declaration they read against a SQL server. Only the authority changes.
 The adapter owns no row, decides nothing and holds nothing a reload must keep:
 it translates, and its one cache, of replies, only spares a retry its call. The one thing the Domain model cannot tell a client, how far its

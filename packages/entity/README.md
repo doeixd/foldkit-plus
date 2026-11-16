@@ -17,7 +17,10 @@ in hand.
 > builds a form from `Entity.input`, [`foldkit-crud`](../crud/README.md) joins
 > one to a Remote operation, and `foldkit-guard` writes its rules as `Expr`.
 
-For the whole path in one runnable trace, domain to client to SQL, see
+New to the idea of one declared domain? Start with the guide,
+[One domain declaration](../../docs/entity.md), which carries a small domain
+through every reader; this README is the reference for each declaration. For
+the whole path in one runnable trace, domain to client to SQL, see
 [`examples/entity`](../../examples/entity).
 
 ## What it owns
@@ -381,7 +384,23 @@ Words.of(Schema.String.annotate({ title: 'Name' }).check(Schema.isMinLength(1)))
 ## Saying something about a row: `Expr`
 
 An Entity says what a domain has. An `Expr` says something about one row of it,
-as a value:
+as a value. This section is the reference; the
+[Expressions guide](../../docs/expressions.md) teaches the language in order,
+with one body answered by SQL, by `evaluate` and by `Judge`.
+
+```ts
+import { Schema } from 'effect'
+import { Expr, Order } from 'foldkit-entity'
+
+const byTitle = Expr.eq(Blog.Post.fields.title, Expr.input('title', Schema.String))
+const isPublished = Expr.eq(Blog.Post.fields.published, true)
+const newestTerms = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fields.id)]
+```
+
+Building one performs no work: it reads nothing, names no database, and runs no
+query. An interpreter compiles it — `foldkit-remote-drizzle` to SQL, an
+in-memory evaluator to a predicate over rows — which is what lets one query mean
+the same thing in more than one place.
 
 > **Why query semantics live in this package.** They describe and interpret
 > nothing, which is the line this package already draws: an `Expr` says which
@@ -399,20 +418,6 @@ as a value:
 > `Entity` pays for them: they are ordinary consts in a `sideEffects: false`
 > package, so a bundler drops them, and a package like `foldkit-form` imports
 > only types from here in any case.
-
-```ts
-import { Schema } from 'effect'
-import { Expr, Order } from 'foldkit-entity'
-
-const byTitle = Expr.eq(Blog.Post.fields.title, Expr.input('title', Schema.String))
-const isPublished = Expr.eq(Blog.Post.fields.published, true)
-const newestTerms = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fields.id)]
-```
-
-Building one performs no work: it reads nothing, names no database, and runs no
-query. An interpreter compiles it — `foldkit-remote-drizzle` to SQL, an
-in-memory evaluator to a predicate over rows — which is what lets one query mean
-the same thing in more than one place.
 
 A comparison coerces what it is given, so the common forms read as they mean: a
 field becomes a reference, a plain value becomes a literal, and an `Expr` is

@@ -14,7 +14,9 @@ server:
   server, so it never ships to the browser;
 - a **row guard** is an `Expr` over one Entity's fields, with the principal's
   fields as inputs. It is data, so the SQL compiler and `evaluate` run it, and
-  the client may hold it without learning anything a query does not.
+  the client may hold it without learning anything a query does not. The
+  language is the one queries and invariants are written in; see the
+  [Expressions guide](../../docs/expressions.md).
 
 ## What it owns, and what it does not
 
