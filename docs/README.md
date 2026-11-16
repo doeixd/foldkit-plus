@@ -74,6 +74,7 @@ Link and Placement to Connection and Segment, are in the
 | Serve several screens from one route topology, with navigation, data preparation, and rendering derived from it | [Site guide](./site.md) | `foldkit-site` (+ `foldkit-surface`, `foldkit-remote`, `foldkit-ssr` as composed) |
 | Decide between a hand-wired Submodel and a Bundle, and see what a placement replaces | [Bundle versus Submodel](./bundle-vs-submodel.md) | `foldkit-bundle` |
 | Choose between a Surface and a Bundle, or combine them | [Surface versus Bundle](./surface-vs-bundles.md) | `foldkit-surface`, `foldkit-bundle` |
+| Write a rule or a question once, as an `Expr`, and have SQL, a server in memory and the page answer it alike or say they cannot | [Expressions](./expressions.md) | `foldkit-entity`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-guard` |
 | Change one server row so the change holds where it commits: who may, when it makes sense, by how much, and safe to retry | [Declared writes](./declared-writes.md) | `foldkit-entity`, `foldkit-guard`, `foldkit-remote-drizzle`, `foldkit-remote` |
 | Decide where a rule goes: a Schema, an invariant, a write's `when`, or a guard, and what each refuses as | [Laws](./laws.md) | `foldkit-entity`, `foldkit-guard`, `foldkit-remote` |
 | Name a rule once, search and order by what the kernel lacks, compute a write, and have server and client mean the same by it | [Operators](./operators.md) | `foldkit-entity`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-guard` |
@@ -84,7 +85,7 @@ Link and Placement to Connection and Segment, are in the
 | Build on the shared UI vocabulary (anatomy, capability, recipe, theme) before adding widgets | [UI architecture](./ui-architecture.md) | `foldkit-mixins`, `foldkit-mixins-ui` |
 | Understand the long-term path from one Foldkit state machine to Web, native iOS, native Android, and desktop without requiring a JavaScript runtime on mobile | [Native cross-platform Foldkit](./native-cross-platform.md) | `foldkit-surface`, `foldkit-mixins`, platform adapters, reffect |
 | Understand how a replica is actually bound to a running Foldkit app | [Runtime binding](./sync-runtime-binding.md) | `Sync.mount` |
-| Write a domain down once and have the client cache, the database binding, forms, and admin screens read it | [One domain declaration](./entity.md) | `foldkit-entity`, `foldkit-form`, `foldkit-mixins-form`, `foldkit-crud`, plus `foldkit-remote` and `foldkit-remote-drizzle` |
+| Declare a domain once (Entities, invariants, states, writes, questions, who may) and follow it through a check, the server, the page and a form | [One domain declaration](./entity.md) | `foldkit-entity`, `foldkit-form`, `foldkit-mixins-form`, `foldkit-crud`, plus `foldkit-remote` and `foldkit-remote-drizzle` |
 
 ## Design lineage
 
