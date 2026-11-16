@@ -663,6 +663,17 @@ Foldkit's own behaviour that we work around is listed in
 
 **Library behaviour**
 
+- **A node returned from a different function is replaced, and only a
+  workspace build shows it.** Foldkit's Vite plugin brands a node with the
+  function that returned it, and the differ replaces a node whose brand
+  changed. The data grid's funnel came from `onNone: () => [button]` while its
+  form was shut and `onSome: … => [button, form]` while open, so opening the
+  form replaced the focused button, the header read the focus loss as leaving,
+  and the form closed 100ms after a click. Vitest's browser project does not
+  run the plugin and an installed package is not branded, so every test
+  passed. Return a control that must keep focus or state from one function
+  whatever the state, and test such a claim on a Vite server with the plugin
+  (`packages/mixins-data-grid/test/branded.test.ts`).
 - **Chromium drops a scroll key pressed in the last frame of its own
   animated scroll.** On a page with no script, End pressed about 150ms after
   Page Down did nothing. domains-plus left its list's keys to the browser,

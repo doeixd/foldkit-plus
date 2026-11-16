@@ -511,6 +511,26 @@ working detail of each is a trap in `AGENTS.md`, named here by its title.
 
 Runtime and view:
 
+- **A node returned by a different function is replaced, in a workspace
+  build.** `foldkit:view-identity` (the Vite plugin) brands each node with the
+  function that returned it, and the differ replaces a node whose brand
+  changed. A focused button returned from one arrow while a form is shut and
+  from another while it is open is replaced when the form opens, and loses
+  focus. An installed package is not branded, and a test project that does
+  not run the plugin never shows it. We return such a control from one
+  function whatever the state, and test it on a Vite server with the plugin
+  (`packages/mixins-data-grid/test/branded.test.ts`). Asking for: nothing
+  yet; it is the plugin's intended behaviour, and the cost is ours to know.
+- **`RequestedClose` on a closed, animated `@foldkit/ui` Dialog returns a new,
+  equal Model**, so Foldkit renders for a dismissal that changed nothing. Our
+  `Dialog.update` returns the Model it was given when the dialog is closed.
+  Asking for: a no-op that keeps identity.
+- **The dev-tools relay has been seen to reject a `File` in a Model or
+  Message** (`SchemaError: Expected JSON value`, an unhandled rejection under
+  `vite dev`; `devTools/webSocketBridge.js` encodes each frame synchronously).
+  Seen in a full e2e run of `examples/widgets`' file input, not reproduced
+  alone, so it is not filed; that e2e ignores exactly that message. The relay
+  runs only under `import.meta.hot`, so a production build is not affected.
 - **An element holds one Mount** (`OnMount` replaces the vnode's `insert`
   hook), while `addDataOn` chains every `On…` handler. A second Mount, such as
   one a Slot adds beside `@foldkit/ui`'s anchor, silently drops the first.
