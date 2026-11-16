@@ -1,35 +1,16 @@
 # foldkit-entity
 
-A domain declared once as typed values: each entity's intrinsic fields, its
-relations to other entities, and the derived values consumers may read; and,
-over that, a small language for saying which rows (`Expr`, `Query`), what a
-write does to one (`Write`), and what every stored row must hold
-(invariants). Other packages interpret these declarations; this one only
-describes, and gives the reference meaning of the language over rows already
-in hand.
-
-> **Who reads it.** `foldkit-remote`
-> [registers Entities and reads Selections and query bodies](../remote/README.md#entities-declared-with-foldkit-entity),
-> and judges the rows it holds by them. `foldkit-remote-drizzle` binds a related
-> set to tables with
-> [`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain) and
-> compiles bodies, writes and invariants to SQL. [`foldkit-form`](../form/README.md)
-> builds a form from `Entity.input`, [`foldkit-crud`](../crud/README.md) joins
-> one to a Remote operation, and `foldkit-guard` writes its rules as `Expr`.
+A domain declared once as typed values, which other packages interpret: each
+Entity's fields, relations and derived members, and over them a small language
+for which rows (`Expr`, `Query`), what a write does to one (`Write`), and what
+every stored row must hold (invariants). This package only describes, and
+gives the language its reference meaning over rows already in hand.
 
 New to the idea of one declared domain? Start with the guide,
 [One domain declaration](../../docs/entity.md), which carries a small domain
 through every reader; this README is the reference for each declaration. For
 the whole path in one runnable trace, domain to client to SQL, see
 [`examples/entity`](../../examples/entity).
-
-| To | Reference, here | Taught in |
-| --- | --- | --- |
-| Declare Entities, relations and derived members, and select what a reader wants | [Relations and derived values](#relations-and-derived-values), [Selecting a view](#selecting-a-view), [variants](#rows-of-several-shapes-variants) | [One domain declaration](../../docs/entity.md) |
-| Say which rows, and judge one you hold | [`Expr`, `Query`, `Judge`](#saying-something-about-a-row-expr) | [Expressions](../../docs/expressions.md) |
-| Read an operation's input and declare what it writes | [Reading an operation's input](#reading-an-operations-input), [Declaring what an input writes](#declaring-what-an-input-writes) | [Declared writes](../../docs/declared-writes.md) |
-| Say what every row must hold, and check every write against it | [Invariants](#what-every-row-and-change-must-hold-invariants), [States and `Laws.check`](#states-of-a-row-and-what-every-write-does-to-them) | [Laws](../../docs/laws.md) |
-| Name a question an interpreter answers its own way | [Operators](#naming-a-question-operators) | [Operators](../../docs/operators.md) |
 
 ## What it owns
 
@@ -53,6 +34,15 @@ It does not own:
 - **Who may.** Authorization is `foldkit-guard`'s, written in the same `Expr`.
 - **Application state.** Nothing here touches a Model or dispatches a Message.
 
+Its readers are the neighbouring packages. `foldkit-remote`
+[registers Entities and reads Selections and query bodies](../remote/README.md#entities-declared-with-foldkit-entity),
+and judges the rows it holds by them. `foldkit-remote-drizzle` binds a related
+set to tables with
+[`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain) and
+compiles bodies, writes and invariants to SQL. [`foldkit-form`](../form/README.md)
+builds a form from `Entity.input`, [`foldkit-crud`](../crud/README.md) joins
+one to a Remote operation, and `foldkit-guard` writes its rules as `Expr`.
+
 ## Mental model
 
 ```text
@@ -73,27 +63,9 @@ interpreter ──(foldkit-metadata)──► Entity / member        attaches wh
 interpreter ◄── reads all of the above, and runs it (SQL, the client's store)
 ```
 
-An Entity has **one set of members**, and one set of invariants.
-`Entity.relate`, `Entity.derived`, `Entity.sets` and `Entity.invariant` add
-to it, and every descriptor of the Entity reads it: the one declared before
-`relate`, the one a relation's `target()` returns, the one a query captured.
-Metadata is the exception: `Entity.annotate` and `Entity.annotateMembers`
-return a new descriptor that carries its own, so one reader's view (a form's
-labels) stays its own. Compare descriptors with `Entity.same(a, b)`, not
-`a === b`.
-
-```text
-identity ── relations, derived, sets, invariants   one per Entity; relate / derived / sets / invariant add
-   ├── descriptor  fields, metadata                 define, relate, derived, sets, invariant return it
-   └── descriptor  fields, metadata'                annotate / annotateMembers make one
-```
-
-A descriptor's *type* still shows only the steps it came through: read typed
-members from the descriptor `relate` returned, or a later one.
-
-Everything here is checked where it is declared: a type error where the types
-can see it, and a throw for what they cannot. An interpreter that cannot run
-something refuses it by name rather than skipping it.
+A declaration is checked where it is made wherever it can be: a type error
+where the types can see it, a throw for what they cannot. An interpreter that
+cannot run something refuses it by name rather than skipping it.
 
 ## Install
 
@@ -125,6 +97,16 @@ unless you select it.
 Next, hand the Entity to Remote for client reads or bind it to Drizzle tables
 on the server. Declare operation input separately when adding a form: selecting
 readable fields does not grant permission to write them.
+
+## Where to go next
+
+| To | Reference, here | Taught in |
+| --- | --- | --- |
+| Declare Entities, relations and derived members, and select what a reader wants | [Relations and derived values](#relations-and-derived-values), [Selecting a view](#selecting-a-view), [variants](#rows-of-several-shapes-variants) | [One domain declaration](../../docs/entity.md) |
+| Say which rows, and judge one you hold | [`Expr`, `Query`, `Judge`](#saying-something-about-a-row-expr) | [Expressions](../../docs/expressions.md) |
+| Read an operation's input and declare what it writes | [Reading an operation's input](#reading-an-operations-input), [Declaring what an input writes](#declaring-what-an-input-writes) | [Declared writes](../../docs/declared-writes.md) |
+| Say what every row must hold, and check every write against it | [Invariants](#what-every-row-and-change-must-hold-invariants), [States and `Laws.check`](#states-of-a-row-and-what-every-write-does-to-them) | [Laws](../../docs/laws.md) |
+| Name a question an interpreter answers its own way | [Operators](#naming-a-question-operators) | [Operators](../../docs/operators.md) |
 
 ## Relations and derived values
 
@@ -200,12 +182,44 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
 - `Entity.relate` takes the entities and every relation between them, adds
   the relations to them, and returns them typed with their relations. Use the
   returned ones (`Blog.Post`) for their types; the `Post` you passed in has the
-  same relations at runtime.
+  same relations at runtime. It is one step over Entities that already
+  exist because Entities point at each other, and TypeScript cannot infer two
+  constants each typed by the other.
 - `Relation.one` / `Relation.many` state what the owner sees. `Post.author: one`
   and `Author.posts: many` together are the familiar one-to-many; neither side
   names it.
 - `target()` returns the related entity, so relations can be followed from
   there, around a cycle too.
+`Entity.relate` throws for a relation key that is already a member, an owner
+that is not in the first argument, and a target that is not in the first
+argument. The types reject the first two where they are written; a stray
+target is found when `relate` runs.
+
+### One Entity, several descriptors
+
+An Entity has **one set of members**, and one set of invariants.
+`Entity.relate`, `Entity.derived`, `Entity.sets` and `Entity.invariant` add
+to it, and every descriptor of the Entity reads it: the one declared before
+`relate`, the one a relation's `target()` returns, the one a query captured.
+Metadata is the exception: `Entity.annotate` and `Entity.annotateMembers`
+return a new descriptor that carries its own, so one reader's view (a form's
+labels) stays its own. Compare descriptors with `Entity.same(a, b)`, not
+`a === b`.
+
+```text
+identity ── relations, derived, sets, invariants   one per Entity; relate / derived / sets / invariant add
+   ├── descriptor  fields, metadata                 define, relate, derived, sets, invariant return it
+   └── descriptor  fields, metadata'                annotate / annotateMembers make one
+```
+
+A descriptor's *type* still shows only the steps it came through: read typed
+members from the descriptor `relate` returned, or a later one.
+
+### What a delete does to the rows pointing at it
+
+A `one` relation may say what happens to its row when the row it points at
+is deleted.
+
 - `Relation.one(Post, { onDelete: 'cascade' })` says a row goes when the row
   it points at is deleted: a comment with its post, a reply with the post it
   answers. It is declared on the link the row holds, as its foreign key is,
@@ -234,19 +248,9 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
   post may take these rows with it, whoever wrote them: a post's author
   removing everyone's likes of it. `authorizedBy` is said only beside
   `onDelete: 'cascade'`, and reads back as the relation's `authorizedBy`.
-
-`Entity.relate` throws for a relation key that is already a member, an owner
-that is not in the first argument, and a target that is not in the first
-argument. The types reject the first two where they are written; a stray
-target is found when `relate` runs.
-
-### Why relations are declared in one step
-
-Entities point at each other: a Post has Comments and a Comment has a Post. If
-each entity declared its own relations, `Post` would be typed in terms of
-`Comment` and `Comment` in terms of `Post`, and TypeScript cannot infer two
-constants that way. Declaring the relations over entities that already exist
-avoids the cycle, and lets `relate` check every target up front.
+- A cascade may not reach an Entity whose rows are themselves pointed at
+  through a `setNull` or `restrict` relation: `RemoteServer.write` refuses
+  such a delete where the server is defined.
 
 ## Ids of their own
 
@@ -412,26 +416,14 @@ const newestTerms = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fie
 ```
 
 Building one performs no work: it reads nothing, names no database, and runs no
-query. An interpreter compiles it — `foldkit-remote-drizzle` to SQL, an
-in-memory evaluator to a predicate over rows — which is what lets one query mean
-the same thing in more than one place.
+query. An interpreter runs it (`foldkit-remote-drizzle` compiles it to SQL,
+`evaluate` judges rows in memory), which is what lets one query mean the same
+thing in more than one place.
 
-> **Why query semantics live in this package.** They describe and interpret
-> nothing, which is the line this package already draws: an `Expr` says which
-> rows and fetches none of them, and the interpreters that *fetch* live
-> elsewhere — `foldkit-remote-drizzle` compiles a body to SQL against a
-> database.
->
-> `evaluate` is here rather than there because it is the **reference
-> semantics** of the IR: what the operator definitions mean, operationally, over
-> rows already in hand. A specification's reference implementation belongs with
-> the specification, and it reaches nothing — no database, no transport, no
-> Remote concept. The rule that keeps it honest is that **it may depend on the
-> IR and nothing else**; the moment it wants one of those it has moved to the
-> wrong place. Nothing that imports only
-> `Entity` pays for them: they are ordinary consts in a `sideEffects: false`
-> package, so a bundler drops them, and a package like `foldkit-form` imports
-> only types from here in any case.
+> **Why `evaluate` lives here.** It is the reference semantics of the
+> language: what each operation means over rows already in hand. It may depend
+> on the language and nothing else (no database, no transport, no Remote
+> concept), and a page importing only `Entity` does not carry it.
 
 A comparison coerces what it is given, so the common forms read as they mean: a
 field becomes a reference, a plain value becomes a literal, and an `Expr` is
@@ -441,13 +433,6 @@ than a row that never matches. The value's type comes from the left, so `eq` tak
 the field on the left; `Expr.eq('Hello', Blog.Post.fields.title)` is refused with
 that sentence. The comparisons (`lt`, `gte`, …) also take a field second,
 wrapped in `Expr.field(…)`.
-
-**An input is a placeholder, not a value.** A query's body is built once, so
-`Expr.input('title', …)` stands for whatever the query is given when it runs —
-there is nothing there yet to branch on. An `InputExpr` is an object, so a
-`condition ? a : b` over one is always truthy and decides itself once, forever.
-A query that depends on what it was passed says so with a comparison over the
-placeholder instead of a branch around it.
 
 `dependenciesOf(...)` says which fields and inputs an expression reads and which
 operations it uses, so a planner knows what it needs and an interpreter can
@@ -897,21 +882,15 @@ WHERE Post.slug = $slug
 ORDER BY Post.updatedAt DESC
 ```
 
-For a person — an explanation, a diagnostic, a test asserting on a whole
-predicate at once — and never for an interpreter. It is close enough to SQL to
-read at a glance and unlike it everywhere that matters: an input is `$slug`
-rather than a bound parameter, `contains` is named rather than rendered as
-somebody's `like`, and no dialect's escaping or collation is implied. What
-actually ran is whatever that backend compiled, which is not this.
-`Expr.show(node)` does the same for one expression.
+It is for a person (an explanation, a diagnostic, a test asserting on a whole
+predicate at once), never for an interpreter: an input is `$slug` rather than
+a bound parameter, `contains` is named rather than rendered as somebody's
+`like`, and no dialect's escaping or collation is implied. `Expr.show(node)`
+does the same for one expression.
 
-A `Query` says which rows. It does not say which fields — that is a Selection —
-and it does not say how many, whether absence is an error, or whether to watch
-for changes: those belong to the consumer doing the reading, not to the
-relation.
-
-Only the operations a real query in this repository needs exist. The set grows
-from queries, not from what a database could express.
+A `Query` says which rows. It does not say which fields (a Selection does),
+how many, whether absence is an error, or whether to watch for changes: those
+belong to the consumer doing the reading.
 
 ## Rows of several shapes: variants
 
@@ -1676,16 +1655,14 @@ Query.show(PublicStories)
 // WHERE acme.published(Story.publishedAt)
 ```
 
-- **It computes nothing of its own.** `definedAs` builds an expression from a
-  call's arguments, once per call, and every interpreter runs that expression
-  (`Expr.expanded` writes a predicate's calls out), so the operator needs no
-  SQL, no evaluator, and no support list. The SQL a body compiles to is the SQL
-  of the body written out by hand.
-- **What it adds is a name.** `Query.show` prints the call, and
-  `Query.dependencies(body).operators` lists each operator a body uses.
-- **It reads only its arguments.** A `definedAs` that closes over a field or an
-  input, instead of taking it, is refused when called: nothing asking what the
-  call reads (Guard's checks, Remote's matching) would see it.
+- **It computes nothing of its own, and reads only its arguments.**
+  `definedAs` builds an expression from a call's arguments, once per call, and
+  every interpreter runs that expression (`Expr.expanded` writes a predicate's
+  calls out); one that closes over a field or an input instead of taking it is
+  refused when called. `Query.show` prints the call, and
+  `Query.dependencies(body).operators` lists each operator a body uses. The
+  guide's [What the calls mean](../../docs/operators.md#what-the-calls-mean)
+  says why.
 - **Arguments are checked by their stored form**, at compile time and when
   called: a field, scalar or plain value of the input's stored type, or a
   predicate where it takes a boolean. A boolean `output` makes a call a
@@ -1849,38 +1826,12 @@ implementation of a defined operator may not take. `foldkit-remote-drizzle`
 runs the kernel's operators and an application's through it on SQLite and
 Postgres.
 
-### One operator, from declaration to description
+### Describing what a table runs
 
-The `concat` above, as an application ships it: declared once, implemented for
-each interpreter that runs it, held to itself, and described for whoever asks
-what a server runs.
-
-```ts
-import { sql } from 'drizzle-orm'
-import { Operators } from 'foldkit-entity'
-import { Conformance } from 'foldkit-entity/conformance'
-import { DrizzleOperators } from 'foldkit-remote-drizzle'
-
-// In memory, as above; in SQL, for a binding (`bind(…, { operators: { memory, sql } })`).
-const memory = Operators.memory(Operators.implement(concat, (left, right) => `${left}${right}`))
-const sqlTable = DrizzleOperators.make(
-  DrizzleOperators.implement(concat, ({ args: [left, right] }) => sql`(${left} || ${right})`),
-)
-
-// Its laws, against the memory implementation.
-const held = Conformance.laws(concat, memory)
-
-// The two implementations against each other: an SQL runner selects
-// `compileCall(call, binding, name)` from a database (foldkit-remote-drizzle's
-// test/operatorConformance.test.ts has one); here the memory one alone.
-const report = await Conformance.operator(concat, {
-  implementations: { memory: Conformance.memory(memory) },
-})
-
-// Its signature as JSON: name, version, each argument and the result as a JSON
-// Schema of what is stored, its null and collation rules, its laws.
-Operators.describe(concat)
-```
+Declared once, implemented per interpreter, held to its laws and described for
+whoever asks what a server runs: the guide carries one operator the whole way
+([An operator of your own](../../docs/operators.md#an-operator-of-your-own) to
+[Publishing what a server runs](../../docs/operators.md#publishing-what-a-server-runs)).
 
 `Operators.describe` gives an `OperatorDescription`, a Schema whose decoder
 checks a description another server publishes; it says what an operator takes
@@ -1891,6 +1842,24 @@ primitive ones it calls). A version is part of an operator's name: a table
 holding `acme.slug` does not answer a body calling `acme.slug@2`, and the
 refusal names both (`acme.slug@2 (this table has acme.slug)`), so a client and a
 server on different deploys see which side is behind.
+
+## Limits
+
+- The identifier is the field named `id`; no other field can be declared as it,
+  because Remote keys its store by `id`.
+- A Selection has no filtering or ordering, and a page has no total; those
+  belong to the interpreter that fetches.
+- A relation reaches only the entities of its own `Entity.relate` call; relate
+  them again to add relations between them.
+- `target()` returns the entity as `relate` returned it: every member added
+  since is on it (`likeCount`), but metadata annotated afterwards (`CmsPost`
+  above) is on that new descriptor only, so annotate before relating when a
+  target should carry it. Its type shows the members as related; read a later
+  one as an `AnyEntity`.
+- A member is added once per Entity: two pipe chains from one descriptor that
+  each add `score` are refused, as one chain adding it twice is. Adding the very
+  spec again (`Guards.may` on a second view) is the member it added.
+- No registry: nothing checks that two different entities share a name.
 
 ## API
 
@@ -1980,21 +1949,3 @@ server on different deploys see which side is behind.
 | `Query.dependencies(query)` | What the whole query reads, with its fields also split by role: `predicate` (can change which rows match) and `order` (can change where a row sits). |
 | `Query.unsupported(query, supported)` | The operations it needs that an interpreter does not run. |
 | `Query.show(query)` / `Expr.show(node)` | The query or expression as readable text, for a person and not for an interpreter. |
-
-## Limits
-
-- The identifier is the field named `id`; no other field can be declared as it,
-  because Remote keys its store by `id`.
-- A Selection has no filtering or ordering, and a page has no total; those
-  belong to the interpreter that fetches.
-- A relation reaches only the entities of its own `Entity.relate` call; relate
-  them again to add relations between them.
-- `target()` returns the entity as `relate` returned it: every member added
-  since is on it (`likeCount`), but metadata annotated afterwards (`CmsPost`
-  above) is on that new descriptor only, so annotate before relating when a
-  target should carry it. Its type shows the members as related; read a later
-  one as an `AnyEntity`.
-- A member is added once per Entity: two pipe chains from one descriptor that
-  each add `score` are refused, as one chain adding it twice is. Adding the very
-  spec again (`Guards.may` on a second view) is the member it added.
-- No registry: nothing checks that two different entities share a name.
