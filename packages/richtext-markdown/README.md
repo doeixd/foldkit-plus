@@ -218,6 +218,14 @@ caller's document. Keep the old selection then.
 - **Inline atoms.** The model has no inline image or break, so an `Image` is a block and
   prints as its own line — which a parser reads back as a paragraph holding an image.
 - **A link with no `href`** prints as its label, with an `UnsupportedMark` diagnostic.
+- **URLs.** A link's `href` and an image's `src` read back as the string the document held,
+  for any string `parse` itself would keep: `print` escapes a backslash before punctuation and
+  an `&` that begins a character reference, and writes `<…>` for a URL a bare destination
+  cannot hold. A control character cannot be written in Markdown, so it is percent-encoded
+  (`%0A`), and `parse` removes controls and trims whitespace from a URL in any case. The model
+  holds no link title: `parse` drops one, and `print` writes none. `print` does not judge a
+  URL: a `javascript:` href is written as it is, `parse` refuses it as `UnsafeUrl`, and the
+  rendering refuses it again, so sanitising stays the importer's and the renderer's job.
 - **A mark on whitespace at a run's edge.** `**bold **` is not emphasis in CommonMark, so a
   marked run's leading and trailing whitespace is printed outside its delimiters: the text
   survives, and the space reads back unmarked.
