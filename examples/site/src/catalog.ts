@@ -136,7 +136,7 @@ export const subsites: ReadonlyArray<Subsite> = [
       tagline: 'Server data, normalized in the Model: queries, mutations and live updates.',
       owner: 'the server',
       shelf: 'Data',
-      packages: ['remote', 'remote-server', 'remote-drizzle'],
+      packages: ['remote', 'remote-server', 'remote-drizzle', 'remote-domain'],
     },
     [
       doc('server-state', 'Server-derived state', 'remote'),
