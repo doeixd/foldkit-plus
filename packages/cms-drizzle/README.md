@@ -201,8 +201,18 @@ fails after writing leaves nothing behind.
   `revision`, or `null`). A newer one is refused with `Cms.refusal.conflict`, not a publish over
   someone else's. The entry's `revision` is compared and set first, inside the
   transaction, so of two publishes made from one revision one writes nothing.
-- A draft your mutation's Input refuses is not published, and the error says why.
-  The draft is kept.
+- A draft your mutation's Input refuses is not published, and the error names
+  the fields it would not take (`This draft is not ready to publish: check
+  title`), not the Schema's own message, which quotes values. The draft is kept.
+- **A failure on the server's side tells the author nothing of it.** A handler
+  of yours that fails with a `RemoteServerError`, a statement the database
+  refuses and a defect all read `Internal error` with an incident, and the
+  cause is in the server's `ServerDefect` report under that id (see
+  [When the server fails](../remote-server/README.md#when-the-server-fails)).
+  Fail your handler with `RemoteServer.tell('…')` for words the author should
+  read. The CMS's own refusals (`There is no such entry`, `This entry cannot be
+  published as it stands`, `An archived entry takes no draft`) are told that
+  way, and only to an author.
 - A row that is already shown keeps the date it was first published on.
 - The row as your handler left it goes to the client with the entry and the
   revision, every column of it, so a handler need not patch what it wrote. What
@@ -267,14 +277,18 @@ export default {
   publishes nothing.
 - **A publish that fails stays scheduled, with the reason.** The entry reads
   overdue with that error, because that is true. It is not tried again until the
-  draft changes: a fault the author must fix is not hammered every minute.
+  draft changes: a fault the author must fix is not hammered every minute. The
+  entry keeps a reason written for a reader as it is (a denial, a declared
+  refusal, `RemoteServer.tell`); any other failure, a driver's or a handler's
+  own, reads `Internal error` on the entry.
 - **What was promised is changed only by someone who could have promised it.**
   Since a scheduled draft is published as whoever scheduled it, saving over it,
   restoring over it or discarding it is refused to an author your `transitions`
   or `allow` would not let `schedule`. Otherwise someone who may not publish would publish through
   someone who may.
 - One failure does not stop the rest. `due` answers with each entry and its
-  error, or `null`.
+  error, or `null`. That error is the failure in its own words, a driver's
+  included: it is the host's to log, and is not what the entry shows authors.
 - An archived entry keeps its promise, and keeps it waiting.
 
 ## Restoring
@@ -309,7 +323,7 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 | `sqliteTables()`, `pgTables()` | The three tables, per dialect. `sqliteSchema` is their `create table` statements. |
 | `Transaction.statements`, `Transaction.drizzle` | How a publish is made whole, by driver. |
 | `CmsServer.make({ tables, content, transaction, policy, authors, transitions?, allow?, now?, nameOf?, maxDraftSize? })` | `sources`, `queries`, `mutations`, `due`, `import`, and `bindings`. Each `content` entry is `{ type, entity, binding, create, update }`. |
-| `cms.due(now, { as })` | Publishes what has come due; an Effect of `{ entry, error }` each. |
+| `cms.due(now, { as })` | Publishes what has come due; an Effect of `{ entry, error }` each, `error` in the failure's own words, for the host. |
 | `cms.import({ type, values, as, at?, entry? })` | Content that is published already (a seed, or what another CMS held), written by the publish path; an Effect of `{ entry, targetId }`. |
 
 ## Limits
@@ -324,7 +338,8 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
   editor's publish saves what is there first; a client of your own does the same.
 - A driver's refusal is recognised by its words (`unique` or `duplicate`, and the
   column's name). SQLite and Postgres say both; a constraint named without the
-  column arrives as the driver's own error.
+  column fails the publish as `Internal error`, the driver's own error in the
+  server's `ServerDefect` report.
 - Conflicts are refused, not merged.
 - A client that holds an entry's `revisions` list refetches it after a publish;
   the new revision arrives as a patch, not as a place in that list.

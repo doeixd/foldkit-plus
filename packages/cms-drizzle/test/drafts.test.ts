@@ -11,7 +11,7 @@ import { Effect, Option, Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Entity, Expr } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
-import { Mutation, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
+import { Diagnostics, Mutation, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { DrizzleDatabase, bind, databaseLayer } from 'foldkit-remote-drizzle'
 import { RemoteServer, RemoteServerError } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -202,9 +202,11 @@ const open = (options: Pick<CmsServerConfig<typeof Author.Type>, 'transitions'> 
     mutations: [...cms.mutations],
   })
   const layer = databaseLayer(drizzle({ client: sqlite }))
+  const collected = Diagnostics.collect()
   const as = (principal: Principal) => {
     const handlers = RemoteServer.handlers(server, principal)
-    const run = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effect)
+    const run = <A, E>(effect: Effect.Effect<A, E, never>) =>
+      Effect.runPromise(effect.pipe(Effect.provideService(Diagnostics.Reporter, collected.report)))
     return {
       read: (entity: string, ids: string[], fields: string[]) =>
         run(
@@ -252,6 +254,19 @@ const open = (options: Pick<CmsServerConfig<typeof Author.Type>, 'transitions'> 
       fired = true
     },
     as,
+    /** One mutation as ada, as the encoded answer a JSON transport sends. */
+    answered: (mutation: string, input: unknown) =>
+      Effect.runPromise(
+        RemoteServer.answer(RemoteServer.handlers(server, ada), {
+          operation: 'mutate',
+          payload: { requestId: `r${++requests}`, mutation, input },
+        }).pipe(
+          Effect.provide(layer),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
+        ),
+      ),
+    /** What the server reported: where a failure it told no caller of is held. */
+    reported: collected.reported,
     sqlite,
     tick: (to: string) => {
       clock = new Date(to)
@@ -587,12 +602,21 @@ describe('publishing', () => {
   })
 
   it('happens entirely or does not: a handler that fails after writing leaves nothing behind', async () => {
-    const { as, rows, count } = open()
+    const { as, rows, count, reported } = open()
     const saved = await as(ada).mutate('CmsSaveDraft', save({ values: { title: 'Fails' } }))
     const { entry } = saved.output as { entry: string }
     const before = count('posts')
-    await expect(as(ada).mutate('CmsPublish', { entry, basedOn: null })).rejects.toThrow(
-      'The application refused',
+    // The type's own handler failed in words it told no one: the author reads none of them.
+    await expect(as(ada).mutate('CmsPublish', { entry, basedOn: null })).rejects.toMatchObject({
+      message: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
+    expect(reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: 'mutate CmsPublish',
+        message: expect.stringContaining('The application refused'),
+      }),
     )
     expect(count('posts')).toBe(before)
     expect(count(`cms_revisions where entry_id = '${entry}'`)).toBe(0)
@@ -620,9 +644,10 @@ describe('publishing', () => {
     const { as, count } = open()
     const saved = await as(ada).mutate('CmsSaveDraft', save({ values: { title: 7 } }))
     const { entry } = saved.output as { entry: string }
-    await expect(as(ada).mutate('CmsPublish', { entry, basedOn: null })).rejects.toThrow(
-      'not ready to publish',
-    )
+    // The field by its name, and nothing of what the Schema said of its value.
+    await expect(as(ada).mutate('CmsPublish', { entry, basedOn: null })).rejects.toMatchObject({
+      message: 'This draft is not ready to publish: check title',
+    })
     expect(count(`cms_drafts where id = '${entry}'`)).toBe(1)
   })
 
@@ -883,11 +908,12 @@ describe('what comes due', () => {
     expect(await due('2026-07-02T00:00:00.000Z')).toEqual([
       { entry: 'e9', error: 'The application refused' },
     ])
-    // Nothing of the failed publish is left, and the entry reads overdue, with why.
+    // Nothing of the failed publish is left, and the entry reads overdue. The handler's
+    // words were the host's to read (the outcome above): an author reads that it failed.
     expect(rows('select count(*) as n from posts')).toEqual([{ n: before }])
     expect((await as(ada).read('CmsEntry', ['e9'], ['state']))['CmsEntry:e9']!['state']).toEqual({
       _tag: 'New',
-      schedule: { at: soon, overdue: true, error: 'The application refused' },
+      schedule: { at: soon, overdue: true, error: 'Internal error' },
     })
     expect(await due('2026-07-02T00:01:00.000Z')).toEqual([])
 
@@ -919,12 +945,32 @@ describe('what comes due', () => {
       { entry: 'e3', error: 'Whoever scheduled this is no longer an author' },
     ])
     expect(rows(`select id from cms_revisions where entry_id = 'e3'`)).toEqual([])
+    // A denial is written for a reader: the draft keeps it as it is.
+    expect(rows(`select schedule_error from cms_drafts where id = 'e3'`)).toEqual([
+      { schedule_error: 'Whoever scheduled this is no longer an author' },
+    ])
+  })
+
+  it('keeps a driver’s words for the host, and off the draft authors read', async () => {
+    const { as, rows, due, sqlite } = open()
+    await as(ada).mutate('CmsSchedule', { entry: 'e3', at: soon })
+    sqlite.exec(
+      "create trigger keep before insert on posts begin select raise(abort, 'kept in posts'); end",
+    )
+    const [outcome] = await due('2026-07-02T00:00:00.000Z')
+    expect(outcome).toMatchObject({ entry: 'e3', error: expect.stringContaining('posts') })
+    expect(rows(`select schedule_error from cms_drafts where id = 'e3'`)).toEqual([
+      { schedule_error: 'Internal error' },
+    ])
+    expect(JSON.stringify(await as(ada).read('CmsEntry', ['e3'], ['state']))).not.toMatch(
+      /posts|insert|Failed query/,
+    )
   })
 })
 
 describe('a statement the database refuses', () => {
   it('fails as a server error that says nothing of the SQL', async () => {
-    const { as, sqlite } = open()
+    const { as, sqlite, reported } = open()
     // Reads still work; the delete a discard makes is refused.
     sqlite.exec(
       "create trigger keep before delete on cms_drafts begin select raise(abort, 'kept in cms_drafts'); end",
@@ -932,9 +978,50 @@ describe('a statement the database refuses', () => {
     const failed = as(ada).mutate('CmsDiscardDraft', { entry: 'e3' })
     await expect(failed).rejects.toMatchObject({
       _tag: 'RemoteMutationError',
-      message: 'Database write failed',
+      message: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
     })
-    await failed.catch(error => expect(JSON.stringify(error)).not.toContain('cms_drafts'))
+    await failed.catch(error => expect(JSON.stringify(error)).not.toMatch(/cms_drafts|Database/))
+    // What failed, and the driver's own words of it, are in the report.
+    expect(reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: 'mutate CmsDiscardDraft',
+        message: expect.stringMatching(/Database write failed[^]*kept in cms_drafts/),
+      }),
+    )
+  })
+
+  it('sends nothing of the driver in the encoded answer, and reports it under the incident sent', async () => {
+    const { answered, sqlite, reported } = open()
+    sqlite.exec(
+      "create trigger keep before delete on cms_drafts begin select raise(abort, 'canary_secret'); end",
+    )
+    const answer = await answered('CmsDiscardDraft', { entry: 'e3' })
+    expect(answer.status).toBe(500)
+    expect(answer.body).toStrictEqual({
+      error: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
+    expect(JSON.stringify(answer)).not.toMatch(/canary|cms_drafts|delete |Database/i)
+    const { incident } = Schema.decodeUnknownSync(Schema.Struct({ incident: Schema.String }))(
+      answer.body,
+    )
+    expect(reported.filter(report => report._tag === 'ServerDefect')).toEqual([
+      expect.objectContaining({
+        incident,
+        during: 'mutate CmsDiscardDraft',
+        message: expect.stringContaining('canary_secret'),
+      }),
+    ])
+  })
+
+  it('sends what the CMS wrote for the author as it is, with no incident', async () => {
+    const { answered, reported } = open()
+    const answer = await answered('CmsDiscardDraft', { entry: 'nope' })
+    expect(answer.status).toBe(500)
+    expect(answer.body).toStrictEqual({ error: 'There is no such entry' })
+    expect(reported).toEqual([])
   })
 })
 

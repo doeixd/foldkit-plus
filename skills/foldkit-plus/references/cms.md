@@ -293,7 +293,9 @@ RemoteServer.make({
 - `CmsSchedule { entry, at }` promises a draft that would publish now; nothing runs
   until the host calls `cms.due(new Date(), { as: name => principal })` (cron, interval,
   queue: the package owns no timer). A failed one stays scheduled with its error
-  (state reads overdue) and is not retried until the draft changes.
+  (state reads overdue) and is not retried until the draft changes. The entry shows a
+  reason written for a reader, else `Internal error`; `due`'s own `error` is the
+  failure's words, for the host.
 - Seeding or migrating: `cms.import({ type, values, as, at?, entry? })` (an Effect needing the
   database) publishes content that exists already by the publish path (your `create` writes the
   row; entry and revision 1 follow), in one transaction. Never insert into the CMS tables by hand.
@@ -304,7 +306,10 @@ RemoteServer.make({
 - A scheduled draft is published as its scheduler, so saving, restoring or
   discarding it is refused to an author `transitions` or `allow` would not let `schedule`.
 - A statement the database refuses fails the operation as a `RemoteServerError`
-  (`Database write failed`), its SQL logged, never sent; a `Transaction` may fail so.
+  (`Database write failed`), which the author reads as `Internal error` with an incident;
+  its SQL is reported, never sent; a `Transaction` may fail so. The CMS's own refusals
+  (`There is no such entry`, `This draft is not ready to publish: check title`) are told
+  with `RemoteServer.tell`; a handler of yours tells the author the same way.
 - Every operation is one `transaction`; `Transaction.statements` serialises them
   on the connection. Wrap your own writes on that connection in it too.
 - `CmsArchive` also hides the row of a type with a `published` role; `CmsUnarchive`

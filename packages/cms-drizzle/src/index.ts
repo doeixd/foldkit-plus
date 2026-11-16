@@ -24,7 +24,7 @@ import {
   type AnyColumn,
   type SQL,
 } from 'drizzle-orm'
-import { Effect, Exit, Option, Schema, Semaphore } from 'effect'
+import { Effect, Exit, Match, Option, Schema, SchemaIssue, Semaphore } from 'effect'
 import { Cms, type Content, type Facts, type Transition } from 'foldkit-cms'
 import { Entity, type AnyEntity } from 'foldkit-entity'
 import { Guards, type Policy, type PrincipalGuard } from 'foldkit-guard'
@@ -218,7 +218,28 @@ export interface ImportItem<P> {
   readonly entry?: string | undefined
 }
 
-const refuse = (message: string) => new RemoteServerError({ message })
+/** What an author reads of a scheduled publish that failed on this side: what any caller reads of one. */
+const SCHEDULE_FAILED = 'Internal error'
+
+const issuesOf = SchemaIssue.makeFormatterStandardSchemaV1()
+
+/**
+ * Why a draft cannot be published, for its author: the fields the publish
+ * mutation would not take, by name. The Schema's own message stays here: it
+ * quotes values, and whatever a check's author wrote of them.
+ */
+const notReady = (error: Schema.SchemaError): string => {
+  const fields = new Set(
+    issuesOf(error.issue).issues.flatMap(({ path }) => {
+      const first = path?.[0]
+      const key = typeof first === 'object' ? first.key : first
+      return typeof key === 'string' ? [key] : []
+    }),
+  )
+  return fields.size === 0
+    ? 'This draft is not ready to publish'
+    : `This draft is not ready to publish: check ${[...fields].join(', ')}`
+}
 
 /**
  * Whether a unique index on this column refused a write. Drivers say so in their
@@ -604,18 +625,26 @@ export const CmsServer = {
 
     const SaveDraft = operation(Cms.Operations.SaveDraft, ({ input, principal }) =>
       Effect.gen(function* () {
+        // Each `tell` in an operation is read as written: `operation` let only an author this
+        // far, and each says only what that author sent, or the type and state of the entry
+        // they asked to change.
         if (!byType.has(input.type))
-          return yield* refuse(`"${input.type}" is not a type of content this server knows`)
+          return yield* RemoteServer.tell(
+            `"${input.type}" is not a type of content this server knows`,
+          )
         const size = JSON.stringify([input.values, input.model]).length
         if (size > maxDraftSize)
-          return yield* refuse(
+          return yield* RemoteServer.tell(
             `This draft is too large to save: ${size} characters, and ${maxDraftSize} is the most`,
           )
         // An id nobody has is something new: the client named it, and this makes it.
         const existing = yield* findEntry(input.entry)
         if (existing !== undefined && existing.type !== input.type)
-          return yield* refuse(`This entry is of "${existing.type}", not "${input.type}"`)
-        if (existing?.archivedAt != null) return yield* refuse('An archived entry takes no draft')
+          return yield* RemoteServer.tell(
+            `This entry is of "${existing.type}", not "${input.type}"`,
+          )
+        if (existing?.archivedAt != null)
+          return yield* RemoteServer.tell('An archived entry takes no draft')
         yield* asking(principal, 'save', existing)
         if (existing !== undefined) yield* promised(principal, existing)
 
@@ -713,7 +742,7 @@ export const CmsServer = {
     const DiscardDraft = operation(Cms.Operations.DiscardDraft, ({ input, principal }) =>
       Effect.gen(function* () {
         const entry = yield* findEntry(input.entry)
-        if (entry === undefined) return yield* refuse('There is no such entry')
+        if (entry === undefined) return yield* RemoteServer.tell('There is no such entry')
         yield* asking(principal, 'discard', entry)
         yield* promised(principal, entry)
         const database = yield* drizzleWrites
@@ -746,13 +775,15 @@ export const CmsServer = {
     const offering = (id: string, transition: Exclude<Transition, 'save' | 'discard'>) =>
       Effect.gen(function* () {
         const entry = yield* findEntry(id)
-        if (entry === undefined) return yield* refuse('There is no such entry')
+        if (entry === undefined) return yield* RemoteServer.tell('There is no such entry')
         const served = byType.get(entry.type)
         if (served === undefined)
-          return yield* refuse(`"${entry.type}" is not a type of content this server knows`)
+          return yield* RemoteServer.tell(
+            `"${entry.type}" is not a type of content this server knows`,
+          )
         const facts = (yield* factsOf([entry])).get(entry.id)!
         if (!Cms.offers(facts, now(), served.type).includes(transition))
-          return yield* refuse(`This entry cannot be ${done[transition]} as it stands`)
+          return yield* RemoteServer.tell(`This entry cannot be ${done[transition]} as it stands`)
         return { entry, served, facts }
       })
 
@@ -779,7 +810,7 @@ export const CmsServer = {
             ? draft?.values
             : { ...draft.values, id: entry.targetId }
         const decoded = yield* Schema.decodeUnknownEffect(handler.Input)(value).pipe(
-          Effect.mapError(error => refuse(`This draft is not ready to publish: ${String(error)}`)),
+          Effect.mapError(error => RemoteServer.tell(notReady(error))),
         )
         return { draft, creating, handler, decoded }
       })
@@ -967,7 +998,7 @@ export const CmsServer = {
         const found = yield* offering(input.entry, 'schedule')
         yield* asking(principal, 'schedule', found.entry)
         if (Number.isNaN(new Date(input.at).getTime()))
-          return yield* refuse(`"${input.at}" is not a time`)
+          return yield* RemoteServer.tell(`"${input.at}" is not a time`)
         // What cannot be published now is not promised for later.
         yield* readied(found)
         return yield* drafted(found.entry.id, {
@@ -1068,7 +1099,7 @@ export const CmsServer = {
           'Database query failed',
         )
         if (revision === undefined)
-          return yield* refuse(`This entry has no revision ${input.revision}`)
+          return yield* RemoteServer.tell(`This entry has no revision ${input.revision}`)
 
         const writes = yield* drizzleWrites
         const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, entry.id)
@@ -1111,11 +1142,29 @@ export const CmsServer = {
     )
 
     /**
+     * A failed scheduled publish as authors read it on the entry: the reason where
+     * it was written for a reader (a denial, a refusal, `RemoteServer.tell`), and
+     * of any other failure only that there was one, as a caller of the publish
+     * operation itself would read it.
+     */
+    const shownOf = (
+      failure: RemoteServerError | MutationRefused | RemoteForbidden | RemoteUnauthenticated,
+    ): string =>
+      Match.valueTags(failure, {
+        RemoteServerError: ({ told, message }) => (told === true ? message : SCHEDULE_FAILED),
+        MutationRefused: ({ message }) => message,
+        Forbidden: ({ message }) => message,
+        Unauthenticated: ({ message }) => message,
+      })
+
+    /**
      * Publishes every draft whose time has come, each in its own transaction, as
      * whoever scheduled it: `as` says who a stored name is. One that fails stays
      * scheduled with the reason, and is left alone until its draft changes, so a
-     * fault the author must fix is not tried again every minute. The package owns
-     * no timer: a cron trigger, an interval or a queue calls this.
+     * fault the author must fix is not tried again every minute. An outcome's
+     * `error` is the failure in its own words, for the host that called this;
+     * the draft keeps `shownOf` it, which authors read. The package owns no
+     * timer: a cron trigger, an interval or a queue calls this.
      */
     const due = (at: Date, options: { readonly as: (scheduledBy: string | null) => P }) =>
       Effect.gen(function* () {
@@ -1140,7 +1189,7 @@ export const CmsServer = {
         for (const draft of waiting) {
           const id = String(draft.id)
           const principal = options.as((draft.scheduledBy as string | null) ?? null)
-          const error = yield* config
+          const failed = yield* config
             .transaction(
               Effect.gen(function* () {
                 if (!(yield* isAuthor(principal, 'Update')))
@@ -1148,16 +1197,25 @@ export const CmsServer = {
                 const found = yield* offering(id, 'publish')
                 yield* asking(principal, 'publish', found.entry)
                 yield* publishing(found, principal, found.entry.revision)
-                return null
+                return Option.none<{ readonly own: string; readonly shown: string }>()
               }),
             )
             .pipe(
-              Effect.catch(failure => Effect.succeed(failure.message)),
-              Effect.catchDefect(defect => Effect.succeed(String(defect))),
+              Effect.catch(failure =>
+                Effect.succeed(Option.some({ own: failure.message, shown: shownOf(failure) })),
+              ),
+              // A defect's words are a driver's or a bug's: the host's, never an author's.
+              Effect.catchDefect(defect =>
+                Effect.succeed(Option.some({ own: String(defect), shown: SCHEDULE_FAILED })),
+              ),
             )
           // Recorded after the failed publish was undone, or it would be undone with it.
-          if (error !== null) yield* config.transaction(drafted(id, { scheduleError: error }))
-          outcomes.push({ entry: id, error })
+          if (Option.isSome(failed))
+            yield* config.transaction(drafted(id, { scheduleError: failed.value.shown }))
+          outcomes.push({
+            entry: id,
+            error: Option.getOrNull(Option.map(failed, ({ own }) => own)),
+          })
         }
         return outcomes
       })
@@ -1175,7 +1233,9 @@ export const CmsServer = {
         Effect.gen(function* () {
           const served = byType.get(item.type)
           if (served === undefined)
-            return yield* refuse(`"${item.type}" is not a type of content this server knows`)
+            return yield* RemoteServer.tell(
+              `"${item.type}" is not a type of content this server knows`,
+            )
           const writes = yield* drizzleWrites
           const id = item.entry ?? Cms.newEntryId()
           const at = item.at ?? now()
