@@ -28,6 +28,8 @@ export interface Live<Message> {
   readonly direction: 'ltr' | 'rtl'
   readonly widgets: Widgets.Model
   readonly onWidget: (message: Widgets.Message) => Message
+  /** Whether the browser's code has taken the page over: what a server could not draw waits for it. */
+  readonly ready: boolean
   readonly h: HtmlBuilder<Message>
 }
 

@@ -7200,15 +7200,21 @@ export const ACCENTS: ReadonlyArray<ColorPicker.ColorPickerPreset> = [
   { label: 'Glass', value: ColorPicker.color('#3b82f680') },
 ]
 
-/** The color, its format and the text being typed are the picker's Model, folded with `update`. */
+/**
+ * The color, its format and the text being typed are the picker's Model, folded with `update`.
+ * `eyedropper` is whether to draw the eyedropper button: it defaults to what the browser has, which
+ * a server rendering the page cannot know, so a page that is served first passes false until its
+ * code has taken it over.
+ */
 export const colorPicker = <Message>(
   style: NamedStyle<typeof ColorPickerSlots>,
   model: ColorPicker.Model,
   onMessage: (message: ColorPicker.Message) => Message,
+  eyedropper: boolean,
   h: HtmlBuilder<Message>,
 ): Html =>
   ColorPicker.view(
-    { model, onMessage, label: 'Accent', presets: ACCENTS, style, slider: ChannelStyle },
+    { model, onMessage, label: 'Accent', presets: ACCENTS, style, slider: ChannelStyle, eyedropper },
     h,
   )
 // #endregion
@@ -7226,11 +7232,13 @@ export const colorPickerPopover = <Message>(
   state: { readonly picker: ColorPicker.Model; readonly popover: UiPopover.Model },
   onMessage: (message: ColorPicker.Message) => Message,
   onPopover: (message: UiPopover.Message) => Message,
+  eyedropper: boolean,
   h: HtmlBuilder<Message>,
 ): Html =>
   ColorPicker.popover(
     {
       model: state.picker,
+      eyedropper,
       onMessage,
       popover: state.popover,
       onPopover,

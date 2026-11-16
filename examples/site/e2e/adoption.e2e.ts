@@ -67,7 +67,17 @@ const recordServed = (page: Page) =>
     })
   })
 
-const PAGES = ['/', '/remote', '/components/button', '/components/otp-field']
+const PAGES = [
+  '/',
+  '/remote',
+  '/mixins/guides/authoring',
+  '/entity/api/entity/query',
+  '/components',
+  '/components/button',
+  '/components/otp-field',
+  '/create',
+  '/404.html',
+]
 
 const open = async (path: string) => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
@@ -100,7 +110,11 @@ const open = async (path: string) => {
   return { page, errors }
 }
 
-test.each(PAGES)(
+// The gallery and the theme creator draw things only the running page settles (a virtual list's
+// rows, a menu held open), so what they keep is counted by the adoption test below.
+const SETTLED = PAGES.filter(path => path !== '/components' && path !== '/create')
+
+test.each(SETTLED)(
   'the served page %s keeps its markup and its structure when the browser takes it over',
   async path => {
     const { page, errors } = await open(path)
@@ -116,7 +130,7 @@ test.each(PAGES)(
             element => `${element.tagName}.${element.getAttribute('class') ?? ''}`,
           )
     })
-    expect(served.length).toBeGreaterThan(50)
+    expect(served.length).toBeGreaterThan(30)
     // The same elements, in the same order, with the same classes: what the server drew is what shows.
     expect(now).toEqual(served)
     expect(errors).toEqual([])
@@ -142,3 +156,43 @@ test.each(PAGES)(
   },
   120_000,
 )
+
+// A press on a preview before the second application has taken the page over is heard by nothing:
+// the served markup carries no handler. The previews are held inert and busy until the takeover
+// (`view/components.ts`), so a control never looks live and does nothing.
+test('a preview is busy and cannot be pressed until the gallery application has loaded, then it works', async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  let release: () => void = () => undefined
+  const held = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await page.route(/\/assets\/entryGallery[^/]*\.js$/, async route => {
+    await held
+    await route.continue()
+  })
+  try {
+    await page.goto(`${url}/components/switch`, { waitUntil: 'domcontentloaded' })
+    const preview = page.locator('[data-size="page"]').first()
+    await preview.waitFor()
+    const control = preview.locator('[role="switch"]').first()
+    expect(await preview.getAttribute('aria-busy')).toBe('true')
+    expect(await preview.getAttribute('inert')).toBe('')
+    const before = await control.getAttribute('aria-checked')
+    const box = await control.boundingBox()
+    expect(box).not.toBeNull()
+    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+    expect(await control.getAttribute('aria-checked')).toBe(before)
+    release()
+    await expect
+      .poll(() => preview.getAttribute('aria-busy'), { timeout: 60_000 })
+      .toBeNull()
+    expect(await preview.getAttribute('inert')).toBeNull()
+    await control.click()
+    await expect
+      .poll(() => control.getAttribute('aria-checked'), { timeout: 30_000 })
+      .not.toBe(before)
+  } finally {
+    release()
+    await page.close()
+  }
+}, 120_000)

@@ -34,6 +34,7 @@ export const liveOf = (model: Model, h: H): Live<Message> => ({
   direction: model.direction,
   widgets: model.widgets,
   onWidget: message => Message.GotWidget({ message }),
+  ready: model.addressRead,
   h,
 })
 
@@ -56,6 +57,12 @@ export const preview = (
       // A thumbnail only shows: the card's link takes the click, and nothing
       // in it is reached by Tab.
       ...(size === 'thumb' ? [h.Attribute('inert', '')] : []),
+      // Until the browser has taken the page over (its first Command answers),
+      // the served markup has no handler: a press would do nothing, so the
+      // controls are held out of reach and the frame says it is not ready.
+      ...(size !== 'thumb' && !model.addressRead
+        ? [h.Attribute('inert', ''), h.AriaBusy(true)]
+        : []),
     ]),
     children,
   )

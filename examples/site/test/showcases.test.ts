@@ -24,6 +24,7 @@ const live: Live<string> = {
   direction: 'ltr',
   widgets: Widgets.initial,
   onWidget: message => message._tag,
+  ready: true,
   h: SlotView.inertBuilder<string>(),
 }
 

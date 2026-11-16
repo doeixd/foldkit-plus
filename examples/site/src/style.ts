@@ -952,6 +952,8 @@ export const SiteStyle = slots(
         containerType: 'inline-size',
       },
       Style.nest('> *', { '--fk-fluid-progress': Theme.containerFluidProgress() }),
+      // Served, before the page's code has taken it over: not yet pressable.
+      Style.nest('&[aria-busy="true"]', { opacity: '0.6', cursor: 'progress' }),
       // A gallery card's: smaller, and nothing in it takes a click or focus.
       Style.nest('&[data-size="thumb"]', {
         minBlockSize: '11rem',
