@@ -13,6 +13,7 @@ import {
   toPromise,
   Transport,
   TransportSocket,
+  UnreadableHistoryError,
   type SocketLike,
 } from '../src/index.js'
 import { socketPair } from './sockets.js'
@@ -385,6 +386,42 @@ describe('the socket transport', () => {
     })
     expect(failed._tag === 'Failure' ? failed.failure.incident : 'answered').toBeUndefined()
     expect(collected.reported).toEqual([])
+  })
+
+  it('sends the sentence for a history no build reads, and reports whose operation it was', async () => {
+    const { client, server } = socketPair()
+    const collected = Diagnostics.collect()
+    const frames: Array<string> = []
+    client.onMessage(data => frames.push(data))
+    serveSocket(server, {
+      diagnostics: collected.report,
+      exchange: () => {
+        throw new UnreadableHistoryError({
+          documentId: 'note',
+          opId: 'SECRET-CANARY-replica:1',
+          version: 1,
+          message: 'This server cannot read the history of this document',
+        })
+      },
+    })
+
+    const failed = await Effect.runPromise(withSocket(client))
+    expect(failed).toMatchObject({
+      _tag: 'Failure',
+      failure: {
+        message: 'This server cannot read the history of this document',
+        incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+      },
+    })
+    // Another replica's operation id is the server's to know.
+    expect(frames.join(' ')).not.toContain('SECRET-CANARY')
+    expect(collected.reported).toEqual([
+      expect.objectContaining({
+        _tag: 'ExchangeDefect',
+        incident: failed._tag === 'Failure' ? failed.failure.incident : undefined,
+        thrown: expect.objectContaining({ opId: 'SECRET-CANARY-replica:1' }),
+      }),
+    ])
   })
 
   it('answers the replica though the reporter itself fails', async () => {

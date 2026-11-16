@@ -155,6 +155,9 @@ const resultOf = (reply: { result?: unknown; error?: string }): ExchangeResult =
   return reply.result as ExchangeResult
 }
 
+/** What an upgrade this side broke on is answered: no more than this. */
+const INTERNAL = { error: 'Internal error', incident: expect.stringMatching(/^[0-9a-f]{16}$/) }
+
 describe('defineDocumentHost', () => {
   it('answers a non-upgrade with a 404 without opening the journal', async () => {
     const { Host, opens } = host()
@@ -180,7 +183,7 @@ describe('defineDocumentHost', () => {
       new Request('http://host/sync', { headers: { Upgrade: 'websocket' } }),
     )
     expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({ error: 'Internal error' })
+    expect(await response.json()).toEqual(INTERNAL)
     expect(resolved).toBe(0)
   })
 
@@ -247,7 +250,7 @@ describe('defineDocumentHost', () => {
 
   it.each([
     [
-      'a refused principal with a 401 carrying its message',
+      'a refused principal with a 401 carrying its reason',
       Effect.fail(new RemoteUnauthenticated({ message: 'bad token', reason: 'bad token' })),
       401,
       { error: 'bad token' },
@@ -256,14 +259,9 @@ describe('defineDocumentHost', () => {
       'a resolver that breaks with a 500 that says nothing of it',
       Effect.die(new Error('the session store password')),
       500,
-      { error: 'Internal error' },
+      INTERNAL,
     ],
-    [
-      'a resolver that throws as one that breaks',
-      'throws' as const,
-      500,
-      { error: 'Internal error' },
-    ],
+    ['a resolver that throws as one that breaks', 'throws' as const, 500, INTERNAL],
   ])('answers %s, opening nothing', async (_, resolved, status, answer) => {
     const { Host, opens } = host({
       resolvePrincipal: () => {
@@ -294,7 +292,7 @@ describe('defineDocumentHost', () => {
       new Request('http://host/sync', { headers: { Upgrade: 'websocket' } }),
     )
     expect(failed.status).toBe(500)
-    expect(await failed.json()).toEqual({ error: 'Internal error' })
+    expect(await failed.json()).toEqual(INTERNAL)
     const { response } = await upgrade(served.fetch.bind(served), pairs, 'ada')
     expect(response.status).toBe(101)
     expect(attempts).toBe(2)
@@ -354,7 +352,9 @@ describe('defineDocumentHost, asking who a socket serves again', () => {
         asked += 1
         const principal = sessions.get(request.headers.get('x-actor') ?? '')
         return principal === undefined
-          ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
+          ? Effect.fail(
+              new RemoteUnauthenticated({ message: 'Session revoked', reason: 'Session revoked' }),
+            )
           : Effect.succeed(principal)
       },
       revalidate: { every: '10 millis', key: principal => principal },
@@ -447,7 +447,12 @@ describe("defineDocumentHost, the resolver's layer", () => {
           return {
             who: (token: string) =>
               revoked.has(token)
-                ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
+                ? Effect.fail(
+                    new RemoteUnauthenticated({
+                      message: 'Session revoked',
+                      reason: 'Session revoked',
+                    }),
+                  )
                 : Effect.succeed(token),
           }
         }),
@@ -519,7 +524,7 @@ describe("defineDocumentHost, the resolver's layer", () => {
         new Request('http://host/sync', { headers: { Upgrade: 'websocket', 'x-actor': 'ada' } }),
       )
       expect(response.status).toBe(500)
-      expect(await response.json()).toEqual({ error: 'Internal error' })
+      expect(await response.json()).toEqual(INTERNAL)
       await settledOn(() => log.length === released.length)
       await new Promise(resolve => setTimeout(resolve, 10))
       expect(log).toEqual(released)
@@ -578,7 +583,7 @@ describe('documentHost, for a runtime of its own', () => {
       resolvePrincipal: request => {
         const principal = sessions.get(request.headers.get('x-actor') ?? '')
         return principal === undefined
-          ? Effect.fail(new RemoteUnauthenticated({ message: 'Sign in.' }))
+          ? Effect.fail(new RemoteUnauthenticated({ message: 'Sign in.', reason: 'Sign in.' }))
           : Effect.succeed(principal)
       },
       revalidate: { every: '10 millis' },

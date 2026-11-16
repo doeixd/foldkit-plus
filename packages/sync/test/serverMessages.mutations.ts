@@ -457,6 +457,14 @@ export default [
     ],
     tests: hosts,
   },
+  // Why a run was parked is the operator's to read (#576).
+  {
+    name: 'a parked run forgets why it failed',
+    edits: [
+      { file: server, find: '          error: failure.reason,', replace: "          error: ''," },
+    ],
+    tests,
+  },
   {
     name: 'a pass that broke leaves the alarm unset',
     edits: [

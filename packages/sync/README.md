@@ -338,19 +338,28 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   [the durable D1 guide](../durable/README.md#on-cloudflare-d1-d1-true)), or
   the object's SQLite storage through `ctx`.
 - Each upgrade resolves its own principal, an Effect that refuses the caller
-  by failing with a `RemoteUnauthenticated` (`RemoteServer.unauthenticated()`
-  makes one): a 401 carrying its message. Non-upgrades are 404s that open
-  nothing. A resolver that breaks, a `layer` that fails to build, or a
-  journal that never opened, is a 500 that says nothing of it to the caller;
-  the cause is reported as a `HostDefect` (see [Diagnostics](#diagnostics)).
+  by failing with a `RemoteUnauthenticated`
+  (`RemoteServer.unauthenticated(reason?)` makes one): a 401 that says
+  `Unauthenticated`, or the refusal's `reason`, the words written for the
+  caller, when it has one. Its `message` is never sent. Non-upgrades are 404s
+  that open nothing. A resolver that breaks (it dies, throws, or fails with
+  anything but a `RemoteUnauthenticated`), a `layer` that fails to build, or
+  a journal that never opened, is a 500 that says `Internal error` and an
+  `incident`, and nothing of the cause, which is reported as a `HostDefect`
+  under that incident (see [Diagnostics](#diagnostics)). A session store that
+  is down is no refusal: let it die (`Effect.orDie`), so the caller is not
+  told to sign in again.
 - A resolver that reads a service (a session store) takes it from
   `layer: env => Layer`, required exactly when the resolver needs one. It is
   built per upgrade and kept until the socket closes, so `revalidate` reads
   an open store; a refused upgrade closes it at once.
 - `revalidate: { every, key? }` asks the resolver again, of the upgrade
-  request, while the socket is open: a refusal closes it with 4401, and a
-  principal whose `key` (`Policy.keyOf`) changed with 1012, which the
-  replica reconnects after. Without it a socket serves its first principal until it closes.
+  request, while the socket is open: a refusal closes it with 4401 and the
+  reason `Unauthenticated`, or the refusal's `reason` when it has one (cut to
+  the 123 bytes a close reason carries), and a principal whose `key`
+  (`Policy.keyOf`) changed with 1012, which the replica reconnects after. A
+  resolver that breaks closes it with 1011 `Internal error`. Without it a
+  socket serves its first principal until it closes.
 - `server: { principal, reactions: env => [...], runsPerPass? }` gives the
   object its [reactions](#work-after-a-commit-reactions): registered when the
   journal opens, before any socket is served; the alarm set before the reply
@@ -930,7 +939,10 @@ commit -> react: read after the stored cursor -> run (answer recorded)
   `attempts` times (8) *and* for at least `parkAfter` (an hour), so an outage
   parks nothing. The journal itself failing counts toward neither. A parked
   run is reported as `ReactionParked` and set aside with its trigger; the
-  reaction goes on. `parked` lists them, `retry` runs one again out of order
+  reaction goes on. Why it failed, on `parked`'s `error` and the report's
+  `cause`, is the failure's own text (a provider's, a driver's), kept beside
+  the journal for whoever runs the server: no exchange sends it, and a page
+  for the document's readers should not show it. `parked` lists them, `retry` runs one again out of order
   (a recorded answer is reused, so no second call), and `dismiss` gives one
   up. After a `reset` a parked run is `stale`: it can be dismissed, not
   retried.
@@ -1085,8 +1097,9 @@ When something will not read:
   or load that rebuilds the document from that snapshot. A replica past the
   row is served, and other documents are not affected. Only a build with a
   step that reads it recovers it. The replica is told only "This server
-  cannot read the history of this document"; the operation's id and
-  version stay on the error, for the server's logs.
+  cannot read the history of this document" and an incident; the
+  operation's id and version stay on the error, which a served socket
+  reports as an `ExchangeDefect` under that incident.
 - **A newer version** (a rollback, or an old client): the replica refuses to
   open on one in its outbox (`UnsupportedMessageVersionError`, nothing
   removed), and an exchange that receives one fails with it, recorded in
@@ -1323,7 +1336,7 @@ Effect's log: the console in a browser, `wrangler tail` on a Worker.
 | `ExchangeFailed` | `warning` | An exchange failed; it is in `status.lastError` and retried on a backoff. Carries the `error`. |
 | `ExchangeDefect` | `error` | On the server: an exchange `Sync.transport.serve` answered threw something not written for the replica (a journal's failure, a driver's words). The replica was answered `Exchange failed` and the `incident` this carries, with `thrown`. |
 | `HistoryRebuilt` | `warning` | The server answered from another epoch, so the committed state was rebuilt from it (the outbox is kept). |
-| `HostDefect` | `error` | A document host broke on its side, at a `stage`: `Upgrade` (the socket pair), `Resolve` (the `layer` or resolver), `Journal`, `Exchange` (`opens` or `settle` threw) answer a 500; `Revalidate` closes the socket with 1011; `Notice` (`opens` failed before a commit notice) sends none; `Changes` (the journal's stream of commits broke) sends no more. Carries the `cause`, which the replica is never told. |
+| `HostDefect` | `error` | A document host broke on its side, at a `stage`: `Upgrade` (the socket pair), `Resolve` (the `layer` or resolver), `Journal`, `Exchange` (`opens` or `settle` threw) answer a 500 with an `incident`, which the report carries too; `Revalidate` closes the socket with 1011; `Notice` (`opens` failed before a commit notice) sends none; `Changes` (the journal's stream of commits broke) sends no more. Carries the `cause`, which the replica is never told. |
 | `ListenerFailed` | `error` | A listener the application gave threw: a presence subscriber, a listener on the socket transport's shared `socket`, or `journalChanges`' listener (`Notice`, called again on the next commit). The others still ran. |
 
 A replica reports to the reporter in the Effect context it runs in:
@@ -1461,8 +1474,20 @@ which the replica drops. Words meant for the replica are thrown as a
 journal's own are `This connection may not open the document`, a cursor ahead
 of the server's, and a pending entry that names no operation; a replica newer
 than the server (`UnsupportedMessageVersionError`) is told so the same way. A
+stored operation no build reads (`UnreadableHistoryError`) is both: reported
+under an incident, and answered with the journal's one sentence for it. A
 replica older than this change reads the frame as before: `error` is still a
 string, and `incident` a field it ignores.
+
+**When the host cannot say who is asking.** A caller the resolver refuses
+reads the refusal's `reason`, or `Unauthenticated`: a 401 at the upgrade, a
+4401 close on an open socket. A resolver that breaks answers a 500
+`Internal error` with an incident, or closes with 1011; the cause is a
+`HostDefect`. The socket transport reads neither a refused upgrade's body
+nor a close's code: to the replica each is a connection that closed, so it
+reconnects on its backoff, shows `transport closed` in `status.lastError`
+once the retries are spent, and keeps its outbox until a socket opens.
+Nothing here signs anyone out.
 
 ### Presence
 

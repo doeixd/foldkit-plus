@@ -75,6 +75,8 @@ export interface HostDefect extends Diagnostic {
   readonly _tag: 'HostDefect'
   readonly stage: HostStage
   readonly cause: Cause.Cause<unknown>
+  /** The id an upgrade answered 500 carries, to find this report by; none where nothing was answered. */
+  readonly incident: Option.Option<string>
 }
 
 /**
@@ -292,14 +294,32 @@ const stageText: Record<HostStage, string> = {
   Alarm: 'running the reactions broke, and the alarm was set to run them again later',
 }
 
-export const hostDefect = (stage: HostStage, cause: Cause.Cause<unknown>): HostDefect => ({
+export const hostDefect = (
+  stage: HostStage,
+  cause: Cause.Cause<unknown>,
+  incident: Option.Option<string> = Option.none(),
+): HostDefect => ({
   _tag: 'HostDefect',
   source,
   level: 'error',
-  message: `a document host broke: ${stageText[stage]}\n${Cause.pretty(cause)}`,
+  message: `${Option.match(incident, {
+    onNone: () => '',
+    onSome: id => `incident ${id}: `,
+  })}a document host broke: ${stageText[stage]}\n${Cause.pretty(cause)}`,
   stage,
   cause,
+  incident,
 })
+
+/**
+ * 64 random bits as hex, short enough to quote: the id a caller is answered
+ * with in place of what broke, and the report of it is found by. Sync mints
+ * its own, as `foldkit-remote-server` does, since neither depends on the other.
+ */
+export const mintIncident = (): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), byte =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
 
 export const exchangeDefect = (incident: string, thrown: unknown): ExchangeDefect => ({
   _tag: 'ExchangeDefect',
@@ -334,4 +354,20 @@ export const reportTo = (
   return reporter === undefined
     ? reported
     : Effect.provideService(reported, Diagnostics.Reporter, reporter)
+}
+
+/**
+ * The answer to an upgrade this side broke on, before any socket opened: a
+ * 500 that says "Internal error" and the incident `cause` is reported under.
+ */
+export const answerHostDefect = (
+  reporter: ReportDiagnostic | undefined,
+  stage: HostStage,
+  cause: Cause.Cause<unknown>,
+): Effect.Effect<Response> => {
+  const incident = mintIncident()
+  return Effect.as(
+    reportTo(reporter, hostDefect(stage, cause, Option.some(incident))),
+    Response.json({ error: 'Internal error', incident }, { status: 500 }),
+  )
 }

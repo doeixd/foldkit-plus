@@ -40,8 +40,8 @@ export default [
     edits: [
       {
         file,
-        find: 'send({ id: frame.id, error: EXCHANGE_FAILED, incident })',
-        replace: 'send({ id: frame.id, error: String(thrown), incident })',
+        find: 'error: thrown instanceof UnreadableHistoryError ? thrown.message : EXCHANGE_FAILED,',
+        replace: 'error: String(thrown),',
       },
     ],
     tests,
@@ -100,5 +100,29 @@ export default [
       },
     ],
     tests: ['packages/sync/test/prototype/rpcCriteria.test.ts'],
+  },
+  // The journal's sentence for a stored operation no build reads (#576).
+  {
+    name: 'a history no build reads is answered as any other failure',
+    edits: [
+      {
+        file,
+        find: 'error: thrown instanceof UnreadableHistoryError ? thrown.message : EXCHANGE_FAILED,',
+        replace: 'error: EXCHANGE_FAILED,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a history no build reads is sent with no report of whose operation it is',
+    edits: [
+      {
+        file,
+        find: 'if (thrown instanceof ExchangeRefused || thrown instanceof UnsupportedMessageVersionError) {',
+        replace:
+          'if (thrown instanceof ExchangeRefused || thrown instanceof UnsupportedMessageVersionError || thrown instanceof UnreadableHistoryError) {',
+      },
+    ],
+    tests,
   },
 ]

@@ -35,7 +35,7 @@ import {
   type DocumentHostOptionsLayer,
 } from './journal.js'
 import { checkRevalidate } from './revalidate.js'
-import { hostDefect, reportTo } from './diagnostics.js'
+import { answerHostDefect, hostDefect, reportTo } from './diagnostics.js'
 import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync, WrittenOperation } from './sync.js'
 import { workerSocket } from './transport.js'
@@ -109,10 +109,11 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env, RP = never>
   ) => Promise<Journal<Operation, Shared, Principal, WrittenOperation>>
   /**
    * Who is opening this socket, from the upgrade request. Fails with a
-   * `RemoteUnauthenticated` (`foldkit-remote`; `RemoteServer.unauthenticated()`
-   * makes one) to refuse it: a 401 carrying its message. A defect is a 500
-   * that says nothing of it. What it needs (a session store) comes from
-   * `layer`.
+   * `RemoteUnauthenticated` (`foldkit-remote`; `RemoteServer.unauthenticated(reason?)`
+   * makes one) to refuse it: a 401 that says "Unauthenticated", or its
+   * `reason` when it has one, and never its `message`. A defect, or any
+   * other failure, is a 500 that says nothing of it. What it needs (a session
+   * store) comes from `layer`.
    */
   readonly resolvePrincipal: (
     request: Request,
@@ -132,10 +133,12 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env, RP = never>
     | undefined
   /**
    * Asks `resolvePrincipal` again, of the upgrade request, every `every`
-   * while the socket is open: a refusal closes it with 4401, and a principal
-   * whose `key` differs from the one it opened with (`Policy.keyOf`) closes
-   * it with 1012, which the replica reconnects after, as the new principal;
-   * without `key` only a refusal closes it. Without it a socket
+   * while the socket is open: a refusal closes it with 4401 and the reason
+   * "Unauthenticated", or the refusal's `reason` when it has one, and a
+   * principal whose `key` differs from the one it opened with
+   * (`Policy.keyOf`) closes it with 1012, which the replica reconnects
+   * after, as the new principal; without `key` only a refusal closes it. A
+   * resolver that breaks closes it with 1011. Without `revalidate` a socket
    * serves the principal it opened with until it closes, a revoked session
    * included.
    */
@@ -404,15 +407,15 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
         return Response.json({ error: 'not found' }, { status: 404 })
       // The replica learns nothing of it; whoever runs the host must.
-      const broke = async (error: unknown): Promise<Response> => {
+      const broke = (error: unknown): Promise<Response> => {
         const { diagnostics } = config
-        await Effect.runPromise(
-          reportTo(
+        return Effect.runPromise(
+          answerHostDefect(
             diagnostics === undefined ? undefined : diagnostic => diagnostics(diagnostic, request),
-            hostDefect('Upgrade', Cause.die(error)),
+            'Upgrade',
+            Cause.die(error),
           ),
         )
-        return Response.json({ error: 'Internal error' }, { status: 500 })
       }
       // Made first: a runtime without WebSocketPair is a 500 that resolves no one.
       let pair: readonly [client: WebSocket, server: AcceptingWebSocket]

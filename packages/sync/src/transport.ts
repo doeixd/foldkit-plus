@@ -2,8 +2,8 @@ import { Clock, Context, Duration, Effect, Layer, PubSub, Schema, Stream } from 
 import { sequence } from './ids.js'
 import type { TransportClient } from './sync.js'
 import { Diagnostics, type ReportDiagnostic } from 'foldkit-surface'
-import { exchangeDefect, listenerFailed, reportTo } from './diagnostics.js'
-import { UnsupportedMessageVersionError } from './errors.js'
+import { exchangeDefect, listenerFailed, mintIncident, reportTo } from './diagnostics.js'
+import { UnreadableHistoryError, UnsupportedMessageVersionError } from './errors.js'
 
 /** The wire failure of a transport. A refusal is a result, not an error. */
 export class TransportError extends Schema.TaggedError<TransportError>()('SyncTransportError', {
@@ -39,12 +39,6 @@ export interface ExchangeReply {
 
 /** What a replica reads of an exchange that threw on the server's side, whatever was thrown. */
 const EXCHANGE_FAILED = 'Exchange failed'
-
-/** 64 random bits as hex: short enough to quote, as `foldkit-remote-server`'s incidents are. */
-const mintIncident = (): string =>
-  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), byte =>
-    byte.toString(16).padStart(2, '0'),
-  ).join('')
 
 /**
  * Sent by a server, unasked, when the document may have changed. It carries no
@@ -138,7 +132,10 @@ export const toPromise = (transport: TransportShape): TransportClient => ({
  * (`UnsupportedMessageVersionError`), are words for the replica, sent as they
  * are. Anything else thrown is this side's (a journal's failure, a driver's
  * words): it is reported as an `ExchangeDefect`, and the error frame says only
- * "Exchange failed" and the incident it was reported under. With `changes`, a
+ * "Exchange failed" and the incident it was reported under; a stored
+ * operation no build reads (`UnreadableHistoryError`) is reported so too, and
+ * its frame carries the journal's sentence for it, which names no operation.
+ * With `changes`, a
  * subscription to the document's commits, the socket is also sent a
  * `NotifyFrame` after each, so a client hears of others' edits without polling.
  * Returns a function that stops serving.
@@ -208,7 +205,12 @@ export const serveSocket = (
         const incident = mintIncident()
         // `Diagnostics.report` answers a reporter that breaks itself, so this cannot reject.
         await Effect.runPromise(reportTo(options.diagnostics, exchangeDefect(incident, thrown)))
-        send({ id: frame.id, error: EXCHANGE_FAILED, incident })
+        send({
+          id: frame.id,
+          // The journal's own sentence; whose operation it is stays on the report.
+          error: thrown instanceof UnreadableHistoryError ? thrown.message : EXCHANGE_FAILED,
+          incident,
+        })
       }
     })()
   })

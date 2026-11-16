@@ -221,7 +221,12 @@ export interface Parked {
   readonly reaction: string
   readonly opId: string
   readonly sequence: number
-  /** Why, as the last failure said it. */
+  /**
+   * Why, as the last failure said it: a provider's or a driver's own words,
+   * cut to 500 characters, stored beside the journal. For whoever runs the
+   * server; no exchange sends them, and a page for the document's readers
+   * should not either.
+   */
   readonly error: string
   /** Parked in a history since reset: it can be dismissed, not run again. */
   readonly stale: boolean
