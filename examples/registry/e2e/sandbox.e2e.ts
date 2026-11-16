@@ -296,3 +296,66 @@ test('with the keyboard alone, Tab goes through Device A, then Device B, each bu
   expect(seen.slice(0, firstB).every(entry => entry.startsWith('A:'))).toBe(true)
   await page.close()
 })
+
+test('the guide pill covers no control or grid cell, at rest and scrolled to the end, on a desktop and a phone', async () => {
+  // Both devices' pages are frames, so their controls are measured in each frame and placed by its box.
+  const overlaps = async (page: Page) => {
+    const pill = await page.locator('details[data-corner] > summary').boundingBox()
+    if (pill === null) throw new Error('the guide pill is not drawn')
+    const hits: Array<string> = []
+    const targets = 'button, a[href], input, [role="gridcell"]'
+    const boxes = await page.locator(targets).evaluateAll(els =>
+      els.map(el => {
+        const r = el.getBoundingClientRect()
+        return { label: el.tagName.toLowerCase(), x: r.x, y: r.y, w: r.width, h: r.height }
+      }),
+    )
+    for (const device of ['Device A', 'Device B'] as const) {
+      const frame = await page.locator(`iframe[title="${device}"]`).boundingBox()
+      if (frame === null) continue
+      const inner = await pane(page, device)
+        .locator(targets)
+        .evaluateAll(els =>
+          els.map(el => {
+            const r = el.getBoundingClientRect()
+            return { label: el.tagName.toLowerCase(), x: r.x, y: r.y, w: r.width, h: r.height }
+          }),
+        )
+      for (const box of inner)
+        boxes.push({
+          ...box,
+          label: `${device} ${box.label}`,
+          x: box.x + frame.x,
+          y: box.y + frame.y,
+        })
+    }
+    const view = page.viewportSize()
+    if (view === null) throw new Error('no viewport')
+    for (const box of boxes) {
+      // Only what the viewport shows can sit under the pill.
+      if (box.w === 0 || box.h === 0) continue
+      if (box.x >= view.width || box.x + box.w <= 0 || box.y >= view.height || box.y + box.h <= 0)
+        continue
+      const intersects =
+        box.x < pill.x + pill.width &&
+        pill.x < box.x + box.w &&
+        box.y < pill.y + pill.height &&
+        pill.y < box.y + box.h
+      if (intersects) hits.push(box.label)
+    }
+    return hits
+  }
+
+  for (const viewport of [
+    { width: 1280, height: 900 },
+    { width: 390, height: 800 },
+  ]) {
+    const page = await browser.newPage({ viewport })
+    await page.goto(url)
+    await cell(page, 'Device A', 'p000002', 'cents').waitFor({ timeout: 60_000 })
+    expect(await overlaps(page), `at ${viewport.width}x${viewport.height}`).toEqual([])
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+    expect(await overlaps(page), `scrolled, at ${viewport.width}x${viewport.height}`).toEqual([])
+    await page.close()
+  }
+})
