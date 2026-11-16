@@ -660,6 +660,16 @@ export const SiteStyle = slots(
     rowText: [
       { margin: '0', color: t.text.muted, fontSize: '0.9375rem', maxWidth: '40rem' },
       Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
+      // A list here is the Related topics: rows divided by a rule, the link leading each.
+      Style.nest('ul', {
+        display: 'grid',
+        margin: '0',
+        padding: '0',
+        listStyle: 'none',
+        borderBlockStart: rule,
+      }),
+      Style.nest('li', { padding: `${t.space.sm} 0`, borderBlockEnd: rule }),
+      Style.nest('li > a', { display: 'block', fontWeight: t.weight.medium }),
     ],
     packages: { ...mono, margin: '0', color: t.text.subtle },
     package: quiet(t.text.subtle),

@@ -275,4 +275,16 @@ export default [
     ],
     tests: ['examples/site/test/showcases.test.ts'],
   },
+  {
+    name: 'the refused code is not marked invalid',
+    edits: [
+      {
+        file: '../src/snippets/components.ts',
+        find: `value: '482910',
+          invalid: true,`,
+        replace: `value: '482910',`,
+      },
+    ],
+    tests: ['examples/site/test/showcases.test.ts'],
+  },
 ]

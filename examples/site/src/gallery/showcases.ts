@@ -1841,6 +1841,30 @@ export const showcases: ReadonlyArray<Showcase> = [
         code => live.onWidget(Widgets.Message.TypedCode({ code })),
         live.h,
       ),
+    undefined,
+    [
+      {
+        name: 'basic',
+        title: 'Basic',
+        draw: (style, live) =>
+          Snippet.otpField(
+            style,
+            live.widgets.code,
+            code => live.onWidget(Widgets.Message.TypedCode({ code })),
+            live.h,
+          ),
+      },
+      {
+        name: 'states',
+        title: 'Filling, refused, disabled, read only',
+        draw: (style, live) =>
+          Snippet.otpFieldStates(
+            style,
+            code => live.onWidget(Widgets.Message.TypedCode({ code })),
+            live.h,
+          ),
+      },
+    ],
   ),
   fromRecipe(
     {

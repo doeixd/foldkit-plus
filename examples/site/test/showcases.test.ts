@@ -138,4 +138,14 @@ describe('the showcases', () => {
     expect(fieldset).toContain('billing-legend')
     expect(Option.getOrThrow(showcaseOf('typography')).axes).toEqual([])
   })
+
+  it('draw the code field refused, disabled and read only beside the one being filled', () => {
+    const states = Option.getOrThrow(showcaseOf('otp-field')).examples.find(
+      example => example.name === 'states',
+    )
+    const page = markup(states!.render({}, live))
+    expect(page.match(/"aria-invalid":"true"/g)).toHaveLength(1)
+    expect(page.match(/"disabled":true/g)).toHaveLength(1)
+    expect(page.match(/"readOnly":true/g)).toHaveLength(1)
+  })
 })

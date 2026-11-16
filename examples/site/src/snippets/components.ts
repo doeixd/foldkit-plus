@@ -5510,7 +5510,7 @@ export const numberFieldLocale = <Message>(
   )
 // #endregion
 
-// #region otp-field
+// #region otp-field-basic
 export const OtpFieldStyle = forSlots(OtpFieldSlots)(Recipes.OtpField({}))
 
 export const otpField = <Message>(
@@ -5519,6 +5519,49 @@ export const otpField = <Message>(
   onChange: (code: string) => Message,
   h: HtmlBuilder<Message>,
 ): Html => OtpField.view({ label: 'Sign-in code', value: code, onChange, groups: [3, 3], style }, h)
+// #endregion
+
+// #region otp-field-states
+// Empty and filling are the same field at different values; invalid marks a
+// refused code, disabled takes no input, and read-only shows a code that
+// cannot be changed. Each cell mirrors the one real input beneath them.
+export const otpFieldStates = <Message>(
+  style: NamedStyle<typeof OtpFieldSlots>,
+  onChange: (code: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '1rem' })],
+    [
+      OtpField.view({ id: 'otp-filling', label: 'Filling', value: '48', onChange, style }, h),
+      OtpField.view(
+        {
+          id: 'otp-invalid',
+          label: 'Refused code',
+          value: '482910',
+          invalid: true,
+          onChange,
+          style,
+        },
+        h,
+      ),
+      OtpField.view(
+        { id: 'otp-disabled', label: 'Disabled', value: '', disabled: true, onChange, style },
+        h,
+      ),
+      OtpField.view(
+        {
+          id: 'otp-readonly',
+          label: 'Read only',
+          value: '482910',
+          readOnly: true,
+          onChange,
+          style,
+        },
+        h,
+      ),
+    ],
+  )
 // #endregion
 
 // #region resizable-basic
