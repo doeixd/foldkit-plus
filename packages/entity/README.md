@@ -23,6 +23,14 @@ through every reader; this README is the reference for each declaration. For
 the whole path in one runnable trace, domain to client to SQL, see
 [`examples/entity`](../../examples/entity).
 
+| To | Reference, here | Taught in |
+| --- | --- | --- |
+| Declare Entities, relations and derived members, and select what a reader wants | [Relations and derived values](#relations-and-derived-values), [Selecting a view](#selecting-a-view), [variants](#rows-of-several-shapes-variants) | [One domain declaration](../../docs/entity.md) |
+| Say which rows, and judge one you hold | [`Expr`, `Query`, `Judge`](#saying-something-about-a-row-expr) | [Expressions](../../docs/expressions.md) |
+| Read an operation's input and declare what it writes | [Reading an operation's input](#reading-an-operations-input), [Declaring what an input writes](#declaring-what-an-input-writes) | [Declared writes](../../docs/declared-writes.md) |
+| Say what every row must hold, and check every write against it | [Invariants](#what-every-row-and-change-must-hold-invariants), [States and `Laws.check`](#states-of-a-row-and-what-every-write-does-to-them) | [Laws](../../docs/laws.md) |
+| Name a question an interpreter answers its own way | [Operators](#naming-a-question-operators) | [Operators](../../docs/operators.md) |
+
 ## What it owns
 
 `foldkit-entity` owns **domain structure**: which members an entity has, what
