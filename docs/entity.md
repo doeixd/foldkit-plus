@@ -408,6 +408,47 @@ per-field validation and the invariant it marks under `reserved` come from the
 declarations above. [From declarations to the
 screen](./declared-data-to-ui.md) follows a change from here to a drawing.
 
+### 9. Reader: an agent
+
+An agent does not call a declared write. It sends one of the application's
+Messages, as a person's click does, and the Message's `update` starts the
+write. What the declarations add is the gate: `foldkit-guard/agent` answers a
+capability's `authorize` from the `may` the server sent with the row, which is
+the guard's verdict for that row and that principal.
+
+```ts
+import { defineMessageUnion } from 'foldkit/message'
+import { Agent } from 'foldkit-agent'
+import { GuardAgent } from 'foldkit-guard/agent'
+import { Surface } from 'foldkit-surface'
+
+const Message = defineMessageUnion({ RequestedPublish: { id: Schema.String } })
+const App = Surface.application({ Model, Message })
+
+// `Guards.may` adds the member a reader asks the server's verdict through.
+const Asked = Product.pipe(Guards.may)
+const Row = Entity.select(Asked, { name: true, may: true })
+
+const ShopAgent = Agent.forApplication(App).withPrincipal(Shop.Principal)
+
+ShopAgent.expose(Message, {
+  RequestedPublish: {
+    description: 'Publish a product',
+    authorize: GuardAgent.authorize('Update', ({ input, model }) =>
+      Data.get(Row, input.id).read(model),
+    ),
+  },
+})
+```
+
+`Row` selects `may`, which the server answers for each row it sends (its
+binding declares the member `supplied`, and `GuardServer.filter` fills it). A row the
+page has not read, or whose read failed, refuses: there is no answer to go on.
+This keeps an agent from attempting what the server would refuse; it is not
+the check. `Publish` is judged by the same guard where it commits, whoever
+sent the Message. [Agents](./agents.md) covers capabilities, and the
+[guard README](../packages/guard/README.md#agents) the `may` answer.
+
 ## When it goes wrong
 
 The server's answer is final, and each refusal says which declaration made it:
