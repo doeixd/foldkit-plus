@@ -7,6 +7,7 @@
     "dev": "tsx src/dev.ts",
     "demo": "tsx src/main.ts",
     "language": "tsx src/languageMain.ts",
+    "page": "vite --open /language.html",
     "typecheck": "tsc -b"
   },
   "dependencies": {

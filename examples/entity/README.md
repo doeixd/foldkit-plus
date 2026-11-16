@@ -7,7 +7,8 @@ and its query language asked of three interpreters.
 | --- | --- |
 | `pnpm --filter foldkit-example-entity demo` | a read from plan to SQL to decoded value, then a list, an edit, a save and a delete through a form |
 | `pnpm --filter foldkit-example-entity language` | five query bodies answered by SQLite, by `evaluate` and by `Judge`, with the SQL each compiled to |
-| `pnpm --filter foldkit-example-entity dev` | the same application in a browser |
+| `pnpm --filter foldkit-example-entity page` | the same five bodies in a browser: pick one, and see it asked of SQLite (running in the page), `evaluate` and `Judge` side by side |
+| `pnpm --filter foldkit-example-entity dev` | the post list and editor in a browser |
 
 The guides are [One domain declaration](../../docs/entity.md) and
 [Expressions](../../docs/expressions.md).
@@ -268,8 +269,9 @@ belongs does not compile. On the wire and in SQLite they are plain text.
 pnpm --filter foldkit-example-entity language
 ```
 
-[`src/language.ts`](./src/language.ts) declares five query bodies over the
-blog and asks each of SQLite (through `foldkit-remote-drizzle`, with the
+[`src/questions.ts`](./src/questions.ts) declares five query bodies over the
+blog (and the rows they are asked of), and [`src/language.ts`](./src/language.ts)
+asks each of SQLite (through `foldkit-remote-drizzle`, with the
 statement it ran), of `evaluate` over every post, and of `Judge` twice: holding
 every row, and as a page holding one author and one comment.
 
@@ -298,6 +300,41 @@ NotEditedBy: posts not edited by an author
   of theirs exists. The page holds one comment: enough to say `p1` is in, not
   enough to say any other post is out.
 
+### The same five bodies, in a browser
+
+```bash
+pnpm --filter foldkit-example-entity page
+```
+
+This opens <http://127.0.0.1:5174/language.html> (Vite alone; the page needs no
+server). Choose a body and the page prints it as the guide writes it
+(`Query.show`), then answers it four ways over the same four posts:
+
+- **SQLite**, running in the page (`sql.js`, loaded on the first question): the
+  statement the adapter compiled, its parameters, and the rows it answered;
+- **`evaluate`**, over every post, or the sentence it refuses with;
+- **`Judge` holding everything**, which knows every verdict;
+- **`Judge` holding part** (Ada and one comment), post by post: `in`, `out`, or
+  `unknown` with the reason.
+
+Each in-memory pane carries a mark computed by comparing its ids with SQLite's,
+in order; the sentence in the live region says the row count and who agrees.
+Try `ByAuthorName`, where `evaluate` refuses, then `Discussed`, and switch who is
+asking.
+
+The page is the `language` command made interactive, not a second
+implementation: [`src/questions.ts`](./src/questions.ts) holds the bodies, rows
+and in-memory readers both read, and the SQLite pane runs the same `query`
+source over `sql.js` (`src/browserSql.ts`) that the trace runs over
+`node:sqlite`. `src/languageApp.ts` is the Model: the chosen body and its
+inputs, with each reader's answer derived from them (five rows are cheap; a
+render reads all four in about 0.3 ms, so nothing is memoized); only SQLite's
+answer is a Command, and an answer for an earlier question is dropped by its
+key. `test/languageApp.test.ts` pins that Model and its derived output against
+the trace, `e2e/language.e2e.ts` drives the real page (a choice, typing, the
+refusal, the viewer, and a phone's width), and
+`test/languageApp.mutations.ts` breaks the Model in turn.
+
 `test/language.test.ts` pins that trace, then generates rows and inputs from
 120 seeds (mixed case, accents, `%`, `_`, missing editors, a visitor) and holds
 the three interpreters to one answer for each, and a `Judge` holding half the
@@ -318,8 +355,12 @@ examples/entity/test/language.mutations.ts`); each is caught.
 | [`src/app.ts`](./src/app.ts) | The client application: `Crud.editor` placed as a Bundle (`at`, `onOut`, `after`, `status`), two `Crud.list`s, `Crud.options` joining them, and `Data.wiring` putting all three on screen |
 | [`src/view.ts`](./src/view.ts) | The page drawn: a table from `PostList.columns`, the form through `foldkit-mixins-form`, the editor's `status` and `saveError` |
 | [`src/demo.ts`](./src/demo.ts) | The trace above, over that application and the in-process server |
-| [`src/language.ts`](./src/language.ts) | The language trace: bodies as values, `query(...).run`, `evaluate`, `Held.rows`, `Judge.query` |
+| [`src/questions.ts`](./src/questions.ts) | The five bodies as values, the rows, `evaluate`, `Held.rows`, `Judge.query` and the `query(...).run` the trace and the page share |
+| [`src/language.ts`](./src/language.ts) | The language trace over `node:sqlite` |
+| [`src/languageApp.ts`](./src/languageApp.ts), [`src/languageView.ts`](./src/languageView.ts) | The browser page: a Model of the chosen body, its Messages, and the cards each reader draws (`Table`, `Card`, `Segmented`) |
+| [`src/browserSql.ts`](./src/browserSql.ts) | SQLite in the page: `sql.js` and Drizzle's `sql-js` driver, loaded lazily |
 | [`src/http.ts`](./src/http.ts) | The server behind one endpoint, answering with `RemoteServer.answer`; the browser reaches it with `Remote.http('/remote')` |
+| [`e2e/language.e2e.ts`](./e2e/language.e2e.ts) | The language page in Chromium: SQLite's rows against the in-memory ones, typing, the refusal, the viewer, a phone's width |
 | [`e2e/entity.e2e.ts`](./e2e/entity.e2e.ts) | The server and Vite started, and Chromium saving a title read back from the table (`pnpm e2e` from the root) |
 
 `Remote.make` and `Data.get` take the domain's Entities and Selections as they
