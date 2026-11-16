@@ -27,7 +27,9 @@ import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import type * as UiVirtualList from '@foldkit/ui/virtualList'
 import type { AnchorConfig } from '@foldkit/ui/anchor'
+import * as UiFieldset from '@foldkit/ui/fieldset'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { ImageAsset, Layout, Provider } from 'foldkit-media'
 import { Behaviors, SlotView, type NamedStyle } from 'foldkit-mixins'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
 import { Theme } from 'foldkit-mixins/theme'
@@ -198,8 +200,25 @@ import {
   type ToolbarControl,
   FileInput,
   FileInputSlots,
+  AspectRatio,
+  AspectRatioSlots,
+  CodeBlock,
+  CodeBlockSlots,
+  Fieldset,
+  FieldsetSlots,
+  Figure,
+  FigureSlots,
+  Icon,
+  IconSlots,
+  Image,
+  ImageSlots,
+  Label,
+  LabelSlots,
+  Typography,
+  TypographySlots,
 } from 'foldkit-mixins-ui'
 
+import { icons } from '../view/iconData.js'
 import { forSlots, slots } from './theme.js'
 
 // #region button-basic
@@ -9194,5 +9213,280 @@ export const picker = <Message>(
       sheet: [PickerSheetStyle.mixin],
     },
     h,
+  )
+// #endregion
+
+// #region aspect-ratio-basic
+export const AspectRatioStyle = forSlots(AspectRatioSlots)(Recipes.AspectRatio({}))
+
+// The frame holds its ratio before its content arrives, so nothing below it
+// moves when the picture does. The content fills it; the ratio is the style's.
+export const aspectRatio = (
+  style: NamedStyle<typeof AspectRatioSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(100%, 20rem)' })],
+    [
+      AspectRatio.view(
+        {
+          content: h.div(
+            [
+              h.Style({
+                display: 'grid',
+                placeItems: 'center',
+                blockSize: '100%',
+                background: token.surface.muted,
+              }),
+            ],
+            ['Reserved before it loads'],
+          ),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region figure-basic
+export const FigureStyle = forSlots(FigureSlots)(Recipes.Figure({}))
+
+// A `figure` whose caption names it for assistive technology on its own: the
+// caption needs no ARIA. The content is anything: a picture, a chart, a quote.
+export const figure = (style: NamedStyle<typeof FigureSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(100%, 22rem)' })],
+    [
+      Figure.view(
+        {
+          content: CodeBlock.view(
+            { code: 'const total = items.length', language: 'ts', style: CodeBlockStyle },
+            h,
+          ),
+          caption: 'Listing 1. The count is read, never stored.',
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region label-basic
+export const LabelStyle = forSlots(LabelSlots)(Recipes.Label({}))
+
+// `for` is the id the control carries. Pass the one `FieldAssociation`
+// derived, so there is no second naming scheme beside it.
+export const label = (style: NamedStyle<typeof LabelSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.375rem', inlineSize: 'min(100%, 18rem)' })],
+    [
+      Label.view({ for: 'label-email', text: 'Email address', style }, h),
+      Input.view(
+        {
+          id: 'label-email',
+          type: 'email',
+          style: InputStyle,
+          draw: (resolved, h) => h.input(resolved.input),
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region typography-basic
+const voices = [
+  ['h1', 'Heading one'],
+  ['h2', 'Heading two'],
+  ['h3', 'Heading three'],
+  ['lead', 'A lead paragraph sets the page apart from the body under it.'],
+  ['body', 'Body copy keeps a readable measure, so a long paragraph stays easy to follow.'],
+  ['small', 'Small print for a footnote.'],
+  ['muted', 'Muted, for what is secondary.'],
+  ['quote', 'A quote keeps its blockquote and a rule at its start.'],
+  ['code', 'Recipes.Typography({ level })'],
+] as const
+
+// One style per voice: `level` chooses the look, and the same `level` the
+// element, so a heading stays a heading to a screen reader.
+const VoiceStyles = voices.map(([level]) => ({
+  level,
+  style: forSlots(TypographySlots)(Recipes.Typography({ level })),
+}))
+
+export const typography = (h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    voices.flatMap(([level, text], index) => {
+      const voice = VoiceStyles[index]
+      return voice === undefined ? [] : [Typography.view({ level, text, style: voice.style }, h)]
+    }),
+  )
+// #endregion
+
+// #region icon-basic
+export const IconStyle = forSlots(IconSlots)(Recipes.Icon({}))
+
+// An icon is data (here from `icons.json`, built by the icons plugin). With a
+// `label` it is an image that has a name; without one it is ornament and a
+// screen reader skips it. Two copies of one icon on a page need a `key`.
+export const icon = (style: NamedStyle<typeof IconSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'flex', alignItems: 'center', gap: '1rem' })],
+    [
+      Icon.view({ icon: icons.check, label: 'Saved', style }, h),
+      Icon.view({ icon: icons.link, label: 'Linked', key: 'link', style }, h),
+      h.span([], ['Copy ', Icon.view({ icon: icons.copy, key: 'copy', style }, h)]),
+    ],
+  )
+// #endregion
+
+// #region code-block-basic
+export const CodeBlockStyle = forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
+
+const SOURCE = 'export const total = 3 // items\nexport const done = "yes"'
+
+// Highlighting is the caller's: pass the tokens a tokenizer found as offsets
+// into the code (`foldkit-richtext-code-shiki` finds them), and each is drawn
+// with its `kind`, which the theme colours. The text of the block is the code.
+export const codeBlock = (style: NamedStyle<typeof CodeBlockSlots>, h: HtmlBuilder<never>): Html =>
+  CodeBlock.view(
+    {
+      code: SOURCE,
+      title: 'totals.ts',
+      lineNumbers: true,
+      tokens: [
+        { from: 0, to: 6, kind: 'syntax-keyword' },
+        { from: 7, to: 12, kind: 'syntax-keyword' },
+        { from: 19, to: 20, kind: 'syntax-operator' },
+        { from: 21, to: 22, kind: 'syntax-number' },
+        { from: 23, to: 31, kind: 'syntax-comment' },
+        { from: 32, to: 38, kind: 'syntax-keyword' },
+        { from: 39, to: 44, kind: 'syntax-keyword' },
+        { from: 52, to: 57, kind: 'syntax-string' },
+      ],
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region code-block-copy
+// The button sends what `onCopy` makes of the code: run `copyText` from
+// `foldkit-primitives` in that Message's Command, then draw `copied: true`.
+// Both states are drawn here, with no handler, as the page's script would.
+export const codeBlockCopy = (
+  style: NamedStyle<typeof CodeBlockSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem' })],
+    [
+      CodeBlock.view({ code: 'npm install foldkit-plus', language: 'sh', copy: {}, style }, h),
+      CodeBlock.view(
+        { code: 'npm install foldkit-plus', language: 'sh', copy: { copied: true }, style },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region fieldset-basic
+export const FieldsetStyle = forSlots(FieldsetSlots)(Recipes.Fieldset({ variant: 'bordered' }))
+
+// The legend names the group and the description is read after it: the base
+// derives their ids (`legendId`, `descriptionId`) and wires `aria-describedby`.
+// A disabled fieldset disables every control in it, and dims its legend and description.
+export const fieldset = (style: NamedStyle<typeof FieldsetSlots>, h: HtmlBuilder<never>): Html => {
+  const group = (id: string, disabled: boolean): Html =>
+    UiFieldset.view(
+      {
+        id,
+        isDisabled: disabled,
+        hasDescription: true,
+        toView: Fieldset.toView(
+          [style.mixin],
+          { input: undefined, h },
+          ({ fieldset, legend, description }) =>
+            h.fieldset(fieldset, [
+              h.legend(legend, [disabled ? 'Billing address (locked)' : 'Shipping address']),
+              h.p(description, ['Where the order is sent. We never share it.']),
+              Input.view(
+                {
+                  id: `${id}-street`,
+                  type: 'text',
+                  style: InputStyle,
+                  draw: (resolved, h) =>
+                    h.div([], [h.label(resolved.label, ['Street']), h.input(resolved.input)]),
+                },
+                h,
+              ),
+            ]),
+        ),
+      },
+      h,
+    )
+  return h.div(
+    [h.Style({ display: 'grid', gap: '1rem', inlineSize: 'min(100%, 24rem)' })],
+    [group('shipping', false), group('billing', true)],
+  )
+}
+// #endregion
+
+// #region image-basic
+export const ImageStyle = forSlots(ImageSlots)(Recipes.Image({ ratio: 'video', radius: 'md' }))
+
+// What the page knows of a file: its size and what stands in for it while it
+// loads. An application gets these from `foldkit-media`'s build step.
+const DUNES = Schema.decodeUnknownSync(ImageAsset)({
+  key: 'dunes.svg',
+  width: 800,
+  height: 500,
+  alpha: false,
+  hash: null,
+  placeholder: { _tag: 'Color', value: '#d9c7a3' },
+})
+
+const dunesUrl = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500"><rect width="800" height="500" fill="#e9d8b4"/><path d="M0 360 C200 260 330 420 520 330 S760 300 800 340 V500 H0Z" fill="#c9a870"/><circle cx="610" cy="130" r="52" fill="#f6efe0"/></svg>',
+)}`
+
+// Where its variants live: here one file per width, in a real build the
+// provider that wrote them (`Provider.hosted`, `Provider.cloudflare`).
+const dunes = Provider.fromFiles(
+  [400, 800].map(width => ({ width, format: 'webp' as const, url: dunesUrl })),
+  { sources: [], fallback: 'webp' },
+)
+
+// `alt` is required: words for what the picture shows, or `Image.decorative`
+// for ornament. The frame holds the box (the asset's ratio, or the recipe's
+// crop) before the file arrives, so the page does not move when it does.
+export const image = (style: NamedStyle<typeof ImageSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: 'min(100%, 24rem)' })],
+    [
+      Image.view(
+        {
+          asset: DUNES,
+          provider: dunes,
+          layout: Layout.Constrained({ width: 400 }),
+          alt: 'Dunes under a pale sun',
+          style,
+        },
+        h,
+      ),
+      Image.view(
+        {
+          asset: DUNES,
+          provider: dunes,
+          layout: Layout.Constrained({ width: 200 }),
+          alt: Image.decorative,
+          style,
+        },
+        h,
+      ),
+    ],
   )
 // #endregion

@@ -242,4 +242,37 @@ export default [
     ],
     tests: ['examples/site/test/components.test.ts'],
   },
+  {
+    name: 'the decorative image is described anyway',
+    edits: [
+      {
+        file: '../src/snippets/components.ts',
+        find: 'alt: Image.decorative,',
+        replace: "alt: 'Dunes under a pale sun',",
+      },
+    ],
+    tests: ['examples/site/test/showcases.test.ts'],
+  },
+  {
+    name: 'the ornamental icon is given a name',
+    edits: [
+      {
+        file: '../src/snippets/components.ts',
+        find: "Icon.view({ icon: icons.copy, key: 'copy', style }, h)",
+        replace: "Icon.view({ icon: icons.copy, key: 'copy', label: 'Copy', style }, h)",
+      },
+    ],
+    tests: ['examples/site/test/showcases.test.ts'],
+  },
+  {
+    name: 'the fieldset’s description is drawn without its id',
+    edits: [
+      {
+        file: '../src/snippets/components.ts',
+        find: 'h.p(description, [',
+        replace: 'h.p([], [',
+      },
+    ],
+    tests: ['examples/site/test/showcases.test.ts'],
+  },
 ]

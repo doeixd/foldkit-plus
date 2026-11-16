@@ -116,4 +116,26 @@ describe('the showcases', () => {
     expect(new Set(slugs).size).toBe(slugs.length)
     expect(Option.isNone(showcaseOf('constructor'))).toBe(true)
   })
+
+  it('draw each image with the words it needs: a description, or an empty alt that skips it', () => {
+    const page = markup(Option.getOrThrow(showcaseOf('image')).preview({}, live))
+    expect(page).toContain('Dunes under a pale sun')
+    expect(page).toContain('"alt"')
+    expect(page).toContain('presentation')
+  })
+
+  it('name an icon that means something and hide one that is ornament', () => {
+    const page = markup(Option.getOrThrow(showcaseOf('icon')).preview({}, live))
+    expect(page).toContain('"aria-label"')
+    expect(page).toContain('Saved')
+    // Two of the three carry a name; the third, beside the word Copy, is ornament.
+    expect(page.match(/"aria-label"/g)).toHaveLength(2)
+  })
+
+  it('tie a disabled fieldset’s legend to its description, and offer typography no axis', () => {
+    const fieldset = markup(Option.getOrThrow(showcaseOf('fieldset')).preview({}, live))
+    expect(fieldset).toContain('"props":{"id":"shipping-description"}')
+    expect(fieldset).toContain('billing-legend')
+    expect(Option.getOrThrow(showcaseOf('typography')).axes).toEqual([])
+  })
 })

@@ -13,7 +13,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // 362.0 kB (362,001 bytes) on 2026-11-14, after merging main: the same kept package work that
 // raised the widgets page by 3,524 bytes (the SearchField widget, WindowList's larger follower,
 // Resizable, Sidebar), +3,501 over the old ceiling; the ceiling is that plus about 2%.
-const CEILING = 369_500
+// 372.5 kB (372,538 bytes) on 2026-11-15, after eight component pages (Aspect ratio, Code block,
+// Fieldset, Figure, Icon, Image, Label, Typography): their previews and the code each page shows
+// are in the one start chunk with every other page's, +3,038 over the old ceiling at least; the
+// ceiling is that plus about 2%. Splitting previews per page waits on a lazy page route.
+const CEILING = 380_000
 
 clientBudget({
   name: 'site',
