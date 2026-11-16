@@ -31,10 +31,12 @@ import { print } from 'foldkit-richtext-markdown'
 import {
   editorViewOf,
   hostId,
+  listedPages,
   Menu,
   Message,
   pageInEditor,
   savedOf,
+  titleOf,
   type Model,
   type Page as PageState,
   type Peer,
@@ -80,19 +82,26 @@ const SHORTCUTS = {
   link: 'mod+k',
 }
 
+/** The marks a narrow bar leaves to their chords and to the bar over selected text. */
+const LOW_MARKS: ReadonlyArray<string> = ['Underline', 'Strikethrough', 'Code', 'Highlight']
+
+/**
+ * What gives way on a narrow window (`{ low }`) is still in the slash menu, a chord, or the bar
+ * over selected text. Seven controls stay: with a finger's 44px each, that is one row of a phone.
+ */
 const BAR_ITEMS: ReadonlyArray<FormattingItem> = [
   'undo',
   'redo',
   'separator',
   'style',
   'separator',
-  ...MARKS.map((mark): FormattingItem => ({ mark })),
+  ...MARKS.map((mark): FormattingItem => (LOW_MARKS.includes(mark) ? { low: { mark } } : { mark })),
   'link',
   'separator',
-  'bulleted-list',
-  'numbered-list',
-  'checklist',
-  'quote',
+  { low: 'bulleted-list' },
+  { low: 'numbered-list' },
+  { low: 'checklist' },
+  { low: 'quote' },
   'insert',
 ]
 
@@ -106,8 +115,6 @@ const SELECTION_ITEMS: ReadonlyArray<FormattingItem> = [
 /** The page with this id, when it is in the trash. */
 const trashedPage = (model: Model, id: string): Option.Option<PageState> =>
   Option.fromUndefinedOr(model.pages.find(page => page.id === id && page.trashed === true))
-
-const titleOf = (page: PageState): string => (page.title === '' ? 'Untitled' : page.title)
 
 /** A person's initials, for the circle that stands for them: "Guest 3f2a" is G3. */
 const initialsOf = (name: string): string =>
@@ -174,6 +181,7 @@ const sidebar = (model: Model, slots: Slots, h: H): Html => {
   const trash = model.pages.filter(page => page.trashed === true)
   const here = (page: string) => model.peers.filter(peer => peer.page === page).length
   const saved = savedOf(model)
+  const listed = listedPages(model)
   return h.nav(slots.sidebar.attrs([h.AriaLabel('Pages')]), [
     h.p(slots.brand.attrs(), [h.span(slots.logo.attrs([h.AriaHidden(true)]), ['P']), 'Pages']),
     h.button(
@@ -186,38 +194,49 @@ const sidebar = (model: Model, slots: Slots, h: H): Html => {
     ),
     h.div(slots.section.attrs(), [
       h.p(slots.sectionTitle.attrs(), ['Pages']),
+      h.input(
+        slots.pageFilter.attrs([
+          h.Id('page-filter'),
+          h.Type('search'),
+          h.AriaLabel('Filter pages'),
+          h.Placeholder('Filter pages'),
+          h.Value(model.filter),
+          h.OnInput(query => Message.FilteredPages({ query })),
+        ]),
+      ),
+      ...(listed.length === 0 && model.filter.trim() !== ''
+        ? [h.p(slots.hint.attrs([h.Role('status')]), ['No page has that in its title.'])]
+        : []),
       h.ul(
         slots.pageList.attrs(),
-        model.pages
-          .filter(page => page.trashed !== true)
-          .map(page => {
-            const others = here(page.id)
-            return h.li(
-              [h.Key(page.id)],
-              [
-                h.button(
-                  slots.pageLink.attrs([
-                    h.Type('button'),
-                    ...(Option.contains(model.open, page.id) ? [h.AriaCurrent('page')] : []),
-                    h.OnClick(Message.OpenedPage({ id: page.id })),
-                  ]),
-                  [
-                    h.span(slots.pageName.attrs(), [titleOf(page)]),
-                    ...(others === 0
-                      ? []
-                      : [
-                          h.span(
-                            slots.pageCount.attrs([
-                              h.Title(`${others} ${others === 1 ? 'other' : 'others'} here`),
-                            ]),
-                            [String(others)],
-                          ),
-                        ]),
-                  ],
-                ),
-              ],
-            )
-          }),
+        listed.map(page => {
+          const others = here(page.id)
+          return h.li(
+            [h.Key(page.id)],
+            [
+              h.button(
+                slots.pageLink.attrs([
+                  h.Type('button'),
+                  ...(Option.contains(model.open, page.id) ? [h.AriaCurrent('page')] : []),
+                  h.OnClick(Message.OpenedPage({ id: page.id })),
+                ]),
+                [
+                  h.span(slots.pageName.attrs(), [titleOf(page)]),
+                  ...(others === 0
+                    ? []
+                    : [
+                        h.span(
+                          slots.pageCount.attrs([
+                            h.Title(`${others} ${others === 1 ? 'other' : 'others'} here`),
+                          ]),
+                          [String(others)],
+                        ),
+                      ]),
+                ],
+              ),
+            ],
+          )
+        }),
       ),
     ]),
     ...(trash.length === 0
@@ -358,6 +377,7 @@ const formatting = (
       // A choice closes the menu it was made in, as the edit is made.
       wrap: message => Message.MenuEdit({ message }),
       items: onToolbar ? BAR_ITEMS : SELECTION_ITEMS,
+      compact: model.narrow,
       // Undo takes back this tab's own edits on this page, so it is offered while there are some.
       history: { undo: has(model.undo), redo: has(model.redo) },
       menu,

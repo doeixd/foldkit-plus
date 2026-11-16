@@ -108,6 +108,10 @@ export const Model = Schema.Struct({
   linkDraft: Schema.String,
   /** The formatting bar's control that has the tab stop: the one focused last. */
   tabStop: Schema.Option(Schema.String),
+  /** Whether the window is `NARROW`, where the formatting bar draws only what fits one row. */
+  narrow: Schema.Boolean,
+  /** What the sidebar's field holds: only pages whose title has it are listed. */
+  filter: Schema.String,
   /** The page this tab just moved to the trash, which the empty page offers to bring back. */
   justTrashed: Schema.Option(Schema.String),
   /**
@@ -143,6 +147,10 @@ export const Message = defineMessageUnion({
   FocusedControl: { id: Schema.String },
   /** Escape on a formatting bar control: back to the text, caret where it was. */
   ReturnedToText: {},
+  /** The sidebar's filter field changed. */
+  FilteredPages: { query: Schema.String },
+  /** The window became `NARROW`, or stopped being it. */
+  NarrowChanged: { narrow: Schema.Boolean },
   /** Enter in the title: on to the text. */
   EnteredTitle: {},
   GotEditor: { message: EditorMessage },
@@ -193,7 +201,11 @@ const blank = RichText.decodeDocument({
   ],
 })
 
-export const initialModel = (session: string): Model => ({
+/**
+ * `narrow` is read from the window before the first drawing, not learned from a Subscription,
+ * which lands after it: a phone would draw the wide bar for a frame and shift the page.
+ */
+export const initialModel = (session: string, narrow = false): Model => ({
   pages: [],
   open: Option.none(),
   session,
@@ -206,6 +218,8 @@ export const initialModel = (session: string): Model => ({
   hovered: Option.none(),
   linkDraft: '',
   tabStop: Option.none(),
+  narrow,
+  filter: '',
   justTrashed: Option.none(),
   undo: [],
   redo: [],
@@ -284,6 +298,20 @@ const samePlace = (
 /** The page with this id, unless it is in the trash. */
 export const pageOf = (model: Model, id: string): Option.Option<Page> =>
   Option.fromUndefinedOr(model.pages.find(page => page.id === id && page.trashed !== true))
+
+/**
+ * The pages the sidebar lists: those not in the trash whose title has the filter, whatever the
+ * case and the space around it. An untitled page is listed as "Untitled", and found by it.
+ */
+export const listedPages = (model: Model): ReadonlyArray<Page> => {
+  const wanted = model.filter.trim().toLowerCase()
+  return model.pages.filter(
+    page => page.trashed !== true && titleOf(page).toLowerCase().includes(wanted),
+  )
+}
+
+/** A page's title as it is shown: its own, or "Untitled". */
+export const titleOf = (page: Page): string => (page.title === '' ? 'Untitled' : page.title)
 
 /** The page in the editor, unless none is open or it went to the trash. */
 export const pageInEditor = (model: Model): Option.Option<Page> =>
@@ -641,6 +669,12 @@ export const update = (model: Model, message: Message): Return =>
       Option.contains(model.tabStop, id)
         ? { model }
         : { model: modifyFields(model, { tabStop: () => Option.some(id) }) },
+    FilteredPages: ({ query }) =>
+      query === model.filter ? { model } : { model: modifyFields(model, { filter: () => query }) },
+    NarrowChanged: ({ narrow }) =>
+      narrow === model.narrow
+        ? { model }
+        : { model: modifyFields(model, { narrow: () => narrow }) },
     EnteredTitle: () => ({
       model,
       commands: [FocusField({ selector: '#page-body [contenteditable]' })],

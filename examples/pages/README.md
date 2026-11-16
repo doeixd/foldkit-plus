@@ -82,6 +82,18 @@ it on the projection, `translate` restates it as ops, and it is shared, undone a
 typing is. The slash catalogue (`src/vocabulary.ts`) is handed to `placeEditor`, so the menu
 the view draws and what Enter chooses are one list.
 
+A press on a control of the bar leaves the focus and the selection in the text, so Bold and then
+Italic mark the same words and typing replaces them. Reached by key (Shift+Tab from the text), a
+control holds the focus, the page paints the editor's `selection` decoration as selected text
+(`[data-decoration="selection"]` in `src/style.ts`), and Escape returns to the text.
+
+On a window at most 40rem wide the bar is `compact`: the controls wrapped `{ low }` in
+`src/view.ts` (four marks, the lists and the quote) are not drawn, and the seven left are one
+row of a phone. The Model's `narrow` is read from `matchMedia` before the first drawing
+(`src/browser.ts` passes it to the initial Model) and followed by a `NarrowChanged` Message, so
+a phone never draws the wide bar first. The sidebar's field filters the page list by title
+(`listedPages`).
+
 The formatting bar, over the page and over selected text, is `formattingToolbar` from
 `foldkit-mixins-richtext`: one `role="toolbar"` with one tab stop, the arrows, Home and End
 moving between its controls, and a control that does not apply (nothing to undo) kept focusable but

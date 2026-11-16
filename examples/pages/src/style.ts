@@ -19,10 +19,12 @@ const { t } = demoStyle
 export const stylesheet = demoStyle.stylesheet
 
 /** A phone: the pages above the page, and the toolbar on one row. */
-const NARROW = '(max-width: 40rem)'
 
 /** Someone else's caret and the name over it: the warning hue, which no other text uses. */
 const peer = t.warning.default
+
+/** The width at and below which the page is a phone's: one column, and a compact formatting bar. */
+export const NARROW = '(max-width: 40rem)'
 
 const row = (gap: string): StyleValue =>
   Style.self({ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap })
@@ -236,6 +238,11 @@ const writing = Style.compose(
     borderRadius: t.radius.lg,
   }),
   // Someone else's caret: after the character drawn, or before it at a run's start.
+  // The editor's own selection, drawn while a toolbar control or the link field has the focus.
+  Style.nest('[data-decoration="selection"]', {
+    background: 'Highlight',
+    color: 'HighlightText',
+  }),
   Style.nest('[data-decoration="peer"]', { boxShadow: `2px 0 0 ${peer}` }),
   Style.nest('[data-decoration="peer-before"]', { boxShadow: `-2px 0 0 ${peer}` }),
   Style.nest('[data-decoration^="peer"]', { position: 'relative' }),
@@ -328,6 +335,22 @@ export const Page = demoStyle.slots({
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
   }),
+  // The field that narrows the list: quiet until it is used, a finger's height on a touch screen.
+  pageFilter: Style.compose(
+    Style.self({
+      inlineSize: '100%',
+      minBlockSize: '2rem',
+      marginBlockEnd: t.space['2xs'],
+      padding: `${t.space['2xs']} ${t.space.xs}`,
+      border: `1px solid ${t.outline.subtle}`,
+      borderRadius: t.radius.md,
+      background: t.surface.base,
+      color: t.text.default,
+      fontSize: t.size.sm,
+    }),
+    Style.pseudo('::placeholder', { color: t.text.subtle }),
+    Style.at('@media (pointer: coarse)', Style.self({ minBlockSize: '2.75rem' })),
+  ),
   pageList: Style.self({
     display: 'grid',
     gap: '1px',
@@ -688,20 +711,22 @@ const barSlots = (root: StyleValue) =>
         Style.self({ minBlockSize: '2.75rem', minInlineSize: '2.75rem' }),
       ),
     ),
-    // Insert is a plus and a word: on a phone the plus says it, and the button's name says it aloud.
+    // A phone's row holds glyphs only: Insert's plus and the style menu's chevron say what they
+    // are, and each button's name says it aloud.
     label: Style.compose(
       Style.self({ fontSize: t.size.sm }),
-      Style.at(
-        `@media ${NARROW}`,
-        Style.nest(':where([data-item="insert"]) > &', { display: 'none' }),
-      ),
+      Style.media(NARROW, { display: 'none' }),
     ),
-    separator: Style.self({
-      inlineSize: '1px',
-      blockSize: '1.25rem',
-      background: t.outline.subtle,
-      marginInline: t.space['2xs'],
-    }),
+    separator: Style.compose(
+      Style.self({
+        inlineSize: '1px',
+        blockSize: '1.25rem',
+        background: t.outline.subtle,
+        marginInline: t.space['2xs'],
+      }),
+      // The row has no room to spare for rules there.
+      Style.media(NARROW, { display: 'none' }),
+    ),
     // The last menu, Insert, sits at the bar's end, so its panel opens inward.
     anchor: Style.compose(
       Style.self({ position: 'relative' }),
