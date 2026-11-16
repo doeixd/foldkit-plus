@@ -2039,8 +2039,8 @@ const pickKeys = <T>(
 /**
  * What a mutation's answer may say of the rows its handler patched (#578): of
  * each, the keys the caller may read, with the handler's own values. A source
- * with neither `authorize` nor `filter` declares no reader rule, so its rows
- * are answered as they are, with no read. Otherwise each such entity is read as
+ * with no `authorize`, `filter` or `visible` declares no reader rule, so its
+ * rows are answered as they are, with no read. Otherwise each such entity is read as
  * the caller reads it, once, and a row the read does not return, or no field of
  * it, is not answered. A read that fails answers none of that entity's rows:
  * the write has committed, and the client reads what it lacks.
@@ -2056,7 +2056,12 @@ const readablePatches = <P, R>(
     const ruled = new Map<string, Array<NormalizedPatch>>()
     for (const patch of patches) {
       const source = server.entities.get(patch.entity)
-      if (source === undefined || (source.authorize === undefined && source.filter === undefined))
+      if (
+        source === undefined ||
+        (source.authorize === undefined &&
+          source.filter === undefined &&
+          source.visible === undefined)
+      )
         continue
       const group = ruled.get(patch.entity) ?? []
       group.push(patch)

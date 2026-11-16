@@ -89,8 +89,19 @@ export default [
     edits: [
       {
         file: index,
-        find: '      if (source === undefined || (source.authorize === undefined && source.filter === undefined))\n        continue\n',
-        replace: '      if (source === undefined) continue\n',
+        find: '        (source.authorize === undefined &&\n          source.filter === undefined &&\n          source.visible === undefined)\n',
+        replace: '        false\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a source whose rows only `visible` hides is not read',
+    edits: [
+      {
+        file: index,
+        find: '          source.filter === undefined &&\n          source.visible === undefined)\n',
+        replace: '          source.filter === undefined)\n',
       },
     ],
     tests,

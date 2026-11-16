@@ -13,6 +13,7 @@ const Doc = Entity.make('Doc', Schema.Struct(Fields))
 const Open = Entity.make('Open', Schema.Struct(Fields))
 const Flaky = Entity.make('Flaky', Schema.Struct(Fields))
 const Absent = Entity.make('Absent', Schema.Struct(Fields))
+const Sealed = Entity.make('Sealed', Schema.Struct(Fields))
 
 const Touch = Mutation.make('Touch', { Input: {}, Output: Schema.Struct({ note: Schema.String }) })
 
@@ -48,6 +49,16 @@ const server = RemoteServer.make({
       read: () =>
         Effect.fail(new RemoteServerError({ message: 'the replica is away', told: true })),
     }),
+    // Row visibility is the source's own (a Drizzle binding's `visible`): the read applies it.
+    {
+      ...RemoteServer.entity<string>(Sealed, {
+        read: ({ ids, fields }) =>
+          Effect.sync(
+            () => (counted('Sealed'), rowsOf(ids, fields).filter(row => row.id !== 's2')),
+          ),
+      }),
+      visible: 'rows of the principal',
+    },
     // A row the read does not return at all: it is gone, or not the reader's.
     RemoteServer.entity<string>(Absent, {
       authorize: (_, fields) => fields,
@@ -65,6 +76,8 @@ const server = RemoteServer.make({
           Remote.patch(Open, 'o1', { title: 'Open', secret: 'Said' }),
           Remote.patch(Flaky, 'f1', { title: 'Flaky' }),
           Remote.patch(Absent, 'a1', { title: 'Gone' }),
+          Remote.patch(Sealed, 's1', { title: 'Seen' }),
+          Remote.patch(Sealed, 's2', { title: 'Unseen' }),
         ],
       }),
     ),
@@ -105,6 +118,8 @@ describe('what a mutation answers of the rows its handler patched', () => {
       // A patch of only a withheld field says nothing, and so is not sent.
       // `filter` left the row `hidden` no member to read: not sent either.
       { entity: 'Open', id: 'o1', values: { title: 'Open', secret: 'Said' } },
+      // A source whose rows are hidden by `visible` alone is read too: `s2` is not the caller's.
+      { entity: 'Sealed', id: 's1', values: { title: 'Seen' } },
     ])
   })
 
@@ -138,6 +153,8 @@ describe('what a mutation answers of the rows its handler patched', () => {
       { entity: 'Open', id: 'o1', fields: ['title', 'secret'] },
       { entity: 'Flaky', id: 'f1', fields: ['title'] },
       { entity: 'Absent', id: 'a1', fields: ['title'] },
+      { entity: 'Sealed', id: 's1', fields: ['title'] },
+      { entity: 'Sealed', id: 's2', fields: ['title'] },
     ])
   })
 
