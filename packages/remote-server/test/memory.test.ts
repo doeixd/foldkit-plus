@@ -8,7 +8,7 @@
  */
 import { Effect, Layer, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity, Expr, Operators, Order, Relation } from 'foldkit-entity'
+import { Collation, Entity, Expr, Operators, Order, Relation } from 'foldkit-entity'
 import { Mutation, Query, REMOTE_PROTOCOL_VERSION, Remote, RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
@@ -27,7 +27,7 @@ const { User, Project } = Entity.relate(
 const ByStatus = Query.define('ByStatus', { status: Schema.String }, ({ input }) =>
   Query.from(Project).pipe(
     Query.where(Expr.eq(Project.fields.status, input.status)),
-    Query.orderBy(Order.asc(Project.fields.name)),
+    Query.orderBy(Order.asc(Project.fields.name, { collation: Collation.binary })),
   ),
 )
 const Rename = Mutation.make('Rename', {
@@ -544,7 +544,7 @@ describe('RemoteServer.memory over a body calling an application’s operator', 
   const Live = Query.define('Live', {}, () =>
     Query.from(Project).pipe(
       Query.where(live(Project.fields.status)),
-      Query.orderBy(Order.asc(Project.fields.name)),
+      Query.orderBy(Order.asc(Project.fields.name, { collation: Collation.binary })),
     ),
   )
   const LiveData = Remote.make({
