@@ -303,9 +303,9 @@ its Entity and its id, since an id is unique only within an Entity. A
 refusal made where the write is made is the one the server would send, so the
 application handles both alike (see [Refused where it is made](../packages/remote/README.md#refused-where-it-is-made)).
 A `CHECK` constraint from `checkConstraints` or `entityChecks` is a backstop for writes past the
-server: one tripped by a handler's statement fails it as `Database write
-failed`, and the driver's error goes only to the `StatementFailed`
-diagnostic. See [Declared writes](declared-writes.md#failure-and-recovery).
+server: one tripped by a handler's statement answers the caller `Internal
+error` with an `incident`, and the driver's error goes only to the
+`StatementFailed` and `ServerDefect` diagnostics under that id. See [Declared writes](declared-writes.md#failure-and-recovery).
 
 ## Forms
 
