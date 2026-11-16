@@ -48,6 +48,14 @@ const open = async (page: Page, path: string) => {
   // A first load pre-bundles the workspace, which takes a while.
   await page.goto(`${url}${path}`, { timeout: 120_000 })
   await page.waitForSelector('[data-size="page"]', { timeout: 120_000 })
+  // Served markup answers nothing until the browser's code has taken it over; the previews are busy until then.
+  await page.waitForFunction(
+    () => document.querySelector('[data-size][aria-busy="true"]') === null,
+    undefined,
+    {
+      timeout: 120_000,
+    },
+  )
 }
 
 // Every catalog page: a page added to the gallery is audited without a line here.
