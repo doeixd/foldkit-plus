@@ -4,7 +4,7 @@
  * a group that draws at most `max` and counts the rest as one more avatar.
  */
 import { Schema } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ImageAsset, Provider } from 'foldkit-media'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
@@ -15,6 +15,19 @@ const h = SlotView.inertBuilder<never>()
 const style = Style.forSlots(AvatarSlots)(Recipes.Avatar({}))
 const groupStyle = Style.forSlots(AvatarGroupSlots)(Recipes.AvatarGroup({}))
 const hueOf = (drawn: ReturnType<typeof view>) => Inert.style(drawn)['--fk-avatar-hue']
+
+describe('Avatar initials', () => {
+  it('do not depend on the runtime’s default locale', () => {
+    const locale = vi
+      .spyOn(String.prototype, 'toLocaleUpperCase')
+      .mockImplementation(() => 'LOCALE')
+    try {
+      expect(Inert.text(view({ name: 'ada king', style }, h))).toBe('AK')
+    } finally {
+      locale.mockRestore()
+    }
+  })
+})
 
 describe('AvatarSlots', () => {
   it('publishes four containers and nothing stateful', () => {

@@ -10,6 +10,11 @@ const recipe = '../src/recipes/avatar.ts'
 
 export default [
   {
+    name: 'the initials are upper-cased in the runtime’s locale',
+    edits: [{ file: view, find: '.toUpperCase()', replace: '.toLocaleUpperCase()' }],
+    tests: unit,
+  },
+  {
     name: 'widthOf reads a rem as 10 pixels',
     edits: [{ file: view, find: 'sizes[size] * 16', replace: 'sizes[size] * 10' }],
     tests: browser,
