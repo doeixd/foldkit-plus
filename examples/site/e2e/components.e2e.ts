@@ -11,6 +11,7 @@ import { createServer, mergeConfig, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 // Read through Vitest, which resolves the workspace sources (see theme.e2e.ts).
 import config from '../vite.config.js'
+import { showcases } from '../src/gallery/showcases.js'
 import { auditPhone } from '../src/phoneAudit.js'
 import { onFreePort } from '../../../scripts/free-port.mjs'
 
@@ -49,19 +50,8 @@ const open = async (page: Page, path: string) => {
   await page.waitForSelector('[data-size="page"]', { timeout: 120_000 })
 }
 
-const PAGES = [
-  'search-field',
-  'toolbar',
-  'file-input',
-  'picker',
-  'segmented',
-  'number-field',
-  'slider',
-  'input',
-  'menu',
-  'table',
-  'pagination',
-]
+// Every catalog page: a page added to the gallery is audited without a line here.
+const PAGES = showcases.map(showcase => showcase.slug)
 
 test.each(PAGES)(
   '/components/%s fits a phone',
