@@ -496,7 +496,7 @@ package's variants:
 | `foldkit-remote-server` | `ServerDefect`, `AnswerUnread`, `PublishFailed`, `ClockSkewed` |
 | `foldkit-remote-drizzle` | `StatementFailed`, `ServerOnlyRules` |
 | `foldkit-guard` | `ComputeRefused`, `UnpinnedWrites` |
-| `foldkit-sync` | `ExchangeFailed`, `HistoryRebuilt`, `HostDefect`, `ListenerFailed` |
+| `foldkit-sync` | `ExchangeFailed`, `ExchangeDefect`, `HistoryRebuilt`, `HostDefect`, `ListenerFailed` |
 | `foldkit-mirror` | `StoreUnread`, `StoreUnwritten`, `StoreMalformed` |
 | `foldkit-ssr` | `PageContained`, `StaticRegionMissing`, `BundleUnloaded`, `PageFailed`, `HandlerUnnamed` |
 | `foldkit-media` | `StoreFailed`, `AdmissionFailed`, `ImageFailed`, `FactsUnanswered`, `RequestDefect` |

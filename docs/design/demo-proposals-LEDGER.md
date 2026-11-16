@@ -64,11 +64,18 @@ the guard and entity READMEs found these; each is a GitHub issue.
 | Issue | What was wrong | Package | Status |
 |-------|----------------|---------|--------|
 | #568 | A list page statement selected `id` twice. | `foldkit-remote-drizzle` | Landed `e089c8444` |
-| #569 | `evaluate` orders text with no declared collation, where placement and comparisons refuse it. Decision: a reader refuses such an order only when the order is what is asked; judging membership never refuses for it. | `foldkit-entity` | Building |
+| #569 | `evaluate` orders text with no declared collation, where placement and comparisons refuse it. Decision: a reader refuses such an order only when the order is what is asked; judging membership never refuses for it. | `foldkit-entity` | Landed `c956f1652` |
 | #570 | `GuardServer.mutation`, `GuardSync` and `GuardServer.memory` died per request on a rule that reads another row; they now refuse where they are made. | `foldkit-guard` | Landed `7d664d41a`, `fcfff2dad` |
 | #571 | An interaction `may` leaves unanswered read as refused, so an editor locked a row its reader may edit. `May.answer` gives yes, no or not said; hints act only on a no. | `foldkit-guard` | Landed `b17214c2e` |
 | #572 | A write's `when` reading the viewer or the clock was accepted where declared and refused only where served. | `foldkit-entity` | Landed `c283dca5a` |
-| #573 | An exception's message inside a read, list or mutation reached the client. | `foldkit-remote-server` | Building |
+| #573 | An exception's message inside a read, list or mutation reached the client. A handler says reader text with `RemoteServer.tell(message)`; everything else is `Internal error` with an `incident`, and the detail goes to `ServerDefect`. | `foldkit-remote-server` | Landed `a021c9f4e`, `667e2b1a8`, `79a3f91aa`; adopted `8ad019194`, `af38750fb`, `5f750b112`, `3fc2e9e57` |
+| #575 | The socket transport sent a failed exchange's error message to the client. `RemoteServer.report(during, cause)` is the shared reporter. | `foldkit-sync` | Landed `b6a6b2b58`, `bd4a391c7`, `fad6066d6`, `b271c434e`, `0e95d1185` |
+| #576 | A resolver's error message, a close reason and a reaction's stored reason carried internal text. | `foldkit-sync` | Landed `d10ec9f26`, `bdad5b3c3` |
+| #577 | A principal admitted to Update but not Read learned an entry's type and state from a refusal. | `foldkit-cms-drizzle` | Landed `00c8f7790`, `1d7e6ba53` |
+| #578 | A mutation handler's returned entities reach the caller unfiltered by what they may read. | `foldkit-remote-server` | Open |
+| #566 | `print` wrote unescaped backslashes and character references in link and image URLs. | `foldkit-richtext-markdown` | Landed `577d1bdc3`, `7704c1d73` |
+| (wire) | A 401 or 403 answer's reason is the fixed reader text, not the thrown message. | `foldkit-remote-server` | Landed `2fa8b4034`, `bc839b9ad` |
+| (render) | `ColorPicker` read `EyeDropper` and `Avatar` read the environment while drawing, so a server and a browser drew different markup. `eyedropper` is an input, false by default. | `foldkit-mixins-ui` | Landed `ccc026905`, `43b6fcb9e` |
 | (type) | `Query.define` typed its `body` optional though it always sets one; it returns `DefinedQuery` now. | `foldkit-remote` | Landed `6fc9fc030` |
 
 Also from this work: the view-identity plugin now runs in the browser test
@@ -77,7 +84,9 @@ replaced list (`e67b4a939`); per-widget `conflict(routes)` checks (`63ae78259`);
 the key-race fixes in Listbox, Menu, Segmented, Picker, Nav and TagsInput; the
 editor's selection kept across a toolbar press (`53d283ed7`) and its caret
 scrolled into view (`e186711ff`); builder drops that land where shown
-(`c97412830`, `617b61d69`, `ee6e65559`, `a21725854`).
+(`c97412830`, `617b61d69`, `ee6e65559`, `a21725854`); the website split into a
+shell and a gallery application by path, which adopts its served pages
+(`c3c52eb86` through `978ba05e8`).
 
 ## Dependencies approved for examples
 
