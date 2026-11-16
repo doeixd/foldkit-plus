@@ -126,7 +126,8 @@ In an application the body is declared with a name and an input, and both
 sides import it: `Query.define('Short', { under: Schema.Number }, ({ input }) =>
 …)` from `foldkit-remote`. The server registers it
 (`query(Short, { entity })` from `foldkit-remote-drizzle`) and the page reads it
-(`Data.query(Short, { under: 1000 })`). The body is the same value in both.
+(`Data.query(Short, { under: 1000 }, { select })`, with a Selection of what
+each row shows). The body is the same value in both.
 
 ## Three interpreters, one answer
 
