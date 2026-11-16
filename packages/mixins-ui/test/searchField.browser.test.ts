@@ -16,6 +16,7 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { cdp, userEvent } from 'vitest/browser'
+import { watchFocusLoss } from '../../../test-support/focusLoss.mjs'
 import { Recipes, SearchField, SearchFieldSlots } from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -151,13 +152,17 @@ const typed = async (text: string) => {
 
 test('Escape clears the text and keeps focus in the input', async () => {
   const handle = mount()
+  const watch = watchFocusLoss()
   try {
     await typed('lamp')
     await userEvent.keyboard('{Escape}')
     await vi.waitFor(() => expect(input().value).toBe(''))
     expect(document.activeElement).toBe(input())
     expect(clear()).toBeNull()
+    // The clear button comes and goes beside the input, which stays the one node.
+    expect(watch.losses).toEqual([])
   } finally {
+    watch.dispose()
     handle.dispose()
   }
 })

@@ -12,6 +12,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { GridStyle } from 'foldkit-mixins-data-grid'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { cdp, userEvent } from 'vitest/browser'
+import { watchFocusLoss } from '../../../test-support/focusLoss.mjs'
 import { buttonOf, form, grid, headerOf, mountTasks, shownRows } from './filterGrid.js'
 
 beforeEach(() => {
@@ -100,6 +101,7 @@ const settle = async () => {
 
 test('a click on the funnel leaves the form open, with focus in its field', async () => {
   const mounted = mountTasks()
+  const watch = watchFocusLoss()
   try {
     await vi.waitFor(() => expect(shownRows()).toHaveLength(3))
     const funnel = buttonOf('title')
@@ -115,7 +117,10 @@ test('a click on the funnel leaves the form open, with focus in its field', asyn
     await vi.waitFor(() => expect(form()).toBeNull())
     await settle()
     expect(form()).toBeNull()
+    // No render took out the node that held focus: the funnel is one node shut and open.
+    expect(watch.losses).toEqual([])
   } finally {
+    watch.dispose()
     mounted.dispose()
   }
 })
