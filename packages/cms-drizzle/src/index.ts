@@ -534,17 +534,17 @@ export const CmsServer = {
 
     /**
      * An operation's answer to an author who may not read unpublished work. A
-     * write that was made answers its output alone: its patches are rows of the
-     * entry, its draft and its revisions. One that was refused answers
-     * `missing`, whatever refused it. A failure of this side stays one, and is
-     * reported.
+     * write that was made answers as the server cuts it: its patches are rows of
+     * the entry, its draft and its revisions, which the server answers only as
+     * far as the caller may read them. One that was refused answers `missing`,
+     * whatever refused it. A failure of this side stays one, and is reported.
      */
     const unread = <Output>(
       made: Effect.Effect<MutationOutcome<Output>, Failure, DrizzleDatabase>,
       missing: Failure,
     ) =>
       made.pipe(
-        Effect.map(({ output }): MutationOutcome<Output> => ({ output })),
+        Effect.map(({ output, entities = [] }): MutationOutcome<Output> => ({ output, entities })),
         Effect.mapError(failure =>
           Match.valueTags(failure, {
             RemoteServerError: error => (error.told === true ? missing : error),

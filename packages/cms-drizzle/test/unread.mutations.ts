@@ -13,12 +13,23 @@ export default [
     tests,
   },
   {
-    name: 'a write made by one who may not read answers its rows',
+    name: 'a write made by one who may not read answers its deleted rows',
     edits: [
       {
         file,
-        find: 'Effect.map(({ output }): MutationOutcome<Output> => ({ output })),',
+        find: 'Effect.map(({ output, entities = [] }): MutationOutcome<Output> => ({ output, entities })),',
         replace: 'Effect.map((outcome): MutationOutcome<Output> => outcome),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a write made by one who may not read has its rows stripped again, so the hub hears none',
+    edits: [
+      {
+        file,
+        find: 'Effect.map(({ output, entities = [] }): MutationOutcome<Output> => ({ output, entities })),',
+        replace: 'Effect.map(({ output }): MutationOutcome<Output> => ({ output })),',
       },
     ],
     tests,

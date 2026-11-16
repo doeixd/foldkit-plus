@@ -118,8 +118,9 @@ RemoteServer.make({
 - **A write says of an entry only what its caller may read.** An author your
   guards let `Update` and not `Read` (a drop box, a publishing job) changes
   unpublished work and reads none of it. Such a caller's write that is made
-  answers its `output` and no patch: the patches are rows of the entry, its
-  draft and its revisions. One that is refused answers what an entry that is
+  answers its `output` and no patch of the entry, its draft or its revisions,
+  which the server cuts to what the caller may read (a row on show, such as
+  the article a publish put there, is still answered). One that is refused answers what an entry that is
   not there answers (`There is no such entry`; for a save that names a
   `basedOn`, the `Cms.refusal.conflict` of a discarded draft), whatever
   refused it: the entry's type, its state, its revisions, a taken address,

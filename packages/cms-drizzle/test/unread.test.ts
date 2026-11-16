@@ -16,7 +16,7 @@ import { Guards } from 'foldkit-guard'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { Diagnostics, Mutation, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { DrizzleDatabase, bind, databaseLayer } from 'foldkit-remote-drizzle'
-import { RemoteServer, RemoteServerError } from 'foldkit-remote-server'
+import { RemoteServer, RemoteServerError, type LiveHub } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { CmsServer, Transaction, sqliteSchema, sqliteTables } from '../src/index.js'
 
@@ -205,6 +205,24 @@ const open = () => {
           payload: { requestId: 'r1', mutation, input },
         }),
       ).then(({ status, body }) => `${status} ${JSON.stringify(body)}`),
+    /** The rows a mutation tells the live hub changed, which every subscriber is then read for. */
+    heard: async (principal: Principal, mutation: string, input: unknown) => {
+      const changed: Array<string> = []
+      const hub: LiveHub<Principal> = {
+        changed: ref => Effect.sync(() => void changed.push(`${ref.entity}:${ref.id}`)),
+        deleted: () => Effect.void,
+        subscribe: () => {
+          throw new Error('unused')
+        },
+        size: Effect.succeed(0),
+      }
+      await run(
+        RemoteServer.handlers(server, principal, { live: hub })
+          .FoldkitRemoteMutate({ requestId: 'r1', mutation, input })
+          .pipe(Effect.orDie),
+      )
+      return changed
+    },
     read: (principal: Principal, entity: string, id: string, fields: ReadonlyArray<string>) =>
       run(
         RemoteServer.answer(RemoteServer.handlers(server, principal), {
@@ -567,7 +585,8 @@ describe('a write that is made, by one who may not read', () => {
   const stored = /Secret plan|secret-plan|Live, as first written|Hidden|ada|2026-0[1-3]/
 
   it.each([
-    { mutation: 'CmsPublish', input: { entry: 'drafted', basedOn: null } },
+    // The article is on show once published: the one row the server may answer.
+    { mutation: 'CmsPublish', input: { entry: 'drafted', basedOn: null }, onShow: ['Article'] },
     { mutation: 'CmsSchedule', input: { entry: 'drafted', at: '2026-07-01T09:00:00.000Z' } },
     { mutation: 'CmsUnschedule', input: { entry: 'scheduled' } },
     { mutation: 'CmsRestore', input: { entry: 'published', revision: 1 } },
@@ -576,19 +595,31 @@ describe('a write that is made, by one who may not read', () => {
     { mutation: 'CmsUnpublish', input: { entry: 'published' } },
     { mutation: 'CmsDiscardDraft', input: { entry: 'drafted' } },
     { mutation: 'CmsSaveDraft', input: saved('published', { basedOn: null }) },
-  ])('$mutation answers its output, and no row', async ({ mutation, input }) => {
-    // The same write by an author answers rows: there was something to leave out.
-    const read = JSON.parse((await open().answered(ada, mutation, input)).slice(4)).result
-    expect(read.entities.length + read.deleted.length).toBeGreaterThan(0)
-    const answer = await open().answered(dot, mutation, input)
-    expect(answer).toMatch(/^200 /)
-    expect(answer).not.toMatch(stored)
-    expect(JSON.parse(answer.slice(4)).result).toEqual({
-      output: read.output,
-      entities: [],
-      connections: [],
-      deleted: [],
-    })
+  ])(
+    '$mutation answers its output, and only the rows on show',
+    async ({ mutation, input, onShow = [] }) => {
+      // The same write by an author answers rows: there was something to leave out.
+      const read = JSON.parse((await open().answered(ada, mutation, input)).slice(4)).result
+      expect(read.entities.length + read.deleted.length).toBeGreaterThan(0)
+      const answer = await open().answered(dot, mutation, input)
+      expect(answer).toMatch(/^200 /)
+      const shown = read.entities.filter((row: { entity: string }) => onShow.includes(row.entity))
+      const result = JSON.parse(answer.slice(4)).result
+      expect(JSON.stringify({ ...result, entities: [] })).not.toMatch(stored)
+      expect(result).toEqual({
+        output: read.output,
+        entities: shown,
+        connections: [],
+        deleted: [],
+      })
+    },
+  )
+
+  it('is heard by the live hub, which reads each subscriber through their own rules', async () => {
+    const input = { entry: 'drafted', basedOn: null }
+    const heard = await open().heard(dot, 'CmsPublish', input)
+    expect(heard).toEqual(await open().heard(ada, 'CmsPublish', input))
+    expect(heard).toContain('CmsEntry:drafted')
   })
 
   it('is made: a publish by one who may not read is on show', async () => {
