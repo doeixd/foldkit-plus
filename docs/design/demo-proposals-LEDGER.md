@@ -72,7 +72,7 @@ the guard and entity READMEs found these; each is a GitHub issue.
 | #575 | The socket transport sent a failed exchange's error message to the client. `RemoteServer.report(during, cause)` is the shared reporter. | `foldkit-sync` | Landed `b6a6b2b58`, `bd4a391c7`, `fad6066d6`, `b271c434e`, `0e95d1185` |
 | #576 | A resolver's error message, a close reason and a reaction's stored reason carried internal text. | `foldkit-sync` | Landed `d10ec9f26`, `bdad5b3c3` |
 | #577 | A principal admitted to Update but not Read learned an entry's type and state from a refusal. | `foldkit-cms-drizzle` | Landed `00c8f7790`, `1d7e6ba53` |
-| #578 | A mutation handler's returned entities reach the caller unfiltered by what they may read. | `foldkit-remote-server` | Open |
+| #578 | A mutation handler's returned entities reach the caller unfiltered by what they may read. The answer is cut to what the caller may read of each row; the live hub still hears all of it, and what a caller must be told regardless goes in `output`. | `foldkit-remote-server`, `foldkit-cms-drizzle` | Landed `093bd9d86`, `4192a10f8`, `b1dfe67e1` |
 | #566 | `print` wrote unescaped backslashes and character references in link and image URLs. | `foldkit-richtext-markdown` | Landed `577d1bdc3`, `7704c1d73` |
 | (wire) | A 401 or 403 answer's reason is the fixed reader text, not the thrown message. | `foldkit-remote-server` | Landed `2fa8b4034`, `bc839b9ad` |
 | (render) | `ColorPicker` read `EyeDropper` and `Avatar` read the environment while drawing, so a server and a browser drew different markup. `eyedropper` is an input, false by default. | `foldkit-mixins-ui` | Landed `ccc026905`, `43b6fcb9e` |
