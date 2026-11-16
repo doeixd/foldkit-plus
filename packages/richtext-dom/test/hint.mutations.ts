@@ -66,9 +66,9 @@ export default [
     edits: [
       {
         file,
-        find: '    lastSelection = state.selection\n    redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))\n',
+        find: '    lastSelection = state.selection\n    standInWhileElsewhere(state.selection)\n    redraw(patchInto(current, state.document, changeSet, decorationsOver(state.document)))\n',
         replace:
-          '    redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))\n    lastSelection = state.selection\n',
+          '    standInWhileElsewhere(state.selection)\n    redraw(patchInto(current, state.document, changeSet, decorationsOver(state.document)))\n    lastSelection = state.selection\n',
       },
     ],
     tests,
