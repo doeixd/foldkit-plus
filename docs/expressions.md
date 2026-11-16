@@ -145,7 +145,7 @@ NotEditedBy: posts not edited by an author
   ORDER BY Post.title ASC
   given {"editor":"a2"}, asked by a visitor
   reads its own row's editor, title
-  SQLite ran: select "id", "headline", "id" from "posts" where not ("posts"."editor_id" = ?) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]
+  SQLite ran: select "id", "headline" from "posts" where not ("posts"."editor_id" = ?) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]
   SQLite: p3
   evaluate, every post: p3
   Judge, every row held: p3
@@ -156,7 +156,7 @@ ByAuthorName: posts by an author's name
   ORDER BY Post.title ASC
   given {"name":"ada"}, asked by a visitor
   reads its own row's title, and other rows through Post.author.name
-  SQLite ran: select "id", "headline", "id" from "posts" where lower((select "authors"."name" from "authors" where "authors"."id" = "posts"."author_id")) like lower(?) escape '\' order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["%ada%",101]
+  SQLite ran: select "id", "headline" from "posts" where lower((select "authors"."name" from "authors" where "authors"."id" = "posts"."author_id")) like lower(?) escape '\' order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["%ada%",101]
   SQLite: p2, p1
   evaluate, every post: refused, it does not run path
   Judge, every row held: p2, p1

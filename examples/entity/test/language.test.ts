@@ -58,11 +58,11 @@ describe('the language trace', () => {
       '  SQLite: p1, p3',
     ])
     expect(lines.filter(line => line.startsWith('  SQLite ran:'))).toEqual([
-      `  SQLite ran: select "id", "headline", "id" from "posts" where lower("posts"."headline") like lower(?) escape '\\' order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["%COMP%",101]`,
-      '  SQLite ran: select "id", "headline", "id" from "posts" where not ("posts"."editor_id" = ?) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]',
-      '  SQLite ran: select "id", "headline", "id" from "posts" where (("posts"."editor_id" is null) or not ("posts"."editor_id" = ?)) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]',
-      `  SQLite ran: select "id", "headline", "id" from "posts" where lower((select "authors"."name" from "authors" where "authors"."id" = "posts"."author_id")) like lower(?) escape '\\' order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["%ada%",101]`,
-      '  SQLite ran: select "id", "headline", "id" from "posts" where exists (select 1 from "comments" where "comments"."post_id" = "posts"."id" and "comments"."author_id" = ?) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a1",101]',
+      `  SQLite ran: select "id", "headline" from "posts" where lower("posts"."headline") like lower(?) escape '\\' order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["%COMP%",101]`,
+      '  SQLite ran: select "id", "headline" from "posts" where not ("posts"."editor_id" = ?) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]',
+      '  SQLite ran: select "id", "headline" from "posts" where (("posts"."editor_id" is null) or not ("posts"."editor_id" = ?)) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a2",101]',
+      `  SQLite ran: select "id", "headline" from "posts" where lower((select "authors"."name" from "authors" where "authors"."id" = "posts"."author_id")) like lower(?) escape '\\' order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["%ada%",101]`,
+      '  SQLite ran: select "id", "headline" from "posts" where exists (select 1 from "comments" where "comments"."post_id" = "posts"."id" and "comments"."author_id" = ?) order by "posts"."headline" collate binary asc, "posts"."id" collate binary asc limit ? ["a1",101]',
     ])
   })
 })
