@@ -21,8 +21,9 @@ import type { MixinList } from './resolve.js'
  * it and stay pressable on their own. The root carries `data-selected`,
  * `data-disabled`, `data-pressable` and `data-dismissible` for a style to read.
  * Given `recoveryPart`, its dismiss button is a `FocusRecovery` part: with
- * `FocusRecovery.behavior` on the list holding the cards, dismissing one hands its focus to
- * the fallback the list's `parts` name for it instead of dropping it to the page.
+ * `FocusRecovery.behavior` (from `foldkit-primitives/interaction`) on the list holding the cards,
+ * dismissing one hands its focus to the fallback the list's `parts` name for it instead of
+ * dropping it to the page.
  */
 export const CardSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
