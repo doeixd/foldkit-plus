@@ -134,6 +134,22 @@ test('on a phone the page does not scroll sideways and its controls are a finger
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   )
   expect(overflow).toBeLessThanOrEqual(0)
+  // Scrolled to the end, the guide pill sits on the room the page reserves, clear of the footer's controls.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  const pill = (await page.locator('details[data-corner] > summary').boundingBox())!
+  const footerControls = await page.locator('footer button, footer a[href]').all()
+  const covered: Array<string> = []
+  for (const control of footerControls) {
+    const box = (await control.boundingBox())!
+    const intersects =
+      box.x < pill.x + pill.width &&
+      pill.x < box.x + box.width &&
+      box.y < pill.y + pill.height &&
+      pill.y < box.y + box.height
+    if (intersects) covered.push((await control.textContent())?.trim() ?? '')
+  }
+  expect(footerControls.length).toBeGreaterThan(0)
+  expect(covered).toEqual([])
   for (const control of [
     page.getByRole('button', { name: 'Go offline' }),
     page.getByRole('button', { name: /^Delete / }),

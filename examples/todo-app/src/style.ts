@@ -76,7 +76,7 @@ const app = Layers.standard.layer('app')
 export const BodyStyle: StyleValue = Layers.standard.in(
   'app',
   Style.global(
-    `:where(body){margin:0;min-height:100vh;display:grid;place-items:start center;padding:4rem 1rem 6rem;background:${t.surface.muted}}`,
+    `:where(body){margin:0;min-height:100vh;display:grid;place-items:start center;padding:4rem 1rem 0;background:${t.surface.muted}}`,
   ),
 )
 
