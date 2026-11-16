@@ -12,6 +12,7 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { cdp, userEvent } from 'vitest/browser'
+import { holdFrames } from './frames.js'
 import { Recipes, TagsInput, TagsInputSlots } from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -235,6 +236,76 @@ test('removing a chip from the keyboard focuses the one that takes its place, el
     await userEvent.keyboard('{Backspace}')
     await vi.waitFor(() => expect(document.activeElement).toBe(input()))
     expect(tagTexts()).toEqual([])
+  } finally {
+    handle.dispose()
+  }
+})
+
+/** Focuses the chip of `tag` from the input, with the keyboard. */
+const toChip = async (tags: ReadonlyArray<string>, tag: string) => {
+  input().focus()
+  await userEvent.tab({ shift: true })
+  for (let at = tags.length - 1; at > tags.indexOf(tag); at--)
+    await userEvent.keyboard('{ArrowLeft}')
+  expect(focused()).toBe(`Remove ${tag}`)
+}
+
+// Keys come faster than frames: a held key repeating on a busy page sends several before the
+// next drawing, and each continues from the chip the previous one reached.
+test.each([
+  [['a', 'b', 'c', 'd'], 'b', '{Backspace}{Backspace}', ['a', 'd'], 'Remove d'],
+  [['a', 'b', 'c', 'd'], 'b', '{Delete}{Backspace}{Backspace}', ['a'], 'Remove a'],
+  [['a', 'b', 'c'], 'b', '{Backspace}{Backspace}{Backspace}', [], 'topics-input'],
+] as const)(
+  'chips %j from %s: keys %s before the next frame leave %j and focus %s',
+  async (tags, from, keys, left, at) => {
+    const handle = mount(tags)
+    try {
+      await vi.waitFor(() => expect(document.getElementById('topics-input')).not.toBeNull())
+      await toChip(tags, from)
+      const release = holdFrames()
+      try {
+        await userEvent.keyboard(keys)
+      } finally {
+        release()
+      }
+      await vi.waitFor(() => expect(tagTexts()).toEqual(left))
+      await vi.waitFor(() => expect(focused()).toBe(at))
+    } finally {
+      handle.dispose()
+    }
+  },
+)
+
+test('arrows before the next frame walk the chips from the one the previous reached', async () => {
+  const handle = mount(['a', 'b', 'c', 'd'])
+  try {
+    await vi.waitFor(() => expect(document.getElementById('topics-input')).not.toBeNull())
+    input().focus()
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{Home}{ArrowRight}{ArrowRight}')
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(focused()).toBe('Remove c'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('Backspace twice in an empty field before the next frame takes two tags', async () => {
+  const handle = mount(['a', 'b', 'c'])
+  try {
+    await vi.waitFor(() => expect(document.getElementById('topics-input')).not.toBeNull())
+    input().focus()
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard('{Backspace}{Backspace}')
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(tagTexts()).toEqual(['a']))
   } finally {
     handle.dispose()
   }

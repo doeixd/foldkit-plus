@@ -425,6 +425,9 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
     ],
   })
   const indices = model.tags.map((_, index) => index)
+  // The tags this drawing's keys have removed: the Model reaches the next drawing only, so a
+  // second Backspace before it would take the chip the first one left, not the one after.
+  const removed = new Set<string>()
   const forwardKey = direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'
   const chipKeys = Behaviors.Keys.attribute<string, Outer>(
     [
@@ -453,7 +456,24 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
       }),
       Behaviors.Keys.route<string, Outer>('Remove', {
         on: [Behaviors.Keys.chord('Backspace'), Behaviors.Keys.chord('Delete')],
-        handle: ({ input: tag }) => Option.some(lift(Message.Removed({ tag }))),
+        handle: ({ input: tag }) => {
+          removed.add(tag)
+          const at = model.tags.indexOf(tag)
+          const standing = (tags: ReadonlyArray<string>) => tags.filter(each => !removed.has(each))
+          // As `update` picks it: the chip that takes its place, else the one before, else the input.
+          const next = Option.fromNullishOr(
+            standing(model.tags.slice(at + 1))[0] ?? standing(model.tags.slice(0, at)).at(-1),
+          )
+          return Option.some(
+            Behaviors.Keys.focus(
+              Option.match(next, {
+                onNone: () => inputId(model.id),
+                onSome: each => chipId(model.id, each),
+              }),
+              lift(Message.Removed({ tag })),
+            ),
+          )
+        },
       }),
     ],
     { slot: 'remove' },

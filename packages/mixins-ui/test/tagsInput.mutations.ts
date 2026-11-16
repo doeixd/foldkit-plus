@@ -227,8 +227,12 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: 'onSome: each => chipId(model.id, each),',
-        replace: 'onSome: () => inputId(model.id),',
+        find: `id: Option.match(next, {
+              onNone: () => inputId(model.id),
+              onSome: each => chipId(model.id, each),`,
+        replace: `id: Option.match(next, {
+              onNone: () => inputId(model.id),
+              onSome: () => inputId(model.id),`,
       },
     ],
     tests: [unit],
@@ -490,5 +494,44 @@ export default [
       },
     ],
     tests: [unit],
+  },
+  {
+    name: 'a key removes the chip the last drawing showed, not the one after what the key before removed',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: '          removed.add(tag)\n',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the chip to focus counts a tag a key of this drawing removed',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'tags.filter(each => !removed.has(each))',
+        replace: 'tags.filter(() => true)',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a removing key moves focus in a Command, which a key before it ran does not wait for',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: `            Behaviors.Keys.focus(
+              Option.match(next, {
+                onNone: () => inputId(model.id),
+                onSome: each => chipId(model.id, each),
+              }),
+              lift(Message.Removed({ tag })),
+            ),`,
+        replace: '            lift(Message.Removed({ tag })),',
+      },
+    ],
+    tests: [browser],
   },
 ]
