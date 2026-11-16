@@ -149,4 +149,9 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a live error frame sends the message of a refusal that gave no reason',
+    edits: [{ file, find: 'errorFrame(body.error, {', replace: 'errorFrame(error.message, {' }],
+    tests,
+  },
 ]

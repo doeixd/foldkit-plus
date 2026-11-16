@@ -3326,7 +3326,8 @@ export const RemoteServer = {
         Effect.succeed({
           status: 403 as const,
           body: {
-            error: error.message,
+            // The reason is written for the caller; the message may be anyone's.
+            error: error.reason ?? 'Forbidden',
             forbidden: error.reason === undefined ? {} : { reason: error.reason },
           },
         }),

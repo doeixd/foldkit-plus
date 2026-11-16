@@ -8,12 +8,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity } from 'foldkit-entity'
-import {
-  REMOTE_PROTOCOL_VERSION,
-  Mutation,
-  Remote,
-  type RemoteUnauthenticated,
-} from 'foldkit-remote'
+import { REMOTE_PROTOCOL_VERSION, Mutation, Remote, RemoteUnauthenticated } from 'foldkit-remote'
 import { Surface, type Diagnostic } from 'foldkit-surface'
 import { describe, expect, it, vi } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
@@ -174,10 +169,17 @@ describe('serveFetch', () => {
         RemoteServer.unauthenticated(),
         { error: 'Unauthenticated', unauthenticated: {} },
       ],
+      [
+        'saying nothing of a message it was given no reason beside',
+        new RemoteUnauthenticated({ message: 'SECRET-CANARY: no row in sessions for 9f2c' }),
+        { error: 'Unauthenticated', unauthenticated: {} },
+      ],
     ])('answers a refusal %s with a 401', async (_, refusal, answer) => {
       const response = await resolvedBy(() => Effect.fail(refusal))
       expect(response.status).toBe(401)
-      expect(await response.json()).toEqual(answer)
+      const sent = await response.text()
+      expect(JSON.parse(sent)).toEqual(answer)
+      expect(sent).not.toContain('SECRET-CANARY')
     })
 
     it('answers a resolver that breaks with a 500 that says nothing of it', async () => {

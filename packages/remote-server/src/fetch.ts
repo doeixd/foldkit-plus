@@ -290,12 +290,10 @@ const liveBytes = <R, RC>(
           // The client reads `refused` as asking again being refused again.
           RemoteLiveRefused: error => Stream.succeed(errorFrame(error.message, { refused: true })),
           RemoteProtocolError: error => Stream.succeed(errorFrame(error.message)),
-          Unauthenticated: error =>
-            Stream.succeed(
-              errorFrame(error.message, {
-                unauthenticated: unauthenticatedAnswer(error).body.unauthenticated,
-              }),
-            ),
+          Unauthenticated: error => {
+            const { body } = unauthenticatedAnswer(error)
+            return Stream.succeed(errorFrame(body.error, { unauthenticated: body.unauthenticated }))
+          },
         }),
         // A defect says nothing of itself to the client, as a 500 does, and is
         // reported; an interruption is the client leaving, with no one to tell.

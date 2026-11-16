@@ -1269,7 +1269,10 @@ const route = async (request: Request): Promise<Response> => {
   tell who is asking (`RemoteServer.unauthenticated`). The client fails the
   call, of whatever kind, with `_tag: 'Unauthenticated'`.
 - **403** with `{ error, forbidden: { reason? } }`: who is asking may not do
-  this (`RemoteServer.forbid`).
+  this (`RemoteServer.forbid`). In both, `error` is the `reason`, or
+  `Unauthenticated` or `Forbidden` when the refusal gave none: the
+  refusal's own `message` is not sent, here or in a live stream's error
+  frame.
 - **409** with `{ error, refusal }`: a declared insert's id is already a
   row's, refused as `Refusal.taken`.
 - **409** with `{ error, principalChanged: {} }`: the write names someone
@@ -1647,7 +1650,7 @@ its message:
 
 | What happened | What the caller reads |
 | --- | --- |
-| A refusal the application wrote: `RemoteServer.refuse`, `forbid`, `unauthenticated`, a writer's `unmet`, `taken` or `invalid` | the refusal, its message and its reason, as written |
+| A refusal the application wrote: `RemoteServer.refuse`, `forbid`, `unauthenticated`, a writer's `unmet`, `taken` or `invalid` | the refusal, its message and its reason, as written; of a `forbid` or an `unauthenticated`, `answer` and `serveFetch` send the reason, or `Forbidden` or `Unauthenticated` when it has none |
 | `RemoteServer.tell(message)` | `message`, as written |
 | The request itself is at fault: an unknown query or mutation, an input its Schema refuses, too many ids, another protocol version | the server's fixed sentence, naming only what the request said |
 | Anything else: a `RemoteServerError` not made with `tell`, anything thrown in a Source, an `authorize`, a `filter`, `memory`'s `readable` or an operator, a defect, a mutation output its Schema refuses | `Internal error`, and an `incident` |

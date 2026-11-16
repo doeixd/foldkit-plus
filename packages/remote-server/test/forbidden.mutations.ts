@@ -77,4 +77,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a 403 sends the message of a refusal that gave no reason',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: "error: error.reason ?? 'Forbidden',",
+        replace: 'error: error.message,',
+      },
+    ],
+    tests,
+  },
 ]

@@ -169,6 +169,22 @@ describe('a handler that could not tell who is asking', () => {
     })
   })
 
+  it('is answered Unauthenticated when it gave no reason, with nothing of its message', async () => {
+    const untold = () =>
+      Effect.fail(new RemoteUnauthenticated({ message: 'SECRET-CANARY: no row in sessions' }))
+    const answered = await Effect.runPromise(
+      RemoteServer.answer(
+        { ...refusing, FoldkitRemoteRead: untold },
+        { operation: 'read', payload: { version: REMOTE_PROTOCOL_VERSION, requests: [] } },
+      ),
+    )
+    expect(answered).toEqual({
+      status: 401,
+      body: { error: 'Unauthenticated', unauthenticated: {} },
+    })
+    expect(JSON.stringify(answered)).not.toContain('SECRET-CANARY')
+  })
+
   it.each(['FoldkitRemoteRead', 'FoldkitRemoteQuery', 'FoldkitRemoteMutate', 'FoldkitRemoteLive'])(
     'crosses Effect RPC from %s by the error schema a transport encodes with',
     async rpc => {

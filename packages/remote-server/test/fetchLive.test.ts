@@ -12,6 +12,7 @@ import {
   REMOTE_PROTOCOL_VERSION,
   Remote,
   RemoteClient,
+  RemoteUnauthenticated,
   type Diagnostic,
 } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
@@ -353,7 +354,9 @@ describe('serveFetch live', () => {
 
 describe('serveFetch live, asking who it serves again', () => {
   /** Sessions by token: a principal, or none for one revoked. */
-  const revalidating = () => {
+  const revalidating = (
+    revoked: RemoteUnauthenticated = RemoteServer.unauthenticated('Session revoked'),
+  ) => {
     rows.clear()
     rows.set('a', { id: 'a', name: 'Anchor' })
     const sessions = new Map<string, string>([['s1', 'admin']])
@@ -364,9 +367,7 @@ describe('serveFetch live, asking who it serves again', () => {
       resolvePrincipal: request => {
         asked += 1
         const principal = sessions.get(request.headers.get('x-session') ?? '')
-        return principal === undefined
-          ? Effect.fail(RemoteServer.unauthenticated('Session revoked'))
-          : Effect.succeed(principal)
+        return principal === undefined ? Effect.fail(revoked) : Effect.succeed(principal)
       },
       layer: () => Layer.empty,
       live: hub,
@@ -410,6 +411,19 @@ describe('serveFetch live, asking who it serves again', () => {
     const frames = await readAllFrames(response.body!.getReader())
     expect(frames).toEqual([`event: error\ndata: ${JSON.stringify(data)}`])
     await waitFor(() => Effect.runPromise(hub.size).then(size => size === 0))
+  })
+
+  it('ends a stream revoked with no reason as Unauthenticated, with nothing of the message', async () => {
+    const { sessions, hub, open } = revalidating(
+      new RemoteUnauthenticated({ message: 'SECRET-CANARY: no row in sessions for 9f2c' }),
+    )
+    const response = await open()
+    await waitFor(() => Effect.runPromise(hub.size).then(size => size === 1))
+    sessions.delete('s1')
+    const frames = await readAllFrames(response.body!.getReader())
+    expect(frames).toEqual([
+      `event: error\ndata: ${JSON.stringify({ message: 'Unauthenticated', unauthenticated: {} })}`,
+    ])
   })
 
   it('serves on while the session still answers as the same principal', async () => {

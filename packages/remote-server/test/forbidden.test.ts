@@ -8,14 +8,20 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { REMOTE_PROTOCOL_VERSION, Mutation, Remote, RemoteRpc } from 'foldkit-remote'
+import {
+  REMOTE_PROTOCOL_VERSION,
+  Mutation,
+  Remote,
+  RemoteForbidden,
+  RemoteRpc,
+} from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { RemoteServer } from '../src/index.js'
 
 const Archive = Mutation.make('Archive', { Input: { id: Schema.String }, Output: {} })
 
-type Principal = 'admin' | 'member' | 'visitor'
+type Principal = 'admin' | 'member' | 'visitor' | 'untold'
 
 const server = RemoteServer.make<Principal>({
   entities: [],
@@ -24,7 +30,11 @@ const server = RemoteServer.make<Principal>({
       principal === 'admin'
         ? Effect.succeed({ output: {} })
         : Effect.fail(
-            RemoteServer.forbid(principal === 'member' ? 'Only an admin may archive.' : undefined),
+            principal === 'untold'
+              ? new RemoteForbidden({ message: 'SECRET-CANARY: no row in members for t1' })
+              : RemoteServer.forbid(
+                  principal === 'member' ? 'Only an admin may archive.' : undefined,
+                ),
           ),
     ),
   ],
@@ -53,6 +63,12 @@ describe('a forbidden mutation', () => {
       body: { error: 'Forbidden', forbidden: {} },
     })
     expect((await answer('admin')).status).toBe(200)
+  })
+
+  it('says Forbidden for a refusal with no reason, and nothing of its message', async () => {
+    const answered = await answer('untold')
+    expect(answered).toEqual({ status: 403, body: { error: 'Forbidden', forbidden: {} } })
+    expect(JSON.stringify(answered)).not.toContain('SECRET-CANARY')
   })
 
   it('fails the client’s mutation as Forbidden, over JSON, for Data.mutation to show', async () => {
