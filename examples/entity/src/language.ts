@@ -7,7 +7,7 @@
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
-import { Effect, Match, Option, Result, Schema } from 'effect'
+import { Effect, Option, Result, Schema } from 'effect'
 import {
   Expr,
   Held,
@@ -249,9 +249,7 @@ export const judgedIn = (
 ): ReadonlyArray<string> =>
   judged(question, rows, holder)
     .filter(({ verdict }) =>
-      Match.value(verdict).pipe(
-        Match.tagsExhaustive({ Known: ({ truth }) => truth, Unknown: () => false }),
-      ),
+      Judge.match(verdict, { onKnown: truth => truth, onUnknown: () => false }),
     )
     .map(({ row }) => row)
     .sort((left, right) =>
@@ -296,12 +294,10 @@ export const runLanguage = async (): Promise<ReadonlyArray<string>> => {
         `  Judge, a page holding Ada and one comment: ${judged(question, world, page)
           .map(
             ({ id, verdict }) =>
-              `${id} ${Match.value(verdict).pipe(
-                Match.tagsExhaustive({
-                  Known: ({ truth }) => (truth ? 'in' : 'out'),
-                  Unknown: ({ reason }) => `unknown (${reason})`,
-                }),
-              )}`,
+              `${id} ${Judge.match(verdict, {
+                onKnown: truth => (truth ? 'in' : 'out'),
+                onUnknown: reason => `unknown (${reason})`,
+              })}`,
           )
           .join(', ')}`,
       )

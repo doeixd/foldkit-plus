@@ -4,8 +4,8 @@
  * SQLite, `evaluate` and `Judge` give one answer to one body, and a `Judge`
  * that holds only part of the rows is never wrong about what it says it knows.
  */
-import { Match, Option, Result } from 'effect'
-import type { EntityRef } from 'foldkit-entity'
+import { Option, Result } from 'effect'
+import { Judge, type EntityRef } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import {
   evaluated,
@@ -213,20 +213,18 @@ describe('one body, three interpreters', () => {
         for (const question of asked(seed, rows)) {
           const sql = new Set((await database.ask(question)).ids)
           for (const { id, verdict } of judged(question, rows, partial)) {
-            Match.value(verdict).pipe(
-              Match.tagsExhaustive({
-                Unknown: () => {
-                  unknown += 1
-                },
-                Known: ({ truth }) => {
-                  known += 1
-                  if (truth !== sql.has(id))
-                    wrong.push(
-                      `seed ${seed} ${question.name} ${id}: Judge ${truth}, SQLite ${sql.has(id)}`,
-                    )
-                },
-              }),
-            )
+            Judge.match(verdict, {
+              onUnknown: () => {
+                unknown += 1
+              },
+              onKnown: truth => {
+                known += 1
+                if (truth !== sql.has(id))
+                  wrong.push(
+                    `seed ${seed} ${question.name} ${id}: Judge ${truth}, SQLite ${sql.has(id)}`,
+                  )
+              },
+            })
           }
         }
       } finally {
