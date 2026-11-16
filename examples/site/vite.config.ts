@@ -34,11 +34,15 @@ const devHead = (): Plugin => {
     configureServer: devServer => {
       server = devServer
     },
-    transformIndexHtml: async html => {
+    transformIndexHtml: async (html, context) => {
       if (server === undefined) return html
       const { headScripts } = await server.ssrLoadModule('/src/head.ts')
       if (typeof headScripts !== 'string') throw new Error('src/head.ts exports no headScripts')
-      return html.replace('</head>', `${headScripts}</head>`)
+      // The classes the page's static regions drew, which the browser never registers.
+      const { usedStyleAt } = await server.ssrLoadModule('/src/devStyle.ts')
+      const url = new URL(context.originalUrl ?? '/', 'http://localhost')
+      const used = typeof usedStyleAt === 'function' ? await usedStyleAt(url) : ''
+      return html.replace('</head>', `${headScripts}${used}</head>`)
     },
   }
 }
