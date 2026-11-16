@@ -34,8 +34,9 @@ export const startHttpServer = async (
         let body: unknown
         try {
           body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-        } catch (error) {
-          return reply(400, { error: error instanceof Error ? error.message : String(error) })
+        } catch {
+          // The parser's own message quotes the body and names the engine: said in our words.
+          return reply(400, { error: 'The body is not JSON' })
         }
         const answered = await answer(backend, chair, body)
         reply(answered.status, answered.body)
