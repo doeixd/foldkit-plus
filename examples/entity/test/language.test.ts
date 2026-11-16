@@ -7,17 +7,16 @@
 import { Option, Result } from 'effect'
 import { Judge, type EntityRef } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
+import { openDatabase, runLanguage } from '../src/language.js'
 import {
   evaluated,
   held,
   judged,
   judgedIn,
-  openDatabase,
   questions,
-  runLanguage,
   type Question,
   type World,
-} from '../src/language.js'
+} from '../src/questions.js'
 
 describe('the language trace', () => {
   it('asks five bodies of SQLite, evaluate and Judge, and prints what each said', async () => {
