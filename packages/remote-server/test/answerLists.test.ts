@@ -156,8 +156,17 @@ describe('the lists a mutation answers', () => {
         .pipe(Effect.provideService(Diagnostics.Reporter, collected.report)),
     )
     expect(answer.lists).toBeUndefined()
+    // The cause under an incident, and the unread list naming that incident.
     expect(collected.reported).toMatchObject([
-      { _tag: 'AnswerUnread', reason: 'list "Posts": The database went away' },
+      {
+        _tag: 'ServerDefect',
+        during: 'query Posts',
+        message: expect.stringContaining('The database went away'),
+      },
+      {
+        _tag: 'AnswerUnread',
+        reason: expect.stringMatching(/^list "Posts": Internal error, incident [0-9a-f]{16}$/),
+      },
     ])
   })
 

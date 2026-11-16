@@ -1,19 +1,27 @@
 /**
- * What a Remote server answers past without telling the caller why: a defect
- * it answered "Internal error", a committed mutation whose answer's read or
- * live publish failed, and a client's time it would not take. Each is
+ * What a Remote server answers past without telling the caller why: a failure
+ * on its side it answered "Internal error", a committed mutation whose answer's
+ * read or live publish failed, and a client's time it would not take. Each is
  * reported through `Diagnostics.report`, so a host's log (a Worker's
  * `wrangler tail`) shows it by default.
  */
-import { Cause } from 'effect'
-import type { Diagnostic } from 'foldkit-remote'
+import { Cause, Effect } from 'effect'
+import { Diagnostics, type Diagnostic } from 'foldkit-remote'
 
 const source = 'foldkit-remote-server'
 
-/** A failure on this side, answered "Internal error"; the caller is told nothing of it. */
+/**
+ * A failure on this side, answered "Internal error": a defect, or a Source's
+ * failure it did not write for its caller (`RemoteServer.tell`). The caller is
+ * told `incident` and nothing of the cause.
+ */
 export interface ServerDefect extends Diagnostic {
   readonly _tag: 'ServerDefect'
   readonly cause: Cause.Cause<unknown>
+  /** The id the caller was answered with, to find this report by. */
+  readonly incident: string
+  /** What was being answered: `read Note`, `query Notes`, `mutate SaveNote`, `live Note`; `request` where no handler was reached. */
+  readonly during: string
 }
 
 /**
@@ -70,13 +78,45 @@ export type RemoteServerDiagnostic =
   | ClockSkewed
   | CachedReadDiffers
 
-export const serverDefect = (cause: Cause.Cause<unknown>): ServerDefect => ({
-  _tag: 'ServerDefect',
-  source,
-  level: 'error',
-  message: `a request failed on this side, and its caller was answered "Internal error"\n${Cause.pretty(cause)}`,
-  cause,
-})
+/** What a caller reads of a failure on this side, whatever broke. */
+const INTERNAL_ERROR = 'Internal error'
+
+/**
+ * 64 random bits as hex, short enough to quote. `getRandomValues` exists
+ * where `randomUUID` does not: a server run in a page over plain HTTP.
+ */
+const mintIncident = (): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), byte =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
+
+/** What a caller is told of a failure on this side: that there was one, and the id it was reported under. */
+export interface InternalFailure {
+  readonly message: string
+  readonly incident: string
+}
+
+/**
+ * Reports `cause` as a `ServerDefect` and answers what its caller is told
+ * instead: the one place a failure on this side becomes words for a caller.
+ */
+export const internalFailure = (
+  during: string,
+  cause: Cause.Cause<unknown>,
+): Effect.Effect<InternalFailure> =>
+  Effect.suspend(() => {
+    const incident = mintIncident()
+    const defect: ServerDefect = {
+      _tag: 'ServerDefect',
+      source,
+      level: 'error',
+      message: `incident ${incident}: ${during} failed on this side. No caller is told more of it than this id.\n${Cause.pretty(cause)}`,
+      cause,
+      incident,
+      during,
+    }
+    return Effect.as(Diagnostics.report(defect), { message: INTERNAL_ERROR, incident })
+  })
 
 export const answerUnread = (mutation: string, reason: string): AnswerUnread => ({
   _tag: 'AnswerUnread',

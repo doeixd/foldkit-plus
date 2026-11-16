@@ -80,7 +80,7 @@ describe('RemoteServer.answer', () => {
     })
   })
 
-  it('answers a defect with a 500 that says nothing of it', async () => {
+  it('answers a defect with a 500 that says nothing of it but its incident', async () => {
     const broken: RemoteRpcClient = {
       ...handlers,
       FoldkitRemoteRead: () => Effect.die(new Error('the password is hunter2')),
@@ -89,7 +89,7 @@ describe('RemoteServer.answer', () => {
       await Effect.runPromise(RemoteServer.answer(broken, { operation: 'read', payload: readA })),
     ).toEqual({
       status: 500,
-      body: { error: 'Internal error' },
+      body: { error: 'Internal error', incident: expect.stringMatching(/^[0-9a-f]{16}$/) },
     })
   })
 

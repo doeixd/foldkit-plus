@@ -6,9 +6,9 @@ export default [
     name: 'a defect answered "Internal error" is not reported',
     edits: [
       {
-        file: '../src/index.ts',
-        find: 'Diagnostics.report(serverDefect(cause)).pipe(',
-        replace: 'Effect.void.pipe(',
+        file: '../src/diagnostics.ts',
+        find: 'return Effect.as(Diagnostics.report(defect), { message: INTERNAL_ERROR, incident })',
+        replace: 'return Effect.succeed({ message: INTERNAL_ERROR, incident })',
       },
     ],
     tests: ['packages/remote-server/test/answer.test.ts'],

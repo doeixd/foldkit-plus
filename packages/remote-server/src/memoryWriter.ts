@@ -191,9 +191,10 @@ export const memoryWriter = <P>(
       onSome: ({ body, input }) =>
         Effect.try({
           try: () => evaluate(body, input, [judged(row)], { operators }).length > 0,
-          catch: error =>
+          catch: cause =>
             new RemoteServerError({
-              message: `${entity.name}'s write precondition could not be judged: ${String(error)}`,
+              message: `${entity.name}'s write precondition could not be judged`,
+              cause,
             }),
         }),
     })

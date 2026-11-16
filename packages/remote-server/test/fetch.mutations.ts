@@ -107,8 +107,9 @@ export default [
     edits: [
       {
         file,
-        find: "    return Response.json({ error: 'Internal error' }, { status: 500 })",
-        replace: "    return Response.json({ error: 'leaked' }, { status: 500 })",
+        find: 'Response.json({ error: told.message, incident: told.incident }, { status: 500 })',
+        replace:
+          'Response.json({ error: String(exit.cause), incident: told.incident }, { status: 500 })',
       },
     ],
     tests,
@@ -117,9 +118,9 @@ export default [
     name: 'a broken layer is not reported',
     edits: [
       {
-        file,
-        find: 'Diagnostics.report(serverDefect(exit.cause)).pipe(reportingFor(request)),',
-        replace: 'Effect.void,',
+        file: '../src/diagnostics.ts',
+        find: 'return Effect.as(Diagnostics.report(defect), { message: INTERNAL_ERROR, incident })',
+        replace: 'return Effect.succeed({ message: INTERNAL_ERROR, incident })',
       },
     ],
     tests,

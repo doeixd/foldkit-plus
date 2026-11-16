@@ -183,7 +183,10 @@ describe('serveFetch', () => {
     it('answers a resolver that breaks with a 500 that says nothing of it', async () => {
       const response = await resolvedBy(() => Effect.die(new Error('the session store password')))
       expect(response.status).toBe(500)
-      expect(await response.json()).toEqual({ error: 'Internal error' })
+      expect(await response.json()).toEqual({
+        error: 'Internal error',
+        incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+      })
     })
   })
 
@@ -201,7 +204,10 @@ describe('serveFetch', () => {
       {},
     )
     expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({ error: 'Internal error' })
+    expect(await response.json()).toEqual({
+      error: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
   })
 
   it('provides the environment to the Sources and the resolver through the layer', async () => {
@@ -367,7 +373,10 @@ describe('a failure answered "Internal error"', () => {
       ),
     )
     expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({ error: 'Internal error' })
+    expect(await response.json()).toEqual({
+      error: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
     expect(reported).toEqual([
       expect.stringMatching(
         /^ServerDefect http:\/\/worker\.test\/remote [^]*Error: the D1 password/,

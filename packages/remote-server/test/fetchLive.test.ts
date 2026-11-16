@@ -526,9 +526,14 @@ describe("serveFetch, the request's layer", () => {
       (calls += 1) === 1 ? Effect.succeed('admin') : Effect.die(new Error('secret internals')),
     )
     const response = await post(liveBody)
-    expect(await readAllFrames(response.body!.getReader())).toEqual([
-      `event: error\ndata: ${JSON.stringify({ message: 'Internal error' })}`,
-    ])
+    const frames = await readAllFrames(response.body!.getReader())
+    expect(frames).toHaveLength(1)
+    const [event, data] = frames[0]!.split('\n')
+    expect(event).toBe('event: error')
+    expect(JSON.parse(data!.slice('data: '.length))).toEqual({
+      message: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
   })
 
   it('reports what broke a stream as a ServerDefect', async () => {
