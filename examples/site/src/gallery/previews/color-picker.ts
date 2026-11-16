@@ -11,7 +11,6 @@ const colorInline = <Message>(style: NamedStyle<typeof ColorPickerSlots>, live: 
     style,
     live.widgets.accent,
     message => live.onWidget(Widgets.Message.GotAccent({ message })),
-    // ADOPT: the picker will draw its eyedropper from the Model, with no environment read in its view; drop this workaround then.
     live.ready && ColorPicker.canEyedrop(),
     live.h,
   )
@@ -33,7 +32,6 @@ export const showcase = fromRecipe(
           { picker: live.widgets.brand, popover: live.widgets.brandPopover },
           message => live.onWidget(Widgets.Message.GotBrand({ message })),
           message => live.onWidget(Widgets.Message.GotBrandPopover({ message })),
-          // ADOPT: the picker will draw its eyedropper from the Model, with no environment read in its view; drop this workaround then.
           live.ready && ColorPicker.canEyedrop(),
           live.h,
         ),

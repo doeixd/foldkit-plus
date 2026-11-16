@@ -51,9 +51,11 @@ const served = (slug: string) =>
 
 /**
  * The showcases known to differ, and why. The check expects exactly these, so one fixed in a package
- * fails the test until it is taken off the list. The Menu's preview draws its panel in Chromium
- * (`div role=menu`) where Node draws a bare `div`: the view reads something of the environment
- * while rendering, reported to the project.
+ * fails the test until it is taken off the list. The Menu preview starts open (`shownMenu`), and
+ * upstream draws its backdrop in place with `h.OnMount(PortalMenuBackdrop())`
+ * (`@foldkit/ui/dist/menu/index.js:680`), a Mount that moves the node to the portal root once it
+ * runs. Node's markup keeps the backdrop `div` beside the button; the browser's no longer does.
+ * Nothing is read from the environment while rendering, so hydration adopts it all the same.
  */
 const KNOWN = ['menu']
 
