@@ -157,7 +157,8 @@ const scheme = process.env['CMS_SCHEME'] === 'dark' ? 'dark' : 'light'
 /** A screenshot of the drag under way, for a look at it: `CMS_SHOTS=<folder>`, `CMS_SCHEME=dark`. */
 const shot = async (page: Page, name: string) => {
   const folder = process.env['CMS_SHOTS']
-  if (folder !== undefined) await page.screenshot({ path: `${folder}/bdrag-${scheme}-${name}.png` })
+  if (folder !== undefined)
+    await page.screenshot({ path: `${folder}/bdrag2-${scheme}-${name}.png` })
 }
 
 const desktop = async (browser: Browser) => {
@@ -169,6 +170,8 @@ const desktop = async (browser: Browser) => {
   const errors: Array<string> = []
   page.on('pageerror', error => errors.push(String(error)))
   await openPage(page)
+  // The studio draws its page's history row late and moves the panels down by its height.
+  await page.waitForTimeout(1500)
   return { context, page, errors }
 }
 
@@ -184,6 +187,7 @@ test('a tile dragged onto a layer row marks it, shows it can land, and adds the 
   ] as const) {
     const before = await rowIds(page)
     const aimed = row(page, target)
+    await aimed.scrollIntoViewIfNeeded()
     await drag(
       page,
       await middle(tile),
@@ -235,10 +239,17 @@ test('a tile dragged onto the canvas marks where it lands, in a node and at the 
     ],
     [
       'the end of the page',
-      // The gap under the Hero belongs to no node: a drop there lands last, which the frame marks.
+      // Past the last top node (the Section), in the frame's own space: a drop there lands last, which the frame marks.
       async () => {
-        const hero = (await node('hero').boundingBox())!
-        return { x: hero.x + hero.width / 2, y: hero.y + hero.height + 8 }
+        await page
+          .locator('[data-builder-canvas]')
+          .evaluate(each => each.scrollTo(0, each.scrollHeight))
+        const last = (await node('story').boundingBox())!
+        const canvas = (await page.locator('[data-builder-canvas]').boundingBox())!
+        return {
+          x: last.x + last.width / 2,
+          y: Math.min(last.y + last.height + 8, canvas.y + canvas.height - 4),
+        }
       },
       async () => {
         await expect
@@ -268,6 +279,8 @@ test('a layer row dragged above another lands there, and a drag over nowhere say
   const preview = page.locator('[data-drag-source]')
   const before = await rowIds(page)
   expect(before.indexOf('quote')).toBeGreaterThan(before.indexOf('image'))
+  // The layers scroll in their own panel: bring the last rows into it, as a hand would.
+  await row(page, 'quote').scrollIntoViewIfNeeded()
 
   await drag(
     page,
@@ -397,6 +410,134 @@ test('at 390px a held finger on the grip drags the node: the preview is above th
   expect(await page.locator('[data-drag-source]').count()).toBe(0)
   await expect.poll(() => announced(page)).toMatch(/Moved/)
   expect(errors).toEqual([])
+  await context.close()
+})
+
+test('a tile dropped in the gap between two nodes lands between them, with the line drawn at the gap', async () => {
+  const { context, page, errors } = await desktop(browser)
+  const preview = page.locator('[data-drag-source]')
+  const before = await rowIds(page)
+  const hero = page.locator('[data-composition-node="hero"] > *').first()
+  const story = page.locator('[data-composition-node="story"]')
+  // Under the Hero, over the page's own space: between it and the Section after it.
+  const gap = async () => {
+    const box = (await hero.boundingBox())!
+    return { x: box.x + box.width / 2, y: box.y + box.height + 12 }
+  }
+  let line = { top: 0, bottom: 0 }
+  await drag(
+    page,
+    await middle(page.getByRole('button', { name: 'Add Section' })),
+    gap,
+    async () => {
+      await expect.poll(() => story.getAttribute('data-composition-drop')).toBe('before')
+      expect(await preview.getAttribute('data-drag-place')).toBe('here')
+      expect(await page.locator('[data-builder-drop="end"]').count()).toBe(0)
+      const pointer = await gap()
+      const box = (await page.locator('[data-composition-node="story"] > *').first().boundingBox())!
+      line = { top: box.y, bottom: box.y + box.height }
+      // The line is at the gap: within a margin of the pointer, and on screen.
+      expect(Math.abs(box.y - pointer.y)).toBeLessThan(60)
+      expect(box.y).toBeGreaterThanOrEqual(0)
+      expect(box.y).toBeLessThanOrEqual(900)
+      await shot(page, 'gap')
+    },
+  )
+  expect(line.top).toBeGreaterThan(0)
+  await expect.poll(async () => (await rowIds(page)).length).toBe(before.length + 1)
+  const after = await rowIds(page)
+  const added = after.find(id => !before.includes(id))!
+  expect(after.indexOf(added)).toBe(after.indexOf('hero') + 1)
+  expect(after.indexOf('story')).toBe(after.indexOf(added) + 1)
+  expect(errors).toEqual([])
+  await context.close()
+})
+
+test('at 390px a held finger drops a node into the gap above another, between two, with the line at the gap', async () => {
+  const { context, page, errors } = await phone(browser)
+  const node = (id: string) => page.locator(`[data-composition-node="${id}"] > *`).first()
+  await node('text').tap()
+  const grip = page.locator('[data-builder-handle]')
+  await page.waitForTimeout(400)
+  await grip.evaluate(each => window.scrollBy(0, each.getBoundingClientRect().top - 150))
+  await page.waitForTimeout(200)
+  const from = await middle(grip)
+  const session = await page.context().newCDPSession(page)
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', at: Point) =>
+    session.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: type === 'touchEnd' ? [] : [{ x: at.x, y: at.y, id: 1 }],
+    })
+  const gap = async () => {
+    const box = (await node('quote').boundingBox())!
+    return { x: box.x + box.width / 2, y: box.y - 8 }
+  }
+  const before = await rowIds(page)
+  await touch('touchStart', from)
+  await page.waitForTimeout(600)
+  let to = await gap()
+  for (let step = 1; step <= 12; step++) {
+    to = await gap()
+    await touch('touchMove', {
+      x: from.x + ((to.x - from.x) * step) / 12,
+      y: from.y + ((to.y - from.y) * step) / 12,
+    })
+    await page.waitForTimeout(35)
+  }
+  await page.waitForTimeout(200)
+  await expect
+    .poll(() =>
+      page.locator('[data-composition-node="quote"]').getAttribute('data-composition-drop'),
+    )
+    .toBe('before')
+  const line = (await node('quote').boundingBox())!
+  expect(Math.abs(line.y - to.y)).toBeLessThan(40)
+  expect(line.y).toBeGreaterThanOrEqual(0)
+  expect(line.y).toBeLessThanOrEqual(844)
+  await shot(page, 'phone-gap')
+  await touch('touchEnd', to)
+  await expect
+    .poll(async () => (await rowIds(page)).indexOf('quote') - (await rowIds(page)).indexOf('text'))
+    .toBe(1)
+  expect(before.indexOf('text')).toBeLessThan(before.indexOf('quote') - 1)
+  expect(errors).toEqual([])
+  await context.close()
+})
+
+test('at 390px a node scrolled up under the studio’s bar keeps its grip clear of it', async () => {
+  const { context, page } = await phone(browser)
+  const node = page.locator('[data-composition-node="text"] > *').first()
+  await node.tap()
+  await page.waitForTimeout(400)
+  const grip = page.locator('[data-builder-handle]')
+  // The node's top just under the bar (62px): there is no room above it for a 44px grip.
+  await node.evaluate(each => window.scrollBy(0, each.getBoundingClientRect().top - 90))
+  await page.waitForTimeout(400)
+  const at = await middle(grip)
+  const reached = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x!, y!)?.hasAttribute('data-builder-handle'),
+    [at.x, at.y],
+  )
+  expect(reached).toBe(true)
+  await shot(page, 'phone-grip-under-bar')
+  await context.close()
+})
+
+test('a drag held on the last layer rows scrolls no page: the panels end above the window’s edge strip', async () => {
+  const { context, page } = await desktop(browser)
+  const quote = row(page, 'quote')
+  await quote.scrollIntoViewIfNeeded()
+  const box = (await quote.boundingBox())!
+  // The window's own strip is its last 40px: the layers stop short of it.
+  expect(box.y + box.height).toBeLessThan(900 - 40)
+  const scrolled = await page.evaluate(() => window.scrollY)
+  await page.mouse.move(box.x + 30, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 40, box.y + box.height / 2 - 4, { steps: 4 })
+  await page.waitForTimeout(600)
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled)
+  await page.keyboard.press('Escape')
+  await page.mouse.up()
   await context.close()
 })
 

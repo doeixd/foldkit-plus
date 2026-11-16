@@ -300,3 +300,134 @@ it('keeps the selected node’s commands closed until the grip opens them, whate
   const at = centre(action)
   expect(document.elementFromPoint(at.clientX, at.clientY)).toBe(action)
 })
+
+const spaced =
+  '[data-builder-canvas] h2 { margin-block: 20px; } [data-composition-node="s"] > * { padding: 24px 0; }'
+/** Where a new Heading went: its place among the page's Headings, whatever it says. */
+const newIndex = () => order().findIndex(text => !/^Heading \d+$/.test(text ?? ''))
+const settled = (count: number) => vi.waitFor(() => expect(order()).toHaveLength(count))
+
+/** Drags a tile to a point, holds there, and says what is drawn there before letting go. */
+const dropTileAt = async (to: { clientX: number; clientY: number }, node: string) => {
+  const before = order().length
+  await dragTileTo('Heading', to)
+  const marked = `[data-composition-node="${node}"][data-composition-drop]`
+  await vi.waitFor(() => expect(document.querySelector(marked)).not.toBeNull())
+  const mark = document.querySelector(marked)
+  const markBox = (mark?.firstElementChild ?? mark)?.getBoundingClientRect()
+  const zone = mark?.getAttribute('data-composition-drop')
+  pointer(document.body, 'pointerup', to)
+  await settled(before + 1)
+  return { index: newIndex(), mark: zone, markBox }
+}
+
+it('lands a tile in the gap between two nodes, between them, with the line drawn at that gap', async () => {
+  mounted = mountBuilder(longPage(6), spaced)
+  await ready()
+  const above = boxOfNode('h1')?.getBoundingClientRect()
+  if (above === undefined) throw new Error('no node')
+  // In the margin under h1: over the Section's own space, past h1's middle and before h2's.
+  const to = { clientX: above.left + above.width / 2, clientY: above.bottom + 10 }
+  const { index, mark, markBox } = await dropTileAt(to, 'h2')
+  expect(index).toBe(2)
+  expect(mark).toBe('before')
+  // The line is within a gap of the pointer, and on screen.
+  expect(Math.abs((markBox?.top ?? 1e9) - to.clientY)).toBeLessThan(24)
+  expect(markBox?.top).toBeGreaterThanOrEqual(0)
+  expect(markBox?.bottom).toBeLessThanOrEqual(innerHeight)
+})
+
+it('lands a tile above the first node and below the last, inside their Section', async () => {
+  mounted = mountBuilder(
+    longPage(3),
+    '[data-builder-canvas] h2 { margin-block: 6px; } [data-composition-node="s"] > * { padding: 24px 0; }',
+  )
+  await ready()
+  const first = boxOfNode('h0')?.getBoundingClientRect()
+  const last = boxOfNode('h2')?.getBoundingClientRect()
+  if (first === undefined || last === undefined) throw new Error('no node')
+  const top = await dropTileAt(
+    { clientX: first.left + first.width / 2, clientY: first.top - 14 },
+    'h0',
+  )
+  expect(top.index).toBe(0)
+  const end = boxOfNode('h2')?.getBoundingClientRect()
+  if (end === undefined) throw new Error('no node')
+  const bottom = await (async () => {
+    const to = { clientX: end.left + end.width / 2, clientY: end.bottom + 14 }
+    const before = order().length
+    await dragTileTo('Heading', to)
+    // Drawn after the last Heading, inside the Section: not as the end of the page.
+    await vi.waitFor(() =>
+      expect(
+        document
+          .querySelector('[data-composition-node="h2"]')
+          ?.getAttribute('data-composition-drop'),
+      ).toBe('after'),
+    )
+    expect(document.querySelector('[data-builder-drop="end"]')).toBeNull()
+    pointer(document.body, 'pointerup', to)
+    await settled(before + 1)
+    return (
+      order().length -
+      1 -
+      [...order()].reverse().findIndex(text => !/^Heading \d+$/.test(text ?? ''))
+    )
+  })()
+  expect(bottom).toBe(order().length - 1)
+})
+
+it('finds the gap along a row, and from the right in a right-to-left row', async () => {
+  const row = (direction: string) =>
+    `${spaced} [data-composition-node="s"] > * { display: flex; direction: ${direction}; } [data-builder-canvas] h2 { margin-inline: 24px; margin-block: 0; }`
+  for (const direction of ['ltr', 'rtl']) {
+    mounted = mountBuilder(longPage(4), row(direction))
+    await ready()
+    const one = boxOfNode('h1')?.getBoundingClientRect()
+    const two = boxOfNode('h2')?.getBoundingClientRect()
+    if (one === undefined || two === undefined) throw new Error('no node')
+    // Between h1 and h2, wherever the direction puts them.
+    const x = (Math.max(one.left, two.left) + Math.min(one.right, two.right)) / 2
+    const to = {
+      clientX: direction === 'ltr' ? (one.right + two.left) / 2 : (two.right + one.left) / 2,
+      clientY: one.top + one.height / 2,
+    }
+    expect(Number.isFinite(x)).toBe(true)
+    const { index } = await dropTileAt(to, 'h2')
+    expect(index, direction).toBe(2)
+    mounted.dispose()
+    mounted = undefined
+    document.body.innerHTML = ''
+  }
+})
+
+it('measures only the children of the one container under the pointer, a few of them, along a gap', async () => {
+  mounted = mountBuilder(longPage(300), spaced)
+  await vi.waitFor(() => expect(rows().length).toBeGreaterThan(10))
+  // Far down the page, so a scan from the first child would measure hundreds.
+  boxOfNode('h250')?.scrollIntoView({ block: 'center' })
+  await frame()
+  const first = boxOfNode('h250')?.getBoundingClientRect()
+  if (first === undefined) throw new Error('no node')
+  const real = Element.prototype.getBoundingClientRect
+  let measured = 0
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    measured++
+    return real.call(this)
+  }
+  try {
+    const from = tile('Heading')
+    pointer(from, 'pointerdown', centre(from))
+    const x = first.left + first.width / 2
+    pointer(document.body, 'pointermove', { clientX: x, clientY: first.bottom + 4 })
+    pointer(document.body, 'pointermove', { clientX: x, clientY: first.bottom + 6 })
+    measured = 0
+    for (let move = 0; move < 20; move++)
+      pointer(document.body, 'pointermove', { clientX: x, clientY: first.bottom + 4 + (move % 10) })
+    // A page of 300 blocks: a halving of them is a few, never one per block.
+    expect(measured / 20).toBeLessThan(40)
+  } finally {
+    Element.prototype.getBoundingClientRect = real
+  }
+  pointer(document.body, 'pointercancel', centre(tile('Heading')))
+})

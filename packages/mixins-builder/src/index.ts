@@ -70,6 +70,7 @@ import {
   TreeNavigation,
 } from 'foldkit-primitives/interaction'
 import type { KeyboardModifiers } from 'foldkit/html'
+import { GRIP_PLACE_ATTRIBUTE, GripPlace } from './gripPlace.js'
 import { createLazy, inertHtml, type Attribute, type Html, type HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
 import { builderWords, say, wordsOf, type BuilderWords } from './words.js'
@@ -255,6 +256,11 @@ const FrameDefaults = Style.forSlots(BuilderSlots)(
       Style.media('(pointer: coarse)', { minInlineSize: '2.75rem', minBlockSize: '2.75rem' }),
       // What is carried must not be under the pointer, or it would hide the drop from it.
       Style.nest(':root[data-fk-drag] &', { pointerEvents: 'none' }),
+      // No room above the node (it is under a sticky bar): the grip sits in the node's top corner.
+      Style.nest(`[data-${GRIP_PLACE_ATTRIBUTE}="inside"] &`, {
+        insetBlockEnd: 'auto',
+        insetBlockStart: '0',
+      }),
     ),
     nodeMenu: Style.compose(
       Style.self({
@@ -1316,6 +1322,7 @@ export const BuilderView = {
             edgeScroll: {},
             // Its own canvas and layers, found from the palette, whatever the Builder's name holds.
             targets: pageTargets,
+            gaps: true,
             part: `data-${REGION_ATTRIBUTE}`,
             toMessage: tileDrag,
           }),
@@ -1458,6 +1465,12 @@ export const BuilderView = {
           }),
         ],
       )
+
+    // The grip stays reachable: inside the selected node's top edge where there is no room above it.
+    const GripPlacement = Behavior.forSlots(BuilderSlots)<Pick<BuilderInput, never>, Message>(
+      { nodeHandle: Behavior.slot({ mount: () => GripPlace({}) }) },
+      { name: 'GripPlace' },
+    )
 
     // Where the selected and the hovered node are, for the boxes drawn over them.
     const MeasureMarks = Behavior.forSlots(BuilderSlots)<Pick<BuilderInput, never>, Message>(
@@ -1784,6 +1797,7 @@ export const BuilderView = {
             container: 'canvas',
             attribute: `data-${NODE_ATTRIBUTE}`,
             part: `data-${REGION_ATTRIBUTE}`,
+            gaps: true,
             edgeScroll: {},
             toMessage: nodeDrag,
           }),
@@ -1792,6 +1806,7 @@ export const BuilderView = {
             container: 'nodeHandle',
             attribute: `data-${HANDLE_ATTRIBUTE}`,
             targets: pageTargets,
+            gaps: true,
             part: `data-${REGION_ATTRIBUTE}`,
             edgeScroll: {},
             toMessage: nodeDrag,
@@ -1816,6 +1831,7 @@ export const BuilderView = {
           Shortcuts,
           KeepSelectionInView,
           MeasureMarks,
+          GripPlacement,
         ],
       },
       (input, slots, h) => {

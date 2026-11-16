@@ -209,3 +209,62 @@ it('scrolls the canvas while a held finger is near its edge', async () => {
   await vi.waitFor(() => expect(stage.scrollTop).toBeGreaterThan(20))
   finger(document.body, 'pointercancel', from)
 })
+
+it('keeps the grip reachable: above the node where there is room, inside its top edge under a sticky bar or at the top of the scrolling box', async () => {
+  // A bar over the top of the window, declared to the page by its `scroll-padding-top`.
+  mounted = mountBuilder(
+    undefined,
+    'html { scroll-padding-top: 90px; } #bar { position: fixed; top: 0; left: 0; right: 0; height: 90px; background: #ccc; z-index: 5; }',
+  )
+  const bar = document.createElement('div')
+  bar.id = 'bar'
+  document.body.append(bar)
+  await ready()
+  const handle = () =>
+    document.querySelector<HTMLElement>(
+      '[data-builder-canvas] > [data-grip-place], [data-builder-canvas] > div:has([data-builder-handle])',
+    )
+  const reachable = () => {
+    const at = centre(grip() ?? document.body)
+    return document.elementFromPoint(at.clientX, at.clientY) === grip()
+  }
+  // Mid-page, a node has room above it.
+  await select('h4')
+  const node = boxOfNode('h4')
+  node?.scrollIntoView({ block: 'center' })
+  await vi.waitFor(() => expect(handle()?.hasAttribute('data-grip-place')).toBe(false))
+  expect(reachable()).toBe(true)
+  // At the top of the box that scrolls, none: the grip would sit above it, cut off.
+  await select('h0')
+  canvas()?.scrollTo({ top: 0 })
+  window.scrollTo({ top: 0 })
+  await vi.waitFor(() => expect(handle()?.getAttribute('data-grip-place')).toBe('inside'))
+  expect(reachable()).toBe(true)
+})
+
+it('reads the page’s scroll-padding for room above a node when the page itself scrolls', async () => {
+  mounted = mountBuilder(
+    undefined,
+    'html { scroll-padding-top: 90px; } #bar { position: fixed; top: 0; left: 0; right: 0; height: 90px; background: #ccc; z-index: 5; } [data-builder-canvas] { height: auto; overflow: visible; } section[data-panel="layers"], nav[data-panel="insert"] { display: none; } body::after { content: ""; display: block; height: 3000px; }',
+  )
+  const bar = document.createElement('div')
+  bar.id = 'bar'
+  document.body.append(bar)
+  await ready()
+  await select('h2')
+  const place = () =>
+    document
+      .querySelector('[data-builder-canvas] > div:has([data-builder-handle])')
+      ?.getAttribute('data-grip-place')
+  const topAt = async (top: number) => {
+    window.scrollBy(0, (boxOfNode('h2')?.getBoundingClientRect().top ?? 0) - top)
+    await frame()
+  }
+  // Its top 100px down: under the bar's 90px the grip's 44px would be cut off.
+  await topAt(100)
+  await vi.waitFor(() => expect(place()).toBe('inside'))
+  const at = centre(grip() ?? document.body)
+  expect(document.elementFromPoint(at.clientX, at.clientY)).toBe(grip())
+  await topAt(300)
+  await vi.waitFor(() => expect(place()).toBeNull())
+})

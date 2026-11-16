@@ -118,9 +118,9 @@ export default [
     edits: [
       {
         file: view,
-        find: "            part: `data-${REGION_ATTRIBUTE}`,\n            edgeScroll: {},\n            toMessage: nodeDrag,\n          }),\n          // The selected node's handle",
+        find: "            part: `data-${REGION_ATTRIBUTE}`,\n            gaps: true,\n            edgeScroll: {},\n            toMessage: nodeDrag,\n          }),\n          // The selected node's handle",
         replace:
-          "            part: `data-${REGION_ATTRIBUTE}`,\n            toMessage: nodeDrag,\n          }),\n          // The selected node's handle",
+          "            part: `data-${REGION_ATTRIBUTE}`,\n            gaps: true,\n            toMessage: nodeDrag,\n          }),\n          // The selected node's handle",
       },
     ],
     tests: touch,
@@ -224,5 +224,122 @@ export default [
       },
     ],
     tests: touch,
+  },
+  {
+    name: 'the place over a gap is found by measuring every child',
+    edits: [
+      {
+        file: '../../primitives/src/dom/drag-gap.ts',
+        find: 'if (pastMiddle(children[middle]!)) high = middle',
+        replace:
+          'if (children.map(pastMiddle).length > 0 && pastMiddle(children[middle]!)) high = middle',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'a gap between nodes is the end of the page',
+    edits: [
+      {
+        file: '../../primitives/src/dom/pointer-drag.ts',
+        find: 'if (gap !== undefined) return { place: gap, region }',
+        replace: 'if (gap !== undefined) return { place: null, region }',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'a right-to-left row is read from the left',
+    edits: [
+      {
+        file: '../../primitives/src/dom/drag-gap.ts',
+        find: "style?.direction === 'rtl' ? -1 : 1",
+        replace: '1',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'a row is read as a column',
+    edits: [
+      {
+        file: '../../primitives/src/dom/drag-gap.ts',
+        find: 'Math.abs(second.left + second.width / 2 - (first.left + first.width / 2)) >',
+        replace:
+          'false && Math.abs(second.left + second.width / 2 - (first.left + first.width / 2)) >',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'a drop past the last child of a Section lands outside it',
+    edits: [
+      {
+        file: '../../primitives/src/dom/drag-gap.ts',
+        find: "return host === null ? null : named(last, 'after')",
+        replace: 'return null',
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'the first child is never a place before',
+    edits: [
+      {
+        file: '../../primitives/src/dom/drag-gap.ts',
+        find: "if (child !== undefined) return named(child, 'before')",
+        replace: "if (child !== undefined && next > 0) return named(child, 'before')",
+      },
+    ],
+    tests: mouse,
+  },
+  {
+    name: 'the grip never looks for room above the node',
+    edits: [{ file: view, find: '          GripPlacement,\n', replace: '' }],
+    tests: touch,
+  },
+  {
+    name: 'the grip stays above the node whatever is there',
+    edits: [
+      {
+        file: '../src/gripPlace.ts',
+        find: 'const inside = box.top - grip.offsetHeight < reachableTop(element)',
+        replace: 'const inside = false',
+      },
+    ],
+    tests: touch,
+  },
+  {
+    name: 'the page’s scroll-padding is no part of what is reachable',
+    edits: [
+      {
+        file: '../src/gripPlace.ts',
+        find: 'let top = padding(view.getComputedStyle(element.ownerDocument.documentElement))',
+        replace: 'let top = 0',
+      },
+    ],
+    tests: touch,
+  },
+  {
+    name: 'a scrolling box’s top is no part of what is reachable',
+    edits: [
+      {
+        file: '../src/gripPlace.ts',
+        find: 'top = Math.max(top, at.getBoundingClientRect().top + padding(style))',
+        replace: 'void style',
+      },
+    ],
+    tests: touch,
+  },
+  {
+    name: 'a gap between nodes is the container’s own place, not between its children',
+    edits: [
+      {
+        file: '../../primitives/src/dom/pointer-drag.ts',
+        find: 'gaps === true &&',
+        replace: 'false &&',
+      },
+    ],
+    tests: mouse,
   },
 ]
