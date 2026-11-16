@@ -669,11 +669,12 @@ Foldkit's own behaviour that we work around is listed in
   changed. The data grid's funnel came from `onNone: () => [button]` while its
   form was shut and `onSome: … => [button, form]` while open, so opening the
   form replaced the focused button, the header read the focus loss as leaving,
-  and the form closed 100ms after a click. Vitest's browser project does not
-  run the plugin and an installed package is not branded, so every test
-  passed. Return a control that must keep focus or state from one function
-  whatever the state, and test such a claim on a Vite server with the plugin
-  (`packages/mixins-data-grid/test/branded.test.ts`).
+  and the form closed 100ms after a click. Every test passed because
+  Vitest's browser project did not run the plugin; it does now (`inBrowser` in
+  `vitest.shared.ts`), while the unit project and an installed package are not
+  branded. Return a control that must keep focus or state from one function
+  whatever the state, and assert it with `watchFocusLoss`
+  (`test-support/focusLoss.mjs`).
 - **Chromium drops a scroll key pressed in the last frame of its own
   animated scroll.** On a page with no script, End pressed about 150ms after
   Page Down did nothing. domains-plus left its list's keys to the browser,
