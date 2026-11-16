@@ -19,6 +19,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Menu, MenuSlots, MenuView, Recipes } from '../src/index.js'
+import { holdFrames } from './frames.js'
 import { marksThrough } from './observe.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -551,6 +552,123 @@ test("a submenu's rows with one label are told apart by value, and the choice na
     expect(byId('file-sub-2-item-1')?.getAttribute('aria-disabled')).toBe('true')
     await userEvent.keyboard('{Enter}')
     await vi.waitFor(() => expect(chosenText()).toBe('copy-delete'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+const FRUIT: ReadonlyArray<Menu.Row> = [
+  'Apple',
+  'Avocado',
+  'Banana',
+  'Blueberry',
+  'Cherry',
+  'Damson',
+].map(value => ({ value, label: value }))
+
+const activeRow = () => {
+  const id = byId('file-items')?.getAttribute('aria-activedescendant')
+  return id === null || id === undefined ? '' : (byId(id)?.textContent ?? '')
+}
+
+/** Opens a flat menu from the keyboard, then types `keys` in one frame: the page draws nothing in between. */
+const burst = async (keys: string) => {
+  const handle = mount({ opensAt: 'button', direction: 'ltr', around: menu => menu, rows: FRUIT })
+  const trigger = await vi.waitFor(() => {
+    const found = byId('file-button')
+    expect(found).not.toBeNull()
+    return found!
+  })
+  trigger.focus()
+  await userEvent.keyboard('{Enter}')
+  await vi.waitFor(() => expect(activeRow()).toBe('Apple'))
+  const release = holdFrames()
+  try {
+    await userEvent.keyboard(keys)
+  } finally {
+    release()
+  }
+  return handle
+}
+
+// Keys come faster than frames: a held key repeating on a busy page sends several before the
+// next drawing, and each continues from where the previous one of this drawing left off.
+test.each([
+  ['{ArrowDown}{ArrowDown}{ArrowDown}', 'Blueberry'],
+  ['{ArrowDown}{ArrowDown}{ArrowUp}', 'Avocado'],
+  ['{End}{ArrowUp}', 'Cherry'],
+  ['{End}{ArrowDown}{ArrowDown}{ArrowDown}', 'Banana'],
+  ['bl', 'Blueberry'],
+  ['b{ArrowDown}', 'Blueberry'],
+] as const)('keys %s before the next frame leave the active row at %s', async (keys, last) => {
+  const handle = await burst(keys)
+  try {
+    await vi.waitFor(() => expect(activeRow()).toBe(last))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('Enter after two ArrowDowns before the next frame chooses the row the second reached', async () => {
+  const handle = await burst('{ArrowDown}{ArrowDown}{Enter}')
+  try {
+    await vi.waitFor(() => expect(chosenText()).toBe('Banana'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a Space typed after letters before the next frame continues the search instead of choosing', async () => {
+  const handle = await burst('b ')
+  try {
+    await vi.waitFor(() => expect(activeRow()).toBe('Banana'))
+    await new Promise(done => setTimeout(done, 50))
+    expect(chosenText()).toBe('nothing')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('ArrowDown twice before the next frame on a shut menu opens it on the first row and moves to the second', async () => {
+  const handle = mount({ opensAt: 'button', direction: 'ltr', around: menu => menu, rows: FRUIT })
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = byId('file-button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    trigger.focus()
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(activeRow()).toBe('Avocado'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('one key a frame still moves one row each', async () => {
+  const handle = mount({ opensAt: 'button', direction: 'ltr', around: menu => menu, rows: FRUIT })
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = byId('file-button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    trigger.focus()
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(activeRow()).toBe('Apple'))
+    for (const [key, row] of [
+      ['{ArrowDown}', 'Avocado'],
+      ['{ArrowDown}', 'Banana'],
+      ['{ArrowUp}', 'Avocado'],
+    ] as const) {
+      await userEvent.keyboard(key)
+      await vi.waitFor(() => expect(activeRow()).toBe(row))
+    }
   } finally {
     handle.dispose()
   }
