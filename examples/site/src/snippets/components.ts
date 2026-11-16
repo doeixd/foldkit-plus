@@ -7233,9 +7233,9 @@ export const ACCENTS: ReadonlyArray<ColorPicker.ColorPickerPreset> = [
 
 /**
  * The color, its format and the text being typed are the picker's Model, folded with `update`.
- * `eyedropper` is whether to draw the eyedropper button: it defaults to what the browser has, which
- * a server rendering the page cannot know, so a page that is served first passes false until its
- * code has taken it over.
+ * `eyedropper` draws the eyedropper button: an input of the view, `false` by default on a server and
+ * in a browser alike, so the application says when the browser has one (`ColorPicker.canEyedrop()`),
+ * after its code has taken the page over.
  */
 export const colorPicker = <Message>(
   style: NamedStyle<typeof ColorPickerSlots>,
