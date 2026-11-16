@@ -80,7 +80,9 @@ export default [
     edits: [
       {
         file: '../src/recipes/field.ts',
-        find: "Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: ref.outline.overt }),",
+        find: `Style.pseudo(':hover:not(:focus, :disabled, [aria-invalid="true"])', {
+    borderColor: ref.outline.overt,
+  }),`,
         replace: '',
       },
     ],
@@ -148,6 +150,90 @@ export default [
         file: '../src/recipes/toggle.ts',
         find: 'Style.pseudo(`:is(${checked}, [aria-checked="mixed"])`, {',
         replace: 'Style.pseudo(`:is(${checked}X, [aria-checked="mixed"]X)`, {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a hovered invalid CascadeSelect trigger loses its error edge',
+    edits: [
+      {
+        file: '../src/recipes/cascadeSelect.ts',
+        find: ':hover:not(:focus, :disabled, [aria-invalid="true"])',
+        replace: ':hover:not(:focus, :disabled)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a filled CascadeSelect trigger shows no hover',
+    edits: [
+      {
+        file: '../src/recipes/cascadeSelect.ts',
+        find: `          filledHover,
+          invalidEdge,`,
+        replace: '          invalidEdge,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a filled CascadeSelect trigger shows no invalid edge',
+    edits: [
+      {
+        file: '../src/recipes/cascadeSelect.ts',
+        find: `          filledHover,
+          invalidEdge,`,
+        replace: '          filledHover,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a hovered invalid ghost CascadeSelect trigger loses its error edge',
+    edits: [
+      {
+        file: '../src/recipes/cascadeSelect.ts',
+        find: '          invalidEdgeHeld,\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a hovered invalid ghost Listbox trigger loses its error edge',
+    edits: [{ file: '../src/recipes/listbox.ts', find: '    invalidEdgeHeld,\n', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a hovered invalid Input loses its error edge',
+    edits: [
+      {
+        file: '../src/recipes/field.ts',
+        find: ':hover:not(:focus, :disabled, [aria-invalid="true"])',
+        replace: ':hover:not(:focus, :disabled)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a hovered invalid Textarea frame loses its error edge',
+    edits: [
+      {
+        file: '../src/recipes/field.ts',
+        find: ':hover:not(:focus-within, :has([aria-invalid="true"]))',
+        replace: ':hover:not(:focus-within)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a hovered invalid Select loses its error edge',
+    edits: [
+      {
+        file: '../src/recipes/select.ts',
+        find: ':hover:not(:focus, :disabled, [aria-invalid="true"])',
+        replace: ':hover:not(:focus, :disabled)',
       },
     ],
     tests,

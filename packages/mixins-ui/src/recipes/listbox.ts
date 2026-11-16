@@ -20,6 +20,8 @@ import {
   filledHover,
   focusRing,
   hover,
+  invalidEdge,
+  invalidEdgeHeld,
   onLadder,
   ref,
   steps,
@@ -97,8 +99,6 @@ export const checkAt = {
   none: { itemCheck: variant(Style.self({ display: 'none' })) },
 } as const
 
-const invalidEdge = Style.states({ true: { borderColor: ref.error.outline } }, 'aria-invalid')
-
 /** The select's trigger: a field-like button showing the choice, which `Picker`'s opener shares. */
 export const trigger = component(
   Style.self({
@@ -141,6 +141,7 @@ export const triggerLooks = {
     Style.self({ background: 'transparent', borderColor: 'transparent' }),
     hover({ background: unfilledHover, borderColor: 'transparent' }),
     invalidEdge,
+    invalidEdgeHeld,
   ),
 } as const
 

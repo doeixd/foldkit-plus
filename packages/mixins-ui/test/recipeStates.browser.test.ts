@@ -22,6 +22,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { cdp } from 'vitest/browser'
 import {
   ButtonSlots,
+  CascadeSelectSlots,
   CheckboxSlots,
   ComboboxSlots,
   InputSlots,
@@ -132,6 +133,23 @@ const textareas = fieldLooks(['outline', 'filled']).map(variant => {
   )
 })
 
+/** The box a field with a footer draws, which is what hover, focus and invalid show on. */
+const textareaFrames = fieldLooks(['outline', 'filled']).map(variant => {
+  const style = Style.forSlots(TextareaSlots)(Recipes.Textarea({ variant }))
+  return look(variant, style, (h, id, on) =>
+    Textarea.view(
+      {
+        id: `notes-${variant}`,
+        invalid: on.invalid,
+        style,
+        draw: ({ textarea, frame }, inner) =>
+          inner.div([...frame, inner.DataAttribute('case', id)], [inner.textarea(textarea)]),
+      },
+      h,
+    ),
+  )
+})
+
 const selects = fieldLooks(['outline', 'filled']).map(variant => {
   const style = Style.forSlots(SelectSlots)(Recipes.Select({ variant }))
   return look(variant, style, (h, id, on) => {
@@ -162,6 +180,25 @@ const listboxes = (['outline', 'filled', 'ghost'] as const).map(trigger => {
           ...(on.invalid ? [h.AriaInvalid(true)] : []),
         ]),
         ['Frequency'],
+      ),
+    ])
+  })
+})
+
+const cascadeSelects = (['outline', 'filled', 'ghost'] as const).map(trigger => {
+  const style = Style.forSlots(CascadeSelectSlots)(Recipes.CascadeSelect({ trigger }))
+  return look(trigger, style, (h, id, on) => {
+    const b = SlotView.buildersFor(CascadeSelectSlots, [style.mixin], { input: undefined, h })
+    return h.div(b.root.attrs([]), [
+      h.button(
+        b.trigger.attrs([
+          h.Type('button'),
+          h.AriaHasPopup('dialog'),
+          h.DataAttribute('case', id),
+          ...(on.disabled ? [h.Disabled(true)] : []),
+          ...(on.invalid ? [h.AriaInvalid(true)] : []),
+        ]),
+        ['Region'],
       ),
     ])
   })
@@ -341,6 +378,12 @@ const CONTROLS: ReadonlyArray<Control> = [
     looks: textareas,
   },
   {
+    name: 'Textarea frame',
+    states: ['hover', 'focus', 'invalid'],
+    focusing: ['focus-within'],
+    looks: textareaFrames,
+  },
+  {
     name: 'Select',
     states: ['hover', 'focus', 'disabled', 'invalid'],
     focusing: ['focus', 'focus-visible'],
@@ -351,6 +394,12 @@ const CONTROLS: ReadonlyArray<Control> = [
     states: ['hover', 'focus', 'disabled', 'invalid'],
     focusing: ['focus', 'focus-visible'],
     looks: listboxes,
+  },
+  {
+    name: 'CascadeSelect trigger',
+    states: ['hover', 'focus', 'disabled', 'invalid'],
+    focusing: ['focus', 'focus-visible'],
+    looks: cascadeSelects,
   },
   {
     name: 'Combobox field',
@@ -444,7 +493,7 @@ const read = (element: HTMLElement, inner: string | undefined): Reading => {
 const differs = (a: Reading, b: Reading, keys: ReadonlyArray<keyof Reading>): boolean =>
   keys.some(key => a[key] !== b[key])
 
-const FLAGS: Readonly<Record<'rest' | State | 'disabledHover', Flags>> = {
+const FLAGS: Readonly<Record<'rest' | State | 'disabledHover' | 'invalidHover', Flags>> = {
   rest: { disabled: false, invalid: false, checked: false },
   hover: { disabled: false, invalid: false, checked: false },
   focus: { disabled: false, invalid: false, checked: false },
@@ -452,9 +501,19 @@ const FLAGS: Readonly<Record<'rest' | State | 'disabledHover', Flags>> = {
   invalid: { disabled: false, invalid: true, checked: false },
   checked: { disabled: false, invalid: false, checked: true },
   disabledHover: { disabled: true, invalid: false, checked: false },
+  invalidHover: { disabled: false, invalid: true, checked: false },
 }
 
-const CASES = ['rest', 'hover', 'focus', 'disabled', 'invalid', 'checked', 'disabledHover'] as const
+const CASES = [
+  'rest',
+  'hover',
+  'focus',
+  'disabled',
+  'invalid',
+  'checked',
+  'disabledHover',
+  'invalidHover',
+] as const
 
 const Model = Schema.Struct({})
 
@@ -536,6 +595,12 @@ const check = async (control: Control): Promise<ReadonlyArray<string>> => {
         const bad = read(at(index, 'invalid'), control.inner)
         if (!differs(bad, rest, ['edge', 'ring', 'shadow', 'fill']))
           note('invalid', 'has no edge, ring or fill beyond rest')
+        // An invalid control keeps its error edge under the pointer.
+        if (control.states.includes('hover')) {
+          const badHovered = await forced(index, 'invalidHover', ['hover'])
+          if (differs(badHovered, bad, ['edge']))
+            note('invalidHover', 'loses its error edge under the pointer')
+        }
       }
       if (control.states.includes('checked')) {
         const on = read(at(index, 'checked'), control.inner)

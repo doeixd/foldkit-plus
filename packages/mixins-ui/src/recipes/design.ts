@@ -117,6 +117,27 @@ const held = (declarations: Declarations): Declarations => {
   return declarations
 }
 
+/**
+ * A control's error edge while it is `aria-invalid`. A look that sets the edge
+ * itself (`filled`'s transparent one) writes it again, since a variant beats
+ * the base's.
+ */
+export const invalidEdge: StyleValue = Style.states(
+  { true: { borderColor: ref.error.outline } },
+  'aria-invalid',
+)
+
+/**
+ * The same edge while the pointer is over or presses the control, for a look
+ * whose own hover rule writes the edge (a ghost's transparent one) and would
+ * otherwise win by specificity: an invalid control keeps its error edge under
+ * the pointer.
+ */
+export const invalidEdgeHeld: StyleValue = Style.pseudo(
+  '[aria-invalid="true"]:is(:hover, :active)',
+  { borderColor: ref.error.outline },
+)
+
 export const focusRing: StyleValue = Style.pseudo(':focus-visible', {
   outline: `${ref.border.thick} solid ${ref.outline.focus}`,
   outlineOffset: '2px',

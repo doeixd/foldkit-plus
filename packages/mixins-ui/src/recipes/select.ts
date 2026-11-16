@@ -58,7 +58,9 @@ export const Select = Style.recipeFor(SelectSlots)({
         ...transition('border-color, background-color'),
       }),
       Style.pseudo(':dir(rtl)', at('left')),
-      Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: ref.outline.overt }),
+      Style.pseudo(':hover:not(:focus, :disabled, [aria-invalid="true"])', {
+        borderColor: ref.outline.overt,
+      }),
       Style.pseudo(':has(option[value=""]:checked)', { color: ref.text.muted }),
       Style.nest('& option', { color: ref.text.default }),
       // Invalidity reads DOM state, so it goes through `states`.

@@ -34,7 +34,10 @@ const control = component(
     ...onLadder,
     ...transition('border-color, background-color, box-shadow'),
   }),
-  Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: ref.outline.overt }),
+  // An invalid control keeps its error edge under the pointer.
+  Style.pseudo(':hover:not(:focus, :disabled, [aria-invalid="true"])', {
+    borderColor: ref.outline.overt,
+  }),
   Style.pseudo('::placeholder', { color: ref.text.muted }),
   Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
   focusRing,
@@ -98,7 +101,9 @@ const fieldBox = (layout: Declarations): StyleValue =>
       boxShadow: ref.shadow.field,
       ...transition('border-color'),
     }),
-    Style.pseudo(':hover:not(:focus-within)', { borderColor: ref.outline.overt }),
+    Style.pseudo(':hover:not(:focus-within, :has([aria-invalid="true"]))', {
+      borderColor: ref.outline.overt,
+    }),
     focusWithin,
     Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
   )
