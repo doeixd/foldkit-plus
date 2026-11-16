@@ -770,7 +770,7 @@ time); the application signs in again and `forget`s. A read, a query or a mutati
 request not sent, an RPC transport failure, or a response that is no Remote answer: not JSON, JSON that is not `{ result }`
 or `{ error }`, or a 408, 429, 502, 503 or 504) fails with `_tag:
 'Unreachable'` (`RemoteUnreachable`), which `RemoteClient`'s types name: a mutation may or may not have run;
-`RemoteData.isUnreachable(error)` asks it without comparing tags.
+`RemoteData.isUnreachable(error)` asks it without comparing tags. A failure on the server's own side (a Source's `RemoteServerError`, a throw, a defect) reads `Internal error` and carries an `incident`, the id the server reported the cause under: `RemoteData.incident(error)` is `Option<string>`, some for such a failure only. On the server, `RemoteServer.tell(message)` fails a Source with words for the reader, sent as written; any other `new RemoteServerError({ message, cause })` is reported as a `ServerDefect` (with `incident` and `during`) and never sent.
 
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
 `Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`
@@ -1201,8 +1201,9 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // or 500.
 // The body is { operation: 'read' | 'query' | 'mutate', payload }; test a server over HTTP
 // with the real client, Remote.http(`${origin}/remote`, { headers, fetch }).
-// It decodes the request by the protocol's schemas first; a defect answers 'Internal error',
-// and its cause is reported as a ServerDefect diagnostic (Diagnostics.Reporter, by default the
+// It decodes the request by the protocol's schemas first; a failure on this side (a Source's
+// RemoteServerError not made with RemoteServer.tell, a throw, a defect) answers 'Internal error'
+// and an incident, and its cause is reported as a ServerDefect diagnostic (Diagnostics.Reporter, by default the
 // log); serveFetch({ diagnostics: (diagnostic, request) => ... }) takes the request too. A
 // committed write whose answer read or live publish failed reports AnswerUnread / PublishFailed.
 // No server yet: RemoteServer.memory({ domain: Data, rows: { Project: [...] } }).layer.
@@ -1311,7 +1312,8 @@ const RemoteClientLive = Remote.clientLayer(RemoteServer.handlers(Server, 'user-
 )
 // In a mutation handler: `const writes = yield* drizzleWrites` (insert/update/delete typed by
 // the table), run each with `yield* runStatement(() => writes.update(…)…, 'Database write
-// failed')` (a refusal fails as a RemoteServerError; the driver's error, with its SQL, is
+// failed')` (a refusal fails as a RemoteServerError, which the caller reads as 'Internal error'
+// and an incident; the driver's error, with its SQL, is
 // reported as a StatementFailed diagnostic, never sent), then name each row it wrote in `entities` (`yield* returning.row(Project,
 // id)`, its stored values, or `Remote.patch(Project, id, {})`): the answer carries what the
 // page shows of each row it names, and only those. `returning(Project, fields)` gives
