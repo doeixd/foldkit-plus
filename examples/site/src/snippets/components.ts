@@ -5555,29 +5555,49 @@ export const otpField = <Message>(
 // #region otp-field-states
 // Empty and filling are the same field at different values; invalid marks a
 // refused code, disabled takes no input, and read-only shows a code that
-// cannot be changed. Each cell mirrors the one real input beneath them.
+// cannot be changed. Each cell mirrors the one real input beneath them. The
+// two fields that take input keep a value of their own, which the application
+// owns like any other.
 export const otpFieldStates = <Message>(
   style: NamedStyle<typeof OtpFieldSlots>,
-  onChange: (code: string) => Message,
+  codes: { readonly filling: string; readonly refused: string },
+  onChange: (field: 'filling' | 'refused', code: string) => Message,
   h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
+): Html => {
+  const typed = (field: 'filling' | 'refused') => (code: string) => onChange(field, code)
+  return h.div(
     [h.Style({ display: 'grid', gap: '1rem' })],
     [
-      OtpField.view({ id: 'otp-filling', label: 'Filling', value: '48', onChange, style }, h),
       OtpField.view(
         {
-          id: 'otp-invalid',
-          label: 'Refused code',
-          value: '482910',
-          invalid: true,
-          onChange,
+          id: 'otp-filling',
+          label: 'Filling',
+          value: codes.filling,
+          onChange: typed('filling'),
           style,
         },
         h,
       ),
       OtpField.view(
-        { id: 'otp-disabled', label: 'Disabled', value: '', disabled: true, onChange, style },
+        {
+          id: 'otp-invalid',
+          label: 'Refused code',
+          value: codes.refused,
+          invalid: true,
+          onChange: typed('refused'),
+          style,
+        },
+        h,
+      ),
+      OtpField.view(
+        {
+          id: 'otp-disabled',
+          label: 'Disabled',
+          value: '',
+          disabled: true,
+          onChange: typed('filling'),
+          style,
+        },
         h,
       ),
       OtpField.view(
@@ -5586,13 +5606,14 @@ export const otpFieldStates = <Message>(
           label: 'Read only',
           value: '482910',
           readOnly: true,
-          onChange,
+          onChange: typed('filling'),
           style,
         },
         h,
       ),
     ],
   )
+}
 // #endregion
 
 // #region resizable-basic

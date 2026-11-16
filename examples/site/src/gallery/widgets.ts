@@ -257,6 +257,8 @@ export const Model = Schema.Struct({
   servings: Schema.Number,
   /** The one-time code typed so far. */
   code: Schema.String,
+  /** The states preview's two editable fields: the one being filled and the refused one. */
+  otpStates: Schema.Struct({ filling: Schema.String, refused: Schema.String }),
   hoverCard: UiHoverIntent.Model,
   /** The command menu's query, highlighted row and last command run. */
   commandQuery: Schema.String,
@@ -459,6 +461,7 @@ export const Message = defineMessageUnion({
   SetAlerts: { example: AlertsExample, values: Schema.Array(Schema.String) },
   ChangedServings: { value: Schema.Number },
   TypedCode: { code: Schema.String },
+  TypedStateCode: { field: Schema.Literals(['filling', 'refused']), code: Schema.String },
   GotHoverCard: { message: UiHoverIntent.Message },
   GotFileMenu: { message: Menu.Message },
   TypedCommand: { query: Schema.String },
@@ -706,6 +709,7 @@ export const initial: Model = {
   },
   servings: 4,
   code: '',
+  otpStates: { filling: '48', refused: '482910' },
   hoverCard: UiHoverIntent.init(),
   fileMenu: Menu.init('preview-file-menu', FILE_MENU, { isAnimated: true }),
   fileChoice: Option.none(),

@@ -1428,6 +1428,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     },
     TypedCode: ({ code }) =>
       code === model.code ? { model } : { model: modifyFields(model, { code: () => code }) },
+    TypedStateCode: ({ field, code }) =>
+      code === model.otpStates[field]
+        ? { model }
+        : { model: modifyFields(model, { otpStates: states => ({ ...states, [field]: code }) }) },
     ChangedServings: ({ value }) =>
       value === model.servings
         ? { model }

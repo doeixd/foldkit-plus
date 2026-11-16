@@ -34,7 +34,8 @@ export const showcase = fromRecipe(
       draw: (style, live) =>
         Snippet.otpFieldStates(
           style,
-          code => live.onWidget(Widgets.Message.TypedCode({ code })),
+          live.widgets.otpStates,
+          (field, code) => live.onWidget(Widgets.Message.TypedStateCode({ field, code })),
           live.h,
         ),
     },

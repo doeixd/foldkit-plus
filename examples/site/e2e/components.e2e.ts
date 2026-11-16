@@ -172,3 +172,26 @@ test('a removed file leaves the input holding what the list shows, and focus on 
     await context.close()
   }
 }, 180_000)
+
+test('typing in the Input OTP states edits that field alone', async () => {
+  const context = await browser.newContext()
+  try {
+    const page = await context.newPage()
+    await open(page, '/components/otp-field')
+    const filling = page.locator('input#otp-filling')
+    const refused = page.locator('input#otp-invalid')
+    const basic = page.getByRole('textbox', { name: 'Sign-in code' })
+    await filling.click()
+    await page.keyboard.type('29')
+    await expect.poll(() => filling.inputValue()).toBe('4829')
+    expect(await basic.inputValue()).toBe('')
+    await refused.click()
+    await page.keyboard.press('End')
+    await page.keyboard.press('Backspace')
+    await expect.poll(() => refused.inputValue()).toBe('48291')
+    expect(await filling.inputValue()).toBe('4829')
+    expect(await basic.inputValue()).toBe('')
+  } finally {
+    await context.close()
+  }
+}, 180_000)
