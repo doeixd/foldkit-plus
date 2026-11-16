@@ -1032,6 +1032,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-guard`: `GuardServer.memory` throws where it is made for an Entity whose Read rule reads another row. A memory server judges each stored row alone, so every read of such an Entity failed, with the interpreter's message as its `RemoteReadError`. Serve it through `GuardDrizzle.visible`, whose statement judges the rule (#570).
 - `foldkit-guard`: `GuardServer.mutation` and `GuardSync.document` throw where they are made when the row rule they check (the handler's `interaction`, a document's `Update`) reads another row: a path, a path from the viewer, or an exists. Each judges over the one row it reads and runs no statement, so such a rule ended every request as a defect (`this interpreter does not run path`). `GuardServer.writer` already refused the same case where it is made, and a declared write through it is how such a rule is held (#570).
 - `foldkit-remote-drizzle`: a list page's statement selects each column once. The id, a page's row identity and its order's last key, was listed twice (`select "id", "headline", "id" from ...`); `cursorSelection` and `keysOf` take the columns already selected and read a key held there from it, so a cursor is the same one as before (#568).
 - `foldkit-mixins-ui`: keys pressed before the next frame, which a held key repeating on a

@@ -66,6 +66,18 @@ export default [
     leaving("reach._tag !== 'Exists' || reach.via.length === 0"),
   ),
   edit(
+    'a memory server is made over a Read rule that reads another row',
+    server,
+    "onSome: attachment => reachingRules(attachment, 'Read'),",
+    'onSome: () => [],',
+  ),
+  edit(
+    'a memory server is held to the Update rule',
+    server,
+    "onSome: attachment => reachingRules(attachment, 'Read'),",
+    "onSome: attachment => reachingRules(attachment, 'Update'),",
+  ),
+  edit(
     'a rule inside all is not opened',
     attach,
     'flattenRules(attachment.row[interaction]?.rules ?? [])',

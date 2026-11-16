@@ -280,3 +280,19 @@ describe('GuardSync.document over a rule that reads another row', () => {
     ).toBe(DeleteReaches)
   })
 })
+
+describe('GuardServer.memory over a Read rule that reads another row', () => {
+  it.each(reaching)('refuses a Read ruled $name where it is made', ({ name, guard }) => {
+    const Ruled = Related.Note.pipe(Guards.attach(G, { row: { Read: [guard] } }))
+    expect(() => GuardServer.memory(Policy, [Related.Team, Ruled])).toThrow(
+      `[foldkit-guard] GuardServer.memory: Note's Read rule's ${name} reads another row (a path or an exists), which a memory server, judging each stored row alone, cannot judge; serve Note from a table whose statement judges it (GuardDrizzle.visible), or rule Read over the row alone`,
+    )
+  })
+
+  it('reads the Read rule, not a write rule a statement judges', () => {
+    const WritesReach = Related.Note.pipe(
+      Guards.attach(G, { row: { Read: [G.isAuthor], Update: [G.byPath], Delete: [G.byExists] } }),
+    )
+    expect(Object.keys(GuardServer.memory(Policy, [WritesReach]).filter)).toEqual(['Note'])
+  })
+})

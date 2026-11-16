@@ -175,7 +175,9 @@ export const Todo = TodoFields.pipe(
 - `foldkit-guard/server`: `...GuardServer.memory(Policy, [Todo, Project])`
   spread into `RemoteServer.memory` enforces row and member Reads, inherited
   Reads included; `GuardServer.filter(Todo, Policy)` is a Source's `filter`
-  for member Reads.
+  for member Reads. It throws where it is made for an Entity whose Read rule
+  reads another row (a path, an exists): a memory server judges each stored
+  row alone, so serve such an Entity through `GuardDrizzle.visible`.
 - Underneath: `Policy.readable(Todo, principal)` decides every principal guard
   and returns a `Condition` over the row (`Always`, `Never`, or row guards
   joined by and/or, plus inherited Reads); `Condition.holds(condition, values,
