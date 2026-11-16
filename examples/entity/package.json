@@ -24,9 +24,11 @@
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",
     "foldkit-remote-server": "workspace:*",
-    "foldkit-surface": "workspace:*"
+    "foldkit-surface": "workspace:*",
+    "sql.js": "1.15.1"
   },
   "devDependencies": {
+    "@types/sql.js": "1.4.11",
     "@foldkit/vite-plugin": "0.29.0",
     "@effect/platform-browser": "4.1.4",
     "effect": "4.1.4",
