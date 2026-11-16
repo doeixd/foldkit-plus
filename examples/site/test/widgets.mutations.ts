@@ -3,7 +3,7 @@
  * examples/site/test/widgets.mutations.ts`.
  */
 const tests = ['examples/site/test/widgets.test.ts']
-const widgets = '../src/gallery/widgets.ts'
+const widgets = '../src/gallery/widgetsUpdate.ts'
 
 export default [
   {

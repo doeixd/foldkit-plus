@@ -41,6 +41,7 @@ import {
   pickedTheme,
 } from './gallery/studio.js'
 import * as Widgets from './gallery/widgets.js'
+import * as WidgetsUpdate from './gallery/widgetsUpdate.js'
 import {
   Direction,
   KnobPath,
@@ -421,7 +422,7 @@ const foldWidget = Update.foldChild({
   write: (model: Model, widgets: Widgets.Model) =>
     widgets === model.widgets ? model : modifyFields(model, { widgets: () => widgets }),
   toParentMessage: (message: Widgets.Message) => Message.GotWidget({ message }),
-  update: Widgets.update,
+  update: WidgetsUpdate.update,
 })
 
 const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
@@ -634,7 +635,7 @@ export const subscriptions = placements.subscriptions(
         }),
       ),
     })),
-    Subscription.lift(Widgets.subscriptions)<Model, Message>({
+    Subscription.lift(WidgetsUpdate.subscriptions)<Model, Message>({
       read: model => Option.some(model.widgets),
       toParentMessage: message => Message.GotWidget({ message }),
       // ⌘K belongs to the browser everywhere but the page that shows the menu.
