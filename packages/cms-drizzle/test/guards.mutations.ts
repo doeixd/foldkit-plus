@@ -26,8 +26,8 @@ export default [
     edits: [
       {
         file,
-        find: "Effect.flatMap(isAuthor(context.principal, 'Update'), author =>",
-        replace: 'Effect.flatMap(Effect.succeed(true), author =>',
+        find: "if (!(yield* isAuthor(context.principal, 'Update')))",
+        replace: 'if (false)',
       },
     ],
     tests,

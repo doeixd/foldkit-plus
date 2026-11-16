@@ -334,7 +334,10 @@ RemoteServer.make({
   `Form.checks` step; it asks that query and excepts the row the editor says the
   form is about.
 - `authors` and `transitions` are principal guards, decided once per read; `allow(principal,
-  transition, entry)` adds a rule about the entry. A refusal is `Forbidden`. A publishable
+  transition, entry)` adds a rule about the entry. A refusal is `Forbidden`. An author
+  let `Update` and not `Read` writes and reads nothing: a write made answers its `output`
+  and no patch, and one refused answers as for an entry that is not there, whatever refused
+  it (a first save of a taken id reads `This draft cannot be saved as this entry`). A publishable
   type's Read rule must read its published field, and its binding's `visible` must be the
   guard set's (`GuardServer.validate` runs at `make`). The principal is an `Option`; `now` is the clock.
 

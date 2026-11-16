@@ -115,6 +115,23 @@ RemoteServer.make({
   an entry on show takes it off, so it asks `unpublish`'s guards too. `allow`
   stays for a rule about the entry itself. A refusal is `Forbidden`, with its
   sentence.
+- **A write says of an entry only what its caller may read.** An author your
+  guards let `Update` and not `Read` (a drop box, a publishing job) changes
+  unpublished work and reads none of it. Such a caller's write that is made
+  answers its `output` and no patch: the patches are rows of the entry, its
+  draft and its revisions. One that is refused answers what an entry that is
+  not there answers (`There is no such entry`; for a save that names a
+  `basedOn`, the `Cms.refusal.conflict` of a discarded draft), whatever
+  refused it: the entry's type, its state, its revisions, a taken address,
+  `transitions`, `allow`, or your handler's own refusal. What was sent is
+  still refused in its own words (an unknown type, a draft too large, a time
+  that is not one), before any entry is looked up, and a failure on the
+  server's side still reads `Internal error` with an incident. Such a caller
+  can still tell two things. A write that was made was made. And a first save
+  (`basedOn: null`) of an id an entry already has reads `This draft cannot be
+  saved as this entry`, whatever the entry is, since an id cannot be given
+  twice; ids are random (`Cms.newEntryId()`), so that lists nothing. A live
+  hub is told of no row by such a caller's write.
 - **`create` and `update` go to the CMS, not to `RemoteServer.make`.** Registered
   there too, they are a way to publish with no draft, no revision and no `allow`.
 - **Content that exists already is imported, not inserted.** `cms.import({ type,
@@ -212,7 +229,7 @@ fails after writing leaves nothing behind.
   Fail your handler with `RemoteServer.tell('…')` for words the author should
   read. The CMS's own refusals (`There is no such entry`, `This entry cannot be
   published as it stands`, `An archived entry takes no draft`) are told that
-  way, and only to an author.
+  way, and only to an author who may read unpublished work.
 - A row that is already shown keeps the date it was first published on.
 - The row as your handler left it goes to the client with the entry and the
   revision, every column of it, so a handler need not patch what it wrote. What
