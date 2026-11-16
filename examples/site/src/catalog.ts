@@ -124,6 +124,7 @@ export const subsites: ReadonlyArray<Subsite> = [
     },
     [
       doc('domain', 'One domain declaration', 'entity'),
+      doc('expressions', 'Expressions', 'expressions'),
       doc('laws', 'Laws', 'laws'),
       doc('operators', 'Operators', 'operators'),
     ],
