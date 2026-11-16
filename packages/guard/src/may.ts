@@ -15,6 +15,11 @@ import { Condition, deciding, type MemberRead, type RowRule } from './condition.
  * application named), per member with its own `Update` rule, and per relation
  * with a `Link` or `Unlink` rule; and, for a row interaction refused with an
  * `explain`, its sentence.
+ *
+ * `row` says one of three things of an interaction: `true`, its rule let the
+ * reader; `false`, it refused; and nothing, the key left out, where the rule
+ * reads another row and one row cannot decide it. The write's statement
+ * decides that one. Read the three with `May.answer`.
  */
 export const MaySchema = Schema.Struct({
   row: Schema.Record(Schema.String, Schema.Boolean),
@@ -29,16 +34,28 @@ export type MayAnswer = typeof MaySchema.Type
 
 type MemberKeys<E extends AnyEntity> = (keyof E['fields'] | keyof E['derived']) & string
 
-const can = (may: MayAnswer, interaction: string): boolean => may.row[interaction] === true
+/** What the answer says of a row interaction; none where it does not name it. */
+const answer = (may: MayAnswer, interaction: string): Option.Option<boolean> =>
+  Record.get(may.row, interaction)
 
-/** The row's `Update`, and the member's own rule when it has one. */
+const can = (may: MayAnswer, interaction: string): boolean =>
+  Option.getOrElse(answer(may, interaction), () => false)
+
+/** Whether `answers` names `key`, and says no to it. */
+const refuses = (answers: Readonly<Record<string, boolean>>, key: string): boolean =>
+  Option.exists(Record.get(answers, key), said => !said)
+
+/** Whether the relation has a rule of its own for the direction, and it said no. */
+const refusesLink = (may: MayAnswer, relation: string, interaction: 'Link' | 'Unlink'): boolean =>
+  Option.exists(Record.get(may.relations, relation), said => !said[interaction])
+
+/** A yes to the row's `Update`, and no refusal from the member's own rule. */
 const setting = (may: MayAnswer, member: string): boolean =>
-  can(may, 'Update') && (!Object.hasOwn(may.members, member) || may.members[member] === true)
+  can(may, 'Update') && !refuses(may.members, member)
 
-/** The row's `Update`, and the relation's own rule for the direction when it has one. */
+/** A yes to the row's `Update`, and no refusal from the relation's own rule for the direction. */
 const linking = (may: MayAnswer, relation: string, interaction: 'Link' | 'Unlink'): boolean =>
-  can(may, 'Update') &&
-  (!Object.hasOwn(may.relations, relation) || may.relations[relation]![interaction])
+  can(may, 'Update') && !refusesLink(may, relation, interaction)
 
 const isMay = Schema.is(MaySchema)
 const sameMay = Schema.toEquivalence(MaySchema)
@@ -190,10 +207,6 @@ const predict: Predict = ({ entity, row, rows, context }) => {
   return sameMay(held, answerAssuming(false)) ? Option.some(held) : Option.none()
 }
 
-/** Whether `answer` names `key`, and says no to it. */
-const refuses = (answer: Readonly<Record<string, boolean>>, key: string): boolean =>
-  Object.hasOwn(answer, key) && answer[key] === false
-
 /**
  * The write a held `may` refuses, as the server would: the row's `Update` or
  * `Delete`, a written member's own `Update`, a relation's `Link` or `Unlink`,
@@ -211,9 +224,8 @@ const forbids: Forbids = (value, surface) => {
     })
   }
   const member = surface.members.some(key => refuses(value.members, key))
-  const relation = surface.relations.some(
-    ({ relation, interaction }) =>
-      Object.hasOwn(value.relations, relation) && !value.relations[relation]![interaction],
+  const relation = surface.relations.some(({ relation, interaction }) =>
+    refusesLink(value, relation, interaction),
   )
   return member || relation ? Option.some({ reason: Option.none() }) : Option.none()
 }
@@ -228,12 +240,38 @@ export const May = {
   member: Entity.derived({ may: Derived.make(MaySchema, { predict, forbids }) }),
 
   /**
-   * Whether the row's rule for `interaction` let the principal, when it was
-   * read. An interaction the answer does not name was not ruled where the row
-   * was read, and reads `false`: a hint errs on the side of asking.
+   * What the answer says of the row's rule for `interaction`: `some(true)`,
+   * it let the reader when the row was read; `some(false)`, it refused; none,
+   * the answer does not say, since the rule reads another row and one row
+   * cannot decide it. The server decides that one when the write reaches it.
+   *
+   * ```ts
+   * Option.match(May.answer(todo.may, 'Update'), {
+   *   onNone: () => 'the server will say',
+   *   onSome: allowed => (allowed ? 'yes' : 'no'),
+   * })
+   * ```
+   */
+  answer: (
+    may: MayAnswer,
+    interaction: 'Update' | 'Delete' | InteractionKey,
+  ): Option.Option<boolean> => answer(may, interaction),
+
+  /**
+   * Whether the answer says yes to `interaction`: `false` both where the rule
+   * refused and where the answer does not say. For what is drawn only on a
+   * certain yes; to hide or disable only what was refused, read `refused`.
    */
   can: (may: MayAnswer, interaction: 'Update' | 'Delete' | InteractionKey): boolean =>
     can(may, interaction),
+
+  /**
+   * Whether the answer says no to `interaction`: `false` both where the rule
+   * let the reader and where the answer does not say. What a hint hides,
+   * disables or refuses on: what was not said is left for the server.
+   */
+  refused: (may: MayAnswer, interaction: 'Update' | 'Delete' | InteractionKey): boolean =>
+    refuses(may.row, interaction),
 
   /**
    * Why the row's rule for `interaction` refused, when it was refused with an
@@ -245,11 +283,20 @@ export const May = {
     interaction: 'Update' | 'Delete' | InteractionKey,
   ): Option.Option<string> => Record.get(may.reasons, interaction),
 
-  /** Whether the principal may set `member` on this row: the row's `Update`, and the member's own rule. */
+  /**
+   * Whether the answer says the principal may set `member` on this row: a
+   * yes to the row's `Update`, and no refusal from the member's own rule.
+   * `false` where the row's `Update` was not said: to lock only what was
+   * refused, read `locks`.
+   */
   canSet: <E extends AnyEntity>(may: MayAnswer, _entity: E, member: MemberKeys<E>): boolean =>
     setting(may, member),
 
-  /** Whether the principal may point `relation` at a row, or away from one. */
+  /**
+   * Whether the answer says the principal may point `relation` at a row, or
+   * away from one: a yes to the row's `Update`, and no refusal from the
+   * relation's own rule. `false` where the row's `Update` was not said.
+   */
   canLink: <E extends AnyEntity>(
     may: MayAnswer,
     _entity: E,
@@ -259,9 +306,12 @@ export const May = {
 
   /**
    * `foldkit-crud`'s `locks` for `entity`: an editor loads `may` beside the
-   * form's members and locks each the reader may not set. A relation is locked
-   * unless it may be both unlinked and linked. Nothing is locked while `may`
-   * is not answered (a Source without the filter): the write is checked anyway.
+   * form's members and locks each the answer refuses: the row's `Update`, or
+   * the member's own rule, said no. A relation is locked where its `Unlink`
+   * or its `Link` said no. Nothing is locked on what was not said: a row's
+   * `Update` whose rule reads another row, or a `may` not answered at all (a
+   * Source without the filter). The write is checked anyway, and its refusal
+   * is the server's to give.
    *
    * ```ts
    * Crud.editor('todo', { form, mutation: EditTodo, locks: May.locks(Todo) })
@@ -272,9 +322,10 @@ export const May = {
     locked: (row: Readonly<Record<string, unknown>>, member: string): boolean => {
       const may = row.may
       if (!isMay(may)) return false
+      if (refuses(may.row, 'Update')) return true
       return Object.hasOwn(entity.relations, member)
-        ? !(linking(may, member, 'Unlink') && linking(may, member, 'Link'))
-        : !setting(may, member)
+        ? refusesLink(may, member, 'Unlink') || refusesLink(may, member, 'Link')
+        : refuses(may.members, member)
     },
   }),
 }

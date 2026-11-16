@@ -285,6 +285,15 @@ supplied: true } }`). Select `may: true` and read it with
 `May.canLink(may, Todo, 'project', 'Link')`, and `May.reason(may, 'Delete')`
 (an `explain`'s sentence for a refusal, else none).
 
+`may` says one of three things of a row interaction: yes, no, or nothing, where
+its rule reads another row and one row cannot decide it. `May.answer(may,
+'Update')` is the three as an `Option<boolean>`. `May.can` is true only on a
+yes and `May.refused(may, 'Update')` only on a no: hide or disable on
+`refused`, so what was not said stays live and the server decides it.
+`May.locks(Todo)` (`Crud.editor`'s `locks`) locks a key only where the row's
+`Update` or the key's own rule said no, and `GuardAgent` refuses only a no.
+`canSet` and `canLink` are true only where the row's `Update` said yes.
+
 - For a row the client writes, Remote foresees it from the shared rules before
   the answer, where principal guards, the principal's fields and what the store
   lacks cannot change it; otherwise it waits for the server.
@@ -292,7 +301,7 @@ supplied: true } }`). Select `may: true` and read it with
   relinked relation) has `Data.mutate` refuse the write where it is made, with
   `Forbidden`. The server leaves out of `may.row` an interaction whose rule
   reads another row, which one row cannot decide (the write's statement does),
-  so it refuses nothing.
+  so it refuses nothing, locks no editor key and hides no agent capability.
 - Threat model: `may` is a UI hint; enforcement is server-only. The server
   never reads `may` from a request, so a stale, foreseen or forged yes is
   refused when written. A row the reader cannot see is read, `may` and all,
@@ -331,7 +340,8 @@ supplied: true } }`). Select `may: true` and read it with
 - Agents: `foldkit-guard/agent`'s `GuardAgent.authorize(Archive.key, ({ input,
   model }) => Data.get(TodoRow, input.id).read(model))` and
   `GuardAgent.available(...)` gate a capability on the row's `may` (refused
-  until it is answered; an explained refusal is the agent error's message);
+  until the row is read and where `may` says no, allowed where it does not
+  say; an explained refusal is the agent error's message);
   `Agent.forApplication(App).withPrincipal(G.Principal)`.
 
 ## Known traps

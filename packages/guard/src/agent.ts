@@ -2,8 +2,10 @@
  * `foldkit-guard/agent`: a `foldkit-agent` capability's `authorize` and
  * `available`, read from the `may` the server answered for a row the Model
  * holds. The client has no rule to run, and is not where a write is checked:
- * this keeps an agent from offering or attempting what the server would
- * refuse, and the Message's mutation is checked on the server all the same.
+ * this keeps an agent from offering or attempting what the server said it
+ * would refuse, and the Message's mutation is checked on the server all the
+ * same. What the answer does not say (a rule reading another row, which one
+ * row cannot decide) is offered and attempted: the server decides it.
  */
 import { Option } from 'effect'
 import { RemoteData } from 'foldkit-remote'
@@ -33,19 +35,26 @@ const decided = (
   Option.match(answered(row), {
     onNone: () => false,
     onSome: may =>
-      May.can(may, interaction) ||
-      Option.match(May.reason(may, interaction), {
-        onNone: () => false,
-        onSome: reason => ({ allowed: false as const, reason }),
+      Option.match(May.answer(may, interaction), {
+        // Not said: the server decides when the Message's write reaches it.
+        onNone: () => true,
+        onSome: allowed =>
+          allowed ||
+          Option.match(May.reason(may, interaction), {
+            onNone: () => false,
+            onSome: reason => ({ allowed: false as const, reason }),
+          }),
       }),
   })
 
 export const GuardAgent = {
   /**
    * A capability's `authorize`: the row the request names, read from the
-   * Model, must let the principal do `interaction`. A row not read yet, or
-   * whose read failed, refuses: there is no answer to go on. A refusal its
-   * rule explained says so, as the agent's error.
+   * Model, must not refuse the principal `interaction`. A row not read yet,
+   * or whose read failed, refuses: there is no row to act on, and a refusal
+   * may be why. A row whose answer does not say (its rule reads another row)
+   * is allowed: the server decides. A refusal its rule explained says so, as
+   * the agent's error.
    *
    * ```ts
    * authorize: GuardAgent.authorize(Archive.key, ({ input, model }) =>
@@ -66,8 +75,9 @@ export const GuardAgent = {
 
   /**
    * A capability's `available`, for one that acts on a row the Model alone
-   * names (the todo that is selected): offered only while that row lets the
-   * principal do `interaction`, so a visitor is not offered it at all.
+   * names (the todo that is selected): offered while that row is read and
+   * does not refuse the principal `interaction`, so a visitor is not offered
+   * it at all.
    */
   available:
     <Model>(interaction: 'Update' | 'Delete' | InteractionKey, row: (model: Model) => MayRow) =>
