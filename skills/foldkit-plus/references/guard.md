@@ -122,7 +122,8 @@ export const Todo = TodoFields.pipe(
 - A relation's Read rules are guards over the parent row: where they refuse,
   the relation is withheld, like a member.
 - `Guards.matrix([Todo])` prints every surface; `Guards.guardFields(Todo,
-  'Read')` names what a row interaction's guards read.
+  'Read')` names the row's own members a row interaction's guards read, not
+  what a path or an exists reads of another row.
 
 ### Rules over who asks and over other rows
 
