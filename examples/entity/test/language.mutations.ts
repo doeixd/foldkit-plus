@@ -41,21 +41,21 @@ export default [
   ),
   edit(
     'a page says it holds every comment when it holds some',
-    '../src/language.ts',
+    '../src/questions.ts',
     ': { entity: Comment, rows: partial.comments, complete: false },',
     ': { entity: Comment, rows: partial.comments },',
   ),
   edit(
     'a page says it holds every author when it holds some',
-    '../src/language.ts',
+    '../src/questions.ts',
     ': { entity: Author, rows: partial.authors, complete: false },',
     ': { entity: Author, rows: partial.authors },',
   ),
   edit(
     'the trace asks SQLite as a visitor, whoever asks',
-    '../src/language.ts',
-    'viewer: question.viewer,\n          })',
-    'viewer: Option.none(),\n          })',
+    '../src/questions.ts',
+    'viewer: question.viewer,\n      })',
+    'viewer: Option.none(),\n      })',
   ),
   guide(
     'the guide: not of an unknown comparison keeps the draft',

@@ -96,6 +96,12 @@ describe('update', () => {
     }
   })
 
+  it('refuses a value a native select cannot send: no declared body, no author', () => {
+    const model = start()
+    expect(update(model, Message.ChoseBody({ body: 'Nope' })).model).toBe(model)
+    expect(update(model, Message.ChoseEditor({ editor: 'a9' })).model).toBe(model)
+  })
+
   it('a body is given only the inputs it reads, and the viewer asks it', () => {
     const base = start()
     const discussed = questionOf({ ...base, body: 'Discussed', viewer: 'a2' })
@@ -114,6 +120,7 @@ describe('update', () => {
     })
     const stale = update(asked, Message.SqlAnswered({ key: 'other', ids: ['p1'], statements: [] }))
     expect(stale.model).toBe(asked)
+    expect(update(asked, Message.SqlFailed({ key: 'other', message: 'late' })).model).toBe(asked)
     const fresh = update(asked, Message.SqlAnswered({ key, ids: ['p3'], statements: [] }))
     expect(stateOf(fresh.model.sql)).toBe('Answered')
     const failed = update(asked, Message.SqlFailed({ key, message: 'no wasm' }))
