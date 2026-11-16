@@ -681,6 +681,16 @@ Policy, which is not built here. A lowered write holds no ledger,
   principal.
 - **A hidden row.** A row the View's `validate` refuses reads as absent, as a
   guarded SQL read of a hidden row does.
+- **A lowered write that fails on its own side.** A Domain Api sends a defect
+  with its message and cause, so `Lower.write`'s `decide` lets nothing of its
+  own out that way: a failure of the chain it runs (the guard's own, which may
+  name a member a Read rule hides, or whatever a rule's body or an operator
+  threw) is reported as a `ServerDefect` with `during: 'decide <Mutation>'`
+  (`RemoteServer.report`, through the `Diagnostics.Reporter` the model is
+  hosted with), and the defect says only `Internal error, incident <id>`. The
+  adapter answers such a write `RemoteUnreachable`; the incident is in the
+  Api's response, and the cause in the report. A declared refusal is a
+  Rejection, as before.
 
 ## Limits
 

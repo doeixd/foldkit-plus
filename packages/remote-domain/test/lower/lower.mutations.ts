@@ -9,6 +9,7 @@ const ledger = 'examples/writes-domain/test/lower/ledger.test.ts'
 const story = 'examples/writes-domain/test/lower/story.test.ts'
 const checks = 'packages/remote-domain/test/lower/check.test.ts'
 const scenarios = 'examples/writes-domain/test/scenario/scenario.test.ts'
+const wire = 'packages/remote-domain/test/lower/internalFailure.test.ts'
 
 export default [
   {
@@ -74,7 +75,7 @@ export default [
   },
   {
     name: 'every refusal is answered as a conflict',
-    edits: [{ file: write, find: '                        refusal._tag,', replace: "'Conflict'," }],
+    edits: [{ file: write, find: '                      refusal._tag,', replace: "'Conflict'," }],
     tests: [parity, story],
   },
   {
@@ -109,5 +110,34 @@ export default [
       },
     ],
     tests: [scenarios],
+  },
+  {
+    name: 'a failure of the chain dies as itself, message and cause',
+    edits: [
+      { file: write, find: ': internal(Cause.fail(error)),', replace: ': Effect.die(error),' },
+    ],
+    tests: [wire],
+  },
+  {
+    name: 'what threw in the chain dies as it was thrown',
+    edits: [
+      {
+        file: write,
+        find: 'Effect.catchDefect(defect => internal(Cause.die(defect))),',
+        replace: '',
+      },
+    ],
+    tests: [wire],
+  },
+  {
+    name: 'a failure inside decide is not reported',
+    edits: [
+      {
+        file: write,
+        find: 'RemoteServer.report(`decide ${mutation.name}`, cause),',
+        replace: "Effect.succeed({ message: 'Internal error', incident: '0000000000000000' }),",
+      },
+    ],
+    tests: [wire],
   },
 ]
