@@ -34,6 +34,15 @@ reads (`may`) is the server's answer, or the client's reading of the shared
 rules for a row it just wrote, and the server checks every write again when
 it is made.
 
+Use a guard for a rule about **who**: one that depends on the principal, or on
+the principal and the row, and that must hold on every seam at once. A rule
+about **what** a row may hold, whoever writes it, is an invariant
+(`Entity.invariant`): an owner cannot skip one, and the two are refused apart
+(`Forbidden` against `Invalid`).
+[One domain declaration](../../docs/entity.md) shows both on one Entity, and
+[Auth and Guard](../../docs/auth-and-guard.md) follows a sign-in through to a
+guarded row; this README is the reference for each seam.
+
 ## Mental model
 
 ```text
