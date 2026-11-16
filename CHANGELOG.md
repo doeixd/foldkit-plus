@@ -781,6 +781,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-remote`: `Query.define` returns a `DefinedQuery`, a `QueryDescriptor` whose `body` is always present and typed as built, so `Query.show`, `Query.dependencies`, `evaluate` and `Judge.query` take it without an undefined check or a cast.
 - `foldkit-primitives`: **Breaking:** `PointerDrag`'s `targets` (and `PointerDrag.behavior`'s) is an array of `{ attribute, within }`, one entry per region a drag may land on, each with its own attribute; a single region is `targets: [{ attribute, within }]`.
 - `foldkit-primitives`: edge scrolling scrolls a box only while the pointer is over it, and only after it has stayed 150ms in the strip. A tile dragged from a palette to the layers below it no longer scrolls the palette away.
 - `foldkit-mixins-builder`: a finger's drag preview is centred over the finger, so a phone's edge cuts neither side of it.
