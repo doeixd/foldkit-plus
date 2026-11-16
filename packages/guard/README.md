@@ -216,7 +216,8 @@ Guards.matrix([Todo])
   another Entity, a guard of another set, or a misspelled interaction is a type
   error where it is written.
 - Attaching is metadata: the result is the same Entity (`Entity.same`), and
-  attaching twice appends to each surface's list and replaces its refusal.
+  attaching twice appends to each surface's list, and a refusal the later
+  one names replaces the earlier.
   The rules travel on the descriptor `Guards.attach` returns, not on the one
   it was given, so give the returned one to everything that enforces them:
   `GuardServer.writer`, `filter`, `memory` and `mutation`,
@@ -227,8 +228,10 @@ Guards.matrix([Todo])
   otherwise serve the Entity unguarded. A rule is still declared over the
   bare descriptor (`guard.row(TodoFields, …)`), and the client's hints
   (`may`, placement) read whatever descriptor they are given.
-- `Guards.guardFields(Todo, 'Read')` names the members a row interaction's
-  guards read, so a change to one is known to change who may.
+- `Guards.guardFields(Todo, 'Read')` names the members of the row itself that
+  a row interaction's guards read (and the relation an inherited Read
+  follows), so a change to one is known to change who may. What a rule reads
+  of another row, and the relation its path leaves by, are not among them.
 - A surface with no guards on a guarded Entity falls to the set's
   `unguarded`, which `declare` requires so the choice is written down:
   `'deny'` refuses it (the matrix prints `closed`), `'allow'` lets everyone
@@ -383,10 +386,12 @@ const TodoSource = source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })
   is not fails its first read, which is when the binding is first known.
 - The principal reaches a binding untyped, so it is checked: one that is not
   an `Option` of the set's schema is a defect, never read as a visitor.
-- A rule calling a primitive operator compiles by the SQL table `bind` is
-  given, and is checked when built against the one passed here
+- A rule calling a primitive operator is checked when built against, and
+  compiled by, the SQL table passed here
   (`GuardDrizzle.visible(Policy, [Todo], { operators })`, the kernel when not
-  given), since `visible` is built before `bind`.
+  given), whatever table `bind` is given, since `visible` is built before
+  `bind`. Pass the bindings' table, so a rule and a query compile one
+  operator alike.
 - `visible` is the row's Read. Member and relation Reads are the Source's
   `filter`, as `TodoSource` has it.
 
@@ -528,10 +533,10 @@ Entity that is only inserted and deleted needs no revision.
 
 A declared write's `when` (`foldkit-entity`) is the writer's to check, in the
 statement that writes; the guarded writer passes it through and speaks first.
-The order is: a row hidden from the writer, then a rule that does not hold
-(both `Forbidden`), then a stale input revision (`Conflict`), then the
-precondition (`Unmet`). So `Unmet` reaches only someone the rules let write the
-row. A precondition, or an expected revision, over a member with a Read rule
+The order is: a row hidden from the writer (`Forbidden`), then a stale input
+revision (`Conflict`, which says nothing its reader could not read), then a
+rule that does not hold (`Forbidden`), then the precondition (`Unmet`). So
+`Unmet` reaches only someone the rules let write the row. A precondition, or an expected revision, over a member with a Read rule
 would still answer for that member (Unmet or written, Conflict or not), so the
 guarded writer refuses such a write before any rule, whether or not
 `GuardServer.validate` ran; `validate` refuses it at startup too, as it refuses
@@ -648,8 +653,17 @@ remote-drizzle's `writer` holds the row to, refusing with `Forbidden` (and the
   viewer leaves it too: a member whose rule reads their team's organisation
   cannot move their own team.
 - `may` leaves such an interaction unanswered, since one row cannot decide it.
+  An interaction the answer does not name reads `false`, so `May.can`,
+  `May.canSet`, `May.locks` and `GuardAgent` treat it as refused, while the
+  client's own check of a write (`forbids`) refuses nothing: draw such a
+  control from something other than `may`.
 - `GuardServer.writer` over a writer without `requires` throws where it is
   made, rather than letting the rule go unchecked.
+- Only the declared writer judges such a rule. `GuardServer.mutation` (with
+  `interaction: 'Update'` or `'Delete'`) and `GuardSync.admit` judge a row in
+  memory, where it cannot be run: a request through either over an Entity
+  whose rule for that interaction reads another row fails, so serve such an
+  Entity's updates and deletes as declared writes.
 - Every other surface (`Create`, `Write`, a member, a relation, a named
   interaction, `always`) is judged over one row in memory, so `Guards.attach`
   refuses such a rule there and names the surfaces that may hold one.
@@ -686,9 +700,12 @@ It throws, naming each:
   that anyone may;
 - for a live Source over such an Entity that does not read through the Source
   checked here: `pollLive` over that Source names it (`LiveSource.reads`) and
-  passes, as a live hub does; a hand-written stream, or a `pollLive` over
-  another Source, is refused;
+  passes; a hand-written stream, or a `pollLive` over another Source, is
+  refused. A live hub is not a live Source and is not checked: give it the
+  server's own Sources (`backend.server.entities.values()`), as below;
 - for an Entity carrying another set's guards;
+- for a rule calling a primitive operator the Policy's table does not run
+  (`G.implement(bodies, { operators })`), which would fail when first asked;
 - for a field its Source declares `shared` (sent to every live subscriber as
   written) when a Read rule could tell readers apart: the rows', `always`, the
   field's own, or, for a relation, its target rows', a target not among
@@ -1095,10 +1112,13 @@ const uploads = uploadLayer().pipe(
   checks the row's rule for its interaction; members it sets and relations
   it points are not known to it, and no startup check can read them.
 - **Under a Read rule over fields, a new row is fetched into a list, not
-  placed.** `Guards.attach` records the members the row's Read rules read, and
-  the client, which runs none of them, refetches a list when a row it does not
-  hold changes one of them, as a create does: only the server can say whether
-  the rule lets it in.
+  placed.** `Guards.attach` records the row's own members that its Read rules
+  read, and the client, which runs none of them, refetches a list when a row
+  it does not hold changes one of them, as a create does: only the server can
+  say whether the rule lets it in. What a Read rule reads through a path or
+  an exists is not recorded, neither the relation it leaves the row by nor
+  the row it reaches: a change there leaves such a list as stale as its last
+  read.
 - **A Sync document is one audience.** Per-member or per-row secrecy within
   one is not something a replicated log offers: `GuardSync.document` refuses
   it where it is declared.
