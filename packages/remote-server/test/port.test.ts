@@ -9,7 +9,7 @@
 import { Deferred, Effect, Exit, Fiber, Option, Schema } from 'effect'
 import { RpcClient } from 'effect/rpc'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity, Expr, Order, Relation } from 'foldkit-entity'
+import { Collation, Entity, Expr, Order, Relation } from 'foldkit-entity'
 import {
   Query,
   QueryRequest,
@@ -36,7 +36,7 @@ const { User, Project } = Entity.relate(
 const ByStatus = Query.define('ByStatus', { status: Schema.String }, ({ input }) =>
   Query.from(Project).pipe(
     Query.where(Expr.eq(Project.fields.status, input.status)),
-    Query.orderBy(Order.asc(Project.fields.name)),
+    Query.orderBy(Order.asc(Project.fields.name, { collation: Collation.binary })),
   ),
 )
 const Model = Schema.Struct({ remote: Remote.Model })
