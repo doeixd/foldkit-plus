@@ -34,6 +34,7 @@ import {
   type AnyQuery,
   type InputExpr,
   type Operandish,
+  type Operation,
   type Predicate,
   type Reads,
 } from './expr.js'
@@ -334,6 +335,10 @@ const fail = (input: EntityInput<AnyEntity, any, any>, message: string): never =
   throw new Error(`[foldkit-entity] Write of ${input.entity.name}: ${message}`)
 }
 
+/** The context terms (`Expr.viewer`, `Expr.now`) an expression's reads include. */
+const contextTerms = (reads: { readonly operations: ReadonlyArray<Operation> }) =>
+  reads.operations.filter(operation => operation === 'viewer' || operation === 'now')
+
 const membersOf = (
   input: EntityInput<AnyEntity, any, any>,
 ): Readonly<Record<string, InputMember | undefined>> => input.members
@@ -432,6 +437,14 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
       ),
     ),
   ]
+  // A precondition is judged on the row before the write and the input alone.
+  const asking = contextTerms(dependenciesOf(...conditions))
+  if (asking.length > 0) {
+    fail(
+      input,
+      `its \`when\` reads the write's context (${asking.map(term => `Expr.${term}`).join(', ')}), which a precondition does not: it is judged on the row before the write and the input only; who is asking is a guard rule's`,
+    )
+  }
   // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
   const when =
     conditions.length === 0
@@ -677,9 +690,7 @@ const assignmentOf = (
       `computes "${fieldKey}" from the row after the write, which an assignment never reads`,
     )
   }
-  const context = reads.operations.filter(
-    operation => operation === 'viewer' || operation === 'now',
-  )
+  const context = contextTerms(reads)
   if (context.length > 0) {
     return fail(
       input,
