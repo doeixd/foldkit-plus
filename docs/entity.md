@@ -242,6 +242,20 @@ A query body says which rows and in which order; a Selection says which
 members a reader wants. Neither fetches. `ForSale` asks for products in the
 `Published` state, so the state is not spelled a second time.
 
+The query carries its body, so any reader can take it from there. Printed, it
+is the question in the language's own words:
+
+```ts
+Body.show(ForSale.body)
+```
+
+```text
+FROM Product
+WHERE Product.Published
+  AND contains(Product.name, $search)
+ORDER BY Product.stock DESC
+```
+
 That is the whole domain module: about sixty lines, no table and no fetch.
 
 ### 6. Reader: a check, with no database

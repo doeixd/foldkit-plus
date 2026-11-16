@@ -155,11 +155,7 @@ describe('one domain declaration, read by several readers', () => {
   })
 
   it('the question is one body: shown, and answered over rows in memory', () => {
-    // The body `ForSale` declares, built the same way, with its input by hand.
-    const body = Body.from(Published).pipe(
-      Body.where(Expr.contains(Product.fields.name, Expr.input('search', Schema.String))),
-      Body.orderBy(Order.desc(Product.fields.stock)),
-    )
+    const { body } = ForSale
     expect(Body.show(body)).toBe(
       [
         'FROM Product',
