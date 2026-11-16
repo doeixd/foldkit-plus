@@ -3,8 +3,9 @@
 Experimental: it tracks a beta. It pins the exact `@alchemy.run/domain` and
 `alchemy` releases it was checked against (`2.0.0-beta.86`).
 
-An [Alchemy Domain](https://github.com/alchemy-run/alchemy) model is an
-authoritative server: Commands go to Aggregates that `decide`, the Events they
+An [Alchemy Domain](https://alchemy.run/domain) model
+(`@alchemy.run/domain`, an event-sourcing library that is not part of Foldkit
+Plus) is an authoritative server: Commands go to Aggregates that `decide`, the Events they
 record are the truth, and Views fold those Events into rows. This package lets
 a Foldkit page read and write that model **through Remote**, as it reads and
 writes any other server, instead of keeping a second copy of the rows.
@@ -12,6 +13,25 @@ writes any other server, instead of keeping a second copy of the rows.
 It does that on the client's side of the wire: `DomainRemote.layer` is a
 `RemoteClient` built from the Domain Api's own typed client. Nothing sits
 between them, and no Remote server is involved.
+
+[An event-sourced domain behind Remote](../../docs/event-sourced-domains.md)
+is the guide: when to choose this over rows in a database, the three ways a
+command meets a declared write, and one reservation followed all the way
+round. This README is the package's contract.
+
+## When to use it, and when not
+
+Use it when a Domain model already is, or should be, the authority: the
+Events are the record, an Aggregate decides each command, and Policies, Sagas
+or Projections react to what was recorded. The page then needs no second copy
+of the rules of who reads and what a command does.
+
+Do not reach for it to get declared writes, predictions or refusals: those
+come from `foldkit-entity` and `foldkit-remote` over any authority. Rows in
+SQLite, D1 or Postgres behind `foldkit-remote-server` and
+`foldkit-remote-drizzle` give the same page the same declarations, with one
+thing less to handle: there the write and the rows it answers with come from
+one database, so there is no View to fall behind its write.
 
 ## Who owns what
 
@@ -43,6 +63,22 @@ owners of one row.
 
 ## The mental model
 
+One write, from the page and back. Each step names its owner:
+
+```text
+page      Data.mutate(model, RenameNote, input)        Remote: predicts, marks the write pending
+adapter   client.Rename(target, input,                translates; derives the commandId
+            { commandId })
+Domain    decide -> Events appended -> { reply,        the Aggregate: the only decision
+            stream, version }
+adapter   NoteRow.snapshot(target, { atLeast })        asks the View at the receipt
+Domain    the View folds the Events, when delivered    the View: the row, and who may read it
+adapter   MutationSucceeded: the View's row, or the    translates
+            reply's fields and the receipt as a token
+page      the prediction gives way to the answer;      Remote: the row, its revision, the token
+            a later read carries the token
+```
+
 A Domain command commits at once, but a View is updated afterwards, so a read
 straight after a write can still show the row from before it. Remote's Model
 keeps the facts that close that gap, and the adapter carries them across:
@@ -65,15 +101,20 @@ cursor: the cursor does not move when a state changes with no output event.
 ## Install
 
 ```bash
-pnpm add foldkit-remote-domain @alchemy.run/domain@2.0.0-beta.86 alchemy@2.0.0-beta.86
+pnpm add foldkit-remote-domain foldkit-remote foldkit-entity effect   @alchemy.run/domain@2.0.0-beta.86 alchemy@2.0.0-beta.86
 ```
 
-The pinned betas peer on `effect ^4.1.4`. Foldkit Plus's own tests run them on
-`effect@4.1.4`.
+Its peers are `@alchemy.run/domain` and `alchemy` at exactly `2.0.0-beta.86`,
+and `effect ^4.1.0`. Those betas themselves peer on `effect ^4.1.4`, so 4.1.4
+is the lowest `effect` that satisfies all three; Foldkit Plus's own tests run
+on `effect@4.1.4`. `foldkit-remote` and `foldkit-entity` are in the line
+because your code imports them (`Mutation`, `Entity`); `foldkit-guard` joins
+them when you lower a guarded write.
 
 | Entry | Holds | Runs |
 | --- | --- | --- |
 | `foldkit-remote-domain` | `DomainRemote`: the `RemoteClient` layer and its bindings | the browser, a test |
+| `foldkit-remote-domain/server` | `pageReader`: the reader a server render reads through | the server that renders pages |
 | `foldkit-remote-domain/lower` | `Lower.check`, `Lower.write`: a declared write becomes an aggregate | where the model is hosted |
 | `foldkit-remote-domain/imported` | `Imported.mutation`, `describe`, `show`: a command nobody declared a `Write` for | anywhere |
 | `foldkit-remote-domain/testing` | `Fixture.make`: a model as a `RemoteClient` for client tests | tests |
@@ -170,8 +211,9 @@ What each call means:
   server or `NotesApi.layerClientHttp(url)` (it needs an `HttpClient`) from a browser, and `Remote.make`'s
   Data uses it as it uses any `RemoteClient`.
 - `principal` is who the Domain session is, as results name them. The adapter
-  refuses a write made for anyone else before it sends anything
-  (`RemotePrincipalChanged`).
+  refuses a write made for anyone else before it sends anything:
+  `RemotePrincipalChanged`, or `RemoteUnauthenticated` when nobody is signed
+  in now.
 - `denied` says what a middleware's refusal means to Remote, `'Unauthenticated'`
   or `'Forbidden'`. A refused read is always `Unauthenticated`.
 - `written` is what the write answers with when its View is behind (below). It

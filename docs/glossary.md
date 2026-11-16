@@ -98,8 +98,9 @@ each of those.
 | **Revision** | The highest journal sequence a row of a read model has applied: an edit committed after it is not in the row yet. |
 | **Absorbed** | An edit the read model holds, recorded so by the server; replicas drop it and the log compacts. |
 | **Held edit** | An absorbed edit a page keeps while the row it has cached is behind it, so the row never shows a stale read (`EditableEntity.held`). |
-| **Alchemy Domain** | An external event-sourcing library (`@alchemy.run/domain`): Commands go to Aggregates that decide, Events are the facts, Views fold them into rows. `foldkit-remote-domain` lets a page read and write such a model through Remote. Not the `alchemy` deploy tool. [`foldkit-remote-domain`](../packages/remote-domain/README.md) |
+| **Alchemy Domain** | An external event-sourcing library (`@alchemy.run/domain`): Commands go to Aggregates that decide, Events are the facts, Views fold them into rows. `foldkit-remote-domain` lets a page read and write such a model through Remote. Not the `alchemy` deploy tool. Command, Aggregate, Event, View, Rejection, Story and Api are its words. [An event-sourced domain behind Remote](./event-sourced-domains.md) |
 | **Receipt** | What a Domain command answers with (`{ stream, version }`). Remote keeps it as a read-after token until the View shows the write, so a read never shows the row from before it. |
+| **Lowering** | Turning a declared write into one Alchemy Domain Aggregate's Command (`Lower.write`): its `decide` lands the write through the chain a server runs, over the one row the Aggregate holds, so the rules are stated once. A write that reads another row cannot be lowered (`Lower.check`). [An event-sourced domain behind Remote](./event-sourced-domains.md) |
 | **Agent contract** | What an agent may see (a Projection) and do (a Message subset), built from `Agent.forApplication(App)` and served by an adapter. [Agents](./agents.md) |
 
 ## `foldkit-mixins` and `foldkit-primitives`: views and interaction

@@ -86,6 +86,7 @@ Link and Placement to Connection and Segment, are in the
 | Understand the long-term path from one Foldkit state machine to Web, native iOS, native Android, and desktop without requiring a JavaScript runtime on mobile | [Native cross-platform Foldkit](./native-cross-platform.md) | `foldkit-surface`, `foldkit-mixins`, platform adapters, reffect |
 | Understand how a replica is actually bound to a running Foldkit app | [Runtime binding](./sync-runtime-binding.md) | `Sync.mount` |
 | Declare a domain once (Entities, invariants, states, writes, questions, who may) and follow it through a check, the server, the page and a form | [One domain declaration](./entity.md) | `foldkit-entity`, `foldkit-form`, `foldkit-mixins-form`, `foldkit-crud`, plus `foldkit-remote` and `foldkit-remote-drizzle` |
+| Put an event-sourced Alchemy Domain model (Commands, Aggregates, Events, Views) behind Remote, lower a declared write into an Aggregate, and see what the page shows when a View is behind or a reply is lost | [An event-sourced domain behind Remote](./event-sourced-domains.md) | `foldkit-remote-domain`, `foldkit-remote`, `foldkit-entity`, `foldkit-guard` |
 
 ## Design lineage
 
