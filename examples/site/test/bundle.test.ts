@@ -23,7 +23,9 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // kB more being the first application's own code beside the second's, loaded once per page.
 // Later that day the component page grew 1.8 kB to 387.3 kB: the busy-until-taken-over flag, the Disclosure
 // page (its snippet, state and recipe) and the accessibility notes' text, about 0.2 kB per page with notes.
-const CEILINGS = { shell: 188_000, gallery: 395_000 }
+// Then the Drawer and App shell pages (their snippets, the Drawer's state, notes and the frame) and the
+// Input OTP states' own codes took it to 389.0 kB, 1.7 kB more; the ceiling is that plus 1%.
+const CEILINGS = { shell: 188_000, gallery: 393_000 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
 const PREVIEWS = ['preview-tabs', 'preview-trip-first']
