@@ -321,6 +321,12 @@ Query.placement(Newest, {}) // { _tag: 'Placeable' }
   When it can, a page puts a row it just wrote where the list will have it,
   with no request. `NotPlaceable` carries the reason (a locale collation, text
   with none declared, no order at all), and the list is the server's to say.
+- **An order over text needs a declared collation to be answered alike.**
+  `evaluate` refuses one with none declared, for the reason `Query.placement`
+  gives (`it orders by Post.title, text with no declared collation`). A
+  database still orders such text, by its own default: SQLite by bytes,
+  Postgres by the database's locale. Declare `Collation.binary` (or
+  `asciiFold`) on a text key you order by, and all three agree.
 
 ### Who asks, and when
 

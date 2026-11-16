@@ -656,7 +656,13 @@ order on every interpreter rather than each breaking ties its own way.
 **How text orders is declared, or left to the server.** Left unsaid, SQLite
 compares bytes, Postgres follows the database's locale and a plain JavaScript
 sort follows UTF-16 code units. A field declares its collation, which SQL
-compiles, and `Query.placement` says whether a client can order the same way:
+compiles, and `Query.placement` says whether a client can order the same way.
+`evaluate` refuses an order over text with no declared collation, with the
+reason `Query.placement` gives, so a page and the reference agree on whether
+the question can be answered; a database orders such text by its own default,
+which differs between SQLite and Postgres. `evaluateEach`, which only judges
+membership, does not refuse, and its `matched` list is then in code point
+order:
 
 ```ts
 const Tagged = Entity.define('Tagged', Schema.Struct({ id: Schema.String, name: Schema.String })).pipe(
