@@ -1,12 +1,15 @@
 import { Clock, Context, Duration, Effect, Layer, PubSub, Schema, Stream } from 'effect'
 import { sequence } from './ids.js'
 import type { TransportClient } from './sync.js'
-import { Diagnostics } from 'foldkit-surface'
-import { listenerFailed } from './diagnostics.js'
+import { Diagnostics, type ReportDiagnostic } from 'foldkit-surface'
+import { exchangeDefect, listenerFailed, reportTo } from './diagnostics.js'
+import { UnsupportedMessageVersionError } from './errors.js'
 
 /** The wire failure of a transport. A refusal is a result, not an error. */
 export class TransportError extends Schema.TaggedError<TransportError>()('SyncTransportError', {
   message: Schema.String,
+  /** The id a server reported its own failure under (`ExchangeDefect`), when it answered with one. */
+  incident: Schema.optional(Schema.String),
 }) {}
 
 /** One request/response frame, as it crosses a wire. */
@@ -17,11 +20,31 @@ export interface ExchangeFrame {
   readonly epoch?: string | undefined
 }
 
+/**
+ * A failed exchange in words written for the replica: throw it from a served
+ * exchange (`serveSocket`) and its `message` is sent as it is. Anything else a
+ * handler throws is the server's own, and is answered "Exchange failed".
+ */
+export class ExchangeRefused extends Schema.TaggedError<ExchangeRefused>()('SyncExchangeRefused', {
+  message: Schema.String,
+}) {}
+
 export interface ExchangeReply {
   readonly id: string
   readonly result?: unknown
   readonly error?: string
+  /** Beside `error`, when the server failed on its own side: the id it reported the cause under. */
+  readonly incident?: string
 }
+
+/** What a replica reads of an exchange that threw on the server's side, whatever was thrown. */
+const EXCHANGE_FAILED = 'Exchange failed'
+
+/** 64 random bits as hex: short enough to quote, as `foldkit-remote-server`'s incidents are. */
+const mintIncident = (): string =>
+  Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), byte =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
 
 /**
  * Sent by a server, unasked, when the document may have changed. It carries no
@@ -110,8 +133,12 @@ export const toPromise = (transport: TransportShape): TransportClient => ({
 /**
  * Serves one accepted socket, answering each exchange frame.
  *
- * The counterpart to `layerSocket`: the handler returns the exchange result, or
- * throws and the failure is written back as an error frame. With `changes`, a
+ * The counterpart to `layerSocket`: the handler returns the exchange result,
+ * or throws. An `ExchangeRefused`, and a replica newer than this server
+ * (`UnsupportedMessageVersionError`), are words for the replica, sent as they
+ * are. Anything else thrown is this side's (a journal's failure, a driver's
+ * words): it is reported as an `ExchangeDefect`, and the error frame says only
+ * "Exchange failed" and the incident it was reported under. With `changes`, a
  * subscription to the document's commits, the socket is also sent a
  * `NotifyFrame` after each, so a client hears of others' edits without polling.
  * Returns a function that stops serving.
@@ -126,6 +153,8 @@ export const serveSocket = (
     ) => unknown | Promise<unknown>
     /** Subscribes to the document's commits; returns the unsubscribe. */
     readonly changes?: ((listener: () => void) => () => void) | undefined
+    /** Where an exchange that threw is reported; the default reporter when not given, since this runs outside any context. */
+    readonly diagnostics?: ReportDiagnostic | undefined
   },
 ): (() => void) => {
   const send = (reply: ExchangeReply | NotifyFrame): void => {
@@ -171,8 +200,15 @@ export const serveSocket = (
       try {
         const result = await options.exchange(frame.cursor, frame.pending, frame.epoch)
         send({ id: frame.id, result })
-      } catch (error) {
-        send({ id: frame.id, error: error instanceof Error ? error.message : String(error) })
+      } catch (thrown) {
+        if (thrown instanceof ExchangeRefused || thrown instanceof UnsupportedMessageVersionError) {
+          send({ id: frame.id, error: thrown.message })
+          return
+        }
+        const incident = mintIncident()
+        // `Diagnostics.report` answers a reporter that breaks itself, so this cannot reject.
+        await Effect.runPromise(reportTo(options.diagnostics, exchangeDefect(incident, thrown)))
+        send({ id: frame.id, error: EXCHANGE_FAILED, incident })
       }
     })()
   })
@@ -500,7 +536,12 @@ export const layerSocket = (
               entry.resume(
                 reply.error === undefined
                   ? Effect.succeed(reply.result)
-                  : Effect.fail(new TransportError({ message: reply.error })),
+                  : Effect.fail(
+                      new TransportError({
+                        message: reply.error,
+                        ...(typeof reply.incident === 'string' ? { incident: reply.incident } : {}),
+                      }),
+                    ),
               )
             })
             const offClose = next.onClose(() => {

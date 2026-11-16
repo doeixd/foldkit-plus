@@ -34,4 +34,71 @@ export default [
     ],
     tests,
   },
+  // What a served exchange that threw tells its replica (#575).
+  {
+    name: 'a handler’s own error is sent to the replica',
+    edits: [
+      {
+        file,
+        find: 'send({ id: frame.id, error: EXCHANGE_FAILED, incident })',
+        replace: 'send({ id: frame.id, error: String(thrown), incident })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'everything a handler throws is read as written for the replica',
+    edits: [
+      {
+        file,
+        find: 'if (thrown instanceof ExchangeRefused || thrown instanceof UnsupportedMessageVersionError) {',
+        replace: 'if (thrown instanceof Error) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'words written for the replica are withheld',
+    edits: [
+      {
+        file,
+        find: 'if (thrown instanceof ExchangeRefused || thrown instanceof UnsupportedMessageVersionError) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a handler that threw is not reported',
+    edits: [
+      {
+        file,
+        find: 'await Effect.runPromise(reportTo(options.diagnostics, exchangeDefect(incident, thrown)))',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the client drops the incident it was answered',
+    edits: [
+      {
+        file,
+        find: "...(typeof reply.incident === 'string' ? { incident: reply.incident } : {}),",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the journal’s refusal of a connection is thrown as any error',
+    edits: [
+      {
+        file: '../src/journal.ts',
+        find: "new ExchangeRefused({ message: 'This connection may not open the document' })",
+        replace: "new Error('This connection may not open the document')",
+      },
+    ],
+    tests: ['packages/sync/test/prototype/rpcCriteria.test.ts'],
+  },
 ]

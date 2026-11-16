@@ -77,6 +77,20 @@ export interface HostDefect extends Diagnostic {
   readonly cause: Cause.Cause<unknown>
 }
 
+/**
+ * A served exchange threw: the journal, its database, or a handler of the
+ * application's. The replica was answered "Exchange failed" and `incident`,
+ * and is told nothing of `thrown`; it keeps its pending operations and asks
+ * again.
+ */
+export interface ExchangeDefect extends Diagnostic {
+  readonly _tag: 'ExchangeDefect'
+  /** The id the replica was answered with, to find this report by. */
+  readonly incident: string
+  /** What the exchange threw. */
+  readonly thrown: unknown
+}
+
 /** Where a listener the application gave was called. */
 export type ListenerSite =
   /** `Presence.subscribe`'s listener, after a peer changed. */
@@ -148,6 +162,7 @@ export interface ReactionSkipped extends Diagnostic {
 
 /** Every diagnostic Sync reports. */
 export type SyncDiagnostic =
+  | ExchangeDefect
   | ExchangeFailed
   | HistoryRebuilt
   | HostDefect
@@ -284,6 +299,15 @@ export const hostDefect = (stage: HostStage, cause: Cause.Cause<unknown>): HostD
   message: `a document host broke: ${stageText[stage]}\n${Cause.pretty(cause)}`,
   stage,
   cause,
+})
+
+export const exchangeDefect = (incident: string, thrown: unknown): ExchangeDefect => ({
+  _tag: 'ExchangeDefect',
+  source,
+  level: 'error',
+  message: `incident ${incident}: a served exchange threw. Its replica is told no more of it than this id.\n${Cause.pretty(Cause.die(thrown))}`,
+  incident,
+  thrown,
 })
 
 const siteText: Record<ListenerSite, string> = {

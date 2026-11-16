@@ -52,7 +52,7 @@ import {
   type HostStage,
   type SyncDiagnostic,
 } from './diagnostics.js'
-import { serveSocket, type SocketLike } from './transport.js'
+import { ExchangeRefused, serveSocket, type SocketLike } from './transport.js'
 import type { ServerJournal } from './serverJournal.js'
 
 export type { HostDefect, HostStage } from './diagnostics.js'
@@ -242,7 +242,9 @@ export const journalExchange = <Message, Shared, Principal>(
   const exchange = (cursor: number, pending: ReadonlyArray<unknown>, seen?: string) =>
     Effect.gen(function* () {
       if (options.opens !== undefined && !(yield* options.opens)) {
-        return yield* Effect.fail(new Error('This connection may not open the document'))
+        return yield* Effect.fail(
+          new ExchangeRefused({ message: 'This connection may not open the document' }),
+        )
       }
       // A replica that saw another epoch holds a cursor into history this journal
       // lacks (it was reset): it is answered from the start. Otherwise a cursor
@@ -252,7 +254,9 @@ export const journalExchange = <Message, Shared, Principal>(
       const from = seen !== undefined && seen !== epoch ? 0 : cursor
       const at = yield* journal.cursor(key)
       if (from > at) {
-        return yield* Effect.fail(new Error(`Cursor ${cursor} is ahead of the server's ${at}`))
+        return yield* Effect.fail(
+          new ExchangeRefused({ message: `Cursor ${cursor} is ahead of the server's ${at}` }),
+        )
       }
       // A replica ahead of this server waits, its outbox whole: refused before
       // anything is appended, since a rejection would lose the edit.
@@ -260,7 +264,8 @@ export const journalExchange = <Message, Shared, Principal>(
         const found = Option.flatMapNullishOr(claimedVersion(input), probe => probe.messageVersion)
         if (Option.isSome(found) && found.value > supported)
           return yield* Option.match(idOf(input), {
-            onNone: () => Effect.fail(new Error('A pending entry names no operation')),
+            onNone: () =>
+              Effect.fail(new ExchangeRefused({ message: 'A pending entry names no operation' })),
             onSome: opId =>
               Effect.fail(
                 new UnsupportedMessageVersionError({
@@ -316,7 +321,9 @@ export const journalExchange = <Message, Shared, Principal>(
         if (Result.isFailure(decoded)) {
           const id = idOf(input)
           if (Option.isNone(id))
-            return yield* Effect.fail(new Error('A pending entry names no operation'))
+            return yield* Effect.fail(
+              new ExchangeRefused({ message: 'A pending entry names no operation' }),
+            )
           const failure = decoded.failure
           if (failure === 'invalid') invalid(id.value, 'Not an operation this server accepts')
           else if (failure instanceof UnreadableMessageError)
@@ -485,6 +492,7 @@ export const serveJournal = <Message, Shared, Principal>(
   const { opens, diagnostics } = options
   const report = (cause: Cause.Cause<unknown>) => reportTo(diagnostics, hostDefect('Notice', cause))
   return serveSocket(socket, {
+    diagnostics,
     exchange: (cursor, pending, epoch) => client.exchange(sequence(cursor), pending, epoch),
     // A connection that may not open the document is told nothing of its commits.
     changes:

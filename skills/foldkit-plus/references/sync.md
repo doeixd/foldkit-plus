@@ -447,7 +447,10 @@ Effect` runs after each exchange's appends to apply what committed elsewhere
 (`journal.recover` makes it idempotent). A failure answered 500 (or 1011, or
 a notice unsent, or a commit stream broken: stage `Changes`) is reported as a `HostDefect` with its `stage` and `cause`, to
 `diagnostics: (diagnostic, request) => Effect` when given, else
-`Diagnostics.Reporter`. `Sync.transport.workerSocket` wraps an
+`Diagnostics.Reporter`. An exchange that throws on the server (`Sync.transport.serve`) answers
+`{ error: 'Exchange failed', incident }` and reports what was thrown as an `ExchangeDefect`
+under that incident; the replica keeps its outbox and retries. Throw
+`new ExchangeRefused({ message })` for words the replica should read. `Sync.transport.workerSocket` wraps an
 accepted pair end anywhere else a platform hands one over. Off Cloudflare,
 `server: { principal, reactions: env => [...] }` gives the object its
 reactions (below): registered on open, the alarm set before the reply to an

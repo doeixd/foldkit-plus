@@ -1321,6 +1321,7 @@ Effect's log: the console in a browser, `wrangler tail` on a Worker.
 | `_tag` | `level` | When |
 | --- | --- | --- |
 | `ExchangeFailed` | `warning` | An exchange failed; it is in `status.lastError` and retried on a backoff. Carries the `error`. |
+| `ExchangeDefect` | `error` | On the server: an exchange `Sync.transport.serve` answered threw something not written for the replica (a journal's failure, a driver's words). The replica was answered `Exchange failed` and the `incident` this carries, with `thrown`. |
 | `HistoryRebuilt` | `warning` | The server answered from another epoch, so the committed state was rebuilt from it (the outbox is kept). |
 | `HostDefect` | `error` | A document host broke on its side, at a `stage`: `Upgrade` (the socket pair), `Resolve` (the `layer` or resolver), `Journal`, `Exchange` (`opens` or `settle` threw) answer a 500; `Revalidate` closes the socket with 1011; `Notice` (`opens` failed before a commit notice) sends none; `Changes` (the journal's stream of commits broke) sends no more. Carries the `cause`, which the replica is never told. |
 | `ListenerFailed` | `error` | A listener the application gave threw: a presence subscriber, a listener on the socket transport's shared `socket`, or `journalChanges`' listener (`Notice`, called again on the next commit). The others still ran. |
@@ -1445,6 +1446,23 @@ refuse them. The replica validates every field; see
   and `nativeSocket` for the platform `WebSocket`.
 
 A refusal is data in the answer; only a wire failure is a `TransportError`.
+
+**When a served exchange throws.** What the handler given to
+`Sync.transport.serve` throws is the server's own, and its replica reads none
+of it: the error frame is `{ id, error: 'Exchange failed', incident }`, and
+what was thrown is reported as an `ExchangeDefect` under that incident, to
+`serve`'s `diagnostics` reporter when given, else the default. The replica
+fails the exchange with a `TransportError` carrying the `incident`, shows
+`Exchange failed` in `status.lastError`, keeps its outbox whole and asks again
+on its backoff, as for any wire failure. This is the failure of an exchange as
+a whole; an operation the journal refuses is still a per-operation `rejected`,
+which the replica drops. Words meant for the replica are thrown as a
+`new ExchangeRefused({ message })`, sent as written with no incident: the
+journal's own are `This connection may not open the document`, a cursor ahead
+of the server's, and a pending entry that names no operation; a replica newer
+than the server (`UnsupportedMessageVersionError`) is told so the same way. A
+replica older than this change reads the frame as before: `error` is still a
+string, and `incident` a field it ignores.
 
 ### Presence
 
