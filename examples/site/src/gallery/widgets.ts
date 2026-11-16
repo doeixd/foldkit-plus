@@ -31,6 +31,7 @@ import {
   Menu,
   Nav,
   Sheet,
+  Drawer,
   Toast,
   FileDrop,
   MessageScroller,
@@ -213,6 +214,8 @@ export const Model = Schema.Struct({
   alertDialog: UiDialog.Model,
   dialogs: Schema.Record(DialogExample, UiDialog.Model),
   sheets: Schema.Record(SheetExample, Sheet.Model),
+  /** The drawer docked inside its preview frame. */
+  drawer: Drawer.Model,
   popovers: Schema.Record(PopoverExample, UiPopover.Model),
   tooltips: Schema.Record(TooltipExample, UiTooltip.Model),
   /** The menu a button opens and the one a right press opens, and what each last chose. */
@@ -492,6 +495,7 @@ export const Message = defineMessageUnion({
   GotAccent: { message: ColorPicker.Message },
   GotTripCalendar: { message: UiCalendar.Message },
   GotSheet: { example: SheetExample, message: Sheet.Message },
+  GotDrawer: { message: Drawer.Message },
   OpenedSheet: { example: SheetExample },
   ClosedSheet: { example: SheetExample },
   PressedCopy: { text: Schema.String },
@@ -640,6 +644,7 @@ export const initial: Model = {
     nested: UiDialog.init({ id: 'preview-share', isAnimated: true }),
     'nested-inner': UiDialog.init({ id: 'preview-share-link', isAnimated: true }),
   },
+  drawer: Drawer.init({ id: 'preview-drawer' }),
   sheets: {
     drawer: Sheet.init({ id: 'preview-sheet', side: 'bottom', points: [0.5, 1] }),
     right: Sheet.init({ id: 'preview-sheet-right', side: 'right' }),

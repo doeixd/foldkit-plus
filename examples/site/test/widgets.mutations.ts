@@ -195,4 +195,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a drawer press is not kept',
+    edits: [
+      {
+        file: widgets,
+        find: ': { model: modifyFields(model, { drawer: () => drawer }) }',
+        replace: ': { model }',
+      },
+    ],
+    tests,
+  },
 ]

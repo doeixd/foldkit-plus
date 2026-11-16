@@ -195,3 +195,56 @@ test('typing in the Input OTP states edits that field alone', async () => {
     await context.close()
   }
 }, 180_000)
+
+test('the Drawer docks to its preview frame, not the window, and the frame holds the open panel', async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+  try {
+    const page = await context.newPage()
+    await open(page, '/components/drawer')
+    const panel = page.locator('[data-size="page"] aside[data-drawer]')
+    const frame = panel.locator('xpath=..')
+    // The panel's edges against the frame's: bottom is where it rests open, top is how far down it peeks.
+    const edges = async () => {
+      const [outer, inner] = [await frame.boundingBox(), await panel.boundingBox()]
+      return {
+        bottomGap: Math.round(outer!.y + outer!.height - (inner!.y + inner!.height)),
+        topDepth: Math.round(((inner!.y - outer!.y) / outer!.height) * 100),
+      }
+    }
+    expect(await panel.getAttribute('data-open')).toBe('false')
+    // Peeking: its top is in the frame's lower part, so it is docked there and not to the window.
+    const peeking = await edges()
+    expect(peeking.topDepth).toBeGreaterThan(50)
+    expect(peeking.topDepth).toBeLessThan(100)
+    await page.getByRole('button', { name: 'Order details' }).click()
+    await expect.poll(() => panel.getAttribute('data-open')).toBe('true')
+    // Open: it rests on the frame's bottom edge, inside its border.
+    await expect.poll(async () => (await edges()).bottomGap).toBeLessThanOrEqual(2)
+    expect((await edges()).topDepth).toBeLessThan(50)
+    // Nothing is trapped: Tab leaves the drawer for the rest of the page.
+    await page.getByRole('button', { name: 'Track the order' }).focus()
+    await page.keyboard.press('Tab')
+    expect(await panel.evaluate(element => element.contains(document.activeElement))).toBe(false)
+    await page.getByRole('button', { name: 'Order details' }).click()
+    await expect.poll(() => panel.getAttribute('data-open')).toBe('false')
+  } finally {
+    await context.close()
+  }
+}, 180_000)
+
+test('the App shell scrolls its main region under a header that stays in the frame', async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } })
+  try {
+    const page = await context.newPage()
+    await open(page, '/components/app-shell')
+    const header = page.locator('[data-size="page"] header')
+    const frame = header.locator('xpath=../..')
+    const before = await header.boundingBox()
+    expect(await frame.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
+    await frame.evaluate(element => element.scrollTo({ top: 120, behavior: 'instant' }))
+    await expect.poll(() => frame.evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+    expect((await header.boundingBox())!.y).toBe(before!.y)
+  } finally {
+    await context.close()
+  }
+}, 180_000)

@@ -101,6 +101,30 @@ const notes = new Map<string, Notes>([
       ],
     },
   ],
+  [
+    'drawer',
+    {
+      heading: 'Sheet and Drawer',
+      lines: [
+        'The handle is a real `button` of `type="button"`: Tab reaches it, and Enter and Space press it. `label` names it once, so the name does not change as the drawer opens.',
+        '`aria-expanded` on the handle says whether the panel is open, and `aria-controls` names the body.',
+        'Nothing is trapped, dimmed or locked: the page under the drawer stays live, and Tab goes on through it.',
+        'A peeking drawer hides its body (`visibility: hidden`) once the slide ends, so its controls leave the tab order and the accessibility tree.',
+        '`Drawer.keepFocus`, passed beside the style, moves focus to the handle when the drawer goes down with focus in its body.',
+      ],
+    },
+  ],
+  [
+    'app-shell',
+    {
+      heading: 'Navigation and structure',
+      lines: [
+        'The skip link comes first and shows only while focused; it targets the main region by id, which takes focus by script so Tab goes on from there.',
+        'One landmark of each kind: the header is the banner, `main` the main region and the footer the content info. The side column is a plain region, since a `Sidebar` inside it is the navigation.',
+        'The brand mark is hidden from a screen reader (`aria-hidden`); the title names the application.',
+      ],
+    },
+  ],
 ])
 
 export const notesFor = (slug: string): Notes | undefined => notes.get(slug)

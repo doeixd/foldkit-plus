@@ -24,6 +24,17 @@ export default [
     tests: ['examples/site/test/notes.test.ts'],
   },
   {
+    name: 'the Drawer notes link a README heading that is not there',
+    edits: [
+      {
+        file: '../src/gallery/notes.ts',
+        find: "heading: 'Sheet and Drawer',",
+        replace: "heading: 'Drawers',",
+      },
+    ],
+    tests: ['examples/site/test/notes.test.ts'],
+  },
+  {
     name: 'a preview left live before the page is taken over',
     edits: [
       {
@@ -303,9 +314,9 @@ export default [
     edits: [
       {
         file: '../src/snippets/components.ts',
-        find: `value: '482910',
+        find: `value: codes.refused,
           invalid: true,`,
-        replace: `value: '482910',`,
+        replace: `value: codes.refused,`,
       },
     ],
     tests: ['examples/site/test/showcases.test.ts'],

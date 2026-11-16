@@ -37,6 +37,7 @@ import {
   Nav,
   Table,
   Sheet,
+  Drawer,
   Command as CommandMenu,
   Toast,
   MessageScroller,
@@ -961,6 +962,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       Dialog.isDismissal(message) ? { model } : foldAlertDialog(model, message),
     OpenedAlertDialog: () => openAlertDialog(model),
     ClosedAlertDialog: () => closeAlertDialog(model),
+    GotDrawer: ({ message }) => {
+      const drawer = Drawer.update(model.drawer, message)
+      return drawer === model.drawer
+        ? { model }
+        : { model: modifyFields(model, { drawer: () => drawer }) }
+    },
     GotSheet: ({ example, message }) =>
       foldSheet(model, example, sheet => Sheet.update(sheet, message)),
     OpenedSheet: ({ example }) => foldSheet(model, example, Sheet.open),

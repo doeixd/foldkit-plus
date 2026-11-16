@@ -348,6 +348,24 @@ export const catalogue: ReadonlyArray<About> = [
     contract: 'DialogSlots',
   },
   {
+    slug: 'drawer',
+    title: 'Drawer',
+    summary:
+      'A panel docked to the bottom of the screen that peeks or opens beside the page, which stays live.',
+    recipe: 'Drawer',
+    file: 'drawer',
+    contract: 'DrawerSlots',
+  },
+  {
+    slug: 'app-shell',
+    title: 'App shell',
+    summary:
+      'The page frame: a skip link, a header with its status and actions, an optional side column, the main region and a footer.',
+    recipe: 'AppShell',
+    file: 'appShell',
+    contract: 'AppShellSlots',
+  },
+  {
     slug: 'color-picker',
     title: 'Color picker',
     summary:

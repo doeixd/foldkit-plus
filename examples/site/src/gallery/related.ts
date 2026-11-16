@@ -17,13 +17,15 @@ export const README = 'packages/mixins-ui/README.md'
 
 const ROUTES: Topic = {
   label: 'Keys of your own',
-  about: 'Add the application’s keys with the routes option, beside the ones the widget handles.',
+  about:
+    'Add the application’s keys with the routes option, beside the ones the widget handles; the widget’s `conflict(routes)` judges a candidate set without drawing it.',
   heading: 'Application key routes',
 }
 
 const FOCUS: Topic = {
   label: 'Keeping focus when something is removed',
-  about: 'A control that leaves the page takes its focus with it: say where focus goes next.',
+  about:
+    'A control that leaves the page takes its focus with it: say where focus goes next, to a neighbour (`FocusRecovery`), to the opener (`focusReturn`) or to a control (`keepFocus`).',
   heading: 'Focus after removal',
 }
 

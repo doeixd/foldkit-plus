@@ -38,8 +38,12 @@ import { Utilities } from 'foldkit-mixins/utilities'
 import {
   Accordion,
   AccordionSlots,
+  AppShell,
+  AppShellSlots,
   Disclosure,
   DisclosureSlots,
+  Drawer,
+  DrawerSlots,
   Anchor,
   HoverIntent,
   HoverIntentSlots,
@@ -5614,6 +5618,71 @@ export const otpFieldStates = <Message>(
     ],
   )
 }
+// #endregion
+
+// #region drawer-basic
+// A panel docked to the bottom of the screen: the handle peeks, and a press, Enter or a drag
+// opens it. The page under it stays live. Set `--fk-drawer-peek` and `--fk-drawer-height` on an
+// ancestor to size it; `keepFocus` keeps focus on the handle when it goes down with focus inside.
+export const drawer = <Message>(
+  style: NamedStyle<typeof DrawerSlots>,
+  model: Drawer.Model,
+  onMessage: (message: Drawer.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Drawer.view(
+    {
+      model,
+      onMessage,
+      label: 'Order details',
+      style,
+      mixins: Drawer.keepFocus,
+      draw: ({ panel, handle, body }) =>
+        h.aside(
+          [...panel, h.AriaLabel('Order')],
+          [
+            h.button(handle, []),
+            h.div(body, [
+              h.div(
+                [
+                  h.Style({
+                    display: 'grid',
+                    gap: '0.75rem',
+                    justifyItems: 'start',
+                    padding: '0 1rem',
+                  }),
+                ],
+                [
+                  h.p([h.Style({ margin: '0' })], ['Two items, shipped tomorrow.']),
+                  Button.view({ label: 'Track the order', style: ButtonStyle }, h),
+                ],
+              ),
+            ]),
+          ],
+        ),
+    },
+    h,
+  )
+// #endregion
+
+// #region app-shell-basic
+// The page's frame, with no state and no Message: a skip link, the header (the banner) with its
+// status and actions, the main region and the footer. `side` takes a `Sidebar`'s view for a column.
+export const appShell = <Message>(
+  style: NamedStyle<typeof AppShellSlots>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  AppShell.view(
+    {
+      title: 'Acme',
+      status: [Badge.view({ text: 'Live', tone: 'live', style: BadgeStyle }, h)],
+      actions: [Button.view({ label: 'Sign out', style: ButtonStyle }, h)],
+      footer: [h.span([], ['Acme, 2026'])],
+      style,
+    },
+    [h.h2([], ['Orders']), h.p([], ['Nothing is waiting for you.'])],
+    h,
+  )
 // #endregion
 
 // #region resizable-basic

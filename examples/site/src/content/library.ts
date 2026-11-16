@@ -323,7 +323,9 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
             [],
             [
               ih.a([ih.Href(readmeLink(`#${slugger()(topic.heading)}`))], [topic.label]),
-              ` ${topic.about}`,
+              ...` ${topic.about}`
+                .split('`')
+                .map((part, at) => (at % 2 === 1 ? ih.code([], [part]) : part)),
             ],
           ),
         ),

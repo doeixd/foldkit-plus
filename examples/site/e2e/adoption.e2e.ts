@@ -77,6 +77,8 @@ const PAGES = [
   '/components/otp-field',
   '/components/disclosure',
   '/components/code-block',
+  '/components/drawer',
+  '/components/app-shell',
   '/create',
   '/404.html',
 ]

@@ -31,6 +31,8 @@ describe('the accessibility notes', () => {
         'image',
         'label',
         'typography',
+        'drawer',
+        'app-shell',
       ]),
     )
   })
