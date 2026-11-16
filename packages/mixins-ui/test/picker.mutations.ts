@@ -187,4 +187,18 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'an option key moves focus in a Command, which a key before it ran does not wait for',
+    edits: [
+      {
+        file,
+        find: `          Behaviors.Keys.focus(
+            optionId(model.id, STEPS[key](index, choices.length)),
+            onMessage(Message.CompletedFocus()),
+          ),`,
+        replace: '          onMessage(Message.Stepped({ to: STEPS[key](index, choices.length) })),',
+      },
+    ],
+    tests: browser,
+  },
 ]

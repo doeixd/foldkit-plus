@@ -85,7 +85,7 @@ export const Message = defineMessageUnion({
   GotSheet: { message: Sheet.Message },
   OpenedSheet: {},
   ChoseInSheet: { value: Schema.String },
-  /** A key moved focus to the Sheet's option at `to`. */
+  /** Moves focus to the Sheet's option at `to`: what an application's key route answers. */
   Stepped: { to: Schema.Number },
   CompletedFocus: {},
 })
@@ -218,7 +218,10 @@ const STEP_KEYS = ['Home', 'End', 'ArrowDown', 'ArrowUp'] as const satisfies Rea
 
 /** A Sheet option's own keys: the arrows, Home and End, each answered with the option's place. */
 const ownRoutes = <Outer>(
-  step: (key: (typeof STEP_KEYS)[number], index: number) => Option.Option<Outer>,
+  step: (
+    key: (typeof STEP_KEYS)[number],
+    index: number,
+  ) => Option.Option<Outer | Behaviors.Keys.Focus<Outer>>,
 ): ReadonlyArray<Route<Outer>> =>
   STEP_KEYS.map(key =>
     Behaviors.Keys.route<undefined, Outer>(`Step ${key}`, {
@@ -250,8 +253,15 @@ export const view = <Value extends string, Outer>(
     slot: 'option',
     name: 'PickerKeys',
     routes: [
+      // Focus moves in the handler, not in a Command: a key pressed before the Command ran would
+      // meet the option focus had not left and step from it again (two ArrowDowns moved one).
       ...ownRoutes<Outer>((key, index) =>
-        Option.some(onMessage(Message.Stepped({ to: STEPS[key](index, choices.length) }))),
+        Option.some(
+          Behaviors.Keys.focus(
+            optionId(model.id, STEPS[key](index, choices.length)),
+            onMessage(Message.CompletedFocus()),
+          ),
+        ),
       ),
       ...(options.routes ?? []),
     ],

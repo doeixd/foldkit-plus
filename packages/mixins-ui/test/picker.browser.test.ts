@@ -12,6 +12,7 @@ import { Option } from 'effect'
 import { Behaviors } from 'foldkit-mixins'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
+import { holdFrames } from './frames.js'
 import { Picker } from '../src/index.js'
 import {
   chosen,
@@ -164,6 +165,27 @@ describe('on a phone', () => {
     // Shift does not stop an option's own keys.
     await userEvent.keyboard('{Shift>}{ArrowDown}{/Shift}')
     await vi.waitFor(() => expect(focusedId()).toBe(ids[2]))
+  })
+
+  // Keys come faster than frames: a held key repeating on a busy page sends several before the
+  // next drawing, and each continues from the option the previous one moved focus to.
+  test.each([
+    ['{ArrowDown}{ArrowDown}', 2],
+    ['{End}{ArrowUp}', 1],
+    ['{ArrowDown}{ArrowDown}{ArrowUp}', 1],
+    ['{End}{Home}{ArrowDown}{ArrowDown}', 2],
+  ] as const)('keys %s before the next frame leave focus on option %i', async (keys, last) => {
+    await page.viewport(390, 844)
+    handle = await mount()
+    await userEvent.click(opener())
+    await vi.waitFor(() => expect(focusedId()).toBe(sheetOptions()[0]?.id))
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard(keys)
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(focusedId()).toBe(sheetOptions()[last]?.id))
   })
 
   test('opened with nothing chosen, focus starts on the first option', async () => {
