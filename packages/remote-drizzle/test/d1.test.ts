@@ -484,7 +484,7 @@ describe('A declared write over D1', () => {
         _tag: 'Failure',
         failure: {
           message:
-            'Item i1: operation "op-a" was recorded for another request; a retry sends the same mutation, keys and input',
+            'Operation "op-a" cannot be sent again with another mutation, keys or input: a retry sends the same ones',
         },
       })
       expect(await stock()).toEqual({ stock: 6, revision: 1 })

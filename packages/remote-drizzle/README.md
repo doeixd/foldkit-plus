@@ -1627,8 +1627,9 @@ table.
   ledger, except an increment that expects no revision, which is refused.
 - `request` holds a SHA-256 digest of what the operation asked: its mutation,
   the keys it writes and its input, which every retry repeats. The same
-  operation id sent with another request is refused ("was recorded for another
-  request"), never answered as its retry. A ledger table made before it gains
+  operation id sent with another request is refused (`Operation "…" cannot be
+  sent again with another mutation, keys or input: a retry sends the same
+  ones`), never answered as its retry. A ledger table made before it gains
   the column with `alter table write_ledger add column request text`, and its
   Drizzle table `request: text('request')` (`pgText` on Postgres); a record
   without one is answered as a retry, as before, until its retention passes.
@@ -1683,9 +1684,12 @@ Anything a declared write cannot say (several rows, a value computed from
 another row, another table) is a
 `RemoteServer.mutation` handler using Drizzle directly. The adapter helps
 normalize rows you already chose to return, and runs each statement so a
-database error fails as a `RemoteServerError` saying only what failed, the
-driver's own (which carries the SQL and its parameters) reported as a
-`StatementFailed` [diagnostic](#diagnostics), never sent:
+database error fails as a `RemoteServerError` whose message says only what
+failed and whose `cause` is the driver's own error (which carries the SQL and
+its parameters). The caller reads `Internal error` and an incident; the
+driver's error is reported as a `StatementFailed` [diagnostic](#diagnostics)
+and in the server's `ServerDefect`, never sent (see
+[When the database fails](#when-the-database-fails)):
 
 <!-- docs-check standalone
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
@@ -1968,6 +1972,32 @@ pnpm exec tsx packages/remote-drizzle/example/nested.ts
 Start with one id and one scalar before adding relations or pagination. The
 [Entity example](../../examples/entity/README.md) provides a runnable baseline.
 
+## When the database fails
+
+A caller reads nothing of the database. A statement the driver fails, a body
+that cannot be compiled, a binding with no column for what a write names and
+every other failure on the adapter's side fails its Source with a
+`RemoteServerError`, which `RemoteServer` answers as `Internal error` with an
+`incident` and reports as a `ServerDefect` under that id (see
+[When the server fails](../remote-server/README.md#when-the-server-fails)).
+The table, the constraint and the SQL are in that report and in
+`StatementFailed`, and in no answer.
+
+The adapter tells a caller only about the request the caller itself sent, with
+`RemoteServer.tell`. These arrive as written, with no incident:
+
+| What the caller sent | What it reads |
+| --- | --- |
+| a query window with `after` and `before`, or `first` and `last` | `A query window cannot combine after with before, or first with last` |
+| a query cursor whose row is gone, or hidden from the caller | `The query cursor no longer resolves to a row` |
+| a query cursor of another order, or one this server did not make | `The query cursor is not one this server minted for this order` |
+| a relation window's cursor with more than one parent | `Relation "<field>" cursor needs a single parent` |
+| a relation window's cursor whose row is gone, or hidden from the caller | `Relation "<field>" cursor no longer resolves` |
+| an operation id it already sent with another mutation, keys or input | `Operation "<id>" cannot be sent again with another mutation, keys or input: a retry sends the same ones` |
+
+A declared refusal (`Taken`, `Conflict`, `Unmet`, `Invalid`, `Referenced`) is
+not a failure and travels as its own value.
+
 ## Diagnostics
 
 Two things the adapter goes past without telling the caller are reported
@@ -1976,7 +2006,7 @@ through `foldkit-surface`'s `Diagnostics` channel (re-exported by
 
 | `_tag` | `level` | When |
 | --- | --- | --- |
-| `StatementFailed` | `error` | The driver failed a statement (`runStatement`, every read and write here); the caller was answered `failed` (`Database query failed` for a read or query, `Database write failed` for a write), and this carries the driver's `error`, with its SQL. |
+| `StatementFailed` | `error` | The driver failed a statement (`runStatement`, every read and write here); the Source failed with `failed` (`Database query failed` for a read or query, `Database write failed` for a write), which the caller reads as `Internal error`, and this carries the driver's `error`, with its SQL. |
 | `ServerOnlyRules` | `warning` | Once per binding, on its first write through `writer`: the Entity's rules no CHECK can hold (`checkConstraints(...).serverOnly`), held by the server's declared writes alone. Nothing when there are none. |
 
 Each is reported inside the read or write, so the reporter the server runs
@@ -2018,7 +2048,7 @@ works with no transaction, since D1 offers none (its Drizzle database has a
 ```text
 read the record of (scope, operation, row)
   found, same request   -> answered from it; nothing is written
-  found, other request  -> refused ("was recorded for another request")
+  found, other request  -> refused ("cannot be sent again with another …")
   none                  -> one batch: prune expired records, write the row,
                            record it where the write changed a row
 ```

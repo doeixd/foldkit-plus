@@ -186,8 +186,8 @@ export default [
     edits: [
       {
         file: drizzle,
-        find: 'Effect.mapError(() => new RemoteServerError({ message: failed })),',
-        replace: 'Effect.mapError(error => new RemoteServerError({ message: String(error) })),',
+        find: 'Effect.mapError(cause => new RemoteServerError({ message: failed, cause })),',
+        replace: 'Effect.mapError(cause => RemoteServer.tell(String(cause))),',
       },
     ],
     tests,

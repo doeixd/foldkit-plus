@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: '      if (error instanceof QueryCompileError)\n        return Effect.fail(new RemoteServerError({ message: error.message }))\n',
-        replace: '',
+        find: '      if (error instanceof QueryCompileError)\n',
+        replace: '      if (false)\n',
       },
     ],
     tests,

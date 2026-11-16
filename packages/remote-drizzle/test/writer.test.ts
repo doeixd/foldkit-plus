@@ -11,7 +11,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema, Stream } from 'effect'
 import { Entity, Relation, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
+import { Diagnostics, Mutation } from 'foldkit-remote'
 import { RemoteServer, type LiveHub } from 'foldkit-remote-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { applyEdits, bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.js'
@@ -411,11 +411,16 @@ describe('Inserting and deleting a declared write', () => {
     }),
     undefined,
   )
+  const collected = Diagnostics.collect()
   const send = (mutation: string, input: unknown) =>
     Effect.runPromise(
       served
         .FoldkitRemoteMutate({ requestId: `w${++requests}`, mutation, input })
-        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+        .pipe(
+          Effect.result,
+          Effect.provide(databaseLayer(drizzle({ client: sqlite }))),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
+        ),
     )
 
   it('inserts under the id the client chose, and answers every later create of it alike', async () => {
@@ -452,9 +457,22 @@ describe('Inserting and deleting a declared write', () => {
       })
       expect(failed).toMatchObject({
         _tag: 'Failure',
-        failure: { _tag: 'RemoteMutationError', message: 'Database write failed' },
+        failure: {
+          _tag: 'RemoteMutationError',
+          message: 'Internal error',
+          incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+        },
       })
       expect(JSON.stringify(failed)).not.toContain('insert into')
+      expect(JSON.stringify(failed)).not.toContain('projects')
+      // What the driver said is in the report, where the caller's answer has none of it.
+      expect(collected.reported).toContainEqual(
+        expect.objectContaining({
+          _tag: 'ServerDefect',
+          during: 'mutate CreateProject',
+          message: expect.stringMatching(/Database write failed[^]*insert into "projects"/),
+        }),
+      )
     } finally {
       sqlite.exec('alter table projects_gone rename to projects')
     }

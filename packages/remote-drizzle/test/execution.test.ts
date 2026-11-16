@@ -2,7 +2,7 @@ import { postgres } from '../src/pg.js'
 import { eq, type SQL } from 'drizzle-orm'
 import { pgTable, PgDialect, text } from 'drizzle-orm/pg-core'
 import { Effect, Schema } from 'effect'
-import { Selection, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
+import { Diagnostics, Selection, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import {
@@ -151,6 +151,7 @@ describe('RemoteDrizzle execution', () => {
       },
     }
     const server = RemoteServer.make({ entities: [source(UserBinding)] })
+    const collected = Diagnostics.collect()
 
     const result = await Effect.runPromise(
       Effect.result(
@@ -159,14 +160,31 @@ describe('RemoteDrizzle execution', () => {
             version: REMOTE_PROTOCOL_VERSION,
             requests: [{ entity: 'User', id: 'a', fields: ['name'] }],
           })
-          .pipe(Effect.provideService(DrizzleDatabase, failing)),
+          .pipe(
+            Effect.provideService(DrizzleDatabase, failing),
+            Effect.provideService(Diagnostics.Reporter, collected.report),
+          ),
       ),
     )
 
-    expect(result._tag).toBe('Failure')
-    if (result._tag !== 'Failure') return
-    expect(result.failure._tag).toBe('RemoteReadError')
-    expect(result.failure.message).toBe('Database query failed')
+    expect(result).toMatchObject({
+      _tag: 'Failure',
+      failure: {
+        _tag: 'RemoteReadError',
+        message: 'Internal error',
+        incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+      },
+    })
+    expect(JSON.stringify(result)).not.toContain('secret_table')
+    expect(collected.reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: 'read User',
+        message: expect.stringMatching(
+          /Database query failed[^]*relation "secret_table" does not exist/,
+        ),
+      }),
+    )
   })
 
   it('ignores inherited field names instead of crashing', async () => {

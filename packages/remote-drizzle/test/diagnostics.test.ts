@@ -150,7 +150,17 @@ describe('StatementFailed', () => {
           operation: 'op-a',
         }),
       ),
-    ).toMatchObject({ _tag: 'Failure', failure: { message: 'Database write failed' } })
+    ).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: 'Internal error', incident: expect.stringMatching(/^[0-9a-f]{16}$/) },
+    })
+    expect(reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: 'mutate Restock',
+        message: expect.stringMatching(/Database write failed[^]*write_ledger/),
+      }),
+    )
     // Item.stock's integer is a rule no CHECK holds, reported beside it.
     const failed = reported.filter(diagnostic => diagnostic._tag === 'StatementFailed')
     expect(failed).toEqual([

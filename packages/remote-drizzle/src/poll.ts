@@ -450,7 +450,7 @@ export const rowLog = (
     id: text('id').notNull(),
   })
   const failed = 'The row log could not be read'
-  const unread = () => new RemoteServerError({ message: failed })
+  const unread = (cause: unknown) => new RemoteServerError({ message: failed, cause })
   const head = Effect.gen(function* () {
     const db = yield* DrizzleDatabase
     const [row] = yield* runStatement(
