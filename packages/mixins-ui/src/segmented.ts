@@ -191,6 +191,10 @@ export const view = <Value extends string, Message>(
   )
   const chosenAt = options.options.findIndex(option => chosen.has(option.value))
   const stop = enabled.includes(chosenAt) ? chosenAt : (enabled[0] ?? -1)
+  // Keys come faster than frames, and this handler is the last drawn view's: each press moves
+  // on from the option the previous one of this drawing chose, since `pressed` reaches the
+  // next drawing only (two ArrowRights would otherwise choose one option).
+  let reached = chosenAt
   const keys = Behaviors.Keys.behavior(SegmentedSlots)<unknown, Message>({
     slot: 'group',
     name: 'SegmentedKeys',
@@ -202,15 +206,17 @@ export const view = <Value extends string, Message>(
           ...RovingTabindex.arrowChords('both'),
         ],
         handle: ({ key, modifiers }) => {
-          const next = RovingTabindex.move(enabled, chosenAt, key, modifiers, {
+          const next = RovingTabindex.move(enabled, reached, key, modifiers, {
             orientation: 'both',
             loop: true,
             direction: multiple ? 'ltr' : (options.direction ?? 'ltr'),
           })
           const target = next === undefined ? undefined : options.options[next]
-          return target === undefined
-            ? Option.none()
-            : Option.some(Behaviors.Keys.focus(idOf(target.value), options.onPress(target.value)))
+          if (next === undefined || target === undefined) return Option.none()
+          reached = next
+          return Option.some(
+            Behaviors.Keys.focus(idOf(target.value), options.onPress(target.value)),
+          )
         },
       }),
     ],
