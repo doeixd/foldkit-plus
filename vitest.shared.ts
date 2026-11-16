@@ -4,6 +4,7 @@
  * `foldkit-plus:source` export condition, so a test never runs against a
  * stale build.
  */
+import { foldkit } from '@foldkit/vite-plugin'
 import { defaultClientConditions } from 'vite'
 import { defineConfig } from 'vitest/config'
 import { mutation } from './scripts/mutation-plugin.mjs'
@@ -70,6 +71,14 @@ export const inBrowser = defineConfig({
   // Lucide's icons by name, as an example's own Vite config gives them, so a
   // test can draw the example's page (`examples/chirp`). From source, by path:
   // a package import of the plugin would run its `dist`, or none on CI.
-  plugins: [mutation(), icons({ iconify: ['lucide'], dts: false })],
+  //
+  // Foldkit's plugin brands each node with the function that returned it, and the
+  // differ replaces a node whose brand changed, as an application's build does
+  // with this workspace's source. Without it a node replaced that way passes every
+  // test: the data grid's funnel came from one arrow shut and another open, so
+  // opening its form dropped the focus and closed it (AGENTS.md, "A node returned
+  // from a different function is replaced"). The unit project and an installed
+  // package are not branded.
+  plugins: [mutation(), foldkit(), icons({ iconify: ['lucide'], dts: false })],
   resolve: { conditions: ['foldkit-plus:source', ...defaultClientConditions], alias },
 })
