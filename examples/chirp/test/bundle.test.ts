@@ -42,7 +42,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // -236 on 2026-11-15 (#560 review): the Site fixes made the fetch of a route's code on intent
 // opt-in (`fetchCode`), measured -236 by that fix; the review's UI fixes add 26 (244,583 against
 // 244,609 in one tree). Ceiling lowered by the 236.
-const CEILING = 244_814
+// +199 (2026-11-16, #569; builds with and without the change in one tree, 244,939 and
+// 245,138): `evaluate` refuses an order over text with no declared collation, by the
+// predicate `Query.placement` shares (`uncollated.ts`) and its message, which the page's
+// reference interpreter carries. Ceiling raised by that. The tree held about 125 more from
+// unfinished changes in `foldkit-remote`, which this does not raise for.
+const CEILING = 245_013
 
 clientBudget({
   name: 'chirp',

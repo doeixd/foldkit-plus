@@ -481,7 +481,8 @@ why). Before writing one:
   (`Expr.input`, or `input.x` in `Query.define`), never branched on.
 - Text compares and orders only under a declared collation
   (`Entity.annotateMembers({ title: Collation.of(Collation.binary) })`), or the
-  comparison throws and a client cannot place rows in the list.
+  comparison throws, `evaluate` refuses the order (`evaluateEach`, which only
+  judges membership, does not) and a client cannot place rows in the list.
 - A path or exists reads other rows: it is in `Query.dependencies(q).reaches`,
   not `fields`; `evaluate` refuses it, `Judge` and SQL run it; a list never
   orders by one.

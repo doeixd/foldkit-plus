@@ -25,6 +25,7 @@
 import { Match, Option, Schema, SchemaAST } from 'effect'
 import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
+import { uncollatedText } from './uncollated.js'
 import { Expr, Query, dependenciesOf, isPredicate, missingName, noOperators } from './expr.js'
 import type {
   AnyExpr,
@@ -1044,6 +1045,21 @@ const checkOrder = (
     }
   })
 
+/**
+ * Refuses an order over text with no declared collation: JavaScript would
+ * answer by code point where SQLite compares bytes and Postgres follows its
+ * locale. Asked wherever the answer depends on the order, and not of a
+ * membership judged alone (`evaluateEach`), which no order decides.
+ */
+const checkCollated = (terms: ReadonlyArray<OrderTerm>, query: string) => {
+  for (const term of terms) {
+    const uncollated = uncollatedText(term)
+    if (Option.isSome(uncollated)) {
+      throw new QueryEvaluateError(`query "${query}" cannot be ordered: ${uncollated.value}`)
+    }
+  }
+}
+
 /** Two rows' keys by checked terms: negative when `left` sorts first. */
 const byTerms = (
   terms: ReadonlyArray<OrderTerm>,
@@ -1074,6 +1090,7 @@ const ordered = (
   // Keys are worked out and checked however few the rows, so a term refused over
   // one row is refused as it is over many, as `evaluateEach` refuses it.
   if (terms.length === 0) return [...rows]
+  checkCollated(terms, query)
   // Each row's keys worked out once, not once per comparison: a call may be dear.
   const keyed = rows.map(row => ({ row, keys: keysOf(row, terms, scope) }))
   checkOrder(
@@ -1089,9 +1106,9 @@ const ordered = (
  * as `evaluate` sorts: negative when it comes first. A call among them runs
  * over each row with `input` and `operators` (the kernel's when not given).
  * Refuses what `evaluate` refuses, for these two rows: a term over neither a
- * field nor a call, a locale collation, keys of different kinds, or an
- * operator the table lacks. For a client placing one row among others it
- * holds.
+ * field nor a call, a locale collation, text with no declared collation, keys
+ * of different kinds, or an operator the table lacks. For a client placing
+ * one row among others it holds.
  */
 export const compareRows = (
   terms: ReadonlyArray<OrderTerm>,
@@ -1110,6 +1127,7 @@ export const compareRows = (
     context: options.context,
   }
   const keys = [keysOf(left, terms, scope), keysOf(right, terms, scope)] as const
+  checkCollated(terms, query)
   checkOrder(keys, terms, query)
   return byTerms(terms, keys[0], keys[1])
 }
@@ -1158,6 +1176,10 @@ export const assertSupported = (
  * `input` holds the values this run was given, by the keys the body's
  * placeholders were built with — the same record the query would be called
  * with anywhere else.
+ *
+ * The order is part of the answer, so an order over text with no declared
+ * collation is refused (`Query.placement`'s reason): declare one on the field,
+ * or on the term.
  */
 export const evaluate = (
   body: AnyQuery,
@@ -1195,7 +1217,9 @@ export interface Evaluated {
  * What no single row causes still refuses the run: an operation or operator
  * the table lacks, an order by a locale collation, an input the body reads
  * holding a NUL (every row would refuse, and no row is the cause), and order
- * keys of different kinds across rows.
+ * keys of different kinds across rows. It judges membership, which no order
+ * decides, so an order over text with no declared collation does not refuse it:
+ * `matched` is then in code point order, which no other reader need follow.
  */
 export const evaluateEach = (
   body: AnyQuery,
