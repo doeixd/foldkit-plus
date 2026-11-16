@@ -47,13 +47,18 @@ each of those.
 | Term | What it is |
 | --- | --- |
 | **Entity** | A named record type with an `id`, declared once with `Entity.define`, and read by Remote, the Drizzle binding and forms. [The package](../packages/entity/README.md) |
+| **Domain module** | The one module that declares an application's Entities, relations, invariants, states, writes, query bodies and guard rules, importing neither a database nor a client; the server, the page, forms and checks each read it. [One domain declaration](./entity.md) |
 | **Relation** | A member that points at another Entity (`Relation.one`, `Relation.many`, declared together with `Entity.relate`). Remote's store holds it as a ref key such as `'User:u1'`, a table as a foreign key; never a copy. |
 | **Derived member** | A readable value that is not a field: supplied by an interpreter (`Derived.make`), a count of the rows pointing here (`Derived.count`), or the row the reader has pointing here (`Derived.exists`). |
 | **Selection** | Exactly which fields of an Entity, and through which relations, a consumer needs; it decodes to that shape. `Entity.select`. |
-| **`Expr`** | A statement about one row, as a value: comparisons, `and`/`or`/`not`, paths through `one` relations, an exists, an input placeholder, who asks (`Expr.viewer`) and when (`Expr.now`). Three-valued, as SQL is. [Expr](../packages/entity/README.md#saying-something-about-a-row-expr) |
+| **`Expr`** | A statement about one row, as a value: comparisons, `and`/`or`/`not`, paths through `one` relations, an exists, an input placeholder, who asks (`Expr.viewer`) and when (`Expr.now`). Three-valued, as SQL is. [Expressions](./expressions.md) |
 | **Query body** | What a list means, as a value: `Query.from(Entity)` with `Expr` predicates and an order; `foldkit-remote`'s `Query.define(name, Input, ({ input }) => …)` names one. Compiled to SQL on a server, judged over held rows on the client. |
 | **Collation** | How text compares and orders (`Collation.binary`, `asciiFold`, `locale`), declared on a field or a term; text with none is not compared, since databases disagree. |
 | **`Judge`** | The reference meaning of a body over rows a holder has (`Held.rows`): a verdict, `Known` (as SQL answers) or `Unknown` with why, never a guess. |
+| **Interpreter** | Whatever answers an `Expr`: the SQL compiler of `foldkit-remote-drizzle`, `evaluate` over one table's rows in memory, or `Judge` over what a holder has. Each refuses, by name, what it does not run. [Expressions](./expressions.md#three-interpreters-one-answer) |
+| **Conformance suite** | Bodies, rows and expected ids (`foldkit-entity/conformance`), chosen to make interpreters disagree; every interpreter here runs it, and one written elsewhere can. |
+| **Reach** | What a body reads in other rows: a path through `one` relations or an exists. Listed in `Query.dependencies(body).reaches`, never in `fields`. |
+| **Holder** | Whoever has some rows and some fields of them (`Held.rows`): a page's store, a test. To a holder a missing field is not held, which is not null. |
 | **Operator** | A word an application adds to `Expr` (`Expr.operator`): defined by an expression, or primitive and implemented per interpreter, held to its laws by `Conformance`. [Operators](./operators.md) |
 | **Context set** | A member the write's context fills, never the input: `Entity.sets({ author: Expr.viewer(User) }, { on: 'create' })`. |
 | **Declared write** | A change to one row by id, as data (`Write.update`, `insert`, `delete`): what it sets, adds, and must find. Served with no handler. [Declared writes](./declared-writes.md) |
@@ -93,6 +98,8 @@ each of those.
 | **Revision** | The highest journal sequence a row of a read model has applied: an edit committed after it is not in the row yet. |
 | **Absorbed** | An edit the read model holds, recorded so by the server; replicas drop it and the log compacts. |
 | **Held edit** | An absorbed edit a page keeps while the row it has cached is behind it, so the row never shows a stale read (`EditableEntity.held`). |
+| **Alchemy Domain** | An external event-sourcing library (`@alchemy.run/domain`): Commands go to Aggregates that decide, Events are the facts, Views fold them into rows. `foldkit-remote-domain` lets a page read and write such a model through Remote. Not the `alchemy` deploy tool. [`foldkit-remote-domain`](../packages/remote-domain/README.md) |
+| **Receipt** | What a Domain command answers with (`{ stream, version }`). Remote keeps it as a read-after token until the View shows the write, so a read never shows the row from before it. |
 | **Agent contract** | What an agent may see (a Projection) and do (a Message subset), built from `Agent.forApplication(App)` and served by an adapter. [Agents](./agents.md) |
 
 ## `foldkit-mixins` and `foldkit-primitives`: views and interaction

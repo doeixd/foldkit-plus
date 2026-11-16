@@ -468,6 +468,30 @@ Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
 
 ## Saying something about a row: `Expr`
 
+One language for every rule and question (a query's `where` and order, an
+invariant, a state, a write's `when`, a guard's row rule). Three interpreters
+answer it alike: SQL (`foldkit-remote-drizzle`), `evaluate` (every row of one
+table, in memory) and `Judge` (what a holder has: `Known`, or `Unknown` with
+why). Before writing one:
+
+- It follows SQL, not JavaScript: a comparison with null is unknown, and `not`
+  of unknown is unknown. Over a nullable member, say what nulls mean
+  (`Expr.or(Expr.isNull(x), Expr.not(…))`); never `Expr.eq(x, null)`.
+- Field on the left, value on the right; an input is a placeholder
+  (`Expr.input`, or `input.x` in `Query.define`), never branched on.
+- Text compares and orders only under a declared collation
+  (`Entity.annotateMembers({ title: Collation.of(Collation.binary) })`), or the
+  comparison throws and a client cannot place rows in the list.
+- A path or exists reads other rows: it is in `Query.dependencies(q).reaches`,
+  not `fields`; `evaluate` refuses it, `Judge` and SQL run it; a list never
+  orders by one.
+- `Expr.viewer` and `Expr.now` come from the run's context; a run without one
+  is refused (`ContextMissingError`), a visitor's viewer is null.
+- A derived member is not an operand, and there is no arithmetic or aggregate.
+
+The guide, with one body run by all three:
+https://github.com/doeixd/foldkit-plus/blob/main/docs/expressions.md
+
 ```ts
 import { Expr, Order, Query, dependenciesOf } from 'foldkit-entity'
 
@@ -839,6 +863,8 @@ Met in applications on this stack: what failed, and what to do instead.
 
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp (a whole app's domain in `src/domain.ts`: Users, Posts and Likes, derived counts, the checks its tables compile)
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/entity/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/entity.md (one small domain carried through a check, the server and the page)
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/expressions.md (the `Expr` language in order)
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/operators.md (operators end to end)
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/entity
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/metadata/README.md
