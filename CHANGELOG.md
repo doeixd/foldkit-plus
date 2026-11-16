@@ -1029,6 +1029,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: keys pressed before the next frame, which a held key repeating on a
+  busy page sends, each met the last drawing's state and acted as the first had. `Listbox`
+  (and so `Picker`'s dropdown) and `Menu` continue arrows, Home, End, type-ahead,
+  Space and Enter from the item the drawing's previous key reached, `Segmented` from the
+  option it chose, and `TagsInput` removes each chip a Backspace or Delete reaches. `Nav`'s
+  row and panel links and `Picker`'s Sheet options move focus in the key handler, not in a
+  Command a later key outran: `Nav.Message.MovedTop` and `MovedInPanel`, and
+  `Picker.Message.Stepped`, are now what an application's own key route answers.
+- `foldkit-mixins-ui`: a filled `CascadeSelect` trigger showed no hover and lost its error
+  edge when invalid, and a ghost one lost it under the pointer; an invalid `Input`,
+  `Textarea` frame, `Select` and ghost `Listbox` trigger lost it under the pointer too, since
+  the hover rule's edge outranked the invalid one. Each keeps the error edge.
 - `foldkit-mixins-builder`: a tile dropped in the gap between two nodes landed at the end of the page, with the mark off screen. It lands between them.
 - `foldkit-primitives`: held at the window's edge over a box that can still scroll that way, a drag scrolled the window and left the box. The box goes first, and the window once it is at its end.
 - `foldkit-primitives`: `MediaQuery` started at `matches: false` and learned the window's answer from its Subscription, which lands after the first frame, so a phone drew one frame of the wide layout. `init` now reads `matchMedia(query).matches` where there is a window (still `false` on a server), and `args.initial` says the first value instead, for a server that knows the device from a hint or a test. A page resumed by `foldkit-ssr` keeps the server's value, since `init` does not run there, and the stream's first report corrects it.
