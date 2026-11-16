@@ -1147,9 +1147,9 @@ Expr.eq(Post.fields.title, 'Draft')`, or with the input, `({ input }) =>
 Expr.eq(Post.fields.title, input.from)`. It reads the row as it is before the write and the input,
 and only its own Entity: a field of another is a type error, and refused where
 the write is declared. Who is asking is a guard's: a `when` reading
-`Expr.viewer` or `Expr.now` is declared without complaint and refused where it
-is served, by a writer that is given neither (`foldkit-remote-drizzle`'s, and
-`RemoteServer.memory`'s). It is held as
+`Expr.viewer` or `Expr.now` (also through a path from the viewer or an exists)
+is refused where the write is declared; a writer, given neither, refuses a
+hand-built one again where it is served. It is held as
 a query body (`write.when`), so an interpreter checks it in the statement that
 writes, and a row it does not hold of is refused as unmet. A write declared with
 one is a `ConditionedWrite`, which is how `Mutation.write` knows it may be
