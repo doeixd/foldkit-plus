@@ -947,13 +947,13 @@ The view reads nothing from the environment, so the eyedropper button is the
 application learns its environment and keep the answer in the Model. An
 application that only runs in a browser reads it in `init`:
 
-```ts standalone
+```ts
 import { Schema } from 'effect'
 import { ColorPicker } from 'foldkit-mixins-ui'
 
-const Model = Schema.Struct({ picker: ColorPicker.Model, eyedropper: Schema.Boolean })
+const PickerModel = Schema.Struct({ picker: ColorPicker.Model, eyedropper: Schema.Boolean })
 
-const init = () => ({
+const initPicker = () => ({
   model: {
     picker: ColorPicker.init({ id: 'accent' }),
     eyedropper: ColorPicker.canEyedrop(),
@@ -965,19 +965,21 @@ A server-rendered application starts `false`, so the served markup and the
 browser's first render agree, and learns the answer after it has taken over, so
 the button appears instead of the picker's controls being rebuilt:
 
-```ts standalone
+```ts
 import { Effect, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { ColorPicker } from 'foldkit-mixins-ui'
 
-const Message = defineMessageUnion({ LearnedEyedropper: { available: Schema.Boolean } })
+const EyedropperMessage = defineMessageUnion({
+  LearnedEyedropper: { available: Schema.Boolean },
+})
 
 // Send it from the Command that starts the application, with the first frame drawn.
-const LearnEyedropper = Command.define('LearnEyedropper', {
-  messages: [Message.LearnedEyedropper],
+const LearnEyedropperCommand = Command.define('LearnEyedropper', {
+  messages: [EyedropperMessage.LearnedEyedropper],
   execute: Effect.sync(() =>
-    Message.LearnedEyedropper({ available: ColorPicker.canEyedrop() }),
+    EyedropperMessage.LearnedEyedropper({ available: ColorPicker.canEyedrop() }),
   ),
 })
 ```
