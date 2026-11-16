@@ -75,9 +75,9 @@ export default [
     name: 'text with no collation counts as placeable',
     edits: [
       {
-        file: expr,
-        find: '          ordersIntrinsically(Schema.toEncoded(field.schema).ast)\n',
-        replace: '          true\n',
+        file: '../src/uncollated.ts',
+        find: '!ordersIntrinsically(Schema.toEncoded(field.schema).ast)',
+        replace: '!true',
       },
     ],
     tests,
@@ -157,7 +157,7 @@ export default [
     name: 'a null among numbers makes them text',
     edits: [
       {
-        file: '../src/expr.ts',
+        file: '../src/uncollated.ts',
         find: 'ast.types.every(member => SchemaAST.isNull(member) || ordersIntrinsically(member)))',
         replace: 'ast.types.every(ordersIntrinsically))',
       },
