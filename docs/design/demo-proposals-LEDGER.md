@@ -14,7 +14,7 @@ Status words:
   [`ui-followup-PLAN.md`](./ui-followup-PLAN.md).
 - **Open**: needs a decision from the maintainer.
 
-Last updated 2026-11-15 (second pass).
+Last updated 2026-11-16.
 
 ## Defects found in packages
 
@@ -29,7 +29,7 @@ Last updated 2026-11-15 (second pass).
 | D7 | data-grid | Header filter and column-menu buttons were 24px targets on a coarse pointer. Now 44px tall; along the row the funnel reaches 32px and the menu stays 24px, since more would overlap the neighbour or the resize handle. | `foldkit-mixins-data-grid` | Landed `6eaa42696` |
 | D8 | pages | `redecorate` in `richtext-dom` restored the DOM selection without the `ownsSelection()` guard, so any decoration refresh pulled focus back into the editor from whatever button the user had moved to. | `foldkit-richtext-dom` | Landed `e50339c78`; the content redraw path had the same fault, `9e8539673` |
 | D9 | authoring guide | `Conformance.listbox`'s doc comment said `enter` runs "first, and again whenever an activation has closed the options"; it runs only when no option is drawn. Comment corrected. | `foldkit-mixins` | Landed `cf84dc70d` |
-| D11 | cms | In the CMS page builder, a real-mouse drag from the palette or of a layer row showed its preview but nothing landed on release, and no drop indicator was drawn; on a phone the canvas could not be reached. The package's own browser tests pass. | `foldkit-builder`, `foldkit-mixins-builder`, `examples/cms` | Building |
+| D11 | cms | In the CMS page builder, a real-mouse drag from the palette or of a layer row showed its preview but nothing landed on release, and no drop indicator was drawn; on a phone the canvas could not be reached. The package's own browser tests pass. | `foldkit-builder`, `foldkit-mixins-builder`, `examples/cms` | Landed `c97412830`, `617b61d69`; a gap drop lands between nodes `ee6e65559`, `a21725854` |
 | D10 | widgets | A `File` kept in a Model or Message makes Foldkit's dev-tools relay reject with `SchemaError: Expected JSON value` under `vite dev` (not reproduced in isolation; the relay only runs under `import.meta.hot`). README note written. | `foldkit-mixins-ui` docs; upstream Foldkit | Landed `22c8c0b75` (note). Not filed upstream: two agents saw it and neither reproduced it in isolation. |
 
 ## API additions and changes
@@ -53,8 +53,31 @@ Last updated 2026-11-15 (second pass).
 | A15 | richtext-playground | `formattingToolbar`: application entries in the Insert menu, and application controls inside the bar's one tab stop, a compact mode that does not draw low-priority controls, and Escape back to the text. | `foldkit-mixins-richtext` | Landed `6bf9f4bd3` |
 | A16 | cms | `Cms.bySlug` (and sibling read-side functions) typed by what they read (`ContentReader`), so a public site does not import the content type's form and with it the editor. | `foldkit-cms` | Landed `4b3d01550` |
 | A18 | cms | The editor's `role="textbox"` root had no accessible name. A placement takes `label` or `labelledBy`; in a form the key's label names the editor and focuses it on click. | `foldkit-richtext-dom` | Landed `3431ea801` |
-| A19 | richtext-playground | The editor scrolls the caret into view after an edit or key moves it (a phone with the keyboard up left it 400px off screen). | `foldkit-richtext-dom` | Building |
+| A19 | richtext-playground | The editor scrolls the caret into view after an edit or key moves it (a phone with the keyboard up left it 400px off screen). | `foldkit-richtext-dom` | Landed `e186711ff` |
 | A17 | widgets | SpatialNavigation README: it needs `Capability.Focusable` on the item, and what the wrong capability does. | `foldkit-primitives` docs | Landed `b458375f1` |
+
+## Found by the docs and audit work
+
+The expression-language guide, the domain guides and the claim-by-claim audit of
+the guard and entity READMEs found these; each is a GitHub issue.
+
+| Issue | What was wrong | Package | Status |
+|-------|----------------|---------|--------|
+| #568 | A list page statement selected `id` twice. | `foldkit-remote-drizzle` | Landed `e089c8444` |
+| #569 | `evaluate` orders text with no declared collation, where placement and comparisons refuse it. Decision: a reader refuses such an order only when the order is what is asked; judging membership never refuses for it. | `foldkit-entity` | Building |
+| #570 | `GuardServer.mutation`, `GuardSync` and `GuardServer.memory` died per request on a rule that reads another row; they now refuse where they are made. | `foldkit-guard` | Landed `7d664d41a`, `fcfff2dad` |
+| #571 | An interaction `may` leaves unanswered read as refused, so an editor locked a row its reader may edit. `May.answer` gives yes, no or not said; hints act only on a no. | `foldkit-guard` | Landed `b17214c2e` |
+| #572 | A write's `when` reading the viewer or the clock was accepted where declared and refused only where served. | `foldkit-entity` | Landed `c283dca5a` |
+| #573 | An exception's message inside a read, list or mutation reached the client. | `foldkit-remote-server` | Building |
+| (type) | `Query.define` typed its `body` optional though it always sets one; it returns `DefinedQuery` now. | `foldkit-remote` | Landed `6fc9fc030` |
+
+Also from this work: the view-identity plugin now runs in the browser test
+projects (`f1d59e0d1`), which found a `WindowList.reveal` that kept scrolling a
+replaced list (`e67b4a939`); per-widget `conflict(routes)` checks (`63ae78259`);
+the key-race fixes in Listbox, Menu, Segmented, Picker, Nav and TagsInput; the
+editor's selection kept across a toolbar press (`53d283ed7`) and its caret
+scrolled into view (`e186711ff`); builder drops that land where shown
+(`c97412830`, `617b61d69`, `ee6e65559`, `a21725854`).
 
 ## Dependencies approved for examples
 
