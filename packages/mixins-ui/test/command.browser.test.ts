@@ -17,6 +17,7 @@ import { Behaviors, Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
+import { holdFrames } from './frames.js'
 import {
   Command,
   CommandSlots,
@@ -573,20 +574,6 @@ test('PageDown and PageUp move the highlight; typing and the caret keys, Home an
     handle.dispose()
   }
 })
-
-/**
- * Holds `requestAnimationFrame`, as a loaded page does, so keys pressed meanwhile meet the
- * view the last frame drew; the returned function runs what was asked for.
- */
-const holdFrames = () => {
-  const real = window.requestAnimationFrame.bind(window)
-  const held: Array<FrameRequestCallback> = []
-  window.requestAnimationFrame = callback => held.push(callback)
-  return () => {
-    window.requestAnimationFrame = real
-    for (const callback of held.splice(0)) real(callback)
-  }
-}
 
 test('keys pressed before the next frame each move the highlight from where the one before left it, and Enter runs the row the last reached', async () => {
   const handle = mountList({})

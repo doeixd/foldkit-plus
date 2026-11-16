@@ -19,6 +19,7 @@ import { modifyFields } from 'foldkit/struct'
 import type { MixinValue } from 'foldkit-mixins'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
+import { holdFrames } from './frames.js'
 import {
   Calendar,
   Combobox,
@@ -265,20 +266,6 @@ const mountCombobox = () =>
 const activeOption = () => {
   const id = byId('fruit-input').getAttribute('aria-activedescendant')
   return id === null ? '' : (document.getElementById(id)?.textContent ?? '')
-}
-
-/**
- * Holds `requestAnimationFrame`, as a loaded page does, so keys typed meanwhile meet the
- * view the last frame drew; `release` runs what was asked for.
- */
-const holdFrames = () => {
-  const real = window.requestAnimationFrame.bind(window)
-  const held: Array<FrameRequestCallback> = []
-  window.requestAnimationFrame = callback => held.push(callback)
-  return () => {
-    window.requestAnimationFrame = real
-    for (const callback of held.splice(0)) real(callback)
-  }
 }
 
 test('a combobox opens on ArrowDown, ArrowDown and ArrowUp move the active option, Enter chooses, focus stays in the field', async () => {
