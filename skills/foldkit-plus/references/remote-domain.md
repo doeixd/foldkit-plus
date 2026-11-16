@@ -2,9 +2,27 @@
 
 Checked against `foldkit-remote-domain` 0.1.0, `@alchemy.run/domain` 2.0.0-beta.86 and `foldkit-remote` 0.26.0.
 
-Experimental. Reads and writes an [Alchemy Domain](https://github.com/alchemy-run/alchemy) model (Commands,
+Experimental. Reads and writes an [Alchemy Domain](https://alchemy.run/domain) model (Commands,
 Aggregates that `decide`, Events, Views) **through Remote**. This is the Domain library, not the `alchemy`
 deploy tool of [alchemy.md](alchemy.md).
+
+## When to use it
+
+Use it when a Domain model is (or should be) the authority: Events are the record and an Aggregate decides each
+Command. Do not use it to get declared writes, predictions or refusals: `foldkit-entity` and `foldkit-remote` give those
+over any authority, and rows behind `foldkit-remote-server` + `foldkit-remote-drizzle` have no View to fall behind a
+write. Never put one in front of the other.
+
+```text
+page: Data.mutate predicts -> adapter: Command under a derived commandId -> Domain: decide, Events, { reply, stream, version }
+-> adapter: View.snapshot atLeast the receipt -> page: the View's row, or the reply's fields held to the receipt
+```
+
+A Command meets a declared write in one of three ways: **lower** it (`Lower.write`: the declaration runs inside
+`decide`, one statement of the rules), **bind** a hand-written Command (`DomainRemote.command`: your `decide` rules; a
+`Mutation.write` on the page still predicts, and `Law.check` compares the two), or **import** it
+(`Imported.mutation`: no prediction, a footprint only). Who may read is always the View's `validate`: a guard's Read
+rule is not lowered.
 
 ## What it owns
 
@@ -138,5 +156,6 @@ a reused `commandId` with other input or another principal returns the first rec
 takes no timeout for an `atLeast` read; a snapshot carries no stream version. No deploy, Durable Object or WebSocket
 path is exercised.
 
-See also: https://github.com/doeixd/foldkit-plus/blob/main/packages/remote-domain/README.md and
+See also: https://github.com/doeixd/foldkit-plus/blob/main/docs/event-sourced-domains.md (the guide),
+https://github.com/doeixd/foldkit-plus/blob/main/packages/remote-domain/README.md and
 https://github.com/doeixd/foldkit-plus/tree/main/examples/writes-domain
