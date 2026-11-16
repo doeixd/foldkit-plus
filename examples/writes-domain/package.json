@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "demo": "tsx src/main.ts",
+    "loop": "tsx src/loopMain.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {
