@@ -21,6 +21,7 @@ import {
   judgedIn,
   pageHolds,
   questions,
+  seed,
   world,
   type Question,
   type Statement,
@@ -31,13 +32,7 @@ import {
 export const openDatabase = (rows: World) => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(ddl)
-  const author = sqlite.prepare('insert into authors values (?, ?)')
-  for (const row of rows.authors) author.run(row.id, row.name)
-  const post = sqlite.prepare('insert into posts values (?, ?, ?, ?, ?)')
-  for (const row of rows.posts)
-    post.run(row.id, row.title, row.published ? 1 : 0, row.author, row.editor)
-  const comment = sqlite.prepare('insert into comments values (?, ?, ?, ?, ?)')
-  for (const row of rows.comments) comment.run(row.id, row.body, row.post, row.author, '2026-01-01')
+  for (const { sql, params } of seed(rows)) sqlite.prepare(sql).run(...params)
   const statements: Array<Statement> = []
   const layer = databaseLayer(
     drizzle({

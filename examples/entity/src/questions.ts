@@ -4,7 +4,6 @@
  * imports `node:sqlite`, so the trace (`language.ts`) and the browser page
  * (`languagePage.ts`) read the same bodies, rows and readers.
  */
-import { drizzle } from 'drizzle-orm/sqlite-proxy'
 import { Effect, Layer, Option, Result, Schema } from 'effect'
 import {
   Expr,
@@ -22,7 +21,7 @@ import {
   type Row,
 } from 'foldkit-entity'
 import { Query as RemoteQuery } from 'foldkit-remote'
-import { databaseLayer, query, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import { query, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { AuthorId, Blog } from './domain.js'
 import { Db } from './tables.js'
 
@@ -169,21 +168,26 @@ export const ask = async (
   return page.edges.map(edge => edge.id)
 }
 
-/**
- * The statements the adapter compiles for a question, as a browser can ask
- * them: the same `query` source runs over Drizzle's proxy driver, which
- * records each statement and answers it with no rows.
- */
-export const compiled = async (question: Question): Promise<ReadonlyArray<Statement>> => {
-  const statements: Array<Statement> = []
-  const record = async (sql: string, params: Array<unknown>) => {
-    statements.push({ sql, params })
-    return []
-  }
-  const database = drizzle({ all: record, get: async () => undefined, run: async () => undefined })
-  await ask(question, databaseLayer(database))
-  return statements
-}
+/** The statements that put `rows` in the tables `ddl` creates. */
+export const seed = (
+  rows: World,
+): ReadonlyArray<{
+  readonly sql: string
+  readonly params: ReadonlyArray<string | number | null>
+}> => [
+  ...rows.authors.map(row => ({
+    sql: 'insert into authors values (?, ?)',
+    params: [row.id, row.name],
+  })),
+  ...rows.posts.map(row => ({
+    sql: 'insert into posts values (?, ?, ?, ?, ?)',
+    params: [row.id, row.title, row.published ? 1 : 0, row.author, row.editor],
+  })),
+  ...rows.comments.map(row => ({
+    sql: 'insert into comments values (?, ?, ?, ?, ?)',
+    params: [row.id, row.body, row.post, row.author, '2026-01-01'],
+  })),
+]
 
 const contextOf = (question: Question) => ({ viewer: question.viewer, now: Option.none() })
 
