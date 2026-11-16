@@ -294,8 +294,9 @@ RemoteServer.make({
   until the host calls `cms.due(new Date(), { as: name => principal })` (cron, interval,
   queue: the package owns no timer). A failed one stays scheduled with its error
   (state reads overdue) and is not retried until the draft changes. The entry shows a
-  reason written for a reader, else `Internal error`; `due`'s own `error` is the
-  failure's words, for the host.
+  reason written for a reader, else `Internal error, incident <id>` with the cause
+  reported as a `ServerDefect` under that id; `due`'s own `error` is the failure's
+  words, for the host.
 - Seeding or migrating: `cms.import({ type, values, as, at?, entry? })` (an Effect needing the
   database) publishes content that exists already by the publish path (your `create` writes the
   row; entry and revision 1 follow), in one transaction. Never insert into the CMS tables by hand.

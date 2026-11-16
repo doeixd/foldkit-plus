@@ -280,7 +280,15 @@ export default {
   draft changes: a fault the author must fix is not hammered every minute. The
   entry keeps a reason written for a reader as it is (a denial, a declared
   refusal, `RemoteServer.tell`); any other failure, a driver's or a handler's
-  own, reads `Internal error` on the entry.
+  own, reads `Internal error, incident 3f9c2a7be01d4c55` on the entry, and its
+  cause is reported as a `ServerDefect` under that incident, with `during:
+  'publish due <entry>'`, through the `Diagnostics.Reporter` `due` runs with.
+  Through 0.11.0 the draft kept the failure's own message, a driver's failed
+  statement included: a `cms_drafts.schedule_error` written then still holds
+  it, and authors still read it. Overwrite such values once when upgrading
+  (`update cms_drafts set schedule_error = 'Internal error' where
+  schedule_error is not null`); a non-null value keeps the draft from being
+  tried again until it changes, as before.
 - **What was promised is changed only by someone who could have promised it.**
   Since a scheduled draft is published as whoever scheduled it, saving over it,
   restoring over it or discarding it is refused to an author your `transitions`

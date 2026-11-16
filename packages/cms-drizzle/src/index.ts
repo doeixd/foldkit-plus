@@ -24,7 +24,7 @@ import {
   type AnyColumn,
   type SQL,
 } from 'drizzle-orm'
-import { Effect, Exit, Match, Option, Schema, SchemaIssue, Semaphore } from 'effect'
+import { Cause, Effect, Exit, Match, Option, Schema, SchemaIssue, Semaphore } from 'effect'
 import { Cms, type Content, type Facts, type Transition } from 'foldkit-cms'
 import { Entity, type AnyEntity } from 'foldkit-entity'
 import { Guards, type Policy, type PrincipalGuard } from 'foldkit-guard'
@@ -217,9 +217,6 @@ export interface ImportItem<P> {
   readonly at?: Date | undefined
   readonly entry?: string | undefined
 }
-
-/** What an author reads of a scheduled publish that failed on this side: what any caller reads of one. */
-const SCHEDULE_FAILED = 'Internal error'
 
 const issuesOf = SchemaIssue.makeFormatterStandardSchemaV1()
 
@@ -1142,19 +1139,30 @@ export const CmsServer = {
     )
 
     /**
-     * A failed scheduled publish as authors read it on the entry: the reason where
-     * it was written for a reader (a denial, a refusal, `RemoteServer.tell`), and
-     * of any other failure only that there was one, as a caller of the publish
-     * operation itself would read it.
+     * A scheduled publish that failed on this side, as authors read it on the
+     * entry: that it failed, and the incident its cause was reported under
+     * (`RemoteServer.report`), as a caller of the publish operation would read it.
+     */
+    const withheld = (entry: string, cause: Cause.Cause<unknown>) =>
+      Effect.map(
+        RemoteServer.report(`publish due ${entry}`, cause),
+        ({ message, incident }) => `${message}, incident ${incident}`,
+      )
+    /**
+     * A failed scheduled publish as authors read it on the entry: the reason
+     * where it was written for a reader (a denial, a refusal,
+     * `RemoteServer.tell`), and of any other failure only `withheld`.
      */
     const shownOf = (
+      entry: string,
       failure: RemoteServerError | MutationRefused | RemoteForbidden | RemoteUnauthenticated,
-    ): string =>
+    ): Effect.Effect<string> =>
       Match.valueTags(failure, {
-        RemoteServerError: ({ told, message }) => (told === true ? message : SCHEDULE_FAILED),
-        MutationRefused: ({ message }) => message,
-        Forbidden: ({ message }) => message,
-        Unauthenticated: ({ message }) => message,
+        RemoteServerError: error =>
+          error.told === true ? Effect.succeed(error.message) : withheld(entry, Cause.fail(error)),
+        MutationRefused: ({ message }) => Effect.succeed(message),
+        Forbidden: ({ message }) => Effect.succeed(message),
+        Unauthenticated: ({ message }) => Effect.succeed(message),
       })
 
     /**
@@ -1202,11 +1210,15 @@ export const CmsServer = {
             )
             .pipe(
               Effect.catch(failure =>
-                Effect.succeed(Option.some({ own: failure.message, shown: shownOf(failure) })),
+                Effect.map(shownOf(id, failure), shown =>
+                  Option.some({ own: failure.message, shown }),
+                ),
               ),
               // A defect's words are a driver's or a bug's: the host's, never an author's.
               Effect.catchDefect(defect =>
-                Effect.succeed(Option.some({ own: String(defect), shown: SCHEDULE_FAILED })),
+                Effect.map(withheld(id, Cause.die(defect)), shown =>
+                  Option.some({ own: String(defect), shown }),
+                ),
               ),
             )
           // Recorded after the failed publish was undone, or it would be undone with it.

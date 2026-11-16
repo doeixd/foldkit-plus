@@ -34,8 +34,8 @@ export default [
     edits: [
       {
         file: index,
-        find: '({ told, message }) => (told === true ? message : SCHEDULE_FAILED)',
-        replace: '({ message }) => message',
+        find: 'error.told === true ? Effect.succeed(error.message) : withheld(entry, Cause.fail(error)),',
+        replace: 'Effect.succeed(error.message),',
       },
     ],
     tests,
@@ -45,8 +45,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'Option.some({ own: String(defect), shown: SCHEDULE_FAILED })',
-        replace: 'Option.some({ own: String(defect), shown: String(defect) })',
+        find: 'Effect.map(withheld(id, Cause.die(defect)), shown =>',
+        replace: 'Effect.map(Effect.succeed(String(defect)), shown =>',
       },
     ],
     tests,
@@ -56,8 +56,19 @@ export default [
     edits: [
       {
         file: index,
-        find: '        Forbidden: ({ message }) => message,',
-        replace: '        Forbidden: () => SCHEDULE_FAILED,',
+        find: '        Forbidden: ({ message }) => Effect.succeed(message),',
+        replace: "        Forbidden: () => Effect.succeed('Internal error'),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a failed scheduled publish is shown with an incident nothing was reported under',
+    edits: [
+      {
+        file: index,
+        find: 'RemoteServer.report(`publish due ${entry}`, cause),',
+        replace: "Effect.succeed({ message: 'Internal error', incident: '0000000000000000' }),",
       },
     ],
     tests,

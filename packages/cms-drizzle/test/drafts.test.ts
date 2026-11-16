@@ -247,7 +247,10 @@ const open = (options: Pick<CmsServerConfig<typeof Author.Type>, 'transitions'> 
       Effect.runPromise(
         cms
           .due(new Date(at), { as: name => (fired ? visitor : (known[name ?? ''] ?? visitor)) })
-          .pipe(Effect.provide(layer)),
+          .pipe(
+            Effect.provide(layer),
+            Effect.provideService(Diagnostics.Reporter, collected.report),
+          ),
       ),
     /** Everyone who scheduled anything has since lost the right to. */
     fire: () => {
@@ -414,6 +417,22 @@ describe('an entry’s state, derived with the server’s clock', () => {
     }
   })
 })
+
+/**
+ * What a draft keeps of a scheduled publish that failed on the server's side:
+ * the fixed words and an incident, which is all an author reads of it.
+ */
+const shownOn = (
+  rows: (query: string) => ReadonlyArray<Record<string, unknown>>,
+  entry: string,
+) => {
+  const error = String(
+    rows(`select schedule_error from cms_drafts where id = '${entry}'`)[0]?.['schedule_error'],
+  )
+  const [, incident] = /^Internal error, incident ([0-9a-f]{16})$/.exec(error) ?? []
+  expect(incident).toBeDefined()
+  return { error, incident }
+}
 
 describe('saving a draft', () => {
   it('makes the entry on its first save, and answers with both so the client holds them', async () => {
@@ -897,7 +916,7 @@ describe('what comes due', () => {
   })
 
   it('leaves a publish that failed scheduled, with the reason, and does not try it again until the draft changes', async () => {
-    const { as, rows, due, sqlite, tick } = open()
+    const { as, rows, due, sqlite, tick, reported } = open()
     await as(ada).mutate('CmsSaveDraft', save({ entry: 'e9', values: { title: 'Fails' } }))
     await as(ada).mutate('CmsSchedule', { entry: 'e9', at: soon })
     const before = Number(
@@ -909,11 +928,20 @@ describe('what comes due', () => {
       { entry: 'e9', error: 'The application refused' },
     ])
     // Nothing of the failed publish is left, and the entry reads overdue. The handler's
-    // words were the host's to read (the outcome above): an author reads that it failed.
+    // words were the host's to read (the outcome above) and the report's: an author reads
+    // that it failed, and the incident it was reported under.
     expect(rows('select count(*) as n from posts')).toEqual([{ n: before }])
+    const shown = shownOn(rows, 'e9')
+    expect(reported.filter(report => report._tag === 'ServerDefect')).toEqual([
+      expect.objectContaining({
+        during: 'publish due e9',
+        incident: shown.incident,
+        message: expect.stringContaining('The application refused'),
+      }),
+    ])
     expect((await as(ada).read('CmsEntry', ['e9'], ['state']))['CmsEntry:e9']!['state']).toEqual({
       _tag: 'New',
-      schedule: { at: soon, overdue: true, error: 'Internal error' },
+      schedule: { at: soon, overdue: true, error: shown.error },
     })
     expect(await due('2026-07-02T00:01:00.000Z')).toEqual([])
 
@@ -952,15 +980,19 @@ describe('what comes due', () => {
   })
 
   it('keeps a driver’s words for the host, and off the draft authors read', async () => {
-    const { as, rows, due, sqlite } = open()
+    const { as, rows, due, sqlite, reported } = open()
     await as(ada).mutate('CmsSchedule', { entry: 'e3', at: soon })
     sqlite.exec(
       "create trigger keep before insert on posts begin select raise(abort, 'kept in posts'); end",
     )
     const [outcome] = await due('2026-07-02T00:00:00.000Z')
     expect(outcome).toMatchObject({ entry: 'e3', error: expect.stringContaining('posts') })
-    expect(rows(`select schedule_error from cms_drafts where id = 'e3'`)).toEqual([
-      { schedule_error: 'Internal error' },
+    expect(reported.filter(report => report._tag === 'ServerDefect')).toEqual([
+      expect.objectContaining({
+        during: 'publish due e3',
+        incident: shownOn(rows, 'e3').incident,
+        message: expect.stringContaining('kept in posts'),
+      }),
     ])
     expect(JSON.stringify(await as(ada).read('CmsEntry', ['e3'], ['state']))).not.toMatch(
       /posts|insert|Failed query/,
