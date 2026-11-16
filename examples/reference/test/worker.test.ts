@@ -394,7 +394,7 @@ describe('a write sent again', () => {
     )
     const reused = await create(cookie, 'frances-op-1', 'frances-1', 'Another title')
     expect(Result.isFailure(reused) && reused.failure).toMatchObject({
-      message: expect.stringContaining('was recorded for another request'),
+      message: expect.stringContaining('cannot be sent again with another mutation, keys or input'),
     })
     const { notes } = Surface.read(NotebookPage, await readAs(cookie), {
       viewer: await idOf(cookie),

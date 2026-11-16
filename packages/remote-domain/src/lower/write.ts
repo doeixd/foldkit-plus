@@ -425,7 +425,15 @@ export const write = <
                     ),
               Forbidden: () => Effect.fail(reject('Forbidden')),
               Unauthenticated: () => Effect.fail(reject('Unauthenticated')),
-              RemoteServerError: error => Effect.die(error),
+              // A defect crosses the Domain Api's transport with its message and cause. So only
+              // words the chain told its caller go as they are; any other failure is logged
+              // here, and dies saying nothing of it, as `RemoteServer` answers one.
+              RemoteServerError: error =>
+                error.told === true
+                  ? Effect.die(new Error(error.message))
+                  : Effect.logError(`${mutation.name} failed on this side`, error).pipe(
+                      Effect.andThen(Effect.die(new Error('Internal error'))),
+                    ),
             }),
           )
       }

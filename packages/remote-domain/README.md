@@ -263,7 +263,7 @@ digest    = a short hash of [principal, target, keys, input]
 | Case | SQLite, ledgered writer | Domain alone | Domain through the adapter |
 | --- | --- | --- | --- |
 | same operation, same request, same principal | answered from the record | first receipt | first receipt |
-| same operation, different input | refused: recorded for another request | first receipt, silently | a new command, decided on its own |
+| same operation, different input | refused: the operation cannot be sent again with another input | first receipt, silently | a new command, decided on its own |
 | same operation, another principal | decided afresh in its own scope | first receipt, `decide` skipped | a new command, decided afresh |
 
 A request with no `operation` is refused (`RemoteMutationError`): sending it

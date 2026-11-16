@@ -7,7 +7,7 @@
 import { Array, Clock, Duration, Effect, Random, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { Query, Remote, entityKey } from 'foldkit-remote'
-import { RemoteServer, RemoteServerError } from 'foldkit-remote-server'
+import { RemoteServer } from 'foldkit-remote-server'
 
 // DOMAIN
 
@@ -103,9 +103,8 @@ const PostSource = RemoteServer.entity<undefined>(Post, {
         flakyAttempts.count += 1
 
         if (flakyAttempts.count % 2 === 1) {
-          return yield* new RemoteServerError({
-            message: 'The connection dropped. Retry to fetch this post again.',
-          })
+          // Written for the reader, so told: any other failure here would read "Internal error".
+          return yield* RemoteServer.tell('The connection dropped. Retry to fetch this post again.')
         }
       }
 

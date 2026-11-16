@@ -59,12 +59,14 @@ describe('the same operation, the same request, the same principal', () => {
 describe('the same operation with another input', () => {
   const other = { ...first, revision: 2, quantity: 1 }
 
-  it('SQLite refuses it as recorded for another request', async () => {
+  it('SQLite refuses it: the operation cannot be sent again with another input', async () => {
     const db = sqlite()
     await db.ask(first)
     const answer = await db.ask(other)
     expect(answer._tag).toBe('Refused')
-    expect(answer).toMatchObject({ refusal: expect.stringContaining('another request') })
+    expect(answer).toMatchObject({
+      refusal: expect.stringContaining('cannot be sent again with another mutation, keys or input'),
+    })
     expect(db.row('p1')).toMatchObject({ reserved: 5, revision: 2 })
   })
 
