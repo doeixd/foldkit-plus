@@ -572,7 +572,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/tagsInput.ts',
-        find: "textBox: 'trim-both ex alphabetic',",
+        find: "textBox: 'trim-both cap alphabetic',",
         replace: '',
       },
     ],
@@ -581,6 +581,17 @@ export default [
   {
     name: 'the remove button is not centred on the label’s line',
     edits: [{ file: '../src/recipes/tagsInput.ts', find: "marginBlock: 'auto',", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'the label is moved the wrong way from the capitals’ middle',
+    edits: [
+      {
+        file: '../src/recipes/tagsInput.ts',
+        find: "const opticalShift = 'calc((1cap - 1ex) / 4)'",
+        replace: "const opticalShift = 'calc((1ex - 1cap) / 4)'",
+      },
+    ],
     tests: [browser],
   },
 ]

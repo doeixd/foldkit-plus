@@ -410,9 +410,14 @@ test.each(faces)('the label and the mark are centred on the pill’s middle, in 
         for (const chip of document.querySelectorAll<HTMLElement>('li')) {
           const m = chipMeasures(chip)
           const where = `${face} radius ${radius} scale ${scale}: ${JSON.stringify(m)}`
-          // The x-height band, which the eye centres lowercase on, is in the pill's middle: to within
-          // the ink's overshoot, which a serif's canvas measure reads as up to a pixel at 12px.
-          expect(Math.abs(m.xBand), where).toBeLessThanOrEqual(0.8)
+          // Centred on the midpoint of the capitals' middle and the x-height band's, which mixed
+          // lowercase reads as centred: the capitals a little above the pill's middle, the band a
+          // little below it (to within the ink's overshoot, which a serif's canvas measure reads
+          // as up to a pixel at 12px).
+          expect(Math.abs(m.cap + m.xBand) / 2, where).toBeLessThanOrEqual(0.75)
+          expect(m.xBand, where).toBeGreaterThan(-0.25)
+          expect(m.xBand, where).toBeLessThanOrEqual(1.5)
+          expect(m.height, where).toBeCloseTo(m.untrimmedHeight, 1)
           expect(Math.abs(m.mark), where).toBeLessThanOrEqual(0.5)
           // Clear of the end cap's curve at the start: about half the pill's height.
           expect(Math.abs(m.startRoom - m.height / 2), where).toBeLessThanOrEqual(1.5)

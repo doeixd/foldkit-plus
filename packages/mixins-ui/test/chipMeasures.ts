@@ -1,4 +1,4 @@
-/** Where the label's x-height band and the button's middle lie against the pill's middle, and the room at each end. */
+/** Where the label's capitals and x-height band and the button's middle lie against the pill's middle, and the room at each end. */
 export const chipMeasures = (chip: HTMLElement) => {
   const pill = chip.getBoundingClientRect()
   const button = chip.querySelector('button')!.getBoundingClientRect()
@@ -19,10 +19,15 @@ export const chipMeasures = (chip: HTMLElement) => {
   const middle = pill.top + pill.height / 2
   return {
     xBand: baseline - context.measureText('x').actualBoundingBoxAscent / 2 - middle,
+    cap: baseline - context.measureText('H').actualBoundingBoxAscent / 2 - middle,
     mark: button.top + button.height / 2 - middle,
     startRoom: labelLeft - pill.left,
     endRoom: pill.right - button.right,
     verticalRoom: button.top - pill.top,
     height: pill.height,
+    // What the pill is without `text-box`: the line and an inset above and below.
+    untrimmedHeight:
+      parseFloat(face.lineHeight) +
+      2 * 0.1 * parseFloat(getComputedStyle(document.documentElement).fontSize),
   }
 }

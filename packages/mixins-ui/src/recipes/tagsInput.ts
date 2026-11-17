@@ -56,20 +56,23 @@ const chipLine = role('caption').lineHeight
 /** The button's room at the end: its own width, its inset and the gap to the label. */
 const buttonRoom = `calc(${chipLine} + ${chipInset} + 0.2rem)`
 
-// The label is trimmed to its x-height band, from the x-height line to the baseline, and the
-// padding makes the pill as tall as the button with its inset, so the band is centred in the pill
-// and the button is centred on the same line: both follow the face's own metrics (`ex`), where a
-// line box centres its ascent and descent, which sit low or high by the face. The button is out of
-// the flow, since a block container is what `text-box` trims.
+// The pill is as tall as the button with its inset. Where `text-box` trims, the label's line is
+// cut to the capitals' height and the padding is what is left of that height, moved by a quarter of
+// the gap between the capitals' and the x-height's (`1cap - 1ex`): the label is centred half way
+// between the middle of its capitals and of its x-height band, where mixed lowercase reads centred,
+// by the face's own metrics. A line box centres its ascent and descent, which sit low or high by the
+// face. Without `text-box` the base rule stands: the line box, centred, at the same height. The
+// button is out of the flow, since a block container is what `text-box` trims.
+const trimmedPadding = `calc((${chipLine} + 2 * ${chipInset} - 1cap) / 2)`
+const opticalShift = 'calc((1cap - 1ex) / 4)'
 export const chip: StyleValue = component(
   Style.self({
     position: 'relative',
     display: 'block',
     boxSizing: 'border-box',
-    paddingBlock: `calc((${chipLine} + 2 * ${chipInset} - 1ex) / 2)`,
+    paddingBlock: chipInset,
     paddingInlineStart: '0.6rem',
     paddingInlineEnd: buttonRoom,
-    textBox: 'trim-both ex alphabetic',
     borderRadius: ref.radius.full,
     // A step off the field the other way from `muted`, which is a recessed
     // step: lighter in a dark scheme, darker in a light one.
@@ -78,6 +81,11 @@ export const chip: StyleValue = component(
     ...role('caption'),
     fontWeight: ref.weight.medium,
     whiteSpace: 'nowrap',
+  }),
+  Style.supports('(text-box: trim-both cap alphabetic)', {
+    textBox: 'trim-both cap alphabetic',
+    paddingBlockStart: `calc(${trimmedPadding} - ${opticalShift})`,
+    paddingBlockEnd: `calc(${trimmedPadding} + ${opticalShift})`,
   }),
 )
 
