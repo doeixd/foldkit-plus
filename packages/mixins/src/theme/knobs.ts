@@ -516,7 +516,7 @@ export const standard = {
     }),
     panel: Knob.choice({
       title: 'Menu color',
-      default: 'inverted',
+      default: 'default',
       options: {
         default: { 'popup-invert': '0', 'popup-alpha': '1', 'popup-blur': '0px' },
         inverted: { 'popup-invert': '1', 'popup-alpha': '1', 'popup-blur': '0px' },

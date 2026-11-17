@@ -74,7 +74,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/popup.ts',
-        find: "const lighted = { background: ref.popup.highlight, color: ref.popup['highlight-ink'] }",
+        find: 'const lighted = { background: row.highlight, color: row.ink }',
         replace:
           "const lighted = { background: 'color-mix(in oklab, currentColor 8%, transparent)' }",
       },

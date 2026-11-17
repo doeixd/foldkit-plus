@@ -287,8 +287,8 @@ describe('a menu panel', () => {
     expect(same(computed('popup-highlight-ink'), computed('accent-on-fill'))).toBe(true)
   })
 
-  test('takes the other scheme’s surface and text when inverted, as by default', () => {
-    install({})
+  test('takes the other scheme’s surface and text when inverted', () => {
+    install({ panel: 'inverted' })
     expect(lightnessOf(computed('popup-surface'))).toBeLessThan(0.4)
     expect(lightnessOf(computed('popup-ink'))).toBeGreaterThan(0.8)
   })

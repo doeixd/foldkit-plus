@@ -674,8 +674,11 @@ the surface knobs. Each hue is a knob (`red-h`), and `scale-c` scales every step
 (`--fk-blue-wash-2`, `ref.blue['6']`). The `popup` group is a menu's
 panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `press`, `highlight-ink`):
 `menu.highlight: 'bold'` lights the row in the accent's fill, and `menu.panel` draws the panel
-`inverted` (the other scheme's surface and text) or `translucent` over a blur, as shadcn's menu
-options do.
+as the page's own raised surface (`default`), `inverted` (the other scheme's surface and text) or
+`translucent` over a blur, as shadcn's menu options do. A lit row takes its ink from the surface
+it is on: a popup panel sets `--_fk-row-highlight`, `--_fk-row-press` and
+`--_fk-row-highlight-ink` on itself, and a row outside one (an inline Command) reads the `plain-*`
+tokens, the text's own films or the accent.
 Each is a 0-or-1 knob (`popup-bold`, `popup-invert`) blended by `color-mix`, so an override
 switches it live. The `state` group is what a state lays over the surface under it, a mix of the
 element's own text color (`hover`, and `press` at 1.75 of it; `tint` and `tint-hover`, a

@@ -2043,7 +2043,7 @@ the chosen tab marks itself: the recipe reads the `data-fluid-hover` attribute F
 sets while it runs.
 
 Menus, listboxes and comboboxes draw their panels in the palette's `popup` tokens, so a
-theme's `menu: { accent, color }` (a bold accent row, an inverted or translucent panel)
+theme's `menu: { accent, color }` (a bold accent row; a panel on the page's surface by default, or inverted or translucent)
 restyles all three, and they take `Menu.fluid`, `Listbox.fluid` and `Combobox.fluid`
 beside the style in `toView`. The open panel's rows sit in a `rows` box of this package's
 (the panel carries upstream's anchor, and an element holds one Mount), with a `highlight`

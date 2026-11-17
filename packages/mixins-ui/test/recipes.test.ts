@@ -503,7 +503,7 @@ describe('Recipes', () => {
     ['*', 'currentColor calc(var(--fk-knob-state-hover) *', 'a scrollbar thumb takes the text'],
   ]
   const stateRead =
-    /--_fk-state-ink|--_fk-tone-|--fk-(?!state-)[a-z]+-(hover|active|press)\b|--fk-popup-(highlight|press)|^\s*(transparent|none|inherit)\s*$/
+    /--_fk-state-ink|--_fk-tone-|--fk-(?!state-)[a-z]+-(hover|active|press)\b|--_fk-row-(highlight|press)|--fk-popup-(plain-)?(highlight|press)|^\s*(transparent|none|inherit)\s*$/
   it.each(Object.entries(compiled))('%s draws its hovers from the state tokens', (name, sheets) => {
     const strays = new Set<string>()
     for (const css of sheets)

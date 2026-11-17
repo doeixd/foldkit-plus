@@ -37,11 +37,10 @@ export const Picker = Style.recipeFor(PickerSlots)({
         gap: ref.space['3xs'],
         paddingBlock: ref.space.xs,
         // The rows are the popup's, on the Sheet's surface rather than a popup's
-        // panel, which a theme may invert: they take that surface's ink and hover.
-        '--fk-popup-ink': ref.text.default,
-        '--fk-popup-highlight': unfilledHover,
-        '--fk-popup-press': pressedHover,
-        '--fk-popup-highlight-ink': ref.text.default,
+        // panel: they take that surface's hover, whatever the menu accent.
+        '--_fk-row-highlight': unfilledHover,
+        '--_fk-row-press': pressedHover,
+        '--_fk-row-highlight-ink': ref.text.default,
       }),
     ),
     option: component(

@@ -10,6 +10,7 @@
  */
 import { Option } from 'effect'
 import { Behaviors } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { holdFrames } from './frames.js'
@@ -142,6 +143,21 @@ describe('on a phone', () => {
     expect(chosen).toEqual(['relevance'])
     expect(opener().textContent).toContain('Most relevant')
     await vi.waitFor(() => expect(document.activeElement).toBe(opener()))
+  })
+
+  test('the sheet’s hovered option keeps the text’s ink under a bold menu accent', async () => {
+    await page.viewport(390, 844)
+    const palette = Theme.standard(Theme.make({ menu: { highlight: 'bold', panel: 'inverted' } }))
+    handle = await mount({}, Option.some('price'), [], palette)
+    await userEvent.click(opener())
+    const sheet = await vi.waitFor(() => (expect(panel()).not.toBeNull(), panel()!))
+    await settled(sheet)
+    const lit = sheetOptions()[0]!
+    await userEvent.hover(lit)
+    await vi.waitFor(() => expect(lit.matches(':hover')).toBe(true))
+    // The accent's on-fill ink would be pale on this pale film, and the inverted panel's ink on a light sheet.
+    expect(getComputedStyle(lit).color).toBe(getComputedStyle(sheet).color)
+    expect(getComputedStyle(lit).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
   })
 
   test("an application's key on an option joins the arrows through the one keydown owner", async () => {

@@ -24,6 +24,18 @@ import { overlaid } from './scrollBars.js'
 const line = `color-mix(in oklab, ${ref.popup.ink} 14%, transparent)`
 
 /**
+ * A lit row's colours: the panel's own, which `panel` sets on itself, or a plain
+ * surface's where no panel did (an inline list). A `var()` in a token
+ * substitutes where the token is declared, so a row cannot read a
+ * per-surface ink from the global token.
+ */
+export const row = {
+  highlight: `var(--_fk-row-highlight, ${ref.popup['plain-highlight']})`,
+  press: `var(--_fk-row-press, ${ref.popup['plain-press']})`,
+  ink: `var(--_fk-row-highlight-ink, ${ref.popup['plain-highlight-ink']})`,
+}
+
+/**
  * The floating panel: a bordered card over later content, under the nav, in
  * the palette's `popup` look (a theme's menu accent and color).
  */
@@ -42,6 +54,9 @@ export const panel: StyleValue = component(
     // is inverted, made see-through where it is translucent.
     background: `color-mix(in oklab, color-mix(in oklab, ${ref.popup.inverted} calc(${ref.knob['popup-invert']} * 100%), ${raisedSurface()}) calc(${ref.knob['popup-alpha']} * 100%), transparent)`,
     color: ref.popup.ink,
+    '--_fk-row-highlight': ref.popup.highlight,
+    '--_fk-row-press': ref.popup.press,
+    '--_fk-row-highlight-ink': ref.popup['highlight-ink'],
     backdropFilter: `blur(${ref.popup.blur})`,
     boxShadow: ref.shadow.lg,
     zIndex: '20',
@@ -79,7 +94,7 @@ export const triggerWidth: StyleValue = variant(
 )
 
 /** A lit row: the theme's tint of the panel's ink, or its accent fill when the menu accent is bold. */
-const lighted = { background: ref.popup.highlight, color: ref.popup['highlight-ink'] }
+const lighted = { background: row.highlight, color: row.ink }
 
 /** A row outside any panel a fluid highlight runs in. */
 export const unlit = '&:not([data-fluid-hover] *)'
@@ -123,12 +138,12 @@ export const item: StyleValue = component(
   Style.nest(`${unlit}${HOVERED}`, lighted),
   // Held down, the panel's own highlight deepens.
   Style.nest(`${unlit}${PRESSED}`, {
-    background: ref.popup.press,
-    color: ref.popup['highlight-ink'],
+    background: row.press,
+    color: row.ink,
   }),
   Style.nest(`${unlit}[data-active]`, lighted),
   // Under a fluid highlight the highlight is the fill; the row keeps its ink.
-  Style.nest(`:where([data-fluid-hover]) &[data-active]`, { color: ref.popup['highlight-ink'] }),
+  Style.nest(`:where([data-fluid-hover]) &[data-active]`, { color: row.ink }),
   disabled,
 )
 
@@ -161,12 +176,12 @@ export const highlight: StyleValue = component(
     ...overlay('hover'),
     display: 'none',
     opacity: 'var(--fk-popup-hover-shown)',
-    background: ref.popup.highlight,
+    background: row.highlight,
     ...glide('fast', 'var(--fk-popup-hover-moving)'),
   }),
   Style.nest(lit, { display: 'block' }),
   // The panel's own highlight deepens while the lit row is held.
-  Style.nest(':where([data-fluid-held]) > &', { background: ref.popup.press }),
+  Style.nest(':where([data-fluid-held]) > &', { background: row.press }),
 )
 
 /**

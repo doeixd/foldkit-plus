@@ -280,7 +280,7 @@ follows another knob until a theme sets it.
 | `shadow.hue` | angle | follows `surface.hue` | | `shadow-h` |
 | `shadow.chroma` | number | follows `surface.saturation` × 2 | | `shadow-c` |
 | `menu.highlight` | choice | `subtle` | `subtle`, `bold` | `popup-bold` |
-| `menu.panel` | choice | `inverted` | `default`, `inverted`, `translucent`, `inverted-translucent` | `popup-invert`, `popup-alpha`, `popup-blur` |
+| `menu.panel` | choice | `default` | `default`, `inverted`, `translucent`, `inverted-translucent` | `popup-invert`, `popup-alpha`, `popup-blur` |
 | `feedback.success` ... `info` | angle | 145, 75, 25, 245 | | `success-h` ... |
 | `code.chroma` | number | 0.14 | 0 to 0.4 | `syntax-c` |
 | `chart.hue` | angle | 255 | | `chart-h` |
@@ -291,7 +291,7 @@ Variables written without a prefix above are `--fk-knob-...`. The defaults are
 the theme #255 made the shipped one
 ([design](./design/255-default-theme-DESIGN.md)): a vivid blue on pure greys,
 tight corners, roomy spacing, bold fluid headings, no resting shadows,
-inverted menus and a spring.
+menus on the page's own raised surface and a spring.
 
 ### Fluid type
 

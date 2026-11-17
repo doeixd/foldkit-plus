@@ -152,7 +152,7 @@ export default [
   },
   {
     name: "the sheet's rows keep an inverted popup's ink",
-    edits: [{ file: recipe, find: "'--fk-popup-ink': ref.text.default,", replace: '' }],
+    edits: [{ file: recipe, find: "'--_fk-row-highlight-ink': ref.text.default,", replace: '' }],
     tests: browser,
   },
   {

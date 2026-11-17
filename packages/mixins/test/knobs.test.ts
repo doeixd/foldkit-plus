@@ -151,7 +151,7 @@ describe('Theme.print', () => {
       accent: { hue: 264, chroma: 0.17, lightness: { light: 52, dark: 70 } },
       // The default radius, which the source leaves out.
       shape: { radius: 0.45, density: 1 },
-      menu: { panel: 'default' },
+      menu: { panel: 'inverted' },
       type: { body: Theme.fonts.geist },
     })
     expect(Theme.print(iris)).toBe(
@@ -160,7 +160,7 @@ describe('Theme.print', () => {
         '  accent: { hue: 264, chroma: 0.17, lightness: { light: 52, dark: 70 } },',
         '  shape: { density: 1 },',
         `  type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif' },`,
-        "  menu: { panel: 'default' },",
+        "  menu: { panel: 'inverted' },",
         '})',
       ].join('\n'),
     )

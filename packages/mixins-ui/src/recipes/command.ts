@@ -129,8 +129,9 @@ export const Command = Style.recipeFor(CommandSlots)({
         cursor: 'pointer',
       }),
       Style.pseudo('[data-active]', {
-        background: ref.popup.highlight,
-        color: ref.popup['highlight-ink'],
+        // On the Command's own surface, not a popup panel's.
+        background: ref.popup['plain-highlight'],
+        color: ref.popup['plain-highlight-ink'],
       }),
       Style.pseudo('[aria-disabled="true"]', {
         opacity: ref.knob['state-disabled'],
