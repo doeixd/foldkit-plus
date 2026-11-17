@@ -41,7 +41,13 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // separator attributes, and `SnappedTo`), unmapped +429 and recipes/design.js +204 (`filledHover`),
 // attr.js +115 and dialog.js +104 (the handle's slot attributes). Ceiling raised to the reading,
 // rounded up.
-const CEILING = 3_274_500
+// +7,500 on 2026-11-16: measured 3,281,613 at 028970eaf. Measured parts: +533 for `evaluate`
+// refusing an uncollated text order (#569, with and without in one tree) and +2,465 for the
+// mutation answer cut to what its caller may read (#578, `readablePatches`, measured against
+// the commit before it). The other 4,100 or so is the server's error path from #573 and #575
+// (`tell`, `report`, incident ids, the fixed 401 and 403 reasons, and their doc comments, which
+// count here), not bisected commit by commit. Ceiling raised to the reading, rounded up.
+const CEILING = 3_282_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

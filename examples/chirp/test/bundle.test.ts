@@ -47,7 +47,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // predicate `Query.placement` shares (`uncollated.ts`) and its message, which the page's
 // reference interpreter carries. Ceiling raised by that. The tree held about 125 more from
 // unfinished changes in `foldkit-remote`, which this does not raise for.
-const CEILING = 245_013
+// +87 (2026-11-16, #573): measured 245,073 at 028970eaf, 60 over. The growth is the 125 or so
+// noted above, now finished: an `Internal error` carries an `incident`, which Remote's wire
+// schemas and `RemoteData.incident` hold on the page. Ceiling raised to the reading, rounded up.
+const CEILING = 245_100
 
 clientBudget({
   name: 'chirp',

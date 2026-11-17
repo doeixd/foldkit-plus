@@ -2336,7 +2336,10 @@ of its own named a form field "fits the Catalog". Read words with
   any other env-driven transform must too. The cache also served a stale
   transform for a browser test file whose imports had changed: every test in
   it failed with "Failed to fetch dynamically imported module" while a
-  renamed copy passed. Run browser tests with `--fsModuleCache=false`, and
+  renamed copy passed. It keeps an `import.meta.glob`'s list too: after the
+  site gained `previews/disclosure.ts`, a wide unit run failed twelve site
+  files with "previews/disclosure.ts is missing" while the folder alone
+  passed. Run browser tests with `--fsModuleCache=false`, and
   the `unit` and `browser` projects in separate runs (`--project`): one run
   given a file of each failed to load the browser one.
 - **Read `Test Files`, not only `Tests`.** A file that fails to load, from a
