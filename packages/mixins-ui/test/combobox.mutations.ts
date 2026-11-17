@@ -33,7 +33,7 @@ export default [
     name: 'the input slot forgets its expanded attribute',
     edits: [
       {
-        file: '../src/combobox.ts',
+        file: '../src/combobox/slots.ts',
         find: 'attributes: [Attr.Role, Attr.AriaExpanded, Attr.Disabled, Attr.AriaDisabled],',
         replace: 'attributes: [Attr.Role, Attr.Disabled, Attr.AriaDisabled],',
       },
@@ -44,7 +44,7 @@ export default [
     name: 'the input slot degrades to a base capability',
     edits: [
       {
-        file: '../src/combobox.ts',
+        file: '../src/combobox/slots.ts',
         find: 'input: Slot.make({\n    capability: Capability.TextInput,',
         replace: 'input: Slot.make({\n    capability: Capability.Base,',
       },

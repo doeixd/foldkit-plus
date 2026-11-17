@@ -436,12 +436,8 @@ describe("the fork's own parts", () => {
 
   it('draws a chip per chosen value only when asked', () => {
     expect(seen(multiModel(), {}).chips).toEqual([])
+    // Labelled by `itemToDisplayText`; `comboboxOptions.test.ts` draws a label that is not the value.
     expect(seen(multiModel(), { chips: {} }).chips.map(chip => chip.label)).toEqual(['banana'])
-    expect(
-      seen(multiModel(), { chips: { label: value => value.toUpperCase() } }).chips.map(
-        chip => chip.label,
-      ),
-    ).toEqual(['BANANA'])
   })
 
   it.each([

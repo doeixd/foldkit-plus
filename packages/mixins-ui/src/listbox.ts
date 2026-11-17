@@ -13,6 +13,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { FluidHover, Measure, ScrollBars } from 'foldkit-primitives/dom'
 import { scrollBarOf } from './popupScroll.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
+import type { RowContent } from './rowContent.js'
 import type {
   ListboxGroupRender,
   ListboxHeadingRender,
@@ -117,14 +118,18 @@ const marked = <Message>(
 /**
  * An option's content in the slots Listbox and Combobox share: its icon,
  * its label (the stretches matching `query` marked, where a `match` slot is
- * given), its description, and the check the chosen row shows.
+ * given) or `content` of its own in the label's place, its description, what
+ * it holds after the label where the widget has an `itemTrailing` slot, and
+ * the check the chosen row shows.
  */
 export const drawOption = <Message>(
   builders: { readonly [K in OptionSlot]: SlotBuilder<Message> } & {
     readonly match?: SlotBuilder<Message>
+    /** Where a row's `trailing` is drawn; a widget without the slot draws none. */
+    readonly itemTrailing?: SlotBuilder<Message>
   },
   h: HtmlBuilder<Message>,
-  content: OptionContent,
+  content: Pick<RowContent, 'label' | 'description' | 'icon' | 'trailing' | 'content'>,
   query = '',
 ): Html =>
   h.span(builders.itemContent.attrs(), [
@@ -132,14 +137,19 @@ export const drawOption = <Message>(
     h.span(builders.itemText.attrs(), [
       h.span(
         builders.itemLabel.attrs(),
-        builders.match === undefined
-          ? [content.label]
-          : marked(content.label, query, builders.match, h),
+        content.content !== undefined
+          ? [content.content]
+          : builders.match === undefined
+            ? [content.label]
+            : marked(content.label, query, builders.match, h),
       ),
       ...(content.description === undefined
         ? []
         : [h.span(builders.itemDescription.attrs(), [content.description])]),
     ]),
+    ...(builders.itemTrailing === undefined || content.trailing === undefined
+      ? []
+      : [h.span(builders.itemTrailing.attrs(), [content.trailing])]),
     // The row's `aria-selected` says it is chosen; the check is drawn for the eye.
     h.span(builders.itemCheck.attrs([h.AriaHidden(true)]), []),
   ])

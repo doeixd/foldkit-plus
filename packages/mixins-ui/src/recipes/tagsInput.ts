@@ -89,8 +89,11 @@ export const chip: StyleValue = component(
   }),
 )
 
-/** One stroke of the sign, centred in the button by its own middle, so no face's glyph metrics move it. */
-const stroke = (turn: string) => ({
+/**
+ * One stroke of the sign, centred in the button by its own middle, so no face's glyph metrics move it.
+ * The button is positioned and sets `--_fk-chip-sign`, the stroke's colour.
+ */
+export const stroke = (turn: string) => ({
   content: '""',
   position: 'absolute',
   insetInlineStart: '50%',

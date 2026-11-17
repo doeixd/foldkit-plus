@@ -1,7 +1,8 @@
-import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import type { SlotAttributes } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { FluidHover, Measure, ScrollBars } from 'foldkit-primitives/dom'
-import { drawOption, type OptionContent } from './listbox.js'
+import { ComboboxSlots } from './combobox/slots.js'
+import { drawOption } from './listbox.js'
+import type { RowContent } from './rowContent.js'
 import { scrollBarOf } from './popupScroll.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 import type {
@@ -11,80 +12,6 @@ import type {
   ComboboxRenderInfo,
 } from './comboboxView.js'
 import { drawCombobox } from './popupView.js'
-
-/**
- * Combobox is a nested Submodel: an `input`/`inputWrapper` pair with an
- * optional `toggleButton`, plus a `backdrop`/`items` group with an `item`
- * per entry (and `group`/`heading`/`separator` where the caller groups), so
- * the resolver runs once per bundle and each base attribute passes through
- * by identity. `hiddenInputs` are the form inputs submitted under
- * `formName`: generated markup with no styling surface, passed through for
- * the draw to place.
- *
- * The input owns `input`/`keydown`/`blur` (and `focus` with `openOnFocus`);
- * an item owns `click` while interactive; the toggle owns `click` while
- * enabled. A Behavior adding its own handler to one of those is a
- * conflict, not a second silent owner.
- *
- * From `chips` on, the slots are this package's: the chosen values as
- * chips in the field (the `chips` view input), the clear button
- * (`clearContent`), the panel shown in the list's place while there are no
- * items (`empty`), and an option's parts, which `parts` draws as Listbox's
- * does, the typed text marked in its label (`match`).
- */
-export const ComboboxSlots = Slots.define({
-  wrapper: Slot.make({ capability: Capability.Container }),
-  inputWrapper: Slot.make({ capability: Capability.Container }),
-  input: Slot.make({
-    capability: Capability.TextInput,
-    events: [Event.Input, Event.KeyDown, Event.Blur, Event.Focus],
-    attributes: [Attr.Role, Attr.AriaExpanded, Attr.Disabled, Attr.AriaDisabled],
-  }),
-  toggleButton: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaExpanded, Attr.Disabled, Attr.AriaDisabled],
-  }),
-  backdrop: Slot.make({ capability: Capability.Container, events: [Event.Click] }),
-  items: Slot.make({
-    capability: Capability.Container,
-    attributes: [Attr.Role],
-  }),
-  scroll: Slot.make({ capability: Capability.Container }),
-  item: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.Role, Attr.AriaSelected, Attr.Disabled, Attr.AriaDisabled],
-  }),
-  group: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  heading: Slot.make({ capability: Capability.Container }),
-  separator: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  rows: Slot.make({ capability: Capability.Container }),
-  highlight: Slot.make({ capability: Capability.Container }),
-  indicator: Slot.make({ capability: Capability.Container }),
-  scrollBar: Slot.make({ capability: Capability.Container }),
-  scrollThumb: Slot.make({ capability: Capability.Container }),
-  chips: Slot.make({ capability: Capability.Container }),
-  chip: Slot.make({ capability: Capability.Container }),
-  chipRemove: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel, Attr.Disabled],
-  }),
-  clearButton: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-  }),
-  empty: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  itemContent: Slot.make({ capability: Capability.Container }),
-  itemIcon: Slot.make({ capability: Capability.Container }),
-  itemText: Slot.make({ capability: Capability.Container }),
-  itemLabel: Slot.make({ capability: Capability.Container }),
-  itemDescription: Slot.make({ capability: Capability.Container }),
-  itemCheck: Slot.make({ capability: Capability.Container }),
-  match: Slot.make({ capability: Capability.Container }),
-})
 
 export type ResolvedComboboxItem<Message> = Omit<ComboboxItemRender, 'attributes'> & {
   readonly attributes: SlotAttributes<Message>
@@ -310,8 +237,10 @@ export const draw = <Message>(
 
 /**
  * An option's content in the combobox's slots: its icon, its label with the
- * typed `query` marked, its description, and the check the chosen row
- * shows. Pass the mixins the combobox's `toView` gets.
+ * typed `query` marked (or `content` of its own in the label's place), its
+ * description, what it holds after the label, and the check the chosen row
+ * shows. `disabled` is not drawn here: it is upstream's `isItemDisabled`.
+ * Pass the mixins the combobox's `toView` gets.
  */
 export const parts = <Message>(
   mixins: MixinList<Message>,
@@ -319,7 +248,7 @@ export const parts = <Message>(
 ) => {
   const builders = buildersOf(ComboboxSlots, mixins, context)
   return {
-    option: (content: OptionContent, query: string): Html =>
+    option: (content: RowContent, query: string): Html =>
       drawOption(builders, context.h, content, query),
   }
 }
@@ -343,58 +272,12 @@ export { many } from './choice/many.js'
 export { one } from './choice/one.js'
 export { text } from './choice/text.js'
 
-const chosen = '[aria-selected="true"]'
-
-/**
- * What moves the open panel's `highlight` and `indicator`: on its rows,
- * the chosen row is measured (`--fk-popup-chosen-*`) and one highlight
- * follows the pointer to the nearest row (`--fk-popup-hover-*`),
- * and to the row the keys mark (`data-active`) while the pointer is away. A press in a gap is left alone: the field keeps focus.
- * Pass them beside the style; until they run, each row marks itself.
- */
-export const fluid = [
-  Behavior.forSlots(ComboboxSlots)<unknown, never>(
-    {
-      rows: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => Measure({ targets: { 'popup-chosen': chosen } }),
-      }),
-    },
-    { name: 'ComboboxChosen' },
-  ).mixin,
-  Behavior.forSlots(ComboboxSlots)<unknown, never>(
-    {
-      rows: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () =>
-          FluidHover({
-            name: 'popup-hover',
-            item: '[role="option"]',
-            axis: 'y',
-            gapClick: false,
-            follows: '[data-active]',
-            from: chosen,
-          }),
-      }),
-    },
-    { name: 'ComboboxHover' },
-  ).mixin,
-] as const
-
-/**
- * What draws the open panel's `scrollBar` over its `scroll` (`ScrollBars`),
- * in place of the browser's bar, on a pointer that can hover; a press on the
- * bar leaves the field its focus. Pass it beside the style when the combobox
- * scrolls (`itemsScrollAttributes`); without a `scroll` there is no bar.
- */
-export const overlayBars = [
-  Behavior.forSlots(ComboboxSlots)<unknown, never>(
-    {
-      scroll: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => ScrollBars({}),
-      }),
-    },
-    { name: 'ComboboxScrollBars' },
-  ).mixin,
-] as const
+// The slots, and each Behavior a page may not pass, are files of their own: a
+// page keeps a Behavior, and the primitive behind it, only when it reads the name.
+export { ComboboxSlots } from './combobox/slots.js'
+export { fluid } from './combobox/fluid.js'
+export { overlayBars } from './combobox/overlayBars.js'
+// The Combobox drawn from options, its filters and its words.
+export { contains, startsWith } from './combobox/filters.js'
+export { configure, view, type ComboboxPreset, type ComboboxView } from './combobox/view.js'
+export { words, type ComboboxWords } from './combobox/words.js'

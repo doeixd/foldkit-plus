@@ -97,6 +97,19 @@ describe('Bundles.Combobox', () => {
     expect(start().typedBox.nullable).toBe(true)
   })
 
+  it('starts showing the `text` given, for a value chosen before the page drew', () => {
+    const Chosen = Bundle.compose({}).pipe(
+      Bundle.withChild('box', Bundles.Combobox, {
+        args: { id: 'box', text: 'Porto' },
+        onOut: Bundle.ignore,
+      }),
+    )
+    expect(Chosen.placements.initial({}).model.box).toEqual({
+      ...UiCombobox.init({ id: 'box' }),
+      inputValue: 'Porto',
+    })
+  })
+
   it('spells upstream’s `isAnimated` and `isModal` as `animated` and `modal`', () => {
     const Modal = Bundle.compose({}).pipe(
       Bundle.withChild('box', Bundles.Combobox, {

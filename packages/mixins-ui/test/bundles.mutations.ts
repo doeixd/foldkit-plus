@@ -95,4 +95,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a Combobox starts blank whatever `text` it was given',
+    edits: [
+      {
+        file: '../src/bundles/combobox.ts',
+        find: 'text === undefined ? model : { ...model, inputValue: text }',
+        replace: 'model',
+      },
+    ],
+    tests,
+  },
 ]

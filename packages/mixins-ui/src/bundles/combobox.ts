@@ -40,14 +40,21 @@ export const Combobox = Bundle.make('Combobox', {
     /** Locks the page's scroll and makes the rest inert while open. */
     modal: Schema.optionalKey(Schema.Boolean),
     selectInputOnFocus: Schema.optionalKey(Schema.Boolean),
+    /**
+     * What the field shows at the start: the label of a value chosen already.
+     * Upstream writes the resting text only when the field is left, so a
+     * field that starts with a value would start blank without it.
+     */
+    text: Schema.optionalKey(Schema.String),
   }),
-  init: ({ animated, modal, multiple: _, ...rest }) => ({
-    model: UiCombobox.init({
+  init: ({ animated, modal, multiple: _, text, ...rest }) => {
+    const model = UiCombobox.init({
       ...rest,
       ...(animated === undefined ? {} : { isAnimated: animated }),
       ...(modal === undefined ? {} : { isModal: modal }),
-    }),
-  }),
+    })
+    return { model: text === undefined ? model : { ...model, inputValue: text } }
+  },
   update: (model, message, args) => {
     const result =
       args.multiple === true ? multiple.update(model, message) : single.update(model, message)

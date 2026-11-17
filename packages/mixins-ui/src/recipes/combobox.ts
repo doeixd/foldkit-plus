@@ -39,7 +39,7 @@ import {
 } from './popup.js'
 import { bar, thumb } from './scrollBars.js'
 import { checkAt, optionParts } from './listbox.js'
-import { chip, chipList, chipRemove } from './tagsInput.js'
+import { chip, chipList, chipRemove, stroke } from './tagsInput.js'
 
 /** The clear button's side: small, but never under the touch floor `Defaults.reset` sets for a coarse pointer. */
 const clearSize = 'max(1.5em, var(--fk-touch-floor, 0px))'
@@ -135,6 +135,13 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
         cursor: 'pointer',
         ...transition('background-color, color'),
       }),
+      // With no content of its own the button is marked, and the sign is drawn as a chip's is.
+      Style.nest('&[data-glyph="cross"]', {
+        position: 'relative',
+        '--_fk-chip-sign': 'currentColor',
+      }),
+      Style.nest('&[data-glyph="cross"]::before', stroke('45deg')),
+      Style.nest('&[data-glyph="cross"]::after', stroke('-45deg')),
       hover({ background: unfilledHover, color: ref.text.overt }),
       focusRing,
     ),
@@ -149,6 +156,14 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
       }),
     ),
     ...optionParts,
+    // After the label, before the check: a code, a count, a badge, in the panel's quieter ink.
+    itemTrailing: component(
+      Style.self({
+        flex: 'none',
+        color: `color-mix(in oklab, ${ref.popup.ink} 62%, transparent)`,
+        ...role('caption'),
+      }),
+    ),
     match: component(
       Style.self({ background: 'transparent', color: 'inherit', fontWeight: ref.weight.semibold }),
     ),

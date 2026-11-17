@@ -150,6 +150,30 @@ test('a page drawing a calendar through its adapter keeps no Calendar state or v
 }, 240_000)
 
 /**
+ * The Combobox's `fluid` and `overlayBars` mixins, and its options-level
+ * view, are files of their own re-exported by the adapter (#589). Each was a
+ * module-level value in `combobox.ts`, which kept `FluidHover`, `Measure` and
+ * `ScrollBars` in every page drawing a combobox. Broken by hand as the
+ * Calendar's was: a `console.log(fluid)` in `src/combobox.ts` turned it red.
+ */
+test('a page drawing a combobox through its adapter keeps no fluid, overlayBars or view module, built or source', async () => {
+  const root = scratchIn('mixins-ui', 'published-')
+  made.push(root)
+  const page = `import { Combobox } from 'pkg'\nexport const used = Combobox.toView`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('mixins-ui', root))
+  const source = await kept(join(packages, 'mixins-ui', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/combobox\/slots\.js$/.test(id))).toBe(true)
+  expect(source.some(id => /\/src\/combobox\/slots\.ts$/.test(id))).toBe(true)
+  expect(
+    [...built, ...source].filter(id =>
+      /\/(combobox\/(fluid|overlayBars|view|filters)|configure)\.(js|ts)$/.test(id),
+    ),
+  ).toEqual([])
+}, 240_000)
+
+/**
  * The size check above catches Evidence linked into the entry; this one, a
  * module of the source that keeps Evidence (an import run for its effect),
  * which both builds would keep alike. `pnpm mutate` cannot edit what tsdown
