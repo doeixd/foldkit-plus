@@ -75,7 +75,7 @@ so one extension contract covers both families.
 pnpm add foldkit-mixins foldkit-mixins-ui foldkit-primitives @foldkit/ui
 ```
 
-`foldkit`, `effect`, `foldkit-mixins`, `foldkit-primitives` and `@foldkit/ui` are peer dependencies.
+`foldkit`, `effect`, `foldkit-mixins`, `foldkit-primitives` and `@foldkit/ui` are peer dependencies. So is `foldkit-bundle`, which only `Bundles` imports: add it when you place one ([State: fold it by hand, or place a Bundle](#state-fold-it-by-hand-or-place-a-bundle)).
 
 ## Sixty seconds: style a Button without copying it
 
@@ -284,6 +284,29 @@ Toast      -> { container, entries }
 Listbox    -> { wrapper, button, backdrop, items, scroll, groups, hiddenInputs, isVisible }
 Combobox   -> { wrapper, inputWrapper, input, toggleButton, backdrop, items, scroll, groups, hiddenInputs, isVisible }
 ```
+
+### Look, state, drawing, features: one factory each
+
+A variation of a widget is a call with options, never a copied file. A widget
+is made of four kinds of fact, and each kind has one place it is given.
+
+- **Look** is CSS over fixed markup: `Recipes.X(selection)`, adjusted with
+  `.extend` and widened with `.add` ([Recipes](#recipes)).
+- **State** is a Model and the Messages that change it: the widget's `init`
+  and `update`, which an application folds by hand or places as `Bundles.X`.
+- **Drawing** is markup, ARIA, events and words: `X.view(options, h)`, and
+  `X.configure({ base, presets })` to give the options that never change
+  once.
+- **Features** are code most pages never need: another widget, a Behavior
+  with a Mount, a second way to choose. A feature is a value the application
+  imports and passes (`mixins: Tabs.fluid`, `Combobox.many(items)`); the
+  widget imports only its type, so a page that never names it never ships it.
+  A boolean that switches code on is the one thing an option is not.
+
+`Button.configure`, `TagsInput.configure`, `Bundles.TagsInput` and
+`Bundles.Combobox` ship today; the other widgets follow the same shape as they
+are converted. [One factory for each part](#one-factory-for-each-part) shows
+each with code.
 
 ## Finding a widget
 
@@ -2607,6 +2630,238 @@ calendar on the page and one in a date picker's panel. `Recipes.Tabs({ variant: 
 chosen tab is a raised surface with a hairline edge and shadow on the tray, in the default text
 colour. To look at every recipe in every variant and state at once, in both schemes, write the
 specimen page: `pnpm --filter foldkit-mixins-ui specimen <out.html> [hue]`.
+
+## One factory for each part
+
+A widget's look, state, drawing and features each have one place they are
+given ([Look, state, drawing, features](#look-state-drawing-features-one-factory-each)).
+This section shows each with code.
+
+### State: fold it by hand, or place a Bundle
+
+A stateful widget exports `Model`, `Message`, `init` and `update`. The
+application keeps the Model in a field of its own, wraps the widget's Messages
+in one of its own, and folds them. Written out, for a field of tags:
+
+```ts standalone
+import { Schema } from 'effect'
+import * as Command from 'foldkit/command'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import type { Return } from 'foldkit/update'
+import { TagsInput } from 'foldkit-mixins-ui'
+
+const Model = Schema.Struct({ labels: TagsInput.Model })
+type Model = typeof Model.Type
+
+const Message = defineMessageUnion({ GotLabelsMessage: { message: TagsInput.Message } })
+type Message = typeof Message.Type
+
+export const initial: Model = {
+  labels: TagsInput.init({ id: 'labels', tags: ['urgent'], max: 3 }),
+}
+
+export const update = (model: Model, message: Message): Return<Model, Message> =>
+  Message.match(message, {
+    GotLabelsMessage: ({ message }) => {
+      const result = TagsInput.update(model.labels, message)
+      // The field's own Commands (it refocuses after a removal) speak its Messages.
+      const commands = Command.mapMessages(result.commands, message =>
+        Message.GotLabelsMessage({ message }),
+      )
+      // Nothing changed: hand back the Model given, so nothing is drawn again.
+      return result.model === model.labels
+        ? { model, commands }
+        : { model: modifyFields(model, { labels: () => result.model }), commands }
+    },
+  })
+
+export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
+  TagsInput.view(
+    {
+      model: model.labels,
+      onMessage: message => Message.GotLabelsMessage({ message }),
+      label: 'Labels, up to three',
+    },
+    h,
+  )
+```
+
+That is the whole of it, and for a page with one or two widgets it is the
+smaller choice: it adds nothing to the bundle. `Bundles.X` is the same `init`
+and `update` packaged for
+[`foldkit-bundle`](https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle/README.md),
+which derives the field, the wrapper Message and the fold above from one
+placement:
+
+```ts standalone
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { Bundle } from 'foldkit-bundle'
+import { Bundles, TagsInput } from 'foldkit-mixins-ui'
+
+const App = Bundle.compose({}).pipe(
+  Bundle.withChild('labels', Bundles.TagsInput, {
+    args: { id: 'labels', tags: ['urgent'], max: 3 },
+  }),
+)
+type Model = typeof App.Model.Type
+type Message = typeof App.Message.Type
+
+const view = (model: Model, h: HtmlBuilder<Message>): Html =>
+  TagsInput.view(
+    {
+      model: model.labels,
+      onMessage: message => App.Message.GotLabelsMessage({ message }),
+      label: 'Labels, up to three',
+    },
+    h,
+  )
+
+export const config = App.placements.runtime({ Model: App.Model, initial: {}, view })
+```
+
+The first placement costs a page about 6 kB (brotli) of `foldkit-bundle`; the
+second and every later one share it. `foldkit-bundle` is a peer dependency:
+install it when you place a Bundle, and a page that folds by hand never loads
+it.
+
+- **A Bundle is headless.** It holds no view; draw the placed Model with the
+  widget's `view`.
+- **Its `args` are `init`'s options**, checked by a Schema and given to
+  `update` too.
+- **`Bundles` is a namespace of one file per widget**, as `Recipes` is, so
+  reading `Bundles.TagsInput` keeps that file and no other Bundle.
+
+Who owns the value follows from its type. Where the value's type is the
+widget's own (a TagsInput's tags), the Bundle holds it and the application
+reads it from the placed Model, `model.labels.tags`. Where the type is the
+application's (the items of a Combobox), the application keeps the value in
+its own field and the Bundle holds only the interaction: open or closed, the
+row the keys are on, the text typed. A `Choice` says how that field is read
+and folded, and the Bundle reports each change for the application to answer:
+
+```ts standalone
+import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Bundles, Combobox } from 'foldkit-mixins-ui'
+
+const cities = ['Lisbon', 'Porto', 'Faro'] as const
+const City = Combobox.one(cities)
+
+const App = Bundle.compose({ city: Schema.Option(Schema.Literals(cities)) }).pipe(
+  Bundle.withChild('cityBox', Bundles.Combobox, {
+    args: { id: 'city' },
+    // `out` is a `ChoiceChange`; `City.picked` looks the reported value up
+    // among `cities`, so `city` stays an `Option` of one of them.
+    onOut: out => model => ({ model: { ...model, city: City.picked(model.city, out) } }),
+  }),
+)
+
+export const initial = App.placements.initial({ city: City.empty })
+```
+
+`Combobox.one(items)` holds an `Option` of an item, `Combobox.many(items)` a
+list of them in the order chosen (place the Bundle with `multiple: true`, which
+its `update` reads: choosing leaves the list open), and `Combobox.text(items)`
+the typed text itself, with the items as suggestions. Each is a file of its
+own. `Choice` is an interface you may implement; a rule of your own usually
+wraps a shipped one:
+
+```ts standalone
+import { Combobox, type Choice } from 'foldkit-mixins-ui'
+
+/** At most three: a fourth choice leaves the value as it was. */
+export const upToThree = <Item extends string>(
+  items: ReadonlyArray<Item>,
+): Choice<Item, ReadonlyArray<Item>> => {
+  const many = Combobox.many(items)
+  return {
+    ...many,
+    picked: (value, change) => {
+      const next = many.picked(value, change)
+      return next.length > 3 ? value : next
+    },
+  }
+}
+```
+
+The Combobox's drawing still goes through its `toView` adapter and the
+`ComboboxView` bundles; an options-level `Combobox.view` that takes the
+`Choice` is not built yet.
+
+### Drawing: configure once, call with what differs
+
+`X.configure({ base, presets })` returns the widget's own `view`, bound to
+options an application would otherwise repeat at every call: its compiled
+style, its words, its mixins, its structural choices.
+
+```ts standalone
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Style } from 'foldkit-mixins'
+import { Button, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+
+const Message = defineMessageUnion({ Saved: {}, Deleted: {} })
+type Message = typeof Message.Type
+
+// Styles are compiled once, in a module the build may ship as data.
+const Quiet = Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const Danger = Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' }))
+
+export const AppButton = Button.configure({
+  base: { style: Quiet },
+  presets: { danger: { style: Danger } },
+})
+
+export const actions = (h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
+  AppButton.view({ label: 'Save', onClick: Message.Saved() }, h),
+  AppButton.view({ label: 'Delete', preset: 'danger', onClick: Message.Deleted() }, h),
+]
+```
+
+- **The order is `base`, the named preset, the call.** A later one wins per
+  option, so a style given at the call replaces the preset's. Two options
+  merge instead: `mixins` concatenate in that order, and `words` merge word
+  by word. An option given as `undefined` is not given.
+- **The preset names are the keys you wrote.** `preset: 'dangr'` is a type
+  error, and `preset` is no option at all where `presets` was left out. A
+  name computed at run time that matches none throws, naming the ones
+  declared.
+- **A preset holds what takes no Message and no state**: `style`, `mixins`,
+  `words` and each widget's own list (`type` for a Button; `placeholder`,
+  `addOnBlur` and `direction` for a TagsInput). `onClick`, `onMessage`,
+  `model`, `label` and anything drawn (`icon`) stay at the call.
+- **A preset may hold behaviour.** A mixin with a Mount given in a preset
+  attaches to every use of that preset, and the page ships that Behavior
+  only because the application's own module imported it. A Mount that sends
+  no Message has to be resolved by the application's Scene tests of every
+  page that draws the preset.
+- **It holds no state.** A widget's starting values are `init`'s options, or
+  a Bundle's `args`.
+
+### Look: recipe modules hold style and nothing else
+
+A shipped recipe module imports style code only: `foldkit-mixins` styles,
+theme references, other recipes' pieces, icon masks. It never imports a
+widget, a Behavior or anything with a Mount, which is what lets a build
+evaluate a style module and ship class names in its place
+([Style modules shipped as data](https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins/README.md#style-modules-shipped-as-data)).
+An axis selects what CSS can express over the same markup. A choice that
+changes the markup is a view option, which the view writes as a `data-*`
+attribute for the recipe to read. A look a shipped recipe lacks is added to
+it, not forked from it:
+
+```ts standalone
+import { Style } from 'foldkit-mixins'
+import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+
+const Buttons = Recipes.Button.add({
+  tone: { brand: { button: Style.self({ background: 'rebeccapurple', color: 'white' }) } },
+})
+
+export const Brand = Style.forSlots(ButtonSlots)(Buttons({ tone: 'brand', variant: 'solid' }))
+```
 
 ## Why some components needed a fork
 

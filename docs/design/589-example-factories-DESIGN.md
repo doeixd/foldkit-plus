@@ -1128,6 +1128,34 @@ What is not cut: phases 0 and 1, the breaking set, and the gate pages. That is t
 | `examples/authoring` | Unchanged. | Its point is the assembly. |
 | Missing components | Frame now; Sortable, a time field, Attachment, File Type, Scrollspy next; Input Group, Toggle, Icon Tile, Timeline are options and pages; Event Calendar and Gantt out. | |
 
+### Phase 1: what is built, and what was decided where this note was silent
+
+Built and pushed on `ui-polish` (2026-11-17): `recipe.add`; `configure.ts`, `words.ts`, `choice.ts` with `choice/one.ts`, `many.ts` and `text.ts`; `Bundles.TagsInput` and `Bundles.Combobox` with the peer dependency and the M3 cases; `Button.configure` and `TagsInput.configure`; the extension tests (a user-written `Choice`, and `add` on a shipped recipe); the README, skill and changelog for those.
+
+| Still to build in phase 1 | Why it waits |
+| --- | --- |
+| `Bundles.Calendar`, `Bundles.DatePicker`, and `Calendar.view`, `DatePicker.view` with their `configure` | Not started. `Selection` and its readers have to move out of `calendar.ts` first (below). |
+| `Combobox.view(options, h)` and `Combobox.configure` | Not started. The `Choice`, the Bundle and the fold exist; the drawing still goes through `toView` and `ComboboxView`. |
+| **TODO: `Bundles.FileUpload` and `FileUpload.configure`** | FileUpload was being built by another session on the same files. Its own `fill` should become `words.ts`'s. |
+| `rowContent.ts`, `press.ts`, the `Tone` type and size names in `recipes/design.ts`, the shared `anchor` helper | No gate widget built so far reads them. `rowContent.ts` goes in with `Combobox.view` (its `option`), `anchor` with `DatePicker.view`; `press.ts` and the vocabulary types with F1 and F2. |
+| TagsInput's words as text (`remove: 'Remove {tag}'`, the refusals as words in place of `refusalText`) | Breaking, and `examples/site/src/snippets/components.ts` passes `refusalText`; it lands with the site's tags-input page. |
+| M9 (the helper's bytes) | Not measured. `configure.ts` is about 1.3 kB of source and imports nothing. |
+
+Decisions:
+
+- **`add`'s parameter is mapped over the names being inferred**, not constrained by an intersection. `<const More extends AxisNames>(more: AddedAxes<Slots, Variants, More>)`: each value is contextually typed `StylePieces<Slots>`, so a slot the contract lacks is an error where it is written, and a value the axis has is `never`. The constraint form in §3.1 could not report either: a named property of an intersection takes no type from the other member's index signature. `MergeAxes` therefore takes `Slots` too (`MergeAxes<Slots, Variants, More>`), and is exported from `foldkit-mixins` so an application can export what `add` returns. A widened type was checked to turn both `@ts-expect-error` cases red.
+- **A duplicate value throws `mixins:recipe-value-exists`**, a new `DiagnosticCode`. An added axis has no default until `.extend({ defaults })` gives one.
+- **`configure`'s merge reads an option given as `undefined` as not given**, at every layer, so `size: undefined` at a call does not erase a preset's size. A preset name computed at run time that matches none throws, naming the ones declared.
+- **A preset holds no `Html`**: `icon` is left out of `ButtonPreset`. A drawing made once at module scope would be one vnode placed in several elements.
+- **`Bundles.TagsInput` reports nothing.** §3.2 says a Bundle that owns its value "reports `Changed`", and §3.6 places `Bundles.TagsInput` with no `onOut`; an OutMessage would make every placement answer it. The tags are read from the placed Model. `Changed` stays for the Calendar, whose parent usually acts on a pick.
+- **`Bundles.Combobox` takes `multiple` as an arg.** Upstream's single and multiple updates differ by three small handlers (choosing leaves a multiple combobox open), and `update` must pick one; a `Choice` cannot sit in `args`. The arg must agree with the choice the view is given. Both updates are in a page that reads the Bundle; upstream's `multi.js` is about 4 kB of source, most of it not those handlers.
+- **A `Choice` carries no view.** §3.4 has each choice file carry its upstream view. This package's fork draws both modes from one shared view (`comboboxShared.ts`), so there is nothing to split; `Choice.multiple` tells it which list to announce. The choice files stay one each for their folds.
+- **`ChoiceChange` has a third case, `Typed { text }`**, which `Bundles.Combobox` reports when the field's text changes and nothing was chosen. Without it `Combobox.text` could not be "the typed text is the value": upstream reports only `Selected` and `ClearedSelection`. `one` and `many` return the value they were given for it. `ChoiceChange` is a `defineTaggedUnion`, so a choice matches it with `ChoiceChange.match`.
+- **Upstream's `isAnimated` and `isModal` are `animated` and `modal` in a Bundle's args**, by §3.5's rule on states.
+- **TS4023 is fixed in `foldkit-bundle`**, not documented around: `compose.ts`'s `Child` is exported, as `Bundle.ComposedChild`. `packages/mixins-ui/test/bundles.test.ts` exports a composition of shipped Bundles, which failed the project's declaration emit before and compiles now. `foldkit-bundle` kept its version in the 0.41.0 notes; it needs a bump now.
+- **The README's code for all this is one section after Recipes** ("One factory for each part"), with the four-part model in prose under Core concepts. The README's snippets are one module from top to bottom, and a `standalone` block in the middle cut the blocks after it off from the imports above.
+- **The `Calendar` state must not sit in `calendar.ts`.** A module-level `Schema.Struct` over upstream's Model there would put upstream's calendar in every page that reads the adapter (M5). It goes in `calendar/state.ts` and `calendar/view.ts`, re-exported by name. `state.ts` needs `Selection` at module level, and `calendar.ts` re-exporting `view` makes that a cycle that fails at load, so `Selection` and its readers move to a leaf module (`calendar/selection.ts`) first, with `calendar.mutations.ts` re-anchored.
+
 ### Open measurements
 
 M1 to M7 and P1 to P3 are recorded in §4. Still open:

@@ -298,7 +298,10 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   `Option` field.
 - **@foldkit/ui components:** `Bundle.fromParts('Tabs', { Model: Tabs.Model,
   Message: Tabs.Message, init: (config: Tabs.InitConfig) => Tabs.init(config),
-  parts: Tabs.create<Value>() })`.
+  parts: Tabs.create<Value>() })`. `foldkit-mixins-ui` ships its stateful
+  widgets ready to place as `Bundles.X` (`Bundles.TagsInput`,
+  `Bundles.Combobox` so far; see `mixins.md`): headless, with `init`'s
+  options as the args.
 - **Module ownership:** `const Page = BundleSurface.parent(App)` from
   `foldkit-bundle-surface`, then
   `Module.validate(Page.module(placements, [otherContracts]))`.
