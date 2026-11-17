@@ -223,8 +223,9 @@ test('the Drawer docks to its preview frame, not the window, and the frame holds
     expect(peeking.topDepth).toBeLessThan(100)
     await page.getByRole('button', { name: 'Order details' }).click()
     await expect.poll(() => panel.getAttribute('data-open')).toBe('true')
-    // Open: it rests on the frame's bottom edge, inside its border.
-    await expect.poll(async () => (await edges()).bottomGap).toBeLessThanOrEqual(2)
+    // Open: it rests on the frame's bottom edge, inside its border. It slides up from below the frame, where
+    // its gap is negative, so a bound on the gap alone is met on the first frame of the slide.
+    await expect.poll(async () => Math.abs((await edges()).bottomGap)).toBeLessThanOrEqual(2)
     expect((await edges()).topDepth).toBeLessThan(50)
     // Nothing is trapped: Tab leaves the drawer for the rest of the page.
     await page.getByRole('button', { name: 'Track the order' }).focus()
