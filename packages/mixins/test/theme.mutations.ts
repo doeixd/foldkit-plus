@@ -400,4 +400,20 @@ export default [
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
+  {
+    name: 'the default theme casts no shadow again',
+    edits: [
+      {
+        file: '../src/theme/knobs.ts',
+        find: `variable: 'shadow-strength',
+      default: 70,`,
+        replace: `variable: 'shadow-strength',
+      default: 0,`,
+      },
+    ],
+    tests: [
+      'packages/mixins-ui/test/cardShadowDefault.browser.test.ts',
+      'packages/mixins/test/themePage.test.ts',
+    ],
+  },
 ]

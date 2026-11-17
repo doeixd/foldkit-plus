@@ -384,7 +384,7 @@ export const shadowStrength = {
   min: 0,
   max: 100,
   step: 1,
-  default: 0,
+  default: 70,
 } as const satisfies KnobData<'shadow.strength'>
 
 /** Shadow hue, `--fk-knob-shadow-h`. */

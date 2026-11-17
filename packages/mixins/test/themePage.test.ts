@@ -63,7 +63,7 @@ describe('Theme.tokens', () => {
       motion: '0.5',
       travel: '1',
       step: '0',
-      'shadow-strength': '0%',
+      'shadow-strength': '70%',
       'text-scale': '1.025',
       'heading-scale': '1.2',
       leading: '1.05',

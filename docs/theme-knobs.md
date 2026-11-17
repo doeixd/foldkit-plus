@@ -134,7 +134,7 @@ export const cobalt = Theme.make({
   surface: { saturation: 0, contrast: 24, lightness: { light: 97, dark: 24.5 }, hue: 0 },
   shape: { radius: 1.8, density: 1.1 },
   motion: { scale: 0.5, easing: 'spring' },
-  shadow: { strength: 0 },
+  shadow: { strength: 70 },
   type: { body: Theme.fonts.geist, scale: 1.025, leading: 1.05, headingScale: 1.2, headingWeight: 700, headingTracking: -0.025 },
   menu: { panel: 'inverted' },
   scales: { chroma: 1.1 },
@@ -274,7 +274,7 @@ follows another knob until a theme sets it.
 | `icon.stroke` | length px | 2 | 1 to 3 | `glyph-width`; `border.glyph`, what recipes draw in CSS, not a pack's masks. `Icons.tokens(pack, { width })` restrokes a pack's own drawings |
 | `motion.scale` | number | 0.5 | 0 to 2 | `motion` |
 | `motion.easing` | choice | `spring` | `ease`, `spring` | `ease` |
-| `shadow.strength` | percent | 0 | 0 to 100 | `shadow-strength` |
+| `shadow.strength` | percent | 70 | 0 to 100 | `shadow-strength` |
 | `shadow.style` | choice | `soft` | `soft`, `hard` | the elevation shadows |
 | `shadow.relief` | choice | `flat` | `flat`, `soft`, `hard`, `bevel` | the control shadows |
 | `shadow.hue` | angle | follows `surface.hue` | | `shadow-h` |
@@ -290,7 +290,7 @@ follows another knob until a theme sets it.
 Variables written without a prefix above are `--fk-knob-...`. The defaults are
 the theme #255 made the shipped one
 ([design](./design/255-default-theme-DESIGN.md)): a vivid blue on faintly cool greys,
-rounded corners, roomy spacing, bold fluid headings, no resting shadows,
+rounded corners, roomy spacing, bold fluid headings, quiet shadows (`shadow.strength` 70, `0` is flat),
 menus on the page's own raised surface and a spring.
 
 ### Fluid type
