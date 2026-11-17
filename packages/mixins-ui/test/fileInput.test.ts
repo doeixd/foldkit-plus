@@ -79,7 +79,7 @@ describe('FileInput.view', () => {
     const [input] = Inert.byTag(
       drawn([], {
         name: 'attachments',
-        accept: '.pdf,image/*',
+        accept: ['.pdf', 'image/*'],
         multiple: true,
         required: true,
         invalid: true,
@@ -93,6 +93,11 @@ describe('FileInput.view', () => {
     expect(Inert.value(input, 'required')).toBe(true)
     expect(Inert.value(input, 'aria-invalid')).toBe('true')
     expect(Inert.value(input, 'aria-describedby')).toBe('cv-description')
+  })
+
+  it('draws no accept attribute for an empty list of kinds', () => {
+    const [input] = Inert.byTag(drawn([], { accept: [] }), 'input')
+    expect(Inert.value(input, 'accept')).toBeUndefined()
   })
 
   it('draws the description under the id the input points at, only when there is one', () => {
@@ -148,6 +153,15 @@ describe('FileInput.view', () => {
 
   it('is styled in its own slots', () => {
     expect(style.css).toContain('input:focus-visible')
+  })
+})
+
+describe('FileInput.keyOf', () => {
+  it('names a file by name, size, modification time and type', () => {
+    expect(FileInput.keyOf(resume)).toBe('resume.pdf:1:1:application/pdf')
+    expect(
+      FileInput.keyOf(new File(['a'], 'resume.pdf', { type: 'application/pdf', lastModified: 1 })),
+    ).toBe(FileInput.keyOf(resume))
   })
 })
 

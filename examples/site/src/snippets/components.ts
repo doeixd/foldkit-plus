@@ -9315,7 +9315,7 @@ export const fileInputMultiple = <Message>(
       name: 'attachments',
       label: 'Attach files',
       description: 'Images only, any number.',
-      accept: 'image/*',
+      accept: ['image/*'],
       multiple: true,
       files,
       onChange: messages.onChange,
@@ -9343,7 +9343,7 @@ export const fileInputRequired = <Message>(
       label: 'Choose a statement',
       description:
         files.length === 0 ? 'A CSV file is required.' : 'One file; choosing again replaces it.',
-      accept: '.csv,text/csv',
+      accept: ['.csv', 'text/csv'],
       required: true,
       invalid: files.length === 0,
       files,

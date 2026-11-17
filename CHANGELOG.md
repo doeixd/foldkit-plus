@@ -45,6 +45,7 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
 
 ### Added
 
+- `foldkit-mixins-ui`: `FileInput.keyOf(file)` is exported: the name a file goes by when the browser hands the same one twice (name, size, modification time and type).
 - `foldkit-remote`: `RemoteData.incident(error)` reads the id the server reported a failure of its own under, as an `Option<string>`: some when the server broke rather than refused, so a view can show a reference to quote. `RemoteReadError`, `RemoteQueryError`, `RemoteMutationError` and `RemoteLiveError`, the JSON error answer, a live stream's error frame and `RemoteError` each gain an optional `incident`; nothing else on the wire changed, and a client or server without it still decodes.
 - `foldkit-remote-server`: `RemoteServer.tell(message)` fails a Source with words written for the caller, sent as they are. `RemoteServerError` takes a `cause`, which is reported and never sent. The `ServerDefect` diagnostic carries `incident` and `during` (what was asked).
 - `foldkit-remote-server`: `RemoteServer.report(during, cause)` reports a failure no handler answers (a scheduled job's, an adapter's on a transport of its own) as the server reports its own: a `ServerDefect` holding `cause` under a new incident, with `during`. It answers `{ message: 'Internal error', incident }`, the `InternalFailure` type now exported, and nothing of the cause (#575).
@@ -825,6 +826,7 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
 
 ### Changed
 
+- `foldkit-mixins-ui`: **Breaking:** `FileInput`'s `accept` is a `ReadonlyArray<string>` of `.ext`, `type/*` and `type/subtype` tokens, joined with `,` for the attribute, where it was one string. It now agrees with `File.select`, upstream's FileDrop and form-recipes' `FileOptions.accept`. Change `accept: '.pdf,image/*'` to `accept: ['.pdf', 'image/*']`; an empty array draws no attribute.
 - `foldkit-mixins-ui`: a TagsInput's chip (and the Combobox's, which shares it) and a Badge are pills (`radius.full`, rounder than the control corner, squarer as `shape.radius` falls), and the chip reads `surface.default` instead of `surface.muted`: a step lighter than its field in a dark scheme, where the recessed `muted` step read darker, and a little darker than it in a light one.
 - `foldkit-mixins`: **Breaking:** `surface.saturation` defaults to 0.005 (dark 0.0067), not 0: the page, cards, lines and text lean a little toward the accent's hue, so a dark page is a faintly cool grey (chroma 0.006) and a light page still reads white. Set `surface: { saturation: 0 }` to keep pure greys.
 - `foldkit-mixins`: **Breaking:** the accent's lightness defaults to 54 in both schemes (55 light, 70 dark before). A dark accent fill is deeper, with light words on it (4.8:1, and 3.2:1 against the page) where it was a bright cyan under near-black words; the light fill is darkened a point so its words read at 4.5:1 once painted (4.4996 at 55). Set `accent: { lightness: { light: 55, dark: 70 } }` to keep the old look.
