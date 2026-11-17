@@ -1074,7 +1074,7 @@ natively take a `name` (see [Form participation](#form-participation)).
 | `AngleSlider` | After Zag's: a dial in degrees, 0 at the top and clockwise. A small Model: `AngleSlider.init({ id, value? })` is the angle and the drag, folded with `AngleSlider.update(layout)`, where `layout` (`step`, `largeStep`, `marks`, `restrictToMarks`) is the object the view spreads in too. `AngleSlider.view({ ...layout, model, onMessage, label, name?, format?, valueText?, showValue?, disabled?, readOnly?, invalid? }, h)`. A press or drag sends `Pointed` and `Released`; the APG's slider keys reach `update` as what was pressed, and go round past 0. | `tone`; `track`: `ring`, `plain`, `disc`; `value`: `inside`, `below`; `size`. Slots `root`, `label`, `control`, `needle`, `thumb`, `markers`, `marker`, `markerLabel`, `value`, `input`. |
 | `Rating` | A `radiogroup` of native radios named by its label, one per star under one name, so the browser's arrows move the choice and a form submits it. `Rating.view({ id, label, value, onChange, max?, starLabel?, readOnly?, disabled?, name?, precision?, onClear?, showValue? }, h)`; `value` is an `Option`, none is unrated. Read-only, it is one `img` whose name says the rating, and takes no `onChange`. | `tone`: `warning` (default, gold), `accent`, `error`; `glyph`: `star` (default), `heart`, `circle`; `size`. Slots `root`, `label`, `star`. |
 | `ColorPicker` | After ReUI's: a saturation and brightness area, hue and alpha Sliders, an eyedropper when the application asks for one (`eyedropper`, default `false`), text in hex, rgb, hsl or oklch, and `presets` as a radio group of swatches. A small Model: `ColorPicker.init({ id, color?, format? })` holds the color, its format and a draft being typed, folded with `ColorPicker.update`. `ColorPicker.view({ model, onMessage, label, presets?, alpha?, eyedropper?, labels?, disabled?, slider? }, h)`; `ColorPicker.popover({ ...options, popover, onPopover, anchor?, popoverMixins? }, h)` draws it behind a swatch in a Popover. See [ColorPicker](#colorpicker). | `size`. Its Sliders take `Recipes.Slider({ track: 'paint', label: 'hidden' })`. Slots `root`, `label`, `area`, `areaThumb`, `controls`, `eyedropper`, `channels`, `channel`, `swatch`, `fields`, `format`, `input`, `presets`, `preset`, `picker`, `trigger`, `value`. |
-| `Calendar` | One date system, inline. `Calendar.Selection` is `Single`, `Range` or `Multiple`, owned by the application. See [Calendar and DatePicker](#calendar-and-datepicker). | `size`; `outside`: `shown` (default), `hidden`; `detail`: `text`, `dot`, unset by default. Slots `root`, `header`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton`. |
+| `Calendar` | One date system, inline. `Calendar.Selection` is `Single`, `Range` or `Multiple`, held by the Calendar's state (`Bundles.Calendar`), or by the application on the adapter rung. See [Calendar and DatePicker](#calendar-and-datepicker). | `size`; `outside`: `shown` (default), `hidden`; `detail`: `text`, `dot`, unset by default. Slots `frame`, `body`, `main`, `months`, `todayButton`, `aside`, `footer` (what `Calendar.view` lays around the months), `root`, `header`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton`. |
 | `DatePicker` | A Calendar in a popover, over a fork that keeps upstream's Popover and Calendar composition. A date, a range or many days. See [Calendar and DatePicker](#calendar-and-datepicker). | Slots `trigger`, `panel`, `backdrop`. |
 
 ### Segmented
@@ -1260,7 +1260,52 @@ nothing and shows nothing.
 
 ### Calendar and DatePicker
 
-Fold each `SelectedDate` through `Calendar.picked`; `Calendar.empty(mode)` starts
+A Calendar's value is a `Calendar.Selection`: `Single`, `Range` or `Multiple`,
+a type of the Calendar's own, so the Calendar's state holds it. `Calendar.init`
+makes that state (the month shown, a second month, the selection, a range's
+hover preview), `Calendar.update` folds it, and `Calendar.view(options, h)`
+draws it. `Bundles.Calendar` is the same `init` and `update` for
+`foldkit-bundle`; [State](#state-fold-it-by-hand-or-place-a-bundle) has a whole
+example.
+
+- **Args** (`Calendar.Args`, also `init`'s options): `id`, `today`, and
+  optionally `selection` (default `Calendar.empty('Single')`), `months` (`1` or
+  `2`), `minDate`, `maxDate`, `disabledDaysOfWeek`, `disabledDates` and `locale`
+  (`Calendar.localeOf('de-DE')` reads one from Intl).
+- **Reading the value**: `Calendar.selectedDate` (a Single's day), `rangeOf`
+  (a range with both ends), `datesOf` (every day held, in order), `firstDate`,
+  `isComplete`. The Bundle reports `Changed { selection }` whenever the
+  selection holds other days; its `set` helper, and `Calendar.set(model,
+  selection)`, set it from the parent and report nothing.
+- **View options**, all optional beyond `model`, `onMessage` and `label` (the
+  group's name): `weekNumbers`; `caption`: `'grid'` (the default heading
+  button, which opens the month and year grids), `'label'`, or `{ dropdowns: {
+  years?, month? } }`, where `month: 'label'` writes the month as text beside a
+  select of years; `paging`: `'both'`, `'previous'`, `'next'`, `'none'`, or
+  `'end'` for both buttons after the caption; `today: { label, selects? }`, a
+  button that turns back to today's month and, with `selects`, picks it;
+  `presets`, a list of `{ label, selection }` built with `Calendar.lastDays`,
+  `nextDays`, `monthOf` and `day`, or written by hand; `detail: date =>
+  Option<string>`, a line under a day's number; `aside` and `footer`, drawings
+  of the application's own placed beside and under the months; `words`
+  (`Calendar.words` lists them; `{month}`, `{date}`, `{year}`, `{from}` and
+  `{to}` are filled); `style` and `mixins`.
+- **Two months** share one selection and page together: the previous button is
+  on the first, the next on the second, and dropdowns are on the first.
+- **A time list, an event list, a second field** is another widget with its own
+  state, drawn into `aside` or `footer`. The Calendar places it and knows
+  nothing of it.
+- **`Calendar.configure({ base, presets })`** binds `weekNumbers`, `caption`,
+  `paging`, `today`, `presets`, `detail`, `words`, `style` and `mixins`
+  ([Drawing](#drawing-configure-once-call-with-what-differs)). Its `presets`
+  key names sets of options; the view option `presets` lists selections.
+- **What it costs**: a page that draws through the adapter below keeps neither
+  the state nor this view. Upstream's month and year grids ship with every
+  calendar, since they are inside upstream's one Model and view; `caption:
+  'label'` hides them and cannot drop them.
+
+The adapter is the rung below, for a calendar an application draws or folds
+itself. Fold each `SelectedDate` through `Calendar.picked`; `Calendar.empty(mode)` starts
 a selection and `Calendar.isComplete` says when a picker may close. Spread
 `Calendar.inputs(selection, mixins, { h })` into upstream `Calendar.view`'s
 inputs: its `toView` (`Calendar.toView(selection, mixins, { h })`) marks each
@@ -1273,12 +1318,15 @@ from Intl.
 
 Options, the fourth argument of `toView`, `inputs` and `resolve`
 (`CalendarOptions`): `weekNumbers`, `caption: 'label'` or `dropdowns: { model,
-onShow }` (month and year selects; answer `onShow` with `Calendar.show`), `paging`
+onShow, years?, month?, words? }` (month and year selects; answer `onShow` with
+`Calendar.show`), `paging`
 with `Calendar.alongside(model, other, offset)` for two months side by side,
 `preview: { date, onPreview }` for a range under the pointer, and `detail: date =>
 Option<string>` for a line under a day's number (a price, "2 events") that
 describes its button (`ResolvedDayCell.detail`). `ResolvedDays`' paging buttons
-are `Option`s and its heading is a `caption`. Presets: `Calendar.lastDays`,
+are `Option`s, `pagingAtEnd` says both stand after the caption, and its heading
+is a `caption` of four kinds (`Grid`, `Label`, `Dropdowns`, `YearDropdown`).
+Presets: `Calendar.lastDays`,
 `nextDays`, `monthOf`, `day`, drawn by `Calendar.presetsView`.
 
 A DatePicker also picks a whole `Calendar.Selection`. Fold it with
@@ -2786,6 +2834,50 @@ export const upToThree = <Item extends string>(
 }
 ```
 
+Where the value's type is the widget's own and a parent usually acts on a
+change, the Bundle reports it. A Calendar holds its `Selection` and reports
+`Changed`, which a placement answers or ignores by name:
+
+```ts standalone
+import { Option } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import * as Dates from 'foldkit/calendar'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { Bundles, Calendar } from 'foldkit-mixins-ui'
+
+const today = Dates.make(2026, 2, 11)
+
+const App = Bundle.compose({}).pipe(
+  Bundle.withChild('trip', Bundles.Calendar, {
+    // The selection's tag is the mode; `months: 2` draws two side by side.
+    args: { id: 'trip', today, selection: Calendar.empty('Range'), months: 2, minDate: today },
+    // `Changed` carries the new selection; this page only reads it from the Model.
+    onOut: Bundle.ignore,
+  }),
+)
+type Model = typeof App.Model.Type
+type Message = typeof App.Message.Type
+
+export const nights = (model: Model): number =>
+  Option.match(Calendar.rangeOf(model.trip.selection), {
+    onNone: () => 0,
+    onSome: ({ start, end }) => Dates.daysUntil(start, end),
+  })
+
+export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
+  Calendar.view(
+    {
+      model: model.trip,
+      onMessage: message => App.Message.GotTripMessage({ message }),
+      label: 'Trip dates',
+      presets: [{ label: 'Next week', selection: Calendar.nextDays(today, 7) }],
+      today: { label: 'This month' },
+      footer: h.p([], [`${nights(model)} nights`]),
+    },
+    h,
+  )
+```
+
 The Combobox's drawing still goes through its `toView` adapter and the
 `ComboboxView` bundles; an options-level `Combobox.view` that takes the
 `Choice` is not built yet.
@@ -2830,8 +2922,10 @@ export const actions = (h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
   declared.
 - **A preset holds what takes no Message and no state**: `style`, `mixins`,
   `words` and each widget's own list (`type` for a Button; `placeholder`,
-  `addOnBlur` and `direction` for a TagsInput). `onClick`, `onMessage`,
-  `model`, `label` and anything drawn (`icon`) stay at the call.
+  `addOnBlur` and `direction` for a TagsInput; `weekNumbers`, `caption`,
+  `paging`, `today`, `presets` and `detail` for a Calendar). `onClick`,
+  `onMessage`, `model`, `label` and anything drawn (`icon`, `aside`, `footer`)
+  stay at the call.
 - **A preset may hold behaviour.** A mixin with a Mount given in a preset
   attaches to every use of that preset, and the page ships that Behavior
   only because the application's own module imported it. A Mount that sends

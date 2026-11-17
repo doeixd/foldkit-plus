@@ -197,9 +197,11 @@ The criterion selects **Sidebar** and **Questionnaire**, and nothing else in the
 ```ts
 // Model, one shape whatever the args
 { calendar: UiCalendar.Model, second: Option<UiCalendar.Model>, selection: Selection, preview: Option<CalendarDate> }
-// args (data)
+// args (data), `Calendar.Args`, which is also `Calendar.init`'s parameter
 { id, today, selection?: Selection /* default Calendar.empty('Single') */, months?: 1 | 2,
   minDate?, maxDate?, disabledDaysOfWeek?, disabledDates?, locale? }
+// Message
+GotCalendarMessage | GotSecondMessage | Showed { shown } | Previewed { date } | PickedPreset { selection } | PressedToday { selects }
 // OutMessage
 Changed { selection: Selection }
 // helper
@@ -208,19 +210,23 @@ set(selection)
 
 `Calendar.view(options, h)` is the new options-level view over that Model; `toView`, `inputs`, `picked`, `show`, `alongside` and `presetsView` stay as the rung for an application that draws its own calendar.
 
-| Option | Kind | Today |
-| --- | --- | --- |
-| `model`, `onMessage`, `label` | wiring | new view |
-| `weekNumbers?: boolean` | data | exists |
-| `caption?: 'grid' \| 'label' \| { dropdowns: { years?: { from, to }, month?: 'select' \| 'label' } }` | data: the selects are drawn in `calendar.ts` itself, no module behind them | `grid`, `label` and both-selects exist; `month: 'label'` is new |
-| `paging?: 'both' \| 'previous' \| 'next' \| 'none' \| 'end'` | data | `end` (both buttons after the heading) is new |
-| `today?: { label: string, selects?: boolean }` | data | new |
-| `presets?: ReadonlyArray<{ label: string, selection: Selection }>` | data, built with `Calendar.lastDays`, `nextDays`, `monthOf`, `day` | `presetsView` exists (`calendar.ts:942`) |
-| `detail?: (date) => Option<string>` | the application's function | exists |
-| `aside?: Html`, `footer?: Html` | slots the calendar places and does not understand | new |
-| `words?`, `style?`, `mixins?` | as every widget | `labels` becomes `words` |
+The table is as built (2026-11-17); the last column says what the view found in `calendar.ts` and what it had to add there.
 
-The typed value comes from readers over the union, not from a generic kit: `Calendar.selectedDate(selection): Option<CalendarDate>` and `firstDate` exist (`calendar.ts:645`, `:653` [v]); `Calendar.rangeOf(selection): Option<DateRange>` and `Calendar.datesOf(selection)` are added.
+| Option | Kind | As built |
+| --- | --- | --- |
+| `model`, `onMessage`, `label` | wiring | new view; `label` names the `frame` slot, a `role="group"` |
+| `weekNumbers?: boolean` | data | existed on the adapter |
+| `caption?: 'grid' \| 'label' \| { dropdowns: { years?: { from, to }, month?: 'select' \| 'label' } }` | data: the selects are drawn in `calendar.ts` itself, no module behind them | `grid`, `label` and both selects existed (as `caption` and a separate `dropdowns` holding `model` and `onShow`, which the view fills in). `month: 'label'` is new on the adapter too: a fourth `ResolvedCaption`, `YearDropdown` |
+| `paging?: 'both' \| 'previous' \| 'next' \| 'none' \| 'end'` | data | `end` is new on the adapter: `ResolvedDays.pagingAtEnd`, and `data-paging="end"` on the header for the recipe |
+| `today?: { label: string, selects?: boolean }` | data | new; a `todayButton` slot and a `PressedToday` Message |
+| `presets?: ReadonlyArray<{ label: string, selection: Selection }>` | data, built with `Calendar.lastDays`, `nextDays`, `monthOf`, `day` | `presetsView` existed; the view calls it and answers `PickedPreset` |
+| `detail?: (date) => Option<string>` | the application's function | existed |
+| `aside?: Html`, `footer?: Html` | slots the calendar places and does not understand | new: `aside` and `footer` slots, in a `frame` > `body` > `main` > `months` layout |
+| `words?`, `style?`, `mixins?` | as every widget | `CalendarWords` is thirteen words: upstream's ten `ViewLabels` (four of them functions upstream, text with `{month}`, `{date}`, `{year}`, `{from}`, `{to}` here), the two selects and the presets group. The adapter's `Dropdowns.labels` is `words` |
+
+A range's preview is not an option: the view passes the Model's `preview` and answers `Previewed` itself.
+
+The typed value comes from readers over the union, not from a generic kit: `Calendar.selectedDate(selection): Option<CalendarDate>` and `firstDate` existed; `Calendar.rangeOf(selection): Option<DateRange>` and `Calendar.datesOf(selection)` are added (`calendar/selection.ts`).
 
 `Bundles.DatePicker` is the same with upstream's picker Model in place of the calendar's (upstream's DatePicker holds its own calendar), one more arg, `closes?: 'complete' | 'manual'` (`manual` is new and is an arg because `update` reads it), and three more view options: `trigger: (selection: Selection) => string`, `name?`, `anchor?`.
 
@@ -733,42 +739,42 @@ About 180 additions get there. Composition is the design working, not a gap: it 
 
 ### The calendar's thirty
 
-State is `Bundles.Calendar` (1 to 23) or `Bundles.DatePicker` (24 to 30). "new" marks an addition.
+State is `Bundles.Calendar` (1 to 23) or `Bundles.DatePicker` (24 to 30). The last column is what `packages/mixins-ui/test/calendarView.test.ts` found on 2026-11-17, where each D, V and L row of 1 to 23 is a test numbered as here: the row is built through the public API and its defining trait asserted on the drawn page. "With an addition" marks a row that needed an option built for it.
 
-| # | Example | Args and view options | Kind |
-| --- | --- | --- | --- |
-| 1 | Basic | defaults | D |
-| 2 | Range | arg `selection: Calendar.empty('Range')` | D |
-| 3 | Disabled dates | args `disabledDates`, `disabledDaysOfWeek`, `minDate` | D |
-| 4 | Multiple | arg `selection: Calendar.empty('Multiple')` | D |
-| 5 | Custom selected day | `Recipes.Calendar.extend({...})` | L |
-| 6 | Custom range style | `Recipes.Calendar.extend({...})` | L |
-| 7 | Controls on the right | `paging: 'end'` (new) | D |
-| 8 | Month and year dropdowns | `caption: { dropdowns: {} }` | D |
-| 9 | Year select with arrows | `caption: { dropdowns: { month: 'label' } }` (new) | D |
-| 10 | Week numbers | `weekNumbers: true` | D |
-| 11 | "Current month" button | `today: { label: 'This month' }` (new) | D |
-| 12 | "Today" button | `today: { label: 'Today', selects: true }` (new) | D |
-| 13 | Year view | `caption: 'grid'`, the default | D |
-| 14 | Preset times | `aside:` the application's time list (new slot) | C |
-| 15 | Date presets | `presets: [{ label, selection: Calendar.day(...) }]` | D |
-| 16 | Range presets | `presets` built with `Calendar.lastDays`, `monthOf` | D |
-| 17 | A price on each day | `detail: priceOf`; recipe `detail: 'text'` | V |
-| 18 | Presets, another layout | `presets`; a recipe value for their side (by `add`) | L |
-| 19 | Appointment | `aside:` time slots | C |
-| 20 | Two months | arg `months: 2` | D |
-| 21 | Two months, range | args `months: 2`, `selection: Calendar.empty('Range')` | D |
-| 22 | Event list beside | `detail` marks the days; the list is the application's | C |
-| 23 | Localized | arg `locale: Calendar.localeOf('fr')`; `words` | V |
-| 24 | Date picker | `trigger: selection => string` | V |
-| 25 | Range date picker | arg `selection: Calendar.empty('Range')`; `trigger` | V |
-| 26 | Date picker, year view | `caption: 'grid'` | D |
-| 27 | Date and appointment picker | `aside:` time slots; arg `closes: 'manual'` (new) | C |
-| 28 | Date picker with presets | `presets` | D |
-| 29 | Range picker with presets | `presets` | D |
-| 30 | Date and time range picker | `footer:` two time inputs; arg `closes: 'manual'` | C |
+| # | Example | Args and view options | Kind | Checked |
+| --- | --- | --- | --- | --- |
+| 1 | Basic | defaults | D | held |
+| 2 | Range | arg `selection: Calendar.empty('Range')` | D | held |
+| 3 | Disabled dates | args `disabledDates`, `disabledDaysOfWeek`, `minDate` | D | held |
+| 4 | Multiple | arg `selection: Calendar.empty('Multiple')` | D | held |
+| 5 | Custom selected day | `Recipes.Calendar.extend({...})` | L | held |
+| 6 | Custom range style | `Recipes.Calendar.extend({...})` | L | held |
+| 7 | Controls on the right | `paging: 'end'` | D | held, with an addition |
+| 8 | Month and year dropdowns | `caption: { dropdowns: {} }` | D | held |
+| 9 | Year select with arrows | `caption: { dropdowns: { month: 'label' } }` | D | held, with an addition |
+| 10 | Week numbers | `weekNumbers: true` | D | held |
+| 11 | "Current month" button | `today: { label: 'This month' }` | D | held, with an addition |
+| 12 | "Today" button | `today: { label: 'Today', selects: true }` | D | held, with an addition |
+| 13 | Year view | `caption: 'grid'`, the default | D | held |
+| 14 | Preset times | `aside:` the application's time list | C | the slot held; the time list is not built here |
+| 15 | Date presets | `presets: [{ label, selection: Calendar.day(...) }]` | D | held |
+| 16 | Range presets | `presets` built with `Calendar.lastDays`, `monthOf` | D | held |
+| 17 | A price on each day | `detail: priceOf`; recipe `detail: 'text'` | V | held |
+| 18 | Presets, another layout | `presets`; a recipe value for their side (by `add`) | L | held |
+| 19 | Appointment | `aside:` time slots | C | as 14 |
+| 20 | Two months | arg `months: 2` | D | held |
+| 21 | Two months, range | args `months: 2`, `selection: Calendar.empty('Range')` | D | held |
+| 22 | Event list beside | `detail` marks the days; the list is the application's, in `aside` | C | as 14 |
+| 23 | Localized | arg `locale: Calendar.localeOf('fr')`; `words` | V | held |
+| 24 | Date picker | `trigger: selection => string` | V | not checked: `DatePicker.view` is not built |
+| 25 | Range date picker | arg `selection: Calendar.empty('Range')`; `trigger` | V | not checked: `DatePicker.view` is not built |
+| 26 | Date picker, year view | `caption: 'grid'` | D | not checked: `DatePicker.view` is not built |
+| 27 | Date and appointment picker | `aside:` time slots; arg `closes: 'manual'` | C | not checked: `DatePicker.view` is not built |
+| 28 | Date picker with presets | `presets` | D | not checked: `DatePicker.view` is not built |
+| 29 | Range picker with presets | `presets` | D | not checked: `DatePicker.view` is not built |
+| 30 | Date and time range picker | `footer:` two time inputs; arg `closes: 'manual'` | C | not checked: `DatePicker.view` is not built |
 
-Twenty-five of thirty are a call with options; five are a call plus a second widget. The limit worth stating: upstream's month and year grids ship with every calendar, because they are inside `@foldkit/ui/calendar`'s one Model, `update` and view. `caption: 'label'` hides them and cannot drop them.
+Twenty-five of thirty are a call with options by the mapping; five are a call plus a second widget. Checked so far: all twenty of the Calendar's (1 to 13, 15 to 18, 20, 21, 23), four of them (7, 9, 11, 12) through an option built for the row, and none turned out not expressible. The DatePicker's five (24, 25, 26, 28, 29) wait for its view. The limit worth stating: upstream's month and year grids ship with every calendar, because they are inside `@foldkit/ui/calendar`'s one Model, `update` and view. `caption: 'label'` hides them and cannot drop them.
 
 ### Combobox, autocomplete and select
 
@@ -1155,6 +1161,26 @@ Decisions:
 - **TS4023 is fixed in `foldkit-bundle`**, not documented around: `compose.ts`'s `Child` is exported, as `Bundle.ComposedChild`. `packages/mixins-ui/test/bundles.test.ts` exports a composition of shipped Bundles, which failed the project's declaration emit before and compiles now. `foldkit-bundle` kept its version in the 0.41.0 notes; it needs a bump now.
 - **The README's code for all this is one section after Recipes** ("One factory for each part"), with the four-part model in prose under Core concepts. The README's snippets are one module from top to bottom, and a `standalone` block in the middle cut the blocks after it off from the imports above.
 - **The `Calendar` state must not sit in `calendar.ts`.** A module-level `Schema.Struct` over upstream's Model there would put upstream's calendar in every page that reads the adapter (M5). It goes in `calendar/state.ts` and `calendar/view.ts`, re-exported by name. `state.ts` needs `Selection` at module level, and `calendar.ts` re-exporting `view` makes that a cycle that fails at load, so `Selection` and its readers move to a leaf module (`calendar/selection.ts`) first, with `calendar.mutations.ts` re-anchored.
+
+#### The Calendar, as built
+
+`calendar/selection.ts` (the union, its readers and the preset builders, with `rangeOf` and `datesOf` added), `calendar/shown.ts` (`Shown`, `show`, `alongside`), `calendar/state.ts` (`Model`, `Message`, `OutMessage`, `Args`, `init`, `update`, `set`, `secondId`), `calendar/view.ts` (`view`, `configure`, `words` and their types) and `bundles/calendar.ts`. `calendar.ts` re-exports every name, so the namespace is `Calendar` throughout. `publishedBuild.test.ts` pins that a page reading `Calendar.toView` keeps neither `calendar/state` nor `calendar/view`, from `dist` and from source; it was broken by hand to see it fail.
+
+Decided where the note was silent or wrong:
+
+- **`Shown`, `show` and `alongside` needed a leaf module too.** The record above named only `Selection`. The state's Message holds `Shown` at module level and its update calls `show` and `alongside`, so reading them from `calendar.ts` was the same load-time cycle.
+- **`Calendar.Args` is one Schema for `init`'s parameter and the Bundle's args.** `Bundles.TagsInput` writes its args beside a hand-typed `init` option type; two declarations of one fact would drift, and the Schema is the one that exists at run time.
+- **A no-op returns the Model given, which upstream does not do.** Upstream's update builds a new Model for a press on the day already focused and for a blur of a grid that had no focus. The state compares upstream's result with a Schema-derived equivalence (`Schema.toEquivalence(UiCalendar.Model)`) and keeps the Model it had. The tests assert each no-op by identity.
+- **`Changed` is reported only when the selection holds other days** (`Calendar.isSame`), so a press on the chosen day, or a preset pressed twice, reports nothing.
+- **The today button's `selects` travels on its Message** (`PressedToday { selects }`), since it is a view option and `update` must know it. Picking goes through upstream's `selectDate`, so a today the bounds disable is shown and not picked.
+- **A preview is cleared whenever the selection changes**, by a pick, a preset or `set`: it belongs to the range it was made for.
+- **`set` reports nothing.** The parent chose the selection, and an OutMessage would send its own write back to it.
+- **The second month has an id of its own, `Calendar.secondId(id)`**, exported for a page that reads its cells. Two months draw the previous button on the first and the next on the second; `paging: 'none'` hides both and every other value splits them. Dropdowns go on the first month, and the second then reads as a label.
+- **The year-only dropdown is a fourth `ResolvedCaption`, `YearDropdown`**, and `paging: 'end'` a `pagingAtEnd` field on `ResolvedDays`. Both are on the adapter, since the view draws through it; a `render` that matches every caption must add the new one, which the changelog calls breaking.
+- **The view lays out through seven new Slots**: `frame` (the named group), `body` (the row of presets, months and aside), `main` (the months over the today button), `months`, `todayButton`, `aside`, `footer`. The frame is always drawn, so the markup does not change shape when an option is added.
+- **The configure preset type is `CalendarViewPreset`**, not `CalendarPreset`: the package's index already exports `Calendar.Preset` as `CalendarPreset`, a selection one press away. A preset holds neither `aside` nor `footer`, which are drawings.
+- **`words` covers upstream's ten labels as text**, so one object localizes the calendar and `configure` can merge it. Upstream takes four of them as functions; the view fills `{month}`, `{date}`, `{year}`, `{from}` and `{to}`.
+- **Not built: a `closes` rule, `anchor`, `trigger`.** They are the DatePicker's.
 
 ### Open measurements
 
