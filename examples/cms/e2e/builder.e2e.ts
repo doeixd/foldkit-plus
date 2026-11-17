@@ -228,7 +228,16 @@ test('a tile dragged onto the canvas marks where it lands, in a node and at the 
     [
       // A Text takes nothing inside it, so a drop in its middle lands after it, and says so.
       'the Text node',
-      () => within(node('text'), 0.5),
+      async () => {
+        // A wider font makes the Text taller than the canvas has left below it: its middle is brought into view first.
+        await node('text').evaluate(each => {
+          const canvas = document.querySelector('[data-builder-canvas]')!
+          const at = each.getBoundingClientRect()
+          const frame = canvas.getBoundingClientRect()
+          canvas.scrollTop += at.top + at.height / 2 - (frame.top + frame.height / 2)
+        })
+        return within(node('text'), 0.5)
+      },
       async () => {
         await expect
           .poll(() =>
