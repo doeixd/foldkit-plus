@@ -1,6 +1,7 @@
 /**
- * A menu bar: a strip on the muted surface whose triggers are flat rungs of
- * the size ladder, the open one filled as a hovered one is, and whose menus
+ * A menu bar: a strip on the neutral surface a raised bar reads (lighter than
+ * the page in a dark scheme, a little darker in a light one), whose triggers
+ * are flat rungs of the size ladder, the open one filled as a hovered one is, and whose menus
  * open the shared popup panel. `Menubar` styles the bar; `MenubarMenu` is
  * the Menu recipe with its trigger made one of the bar's.
  */
@@ -19,7 +20,7 @@ export const Menubar = Style.recipeFor(MenubarSlots)({
         gap: ref.space['3xs'],
         inlineSize: 'fit-content',
         padding: ref.space['3xs'],
-        background: ref.surface.muted,
+        background: ref.surface.default,
         border: `${ref.border.thin} solid ${ref.outline.subtle}`,
         borderRadius: ref.radius.lg,
         // Its triggers take their corners from these.
