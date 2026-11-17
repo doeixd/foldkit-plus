@@ -515,6 +515,9 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
                       h.Type('button'),
                       h.Tabindex(tag === stop ? 0 : -1),
                       h.AriaLabel(options.words?.remove?.(tag) ?? `Remove ${tag}`),
+                      ...(options.words?.mark === undefined
+                        ? [h.DataAttribute('glyph', 'cross')]
+                        : []),
                       ...(disabled
                         ? [h.Disabled(true)]
                         : [h.OnClick(lift(Message.Removed({ tag }))), chipKeys({ input: tag, h })]),

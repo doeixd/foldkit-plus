@@ -245,7 +245,10 @@ export const resolve = <Input, Message>(
               key: chip.key,
               label: chip.label,
               attributes: builders.chip.attrs(),
-              remove: builders.chipRemove.attrs(chip.remove),
+              remove: builders.chipRemove.attrs([
+                ...chip.remove,
+                context.h.DataAttribute('glyph', 'cross'),
+              ]),
             })),
           },
     clearButton:

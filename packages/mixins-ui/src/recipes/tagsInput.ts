@@ -50,14 +50,17 @@ export const chipList: StyleValue = component(
   }),
 )
 
+/** The chip's room above, below and after its remove button: even, so the button is the end cap's own circle. */
+const chipInset = '0.1rem'
+
 export const chip: StyleValue = component(
   Style.self({
     display: 'inline-flex',
     alignItems: 'center',
     gap: '0.2rem',
-    paddingBlock: '0.1rem',
+    paddingBlock: chipInset,
     paddingInlineStart: '0.6rem',
-    paddingInlineEnd: '0.2rem',
+    paddingInlineEnd: chipInset,
     borderRadius: ref.radius.full,
     // A step off the field the other way from `muted`, which is a recessed
     // step: lighter in a dark scheme, darker in a light one.
@@ -69,12 +72,28 @@ export const chip: StyleValue = component(
   }),
 )
 
+/** One stroke of the sign, centred in the button by its own middle, so no face's glyph metrics move it. */
+const stroke = (turn: string) => ({
+  content: '""',
+  position: 'absolute',
+  insetInlineStart: '50%',
+  insetBlockStart: '50%',
+  inlineSize: `calc(${role('caption').lineHeight} * 0.5)`,
+  blockSize: `calc(${ref.border.glyph} * 0.75)`,
+  borderRadius: ref.radius.full,
+  background: 'var(--_fk-chip-sign)',
+  translate: '-50% -50%',
+  rotate: turn,
+})
+
 export const chipRemove: StyleValue = component(
   Style.self({
-    display: 'grid',
-    placeItems: 'center',
-    inlineSize: '1.25em',
-    blockSize: '1.25em',
+    '--_fk-chip-sign': ref.text.muted,
+    position: 'relative',
+    // The chip's own line tall, so the chip's inset is the same on every side of it.
+    flex: 'none',
+    inlineSize: role('caption').lineHeight,
+    blockSize: role('caption').lineHeight,
     padding: '0',
     border: '0',
     borderRadius: ref.radius.full,
@@ -85,7 +104,12 @@ export const chipRemove: StyleValue = component(
     cursor: 'pointer',
     ...transition('background-color, color'),
   }),
-  hover({ background: unfilledHover, color: ref.text.overt }),
+  // The default sign is drawn, since the multiplication sign sits above or below the middle of its
+  // line by the face; its text stays for a copy and a search. A mark the application words is text.
+  Style.nest('&[data-glyph="cross"]', { fontSize: '0' }),
+  Style.nest('&[data-glyph="cross"]::before', stroke('45deg')),
+  Style.nest('&[data-glyph="cross"]::after', stroke('-45deg')),
+  hover({ '--_fk-chip-sign': ref.text.overt, background: unfilledHover, color: ref.text.overt }),
   focusRing,
   disabled,
 )

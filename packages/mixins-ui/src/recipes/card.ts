@@ -20,7 +20,7 @@
  * over the card it is on, which is that card's hover, whatever its surface.
  */
 import { Style } from 'foldkit-mixins'
-import { nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
+import { nested, nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import { CardGroupSlots, CardSlots } from '../card.js'
 import {
@@ -40,6 +40,9 @@ const pressableHover = '&[data-pressable="true"]:not([data-disabled="true"]):is(
 /** A card's own hover, unless a group's highlight is its hover. */
 const ownHover = `${pressableHover}:not([data-card-fluid="true"] [data-card-item] > *)`
 const selected = '&[data-selected="true"]'
+/** The dismiss button's inset from the card's edges. */
+const dismissInset = `calc(${pad} / 2)`
+const dismissCorner = `max(${ref.radius.sm}, ${nested('var(--fk-outer-radius, 0px)', dismissInset)})`
 /** The room the dismiss button takes in the corner, less the card's own padding, and a hair. */
 const clearOfDismiss = `calc(1.5rem - ${pad} / 2 + ${ref.space['2xs']})`
 
@@ -193,8 +196,8 @@ export const Card = Style.recipeFor(CardSlots)({
     dismiss: component(
       Style.self({
         position: 'absolute',
-        insetBlockStart: `calc(${pad} / 2)`,
-        insetInlineEnd: `calc(${pad} / 2)`,
+        insetBlockStart: dismissInset,
+        insetInlineEnd: dismissInset,
         zIndex: '2',
         display: 'grid',
         placeItems: 'center',
@@ -202,7 +205,10 @@ export const Card = Style.recipeFor(CardSlots)({
         blockSize: '1.5rem',
         padding: '0',
         border: '0',
-        borderRadius: ref.radius.full,
+        // A rounded square whose corner is concentric with the card's: the card's corner less the
+        // button's inset from its edge, so the gap between the two curves is even; never sharper
+        // than `sm`.
+        borderRadius: dismissCorner,
         background: 'transparent',
         color: ref.text.muted,
         ...role('caption'),
@@ -309,7 +315,11 @@ export const Card = Style.recipeFor(CardSlots)({
       // Chosen, it keeps a film twice its hover's.
       plain: {
         root: variant(
-          Style.self({ background: 'transparent', borderRadius: ref.radius.md }),
+          Style.self({
+            background: 'transparent',
+            borderRadius: ref.radius.md,
+            ...nests(ref.radius.md, pad),
+          }),
           Style.nest(ownHover, { background: film('transparent', '0.5') }),
           Style.nest(selected, { background: film('transparent', '1') }),
         ),

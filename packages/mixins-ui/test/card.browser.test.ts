@@ -166,6 +166,28 @@ test('the dismiss button shows on hover and dismisses alone', async () => {
   }
 })
 
+test('the dismiss button is a rounded square whose corner is concentric with the card’s', async () => {
+  const { handle } = mount()
+  // Rounder than the unit knobs' 8px card, whose corner is no wider than the inset: the button would be at its floor.
+  const rounder = document.createElement('style')
+  rounder.dataset['test'] = ''
+  rounder.textContent = ':root{--fk-knob-radius-factor:2}'
+  document.head.append(rounder)
+  try {
+    await vi.waitFor(() => expect(byName('Dismiss Solo')).toBeTruthy())
+    const dismiss = byName('Dismiss Solo')
+    const card = byName('Solo').parentElement!
+    const radius = (element: HTMLElement) =>
+      parseFloat(getComputedStyle(element).borderTopRightRadius)
+    const inset = card.getBoundingClientRect().right - dismiss.getBoundingClientRect().right
+    expect(dismiss.getBoundingClientRect().width).toBeGreaterThan(2 * radius(dismiss))
+    // The card's corner less the distance in from its edge, to within its 1px border.
+    expect(Math.abs(radius(card) - inset - radius(dismiss))).toBeLessThanOrEqual(1.01)
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('a chosen card in a group keeps a fill of its own', async () => {
   const { handle } = mount()
   try {

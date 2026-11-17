@@ -478,4 +478,26 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'the dismiss button is a circle again',
+    edits: [
+      {
+        file: recipe,
+        find: 'borderRadius: dismissCorner,',
+        replace: 'borderRadius: ref.radius.full,',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the dismiss button takes the card corner whole, not less its inset',
+    edits: [
+      {
+        file: recipe,
+        find: "const dismissCorner = `max(${ref.radius.sm}, ${nested('var(--fk-outer-radius, 0px)', dismissInset)})`",
+        replace: "const dismissCorner = 'var(--fk-outer-radius, 0px)'",
+      },
+    ],
+    tests: browser,
+  },
 ]

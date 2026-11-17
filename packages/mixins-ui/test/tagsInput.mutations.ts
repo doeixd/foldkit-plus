@@ -534,4 +534,37 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a sign stroke starts at the start edge, not the middle',
+    edits: [
+      {
+        file: '../src/recipes/tagsInput.ts',
+        find: "insetInlineStart: '50%',",
+        replace: "insetInlineStart: '0',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a chip leaves more room after its button than above and below it',
+    edits: [
+      {
+        file: '../src/recipes/tagsInput.ts',
+        find: 'paddingInlineEnd: chipInset,',
+        replace: "paddingInlineEnd: '0.3rem',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the remove button is not marked for the drawn sign',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "? [h.DataAttribute('glyph', 'cross')]",
+        replace: '? []',
+      },
+    ],
+    tests: [browser],
+  },
 ]

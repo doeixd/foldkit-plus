@@ -360,3 +360,34 @@ test('a theme with no travel stills the shake', async () => {
     handle.dispose()
   }
 })
+
+test('a chip holds its remove button as the pill’s end cap: equal room on three sides, the sign centred', async () => {
+  const handle = mount(['foldkit'])
+  try {
+    await vi.waitFor(() => expect(document.querySelector('li button')).not.toBeNull())
+    const chip = document.querySelector('li')!.getBoundingClientRect()
+    const button = document.querySelector('li button') as HTMLElement
+    const box = button.getBoundingClientRect()
+    const above = box.top - chip.top
+    expect(box.width).toBe(box.height)
+    expect(chip.bottom - box.bottom).toBeCloseTo(above, 1)
+    expect(chip.right - box.right).toBeCloseTo(above, 1)
+    expect(getComputedStyle(button).borderRadius).not.toBe('0px')
+    // The sign is two strokes, each centred by its own middle on the button's: font metrics cannot move it.
+    for (const part of ['::before', '::after'] as const) {
+      const stroke = getComputedStyle(button, part)
+      expect(stroke.position).toBe('absolute')
+      expect(parseFloat(stroke.left)).toBeCloseTo(box.width / 2, 1)
+      expect(parseFloat(stroke.top)).toBeCloseTo(box.height / 2, 1)
+      expect(stroke.translate).toBe('-50% -50%')
+    }
+    expect(getComputedStyle(button, '::before').rotate).not.toBe(
+      getComputedStyle(button, '::after').rotate,
+    )
+    // The text stays in the button for a copy and a search, drawn at no size.
+    expect(button.textContent).toBe('×')
+    expect(getComputedStyle(button).fontSize).toBe('0px')
+  } finally {
+    handle.dispose()
+  }
+})
