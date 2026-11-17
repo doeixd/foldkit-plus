@@ -87,8 +87,8 @@ export default [
     edits: [
       {
         file: '../src/style.ts',
-        find: 'const variants: Record<string, Record<string, StylePieces<Slots>>> = Object.create(null)',
-        replace: 'const variants: Record<string, Record<string, StylePieces<Slots>>> = {}',
+        find: 'const copy: Record<string, Record<string, StylePieces<Slots>>> = Object.create(null)',
+        replace: 'const copy: Record<string, Record<string, StylePieces<Slots>>> = {}',
       },
     ],
     tests,

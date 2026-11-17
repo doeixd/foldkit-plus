@@ -539,6 +539,55 @@ export interface SlotRecipe<
   readonly extend: <Base extends StylePieces<Slots> = {}>(
     patch: SlotRecipePatch<Slots, Variants> & { readonly base?: Base },
   ) => SlotRecipe<Slots, Variants, Known | PresentKeys<Base>>
+  /**
+   * The same recipe with axes and values it lacks: a new axis, or a new
+   * value on an axis it has. A value the axis already has throws
+   * (`mixins:recipe-value-exists`): adjusting one is `extend`'s. An added
+   * axis has no default; `extend` gives it one.
+   */
+  readonly add: <const More extends AxisNames>(
+    more: AddedAxes<Slots, Variants, More>,
+  ) => SlotRecipe<Slots, MergeAxes<Slots, Variants, More>, Known>
+}
+
+/** The axes and value names `add` was given; what each value holds is `StylePieces`. */
+type AxisNames = Readonly<Record<string, Readonly<Record<string, unknown>>>>
+
+/**
+ * What `add` takes. Mapped over the names being inferred, so each value is
+ * checked as `StylePieces` where it is written (a slot the contract lacks is
+ * an error there), and a value the axis already has is `never`.
+ */
+type AddedAxes<Slots, Variants, More> = {
+  readonly [A in keyof More]: {
+    readonly [V in keyof More[A]]: A extends keyof Variants
+      ? V extends keyof Variants[A]
+        ? never
+        : StylePieces<Slots>
+      : StylePieces<Slots>
+  }
+}
+
+/** `Variants` with what `add` was given: the axes of both, each with the values of both. */
+export type MergeAxes<Slots, Variants, More> = {
+  readonly [A in keyof Variants | keyof More]: {
+    readonly [
+      V in
+        | (A extends keyof Variants ? keyof Variants[A] : never)
+        | (A extends keyof More ? keyof More[A] : never)
+    ]: StylePieces<Slots>
+  }
+}
+
+const copyAxes = <Slots>(
+  axes: SlotRecipeVariants<Slots>,
+): Record<string, Record<string, StylePieces<Slots>>> => {
+  // No prototype: an axis or value named `constructor` is absent until given.
+  const copy: Record<string, Record<string, StylePieces<Slots>>> = Object.create(null)
+  for (const [axis, values] of Object.entries(axes)) {
+    copy[axis] = Object.assign(Object.create(null), values)
+  }
+  return copy
 }
 
 const mergePieces = <Slots>(
@@ -617,12 +666,9 @@ export const recipeFor =
       return pieces
     }
     const extend = (patch: SlotRecipePatch<Slots, Variants>) => {
-      const variants: Record<string, Record<string, StylePieces<Slots>>> = Object.create(null)
-      for (const [axis, values] of Object.entries(axes)) {
-        variants[axis] = { ...(values as Record<string, StylePieces<Slots>>) }
-      }
+      const variants = copyAxes(axes)
       for (const [axis, values] of Object.entries(patch.variants ?? {})) {
-        const target = variants[axis] ?? {}
+        const target = variants[axis] ?? Object.create(null)
         for (const [value, pieces] of Object.entries(
           (values ?? {}) as Record<string, StylePieces<Slots>>,
         )) {
@@ -639,9 +685,30 @@ export const recipeFor =
         compound: [...(def.compound ?? []), ...(patch.compound ?? [])],
       })
     }
+    const add = (more: SlotRecipeVariants<Slots>) => {
+      const variants = copyAxes(axes)
+      for (const [axis, values] of Object.entries(more)) {
+        const target = variants[axis] ?? Object.create(null)
+        for (const [value, pieces] of Object.entries(values)) {
+          if (Object.hasOwn(target, value)) {
+            throw new DiagnosticError({
+              source: 'mixins',
+              code: 'mixins:recipe-value-exists',
+              severity: 'error',
+              message: `Recipe axis "${axis}" already has the value "${value}"; adjust it with extend`,
+              details: { axis, value },
+            })
+          }
+          target[value] = pieces
+        }
+        variants[axis] = target
+      }
+      // Defining the result checks the added pieces' slots.
+      return recipeFor(slots)<SlotRecipeVariants<Slots>, Base>({ ...def, variants })
+    }
     // `select` merges the base first and removes nothing, so every base key
     // is present; `extend`'s merged base holds both bases' keys.
-    return Object.assign(select, { def: full, extend }) as unknown as SlotRecipe<
+    return Object.assign(select, { def: full, extend, add }) as unknown as SlotRecipe<
       Slots,
       Variants,
       PresentKeys<Base>

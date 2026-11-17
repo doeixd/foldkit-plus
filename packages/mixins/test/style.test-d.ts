@@ -168,6 +168,38 @@ Style.recipeFor(Pair)({ base: { missing: Style.class('m') } })
 Framed.extend({ base: { missing: Style.class('m') } })
 // @ts-expect-error a hidden slot is not styleable in a base either.
 Style.recipeFor(FieldSlots)({ base: { internals: Style.class('i') } })
+// `add` widens the selection by the values and axes it was given.
+const Loud = Toned.add({ tone: { loud: { root: Style.class('l') } } })
+Loud({ tone: 'loud' })
+Loud({ tone: 'quiet' })
+Loud({ tone: null })
+// @ts-expect-error a value neither the recipe nor `add` gave.
+Loud({ tone: 'shout' })
+const Sized = Loud.add({ size: { sm: { root: Style.class('s') } } })
+Sized({ tone: 'loud', size: 'sm' })
+// @ts-expect-error an axis neither the recipe nor `add` gave.
+Sized({ sizes: 'sm' })
+// The inline curried form infers too.
+Style.forSlots(LayerRoot)(
+  Toned.add({ tone: { loud: { root: Style.class('l') } } })({ tone: 'loud' }),
+)
+// `extend` adjusts and defaults an added value.
+Loud.extend({
+  variants: { tone: { loud: { root: Style.class('l2') } } },
+  defaults: { tone: 'loud' },
+})
+// @ts-expect-error a value the axis already has.
+Toned.add({ tone: { quiet: { root: Style.class('q2') } } })
+// @ts-expect-error a slot the contract lacks.
+Toned.add({ tone: { loud: { missing: Style.class('m') } } })
+// @ts-expect-error `extend` still refuses an axis the recipe lacks.
+Toned.extend({ variants: { tones: { quiet: { root: Style.class('q') } } } })
+// @ts-expect-error and, after `add`, a value neither gave.
+Loud.extend({ variants: { tone: { shout: { root: Style.class('s') } } } })
+// `add` keeps the slots the base surely holds.
+const addedRoot: StyleValue = Framed.add({ tone: { loud: { label: Style.class('l') } } })().root
+void addedRoot
+
 // A base given as a `StylePieces` value names no slot it surely holds.
 const loose: StylePieces<typeof Pair> = { root: Style.class('r') }
 // @ts-expect-error `loose.root` may be absent.

@@ -896,7 +896,12 @@ export const stylesheet: string = Style.stylesheet(
   `selection => RecipePieces`: every `base` slot is present (no `?? Style.empty` to reuse one), a
   variant's may be absent (`null` unsets a defaulted axis, the way to make a piece optional).
   `.extend(patch)` composes per slot and removes nothing (`mixins:unknown-slot` for a slot the
-  contract lacks); to leave a piece out of one use, destructure the selection. Leaving out a style
+  contract lacks) and admits only axes and values the recipe has, so a misspelt axis is a type
+  error. `.add({ tone: { brand: pieces }, width: { full: pieces } })` gives a recipe a value or
+  an axis it lacks and returns a recipe whose selection takes them (`Recipes.Button.add({ tone:
+  { brand } })({ tone: 'brand' })`); a value the axis has is a type error and
+  `mixins:recipe-value-exists`, and an added axis has no default until `.extend({ defaults })`.
+  To leave a piece out of one use, destructure the selection. Leaving out a style
   does not leave out the element. `Style.perItem(item => piece)` and
   `Style.stagger({ stepMs })` need the item passed to `attrs`. `Style.forCapability(Slots)(cap,
   piece)` styles every slot whose capability satisfies `cap`.

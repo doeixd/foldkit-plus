@@ -324,7 +324,7 @@ one.
 | `Style.when(condition, piece)` | a boolean known at authoring time |
 | `Style.whenInput(predicate, piece)` | a condition read from the view input at render time |
 | `Style.recipe({ base, variants, defaults, compound })` | one slot: returns `selection => StyleValue`; every field is optional, so a recipe may be only its base |
-| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => RecipePieces`, in which every `base` slot is present and a variant's slot may be absent; `null` unsets a defaulted axis, which is how a recipe makes a piece optional; `.extend(patch)` composes per slot, removes nothing, and refuses a slot the contract lacks |
+| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => RecipePieces`, in which every `base` slot is present and a variant's slot may be absent; `null` unsets a defaulted axis, which is how a recipe makes a piece optional; `.extend(patch)` composes per slot, removes nothing, and refuses a slot the contract lacks; `.add(more)` gives it an axis or a value it lacks ([A look a shipped recipe lacks](#a-look-a-shipped-recipe-lacks)) |
 | `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` inline and the `calc` delay as a rule |
 | `Style.forCapability(Slots)(capability, piece)` | one piece for every public slot whose capability satisfies it |
 | `Style.slots(pieces, options?)` / `Style.slot(slotOptions, piece)` | an application's own Slots declared by their style: `{ slots, style }` (see [An application's own look](#an-applications-own-look)) |
@@ -417,6 +417,59 @@ Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule p
   strings `pseudo` and `nest` take. Each takes a selector list: every top-level selector is
   scoped to the class (`:is(a, b)` is not split), and a selector that writes `&` places the class
   itself (`nest('[data-open] &')`).
+
+### A look a shipped recipe lacks
+
+A recipe from a design system has the axes and values its author chose. An application changes
+it in two ways, and neither forks it:
+
+- `.extend(patch)` adjusts what the recipe **has**: more pieces on its base or on one of its
+  values, another default, another compound. An axis or a value the recipe lacks is a type
+  error there, so a misspelt axis cannot become a new one.
+- `.add(more)` gives it what it **lacks**: a value on an axis it has, or a new axis. A value
+  the axis already has is refused, in the type and with `mixins:recipe-value-exists`.
+
+Both return a recipe, so `.extend`, `.add` and a `null` selection work on the result, and
+neither changes the recipe it was called on.
+
+```ts standalone
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+
+const ButtonSlots = Slots.define({
+  button: Slot.make({ capability: Capability.Interactive }),
+})
+
+// What a design system ships.
+const Button = Style.recipeFor(ButtonSlots)({
+  base: { button: Style.self({ borderRadius: '6px' }) },
+  variants: {
+    tone: {
+      accent: { button: Style.self({ background: 'royalblue', color: 'white' }) },
+      neutral: { button: Style.self({ background: 'gainsboro' }) },
+    },
+  },
+  defaults: { tone: 'accent' },
+})
+
+// What an application adds: a tone the recipe has no word for, and a new axis.
+const AppButton = Button.add({
+  tone: { brand: { button: Style.self({ background: 'rebeccapurple', color: 'white' }) } },
+  width: { full: { button: Style.self({ inlineSize: '100%' }) } },
+})
+
+export const Brand = Style.forSlots(ButtonSlots)(AppButton({ tone: 'brand', width: 'full' }))
+export const Accent = Style.forSlots(ButtonSlots)(AppButton())
+
+// @ts-expect-error `accent` is the recipe's own: adjust it with `extend`.
+Button.add({ tone: { accent: { button: Style.self({ background: 'navy' }) } } })
+// @ts-expect-error `extend` adds no axis.
+Button.extend({ variants: { width: { full: { button: Style.self({ inlineSize: '100%' }) } } } })
+```
+
+An added axis has no default: `AppButton()` above is the recipe as shipped. Give it one with
+`AppButton.extend({ defaults: { width: 'full' } })`. The values are style pieces like any
+recipe's, so a module that calls `add` is still one the build can
+[ship as data](#style-modules-shipped-as-data).
 
 ### Themes as typed knobs
 

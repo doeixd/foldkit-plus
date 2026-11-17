@@ -26,6 +26,7 @@ export type DiagnosticCode =
   | 'mixins:dead-conditional-rule'
   | 'mixins:unknown-key'
   | 'mixins:key-conflict'
+  | 'mixins:recipe-value-exists'
   | 'style:duplicate-layer'
   | 'style:conflicting-layer-order'
   | 'style:unlayered-rule'
