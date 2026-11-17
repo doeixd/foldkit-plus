@@ -27,9 +27,10 @@ type Cases = Readonly<Record<string, Schema.Struct.Fields>>
 
 /**
  * A child as the composition records it, for its placed type. `Pending` while
- * the bundle needs `args` or `onOut` and none has been given yet.
+ * the bundle needs `args` or `onOut` and none has been given yet. Exported
+ * so a module that exports a composition can name its type (TS4023).
  */
-interface Child<
+export interface Child<
   B extends AnyBundle,
   Kind extends 'one' | 'each',
   OutStepMessage,
