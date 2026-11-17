@@ -33,6 +33,9 @@ export interface Family {
   readonly cards: ReadonlyArray<Card>
 }
 
+/** Where the family's README is served: a guide of the primitives subsite, not a page of its own at the root. */
+export const guideOf = (family: string) => `/primitives/guides/${family}`
+
 /** The family's import path: its subpath of the package. */
 export const importPath = (family: string) => `foldkit-primitives/${family}`
 

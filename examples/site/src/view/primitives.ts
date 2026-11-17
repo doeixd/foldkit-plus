@@ -5,7 +5,7 @@
 import type { Html } from 'foldkit/html'
 import { SSR } from 'foldkit-ssr/client'
 
-import { families, importPath, type Card, type Family } from '../gallery/primitives.js'
+import { families, guideOf, importPath, type Card, type Family } from '../gallery/primitives.js'
 import type { Library } from '../library.js'
 import { type Model } from '../main.js'
 import { examples, type PrimitiveExample } from '../snippets/primitives.js'
@@ -41,7 +41,7 @@ const card = (family: Family, entry: Card, slots: Slots, h: H): Html =>
   h.li(
     [],
     [
-      h.a(slots.card.attrs([h.Href(`${GUIDE}/${family.id}`)]), [
+      h.a(slots.card.attrs([h.Href(guideOf(family.id))]), [
         h.h3(slots.cardTitle.attrs(), [
           entry.name,
           h.span(slots.cardArrow.attrs([h.AriaHidden(true)]), ['→']),
@@ -78,7 +78,7 @@ const familySection = (model: Model, family: Family, library: Library, slots: Sl
       h.p(slots.shelfAbout.attrs(), [
         ...withCode(h, family.about),
         ' ',
-        h.a([h.Href(`${GUIDE}/${family.id}`)], [`${importPath(family.id)} guide →`]),
+        h.a([h.Href(guideOf(family.id))], [`${importPath(family.id)} guide →`]),
       ]),
     ]),
     ...examples

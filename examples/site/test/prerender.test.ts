@@ -238,8 +238,8 @@ describe('the generated site', () => {
     expect(hrefs(ssr, 'nav[aria-label="Documentation"] [aria-current="location"]')).toEqual([
       '/ssr/api/ssr',
     ])
-    // The guides that name it are listed under it.
-    expect(hrefs(ssr, '.mentions a')).toEqual(expect.arrayContaining(['/ssr/guides/a-first-page']))
+    // The guides that name it are listed under it: "A first page" is a section of the package's first page now.
+    expect(hrefs(ssr, '.mentions a')).toEqual(expect.arrayContaining(['/ssr']))
     // Before the members, where a reader looking for it at work stops first.
     expect(
       Array.from(ssr.querySelectorAll('article h2[id]'), heading => heading.id).slice(0, 2),
@@ -307,7 +307,7 @@ describe('the generated site', () => {
       Array.from(gallery.querySelectorAll('main section[id]'), family =>
         hrefs(family, 'ul > li > a'),
       ),
-    ).toEqual(families.map(family => family.cards.map(() => `/primitives/${family.id}`)))
+    ).toEqual(families.map(family => family.cards.map(() => `/primitives/guides/${family.id}`)))
     expect(hrefs(gallery, 'nav[aria-label="Site"] [aria-current="page"]')).toEqual([
       '/primitives/gallery',
     ])
