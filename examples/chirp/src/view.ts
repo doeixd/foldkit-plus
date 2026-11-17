@@ -380,6 +380,7 @@ const PageView = SlotView.forMessages<Message>()
           demo: chirpDemo,
           more: [`You are signed in as ${NAMES[model.me]}.`],
           links: [{ label: 'Start again', href: `/?reset&as=${model.me}` }],
+          reserve: false,
         },
         h,
       ),

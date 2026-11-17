@@ -76,6 +76,8 @@ export const ChirpPage = slots(
         position: 'sticky',
         top: '0',
         height: '100dvh',
+        // Only a window too short for the links scrolls the nav; it never moves with the posts.
+        overflowY: 'auto',
         width: '16rem',
         display: 'flex',
         flexDirection: 'column',
@@ -151,8 +153,18 @@ export const ChirpPage = slots(
 
     // The column of posts.
     main: [
-      { width: '37.5rem', maxWidth: '100%', minHeight: '100dvh', borderInline: rule },
-      Style.media(NARROW, { width: '100%', borderInline: '0', paddingBottom: '4rem' }),
+      // The room the demo guide's pill needs at the end of the posts is here and not the
+      // guide's own `body::after` block: that block makes the document taller than the
+      // frame, and the sticky nav, bound by the frame, slid up by the difference at the end
+      // of the scroll. Below NARROW the tab bar's 4rem comes first.
+      {
+        width: '37.5rem',
+        maxWidth: '100%',
+        minHeight: '100dvh',
+        paddingBottom: '4.25rem',
+        borderInline: rule,
+      },
+      Style.media(NARROW, { width: '100%', borderInline: '0', paddingBottom: '8.25rem' }),
     ],
     header: [
       {

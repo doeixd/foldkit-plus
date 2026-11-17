@@ -136,6 +136,21 @@ it("holds the Chirp button's word in its middle, both ways", async () => {
   expect(Math.abs(y)).toBeLessThanOrEqual(0.5)
 })
 
+it('keeps the left nav at the top of the window to the end of the posts', async () => {
+  await mount('/')
+  const nav = await vi.waitUntil(() => document.querySelector('nav'), answered)
+  await vi.waitUntil(() => document.querySelectorAll('article').length > 3, answered)
+  const room = document.documentElement.scrollHeight - innerHeight
+  // The posts must outrun the window, or no scroll shows the nav moving.
+  expect(room).toBeGreaterThan(100)
+  window.scrollTo(0, room)
+  expect(scrollY).toBeGreaterThan(100)
+  // Within a pixel: the page's last scroll position rounds to a whole pixel.
+  expect(Math.abs(nav.getBoundingClientRect().top)).toBeLessThanOrEqual(1)
+  expect(nav.scrollHeight).toBeLessThanOrEqual(nav.clientHeight)
+  window.scrollTo(0, 0)
+})
+
 it('dims the compose button while it reads aria-disabled, and keeps hover off it', async () => {
   await mount('/')
   const submit = await vi.waitUntil(
