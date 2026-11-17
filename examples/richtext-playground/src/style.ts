@@ -113,7 +113,7 @@ const writing = Style.compose(
     outline: 'none',
     caretColor: t.accent.default,
   }),
-  // Code is read left to right whatever the page's direction.
+  // physical: code is read left to right whatever the page's direction
   Style.nest('pre', { direction: 'ltr', textAlign: 'left' }),
   Style.nest('[contenteditable="true"] > * + *', { marginBlockStart: t.space.sm }),
   // An empty line is drawn with a `<br>` (foldkit-richtext-dom's filler), so it has a line of its

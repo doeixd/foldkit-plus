@@ -276,11 +276,11 @@ const FrameDefaults = Style.forSlots(BuilderSlots)(
       Style.nest('&:not(:popover-open)', { display: 'none !important' }),
     ),
     nodeAction: Style.media('(pointer: coarse)', { minBlockSize: '2.75rem' }),
-    // Physical `top` and `left`: the pointer's coordinates are physical, whatever the direction.
     dragPreview: Style.compose(
       Style.self({
         position: 'fixed',
         top: '0',
+        // physical: the preview is moved to the pointer's coordinates, whatever the direction
         left: '0',
         margin: '0',
         padding: '0',

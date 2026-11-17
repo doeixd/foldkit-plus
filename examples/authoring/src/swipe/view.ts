@@ -156,9 +156,12 @@ export const SwipeStyle = Style.forSlots(SwipeSlots)(
         transitionProperty: 'transform',
         transitionDuration: `calc(${t.motion.fast} * ${t.knob.travel})`,
       }),
+      // physical: this row is drawn left to right only (`rtl: false` in its keys)
       Style.pseudo('[data-swipe="start"]', { transform: `translateX(${ACTION_SHARE * 100}%)` }),
+      // physical: as above
       Style.pseudo('[data-swipe="end"]', { transform: `translateX(-${ACTION_SHARE * 100}%)` }),
       Style.pseudo('[data-dragging]', {
+        // physical: the pointer's travel in pixels
         transform: 'translateX(var(--swipe-offset))',
         transitionDuration: '0s',
       }),
