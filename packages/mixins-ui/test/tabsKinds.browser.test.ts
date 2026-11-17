@@ -335,8 +335,11 @@ test('a tint pill keeps the accent tint and no shadow', async () => {
     const pill = getComputedStyle(indicator())
     expect(pill.boxShadow).toBe('none')
     // The accent's tint: painted, in the accent's hue (265), not the raised white.
-    expect(pill.backgroundColor).toMatch(/^oklch\([\d.]+ [\d.]+ 265\)$/)
-    expect(pill.backgroundColor).not.toBe('oklch(1 0 265)')
+    // The tint is a mix, written in OKLab: its hue is the angle of its a and b.
+    const [, a, b] = /^oklab\([\d.]+ (-?[\d.e-]+) (-?[\d.e-]+)\)$/.exec(pill.backgroundColor)!
+    const hue = ((Math.atan2(Number(b), Number(a)) * 180) / Math.PI + 360) % 360
+    expect(Math.abs(hue - 265)).toBeLessThan(2)
+    expect(Math.hypot(Number(a), Number(b))).toBeGreaterThan(0.01)
   } finally {
     handle.dispose()
   }

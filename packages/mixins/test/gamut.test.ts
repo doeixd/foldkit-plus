@@ -6,7 +6,8 @@
  */
 import { describe, expect, test } from 'vitest'
 import { evaluate } from '../src/theme/cssMath.js'
-import { anyHue, boundaryVariables, bounded, gamut, hue } from '../src/theme/gamut.js'
+import { anyHue, boundaryVariables, bounded, fitMix, gamut, hue } from '../src/theme/gamut.js'
+import { raisedSurface } from '../src/theme/raise.js'
 import { standard, unsetOf, variables, make } from '../src/theme/knobs.js'
 
 /** Every variable the browser would hold for a page whose accent knob is at `accent`. */
@@ -110,5 +111,39 @@ describe('the gamut boundary', () => {
     expect(written['gamut-chart-2-h']).toBe('445')
     expect(written['gamut-shadow-h']).toBe('30')
     expect(boundaryVariables({ density: '1' })).toEqual({})
+  })
+})
+
+describe('a color whose hue is not written', () => {
+  // Chrome 157 reads no hue from a color of little chroma that is not OKLCH
+  // (a mix, a hex grey): `oklch(from <it> l c h)` came out on hue 0, and the
+  // accent's tint painted pink. Bundled Chromium still reads the hue, so no
+  // browser test here can see it: these hold the text instead.
+  const mix = 'color-mix(in oklab, var(--fk-surface-base) 85%, var(--fk-accent-default))'
+
+  test('a fitted mix scales a and b together, and reads no h', () => {
+    const written = fitMix(mix, 'accent')
+    expect(written.startsWith(`oklab(from ${mix} l calc(a * `)).toBe(true)
+    const [, a, b] = /^oklab\(from .+? l calc\(a \* (.+)\) calc\(b \* (.+)\) \/ alpha\)$/.exec(
+      written,
+    )!
+    expect(a).toBe(b)
+    expect(written).not.toMatch(/\bh\b(?!ypot)/)
+  })
+
+  test('a fitted mix keeps a chroma inside the boundary and cuts one outside to it', () => {
+    const [, kept] = /calc\(a \* (.+)\) calc\(b/.exec(fitMix(mix, 'accent'))!
+    const scope = scopeOf(knobsAt(235))
+    const boundary = evaluate(bounded('accent'), { ...scope, l: 0.93, c: 1 })
+    expect(evaluate(kept!, { ...scope, l: 0.93, a: -0.0098, b: -0.0141 })).toBe(1)
+    const cut = evaluate(kept!, { ...scope, l: 0.93, a: -0.3, b: -0.4 })
+    expect(cut * 0.5).toBeCloseTo(boundary, 6)
+  })
+
+  test('a raised surface keeps its base’s a and b, and reads no h', () => {
+    const written = raisedSurface()
+    expect(written).toContain('oklab(from var(--fk-surface-base)')
+    expect(written).not.toContain('oklch(')
+    expect(written).not.toMatch(/ c h\)/)
   })
 })
