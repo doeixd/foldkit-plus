@@ -152,12 +152,22 @@ const LineTabsView = (
       ariaLabel: 'Sections',
       toView: render => {
         const resolved = Tabs.resolve(render, [LineTabsStyle.mixin], { input: undefined, h })
-        return h.div(resolved.tablist, [
-          ...resolved.tabs.map(tab => h.button(tab.tab, [lineTabs[tab.index]?.label ?? tab.value])),
-          ...resolved.tabs
-            .filter(tab => tab.index === resolved.activeIndex)
-            .map(tab => h.div(tab.panel, [tabPanels[tab.value]])),
-        ])
+        // The panel stands under the tab list, not in it: in the list's flex row it took what the tabs left,
+        // and a wide font at a phone's width made it a column too narrow for its words.
+        return h.div(
+          [],
+          [
+            h.div(
+              resolved.tablist,
+              resolved.tabs.map(tab =>
+                h.button(tab.tab, [lineTabs[tab.index]?.label ?? tab.value]),
+              ),
+            ),
+            ...resolved.tabs
+              .filter(tab => tab.index === resolved.activeIndex)
+              .map(tab => h.div(tab.panel, [tabPanels[tab.value]])),
+          ],
+        )
       },
     },
     toParentMessage: message => Message.SectionsTabs({ message }),
