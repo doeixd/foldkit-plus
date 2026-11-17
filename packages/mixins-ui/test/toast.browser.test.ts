@@ -245,20 +245,23 @@ test('past max the oldest waits, unseen and out of reach', async () => {
 })
 
 test('the pointer holds the countdown, and letting go goes on from what was left', async () => {
-  const { handle, send } = mount({ duration: 1200 }, { s0: show('Saved') })
+  // Far longer than the hover takes to land: on a slow runner it took over 500ms, and a
+  // toast that had run out by then was detached under the locator.
+  const { handle, send } = mount({ duration: 4000 }, { s0: show('Saved') })
   try {
     await away()
     await send('s0')
     await vi.waitFor(() => expect(card(0)).not.toBeNull())
-    await sleep(700)
+    await sleep(800)
     await userEvent.hover(card(0)!)
-    await sleep(1500)
+    // Held past the whole countdown.
+    await sleep(4500)
     expect(card(0)).not.toBeNull()
     const left = performance.now()
     await away()
-    await vi.waitFor(() => expect(card(0)).toBeNull(), { timeout: 3000, interval: 20 })
-    // About 500ms were left; a countdown begun afresh would take 1200.
-    expect(performance.now() - left).toBeLessThan(1100)
+    await vi.waitFor(() => expect(card(0)).toBeNull(), { timeout: 6000, interval: 20 })
+    // About 3000ms were left; a countdown begun afresh would take 4000.
+    expect(performance.now() - left).toBeLessThan(3800)
   } finally {
     handle.dispose()
   }
