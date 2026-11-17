@@ -88,14 +88,29 @@ const load = async path => {
   return { mutations: checked, problems }
 }
 
-/** Every spec in the repository, as git knows them. */
+/**
+ * Every spec in the repository: those git tracks and those it has not been
+ * told of yet. Tracked files alone left a spec unchecked until its first
+ * commit, which is when its anchors are newest and least read.
+ */
 const everySpec = () => {
-  const listed = spawnSync('git', ['ls-files', '*.mutations.ts', '*.mutations.mjs'], {
-    cwd: root,
-    encoding: 'utf8',
-  })
+  const listed = spawnSync(
+    'git',
+    [
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '*.mutations.ts',
+      '*.mutations.mjs',
+    ],
+    { cwd: root, encoding: 'utf8' },
+  )
   if (listed.status !== 0) fail(`git ls-files failed:\n${listed.stderr}`)
-  return listed.stdout.split('\n').filter(Boolean)
+  // A tracked spec deleted and not yet committed is listed still.
+  return [...new Set(listed.stdout.split('\n').filter(Boolean))].filter(path =>
+    existsSync(resolve(root, path)),
+  )
 }
 
 /**
