@@ -231,3 +231,29 @@ describe('Calendar.inputs', () => {
     expect(Calendar.inputs(selection, [], { h }).maybeSelectedDate).toEqual(expected)
   })
 })
+
+describe('Calendar.rangeOf and datesOf', () => {
+  it.each([
+    [
+      'a whole range: its ends',
+      range(some(10), some(13)),
+      Option.some({ start: day(10), end: day(13) }),
+    ],
+    ['a range waiting for its end: nothing', range(some(10), none), Option.none()],
+    ['a Single: nothing', single(some(10)), Option.none()],
+    ['a Multiple: nothing', multiple(3, 17), Option.none()],
+  ] as const)('rangeOf gives %s', (_, selection, expected) => {
+    expect(Calendar.rangeOf(selection)).toEqual(expected)
+  })
+
+  it.each([
+    ['a Single: its day', single(some(10)), [10]],
+    ['nothing chosen: none', single(none), []],
+    ['a whole range: every day from start to end', range(some(10), some(13)), [10, 11, 12, 13]],
+    ['a range of one day: that day once', range(some(10), some(10)), [10]],
+    ['a range waiting for its end: its start', range(some(10), none), [10]],
+    ['a Multiple: its days', multiple(3, 17), [3, 17]],
+  ] as const)('datesOf gives %s', (_, selection, dates) => {
+    expect(Calendar.datesOf(selection)).toEqual(dates.map(day))
+  })
+})

@@ -7,7 +7,7 @@ import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
-import { isComplete, picked, type Selection } from './calendar.js'
+import { isComplete, picked, type Selection } from './calendar/selection.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 import { defaultToView, type DatePickerRenderInfo } from './datePickerView.js'
 

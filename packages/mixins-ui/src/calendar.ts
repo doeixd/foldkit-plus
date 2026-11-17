@@ -10,7 +10,6 @@ import type {
   YearCell,
   YearsModeAttributes,
 } from '@foldkit/ui/calendar'
-import { focusDate } from '@foldkit/ui/calendar'
 import {
   Attr,
   Behavior,
@@ -22,12 +21,33 @@ import {
   type NamedStyle,
   type SlotAttributes,
 } from 'foldkit-mixins'
-import { Array as Arr, Match, Option, Schema } from 'effect'
+import { Array as Arr, Match, Option } from 'effect'
 import * as Dates from 'foldkit/calendar'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { defineTaggedUnion } from 'foldkit/schema'
+import { Selection, isSame, selectedDate } from './calendar/selection.js'
+import { Shown, firstOf } from './calendar/shown.js'
 import { ReadingKeys } from './direction.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
+
+// The selection and the month shown are modules of their own, so the
+// Calendar's state reads them without importing this adapter.
+export {
+  Selection,
+  datesOf,
+  day,
+  empty,
+  firstDate,
+  isComplete,
+  isSame,
+  lastDays,
+  monthOf,
+  nextDays,
+  picked,
+  rangeOf,
+  selectedDate,
+  type DateRange,
+} from './calendar/selection.js'
+export { Shown, alongside, show } from './calendar/shown.js'
 
 /**
  * Calendar is a nested Submodel whose shape depends on `model.viewMode`. The
@@ -232,17 +252,6 @@ export const readingKeys = Behavior.forSlots(CalendarSlots)<unknown, never>(
   { name: 'CalendarReadingKeys' },
 ).mixin
 
-/**
- * A month the caption's dropdowns move to: a month of the year shown, or the
- * month shown in another year. Each says only what changed, so two changes
- * before a redraw both land; `show` reads the rest from the Model.
- */
-export const Shown = defineTaggedUnion({
-  Month: { month: Schema.Int },
-  Year: { year: Schema.Int },
-})
-export type Shown = typeof Shown.Type
-
 /** The month and year selects in place of the heading. */
 export interface Dropdowns<Message> {
   /** The calendar's Model, for its names, the month shown and its bounds. */
@@ -303,7 +312,6 @@ export const isoWeek = (date: Dates.CalendarDate): number => {
 
 const dayKey = (date: Dates.CalendarDate): string => `${date.year}-${date.month}-${date.day}`
 
-const firstOf = (year: number, month: number) => Dates.make(year, month, 1)
 const lastOf = (year: number, month: number) =>
   Dates.make(year, month, Dates.daysInMonth(year, month))
 
@@ -570,173 +578,6 @@ export const draw = <Message>(calendar: ResolvedCalendar<Message>, h: HtmlBuilde
         ),
       ]),
   })
-
-const MaybeDate = Schema.OptionFromNullOr(Dates.CalendarDate)
-
-/**
- * What the application has chosen on a Calendar: one day, a start and an end,
- * or any number of days. The selection is the application's; the Calendar
- * keeps only the month shown and the focus. Fold each `SelectedDate` through
- * `picked`, and draw with `toView(selection, …)`. The ends are stored as
- * `null`, so a selection round-trips through JSON.
- */
-export const Selection = defineTaggedUnion({
-  Single: { date: MaybeDate },
-  Range: { start: MaybeDate, end: MaybeDate },
-  Multiple: { dates: Schema.Array(Dates.CalendarDate) },
-})
-export type Selection = typeof Selection.Type
-
-const emptyOf = {
-  Single: Selection.Single({ date: Option.none() }),
-  Range: Selection.Range({ start: Option.none(), end: Option.none() }),
-  Multiple: Selection.Multiple({ dates: [] }),
-}
-
-/** A selection of `mode` with nothing chosen. */
-export const empty = (mode: Selection['_tag']): Selection => emptyOf[mode]
-
-/**
- * The selection after a day is picked. Single takes the day. Range takes it
- * as the other end of a start waiting for one, the earlier of the two
- * becoming the start; otherwise the day starts a new range. Multiple adds the
- * day, or removes it when it is chosen already, keeping the days in order.
- */
-export const picked = (selection: Selection, date: Dates.CalendarDate): Selection =>
-  Selection.match(selection, {
-    Single: () => Selection.Single({ date: Option.some(date) }),
-    Range: ({ start, end }) =>
-      Option.match(
-        Option.filter(start, () => Option.isNone(end)),
-        {
-          onNone: () => Selection.Range({ start: Option.some(date), end: Option.none() }),
-          onSome: from =>
-            Selection.Range({
-              start: Option.some(Dates.min(from, date)),
-              end: Option.some(Dates.max(from, date)),
-            }),
-        },
-      ),
-    Multiple: ({ dates }) =>
-      Selection.Multiple({
-        dates: Arr.some(dates, Dates.isEqual(date))
-          ? dates.filter(chosen => !Dates.isEqual(chosen, date))
-          : Arr.sort([...dates, date], Dates.Order),
-      }),
-  })
-
-/**
- * Whether the selection is whole: a day chosen, or both ends of a range. A
- * Multiple selection never is, so a picker showing one stays open until it is
- * dismissed.
- */
-export const isComplete = (selection: Selection): boolean =>
-  Selection.match(selection, {
-    Single: ({ date }) => Option.isSome(date),
-    Range: ({ start, end }) => Option.isSome(start) && Option.isSome(end),
-    Multiple: () => false,
-  })
-
-/**
- * The one day a Single selection holds, for upstream's `maybeSelectedDate`:
- * a DatePicker shows it on its trigger and submits it under `name`. Nothing
- * for a Range or Multiple selection, whose days `toView` marks.
- */
-export const selectedDate = (selection: Selection): Option.Option<Dates.CalendarDate> =>
-  Selection.match(selection, {
-    Single: ({ date }) => date,
-    Range: () => Option.none(),
-    Multiple: () => Option.none(),
-  })
-
-/** The selection's first day: where a calendar shows it from, as after a preset. */
-export const firstDate = (selection: Selection): Option.Option<Dates.CalendarDate> =>
-  Selection.match(selection, {
-    Single: ({ date }) => date,
-    Range: ({ start }) => start,
-    Multiple: ({ dates }) => Arr.head(dates),
-  })
-
-const sameDay = Option.makeEquivalence(Dates.Equivalence)
-
-/** Whether two selections hold the same days the same way. */
-export const isSame = (left: Selection, right: Selection): boolean =>
-  Selection.match(left, {
-    Single: ({ date }) => right._tag === 'Single' && sameDay(date, right.date),
-    Range: ({ start, end }) =>
-      right._tag === 'Range' && sameDay(start, right.start) && sameDay(end, right.end),
-    Multiple: ({ dates }) =>
-      right._tag === 'Multiple' &&
-      dates.length === right.dates.length &&
-      dates.every((date, index) => Option.exists(Arr.get(right.dates, index), Dates.isEqual(date))),
-  })
-
-/** A Range of the `days` days that end on `today`: "Last 7 days" is `lastDays(today, 7)`. */
-export const lastDays = (today: Dates.CalendarDate, days: number): Selection =>
-  Selection.Range({
-    start: Option.some(Dates.subtractDays(today, Math.max(1, days) - 1)),
-    end: Option.some(today),
-  })
-
-/** A Range of the `days` days that start on `today`. */
-export const nextDays = (today: Dates.CalendarDate, days: number): Selection =>
-  Selection.Range({
-    start: Option.some(today),
-    end: Option.some(Dates.addDays(today, Math.max(1, days) - 1)),
-  })
-
-/** A Range of the whole month `today` is in, moved by `offset` months (`-1` for last month). */
-export const monthOf = (today: Dates.CalendarDate, offset = 0): Selection => {
-  const first = Dates.addMonths(Dates.firstOfMonth(today), offset)
-  return Selection.Range({
-    start: Option.some(first),
-    end: Option.some(Dates.lastOfMonth(first)),
-  })
-}
-
-/** A Single selection of `date`, as "Today" or "In a week" choose. */
-export const day = (date: Dates.CalendarDate): Selection =>
-  Selection.Single({ date: Option.some(date) })
-
-/**
- * The calendar showing `shown`: another month of the year shown, or the
- * month shown in another year. The focused day keeps its number where the
- * month has it, and stays inside the bounds. The same Model when that month
- * is already shown.
- */
-export const show = (model: CalendarModel, shown: Shown): CalendarModel => {
-  const [year, month] = Shown.match(shown, {
-    Month: ({ month }) => [model.viewYear, month] as const,
-    Year: ({ year }) => [year, model.viewMonth] as const,
-  })
-  if (year === model.viewYear && month === model.viewMonth) return model
-  const focused = Option.getOrElse(model.maybeFocusedDate, () => firstOf(year, month))
-  const wanted = Dates.make(year, month, Math.min(focused.day, Dates.daysInMonth(year, month)))
-  const atLeast = Option.match(model.maybeMinDate, {
-    onNone: () => wanted,
-    onSome: min => Dates.max(wanted, min),
-  })
-  const within = Option.match(model.maybeMaxDate, {
-    onNone: () => atLeast,
-    onSome: max => Dates.min(atLeast, max),
-  })
-  return focusDate(model, within)
-}
-
-/**
- * `model` showing the month `offset` months from the one `other` shows, for
- * two months side by side: after either changes its month, set the other
- * from it (the second with `1`, the first with `-1`). The same Model when it
- * already shows that month.
- */
-export const alongside = (
-  model: CalendarModel,
-  other: CalendarModel,
-  offset: number,
-): CalendarModel => {
-  const month = Dates.addMonths(firstOf(other.viewYear, other.viewMonth), offset)
-  return show(show(model, Shown.Year({ year: month.year })), Shown.Month({ month: month.month }))
-}
 
 interface Mark<Message> {
   readonly chosen: boolean

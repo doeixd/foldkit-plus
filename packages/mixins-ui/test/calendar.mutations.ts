@@ -6,6 +6,8 @@ const browser = ['packages/mixins-ui/test/calendar.browser.test.ts']
 const unit = ['packages/mixins-ui/test/calendar.test.ts']
 const recipe = '../src/recipes/calendar.ts'
 const adapter = '../src/calendar.ts'
+const selection = '../src/calendar/selection.ts'
+const shown = '../src/calendar/shown.ts'
 
 export default [
   {
@@ -164,7 +166,7 @@ export default [
     name: 'show drops the focused day for the first',
     edits: [
       {
-        file: adapter,
+        file: shown,
         find: 'Math.min(focused.day, Dates.daysInMonth(year, month))',
         replace: '1',
       },
@@ -175,7 +177,7 @@ export default [
     name: 'show leaves the bounds',
     edits: [
       {
-        file: adapter,
+        file: shown,
         find: 'onSome: min => Dates.max(wanted, min),',
         replace: 'onSome: () => wanted,',
       },
@@ -186,7 +188,7 @@ export default [
     name: 'show makes a new Model for the month shown',
     edits: [
       {
-        file: adapter,
+        file: shown,
         find: 'if (year === model.viewYear && month === model.viewMonth) return model',
         replace: '',
       },
@@ -233,7 +235,7 @@ export default [
     name: 'lastDays counts one day more',
     edits: [
       {
-        file: adapter,
+        file: selection,
         find: 'start: Option.some(Dates.subtractDays(today, Math.max(1, days) - 1)),',
         replace: 'start: Option.some(Dates.subtractDays(today, Math.max(1, days))),',
       },
@@ -255,7 +257,7 @@ export default [
     name: 'a range of other days is the same',
     edits: [
       {
-        file: adapter,
+        file: selection,
         find: "right._tag === 'Range' && sameDay(start, right.start) && sameDay(end, right.end),",
         replace: "right._tag === 'Range',",
       },
@@ -424,5 +426,32 @@ export default [
     name: 'a dot sits off center',
     edits: [{ file: recipe, find: "            marginInline: 'auto',\n", replace: '' }],
     tests: ['packages/mixins-ui/test/calendarLook.browser.test.ts'],
+  },
+  {
+    name: 'a range waiting for its end reads as a range',
+    edits: [
+      {
+        file: selection,
+        find: 'Range: ({ start, end }) => Option.all({ start, end }),',
+        replace: 'Range: ({ start }) => Option.map(start, from => ({ start: from, end: from })),',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/calendarSelection.test.ts'],
+  },
+  {
+    name: 'a range’s days stop a day short',
+    edits: [
+      {
+        file: selection,
+        find: 'Dates.daysUntil(from, to) + 1',
+        replace: 'Dates.daysUntil(from, to)',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/calendarSelection.test.ts'],
+  },
+  {
+    name: 'a range waiting for its end holds no day',
+    edits: [{ file: selection, find: 'onNone: () => [from],', replace: 'onNone: () => [],' }],
+    tests: ['packages/mixins-ui/test/calendarSelection.test.ts'],
   },
 ]
