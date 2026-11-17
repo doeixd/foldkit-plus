@@ -338,6 +338,11 @@ export const toView =
   (render: ComboboxRenderInfo): Html =>
     drawResolved(resolve(render, mixins, context))
 
+// The three shipped choices, a file each, so a page keeps only the one it reads.
+export { many } from './choice/many.js'
+export { one } from './choice/one.js'
+export { text } from './choice/text.js'
+
 const chosen = '[aria-selected="true"]'
 
 /**
