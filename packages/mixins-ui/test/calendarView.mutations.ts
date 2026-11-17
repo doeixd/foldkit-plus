@@ -8,6 +8,7 @@ const viewTests = ['packages/mixins-ui/test/calendarView.test.ts']
 const browser = ['packages/mixins-ui/test/calendarView.browser.test.ts']
 const state = '../src/calendar/state.ts'
 const view = '../src/calendar/view.ts'
+const layout = '../src/calendar/layout.ts'
 const bundle = '../src/bundles/calendar.ts'
 const adapter = '../src/calendar.ts'
 const recipe = '../src/recipes/calendar.ts'
@@ -197,18 +198,24 @@ export default [
     '({ model })',
     stateTests,
   ),
-  one('the group has no name', view, 'h.AriaLabel(options.label),', "h.AriaLabel(''),", viewTests),
-  one('two months are marked as one', view, "two ? '2' : '1'", "'1'", viewTests),
+  one(
+    'the group has no name',
+    layout,
+    'h.AriaLabel(options.label),',
+    "h.AriaLabel(''),",
+    viewTests,
+  ),
+  one('two months are marked as one', layout, 'String(options.months.length)', "'1'", viewTests),
   one(
     'a word does not reach upstream',
-    view,
+    layout,
     '  previousMonthLabel: text.previousMonth,\n',
     '',
     viewTests,
   ),
   one(
     'the day grid keeps upstream’s name',
-    view,
+    layout,
     '  toDaysGridLabel: month => fill(text.daysGrid, { month }),\n',
     '',
     viewTests,
@@ -236,45 +243,63 @@ export default [
   ),
   one(
     'the caption’s selects keep their English names',
-    view,
+    layout,
     '          words: { month: text.month, year: text.year },\n',
     '',
     viewTests,
   ),
-  one('the years asked for are not offered', view, '          years,\n', '', viewTests),
-  one('the month stays a select', view, '          month: monthAs,\n', '', viewTests),
   one(
-    'the presets keep their English name',
-    view,
-    '                  label: text.presets,\n',
+    'the years asked for are not offered',
+    layout,
+    '          years: caption.dropdowns.years,\n',
     '',
     viewTests,
   ),
-  one('the presets are drawn unstyled', view, '                  mixins,\n', '', viewTests),
+  one(
+    'the month stays a select',
+    layout,
+    '          month: caption.dropdowns.month,\n',
+    '',
+    viewTests,
+  ),
+  one(
+    'the presets keep their English name',
+    layout,
+    'label: options.presetsLabel,',
+    "label: 'Presets',",
+    viewTests,
+  ),
+  one(
+    'the presets are drawn unstyled',
+    layout,
+    '                  mixins: options.mixins,\n',
+    '',
+    viewTests,
+  ),
   one(
     'the today button never asks to pick',
-    view,
-    'selects: options.today.selects === true',
-    'selects: false',
+    layout,
+    'options.onToday(today.selects === true)',
+    'options.onToday(false)',
     viewTests,
   ),
   one(
     'the today button always asks to pick',
-    view,
-    'selects: options.today.selects === true',
-    'selects: true',
+    layout,
+    'options.onToday(today.selects === true)',
+    'options.onToday(true)',
     viewTests,
   ),
   one(
     'the aside is drawn outside its slot',
-    view,
+    layout,
     'h.div(builders.aside.attrs(), [options.aside])',
     'h.div([], [options.aside])',
     viewTests,
   ),
   one(
     'the footer is drawn outside its slot',
-    view,
+    layout,
     'h.div(builders.footer.attrs(), [options.footer])',
     'h.div([], [options.footer])',
     viewTests,
@@ -310,9 +335,9 @@ export default [
   ),
   one(
     'the label caption is a button again',
-    view,
-    "onNone: () => ({ caption: options.caption === 'label' ? 'label' : 'grid' }) as const,",
-    "onNone: () => ({ caption: 'grid' }) as const,",
+    layout,
+    ": { caption: caption === 'label' ? 'label' : 'grid' }",
+    ": { caption: 'grid' }",
     viewTests,
   ),
   one(

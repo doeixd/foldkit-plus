@@ -56,7 +56,7 @@ export default [
     edits: [
       {
         file: '../src/datePicker.ts',
-        find: 'Option.filter(date => !isComplete(picked(selection, date))),',
+        find: "Option.filter(date => closes === 'manual' || !isComplete(picked(selection, date))),",
         replace: 'Option.filter(() => false),',
       },
     ],
@@ -78,7 +78,7 @@ export default [
     edits: [
       {
         file: '../src/datePicker.ts',
-        find: 'Option.filter(date => !isComplete(picked(selection, date))),',
+        find: "Option.filter(date => closes === 'manual' || !isComplete(picked(selection, date))),",
         replace: 'Option.filter(() => false),',
       },
     ],

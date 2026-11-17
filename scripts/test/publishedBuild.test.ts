@@ -128,25 +128,33 @@ test('a page reading one Bundle keeps no other Bundle and no recipe, built or so
  * The Calendar's adapter re-exports its state and its options-level view,
  * each a file of its own (#589). A page that draws a calendar itself, through
  * `toView`, keeps neither, so not the module-level Schema over upstream's
- * Model that the state holds, nor the `configure` merge. `pnpm mutate` cannot
+ * Model that the state holds, nor the `configure` merge; the DatePicker's
+ * adapter is held to the same. `pnpm mutate` cannot
  * edit what tsdown reads from the disk, so it was broken by hand: a
  * `console.log(Model)` at the top level of `src/calendar.ts` turned it red.
  */
-test('a page drawing a calendar through its adapter keeps no Calendar state or view, built or source', async () => {
+test('a page drawing a calendar or a date picker through its adapter keeps no state or view of either, built or source', async () => {
   const root = scratchIn('mixins-ui', 'published-')
   made.push(root)
-  const page = `import { Calendar } from 'pkg'\nexport const used = Calendar.toView`
-  const kept = async (entry: string) =>
-    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
-  const built = await kept(await buildPublished('mixins-ui', root))
-  const source = await kept(join(packages, 'mixins-ui', 'src', 'index.ts'))
-  expect(built.some(id => /\/dist\/calendar\/selection\.js$/.test(id))).toBe(true)
-  expect(source.some(id => /\/src\/calendar\/selection\.ts$/.test(id))).toBe(true)
-  expect(
-    [...built, ...source].filter(id =>
-      /\/(calendar\/(state|view)|bundles\/[a-zA-Z]+|configure)\.(js|ts)$/.test(id),
-    ),
-  ).toEqual([])
+  const published = await buildPublished('mixins-ui', root)
+  // One build serves both pages: a second would be another copy of the package on disk.
+  for (const [name, leaf] of [
+    ['Calendar', 'calendar/selection'],
+    ['DatePicker', 'datePickerView'],
+  ] as const) {
+    const page = [`import { ${name} } from 'pkg'`, `export const used = ${name}.toView`].join('\n')
+    const kept = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const built = await kept(published)
+    const source = await kept(join(packages, 'mixins-ui', 'src', 'index.ts'))
+    expect(built.some(id => id.endsWith(`/dist/${leaf}.js`))).toBe(true)
+    expect(source.some(id => id.endsWith(`/src/${leaf}.ts`))).toBe(true)
+    expect(
+      [...built, ...source].filter(id =>
+        /\/((calendar|datePicker)\/(state|view)|bundles\/[a-zA-Z]+|configure)\.(js|ts)$/.test(id),
+      ),
+    ).toEqual([])
+  }
 }, 240_000)
 
 /**

@@ -6,76 +6,25 @@
  */
 import * as UiCalendar from '@foldkit/ui/calendar'
 import { Option } from 'effect'
-import * as Dates from 'foldkit/calendar'
+import type * as Dates from 'foldkit/calendar'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { NamedStyle } from 'foldkit-mixins'
-import {
-  CalendarSlots,
-  inputs,
-  presetsView,
-  type CalendarOptions,
-  type Preset,
-} from '../calendar.js'
+import { inputs, type CalendarOptions, type CalendarSlots, type Preset } from '../calendar.js'
 import { layered, type PresetOption, type Presets } from '../configure.js'
-import { buildersOf, type MixinList } from '../resolve.js'
-import { fill, wordsOf } from '../words.js'
+import type { MixinList } from '../resolve.js'
+import { wordsOf } from '../words.js'
+import {
+  captionOf,
+  labelsOf,
+  layout,
+  words,
+  type Caption,
+  type CalendarWords,
+  type TodayButton,
+} from './layout.js'
 import { Message, type Model } from './state.js'
 
-/** The fixed text a Calendar draws or says. Each is text; `{blanks}` are filled as noted. */
-export interface CalendarWords {
-  readonly previousMonth: string
-  readonly nextMonth: string
-  readonly previousYears: string
-  readonly nextYears: string
-  /** The heading button's name over the days, and over the months. */
-  readonly toMonths: string
-  readonly toYears: string
-  /** The day grid's name; `{month}` is the month and year shown. */
-  readonly daysGrid: string
-  /** A week row's name; `{date}` is its first day, written long. */
-  readonly week: string
-  /** The month grid's name; `{year}` is the year shown. */
-  readonly monthsGrid: string
-  /** The year grid's name; `{from}` and `{to}` are its first and last years. */
-  readonly yearsGrid: string
-  /** The caption's selects. */
-  readonly month: string
-  readonly year: string
-  /** The presets group's name. */
-  readonly presets: string
-}
-
-/** The words a Calendar uses when none are given: upstream's English. */
-export const words: CalendarWords = {
-  previousMonth: 'Previous month',
-  nextMonth: 'Next month',
-  previousYears: 'Previous 12 years',
-  nextYears: 'Next 12 years',
-  toMonths: 'Switch to month picker',
-  toYears: 'Switch to year picker',
-  daysGrid: 'Calendar, {month}',
-  week: 'Week of {date}',
-  monthsGrid: 'Month picker, {year}',
-  yearsGrid: 'Year picker, {from}–{to}',
-  month: 'Month',
-  year: 'Year',
-  presets: 'Presets',
-}
-
-/** The caption's selects in place of its heading. */
-export interface CaptionDropdowns {
-  /** The years offered; default the bounds' years, or ten either side of the year shown. */
-  readonly years?: { readonly from: number; readonly to: number } | undefined
-  /** `label` writes the month as text beside a select of years; default `select`. */
-  readonly month?: 'select' | 'label' | undefined
-}
-
-/** A button under the months that turns the calendar to today's month. */
-export interface TodayButton {
-  readonly label: string
-  /** Also picks today, unless the calendar's bounds disable it. */
-  readonly selects?: boolean | undefined
-}
+export { words, type CalendarWords, type CaptionDropdowns, type TodayButton } from './layout.js'
 
 export interface CalendarView<Outer> {
   /** The state `Bundles.Calendar` placed, or `Calendar.init` made. */
@@ -91,7 +40,7 @@ export interface CalendarView<Outer> {
    * months and one of years. With two months, the dropdowns are on the first
    * and the second reads as a label.
    */
-  readonly caption?: 'grid' | 'label' | { readonly dropdowns: CaptionDropdowns } | undefined
+  readonly caption?: Caption | undefined
   /**
    * The paging buttons: either side of the caption (`both`, the default),
    * one alone, none, or both after the caption (`end`). Two months draw the
@@ -114,20 +63,6 @@ export interface CalendarView<Outer> {
   readonly mixins?: MixinList<Outer> | undefined
 }
 
-/** What upstream's view is told to say, from the Calendar's words. */
-const labelsOf = (text: CalendarWords, locale: Dates.LocaleConfig): UiCalendar.ViewLabels => ({
-  previousMonthLabel: text.previousMonth,
-  nextMonthLabel: text.nextMonth,
-  previousYearsPageLabel: text.previousYears,
-  nextYearsPageLabel: text.nextYears,
-  daysHeadingButtonLabel: text.toMonths,
-  monthsHeadingButtonLabel: text.toYears,
-  toDaysGridLabel: month => fill(text.daysGrid, { month }),
-  toWeekLabel: start => fill(text.week, { date: Dates.formatLong(start, locale) }),
-  toMonthsGridLabel: year => fill(text.monthsGrid, { year }),
-  toYearsGridLabel: (from, to) => fill(text.yearsGrid, { from, to }),
-})
-
 /**
  * A Calendar: one month or two, with its presets before the months, a today
  * button under them, and the application's `aside` and `footer` around them.
@@ -141,7 +76,6 @@ export const view = <Outer>(options: CalendarView<Outer>, h: HtmlBuilder<Outer>)
     ...(options.style === undefined ? [] : [options.style.mixin]),
     ...(options.mixins ?? []),
   ]
-  const builders = buildersOf(CalendarSlots, mixins, { input: undefined, h })
   const labels = labelsOf(text, model.calendar.locale)
   const two = Option.isSome(model.second)
   const paging = options.paging ?? 'both'
@@ -153,10 +87,6 @@ export const view = <Outer>(options: CalendarView<Outer>, h: HtmlBuilder<Outer>)
       onPreview: date => onMessage(Message.Previewed({ date })),
     },
   }
-  const dropdowns =
-    typeof options.caption === 'object'
-      ? Option.some(options.caption.dropdowns)
-      : Option.none<CaptionDropdowns>()
   const month = (
     calendar: UiCalendar.Model,
     lift: (message: UiCalendar.Message) => Message,
@@ -174,68 +104,35 @@ export const view = <Outer>(options: CalendarView<Outer>, h: HtmlBuilder<Outer>)
     })
   const first = month(model.calendar, message => Message.GotCalendarMessage({ message }), {
     paging: two ? (paging === 'none' ? 'none' : 'previous') : paging,
-    ...Option.match(dropdowns, {
-      onNone: () => ({ caption: options.caption === 'label' ? 'label' : 'grid' }) as const,
-      onSome: ({ years, month: monthAs }) => ({
-        dropdowns: {
-          model: model.calendar,
-          onShow: shown => onMessage(Message.Showed({ shown })),
-          years,
-          month: monthAs,
-          words: { month: text.month, year: text.year },
-        },
-      }),
-    }),
+    ...captionOf(
+      options.caption,
+      model.calendar,
+      shown => onMessage(Message.Showed({ shown })),
+      text,
+    ),
   })
   const second = Option.map(model.second, calendar =>
     month(calendar, message => Message.GotSecondMessage({ message }), {
       paging: paging === 'none' ? 'none' : 'next',
       // The first month's selects move both, so the second only names its month.
-      caption: Option.isSome(dropdowns) || options.caption === 'label' ? 'label' : 'grid',
+      caption: options.caption === undefined || options.caption === 'grid' ? 'grid' : 'label',
     }),
   )
-  return h.div(
-    builders.frame.attrs([
-      h.Role('group'),
-      h.AriaLabel(options.label),
-      h.DataAttribute('months', two ? '2' : '1'),
-    ]),
-    [
-      h.div(builders.body.attrs(), [
-        ...(options.presets === undefined || options.presets.length === 0
-          ? []
-          : [
-              presetsView(
-                {
-                  presets: options.presets,
-                  selection: model.selection,
-                  onPick: selection => onMessage(Message.PickedPreset({ selection })),
-                  label: text.presets,
-                  mixins,
-                },
-                h,
-              ),
-            ]),
-        h.div(builders.main.attrs(), [
-          h.div(builders.months.attrs(), [first, ...Option.toArray(second)]),
-          ...(options.today === undefined
-            ? []
-            : [
-                h.button(
-                  builders.todayButton.attrs([
-                    h.Type('button'),
-                    h.OnClick(
-                      onMessage(Message.PressedToday({ selects: options.today.selects === true })),
-                    ),
-                  ]),
-                  [options.today.label],
-                ),
-              ]),
-        ]),
-        ...(options.aside === undefined ? [] : [h.div(builders.aside.attrs(), [options.aside])]),
-      ]),
-      ...(options.footer === undefined ? [] : [h.div(builders.footer.attrs(), [options.footer])]),
-    ],
+  return layout(
+    {
+      label: options.label,
+      months: [first, ...Option.toArray(second)],
+      selection: model.selection,
+      presets: options.presets,
+      presetsLabel: text.presets,
+      onPreset: selection => onMessage(Message.PickedPreset({ selection })),
+      today: options.today,
+      onToday: selects => onMessage(Message.PressedToday({ selects })),
+      aside: options.aside,
+      footer: options.footer,
+      mixins,
+    },
+    h,
   )
 }
 
