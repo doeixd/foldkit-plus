@@ -27,6 +27,8 @@ export interface GuidePage {
   readonly source: Source
   /** The sidebar's words for it. */
   readonly label: string
+  /** Whether it is the first page of its source. */
+  readonly first: boolean
   /** The page's own heading. */
   readonly title: string
   readonly description: string
@@ -195,6 +197,7 @@ export const guidePages = (repository: string, subsites: ReadonlyArray<Subsite>)
         subsite: each.subsite,
         source: each.source,
         label: at === 0 ? 'Overview' : heading,
+        first: at === 0,
         title: heading,
         description: paragraph === undefined ? '' : summarize(textOf(paragraph)),
         nodes,
@@ -207,6 +210,19 @@ export const guidePages = (repository: string, subsites: ReadonlyArray<Subsite>)
     })
   })
   return { pages, linksFrom: resolve }
+}
+
+/**
+ * A package's first page is headed by its name without the `foldkit-` every
+ * package shares; the crumb above it and the document's title keep the whole
+ * name. `foldkit-plus` keeps its own, since the rest of it is only "plus".
+ */
+export const headingOf = (
+  page: Pick<GuidePage, 'first' | 'title' | 'source'>,
+): { readonly heading?: string } => {
+  const readme = /^packages\/([^/]+)\/README\.md$/.test(page.source.file)
+  const name = /^foldkit-(.+)$/.exec(page.title)?.[1]
+  return readme && name !== undefined && name !== 'plus' && page.first ? { heading: name } : {}
 }
 
 /** A description for search results: the first sentence or so, at most 160 characters. */

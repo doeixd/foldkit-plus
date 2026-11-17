@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 import { allSubsites, type Subsite } from '../src/catalog.js'
-import { GITHUB, guidePages, slugger } from '../src/content/guides.js'
+import { GITHUB, guidePages, headingOf, slugger } from '../src/content/guides.js'
 import { textOf } from '../src/content/text.js'
 
 const long = (words: string) => `${words} `.repeat(120).trim()
@@ -75,6 +75,28 @@ describe('slugger', () => {
         slug,
       ),
     ).toEqual(['the-mental-model', 'remotedata-what-now', 'the-mental-model-1', 'remoteresume'])
+  })
+})
+
+describe('headingOf', () => {
+  it("drops the family's prefix from a package's first page, and from no other", () => {
+    const pages = fixture()
+    const at = (path: string) => headingOf(pages.find(page => page.path === path)!)
+    expect(at('/alpha')).toEqual({ heading: 'alpha' })
+    expect(at('/alpha/guides/the-mental-model')).toEqual({})
+    expect(at('/alpha/guides/beta')).toEqual({ heading: 'beta' })
+    expect(at('/alpha/guides/beta/serving-it')).toEqual({})
+  })
+
+  it('keeps foldkit-plus whole, and a document that is no package README', () => {
+    const readme = (name: string, file: string) => ({
+      first: true,
+      title: name,
+      source: { id: 'x', label: name, file },
+    })
+    expect(headingOf(readme('foldkit-plus', 'packages/plus/README.md'))).toEqual({})
+    expect(headingOf(readme('foldkit-remote', 'docs/remote.md'))).toEqual({})
+    expect(headingOf(readme('Remote', 'packages/remote/README.md'))).toEqual({})
   })
 })
 

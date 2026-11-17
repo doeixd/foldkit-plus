@@ -29,7 +29,7 @@ import { packageName } from '../demos.js'
 import { apiPages, apiTargets, type ApiPage, type Mention } from './api.js'
 import { links, type Links, type Target } from './links.js'
 import { highlighter, type Highlight } from './highlight.js'
-import { guidePages, GITHUB, slugger, type Anchor, type GuidePage } from './guides.js'
+import { guidePages, GITHUB, headingOf, slugger, type Anchor, type GuidePage } from './guides.js'
 import { blocks, codeBlock } from './render.js'
 
 type Ih = HtmlBuilder<never>
@@ -42,6 +42,8 @@ interface DocPage {
   readonly group: string
   readonly label: string
   readonly title: string
+  /** The page's own heading, where it differs from the title: a package's name without its family's prefix. */
+  readonly heading?: string
   readonly description: string
   readonly anchors: ReadonlyArray<Anchor>
   /** The file to edit it in, from the repository root. */
@@ -57,6 +59,7 @@ interface DocPage {
 }
 
 const fromGuide = (highlight: Highlight, linkOf: Links['linkOf'], page: GuidePage): DocPage => ({
+  ...headingOf(page),
   path: page.path,
   subsite: page.subsite,
   group: page.source.label,
@@ -272,7 +275,10 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
   const article =
     (current: DocPage) =>
     (ih: Ih): Region => [
-      ih.header([], [ih.p([ih.Class('crumb')], [current.crumb]), ih.h1([], [current.title])]),
+      ih.header(
+        [],
+        [ih.p([ih.Class('crumb')], [current.crumb]), ih.h1([], [current.heading ?? current.title])],
+      ),
       ...current.body(ih),
     ]
 
