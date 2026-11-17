@@ -354,9 +354,14 @@ stays. How the thumb rests, widens and fades is the style's;
 
 **`InputMask({ pattern })`** masks a field against `#` (digit), `A`
 (letter), and `*` (either) placeholders with literal separators, rewrites the
-field with approximate caret restore, and emits `Input { value, raw }` with
-the masked and unmasked text. The parent owns the value, like any controlled
-input. `applyMask(value, pattern)` is the pure rule.
+field, and emits `Input { value, raw }` with the masked and unmasked text. The
+caret stays after the same typed character, counted in the unmasked text, since
+the browser leaves it at an index of the text before the mask added its
+separators: typing straight through, in the middle, or pasting a number each
+leave it where a person expects. A Backspace (or Delete) that would remove only a
+separator takes the typed character on that side of the caret instead, and a
+composition is left alone until the input method commits it. The parent owns the
+value, like any controlled input. `applyMask(value, pattern)` is the pure rule.
 
 **`KeyboardInset`** writes `--fk-keyboard-inset` on its element: how much of the
 layout viewport's bottom the on-screen keyboard covers, from the visual
