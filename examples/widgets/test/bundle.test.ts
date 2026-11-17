@@ -23,7 +23,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // list when it nears the window (`src/lazy.ts`), so the start chunk holds those two and the shared
 // runtime: 144.8 kB (144,8xx bytes), against 187.0 kB when the sections added for newer widgets
 // were still in it (178,833 on CI before them). The sections' own chunks (125.6 kB) are not counted.
-const CEILING = 148_000
+// +6,500 on 2026-11-16: measured 154,065 with `output.strictExecutionOrder` (vite.config.ts),
+// against a page that loaded less and drew nothing: the chunks imported each other, and one
+// ran before the helper it called was defined. The growth is Rolldown's per-module wrappers.
+const CEILING = 154_500
 
 clientBudget({
   name: 'widgets',
