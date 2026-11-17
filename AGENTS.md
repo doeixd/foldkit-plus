@@ -2389,6 +2389,19 @@ of its own named a form field "fits the Catalog". Read words with
   hunk (`git apply --reverse --cached`) does not keep it out, and it rode a
   Dialog test into an unrelated commit that way. Extract the foreign hunk
   from the file first (or wait), then commit.
+- **Deleting a copy of the tree follows its junctions into this one.** A
+  second checkout made to measure an old commit linked its `node_modules`
+  entries to this tree's `.pnpm` store with junctions; `git worktree remove`
+  failed partway and had already emptied 159 packages here (`effect`,
+  `foldkit`, `vite`), so every agent's checks failed with "Cannot find
+  module". Never link a second tree into this one's `node_modules`; to remove
+  a folder that holds junctions, delete each junction itself first
+  (`[System.IO.Directory]::Delete(path, $false)`), then the folder. The repair
+  is `pnpm install --frozen-lockfile --force`, which needs free disk: a full
+  disk (`ENOSPC`) left it half done.
+- **Two sessions' browser tests collide on Vitest's default port.** A second
+  run fails "Failed to fetch dynamically imported module". Give each its own
+  with `--browser.api.port=<port>`.
 - **Sessions share one scratchpad.** A commit's file built at a fixed name
   (`readme.mine`) for the temporary-index recipe was overwritten by another
   session between two commands, and the commit carried its README. Name
