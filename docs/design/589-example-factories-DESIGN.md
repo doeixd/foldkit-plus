@@ -1,6 +1,6 @@
 # Examples and variations from the packages' own factories (#589)
 
-Status: decided 2026-11-17. Nothing here is built by this note. `FileUpload` is being built beside it and already follows two of its decisions (one `picker` slot, progress as a passed value). Target release: 0.41.0, which is prepared and not tagged (`CHANGELOG.md:10`; `foldkit-mixins-ui` is 0.27.0 in it, `packages/mixins-ui/package.json:3`).
+Status: decided 2026-11-17. Phase 0 (the measurements) is recorded in §4; phase 1 is being built. `FileUpload` is being built beside it and already follows two of its decisions (one `picker` slot, progress as a passed value). Target release: 0.41.0, which is prepared and not tagged (`CHANGELOG.md:10`; `foldkit-mixins-ui` is 0.27.0 in it, `packages/mixins-ui/package.json:3`).
 
 This note replaces the issue's first body, its "Revisions 2 and 3" comment and four research files (about 400 kB, kept out of the repository). Where they disagree with this note, this note wins.
 
@@ -89,9 +89,9 @@ export const TagsInput = Bundle.make('TagsInput', {
   Message,
   args: Schema.Struct({
     id: Schema.String,
-    tags: Schema.optional(Schema.Array(Schema.String)),
-    delimiter: Schema.optional(Schema.String),
-    max: Schema.optional(Schema.Number),
+    tags: Schema.optionalKey(Schema.Array(Schema.String)),
+    delimiter: Schema.optionalKey(Schema.String),
+    max: Schema.optionalKey(Schema.Number),
   }),
   init: args => ({ model: init(args) }),
   update,
@@ -574,7 +574,7 @@ I verified sixteen of the nineteen rows in part or in full; the unmarked citatio
 
 ### Measurements and probes
 
-All sizes are measured against `dist` with `scripts/bundle-report.mjs`, with Foldkit's view-identity plugin spliced out (a workspace build brands `dist`; an installed one does not). None has been run.
+All sizes are measured against `dist` with `scripts/bundle-report.mjs`, with Foldkit's view-identity plugin spliced out (a workspace build brands `dist`; an installed one does not). The first table is the plan; the second is what Phase 0 found.
 
 | # | What | What it could overturn |
 | --- | --- | --- |
@@ -590,6 +590,30 @@ All sizes are measured against `dist` with `scripts/bundle-report.mjs`, with Fol
 | P1 | An exported Bundle over an upstream Model (`Bundles.Calendar`, `Bundles.Tabs`), placed in an example, compiles under `tsc -b` and `pack:check` with no TS2742. | If it fails, upstream-Model widgets export their parts (`Model`, `Message`, `init`, `update`) and the application calls `Bundle.make`. |
 | P2 | `Bundle.make` `args` with optional keys written inline; whether upstream's `Calendar.LocaleConfig` (`calendar/index.d.ts:192` [v]) can sit in an `args` Schema. | If `locale` cannot be data, it is an `init` function option outside `args`. |
 | P3 | A `Kit` with two feature steps, exported from an example, under `tsc -b` and `pack:check`: no TS2742, no TS7056, and a question of an unregistered kind is a type error. | If it fails, Sidebar and Questionnaire are not rebuilt in 0.41.0. |
+
+**Results.** Phase 0 ran M1 to M7 and P1 to P3 on 2026-11-17, on `ui-polish`. Each page was a one-entry Vite 8 production build with workspace packages resolved to the `dist` on disk (`mixins-ui` and `mixins` as built that morning; nothing was rebuilt, since FileUpload was mid-build). A page total is the real brotli size of the JavaScript the page loads. A per-module figure is that module's share of the chunk's minified bytes times the chunk's real ratio, so it is an estimate. A page that loads one widget starts at about 62.9 kB (Foldkit's html, Effect, the mixins core).
+
+| # | Result | Verdict |
+| --- | --- | --- |
+| M1 | Unfrozen 114,120 B brotli, frozen 91,769 B: the freeze saves 22,351 B for one Button. Frozen, the whole mixins, mixins-ui and application share is about 5.2 kB. The stylesheet is the same either way (8,372 B brotli, a linked file). | Confirms: the freeze and capabilities as values save the bytes; the factory saves none. |
+| M2 | 136 B saved (113,984 B against 114,120 B). No recipe module is over 1.8 kB whole (sidebar 1,792 B, card 1,706 B, toast 1,400 B). Only Button was narrowed by hand. | Not reopened. Per-value recipe files stay rejected. |
+| M3 | A page reading `Recipes.Avatar` keeps `recipes/avatar.js`, `recipes/design.js` and `avatar.js` and nothing else of the package: 83,051 B from `dist`, 82,787 B from source. Reading every recipe is 172,300 B. The `Bundles` case could not run (no namespace yet); phase 1 adds both cases to `publishedBuild.test.ts`. | Confirms, for Vite 8. No subpath. |
+| M4 | 6,214 B brotli over the same page folded by hand (91,864 B against 85,650 B); `foldkit-bundle`'s own modules are about 4.8 kB of it. A second Bundle shares the machinery. | Triggered: the README shows the hand fold first, as the small-page path, and says what the first placement costs. |
+| M5 | Every row is real except 13. Kept by a page that never passes the option, brotli estimates: Breadcrumb's Menu 21.1 kB; Sidebar's Sheet, Splitter and Tooltip 16.9 kB; ColorPicker's Popover 7.6 kB; Questionnaire's fields 4.2 kB; Listbox and Combobox 3.0 kB each; Menu 2.4 kB; Chart 2.3 kB; each `fluid` or `overlayBars` value 1.2 to 1.8 kB; Avatar's `foldkit-media` 1.4 kB; ImageCropper's Slider 1.2 kB; Toast's `keepFocus` 1.1 kB; Image at most 0.8 kB; Table's Checkbox 0.5 kB; Tour 0.2 kB; Kbd 0.12 kB. A page that also reads the value (`Tabs.fluid`, `ScrollArea.overlayBars`, `Toast.keepFocus`, `Sidebar.fluid`) is within 150 B of one that does not. | A module-level behaviour value beside `view` keeps its primitive whether or not it is read, so a new behaviour or feature value goes in a file of its own, never a module-level call in the view's file. Row 13 is struck as a breaking change (a Drawer page keeps 175 B of `sheet.js` and no Dialog) and stays a small cleanup. Row 12 stays "leave". Fix order by bytes: rows 1, 16, 14, 17, 7, Menu in 8, 18, then the one-primitive rows. |
+| M6 | Single-date Calendar 70,067 B; range DatePicker with presets 89,383 B. The range and preset code adds about 228 B to `calendar.js`; the rest is upstream's calendar, popover, anchor and picker. | Confirms: no split by mode. |
+| M7 | Absent, from `dist` and from source, with and without the back-import (385 B without the feature, 469 to 478 B with it). Run on a synthetic package of the same layout, since FileUpload was unfinished. | Confirms: `Tabs.fluid`-style names stay in the widget's namespace. |
+| M8 | Not run: it needs the split built. The view-only Chart module is 2,347 B today. | Open. |
+| M9 | Not run in Phase 0. | Open; measured once the helper exists. |
+| P1 | Passes under `tsc -b` (TypeScript 7.0.2, composite, declarations): `Bundle.make` over `@foldkit/ui/calendar`'s Model and `Bundle.fromParts` over `@foldkit/ui/tabs`'s both emit, with no `any` and no unnamed package-internal import. `pack:check`'s consumer compile was not run. | Confirms; the fallback is not needed. See the TS4023 caveat. |
+| P2 | `Schema.optionalKey` keys work end to end, and `LocaleConfig` is a Schema, so `locale` is data. `Schema.optional` as an args key fails TS2379 under `exactOptionalPropertyTypes`. A missing required key is a type error at the placement. | `locale` stays in `args`. Optional args are `Schema.optionalKey`, never `Schema.optional`: §3.2's sketch is corrected by this row. |
+| P3 | Passes under `tsc -b` with two steps and two upstream Models: no TS2742, no TS7056, and `Survey.question.multiple` on a kit without that kind is TS2339. The prototype cast inside (`defineMessageUnion(cases as never)`, and each step's return). The real Sidebar's larger Model was not tried; `pack:check` was not run. | Does not block `make` in 0.41.0. An open item in §9. |
+
+Caveats that bind the build:
+
+- **The tsdown config is the mechanism.** M3 and M7 hold only because `packages/mixins-ui/tsdown.config.ts` keeps one output file per source file with relative imports external. Built without that, rolldown writes `export * as` as an object of getters, and a page reading one member keeps every sibling. `bundles/` is built by the same config, and the `publishedBuild` cases pin it.
+- **TS4023 on an exported composition.** `export const Page = Bundle.compose({...}).pipe(Bundle.withChild(...))` failed declaration emit: the result's type used a name `foldkit-bundle` did not export. Exporting `Page.Model`, `Page.Message` and `Page.placements` emitted. A `Bundles.X` made with `Bundle.make` or `Bundle.fromParts` is not affected.
+- **An OutMessage is answered at every placement**, so a Bundle whose Message passes out needs `onOut` or `Bundle.ignore` each time.
+- **Not checked:** M8 and M9; the `Bundles` half of M3; M6 and M7 against the real FileUpload; `pack:check` and a consumer compile with `skipLibCheck: false` for P1 and P3; row 18's bytes per chart kind and row 11's per value; any bundler other than Vite 8 (rolldown). The figures are from the `dist` on disk that morning, so source edits made after it are not in them.
 
 `absent` pins that hold the result (`scripts/bundle-budget.mjs`): a styled TagsInput without `Bundles` holds no `foldkit-bundle` module; a FileUpload without `sort` or uploads holds no `reorder`, `pointer-drag`, `progress` or `foldkit-media/browser`; a single Combobox holds no `choice/many`; a bar chart holds no `chart/donut`; a Sidebar with no `phone` step holds no `sheet`; a Table with no selection holds no `checkbox`.
 
@@ -1106,16 +1130,19 @@ What is not cut: phases 0 and 1, the breaking set, and the gate pages. That is t
 
 ### Open measurements
 
-M1 to M9 and P1 to P3 (§4). None has been run. P1, P3 and M7 decide API names and are first.
+M1 to M7 and P1 to P3 are recorded in §4. Still open:
+
+- M8 and M9, and the `Bundles` case of M3.
+- `pack:check` with a consumer compile for P1 and P3.
+- Bundlers other than Vite 8.
+- P3's kit needed casts inside, because `defineMessageUnion`'s `ValidateVariantNames<C>` constraint refuses a generic `C`. Before Sidebar's or Questionnaire's `make` is built, decide whether `defineMessageUnion` gains a form for cases still being inferred or the kit keeps its two internal casts.
 
 ### What I could not verify
 
 - Every per-example mapping: the reference pages gave titles or captions only.
-- That any static import or module-level Behavior in the violations table is really kept in a page (M5); the table is from import statements.
 - The line citations not marked [v], including `nav.ts`, `treeView.ts`, `virtualList.ts`, `floatingPanel.ts`, `tour.ts`, `toast.ts`, `command.ts:15`, `menu.ts:70`, `switch.ts`, `radioGroup.ts` and `data-grid/src/grid.ts`.
 - That the Listbox's single and multiple Models are identical (I diffed the Combobox pair only).
-- Whether `Calendar.LocaleConfig` can be a Schema value in `args` (P2), and `Schema.optional`'s behaviour as an `args` key.
-- That a `Kit` built from typed steps compiles and exports (P3). It follows `Bundle.compose`'s shape and has not been written.
+- That a `Kit` for the real Sidebar, with its Splitter and drag state, compiles and exports; P3 proved two steps over two upstream Models.
 - `FileUpload.lanes`' call shape, and which of FileUpload's ten examples its view serves today; it is mid-build.
 - Whether the site's `catalogue.ts` lists 89 or 90 slugs; 88 preview files exist.
 - Which Primitives gallery cards lack a live example.
