@@ -32,6 +32,7 @@ export * as SearchField from './searchField.js'
 export * as Toolbar from './toolbar.js'
 export * as FileInput from './fileInput.js'
 export * as FileUpload from './fileUpload.js'
+export * as FileUploadProgress from './fileUpload/progress.js'
 export * as Rating from './rating.js'
 export * as Steps from './steps.js'
 export * as VirtualList from './virtualList.js'
@@ -154,6 +155,13 @@ export type {
 } from './toolbar.js'
 export { FileInputSlots } from './fileInput.js'
 export type { FileInputView, FileInputWords } from './fileInput.js'
+export { FileUploadSlots } from './fileUpload.js'
+export type {
+  FileUploadItem,
+  FileUploadParts,
+  FileUploadView,
+  FileUploadWords,
+} from './fileUpload.js'
 export type { Requirement as PasswordRequirement } from './passwordInput.js'
 export { RatingSlots } from './rating.js'
 export type { RatingDisplay, RatingInput, RatingView } from './rating.js'

@@ -239,9 +239,18 @@ describe('FileUpload.update, Offered', () => {
       ])
     })
 
-    it('sends nothing for a refused offer: the input already holds the list', () => {
-      const { commands } = offered(field({ maxSize: 1 }), [make('big.txt', { size: 9 })])
-      expect(commandNames(commands)).toEqual([])
+    it('writes nothing for a refused drop, which left the input alone, and the list back after a refused pick, which emptied it', () => {
+      const big = make('big.txt', { size: 9 })
+      const small = field({ maxSize: 1 })
+      expect(commandNames(offered(small, [big], 'drop').commands)).toEqual([])
+      expect(commandNames(offered(small, [big], 'pick').commands)).toEqual(['FileInput.Sync'])
+    })
+
+    it('writes the list back when the dialog is cancelled, if it holds a file', () => {
+      const held = offered(field(), [make('a.txt')]).model
+      const cancelled = offered(held, [], 'pick')
+      expect(cancelled.model).toBe(held)
+      expect(commandNames(cancelled.commands)).toEqual(['FileInput.Sync'])
     })
   })
 })

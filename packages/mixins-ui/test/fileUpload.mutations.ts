@@ -4,7 +4,11 @@
  * test fails for every one.
  */
 const unit = 'packages/mixins-ui/test/fileUpload.test.ts'
+const view = 'packages/mixins-ui/test/fileUpload.view.test.ts'
+const browser = 'packages/mixins-ui/test/fileUpload.browser.test.ts'
+const ssr = 'packages/mixins-ui/test/fileUpload.ssr.test.ts'
 const source = '../src/fileUpload.ts'
+const recipe = '../src/recipes/fileUpload.ts'
 
 export default [
   {
@@ -67,12 +71,12 @@ export default [
     tests: [unit],
   },
   {
-    name: 'an offer does not write the files into the input',
+    name: 'a picked offer does not write the files back into the input',
     edits: [
       {
         file: source,
-        find: '...sync(next, model.entries),\n      ...(previewing.length',
-        replace: '...(previewing.length',
+        find: "...(by === 'pick' ? writeFiles(next) : sync(next, model.entries)),",
+        replace: "...(by === 'pick' ? [] : sync(next, model.entries)),",
       },
     ],
     tests: [unit],
@@ -186,5 +190,226 @@ export default [
       },
     ],
     tests: [unit],
+  },
+  {
+    name: 'the Open route is deleted, so Enter is free for a route',
+    edits: [
+      {
+        file: source,
+        find: "on: [Behaviors.Keys.chord('Enter'), Behaviors.Keys.chord(' ')],",
+        replace: 'on: [],',
+      },
+    ],
+    tests: [view, browser],
+  },
+  {
+    name: 'the picker is not the input label',
+    edits: [{ file: source, find: 'h.For(inputId),', replace: '' }],
+    tests: [view, ssr, browser],
+  },
+  {
+    name: 'the input takes no pick',
+    edits: [
+      {
+        file: source,
+        find: "h.OnFileChange(files => lift(Message.Offered({ files, by: 'pick' }))),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a drop is not answered',
+    edits: [
+      {
+        file: source,
+        find: "h.OnDropFiles(files => lift(Message.Offered({ files, by: 'drop' }))),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the limits are not passed to the input as kinds',
+    edits: [{ file: source, find: "h.Accept(model.accept.join(','))", replace: "h.Accept('')" }],
+    tests: [view, ssr],
+  },
+  {
+    name: 'the status region is not a status',
+    edits: [{ file: source, find: ", h.Role('status')]", replace: ']' }],
+    tests: [view, ssr],
+  },
+  {
+    name: 'the input does not point at the errors',
+    edits: [
+      {
+        file: source,
+        find: '...(model.refusals.length === 0 ? [] : [idOf.errors]),',
+        replace: '',
+      },
+    ],
+    tests: [view],
+  },
+  {
+    name: 'a disabled field leaves its input enabled',
+    edits: [{ file: source, find: '...(disabled ? [h.Disabled(true)] : []),', replace: '' }],
+    tests: [view, browser],
+  },
+  {
+    name: 'a read-only input stays in the tab order',
+    edits: [{ file: source, find: '...(readOnly ? [h.Tabindex(-1)] : []),', replace: '' }],
+    tests: [view],
+  },
+  {
+    name: 'a read-only field draws a picker',
+    edits: [{ file: source, find: 'const picker = readOnly', replace: 'const picker = false' }],
+    tests: [view],
+  },
+  {
+    name: 'a cancel button is named Remove',
+    edits: [
+      { file: source, find: 'cancelling ? text.cancel : text.remove', replace: 'text.remove' },
+    ],
+    tests: [view],
+  },
+  {
+    name: 'a failure that cannot be retried offers Try again',
+    edits: [
+      { file: source, find: 'Failed: failed => failed.retryable', replace: 'Failed: () => true' },
+    ],
+    tests: [view],
+  },
+  {
+    name: 'only a queued entry draws a progress bar',
+    edits: [
+      {
+        file: source,
+        find: 'Uploading: () =>\n              Option.some(\n                h.div(builders.progress',
+        replace:
+          'Queued: () =>\n              Option.some(\n                h.div(builders.progress',
+      },
+    ],
+    tests: [view],
+  },
+  {
+    name: 'grips are drawn without sort',
+    edits: [
+      {
+        file: source,
+        find: 'options.sort === undefined || disabled || readOnly',
+        replace: 'disabled || readOnly',
+      },
+    ],
+    tests: [view],
+  },
+  {
+    name: 'a field with a picture still draws the list',
+    edits: [
+      {
+        file: source,
+        find: 'options.picture !== undefined || drawn.items.length === 0',
+        replace: 'drawn.items.length === 0',
+      },
+    ],
+    tests: [view],
+  },
+  {
+    name: 'a single field draws a summary',
+    edits: [
+      {
+        file: source,
+        find: 'model.multiple && model.entries.length > 0 && options.picture === undefined',
+        replace: 'model.entries.length > 0 && options.picture === undefined',
+      },
+    ],
+    tests: [view],
+  },
+  {
+    name: 'the dragging mark is never set',
+    edits: [
+      {
+        file: source,
+        find: "...(model.dragging ? [h.DataAttribute('dragging', '')] : []),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a zone does not answer a drag',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo('[data-dragging]', {\n            borderColor: ref.accent.default,\n            backgroundColor: ref.accent.subtle,\n          }),\n        ),\n        browse",
+        replace: '),\n        browse',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a disabled picker keeps its cursor',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo('[data-disabled]', { cursor: 'not-allowed' }),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the picture is not veiled on hover',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo(':hover', { '--_fk-upload-veil': '1' }),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the picture is not veiled on keyboard focus',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest('input:focus-visible + &', { '--_fk-upload-veil': '1' }),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the picker does not ring on keyboard focus',
+    edits: [
+      {
+        file: recipe,
+        find: "'input:focus-visible + &', {\n        outline",
+        replace: "'input:hover + &', {\n        outline",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'an invalid button keeps its border',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest(':where([data-invalid]) > &', { borderColor: ref.error.outline }),\n            Style.pseudo('[data-dragging]', { borderColor: ref.accent.default }),",
+        replace: "Style.pseudo('[data-dragging]', { borderColor: ref.accent.default }),",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the grid is one column',
+    edits: [
+      {
+        file: recipe,
+        find: "gridTemplateColumns: 'repeat(auto-fill, minmax(8rem, 1fr))',",
+        replace: '',
+      },
+    ],
+    tests: [browser],
   },
 ]
