@@ -21,9 +21,11 @@ import {
   type MixinValue,
   type NamedStyle,
 } from 'foldkit-mixins'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import * as FileInput from './fileInput.js'
 import type { Progress } from './fileUpload/progress.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A file upload: the files a field holds, each with a status, validated
@@ -864,12 +866,6 @@ export const words: FileUploadWords = {
   refusedNotFiles: 'Drop files, not text or links',
 }
 
-/** One pass over the text, so a value holding `{name}` is not filled again. */
-const fill = (text: string, values: Readonly<Record<string, string | number>>): string =>
-  text.replace(/\{(\w+)\}/g, (whole, key: string) =>
-    Object.hasOwn(values, key) ? String(values[key]) : whole,
-  )
-
 export type Route<Outer> = Behaviors.Keys.Route<Model, Outer>
 
 export interface FileUploadView<Outer> {
@@ -1023,7 +1019,7 @@ export const parts = <Outer>(
   const lift = options.onMessage
   const disabled = options.disabled === true
   const readOnly = options.readOnly === true
-  const text: FileUploadWords = { ...words, ...options.words }
+  const text = wordsOf(words, options.words)
   const inputId = FileInput.inputId(model.id)
   const idOf = {
     description: `${model.id}-description`,
@@ -1310,6 +1306,39 @@ export const view = <Outer>(options: FileUploadView<Outer>, h: HtmlBuilder<Outer
         ]),
   ])
 }
+
+/**
+ * What a FileUpload is given once: its look, its words and the drawings it
+ * is handed, none of which holds a Message or reads the Model. `sort` reads
+ * the Model each draw and `routes` hold Messages, so both stay at the call.
+ */
+export type FileUploadPreset = Pick<
+  FileUploadView<never>,
+  'style' | 'words' | 'picture' | 'itemActions' | 'progress'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own FileUpload: `base` for every use, `presets` chosen
+ * at a use with `preset`, and the call over both. `mixins` concatenate in
+ * that order and `words` merge word by word; any other option given at the
+ * call replaces the preset's. `parts` is bound as `view` is, for a layout of
+ * the application's own.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<FileUploadPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: FileUploadView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+  readonly parts: <Outer>(
+    options: FileUploadView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => FileUploadParts
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+  parts: (options, h) => parts(layered(config, options), h),
+})
 
 /** The send a lane is running: what the application's transport is given. */
 export const Job = Schema.Struct({

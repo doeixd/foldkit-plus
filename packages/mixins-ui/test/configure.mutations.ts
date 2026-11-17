@@ -29,6 +29,28 @@ export default [
     tests: unit,
   },
   {
+    name: 'a configured FileUpload draws its base and preset',
+    edits: [
+      {
+        file: '../src/fileUpload.ts',
+        find: 'view: (options, h) => view(layered(config, options), h),',
+        replace: 'view: (options, h) => view(options, h),',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: "a configured FileUpload's parts are drawn with its base and preset",
+    edits: [
+      {
+        file: '../src/fileUpload.ts',
+        find: 'parts: (options, h) => parts(layered(config, options), h),',
+        replace: 'parts: (options, h) => parts(options, h),',
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: "a preset's mixin is attached, so its Mount runs",
     edits: [
       {

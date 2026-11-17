@@ -303,9 +303,10 @@ is made of four kinds of fact, and each kind has one place it is given.
   widget imports only its type, so a page that never names it never ships it.
   A boolean that switches code on is the one thing an option is not.
 
-`Button.configure`, `TagsInput.configure`, `Bundles.TagsInput` and
-`Bundles.Combobox` ship today; the other widgets follow the same shape as they
-are converted. [One factory for each part](#one-factory-for-each-part) shows
+`configure` ships on Button, TagsInput, Combobox, Calendar, DatePicker and
+FileUpload, and `Bundles` holds TagsInput, Combobox, Calendar, DatePicker and
+FileUpload today; the other widgets follow the same shape as they are
+converted. [One factory for each part](#one-factory-for-each-part) shows
 each with code.
 
 ## Finding a widget
@@ -950,6 +951,14 @@ const UpBar = FileUploadProgress.make({
 `preview`, `name`, `meta`, `state`, `progress`, `actions` and `grip` (an uploading row with `progress` draws no state text). Lay them into
 `Table.view` or `Card.view` yourself; `view` is written in terms of `parts`, so there is
 one drawing.
+
+**Placed and configured.** `Bundles.FileUpload` is the same `init` and `update` for
+`foldkit-bundle`, with `init`'s options as the args. It reports `Picked` and `Removed`,
+which a placement answers with `onOut` or `Bundle.ignore`, and it sends nothing: an
+application with `lanes` still adds `FileUpload.lanes` to its own Subscriptions.
+`FileUpload.configure({ base, presets })` returns `{ view, parts }` bound to what a site
+gives once: `style`, `words`, `picture`, `itemActions`, `progress` and `mixins`. `sort`
+reads the Model at each draw and `routes` hold Messages, so both stay at the call.
 
 **Sorting.** Order is the application's: it places `Reorder` as documented for
 primitives and hands the Behavior to the view as `sort: { input, mixin }`, which draws a

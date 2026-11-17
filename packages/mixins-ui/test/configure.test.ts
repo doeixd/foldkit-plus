@@ -3,10 +3,11 @@
  * `X.configure`: a widget's look and message-free options given once, as a
  * base and named presets, and the call over both.
  */
+import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { Button, ButtonSlots, TagsInput } from '../src/index.js'
+import { Button, ButtonSlots, FileUpload, FileUploadSlots, TagsInput } from '../src/index.js'
 import { h, message } from './fixture.js'
 
 const quiet = Style.forSlots(ButtonSlots)({ button: Style.class('quiet') })
@@ -102,5 +103,41 @@ describe('TagsInput.configure', () => {
   it('takes an option from the base until the call gives it', () => {
     expect(placeholder(drawn({}))).toBe('Add a topic')
     expect(placeholder(drawn({ placeholder: 'Topic' }))).toBe('Topic')
+  })
+})
+
+describe('FileUpload.configure', () => {
+  const zone = Style.forSlots(FileUploadSlots)({ root: Style.class('zone') })
+  const model = FileUpload.update(
+    FileUpload.init({ id: 'up', multiple: true }),
+    FileUpload.Message.Offered({ files: [new File(['x'], 'a.txt')], by: 'drop' }),
+  ).model
+  const App = FileUpload.configure({
+    base: { style: zone, words: { prompt: 'Drop files here or', remove: 'Retirer {name}' } },
+    presets: { plain: { words: { prompt: '' } } },
+  })
+  const field = { model, onMessage: () => message('Clicked'), label: 'browse' }
+  const spans = (html: ReturnType<typeof App.view>) =>
+    Inert.byTag(Inert.byTag(html, 'label')[0]!, 'span').map(span => Inert.text(span))
+  const names = (html: ReturnType<typeof App.view>) =>
+    Inert.byTag(html, 'button').map(button => Inert.value(button, 'aria-label'))
+
+  it('draws the base’s style and words, a preset’s words over them and the call’s over both', () => {
+    const base = App.view(field, h)
+    expect(Inert.classes(Inert.byTag(base, 'div')[0])).toEqual(['zone'])
+    expect(spans(base)).toEqual(['Drop files here or', 'browse'])
+    expect(names(base)).toContain('Retirer a.txt')
+    const plain = App.view({ ...field, preset: 'plain' }, h)
+    expect(spans(plain)).toEqual(['browse'])
+    expect(names(plain)).toContain('Retirer a.txt')
+    expect(names(App.view({ ...field, words: { remove: 'Drop {name}' } }, h))).toContain(
+      'Drop a.txt',
+    )
+  })
+
+  it('binds `parts` as it binds `view`', () => {
+    const { picker, items } = App.parts(field, h)
+    expect(spans(Option.getOrThrow(picker))).toEqual(['Drop files here or', 'browse'])
+    expect(names(Option.getOrThrow(items[0]!.actions))).toEqual(['Retirer a.txt'])
   })
 })

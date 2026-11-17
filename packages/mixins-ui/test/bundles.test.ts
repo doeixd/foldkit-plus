@@ -8,7 +8,7 @@ import { Option, Schema } from 'effect'
 import * as UiCombobox from '@foldkit/ui/combobox'
 import { Bundle } from 'foldkit-bundle'
 import { describe, expect, it } from 'vitest'
-import { Bundles, Combobox, TagsInput, type Choice } from '../src/index.js'
+import { Bundles, Combobox, FileUpload, TagsInput, type Choice } from '../src/index.js'
 
 const cities = ['Lisbon', 'Porto', 'Faro', 'Braga'] as const
 const City = Combobox.one(cities)
@@ -164,5 +164,51 @@ describe('Bundles.Combobox', () => {
     expect(three.stops).toEqual(['Lisbon', 'Porto', 'Faro'])
     expect(pick(three, 'Braga').stops).toBe(three.stops)
     expect(pick(three, 'Porto').stops).toEqual(['Lisbon', 'Faro'])
+  })
+})
+
+describe('Bundles.FileUpload', () => {
+  const args = {
+    id: 'files',
+    multiple: true,
+    accept: ['.txt'],
+    maxSize: 100,
+    maxFiles: 3,
+    previews: false,
+    lanes: 1,
+    initial: [{ id: 'kept', name: 'kept.txt', size: 4, type: 'text/plain', url: '/kept.txt' }],
+  }
+  const Upload = Bundle.compose({ added: Schema.Array(Schema.String) }).pipe(
+    Bundle.withChild('files', Bundles.FileUpload, {
+      args,
+      onOut: out => model => ({
+        model: {
+          ...model,
+          added: FileUpload.OutMessage.match(out, {
+            Picked: ({ added }) => [...model.added, ...added],
+            Removed: () => model.added,
+          }),
+        },
+      }),
+    }),
+  )
+  const begin = () => Upload.placements.initial({ added: [] }).model
+  const offer = (names: ReadonlyArray<string>) =>
+    Upload.Message.GotFilesMessage({
+      message: FileUpload.Message.Offered({
+        files: names.map(name => new File(['text'], name, { type: 'text/plain' })),
+        by: 'drop',
+      }),
+    })
+
+  it('starts from every arg, in the field the application named', () => {
+    expect(begin().files).toEqual(FileUpload.init(args))
+  })
+
+  it('folds an offer by its limits, and reports what it listed to the parent', () => {
+    const next = Upload.placements.update()(begin(), offer(['a.txt', 'b.png']))
+    expect(next.model.files.entries.map(entry => entry.name)).toEqual(['kept.txt', 'a.txt'])
+    expect(next.model.files.refusals).toEqual([FileUpload.Refusal.Kind({ name: 'b.png' })])
+    expect(next.model.added).toEqual(['local-1'])
   })
 })

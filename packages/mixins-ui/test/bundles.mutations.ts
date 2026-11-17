@@ -7,6 +7,28 @@ const tests = ['packages/mixins-ui/test/bundles.test.ts']
 
 export default [
   {
+    name: 'a FileUpload starts from every arg',
+    edits: [
+      {
+        file: '../src/bundles/fileUpload.ts',
+        find: 'init: args => ({ model: init(args) }),',
+        replace: 'init: args => ({ model: init({ id: args.id }) }),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a FileUpload reports what an offer listed',
+    edits: [
+      {
+        file: '../src/bundles/fileUpload.ts',
+        find: 'update: (model, message) => update(model, message),',
+        replace: 'update: (model, message) => ({ model: update(model, message).model }),',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a TagsInput starts from every arg',
     edits: [
       {

@@ -8,7 +8,15 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Schema } from 'effect'
 import { Style } from 'foldkit-mixins'
 import { expectTypeOf, test } from 'vitest'
-import { Button, ButtonSlots, TagsInput, TagsInputSlots } from '../src/index.js'
+import {
+  Bundles,
+  Button,
+  ButtonSlots,
+  FileUpload,
+  FileUploadSlots,
+  TagsInput,
+  TagsInputSlots,
+} from '../src/index.js'
 
 const Message = defineMessageUnion({
   Clicked: {},
@@ -85,6 +93,34 @@ test('TagsInput’s configured view takes the Model and lifts its Messages', () 
   TagsInput.configure({ base: { model } })
   // @ts-expect-error `ltl` is no direction.
   TagsInput.configure({ presets: { odd: { direction: 'ltl' } } })
+})
+
+test('FileUpload’s configured view and parts keep the Message, and a preset holds no Model or sort', () => {
+  const zone = Style.forSlots(FileUploadSlots)({ root: Style.class('zone') })
+  const Upload = FileUpload.configure({
+    base: { style: zone, words: { prompt: 'Drop files here or' } },
+    presets: { avatar: { picture: () => h.span([], []) } },
+  })
+  const model = FileUpload.init({ id: 'files' })
+  const field = { model, onMessage: () => Message.Clicked(), label: 'browse' }
+  Upload.view({ ...field, preset: 'avatar' }, h)
+  expectTypeOf(Upload.parts(field, h)).toEqualTypeOf<FileUpload.FileUploadParts>()
+  // @ts-expect-error `avatr` is no preset.
+  Upload.view({ ...field, preset: 'avatr' }, h)
+  // @ts-expect-error the Model is the call’s, never a preset’s.
+  FileUpload.configure({ base: { model } })
+  // @ts-expect-error `sort` reads the Model each draw, so it stays at the call.
+  FileUpload.configure({ base: { sort: { input: model, mixin: zone.mixin } } })
+  // @ts-expect-error a Button style on a FileUpload.
+  FileUpload.configure({ base: { style: quiet } })
+  // @ts-expect-error `drop` is no word.
+  FileUpload.configure({ base: { words: { drop: 'Drop here' } } })
+})
+
+test('Bundles.FileUpload’s args are `FileUpload.init`’s options, key for key', () => {
+  type Args = NonNullable<typeof Bundles.FileUpload.args>['Type']
+  expectTypeOf<keyof Args>().toEqualTypeOf<keyof FileUpload.InitOptions>()
+  expectTypeOf<Args>().toExtend<FileUpload.InitOptions>()
 })
 
 void Schema

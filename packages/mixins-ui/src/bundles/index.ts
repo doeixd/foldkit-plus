@@ -6,4 +6,5 @@
 export { Calendar } from './calendar.js'
 export { Combobox } from './combobox.js'
 export { DatePicker } from './datePicker.js'
+export { FileUpload } from './fileUpload.js'
 export { TagsInput } from './tagsInput.js'
