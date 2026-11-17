@@ -62,6 +62,9 @@ const veil = [
   ),
 ]
 
+/** Behind a button that sits over a picture, so it reads on any image. */
+const scrim = `color-mix(in oklab, ${ref.surface.base} 85%, transparent)`
+
 const rowSelf: Declarations = {
   display: 'flex',
   flexWrap: 'wrap',
@@ -270,14 +273,14 @@ export const FileUpload = Style.recipeFor(FileUploadSlots)({
           ),
           ...veil,
         ],
-        // The one file's buttons sit over the disc's end corner.
+        // The disc, the one file's buttons beside it, and each paragraph on a row of its own.
+        root: variant(Style.self({ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' })),
         actions: variant(
-          Style.nest(':where([data-picture]) > &', {
-            position: 'absolute',
-            insetBlockStart: '0',
-            insetInlineEnd: '0',
-          }),
+          Style.nest(':where([data-picture]) > &', { marginInlineStart: ref.space['2xs'] }),
         ),
+        description: variant(Style.self({ flexBasis: '100%' })),
+        constraints: variant(Style.self({ flexBasis: '100%' })),
+        errors: variant(Style.self({ flexBasis: '100%' })),
       },
       cover: {
         root: variant(Style.self({ alignItems: 'stretch' })),
@@ -309,6 +312,8 @@ export const FileUpload = Style.recipeFor(FileUploadSlots)({
             position: 'absolute',
             insetBlockStart: ref.space.xs,
             insetInlineEnd: ref.space.xs,
+            borderRadius: ref.radius.full,
+            backgroundColor: scrim,
           }),
         ),
       },
@@ -360,6 +365,8 @@ export const FileUpload = Style.recipeFor(FileUploadSlots)({
             insetBlockStart: ref.space['2xs'],
             insetInlineEnd: ref.space['2xs'],
             marginInlineStart: '0',
+            borderRadius: ref.radius.full,
+            backgroundColor: scrim,
           }),
         ),
       },
