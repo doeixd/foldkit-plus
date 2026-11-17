@@ -80,6 +80,8 @@ export const Menu = defineTaggedUnion({
   Block: { node: RichText.NodeId },
   /** The toolbar's insert menu. */
   Insert: {},
+  /** A compact toolbar's More menu, holding the tools that left the bar. */
+  More: {},
   /** The toolbar's export menu. */
   Export: {},
   /** A text style menu: the toolbar's, or the one over selected text. */
@@ -136,6 +138,8 @@ export const Model = Schema.Struct({
   source: Schema.Option(ExportFormat),
   /** The page's reading direction, which the editor, the bars and the menus follow. */
   direction: Schema.Literals(['ltr', 'rtl']),
+  /** The formatting bar's width in pixels, from a `Resize` mount: a narrow bar moves its low tools to More. Zero until measured. */
+  barWidth: Schema.Number,
 })
 export type Model = typeof Model.Type
 
@@ -208,6 +212,7 @@ export const Message = defineMessageUnion({
   ShowedSource: { format: ExportFormat },
   HidSource: {},
   ToggledDirection: {},
+  ResizedBar: { width: Schema.Number },
   /** The code grammars arrived, or could not: code is coloured, or stays plain. */
   LoadedHighlighting: {},
 })
@@ -250,6 +255,7 @@ export const init = (): Return => ({
     tabStop: Option.none(),
     source: Option.none(),
     direction: 'ltr',
+    barWidth: 0,
   },
   commands: [LoadHighlighting()],
 })
@@ -500,6 +506,7 @@ export const openMenu = (
   model: Model,
 ): {
   readonly insert: boolean
+  readonly more: boolean
   readonly export: boolean
   readonly link: boolean
   /** Where a text style menu is open, if one is. */
@@ -510,6 +517,7 @@ export const openMenu = (
 } => {
   const none = {
     insert: false,
+    more: false,
     export: false,
     link: false,
     style: undefined,
@@ -521,6 +529,7 @@ export const openMenu = (
     onSome: menu =>
       Menu.match(menu, {
         Insert: () => ({ ...none, insert: true }),
+        More: () => ({ ...none, more: true }),
         Export: () => ({ ...none, export: true }),
         Style: ({ place }) => ({ ...none, style: place }),
         Reset: () => ({ ...none, reset: true }),
@@ -755,6 +764,7 @@ const step = (model: Model, message: Message): Return =>
       return Menu.match<Return>(menu, {
         Block: () => ({ model: opened }),
         Insert: () => ({ model: opened }),
+        More: () => ({ model: opened }),
         Export: () => ({ model: opened }),
         Style: () => ({ model: opened }),
         Reset: () => ({ model: opened }),
@@ -776,6 +786,10 @@ const step = (model: Model, message: Message): Return =>
       })
     },
     ClosedMenu: () => ({ model: closed(model) }),
+    ResizedBar: ({ width }) =>
+      width === model.barWidth
+        ? { model }
+        : { model: modifyFields(model, { barWidth: () => width }) },
     RetypedBlock: ({ node, block }) => {
       const found = blockOf(model, node)
       const caret = found === undefined ? undefined : caretAtStart(found)

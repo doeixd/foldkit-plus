@@ -197,7 +197,7 @@ standard bar, one `role="toolbar"` with one tab stop: `{ id, document, selection
 roving: { current }, onFocus(id), items?, history?, inserts?, returned?, shortcuts?, words?, direction? }` in, `FormattingToolbarSlots` out;
 `items` (default `standardFormattingItems`) lists `'undo' | 'redo' | 'style' | 'link' | 'bulleted-list' | 'numbered-list' | 'checklist' |
 'quote' | 'insert' | 'separator' | { mark } | { control: ApplicationControl }` (the application's own control, in the same tab stop:
-`{ id, label, icon?, shortcut?, pressed?, disabled?, message, popup?: { kind, open } }`); `{ low: item }` is left undrawn (so not a tab stop) when `compact` is true, which the application drives from a media query (`MediaQuery` in `foldkit-primitives/media`); `inserts` is one ordered list of
+`{ id, label, icon?, shortcut?, pressed?, disabled?, message, popup?: { kind, open } }`); `{ low: item }` leaves the bar when `compact` is true (the application's signal: a `MediaQuery` in `foldkit-primitives/media`, or the bar's own width from a `Resize` mount) and is listed instead in a **More** menu the bar then ends with (`menu: 'more'`, `words.more`; rows send the control's own Message, toggles are `menuitemcheckbox`, unavailable ones `aria-disabled`; a low control that opens a popup of its own is left out); `inserts` is one ordered list of
 `InsertEntry.Editor({ entry })` and `InsertEntry.App({ id, label, message })`; the application keeps which menu is open and the tab stop id;
 an unavailable control (its own too: `update` must refuse its Message) is `aria-disabled`, focusable, and sends nothing; `history` lets the
 application say what undo and redo apply to. A pointer press on a control leaves the focus and the browser's selection in the text

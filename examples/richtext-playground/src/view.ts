@@ -7,6 +7,7 @@
 import { Match, Option } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
+import { Resize } from 'foldkit-primitives/observers'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
   codeToolbar,
@@ -93,22 +94,30 @@ const menuText = (model: Model): string => menuTextOf(editorView(model))
 /** The marks the bars offer, this vocabulary's beside the editor's own. */
 const MARKS = ['Bold', 'Italic', 'Underline', 'Strikethrough', 'Code', 'Highlight'] as const
 
+/** The marks a narrow bar moves to its More menu. */
+const LEAST_USED: ReadonlySet<string> = new Set(['Underline', 'Strikethrough', 'Code', 'Highlight'])
+
+/** The width under which the bar cannot hold every control on one row, in pixels. */
+const FULL_BAR = 760
+
 /** The bar's controls; the page's own (`app`) end it, in the same tab stop. */
 const barItems = (
   app: ReadonlyArray<FormattingItem<Message>>,
 ): ReadonlyArray<FormattingItem<Message>> => [
-  'undo',
-  'redo',
+  { low: 'undo' },
+  { low: 'redo' },
   'separator',
   'style',
   'separator',
-  ...MARKS.map((mark): FormattingItem<Message> => ({ mark })),
+  ...MARKS.map((mark): FormattingItem<Message> =>
+    LEAST_USED.has(mark) ? { low: { mark } } : { mark },
+  ),
   'link',
   'separator',
-  'bulleted-list',
-  'numbered-list',
-  'checklist',
-  'quote',
+  { low: 'bulleted-list' },
+  { low: 'numbered-list' },
+  { low: 'checklist' },
+  { low: 'quote' },
   'insert',
   'separator',
   ...app,
@@ -158,7 +167,13 @@ const barEdit = (event: EditorEvent): Message =>
   )
 
 const menuOf = (which: FormattingMenu, place: 'toolbar' | 'floating'): Menu =>
-  which === 'style' ? Menu.Style({ place }) : which === 'insert' ? Menu.Insert() : Menu.Link()
+  which === 'style'
+    ? Menu.Style({ place })
+    : which === 'insert'
+      ? Menu.Insert()
+      : which === 'more'
+        ? Menu.More()
+        : Menu.Link()
 
 const EXPORTS: ReadonlyArray<readonly [format: ExportFormat, description: string]> = [
   ['Markdown', 'Plain text, with # and *'],
@@ -327,9 +342,12 @@ export const PlaygroundView = SlotView.forMessages<Message>()
                 ? 'link'
                 : open.insert && onToolbar
                   ? 'insert'
-                  : undefined,
+                  : open.more && onToolbar
+                    ? 'more'
+                    : undefined,
           toggled: (which, isOpen) =>
             isOpen ? Message.OpenedMenu({ menu: menuOf(which, place) }) : Message.ClosedMenu(),
+          compact: onToolbar && model.barWidth > 0 && model.barWidth < FULL_BAR,
           inserts,
           roving: { current: Option.getOrNull(model.tabStop) },
           onFocus: id => Message.FocusedControl({ id }),
@@ -340,7 +358,8 @@ export const PlaygroundView = SlotView.forMessages<Message>()
         h,
       )
     }
-    const toolbar = h.div(slots.bar.attrs(), [
+    const measured = Mount.mapMessage(Resize(), fact => Message.ResizedBar({ width: fact.width }))
+    const toolbar = h.div(slots.bar.attrs([h.OnMount(measured)]), [
       formatting('toolbar'),
       h.div(slots.barActions.attrs([h.Role('group'), h.AriaLabel('Export')]), [exportMenu]),
       h.input(
@@ -352,7 +371,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
           h.OnMount(filePicker()),
         ]),
       ),
-      ...(open.style === 'toolbar' || open.insert ? [dismiss()] : []),
+      ...(open.style === 'toolbar' || open.insert || open.more ? [dismiss()] : []),
     ])
     const findBar = Option.match(model.find, {
       onNone: () => [],

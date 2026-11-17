@@ -351,8 +351,8 @@ describe('a compact bar', () => {
     expect(names({})).toEqual(['undo', 'mark-Bold', 'quote', 'insert'])
   })
 
-  it('does not draw the low ones, so they are not a tab stop, and leaves no separator behind', () => {
-    expect(names({ compact: true })).toEqual(['undo', 'insert'])
+  it('does not draw the low ones, so they are not a tab stop, and ends with the More button', () => {
+    expect(names({ compact: true })).toEqual(['undo', 'insert', 'more'])
     expect(
       drawn({ compact: true }).filter(node => node.data?.attrs?.['role'] === 'separator'),
     ).toHaveLength(1)
@@ -372,10 +372,107 @@ describe('a compact bar', () => {
         .filter(node => node.sel === 'button')
         .map(node => node.data?.props?.['tabIndex'])
     // After it first: Bold goes, and quote after it goes too, so insert holds the stop.
-    expect(stops('mark-Bold', items)).toEqual([-1, 0])
-    // Nothing drawn after it: the one before.
-    expect(stops('quote', ['undo', { mark: 'Bold' }, { low: 'quote' }])).toEqual([-1, 0])
+    expect(stops('mark-Bold', items)).toEqual([-1, 0, -1])
+    // Nothing drawn after it in the list: the one before.
+    expect(stops('quote', ['undo', { mark: 'Bold' }, { low: 'quote' }])).toEqual([-1, 0, -1])
     // A control the list never had: the first.
-    expect(stops('gone', items)).toEqual([0, -1])
+    expect(stops('gone', items)).toEqual([0, -1, -1])
+  })
+})
+
+describe('a compact bar’s More menu', () => {
+  const items: ReadonlyArray<FormattingItem> = [
+    { low: 'undo' },
+    { low: 'redo' },
+    'separator',
+    { mark: 'Bold' },
+    { low: { mark: 'Code' } },
+    { low: 'quote' },
+    { low: 'style' },
+    'insert',
+  ]
+  const drawn = (options: Partial<Parameters<typeof Toolbar>[0]>) =>
+    Inert.all(Toolbar({ ...base, items, compact: true, ...options }, SlotView.inertBuilder()))
+  const rows = (options: Partial<Parameters<typeof Toolbar>[0]>) =>
+    drawn(options).filter(node => node.data?.attrs?.['data-more'] !== undefined)
+
+  it('is a menu button that ends the bar, named by its words', () => {
+    const buttons = drawn({ words: { more: 'Other tools' } }).filter(node => node.sel === 'button')
+    const more = buttons.at(-1)
+    expect(more?.data?.attrs?.['data-item']).toBe('more')
+    expect(more?.data?.attrs?.['aria-haspopup']).toBe('menu')
+    expect(more?.data?.attrs?.['aria-label']).toBe('Other tools')
+    expect(more?.data?.attrs?.['aria-expanded']).toBe('false')
+  })
+
+  it('is not drawn on a wide bar, nor when nothing is low or all that is low opens a popup', () => {
+    expect(drawn({ compact: false }).some(node => node.data?.attrs?.['data-item'] === 'more')).toBe(
+      false,
+    )
+    expect(
+      drawn({ items: ['undo', 'insert'] }).some(node => node.data?.attrs?.['data-item'] === 'more'),
+    ).toBe(false)
+    expect(
+      drawn({ items: ['undo', { low: 'style' }] }).some(
+        node => node.data?.attrs?.['data-item'] === 'more',
+      ),
+    ).toBe(false)
+  })
+
+  it('lists the low controls in order when open, but those that open a popup of their own', () => {
+    expect(rows({ menu: 'more' }).map(node => node.data?.attrs?.['data-more'])).toEqual([
+      'undo',
+      'redo',
+      'mark-Code',
+      'quote',
+    ])
+    expect(rows({}).length).toBe(0)
+  })
+
+  it('draws a toggle as a checkbox item that says whether it is on, and the rest as items', () => {
+    const attrs = (id: string) =>
+      rows({ menu: 'more', selection: range('a', 0, 1) }).find(
+        node => node.data?.attrs?.['data-more'] === id,
+      )?.data?.attrs
+    expect(attrs('mark-Code')?.['role']).toBe('menuitemcheckbox')
+    expect(attrs('mark-Code')?.['aria-checked']).toBeDefined()
+    expect(attrs('quote')?.['role']).toBe('menuitem')
+    expect(attrs('quote')?.['aria-checked']).toBeUndefined()
+  })
+
+  it('says a control is unavailable, as the bar does, and keeps it a row', () => {
+    const undo = rows({ menu: 'more', history: { undo: false, redo: true } }).find(
+      node => node.data?.attrs?.['data-more'] === 'undo',
+    )
+    expect(undo?.data?.attrs?.['aria-disabled']).toBe('true')
+  })
+
+  it('gives an unavailable row no press handler, and an available one its own', () => {
+    const handler = (id: string) =>
+      rows({ menu: 'more', history: { undo: false, redo: true } }).find(
+        node => node.data?.attrs?.['data-more'] === id,
+      )?.data?.on?.['click']
+    expect(handler('undo')).toBeUndefined()
+    expect(handler('redo')).toBeDefined()
+  })
+
+  it('sends a control’s own Message when its row is pressed', () => {
+    scene(
+      { items, compact: true },
+      given({ menu: 'more' }),
+      Scene.click('[data-more="quote"]'),
+      sent({ _tag: 'WrappedBlock', containers: [{ kind: 'Quote' }] }),
+    )
+  })
+
+  it('opens and closes through the caller, as the other menus do', () => {
+    scene(
+      { items, compact: true },
+      given(),
+      Scene.click('[data-item="more"]'),
+      Scene.expect(control('more')).toHaveAttr('aria-expanded', 'true'),
+      Scene.click('[data-item="more"]'),
+      Scene.expect(control('more')).toHaveAttr('aria-expanded', 'false'),
+    )
   })
 })

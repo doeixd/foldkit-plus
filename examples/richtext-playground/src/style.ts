@@ -867,7 +867,11 @@ const barSlots = (root: StyleValue) =>
       }),
       Style.media(PHONE, { display: 'none' }),
     ),
-    anchor: Style.self({ position: 'relative' }),
+    anchor: Style.compose(
+      Style.self({ position: 'relative' }),
+      // The last menu (More, on a compact bar) opens toward the bar's start, not off the screen.
+      Style.nest('&:last-child > [role="menu"]', { insetInline: 'auto 0' }),
+    ),
     menu: Style.compose(
       popup,
       Style.self({

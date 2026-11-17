@@ -14,7 +14,7 @@ import {
 
 export const Message = defineMessageUnion({
   Sent: { editor: Schema.String },
-  Toggled: { menu: Schema.Literals(['style', 'insert', 'link']), open: Schema.Boolean },
+  Toggled: { menu: Schema.Literals(['style', 'insert', 'link', 'more']), open: Schema.Boolean },
   Focused: { id: Schema.String },
   Picked: { what: Schema.String },
   Returned: {},

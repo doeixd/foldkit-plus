@@ -33,7 +33,7 @@ const initial = EditorInput.init({ hostId }).model
 
 const App = defineMessageUnion({
   GotEditor: { message: EditorMessage },
-  Toggled: { menu: Schema.Literals(['style', 'insert', 'link']), open: Schema.Boolean },
+  Toggled: { menu: Schema.Literals(['style', 'insert', 'link', 'more']), open: Schema.Boolean },
   Focused: { id: Schema.String },
   Picked: { what: Schema.String },
   Returned: {},
@@ -44,7 +44,7 @@ type App = typeof App.Type
 
 const Model = Schema.Struct({
   editor: EditorView,
-  menu: Schema.UndefinedOr(Schema.Literals(['style', 'insert', 'link'])),
+  menu: Schema.UndefinedOr(Schema.Literals(['style', 'insert', 'link', 'more'])),
   current: Schema.NullOr(Schema.String),
   picked: Schema.Array(Schema.String),
   draft: Schema.String,
@@ -479,6 +479,67 @@ test('Escape from a control returns to the text with nothing changed', async () 
   }
 })
 
+test('a compact bar’s More menu is reached by the arrows, opens with Down, and Escape returns to its button', async () => {
+  const handle = mount({
+    compact: true,
+    history: { undo: false, redo: true },
+    items: [
+      'style',
+      { mark: 'Bold' },
+      { low: 'undo' },
+      { low: { mark: 'Code' } },
+      { low: 'quote' },
+    ],
+  })
+  try {
+    await ready()
+    await selectWord()
+    expect(
+      [...document.querySelectorAll('[role="toolbar"] > * button')].map(b =>
+        b.getAttribute('data-item'),
+      ),
+    ).toContain('more')
+    item('style').focus()
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+    expect(active()).toBe('more')
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(item('more').getAttribute('aria-expanded')).toBe('true'))
+    await userEvent.keyboard('{ArrowDown}')
+    // The first row is undo, which the caller says does not apply: a row, focusable, said so.
+    expect(document.activeElement?.getAttribute('data-more')).toBe('undo')
+    expect(document.activeElement?.getAttribute('aria-disabled')).toBe('true')
+    await userEvent.keyboard('{ArrowDown}')
+    expect(document.activeElement?.getAttribute('data-more')).toBe('mark-Code')
+    expect(document.activeElement?.getAttribute('role')).toBe('menuitemcheckbox')
+    expect(document.activeElement?.getAttribute('aria-checked')).toBe('false')
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(item('more').getAttribute('aria-expanded')).toBe('false'))
+    expect(active()).toBe('more')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('a row of the More menu sends the control’s own Message', async () => {
+  const handle = mount({
+    compact: true,
+    items: [{ mark: 'Bold' }, { low: { mark: 'Code' } }, { low: 'quote' }],
+  })
+  try {
+    await ready()
+    await selectWord()
+    item('more').focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(item('more').getAttribute('aria-expanded')).toBe('true'))
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+    await vi.waitFor(() =>
+      expect(document.querySelector('#blocks')?.textContent).toContain('Quote'),
+    )
+  } finally {
+    await handle.dispose()
+  }
+})
+
 test('at a phone width a compact bar draws only what fits, in one row, and the arrows visit just those', async () => {
   await page.viewport(390, 800)
   const handle = mount({
@@ -496,7 +557,7 @@ test('at a phone width a compact bar draws only what fits, in one row, and the a
       'separator',
       { low: 'bulleted-list' },
       { low: 'numbered-list' },
-      'quote',
+      { low: 'quote' },
       'separator',
       'insert',
     ],
@@ -513,8 +574,8 @@ test('at a phone width a compact bar draws only what fits, in one row, and the a
       'mark-Bold',
       'mark-Italic',
       'link',
-      'quote',
       'insert',
+      'more',
     ])
     const root = document.documentElement
     expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth)

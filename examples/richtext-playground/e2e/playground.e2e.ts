@@ -74,6 +74,17 @@ test('at a phone’s width nothing reaches past the edge of the page', async () 
       .map(element => element.getAttribute('aria-label') ?? element.tagName.toLowerCase())
   })
   expect(past).toEqual([])
+  // The bar compacts on a phone: undo is in its More menu, which opens inside the window.
+  await page.locator('[contenteditable=true] > p').first().click()
+  await page
+    .getByRole('toolbar', { name: 'Formatting' })
+    .getByRole('button', { name: 'More' })
+    .click()
+  const undo = page.locator('[data-more="undo"]')
+  await undo.waitFor({ timeout: 10_000 })
+  const box = (await undo.boundingBox())!
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(390)
   expect(errors).toEqual([])
   await page.close()
 })

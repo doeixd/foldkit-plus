@@ -83,7 +83,7 @@ const Slot = Bundle.declare(
 export const Roving = Bundle.declare(RovingTabindex.bundle, 'bodyTools')
 
 /** The popups of the body toolbar. */
-export const ToolsMenu = Schema.Literals(['style', 'insert', 'link'])
+export const ToolsMenu = Schema.Literals(['style', 'insert', 'link', 'more'])
 
 export const Model = Schema.Struct({
   remote: Remote.Model,

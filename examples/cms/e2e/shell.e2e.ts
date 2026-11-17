@@ -198,8 +198,9 @@ test('the centre column keeps its scroll across navigations: Back and Forward re
   await page.context().close()
 })
 
-test('the formatting bar fits its column at every width from 320 to 1440, with every drawn tool reached by the arrow keys', async () => {
-  for (const width of [320, 390, 480, 640, 768, 900, 1024, 1060, 1100, 1280, 1440]) {
+test.each([320, 390, 480, 640, 768, 900, 1024, 1060, 1100, 1280, 1440])(
+  'the formatting bar fits its column at %ipx, every drawn tool is reached by the arrows, and the rest is in More',
+  async width => {
     const page = await (await browser.newContext({ viewport: { width, height: 800 } })).newPage()
     await openPost(page)
     // The width is measured a frame after the bar is drawn, and the bar redraws for it.
@@ -220,9 +221,22 @@ test('the formatting bar fits its column at every width from 320 to 1440, with e
       await page.keyboard.press('ArrowRight')
     }
     expect([...reached].sort(), `at ${width}px`).toEqual([...new Set(drawn)].sort())
+
+    // What the compact bar leaves out is in its More menu, inside the window: undo among it.
+    if (drawn.includes('More')) {
+      await toolbar.getByRole('button', { name: 'More' }).click()
+      const undo = page.locator('[data-more="undo"]')
+      await undo.waitFor({ timeout: 10_000 })
+      const box = (await undo.boundingBox())!
+      expect(box.x, `More's menu at ${width}px`).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(width)
+      expect(await page.locator('[role="menu"] [data-more]').count()).toBeGreaterThanOrEqual(5)
+    } else {
+      expect(width, 'only a wide bar has every tool in the bar').toBeGreaterThanOrEqual(640)
+    }
     await page.context().close()
-  }
-})
+  },
+)
 
 test('the public site, which scrolls as a document, comes back to its offset on a reload', async () => {
   const page = await (

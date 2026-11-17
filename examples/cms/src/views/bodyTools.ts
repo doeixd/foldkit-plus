@@ -14,10 +14,8 @@ import { RovingTabindex } from 'foldkit-primitives/interaction'
 import {
   FormattingToolbarSlots,
   formattingToolbar,
-  InsertEntry,
   type FormattingItem,
 } from 'foldkit-mixins-richtext'
-import { slashEntries } from 'foldkit-richtext-dom/editor'
 import { Message, Roving, type Model } from '../apps/app.js'
 import { PostForm } from '../content/postForm.js'
 import { barSize, phoneBarSize } from '../styles/adminStyle.js'
@@ -30,8 +28,8 @@ export const BodyToolsSlots = Slots.define({
 /**
  * Undo and redo, the text style, the marks a post's Markdown can say, lists and quote, and the
  * insert menu. No link control yet: it opens `linkEditor`, which needs a draft of its own.
- * On a narrow window the `low` ones are not drawn, so the bar fits one row without scrolling;
- * the shortcuts and the slash menu still reach them.
+ * On a narrow window the `low` ones leave the bar for its More menu, so the bar fits one row
+ * without scrolling and no tool is lost.
  */
 const ITEMS: ReadonlyArray<FormattingItem> = [
   { low: 'undo' },
@@ -51,16 +49,6 @@ const ITEMS: ReadonlyArray<FormattingItem> = [
   'insert',
 ]
 
-const LEFT_OUT: ReadonlyArray<string> = ['bulleted-list', 'numbered-list', 'quote']
-
-/**
- * What the narrow bar's Insert menu offers beside the code block: the lists and the quote, whose
- * buttons it leaves out. The wide bar draws them as buttons, so its menu keeps the default.
- */
-const narrowInserts = slashEntries
-  .filter(entry => entry.group === 'Blocks' || LEFT_OUT.includes(entry.id))
-  .map(entry => InsertEntry.Editor({ entry }))
-
 /** What the bar needs for every tool on one row: below it, the `low` ones are left out. */
 const FULL_WIDTH = 540
 
@@ -71,30 +59,42 @@ const tool = button({ tone: 'neutral', variant: 'ghost', size: 'sm' })
 
 export const BarStyle = Style.forSlots(FormattingToolbarSlots)(
   {
-    root: Style.self({
-      alignItems: 'center',
-      display: 'flex',
-      gap: t.space['3xs'],
-      // Where the tools still do not fit (a wide window with a narrow column), the bar scrolls
-      // sideways, with no scrollbar drawn; the arrow keys bring each tool into view.
-      overflowX: 'auto',
-      padding: t.space['2xs'],
-      scrollbarWidth: 'none',
-    }),
+    root: Style.compose(
+      Style.self({
+        alignItems: 'center',
+        display: 'flex',
+        gap: t.space['3xs'],
+        // Where the tools still do not fit (a wide window with a narrow column), the bar scrolls
+        // sideways, with no scrollbar drawn; the arrow keys bring each tool into view.
+        overflowX: 'auto',
+        padding: t.space['2xs'],
+        scrollbarWidth: 'none',
+      }),
+      // The narrowest phones (a 288px bar) have no room for the bar's own side padding.
+      Style.media('(max-width: 26rem)', { paddingInline: '0' }),
+    ),
     button: Style.compose(
       tool,
       Style.self({ flexShrink: '0', whiteSpace: 'nowrap' }),
       Style.pseudo('[aria-pressed="true"]', { background: t.accent.subtle, color: t.accent.ink }),
       Style.pseudo('[aria-disabled="true"]', { opacity: '0.45' }),
     ),
-    separator: Style.self({
-      background: t.outline.subtle,
-      blockSize: '1.25rem',
-      flexShrink: '0',
-      inlineSize: '1px',
-      marginInline: t.space['2xs'],
-    }),
-    anchor: Style.self({ flexShrink: '0', position: 'relative' }),
+    separator: Style.compose(
+      Style.self({
+        background: t.outline.subtle,
+        blockSize: '1.25rem',
+        flexShrink: '0',
+        inlineSize: '1px',
+        marginInline: t.space['2xs'],
+      }),
+      // The narrowest phones (a 288px bar) have no room for the groups' dividers.
+      Style.media('(max-width: 26rem)', { display: 'none' }),
+    ),
+    anchor: Style.compose(
+      Style.self({ flexShrink: '0', position: 'relative' }),
+      // The last menu (More, or Insert on a wide bar) opens toward the bar's start, not off the screen.
+      Style.nest('&:last-child > [role="menu"]', { insetInline: 'auto 0' }),
+    ),
     label: Style.self({ fontSize: t.size.sm }),
     menu: Style.self({
       background: t.surface.base,
@@ -145,7 +145,6 @@ export const BodyTools = SlotView.forMessages<Message>()
           storedMarks: draft.storedMarks,
           items: ITEMS,
           compact,
-          ...(compact ? { inserts: narrowInserts } : {}),
           wrap: message => Message.PressedTool({ message: body.send(message) }),
           menu: Option.getOrUndefined(model.toolsMenu),
           toggled: (menu, open) => Message.ToggledToolsMenu({ menu, open }),

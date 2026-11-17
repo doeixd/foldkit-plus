@@ -10,6 +10,9 @@
  * the slice `foldkit-mixins-ui`'s Toolbar asks for too, so that Tab returns to the control last
  * used. An unavailable control is `aria-disabled` and stays focusable, so the arrows still reach
  * it and a screen reader can say why nothing happened; its press sends nothing.
+ *
+ * A `compact` bar leaves out the `{ low }` controls and offers them in a "More" menu at its end,
+ * kept by the caller like the others, so a narrow screen loses no tool.
  */
 import { Data, Equal, Option } from 'effect'
 import type { Html } from 'foldkit/html'
@@ -41,7 +44,7 @@ export const FormattingToolbarSlots = Slots.define({
 })
 
 /** The popups a control opens; the caller keeps which one is open, and draws `link`'s own editor. */
-export type FormattingMenu = 'style' | 'insert' | 'link'
+export type FormattingMenu = 'style' | 'insert' | 'link' | 'more'
 
 /**
  * A control of the application's own in the bar: it joins the same tab stop and the same arrow
@@ -82,6 +85,7 @@ type PlacedItem<Message> =
   | 'quote'
   | 'insert'
   | 'separator'
+  | 'more'
   | { readonly mark: string }
   | { readonly control: ApplicationControl<Message> }
 
@@ -89,12 +93,14 @@ type PlacedItem<Message> =
  * One control, in the order drawn. A `mark` is a mark of the document's vocabulary, by name: the
  * toolbar cannot know which marks an application declared, so it lists none by itself beyond
  * `standardFormattingItems`'. A `control` is the application's own. `{ low: item }` is a control
- * that gives way when the bar is `compact`: it is not drawn then, so it is neither a tab stop nor
- * an arrow-key target.
+ * that gives way when the bar is `compact`: it is not drawn in the bar then, and is listed in the
+ * "More" menu the bar ends with instead, in its order, with its name, pressed and unavailable
+ * states. A `low` control that opens a popup of its own (`style`, `insert`, `link`, or an
+ * application control with a `popup`) has no form in that menu, so a compact bar leaves it out.
  */
 export type FormattingItem<Message = never> =
-  | PlacedItem<Message>
-  | { readonly low: Exclude<PlacedItem<Message>, 'separator'> }
+  | Exclude<PlacedItem<Message>, 'more'>
+  | { readonly low: Exclude<PlacedItem<Message>, 'separator' | 'more'> }
 
 type InsertEntryUnion<Message> = Data.TaggedEnum<{
   /** An entry of the slash menu's catalogue: its Message is the editor's, sent through `wrap`. */
@@ -148,6 +154,8 @@ export interface FormattingWords {
   readonly checklist: string
   readonly quote: string
   readonly insert: string
+  /** The overflow menu's button and its menu's name, on a compact bar. */
+  readonly more: string
 }
 
 const defaultWords: FormattingWords = {
@@ -161,6 +169,7 @@ const defaultWords: FormattingWords = {
   checklist: 'Checklist',
   quote: 'Quote',
   insert: 'Insert',
+  more: 'More',
 }
 
 /**
@@ -188,8 +197,9 @@ export interface FormattingToolbarInput<Message> {
   /** The controls and their order; default `standardFormattingItems`. Leave a control out to hide it. */
   readonly items?: ReadonlyArray<FormattingItem<NoInfer<Message>>> | undefined
   /**
-   * Draw only the controls not marked `{ low }`: the application's answer to a narrow screen, from
-   * the width signal it keeps in its Model (a media-query Subscription). Default `false`.
+   * Draw only the controls not marked `{ low }`, and the rest in a "More" menu: the application's
+   * answer to a narrow screen, from the width signal it keeps in its Model (a media-query
+   * Subscription, or a `Resize` mount on the bar's own column). Default `false`.
    */
   readonly compact?: boolean | undefined
   /**
@@ -291,8 +301,31 @@ const visibleItems = <Message>(
     }
     return drawn
   }, [])
-  return tidy[tidy.length - 1] === 'separator' ? tidy.slice(0, -1) : tidy
+  const ended = tidy[tidy.length - 1] === 'separator' ? tidy.slice(0, -1) : tidy
+  return overflowOf(input).length === 0 ? ended : [...ended, 'more']
 }
+
+/** Whether a control opens a popup of its own, which the "More" menu cannot hold. */
+const opensPopup = <Message>(item: Exclude<PlacedItem<Message>, 'separator'>): boolean =>
+  item === 'style' ||
+  item === 'insert' ||
+  item === 'link' ||
+  (typeof item === 'object' && 'control' in item && item.control.popup !== undefined)
+
+/**
+ * The controls a compact bar moves into its "More" menu: the `{ low }` ones, in order, but for those
+ * that open a popup. Empty unless `compact`.
+ */
+const overflowOf = <Message>(
+  input: FormattingToolbarInput<Message>,
+): ReadonlyArray<Control<Message>> =>
+  input.compact !== true
+    ? []
+    : controlsOf(
+        (input.items ?? standardFormattingItems).flatMap(item =>
+          typeof item === 'object' && 'low' in item && !opensPopup(item.low) ? [item.low] : [],
+        ),
+      )
 
 /**
  * Where the tab stop is among the controls drawn: the control `roving` names, else the one nearest
@@ -317,6 +350,7 @@ const MENU_OF: Readonly<Record<string, FormattingMenu>> = {
   style: 'style',
   insert: 'insert',
   link: 'link',
+  more: 'more',
 }
 const menuOf = (id: string): FormattingMenu | undefined =>
   Object.hasOwn(MENU_OF, id) ? MENU_OF[id] : undefined
@@ -360,7 +394,10 @@ const menuEntries = <Message>(
 const menuItemIds = <Message>(
   input: FormattingToolbarInput<Message>,
   menu: FormattingMenu,
-): ReadonlyArray<string> => menuEntries(input, menu).map(each => `${input.id}-${menu}-${each.id}`)
+): ReadonlyArray<string> =>
+  menu === 'more'
+    ? overflowOf(input).map(control => `${input.id}-more-${control.id}`)
+    : menuEntries(input, menu).map(each => `${input.id}-${menu}-${each.id}`)
 
 /**
  * The toolbar as a slot view, with the APG toolbar's keys: one tab stop (the control `roving`
@@ -405,7 +442,7 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
           const at = (control: string) => `${input.id}-${control}`
           // Read at the press: a render may lag a held key, and only the DOM knows where focus is.
           const active = document.activeElement?.id
-          const inMenu = (['style', 'insert'] as const).find(
+          const inMenu = (['style', 'insert', 'more'] as const).find(
             menu =>
               input.menu === menu &&
               active !== undefined &&
@@ -558,6 +595,15 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
               popup: 'menu',
               press: input.toggled('style', !open('style')),
             }
+          case 'more':
+            return {
+              name: words.more,
+              icon: icon('more'),
+              available: true,
+              expanded: open('more'),
+              popup: 'menu',
+              press: input.toggled('more', !open('more')),
+            }
           case 'insert':
             return {
               name: words.insert,
@@ -632,6 +678,33 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
         )
       }
 
+      /** The compact bar's overflow: each moved control with its own name, state and Message. */
+      const overflowMenu = (): Html => {
+        const moved = overflowOf(input)
+        return h.div(
+          slots.menu.attrs([h.Role('menu'), h.AriaLabel(words.more)]),
+          moved.map((control, index) => {
+            const made = describe(control)
+            return h.button(
+              slots.item.attrs(
+                [
+                  h.Type('button'),
+                  h.Id(`${input.id}-more-${control.id}`),
+                  h.Tabindex(-1),
+                  h.Role(made.pressed === undefined ? 'menuitem' : 'menuitemcheckbox'),
+                  ...(made.pressed === undefined ? [] : [h.AriaChecked(made.pressed)]),
+                  h.AriaDisabled(!made.available),
+                  h.DataAttribute('more', control.id),
+                  ...(made.available ? [h.OnClick(made.press)] : []),
+                ],
+                { index, id: control.id, count: moved.length },
+              ),
+              [...made.icon, h.span(slots.itemLabel.attrs(), [made.label ?? made.name])],
+            )
+          }),
+        )
+      }
+
       const popup = (menu: 'style' | 'insert'): Html => {
         const entries = menuEntries(input, menu)
         return h.div(
@@ -693,7 +766,7 @@ export const formattingToolbar = <Message>(): SlotView.SlotView<
           const opened = open(menu) && describe(control).available
           return h.div(slots.anchor.attrs([h.Key(`anchor-${control.id}`)]), [
             drawn,
-            ...(opened ? [popup(menu)] : []),
+            ...(opened ? [menu === 'more' ? overflowMenu() : popup(menu)] : []),
           ])
         }),
       )
