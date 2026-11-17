@@ -997,7 +997,7 @@ describe('Recipes', () => {
       Style.forSlots(BadgeSlots)({ badge: Recipes.Badge({ attribute, tones }).badge }).css
 
     it('compiles the pill, its appearances, and one rule per mapped value', () => {
-      expect(css()).toContain('border-radius:var(--fk-radius-xl)')
+      expect(css()).toContain('border-radius:var(--fk-radius-full)')
       expect(css()).toContain('[data-state="Published"]')
       expect(css()).toContain('[data-state="Changed"]')
       expect(css()).toContain('[data-state="New"]')

@@ -21,7 +21,7 @@ afterEach(() => {
   document.documentElement.style.removeProperty('--fk-knob-radius-factor')
 })
 
-test('a badge rounds with the radius knob, and an avatar is a disc that squares at 0', async () => {
+test('a badge is a pill that squares with the radius knob, and an avatar is a disc that squares at 0', async () => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -56,10 +56,10 @@ test('a badge rounds with the radius knob, and an avatar is a disc that squares 
     const knob = (factor: string) =>
       document.documentElement.style.setProperty('--fk-knob-radius-factor', factor)
     knob('1')
-    expect(corner(pill!)).toBe(12)
+    expect(corner(pill!)).toBe(9999)
     expect(getComputedStyle(disc!).borderTopLeftRadius).toBe('50%')
     knob('0.5')
-    expect(corner(pill!)).toBe(6)
+    expect(corner(pill!)).toBe(4999.5)
     knob('0')
     expect(corner(pill!)).toBe(0)
     expect(corner(disc!)).toBe(0)
