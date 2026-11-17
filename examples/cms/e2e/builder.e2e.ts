@@ -321,9 +321,9 @@ test('a layer row dragged above another lands there, and a drag over nowhere say
   await context.close()
 })
 
-const phone = async (browser: Browser) => {
+const phone = async (browser: Browser, height = 844) => {
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 },
+    viewport: { width: 390, height },
     hasTouch: true,
     isMobile: true,
     colorScheme: scheme,
@@ -483,7 +483,10 @@ test('a tile dropped in the gap between two nodes lands between them, with the l
 })
 
 test('at 390px a held finger drops a node into the gap above another, between two, with the line at the gap', async () => {
-  const { context, page, errors } = await phone(browser)
+  // The grip and the gap sit about 650px apart at Verdana's widths and 690px at CI's, and the
+  // finger needs the grip below the studio's bar (100px) and the gap above the window's bottom
+  // edge zone (60px): a window of 844px cannot hold both, so this one is taller.
+  const { context, page, errors } = await phone(browser, 1000)
   const node = (id: string) => page.locator(`[data-composition-node="${id}"] > *`).first()
   await node('text').tap()
   const grip = page.locator('[data-builder-handle]')
@@ -521,7 +524,7 @@ test('at 390px a held finger drops a node into the gap above another, between tw
   const line = (await node('quote').boundingBox())!
   expect(Math.abs(line.y - to.y)).toBeLessThan(40)
   expect(line.y).toBeGreaterThanOrEqual(0)
-  expect(line.y).toBeLessThanOrEqual(844)
+  expect(line.y).toBeLessThanOrEqual(page.viewportSize()!.height)
   await shot(page, 'phone-gap')
   await touch('touchEnd', to)
   await expect
