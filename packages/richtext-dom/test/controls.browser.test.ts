@@ -4,7 +4,7 @@
  * does hold the focus, the Model's selection is neither overwritten by what the browser does to
  * its own nor lost from view, and it is the browser's again when the focus returns.
  */
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import * as RichText from 'foldkit-richtext'
 import { attach, CONTROLS_ATTRIBUTE, readSelection, SELECTION_DECORATION } from '../src/events.js'
@@ -96,6 +96,16 @@ const selected = () => getSelection()?.toString()
 const offsets = (selection: RichText.Selection | null) =>
   selection?.type === 'Range' ? [selection.anchor.offset, selection.focus.offset] : selection
 
+/**
+ * Selects 'Milk' and waits until the editor has reported it. The report is a `selectionchange`,
+ * a task the browser queues after the range is set, so two frames did not always outlast it.
+ */
+const focusText = async (page: ReturnType<typeof setup>) => {
+  page.attachment.focus(range(0, 4))
+  await vi.waitFor(() => expect(offsets(page.state().selection)).toEqual([0, 4]))
+  await settle()
+}
+
 afterEach(() => {
   document.body.replaceChildren()
 })
@@ -133,8 +143,7 @@ it('a press on a marked control takes the focus from another control, which the 
 
 it('what the browser does to its selection while a control has the focus is not the Model’s', async () => {
   const page = setup()
-  page.attachment.focus(range(0, 4))
-  await settle()
+  await focusText(page)
   expect(offsets(page.state().selection)).toEqual([0, 4])
   page.plain.focus()
   const before = page.reported.length
@@ -150,8 +159,7 @@ it('what the browser does to its selection while a control has the focus is not 
 
 it('a selection made just before the focus leaves is the Model’s, though the browser says so later', async () => {
   const page = setup()
-  page.attachment.focus(range(0, 4))
-  await settle()
+  await focusText(page)
   const text = page.root().querySelector('[data-run]')!.firstChild!
   // As a press or a key leaves it: set, and the focus gone before `selectionchange` is sent.
   getSelection()!.setBaseAndExtent(text, 1, text, 3)
@@ -164,8 +172,7 @@ it('a selection made just before the focus leaves is the Model’s, though the b
 
 it('the focus moving from one control to another leaves the Model’s selection alone', async () => {
   const page = setup()
-  page.attachment.focus(range(0, 4))
-  await settle()
+  await focusText(page)
   await userEvent.tab()
   page.bold.focus()
   expect(document.activeElement).toBe(page.bold)
@@ -175,8 +182,7 @@ it('the focus moving from one control to another leaves the Model’s selection 
 
 it('two commands from a control that has the focus act on the same text', async () => {
   const page = setup()
-  page.attachment.focus(range(0, 4))
-  await settle()
+  await focusText(page)
   await userEvent.tab()
   expect(document.activeElement).toBe(page.plain)
   page.toggle('Bold')
@@ -230,8 +236,7 @@ it('draws nothing for a caret on an empty line, where a decoration of no text wo
 
 it('keeps the selection drawn through a command sent from the control', async () => {
   const page = setup()
-  page.attachment.focus(range(0, 4))
-  await settle()
+  await focusText(page)
   await userEvent.tab()
   page.toggle('Bold')
   expect(standIn()).toBe('Milk')
@@ -263,8 +268,7 @@ it('keeps the selection drawn through a decoration refresh, as another person’
 
 it('gives the selection back to the browser when a key returns the focus to the text', async () => {
   const page = setup()
-  page.attachment.focus(range(0, 4))
-  await settle()
+  await focusText(page)
   await userEvent.tab()
   page.toggle('Bold')
   await userEvent.tab({ shift: true })
@@ -289,8 +293,7 @@ it('gives the selection back to the browser when `focus` returns to the text', a
 
 it('a press back in the text puts the caret where it was pressed, with nothing left drawn', async () => {
   const page = setup()
-  page.attachment.focus(range(0, 4))
-  await settle()
+  await focusText(page)
   await userEvent.tab()
   expect(standIn()).toBe('Milk')
   await userEvent.click(page.root())
@@ -308,8 +311,7 @@ it('leaves the focus on a control inside the text that it moved to', async () =>
   const inner = document.createElement('button')
   inner.contentEditable = 'false'
   page.root().append(inner)
-  page.attachment.focus(range(0, 4))
-  await settle()
+  await focusText(page)
   await userEvent.tab()
   inner.focus()
   expect(standIn()).toBe('')
