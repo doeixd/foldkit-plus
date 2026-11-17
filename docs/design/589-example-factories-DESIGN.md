@@ -1140,10 +1140,11 @@ Built and pushed on `ui-polish` (2026-11-17): `recipe.add`; `configure.ts`, `wor
 
 | Still to build in phase 1 | Why it waits |
 | --- | --- |
-| `Bundles.Calendar`, `Bundles.DatePicker`, and `Calendar.view`, `DatePicker.view` with their `configure` | Not started. `Selection` and its readers have to move out of `calendar.ts` first (below). |
-| `Combobox.view(options, h)` and `Combobox.configure` | Not started. The `Choice`, the Bundle and the fold exist; the drawing still goes through `toView` and `ComboboxView`. |
+| `Bundles.Calendar`, `Calendar.view`, `Calendar.configure` | Built; see "The Calendar, as built" below. |
+| `Combobox.view(options, h)` and `Combobox.configure` | Built; see "The Combobox, as built" below. |
+| `Bundles.DatePicker`, `DatePicker.view`, `DatePicker.configure` | Not started. |
 | **TODO: `Bundles.FileUpload` and `FileUpload.configure`** | FileUpload was being built by another session on the same files. Its own `fill` should become `words.ts`'s. |
-| `rowContent.ts`, `press.ts`, the `Tone` type and size names in `recipes/design.ts`, the shared `anchor` helper | No gate widget built so far reads them. `rowContent.ts` goes in with `Combobox.view` (its `option`), `anchor` with `DatePicker.view`; `press.ts` and the vocabulary types with F1 and F2. |
+| `press.ts`, the `Tone` type and size names in `recipes/design.ts`, the shared `anchor` helper | No gate widget built so far reads them. `rowContent.ts` went in with `Combobox.view`; `anchor` goes with `DatePicker.view`; `press.ts` and the vocabulary types with F1 and F2. |
 | TagsInput's words as text (`remove: 'Remove {tag}'`, the refusals as words in place of `refusalText`) | Breaking, and `examples/site/src/snippets/components.ts` passes `refusalText`; it lands with the site's tags-input page. |
 | M9 (the helper's bytes) | Not measured. `configure.ts` is about 1.3 kB of source and imports nothing. |
 
@@ -1181,6 +1182,25 @@ Decided where the note was silent or wrong:
 - **The configure preset type is `CalendarViewPreset`**, not `CalendarPreset`: the package's index already exports `Calendar.Preset` as `CalendarPreset`, a selection one press away. A preset holds neither `aside` nor `footer`, which are drawings.
 - **`words` covers upstream's ten labels as text**, so one object localizes the calendar and `configure` can merge it. Upstream takes four of them as functions; the view fills `{month}`, `{date}`, `{year}`, `{from}` and `{to}`.
 - **Not built: a `closes` rule, `anchor`, `trigger`.** They are the DatePicker's.
+
+#### The Combobox, as built
+
+`combobox/view.ts` (`view`, `configure`), `combobox/filters.ts` (`contains`, `startsWith`), `combobox/words.ts`, `combobox/slots.ts`, `combobox/fluid.ts`, `combobox/overlayBars.ts`, and `rowContent.ts`; `combobox.ts` re-exports every name.
+
+What §3.4's table has, as built: `model`, `onMessage`, `label`, `choice`, `value`, `items`, `filter`, `option`, `groupBy`, `heading`, `placeholder`, `empty`, `clear`, `chips`, `buttonContent`, `disabled`, `invalid`, `readOnly`, `name`, `openOnFocus`, `anchor`, `words`, `style`, `mixins`. Left for F5, each an addition and none breaking: `chips.removable` and `chips.content`, `start` and `end`, `autoHighlight`, `creatable`, the field variant `ghost`, and a `scroll` option for `overlayBars`.
+
+Decided where the note was silent or wrong:
+
+- **`clear` is `true | { content }`, the widget-owned form.** §3.5 gives a widget whose value is the application's `clear: { onClear: Message }`. A Combobox's clear button empties the text its own state holds, through its own Message, and the value follows through the `Choice` (`Typed`, or `ClearedSelection` for a nullable field). An `onClear` Message beside that would be a second writer.
+- **`filter` is given the row's label, not the item**: `(label, typed) => boolean`. The item is an id as often as a word, and the label is what the reader types against.
+- **The item and value types are inferred from `choice` alone** (`NoInfer` on `value`, `items`, `option`, `groupBy`). Inferred from every site, `items: ['fao']` widened `Item` and passed; the type test caught it.
+- **`heading` has no default.** A heading is a drawing in the `heading` Slot, and `Html` holds no bare text; `groupBy` without `heading` groups the rows unnamed.
+- **Row 7's fix needed a slots module, and broke nothing.** `fluid` and `overlayBars` were already passed values, so they moved to files of their own under the same names, with `ComboboxSlots` in `combobox/slots.ts` because a Behavior reads the slots at load. The brief's "old default behaviour as a breaking change" did not apply: nothing was on by default.
+- **`RowContent` replaces `OptionContent` in the Combobox only.** `drawOption` takes the parts it draws and an optional `itemTrailing` builder; the Listbox has no such Slot yet and keeps `OptionContent` until F5. `RowAction` is not declared: it has no reader.
+- **`chips.label` and `chips.removeLabel` could never be passed.** They were functions inside an object in a submodel's view inputs, which Foldkit refuses when it draws; the unit test called the fork's render directly and did not see it. A chip is labelled by `itemToDisplayText`, and its button named by `words.remove`.
+- **The fork drew no hidden inputs while closed**, so a closed Combobox submitted nothing. Upstream draws them always; the `name` test found it. Fixed, with a changelog entry.
+- **`Bundles.Combobox` takes `text`**, the field's starting text. Upstream writes the resting text only as the field is left, so a field placed with a value already chosen started blank.
+- **The rung keeps `clearContent` and `clearLabel`.** `examples/site/src/snippets/components.ts` passes both, so the rename to `clear` on the adapter lands with the site's combobox page; `words.clear` is read where `clearLabel` is not given. The literal `×` in a chip's remove button stays too.
 
 ### Open measurements
 

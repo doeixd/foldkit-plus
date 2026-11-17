@@ -1067,7 +1067,7 @@ natively take a `name` (see [Form participation](#form-participation)).
 | `Segmented` | A tray of buttons where pressing selects. `Segmented.view({ id, label, options: { value, label, icon?, iconOnly?, disabled? }[], pressed, onPress, multiple?, direction?, name?, disabled? }, h)`; `Segmented.toggled(pressed, value, { multiple, optional })` is the transition `update` applies. See [Segmented](#segmented). | `tray`: `tray` (default, muted), `plain`, `underline`; `size`: `xs`, `sm`, `md`, `lg`; `width: 'fill'`. Slots `group`, `option`, `label`, `icon`, `content`, `indicator`, `highlight`, `hiddenInput`. |
 | `Select` | Adapter over the native `<select>`; the recipe draws its own chevron and mutes a chosen placeholder. For icons, descriptions, groups or a check in the list, draw a Listbox as a custom select with `Listbox.parts`. | `size`: `sm`, `md` (default), `lg`; `variant`: `outline` (default), `filled`. Slots `select`, `label`, `description`. |
 | `Listbox` | Adapter over a fork (see [Why some components needed a fork](#why-some-components-needed-a-fork)); single and multi share one transcription. A custom select is a Listbox drawn with `Listbox.parts(mixins, { h })`: `part.option({ label, description?, icon? })` as an item's content and `part.trigger(chosen, placeholder)` as the button's, its value or the placeholder (muted, `data-placeholder`) and a chevron. An invalid trigger (`isInvalid`) writes `aria-invalid` and draws the error edge, a disabled one shows no hover, and a portaled panel carries the `direction`, so a right-to-left page places it for its side. | `width`: `auto` (default), `trigger`; `check`: `end` (default), `start`, `none`; `trigger`: `outline` (default), `filled`, `ghost`; `size`. Slots `wrapper`, `button`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, `rows`, `highlight`, `indicator`, `scrollBar`, `scrollThumb`, the option's and trigger's parts (`itemIcon`, `itemLabel`, `itemDescription`, `itemCheck`, `value`, `valueText`, `chevron`, …). |
-| `Combobox` | Adapter over a fork, single and multi. The view inputs add `chips: { label?, removeLabel? }` (each chosen value a chip in the field, its remove button choosing it again; with `ComboboxView.Multi`, a tags field with suggestions), `clearContent` and `clearLabel` (a clear button while the field has text), and `empty` (shown, as a polite status, in the list's place while open with nothing to list; a loading line too). `Combobox.parts(mixins, { h }).option(content, query)` marks the typed text in an option's label. Home and End move the caret in the text: the list's ends are not bound to them. An invalid combobox writes `aria-invalid` on the input and draws the error edge on the field; the clear button is a touch-sized target. | `width`: `trigger` (default), `auto`; `size`. Slots as the Listbox's with `wrapper`, `inputWrapper`, `input`, `toggleButton`, `chips`, `chip`, `chipRemove`, `clearButton`, `empty`. |
+| `Combobox` | Adapter over a fork, single and multi. `Combobox.view({ model, onMessage, label, choice, value, … }, h)` draws it from options ([State](#state-fold-it-by-hand-or-place-a-bundle)). On the adapter, the view inputs add `chips: {}` (each chosen value a chip in the field, labelled by `itemToDisplayText`, its remove button choosing it again; with `ComboboxView.Multi`, a tags field with suggestions), `clearContent` and `clearLabel` (a clear button while the field has text; `clearContent: null` draws a cross), `words: { clear?, remove? }`, and `empty` (shown, as a polite status, in the list's place while open with nothing to list; a loading line too). `Combobox.parts(mixins, { h }).option(content, query)` draws a `RowContent` and marks the typed text in its label. A closed combobox submits its value under `formName` too. Home and End move the caret in the text: the list's ends are not bound to them. An invalid combobox writes `aria-invalid` on the input and draws the error edge on the field; the clear button is a touch-sized target. | `width`: `trigger` (default), `auto`; `size`. Slots as the Listbox's with `wrapper`, `inputWrapper`, `input`, `toggleButton`, `chips`, `chip`, `chipRemove`, `clearButton`, `empty`, `itemTrailing`. |
 | `Picker` | A select that is a dropdown on a desktop and a bottom sheet on a phone, with one Model and one set of Messages whatever the width. A small Model: `Picker.init({ id, sheet? })`, folded with `Picker.update`, which returns `Picker.OutMessage.Chose({ value })` for a choice made either way. `Picker.view({ model, onMessage, label, options, value, placeholder, anchor?, style?, mixins?, listbox?, sheet?, routes? }, h)`; `options` are `{ value, label, description?, icon? }`. See [Picker](#picker). | `sheetBelow`: `sm`, `md` (default), `lg`; `trigger`: `outline` (default), `filled`, `ghost`; `size`. Slots `root`, `dropdown`, `opener`, `list`, `option`. |
 | `CascadeSelect` | After Zag's: one value chosen as a path of ids through nested options. A small Model: `CascadeSelect.init({ id })` holds the chosen path and the one the keys are on, folded with `CascadeSelect.update(config)`. `CascadeSelect.view({ model, config, onMessage, label, placeholder?, levels?, layout?, expandOn?, clearable?, separator?, name?, disabled?, invalid?, direction?, routes?, style? }, h)`. See [CascadeSelect](#cascadeselect). | `size`; `trigger`: `outline`, `filled`, `ghost`; `width`: `trigger`, `auto`. Slots `root`, `trigger`, `valueText`, `chevron`, `clear`, `input`, `layer`, `backdrop`, `panel`, `column`, `heading`, `back`, `item`, `itemText`, `branch`. |
 | `Slider` | Native `input type="range"` thumbs, so drag, keys, right to left and the form value are the browser's. `Slider.view({ id, label, value, onChange, onCommit?, description?, min?, max?, step?, format?, marks?, showValue?, name?, disabled?, orientation?, ticks?, thumbLabels? }, h)`; `value` is a number or a `{ low, high }` range, and `onChange` is handed the same kind. See [Slider](#slider). | `tone`: `accent` (default), `neutral`; `size`: `sm`, `md` (default), `lg`; `track`: `thick` (default), `thin`, `paint`; `value`: `above` (default), `inside`, `end`; `label`: `shown` (default), `hidden`. Slots `root`, `label`, `description`, `control`, `track`, `fill`, `mark`, `value`, `thumb`. |
@@ -2792,6 +2792,7 @@ and folded, and the Bundle reports each change for the application to answer:
 ```ts standalone
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Bundles, Combobox } from 'foldkit-mixins-ui'
 
 const cities = ['Lisbon', 'Porto', 'Faro'] as const
@@ -2807,6 +2808,21 @@ const App = Bundle.compose({ city: Schema.Option(Schema.Literals(cities)) }).pip
 )
 
 export const initial = App.placements.initial({ city: City.empty })
+
+// The same `Choice` reads the field for the drawing: the chosen row, the resting text.
+export const cityField = (model: typeof App.Model.Type, h: HtmlBuilder<typeof App.Message.Type>): Html =>
+  Combobox.view(
+    {
+      model: model.cityBox,
+      onMessage: message => App.Message.GotCityBoxMessage({ message }),
+      label: 'City',
+      choice: City,
+      value: model.city,
+      filter: Combobox.contains,
+      clear: true,
+    },
+    h,
+  )
 ```
 
 `Combobox.one(items)` holds an `Option` of an item, `Combobox.many(items)` a
@@ -2878,9 +2894,36 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
   )
 ```
 
-The Combobox's drawing still goes through its `toView` adapter and the
-`ComboboxView` bundles; an options-level `Combobox.view` that takes the
-`Choice` is not built yet.
+`Combobox.view(options, h)` takes that `choice` and the `value`, and draws
+the rest from data:
+
+- **Rows.** `option: item => RowContent` gives a row its `label` (which also
+  names a chip and the resting text), `description`, `icon`, `trailing`,
+  `content` in the label's place, and `disabled`; without it a row is its
+  item. `items` narrows what is offered now (a fetched page); `filter` keeps
+  the rows whose label matches the typed text, with `Combobox.contains` and
+  `Combobox.startsWith` shipped as values, so a page that fetches for the
+  text ships neither. `groupBy` and `heading` group adjacent rows.
+- **The field.** `placeholder`, `empty` (drawn in the list's place),
+  `clear` (`true` for a button with a drawn cross, or `{ content }`),
+  `chips` for a choice of several, `buttonContent`, `disabled`, `invalid`,
+  `readOnly`, `name`, `openOnFocus`, `anchor`, and `words` (`clear`,
+  `remove`, the second with `{label}`).
+- **Clearing** empties the field's text through the Combobox's own Message.
+  The value follows through the `Choice`: `Combobox.text` takes the empty
+  text, and a combobox placed with `nullable: true` reports
+  `ClearedSelection` when an emptied field is left.
+- **A value chosen before the page drew** needs the Bundle's `text` arg (the
+  chosen row's label), since upstream writes the resting text only as the
+  field is left.
+- **`Combobox.configure({ base, presets })`** binds `filter`, `placeholder`,
+  `chips`, `openOnFocus`, `anchor`, `words`, `style`, `mixins` and `clear:
+  true`.
+- **`Combobox.fluid` and `Combobox.overlayBars`** are files of their own: a
+  page that passes neither ships neither `FluidHover`, `Measure` nor
+  `ScrollBars`.
+
+The `toView` adapter and the `ComboboxView` bundles stay as the rung below.
 
 ### Drawing: configure once, call with what differs
 
@@ -2923,7 +2966,9 @@ export const actions = (h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
 - **A preset holds what takes no Message and no state**: `style`, `mixins`,
   `words` and each widget's own list (`type` for a Button; `placeholder`,
   `addOnBlur` and `direction` for a TagsInput; `weekNumbers`, `caption`,
-  `paging`, `today`, `presets` and `detail` for a Calendar). `onClick`,
+  `paging`, `today`, `presets` and `detail` for a Calendar; `filter`,
+  `placeholder`, `chips`, `openOnFocus`, `anchor` and `clear: true` for a
+  Combobox). `onClick`,
   `onMessage`, `model`, `label` and anything drawn (`icon`, `aside`, `footer`)
   stay at the call.
 - **A preset may hold behaviour.** A mixin with a Mount given in a preset
