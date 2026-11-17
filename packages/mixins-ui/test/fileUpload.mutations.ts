@@ -4,6 +4,7 @@
  * test fails for every one.
  */
 const unit = 'packages/mixins-ui/test/fileUpload.test.ts'
+const examples = 'packages/mixins-ui/test/fileUpload.examples.browser.test.ts'
 const view = 'packages/mixins-ui/test/fileUpload.view.test.ts'
 const browser = 'packages/mixins-ui/test/fileUpload.browser.test.ts'
 const ssr = 'packages/mixins-ui/test/fileUpload.ssr.test.ts'
@@ -411,5 +412,31 @@ export default [
       },
     ],
     tests: [browser],
+  },
+  {
+    name: "every lane reads the first lane's job",
+    edits: [
+      {
+        file: source,
+        find: 'Option.contains(laneOf(entry), lane)',
+        replace: 'Option.contains(laneOf(entry), 0)',
+      },
+    ],
+    tests: [examples],
+  },
+  {
+    name: 'a grip loses focus when its file moves',
+    edits: [{ file: '../src/fileUpload/sort.ts', find: "grip: ['same'],", replace: '' }],
+    tests: [examples],
+  },
+  {
+    name: 'the progress label is drawn for sighted readers',
+    edits: [{ file: '../src/fileUpload/progress.ts', find: "inlineSize: '1px',", replace: '' }],
+    tests: [examples],
+  },
+  {
+    name: 'a removed preview is not revoked, seen in the page',
+    edits: [{ file: source, find: '...revoke(previewsOf(leaving)),', replace: '' }],
+    tests: [examples],
   },
 ]
