@@ -59,9 +59,9 @@ written out. Reach for **primitive** only for what the kernel cannot say.
                                ▼
           bodies call it: where, order, a write's `compute`
                                │
-             laws ── tested per implementation ──▶ evidence
+             laws ── tested per implementation ──► evidence
                                │
-                Operators.describe ──▶ what a server publishes
+                Operators.describe ──► what a server publishes
 ```
 
 The equation that holds it together:
@@ -259,7 +259,7 @@ Because the client runs the same body by the same meaning, it can answer
 questions about the rows it already holds without asking:
 
 ```text
-matching(store, Query, input, { operators }) ──▶ { matched, skipped }
+matching(store, Query, input, { operators }) ──► { matched, skipped }
 ```
 
 `matching` (from `foldkit-remote`) runs the body by the table it is given,

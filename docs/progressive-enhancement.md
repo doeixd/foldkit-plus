@@ -31,12 +31,12 @@ and the posts reach the `update` the scripted page runs.
 
 ```text
 GET  /?q=acme&sort=PriceAscending
-       Mirror.reduce ─▶ init ─▶ prepare (cookie, Data.satisfy) ─▶ render whole ─▶ HTML + envelope
+       Mirror.reduce ─► init ─► prepare (cookie, Data.satisfy) ─► render whole ─► HTML + envelope
        scripts on:  SSR.hydrate resumes the Model; nothing is read again
 
 POST /?q=acme   (foldkit-plus-message = the form's encoded Message)
-       Origin checked ─▶ init, prepare, as for the GET ─▶ update(Message)
-         ─▶ 303 to /?q=acme, with the cookie written from the Model it reached
+       Origin checked ─► init, prepare, as for the GET ─► update(Message)
+         ─► 303 to /?q=acme, with the cookie written from the Model it reached
        scripts on:  the runtime answers the submit; nothing is posted
 ```
 

@@ -66,11 +66,11 @@ contracts each package already declares still own the transitions:
 ## The mental model
 
 ```text
-integration + its config ──▶ Wiring
-Wiring + Wiring + placement + … ──Page.assemble──▶ Assembly
-Assembly ──update / initial / subscriptions / resources / url / module──▶ runtime config + Module
-runtime config ──complete──▶ checked (type-level), unchanged (runtime)
-Assembly ──runtime──▶ runtime config, with the derivations filled in
+integration + its config ──► Wiring
+Wiring + Wiring + placement + … ──Page.assemble──► Assembly
+Assembly ──update / initial / subscriptions / resources / url / module──► runtime config + Module
+runtime config ──complete──► checked (type-level), unchanged (runtime)
+Assembly ──runtime──► runtime config, with the derivations filled in
 ```
 
 ## Why it exists, and whether you need it

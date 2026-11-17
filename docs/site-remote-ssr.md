@@ -44,7 +44,7 @@ what the page reads crossed with it.
 In the browser, one loop runs everything:
 
 ```text
-link click ─▶ Site.routing ─▶ pushUrl ─▶ URL change ─▶ route field set
+link click ─► Site.routing ─► pushUrl ─► URL change ─► route field set
                                                             │
      view ◀── Model ◀── Data.reduce ◀── RemoteClient ◀── active Surfaces' reads
 ```
@@ -56,9 +56,9 @@ answers into the Model. Navigation never waits for data.
 The server runs the same steps once, ahead of time, and hands over the result:
 
 ```text
-URL ─▶ route ─▶ Data.satisfy (the same Surfaces, fetched until nothing is missing)
-     ─▶ SSR.render (draws it, checks it) ─▶ HTML carrying the route and what was read
-     ─▶ SSR.hydrate in the browser: the same Model, so nothing is fetched again
+URL ─► route ─► Data.satisfy (the same Surfaces, fetched until nothing is missing)
+     ─► SSR.render (draws it, checks it) ─► HTML carrying the route and what was read
+     ─► SSR.hydrate in the browser: the same Model, so nothing is fetched again
 ```
 
 ## Building it

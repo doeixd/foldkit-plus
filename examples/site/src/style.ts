@@ -32,14 +32,72 @@ const { t, slots, stylesheet } = AppStyle.make({
 
 export { stylesheet }
 
+/** Faces with `─ │ ┌ ┐ └ ┘ ├ ┤ → ← ↑ ↓` at the width of a letter, the platform's own first. */
+const DIAGRAM_FONT =
+  'Consolas, "Cascadia Mono", ui-monospace, "SF Mono", Menlo, "DejaVu Sans Mono", "Liberation Mono", monospace'
+
 /** Seven tenths of the way from the page to `subtle`: the muted step is a mid grey that dims the syntax colors. */
 const codeSurface = `color-mix(in oklab, ${t.surface.subtle} 70%, ${t.surface.base})`
+
+/**
+ * A code block that is wider than its box scrolls inside it, and says so: the
+ * fade at a cut edge comes from `background-attachment: local` masks over a
+ * shadow that stays put, so it shows only while there is more to scroll to.
+ */
+const scrollFade = {
+  scrollbarWidth: 'thin',
+  background: [
+    `linear-gradient(to right, ${codeSurface}, transparent) 0 0 / 1.5rem 100% no-repeat local`,
+    `linear-gradient(to left, ${codeSurface}, transparent) 100% 0 / 1.5rem 100% no-repeat local`,
+    `linear-gradient(to right, ${t.outline.default}, transparent) 0 0 / 0.5rem 100% no-repeat scroll`,
+    `linear-gradient(to left, ${t.outline.default}, transparent) 100% 0 / 0.5rem 100% no-repeat scroll`,
+  ].join(', '),
+} as const
+
+/** The block is scrollable, so a keyboard reaches it: its ring sits inside, where the box does not clip it. */
+const scrollFocus = Style.nest('&:focus-visible', {
+  outline: `2px solid ${t.accent.default}`,
+  outlineOffset: '-2px',
+})
 
 /** The site's code: the shipped recipe, colored from the theme's `syntax` group. */
 export const CodeStyle = Style.forSlots(CodeBlockSlots)(
   Recipes.CodeBlock.extend({
-    // The example frames' surface (`codeBox`) in place of the recipe's muted one.
-    base: { root: Style.self({ background: codeSurface }) },
+    base: {
+      // The example frames' surface (`codeBox`) in place of the recipe's muted one.
+      root: Style.self({ background: codeSurface }),
+      body: Style.compose(Style.self(scrollFade), scrollFocus),
+    },
+  })({}),
+)
+
+/**
+ * A fence in `text` (or with no language): a diagram or a plain listing. Its
+ * lines stay whole and the box scrolls. Box-drawing and arrow glyphs are
+ * missing from the site's mono face, so one face that has them all draws the
+ * block (a fallback per glyph would be another width and the columns would
+ * drift); the leading is tight so the strokes of adjacent rows meet, ligatures
+ * are off so `->` keeps its two columns, and the size does not follow the
+ * viewport.
+ */
+export const DiagramStyle = Style.forSlots(CodeBlockSlots)(
+  Recipes.CodeBlock.extend({
+    base: {
+      root: Style.self({ background: codeSurface }),
+      body: Style.compose(
+        Style.self({
+          ...scrollFade,
+          fontFamily: DIAGRAM_FONT,
+          fontSize: '0.8125rem',
+          lineHeight: '1.3',
+          fontVariantLigatures: 'none',
+          whiteSpace: 'pre',
+          tabSize: '4',
+        }),
+        scrollFocus,
+      ),
+      line: Style.self({ lineHeight: 'inherit' }),
+    },
   })({}),
 )
 

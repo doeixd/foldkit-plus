@@ -32,10 +32,10 @@ has the details; this page links to them.
 
 ```text
 a failure the reader can act on
-  └─▶ a typed value ──Message──▶ update ──▶ Model ──▶ view draws it ──▶ the reader acts ──▶ Message
+  └─► a typed value ──Message──► update ──► Model ──► view draws it ──► the reader acts ──► Message
 
 a failure only a developer can fix
-  └─▶ a Diagnostic ──Diagnostics.report──▶ Diagnostics.Reporter ──▶ Effect's log, or your sink
+  └─► a Diagnostic ──Diagnostics.report──► Diagnostics.Reporter ──► Effect's log, or your sink
 ```
 
 Three rules follow from it.
