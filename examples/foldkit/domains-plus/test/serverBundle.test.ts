@@ -47,7 +47,11 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // the commit before it). The other 4,100 or so is the server's error path from #573 and #575
 // (`tell`, `report`, incident ids, the fixed 401 and 403 reasons, and their doc comments, which
 // count here), not bisected commit by commit. Ceiling raised to the reading, rounded up.
-const CEILING = 3_282_000
+// +500 on 2026-11-17: measured 3,282,293. The popup rows' inks now come from their panel
+// (three `popup.plain-*` tokens and the panel's private properties, 73212841e), which the
+// Worker's rendered page carries: 286 of it by a build without the default-look changes,
+// 7 more with them.
+const CEILING = 3_282_500
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

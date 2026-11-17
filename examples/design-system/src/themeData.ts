@@ -3,7 +3,7 @@ export const themeNames = ['shadcn', 'compact', 'soft', 'hard'] as const
 export const initialTheme = 'shadcn' as const
 export const themeAttribute = 'data-theme'
 export const themeValues = {
-  shadcn: { hue: 235, density: 1.1, radius: 0.45, text: 1.025, motion: 0.5, shadow: 100 },
+  shadcn: { hue: 235, density: 1.1, radius: 1, text: 1.025, motion: 0.5, shadow: 100 },
   compact: { hue: 235, density: 0.85, radius: 0.3, text: 1.025, motion: 0.5, shadow: 60 },
   soft: { hue: 336, density: 1.2, radius: 1.3, text: 1.025, motion: 0.5, shadow: 100 },
   hard: { hue: 38, density: 1.1, radius: 0, text: 1.025, motion: 0, shadow: 100 },
