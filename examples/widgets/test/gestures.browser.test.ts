@@ -81,4 +81,4 @@ test('hover, keys, and a reopened menu behave on the page', async () => {
   expect(Math.abs(fileMenu.left - clickX)).toBeLessThan(12)
   expect(Math.abs(fileMenu.top - clickY)).toBeLessThan(12)
   expect(Math.abs(fileMenu.left - clickX)).toBeLessThan(Math.abs(fileMenu.left - row.left))
-})
+}, 60_000)

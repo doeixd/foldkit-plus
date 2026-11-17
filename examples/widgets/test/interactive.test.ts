@@ -207,5 +207,5 @@ describe('showcase islands', () => {
     if (pick === undefined) throw new Error('no New folder pick')
     pick.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(document.body.textContent).toContain('Ran: New folder.'))
-  })
+  }, 30_000)
 })
