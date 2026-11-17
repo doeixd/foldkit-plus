@@ -1075,7 +1075,7 @@ natively take a `name` (see [Form participation](#form-participation)).
 | `Rating` | A `radiogroup` of native radios named by its label, one per star under one name, so the browser's arrows move the choice and a form submits it. `Rating.view({ id, label, value, onChange, max?, starLabel?, readOnly?, disabled?, name?, precision?, onClear?, showValue? }, h)`; `value` is an `Option`, none is unrated. Read-only, it is one `img` whose name says the rating, and takes no `onChange`. | `tone`: `warning` (default, gold), `accent`, `error`; `glyph`: `star` (default), `heart`, `circle`; `size`. Slots `root`, `label`, `star`. |
 | `ColorPicker` | After ReUI's: a saturation and brightness area, hue and alpha Sliders, an eyedropper when the application asks for one (`eyedropper`, default `false`), text in hex, rgb, hsl or oklch, and `presets` as a radio group of swatches. A small Model: `ColorPicker.init({ id, color?, format? })` holds the color, its format and a draft being typed, folded with `ColorPicker.update`. `ColorPicker.view({ model, onMessage, label, presets?, alpha?, eyedropper?, labels?, disabled?, slider? }, h)`; `ColorPicker.popover({ ...options, popover, onPopover, anchor?, popoverMixins? }, h)` draws it behind a swatch in a Popover. See [ColorPicker](#colorpicker). | `size`. Its Sliders take `Recipes.Slider({ track: 'paint', label: 'hidden' })`. Slots `root`, `label`, `area`, `areaThumb`, `controls`, `eyedropper`, `channels`, `channel`, `swatch`, `fields`, `format`, `input`, `presets`, `preset`, `picker`, `trigger`, `value`. |
 | `Calendar` | One date system, inline. `Calendar.Selection` is `Single`, `Range` or `Multiple`, held by the Calendar's state (`Bundles.Calendar`), or by the application on the adapter rung. See [Calendar and DatePicker](#calendar-and-datepicker). | `size`; `outside`: `shown` (default), `hidden`; `detail`: `text`, `dot`, unset by default. Slots `frame`, `body`, `main`, `months`, `todayButton`, `aside`, `footer` (what `Calendar.view` lays around the months), `root`, `header`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton`. |
-| `DatePicker` | A Calendar in a popover, over a fork that keeps upstream's Popover and Calendar composition. A date, a range or many days. See [Calendar and DatePicker](#calendar-and-datepicker). | Slots `trigger`, `panel`, `backdrop`. |
+| `DatePicker` | A Calendar in a popover, over a fork that keeps upstream's Popover and Calendar composition. A date, a range or many days. See [Calendar and DatePicker](#calendar-and-datepicker). | Slots `wrapper`, `trigger`, `panel`, `backdrop`. |
 
 ### Segmented
 
@@ -1304,6 +1304,32 @@ example.
   calendar, since they are inside upstream's one Model and view; `caption:
   'label'` hides them and cannot drop them.
 
+A DatePicker is the same Calendar in a popover, with the same split.
+`DatePicker.init(args)` makes its state (upstream's picker, the selection, a
+range's preview), `DatePicker.fold(model, message)` folds it, and
+`Bundles.DatePicker` packages both; it reports `Changed { selection }` as the
+Calendar's Bundle does. `DatePicker.view(options, h)` draws it:
+
+- **`trigger: selection => string`** is the trigger's text, required: a date,
+  both ends of a range, or a prompt. `label` names the trigger.
+- **`name`** submits each chosen day as an ISO date, a range's start then its
+  end; **`disabled`** and **`anchor`** are the popover's (the default stands
+  under the trigger's start and is not portaled).
+- **The Calendar's options go to the panel**: `weekNumbers`, `caption`,
+  `paging`, `today`, `presets`, `detail`, `aside`, `footer` and `words`. A
+  picker holds one month.
+- **Two styles**: `style` of `DatePickerSlots` (wrapper, trigger, panel, backdrop) and
+  `calendarStyle` of `CalendarSlots`, with `calendarMixins` beside it.
+- **Closing** is the arg `closes`. `'complete'` (the default) closes the
+  popover on the pick, or the preset, that makes the selection whole: a day,
+  or a range's second end. `'manual'` closes on none, which a picker with a
+  time list in `aside` needs. Escape, a press outside and the trigger close it
+  either way.
+- **`DatePicker.configure({ base, presets })`** binds everything but the
+  wiring, `trigger`, `name`, `disabled` and the two drawings.
+- The state's fold is `fold` because `DatePicker.update(selection, closes?)`
+  is the adapter's, below.
+
 The adapter is the rung below, for a calendar an application draws or folds
 itself. Fold each `SelectedDate` through `Calendar.picked`; `Calendar.empty(mode)` starts
 a selection and `Calendar.isComplete` says when a picker may close. Spread
@@ -1330,7 +1356,7 @@ Presets: `Calendar.lastDays`,
 `nextDays`, `monthOf`, `day`, drawn by `Calendar.presetsView`.
 
 A DatePicker also picks a whole `Calendar.Selection`. Fold it with
-`DatePicker.update(selection)`, given the selection the application keeps:
+`DatePicker.update(selection, closes?)`, given the selection the application keeps:
 upstream closes the popover on every day picked, and this keeps it open while the
 day leaves the selection unfinished (a range's first end, any day of a Multiple
 selection), reporting `SelectedDate` either way for the application to fold

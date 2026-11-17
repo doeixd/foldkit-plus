@@ -739,7 +739,7 @@ About 180 additions get there. Composition is the design working, not a gap: it 
 
 ### The calendar's thirty
 
-State is `Bundles.Calendar` (1 to 23) or `Bundles.DatePicker` (24 to 30). The last column is what `packages/mixins-ui/test/calendarView.test.ts` found on 2026-11-17, where each D, V and L row of 1 to 23 is a test numbered as here: the row is built through the public API and its defining trait asserted on the drawn page. "With an addition" marks a row that needed an option built for it.
+State is `Bundles.Calendar` (1 to 23) or `Bundles.DatePicker` (24 to 30). The last column is what `packages/mixins-ui/test/calendarView.test.ts` found on 2026-11-17, and `datePickerOptions.browser.test.ts` for 24 to 30, where each D, V and L row is a test numbered as here: the row is built through the public API and its defining trait asserted on the drawn page. "With an addition" marks a row that needed an option built for it.
 
 | # | Example | Args and view options | Kind | Checked |
 | --- | --- | --- | --- | --- |
@@ -766,15 +766,15 @@ State is `Bundles.Calendar` (1 to 23) or `Bundles.DatePicker` (24 to 30). The la
 | 21 | Two months, range | args `months: 2`, `selection: Calendar.empty('Range')` | D | held |
 | 22 | Event list beside | `detail` marks the days; the list is the application's, in `aside` | C | as 14 |
 | 23 | Localized | arg `locale: Calendar.localeOf('fr')`; `words` | V | held |
-| 24 | Date picker | `trigger: selection => string` | V | not checked: `DatePicker.view` is not built |
-| 25 | Range date picker | arg `selection: Calendar.empty('Range')`; `trigger` | V | not checked: `DatePicker.view` is not built |
-| 26 | Date picker, year view | `caption: 'grid'` | D | not checked: `DatePicker.view` is not built |
-| 27 | Date and appointment picker | `aside:` time slots; arg `closes: 'manual'` | C | not checked: `DatePicker.view` is not built |
-| 28 | Date picker with presets | `presets` | D | not checked: `DatePicker.view` is not built |
-| 29 | Range picker with presets | `presets` | D | not checked: `DatePicker.view` is not built |
-| 30 | Date and time range picker | `footer:` two time inputs; arg `closes: 'manual'` | C | not checked: `DatePicker.view` is not built |
+| 24 | Date picker | `trigger: selection => string` | V | held |
+| 25 | Range date picker | arg `selection: Calendar.empty('Range')`; `trigger` | V | held |
+| 26 | Date picker, year view | `caption: 'grid'` | D | held |
+| 27 | Date and appointment picker | `aside:` time slots; arg `closes: 'manual'` | C | the slot and `closes: 'manual'` held; the time list is not built here |
+| 28 | Date picker with presets | `presets` | D | held |
+| 29 | Range picker with presets | `presets` | D | held |
+| 30 | Date and time range picker | `footer:` two time inputs; arg `closes: 'manual'` | C | as 27 |
 
-Twenty-five of thirty are a call with options by the mapping; five are a call plus a second widget. Checked so far: all twenty of the Calendar's (1 to 13, 15 to 18, 20, 21, 23), four of them (7, 9, 11, 12) through an option built for the row, and none turned out not expressible. The DatePicker's five (24, 25, 26, 28, 29) wait for its view. The limit worth stating: upstream's month and year grids ship with every calendar, because they are inside `@foldkit/ui/calendar`'s one Model, `update` and view. `caption: 'label'` hides them and cannot drop them.
+Twenty-five of thirty are a call with options by the mapping; five are a call plus a second widget. Checked: all twenty-five. The Calendar's twenty (1 to 13, 15 to 18, 20, 21, 23) and the DatePicker's five (24, 25, 26, 28, 29) each hold in a test, four of them (7, 9, 11, 12) through an option built for the row, and none turned out not expressible. The five composed rows are checked as far as the Calendar goes: the `aside` and `footer` slots, and `closes: 'manual'`. The limit worth stating: upstream's month and year grids ship with every calendar, because they are inside `@foldkit/ui/calendar`'s one Model, `update` and view. `caption: 'label'` hides them and cannot drop them.
 
 ### Combobox, autocomplete and select
 
@@ -1142,7 +1142,7 @@ Built and pushed on `ui-polish` (2026-11-17): `recipe.add`; `configure.ts`, `wor
 | --- | --- |
 | `Bundles.Calendar`, `Calendar.view`, `Calendar.configure` | Built; see "The Calendar, as built" below. |
 | `Combobox.view(options, h)` and `Combobox.configure` | Built; see "The Combobox, as built" below. |
-| `Bundles.DatePicker`, `DatePicker.view`, `DatePicker.configure` | Not started. |
+| `Bundles.DatePicker`, `DatePicker.view`, `DatePicker.configure` | Built; see "The DatePicker, as built" below. |
 | **TODO: `Bundles.FileUpload` and `FileUpload.configure`** | FileUpload was being built by another session on the same files. Its own `fill` should become `words.ts`'s. |
 | `press.ts`, the `Tone` type and size names in `recipes/design.ts`, the shared `anchor` helper | No gate widget built so far reads them. `rowContent.ts` went in with `Combobox.view`; `anchor` goes with `DatePicker.view`; `press.ts` and the vocabulary types with F1 and F2. |
 | TagsInput's words as text (`remove: 'Remove {tag}'`, the refusals as words in place of `refusalText`) | Breaking, and `examples/site/src/snippets/components.ts` passes `refusalText`; it lands with the site's tags-input page. |
@@ -1181,7 +1181,25 @@ Decided where the note was silent or wrong:
 - **The view lays out through seven new Slots**: `frame` (the named group), `body` (the row of presets, months and aside), `main` (the months over the today button), `months`, `todayButton`, `aside`, `footer`. The frame is always drawn, so the markup does not change shape when an option is added.
 - **The configure preset type is `CalendarViewPreset`**, not `CalendarPreset`: the package's index already exports `Calendar.Preset` as `CalendarPreset`, a selection one press away. A preset holds neither `aside` nor `footer`, which are drawings.
 - **`words` covers upstream's ten labels as text**, so one object localizes the calendar and `configure` can merge it. Upstream takes four of them as functions; the view fills `{month}`, `{date}`, `{year}`, `{from}` and `{to}`.
-- **Not built: a `closes` rule, `anchor`, `trigger`.** They are the DatePicker's.
+
+#### The DatePicker, as built
+
+`datePicker/state.ts` (`Model`, `Message`, `OutMessage`, `Args`, `Closes`, `init`, `update`, `set`), `datePicker/view.ts` (`view`, `configure`), `bundles/datePicker.ts`, and `calendar/layout.ts`, which holds what the two views share: the frame, the caption's options, upstream's labels from the words, and `CalendarWords`. `datePicker.ts` re-exports the state and the view.
+
+Decided where the note was silent or wrong:
+
+- **The state's fold is `DatePicker.fold`, not `update`.** `DatePicker.update(selection)` is the adapter's and `examples/site` calls it, so the name was taken. Inside a Bundle nobody writes either name. When the site's page moves to the Bundle, the adapter's becomes `updateFor` and the state's `update`, as every other widget spells it.
+- **`closes` is in the Model as well as the args.** §3.4 has it an arg "because `update` reads it"; the state's own fold takes no args, so `init` copies it into the Model. The adapter's `update` takes it as a second parameter.
+- **A preset closes the popover by the same rule as a pick**, when it makes the selection whole and `closes` is `complete`. The today button with `selects` goes through upstream's own press on the day, so the bounds and the closing rule apply to it without a second code path.
+- **Upstream's `Cleared` empties the selection in its own mode** and is reported as `Changed`.
+- **`trigger` returns text, as §3.4 says, and the view draws it in the `trigger` slot itself.** Upstream's `triggerContent` wants an `Html`, which would have needed an element outside any Slot; the view gives upstream nothing and draws the button's text in its own `toView`.
+- **The element around the trigger and the popover is a `wrapper` Slot**, new on `DatePickerSlots`; the adapter's default drawing still writes it bare, as upstream does. It could not be named `root`: `CalendarSlots` has a `root`, and a style of one contract was then accepted where the other's was asked for, which the type test caught.
+- **`YearDropdown` stays a new `ResolvedCaption` variant.** Folding it into `Dropdowns` would change `month`'s type, which breaks the same matches without saying why. Two ported examples matched the caption exhaustively (`job-application`, `ui-showcase`); each draws the heading's text for it, as for `Dropdowns`.
+- **A picker has one month.** Upstream's DatePicker holds one calendar, so there is no `months` arg.
+- **Two styles, `style` and `calendarStyle`**, since the picker and its calendar are two Slot contracts. `calendarMixins` is not in the preset: the shared merge concatenates `mixins` only.
+- **`anchor` defaults to under the trigger's start, not portaled.** The shared `anchor` helper of §3.5 is not built: the three widgets that would share it each keep a default of their own for now.
+- **The DatePicker's rows are browser tests**, where the Calendar's are Scene tests: a popover's opening, closing and returned focus are the browser's to show.
+- **`calendar/layout.ts` is a third module beside `state` and `view`.** The DatePicker's view needs the frame and the words, and reading them from `calendar/view.ts` would have brought the Calendar's state into every DatePicker page.
 
 #### The Combobox, as built
 
