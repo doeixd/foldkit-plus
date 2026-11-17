@@ -54,7 +54,12 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // +500 on 2026-11-17: CI measured 3,282,566 once a tint and a raised surface were written in
 // OKLab (f6661ddf9), which Chrome 157 needs to keep their hue: 273 bytes more than the reading
 // above, in the palette text the rendered page carries. Ceiling raised to the reading, rounded up.
-const CEILING = 3_283_000
+// +4,000 on 2026-11-17: HEAD reads 3,286,636 on CI by the offset of a local build of b1ae69ada (3,286,845
+// here against CI's 3,283,600), 4,300 over the last green main's 3,282,3xx. Built in separate trees: +1,272
+// from `recipe.add` on every recipe and the default look's theme text, and +3,037 from #593, whose
+// `runtimeJson` codec is Remote's Model schema and so is in the Worker too. No module the Worker did not
+// carry was added. Ceiling raised to that, rounded up.
+const CEILING = 3_287_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

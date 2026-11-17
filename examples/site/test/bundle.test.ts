@@ -25,7 +25,12 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // page (its snippet, state and recipe) and the accessibility notes' text, about 0.2 kB per page with notes.
 // Then the Drawer and App shell pages (their snippets, the Drawer's state, notes and the frame) and the
 // Input OTP states' own codes took it to 389.0 kB, 1.7 kB more; the ceiling is that plus 1%.
-const CEILINGS = { shell: 188_000, gallery: 393_000 }
+// 2026-11-17: the gallery's first load is 397.6 kB, +8.5 kB from the last green main (389.1 kB), built
+// in separate trees: +5.3 kB the Primitives gallery's own code (its data, snippets and view, and the
+// motion and net primitives its live examples run), +3.1 kB shared by the pages: `recipe.add`, the
+// FileUpload and Calendar recipes and the default look's theme text. The shell grew 0.6 kB (the style
+// runtime). Ceiling raised to the reading with the Combobox's options and rows (about 0.4 kB), rounded up.
+const CEILINGS = { shell: 188_000, gallery: 399_000 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
 const PREVIEWS = ['preview-tabs', 'preview-trip-first']

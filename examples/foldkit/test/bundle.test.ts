@@ -26,8 +26,12 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   // toggle 0.15, field 0.13 minified. Pages without them moved less than 150 bytes. Ceilings are the
   // reading plus about 0.5%, rounded up to 500; the theme's storage streams are named exports, so
   // no page carries them.
-  ['api-cache', 204_000], // 203,239 bytes
-  ['auth', 151_000], // 148,015 bytes
+  // api-cache +681 and auth +389 on 2026-11-17 against the last green main (203,723 and 150,619),
+  // each commit built in its own tree: +367 and +389 from `style.ts` (+454 minified: `recipe.add` is a
+  // member of every recipe) and the shadows' and tints' knob data; api-cache +314 more from #593's
+  // `runtimeJson` (Remote's Model schema, 1.7 kB minified). No module was added to either page.
+  ['api-cache', 204_500], // 204,404 bytes
+  ['auth', 151_500], // 151,008 bytes
   // counter was 115,953 on origin/main (1bbd87d15), 47 under its ceiling; 115,981 here.
   ['counter', 116_000], // 115,981 bytes
   ['domains', 191_000], // 187,092 bytes
