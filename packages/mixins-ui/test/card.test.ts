@@ -244,7 +244,7 @@ describe('Card recipe', () => {
 
   it('stands an outlined card on its level of the surface ladder, and a plain one on nothing', () => {
     expect(css({})).toMatch(
-      /@layer variants\{[^@]*background:light-dark\(oklch\(from var\(--fk-surface-base\)/,
+      /@layer variants\{[^@]*background:light-dark\(oklab\(from var\(--fk-surface-base\)/,
     )
     expect(css({ surface: 'plain' })).not.toContain('background:light-dark(')
     expect(css({ surface: 'plain' })).toContain('background:transparent')
