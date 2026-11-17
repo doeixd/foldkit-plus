@@ -10,9 +10,9 @@ Status words: **done** (committed, pushed, its own checks green), **running**, *
 | --- | --- | --- | --- | --- |
 | Design | The consolidated design note and issue body | done | 53ed8ba81 | |
 | 0 | Measurements M1 to M7 and probes P1 to P3 | done | (measured, no commit) | Every design choice held. Freezing styles saves 22.4 kB brotli on a one-Button page; a narrowed recipe saves 136 B, so per-value recipe files stay rejected; a placed Bundle costs 6.2 kB over a hand fold, so the README shows the hand fold first; unread feature files drop from a page; P1 and P3 pass. Largest kept-for-nothing imports: Breadcrumb to Menu 21.1 kB, Sidebar 16.9 kB, ColorPicker to Popover 7.6 kB. Not measured: M8, M9, bundlers other than Vite 8, `pack:check` for the probes. |
-| 1.1 | `recipe.add` | running | | |
-| 1.2 | Conventions as code: `configure`, `words`, row content, press, `Choice`, tones and sizes | running | | |
-| 1.3 | `Bundles` index, the `foldkit-bundle` peer, the five gate Bundles | running | | |
+| 1.1 | `recipe.add` | done | 5122b5d1d | A value an axis already has is a type error and throws; `MergeAxes` exported. |
+| 1.2 | Conventions as code | partly done | 80fbf05b1 | `configure.ts`, `words.ts`, `choice.ts` with `one`, `many`, `text`. Deferred to their first reader: row content, press, tone and size names, the anchor helper. Nothing shipped calls `words.ts` yet. |
+| 1.3 | `Bundles` index, the `foldkit-bundle` peer, the gate Bundles and `configure` | running | efb186d29 | Done: `Bundles.TagsInput`, `Bundles.Combobox`, `configure` on Button and TagsInput, `Bundle.ComposedChild` exported (2d8cb3e25), docs (eca2f9c61). Running: Calendar, DatePicker and Combobox options-level views, their Bundles and `configure`. Waiting: FileUpload's Bundle and `configure`. `foldkit-bundle` needs a version bump at the end. Not run: `pnpm install --frozen-lockfile`, `pack:check`, `typecheck:force`. |
 | 1.4 | The site harness: one module per example, shown whole | waiting on 1.3 | | |
 | 1.5 | The gate: button, tags-input, calendar with date-picker, combobox, file-upload | waiting on 1.4 | | FileUpload itself is being built now (see below). |
 | 2 | The families F1 to F11 | not started | | Parallel after the gate. One row each is added here when they start. |
@@ -30,8 +30,8 @@ Status words: **done** (committed, pushed, its own checks green), **running**, *
 | Tone `error` renamed `danger` | not started | |
 | One `clear` option: combobox, search-field, cascade-select | not started | |
 | `AppShell.view`'s `main` argument | not started | |
-| `FileInput.accept` as an array; FileUpload's slot and feature export names | running | |
-| `foldkit-bundle` as a peer of `foldkit-mixins-ui` | not started | |
+| `FileInput.accept` as an array; FileUpload's slot and feature export names | done | 2d38ab852 | |
+| `foldkit-bundle` as a peer of `foldkit-mixins-ui` | done | efb186d29 |
 
 ## Work alongside the factory plan, on the same branch
 
@@ -49,8 +49,10 @@ Status words: **done** (committed, pushed, its own checks green), **running**, *
 | Site: package h1, one home page, prose mental models | done | 90684a09b | Prerender and redirects not exercised; prose not checked sentence by sentence against source. |
 | Site: remaining ASCII blocks never wrap, on a phone too | running | | |
 | CMS: shell scroll, narrow editor, hero button | done | 4c71e6a73 | Follow-ups below. |
-| CMS follow-ups: scroll-restore test, drag edge scroll, toolbar width, contrast numbers, the flaky e2e | running | | |
-| `FileUpload` widget | running | | |
+| CMS follow-ups: scroll-restore test, drag edge scroll, phone pill, toolbar by its own width, hero contrast | done | 5f0f4bc90 | |
+| CMS: the `SchemaError` behind the flaky e2e; `keepScroll` on reload; an overflow menu for the formatting bar's low tools | running | | The CMS changes may carry a regression until the first is found. |
+| `FileUpload` widget: seven stages, the ten reference examples as fixtures, the widgets island | done | 4c6b40a0e | Drop and form posting proven in Chromium only. |
+| `FileUpload` look pass (zone, link colour, concentric buttons, grid tile) | running | | |
 
 ## Before the tag
 
