@@ -121,6 +121,11 @@ export const newerIslands: ReadonlyArray<LazyIsland> = [
     load: () => import('./file-input/island.js').then(module => module.island),
   },
   {
+    id: 'file-upload',
+    title: 'File upload in a form',
+    load: () => import('./file-upload/island.js').then(module => module.island),
+  },
+  {
     id: 'tags-input',
     title: 'Tags input in a form',
     load: () => import('./tags-input/island.js').then(module => module.island),
