@@ -204,7 +204,7 @@ export const shapeRadius = {
   min: 0,
   max: 2.5,
   step: 0.05,
-  default: 0.45,
+  default: 1,
 } as const satisfies KnobData<'shape.radius'>
 
 /** Density, `--fk-knob-density`. */

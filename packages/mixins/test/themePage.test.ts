@@ -59,7 +59,7 @@ describe('Theme.tokens', () => {
   it('scales space, radius, and durations by their knobs', () => {
     expect(Theme.tokens.knob).toMatchObject({
       density: '1.1',
-      'radius-factor': '0.45',
+      'radius-factor': '1',
       motion: '0.5',
       travel: '1',
       step: '0',

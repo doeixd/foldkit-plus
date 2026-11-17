@@ -250,7 +250,7 @@ follows another knob until a theme sets it.
 | `surface.hover` | choice | `surface` | `surface`, `neutral`, `accent` | `surface-ink`, `state-ink` |
 | `surface.hoverStrength` | percent | 12 | 4 to 24 | `state-hover`; a press lays 1.75 of it |
 | `state.disabledOpacity` | number | 0.5 | 0.3 to 0.7 | `state-disabled` |
-| `shape.radius` | number | 0.45 | 0 to 2.5 | `radius-factor` |
+| `shape.radius` | number | 1 | 0 to 2.5 | `radius-factor` |
 | `shape.density` | number | 1.1 | 0.75 to 1.3 | `density` |
 | `shape.size` | choice | `default` | `default`, `compact` | `step` |
 | `shape.controls` | choice | `rounded` | `rounded`, `pill` | `control-round` |

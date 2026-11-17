@@ -32,14 +32,14 @@ test("kept knobs beat the stylesheet's theme, and an inline style beats them", (
     Layers.standard.in('theme', Theme.root(Theme.standard(Theme.make({})))),
   )
   document.head.append(sheet)
-  // The default radius factor, 0.45, on `md`'s 6px.
-  expect(corner()).toBe(2.7)
+  // The default radius factor, 1, on `md`'s 6px.
+  expect(corner()).toBe(6)
   localStorage.setItem(
     KNOBS_KEY,
     JSON.stringify({ v: KNOBS_FORMAT, d: [['--fk-knob-radius-factor', '0']] }),
   )
   new Function(knobScript())()
   expect(corner()).toBe(0)
-  document.documentElement.style.setProperty('--fk-knob-radius-factor', '1')
-  expect(corner()).toBe(6)
+  document.documentElement.style.setProperty('--fk-knob-radius-factor', '2')
+  expect(corner()).toBe(12)
 })

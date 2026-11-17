@@ -214,7 +214,7 @@ export const standard = {
     radius: Knob.number({
       title: 'Radius',
       variable: 'radius-factor',
-      default: 0.45,
+      default: 1,
       min: 0,
       max: 2.5,
       step: 0.05,

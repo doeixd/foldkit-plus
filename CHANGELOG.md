@@ -789,6 +789,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-mixins`: **Breaking:** `shape.radius` defaults to 1, not 0.45: controls are 6px, panels 8px and small parts 3px, where the old factor drew them 2.7, 3.6 and 1.35px. Set `shape: { radius: 0.45 }` to keep the old look. The Floating panel's maximize glyph reads `radius.xs` rather than a literal 2px, and the widgets example's panels and rows read radius tokens instead of 6, 8 and 10px.
 - `foldkit-mixins`: **Breaking:** `menu.panel` defaults to `default`, not `inverted`: a menu, listbox or combobox panel takes the page's own raised surface in both schemes, where the inverted panel was pure white on a dark page. Set `menu: { panel: 'inverted' }` to keep the old look; `inverted`, `translucent` and `inverted-translucent` are unchanged.
 - `foldkit-mixins-ui`: **Breaking:** `ColorPicker.view`'s `eyedropper` defaults to `false`, not to `canEyedrop()`. The view read `'EyeDropper' in globalThis` while it drew, so a server drew no eyedropper button and a browser drew one, and a server-rendered page had the picker's controls rebuilt when it took over. An application that passed nothing loses the button until it opts in: keep `eyedropper: ColorPicker.canEyedrop()` in the Model (read in `init`, or sent by a Command after hydration) and pass it.
 - `foldkit-mixins-ui`: `Avatar`'s initials are upper-cased with `toUpperCase`, not the runtime's default locale, so a Turkish server and an English browser draw the same letters.

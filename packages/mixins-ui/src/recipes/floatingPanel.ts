@@ -57,7 +57,7 @@ const box = (size: string): Declarations => ({
   inlineSize: size,
   blockSize: size,
   border: `${ref.border.thick} solid currentColor`,
-  borderRadius: '2px',
+  borderRadius: ref.radius.xs,
 })
 
 const bar: Declarations = {
