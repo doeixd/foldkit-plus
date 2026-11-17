@@ -1023,6 +1023,8 @@ export const SiteStyle = slots(
     },
     // A legend takes no flex gap: its room above the choices is its own padding.
     axisName: { ...mono, padding: `0 0 ${t.space.xs}`, color: t.text.subtle },
+    // An axis that changes nothing under the other picks: dimmed, with the reason below.
+    axisHint: { ...mono, margin: '0', color: t.text.subtle },
     choices: {
       display: 'inline-flex',
       flexWrap: 'wrap',
@@ -1042,12 +1044,14 @@ export const SiteStyle = slots(
         color: t.text.muted,
         cursor: 'pointer',
       },
-      Style.pseudo(':hover', { color: t.text.overt }),
+      Style.pseudo(':hover:not(:disabled)', { color: t.text.overt }),
       Style.nest('&[aria-pressed="true"]', {
         background: t.surface.muted,
         color: t.text.overt,
         fontWeight: t.weight.medium,
       }),
+      // Inside a disabled fieldset: the value stays shown, but reads as not live.
+      Style.pseudo(':disabled', { opacity: '0.45', cursor: 'not-allowed' }),
       focus,
     ]),
     selection: { ...mono, margin: '0', color: t.text.muted, overflowWrap: 'anywhere' },

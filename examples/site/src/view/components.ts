@@ -10,7 +10,7 @@ import { SSR } from 'foldkit-ssr/client'
 
 import { onGitHub } from '../demos.js'
 import { showcases } from '../gallery/showcases.js'
-import { selectionCode, valueOf, type Live, type Showcase } from '../gallery/showcase.js'
+import { idleHint, selectionCode, valueOf, type Live, type Showcase } from '../gallery/showcase.js'
 import {
   defaults,
   packStyleOf,
@@ -101,23 +101,31 @@ export const choices = <A extends string>(
   values: ReadonlyArray<{ readonly value: A; readonly label: string }>,
   current: A,
   toMessage: (value: A) => Message,
+  idle?: string,
 ): Html =>
-  h.fieldset(slots.axis.attrs(), [
-    h.legend(slots.axisName.attrs(), [name]),
-    h.div(
-      slots.choices.attrs(),
-      values.map(({ value, label }) =>
-        h.button(
-          slots.choice.attrs([
-            h.Type('button'),
-            h.AriaPressed(String(value === current)),
-            h.OnClick(toMessage(value)),
-          ]),
-          [label],
+  // A disabled fieldset disables every button in it, and each keeps its pressed mark.
+  h.fieldset(
+    slots.axis.attrs([
+      ...(idle === undefined ? [] : [h.Disabled(true), h.DataAttribute('idle', 'true')]),
+    ]),
+    [
+      h.legend(slots.axisName.attrs(), [name]),
+      h.div(
+        slots.choices.attrs(),
+        values.map(({ value, label }) =>
+          h.button(
+            slots.choice.attrs([
+              h.Type('button'),
+              h.AriaPressed(String(value === current)),
+              h.OnClick(toMessage(value)),
+            ]),
+            [label],
+          ),
         ),
       ),
-    ),
-  ])
+      ...(idle === undefined ? [] : [h.p(slots.axisHint.attrs(), [idle])]),
+    ],
+  )
 
 const schemes: ReadonlyArray<{ readonly value: Scheme; readonly label: string }> = [
   { value: 'system', label: 'System' },
@@ -230,6 +238,7 @@ export const componentPage = (
           axis.values.map(value => ({ value, label: value })),
           valueOf(axis, model.selection),
           value => Message.PickedVariant({ axis: axis.name, value }),
+          idleHint(showcase.axes, axis, model.selection),
         ),
       ),
       schemeChoice(model, slots, h),

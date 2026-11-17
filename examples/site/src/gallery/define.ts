@@ -2,7 +2,14 @@
 import type { Html } from 'foldkit/html'
 import { SlotView, type NamedStyle, type StylePieces } from 'foldkit-mixins'
 import { forSlots } from '../snippets/theme.js'
-import { valueOf, type Axis, type Live, type Selection, type Showcase } from './showcase.js'
+import {
+  valueOf,
+  type Axis,
+  type Live,
+  type Need,
+  type Selection,
+  type Showcase,
+} from './showcase.js'
 
 export const inert = SlotView.inertBuilder<never>()
 
@@ -22,7 +29,10 @@ interface RecipeOf<Slots> {
  * A selection's style is built once and kept: a reader goes back and forth.
  * `examples` names the page's examples; each draws with the picked style, so
  * the axes switch every example at once, except the values an example `pins`:
- * a vertical stepper stays vertical whatever orientation is picked.
+ * a vertical stepper stays vertical whatever orientation is picked. `needs`
+ * names an axis the recipe reads only under another axis's values (a card's
+ * elevation under its outlined and elevated surfaces); the page disables it
+ * otherwise, since a control that does nothing must not look live.
  */
 export const fromRecipe = <Slots>(
   about: Omit<Showcase, 'axes' | 'preview' | 'examples'>,
@@ -36,21 +46,34 @@ export const fromRecipe = <Slots>(
     readonly draw: <Message>(style: NamedStyle<Slots>, live: Live<Message>) => Html
     readonly pins?: Selection
   }> = [],
+  needs: Readonly<Record<string, Need>> = {},
 ): Showcase => {
   const axes = Object.entries(recipe.def.variants)
     .filter(([name]) => only === undefined || only.includes(name))
     .map(([name, values]): Axis => {
       const names = Object.keys(values)
       const initial = recipe.def.defaults?.[name]
-      if (initial !== undefined) return { name, values: names, initial }
+      const need = Object.hasOwn(needs, name) ? needs[name] : undefined
+      const needing = need === undefined ? {} : { needs: need }
+      if (initial !== undefined) return { name, values: names, initial, ...needing }
       // An axis the recipe leaves unset follows the page, as a size follows
       // the ladder's step, which is the default one on this page. One with no
       // such step (a lone `overflow: 'scroll'`, a `width: 'fill'`) can be left
       // unset, and is at first: picking its only value would force it on.
       return names.includes('md')
-        ? { name, values: names, initial: 'md' }
-        : { name, values: [UNSET, ...names], initial: UNSET }
+        ? { name, values: names, initial: 'md', ...needing }
+        : { name, values: [UNSET, ...names], initial: UNSET, ...needing }
     })
+  for (const [name, need] of Object.entries(needs)) {
+    const named = axes.find(axis => axis.name === name)
+    const other = axes.find(axis => axis.name === need.axis)
+    if (
+      named === undefined ||
+      other === undefined ||
+      !need.values.every(value => other.values.includes(value))
+    )
+      throw new Error(`${about.slug} says ${name} needs ${need.axis}, which ${about.recipe} lacks`)
+  }
   // Every value passed was checked against the recipe's own axes by `valueOf`.
   const select = recipe as unknown as (selection: Selection) => StylePieces<Slots>
   const styles = new Map<string, NamedStyle<Slots>>()

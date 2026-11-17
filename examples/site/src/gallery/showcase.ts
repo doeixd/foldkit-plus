@@ -5,11 +5,22 @@
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Widgets from './widgets.js'
 
+/**
+ * What another axis must be for an axis to change anything: `values` of `axis`.
+ * Outside them the control stays drawn, disabled, with `hint` beside it.
+ */
+export interface Need {
+  readonly axis: string
+  readonly values: ReadonlyArray<string>
+  readonly hint: string
+}
+
 /** One variant axis of a recipe, and the value it takes when none is picked. */
 export interface Axis {
   readonly name: string
   readonly values: ReadonlyArray<string>
   readonly initial: string
+  readonly needs?: Need
 }
 
 /** What the reader picked, by axis name. */
@@ -62,6 +73,19 @@ export interface ShowcaseExample {
 export const valueOf = (axis: Axis, selection: Selection): string => {
   const picked = Object.hasOwn(selection, axis.name) ? selection[axis.name] : undefined
   return picked !== undefined && axis.values.includes(picked) ? picked : axis.initial
+}
+
+/** The hint of an axis the selection leaves without effect, or none while it changes something. */
+export const idleHint = (
+  axes: ReadonlyArray<Axis>,
+  axis: Axis,
+  selection: Selection,
+): string | undefined => {
+  const { needs } = axis
+  const other = needs && axes.find(each => each.name === needs.axis)
+  return needs && other && !needs.values.includes(valueOf(other, selection))
+    ? needs.hint
+    : undefined
 }
 
 /** `Recipes.Button({ tone: 'neutral' })`: the selection as code, naming only what differs from the defaults. */
