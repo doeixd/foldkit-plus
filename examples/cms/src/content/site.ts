@@ -42,6 +42,7 @@ import { t } from '../styles/style.js'
 
 /** The looks' base rules sit in `components`, below the application's own. */
 const components = Layers.standard.layer('components')
+const variants = Layers.standard.layer('variants')
 /** Every part of a look is a container another style may dress. */
 const part = Slot.make({ capability: Capability.Container })
 
@@ -119,8 +120,34 @@ const onBand = Style.compose(
   Style.vars({ '--fk-heading': 'currentColor', '--fk-ink': 'currentColor' }),
   Style.nest('& :focus-visible', { outlineColor: 'currentColor' }),
 )
+/**
+ * A filled button on a colored band: the surface's fill and the band's dark ink, as the recipe's
+ * soft neutral (a faint tint of the text color, with a fixed dark ink) is made for a light page and
+ * drew near-black on the band. Its hover and press stay a step off the fill, and the focus ring is
+ * the fill's own color, which the band's text color is too. Unfilled buttons keep the recipe's.
+ */
+const solidOnBand = (fill: string, ink: string, hover: string, press: string) =>
+  Style.compose(
+    Style.nest('& [data-variant="solid"], & [data-variant="primary"]', {
+      backgroundColor: fill,
+      borderColor: fill,
+      color: ink,
+    }),
+    Style.nest('& :is([data-variant="solid"], [data-variant="primary"]):hover', {
+      backgroundColor: hover,
+      borderColor: hover,
+    }),
+    Style.nest('& :is([data-variant="solid"], [data-variant="primary"]):active', {
+      backgroundColor: press,
+      borderColor: press,
+    }),
+    Style.nest('& :is([data-variant="solid"], [data-variant="primary"]):focus-visible', {
+      outlineColor: fill,
+    }),
+  )
 const HeroLook = Appearance.make(HeroSlots, {
-  layer: components,
+  // Its tones select over the buttons' own variants, which sit in `variants`.
+  layer: variants,
   recipe: Style.recipeFor(HeroSlots)({
     base: {
       root: Style.self({
@@ -163,12 +190,25 @@ const HeroLook = Appearance.make(HeroSlots, {
               color: 'white',
             }),
             onBand,
+            // The band's own colors, not the theme's: the accent is lightened for text in the dark theme.
+            solidOnBand(
+              'white',
+              'oklch(32% 0.14 262)',
+              'oklch(94% 0.03 262)',
+              'oklch(88% 0.05 262)',
+            ),
           ),
         },
         ink: {
           root: Style.compose(
             Style.self({ background: t.text.overt, color: t.surface.base }),
             onBand,
+            solidOnBand(
+              t.surface.base,
+              t.text.overt,
+              `color-mix(in oklab, ${t.surface.base} 88%, ${t.text.overt})`,
+              `color-mix(in oklab, ${t.surface.base} 78%, ${t.text.overt})`,
+            ),
           ),
         },
       },
@@ -510,6 +550,11 @@ export const Divider = Block.define('Divider', {
 // --- Button: the mixins-ui button recipe, its choices the Block's axes ------------
 
 const ButtonLook = Appearance.make(ButtonSlots, { recipe: Recipes.Button })
+const variantOf = (appearance: Readonly<Record<string, unknown>>): string => {
+  const chosen = appearance['variant']
+  // Unset, the recipe's default.
+  return typeof chosen === 'string' ? chosen : 'solid'
+}
 export const Button = Block.define('Button', {
   Props: Schema.Struct({
     label: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Label' }),
@@ -892,7 +937,14 @@ export const SiteRenderer = Renderer.make(Site, {
   },
   Divider: ({ appearance, h }) => h.hr(DividerLook.draw({ appearance, h }).root.attrs()),
   Button: ({ props, appearance, field, h }) =>
-    h.a(ButtonLook.draw({ appearance, h }).button.attrs([h.Href(props.href)]), [field('label')]),
+    h.a(
+      ButtonLook.draw({ appearance, h }).button.attrs([
+        h.Href(props.href),
+        // What a band reads to tell a filled button from an unfilled one (`solidOnBand`).
+        h.DataAttribute('variant', variantOf(appearance)),
+      ]),
+      [field('label')],
+    ),
   PostList: ({ props, data, appearance, h }) => {
     const drawn = PostsLook.draw({ appearance, h })
     const rows = PostList.rows(data)
