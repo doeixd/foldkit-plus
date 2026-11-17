@@ -293,7 +293,7 @@ Combobox   -> { wrapper, inputWrapper, input, toggleButton, backdrop, items, scr
 | a command palette | Command in a Dialog |
 | a text field, a textarea, a password, a search box | [Input, Textarea](#text-and-number-fields), PasswordInput, [SearchField](#searchfield) |
 | a number, a one-time code, tags, a copyable value | NumberField, OtpField, TagsInput, InputCopy |
-| a file picker, a drop zone | [FileInput](#fileinput), FileDrop |
+| a file picker, a drop zone, files that are listed, checked, previewed and sent | [FileInput](#fileinput) (a native picker you own), FileDrop, [FileUpload](#fileupload) |
 | on or off; one of a few; several of a few | Switch, Checkbox, CheckboxGroup, RadioGroup, Segmented |
 | one from a long list; a path through nested options | Select, Listbox, Combobox, Picker, CascadeSelect |
 | a number, a range, a rating, an angle, a color | Slider, NumberField, Rating, AngleSlider, ColorPicker |
@@ -495,6 +495,7 @@ query, the highlighted row and the rows the keys step through.
 | `Label` | `{ for, text }`; `for` is the control's id. | No axis. Slot `label`. |
 | `Fieldset` | Adapter: a `fieldset`, its `legend` and a `description`. | `variant`: `plain` (default, no box), `bordered`, `filled`. The recipe floats the legend into the group, so a box drawn round it holds the legend; a boxed group pads its fields, and a control in it takes a corner concentric with the box's; a disabled fieldset dims its legend and description. Slots `fieldset`, `legend`, `description`. |
 | `FileInput` | A file picker, not a drop zone: a native `type="file"` input and the button that labels it. The application owns the files. See [FileInput](#fileinput). | `size` is Button's ladder step. Slots `root`, `input`, `trigger`, `description`, `list`, `item`, `name`, `remove`. |
+| `FileUpload` | A field of files with a status each: a native `type="file"` input and the picker that labels it (`layout`: `button`, `zone`, `avatar`, `cover`), drop, previews, refusals, lanes for sending, `parts` for a layout of your own. A small Model: `FileUpload.Model`, `init`, `update`, placed by the application. See [FileUpload](#fileupload). | `layout`; `list`: `rows` (default), `grid`; `size` is Button's ladder step. Slots `root`, `input`, `picker`, `prompt`, `browse`, `constraints`, `description`, `picture`, `status`, `errors`, `error`, `summary`, `clear`, `list`, `item`, `preview`, `name`, `meta`, `state`, `progress`, `actions`, `retry`, `remove`, `grip`. |
 | `FileDrop` | Adapter over `@foldkit/ui/fileDrop`: a drop zone. `FileDrop.Message` is upstream's four Messages over a `File` codec that needs no decoding services (upstream types its files as `Schema<File>`, whose services are `unknown`, so a Message holding it could not be a `Bundle.parent`'s); `FileDrop.update` of upstream takes it as it is. | The recipe rings the zone while its input has keyboard focus (a press does not) and dims a disabled one. Slots `root`, `input`. |
 
 `Input.view` and `Textarea.view` place their own bundles, so each takes a
@@ -737,6 +738,270 @@ const filesView = (model: typeof FilesModel.Type, h: HtmlBuilder<FilesMessage>) 
 Nothing here reads the input: the browser's dialog, the native input and the form
 are the platform's, and the view declares them. `Sync` and `Focus` are the only
 calls that touch the page.
+
+### FileUpload
+
+A `FileUpload` is a field that holds files and says what became of each: chosen by the
+dialog, dropped or pasted, judged against limits (kind, size, count, duplicates), listed
+with a thumbnail, and, when the application asks, sent. Its `Model` and `update` are the
+whole machine, which the application places and folds as it places `TagsInput`; the
+view draws them.
+
+Choose by what you need to own:
+
+| You need | Use |
+| --- | --- |
+| a native picker whose `File[]` you keep, with no checks, drop, previews or status | [FileInput](#fileinput) |
+| a drop zone over `@foldkit/ui`'s Submodel | `FileDrop` |
+| files judged, listed, previewed, dropped, removed, retried, optionally sent and sorted | `FileUpload` |
+
+It owns the list and each entry's status. It does not own the transport (the
+application's Subscription sends a file and answers in its own Messages), the order
+(the application places `Reorder`), or the bytes of an uploaded file (a `Stored` entry
+holds an address).
+
+```text
+Offered -> validate -> Held | Queued -> Uploading(lane) -> Done | Failed -> Retried
+```
+
+A picked, dropped or pasted batch is one `Offered` Message. `update` checks each file
+(kind, then size, then duplicate), refuses a whole batch that would pass `maxFiles`, and
+lists the rest `Held`, or `Queued` when the field has `lanes`. A queued file starts as a
+lane frees. The Model keeps each `File` and writes the list back into the native input
+after every change (`FileInput.Sync`), so a plain form post carries exactly the local
+files, dropped ones included.
+
+Place it in the application's Model and wrap its Messages:
+
+```ts
+import * as Command from 'foldkit/command'
+import { FileUpload, FileUploadSlots } from 'foldkit-mixins-ui'
+
+const UpModel = Schema.Struct({ upload: FileUpload.Model })
+type UpModel = typeof UpModel.Type
+const UpMessage = defineMessageUnion({ GotUpload: { message: FileUpload.Message } })
+type UpMessage = typeof UpMessage.Type
+
+const upInit = (): UpModel => ({
+  upload: FileUpload.init({
+    id: 'documents',
+    multiple: true,
+    accept: ['.pdf', 'image/*'],
+    maxFiles: 5,
+    maxSize: 5_000_000,
+  }),
+})
+
+const upUpdate = (model: UpModel, message: UpMessage): Return<UpModel, UpMessage> =>
+  UpMessage.match(message, {
+    GotUpload: ({ message: inner }) => {
+      const { model: upload, commands } = FileUpload.update(model.upload, inner)
+      return {
+        model: upload === model.upload ? model : modifyFields(model, { upload: () => upload }),
+        commands: Command.mapMessages(commands ?? [], next => UpMessage.GotUpload({ message: next })),
+      }
+    },
+  })
+
+const UpStyle = Style.forSlots(FileUploadSlots)(Recipes.FileUpload({ layout: 'zone' }))
+
+const upView = (model: UpModel, h: HtmlBuilder<UpMessage>) =>
+  FileUpload.view(
+    {
+      model: model.upload,
+      onMessage: message => UpMessage.GotUpload({ message }),
+      label: 'browse',
+      name: 'documents',
+      words: { prompt: 'Drop files here or' },
+      style: UpStyle,
+    },
+    h,
+  )
+```
+
+`init` refuses an `accept` token that is not `.ext`, `type/*` or `type/subtype`, a
+negative or fractional `maxSize`, `maxFiles` or `lanes`, a `maxFiles` without `multiple`,
+and several `initial` files without it. `update` returns an `OutMessage`: `Picked`
+(the ids added and replaced, and every `Refusal`) after an offer, `Removed` after a
+removal. A no-op returns the Model it was given.
+
+**The picker.** The `input` is a native `type="file"` drawn first, a transparent pixel
+rather than hidden, and the `picker` is its `label`, always its next sibling. A press
+on the picker, and Enter or Space on the focused input, open the browser's dialog with
+no script between; the picker rings on keyboard focus. The picker also owns the four
+drag events and `data-dragging`. `Recipes.FileUpload`'s `layout` (`button`, `zone`,
+`avatar`, `cover`) only restyles it. What is drawn follows what the view is given, not
+the recipe: `words.prompt` draws a drop zone's invitation, `picture` draws the
+single-image face, `description` and the limits draw their paragraphs. The input is
+named by the picker's words (`prompt` and `label`), so give `label` the words that name
+the files.
+
+**Refusals and the live region.** Each refusal names its file and is listed in
+`errors`, which is not live; one polite `status` region, drawn always, says each change
+once (`3 added`, `Removed a.png`, `a.png uploaded`) and never says a percentage. Two
+identical notices in a row are not spoken twice. `words` holds every sentence, with
+`{name}`, `{count}`, `{max}`, `{size}` and `{reason}` standing for what it is about.
+
+**Previews.** An added image asks for an object URL through a Command and shows it in
+the row's `preview`. `FileUpload.released(model)` revokes every URL: call it from the
+Message that drops the widget (a route change, a dialog closing). Nothing revokes on
+unmount, so without it the URLs live until the document unloads.
+
+**A single image.** Give `picture` a function from the first entry's address to what the
+picker holds. The list is not drawn, and the one file's Remove button follows the
+picker, over its corner in `avatar` and `cover`:
+
+```ts
+const UpAvatarStyle = Style.forSlots(FileUploadSlots)(Recipes.FileUpload({ layout: 'avatar' }))
+
+const upAvatar = (model: UpModel, h: HtmlBuilder<UpMessage>) =>
+  FileUpload.view(
+    {
+      model: model.upload,
+      onMessage: message => UpMessage.GotUpload({ message }),
+      label: 'Change photo',
+      picture: url =>
+        Option.match(url, {
+          onNone: () => h.span([], ['No photo']),
+          onSome: src => h.img([h.Src(src), h.Alt('')]),
+        }),
+      style: UpAvatarStyle,
+    },
+    h,
+  )
+```
+
+**Uploads.** `init({ lanes })` sends that many files at once; `0` sends nothing and
+every file stays `Held`. A queued file takes the first free lane, and a lane number holds
+for the whole send, so one Subscription entry per lane never restarts another's upload.
+The application supplies the send (`foldkit-media/browser`'s `uploadFile`, a hand-written
+stream, a simulation) and answers in its own Messages, which fold `Progressed`,
+`Succeeded` or `Failed` back into the widget. `FileUpload.lanes` makes every lane's
+entry for a count, so the entries cannot be fewer than `lanes`: take the count from the
+one constant that feeds both.
+
+```ts
+import { Stream } from 'effect'
+
+const UP_LANES = 2
+
+const upSubscriptions = FileUpload.lanes<UpModel, UpMessage>({
+  count: UP_LANES,
+  model: parent => parent.upload,
+  send: job =>
+    Stream.make(
+      UpMessage.GotUpload({
+        message: FileUpload.Message.Succeeded({
+          id: job.id,
+          attempt: job.attempt,
+          url: Option.none(),
+        }),
+      }),
+    ),
+})
+```
+
+(`FileUpload.lane({ lane, model, send })` is one lane's entry, for an application that
+names its Subscription entries itself.) Removing an uploading entry empties its lane, the
+entry's dependency changes and the request aborts: the same button reads `Cancel {name}`
+while a file uploads. A `Failed` answer says whether it may be `retryable`; `Retried`
+queues it again, as a new `attempt`. A Message of another attempt, or of an entry that
+is gone, changes nothing.
+
+Progress is a value the application builds, so a field that sends nothing never loads the
+Progress widget. Give the view `progress` and an uploading row draws a bar (or, with
+`Recipes.Progress({ shape: 'ring' })`, a ring) named by `Uploading {name}`; without it
+the row says the same in its state text:
+
+```ts
+import { FileUploadProgress, ProgressSlots } from 'foldkit-mixins-ui'
+
+const UpBar = FileUploadProgress.make({
+  style: Style.forSlots(ProgressSlots)(Recipes.Progress({})),
+})
+// FileUpload.view({ ..., progress: UpBar }, h)
+```
+
+**Pieces.** `FileUpload.parts(options, h)` returns the drawings `view` assembles, apart:
+`input`, `picker`, `errors`, `status`, `summary` and an `items` entry per file with its
+`preview`, `name`, `meta`, `state`, `progress`, `actions` and `grip`. Lay them into
+`Table.view` or `Card.view` yourself; `view` is written in terms of `parts`, so there is
+one drawing.
+
+**Sorting.** Order is the application's: it places `Reorder` as documented for
+primitives and hands the Behavior to the view as `sort: { input, mixin }`, which draws a
+grip per row, marks the list `data-sortable` and reads `input` for the Behavior. The widget
+imports neither Reorder nor its pointer drag, so a field with no sorting loads neither. The
+application's `onOut` applies the `Moved` fact with `FileUpload.ordered` and reads every fact
+out through the one live region with `FileUpload.announce`. A keyed move drops the browser's
+focus, so beside the widget's own focus Commands add `FileUploadSort.keepFocus` to `mixins`
+(it keeps a grip's focus and covers `without`); it is a module of its own because it loads
+`FocusRecovery`.
+
+```ts
+import { Bundle } from 'foldkit-bundle'
+import { Reorder } from 'foldkit-primitives/interaction'
+import { FileUploadSort } from 'foldkit-mixins-ui'
+
+const SortRows = Bundle.declare(Reorder.bundle, 'rows')
+const SortModel = Schema.Struct({ ...SortRows.fields, upload: FileUpload.Model })
+type SortModel = typeof SortModel.Type
+const SortMessage = defineMessageUnion({
+  ...SortRows.cases,
+  GotUpload: { message: FileUpload.Message },
+})
+type SortMessage = typeof SortMessage.Type
+
+const SortAssembly = Bundle.parent({ Model: SortModel, Message: SortMessage }).assemble(
+  Bundle.parent({ Model: SortModel, Message: SortMessage }).at(SortRows, {
+    onOut: (fact: Reorder.OutMessage) => (model: SortModel) => {
+      const label = (id: string) => model.upload.entries.find(entry => entry.id === id)?.name ?? id
+      const said = FileUpload.announce(model.upload, Reorder.announcement(fact, { label }))
+      return {
+        model: Reorder.OutMessage.match(fact, {
+          Moved: move =>
+            modifyFields(model, {
+              upload: () =>
+                FileUpload.ordered(said, Reorder.apply(FileUpload.ids(model.upload), move)),
+            }),
+          PickedUp: () => modifyFields(model, { upload: () => said }),
+          PassedOver: () => modifyFields(model, { upload: () => said }),
+          PutBack: () => modifyFields(model, { upload: () => said }),
+        }),
+      }
+    },
+  }),
+)
+
+const Sorting = Reorder.behavior(SortRows)(FileUploadSlots)<SortModel, SortMessage>({
+  container: 'list',
+  item: 'item',
+  handle: 'grip',
+  items: model => FileUpload.ids(model.upload),
+  orientation: 'both',
+})
+// FileUpload.view({ ..., sort: { input: model, mixin: Sorting.mixin }, mixins: FileUploadSort.keepFocus }, h)
+```
+
+**Keys.** Enter and Space belong to the dialog, and Backspace and Delete on the input
+remove the last file; `routes` takes the rest. A route on one of those four throws
+`mixins:key-conflict`, and `FileUpload.conflict(routes)` returns that diagnostic without
+drawing.
+
+**Forms.** `name` goes on the real input, and `Sync` runs after every change. A `Stored`
+entry is not in the input: post its address with a hidden input of your own. Give no
+`name` when `lanes` sends the bytes. `required` is the native attribute, and a field with
+only stored files fails it, since the input holds none. `disabled` disables the input
+and the buttons; `readOnly` draws no picker, remove or grip and keeps the input out of
+the tab order, so a form still posts.
+
+**Failure and recovery.** A Model holding a `Local` entry is not JSON: `settled(model)`
+turns uploaded entries into stored ones, drops every other local file and clears
+`dragging`, the refusals, the notice and the previews, and the result encodes and decodes.
+A removed entry takes its button, so focus moves by Command to the next entry's remove
+button, else the previous, else the input; `FileUpload.without(model, ids)` removes for
+the application and moves no focus. Dropping files, writing `input.files` and the
+synthetic drop are proven in Chromium only.
 
 ### Other fields
 
@@ -1738,6 +2003,7 @@ declines it.
 | `Nav` | `routes`: the row's own keys on the top-level links and triggers; `panelRoutes`: a panel's links. | `routes`: the entry, `item.index` its place; `panelRoutes`: the link, `item.index` its place among the panel's links. |
 | `Tabs` | `TabsContext.routes`: Delete, when tabs are closable. A tab with no key to answer draws no keydown at all. | The tab's `TabInfo`. |
 | `TagsInput` | The input's: Enter, the delimiter and Backspace. | The tags Model. |
+| `FileUpload` | The input's: Enter and Space (the dialog's, never routed) and Backspace and Delete (the last file). `FileUpload.conflict(routes)` names a clash. | The `FileUpload.Model`. |
 | `Toolbar` | The arrows, Home and End. | `undefined` |
 
 ```ts
@@ -1826,7 +2092,9 @@ of every page drawing the widget would otherwise have to resolve.
   the handle when the drawer closes with focus in its body, which the hidden body would
   otherwise drop to the page. `SearchField.Focus` and `FileInput.Focus` put focus back
   on the input after the button that held it left, and `TagsInput.update` returns a
-  focus Command after a removal.
+  focus Command after a removal. `FileUpload.update` does the same: the next entry's remove
+  button, else the previous, else the input, and after a retry the entry's remove button;
+  `FileUploadSort.keepFocus` (opt-in, in `mixins`) covers what no widget Message causes.
 
 ```ts
 import { Alert } from 'foldkit-mixins-ui'
@@ -1890,6 +2158,7 @@ submits natively needs no hand-drawn input:
 | `CascadeSelect` | One hidden input per level of the chosen path, or one empty input. |
 | `DatePicker` | One hidden input per chosen day; a range's start then its end. |
 | `FileInput` | The files, through the native input that `FileInput.Sync` keeps equal to the list. |
+| `FileUpload` | The local files, through the native input that `Sync` keeps equal to the list; stored files are not in it. |
 | `Checkbox`, `Switch`, `RadioGroup`, `Listbox`, `Combobox` | Their `hiddenInput` Slots (`hiddenInputs` for the popups). |
 
 A `disabled` Button is `aria-disabled`, not `disabled`, and still submits: refuse the

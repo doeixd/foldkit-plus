@@ -98,6 +98,10 @@ These sections load their code when they near the window (`src/lazy.ts`), each f
   list back into the native input after every pick and removal (`FileInput.Sync`), so the form submits
   exactly the rows listed, even after a repeat pick or a cancelled dialog. Removing a row from the
   keyboard moves focus to the file input (`FileInput.Focus`) instead of dropping it to the page.
+- `src/file-upload/` — an application form with a drop zone and a list, no transport. `FileUpload` judges each
+  file (PDFs and images, five at most, 2 MB each), names a refusal by file, and writes the local files back into the
+  input, so a native submit sends exactly the rows, dropped files included. Removing a row moves focus to the next
+  row's button, then the previous, then the input.
 - `src/tags-input/` — a topics form where the application folds `TagsInput`'s Messages into its
   Model. Enter and the comma add tags without submitting; the arrow keys, Home and End walk the chips,
   and Delete or Backspace removes one. A draft left in the input is added when focus leaves it
