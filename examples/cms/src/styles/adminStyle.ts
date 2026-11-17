@@ -58,6 +58,8 @@ export const barSize = '3.5rem'
 /** The bar on a phone: one row, as tall as a control that is pressed. */
 export const phoneBarSize = '2.75rem'
 /** Where a section shows its icon alone. */
+/** The room the guide's pill takes at the end of a phone's page, which scrolls as a document (the guide's own `reserve` is off). */
+const pillRoom = '4.25rem'
 const iconOnly = '(max-width: 40rem)'
 /** Where the row has room for the mark and the icons and avatars at a little less than a pressed control's width, and not for the brand's name. */
 const narrowest = '(max-width: 26rem)'
@@ -384,7 +386,9 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         maxWidth: '64rem',
         padding: `${t.space['2xl']} ${t.space.xl}`,
       }),
-      Style.media(phone, { padding: `${t.space.lg} ${t.space.md}` }),
+      Style.media(phone, {
+        padding: `${t.space.lg} ${t.space.md} calc(${t.space.lg} + ${pillRoom})`,
+      }),
       // A lone link or button in the column is as wide as its words, not the column.
       Style.nest('> a', { alignSelf: 'flex-start' }),
     ),
@@ -480,7 +484,9 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     ),
     workbench: Style.compose(
       Style.self({ padding: t.space.lg }),
-      Style.media(phone, { padding: t.space.sm }),
+      Style.media(phone, {
+        padding: `${t.space.sm} ${t.space.sm} calc(${t.space.sm} + ${pillRoom})`,
+      }),
     ),
     canvas: Style.compose(
       Style.self({
@@ -511,6 +517,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         overflowY: 'auto',
         position: 'sticky',
       }),
+      Style.media(phone, { paddingBlockEnd: `calc(${t.space.lg} + ${pillRoom})` }),
     ),
     card: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.xs })),

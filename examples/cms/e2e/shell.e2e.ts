@@ -113,6 +113,22 @@ test('at 390px the editor spends little on chrome: one header row, one bar, a to
   expect(measured.toolbarOverflow).toBeLessThanOrEqual(0)
   expect(measured.sideways).toBeLessThanOrEqual(0)
   expect(measured.header).toBeLessThanOrEqual(52)
+
+  // The document ends past the settings with the pill's room, not under it, and with no band.
+  await page.waitForTimeout(3_000) // a pushed entry's scroll is held at the top for 2s
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  const end = await page.evaluate(() => {
+    const controls = document.querySelectorAll('aside[aria-label="Post settings"] :is(button, a)')
+    return {
+      last: controls[controls.length - 1]!.getBoundingClientRect().bottom,
+      pill: document.querySelector('details')!.getBoundingClientRect().top,
+      settings: document.querySelector('aside[aria-label="Post settings"]')!.getBoundingClientRect()
+        .bottom,
+      inner: innerHeight,
+    }
+  })
+  expect(end.last).toBeLessThanOrEqual(end.pill)
+  expect(Math.abs(end.settings - end.inner)).toBeLessThan(1)
   await page.context().close()
 })
 
