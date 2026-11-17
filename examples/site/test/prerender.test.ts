@@ -16,6 +16,7 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import { allSubsites, subsites } from '../src/catalog.js'
 import { GITHUB } from '../src/content/guides.js'
 import { demos, onGitHub } from '../src/demos.js'
+import { families } from '../src/gallery/primitives.js'
 import { showcases } from '../src/gallery/showcases.js'
 import { codeOf, defaults } from '../src/gallery/theme.js'
 import type { Links, Share } from './prerendered.js'
@@ -37,6 +38,7 @@ const READ = [
   '/primitives/api/primitives-time/throttle',
   '/primitives',
   '/components',
+  '/primitives/gallery',
   '/components/button',
   '/components/radio-group',
   '/components/file-drop',
@@ -297,6 +299,21 @@ describe('the generated site', () => {
     expect(thumbs).toHaveLength(showcases.length)
     expect(thumbs.every(thumb => thumb.hasAttribute('inert'))).toBe(true)
     expect(hrefs(gallery, 'nav[aria-label="Site"] [aria-current="page"]')).toEqual(['/components'])
+  })
+
+  test('the primitives gallery has a card for each module, grouped by family, and the guide stays', () => {
+    const gallery = page('/primitives/gallery')
+    expect(
+      Array.from(gallery.querySelectorAll('main section[id]'), family =>
+        hrefs(family, 'ul > li > a'),
+      ),
+    ).toEqual(families.map(family => family.cards.map(() => `/primitives/${family.id}`)))
+    expect(hrefs(gallery, 'nav[aria-label="Site"] [aria-current="page"]')).toEqual([
+      '/primitives/gallery',
+    ])
+    // The README's guide keeps its address, and the gallery's rail leads to it.
+    expect(links.has('/primitives')).toBe(true)
+    expect(hrefs(gallery, 'nav[aria-label="Primitives"] a')).toContain('/primitives')
   })
 
   test('the rail lists every component by name, in alphabetical order', () => {

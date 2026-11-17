@@ -545,6 +545,8 @@ export const subscriptions = placements.subscriptions(
 
 const descriptionOf = (page: Page): string =>
   Page.match(page, {
+    Primitives: () =>
+      'Primitives from foldkit-primitives, by family: what each owns, how it is imported, and a live example of it.',
     Components: () =>
       'Components drawn by the recipes foldkit-mixins-ui ships: pick a variant, read the code, theme them all.',
     Component: ({ slug }) =>
@@ -563,6 +565,7 @@ const descriptionOf = (page: Page): string =>
 const titleOf = (page: Page): string =>
   Page.match(page, {
     Components: () => 'Components · Foldkit Plus',
+    Primitives: () => 'Primitives · Foldkit Plus',
     Component: ({ slug }) =>
       Option.match(aboutOf(slug), {
         onNone: () => 'Components · Foldkit Plus',

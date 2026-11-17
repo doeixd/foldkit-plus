@@ -9,6 +9,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 
 import { onGitHub } from '../demos.js'
+import { PRIMITIVES_GALLERY } from '../library.js'
 import { Page } from '../page.js'
 import type { PageScheme } from '../page.js'
 import { SiteStyle } from '../style.js'
@@ -41,13 +42,14 @@ export interface Input<M> {
 }
 
 /** Which of the rail's places the page belongs to. */
-type Place = 'home' | 'learn' | 'packages' | 'components' | 'demos' | 'none'
+type Place = 'home' | 'learn' | 'packages' | 'components' | 'primitives' | 'demos' | 'none'
 
 const placeOf = (page: Page): Place =>
   Page.match<Place>(page, {
     Home: () => 'home',
     Demos: () => 'demos',
     Components: () => 'components',
+    Primitives: () => 'primitives',
     Component: () => 'components',
     Create: () => 'components',
     Doc: ({ subsite }) => (subsite === 'learn' ? 'learn' : 'packages'),
@@ -63,6 +65,7 @@ const places: ReadonlyArray<{
   { place: 'learn', label: 'Learn', href: '/learn' },
   { place: 'packages', label: 'Packages', href: '/#packages' },
   { place: 'components', label: 'Components', href: '/components' },
+  { place: 'primitives', label: 'Primitives', href: PRIMITIVES_GALLERY },
   { place: 'demos', label: 'Demos', href: '/demos' },
 ]
 

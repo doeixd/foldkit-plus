@@ -13,7 +13,14 @@ import { compilerOptionsOf, extract, packageSource } from '../api/extract.js'
 import { allSubsites, type Subsite } from '../catalog.js'
 import { README, topicsFor } from '../gallery/related.js'
 import { showcaseOf, showcases } from '../gallery/showcases.js'
-import { COMPONENTS, CREATE, type Draw, type Library, type Region } from '../library.js'
+import {
+  COMPONENTS,
+  CREATE,
+  PRIMITIVES_GALLERY,
+  type Draw,
+  type Library,
+  type Region,
+} from '../library.js'
 import { Page, type Example } from '../page.js'
 import type { RootContent } from 'mdast'
 
@@ -333,13 +340,22 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     ]
 
   return {
-    paths: [HOME, DEMOS, COMPONENTS, ...componentPaths, CREATE, ...byPath.keys()],
+    paths: [
+      HOME,
+      DEMOS,
+      COMPONENTS,
+      ...componentPaths,
+      CREATE,
+      PRIMITIVES_GALLERY,
+      ...byPath.keys(),
+    ],
     pageAt: path => {
       const normal = normalize(path)
       if (normal === HOME) return Page.Home()
       if (normal === DEMOS) return Page.Demos()
       if (normal === COMPONENTS) return Page.Components()
       if (normal === CREATE) return Page.Create()
+      if (normal === PRIMITIVES_GALLERY) return Page.Primitives()
       if (normal.startsWith(`${COMPONENTS}/`)) {
         const slug = normal.slice(COMPONENTS.length + 1)
         return Option.isSome(showcaseOf(slug)) ? Page.Component({ slug }) : Page.Missing()

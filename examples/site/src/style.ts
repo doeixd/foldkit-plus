@@ -605,7 +605,10 @@ export const SiteStyle = slots(
       fontWeight: t.weight.semibold,
       color: t.text.overt,
     },
-    shelfAbout: { margin: '0', fontSize: '0.9375rem', color: t.text.muted },
+    shelfAbout: [
+      { margin: '0', fontSize: '0.9375rem', color: t.text.muted },
+      Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
+    ],
     cards: {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fill, minmax(14.5rem, 1fr))',

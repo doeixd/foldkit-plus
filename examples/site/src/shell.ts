@@ -214,6 +214,7 @@ export const descriptionOf = (page: Page): string =>
     Home: () => DESCRIPTION,
     Demos: () => 'Examples from the Foldkit Plus repository, built as static files.',
     Components: () => elsewhere('Components'),
+    Primitives: () => elsewhere('Primitives'),
     Component: () => elsewhere('Component'),
     Create: () => elsewhere('Create'),
     Doc: ({ description }) => (description === '' ? DESCRIPTION : description),
@@ -257,6 +258,7 @@ export const titleOf = (page: Page): string =>
     Home: () => 'Foldkit Plus: ready-made patterns for Foldkit',
     Demos: () => 'Demos · Foldkit Plus',
     Components: () => elsewhere('Components'),
+    Primitives: () => elsewhere('Primitives'),
     Component: () => elsewhere('Component'),
     Create: () => elsewhere('Create'),
     Doc: ({ subsite, title }) => {

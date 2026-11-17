@@ -5,4 +5,4 @@
  * the application that takes it over. Light, since the first entry reads it.
  */
 export const isComponentPath = (path: string): boolean =>
-  /^\/(components(\/|$)|create\/?$)/.test(path)
+  /^\/(components(\/|$)|create\/?$|primitives\/gallery\/?$)/.test(path)

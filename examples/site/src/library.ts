@@ -16,6 +16,8 @@ export const COPY_ATTRIBUTE = 'data-copy-code'
 /** The component gallery and the theme creator; each component's page is under the gallery's. */
 export const COMPONENTS = '/components'
 export const CREATE = '/create'
+/** The primitives gallery: each of the package's subpaths as a family of cards and live examples. */
+export const PRIMITIVES_GALLERY = '/primitives/gallery'
 
 /** What a static region holds. */
 export type Region = ReadonlyArray<Html | string>
