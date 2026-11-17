@@ -153,7 +153,10 @@ test('the dismiss button shows on hover and dismisses alone', async () => {
     expect(byName('Edit').getBoundingClientRect().right).toBeLessThanOrEqual(
       dismiss.getBoundingClientRect().left,
     )
-    expect(getComputedStyle(dismiss).opacity).toBe('0')
+    // The press in the test above leaves the real pointer over this card's place, so it
+    // mounts hovered and fading in: park the pointer away, and let that fade end.
+    await userEvent.hover(document.body, { position: { x: 600, y: 600 } })
+    await vi.waitFor(() => expect(getComputedStyle(dismiss).opacity).toBe('0'))
     await userEvent.hover(byName('Solo'))
     await vi.waitFor(() => expect(getComputedStyle(dismiss).opacity).toBe('1'))
     await userEvent.click(dismiss)
