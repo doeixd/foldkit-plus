@@ -519,15 +519,23 @@ test('at 390px a node scrolled up under the studio’s bar keeps its grip clear 
   await node.tap()
   await page.waitForTimeout(400)
   const grip = page.locator('[data-builder-handle]')
-  // The node's top just under the bar (62px): there is no room above it for a 44px grip.
-  await node.evaluate(each => window.scrollBy(0, each.getBoundingClientRect().top - 90))
+  // The bar is one row or two, by how the font sets its words: the node's top goes just under the bar
+  // as it is, where there is no room above it for a 44px grip.
+  const bar = page.locator('#close').locator('xpath=..')
+  const barBottom = await bar.evaluate(each => each.getBoundingClientRect().bottom)
+  await node.evaluate(
+    (each, under) => window.scrollBy(0, each.getBoundingClientRect().top - under),
+    barBottom + 28,
+  )
   await page.waitForTimeout(400)
-  const at = await middle(grip)
+  const at = (await grip.boundingBox())!
   const reached = await page.evaluate(
     ([x, y]) => document.elementFromPoint(x!, y!)?.hasAttribute('data-builder-handle'),
-    [at.x, at.y],
+    [at.x + at.width / 2, at.y + at.height / 2],
   )
   expect(reached).toBe(true)
+  // Clear of the bar whole, not only where its middle is.
+  expect(at.y).toBeGreaterThanOrEqual(barBottom)
   await shot(page, 'phone-grip-under-bar')
   await context.close()
 })
