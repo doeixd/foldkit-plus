@@ -91,17 +91,22 @@ test('the toolbar has one tab stop and the arrows move along it, skipping the di
     await open(page, '/components/toolbar')
     const bar = page.locator('[data-size="page"] [role="toolbar"]').first()
     expect(await bar.locator('button[tabindex="0"]').count()).toBe(1)
+    // Each key moves focus in a Command after its Message, and the next key reads the DOM: wait for the
+    // move before pressing again, or a loaded runner sends the next key from where focus was.
+    const focused = () => page.evaluate(() => document.activeElement?.textContent)
     await bar.getByRole('button', { name: 'Bold' }).focus()
     await page.keyboard.press('ArrowRight')
-    expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Italic')
+    await expect.poll(focused).toBe('Italic')
     await page.keyboard.press('End')
     // The last control is the disabled Link, so End lands on the one before it.
-    expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Align right')
+    await expect.poll(focused).toBe('Align right')
     await page.keyboard.press('ArrowRight')
-    expect(await page.evaluate(() => document.activeElement?.textContent)).toBe('Bold')
+    await expect.poll(focused).toBe('Bold')
     // The tab stop followed focus: Italic is not it now.
-    expect(await bar.locator('button[tabindex="0"]').count()).toBe(1)
-    expect(await bar.getByRole('button', { name: 'Bold' }).getAttribute('tabindex')).toBe('0')
+    await expect.poll(() => bar.locator('button[tabindex="0"]').count()).toBe(1)
+    await expect
+      .poll(() => bar.getByRole('button', { name: 'Bold' }).getAttribute('tabindex'))
+      .toBe('0')
   } finally {
     await context.close()
   }
