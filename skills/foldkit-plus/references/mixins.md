@@ -1,6 +1,6 @@
 # Mixins: `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui`
 
-Checked against `foldkit-mixins` 0.25.0, `foldkit-mixins-surface` 0.11.0 and `foldkit-mixins-ui` 0.26.0.
+Checked against `foldkit-mixins` 0.26.0, `foldkit-mixins-surface` 0.12.0 and `foldkit-mixins-ui` 0.27.0.
 
 ## 1. Purpose
 
@@ -504,7 +504,7 @@ const details = (isOpen: boolean, h: HtmlBuilder<Message>) =>
 'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
 the shipped tokens (`Theme.root(Theme.standard(theme))` ships them; a theme is typed knob values,
 `Theme.make({ shape: { radius: 1.8 }, menu: { panel: 'inverted' } })` over `Knobs.standard`, pipeable with
-`Theme.set` and `Theme.describe`, and `shadow: { relief: 'bevel' }` raises every faced button and sinks every
+`Theme.set` and `Theme.describe`; the defaults are `shape.radius` 1 (6px controls; 0.45 is the old, squarer look), `menu.panel` `'default'` (the page's raised surface; `'inverted'` is the old panel), `surface.saturation` 0.005 and accent `lightness` 54, and a TagsInput chip and a Badge are full pills; `shadow: { relief: 'bevel' }` raises every faced button and sinks every
 field; every knob is a
 variable, choices too: `icon.size` (multiplies the icon rung of `ladder`) and `icon.stroke` (`border.glyph`, what recipes draw in CSS), `shape.border`, `type.body`, `type.headingWeight`, `type.fluid` (0 keeps one size; 1 grows type between `type.viewportMin` and `type.viewportMax`), `motion.easing`, `shadow.style`, `shadow.relief`,
 `shape.outlines` and `surface.hover` each write the CSS their option holds, so they switch at runtime;

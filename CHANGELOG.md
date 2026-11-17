@@ -7,6 +7,42 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.41.0
+
+The UI SDK round and the laws work. `foldkit-mixins-ui` and
+`foldkit-primitives` gain keyboard, focus and ARIA conformance across the
+widgets (`Behaviors.Keys` as the one owner of a slot's keys, `FocusRecovery`,
+`FocusReturn`, `Reorder`, `Presence.behavior`, the `Conformance` scenarios),
+and the default theme changes its look: rounder corners, pill chips and
+badges, menu panels on the page's own surface, a deeper accent and faintly
+tinted greys. A domain's laws are declared and checked (`Entity.refine`,
+invariants on the Entity, `Laws.check`, `Evidence`, `Closure`, `npx
+foldkit-plus laws`). Remote's wire carries row revisions and read-after
+tokens, and a server's own failure reaches its caller as `Internal error`
+with an incident id, never as the message of what was thrown. A mutation's
+answer holds only what its caller may read. `foldkit-remote-domain` is new:
+an Alchemy Domain Api behind Remote.
+
+Versions: 43 packages are a new minor: every package whose published files
+changed and each package that depends on one of them. `foldkit-remote-domain`
+is first published, at 0.1.0. `foldkit-bundle`, `foldkit-host`,
+`foldkit-react` and `foldkit-react-codegen` keep their versions. Breaking
+changes are marked **Breaking** under Changed, in `foldkit-mixins` (theme
+defaults, a view's `pipe`, composing a conditional rule), `foldkit-mixins-ui`
+(Menu rows named by `value`, `TagsInput`, `Tour` and `FloatingPanel` openers,
+`NumberField`, `Drawer`, `Segmented`, `ColorPicker`'s eyedropper and others),
+`foldkit-primitives` (`PointerDrag`'s `targets`, `Press`, `Selection`,
+`KeyboardMessage.Pressed`, `HistoryModel`, `FocusRecovery`),
+`foldkit-entity` (an uncollated text order is refused; invariants belong to
+the Entity; a write's `when` may not read the viewer or the clock),
+`foldkit-guard`, `foldkit-crud` (`Crud.list`'s `live`), `foldkit-data-grid`
+(`Out` gains `Copied`), `foldkit-remote-server`, `foldkit-remote-drizzle`,
+`foldkit-cms-drizzle` and `foldkit-sync` (what a failure tells its caller).
+Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
+`absorbed` and `server`, Sync's `reasons` and a rejection's `reason`, and the
+`saved` input on
+`foldkit-mixins-form` and `foldkit-crud`.
+
 ### Added
 
 - `foldkit-remote`: `RemoteData.incident(error)` reads the id the server reported a failure of its own under, as an `Option<string>`: some when the server broke rather than refused, so a view can show a reference to quote. `RemoteReadError`, `RemoteQueryError`, `RemoteMutationError` and `RemoteLiveError`, the JSON error answer, a live stream's error frame and `RemoteError` each gain an optional `incident`; nothing else on the wire changed, and a client or server without it still decodes.

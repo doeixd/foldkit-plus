@@ -1,6 +1,6 @@
 # foldkit-remote-domain
 
-Checked against `foldkit-remote-domain` 0.1.0, `@alchemy.run/domain` 2.0.0-beta.86 and `foldkit-remote` 0.26.0.
+Checked against `foldkit-remote-domain` 0.1.0, `@alchemy.run/domain` 2.0.0-beta.86 and `foldkit-remote` 0.27.0.
 
 Experimental. Reads and writes an [Alchemy Domain](https://alchemy.run/domain) model (Commands,
 Aggregates that `decide`, Events, Views) **through Remote**. This is the Domain library, not the `alchemy`

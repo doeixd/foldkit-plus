@@ -1,6 +1,6 @@
 # Laws: where a rule goes
 
-Checked against `foldkit-entity` 0.17.0, `foldkit-guard` 0.11.0, `foldkit-remote` 0.26.0, `foldkit-sync` 0.17.0, `foldkit-surface` 0.14.0 and `foldkit-metadata` 0.1.0.
+Checked against `foldkit-entity` 0.18.0, `foldkit-guard` 0.12.0, `foldkit-remote` 0.27.0, `foldkit-sync` 0.18.0, `foldkit-surface` 0.15.0 and `foldkit-metadata` 0.2.0.
 
 A law is a rule about state, declared as data and held by the owner of that
 state where it changes. It is not a package: the declarations live in
