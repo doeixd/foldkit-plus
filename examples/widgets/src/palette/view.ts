@@ -88,7 +88,17 @@ export const Palette = SlotView.forMessages<Message>()
                   shown.map((command, index) =>
                     h.div(
                       slots.item.attrs(
-                        [h.Key(command.id), h.Role('option')],
+                        [
+                          h.Key(command.id),
+                          h.Role('option'),
+                          // The pointer moves the highlight the keys move, and the same row shows it.
+                          h.OnMouseEnter(
+                            Nav.wrapper.make(ListNavigation.Message.Focused({ id: command.id })),
+                          ),
+                          ...(model.paletteNav.current === command.id
+                            ? [h.DataAttribute('active', '')]
+                            : []),
+                        ],
                         items.slotItem(index),
                       ),
                       [command.label],

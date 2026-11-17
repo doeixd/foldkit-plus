@@ -36,6 +36,7 @@ export const island: IslandBody = {
         Model: HoverCard.Model,
         init: () => HoverCard.initial,
         update: HoverCard.update,
+        subscriptions: HoverCard.subscriptions,
         view: (model, h) => HoverCardView(model, h),
         container,
       }),

@@ -40,6 +40,7 @@ export const island: IslandBody = {
         Model: ContextMenu.Model,
         init: () => ContextMenu.initial,
         update: ContextMenu.update,
+        subscriptions: ContextMenu.subscriptions,
         view: (model, h) => ContextMenuView(model, h),
         container,
       }),

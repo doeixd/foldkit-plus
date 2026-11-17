@@ -40,6 +40,7 @@ export const island: IslandBody = {
         Model: Autocomplete.Model,
         init: () => Autocomplete.initial,
         update: Autocomplete.update,
+        subscriptions: Autocomplete.subscriptions,
         view: (model, h) => AutocompleteView(model, h),
         container,
       }),

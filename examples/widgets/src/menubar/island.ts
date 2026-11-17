@@ -36,6 +36,7 @@ export const island: IslandBody = {
         Model: Menubar.Model,
         init: () => Menubar.initial,
         update: Menubar.update,
+        subscriptions: Menubar.subscriptions,
         view: (model, h) => MenubarView(model, h),
         container,
       }),

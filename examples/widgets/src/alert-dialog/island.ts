@@ -40,6 +40,7 @@ export const island: IslandBody = {
         Model: AlertDialog.Model,
         init: () => AlertDialog.initial,
         update: AlertDialog.update,
+        subscriptions: AlertDialog.subscriptions,
         view: (model, h) => AlertDialogView(model, h),
         container,
       }),

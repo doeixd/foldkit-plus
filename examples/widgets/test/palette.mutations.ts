@@ -4,6 +4,7 @@
  * test fails for every one.
  */
 const tests = ['examples/widgets/test/palette.test.ts']
+const browser = ['examples/widgets/test/palette.browser.test.ts']
 
 export default [
   {
@@ -61,5 +62,38 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'the island leaves out the DismissLayer subscription, so neither the backdrop nor Escape closes it',
+    edits: [
+      {
+        file: '../src/palette/island.ts',
+        find: 'subscriptions: Palette.subscriptions,',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a row under the pointer does not become the active row',
+    edits: [
+      {
+        file: '../src/palette/view.ts',
+        find: 'Nav.wrapper.make(ListNavigation.Message.Focused({ id: command.id })),',
+        replace: "Nav.wrapper.make(ListNavigation.Message.Focused({ id: 'none' })),",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the active row has no fill of its own',
+    edits: [
+      {
+        file: '../src/style.ts',
+        find: "const active = Style.pseudo('[data-active]', { background: wash })",
+        replace: "const active = Style.pseudo('[data-active]', {})",
+      },
+    ],
+    tests: browser,
   },
 ]
