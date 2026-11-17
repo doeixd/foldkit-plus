@@ -285,9 +285,8 @@ export default [
     edits: [
       {
         file: source,
-        find: 'Uploading: () =>\n              Option.some(\n                h.div(builders.progress',
-        replace:
-          'Queued: () =>\n              Option.some(\n                h.div(builders.progress',
+        find: 'Uploading: () =>\n            Option.some(\n              h.div(builders.progress',
+        replace: 'Queued: () =>\n            Option.some(\n              h.div(builders.progress',
       },
     ],
     tests: [view],
@@ -341,8 +340,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "Style.pseudo('[data-dragging]', {\n            borderColor: ref.accent.default,\n            backgroundColor: ref.accent.subtle,\n          }),\n        ),\n        browse",
-        replace: '),\n        browse',
+        find: "Style.pseudo('[data-dragging]', {\n            borderColor: ref.accent.default,\n            backgroundColor: ref.accent.subtle,\n          }),\n          Style.pseudo('[data-dragging]:hover', {",
+        replace: "Style.pseudo('[data-dragging]:hover', {",
       },
     ],
     tests: [browser],
@@ -438,5 +437,111 @@ export default [
     name: 'a removed preview is not revoked, seen in the page',
     edits: [{ file: source, find: '...revoke(previewsOf(leaving)),', replace: '' }],
     tests: [examples],
+  },
+  {
+    name: 'the zone is the heavy muted slab again',
+    edits: [
+      {
+        file: recipe,
+        find: 'backgroundColor: zoneGround,\n            color: ref.text.default,',
+        replace: 'backgroundColor: ref.surface.muted,\n            color: ref.text.default,',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a hover does not firm the zone outline',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo(':hover', { borderColor: ref.outline.overt }),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'an invalid zone loses its error outline when hovered',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.nest(':where([data-invalid]) > &:hover', { borderColor: ref.error.outline }),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the prompt keeps its muted colour under a drag',
+    edits: [
+      {
+        file: recipe,
+        find: "prompt: variant(Style.nest(':where([data-dragging]) > &', { color: ref.accent.ink })),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'browse is always underlined',
+    edits: [
+      {
+        file: recipe,
+        find: "textDecorationLine: 'none',",
+        replace: "textDecorationLine: 'underline',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'browse is the default link blue',
+    edits: [{ file: recipe, find: 'color: ref.text.link,', replace: "color: 'LinkText'," }],
+    tests: [browser],
+  },
+  {
+    name: 'the remove chip is a circle',
+    edits: [
+      {
+        file: recipe,
+        find: `remove: variant(
+          Style.self({ borderRadius: chipCorner(ref.space.xs) }),
+          Style.pseudo('[type="button"]', chipBox),
+        ),
+      },
+    },
+    size`,
+        replace: `remove: variant(
+          Style.self({ borderRadius: ref.radius.full }),
+          Style.pseudo('[type="button"]', chipBox),
+        ),
+      },
+    },
+    size`,
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the grid chip is always shown',
+    edits: [
+      { file: recipe, find: "'--_fk-upload-chip': '0',", replace: "'--_fk-upload-chip': '1'," },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a non-image shows no extension',
+    edits: [{ file: source, find: '[extensionOf(entry.name)]', replace: '[]' }],
+    tests: [browser],
+  },
+  {
+    name: 'the size is left-aligned',
+    edits: [
+      {
+        file: recipe,
+        find: "textAlign: 'end',\n        fontVariantNumeric",
+        replace: "textAlign: 'start',\n        fontVariantNumeric",
+      },
+    ],
+    tests: [browser],
   },
 ]

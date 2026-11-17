@@ -947,7 +947,7 @@ const UpBar = FileUploadProgress.make({
 
 **Pieces.** `FileUpload.parts(options, h)` returns the drawings `view` assembles, apart:
 `input`, `picker`, `errors`, `status`, `summary` and an `items` entry per file with its
-`preview`, `name`, `meta`, `state`, `progress`, `actions` and `grip`. Lay them into
+`preview`, `name`, `meta`, `state`, `progress`, `actions` and `grip` (an uploading row with `progress` draws no state text). Lay them into
 `Table.view` or `Card.view` yourself; `view` is written in terms of `parts`, so there is
 one drawing.
 

@@ -1119,7 +1119,7 @@ export const parts = <Outer>(
       ? Option.some(
           Option.match(displayUrl(entry), {
             onSome: url => h.img(builders.preview.attrs([h.Src(url), h.Alt('')])),
-            onNone: () => h.span(builders.preview.attrs(), []),
+            onNone: () => h.span(builders.preview.attrs(), [extensionOf(entry.name)]),
           }),
         )
       : Option.none<Html>()
@@ -1154,6 +1154,23 @@ export const parts = <Outer>(
             ),
           ]),
     ]
+    const bar = Option.flatMap(Option.fromNullishOr(options.progress), progress =>
+      Status.matchOrElse(
+        entry.status,
+        {
+          Uploading: () =>
+            Option.some(
+              h.div(builders.progress.attrs(), [
+                progress.draw(
+                  { id: `${model.id}-progress-${entry.id}`, entry, label: label(text.uploading) },
+                  h,
+                ),
+              ]),
+            ),
+        },
+        () => Option.none<Html>(),
+      ),
+    )
     return {
       entry,
       item: children =>
@@ -1167,24 +1184,12 @@ export const parts = <Outer>(
       preview,
       name: h.span(builders.name.attrs([h.Title(entry.name)]), [entry.name]),
       meta: h.span(builders.meta.attrs(), [sizeText(entry.size)]),
-      state: state === '' ? Option.none() : Option.some(h.span(builders.state.attrs(), [state])),
-      progress: Option.flatMap(Option.fromNullishOr(options.progress), progress =>
-        Status.matchOrElse(
-          entry.status,
-          {
-            Uploading: () =>
-              Option.some(
-                h.div(builders.progress.attrs(), [
-                  progress.draw(
-                    { id: `${model.id}-progress-${entry.id}`, entry, label: label(text.uploading) },
-                    h,
-                  ),
-                ]),
-              ),
-          },
-          () => Option.none<Html>(),
-        ),
-      ),
+      // The bar, named by the same words, says what an uploading row is doing.
+      state:
+        state === '' || Option.isSome(bar)
+          ? Option.none()
+          : Option.some(h.span(builders.state.attrs(), [state])),
+      progress: bar,
       actions:
         buttons.length === 0
           ? Option.none()
@@ -1511,4 +1516,10 @@ export const released = (model: Model): Return<Model, Message> => {
         }),
         commands: [Revoke({ urls })],
       }
+}
+
+/** What stands in a non-image's preview: the name's extension, upper case, `FILE` when it has none. */
+const extensionOf = (name: string): string => {
+  const dot = name.lastIndexOf('.')
+  return dot <= 0 || dot === name.length - 1 ? 'FILE' : name.slice(dot + 1, dot + 5).toUpperCase()
 }

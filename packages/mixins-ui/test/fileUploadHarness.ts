@@ -51,6 +51,7 @@ export const mount = (harness: Harness) => {
       Layers.standard.declare,
       Layers.standard.in('reset', Defaults.reset),
       Layers.standard.in('theme', Theme.root(theme)),
+      Layers.standard.in('defaults', Defaults.body),
     ) +
     harness.styles.map(style => style.css).join('\n') +
     (harness.extraCss ?? '')
