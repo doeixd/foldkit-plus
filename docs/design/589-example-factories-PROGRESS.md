@@ -9,10 +9,10 @@ Status words: **done** (committed, pushed, its own checks green), **running**, *
 | Phase | What | Status | Commit | Notes |
 | --- | --- | --- | --- | --- |
 | Design | The consolidated design note and issue body | done | 53ed8ba81 | |
-| 0 | Measurements M1 to M9 and probes P1 to P3 | running | | Started 2026-11-17. Decides export names (P1, M7). |
-| 1.1 | `recipe.add` | waiting on 0 | | |
-| 1.2 | Conventions as code: `configure`, `words`, row content, press, `Choice`, tones and sizes | waiting on 0 | | |
-| 1.3 | `Bundles` index, the `foldkit-bundle` peer, the five gate Bundles | waiting on 0 | | |
+| 0 | Measurements M1 to M7 and probes P1 to P3 | done | (measured, no commit) | Every design choice held. Freezing styles saves 22.4 kB brotli on a one-Button page; a narrowed recipe saves 136 B, so per-value recipe files stay rejected; a placed Bundle costs 6.2 kB over a hand fold, so the README shows the hand fold first; unread feature files drop from a page; P1 and P3 pass. Largest kept-for-nothing imports: Breadcrumb to Menu 21.1 kB, Sidebar 16.9 kB, ColorPicker to Popover 7.6 kB. Not measured: M8, M9, bundlers other than Vite 8, `pack:check` for the probes. |
+| 1.1 | `recipe.add` | running | | |
+| 1.2 | Conventions as code: `configure`, `words`, row content, press, `Choice`, tones and sizes | running | | |
+| 1.3 | `Bundles` index, the `foldkit-bundle` peer, the five gate Bundles | running | | |
 | 1.4 | The site harness: one module per example, shown whole | waiting on 1.3 | | |
 | 1.5 | The gate: button, tags-input, calendar with date-picker, combobox, file-upload | waiting on 1.4 | | FileUpload itself is being built now (see below). |
 | 2 | The families F1 to F11 | not started | | Parallel after the gate. One row each is added here when they start. |
