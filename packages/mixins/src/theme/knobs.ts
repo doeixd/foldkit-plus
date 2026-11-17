@@ -119,7 +119,7 @@ export const standard = {
       Knob.number({
         title: 'Surface tint',
         variable: 'surface-c',
-        default: 0,
+        default: 0.005,
         min: 0,
         max: 0.04,
         step: 0.001,
@@ -128,7 +128,7 @@ export const standard = {
       Knob.number({
         title: 'Surface tint, dark',
         variable: 'surface-c-dark',
-        default: 0,
+        default: 0.0067,
         follows: `calc(${ref('knob', 'surface-c')} * 4 / 3)`,
         min: 0,
         max: 0.04,

@@ -108,7 +108,7 @@ export const surfaceSaturationLight = {
   min: 0,
   max: 0.04,
   step: 0.001,
-  default: 0,
+  default: 0.005,
 } as const satisfies KnobData<'surface.saturation.light'>
 
 /** Surface tint, dark, `--fk-knob-surface-c-dark`. */
@@ -120,7 +120,7 @@ export const surfaceSaturationDark = {
   min: 0,
   max: 0.04,
   step: 0.001,
-  default: 0,
+  default: 0.0067,
 } as const satisfies KnobData<'surface.saturation.dark'>
 
 /** Page lightness, `--fk-knob-base-l`. */
