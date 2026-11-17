@@ -33,7 +33,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +500 on 2026-11-15 (219,197 on origin/main 1bbd87d15, 219,461 here, each from its own `dist`):
 // the page draws input, toggle and field, whose modules grew by 0.5, 0.15 and 0.13 kB minified
 // on this branch; the dumps differ by nothing else of size.
-const CEILING = 219_850
+// +150 on 2026-11-17 (219,989, against a ceiling of 219,850; 219,461 on origin/main 1bbd87d15 on 2026-11-15): the causes measured in chirp, whose page
+// holds the same code, each commit built in its own tree: `recipe.add` on every recipe and the
+// default look's theme text (+145 there) and #593's `runtimeJson`, Remote's Model schema (+447).
+// Nothing from mixins-ui's bundles, choice, configure, calendar, combobox or fileUpload modules is in
+// the page; `foldkit-bundle` was already. Ceiling raised to the reading, rounded up.
+const CEILING = 220_000
 
 clientBudget({
   name: 'entity',
