@@ -48,6 +48,19 @@ export {
   type DateRange,
 } from './calendar/selection.js'
 export { Shown, alongside, show } from './calendar/shown.js'
+// The Calendar's state and its drawing from options, each a file a page that
+// draws through the adapter alone does not keep.
+export { Args, Message, Model, OutMessage, init, secondId, set, update } from './calendar/state.js'
+export {
+  configure,
+  view,
+  words,
+  type CalendarViewPreset,
+  type CalendarView,
+  type CalendarWords,
+  type CaptionDropdowns,
+  type TodayButton,
+} from './calendar/view.js'
 
 /**
  * Calendar is a nested Submodel whose shape depends on `model.viewMode`. The
@@ -61,8 +74,12 @@ export { Shown, alongside, show } from './calendar/shown.js'
  * the caption is a label; `monthSelect` and `yearSelect`, the caption's
  * dropdowns; `weekNumberHeader` and `weekNumber`, a column of ISO week
  * numbers; `dayDetail`, a line under a day's number, such as its price
- * (`detail`); and `presets` and `preset`, buttons that choose a whole
- * selection (`presetsView`).
+ * (`detail`); `presets` and `preset`, buttons that choose a whole
+ * selection (`presetsView`); and what `view` lays around the months: `frame`,
+ * the named group holding it all; `body`, the row of presets, months and
+ * aside; `main`, the months over the today button;
+ * `months`, the one or two month grids; `todayButton`; and `aside` and
+ * `footer`, which hold drawings the application gives.
  */
 export const CalendarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -138,6 +155,13 @@ export const CalendarSlots = Slots.define({
     events: [Event.Click],
     attributes: [Attr.AriaPressed],
   }),
+  frame: Slot.make({ capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] }),
+  body: Slot.make({ capability: Capability.Container }),
+  main: Slot.make({ capability: Capability.Container }),
+  months: Slot.make({ capability: Capability.Container }),
+  todayButton: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  aside: Slot.make({ capability: Capability.Container }),
+  footer: Slot.make({ capability: Capability.Container }),
 })
 
 export type ResolvedColumnHeader<Message> = Omit<ColumnHeader, 'attributes'> & {
@@ -192,6 +216,13 @@ export type ResolvedCaption<Message> =
       readonly month: ResolvedDropdown<Message>
       readonly year: ResolvedDropdown<Message>
     }
+  | {
+      /** The month as text beside a select of years. */
+      readonly _tag: 'YearDropdown'
+      readonly heading: SlotAttributes<Message>
+      readonly month: string
+      readonly year: ResolvedDropdown<Message>
+    }
 
 export interface ResolvedDays<Message> {
   readonly _tag: 'Days'
@@ -200,6 +231,8 @@ export interface ResolvedDays<Message> {
   /** A paging button the options hide is none. */
   readonly previousMonthButton: Option.Option<SlotAttributes<Message>>
   readonly nextMonthButton: Option.Option<SlotAttributes<Message>>
+  /** Both paging buttons stand after the caption (`paging: 'end'`), not either side of it. */
+  readonly pagingAtEnd: boolean
   readonly caption: ResolvedCaption<Message>
   readonly heading: DaysModeAttributes['heading']
   readonly grid: SlotAttributes<Message>
@@ -260,8 +293,10 @@ export interface Dropdowns<Message> {
   readonly onShow: (shown: Shown) => Message
   /** The years offered; default the bounds' years, or ten either side of the year shown. */
   readonly years?: { readonly from: number; readonly to: number } | undefined
+  /** `label` writes the month as text and leaves only the years a select; default `select`. */
+  readonly month?: 'select' | 'label' | undefined
   /** The selects' names; default `Month` and `Year`. */
-  readonly labels?: { readonly month: string; readonly year: string } | undefined
+  readonly words?: { readonly month?: string; readonly year?: string } | undefined
 }
 
 /** A range's preview: the day the pointer is on, while the range waits for its end. */
@@ -285,10 +320,11 @@ export interface CalendarOptions<Message> {
   readonly caption?: 'grid' | 'label' | undefined
   readonly dropdowns?: Dropdowns<Message> | undefined
   /**
-   * Which paging buttons are drawn; default both. Two months side by side
-   * draw `previous` on the first and `next` on the second.
+   * Which paging buttons are drawn; default both, either side of the caption.
+   * `end` draws both after it. Two months side by side draw `previous` on the
+   * first and `next` on the second.
    */
-  readonly paging?: 'both' | 'previous' | 'next' | 'none' | undefined
+  readonly paging?: 'both' | 'previous' | 'next' | 'none' | 'end' | undefined
   readonly preview?: Preview<Message> | undefined
   /**
    * A line under a day's number, such as its price or "2 events"; none for a
@@ -331,17 +367,38 @@ const dropdownsOf = <Message>(
   const { h } = context
   const { model, onShow } = dropdowns
   const year = model.viewYear
-  const labels = dropdowns.labels ?? { month: 'Month', year: 'Year' }
   const span = dropdowns.years ?? {
     from: Option.match(model.maybeMinDate, { onNone: () => year - 10, onSome: min => min.year }),
     to: Option.match(model.maybeMaxDate, { onNone: () => year + 10, onSome: max => max.year }),
   }
   const years = Arr.range(Math.min(span.from, year), Math.max(span.to, year))
+  const yearSelect: ResolvedDropdown<Message> = {
+    attributes: builders.yearSelect.attrs([
+      h.AriaLabel(dropdowns.words?.year ?? 'Year'),
+      h.Value(String(year)),
+      h.OnChange(value => onShow(Shown.Year({ year: Number(value) }))),
+    ]),
+    options: years.map(each => ({
+      value: each,
+      label: String(each),
+      selected: each === year,
+      disabled: outside(model, firstOf(each, 1), lastOf(each, 12)),
+    })),
+  }
+  if (dropdowns.month === 'label') {
+    return {
+      _tag: 'YearDropdown',
+      // Said when the month changes, as the `label` caption's heading is.
+      heading: builders.heading.attrs([h.AriaLive('polite'), h.DataAttribute('beside-select', '')]),
+      month: model.locale.monthNames[model.viewMonth - 1] ?? '',
+      year: yearSelect,
+    }
+  }
   return {
     _tag: 'Dropdowns',
     month: {
       attributes: builders.monthSelect.attrs([
-        h.AriaLabel(labels.month),
+        h.AriaLabel(dropdowns.words?.month ?? 'Month'),
         h.Value(String(model.viewMonth)),
         h.OnChange(value => onShow(Shown.Month({ month: Number(value) }))),
       ]),
@@ -352,19 +409,7 @@ const dropdownsOf = <Message>(
         disabled: outside(model, firstOf(year, index + 1), lastOf(year, index + 1)),
       })),
     },
-    year: {
-      attributes: builders.yearSelect.attrs([
-        h.AriaLabel(labels.year),
-        h.Value(String(year)),
-        h.OnChange(value => onShow(Shown.Year({ year: Number(value) }))),
-      ]),
-      options: years.map(each => ({
-        value: each,
-        label: String(each),
-        selected: each === year,
-        disabled: outside(model, firstOf(each, 1), lastOf(each, 12)),
-      })),
-    },
+    year: yearSelect,
   }
 }
 
@@ -377,7 +422,11 @@ export const resolve = <Input, Message>(
 ): ResolvedCalendar<Message> => {
   const builders = buildersOf(CalendarSlots, mixins, context)
   const root = builders.root.attrs(render.root)
-  const header = builders.header.attrs()
+  const pagingAtEnd = render._tag === 'Days' && options.paging === 'end'
+  // The recipe reads the mark: the caption leaves the middle for the row's start.
+  const header = builders.header.attrs(
+    pagingAtEnd ? [context.h.DataAttribute('paging', 'end')] : [],
+  )
   const grid = builders.grid.attrs(render.grid)
   switch (render._tag) {
     case 'Days': {
@@ -404,13 +453,14 @@ export const resolve = <Input, Message>(
         grid,
         heading: render.heading,
         caption,
+        pagingAtEnd,
         previousMonthButton: Option.liftPredicate(
           builders.previousMonthButton.attrs(render.previousMonthButton),
-          () => paging === 'both' || paging === 'previous',
+          () => paging === 'both' || paging === 'previous' || pagingAtEnd,
         ),
         nextMonthButton: Option.liftPredicate(
           builders.nextMonthButton.attrs(render.nextMonthButton),
-          () => paging === 'both' || paging === 'next',
+          () => paging === 'both' || paging === 'next' || pagingAtEnd,
         ),
         headerRow: builders.headerRow.attrs(render.headerRow),
         weekNumberHeader: numbered
@@ -500,6 +550,15 @@ const drawDropdown = <Message>(dropdown: ResolvedDropdown<Message>, h: HtmlBuild
     ),
   )
 
+const previousButton = <Message>(
+  days: ResolvedDays<Message>,
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<Html> =>
+  Option.match(days.previousMonthButton, {
+    onNone: () => [],
+    onSome: attributes => [h.button(attributes, ['‹'])],
+  })
+
 /**
  * The month grid in every mode, as upstream lays it out, with a header row of
  * its own. The paging buttons hold `‹` and `›`, which the Unicode bidi
@@ -510,15 +569,17 @@ export const draw = <Message>(calendar: ResolvedCalendar<Message>, h: HtmlBuilde
     Days: days =>
       h.div(days.root, [
         h.div(days.header, [
-          ...Option.match(days.previousMonthButton, {
-            onNone: () => [],
-            onSome: attributes => [h.button(attributes, ['‹'])],
-          }),
+          ...(days.pagingAtEnd ? [] : previousButton(days, h)),
           ...Match.valueTags(days.caption, {
             Grid: ({ headingButton }) => [h.button(headingButton, [days.heading.text])],
             Label: ({ heading }) => [h.span(heading, [days.heading.text])],
             Dropdowns: ({ month, year }) => [drawDropdown(month, h), drawDropdown(year, h)],
+            YearDropdown: ({ heading, month, year }) => [
+              h.span(heading, [month]),
+              drawDropdown(year, h),
+            ],
           }),
+          ...(days.pagingAtEnd ? previousButton(days, h) : []),
           ...Option.match(days.nextMonthButton, {
             onNone: () => [],
             onSome: attributes => [h.button(attributes, ['›'])],

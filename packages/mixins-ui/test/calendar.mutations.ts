@@ -70,8 +70,8 @@ export default [
     edits: [
       {
         file: adapter,
-        find: '  const header = builders.header.attrs()',
-        replace: '  const header = builders.root.attrs()',
+        find: '  const header = builders.header.attrs(',
+        replace: '  const header = builders.root.attrs(',
       },
     ],
     tests: unit,
@@ -145,7 +145,7 @@ export default [
     edits: [
       {
         file: adapter,
-        find: "() => paging === 'both' || paging === 'previous',",
+        find: "() => paging === 'both' || paging === 'previous' || pagingAtEnd,",
         replace: '() => true,',
       },
     ],
