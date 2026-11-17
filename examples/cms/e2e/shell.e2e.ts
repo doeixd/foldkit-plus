@@ -198,13 +198,38 @@ test('the centre column keeps its scroll across navigations: Back and Forward re
   await page.context().close()
 })
 
-test.each([320, 390, 480, 640, 768, 900, 1024, 1060, 1100, 1280, 1440])(
-  'the formatting bar fits its column at %ipx, every drawn tool is reached by the arrows, and the rest is in More',
-  async width => {
+/**
+ * Faces CI draws with and a translation might: the bar is judged by what it measures, so a wider face
+ * or looser spacing moves tools into More instead of overflowing.
+ */
+const faces = {
+  plain: '',
+  'a wide face':
+    '* { font-family: Verdana, sans-serif !important; letter-spacing: 0.06em !important; }',
+} as const
+
+test.each(
+  Object.keys(faces).flatMap(face =>
+    [320, 390, 480, 640, 768, 900, 1024, 1060, 1100, 1280, 1440].map(
+      width => [width, face] as const,
+    ),
+  ),
+)(
+  'the formatting bar fits its column at %ipx in %s, every drawn tool is reached by the arrows, and the rest is in More',
+  async (width, face) => {
     const page = await (await browser.newContext({ viewport: { width, height: 800 } })).newPage()
+    const css = faces[face as keyof typeof faces]
+    if (css !== '')
+      await page.addInitScript(rules => {
+        document.addEventListener('DOMContentLoaded', () => {
+          const sheet = document.createElement('style')
+          sheet.textContent = rules
+          document.head.append(sheet)
+        })
+      }, css)
     await openPost(page)
     // The width is measured a frame after the bar is drawn, and the bar redraws for it.
-    await page.waitForTimeout(800)
+    await page.waitForTimeout(1500)
     const toolbar = page.getByRole('toolbar')
     const overflow = await toolbar.evaluate(each => each.scrollWidth - each.clientWidth)
     expect(overflow, `the bar overflows at ${width}px`).toBeLessThanOrEqual(0)
@@ -232,7 +257,8 @@ test.each([320, 390, 480, 640, 768, 900, 1024, 1060, 1100, 1280, 1440])(
       expect(box.x + box.width).toBeLessThanOrEqual(width)
       expect(await page.locator('[role="menu"] [data-more]').count()).toBeGreaterThanOrEqual(5)
     } else {
-      expect(width, 'only a wide bar has every tool in the bar').toBeGreaterThanOrEqual(640)
+      // No More: nothing was moved, so every tool is in the bar.
+      expect(drawn).toContain('Undo')
     }
     await page.context().close()
   },

@@ -35,6 +35,7 @@ import {
 import { focusOn, focusRow, opened } from './focus.js'
 import { EntryRow, Post, PostId, PostPreview, PostsBySlug } from '../content/domain.js'
 import { BODY_HOST, PostForm, Posts } from '../content/postForm.js'
+import { fitTools, initialFit } from '../content/toolsFit.js'
 import { FormStyle, WritingFieldStyle } from '../styles/formStyles.js'
 
 export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 millis' })
@@ -89,11 +90,8 @@ export const Model = Schema.Struct({
   remote: Remote.Model,
   ...Slot.fields,
   ...Roving.fields,
-  /**
-   * The toolbar's own width in pixels, reported by a `Resize` mount: the bar leaves out its `low` tools
-   * when it is too narrow for them all. Zero until it is first measured.
-   */
-  toolsWidth: Schema.Number,
+  /** How much of the formatting bar fits its column, learned from the bar itself (`toolsFit.ts`). */
+  toolsFit: Schema.Struct({ level: Schema.Number, needs: Schema.Array(Schema.Number) }),
   /** The toolbar's open popup, if any: the application places it, the toolbar only asks. */
   toolsMenu: Schema.Option(ToolsMenu),
   /**
@@ -126,7 +124,7 @@ export const Message = defineMessageUnion({
   /** A tool of the body toolbar was pressed: the form's Message for the body editor. */
   PressedTool: { message: PostForm.Message },
   ToggledToolsMenu: { menu: ToolsMenu, open: Schema.Boolean },
-  ResizedTools: { width: Schema.Number },
+  MeasuredTools: { width: Schema.Number, scroll: Schema.Number },
   /** Escape on a tool of the body toolbar: back to the text, with the selection it had. */
   ReturnedToBody: {},
   OpenedEntry: { entry: Schema.String },
@@ -228,10 +226,12 @@ const placed = placements.update((model, message) => {
   return Match.valueTags(message, {
     OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
     AskedForPost: () => ({ model, commands: [newPost] }),
-    ResizedTools: ({ width }) =>
-      width === model.toolsWidth
+    MeasuredTools: ({ width, scroll }) => {
+      const next = fitTools(model.toolsFit, width, scroll)
+      return next === model.toolsFit
         ? { model }
-        : { model: modifyFields(model, { toolsWidth: () => width }) },
+        : { model: modifyFields(model, { toolsFit: () => next }) }
+    },
     ToggledToolsMenu: ({ menu, open }) => ({
       model: modifyFields(model, { toolsMenu: () => (open ? Option.some(menu) : Option.none()) }),
     }),
@@ -428,7 +428,7 @@ export const initial: Model = placements.initial({
   previewAsked: Option.none(),
   fresh: Option.none(),
   toolsMenu: Option.none(),
-  toolsWidth: 0,
+  toolsFit: initialFit,
 }).model
 
 /**

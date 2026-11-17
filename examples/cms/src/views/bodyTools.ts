@@ -8,7 +8,6 @@
  */
 import { Option } from 'effect'
 import * as Mount from 'foldkit/mount'
-import { Resize } from 'foldkit-primitives/observers'
 import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
 import {
@@ -18,42 +17,61 @@ import {
 } from 'foldkit-mixins-richtext'
 import { Message, Roving, type Model } from '../apps/app.js'
 import { PostForm } from '../content/postForm.js'
+import { HIGHEST_LEVEL } from '../content/toolsFit.js'
 import { barSize, phoneBarSize } from '../styles/adminStyle.js'
+import { MeasureBar } from './measureBar.js'
 import { app, button, phone, t } from '../styles/style.js'
 
 export const BodyToolsSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
 })
 
+type Tool =
+  | 'undo'
+  | 'redo'
+  | 'style'
+  | 'insert'
+  | 'bulleted-list'
+  | 'numbered-list'
+  | 'quote'
+  | { readonly mark: string }
+
 /**
  * Undo and redo, the text style, the marks a post's Markdown can say, lists and quote, and the
- * insert menu. No link control yet: it opens `linkEditor`, which needs a draft of its own.
- * On a narrow window the `low` ones leave the bar for its More menu, so the bar fits one row
- * without scrolling and no tool is lost.
+ * insert menu. No link control yet: it opens `linkEditor`, which needs a draft of its own. The
+ * number is the level (`toolsFit`) from which the bar moves a tool into its More menu, so a narrow
+ * bar fits one row without scrolling and no tool is lost; 0 is a tool that stays in the bar.
  */
-const ITEMS: ReadonlyArray<FormattingItem> = [
-  { low: 'undo' },
-  { low: 'redo' },
+const TOOLS: ReadonlyArray<'separator' | readonly [Tool, number]> = [
+  ['undo', 1],
+  ['redo', 1],
   'separator',
-  'style',
+  ['style', 0],
   'separator',
-  { mark: 'Bold' },
-  { mark: 'Italic' },
-  { low: { mark: 'Code' } },
-  { low: { mark: 'Strikethrough' } },
+  [{ mark: 'Bold' }, 2],
+  [{ mark: 'Italic' }, 2],
+  [{ mark: 'Code' }, 1],
+  [{ mark: 'Strikethrough' }, 1],
   'separator',
-  { low: 'bulleted-list' },
-  { low: 'numbered-list' },
-  { low: 'quote' },
+  ['bulleted-list', 1],
+  ['numbered-list', 1],
+  ['quote', 1],
   'separator',
-  'insert',
+  ['insert', 0],
 ]
 
-/** What the bar needs for every tool on one row: below it, the `low` ones are left out. */
-const FULL_WIDTH = 540
+/** The bar's items at a level: every tool at 0, and at each higher one those that give way in More. */
+const itemsAt = (level: number): ReadonlyArray<FormattingItem> =>
+  TOOLS.map((entry): FormattingItem => {
+    if (entry === 'separator') return entry
+    const [tool, from] = entry
+    return from > 0 && level >= from ? { low: tool } : tool
+  })
 
-/** The bar's own width, as its column gives it: a window's width says too little with a panel beside. */
-const measured = Mount.mapMessage(Resize(), fact => Message.ResizedTools({ width: fact.width }))
+/** The bar's own width and scroll width, as its column gives them: what a level needs is learned, not assumed. */
+const measured = Mount.mapMessage(MeasureBar(), fact =>
+  Message.MeasuredTools({ width: fact.width, scroll: fact.scroll }),
+)
 
 const tool = button({ tone: 'neutral', variant: 'ghost', size: 'sm' })
 
@@ -135,7 +153,7 @@ const body = PostForm.control('body')
 export const BodyTools = SlotView.forMessages<Message>()
   .define(BodyToolsSlots, (model: Model, slots, h) => {
     const draft = body.field(model.editor.form).value
-    const compact = model.toolsWidth > 0 && model.toolsWidth < FULL_WIDTH
+    const { level } = model.toolsFit
     return h.div(slots.root.attrs([h.OnMount(measured)]), [
       Bar(
         {
@@ -143,8 +161,8 @@ export const BodyTools = SlotView.forMessages<Message>()
           document: draft.document,
           selection: draft.selection,
           storedMarks: draft.storedMarks,
-          items: ITEMS,
-          compact,
+          items: itemsAt(level),
+          compact: level > 0,
           wrap: message => Message.PressedTool({ message: body.send(message) }),
           menu: Option.getOrUndefined(model.toolsMenu),
           toggled: (menu, open) => Message.ToggledToolsMenu({ menu, open }),

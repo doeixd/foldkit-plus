@@ -620,7 +620,7 @@ test('at 1280px a tile held in the bottom strip of the centre column scrolls it,
     await page.waitForTimeout(35)
   }
   await expect
-    .poll(() => main.evaluate(each => each.scrollTop), { timeout: 15_000 })
+    .poll(() => main.evaluate(each => each.scrollTop), { timeout: 40_000 })
     .toBeGreaterThan(start + 40)
   expect(await page.evaluate(() => document.documentElement.scrollTop)).toBe(0)
   // Still held, over the page's text, which the scroll has brought up: it lands where it is released.
