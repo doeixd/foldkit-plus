@@ -141,7 +141,10 @@ test('a pointer drag stops at the bounds', async () => {
   const inset = area().clientLeft
   await userEvent.dragAndDrop(box(), area(), {
     sourcePosition: { x: 10, y: 10 },
-    targetPosition: { x: AREA.right + inset - 2, y: AREA.bottom + inset - 2 },
+    // Clear of the area's rounded corner: a point 2px in from both edges lies outside an 8px
+    // corner, so the release went to the element behind and the drop never came. From 12px in,
+    // the box, held 10px from its own corner, still runs past both bounds.
+    targetPosition: { x: AREA.right + inset - 12, y: AREA.bottom + inset - 12 },
   })
   await vi.waitFor(() =>
     expect(placed()).toEqual({
