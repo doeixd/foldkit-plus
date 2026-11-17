@@ -262,7 +262,9 @@ test('a disabled field opens no dialog, takes no focus, and looks off', async ()
   try {
     await ready()
     const opened = await watchDialog()
-    await userEvent.click(trigger()).catch(() => undefined)
+    // Forced: Playwright otherwise waits for a disabled field's label to become enabled, which
+    // it never does, and the click gave up only when the whole test was about to time out.
+    await userEvent.click(trigger(), { force: true })
     document.querySelector<HTMLElement>('#before')!.focus()
     await userEvent.tab()
     expect(document.activeElement?.id).toBe('after')
