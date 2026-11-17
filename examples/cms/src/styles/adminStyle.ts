@@ -144,6 +144,10 @@ export const AdminSlots = Slots.define({
 export const AdminStyle = Style.forSlots(AdminSlots)(
   {
     root: Style.compose(
+      // The window does not scroll while the studio fills it: a drag's preview, drawn past the
+      // window's edge, would make the document taller and the edge strip would scroll it, under the
+      // shell, leaving a band below the panels.
+      Style.global(`@media (min-width: 52.0625rem) { html:has(#studio-main) { overflow: clip; } }`),
       Style.self({
         background: t.surface.base,
         color: t.text.default,
