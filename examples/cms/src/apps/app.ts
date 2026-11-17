@@ -21,7 +21,6 @@ import * as Navigation from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
-import { MediaQuery } from 'foldkit-primitives/media'
 import { focus as focusEditor } from 'foldkit-richtext-dom/editor-bundle'
 import { Url, toString as urlToString } from 'foldkit/url'
 import {
@@ -83,13 +82,6 @@ const Slot = Bundle.declare(
 /** The body toolbar's one tab stop: Tab enters at the tool focused last. */
 export const Roving = Bundle.declare(RovingTabindex.bundle, 'bodyTools')
 
-/**
- * Whether the window is too narrow for the toolbar's every tool: the application keeps it, and
- * the toolbar leaves out the tools it marks `low`. 38rem is where the whole bar (about 31rem of
- * tools) stops fitting beside the page's gutters.
- */
-export const Narrow = Bundle.declare(MediaQuery, 'narrow')
-
 /** The popups of the body toolbar. */
 export const ToolsMenu = Schema.Literals(['style', 'insert', 'link'])
 
@@ -97,7 +89,11 @@ export const Model = Schema.Struct({
   remote: Remote.Model,
   ...Slot.fields,
   ...Roving.fields,
-  ...Narrow.fields,
+  /**
+   * The toolbar's own width in pixels, reported by a `Resize` mount: the bar leaves out its `low` tools
+   * when it is too narrow for them all. Zero until it is first measured.
+   */
+  toolsWidth: Schema.Number,
   /** The toolbar's open popup, if any: the application places it, the toolbar only asks. */
   toolsMenu: Schema.Option(ToolsMenu),
   /**
@@ -127,10 +123,10 @@ export const Message = defineMessageUnion({
   ...Remote.messages,
   ...Slot.cases,
   ...Roving.cases,
-  ...Narrow.cases,
   /** A tool of the body toolbar was pressed: the form's Message for the body editor. */
   PressedTool: { message: PostForm.Message },
   ToggledToolsMenu: { menu: ToolsMenu, open: Schema.Boolean },
+  ResizedTools: { width: Schema.Number },
   /** Escape on a tool of the body toolbar: back to the text, with the selection it had. */
   ReturnedToBody: {},
   OpenedEntry: { entry: Schema.String },
@@ -196,10 +192,8 @@ export const actives = {
 
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 export const EditorSlot = Page.at(Slot, { onOut: PostEditor.onOut })
-export const NarrowSlot = Page.at(Narrow, { args: { query: '(max-width: 38rem)' } })
 export const placements = Page.assemble(
   EditorSlot,
-  NarrowSlot,
   Page.at(Roving, { args: { orientation: 'horizontal', loop: true, virtual: false } }),
   Data.wiring(actives),
 )
@@ -234,6 +228,10 @@ const placed = placements.update((model, message) => {
   return Match.valueTags(message, {
     OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
     AskedForPost: () => ({ model, commands: [newPost] }),
+    ResizedTools: ({ width }) =>
+      width === model.toolsWidth
+        ? { model }
+        : { model: modifyFields(model, { toolsWidth: () => width }) },
     ToggledToolsMenu: ({ menu, open }) => ({
       model: modifyFields(model, { toolsMenu: () => (open ? Option.some(menu) : Option.none()) }),
     }),
@@ -430,6 +428,7 @@ export const initial: Model = placements.initial({
   previewAsked: Option.none(),
   fresh: Option.none(),
   toolsMenu: Option.none(),
+  toolsWidth: 0,
 }).model
 
 /**

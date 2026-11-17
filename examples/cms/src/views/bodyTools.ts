@@ -7,13 +7,17 @@
  * tool reached by key, Escape returns there (`ReturnedToBody`).
  */
 import { Option } from 'effect'
+import * as Mount from 'foldkit/mount'
+import { Resize } from 'foldkit-primitives/observers'
 import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
 import {
   FormattingToolbarSlots,
   formattingToolbar,
+  InsertEntry,
   type FormattingItem,
 } from 'foldkit-mixins-richtext'
+import { slashEntries } from 'foldkit-richtext-dom/editor'
 import { Message, Roving, type Model } from '../apps/app.js'
 import { PostForm } from '../content/postForm.js'
 import { barSize, phoneBarSize } from '../styles/adminStyle.js'
@@ -40,12 +44,28 @@ const ITEMS: ReadonlyArray<FormattingItem> = [
   { low: { mark: 'Code' } },
   { low: { mark: 'Strikethrough' } },
   'separator',
-  'bulleted-list',
-  'numbered-list',
+  { low: 'bulleted-list' },
+  { low: 'numbered-list' },
   { low: 'quote' },
   'separator',
   'insert',
 ]
+
+const LEFT_OUT: ReadonlyArray<string> = ['bulleted-list', 'numbered-list', 'quote']
+
+/**
+ * What the narrow bar's Insert menu offers beside the code block: the lists and the quote, whose
+ * buttons it leaves out. The wide bar draws them as buttons, so its menu keeps the default.
+ */
+const narrowInserts = slashEntries
+  .filter(entry => entry.group === 'Blocks' || LEFT_OUT.includes(entry.id))
+  .map(entry => InsertEntry.Editor({ entry }))
+
+/** What the bar needs for every tool on one row: below it, the `low` ones are left out. */
+const FULL_WIDTH = 540
+
+/** The bar's own width, as its column gives it: a window's width says too little with a panel beside. */
+const measured = Mount.mapMessage(Resize(), fact => Message.ResizedTools({ width: fact.width }))
 
 const tool = button({ tone: 'neutral', variant: 'ghost', size: 'sm' })
 
@@ -115,7 +135,8 @@ const body = PostForm.control('body')
 export const BodyTools = SlotView.forMessages<Message>()
   .define(BodyToolsSlots, (model: Model, slots, h) => {
     const draft = body.field(model.editor.form).value
-    return h.div(slots.root.attrs(), [
+    const compact = model.toolsWidth > 0 && model.toolsWidth < FULL_WIDTH
+    return h.div(slots.root.attrs([h.OnMount(measured)]), [
       Bar(
         {
           id: 'body-tools',
@@ -123,7 +144,8 @@ export const BodyTools = SlotView.forMessages<Message>()
           selection: draft.selection,
           storedMarks: draft.storedMarks,
           items: ITEMS,
-          compact: model.narrow.matches,
+          compact,
+          ...(compact ? { inserts: narrowInserts } : {}),
           wrap: message => Message.PressedTool({ message: body.send(message) }),
           menu: Option.getOrUndefined(model.toolsMenu),
           toggled: (menu, open) => Message.ToggledToolsMenu({ menu, open }),

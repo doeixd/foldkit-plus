@@ -197,3 +197,29 @@ test('the centre column keeps its scroll across navigations: Back and Forward re
   await expect.poll(() => offset(page), { timeout: 5_000 }).toBe(0)
   await page.context().close()
 })
+
+test('the formatting bar fits its column at every width from 320 to 1440, with every drawn tool reached by the arrow keys', async () => {
+  for (const width of [320, 390, 480, 640, 768, 900, 1024, 1060, 1100, 1280, 1440]) {
+    const page = await (await browser.newContext({ viewport: { width, height: 800 } })).newPage()
+    await openPost(page)
+    // The width is measured a frame after the bar is drawn, and the bar redraws for it.
+    await page.waitForTimeout(800)
+    const toolbar = page.getByRole('toolbar')
+    const overflow = await toolbar.evaluate(each => each.scrollWidth - each.clientWidth)
+    expect(overflow, `the bar overflows at ${width}px`).toBeLessThanOrEqual(0)
+
+    const drawn = await toolbar.evaluate(each =>
+      Array.from(each.querySelectorAll('button'), tool => tool.getAttribute('aria-label') ?? ''),
+    )
+    await toolbar.getByRole('button').first().focus()
+    const reached = new Set<string>()
+    for (let step = 0; step < drawn.length + 1; step++) {
+      reached.add(
+        await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? ''),
+      )
+      await page.keyboard.press('ArrowRight')
+    }
+    expect([...reached].sort(), `at ${width}px`).toEqual([...new Set(drawn)].sort())
+    await page.context().close()
+  }
+})
