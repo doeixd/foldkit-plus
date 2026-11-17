@@ -9,19 +9,8 @@ sidebar can be remembered. In every case the Model remains authoritative and
 
 The mental model is:
 
-```text
-Model slice
-   |
-   | encode when it changes
-   v
-URL / KeyValueStore / cookie
-
-URL / KeyValueStore / cookie
-   |
-   | decode on navigation / cold load
-   v
-Model slice
-```
+A Model slice is encoded out to the URL, a `KeyValueStore` or a cookie whenever
+it changes, and decoded back in on navigation or a cold load.
 
 A mirror is therefore a **secondary representation**, not a second store of
 truth.
@@ -33,20 +22,12 @@ with no durable log or ordering.
 
 That is the boundary between the three nearby packages:
 
-```text
-Mirror
-  Model owns the value
-  URL / store represents it
-  losing the representation is acceptable
-
-Sync
-  client-authored state must survive offline
-  durable operations replay and converge
-
-Remote
-  server owns the fact
-  client Model caches a disposable copy
-```
+- **Mirror:** the Model owns the value, the URL or a store represents it, and
+  losing the representation is acceptable.
+- **Sync:** client-authored state must survive offline, and durable operations
+  replay and converge.
+- **Remote:** the server owns the fact, and the client Model caches a disposable
+  copy.
 
 ## Which state belongs here?
 
@@ -68,62 +49,27 @@ back into the application at different times.
 
 ### URL mirror
 
-```text
-Model changes filter
-      |
-      v
-Filters.subscriptions
-      |
-      v
-history.pushState / replaceState
-      |
-  user navigates
-      v
-UrlChanged
-      |
-      v
-Filters.urlChanged(model, url)
-      |
-      v
-Model
-```
+1. The Model changes the filter.
+2. `Filters.subscriptions` writes it out with `history.pushState` or
+   `replaceState`.
+3. When the user navigates, the runtime sends `UrlChanged`.
+4. `Filters.urlChanged(model, url)` reduces the URL back into the Model.
 
 The URL participates in navigation, so the runtime hands navigation back to the
 application and the mirror reduces the URL into its slice.
 
 ### Key-value mirror
 
-```text
-cold load
-   |
-   v
-Prefs.restore Command
-   |
-   v
-MirrorRestored Message
-   |
-   v
-Prefs.reduce(model, message)
-   |
-   v
-Model
-
-later Model changes
-   |
-   v
-Prefs.subscriptions
-   |
-   v
-KeyValueStore
-```
+On a cold load, the `Prefs.restore` Command reads the store and sends a
+`MirrorRestored` Message, and `Prefs.reduce(model, message)` reduces it into the
+Model. After that, each Model change goes out through `Prefs.subscriptions` to
+the `KeyValueStore`.
 
 That is why the full integration has three seams:
 
-```text
-reduce         read an external representation back into Model
-restore        ask a store for its cold-load value
-subscriptions  write Model changes outward
-```
+- `reduce` reads an external representation back into the Model.
+- `restore` asks a store for its cold-load value.
+- `subscriptions` writes Model changes outward.
 
 A URL mirror does not need a restore Command because the initial URL is already
 available to application startup. A store mirror does — unless the store's keys

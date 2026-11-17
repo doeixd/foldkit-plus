@@ -9,13 +9,10 @@ the same child twice repeats all five. A Bundle holds the child's parts in one
 value, and a Link says where it lives. Placing it compiles each part to the
 Foldkit lift that already exists for it.
 
-```text
-Bundle  (what: Model, Message, init, update, subscriptions, resources, view, helpers)
-  +
-Link    (where: a lens onto the child Model, and the parent Message variant)
-  =
-Placed  (the same parts, lifted into the parent)
-```
+A Bundle says what the child is: its Model, Message, init, update,
+subscriptions, resources, view and helpers. A Link says where it lives: a lens
+onto the child Model and the parent Message variant. The two together give a
+Placed child, the same parts lifted into the parent.
 
 A placement is still an ordinary Submodel. The child's state is a field of the
 parent Model, its Messages are a variant of the parent Message, and every

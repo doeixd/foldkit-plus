@@ -43,23 +43,11 @@ turning back into hand-written per-screen endpoints.
 
 ## What this package owns
 
-```text
-client owns
-  which server facts are required
-
-foldkit-remote-server owns
-  requirement interpretation
-  field authorization
-  read grouping / de-duplication
-  nested selection traversal
-  normalized wire results
-
-application Sources own
-  how those facts are actually loaded or changed
-
-Effect RPC / application owns
-  transport + serialization + authentication
-```
+The client owns which server facts are required. This package owns interpreting
+those requirements: field authorization, grouping and de-duplicating reads,
+walking nested selections, and the normalized wire results. Your Sources own how
+the facts are actually loaded or changed. Effect RPC and your application own
+transport, serialization and authentication.
 
 That separation matters. `RemoteServer` can decide that a client may read
 `Project.name` but not `Project.privateNotes`; only your Source knows whether

@@ -15,19 +15,11 @@ component and edit its markup.
 The view keeps its markup, state and Messages. The caller gets a typed customization surface
 instead of an open-ended bag of props.
 
-```text
-Without a slot contract                 With a slot contract
-
-Button                                  Button
-├─ className                            ├─ root slot
-├─ iconClassName                        ├─ icon slot
-├─ tooltip                              └─ label slot
-├─ tracking
-├─ ariaLabelOverride                    callers attach independently:
-├─ onFocusDecoration                    ├─ BrandStyle
-└─ ...                                  ├─ TooltipBehavior
-                                        └─ AnalyticsBehavior
-```
+Without a slot contract, a Button grows a prop for every customization:
+`className`, `iconClassName`, `tooltip`, `tracking`, `ariaLabelOverride`,
+`onFocusDecoration`, and so on. With one, it names its parts (a `root`, an `icon`
+and a `label` slot), and callers attach independently to them: a `BrandStyle`, a
+`TooltipBehavior`, an `AnalyticsBehavior`.
 
 This is not a second component system and it is not a state library. A slot ultimately resolves
 to ordinary Foldkit attributes.
@@ -47,23 +39,9 @@ There are five ideas to learn:
 `Style` and `Behavior` both compile to a `Mixin`. The resolver combines their contributions and
 rejects ambiguous ownership instead of silently choosing a winner.
 
-```text
-                Slots contract
-                      │
-          ┌───────────┴───────────┐
-        Style                  Behavior
-     appearance              interaction
-          │                       │
-          └───────────┬───────────┘
-                      ▼
-                    Mixin
-                      │
-                      ▼
-                   resolver
-                      │
-                      ▼
-          ordinary Foldkit attributes
-```
+A Slots contract names the extension points. Style (appearance) and Behavior
+(interaction) attach to them, each compiles to a Mixin, and the resolver turns the
+Mixins into ordinary Foldkit attributes.
 
 Styling has a pipeline of its own, read left to right, and each step is checked by the one before:
 

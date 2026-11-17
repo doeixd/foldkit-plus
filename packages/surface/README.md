@@ -17,11 +17,12 @@ of its own.
 
 ## The mental model
 
-```text
-Model Schema → typed field references → Projection → named Surface
-application Model ────────────────────────read────────→ feature input
-feature Message → application update → next Model
-```
+A Surface is derived in three steps from the application's Model Schema: the
+Schema gives typed field references, a Projection picks the fields a feature
+reads, and a named Surface pairs that Projection with the Messages the feature
+may send. At run time the application's Model is read through the Projection to
+give the feature its input, and the feature's Message goes to the application's
+`update`, which produces the next Model.
 
 Declaring or reading a Surface does not dispatch a Message, fetch data, or
 create a state owner. Its Message list constrains consumers; the application's
