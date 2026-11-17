@@ -4,20 +4,15 @@ Use React components inside a Foldkit view, and Foldkit programs inside a React
 app. Each side keeps its own renderer and its own state; they meet at a single
 DOM element, and only Messages and Ports cross it.
 
-```text
-React inside Foldkit                     Foldkit inside React
+**React inside Foldkit.** The Foldkit view calls `ReactComponent.view`, which draws a
+`<foldkit-react-host>` element and passes props as a DOM prop. A React root inside
+it renders the React component, and each event the component raises becomes a
+Message that goes to `update`.
 
-Model ─▶ view ─▶ ReactComponent.view     <Counter step={2} onCount={…} />
-                   │ props (a DOM prop)       │ props ─▶ inbound Ports
-                   ▼                          ▼
-          <foldkit-react-host>          <div> (React owns)
-                   │ React root               │ Runtime.embed
-                   ▼                          ▼
-             React component              Foldkit program
-                   │ event                    │ outbound Ports
-                   ▼                          ▼
-         Message ─▶ update                callback props
-```
+**Foldkit inside React.** A React component such as `<Counter step={2} onCount={…} />`
+draws a `<div>` that React owns. The component's props go in as inbound Ports, and
+`Runtime.embed` runs the Foldkit program in the `<div>`, whose outbound Ports come
+out as callback props.
 
 ## Who owns what
 

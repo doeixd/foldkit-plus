@@ -9,25 +9,10 @@ not define tools independently. It maps the protocol-neutral agent contract onto
 MCP tools/resources and delegates every invocation back to the bound
 `AgentRuntime`.
 
-```text
-Foldkit application
-       |
-       v
-AssistantAgent              protocol-neutral contract
-       |
-       | AgentBuilder.bind(...)
-       v
-AgentRuntime                live Model + dispatch + policy
-       |
-       v
-foldkit-agent-mcp           adapter
-       |
-       +---- stdio
-       |
-       +---- Streamable HTTP
-       v
-MCP client
-```
+The application's `AssistantAgent` is the protocol-neutral contract.
+`AgentBuilder.bind(...)` binds it to an `AgentRuntime`, which holds the live Model,
+dispatch and policy. `foldkit-agent-mcp` is the adapter on top: it serves MCP
+clients over stdio or Streamable HTTP.
 
 The contract remains the authority. MCP adds transport, sessions, protocol error
 mapping, and discovery; it does not add application capabilities.

@@ -30,12 +30,10 @@ them where it is made; they never enter the Model or a placement's args.
 
 ## Mental model
 
-```text
-view: a click, a key ─► Builder Message ─► Composition.apply ─► next Document
-                                                                     │
-                                        History.push(page, document) ◄┘   one transition
-Form: Control Message carries it; a change of Document is an edit; the rest is not
-```
+In the view, a click or a key becomes a Builder Message. `Composition.apply` turns
+it into the next Document, and `History.push(page, document)` records it, all as one
+transition. In a form, a Control Message carries the change; a change of Document is
+an edit, and anything else is not.
 
 ## Sixty seconds
 

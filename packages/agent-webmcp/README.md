@@ -7,25 +7,11 @@ Foldkit application the person is using. This package does not define new agent
 capabilities and does not automate the DOM. It translates the capabilities your
 agent contract already exposes into `document.modelContext` tools.
 
-```text
-Foldkit application
-       |
-       v
-AssistantAgent              protocol-neutral contract
-       |
-       | AgentBuilder.bind(...)
-       v
-AgentRuntime                live Model + dispatch + policy
-       |
-       v
-foldkit-agent-webmcp        adapter only
-       |
-       v
-document.modelContext      browser tools
-       |
-       v
-Message -> update -> Model + Commands
-```
+The application's `AssistantAgent` is the protocol-neutral contract.
+`AgentBuilder.bind(...)` binds it to an `AgentRuntime`, which holds the live Model,
+dispatch and policy. `foldkit-agent-webmcp` is only an adapter: it publishes the
+capabilities as browser tools on `document.modelContext`, and a tool call becomes a
+Message, then `update`, then a new Model and Commands.
 
 The authority boundary stays in `foldkit-agent`: the contract decides what the
 agent may observe and which Messages it may cause. WebMCP only makes those
@@ -135,15 +121,13 @@ failures.
 
 Each **currently available** capability becomes one WebMCP tool:
 
-```text
-foldkit-agent                    WebMCP
-
-capability name          ->      tool name
-variant description      ->      description
-encoded input Schema     ->      inputSchema
-AgentRuntime dispatch    ->      execute
-completion contract      ->      resolved tool outcome
-```
+| `foldkit-agent` | WebMCP |
+| --- | --- |
+| capability name | tool name |
+| variant description | description |
+| encoded input Schema | `inputSchema` |
+| `AgentRuntime` dispatch | `execute` |
+| completion contract | resolved tool outcome |
 
 No input schema or handler is written again. `execute` delegates to the bound
 runtime, which performs the same decode, availability check, authorization,

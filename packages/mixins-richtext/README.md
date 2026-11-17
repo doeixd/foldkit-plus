@@ -6,11 +6,12 @@ every element the way it does any other view.
 
 ## Who owns what
 
-```text
-foldkit-richtext-dom     the editor: its host element, the editable subtree, every edit
-your application         every piece of state the chrome shows, and where it is drawn
-foldkit-mixins-richtext  nothing: each view is a function of what it is given  (this package)
-```
+- `foldkit-richtext-dom` owns the editor: its host element, the editable subtree and
+  every edit.
+- Your application owns every piece of state the chrome shows, and where it is
+  drawn.
+- `foldkit-mixins-richtext` (this package) owns nothing: each view is a function of
+  what it is given.
 
 The editor renders its host and nothing else; the chrome beside
 it is the application's. `foldkit-richtext-dom/toolbar` ships plain versions of some of it,

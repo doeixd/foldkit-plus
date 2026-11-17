@@ -32,10 +32,8 @@ a resizing server, its Cloudflare and Node layers, uploads, and Vite plugins.
 
 ## The model
 
-```text
-ImageAsset + Provider + Layout  ->  Picture.derive  ->  attributes a view writes
-   facts      URL scheme  how wide                        (no I/O)
-```
+An `ImageAsset` (the facts), a `Provider` (the URL scheme) and a `Layout` (how wide)
+go into `Picture.derive`, which gives the attributes a view writes. It does no I/O.
 
 One `Widths` ladder, carried by the provider, decides which widths exist. A
 `Layout` picks the ones worth offering:

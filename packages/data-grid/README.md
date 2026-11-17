@@ -38,15 +38,10 @@ simple path.
 
 ## Mental model
 
-```text
-RowModel (rows by index, each with a stable key)
-   ×
-Columns (typed, by stable id)  +  ColumnLayout (start | center | end, hidden)
-   ↓
-GridProjection: visible cells in display order
-   ↓
-moves, ranges, positions: every answer an Option
-```
+A `RowModel` (rows by index, each with a stable key) is crossed with typed
+`Columns` (by stable id) and a `ColumnLayout` (start, center or end, and hidden).
+That gives a `GridProjection`: the visible cells in display order. Moves, ranges and
+positions are computed over it, and every answer is an `Option`.
 
 A cell is named by identity, `{ row: key, column: id }`, never by position. A
 re-sort moves a row to another index, and the address still names the same

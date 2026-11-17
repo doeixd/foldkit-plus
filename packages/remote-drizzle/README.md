@@ -8,28 +8,10 @@ A Remote client already knows **which semantic fields it needs**. A
 `foldkit-remote-drizzle` turns that Source request into the smallest useful
 Drizzle query, then turns the rows back into normalized Remote patches.
 
-```text
-Remote Selection
-      |
-      v
-Remote requirement
-  Project:p1 [id,name]
-      |
-      v
-RemoteServer Source context
-  ids=[p1]
-  fields=[id,name]
-      |
-      v
-foldkit-remote-drizzle
-  SELECT id,name
-  FROM projects
-  WHERE id IN (...)
-      |
-      v
-normalized patch
-  Project:p1 { id, name }
-```
+For one read, a Remote Selection becomes a requirement such as `Project:p1 [id,name]`.
+`RemoteServer` turns that into a Source context, `ids=[p1]` and `fields=[id,name]`.
+`foldkit-remote-drizzle` turns the context into `SELECT id,name FROM projects WHERE id IN (...)`,
+and the rows come back as a normalized patch, `Project:p1 { id, name }`.
 
 The important design choice is that an Entity is declared **once**:
 
@@ -50,23 +32,11 @@ by the application.
 
 ## What it owns
 
-```text
-foldkit-remote
-  semantic Entity / Selection / Query
-             |
-             v
-foldkit-remote-server
-  authorized Source request
-             |
-             v
-foldkit-remote-drizzle
-  columns / joins / pagination SQL
-  row -> Remote normalization
-             |
-             v
-Drizzle
-  database execution
-```
+- `foldkit-remote` owns the semantic Entity, Selection and Query.
+- `foldkit-remote-server` owns the authorized Source request.
+- `foldkit-remote-drizzle` owns the columns, joins and pagination SQL, and the
+  normalization of rows into Remote.
+- Drizzle owns database execution.
 
 It does not own:
 
@@ -248,13 +218,9 @@ table's columns as Remote fields.
 
 The returned binding is simultaneously:
 
-```text
-Drizzle table binding
-        +
-Remote EntityDescriptor
-        +
-relation/computed metadata
-```
+- a Drizzle table binding,
+- a Remote `EntityDescriptor`, and
+- relation and computed metadata.
 
 That is why this works without a second Entity declaration:
 

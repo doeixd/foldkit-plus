@@ -12,12 +12,13 @@ and turns the browser events it understands into Messages.
 
 ## Who owns what
 
-```text
-foldkit-richtext         the semantics: Document, commands, transactions, validation
-foldkit-richtext-dom     the contenteditable subtree and its events       (this package)
-your application         the document in its Model, and everything around the editor
-foldkit-mixins-richtext  that everything, drawn as styleable views: toolbars, menus, handle
-```
+- `foldkit-richtext` owns the semantics: Document, commands, transactions and
+  validation.
+- `foldkit-richtext-dom` (this package) owns the contenteditable subtree and its
+  events.
+- Your application owns the document in its Model, and everything around the editor.
+- `foldkit-mixins-richtext` draws that everything as styleable views: toolbars, menus
+  and the handle.
 
 The document is never read back from the DOM. It lives in the application's Model, and the
 DOM is consulted only to map a browser selection to a position. Only `Document`, `ChangeSet`,
@@ -25,10 +26,8 @@ and `Selection` values, commands, and Messages cross the boundary.
 
 ## The loop
 
-```text
-browser event → Message → update runs the command → Model holds the new document
-                                                   → patch Command → DOM patched to match
-```
+A browser event becomes a Message, and `update` runs the command, so the Model holds
+the new document. A patch Command then patches the DOM to match.
 
 An edit is a transition like any other: `update` decides, the Model commits, and rendering
 follows through a Command that patches what the `ChangeSet` names. Nothing edits the DOM

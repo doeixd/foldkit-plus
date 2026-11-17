@@ -29,15 +29,11 @@ dropped.
 
 ## Mental model
 
-```text
-code, deployed                                data, stored
-Block    a name, a props Schema,              Document
-         its Regions, the Content it is         roots: [id, ...]
-Catalog  the Blocks one context allows,         nodes: { id: { block, props, regions } }
-         and which may be a root
-                     \                          /
-                      Composition.validate(catalog, document) → [] | diagnostics
-```
+Code, deployed: a **Block** is a name, a props Schema, its Regions and the Content
+it is, and a **Catalog** is the Blocks one context allows and which of them may be a
+root. Data, stored: a **Document** is `roots: [id, ...]` and
+`nodes: { id: { block, props, regions } }`. `Composition.validate(catalog, document)`
+checks one against the other and returns `[]` or diagnostics.
 
 A **Region** is a stored position inside a Block where other Blocks go, such as
 a Hero's `actions`. It accepts Blocks by **Content**, what a Block *is*

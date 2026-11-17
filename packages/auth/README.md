@@ -34,12 +34,11 @@ either: the principal it returns is what `foldkit-guard` decides on.
 
 ## Mental model
 
-```text
-request ─> session cookie ─> from the application? ─> verifySession ─> principal(session) ─> answered as User
-              none                   no                    │                  refused
-               │                     │                     └ ended: 401       └ 401
-            visitor                 401
-```
+A request is judged in order. With no session cookie it is a visitor. A cookie from
+a request that does not show it came from the application is refused with a 401.
+Otherwise `verifySession` checks it: an ended session is a 401. Then
+`principal(session)` maps the session to a principal: a refusal there is a 401, and
+success answers the request as a `User`.
 
 A request is one of three things: a visitor (`Option.none()`), someone
 (`Option.some(user)`), or refused (`RemoteUnauthenticated`, a 401 the client

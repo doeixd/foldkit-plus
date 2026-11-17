@@ -21,10 +21,9 @@ holds its upload (below). It attaches where any control does: a form's `inputs`,
 
 ## Mental model
 
-```text
-stored value --format--> draft (what the input shows)
-draft (typed) --parse--> value --schema--> valid, or the key's error
-```
+A stored value is formatted into a draft, which is what the input shows. A typed
+draft is parsed into a value, and the schema then says it is valid or gives the
+key's error.
 
 `format` runs only when the form is filled, never on a keystroke, so the caret
 and a composition survive typing. A draft `parse` cannot read is the recipe's

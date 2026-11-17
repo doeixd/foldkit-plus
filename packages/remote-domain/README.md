@@ -65,33 +65,35 @@ owners of one row.
 
 One write, from the page and back. Each step names its owner:
 
-```text
-page      Data.mutate(model, RenameNote, input)        Remote: predicts, marks the write pending
-adapter   client.Rename(target, input,                translates; derives the commandId
-            { commandId })
-Domain    decide -> Events appended -> { reply,        the Aggregate: the only decision
-            stream, version }
-adapter   NoteRow.snapshot(target, { atLeast })        asks the View at the receipt
-Domain    the View folds the Events, when delivered    the View: the row, and who may read it
-adapter   MutationSucceeded: the View's row, or the    translates
-            reply's fields and the receipt as a token
-page      the prediction gives way to the answer;      Remote: the row, its revision, the token
-            a later read carries the token
-```
+One write, from the page and back. Each step names its owner:
+
+1. **Page, Remote:** `Data.mutate(model, RenameNote, input)` predicts the write and
+   marks it pending.
+2. **Adapter:** `client.Rename(target, input, { commandId })` translates, and
+   derives the `commandId`.
+3. **Domain, the Aggregate:** `decide` appends Events and returns
+   `{ reply, stream, version }`. The Aggregate is the only decision.
+4. **Adapter:** `NoteRow.snapshot(target, { atLeast })` asks the View at the
+   receipt.
+5. **Domain, the View:** the View folds the Events, when delivered. It is the row,
+   and who may read it.
+6. **Adapter:** `MutationSucceeded` carries the View's row, or the reply's fields
+   and the receipt as a token.
+7. **Page, Remote:** the prediction gives way to the answer, which is the row, its
+   revision and the token. A later read carries the token.
 
 A Domain command commits at once, but a View is updated afterwards, so a read
 straight after a write can still show the row from before it. Remote's Model
 keeps the facts that close that gap, and the adapter carries them across:
 
-```text
-revision(row) = the View state's revision field, sent with every row
-floor(key)    = the receipt of the newest write to the key no read has confirmed,
-                sent to Remote as the write's read-after token, `stream@version`
+- `revision(row)` is the View state's revision field, sent with every row.
+- `floor(key)` is the receipt of the newest write to the key that no read has
+  confirmed, sent to Remote as the write's read-after token, `stream@version`.
 
-a row reaches Remote's store  only if  revision(row) >= the revision Remote holds
-a read of key                 asks     snapshot(key, { atLeast: floor(key) })  while a floor is set
-floor(key) clears             when     such a read answers; a View still behind is named in `behind`
-```
+A row reaches Remote's store only if `revision(row)` is at least the revision Remote
+holds. While a floor is set, a read of the key asks
+`snapshot(key, { atLeast: floor(key) })`. The floor clears when such a read answers;
+a View still behind is named in `behind`.
 
 A **receipt** is the `{ stream, version }` a command answers with. A **revision**
 is a number field of the row that every event of its stream moves, which you

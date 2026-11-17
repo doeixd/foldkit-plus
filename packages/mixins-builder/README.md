@@ -24,16 +24,14 @@ test or an agent go through the same `update`.
 
 ## Mental model
 
-```text
-Builder.make(...)                    the Builder: Model, update, a plain view
-      |
-BuilderView.define(builder)          the editor, as a SlotView over BuilderSlots,
-      |   .pipe(Style.attach(...))   with its keyboard and pointer Behaviors
-BuilderView.submodel(view)           a Submodel view, drawn with BuilderView.inputs({ data })
-      |
-builder.bundle.pipe(Bundle.withView(...))   placed on its own, or
-builder.inputWith(...)                      as a form key whose value is the page
-```
+1. `Builder.make(...)` makes the Builder: Model, `update` and a plain view.
+2. `BuilderView.define(builder)` makes the editor, a SlotView over `BuilderSlots`,
+   with its keyboard and pointer Behaviors; attach your styles with
+   `.pipe(Style.attach(...))`.
+3. `BuilderView.submodel(view)` makes a Submodel view, drawn with
+   `BuilderView.inputs({ data })`.
+4. `builder.bundle.pipe(Bundle.withView(...))` places it on its own, or
+   `builder.inputWith(...)` makes it a form key whose value is the page.
 
 The page on the canvas is drawn by the site's Renderer, the same one the public
 page uses, in edit mode: each node is wrapped in an element carrying its id, so

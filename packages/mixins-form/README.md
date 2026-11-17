@@ -26,19 +26,15 @@ Messages, `FollowedIssue` and `AskedForMore`.
 
 ## Mental model
 
-```text
-Form.make(...)                     the form: controls + bundle (no view)
-      |
-FormView.field(form)               one field, as a SlotView over FieldSlots
-      |   .pipe(Style.attach(...))
-FormView.define(form, { field })   the whole form, as a SlotView over FormSlots
-      |   .pipe(Style.attach(...))
-FormView.submodel(form, view)      a Submodel view taking { options, words }
-      |
-form.bundle.pipe(Bundle.withView(...))   the same Bundle, now drawable
-      |
-placed.view(model, h, { options })
-```
+1. `Form.make(...)` makes the form: its controls and a bundle, with no view.
+2. `FormView.field(form)` makes one field, a SlotView over `FieldSlots`.
+3. `FormView.define(form, { field })` makes the whole form, a SlotView over
+   `FormSlots`.
+4. `FormView.submodel(form, view)` makes a Submodel view taking `{ options, words }`.
+5. `form.bundle.pipe(Bundle.withView(...))` makes the same Bundle drawable, and
+   `placed.view(model, h, { options })` draws it.
+
+Attach your styles to the field and to the form with `.pipe(Style.attach(...))`.
 
 There are two slot contracts because a form is one thing and its fields are
 many: `FieldSlots` is resolved once per field, with that field as its input, so
