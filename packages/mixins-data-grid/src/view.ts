@@ -5,6 +5,7 @@ import type { Scene } from 'foldkit/test'
 import {
   addressableRows,
   type CellAddress,
+  type CellRange,
   CellEditor,
   type CellBox,
   Clipboard,
@@ -39,6 +40,15 @@ import { KeepFocus } from './keepFocus.js'
 import { HeaderPress } from './headerPress.js'
 import { CellPress, checkboxAttribute } from './press.js'
 import { GridSlots } from './slots.js'
+
+interface KeyBasis<Id extends string> {
+  readonly cells: Option.Option<CellRange<Id>>
+  readonly focus: Option.Option<CellAddress<Id>>
+}
+const sameAddress = <Id extends string>(a: CellAddress<Id>, b: CellAddress<Id>): boolean =>
+  a.row === b.row && a.column === b.column
+const sameRange = <Id extends string>(a: CellRange<Id>, b: CellRange<Id>): boolean =>
+  sameAddress(a.anchor, b.anchor) && sameAddress(a.focus, b.focus)
 
 export interface GridWords {
   /** In place of rows when there are none. Default `No rows.` */
@@ -424,6 +434,14 @@ const view = <Message>() => ({
         ],
       )
     }
+    // What a key left in the Model before the frame that shows it. The handlers
+    // are the last frame's, so a second key in a burst would read the range and
+    // focus as drawn and replace the first key's work; it continues from `now`
+    // while the frame it was drawn from (`drawn`) is still the one on screen.
+    let pending: { readonly drawn: KeyBasis<Id>; readonly now: KeyBasis<Id> } | undefined
+    const sameBasis = (a: KeyBasis<Id>, b: KeyBasis<Id>): boolean =>
+      Option.makeEquivalence(sameRange)(a.cells, b.cells) &&
+      Option.makeEquivalence(sameAddress)(a.focus, b.focus)
     // The layout the rows were last drawn with, kept while it reads the same.
     let lastLayout: { readonly text: string; readonly layout: RowLayout<Id> } | undefined
     const sameLayout = (layout: RowLayout<Id>): RowLayout<Id> => {
@@ -563,6 +581,15 @@ const view = <Message>() => ({
             VirtualGrid.reveal({ projection, rowHeight, width, headerHeight, viewport, position }),
           )
         const selection = state.selection
+        const drawnBasis: KeyBasis<Id> = { cells: selection.cells, focus: state.focus.current }
+        // A frame that shows something else has caught up with the keys: nothing pends.
+        if (pending !== undefined && !sameBasis(pending.drawn, drawnBasis)) pending = undefined
+        // Read when a key is pressed, not when the frame is drawn: an earlier key may have moved it.
+        const keyBasis = (): KeyBasis<Id> =>
+          pending !== undefined && sameBasis(pending.drawn, drawnBasis) ? pending.now : drawnBasis
+        const remember = (now: KeyBasis<Id>) => {
+          pending = { drawn: drawnBasis, now }
+        }
         const isSelectedRow = GridSelection.isSelected(selection.rows)
         const range = Option.flatMap(selection.cells, cells =>
           GridSelection.boxOf(projection, cells),
@@ -577,15 +604,18 @@ const view = <Message>() => ({
           modifiers: KeyboardModifiers,
         ): Option.Option<typeof grid.Message.Type> => {
           const toggle = modifiers.ctrlKey || modifiers.metaKey
-          if (key === 'Escape' && Option.isSome(selection.cells)) {
+          const basis = keyBasis()
+          if (key === 'Escape' && Option.isSome(basis.cells)) {
+            remember({ ...basis, cells: Option.none() })
             return Option.some(grid.Message.CellsCleared())
           }
           if ((key === 'a' || key === 'A') && toggle && !modifiers.shiftKey && !modifiers.altKey) {
             if (grid.rowSelection === 'multiple') return Option.some(grid.Message.AllRowsSelected())
             if (grid.cellSelection) {
-              return Option.zipWith(projection.first(), projection.last(), (anchor, far) =>
-                grid.Message.CellsSelected({ anchor, focus: far, reveal: Option.none() }),
-              )
+              return Option.zipWith(projection.first(), projection.last(), (anchor, far) => {
+                remember({ ...basis, cells: Option.some({ anchor, focus: far }) })
+                return grid.Message.CellsSelected({ anchor, focus: far, reveal: Option.none() })
+              })
             }
             return Option.none()
           }
@@ -604,32 +634,37 @@ const view = <Message>() => ({
           if (!grid.cellSelection) return Option.none()
           return Option.map(
             GridSelection.extend(projection, {
-              range: selection.cells,
-              current: stop,
+              range: basis.cells,
+              current: GridFocus.tabStop(projection, basis.focus),
               key,
               modifiers,
               pageRows,
               ...(input.direction === undefined ? {} : { direction: input.direction }),
             }),
-            extended =>
-              grid.Message.CellsSelected({
+            extended => {
+              remember({ ...basis, cells: Option.some(extended) })
+              return grid.Message.CellsSelected({
                 anchor: extended.anchor,
                 focus: extended.focus,
                 reveal: revealOf(extended.focus),
-              }),
+              })
+            },
           )
         }
 
         const focusKey = (key: string, modifiers: KeyboardModifiers) =>
           Option.map(
             GridFocus.target(projection, {
-              current: state.focus.current,
+              current: keyBasis().focus,
               key,
               modifiers,
               pageRows,
               ...(input.direction === undefined ? {} : { direction: input.direction }),
             }),
-            address => grid.Message.Moved({ address, reveal: revealOf(address) }),
+            address => {
+              remember({ cells: Option.none(), focus: Option.some(address) })
+              return grid.Message.Moved({ address, reveal: revealOf(address) })
+            },
           )
 
         const flip = input.direction === 'rtl' ? -1 : 1
