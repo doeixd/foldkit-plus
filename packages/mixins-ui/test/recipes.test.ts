@@ -109,6 +109,9 @@ const defined = new Set([
   // Written on a textarea by its view, from `rows` and `maxRows`.
   'textarea-rows',
   'textarea-max-rows',
+  // Optional overrides of a collapsing part's times, set by an application; read with the motion tier as the fallback.
+  'collapse-duration',
+  'collapse-close-duration',
   // Written by the views: an avatar's hue from its name, a table row skeleton's column count.
   'avatar-hue',
   'skeleton-columns',
