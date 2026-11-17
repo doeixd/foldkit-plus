@@ -80,6 +80,8 @@ export const Model = Schema.Struct({
   /** The card chosen in the card group's preview, by key. */
   chosenCard: Schema.String,
   cardDismissed: Schema.Boolean,
+  /** What the Primitives gallery's `Resize` example last reported. */
+  observed: Schema.Struct({ width: Schema.Number, height: Schema.Number }),
   /** The previews with state of their own: tabs, a dialog, a slider and the rest. */
   widgets: Widgets.Model,
   /** The theme `/create` makes, as the values of the standard knobs. */
@@ -117,6 +119,9 @@ export const Message = defineMessageUnion({
   ChoseCard: { key: Schema.String },
   DismissedCard: {},
   RestoredCard: {},
+  /** What the `Resize` and `Autofocus` Mounts of the Primitives gallery send. */
+  Resized: { width: Schema.Number, height: Schema.Number },
+  Focused: {},
   GotWidget: { message: Widgets.Message },
   ChoseValues: { values: ThemeValues },
   ChoseTheme: { name: Schema.String },
@@ -406,6 +411,11 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         ? { model: modifyFields(model, { cardDismissed: () => false }) }
         : { model },
     GotWidget: ({ message }) => foldWidget(model, message),
+    Resized: ({ width, height }) =>
+      model.observed.width === width && model.observed.height === height
+        ? { model }
+        : { model: modifyFields(model, { observed: () => ({ width, height }) }) },
+    Focused: () => ({ model }),
     ChoseValues: ({ values }) => withTheme(model, values),
     // A preset by its name, and in its own scheme when it is known in one; a
     // name of none is ignored.
@@ -604,6 +614,7 @@ export const initial: Model = placements.initial({
   switched: false,
   chosenCard: 'team',
   cardDismissed: false,
+  observed: { width: 0, height: 0 },
   widgets: Widgets.initial,
   theme: defaultTheme,
   direction: 'ltr',
@@ -644,6 +655,7 @@ const planOf = (withMeta: boolean) =>
       App.model.switched,
       App.model.chosenCard,
       App.model.cardDismissed,
+      App.model.observed,
       App.model.widgets,
       App.model.theme,
       App.model.direction,

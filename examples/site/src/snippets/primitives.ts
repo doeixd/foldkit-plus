@@ -5,7 +5,9 @@
  * `slots` are the page's own: the code is the code that runs.
  */
 import type { Html } from 'foldkit/html'
+import { Autofocus } from 'foldkit-primitives/dom'
 import { TweenMessage } from 'foldkit-primitives/motion'
+import { Resize } from 'foldkit-primitives/observers'
 import { TimerMessage } from 'foldkit-primitives/time'
 
 import { NoteHistory } from '../gallery/primitiveBundles.js'
@@ -61,6 +63,37 @@ export const tweenExample = (model: Model, slots: Slots, h: H): Html =>
         ]),
         [model.fade.running ? 'Running' : 'Run'],
       ),
+    ],
+  )
+// #endregion
+
+// #region observers-resize
+export const resizeExample = (model: Model, slots: Slots, h: H): Html =>
+  h.div(slots.liveBox.attrs([h.OnMount(Resize())]), [
+    `Its content box is ${Math.round(model.observed.width)} by ${Math.round(model.observed.height)} pixels. Drag its corner.`,
+  ])
+// #endregion
+
+// #region dom-autofocus
+export const autofocusExample = (model: Model, slots: Slots, h: H): Html =>
+  h.div(
+    [],
+    [
+      h.button(
+        slots.liveButton.attrs([
+          h.Type('button'),
+          h.AriaExpanded(model.switched),
+          h.OnClick(Message.ToggledSwitch({ on: !model.switched })),
+        ]),
+        [model.switched ? 'Hide the field' : 'Show a field'],
+      ),
+      ...(model.switched
+        ? [
+            h.input(
+              slots.liveField.attrs([h.Type('text'), h.AriaLabel('Name'), h.OnMount(Autofocus())]),
+            ),
+          ]
+        : []),
     ],
   )
 // #endregion
@@ -147,6 +180,20 @@ export const examples: ReadonlyArray<PrimitiveExample> = [
     title: 'Tween',
     text: 'A number animated from 0 to 100 over 1.5 seconds on Effect’s clock. The view only reads `model.fade.value`; under reduced motion it jumps to the end.',
     draw: tweenExample,
+  },
+  {
+    family: 'observers',
+    id: 'observers-resize',
+    title: 'Resize',
+    text: '`Resize()` is a Mount: attached with `h.OnMount` to one element, it sends `Resized` with the content box as the element changes size. The box below can be resized by its corner.',
+    draw: resizeExample,
+  },
+  {
+    family: 'dom',
+    id: 'dom-autofocus',
+    title: 'Autofocus',
+    text: '`Autofocus()` is a Mount: attached with `h.OnMount`, it focuses its element as it is drawn and sends `Focused`. Show the field and type at once.',
+    draw: autofocusExample,
   },
   {
     family: 'events',

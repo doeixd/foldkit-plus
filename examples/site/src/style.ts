@@ -471,6 +471,19 @@ export const SiteStyle = slots(
       borderRadius: t.radius.sm,
       background: `linear-gradient(to right, ${t.text.overt} var(--filled, 0%), ${t.surface.muted} var(--filled, 0%))`,
     },
+    // A box the reader can resize, for the `Resize` example to measure.
+    liveBox: {
+      boxSizing: 'border-box',
+      minInlineSize: '10rem',
+      maxInlineSize: '100%',
+      minBlockSize: '4rem',
+      padding: t.space.sm,
+      resize: 'both',
+      overflow: 'auto',
+      border: rule,
+      borderRadius: t.radius.sm,
+      background: t.surface.base,
+    },
     liveField: Style.slot({ capability: Capability.Focusable }, [
       {
         font: 'inherit',
