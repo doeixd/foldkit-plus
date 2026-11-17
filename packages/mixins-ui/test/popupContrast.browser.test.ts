@@ -132,9 +132,7 @@ describe('a row reads on its surface', () => {
   test.each(combinations)('$panel panel, $highlight accent, $scheme', async option => {
     const handle = await mount({ panel: option.panel, highlight: option.highlight }, option.scheme)
     try {
-      // 4.5 less the canvas's clipping to sRGB: the accent's white-on-fill pair is
-      // designed to 4.5 and reads 4.4996 once painted.
-      const minimum = 4.49
+      const minimum = 4.5
       for (const row of ['menu resting', 'menu lit']) {
         expect(rowContrast(row, ['menu']), row).toBeGreaterThanOrEqual(minimum)
       }

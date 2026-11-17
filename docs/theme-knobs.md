@@ -239,11 +239,11 @@ follows another knob until a theme sets it.
 | --- | --- | --- | --- | --- |
 | `accent.hue` | angle | 235 | 0 to 360 | `accent-h` |
 | `accent.chroma` | schemed number | 0.225, dark `min(0.4, c + 0.03)` | 0 to 0.4 | `accent-c`, `accent-c-dark` |
-| `accent.lightness` | schemed percent | 55, dark 70 | 15 to 90 | `accent-l`, `accent-l-dark` |
+| `accent.lightness` | schemed percent | 54, dark 54 | 15 to 90 | `accent-l`, `accent-l-dark` |
 | `accent.secondaryShift` | angle | 60 | | `secondary-shift` |
 | `accent.tertiaryShift` | angle | -90 | | `tertiary-shift` |
 | `surface.hue` | angle | follows `accent.hue` | 0 to 360 | `neutral-h` |
-| `surface.saturation` | schemed number | 0, dark 4/3 of it | 0 to 0.04 | `surface-c`, `surface-c-dark` |
+| `surface.saturation` | schemed number | 0.005, dark 0.0067 (4/3 of it) | 0 to 0.04 | `surface-c`, `surface-c-dark` |
 | `surface.lightness` | schemed percent | 100, dark 24.5 | 75 to 100, dark 6 to 36 | `base-l`, `base-l-dark` |
 | `surface.contrast` | percent | 70 | 0 to 100 | `surface-contrast` |
 | `surface.textContrast` | number | 1 | | `contrast-factor` |
@@ -289,8 +289,8 @@ follows another knob until a theme sets it.
 
 Variables written without a prefix above are `--fk-knob-...`. The defaults are
 the theme #255 made the shipped one
-([design](./design/255-default-theme-DESIGN.md)): a vivid blue on pure greys,
-tight corners, roomy spacing, bold fluid headings, no resting shadows,
+([design](./design/255-default-theme-DESIGN.md)): a vivid blue on faintly cool greys,
+rounded corners, roomy spacing, bold fluid headings, no resting shadows,
 menus on the page's own raised surface and a spring.
 
 ### Fluid type

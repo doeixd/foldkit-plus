@@ -48,7 +48,7 @@ export const accentLightnessLight = {
   min: 5,
   max: 98,
   step: 1,
-  default: 55,
+  default: 54,
 } as const satisfies KnobData<'accent.lightness.light'>
 
 /** Lightness, dark, `--fk-knob-accent-l-dark`. */
@@ -60,7 +60,7 @@ export const accentLightnessDark = {
   min: 5,
   max: 98,
   step: 1,
-  default: 70,
+  default: 54,
 } as const satisfies KnobData<'accent.lightness.dark'>
 
 /** Secondary hue shift, `--fk-knob-secondary-shift`. */

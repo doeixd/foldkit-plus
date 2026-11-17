@@ -72,14 +72,12 @@ test.each(['light', 'dark'] as const)(
   },
 )
 
-// A label on the accent's fill is held at 3:1, AA for large text and for a
-// control's edge: the accent's lightness of 55 is #255's choice. Fitted into
-// sRGB the light accent reads about 4.5:1 under white (3.9:1 when the browser
-// clipped it), too close to hold the test at 4.5.
+// A label on the accent's fill is held at AA: the accent's lightness of 54 in both schemes
+// reads 4.7:1 (light) and 4.8:1 (dark) once painted; at 55 the light fill read 4.4996.
 test.each(['light', 'dark'] as const)(
-  'in a %s scheme, a label on the accent reads at 3:1',
+  'in a %s scheme, a label on the accent reads at AA',
   scheme => {
     install(scheme)
-    expect(contrastOf('accent-on-fill', 'accent-default')).toBeGreaterThanOrEqual(3)
+    expect(contrastOf('accent-on-fill', 'accent-default')).toBeGreaterThanOrEqual(4.5)
   },
 )

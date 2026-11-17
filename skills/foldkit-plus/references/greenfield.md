@@ -63,7 +63,7 @@ back two things:
 
 If they would rather not design one, start from the shipped theme: the
 style module is `export const { t, slots, forSlots, stylesheet } =
-AppStyle.make({})`, a vivid blue on pure greys with bold headings and
+AppStyle.make({})`, a vivid blue on faintly cool greys with bold headings and
 Heroicons, what `/create` opens on as its Default preset. Ask a few
 questions only if that is not the look they want (a calm or a bold look;
 light, dark or both; dense or roomy; sharp or round; one accent colour; a

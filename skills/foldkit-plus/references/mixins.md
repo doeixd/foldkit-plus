@@ -257,7 +257,7 @@ one `keydown` attribute for a Behavior that also writes other attributes on the 
 
 An application styling its own markup declares the Slots by their style and fixes theme, layer
 and sheet once (`forSlots` stays for a contract someone else published, such as `ButtonSlots`).
-`theme` is optional: `AppStyle.make({})` is the shipped theme (a vivid blue on pure greys, bold
+`theme` is optional: `AppStyle.make({})` is the shipped theme (a vivid blue on faintly cool greys, bold
 fluid headings, no resting shadows, a spring, Heroicons), and a theme that sets
 knobs keeps the rest of it:
 

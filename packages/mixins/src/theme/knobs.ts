@@ -74,7 +74,7 @@ export const standard = {
       Knob.percent({
         title: 'Lightness',
         variable: 'accent-l',
-        default: 55,
+        default: 54,
         min: 5,
         max: 98,
         step: 1,
@@ -84,7 +84,7 @@ export const standard = {
       Knob.percent({
         title: 'Lightness, dark',
         variable: 'accent-l-dark',
-        default: 70,
+        default: 54,
         min: 5,
         max: 98,
         step: 1,
