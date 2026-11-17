@@ -28,7 +28,6 @@ import * as Posts from './app.js'
 import * as Pages from './pageApp.js'
 import { type Section, sectionOf } from '../routing/studioRoutes.js'
 import { chairOf } from '../server/transport.js'
-import { keepShellScroll } from '../shellScroll.js'
 import { Page as PagesShell, titleOf as pagesTitle } from '../views/pagesView.js'
 import { Studio as PostsShell, titleOf as postsTitle } from '../views/view.js'
 
@@ -280,8 +279,13 @@ export const subscriptions = {
   // The window's scroll (a phone's) across the studio's navigations, kept while it runs.
   ...Subscription.make<Model, Message>()(() => ({
     scroll: Subscription.persistentEntry(keepScroll()),
-    // The centre column's, where the window does not scroll (`shellScroll.ts`).
-    columnScroll: Subscription.persistentEntry(keepShellScroll()),
+    // The centre column's, where the window does not scroll.
+    columnScroll: Subscription.persistentEntry(
+      keepScroll({
+        scroller: () => document.getElementById('studio-main'),
+        storageKey: 'foldkit:cms-shell-scroll',
+      }),
+    ),
     // Where the reader may go next, read ahead (`PointedAtLink`).
     pointing: Subscription.persistentEntry(
       Stream.map(pointedLinks(), url => Message.PointedAtLink({ url })),

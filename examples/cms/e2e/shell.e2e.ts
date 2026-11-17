@@ -223,3 +223,26 @@ test('the formatting bar fits its column at every width from 320 to 1440, with e
     await page.context().close()
   }
 })
+
+test('the public site, which scrolls as a document, comes back to its offset on a reload', async () => {
+  const page = await (
+    await browser.newContext({ viewport: { width: 1280, height: 500 } })
+  ).newPage()
+  await page.goto(`${url}/site/blog/saving-is-not-publishing?as=edda`)
+  await page.getByRole('heading', { level: 1 }).waitFor({ timeout: 120_000 })
+  await page.waitForTimeout(3_000)
+  await page.mouse.move(640, 250)
+  for (let step = 0; step < 6; step++) {
+    await page.mouse.wheel(0, 100)
+    await page.waitForTimeout(60)
+  }
+  await page.waitForTimeout(400)
+  const left = await page.evaluate(() => window.scrollY)
+  expect(left).toBeGreaterThan(300)
+  await page.reload()
+  await page.getByRole('heading', { level: 1 }).waitFor({ timeout: 120_000 })
+  await expect
+    .poll(() => page.evaluate(was => Math.abs(window.scrollY - was), left), { timeout: 10_000 })
+    .toBeLessThan(4)
+  await page.context().close()
+})
