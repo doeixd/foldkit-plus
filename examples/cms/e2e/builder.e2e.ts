@@ -339,6 +339,26 @@ const phone = async (browser: Browser) => {
   return { context, page, errors }
 }
 
+/**
+ * Scrolls the page so the grip and the node it is dragged to sit apart across the window's middle.
+ * A finger held in the window's last 40px scrolls the page under it, so a target left near an edge
+ * by a taller text (CI's fonts wrap more lines than ours) would move while the finger rests on it.
+ */
+const centreDrag = async (page: Page, grip: Locator, target: Locator) => {
+  const from = (await grip.boundingBox())!
+  const to = (await target.boundingBox())!
+  const viewport = page.viewportSize()!.height
+  await page.evaluate(
+    by => window.scrollBy(0, by),
+    (from.y + from.height / 2 + to.y) / 2 - viewport / 2,
+  )
+  await page.waitForTimeout(200)
+  const gripAt = await middle(grip)
+  const targetAt = await within(target, 0)
+  expect(gripAt.y).toBeGreaterThan(100)
+  expect(targetAt.y).toBeLessThan(viewport - 60)
+}
+
 const sideways = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)
 
@@ -468,8 +488,7 @@ test('at 390px a held finger drops a node into the gap above another, between tw
   await node('text').tap()
   const grip = page.locator('[data-builder-handle]')
   await page.waitForTimeout(400)
-  await grip.evaluate(each => window.scrollBy(0, each.getBoundingClientRect().top - 150))
-  await page.waitForTimeout(200)
+  await centreDrag(page, grip, node('quote'))
   const from = await middle(grip)
   const session = await page.context().newCDPSession(page)
   const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', at: Point) =>
