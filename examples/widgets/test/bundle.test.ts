@@ -26,7 +26,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +6,500 on 2026-11-16: measured 154,065 with `output.strictExecutionOrder` (vite.config.ts),
 // against a page that loaded less and drew nothing: the chunks imported each other, and one
 // ran before the helper it called was defined. The growth is Rolldown's per-module wrappers.
-const CEILING = 154_500
+// +500 on 2026-11-17: 154,517 measured. The toolbar, which the start chunk holds, now fills a pressed
+// tool with the accent (`Recipes.Button.extend` and the accent tokens, in `toolbar/view.ts`), and its
+// tools' ghost variant and the buttons' hover fill (`style.ts`) add rules to the sheet.
+const CEILING = 155_000
 
 clientBudget({
   name: 'widgets',
