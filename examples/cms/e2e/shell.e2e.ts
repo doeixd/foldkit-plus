@@ -88,3 +88,30 @@ test.each([
     await page.context().close()
   },
 )
+
+test('at 390px the editor spends little on chrome: one header row, one bar, a toolbar that fits and a page that does not scroll sideways', async () => {
+  const page = await (
+    await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    })
+  ).newPage()
+  await openPost(page)
+  const measured = await page.evaluate(() => {
+    const toolbar = document.querySelector('[role="toolbar"]')!
+    const root = document.documentElement
+    return {
+      toolbarTop: toolbar.getBoundingClientRect().top,
+      toolbarOverflow: toolbar.scrollWidth - toolbar.clientWidth,
+      // The layout viewport, which a phone's zoom-to-fit does not hide an overflow from.
+      sideways: root.scrollWidth - root.clientWidth,
+      header: document.querySelector('aside[aria-label="Studio"]')!.getBoundingClientRect().height,
+    }
+  })
+  expect(measured.toolbarTop).toBeLessThanOrEqual(120)
+  expect(measured.toolbarOverflow).toBeLessThanOrEqual(0)
+  expect(measured.sideways).toBeLessThanOrEqual(0)
+  expect(measured.header).toBeLessThanOrEqual(52)
+  await page.context().close()
+})

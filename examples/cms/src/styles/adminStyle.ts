@@ -55,6 +55,12 @@ const chevronOpen = Style.nest('&[open] > summary::before', { transform: 'rotate
 
 /** The editor's bar, one height so what sticks under it can stand at its bottom edge. */
 export const barSize = '3.5rem'
+/** The bar on a phone: one row, as tall as a control that is pressed. */
+export const phoneBarSize = '2.75rem'
+/** Where a section shows its icon alone. */
+const iconOnly = '(max-width: 40rem)'
+/** Where the row has room for the mark and the icons and avatars at a little less than a pressed control's width, and not for the brand's name. */
+const narrowest = '(max-width: 26rem)'
 /** The workbench beside its settings, and stacked above them below 64rem of window. */
 const stacked = '(max-width: 64rem)'
 const sideBySide = '(min-width: 64.0625rem)'
@@ -66,8 +72,12 @@ export const AdminSlots = Slots.define({
   sidebar: part,
   brand: part,
   brandMark: part,
+  /** The brand's name beside its mark: read, not shown, on the narrowest phones. */
+  brandName: part,
   nav: part,
   navLink: control,
+  /** A section's name beside its icon: on a narrow phone only the icon shows, and this is read, not shown. */
+  navLabel: part,
   account: part,
   accountLabel: part,
   whoLink: control,
@@ -169,18 +179,19 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         overflowY: 'auto',
         padding: `${t.space.lg} ${t.space.sm}`,
       }),
-      // On a phone, a bar across the top: the brand and who is looking, then the
-      // sections in a row of their own, scrolled sideways where they do not fit.
+      // On a phone, one row across the top: the brand, the sections, and who is looking. It is
+      // the document's, so it scrolls away and leaves the room to the page.
       Style.media(phone, {
         alignItems: 'center',
         borderBlockEnd: `1px solid ${t.outline.subtle}`,
         borderInlineEnd: '0',
         display: 'grid',
         gap: t.space.xs,
-        gridTemplateAreas: '"brand account" "nav nav"',
-        gridTemplateColumns: 'auto minmax(0, 1fr)',
+        gridTemplateAreas: '"brand nav account"',
+        gridTemplateColumns: 'auto minmax(0, 1fr) auto',
         overflowY: 'visible',
-        padding: `${t.space.sm} ${t.space.md}`,
+        paddingBlock: t.space['3xs'],
+        paddingInline: t.space.sm,
       }),
     ),
     brand: Style.compose(
@@ -198,6 +209,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         textDecoration: 'none',
       }),
     ),
+    brandName: Style.media(narrowest, hiddenDeclarations),
     brandMark: Style.self({
       alignItems: 'center',
       background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 50%, ${t.tertiary.default}))`,
@@ -213,14 +225,24 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.self({ display: 'flex', flexDirection: 'column', gap: '2px' }),
       Style.media(phone, {
         flexDirection: 'row',
+        gap: '0',
         gridArea: 'nav',
-        marginInline: `calc(-1 * ${t.space.md})`,
         overflowX: 'auto',
-        paddingInline: t.space.md,
         scrollbarWidth: 'none',
       }),
     ),
-    navLink,
+    navLink: Style.compose(
+      navLink,
+      // Icon alone below 40rem, where the labels would crowd the avatars out of the row: a square
+      // as wide as it is tall, named by its tooltip and, for a reader, its hidden label.
+      Style.media(iconOnly, {
+        justifyContent: 'center',
+        minInlineSize: '2.75rem',
+        padding: '0.45rem',
+      }),
+      Style.media(narrowest, { minInlineSize: '2.5rem' }),
+    ),
+    navLabel: Style.media(iconOnly, hiddenDeclarations),
     account: Style.compose(
       Style.self({
         borderBlockStart: `1px solid ${t.outline.subtle}`,
@@ -233,6 +255,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.media(phone, {
         border: '0',
         flexDirection: 'row',
+        gap: '0',
         gridArea: 'account',
         justifySelf: 'end',
         marginBlockStart: '0',
@@ -254,7 +277,14 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     whoLink: Style.compose(
       navLink,
       Style.self({ padding: '0.35rem 0.5rem' }),
-      Style.media(phone, { justifyContent: 'center', padding: '0.3rem' }),
+      // The avatar alone, in the same tint as a current section, round as the avatar is.
+      Style.media(phone, {
+        borderRadius: t.radius.full,
+        justifyContent: 'center',
+        minInlineSize: '2.75rem',
+        padding: '0.3rem',
+      }),
+      Style.media(narrowest, { minInlineSize: '2.25rem' }),
     ),
     // Read on a phone, not shown: the avatar stands for the chair.
     whoName: Style.media(phone, hiddenDeclarations),
@@ -419,16 +449,16 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       }),
       // Its actions go under the status where the bar is too narrow for both.
       Style.media(phone, {
-        blockSize: 'auto',
-        flexWrap: 'wrap',
+        blockSize: phoneBarSize,
         gap: t.space.xs,
-        padding: `${t.space.xs} ${t.space.md}`,
+        paddingInline: t.space.sm,
       }),
       Style.nest('& a, & button', { whiteSpace: 'nowrap' }),
     ),
     barActions: Style.self({
       alignItems: 'center',
       display: 'flex',
+      flexShrink: '0',
       gap: t.space.xs,
       marginInlineStart: 'auto',
     }),
@@ -448,13 +478,17 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.self({ padding: t.space.lg }),
       Style.media(phone, { padding: t.space.sm }),
     ),
-    canvas: Style.self({
-      boxSizing: 'border-box',
-      margin: '0 auto',
-      maxWidth: '46rem',
-      padding: `${t.space['2xl']} ${t.space.xl} ${t.space['3xl']}`,
-      width: '100%',
-    }),
+    canvas: Style.compose(
+      Style.self({
+        boxSizing: 'border-box',
+        margin: '0 auto',
+        maxWidth: '46rem',
+        padding: `${t.space['2xl']} ${t.space.xl} ${t.space['3xl']}`,
+        width: '100%',
+      }),
+      // The page's gutter, so the text is as wide as the phone allows.
+      Style.media(phone, { padding: `${t.space.md} ${t.space.md} ${t.space['3xl']}` }),
+    ),
     aside: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.md })),
       Style.self({

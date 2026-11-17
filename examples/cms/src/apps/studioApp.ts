@@ -258,6 +258,12 @@ const postsEditor = Subscription.lift(Posts.EditorSlot.subscriptions)({
   when: gate('posts'),
 })
 
+const postsNarrow = Subscription.lift(Posts.NarrowSlot.subscriptions)({
+  read: (model: Model) => Option.some(model.posts),
+  toParentMessage: (message: Posts.Message) => Message.GotPostsMessage({ message }),
+  when: gate('posts'),
+})
+
 const pagesAddress = Subscription.lift(Pages.address)({
   read: (model: Model) => Option.some(model.pages),
   toParentMessage: (message: Pages.Message) => Message.GotPagesMessage({ message }),
@@ -290,6 +296,7 @@ export const subscriptions = {
   ...prefixed(postsAddress, 'posts'),
   ...prefixed(postsRemote, 'posts.remote'),
   ...prefixed(postsEditor, 'posts.editor'),
+  ...prefixed(postsNarrow, 'posts.narrow'),
   ...prefixed(pagesAddress, 'pages'),
   ...prefixed(pagesRemote, 'pages.remote'),
   ...prefixed(pagesEditor, 'pages.editor'),

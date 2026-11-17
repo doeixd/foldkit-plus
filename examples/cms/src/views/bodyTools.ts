@@ -16,8 +16,8 @@ import {
 } from 'foldkit-mixins-richtext'
 import { Message, Roving, type Model } from '../apps/app.js'
 import { PostForm } from '../content/postForm.js'
-import { barSize } from '../styles/adminStyle.js'
-import { app, button, t } from '../styles/style.js'
+import { barSize, phoneBarSize } from '../styles/adminStyle.js'
+import { app, button, phone, t } from '../styles/style.js'
 
 export const BodyToolsSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -26,21 +26,23 @@ export const BodyToolsSlots = Slots.define({
 /**
  * Undo and redo, the text style, the marks a post's Markdown can say, lists and quote, and the
  * insert menu. No link control yet: it opens `linkEditor`, which needs a draft of its own.
+ * On a narrow window the `low` ones are not drawn, so the bar fits one row without scrolling;
+ * the shortcuts and the slash menu still reach them.
  */
 const ITEMS: ReadonlyArray<FormattingItem> = [
-  'undo',
-  'redo',
+  { low: 'undo' },
+  { low: 'redo' },
   'separator',
   'style',
   'separator',
   { mark: 'Bold' },
   { mark: 'Italic' },
-  { mark: 'Code' },
-  { mark: 'Strikethrough' },
+  { low: { mark: 'Code' } },
+  { low: { mark: 'Strikethrough' } },
   'separator',
   'bulleted-list',
   'numbered-list',
-  'quote',
+  { low: 'quote' },
   'separator',
   'insert',
 ]
@@ -53,9 +55,11 @@ export const BarStyle = Style.forSlots(FormattingToolbarSlots)(
       alignItems: 'center',
       display: 'flex',
       gap: t.space['3xs'],
-      // A phone's bar scrolls sideways rather than wrapping its tools onto a second row.
+      // Where the tools still do not fit (a wide window with a narrow column), the bar scrolls
+      // sideways, with no scrollbar drawn; the arrow keys bring each tool into view.
       overflowX: 'auto',
       padding: t.space['2xs'],
+      scrollbarWidth: 'none',
     }),
     button: Style.compose(
       tool,
@@ -119,6 +123,7 @@ export const BodyTools = SlotView.forMessages<Message>()
           selection: draft.selection,
           storedMarks: draft.storedMarks,
           items: ITEMS,
+          compact: model.narrow.matches,
           wrap: message => Message.PressedTool({ message: body.send(message) }),
           menu: Option.getOrUndefined(model.toolsMenu),
           toggled: (menu, open) => Message.ToggledToolsMenu({ menu, open }),
@@ -133,14 +138,17 @@ export const BodyTools = SlotView.forMessages<Message>()
   .pipe(
     Style.attach(
       Style.forSlots(BodyToolsSlots)({
-        root: Style.self({
-          background: t.surface.base,
-          borderBlockEnd: `1px solid ${t.outline.subtle}`,
-          insetBlockStart: barSize,
-          marginBlockEnd: t.space.md,
-          position: 'sticky',
-          zIndex: '1',
-        }),
+        root: Style.compose(
+          Style.self({
+            background: t.surface.base,
+            borderBlockEnd: `1px solid ${t.outline.subtle}`,
+            insetBlockStart: barSize,
+            marginBlockEnd: t.space.md,
+            position: 'sticky',
+            zIndex: '1',
+          }),
+          Style.media(phone, { insetBlockStart: phoneBarSize }),
+        ),
       }),
     ),
   )

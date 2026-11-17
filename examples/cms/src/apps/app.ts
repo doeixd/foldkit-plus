@@ -21,6 +21,7 @@ import * as Navigation from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
+import { MediaQuery } from 'foldkit-primitives/media'
 import { focus as focusEditor } from 'foldkit-richtext-dom/editor-bundle'
 import { Url, toString as urlToString } from 'foldkit/url'
 import {
@@ -82,6 +83,13 @@ const Slot = Bundle.declare(
 /** The body toolbar's one tab stop: Tab enters at the tool focused last. */
 export const Roving = Bundle.declare(RovingTabindex.bundle, 'bodyTools')
 
+/**
+ * Whether the window is too narrow for the toolbar's every tool: the application keeps it, and
+ * the toolbar leaves out the tools it marks `low`. 38rem is where the whole bar (about 31rem of
+ * tools) stops fitting beside the page's gutters.
+ */
+export const Narrow = Bundle.declare(MediaQuery, 'narrow')
+
 /** The popups of the body toolbar. */
 export const ToolsMenu = Schema.Literals(['style', 'insert', 'link'])
 
@@ -89,6 +97,7 @@ export const Model = Schema.Struct({
   remote: Remote.Model,
   ...Slot.fields,
   ...Roving.fields,
+  ...Narrow.fields,
   /** The toolbar's open popup, if any: the application places it, the toolbar only asks. */
   toolsMenu: Schema.Option(ToolsMenu),
   /**
@@ -118,6 +127,7 @@ export const Message = defineMessageUnion({
   ...Remote.messages,
   ...Slot.cases,
   ...Roving.cases,
+  ...Narrow.cases,
   /** A tool of the body toolbar was pressed: the form's Message for the body editor. */
   PressedTool: { message: PostForm.Message },
   ToggledToolsMenu: { menu: ToolsMenu, open: Schema.Boolean },
@@ -186,8 +196,10 @@ export const actives = {
 
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 export const EditorSlot = Page.at(Slot, { onOut: PostEditor.onOut })
+export const NarrowSlot = Page.at(Narrow, { args: { query: '(max-width: 38rem)' } })
 export const placements = Page.assemble(
   EditorSlot,
+  NarrowSlot,
   Page.at(Roving, { args: { orientation: 'horizontal', loop: true, virtual: false } }),
   Data.wiring(actives),
 )

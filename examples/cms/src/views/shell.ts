@@ -178,22 +178,29 @@ export const shell = <M>(
   guide: Html,
 ): Html => {
   const link = (name: 'posts' | 'pages', label: string, href: string) =>
-    h.a(slots.navLink.attrs([h.Href(href), ...(name === section ? [h.AriaCurrent('page')] : [])]), [
-      icon(h, name),
-      label,
-    ])
+    h.a(
+      slots.navLink.attrs([
+        h.Href(href),
+        h.Title(label),
+        ...(name === section ? [h.AriaCurrent('page')] : []),
+      ]),
+      [icon(h, name), h.span(slots.navLabel.attrs(), [label])],
+    )
   return h.div(slots.root.attrs(), [
     h.a(slots.skipLink.attrs([h.Href('#studio-main')]), ['Skip to content']),
     h.aside(slots.sidebar.attrs([h.AriaLabel('Studio')]), [
       h.a(slots.brand.attrs([h.Href(sectionHref('posts', chair))]), [
         h.span(slots.brandMark.attrs(), ['J']),
-        h.span([], ['Journal']),
+        h.span(slots.brandName.attrs(), ['Journal']),
       ]),
       h.nav(slots.nav.attrs([h.AriaLabel('Sections')]), [
         link('posts', 'Posts', sectionHref('posts', chair)),
         link('pages', 'Pages', sectionHref('pages', chair)),
         // In this tab, as the site links back here: no mark of a link that leaves.
-        h.a(slots.navLink.attrs([h.Href(`/site?as=${chair}`)]), [icon(h, 'site'), 'View site']),
+        h.a(slots.navLink.attrs([h.Href(`/site?as=${chair}`), h.Title('View site')]), [
+          icon(h, 'site'),
+          h.span(slots.navLabel.attrs(), ['View site']),
+        ]),
       ]),
       h.nav(slots.account.attrs([h.AriaLabel('Who is looking')]), [
         h.p(slots.accountLabel.attrs(), ['Signed in as']),
