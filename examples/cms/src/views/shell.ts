@@ -25,6 +25,9 @@ const sandboxed = import.meta.env.MODE === 'sandbox'
  */
 export const guideInput = {
   demo: cmsDemo,
+  // The studio fills the window and scrolls in its centre column, so the pill needs no room of its own
+  // at the end of the document: the screens' bottom padding clears it.
+  reserve: false,
   more: sandboxed
     ? [
         'Its server and database run in your browser, shared by its tabs, so nothing you write leaves it.',

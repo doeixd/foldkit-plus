@@ -16,6 +16,7 @@ import {
 } from 'foldkit-mixins-richtext'
 import { Message, Roving, type Model } from '../apps/app.js'
 import { PostForm } from '../content/postForm.js'
+import { barSize } from '../styles/adminStyle.js'
 import { app, button, t } from '../styles/style.js'
 
 export const BodyToolsSlots = Slots.define({
@@ -135,7 +136,7 @@ export const BodyTools = SlotView.forMessages<Message>()
         root: Style.self({
           background: t.surface.base,
           borderBlockEnd: `1px solid ${t.outline.subtle}`,
-          insetBlockStart: '0',
+          insetBlockStart: barSize,
           marginBlockEnd: t.space.md,
           position: 'sticky',
           zIndex: '1',
