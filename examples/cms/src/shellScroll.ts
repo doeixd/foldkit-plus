@@ -11,7 +11,8 @@ import { Effect, Option, Stream } from 'effect'
 
 const STORAGE_KEY = 'foldkit:cms-shell-scroll'
 const KEPT = 50
-const PATIENCE = 2000
+// Longer than `keepScroll`'s: a reload waits for the demo's server to start before the screen has its height.
+const PATIENCE = 10_000
 
 const readSaved = (): Map<string, number> => {
   try {
@@ -86,14 +87,22 @@ const attach = (): (() => void) => {
     if (type === 'push') settle(0)
     else if (type === 'traverse') settle(Option.getOrElse(savedHere(), () => 0))
   })
-  on(window, 'pagehide', () => {
+  // Foldkit's runtime is gone by `pagehide` and `visibilitychange`, which took this with it before
+  // it could write: only `beforeunload` ran in time on a reload. The others stay for a page that
+  // is put away without one (a phone's tab switch).
+  const persist = () => {
     remember()
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify([...saved]))
     } catch {
       // Storage blocked: the next document starts at the top.
     }
+  }
+  on(document, 'visibilitychange', () => {
+    if (document.visibilityState === 'hidden') persist()
   })
+  on(window, 'pagehide', persist)
+  on(window, 'beforeunload', persist)
   const here = savedHere()
   if (Option.isSome(here)) settle(here.value)
   return () => {
@@ -105,10 +114,11 @@ const attach = (): (() => void) => {
 /** Keeps the centre column's scroll across the studio's navigations; lift with `Subscription.persistentEntry`. */
 export const keepShellScroll = (): Stream.Stream<never> => {
   if (typeof window === 'undefined') return Stream.empty
+  // `Stream.callback` ends, and so releases, once its setup returns: hold the scope open.
   return Stream.callback<never>(() =>
     Effect.acquireRelease(
       Effect.sync(() => attach()),
       detach => Effect.sync(detach),
-    ),
+    ).pipe(Effect.andThen(Effect.never)),
   )
 }

@@ -115,3 +115,69 @@ test('at 390px the editor spends little on chrome: one header row, one bar, a to
   expect(measured.header).toBeLessThanOrEqual(52)
   await page.context().close()
 })
+
+const column = (page: Page) => page.locator('#studio-main')
+const offset = (page: Page) => column(page).evaluate(element => element.scrollTop)
+/** Scrolled by the wheel, as a reader does: a programmatic scroll is not an act that ends a held restore. */
+const scrollTo = async (page: Page, top: number) => {
+  await page.mouse.move(700, 250)
+  for (let step = 0; step < 40 && (await offset(page)) < top; step++) {
+    await page.mouse.wheel(0, 100)
+    await page.waitForTimeout(40)
+  }
+  await page.waitForTimeout(300)
+}
+
+test('the centre column keeps its scroll across navigations: Back and Forward return, a pushed entry starts at the top, a reload returns', async () => {
+  const page = await (
+    await browser.newContext({ viewport: { width: 1280, height: 500 } })
+  ).newPage()
+  await page.goto(`${url}/?as=edda`)
+  const first = page.locator('#studio-main tbody button').first()
+  await first.waitFor({ timeout: 120_000 })
+  await page.waitForTimeout(500)
+  const room = (target: Page) =>
+    column(target).evaluate(element => element.scrollHeight - element.clientHeight)
+  expect(await room(page)).toBeGreaterThan(40)
+
+  // The list, scrolled; opening a post is a pushed entry, which starts at the top.
+  await scrollTo(page, 60)
+  const list = await offset(page)
+  expect(list).toBeGreaterThan(40)
+  await first.click()
+  await page.getByRole('complementary', { name: 'Post settings' }).waitFor({ timeout: 60_000 })
+  await expect.poll(() => offset(page), { timeout: 5_000 }).toBe(0)
+
+  // The post's body is drawn after the screen: scroll once it is tall.
+  await expect.poll(() => room(page), { timeout: 20_000 }).toBeGreaterThan(700)
+  await scrollTo(page, 600)
+  const post = await offset(page)
+  expect(post).toBeGreaterThan(500)
+
+  // Back: the list where it was left, though the post's taller screen was drawn first.
+  await page.goBack()
+  await page.locator('#studio-main tbody button').first().waitFor()
+  await expect
+    .poll(async () => Math.abs((await offset(page)) - list), { timeout: 10_000 })
+    .toBeLessThan(4)
+
+  // Forward: the post where it was left.
+  await page.goForward()
+  await page.getByRole('complementary', { name: 'Post settings' }).waitFor({ timeout: 60_000 })
+  await expect
+    .poll(async () => Math.abs((await offset(page)) - post), { timeout: 10_000 })
+    .toBeLessThan(4)
+
+  // A reload of a scrolled entry returns to where it was.
+  await page.reload()
+  await page.getByRole('complementary', { name: 'Post settings' }).waitFor({ timeout: 60_000 })
+  await expect
+    .poll(async () => Math.abs((await offset(page)) - post), { timeout: 10_000 })
+    .toBeLessThan(4)
+
+  // A link followed from a scrolled screen starts the next at the top.
+  await page.getByRole('link', { name: 'Pages' }).click()
+  await page.locator('#sitePages button').first().waitFor({ timeout: 60_000 })
+  await expect.poll(() => offset(page), { timeout: 5_000 }).toBe(0)
+  await page.context().close()
+})
