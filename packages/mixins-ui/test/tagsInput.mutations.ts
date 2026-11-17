@@ -550,8 +550,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/tagsInput.ts',
-        find: 'paddingInlineEnd: chipInset,',
-        replace: "paddingInlineEnd: '0.3rem',",
+        find: 'insetInlineEnd: chipInset,',
+        replace: "insetInlineEnd: '0.3rem',",
       },
     ],
     tests: [browser],
@@ -565,6 +565,22 @@ export default [
         replace: '? []',
       },
     ],
+    tests: [browser],
+  },
+  {
+    name: 'the label is centred by its line box, which sits low or high by the face',
+    edits: [
+      {
+        file: '../src/recipes/tagsInput.ts',
+        find: "textBox: 'trim-both ex alphabetic',",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the remove button is not centred on the label’s line',
+    edits: [{ file: '../src/recipes/tagsInput.ts', find: "marginBlock: 'auto',", replace: '' }],
     tests: [browser],
   },
 ]

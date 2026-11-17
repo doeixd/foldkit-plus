@@ -52,15 +52,24 @@ export const chipList: StyleValue = component(
 
 /** The chip's room above, below and after its remove button: even, so the button is the end cap's own circle. */
 const chipInset = '0.1rem'
+const chipLine = role('caption').lineHeight
+/** The button's room at the end: its own width, its inset and the gap to the label. */
+const buttonRoom = `calc(${chipLine} + ${chipInset} + 0.2rem)`
 
+// The label is trimmed to its x-height band, from the x-height line to the baseline, and the
+// padding makes the pill as tall as the button with its inset, so the band is centred in the pill
+// and the button is centred on the same line: both follow the face's own metrics (`ex`), where a
+// line box centres its ascent and descent, which sit low or high by the face. The button is out of
+// the flow, since a block container is what `text-box` trims.
 export const chip: StyleValue = component(
   Style.self({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.2rem',
-    paddingBlock: chipInset,
+    position: 'relative',
+    display: 'block',
+    boxSizing: 'border-box',
+    paddingBlock: `calc((${chipLine} + 2 * ${chipInset} - 1ex) / 2)`,
     paddingInlineStart: '0.6rem',
-    paddingInlineEnd: chipInset,
+    paddingInlineEnd: buttonRoom,
+    textBox: 'trim-both ex alphabetic',
     borderRadius: ref.radius.full,
     // A step off the field the other way from `muted`, which is a recessed
     // step: lighter in a dark scheme, darker in a light one.
@@ -89,9 +98,11 @@ const stroke = (turn: string) => ({
 export const chipRemove: StyleValue = component(
   Style.self({
     '--_fk-chip-sign': ref.text.muted,
-    position: 'relative',
-    // The chip's own line tall, so the chip's inset is the same on every side of it.
-    flex: 'none',
+    // The chip's own line tall, at the end of the pill with the same inset above, below and after.
+    position: 'absolute',
+    insetBlock: '0',
+    insetInlineEnd: chipInset,
+    marginBlock: 'auto',
     inlineSize: role('caption').lineHeight,
     blockSize: role('caption').lineHeight,
     padding: '0',

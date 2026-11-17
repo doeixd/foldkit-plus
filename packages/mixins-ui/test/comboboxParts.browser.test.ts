@@ -6,6 +6,7 @@
  * remove button takes back, and the clear button empties the field while
  * the field keeps the focus.
  */
+import { chipMeasures } from './chipMeasures.js'
 import { Schema } from 'effect'
 import * as UpstreamCombobox from '@foldkit/ui/combobox'
 import * as Command from 'foldkit/command'
@@ -177,6 +178,12 @@ test('the chosen values are chips, and a remove button takes one back', async ()
   // The chips sit in the field, before the input.
   const field = document.getElementById('city-input-wrapper')!
   expect(field.contains(document.querySelector('ul'))).toBe(true)
+  // The chips are TagsInput's: the label's x-height band and the mark on the pill's middle.
+  for (const chip of document.querySelectorAll<HTMLElement>('li')) {
+    const measures = chipMeasures(chip)
+    expect(Math.abs(measures.xBand)).toBeLessThanOrEqual(0.8)
+    expect(Math.abs(measures.mark)).toBeLessThanOrEqual(0.5)
+  }
   await userEvent.click(document.querySelector('[aria-label="Remove Lima"]')!)
   await vi.waitFor(() =>
     expect([...document.querySelectorAll('li')].map(chip => chip.firstChild?.textContent)).toEqual([

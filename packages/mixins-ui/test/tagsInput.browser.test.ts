@@ -12,6 +12,7 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { cdp, userEvent } from 'vitest/browser'
+import { chipMeasures } from './chipMeasures.js'
 import { holdFrames } from './frames.js'
 import { Recipes, TagsInput, TagsInputSlots } from '../src/index.js'
 
@@ -387,6 +388,40 @@ test('a chip holds its remove button as the pill’s end cap: equal room on thre
     // The text stays in the button for a copy and a search, drawn at no size.
     expect(button.textContent).toBe('×')
     expect(getComputedStyle(button).fontSize).toBe('0px')
+  } finally {
+    handle.dispose()
+  }
+})
+
+const faces = ['"Segoe UI", sans-serif', 'Verdana, sans-serif', 'Georgia, serif']
+const roundness = ['0.45', '1', '2']
+const textScales = ['1', '1.5']
+
+test.each(faces)('the label and the mark are centred on the pill’s middle, in %s', async face => {
+  const handle = mount(['foldkit', 'effect', 'typing'])
+  try {
+    await vi.waitFor(() => expect(document.querySelectorAll('li button')).toHaveLength(3))
+    for (const radius of roundness) {
+      for (const scale of textScales) {
+        const sheet = document.createElement('style')
+        sheet.dataset['test'] = ''
+        sheet.textContent = `:root{--fk-knob-radius-factor:${radius};--fk-knob-text-scale:${scale}}body{font-family:${face}}`
+        document.head.append(sheet)
+        for (const chip of document.querySelectorAll<HTMLElement>('li')) {
+          const m = chipMeasures(chip)
+          const where = `${face} radius ${radius} scale ${scale}: ${JSON.stringify(m)}`
+          // The x-height band, which the eye centres lowercase on, is in the pill's middle: to within
+          // the ink's overshoot, which a serif's canvas measure reads as up to a pixel at 12px.
+          expect(Math.abs(m.xBand), where).toBeLessThanOrEqual(0.8)
+          expect(Math.abs(m.mark), where).toBeLessThanOrEqual(0.5)
+          // Clear of the end cap's curve at the start: about half the pill's height.
+          expect(Math.abs(m.startRoom - m.height / 2), where).toBeLessThanOrEqual(1.5)
+          // The button's room after it is the room above it: the end cap's own circle.
+          expect(m.endRoom, where).toBeCloseTo(m.verticalRoom, 1)
+        }
+        sheet.remove()
+      }
+    }
   } finally {
     handle.dispose()
   }
