@@ -21,11 +21,11 @@ application with its data rendered on the server.
 
 `foldkit-site` owns **where the application is**, and nothing else:
 
-```text
-Site        "What location are we at, and what is around it?"
-Surface     "What may this location observe, and which Messages may it cause?"
-Remote      "What server facts do those observations require?"
-```
+`foldkit-site` answers three questions in turn, and owns only the first:
+
+- **Site:** what location are we at, and what is around it?
+- **Surface:** what may this location observe, and which Messages may it cause?
+- **Remote:** what server facts do those observations require?
 
 It owns no Model, runs no Effects, dispatches no Messages, and fetches
 nothing. A node lowers to an ordinary Foldkit Router (which it is built
@@ -35,13 +35,9 @@ become another store, async runtime, or cache, it does not belong here.
 
 ## The mental model
 
-```text
-Foldkit Router (per node)     URL <-> typed route value
-        +
-Site tree                       route value -> chain, metadata, Surfaces
-        +
-Surface / Remote / SSR          the existing consumers of those answers
-```
+A Foldkit Router per node turns a URL into a typed route value and back. The Site
+tree turns a route value into a chain, metadata and Surfaces. Surface, Remote and
+SSR are the existing consumers of those answers.
 
 A node is a stable first-class value: mounting it in a tree never mutates
 it, so the same node builds targets, hrefs, and inspection wherever it is

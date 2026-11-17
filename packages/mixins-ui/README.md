@@ -22,15 +22,14 @@ when it takes over. A fact about the environment, such as whether the browser ha
 an eyedropper, is an input the application keeps in its Model, read once in `init`
 or by a Command after hydration (see [ColorPicker](#colorpicker)).
 
-```text
-@foldkit/ui          owns component state, accessibility behavior and base attributes
-foldkit-mixins       owns Slot / Style / Behavior and the resolver that merges them safely
-foldkit-primitives   owns the interaction primitives widgets compose (focus recovery,
-                     roving tab stops, drags, scroll bars, clipboard)
-foldkit-mixins-ui    names the bundles as Slots, draws the widgets that have no upstream,
-                     and ships their recipes and accessibility patterns
-the application      owns the values, and every transition of them
-```
+- `@foldkit/ui` owns component state, accessibility behavior and base attributes.
+- `foldkit-mixins` owns Slot, Style and Behavior and the resolver that merges them
+  safely.
+- `foldkit-primitives` owns the interaction primitives widgets compose (focus
+  recovery, roving tab stops, drags, scroll bars, clipboard).
+- `foldkit-mixins-ui` names the bundles as Slots, draws the widgets that have no
+  upstream, and ships their recipes and accessibility patterns.
+- The application owns the values, and every transition of them.
 
 Every shipped recipe is on the website's
 [component pages](https://foldkit-plus.pages.dev/components), each with its
@@ -62,22 +61,9 @@ An `@foldkit/ui` component hands its caller attribute bundles (roles, `aria-*`,
 `tabindex`, event handlers, `ChildAttribute`s). A raw array is not a public
 customization contract: a caller can add a second `OnClick`, replace something
 structural, or repeat merge code at every call site. `foldkit-mixins-ui` gives
-each bundle a stable Slot name:
-
-```text
-@foldkit/ui component
-        |
-        | attribute bundles
-        v
-foldkit-mixins-ui Slots
-        |
-        | Style + Behavior
-        v
-foldkit-mixins resolver
-        |
-        v
-component-owned attrs + safe additions
-```
+each bundle a stable Slot name. Style and Behavior attach to those Slots, and the
+`foldkit-mixins` resolver merges them into the component's own attributes plus the
+caller's safe additions.
 
 The component keeps control of the component, and callers get a typed place to
 extend it. A view of this package's own draws its markup through the same Slots,
@@ -126,17 +112,8 @@ The important line is:
 toView: Button.toView(mixins, { h }, draw)
 ```
 
-```text
-attributes from @foldkit/ui
-          +
-Style / Behavior mixins
-          |
-          v
-Button.toView(...)
-          |
-          v
-draw(resolved slot arrays)
-```
+`Button.toView(...)` takes the attributes from `@foldkit/ui` and your Style and
+Behavior mixins, and calls `draw` with the resolved slot arrays.
 
 `UiButton.view` builds the component's base attributes, including the click
 Message, and calls `toView` with them. `Button.toView` applies the style to

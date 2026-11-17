@@ -28,12 +28,12 @@ drawn with are [`foldkit-mixins`](../mixins). Replicated or durable state is
 For keyboard, pointer and focus patterns (the `interaction` subpath) the model is
 four parts:
 
-```text
-Bundle    holds the state and Messages          (which item is current, what is held)
-Mount     reports a DOM fact to a Message       (a press, a drag, where focus went)
-Behavior  attaches both to a view's typed Slots (tabindex, aria-*, handlers)
-Command   does a DOM effect the Model caused    (focus this row once it is drawn)
-```
+- A **Bundle** holds the state and Messages: which item is current, what is held.
+- A **Mount** reports a DOM fact to a Message: a press, a drag, where focus went.
+- A **Behavior** attaches both to a view's typed Slots: `tabindex`, `aria-*`,
+  handlers.
+- A **Command** does a DOM effect the Model caused: focus this row once it is
+  drawn.
 
 A widget's keys are `Behaviors.Keys` routes, the one `keydown` owner of a slot,
 so an application adds a key beside them instead of fighting them.

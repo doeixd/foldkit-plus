@@ -45,23 +45,22 @@ one to a Remote operation, and `foldkit-guard` writes its rules as `Expr`.
 
 ## Mental model
 
-```text
-Entity
- ├── fields      intrinsic values: the properties of entity.schema
- ├── relations   navigation edges: one / many of another Entity (Entity.relate)
- ├── derived     readable values an interpreter supplies, counts or finds
- ├── members     all three under one namespace; keys never collide
- ├── sets        members the write's context fills (who asks, when)
- └── invariants  what every stored row must hold (Entity.invariant)
+An Entity is declared once, as data. It has:
 
-over it, as data:
- Selection   which members a consumer reads            Entity.select
- Query       which rows, in which order                Query.from · Expr
- Write       what one operation does to one row        Write.update / insert / delete
+- **fields**: intrinsic values, the properties of `entity.schema`;
+- **relations**: navigation edges, one or many of another Entity (`Entity.relate`);
+- **derived** values: readable values an interpreter supplies, such as counts or finds;
+- **members**: all three under one namespace, so keys never collide;
+- **sets**: members the write's context fills (who asks, when);
+- **invariants**: what every stored row must hold (`Entity.invariant`).
 
-interpreter ──(foldkit-metadata)──► Entity / member        attaches what it needs
-interpreter ◄── reads all of the above, and runs it (SQL, the client's store)
-```
+Over an Entity, also as data, a **Selection** says which members a consumer reads
+(`Entity.select`), a **Query** says which rows in which order (`Query.from` and
+`Expr`), and a **Write** says what one operation does to one row (`Write.update`,
+`insert`, `delete`).
+
+An interpreter reads all of that and runs it: SQL, or the client's store. Through
+`foldkit-metadata` it can attach to an Entity or a member what it needs.
 
 A declaration is checked where it is made wherever it can be: a type error
 where the types can see it, a throw for what they cannot. An interpreter that

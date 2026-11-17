@@ -76,13 +76,13 @@ and the checks that the browser can start from it.
 
 ## The mental model
 
-```text
-server   init ──▶ Model ──┬── plan.state ──▶ slice ──▶ envelope   (JSON on the stamped root)
-                          └── view ──▶ HTML                        (checked, see below)
+On the server, `init` makes the Model. The plan's `state` turns it into a slice,
+which goes into an envelope as JSON on the stamped root, and the view turns the
+same Model into HTML, which is checked (see below).
 
-browser  envelope ──▶ baseline with the slice set on it ──▶ Model
-         Model + the server's HTML ──▶ Runtime.hydrate adopts ──▶ plan.boot Commands
-```
+In the browser, the envelope sets the slice onto the baseline Model, and that is
+the first Model. `Runtime.hydrate` adopts the server's HTML with that Model, and
+then the plan's `boot` Commands run.
 
 The one rule everything else serves: **the browser's first Model renders the
 same page the server sent.** The browser's Model is the plan's baseline, by
