@@ -90,10 +90,18 @@ test('the scheme and direction reach the root, and RTL swaps the arrow keys', as
     await page.locator('#cascade').screenshot({ path: `${shots}/ds2-cascade-dark.png` })
   }
   await page.getByRole('radio', { name: 'Rtl' }).click()
-  expect(await page.evaluate(() => document.documentElement.dir)).toBe('rtl')
-  await page.getByRole('radio', { name: 'Rtl' }).focus()
+  await expect.poll(() => page.evaluate(() => document.documentElement.dir)).toBe('rtl')
+  // The arrow keys are bound by the frame that draws the direction: press only once it is drawn.
+  await expect
+    .poll(() => page.getByRole('radio', { name: 'Rtl' }).getAttribute('aria-checked'))
+    .toBe('true')
+  // Three schemes, so a swap and a wrap-around differ: with Dark last, ArrowRight in LTR wraps
+  // to System, and in RTL goes back to Light. (Of two directions either key reaches the other.)
+  await page.getByRole('radio', { name: 'Dark' }).focus()
   await page.keyboard.press('ArrowRight')
-  expect(await page.getByRole('radio', { name: 'Ltr' }).getAttribute('aria-checked')).toBe('true')
+  await expect
+    .poll(() => page.getByRole('radio', { name: 'Light' }).getAttribute('aria-checked'))
+    .toBe('true')
   await page.close()
 })
 
