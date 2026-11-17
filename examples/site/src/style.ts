@@ -32,8 +32,16 @@ const { t, slots, stylesheet } = AppStyle.make({
 
 export { stylesheet }
 
+/** Seven tenths of the way from the page to `subtle`: the muted step is a mid grey that dims the syntax colors. */
+const codeSurface = `color-mix(in oklab, ${t.surface.subtle} 70%, ${t.surface.base})`
+
 /** The site's code: the shipped recipe, colored from the theme's `syntax` group. */
-export const CodeStyle = Style.forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
+export const CodeStyle = Style.forSlots(CodeBlockSlots)(
+  Recipes.CodeBlock.extend({
+    // The example frames' surface (`codeBox`) in place of the recipe's muted one.
+    base: { root: Style.self({ background: codeSurface }) },
+  })({}),
+)
 
 /**
  * Below this width `/create` stacks its preview and docks its knobs to the
@@ -92,7 +100,7 @@ const navList = Style.compose(
 )
 
 const codeBox = {
-  background: t.surface.muted,
+  background: codeSurface,
   border: rule,
   borderRadius: t.radius.md,
 }
