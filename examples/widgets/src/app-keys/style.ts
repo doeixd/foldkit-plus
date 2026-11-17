@@ -7,7 +7,14 @@ const { t } = AppStyle.make({})
 export const appKeysStyle = (slots: typeof AppKeysSlots) =>
   Style.forSlots(slots)(
     {
-      root: Style.self({ display: 'grid', gap: t.space.md, maxInlineSize: '32rem' }),
+      // One column that may shrink: an auto track is as wide as the Command's
+      // 32rem, which a phone's section is not.
+      root: Style.self({
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr)',
+        gap: t.space.md,
+        maxInlineSize: '32rem',
+      }),
       note: Style.self({ color: t.text.muted, margin: '0' }),
       status: Style.self({ display: 'grid', gap: t.space['2xs'] }),
       line: Style.self({ margin: '0' }),
