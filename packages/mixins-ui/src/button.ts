@@ -9,6 +9,7 @@ import {
   type SlotAttributes,
 } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
 /**
@@ -85,6 +86,27 @@ export interface ButtonView<Message> {
    */
   readonly attributes?: { readonly [K in keyof typeof ButtonSlots]?: SlotAttributes<Message> }
 }
+
+/** What a Button is given once: its look and each option that holds no Message, state or drawing. */
+export type ButtonPreset = Pick<ButtonView<never>, 'style' | 'type'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Button: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both. `mixins` concatenate in that
+ * order; a style given at the call replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<ButtonPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: ButtonView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})
 
 export const view = <Message>(options: ButtonView<Message>, h: HtmlBuilder<Message>): Html =>
   buttonView(

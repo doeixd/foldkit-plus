@@ -18,6 +18,7 @@ import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -312,6 +313,29 @@ export interface TagsInputView<Message> {
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
 }
+
+/** What a TagsInput is given once: its look and each option that holds no Message. */
+export type TagsInputPreset = Pick<
+  TagsInputView<never>,
+  'style' | 'placeholder' | 'addOnBlur' | 'direction' | 'words'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own TagsInput: `base` for every use, `presets` chosen at
+ * a use with `preset`, and the call over both. `mixins` concatenate in that
+ * order and `words` merge word by word; any other option given at the call
+ * replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<TagsInputPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: TagsInputView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})
 
 const refusalText = (refusal: Refusal): string =>
   Refusal.match(refusal, {
