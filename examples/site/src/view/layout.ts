@@ -52,7 +52,7 @@ export const Body = ({ model, library }: Input, h: H) =>
       page: (slots, h) =>
         Page.match(model.page, {
           Components: () => componentsPage(model, slots, h),
-          Primitives: () => primitivesPage(model, slots, h),
+          Primitives: () => primitivesPage(model, library, slots, h),
           Component: ({ slug }) =>
             Option.match(showcaseOf(slug), {
               onNone: () => missing(model, slots, h),

@@ -33,6 +33,7 @@ import {
   initialTabs,
   pickedTheme,
 } from './gallery/studio.js'
+import * as PrimitiveBundles from './gallery/primitiveBundles.js'
 import * as Widgets from './gallery/widgets.js'
 import * as WidgetsUpdate from './gallery/widgetsUpdate.js'
 import {
@@ -66,6 +67,8 @@ const decodePack = Schema.decodeUnknownOption(Pack)
 
 export const Model = Schema.Struct({
   ...Shell.fields,
+  /** The primitives the Primitives gallery runs. */
+  ...PrimitiveBundles.fields,
   /** Whether a link to the theme was copied since the knobs last moved. */
   linkCopied: Schema.Boolean,
   /** Whether `/create` has read its address, before which it writes none. */
@@ -105,6 +108,7 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   ...Shell.cases,
+  ...PrimitiveBundles.cases,
   PressedCopyLink: {},
   CopiedLink: {},
   FoundThemeAddress: { query: Schema.String },
@@ -138,6 +142,10 @@ const Parent = Bundle.parent({ Model, Message })
 const placements = Parent.assemble(
   Parent.at(Shell.Dark),
   Parent.at(Shell.Ticks, { args: { intervalMs: 1000 } }),
+  Parent.at(PrimitiveBundles.Connection),
+  Parent.at(PrimitiveBundles.Window),
+  Parent.at(PrimitiveBundles.Fade, { args: { from: 0, to: 100, ms: 1500 } }),
+  Parent.at(PrimitiveBundles.Note, { args: { initial: '' } }),
 )
 
 // COMMAND
@@ -643,6 +651,10 @@ const planOf = (withMeta: boolean) =>
       App.model.pageScheme,
       App.model.dark,
       App.model.ticks,
+      App.model.online,
+      App.model.windowSize,
+      App.model.fade,
+      App.model.note,
     ],
     // The server cannot know a reader's scheme; the head script applied it.
     // Nor the theme a link carries, which every page's previews are drawn in.

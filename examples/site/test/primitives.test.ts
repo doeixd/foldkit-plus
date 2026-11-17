@@ -7,7 +7,9 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+import { regionsOf } from '../src/content/library.js'
 import { families, importPath, partsOf } from '../src/gallery/primitives.js'
+import { examples } from '../src/snippets/primitives.js'
 
 const SOURCE = join(import.meta.dirname, '../../../packages/primitives/src')
 const manifest: { readonly exports: Readonly<Record<string, unknown>> } = JSON.parse(
@@ -53,5 +55,17 @@ describe('the primitives gallery', () => {
     const abouts = families.flatMap(family => family.cards.map(card => card.about))
     expect(new Set(abouts).size).toBe(abouts.length)
     for (const about of abouts) expect(about.endsWith('.')).toBe(true)
+  })
+
+  it('shows each live example with the source that runs, and each source belongs to an example', () => {
+    const regions = regionsOf(
+      readFileSync(join(import.meta.dirname, '../src/snippets/primitives.ts'), 'utf8'),
+    )
+    expect([...regions.keys()].sort()).toEqual(examples.map(example => example.id).sort())
+    const ids = new Set(families.map(family => family.id))
+    for (const example of examples) {
+      expect(ids.has(example.family), example.id).toBe(true)
+      expect(regions.get(example.id), example.id).toContain(example.draw.name)
+    }
   })
 })

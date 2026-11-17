@@ -464,6 +464,25 @@ export const SiteStyle = slots(
       borderBlockStart: rule,
     },
     liveValue: { ...mono, color: t.text.subtle, overflowWrap: 'anywhere' },
+    // A bar as full as `--filled` says: the tween example's value, drawn.
+    liveBar: {
+      blockSize: '0.5rem',
+      marginBlockEnd: t.space.sm,
+      borderRadius: t.radius.sm,
+      background: `linear-gradient(to right, ${t.text.overt} var(--filled, 0%), ${t.surface.muted} var(--filled, 0%))`,
+    },
+    liveField: Style.slot({ capability: Capability.Focusable }, [
+      {
+        font: 'inherit',
+        padding: `${t.space['2xs']} ${t.space.xs}`,
+        marginInlineEnd: t.space.xs,
+        border: rule,
+        borderRadius: t.radius.sm,
+        background: t.surface.base,
+        color: t.text.default,
+      },
+      focus,
+    ]),
     liveButton: Style.slot({ capability: Capability.Interactive }, [
       {
         marginInlineStart: t.space.xs,

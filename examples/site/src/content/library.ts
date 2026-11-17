@@ -13,6 +13,7 @@ import { compilerOptionsOf, extract, packageSource } from '../api/extract.js'
 import { allSubsites, type Subsite } from '../catalog.js'
 import { README, topicsFor } from '../gallery/related.js'
 import { showcaseOf, showcases } from '../gallery/showcases.js'
+import { examples as primitiveExamples } from '../snippets/primitives.js'
 import {
   COMPONENTS,
   CREATE,
@@ -318,6 +319,17 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     else for (const example of showcase.examples) usage(`${showcase.slug}-${example.name}`)
   }
 
+  const primitiveRegions = regionsOf(
+    readFileSync(join(repository, 'examples/site/src/snippets/primitives.ts'), 'utf8'),
+  )
+  const primitive = (id: string): Draw => {
+    const code = primitiveRegions.get(id)
+    if (code === undefined) throw new Error(`src/snippets/primitives.ts has no region ${id}`)
+    return ih => [codeBlock(ih, highlight, { code, lang: 'ts', copy: true })]
+  }
+  // Every example's region read now, so a missing one fails the build, not one page.
+  for (const example of primitiveExamples) primitive(example.id)
+
   // The README's own resolver: a heading it no longer has leads to the README's first page, not nowhere.
   const readmeLink = guides.linksFrom(README)
   const related =
@@ -371,6 +383,7 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     outline: path => outline(pageOf(path)),
     example,
     usage,
+    primitive,
     related,
   }
 }

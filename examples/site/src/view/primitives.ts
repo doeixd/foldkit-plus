@@ -3,9 +3,12 @@
  * the package's modules, grouped by the subpath it is imported from.
  */
 import type { Html } from 'foldkit/html'
+import { SSR } from 'foldkit-ssr/client'
 
 import { families, importPath, type Card, type Family } from '../gallery/primitives.js'
+import type { Library } from '../library.js'
 import { type Model } from '../main.js'
+import { examples, type PrimitiveExample } from '../snippets/primitives.js'
 import type { H, Slots } from './layout.js'
 
 const GUIDE = '/primitives'
@@ -49,7 +52,26 @@ const card = (family: Family, entry: Card, slots: Slots, h: H): Html =>
     ],
   )
 
-const familySection = (family: Family, slots: Slots, h: H): Html =>
+/** A running example: what it says, the primitive running in this page's Model, and its source. */
+const exampleBlock = (
+  model: Model,
+  example: PrimitiveExample,
+  library: Library,
+  slots: Slots,
+  h: H,
+): Html =>
+  h.div(slots.live.attrs([h.Id(example.id), h.AriaLabelledBy(`${example.id}-title`)]), [
+    h.h3(slots.cellTitle.attrs([h.Id(`${example.id}-title`)]), [example.title]),
+    h.p(slots.cellText.attrs(), withCode(h, example.text)),
+    // Until the browser has taken the page over, the served markup has no handler.
+    h.div(
+      slots.liveRow.attrs(model.addressRead ? [] : [h.Attribute('inert', ''), h.AriaBusy(true)]),
+      [example.draw(model, slots, h)],
+    ),
+    h.div(slots.themeCode.attrs(), [SSR.static(example.id, library.primitive(example.id))]),
+  ])
+
+const familySection = (model: Model, family: Family, library: Library, slots: Slots, h: H): Html =>
   h.section(slots.shelf.attrs([h.Id(family.id), h.AriaLabelledBy(`${family.id}-title`)]), [
     h.div(slots.shelfHead.attrs(), [
       h.h2(slots.shelfTitle.attrs([h.Id(`${family.id}-title`)]), [family.title]),
@@ -59,13 +81,21 @@ const familySection = (family: Family, slots: Slots, h: H): Html =>
         h.a([h.Href(`${GUIDE}/${family.id}`)], [`${importPath(family.id)} guide →`]),
       ]),
     ]),
+    ...examples
+      .filter(example => example.family === family.id)
+      .map(example => exampleBlock(model, example, library, slots, h)),
     h.ul(
       slots.cards.attrs(),
       family.cards.map(entry => card(family, entry, slots, h)),
     ),
   ])
 
-export const primitivesPage = (_model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+export const primitivesPage = (
+  model: Model,
+  library: Library,
+  slots: Slots,
+  h: H,
+): ReadonlyArray<Html> => [
   h.section(slots.hero.attrs(), [
     h.h1(slots.heroTitle.attrs(), [
       'Primitives. ',
@@ -80,5 +110,5 @@ export const primitivesPage = (_model: Model, slots: Slots, h: H): ReadonlyArray
       ' for the model, or pick a family below.',
     ]),
   ]),
-  ...families.map(family => familySection(family, slots, h)),
+  ...families.map(family => familySection(model, family, library, slots, h)),
 ]
