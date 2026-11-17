@@ -13,6 +13,7 @@ import {
   filledHover,
   focusRing,
   focusWithin,
+  HOVERED,
   onLadder,
   ref,
   steps,
@@ -134,6 +135,11 @@ export const Textarea = Style.recipeFor(TextareaSlots)({
           border: '0',
           background: 'transparent',
           boxShadow: 'none',
+        }),
+        // `filledHover` styles the text under the pointer too, with a selector of its own
+        // that outweighs the rule above; this one repeats it with the frame's weight on top.
+        Style.nest(`:is([data-textarea-frame]) > &${HOVERED}:not(:has(:disabled))`, {
+          backgroundColor: 'transparent',
         }),
         Style.nest(':is([data-textarea-frame]) > &:focus-visible', { outline: 'none' }),
       ),
