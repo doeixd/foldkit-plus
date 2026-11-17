@@ -15,7 +15,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/badge.ts',
-        find: 'borderRadius: ref.radius.xl,',
+        find: 'borderRadius: ref.radius.full,',
         replace: "borderRadius: '9999px',",
       },
     ],

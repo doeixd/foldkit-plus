@@ -73,8 +73,8 @@ export default [
   ),
   grid(
     'a paste lands while the form is open',
-    "Match.tag('Pasted', 'FillRequested', 'UndoRequested', 'RedoRequested', () => ({",
-    "Match.tag('FillRequested', 'UndoRequested', 'RedoRequested', () => ({",
+    "Match.tag('Pasted', 'Copied', 'FillRequested', 'UndoRequested', 'RedoRequested', () => ({",
+    "Match.tag('Copied', 'FillRequested', 'UndoRequested', 'RedoRequested', () => ({",
   ),
   grid('a typed edit leaves the form open', "            'EditTyped',\n", ''),
   grid(

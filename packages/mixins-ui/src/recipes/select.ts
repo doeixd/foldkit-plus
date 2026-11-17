@@ -12,6 +12,7 @@ import { SelectSlots } from '../select.js'
 import { ladder, role } from 'foldkit-mixins/theme'
 import {
   component,
+  filledHover,
   controlCorner,
   disabled,
   focusRing,
@@ -57,7 +58,9 @@ export const Select = Style.recipeFor(SelectSlots)({
         ...transition('border-color, background-color'),
       }),
       Style.pseudo(':dir(rtl)', at('left')),
-      Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: ref.outline.overt }),
+      Style.pseudo(':hover:not(:focus, :disabled, [aria-invalid="true"])', {
+        borderColor: ref.outline.overt,
+      }),
       Style.pseudo(':has(option[value=""]:checked)', { color: ref.text.muted }),
       Style.nest('& option', { color: ref.text.default }),
       // Invalidity reads DOM state, so it goes through `states`.
@@ -96,6 +99,9 @@ export const Select = Style.recipeFor(SelectSlots)({
       filled: {
         select: variant(
           Style.self({ backgroundColor: ref.surface.field, borderColor: 'transparent' }),
+          filledHover,
+          // The variant's transparent edge beats the base's error edge.
+          Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
         ),
       },
     },

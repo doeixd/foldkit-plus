@@ -65,6 +65,33 @@ rejects ambiguous ownership instead of silently choosing a winner.
           ordinary Foldkit attributes
 ```
 
+Styling has a pipeline of its own, read left to right, and each step is checked by the one before:
+
+```text
+tokens -> ref -> pieces -> slots -> sheet
+```
+
+`Theme.tokens` are the only values; `Theme.ref` reads them by name; a Style piece is built from the
+refs; `Style.forSlots` puts pieces on a Slot; `Style.stylesheet` collects the rules into the
+layers a page installs. [Style](#style-appearance-as-data) and
+[Themes](#themes-as-typed-knobs) cover it.
+
+### Where to look
+
+| You want to | Read |
+| --- | --- |
+| Make a view customizable | [Quick start](#quick-start), [Slots](#slots-the-public-contract) |
+| Restyle a view, or install a theme | [Style](#style-appearance-as-data), [Themes as typed knobs](#themes-as-typed-knobs) |
+| Add behavior to an element | [Behavior](#behavior-reusable-element-level-interaction) |
+| Let an application add a key to a widget | [Keys](#keys-one-owner-for-a-slots-keydown): the widget takes `routes`, and a clash is `mixins:key-conflict` |
+| Declare and check who provides an accessibility obligation | [Obligations](#obligations-who-does-what-a-pattern-asks): `provides`, `A11y.base`, `A11y.native`, `A11y.delegated`, `A11y.conform` |
+| Run the conformance scenarios over a widget | [Conformance](#conformance-the-rendered-check): `Conformance.listbox`, `.tree`, `.dialog`, `.tabs`, `.checkbox`, `.server` |
+| See what a view's attachments do | [Describing a view](#describing-a-view-and-what-one-input-resolves-to): `SlotView.describe`, `SlotView.resolution` |
+| Redraw only what changed | [Parts](#parts-redraw-only-what-changed), [Regions](#regions-redraw-by-the-model-paths-read) |
+| Test a view, or render it with no runtime | [Testing and static output](#testing-and-static-output) |
+
+To build a component of your own from Slots, primitives and a recipe, one concept at a time, follow [Authoring components](../../docs/authoring-components.md).
+
 ## Why not just `className` and props?
 
 A class name says only "append this string." A slot is a **typed public customization point**.
@@ -104,7 +131,8 @@ projection, and `foldkit-mixins-ui` adapts `@foldkit/ui` components.
 
 The design-system pieces are subpaths, so an application that only attaches classes pays for
 none of them: `foldkit-mixins/layers`, `/theme`, `/layout`, `/defaults`, `/prose`, `/utilities`
-and `/app`.
+and `/app`. `foldkit-mixins/testing` holds `Conformance`, and `/foundations` the first-paint
+rules.
 
 ## Quick start
 
@@ -377,6 +405,18 @@ round) is refused when the style is defined, with
 it, so clearing `borderColor` also cleared the color `border` set, and the
 element kept a `currentColor` border after the state ended.
 
+An inline declaration beats every rule, layers included, so a conditional rule for the same
+property in the same composition never applies: `Style.compose(Style.inline({ padding: '1.75rem' }),
+Style.media('(max-width: 30rem)', { padding: '1rem' }))` is refused when composed, with
+`mixins:dead-conditional-rule` naming the property, the condition and the fix, which is to put the
+base in `Style.self`. It is a development-time check, like `mixins:inline-shorthand-conflict`
+beside it: Vite folds `import.meta.env.DEV` away in a production build, so neither check nor its
+text reaches a page (a build without Vite's `import.meta.env` skips them too). A media, pseudo, nest, container, supports or `states` rule, and a rule inside
+`whenInput`, counts, as does a shorthand against its longhand (`padding` and `paddingInline`, either
+way round); a rule marked `!important` beats inline and passes. An inline declaration that exists
+only when the view chooses it or per item is not known when the style is defined, and two Styles
+attached to one slot meet only as classes and inline text, so neither is checked.
+
 Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule pieces are:
 
 - `Style.states({ open: { opacity: '1' } })` compiles to `&[data-state="open"]`, for Behaviors that
@@ -538,6 +578,55 @@ On `ThemeFollowed`, `update` sets the Model's field and returns `Themes.apply(th
 `SchemeFollowed` it returns `Theme.chooseScheme(scheme)`. Kept knobs have no stream:
 `Theme.chooseKnobs` stores CSS variable declarations, which do not map back to a theme's knobs.
 
+### Switching themes in a page with no style compiler
+
+`Themes.make` compiles the themes, so a page built with `foldkit-mixins/vite`'s `modules`, which
+ships no style compiler, cannot import it. The functions that only show, keep and hear a theme
+need no compiled theme: `foldkit-mixins/theme/runtime` exports them (the same functions as
+`Themes.apply`, `Themes.choose`, `Themes.script` and `themeChanges`) over `ThemeNames`, the
+names, the initial name and the root attribute, which a compiled `Themes` already is. A page
+without the compiler declares its own, typed by a type-only import of the compiled set so the
+names cannot drift in type. `foldkit-mixins/theme/knob-data` holds each range knob of
+`Knobs.standard` as plain data, one named export per knob (`shapeDensity` is `{ name: 'shape.density',
+title, variable, unit, min, max, step, default }`; a knob with a light and a dark value is two,
+`accentChromaLight` and `accentChromaDark`), for a panel's sliders. A page keeps only the knobs it
+imports; `knobData`, the same entries by name (`knobData['shape.density']`), is for a panel that
+draws every knob. The file is generated from `Knobs.standard` by
+`pnpm --filter foldkit-mixins generate:knob-data`, and a test fails when it differs.
+
+```ts standalone
+import { Effect, Stream } from 'effect'
+import { shapeDensity } from 'foldkit-mixins/theme/knob-data'
+import {
+  applyTheme,
+  chooseTheme,
+  themeChanges,
+  themeScript,
+  type ThemeNames,
+} from 'foldkit-mixins/theme/runtime'
+
+type Look = 'cobalt' | 'cobaltDense'
+const looks: ThemeNames<Look> = {
+  names: ['cobalt', 'cobaltDense'],
+  initial: 'cobalt',
+  attribute: 'data-theme',
+}
+
+// A Command's effects: the Model's field owns the chosen name, these only show it.
+export const show = (name: Look): Effect.Effect<void> => applyTheme(looks, name)
+export const keep = (name: Look): Effect.Effect<void> => chooseTheme(looks, name)
+// A Subscription's stream: another tab's choice, for `update` to store and answer with `show`.
+export const followed: Stream.Stream<Look> = themeChanges(looks)
+// The text of the head `<script>`, which shows the kept theme before the first paint.
+export const head: string = themeScript(looks)
+export const density = shapeDensity
+```
+
+A name that is not one of `names` is a type error at a call. One read from storage, which nothing
+validated, never reaches a call: the head script leaves the initial theme, and `themeChanges`
+emits the initial theme, exactly as for a compiled set. Neither entry imports style code, so
+`modules` accepts a page that imports only these.
+
 ### The server's first render of the scheme
 
 A server that builds the Model per request reads the browser's hint with
@@ -585,8 +674,11 @@ the surface knobs. Each hue is a knob (`red-h`), and `scale-c` scales every step
 (`--fk-blue-wash-2`, `ref.blue['6']`). The `popup` group is a menu's
 panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `press`, `highlight-ink`):
 `menu.highlight: 'bold'` lights the row in the accent's fill, and `menu.panel` draws the panel
-`inverted` (the other scheme's surface and text) or `translucent` over a blur, as shadcn's menu
-options do.
+as the page's own raised surface (`default`), `inverted` (the other scheme's surface and text) or
+`translucent` over a blur, as shadcn's menu options do. A lit row takes its ink from the surface
+it is on: a popup panel sets `--_fk-row-highlight`, `--_fk-row-press` and
+`--_fk-row-highlight-ink` on itself, and a row outside one (an inline Command) reads the `plain-*`
+tokens, the text's own films or the accent.
 Each is a 0-or-1 knob (`popup-bold`, `popup-invert`) blended by `color-mix`, so an override
 switches it live. The `state` group is what a state lays over the surface under it, a mix of the
 element's own text color (`hover`, and `press` at 1.75 of it; `tint` and `tint-hover`, a
@@ -1007,6 +1099,63 @@ the view's input; none owns anything.
   press-and-hold repeat and the wheel are not handled: Foldkit's wheel
   attribute carries no delta, and a repeat is a timer the Model would own.
 
+### Keys: one owner for a slot's `keydown`
+
+The resolver allows one owner of an event on a slot, so a widget's own keys and the keys an
+application wants to add cannot be two Behaviors on `keydown`. `Behaviors.Keys` is the one owner:
+a widget's keys are named **routes**, and `Keys.behavior` folds the routes it is given into the
+slot's single handler. A route says which presses it takes (`Keys.chord('Escape')`,
+`Keys.printable`, or a `Keys.where` predicate) and what a press means: a Message, or `Keys.focus(id,
+message)` to also move focus to the element with that id. A route that returns `Option.none()`
+declines, and the press goes on to the page.
+
+<!-- docs-check
+import { Option } from 'effect'
+-->
+
+```ts
+const SearchSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  input: Slot.make({ capability: Capability.TextInput, events: [Event.Input, Event.KeyDown] }),
+})
+type SearchInput = { readonly query: string }
+const { Keys } = Behaviors
+
+const clearOnEscape = Keys.route<SearchInput, Message>('ClearOnEscape', {
+  on: [Keys.chord('Escape')],
+  // With nothing to clear the route declines, so Escape reaches the dialog around the field.
+  handle: ({ input }) =>
+    input.query === '' ? Option.none() : Option.some(Message.ChangedValue({ value: '' })),
+})
+
+// A widget takes the application's routes beside its own: this is how foldkit-mixins-ui's
+// Command, SearchField, Tabs, Menubar and others take their `routes` option.
+const searchKeys = (routes: ReadonlyArray<Behaviors.Keys.Route<SearchInput, Message>> = []) =>
+  Keys.behavior(SearchSlots)<SearchInput, Message>({
+    slot: 'input',
+    routes: [clearOnEscape, ...routes],
+  })
+
+// The application adds a key without touching the widget:
+const Submits = searchKeys([
+  Keys.route('Submit', {
+    on: [Keys.chord('Enter')],
+    handle: ({ input }) => Option.some(Message.ChangedValue({ value: input.query.trim() })),
+  }),
+])
+```
+
+Two routes that declare the same chord throw `mixins:key-conflict` when the Behavior is defined,
+naming both, because nothing chains at run time and one press sends at most one Message. Where one
+must win, `Keys.first(a, b)` asks `a` and falls to `b` only if `a` declines. To see a clash without drawing and catching, `Keys.conflict(routes, Option.some('input'))` returns the same diagnostic as an `Option` (`Option.none()` when no two routes declare one press), and takes the slot name only to say it in the message. A chord matches the
+`key` a press reports, so Shift+a is `Keys.chord('A')`; a name that is neither one character nor a
+named key (`'Esc'`) throws `mixins:unknown-key` and says what was meant. A handled press is
+default-prevented, an unhandled one untouched, a key of an IME composition reaches no route, and a
+held key runs its route on every repeat. A Behavior that writes other attributes on the same slot
+(a roving tab stop) installs its keys with `Keys.attribute(routes, { slot })` inside its own
+`attributes`, which is how the primitives expose theirs (`ListNavigation.keys`, `SwipeActions.keys`,
+`Move.nudge`). A key the application only watches, without owning, is a Subscription
+(`keyboardEvents` in `foldkit-primitives/events`), not a route.
 
 ## SlotView
 
@@ -1266,6 +1415,8 @@ Three words stay apart here. A slot contract or a `provides` is **declared**: th
 together. Only a browser test is **rendered**: it says the behaviour happened on a page. None of
 them is WCAG conformance.
 
+### Conformance: the rendered check
+
 `Conformance` from `foldkit-mixins/testing` is the rendered word. Each scenario takes a harness
 and returns its findings as plain data, so a widget and a view assembled from primitives are held
 to one behaviour. `Conformance.harness({ cdp, userEvent })` is the harness for Vitest's browser
@@ -1314,10 +1465,10 @@ attachment must say it does on that slot.
 
 | Obligation | Means | Supplied by |
 | --- | --- | --- |
-| `A11y.Navigation` | arrows, Home and End move among the items | `ListNavigation`, `RovingTabindex`, `TreeNavigation`, `GridNavigation` (container slot) |
-| `A11y.FocusStrategy` | each item is reachable: a roving stop, `aria-activedescendant`, or a native control | the same four (item slot); `A11y.native` |
+| `A11y.Navigation` | arrows, Home and End move among the items | `ListNavigation`, `RovingTabindex`, `TreeNavigation`, `GridNavigation`, `SpatialNavigation` (container slot) |
+| `A11y.FocusStrategy` | each item is reachable: a roving stop, `aria-activedescendant`, or a native control | the same five (item slot); `A11y.native` |
 | `A11y.Activation` | Enter, Space or a press activates it | `Selection` (unless `click: false`), `Press`; `A11y.native` |
-| `A11y.State(attr)` | the attribute is written with a value on every draw | `Selection` (`aria-selected`), `Behaviors.ToggleState`, `Behaviors.Disclosure` (`aria-expanded`) |
+| `A11y.State(attr)` | the attribute is written with a value on every draw | `Selection` (`aria-selected`), `Behaviors.ToggleState` (`aria-checked` or `aria-pressed`), `Behaviors.Disclosure` (`aria-expanded`) |
 | `A11y.Name` | the element has an accessible name | `Behaviors.FieldAssociation`; the view's own label, as `A11y.base` |
 
 Something supplies an obligation in one of four ways: a Behavior slot's `provides`

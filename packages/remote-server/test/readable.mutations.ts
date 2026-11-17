@@ -8,7 +8,13 @@ const tests = ['packages/remote-server/test/readable.test.ts']
 export default [
   {
     name: 'a source read skips its filter',
-    edits: [{ file, find: '  source.filter === undefined', replace: '  true' }],
+    edits: [
+      {
+        file,
+        find: '  source.filter === undefined\n    ? read(fields)',
+        replace: '  true\n    ? read(fields)',
+      },
+    ],
     tests,
   },
   {

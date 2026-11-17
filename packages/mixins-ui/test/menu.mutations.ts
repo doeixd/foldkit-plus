@@ -81,4 +81,74 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a key moves from the row the last drawing showed, not from where the previous key left off',
+    edits: [
+      {
+        file: '../src/menuView.ts',
+        find: '    reached = { ...reached, activeIndex: Option.some(targetIndex) }\n',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'type-ahead refines the query the last drawing held',
+    edits: [
+      {
+        file: '../src/menuView.ts',
+        find: '      searchQuery: nextQuery,\n',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a key after type-ahead moves from the row the last drawing showed',
+    edits: [
+      {
+        file: '../src/menuView.ts',
+        find: '      activeIndex: Option.orElse(maybeTargetIndex, () => reached.activeIndex),\n',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a shut menu opened by a key is still shut for the next key of its drawing',
+    edits: [
+      {
+        file: '../src/menuView.ts',
+        find: '    reached = { ...reached, isOpen: true, activeIndex: Option.some(index) }\n',
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'Enter chooses the row the last drawing showed active',
+    edits: [
+      {
+        file: '../src/menuView.ts',
+        find: `      Match.when('Enter', () =>
+        Option.map(reached.activeIndex,`,
+        replace: `      Match.when('Enter', () =>
+        Option.map(maybeActiveItemIndex,`,
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'Space after letters reads the query the last drawing held',
+    edits: [
+      {
+        file: '../src/menuView.ts',
+        find: `String.isNonEmpty(reached.searchQuery)
+          ? searchForKey`,
+        replace: `String.isNonEmpty(searchQuery)
+          ? searchForKey`,
+      },
+    ],
+    tests: browser,
+  },
 ]

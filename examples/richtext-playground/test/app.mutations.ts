@@ -223,4 +223,30 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the tab stop is rewritten on every focus',
+    edits: [{ file, find: 'Option.contains(model.tabStop, id)', replace: 'false' }],
+    tests,
+  },
+  {
+    name: 'the Image button leaves a menu open',
+    edits: [
+      {
+        file,
+        find: 'OpenedFileDialog: () => ({ model: closed(model), commands',
+        replace: 'OpenedFileDialog: () => ({ model, commands',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'showing the source the panel already shows rewrites the Model',
+    edits: [{ file, find: 'Option.contains(model.source, format)', replace: 'false' }],
+    tests,
+  },
+  {
+    name: 'the direction toggle never goes back',
+    edits: [{ file, find: "direction === 'ltr' ? 'rtl' : 'ltr'", replace: "'rtl'" }],
+    tests,
+  },
 ]

@@ -152,7 +152,7 @@ export default [
   },
   {
     name: "the sheet's rows keep an inverted popup's ink",
-    edits: [{ file: recipe, find: "'--fk-popup-ink': ref.text.default,", replace: '' }],
+    edits: [{ file: recipe, find: "'--_fk-row-highlight-ink': ref.text.default,", replace: '' }],
     tests: browser,
   },
   {
@@ -183,6 +183,20 @@ export default [
         file,
         find: 'on: [...Behaviors.Keys.withShift(key)],',
         replace: 'on: [Behaviors.Keys.chord(key)],',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'an option key moves focus in a Command, which a key before it ran does not wait for',
+    edits: [
+      {
+        file,
+        find: `          Behaviors.Keys.focus(
+            optionId(model.id, STEPS[key](index, choices.length)),
+            onMessage(Message.CompletedFocus()),
+          ),`,
+        replace: '          onMessage(Message.Stepped({ to: STEPS[key](index, choices.length) })),',
       },
     ],
     tests: browser,

@@ -6,8 +6,8 @@
 import type { Html } from 'foldkit/html'
 import { TimerMessage } from 'foldkit-primitives/time'
 
-import { Message, type Model } from '../main.js'
-import type { H, Slots } from './layout.js'
+import { Message, type Model } from '../shell.js'
+import type { H, Slots } from './shellLayout.js'
 
 /** The page that shows them. */
 export const LIVE_PATH = '/primitives'

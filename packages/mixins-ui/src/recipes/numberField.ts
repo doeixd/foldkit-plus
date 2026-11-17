@@ -57,7 +57,10 @@ export const NumberField = Style.recipeFor(NumberFieldSlots)({
         overflow: 'hidden',
         ...transition('border-color'),
       }),
-      Style.pseudo(':hover:not(:focus-within)', { borderColor: ref.outline.overt }),
+      // The input alone: a stepper dims at its bound while the field is in use.
+      Style.pseudo(':hover:not(:focus-within, :has(> input:disabled))', {
+        borderColor: ref.outline.overt,
+      }),
       Style.pseudo(':focus-within', {
         outline: `${ref.border.thick} solid ${ref.outline.focus}`,
         outlineOffset: '2px',

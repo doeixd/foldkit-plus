@@ -156,8 +156,8 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: "key === 'Enter' || key === model.delimiter",
-        replace: "key === 'Enter'",
+        find: "on: [Behaviors.Keys.chord('Enter'), Behaviors.Keys.chord(keys.delimiter)],",
+        replace: "on: [Behaviors.Keys.chord('Enter')],",
       },
     ],
     tests: [unit],
@@ -194,8 +194,8 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: "key === 'Backspace' && model.draft === '' && model.tags.length > 0",
-        replace: "key === 'Backspace' && model.tags.length > 0",
+        find: "model.draft === '' && model.tags.length > 0",
+        replace: 'model.tags.length > 0',
       },
     ],
     tests: [unit],
@@ -205,19 +205,56 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: 'commands: [FocusInput({ id: model.id })],',
-        replace: '',
+        find: 'commands: [',
+        replace: 'commands: undefined && [',
       },
     ],
     tests: [unit],
   },
   {
-    name: 'a removal focuses the element named by the bare id',
+    name: 'a removal focuses a chip by its bare id',
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: 'Dom.focus(`#${inputId(id)}`)',
+        find: 'Dom.focus(RovingTabindex.idSelector(id))',
         replace: 'Dom.focus(`#${id}`)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a removal focuses the input whatever chips are left',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: `id: Option.match(next, {
+              onNone: () => inputId(model.id),
+              onSome: each => chipId(model.id, each),`,
+        replace: `id: Option.match(next, {
+              onNone: () => inputId(model.id),
+              onSome: () => inputId(model.id),`,
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a removal focuses the chip before it',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'tags[Math.min(at, tags.length - 1)]',
+        replace: 'tags[Math.max(0, at - 1)]',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a removal leaves the tab stop where it was',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'chip: () => next,',
+        replace: 'chip: chip => chip,',
       },
     ],
     tests: [unit],
@@ -234,14 +271,267 @@ export default [
     tests: [unit],
   },
   {
+    name: 'Backspace is read from a frame-old draft',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'input.tags.length > 0 && fieldIsEmpty(input)',
+        replace: "input.tags.length > 0 && input.draft === ''",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'Backspace is taken with text in the input',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'input.tags.length > 0 && fieldIsEmpty(input)',
+        replace: 'input.tags.length > 0',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the keys of the application are dropped',
+    edits: [{ file: '../src/tagsInput.ts', find: '...(options.routes ?? []),', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'every chip is a tab stop',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'h.Tabindex(tag === stop ? 0 : -1)',
+        replace: 'h.Tabindex(0)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the tab stop starts on the first chip',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "model.tags.at(-1) ?? ''",
+        replace: "model.tags[0] ?? ''",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the tab stop ignores the chip last moved to',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Option.filter(model.chip, tag => model.tags.includes(tag))',
+        replace: 'Option.none()',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'focus moved to the same chip is a change',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Option.getOrNull(chip) === Option.getOrNull(model.chip)',
+        replace: 'false',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an arrow past the last chip stays on it',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'if (key === forwardKey && at === indices.length - 1) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the chips move by the arrows of a left-to-right page',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: '            direction,\n          })',
+        replace: "            direction: 'ltr',\n          })",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the way out of the chips ignores the direction',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "const forwardKey = direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'",
+        replace: "const forwardKey = 'ArrowRight'",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the arrows wrap round the chips',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'loop: false,',
+        replace: 'loop: true,',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'Delete does not remove a chip',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "on: [Behaviors.Keys.chord('Backspace'), Behaviors.Keys.chord('Delete')],",
+        replace: "on: [Behaviors.Keys.chord('Backspace')],",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the input leaves for the first chip',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'input.tags.at(-1)',
+        replace: 'input.tags.at(0)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the input leaves from any caret',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'caretAtStart(input)\n',
+        replace: 'true\n',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the input leaves with a selection',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'field.selectionStart === 0 && field.selectionEnd === 0',
+        replace: 'field.selectionStart === 0',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a chip cannot be found to focus',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'h.Id(chipId(model.id, tag)),\n',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the input adds nothing when it loses focus',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: '...(options.addOnBlur === true ? [h.OnBlur(lift(Message.Committed()))] : []),',
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the input adds its draft on blur unasked',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'options.addOnBlur === true ? [h.OnBlur',
+        replace: 'true ? [h.OnBlur',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the remove button ignores the words for its name',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'options.words?.remove?.(tag) ?? ',
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the remove button ignores the words for its mark',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "options.words?.mark ?? '×'",
+        replace: "'×'",
+      },
+    ],
+    tests: [unit],
+  },
+  {
     name: 'a disabled field still takes keys',
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: '...(disabled\n            ? [h.Disabled(true)]\n            : [\n',
-        replace: '...(false\n            ? [h.Disabled(true)]\n            : [\n',
+        find: '...(disabled ? [] : [keys.mixin]),',
+        replace: '...[keys.mixin],',
       },
     ],
     tests: [unit],
+  },
+  {
+    name: 'a key removes the chip the last drawing showed, not the one after what the key before removed',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: '          removed.add(tag)\n',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the chip to focus counts a tag a key of this drawing removed',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'tags.filter(each => !removed.has(each))',
+        replace: 'tags.filter(() => true)',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a removing key moves focus in a Command, which a key before it ran does not wait for',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: `            Behaviors.Keys.focus(
+              Option.match(next, {
+                onNone: () => inputId(model.id),
+                onSome: each => chipId(model.id, each),
+              }),
+              lift(Message.Removed({ tag })),
+            ),`,
+        replace: '            lift(Message.Removed({ tag })),',
+      },
+    ],
+    tests: [browser],
   },
 ]

@@ -3,11 +3,20 @@
  * manager, and this package's own manifest.
  */
 import { Option, Schema } from 'effect'
-import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join, relative, sep } from 'node:path'
+import { basename, dirname, join, relative, sep } from 'node:path'
 
 import { declarationsIn, type Declaration, type Doc } from './docs.js'
+import { mismatchNote, nameOf, planInstall, refusal, versionOf, type Existing } from './skill.js'
 import { effectPackages, type Manager, type PnpmSettings, type Project } from './setup.js'
 
 const Versions = Schema.Record(Schema.String, Schema.String)
@@ -187,9 +196,62 @@ const declarationFiles = (dir: string): ReadonlyArray<string> =>
 
 const topicOf = (name: string) => name.replace(/^foldkit-/, '')
 
+const shipsDocs = (dir: string) => existsSync(join(dir, 'skill', 'SKILL.md'))
+
+const markdownIn = (dir: string): ReadonlyArray<string> =>
+  existsSync(dir)
+    ? readdirSync(dir)
+        .filter(file => file.endsWith('.md'))
+        .sort()
+        .map(file => join(dir, file))
+    : []
+
+/** The skill and the guides a `foldkit-plus` in `dir` ships, labelled with its version. */
+const shippedDocs = (dir: string): ReadonlyArray<Doc> => {
+  const label = `foldkit-plus@${readManifest(join(dir, 'package.json')).version ?? 'unversioned'}`
+  const doc = (topic: string, kind: string, path: string): Doc => ({
+    topic,
+    label: `${label} ${kind}`,
+    path,
+    text: readFileSync(path, 'utf8'),
+  })
+  return [
+    doc('skill', 'skill SKILL.md', join(dir, 'skill', 'SKILL.md')),
+    ...markdownIn(join(dir, 'skill', 'references')).map(path =>
+      doc(basename(path, '.md'), `skill references/${basename(path)}`, path),
+    ),
+    ...markdownIn(join(dir, 'guides')).map(path =>
+      doc(basename(path, '.md'), `guide ${basename(path)}`, path),
+    ),
+  ]
+}
+
+/** A path as the project would write it, or in full when it lies outside. */
+const shown = (folder: string, path: string) => {
+  const inside = relative(folder, path)
+  return inside.startsWith('..') ? path : inside.split(sep).join('/')
+}
+
+/** What to tell the reader when the skill in their dot-folder is not the one shipped. */
+const mismatches = (folder: string, shipping: string): ReadonlyArray<string> => {
+  const plus = readManifest(join(shipping, 'package.json')).version ?? 'unversioned'
+  const shipped = versionOf(readFileSync(join(shipping, 'skill', 'SKILL.md'), 'utf8'))
+  return Option.toArray(skillIn(folder)).flatMap(dir =>
+    Option.toArray(
+      Option.flatMap(versionOf(readFileSync(join(dir, 'SKILL.md'), 'utf8')), found =>
+        Option.flatMap(shipped, current =>
+          mismatchNote(shown(folder, dir), found, current, `foldkit-plus@${plus}`),
+        ),
+      ),
+    ),
+  )
+}
+
 /** What `docs` reads for a project: its documents, and a way to look a symbol up in its types. */
 export interface Library {
   readonly docs: ReadonlyArray<Doc>
+  /** Lines for the reader that are no part of an answer. */
+  readonly notes: ReadonlyArray<string>
   readonly declarations: (symbol: string) => ReadonlyArray<Declaration>
 }
 
@@ -200,7 +262,11 @@ export interface Library {
  * `foldkit-plus` adds those it knows. Refuses a folder with no project, a
  * package the project names but has not installed, and a project with none.
  */
-export const libraryIn = (folder: string, family: ReadonlyArray<string>): Library => {
+export const libraryIn = (
+  folder: string,
+  family: ReadonlyArray<string>,
+  ownDir?: string,
+): Library => {
   const project = projectIn(folder)
   if (Option.isNone(project))
     throw new Refusal(
@@ -244,29 +310,13 @@ export const libraryIn = (folder: string, family: ReadonlyArray<string>): Librar
     throw new Refusal(
       `No Foldkit Plus package is installed in ${folder}. \`npx foldkit-plus setup\` says how to install one.`,
     )
-  const skill = Option.match(skillIn(folder), {
-    onNone: () => [],
-    onSome: dir => {
-      const front = readFileSync(join(dir, 'SKILL.md'), 'utf8')
-      const version = /^\s+version:\s*['"]?([^'"\s]+)/m.exec(front)?.[1] ?? 'unversioned'
-      const references = join(dir, 'references')
-      const files = [
-        join(dir, 'SKILL.md'),
-        ...(existsSync(references)
-          ? readdirSync(references)
-              .filter(file => file.endsWith('.md'))
-              .sort()
-              .map(file => join(references, file))
-          : []),
-      ]
-      return files.map(path => ({
-        topic: path.endsWith('SKILL.md') ? 'skill' : relative(references, path).slice(0, -3),
-        label: `foldkit-plus skill ${version} ${relative(dir, path).split(sep).join('/')}`,
-        path,
-        text: readFileSync(path, 'utf8'),
-      }))
-    },
-  })
+  // The skill and guides `foldkit-plus` ships are the ones for the code that
+  // is installed; a project's own copy of the skill is only compared with them.
+  const shipping = [...Option.toArray(plus), ...(ownDir === undefined ? [] : [ownDir])].find(
+    shipsDocs,
+  )
+  const shipped = shipping === undefined ? [] : shippedDocs(shipping)
+  const notes = shipping === undefined ? [] : mismatches(folder, shipping)
   const readmes = installed.flatMap(each => {
     const path = join(each.dir, 'README.md')
     return existsSync(path)
@@ -281,7 +331,8 @@ export const libraryIn = (folder: string, family: ReadonlyArray<string>): Librar
       : []
   })
   return {
-    docs: [...skill, ...readmes],
+    docs: [...shipped, ...readmes],
+    notes,
     // Read only for a symbol; `foldkit-plus`'s own types re-export the others'.
     declarations: symbol => {
       const seen = new Set<string>()
@@ -308,4 +359,84 @@ export const libraryIn = (folder: string, family: ReadonlyArray<string>): Librar
         })
     },
   }
+}
+
+/** The agent folders a project's skill lives in: those already holding one, else the two skills.sh writes. */
+const skillHomes = (folder: string): ReadonlyArray<string> => {
+  const held = readdirSync(folder, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && entry.name.startsWith('.'))
+    .map(entry => entry.name)
+    .filter(name => existsSync(join(folder, name, 'skills', 'foldkit-plus')))
+    .sort()
+  return held.length > 0 ? held : ['.claude', '.agents']
+}
+
+const existingSkill = (target: string): Option.Option<Existing> => {
+  if (!existsSync(target)) return Option.none()
+  const file = join(target, 'SKILL.md')
+  if (!existsSync(file)) return Option.some({ ours: false, version: Option.none() })
+  const text = readFileSync(file, 'utf8')
+  return Option.some({
+    ours: Option.exists(nameOf(text), name => name === 'foldkit-plus'),
+    version: versionOf(text),
+  })
+}
+
+const filesIn = (dir: string): number =>
+  readdirSync(dir, { recursive: true, withFileTypes: true }).filter(entry => entry.isFile()).length
+
+/**
+ * `npx foldkit-plus skill`: the skill shipped with the project's installed
+ * `foldkit-plus` (else with this CLI) copied to `skills/foldkit-plus` under
+ * each agent folder. A folder holding the same version is left alone, and
+ * one holding anything else is refused unless `force`.
+ */
+export const installSkill = (folder: string, force: boolean, ownDir?: string) => {
+  if (Option.isNone(projectIn(folder)))
+    throw new Refusal(
+      `There is no package.json in ${folder}: run this in the application's folder.`,
+    )
+  const source = [
+    ...Option.toArray(installedFrom(folder, 'foldkit-plus')),
+    ...(ownDir === undefined ? [] : [ownDir]),
+  ].find(shipsDocs)
+  if (source === undefined)
+    throw new Refusal(
+      'No foldkit-plus that ships the skill is installed here: install a release that does.',
+    )
+  const from = join(source, 'skill')
+  const shipped = Option.getOrElse(
+    versionOf(readFileSync(join(from, 'SKILL.md'), 'utf8')),
+    () => 'unversioned',
+  )
+  const plus = readManifest(join(source, 'package.json')).version ?? 'unversioned'
+  const lines: Array<string> = []
+  let refused = false
+  for (const home of skillHomes(folder)) {
+    const target = join(folder, home, 'skills', 'foldkit-plus')
+    const where = `${home}/skills/foldkit-plus`
+    const existing = existingSkill(target)
+    const plan = planInstall(existing, shipped, force)
+    if (plan === 'refuse') {
+      refused = true
+      lines.push(
+        Option.match(existing, {
+          onNone: () => '',
+          onSome: found => refusal(where, found, shipped),
+        }),
+      )
+      continue
+    }
+    if (plan === 'current') {
+      lines.push(`${where} is already foldkit-plus skill ${shipped}.`)
+      continue
+    }
+    rmSync(target, { recursive: true, force: true })
+    mkdirSync(dirname(target), { recursive: true })
+    cpSync(from, target, { recursive: true })
+    lines.push(
+      `${plan === 'write' ? 'Wrote' : 'Replaced'} ${where}: foldkit-plus skill ${shipped} from foldkit-plus@${plus} (${filesIn(target)} files).`,
+    )
+  }
+  return { text: lines.map(line => `${line}\n`).join(''), isError: refused }
 }

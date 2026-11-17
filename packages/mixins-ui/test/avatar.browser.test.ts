@@ -108,7 +108,9 @@ test.each(['light', 'dark'] as const)(
           0.3,
         )
       }
-      expect(lch(getComputedStyle(fallbackOf('1 more')).backgroundColor).c).toBeLessThan(0.03)
+      // A named fill's chroma is about 0.024; the count's is the default neutral's (under 0.01), not the name's.
+      expect(ada!.c).toBeGreaterThan(0.015)
+      expect(lch(getComputedStyle(fallbackOf('1 more')).backgroundColor).c).toBeLessThan(0.01)
     } finally {
       handle.dispose()
     }

@@ -36,6 +36,7 @@ import {
   FileDropSlots,
   HoverIntentSlots,
   Icons,
+  IconSlots as UiIconSlots,
   InputSlots,
   ItemSlots,
   KbdSlots,
@@ -48,6 +49,7 @@ import {
   ScrollAreaSlots,
   SegmentedSlots,
   SelectSlots,
+  SearchFieldSlots,
   SeparatorSlots,
   SidebarSlots,
   SkeletonSlots,
@@ -56,6 +58,8 @@ import {
   SwitchSlots,
   TableSlots,
   TabsSlots,
+  TagsInputSlots,
+  ToolbarSlots,
   TextareaSlots,
   ToastSlots,
   TooltipSlots,
@@ -91,18 +95,10 @@ export const PageStyle = app.slots(
       },
     ],
     lede: [U.m('0'), U.color('text.muted'), { maxWidth: '40rem' }],
-    controls: [
-      L.in('layouts', Layout.cluster({ gap: t.space.lg, align: 'end' })),
-      {
-        padding: t.space.md,
-        border: `${t.border.thin} solid ${t.outline.subtle}`,
-        borderRadius: t.radius.lg,
-        background: t.surface.subtle,
-      },
-    ],
-    controlGroup: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
     controlLabel: [U.m('0'), U.text('xs'), U.font('semibold'), U.color('text.muted')],
     section: [L.in('layouts', Layout.stack({ gap: t.space.md })), { scrollMarginTop: '4rem' }],
+    body: L.in('layouts', Layout.stack({ gap: t.space.md })),
+    island: [{ minBlockSize: '6rem' }],
     sectionTitle: [
       U.m('0'),
       U.font('semibold'),
@@ -110,6 +106,7 @@ export const PageStyle = app.slots(
       { fontSize: '1.25rem', letterSpacing: '-0.015em' },
     ],
     sectionText: [U.m('0'), U.color('text.muted'), { maxWidth: '38rem' }],
+    live: [U.m('0'), U.text('sm'), U.color('text.muted')],
     swatchGrid: [
       {
         display: 'grid',
@@ -520,7 +517,7 @@ export const PillTabsStyle = app.forSlots(TabsSlots)(
     name: 'PillTabsStyle',
   },
 )
-// Across the column, the plans in equal shares.
+// Across the column, the options in equal shares: the plans, and the studio's pickers.
 export const PlanStyle = app.forSlots(SegmentedSlots)(
   Recipes.Segmented({ tray: 'tray', size: 'sm', width: 'fill' }),
   { name: 'PlanStyle' },
@@ -658,4 +655,180 @@ export const NoticeListStyle = app.slots(
     ],
   },
   { name: 'NoticeListStyle' },
+)
+
+// --- the theme studio -------------------------------------------------------------------
+
+const card = [
+  L.in('layouts', Layout.stack({ gap: t.space.md })),
+  {
+    padding: t.space.md,
+    border: `${t.border.thin} solid ${t.outline.subtle}`,
+    borderRadius: t.radius.lg,
+    background: t.surface.base,
+    boxShadow: t.shadow.sm,
+  },
+]
+
+export const StudioStyle = app.slots(
+  {
+    studio: [
+      {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 20rem), 1fr))',
+        gap: t.space.md,
+        alignItems: 'start',
+      },
+    ],
+    panel: card,
+    group: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
+    groupLabel: [U.m('0'), U.text('xs'), U.font('semibold'), U.color('text.muted')],
+    sliders: [
+      {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(11rem, 1fr))',
+        gap: t.space.md,
+      },
+    ],
+    hint: [U.m('0'), U.text('xs'), U.color('text.muted')],
+    actions: L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'center' })),
+    status: [U.srOnly],
+    specimen: card,
+    specimenRow: L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'center' })),
+    specimenLabel: [U.m('0'), U.text('xs'), U.font('semibold'), U.color('text.muted')],
+  },
+  { name: 'StudioStyle' },
+)
+
+// --- tokens and cascade ---------------------------------------------------------------------
+
+export const TokenStyle = app.slots(
+  {
+    table: L.in('layouts', Layout.stack({ gap: t.space.xs })),
+    row: [
+      {
+        display: 'grid',
+        gridTemplateColumns: '3.5rem minmax(0, 1fr)',
+        columnGap: t.space.sm,
+        rowGap: t.space['3xs'],
+        alignItems: 'center',
+      },
+    ],
+    name: [
+      U.m('0'),
+      U.text('xs'),
+      U.font('semibold'),
+      U.color('text.overt'),
+      { fontFamily: t.font.mono },
+    ],
+    bar: [
+      {
+        blockSize: '1rem',
+        minInlineSize: '1px',
+        background: t.accent.default,
+        borderRadius: t.radius.xs,
+      },
+    ],
+    expression: [
+      U.m('0'),
+      U.text('xs'),
+      U.color('text.muted'),
+      { gridColumn: '2', fontFamily: t.font.mono, overflowWrap: 'anywhere' },
+    ],
+  },
+  { name: 'TokenStyle' },
+)
+
+// One property, `background`, set from a different layer in each box. Declarations
+// written plainly in `app.slots` land in the `app` layer; a layered piece keeps its own.
+const box = [
+  U.text('sm'),
+  {
+    padding: t.space.sm,
+    border: `${t.border.thin} solid ${t.outline.default}`,
+    borderRadius: t.radius.md,
+    color: t.text.overt,
+    minInlineSize: '8rem',
+    flex: '1 1 8rem',
+  },
+]
+const fromBase = L.in('components', Style.self({ background: t.accent.subtle }))
+const fromVariant = L.in('variants', Style.self({ background: t.warning.subtle }))
+const fromApp = { background: t.success.subtle }
+
+export const CascadeStyle = app.slots(
+  {
+    row: [L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'stretch' }))],
+    base: [...box, fromBase],
+    variant: [...box, fromBase, fromVariant],
+    app: [...box, fromBase, fromVariant, fromApp],
+    // Outside every layer: nothing in any layer can beat it, which is why it is
+    // for values no theme may touch.
+    inline: [...box, fromBase, fromVariant, fromApp, Style.inline({ background: t.error.subtle })],
+  },
+  { name: 'CascadeStyle' },
+)
+
+export const SearchStyle = app.forSlots(SearchFieldSlots)(Recipes.SearchField({}), {
+  name: 'SearchStyle',
+})
+
+export const TagsStyle = app.forSlots(TagsInputSlots)(Recipes.TagsInput({}), {
+  name: 'TagsStyle',
+})
+
+/** The glyphs in a menu's rows. */
+export const RowIconStyle = app.forSlots(UiIconSlots)(Recipes.Icon({}), {
+  name: 'RowIconStyle',
+})
+
+export const NoticeAlertStyle = app.slots(
+  {
+    group: L.in('layouts', Layout.stack({ gap: t.space.sm })),
+    list: [
+      L.in('layouts', Layout.stack({ gap: t.space.xs })),
+      { listStyle: 'none', margin: '0', padding: '0' },
+    ],
+    item: [{ display: 'block' }],
+    add: [{ alignSelf: 'start' }],
+    dismiss: [{}],
+  },
+  { name: 'NoticeAlertStyle' },
+)
+
+export const ToolbarStyle = app.forSlots(ToolbarSlots)(Recipes.Toolbar({}), {
+  name: 'ToolbarStyle',
+})
+
+export const ContrastStyle = app.slots(
+  {
+    table: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
+    row: [
+      {
+        display: 'grid',
+        gridTemplateColumns: '4rem minmax(0, 1fr) auto 3.5rem',
+        gap: t.space.sm,
+        alignItems: 'center',
+      },
+    ],
+    sample: [
+      U.font('semibold'),
+      {
+        padding: `${t.space['2xs']} ${t.space.sm}`,
+        border: `${t.border.thin} solid ${t.outline.subtle}`,
+        borderRadius: t.radius.md,
+        textAlign: 'center',
+      },
+    ],
+    label: [U.m('0'), U.text('sm'), U.color('text.default')],
+    ratio: [U.m('0'), U.text('sm'), U.color('text.muted'), { fontVariantNumeric: 'tabular-nums' }],
+    grade: [
+      Recipes.Badge({
+        attribute: 'data-state',
+        tones: { ok: 'success', warn: 'warning', bad: 'error' },
+      }).badge,
+      { justifySelf: 'start' },
+    ],
+  },
+  { name: 'ContrastStyle' },
 )

@@ -37,8 +37,8 @@ export default [
     edits: [
       {
         file: host,
-        find: '[4401, error.message] as const',
-        replace: '[1000, error.message] as const',
+        find: '[4401, fitCloseReason(error.reason ?? UNAUTHENTICATED)] as const',
+        replace: '[1000, fitCloseReason(error.reason ?? UNAUTHENTICATED)] as const',
       },
     ],
     tests,
@@ -97,8 +97,8 @@ export default [
     edits: [
       {
         file: host,
-        find: '{ error: resolved.failure.message }, { status: 401 }',
-        replace: '{ error: resolved.failure.message }, { status: 500 }',
+        find: '{ error: resolved.failure.reason ?? UNAUTHENTICATED }, { status: 401 }',
+        replace: '{ error: resolved.failure.reason ?? UNAUTHENTICATED }, { status: 500 }',
       },
     ],
     tests,

@@ -4,17 +4,13 @@
  * code that draws it. Every preview is drawn in the component theme
  * (`gallery/theme.ts`), declared on the preview itself.
  */
+import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { SSR } from 'foldkit-ssr/client'
 
 import { onGitHub } from '../demos.js'
-import {
-  selectionCode,
-  showcases,
-  valueOf,
-  type Live,
-  type Showcase,
-} from '../gallery/showcases.js'
+import { showcases } from '../gallery/showcases.js'
+import { selectionCode, valueOf, type Live, type Showcase } from '../gallery/showcase.js'
 import {
   defaults,
   packStyleOf,
@@ -23,6 +19,8 @@ import {
   valueAt,
   type Scheme,
 } from '../gallery/theme.js'
+import { anchorOf, notesFor } from '../gallery/notes.js'
+import { README, topicsFor } from '../gallery/related.js'
 import { COMPONENTS, CREATE, type Library } from '../library.js'
 import { Message, type Model } from '../main.js'
 import type { H, Slots } from './layout.js'
@@ -38,6 +36,7 @@ export const liveOf = (model: Model, h: H): Live<Message> => ({
   direction: model.direction,
   widgets: model.widgets,
   onWidget: message => Message.GotWidget({ message }),
+  ready: model.addressRead,
   h,
 })
 
@@ -60,6 +59,12 @@ export const preview = (
       // A thumbnail only shows: the card's link takes the click, and nothing
       // in it is reached by Tab.
       ...(size === 'thumb' ? [h.Attribute('inert', '')] : []),
+      // Until the browser has taken the page over (its first Command answers),
+      // the served markup has no handler: a press would do nothing, so the
+      // controls are held out of reach and the frame says it is not ready.
+      ...(size !== 'thumb' && !model.addressRead
+        ? [h.Attribute('inert', ''), h.AriaBusy(true)]
+        : []),
     ]),
     children,
   )
@@ -280,4 +285,38 @@ export const componentPage = (
       ]),
     ]),
   ]),
+  ...Option.match(Option.fromNullishOr(notesFor(showcase.slug)), {
+    onNone: () => [],
+    onSome: ({ heading, lines }) => [
+      h.section(slots.section.attrs([h.AriaLabelledBy('accessibility')]), [
+        h.h2(slots.sectionTitle.attrs([h.Id('accessibility')]), ['Keyboard and accessibility']),
+        h.div(slots.rowText.attrs(), [
+          h.ul(
+            [],
+            lines.map(line =>
+              h.li(
+                [],
+                line.split('`').map((part, at) => (at % 2 === 1 ? h.code([], [part]) : part)),
+              ),
+            ),
+          ),
+        ]),
+        h.p(slots.rowActions.attrs(), [
+          h.a(slots.source.attrs([h.Href(onGitHub(`${README}#${anchorOf(heading)}`))]), [
+            `${heading} in the README ↗`,
+          ]),
+        ]),
+      ]),
+    ],
+  }),
+  ...(topicsFor(showcase.slug).length === 0
+    ? []
+    : [
+        h.section(slots.section.attrs([h.AriaLabelledBy('related')]), [
+          h.h2(slots.sectionTitle.attrs([h.Id('related')]), ['Related']),
+          h.div(slots.rowText.attrs(), [
+            SSR.static(`related-${showcase.slug}`, library.related(showcase.slug)),
+          ]),
+        ]),
+      ]),
 ]

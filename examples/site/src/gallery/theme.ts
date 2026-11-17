@@ -276,7 +276,7 @@ const fromIris = (over: ThemeValues): ThemeValues => iris.pipe(Theme.set(over)).
 export const presets: ReadonlyArray<Preset> = [
   {
     name: 'Default',
-    description: 'The shipped theme: a vivid blue on pure greys, bold headings, inverted menus',
+    description: 'The shipped theme: a deep blue on faintly cool greys, bold headings',
     values: defaults,
   },
   { name: 'Iris', description: 'Violet-blue on a cool page, in Geist', values: iris.values },

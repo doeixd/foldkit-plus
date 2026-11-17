@@ -12,6 +12,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { GridStyle } from 'foldkit-mixins-data-grid'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { cdp, userEvent } from 'vitest/browser'
+import { watchFocusLoss } from '../../../test-support/focusLoss.mjs'
 import { buttonOf, form, grid, headerOf, mountTasks, shownRows } from './filterGrid.js'
 
 beforeEach(() => {
@@ -88,6 +89,38 @@ test('Alt+ArrowDown opens the form with focus in its field; typing filters, Esca
     expect(shownRows()).toEqual(['t0', 't2'])
     expect(mounted.latest().grid.filtering._tag).toBe('None')
   } finally {
+    mounted.dispose()
+  }
+})
+
+/** Two frames and a pause past what a re-render and the Messages it queued take. */
+const settle = async () => {
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  await new Promise(resolve => setTimeout(resolve, 100))
+}
+
+test('a click on the funnel leaves the form open, with focus in its field', async () => {
+  const mounted = mountTasks()
+  const watch = watchFocusLoss()
+  try {
+    await vi.waitFor(() => expect(shownRows()).toHaveLength(3))
+    const funnel = buttonOf('title')
+    await userEvent.click(funnel)
+    await vi.waitFor(() => expect(document.activeElement).toBe(field()))
+    await settle()
+    expect(buttonOf('title')).toBe(funnel)
+    expect(form()).not.toBeNull()
+    expect(document.activeElement).toBe(field())
+    expect(mounted.latest().grid.filtering._tag).toBe('Some')
+    // The press toggles: a second one closes it, and the grid has focus again.
+    await userEvent.click(buttonOf('title'))
+    await vi.waitFor(() => expect(form()).toBeNull())
+    await settle()
+    expect(form()).toBeNull()
+    // No render took out the node that held focus: the funnel is one node shut and open.
+    expect(watch.losses).toEqual([])
+  } finally {
+    watch.dispose()
     mounted.dispose()
   }
 })

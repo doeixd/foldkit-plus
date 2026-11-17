@@ -35,7 +35,7 @@ describe('Theme.make', () => {
 
   it('writes a schemed value for one scheme or both', () => {
     const light = Theme.variables(Theme.make({ accent: { lightness: 55 } }))
-    expect([light['accent-l'], light['accent-l-dark']]).toEqual(['55%', '70%'])
+    expect([light['accent-l'], light['accent-l-dark']]).toEqual(['55%', '54%'])
     const both = Theme.variables(Theme.make({ accent: { lightness: { light: 40, dark: 80 } } }))
     expect([both['accent-l'], both['accent-l-dark']]).toEqual(['40%', '80%'])
     // The dark chroma follows the light until it is set.
@@ -150,8 +150,8 @@ describe('Theme.print', () => {
     const iris = Theme.make({
       accent: { hue: 264, chroma: 0.17, lightness: { light: 52, dark: 70 } },
       // The default radius, which the source leaves out.
-      shape: { radius: 0.45, density: 1 },
-      menu: { panel: 'default' },
+      shape: { radius: 1, density: 1 },
+      menu: { panel: 'inverted' },
       type: { body: Theme.fonts.geist },
     })
     expect(Theme.print(iris)).toBe(
@@ -160,11 +160,11 @@ describe('Theme.print', () => {
         '  accent: { hue: 264, chroma: 0.17, lightness: { light: 52, dark: 70 } },',
         '  shape: { density: 1 },',
         `  type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif' },`,
-        "  menu: { panel: 'default' },",
+        "  menu: { panel: 'inverted' },",
         '})',
       ].join('\n'),
     )
-    expect(Theme.print(Theme.make({ shape: { radius: 0.45 } }))).toBe('Theme.make({})')
+    expect(Theme.print(Theme.make({ shape: { radius: 1 } }))).toBe('Theme.make({})')
   })
 
   it('quotes a font stack whatever it holds', () => {

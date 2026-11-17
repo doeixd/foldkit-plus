@@ -88,10 +88,16 @@ export const initialDocument = (): RichText.Document =>
         props: { icon: '✦' },
         children: [
           run(
-            'Make yourself at home. Drag the handle beside any block. Select a few words to format them or start a conversation. Type ',
+            'Make yourself at home: this page is the tour. Drag the handle beside any block. Select a few words to format them or start a conversation. Type ',
           ),
           run('/', ['Kbd']),
-          run(' to add something new.'),
+          run(' to add something new, or use Markdown as you type: '),
+          run('## ', ['Code']),
+          run(' for a heading, '),
+          run('- ', ['Code']),
+          run(' for a list, '),
+          run('> ', ['Code']),
+          run(' for a quote.'),
         ],
       },
       { type: 'Heading', id: fresh(), level: 2, children: [run('Shape the next good idea.')] },
@@ -121,9 +127,14 @@ export const initialDocument = (): RichText.Document =>
       node('Quote', {}, [paragraph(run('The best starting point is something you can change.'))]),
       node('Table', {}, [
         row(['The piece', 'The possibility'], true),
-        row(['A table', 'Give the details a little structure']),
-        row(['A conversation', 'Bring another point of view']),
+        row(['A table', 'Tab moves between cells; Tab in the last one adds a row']),
+        row(['A conversation', 'Select text and press Comment; Resolve takes it away']),
       ]),
+      paragraph(
+        run(
+          'Code keeps its indentation and is coloured by its language, which the picker above it changes.',
+        ),
+      ),
       {
         type: 'Node',
         kind: 'CodeBlock',

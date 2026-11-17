@@ -122,7 +122,8 @@ export const Todo = TodoFields.pipe(
 - A relation's Read rules are guards over the parent row: where they refuse,
   the relation is withheld, like a member.
 - `Guards.matrix([Todo])` prints every surface; `Guards.guardFields(Todo,
-  'Read')` names what a row interaction's guards read.
+  'Read')` names the row's own members a row interaction's guards read, not
+  what a path or an exists reads of another row.
 
 ### Rules over who asks and over other rows
 
@@ -174,7 +175,9 @@ export const Todo = TodoFields.pipe(
 - `foldkit-guard/server`: `...GuardServer.memory(Policy, [Todo, Project])`
   spread into `RemoteServer.memory` enforces row and member Reads, inherited
   Reads included; `GuardServer.filter(Todo, Policy)` is a Source's `filter`
-  for member Reads.
+  for member Reads. It throws where it is made for an Entity whose Read rule
+  reads another row (a path, an exists): a memory server judges each stored
+  row alone, so serve such an Entity through `GuardDrizzle.visible`.
 - Underneath: `Policy.readable(Todo, principal)` decides every principal guard
   and returns a `Condition` over the row (`Always`, `Never`, or row guards
   joined by and/or, plus inherited Reads); `Condition.holds(condition, values,
@@ -247,7 +250,10 @@ export const Todo = TodoFields.pipe(
   rows back as the writer now sees them; what it writes is its own to check.
   It refuses as `Forbidden`, or a visitor as `Unauthenticated`, as the writer does.
   An `id` answering an `Option` (`Schema.OptionFromNullOr` in the input) is
-  create-or-edit: `none` is checked against `Create`.
+  create-or-edit: `none` is checked against `Create`. It throws where it is
+  made when the interaction's rule reads another row (a path, an exists): the
+  check reads one row and runs no statement, so land such a write as a
+  declared one through `GuardServer.writer`.
 
 ### Checked at startup
 
@@ -279,6 +285,15 @@ supplied: true } }`). Select `may: true` and read it with
 `May.canLink(may, Todo, 'project', 'Link')`, and `May.reason(may, 'Delete')`
 (an `explain`'s sentence for a refusal, else none).
 
+`may` says one of three things of a row interaction: yes, no, or nothing, where
+its rule reads another row and one row cannot decide it. `May.answer(may,
+'Update')` is the three as an `Option<boolean>`. `May.can` is true only on a
+yes and `May.refused(may, 'Update')` only on a no: hide or disable on
+`refused`, so what was not said stays live and the server decides it.
+`May.locks(Todo)` (`Crud.editor`'s `locks`) locks a key only where the row's
+`Update` or the key's own rule said no, and `GuardAgent` refuses only a no.
+`canSet` and `canLink` are true only where the row's `Update` said yes.
+
 - For a row the client writes, Remote foresees it from the shared rules before
   the answer, where principal guards, the principal's fields and what the store
   lacks cannot change it; otherwise it waits for the server.
@@ -286,7 +301,7 @@ supplied: true } }`). Select `may: true` and read it with
   relinked relation) has `Data.mutate` refuse the write where it is made, with
   `Forbidden`. The server leaves out of `may.row` an interaction whose rule
   reads another row, which one row cannot decide (the write's statement does),
-  so it refuses nothing.
+  so it refuses nothing, locks no editor key and hides no agent capability.
 - Threat model: `may` is a UI hint; enforcement is server-only. The server
   never reads `may` from a request, so a stale, foreseen or forged yes is
   refused when written. A row the reader cannot see is read, `may` and all,
@@ -307,7 +322,9 @@ supplied: true } }`). Select `may: true` and read it with
   "who am I", and route-level `may`; `Remote.forget` on any change of principal
   drops it. `key` is shown to its own principal: an id, never a token.
 - Sync: `foldkit-guard/sync`. `GuardSync.document(ProductEdits, { readers: [G.isStaff] })`
-  (refused at definition when an edit could reach a reader its rows hide it from);
+  (refused at definition when an edit could reach a reader its rows hide it from,
+  or when the row's `Update` rule reads another row, which an edit admitted over
+  the one row read cannot judge);
   `authorize: { EditedProducts: GuardSync.authorize(Policy, Edits) }` under the
   journal's lock (principal guards only); `journalExchange({ …, opens:
   GuardSync.opens(Policy, Edits, principal), admit: GuardSync.admit(Policy, Edits,
@@ -323,7 +340,8 @@ supplied: true } }`). Select `may: true` and read it with
 - Agents: `foldkit-guard/agent`'s `GuardAgent.authorize(Archive.key, ({ input,
   model }) => Data.get(TodoRow, input.id).read(model))` and
   `GuardAgent.available(...)` gate a capability on the row's `may` (refused
-  until it is answered; an explained refusal is the agent error's message);
+  until the row is read and where `may` says no, allowed where it does not
+  say; an explained refusal is the agent error's message);
   `Agent.forApplication(App).withPrincipal(G.Principal)`.
 
 ## Known traps

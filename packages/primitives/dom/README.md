@@ -17,6 +17,7 @@ wraps.
 | `InputMask({ pattern })` | Mount | `Input { value, raw }` | `#`, `A`, `*` placeholders |
 | `KeepInView({ selector })` | Mount | nothing | |
 | `Measure({ targets })` | Mount | nothing; writes custom properties | |
+| `DragPreview()` | Mount | nothing | on an element with `popover="manual"`: shows it in the top layer; see [`PointerDrag`](../interaction/README.md) |
 | `TrackBox({ name, radius? })` | Mount | `TrackedTarget { target, found }`; writes custom properties | the target's id in `data-target` |
 | `FluidHover({ name, item, axis, gapClick, gapReach?, follows?, from? })` | Mount | nothing; writes custom properties | `axis`: `x`, `y`, `xy` |
 | `ScrollBars({ idle?, scroller? })` | Mount | nothing; writes custom properties and marks | `idle` in ms, default 600 |
@@ -27,6 +28,9 @@ wraps.
 | `FocusReturn()` | Mount | nothing | none |
 | `ScrollLock`, `HideOutside` | Mounts | nothing | |
 | `PointerPosition({ focus? })` | Mount | `PointerPressed`, `PointerMoved`, `PointerReleased` | `focus`: a selector |
+| `Swipe({ measure?, slop?, scrolls?, touchOnly? })` | Mount | `SwipeStarted`, `Swiped`, `SwipeEnded` | see below |
+| `ScrollSettle({ item?, axis?, start? })` | Mount | `ScrollSettled { index }` | see below |
+| `Move`, `Targets`, `PointerDrag`, `Marquee`, `EditableText` | Mounts | their facts | each is in [`interaction`](../interaction/README.md), beside its Behavior |
 | `keepScroll(options?)` | entry | nothing | |
 | `pointedLinks(options?)` | stream | `Url` | `rest`: how long a hover or focus rests, default 50 ms |
 | `visibleLinks(options?)` | stream | `Url` | `atMost` (8), `margin` |
@@ -363,6 +367,36 @@ it shows less of the page, not because something covers it, so it writes `0px`;
 with no visual viewport it writes nothing, and it removes the property when the
 element goes. It sends no Message, so a Scene test of a view that draws it by
 default cannot resolve it: attach it as an option.
+
+## Swiping and scrolling to rest
+
+**`Swipe`** is `Move` with the speed of its release, for a gesture a flick ends
+(a sheet dragged to dismiss, a row swiped open). A primary press captures the
+pointer (or, given a `slop`, its first move past it does, so a press that stays
+put is still a click); each move is `Swiped { deltaX, deltaY }` from where it
+went down, and the release is `SwipeEnded { deltaX, deltaY, velocityX,
+velocityY, completed }`, the velocity in pixels a millisecond over the last
+`SWIPE_WINDOW` (100) milliseconds by the events' own time stamps. `SwipeStarted`
+carries the size of what moves, read from the nearest ancestor `measure`
+selects, so a distance reads as a share of it. Given `scrolls: 'x' | 'y'` the
+element holds content that scrolls: a touch that runs along that axis and finds
+nothing under it able to scroll further swipes, and the browser scrolls any
+other; none starts on a field or on `data-no-swipe` (`NO_SWIPE`). `touchOnly`
+leaves a mouse or pen to the page. What a delta or a speed means is the
+parent's `update`: `SwipeActions.decide` in
+[`interaction`](../interaction/README.md) reads a `SwipeEnded` for a row's
+actions, and `foldkit-mixins-ui`'s Sheet reads it to dismiss.
+
+**`ScrollSettle`** hears a scroller come to rest and reports which of its items
+starts nearest its own start (inside its `scroll-padding`; the right edge right
+to left) as `ScrollSettled { index }`: after a swipe, a fling, a trackpad or a
+scroll a Command made. `item` is a selector for the children that are items
+(default every child), `axis` is `inline` (default) or `block`, and `start` is
+the item to scroll to at insert, since a redrawn or restored scroller begins
+there; a scroller drawn already at rest reports once at insert. It uses
+`scrollend` where the browser has it and otherwise waits for a scroll quiet for
+`SETTLE_QUIET` (120) milliseconds. A snapping carousel reads it as the slide
+shown.
 
 ## `PointerPosition`: where the pointer is inside an element
 

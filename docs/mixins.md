@@ -218,6 +218,13 @@ merge policy:
 - `Key` and `InnerHTML` are structural and cannot be overridden;
 - multiple mounts compose into one `OnMount`.
 
+A slot's `keydown` is the case that shows why. A widget's own keys and the keys an application
+wants to add cannot be two Behaviors, so they are named **routes** folded into the slot's one
+handler by `Behaviors.Keys`: a widget takes a `routes` option for the application's, and two routes
+on one chord throw `mixins:key-conflict` naming both, where an application that wants one to win
+says so with `Keys.first`. The [package README](../packages/mixins/README.md#keys-one-owner-for-a-slots-keydown)
+has the full rules.
+
 This is what lets a design system and a feature attach independently without each one needing to
 know what the other did.
 
@@ -286,7 +293,9 @@ A component reaches its slots in one of three ways:
 3. `Slider` is drawn by `foldkit-mixins-ui` itself (`Slider.view`), because a range of two thumbs
    cannot be built on the upstream Slider's one, and one control should have one recipe.
 
-`DragAndDrop` and `Animation` have no adapter yet. The first way is the normal one, the second
+`DragAndDrop` and `Animation` have no adapter yet. Widgets that have no upstream at all (toolbars, search
+fields, data tables and the rest of the catalog) are the package's own views,
+drawn from the same Slots and the interaction primitives in `foldkit-primitives`. The first way is the normal one, the second
 works around a missing upstream seam, and the third is a choice.
 
 ## Accessibility contracts
@@ -314,6 +323,21 @@ Validation is pure and DOM-independent. It checks the declared contract for miss
 slots, incompatible capabilities, and unpublished events or attributes. It does not inspect the
 rendered DOM and does not claim WCAG certification.
 
+A pattern can also name **obligations** on a slot: who navigates the items (`A11y.Navigation`),
+who makes each reachable (`A11y.FocusStrategy`), who activates it (`A11y.Activation`), which
+attribute is written (`A11y.State(attr)`) and who names it (`A11y.Name`). Something supplies each
+one: a Behavior slot's `provides` (the primitives declare theirs), `A11y.base` for the view's own
+markup, `A11y.native` for a native element, or `A11y.delegated` for another slot's Behavior.
+`A11y.conform(pattern)` in a view's `pipe` is a type error, and at load a thrown
+`a11y:unsatisfied-obligation`, when an obligation has no supplier, so a view assembled from
+primitives is held to the same contract as an adapted widget. Each catalog entry in
+`foldkit-mixins-ui` carries a `support` list for the widgets it draws from upstream. Three words
+stay apart: a contract and a `provides` are *declared*, the checks are *structural*, and only
+`Conformance` in `foldkit-mixins/testing` is *rendered*: scenarios (`listbox`, `tree`, `dialog`,
+`tabs`, `checkbox`) that drive a real page and read what it did. None of them is WCAG conformance.
+See [Obligations](../packages/mixins/README.md#obligations-who-does-what-a-pattern-asks) and
+[Conformance](../packages/mixins/README.md#conformance-the-rendered-check).
+
 ## Style as data
 
 Rule-based Style compiles deterministic rule text to deterministic class names. Equal rules share
@@ -337,8 +361,10 @@ rule graph for every render.
 Because Slots and Mixins are data, the package can describe them without rendering a DOM tree.
 That is useful for tests, DevTools, generated documentation and agent tooling.
 
-`Slots.describe`, `Slot.describe` and the Surface bridge expose serializable metadata, while
-resolver failures use stable diagnostic codes and structured details.
+`Slots.describe`, `Slot.describe` and the Surface bridge expose serializable metadata, and
+`SlotView.describe(view)` lists an assembled view's attachments in order with what each requires,
+provides and contributes, while resolver failures use stable diagnostic codes and structured
+details.
 
 ## See the trace
 
@@ -358,10 +384,13 @@ Use the examples in increasing order of scope:
 - Rule-based Style produces CSS data; the application is responsible for including the resulting
   stylesheet.
 - A component that exposes no render/attribute seam cannot be adapted externally.
-- `A11y.validate` checks contracts, not rendered DOM or WCAG compliance.
+- `A11y.validate`, `A11y.check` and `A11y.conform` check declared contracts, not rendered DOM or
+  WCAG compliance; `Conformance` reads a real page for the patterns it covers.
 
 ## Package map
 
 - [`foldkit-mixins`](../packages/mixins) — Slots, resolver, Style, Behavior, Theme and A11y.
-- [`foldkit-mixins-ui`](../packages/mixins-ui) — `@foldkit/ui` adapters.
+- [`foldkit-primitives`](../packages/primitives) — the interaction state and Behaviors widgets
+  compose: roving tab stops, press, drag, focus recovery.
+- [`foldkit-mixins-ui`](../packages/mixins-ui) — `@foldkit/ui` adapters and the widget catalog.
 - [`foldkit-mixins-surface`](../packages/mixins-surface) — Surface → SlotView bridge.

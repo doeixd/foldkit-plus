@@ -10,8 +10,9 @@ import { parseMapped, type Segment } from './parse.js'
 
 // What may be a character reference: named, decimal, or hexadecimal. The parser's own decoder
 // says what it reads as (`&foo;` names nothing and stays text).
-const REFERENCE = /^&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});/
-const PUNCTUATION = /^[!-/:-@[-`{-~]$/
+export const REFERENCE = /^&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});/
+/** One ASCII punctuation character: all a backslash can escape. */
+export const PUNCTUATION = /^[!-/:-@[-`{-~]$/
 
 /**
  * The source offset of each index in a segment's value, and of its end. The raw source and the

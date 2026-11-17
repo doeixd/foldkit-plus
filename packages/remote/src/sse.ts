@@ -81,6 +81,10 @@ async function* frames(body: ReadableStream<Uint8Array>): AsyncGenerator<Frame> 
   }
 }
 
+/** The incident an error frame or a failed open names, as the error's own field. */
+const incidentOf = (said: unknown): { readonly incident?: string } =>
+  Predicate.isObject(said) && typeof said.incident === 'string' ? { incident: said.incident } : {}
+
 /** The wire changes of a live body: data frames decoded, error frames failed. */
 async function* changes(
   body: ReadableStream<Uint8Array>,
@@ -104,7 +108,7 @@ async function* changes(
       if (Predicate.isObject(said) && said.refused === true) {
         throw new RemoteLiveRefused({ message })
       }
-      throw new RemoteLiveError({ message })
+      throw new RemoteLiveError({ message, ...incidentOf(said) })
     }
     yield decodeChange(JSON.parse(text))
   }
@@ -159,7 +163,7 @@ export const liveFetch =
               ...(typeof said === 'string' ? { reason: said } : {}),
             })
           }
-          return yield* new RemoteLiveError({ message })
+          return yield* new RemoteLiveError({ message, ...incidentOf(answered) })
         }
         if (response.body === null) {
           return yield* new RemoteLiveError({ message: 'The server answered live with no body' })

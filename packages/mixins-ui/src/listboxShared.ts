@@ -217,29 +217,27 @@ export const computeRender = (
     ),
   )
 
+  // Keys come faster than frames, and these handlers are the last drawn view's: each press
+  // continues from what the previous one of this drawing asked for, since the Model reaches
+  // the next drawing only (three ArrowDowns would otherwise move one item).
+  let reached = { isOpen, activeIndex: maybeActiveItemIndex, searchQuery }
+
+  const opened = (maybeIndex: Option.Option<number>): Option.Option<Message> => {
+    reached = { ...reached, isOpen: true, activeIndex: maybeIndex }
+    return Option.some(Message.Opened({ maybeActiveItemIndex: maybeIndex }))
+  }
+
   const handleButtonKeyDown = (key: string): Option.Option<Message> => {
-    if (isOpen) {
+    if (reached.isOpen) {
       return handleItemsKeyDown(key)
     }
 
     return Match.value(key).pipe(
       Match.whenOr('Enter', ' ', 'ArrowDown', () =>
-        Option.some(
-          Message.Opened({
-            maybeActiveItemIndex: Option.orElse(selectedItemIndex, () =>
-              Option.some(firstEnabledIndex),
-            ),
-          }),
-        ),
+        opened(Option.orElse(selectedItemIndex, () => Option.some(firstEnabledIndex))),
       ),
       Match.when('ArrowUp', () =>
-        Option.some(
-          Message.Opened({
-            maybeActiveItemIndex: Option.orElse(selectedItemIndex, () =>
-              Option.some(lastEnabledIndex),
-            ),
-          }),
-        ),
+        opened(Option.orElse(selectedItemIndex, () => Option.some(lastEnabledIndex))),
       ),
       Match.orElse(() => Option.none()),
     )
@@ -263,8 +261,8 @@ export const computeRender = (
   const handleSpaceKeyUp = (key: string): Option.Option<Message> =>
     when(key === ' ', Message.SuppressedSpaceScroll())
 
-  const resolveActiveIndex = (key: string): number =>
-    Option.match(maybeActiveItemIndex, {
+  const resolveActiveIndex = (key: string): number => {
+    const targetIndex = Option.match(reached.activeIndex, {
       onNone: () =>
         Match.value(key).pipe(
           Match.whenOr(previousKey, 'End', 'PageDown', () => lastEnabledIndex),
@@ -273,25 +271,33 @@ export const computeRender = (
       onSome: activeIndex =>
         keyToIndex(nextKey, previousKey, items.length, activeIndex, isItemDisabledByIndex)(key),
     })
+    reached = { ...reached, activeIndex: Option.some(targetIndex) }
+    return targetIndex
+  }
 
   const searchForKey = (key: string): Option.Option<Message> => {
-    const nextQuery = searchQuery + key
+    const nextQuery = reached.searchQuery + key
     const maybeTargetIndex = resolveTypeaheadMatch(
       items,
       nextQuery,
-      maybeActiveItemIndex,
+      reached.activeIndex,
       isItemDisabledByIndex,
       itemToSearchText,
-      String.isNonEmpty(searchQuery),
+      String.isNonEmpty(reached.searchQuery),
     )
+    reached = {
+      ...reached,
+      searchQuery: nextQuery,
+      activeIndex: Option.orElse(maybeTargetIndex, () => reached.activeIndex),
+    }
     return Option.some(Message.Searched({ key, maybeTargetIndex }))
   }
 
   const resolveCommitMessage = (): Option.Option<Message> => {
     if (isReadOnly) {
-      return Option.as(maybeActiveItemIndex, Message.SuppressedItemCommit())
+      return Option.as(reached.activeIndex, Message.SuppressedItemCommit())
     } else {
-      return Option.map(maybeActiveItemIndex, index => Message.RequestedItemClick({ index }))
+      return Option.map(reached.activeIndex, index => Message.RequestedItemClick({ index }))
     }
   }
 
@@ -300,7 +306,7 @@ export const computeRender = (
       Match.when('Escape', () => Option.some(Message.Closed())),
       Match.when('Enter', resolveCommitMessage),
       Match.when(' ', () =>
-        String.isNonEmpty(searchQuery) ? searchForKey(' ') : resolveCommitMessage(),
+        String.isNonEmpty(reached.searchQuery) ? searchForKey(' ') : resolveCommitMessage(),
       ),
       Match.when(isNavigationKey, () =>
         Option.some(

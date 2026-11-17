@@ -293,7 +293,8 @@ EditForm.view(model, h, {
 - `submits: false` draws the form without its submit button, for someone who
   may not submit it (a writer, where the submit publishes).
 - `locked: ['ownerId']` draws those keys `disabled`: shown, not editable, for
-  a key the person may not set (`foldkit-guard`'s `May.canSet` says which).
+  a key the person may not set (`foldkit-guard`'s `May.locks(Todo).locked`
+  says which).
   It is a hint; the server checks the write. A key in a nested row is not
   locked by it. A Bundle-backed key drawn by its Bundle's view has that view
   inside a disabled fieldset, which disables the buttons and inputs in it;

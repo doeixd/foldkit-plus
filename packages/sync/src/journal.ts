@@ -18,6 +18,7 @@ import {
   Layer,
   Match,
   Option,
+  Predicate,
   Result,
   Schema,
   Scope,
@@ -45,6 +46,7 @@ import {
 } from './errors.js'
 import { checkRevalidate } from './revalidate.js'
 import {
+  answerHostDefect,
   hostDefect,
   listenerFailed,
   reportTo,
@@ -52,7 +54,7 @@ import {
   type HostStage,
   type SyncDiagnostic,
 } from './diagnostics.js'
-import { serveSocket, type SocketLike } from './transport.js'
+import { ExchangeRefused, serveSocket, type SocketLike } from './transport.js'
 import type { ServerJournal } from './serverJournal.js'
 
 export type { HostDefect, HostStage } from './diagnostics.js'
@@ -125,9 +127,9 @@ const claimedVersion = Schema.decodeUnknownOption(
 )
 
 /**
- * What the replica is told: a socket sends an error's message, and the
- * operation's id and version are another replica's. They stay on the error,
- * for the server's own logs.
+ * What the replica is told, and all of it: the operation's id and version are
+ * another replica's. They stay on the error, which a socket reports
+ * (`ExchangeDefect`) and does not send.
  */
 const HISTORY_UNREADABLE = 'This server cannot read the history of this document'
 
@@ -242,7 +244,9 @@ export const journalExchange = <Message, Shared, Principal>(
   const exchange = (cursor: number, pending: ReadonlyArray<unknown>, seen?: string) =>
     Effect.gen(function* () {
       if (options.opens !== undefined && !(yield* options.opens)) {
-        return yield* Effect.fail(new Error('This connection may not open the document'))
+        return yield* Effect.fail(
+          new ExchangeRefused({ message: 'This connection may not open the document' }),
+        )
       }
       // A replica that saw another epoch holds a cursor into history this journal
       // lacks (it was reset): it is answered from the start. Otherwise a cursor
@@ -252,7 +256,9 @@ export const journalExchange = <Message, Shared, Principal>(
       const from = seen !== undefined && seen !== epoch ? 0 : cursor
       const at = yield* journal.cursor(key)
       if (from > at) {
-        return yield* Effect.fail(new Error(`Cursor ${cursor} is ahead of the server's ${at}`))
+        return yield* Effect.fail(
+          new ExchangeRefused({ message: `Cursor ${cursor} is ahead of the server's ${at}` }),
+        )
       }
       // A replica ahead of this server waits, its outbox whole: refused before
       // anything is appended, since a rejection would lose the edit.
@@ -260,7 +266,8 @@ export const journalExchange = <Message, Shared, Principal>(
         const found = Option.flatMapNullishOr(claimedVersion(input), probe => probe.messageVersion)
         if (Option.isSome(found) && found.value > supported)
           return yield* Option.match(idOf(input), {
-            onNone: () => Effect.fail(new Error('A pending entry names no operation')),
+            onNone: () =>
+              Effect.fail(new ExchangeRefused({ message: 'A pending entry names no operation' })),
             onSome: opId =>
               Effect.fail(
                 new UnsupportedMessageVersionError({
@@ -316,7 +323,9 @@ export const journalExchange = <Message, Shared, Principal>(
         if (Result.isFailure(decoded)) {
           const id = idOf(input)
           if (Option.isNone(id))
-            return yield* Effect.fail(new Error('A pending entry names no operation'))
+            return yield* Effect.fail(
+              new ExchangeRefused({ message: 'A pending entry names no operation' }),
+            )
           const failure = decoded.failure
           if (failure === 'invalid') invalid(id.value, 'Not an operation this server accepts')
           else if (failure instanceof UnreadableMessageError)
@@ -485,6 +494,7 @@ export const serveJournal = <Message, Shared, Principal>(
   const { opens, diagnostics } = options
   const report = (cause: Cause.Cause<unknown>) => reportTo(diagnostics, hostDefect('Notice', cause))
   return serveSocket(socket, {
+    diagnostics,
     exchange: (cursor, pending, epoch) => client.exchange(sequence(cursor), pending, epoch),
     // A connection that may not open the document is told nothing of its commits.
     changes:
@@ -687,21 +697,27 @@ export interface DocumentHostOptions<Message, Shared, Principal, RP = never> {
   readonly journal: () => Promise<Journal<Operation, Shared, Principal, WrittenOperation>>
   /**
    * Who is opening the socket, from the upgrade request. Fails with a
-   * `RemoteUnauthenticated` (`RemoteServer.unauthenticated()`) to refuse it:
-   * a 401 carrying its message. A defect is a 500 that says nothing of it.
-   * A browser's `WebSocket` sends no header of the page's: `Origin` and the
-   * cookie are what it has.
+   * `RemoteUnauthenticated` (`RemoteServer.unauthenticated(reason?)`) to
+   * refuse it: a 401 that says "Unauthenticated", or its `reason`, the words
+   * written for the caller, when it has one. Its `message` is never sent. A
+   * defect, or a failure that is no `RemoteUnauthenticated`, is a 500 that
+   * says nothing of it: a session store that is down is no refusal, so let
+   * it die (`Effect.orDie`). A browser's `WebSocket` sends no header of the
+   * page's: `Origin` and the cookie are what it has.
    */
   readonly resolvePrincipal: (
     request: Request,
   ) => Effect.Effect<Principal, RemoteUnauthenticated, RP>
   /**
    * Asks `resolvePrincipal` again, of the upgrade request, every `every`
-   * while the socket is open: a refusal closes it with 4401, and a principal
-   * whose `key` differs from the one it opened with (`Policy.keyOf`) closes
-   * it with 1012, which the replica reconnects after, as the new principal;
-   * without `key` only a refusal closes it. Without it a socket serves the
-   * principal it opened with until it closes, a revoked session included.
+   * while the socket is open: a refusal closes it with 4401 and the reason
+   * "Unauthenticated", or the refusal's `reason` when it has one (cut to the
+   * 123 bytes a close carries), and a principal whose `key` differs from the
+   * one it opened with (`Policy.keyOf`) closes it with 1012, which the
+   * replica reconnects after, as the new principal; without `key` only a
+   * refusal closes it. A resolver that breaks closes it with 1011. Without
+   * `revalidate` a socket serves the principal it opened with until it
+   * closes, a revoked session included.
    */
   readonly revalidate?:
     | {
@@ -739,7 +755,33 @@ export interface DocumentHostOptions<Message, Shared, Principal, RP = never> {
 /** What a revalidation that found another principal fails with. */
 const changed = Symbol('changed')
 
-const internalError = () => Response.json({ error: 'Internal error' }, { status: 500 })
+/** What a caller the resolver refused reads when the refusal gives no `reason`. */
+const UNAUTHENTICATED = 'Unauthenticated'
+
+/**
+ * Whether a resolver failed with the refusal its type promises. Asked of the
+ * value, since a resolver compiled past its type (a cast, plain JavaScript)
+ * can fail with a driver's error, which must not read as "sign in again".
+ */
+const isRefusal = (failure: unknown): failure is RemoteUnauthenticated =>
+  Predicate.isTagged(failure, 'Unauthenticated')
+
+/** The most UTF-8 bytes a close reason carries; a longer one makes a platform refuse the close. */
+const CLOSE_REASON_BYTES = 123
+
+/** `words` as a close reason: cut to fit, between characters, and marked where cut. */
+const fitCloseReason = (words: string): string => {
+  const encoder = new TextEncoder()
+  if (encoder.encode(words).length <= CLOSE_REASON_BYTES) return words
+  let fitted = ''
+  let bytes = encoder.encode('…').length
+  for (const character of words) {
+    bytes += encoder.encode(character).length
+    if (bytes > CLOSE_REASON_BYTES) break
+    fitted += character
+  }
+  return `${fitted}…`
+}
 
 /**
  * What the resolver needs (a session store), required exactly when it
@@ -778,15 +820,16 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
       diagnostics === undefined ? undefined : diagnostic => diagnostics(diagnostic, request)
     const report = (stage: HostStage, cause: Cause.Cause<unknown>) =>
       reportTo(reporter, hostDefect(stage, cause))
-    const defect = async (stage: HostStage, cause: Cause.Cause<unknown>) => {
-      await Effect.runPromise(report(stage, cause))
-      return refuse(internalError())
-    }
+    const defect = async (stage: HostStage, cause: Cause.Cause<unknown>) =>
+      refuse(await Effect.runPromise(answerHostDefect(reporter, stage, cause)))
     const { layer } = options
     // Suspended, so the resolver is called each time this runs (a resolver
     // may decide when called, not when its Effect runs), and one that throws
     // is a 500 like one that dies.
-    const ask = Effect.suspend(() => options.resolvePrincipal(request))
+    const ask = Effect.suspend(() => options.resolvePrincipal(request)).pipe(
+      // Only a refusal is the caller's to hear of: anything else is this side's.
+      Effect.catch(failure => (isRefusal(failure) ? Effect.fail(failure) : Effect.die(failure))),
+    )
     // The layer and the first answer in one run: either breaking is a 500.
     const opened = await Effect.runPromiseExit(
       Effect.gen(function* () {
@@ -802,7 +845,10 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
     if (Exit.isFailure(opened)) return defect('Resolve', opened.cause)
     const { resolve, resolved } = opened.value
     if (Result.isFailure(resolved))
-      return refuse(Response.json({ error: resolved.failure.message }, { status: 401 }))
+      return refuse(
+        // The reason is written for the caller; the message may be anyone's.
+        Response.json({ error: resolved.failure.reason ?? UNAUTHENTICATED }, { status: 401 }),
+      )
     const principal = resolved.success
     // A throw is a rejection like any other: a 500.
     const journal = await Promise.resolve()
@@ -854,12 +900,12 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
                   onSome: error =>
                     error === changed
                       ? ([1012, 'Who is asking changed'] as const)
-                      : ([4401, error.message] as const),
+                      : ([4401, fitCloseReason(error.reason ?? UNAUTHENTICATED)] as const),
                 })
                 try {
                   socket.closeWith(code, reason)
                 } catch {
-                  // A reason the platform refuses (past 123 bytes): the code alone.
+                  // A close the platform refuses still closes.
                   socket.close()
                 } finally {
                   release()

@@ -38,7 +38,7 @@ const drive = (
   container: HTMLElement,
   options: {
     readonly attribute: string
-    readonly targets?: { readonly attribute: string; readonly within: string }
+    readonly targets?: ReadonlyArray<{ readonly attribute: string; readonly within: string }>
     readonly edgeScroll?: {}
   },
 ) => {
@@ -164,7 +164,7 @@ it('moves a row to another list through `targets`, reporting its empty space as 
   const from = page.querySelector<HTMLElement>('#from')!
   const run = drive(from, {
     attribute: 'data-row',
-    targets: { attribute: 'data-slot', within: '#to' },
+    targets: [{ attribute: 'data-slot', within: '#to' }],
   })
   try {
     await later(20)

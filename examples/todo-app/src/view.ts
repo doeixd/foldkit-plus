@@ -14,7 +14,7 @@
  */
 import * as UiButton from '@foldkit/ui/button'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
-import { Option } from 'effect'
+import { Match, Option } from 'effect'
 import { todoDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
 import type { Document, HtmlBuilder } from 'foldkit/html'
@@ -25,9 +25,12 @@ import { Button as ButtonAdapter, Checkbox as CheckboxAdapter } from 'foldkit-mi
 import { Surface } from 'foldkit-surface'
 import { AddTodoForm } from './agent.js'
 import {
+  COMPOSER_ID,
   Message,
   bumpPriority,
   counts,
+  syncState,
+  titleId,
   visibleTodos,
   type Filter,
   type Model,
@@ -38,6 +41,8 @@ import {
   ClearButtonStyle,
   ComposerSlots,
   ComposerStyle,
+  ConnectionSlots,
+  ConnectionStyle,
   EditorBehavior,
   FilterBehavior,
   FilterSlots,
@@ -54,7 +59,7 @@ import {
   t,
   type ItemInput,
 } from './style.js'
-import { Board, Composer, Footer, Header } from './surface.js'
+import { Board, Composer, Connection, Footer, Header } from './surface.js'
 import { Slots, Slot, Capability } from 'foldkit-mixins'
 
 // --- header: the list title is editable in place --------------------------------
@@ -73,8 +78,45 @@ export const HeaderView = SurfaceView.define(Header, HeaderSlots, (model, slots,
       ]),
     ),
     h.p(slots.tally.attrs(), [`${tally.active} active · ${tally.completed} completed`]),
+    h.p(slots.intro.attrs(), [
+      'Every edit is saved on this device first and synced when it can be, so it survives a reload and works offline. An agent can add, finish and rename todos here too.',
+    ]),
   ])
 }).pipe(Style.attach(HeaderStyle))
+
+// --- connection: where the replica stands against the server ---------------------------
+
+const connectionMixins = [ConnectionStyle.mixin]
+
+export const ConnectionView = SurfaceView.define(Connection, ConnectionSlots, (model, slots, h) => {
+  const input = { state: syncState(model) }
+  const item = SlotView.buildersFor(ConnectionSlots, connectionMixins, { input, h })
+  const changes = `${model.pending} ${model.pending === 1 ? 'change' : 'changes'}`
+  const words = Match.value(input.state).pipe(
+    Match.when('synced', () => 'Saved on this device and in sync'),
+    Match.when('saving', () => `Syncing ${changes}…`),
+    Match.when('offline', () =>
+      model.pending === 0
+        ? 'Offline: edits are kept on this device'
+        : `Offline: ${changes} waiting to sync`,
+    ),
+    Match.when('retrying', () => 'The server did not answer: retrying'),
+    Match.exhaustive,
+  )
+  return h.div(item.root.attrs(), [
+    h.p(item.text.attrs([h.Role('status')]), [
+      h.span(item.dot.attrs([h.AriaHidden(true)]), []),
+      words,
+    ]),
+    h.button(
+      item.toggle.attrs([
+        h.Type('button'),
+        h.OnClick(Message.OfflineSet({ offline: !model.offline })),
+      ]),
+      [model.offline ? 'Go online' : 'Go offline'],
+    ),
+  ])
+}).pipe(Style.attach(ConnectionStyle))
 
 // --- composer: the only Surface that may cause `DraftSubmitted` -------------------
 
@@ -86,6 +128,7 @@ export const ComposerView = SurfaceView.define(Composer, ComposerSlots, (model, 
         h.Type('text'),
         h.Placeholder('What needs doing?'),
         h.AriaLabel('New todo'),
+        h.Id(COMPOSER_ID),
         h.Value(model.draft),
         h.OnInput(value => Message.DraftChanged({ value })),
       ]),
@@ -132,6 +175,17 @@ const BoardStyle = Style.forSlots(BoardSlots)(
 )
 
 const filters: ReadonlyArray<Filter> = ['all', 'active', 'completed']
+
+/** What an empty list says: nothing yet, all done, or nothing under this filter. */
+const emptyWords = (model: Pick<Model, 'todos' | 'filter'>): string => {
+  if (model.todos.length === 0) return 'No todos yet. Add one above, then try going offline.'
+  return Match.value(model.filter).pipe(
+    Match.when('active', () => 'All done. Nothing left to do.'),
+    Match.when('completed', () => 'Nothing is completed yet.'),
+    Match.when('all', () => 'Nothing here.'),
+    Match.exhaustive,
+  )
+}
 const filterMixins = [FilterStyle.mixin, FilterBehavior.mixin]
 const itemMixins = [ItemStyle.mixin, EditorBehavior.mixin]
 
@@ -171,7 +225,7 @@ export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h)
       ),
       editing
         ? h.form(
-            [h.OnSubmit(Message.EditingCommitted({}))],
+            [h.OnSubmit(Message.EditingSubmitted({}))],
             [
               h.input(
                 item.editor.attrs([
@@ -183,10 +237,13 @@ export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h)
               ),
             ],
           )
-        : h.span(
+        : h.button(
             item.title.attrs([
-              h.Title('Double-click to rename'),
-              h.OnDoubleClick(Message.EditingStarted({ id: todo.id })),
+              h.Type('button'),
+              h.Id(titleId(todo.id)),
+              h.Title('Rename'),
+              h.AriaLabel(`Rename "${todo.title}"`),
+              h.OnClick(Message.EditingStarted({ id: todo.id })),
             ]),
             [todo.title],
           ),
@@ -202,7 +259,7 @@ export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h)
         item.remove.attrs([
           h.Type('button'),
           h.AriaLabel(`Delete "${todo.title}"`),
-          h.OnClick(Message.DeletedTodo({ id: todo.id })),
+          h.OnClick(Message.DeleteRequested({ id: todo.id })),
         ]),
         ['×'],
       ),
@@ -211,9 +268,9 @@ export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h)
 
   const rows = visibleTodos(model)
   return h.section(slots.root.attrs(), [
-    h.nav(slots.filters.attrs([h.AriaLabel('Filter')]), filters.map(filterButton)),
+    h.div(slots.filters.attrs([h.Role('group'), h.AriaLabel('Show')]), filters.map(filterButton)),
     rows.length === 0
-      ? h.p(slots.empty.attrs(), ['Nothing here.'])
+      ? h.p(slots.empty.attrs(), [emptyWords(model)])
       : h.ul(slots.list.attrs(), rows.map(row)),
   ])
 }).pipe(Style.attach(BoardStyle))
@@ -223,11 +280,21 @@ export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h)
 export const FooterView = SurfaceView.define(Footer, FooterSlots, (model, slots, h) => {
   const tally = counts(model)
   return h.footer(slots.root.attrs(), [
-    h.p(slots.status.attrs(), [
-      Option.getOrElse(
-        model.lastError,
-        () => `${tally.total} ${tally.total === 1 ? 'todo' : 'todos'}`,
-      ),
+    // A live region: a delete announces itself, and so does its undo.
+    h.p(slots.status.attrs([h.Role('status')]), [
+      ...Option.match(model.lastError, {
+        onSome: error => [error],
+        onNone: () =>
+          Option.match(model.undo, {
+            onSome: todo => [
+              `Deleted "${todo.title}".`,
+              h.button(slots.undo.attrs([h.Type('button'), h.OnClick(Message.UndoRequested({}))]), [
+                'Undo',
+              ]),
+            ],
+            onNone: () => [`${tally.total} ${tally.total === 1 ? 'todo' : 'todos'}`],
+          }),
+      }),
     ]),
     UiButton.view(
       {
@@ -255,6 +322,11 @@ export const FooterView = SurfaceView.define(Footer, FooterSlots, (model, slots,
 const HeaderRoot = Surface.rootView(Header, undefined, SurfaceView.toRenderer(HeaderView))
 const ComposerRoot = Surface.rootView(Composer, undefined, SurfaceView.toRenderer(ComposerView))
 const BoardRoot = Surface.rootView(Board, undefined, SurfaceView.toRenderer(BoardView))
+const ConnectionRoot = Surface.rootView(
+  Connection,
+  undefined,
+  SurfaceView.toRenderer(ConnectionView),
+)
 const FooterRoot = Surface.rootView(Footer, undefined, SurfaceView.toRenderer(FooterView))
 
 const DemoGuide = demoGuide<Message>()
@@ -268,6 +340,7 @@ const PageView = SlotView.define(
   ) =>
     h.main(slots.root.attrs(), [
       HeaderRoot(model, h),
+      ConnectionRoot(model, h),
       ComposerRoot(model, h),
       BoardRoot(model, h),
       FooterRoot(model, h),

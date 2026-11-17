@@ -16,17 +16,28 @@ import { Press } from '../src/interaction/index.js'
 import { takeMessages } from './support.js'
 
 const Button = Bundle.declare(Press.bundle, 'button')
-const Model = Schema.Struct({ ...Button.fields, presses: Schema.Array(Press.PointerType) })
+const Model = Schema.Struct({
+  ...Button.fields,
+  presses: Schema.Array(Press.PointerType),
+  held: Schema.Array(Press.Modifiers),
+})
 type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Button.cases })
 type Message = typeof Message.Type
 const Page = Bundle.parent({ Model, Message })
 const onOut: (out: Press.Pressed) => (model: Model) => { readonly model: Model } =
-  out => model => ({ model: { ...model, presses: [...model.presses, out.pointerType] } })
+  out => model => ({
+    model: {
+      ...model,
+      presses: [...model.presses, out.pointerType],
+      held: [...model.held, out.modifiers],
+    },
+  })
 const placed = Page.at(Button, { args: { clickSuppressionMs: 50 }, onOut })
 const fresh: Model = {
   button: { pressed: false, pointerId: null, key: null, suppressing: null, generation: 0 },
   presses: [],
+  held: [],
 }
 const send = (model: Model, ...messages: ReadonlyArray<Press.Message>) => {
   let last = {
@@ -40,6 +51,7 @@ const send = (model: Model, ...messages: ReadonlyArray<Press.Message>) => {
   return last
 }
 const M = Press.Message
+const none = { shiftKey: false, ctrlKey: false, metaKey: false, altKey: false }
 
 describe('Press placement', () => {
   it('a primary pointer down and up is one press, and opens the ghost-click window', () => {
@@ -47,7 +59,7 @@ describe('Press placement', () => {
     expect(down.model.button).toMatchObject({ pressed: true, pointerId: 1 })
     const up = send(
       down.model,
-      M.PointerUp({ pointerId: 1, pointerType: 'touch', shiftKey: false }),
+      M.PointerUp({ pointerId: 1, pointerType: 'touch', modifiers: none }),
     )
     expect(up.model.presses).toEqual(['touch'])
     expect(up.model.button).toMatchObject({ pressed: false, pointerId: null, suppressing: 1 })
@@ -61,14 +73,14 @@ describe('Press placement', () => {
     ).toBe(false)
     const down = send(fresh, M.PointerDown({ pointerId: 1, button: 0, pointerType: 'mouse' })).model
     expect(
-      send(down, M.PointerUp({ pointerId: 2, pointerType: 'mouse', shiftKey: false })).model
+      send(down, M.PointerUp({ pointerId: 2, pointerType: 'mouse', modifiers: none })).model
         .presses,
     ).toEqual([])
     const cancelled = send(down, M.PointerCancelled({ pointerId: 1 })).model
     expect(cancelled.button.pressed).toBe(false)
     expect(cancelled.presses).toEqual([])
     expect(
-      send(cancelled, M.PointerUp({ pointerId: 1, pointerType: 'mouse', shiftKey: false })).model
+      send(cancelled, M.PointerUp({ pointerId: 1, pointerType: 'mouse', modifiers: none })).model
         .presses,
     ).toEqual([])
   })
@@ -77,28 +89,28 @@ describe('Press placement', () => {
     const down = send(fresh, M.KeyDown({ key: ' ', repeat: false })).model
     expect(down.button).toMatchObject({ pressed: true, key: ' ' })
     expect(send(down, M.KeyDown({ key: ' ', repeat: true })).model.button.key).toBe(' ')
-    const up = send(down, M.KeyUp({ key: ' ', shiftKey: false })).model
+    const up = send(down, M.KeyUp({ key: ' ', modifiers: none })).model
     expect(up.presses).toEqual(['keyboard'])
     expect(up.button.pressed).toBe(false)
     expect(send(fresh, M.KeyDown({ key: 'a', repeat: false })).model.button.pressed).toBe(false)
-    expect(send(fresh, M.KeyUp({ key: 'Enter', shiftKey: false })).model.presses).toEqual([])
+    expect(send(fresh, M.KeyUp({ key: 'Enter', modifiers: none })).model.presses).toEqual([])
   })
 
   it('a click with no pointer is a virtual press; a ghost click inside the window is not', () => {
-    expect(send(fresh, M.Clicked({ detail: 0, shiftKey: false })).model.presses).toEqual([
+    expect(send(fresh, M.Clicked({ detail: 0, modifiers: none })).model.presses).toEqual([
       'virtual',
     ])
     const after = send(
       fresh,
       M.PointerDown({ pointerId: 1, button: 0, pointerType: 'touch' }),
-      M.PointerUp({ pointerId: 1, pointerType: 'touch', shiftKey: false }),
+      M.PointerUp({ pointerId: 1, pointerType: 'touch', modifiers: none }),
     ).model
-    expect(send(after, M.Clicked({ detail: 1, shiftKey: false })).model.presses).toEqual(['touch'])
+    expect(send(after, M.Clicked({ detail: 1, modifiers: none })).model.presses).toEqual(['touch'])
     const stale = send(after, M.Unsuppressed({ generation: 0 })).model
     expect(stale.button.suppressing).toBe(1)
     const open = send(after, M.Unsuppressed({ generation: 1 })).model
     expect(open.button.suppressing).toBeNull()
-    expect(send(open, M.Clicked({ detail: 1, shiftKey: false })).model.presses).toEqual([
+    expect(send(open, M.Clicked({ detail: 1, modifiers: none })).model.presses).toEqual([
       'touch',
       'mouse',
     ])
@@ -108,7 +120,7 @@ describe('Press placement', () => {
     const effect = send(
       fresh,
       M.PointerDown({ pointerId: 1, button: 0, pointerType: 'mouse' }),
-      M.PointerUp({ pointerId: 1, pointerType: 'mouse', shiftKey: false }),
+      M.PointerUp({ pointerId: 1, pointerType: 'mouse', modifiers: none }),
     ).commands![0]! as { readonly effect: Effect.Effect<Message> }
     const fact = await Effect.runPromise(
       Effect.gen(function* () {
@@ -152,10 +164,10 @@ describe('Press.events', () => {
       )
       expect(facts).toEqual([
         M.PointerDown({ pointerId: 7, button: 0, pointerType: 'pen' }),
-        M.PointerUp({ pointerId: 7, pointerType: 'pen', shiftKey: false }),
+        M.PointerUp({ pointerId: 7, pointerType: 'pen', modifiers: none }),
         M.KeyDown({ key: ' ', repeat: false }),
         M.KeyDown({ key: 'a', repeat: false }),
-        M.Clicked({ detail: 0, shiftKey: false }),
+        M.Clicked({ detail: 0, modifiers: none }),
       ])
     } finally {
       button.remove()
@@ -173,7 +185,7 @@ describe('Press.events', () => {
           )
           for (let i = 0; i < 50; i++) yield* Effect.yieldNow
           button.setAttribute('aria-disabled', 'true')
-          fire(button, 'click', { detail: 0 })
+          fire(button, 'click', { detail: 5 })
           button.removeAttribute('aria-disabled')
           fire(button, 'click', { detail: 0 })
           const collected = yield* Fiber.join(fiber)
@@ -181,10 +193,124 @@ describe('Press.events', () => {
           return collected
         }),
       )
-      expect(facts).toEqual([M.Clicked({ detail: 0, shiftKey: false })])
+      expect(facts).toEqual([M.Clicked({ detail: 0, modifiers: none })])
     } finally {
       button.remove()
     }
+  })
+
+  /** Runs `act` against a mounted element and returns the `count` facts it reported. */
+  const reported = (count: number, act: (button: HTMLElement) => void) => {
+    const button = document.createElement('div')
+    document.body.appendChild(button)
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(
+          takeMessages(Press.events().f(button, Mount.liveViewStateChanges), count),
+        )
+        for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+        act(button)
+        return yield* Fiber.join(fiber)
+      }),
+    ).finally(() => button.remove())
+  }
+  const disable = (button: HTMLElement) => button.setAttribute('aria-disabled', 'true')
+
+  it('an element disabled mid-press still hears that press end, as a cancel', async () => {
+    const facts = await reported(4, button => {
+      fire(button, 'pointerdown', { pointerId: 4, button: 0, pointerType: 'mouse' })
+      disable(button)
+      fire(button, 'pointerup', { pointerId: 4, pointerType: 'mouse' })
+      button.removeAttribute('aria-disabled')
+      fire(button, 'pointerdown', { pointerId: 5, button: 0, pointerType: 'mouse' })
+      disable(button)
+      fire(button, 'pointerleave', { pointerId: 5 })
+    })
+    expect(facts).toEqual([
+      M.PointerDown({ pointerId: 4, button: 0, pointerType: 'mouse' }),
+      M.PointerCancelled({ pointerId: 4 }),
+      M.PointerDown({ pointerId: 5, button: 0, pointerType: 'mouse' }),
+      M.PointerCancelled({ pointerId: 5 }),
+    ])
+  })
+
+  it('a key released after the element disabled is a cancel, not a press', async () => {
+    const facts = await reported(2, button => {
+      fire(button, 'keydown', { key: 'Enter', repeat: false })
+      disable(button)
+      fire(button, 'keyup', { key: 'Enter' })
+    })
+    expect(facts).toEqual([
+      M.KeyDown({ key: 'Enter', repeat: false }),
+      M.KeyCancelled({ key: 'Enter' }),
+    ])
+  })
+
+  it('a disabled element refuses a new press, and the release of one it never heard', async () => {
+    const facts = await reported(1, button => {
+      disable(button)
+      fire(button, 'pointerdown', { pointerId: 6, button: 0, pointerType: 'mouse' })
+      fire(button, 'pointerup', { pointerId: 6, pointerType: 'mouse' })
+      fire(button, 'keydown', { key: 'Enter', repeat: false })
+      fire(button, 'keyup', { key: 'Enter' })
+      button.removeAttribute('aria-disabled')
+      fire(button, 'keyup', { key: 'Enter' })
+    })
+    expect(facts).toEqual([M.KeyUp({ key: 'Enter', modifiers: none })])
+  })
+
+  it('reads the modifiers from the pointer, key and click events', async () => {
+    const modified = { ctrlKey: true, metaKey: true, altKey: true, shiftKey: true }
+    const all = { shiftKey: true, ctrlKey: true, metaKey: true, altKey: true }
+    const facts = await reported(5, button => {
+      fire(button, 'pointerdown', { pointerId: 8, button: 0, pointerType: 'mouse' })
+      fire(button, 'pointerup', { pointerId: 8, pointerType: 'mouse', ...modified })
+      fire(button, 'keydown', { key: 'Enter', repeat: false })
+      fire(button, 'keyup', { key: 'Enter', ...modified })
+      fire(button, 'click', { detail: 1, ...modified })
+    })
+    expect(facts).toEqual([
+      M.PointerDown({ pointerId: 8, button: 0, pointerType: 'mouse' }),
+      M.PointerUp({ pointerId: 8, pointerType: 'mouse', modifiers: all }),
+      M.KeyDown({ key: 'Enter', repeat: false }),
+      M.KeyUp({ key: 'Enter', modifiers: all }),
+      M.Clicked({ detail: 1, modifiers: all }),
+    ])
+  })
+})
+
+describe('Pressed carries the modifiers', () => {
+  const ctrlShift = { ...none, ctrlKey: true, shiftKey: true }
+  const meta = { ...none, metaKey: true }
+  const alt = { ...none, altKey: true }
+
+  it('of the pointer release, the key release or the click that completed the press', () => {
+    const pointer = send(
+      fresh,
+      M.PointerDown({ pointerId: 1, button: 0, pointerType: 'mouse' }),
+      M.PointerUp({ pointerId: 1, pointerType: 'mouse', modifiers: ctrlShift }),
+    )
+    expect(pointer.model.held).toEqual([ctrlShift])
+    const key = send(
+      fresh,
+      M.KeyDown({ key: 'Enter', repeat: false }),
+      M.KeyUp({ key: 'Enter', modifiers: meta }),
+    )
+    expect(key.model.held).toEqual([meta])
+    expect(send(fresh, M.Clicked({ detail: 0, modifiers: alt })).model.held).toEqual([alt])
+    expect(send(fresh, M.Clicked({ detail: 2, modifiers: ctrlShift })).model.held).toEqual([
+      ctrlShift,
+    ])
+  })
+})
+
+describe('Press placement, a key cancelled', () => {
+  it('ends the key press without activating, and ignores another key', () => {
+    const down = send(fresh, M.KeyDown({ key: 'Enter', repeat: false })).model
+    const cancelled = send(down, M.KeyCancelled({ key: 'Enter' })).model
+    expect(cancelled.button).toMatchObject({ pressed: false, key: null })
+    expect(cancelled.presses).toEqual([])
+    expect(send(down, M.KeyCancelled({ key: ' ' })).model).toBe(down)
   })
 })
 

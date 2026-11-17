@@ -8,6 +8,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
@@ -547,6 +548,37 @@ export interface CascadeSelectView<ParentMessage> {
   readonly mixins?: MixinList<ParentMessage> | undefined
 }
 
+/** The open panel's own keys: the arrows, Home, End, Enter, Escape and every printable character. */
+const ownRoutes = <ParentMessage>(
+  direction: 'ltr' | 'rtl' | undefined,
+  answer: (message: Message) => Option.Option<ParentMessage>,
+): ReadonlyArray<Route<ParentMessage>> => [
+  ...PANEL_KEYS.map(key =>
+    Behaviors.Keys.route<undefined, ParentMessage>(`Cascade ${key}`, {
+      on: [...Behaviors.Keys.withShift(key)],
+      // The key as a left-to-right reader presses it.
+      handle: () => answer(Message.Pressed({ key: readingKey(key, direction) })),
+    }),
+  ),
+  Behaviors.Keys.route<undefined, ParentMessage>('Cascade typeahead', {
+    on: [Behaviors.Keys.printable],
+    handle: ({ key }) => answer(Message.Pressed({ key })),
+  }),
+]
+
+/**
+ * The `mixins:key-conflict` that drawing the open panel with `routes` would
+ * throw, or none: the application's routes against the panel's own and against
+ * each other. The closed trigger's keys are not open to routes.
+ */
+export const conflict = <ParentMessage>(
+  routes: ReadonlyArray<Route<ParentMessage>>,
+): Option.Option<Diagnostic> =>
+  Behaviors.Keys.conflict(
+    [...ownRoutes<ParentMessage>(undefined, () => Option.none()), ...routes],
+    Option.some('panel'),
+  )
+
 export const view = <ParentMessage>(
   options: CascadeSelectView<ParentMessage>,
   h: HtmlBuilder<ParentMessage>,
@@ -560,18 +592,7 @@ export const view = <ParentMessage>(
     slot: 'panel',
     name: 'CascadeSelectPanelKeys',
     routes: [
-      ...PANEL_KEYS.map(key =>
-        Behaviors.Keys.route<undefined, ParentMessage>(`Cascade ${key}`, {
-          on: [...Behaviors.Keys.withShift(key)],
-          // The key as a left-to-right reader presses it.
-          handle: () =>
-            Option.some(send(Message.Pressed({ key: readingKey(key, options.direction) }))),
-        }),
-      ),
-      Behaviors.Keys.route<undefined, ParentMessage>('Cascade typeahead', {
-        on: [Behaviors.Keys.printable],
-        handle: ({ key }) => Option.some(send(Message.Pressed({ key }))),
-      }),
+      ...ownRoutes(options.direction, message => Option.some(send(message))),
       ...(options.routes ?? []),
     ],
   })

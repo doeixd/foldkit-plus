@@ -13,6 +13,7 @@ import {
   Combobox as UiCombobox,
   DatePicker as UiDatePicker,
   Dialog as UiDialog,
+  Disclosure as UiDisclosure,
   HoverIntent as UiHoverIntent,
   Nav as UiNav,
   Listbox as UiListbox,
@@ -27,13 +28,22 @@ import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import type * as UiVirtualList from '@foldkit/ui/virtualList'
 import type { AnchorConfig } from '@foldkit/ui/anchor'
+import * as UiFieldset from '@foldkit/ui/fieldset'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { SlotView, type NamedStyle } from 'foldkit-mixins'
+import { ImageAsset, Layout, Provider } from 'foldkit-media'
+import { Behaviors, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { RovingTabindex } from 'foldkit-primitives/interaction'
 import { Theme } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import {
   Accordion,
   AccordionSlots,
+  AppShell,
+  AppShellSlots,
+  Disclosure,
+  DisclosureSlots,
+  Drawer,
+  DrawerSlots,
   Anchor,
   HoverIntent,
   HoverIntentSlots,
@@ -188,8 +198,34 @@ import {
   FloatingPanelSlots,
   Tour,
   TourSlots,
+  SearchField,
+  SearchFieldSlots,
+  Picker,
+  PickerSlots,
+  Toolbar,
+  ToolbarSlots,
+  type ToolbarControl,
+  FileInput,
+  FileInputSlots,
+  AspectRatio,
+  AspectRatioSlots,
+  CodeBlock,
+  CodeBlockSlots,
+  Fieldset,
+  FieldsetSlots,
+  Figure,
+  FigureSlots,
+  Icon,
+  IconSlots,
+  Image,
+  ImageSlots,
+  Label,
+  LabelSlots,
+  Typography,
+  TypographySlots,
 } from 'foldkit-mixins-ui'
 
+import { icons } from '../view/iconData.js'
 import { forSlots, slots } from './theme.js'
 
 // #region button-basic
@@ -358,9 +394,9 @@ export const buttonGroupToolbar = (
 // is the group's last face, so it takes the group's end corners. Its Model
 // is the application's, as any Menu's.
 export const SAVE_MENU: ReadonlyArray<Menu.Row> = [
-  { label: 'Save as copy' },
-  { label: 'Save as template' },
-  { label: 'Save and close' },
+  { value: 'Save as copy', label: 'Save as copy' },
+  { value: 'Save as template', label: 'Save as template' },
+  { value: 'Save and close', label: 'Save and close' },
 ]
 
 export const buttonGroupSplit = <Message>(
@@ -962,14 +998,16 @@ export const cardGroupGrid = <Message>(
   )
 // #endregion
 
-// #region input
+// #region input-basic
 export const InputStyle = forSlots(InputSlots)(Recipes.Input({}))
 
 export const input = (style: NamedStyle<typeof InputSlots>, h: HtmlBuilder<never>): Html =>
   Input.view(
     {
       id: 'email',
+      name: 'email',
       type: 'email',
+      autocomplete: 'email',
       placeholder: 'ada@example.com',
       described: true,
       style,
@@ -984,6 +1022,47 @@ export const input = (style: NamedStyle<typeof InputSlots>, h: HtmlBuilder<never
         ),
     },
     h,
+  )
+// #endregion
+
+// #region input-form
+// What a form reads from a field: the `name` it submits under, `required`, what
+// the browser may fill in (`autocomplete`), the keyboard a phone offers
+// (`inputMode`) and a limit (`maxLength`). A `readOnly` value can be read and
+// selected, and is submitted with the rest.
+export const inputForm = (style: NamedStyle<typeof InputSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: 'min(20rem, 100%)' })],
+    [
+      Input.view(
+        {
+          id: 'phone',
+          name: 'phone',
+          type: 'tel',
+          autocomplete: 'tel',
+          inputMode: 'tel',
+          required: true,
+          maxLength: 16,
+          placeholder: '+1 555 0100',
+          style,
+          draw: (resolved, h) =>
+            h.div([], [h.label(resolved.label, ['Phone']), h.input(resolved.input)]),
+        },
+        h,
+      ),
+      Input.view(
+        {
+          id: 'order',
+          name: 'order',
+          value: 'ORD-2041',
+          readOnly: true,
+          style,
+          draw: (resolved, h) =>
+            h.div([], [h.label(resolved.label, ['Order']), h.input(resolved.input)]),
+        },
+        h,
+      ),
+    ],
   )
 // #endregion
 
@@ -1900,8 +1979,21 @@ export const table = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder<never
     {
       caption: 'Recent invoices',
       columns: [
-        { header: 'Invoice', value: row => row.id },
-        { header: 'Status', value: row => row.status },
+        // The row's heading (`th scope="row"`): a screen reader names the row by it.
+        { header: 'Invoice', rowHeader: true, value: row => row.id },
+        // A cell is text or markup: a Badge, styled as on the Badge page.
+        {
+          header: 'Status',
+          value: row =>
+            Badge.view(
+              {
+                text: row.status,
+                tone: row.status === 'Paid' ? 'live' : 'review',
+                style: BadgeStyle,
+              },
+              h,
+            ),
+        },
         { header: 'Amount', numeric: true, value: row => `$${row.amount.toFixed(2)}` },
       ],
       rows: [
@@ -2282,6 +2374,45 @@ export const paginationCompact = <Message>(
   onPage: (page: number) => Message,
   h: HtmlBuilder<Message>,
 ): Html => Pagination.view({ page, pageCount: 12, onPage, style }, h)
+// #endregion
+
+// #region pagination-words
+// Every stop's words, and the name each is given, in your language.
+export const paginationWords = <Message>(
+  style: NamedStyle<typeof PaginationSlots>,
+  page: number,
+  onPage: (page: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Pagination.view(
+    {
+      page,
+      pageCount: 8,
+      onPage,
+      ends: true,
+      label: 'Seitennavigation',
+      words: {
+        first: 'Erste',
+        previous: 'Zurück',
+        next: 'Weiter',
+        last: 'Letzte',
+        stopLabel: word => `${word} Seite`,
+      },
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region pagination-one-page
+// With one page there are no stops to draw: the control draws nothing, unless
+// a `range` has a summary to say, as here.
+export const paginationOnePage = <Message>(
+  style: NamedStyle<typeof PaginationSlots>,
+  onPage: (page: number) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Pagination.view({ page: 1, pageCount: 1, onPage, range: { total: 7, perPage: 10 }, style }, h)
 // #endregion
 
 // #region item-basic
@@ -2825,6 +2956,7 @@ export const slider = <Message>(
         {
           id: 'preview-volume',
           label: 'Volume',
+          description: 'Applies to this device only.',
           value: values.volume,
           onChange: messages.onVolume,
           step: 5,
@@ -2849,6 +2981,47 @@ export const slider = <Message>(
         },
         h,
       ),
+    ],
+  )
+// #endregion
+
+// #region slider-commit
+/** The value as it moves, and the one last let go of. */
+export interface SliderCommit {
+  readonly value: number
+  readonly saved: number
+}
+
+// `onChange` sends every step on the way, so a drag sends dozens; `onCommit`
+// sends once, when the reader lets go (and on each key press), which is the
+// moment to save or ask a server.
+export const sliderCommit = <Message>(
+  style: NamedStyle<typeof SliderSlots>,
+  state: SliderCommit,
+  messages: {
+    readonly onChange: (value: number) => Message
+    readonly onCommit: (value: number) => Message
+  },
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: 'min(20rem, 100%)' })],
+    [
+      Slider.view(
+        {
+          id: 'preview-brightness',
+          label: 'Brightness',
+          value: state.value,
+          onChange: messages.onChange,
+          onCommit: messages.onCommit,
+          step: 5,
+          format: value => `${value}%`,
+          showValue: true,
+          style,
+        },
+        h,
+      ),
+      h.p([h.AriaLive('polite')], [`Saved: ${state.saved}%`]),
     ],
   )
 // #endregion
@@ -3465,20 +3638,55 @@ export const hoverCard = <Message>(
 // #region menu-actions
 export const MenuStyle = forSlots(MenuSlots)(Recipes.Menu({}))
 
+/** An icon in a row, drawn with the inert builder: a row is data the Menu was given, drawn later. */
+const rowIcon = (d: string): Html => outline(SlotView.inertBuilder<never>(), d)
+
+// An `icon` before the label, a quiet `hint` and a `shortcut` at its end, and
+// a `tone` for what cannot be undone. Two rows may share a label: a row is
+// named by its `value`, so these two Share rows are told apart.
 /** The rows of the menu a button opens. */
 export const PAGE_MENU: ReadonlyArray<Menu.Row> = [
-  { label: 'Rename' },
-  { label: 'Duplicate' },
-  { label: 'Move' },
-  { label: 'Delete' },
+  {
+    value: 'Rename',
+    label: 'Rename',
+    icon: rowIcon('M2.5 13.5l.5-3 7-7 2.5 2.5-7 7zM9 5l2 2'),
+    shortcut: ['F2'],
+  },
+  { value: 'Duplicate', label: 'Duplicate', icon: rowIcon('M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3') },
+  { value: 'Move', label: 'Move', icon: rowIcon('M2.5 8h11M10 4.5L13.5 8 10 11.5') },
+  { value: 'Share link', label: 'Share', hint: 'link' },
+  { value: 'Share email', label: 'Share', hint: 'email' },
+  {
+    value: 'Delete',
+    label: 'Delete',
+    icon: rowIcon('M2.5 4.5h11M6 4.5v-2h4v2M4 4.5l.75 9h6.5l.75-9'),
+    tone: 'destructive',
+  },
 ]
 
 /** The rows of the menu a right press opens, two opening submenus beside them. */
 export const FILE_MENU: ReadonlyArray<Menu.Row> = [
-  { label: 'New tab' },
-  { label: 'Share', items: ['Email', 'Messages', 'Copy link'] },
-  { label: 'Export', items: ['PDF', 'PNG', 'SVG'], isItemDisabled: item => item === 'SVG' },
-  { label: 'Print' },
+  { value: 'New tab', label: 'New tab' },
+  {
+    value: 'Share',
+    label: 'Share',
+    items: [
+      { value: 'Email', label: 'Email' },
+      { value: 'Messages', label: 'Messages' },
+      { value: 'Copy link', label: 'Copy link' },
+    ],
+  },
+  {
+    value: 'Export',
+    label: 'Export',
+    items: [
+      { value: 'PDF', label: 'PDF' },
+      { value: 'PNG', label: 'PNG' },
+      { value: 'SVG', label: 'SVG' },
+    ],
+    isItemDisabled: item => item === 'SVG',
+  },
+  { value: 'Print', label: 'Print' },
 ]
 
 /** Each open menu is the component's; what each last chose is the Model's. */
@@ -3515,7 +3723,7 @@ export const menu = <Message>(
           model: state.pageMenu,
           rows: PAGE_MENU,
           buttonContent: h.span([], ['Page actions']),
-          isRowDisabled: label => label === 'Move',
+          isRowDisabled: value => value === 'Move',
           onMessage: toPage,
           direction,
           mixins: [style.mixin, ...Menu.fluid],
@@ -3572,16 +3780,24 @@ export type ViewOptions = typeof ViewOptions.Type
 // Checkbox and radio rows send `Selected` and keep the menu open; rows of one
 // group stand under its heading; a shortcut is drawn as keys at the row's end.
 export const viewRows = (options: ViewOptions): ReadonlyArray<Menu.Row> => [
-  { label: 'Grid', check: 'checkbox', checked: options.grid, group: 'Show', shortcut: ['⌘', 'G'] },
-  { label: 'Rulers', check: 'checkbox', checked: options.rulers, group: 'Show' },
-  { label: 'Fit', check: 'radio', checked: options.zoom === 'Fit', group: 'Zoom' },
   {
+    value: 'Grid',
+    label: 'Grid',
+    check: 'checkbox',
+    checked: options.grid,
+    group: 'Show',
+    shortcut: ['⌘', 'G'],
+  },
+  { value: 'Rulers', label: 'Rulers', check: 'checkbox', checked: options.rulers, group: 'Show' },
+  { value: 'Fit', label: 'Fit', check: 'radio', checked: options.zoom === 'Fit', group: 'Zoom' },
+  {
+    value: 'Actual size',
     label: 'Actual size',
     check: 'radio',
     checked: options.zoom === 'Actual size',
     group: 'Zoom',
   },
-  { label: 'Delete', tone: 'destructive', shortcut: ['⌫'] },
+  { value: 'Delete', label: 'Delete', tone: 'destructive', shortcut: ['⌫'] },
 ]
 
 export const viewOptionsMenu = <Message>(
@@ -4997,7 +5213,18 @@ export const toastAction = <Message>(
     [],
     [
       Button.view({ label: 'Archive the thread', onClick: onArchive, style: ButtonStyle }, h),
-      Toast.view({ model: stack.model, onMessage: stack.onMessage, label: stack.label, style }, h),
+      // Pressing the action removes the toast that holds focus: `keepFocus` hands
+      // it to the same button of a neighbouring toast instead of dropping it on the page.
+      Toast.view(
+        {
+          model: stack.model,
+          onMessage: stack.onMessage,
+          label: stack.label,
+          mixins: Toast.keepFocus,
+          style,
+        },
+        h,
+      ),
     ],
   )
 // #endregion
@@ -5030,6 +5257,34 @@ export const toastPositions = <Message>(
         h,
       ),
     ]),
+  )
+// #endregion
+
+// #region disclosure-basic
+/** One button that shows and hides one panel; the application holds whether it is open. */
+export const disclosure = <Message>(
+  style: NamedStyle<typeof DisclosureSlots>,
+  isOpen: boolean,
+  onToggle: (isOpen: boolean) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  UiDisclosure.view(
+    {
+      id: 'details',
+      isOpen,
+      onToggle,
+      toView: attributes => {
+        const details = Disclosure.resolve(attributes, [style.mixin], { input: undefined, h })
+        return h.div(
+          [],
+          [
+            h.button(details.button, ['Shipping details']),
+            details.animatePanel(h.div(details.panel, ['Shipped in two days, tracked.'])),
+          ],
+        )
+      },
+    },
+    h,
   )
 // #endregion
 
@@ -5233,7 +5488,7 @@ export const checkboxGroupInvalid = <Message>(
   )
 // #endregion
 
-// #region number-field
+// #region number-field-basic
 export const NumberFieldStyle = forSlots(NumberFieldSlots)(Recipes.NumberField({}))
 
 export const numberField = <Message>(
@@ -5248,7 +5503,7 @@ export const numberField = <Message>(
       label: 'Servings',
       description: 'From 1 to 12; the arrow keys step it.',
       value: Option.some(value),
-      // The demo's Model holds a number, so a cleared field keeps the last one.
+      // This Model holds a number, so a cleared field keeps the last one: see the next example for one that can be empty.
       onChange: next => onChange(Option.getOrElse(next, () => value)),
       min: 1,
       max: 12,
@@ -5258,7 +5513,39 @@ export const numberField = <Message>(
   )
 // #endregion
 
-// #region otp-field
+// #region number-field-locale
+// An empty field is `Option.none()`, so the Model can hold "nothing entered
+// yet"; the steppers then start from the bounds. `locale` draws the number
+// with that locale's marks and reads typed text back the same way, so what the
+// field shows is what it accepts. `name` submits the text shown.
+export const numberFieldLocale = <Message>(
+  style: NamedStyle<typeof NumberFieldSlots>,
+  value: Option.Option<number>,
+  onChange: (value: Option.Option<number>) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  NumberField.view(
+    {
+      id: 'price',
+      name: 'price',
+      label: 'Price in euros',
+      description: Option.match(value, {
+        onNone: () => 'Empty: type 1.234,5 or step from the minimum.',
+        onSome: amount => `Read as ${amount}.`,
+      }),
+      value,
+      onChange,
+      locale: 'de-DE',
+      min: 0,
+      step: 0.5,
+      required: true,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region otp-field-basic
 export const OtpFieldStyle = forSlots(OtpFieldSlots)(Recipes.OtpField({}))
 
 export const otpField = <Message>(
@@ -5267,6 +5554,135 @@ export const otpField = <Message>(
   onChange: (code: string) => Message,
   h: HtmlBuilder<Message>,
 ): Html => OtpField.view({ label: 'Sign-in code', value: code, onChange, groups: [3, 3], style }, h)
+// #endregion
+
+// #region otp-field-states
+// Empty and filling are the same field at different values; invalid marks a
+// refused code, disabled takes no input, and read-only shows a code that
+// cannot be changed. Each cell mirrors the one real input beneath them. The
+// two fields that take input keep a value of their own, which the application
+// owns like any other.
+export const otpFieldStates = <Message>(
+  style: NamedStyle<typeof OtpFieldSlots>,
+  codes: { readonly filling: string; readonly refused: string },
+  onChange: (field: 'filling' | 'refused', code: string) => Message,
+  h: HtmlBuilder<Message>,
+): Html => {
+  const typed = (field: 'filling' | 'refused') => (code: string) => onChange(field, code)
+  return h.div(
+    [h.Style({ display: 'grid', gap: '1rem' })],
+    [
+      OtpField.view(
+        {
+          id: 'otp-filling',
+          label: 'Filling',
+          value: codes.filling,
+          onChange: typed('filling'),
+          style,
+        },
+        h,
+      ),
+      OtpField.view(
+        {
+          id: 'otp-invalid',
+          label: 'Refused code',
+          value: codes.refused,
+          invalid: true,
+          onChange: typed('refused'),
+          style,
+        },
+        h,
+      ),
+      OtpField.view(
+        {
+          id: 'otp-disabled',
+          label: 'Disabled',
+          value: '',
+          disabled: true,
+          onChange: typed('filling'),
+          style,
+        },
+        h,
+      ),
+      OtpField.view(
+        {
+          id: 'otp-readonly',
+          label: 'Read only',
+          value: '482910',
+          readOnly: true,
+          onChange: typed('filling'),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+}
+// #endregion
+
+// #region drawer-basic
+// A panel docked to the bottom of the screen: the handle peeks, and a press, Enter or a drag
+// opens it. The page under it stays live. Set `--fk-drawer-peek` and `--fk-drawer-height` on an
+// ancestor to size it; `keepFocus` keeps focus on the handle when it goes down with focus inside.
+export const drawer = <Message>(
+  style: NamedStyle<typeof DrawerSlots>,
+  model: Drawer.Model,
+  onMessage: (message: Drawer.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Drawer.view(
+    {
+      model,
+      onMessage,
+      label: 'Order details',
+      style,
+      mixins: Drawer.keepFocus,
+      draw: ({ panel, handle, body }) =>
+        h.aside(
+          [...panel, h.AriaLabel('Order')],
+          [
+            h.button(handle, []),
+            h.div(body, [
+              h.div(
+                [
+                  h.Style({
+                    display: 'grid',
+                    gap: '0.75rem',
+                    justifyItems: 'start',
+                    padding: '0 1rem',
+                  }),
+                ],
+                [
+                  h.p([h.Style({ margin: '0' })], ['Two items, shipped tomorrow.']),
+                  Button.view({ label: 'Track the order', style: ButtonStyle }, h),
+                ],
+              ),
+            ]),
+          ],
+        ),
+    },
+    h,
+  )
+// #endregion
+
+// #region app-shell-basic
+// The page's frame, with no state and no Message: a skip link, the header (the banner) with its
+// status and actions, the main region and the footer. `side` takes a `Sidebar`'s view for a column.
+export const appShell = <Message>(
+  style: NamedStyle<typeof AppShellSlots>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  AppShell.view(
+    {
+      title: 'Acme',
+      status: [Badge.view({ text: 'Live', tone: 'live', style: BadgeStyle }, h)],
+      actions: [Button.view({ label: 'Sign out', style: ButtonStyle }, h)],
+      footer: [h.span([], ['Acme, 2026'])],
+      style,
+    },
+    [h.h2([], ['Orders']), h.p([], ['Nothing is waiting for you.'])],
+    h,
+  )
 // #endregion
 
 // #region resizable-basic
@@ -5808,14 +6224,14 @@ export const switcherSidebar = Sidebar.init({
 })
 
 export const TEAMS: ReadonlyArray<Menu.Row> = [
-  { label: 'Acme Inc' },
-  { label: 'Acme Corp.' },
-  { label: 'Evil Corp.' },
+  { value: 'Acme Inc', label: 'Acme Inc' },
+  { value: 'Acme Corp.', label: 'Acme Corp.' },
+  { value: 'Evil Corp.', label: 'Evil Corp.' },
 ]
 export const ACCOUNT: ReadonlyArray<Menu.Row> = [
-  { label: 'Account' },
-  { label: 'Notifications' },
-  { label: 'Log out' },
+  { value: 'Account', label: 'Account' },
+  { value: 'Notifications', label: 'Notifications' },
+  { value: 'Log out', label: 'Log out' },
 ]
 
 // A menu whose trigger is the whole end beside its mark, as wide as the column.
@@ -5910,18 +6326,38 @@ export const sidebarSwitcher = <Message>(
 // #endregion
 
 // #region menubar
+// A row's `shortcut` is drawn at its end and named in `aria-keyshortcuts`; the bar
+// binds nothing, so the application listens for the keys.
 export const MenubarStyle = forSlots(MenubarSlots)(Recipes.Menubar({}))
 const MenubarMenuStyle = forSlots(MenuSlots)(Recipes.MenubarMenu({}))
 
 /** The bar's menus, in the order of the Model's. */
 export const MENUBAR: ReadonlyArray<Menubar.MenubarMenu> = [
-  { label: 'File', rows: [{ label: 'New' }, { label: 'Open' }, { label: 'Save' }] },
+  {
+    label: 'File',
+    rows: [
+      { value: 'New', label: 'New' },
+      { value: 'Open', label: 'Open' },
+      { value: 'Save', label: 'Save', shortcut: ['⌘', 'S'] },
+    ],
+  },
   {
     label: 'Edit',
-    rows: [{ label: 'Undo' }, { label: 'Redo' }, { label: 'Copy' }],
-    isRowDisabled: label => label === 'Redo',
+    rows: [
+      { value: 'Undo', label: 'Undo', shortcut: ['⌘', 'Z'] },
+      { value: 'Redo', label: 'Redo', shortcut: ['⇧', '⌘', 'Z'] },
+      { value: 'Copy', label: 'Copy', shortcut: ['⌘', 'C'] },
+    ],
+    isRowDisabled: value => value === 'Redo',
   },
-  { label: 'View', rows: [{ label: 'Zoom in' }, { label: 'Zoom out' }, { label: 'Full screen' }] },
+  {
+    label: 'View',
+    rows: [
+      { value: 'Zoom in', label: 'Zoom in' },
+      { value: 'Zoom out', label: 'Zoom out' },
+      { value: 'Full screen', label: 'Full screen' },
+    ],
+  },
 ]
 
 /** The open menus are the bar's; the command chosen is the Model's. */
@@ -6551,7 +6987,19 @@ export const tagsInput = <Message>(
   onMessage: (message: TagsInput.Message) => Message,
   h: HtmlBuilder<Message>,
 ): Html =>
-  TagsInput.view({ model, onMessage, label: 'Topics', placeholder: 'Add a topic', style }, h)
+  TagsInput.view(
+    {
+      model,
+      onMessage,
+      label: 'Topics',
+      placeholder: 'Add a topic',
+      // One hidden input per tag under this name, so a form submits the list.
+      // Backspace in an empty field and the arrows move between the chips.
+      name: 'topics',
+      style,
+    },
+    h,
+  )
 // #endregion
 
 // #region tags-input-max
@@ -6873,15 +7321,29 @@ export const ACCENTS: ReadonlyArray<ColorPicker.ColorPickerPreset> = [
   { label: 'Glass', value: ColorPicker.color('#3b82f680') },
 ]
 
-/** The color, its format and the text being typed are the picker's Model, folded with `update`. */
+/**
+ * The color, its format and the text being typed are the picker's Model, folded with `update`.
+ * `eyedropper` draws the eyedropper button: an input of the view, `false` by default on a server and
+ * in a browser alike, so the application says when the browser has one (`ColorPicker.canEyedrop()`),
+ * after its code has taken the page over.
+ */
 export const colorPicker = <Message>(
   style: NamedStyle<typeof ColorPickerSlots>,
   model: ColorPicker.Model,
   onMessage: (message: ColorPicker.Message) => Message,
+  eyedropper: boolean,
   h: HtmlBuilder<Message>,
 ): Html =>
   ColorPicker.view(
-    { model, onMessage, label: 'Accent', presets: ACCENTS, style, slider: ChannelStyle },
+    {
+      model,
+      onMessage,
+      label: 'Accent',
+      presets: ACCENTS,
+      style,
+      slider: ChannelStyle,
+      eyedropper,
+    },
     h,
   )
 // #endregion
@@ -6899,11 +7361,13 @@ export const colorPickerPopover = <Message>(
   state: { readonly picker: ColorPicker.Model; readonly popover: UiPopover.Model },
   onMessage: (message: ColorPicker.Message) => Message,
   onPopover: (message: UiPopover.Message) => Message,
+  eyedropper: boolean,
   h: HtmlBuilder<Message>,
 ): Html =>
   ColorPicker.popover(
     {
       model: state.picker,
+      eyedropper,
       onMessage,
       popover: state.popover,
       onPopover,
@@ -7071,7 +7535,16 @@ export const treeViewCheckboxes = <Message>(
         h,
       ),
       // `checked` holds the files alone; a folder reads checked or mixed from them.
-      h.p([], [model.checked.length === 0 ? 'Nothing staged.' : `${model.checked.length} staged.`]),
+      // `checkedAs('trunk')` lists the outermost fully checked rows, so a checked
+      // folder stands for everything in it. Typing a name moves to that row.
+      h.p(
+        [],
+        [
+          model.checked.length === 0
+            ? 'Nothing staged.'
+            : `Staged: ${TreeView.checkedAs(TREE_ICONS, model.checked, 'trunk').join(', ')}.`,
+        ],
+      ),
     ],
   )
 // #endregion
@@ -7322,12 +7795,15 @@ export const segmented = <Message>(
   style: NamedStyle<typeof SegmentedSlots>,
   range: Range,
   onRange: (range: Range) => Message,
+  direction: 'ltr' | 'rtl',
   h: HtmlBuilder<Message>,
 ): Html =>
   Segmented.view(
     {
       id: 'range',
       label: 'Range',
+      // A single choice is a radio group: its arrows choose, and swap when right to left.
+      direction,
       options: Range.literals.map(value => ({
         value,
         label: value[0]!.toUpperCase() + value.slice(1),
@@ -7358,12 +7834,14 @@ export const segmentedIcons = <Message>(
   mode: ViewMode,
   onMode: (mode: ViewMode) => Message,
   iconOnly: boolean,
+  direction: 'ltr' | 'rtl',
   h: HtmlBuilder<Message>,
 ): Html =>
   Segmented.view(
     {
       id: 'view',
       label: 'View',
+      direction,
       options: ViewMode.literals.map(value => ({
         value,
         label: modes[value].label,
@@ -7381,7 +7859,7 @@ export const segmentedIcons = <Message>(
 
 // #region segmented-icon-only
 // The icons alone, each option named by its label (`aria-label` and `title`):
-// `segmentedIcons(style, mode, onMode, true, h)`.
+// `segmentedIcons(style, mode, onMode, true, direction, h)`.
 // #endregion
 
 // #region segmented-sizes
@@ -7393,11 +7871,42 @@ export const SegmentedSizes = (['sm', 'md', 'lg'] as const).map(size =>
 export const segmentedSizes = <Message>(
   range: Range,
   onRange: (range: Range) => Message,
+  direction: 'ltr' | 'rtl',
   h: HtmlBuilder<Message>,
 ): Html =>
   h.div(
     [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
-    SegmentedSizes.map(style => segmented(style, range, onRange, h)),
+    SegmentedSizes.map(style => segmented(style, range, onRange, direction, h)),
+  )
+// #endregion
+
+// #region segmented-multiple
+export const Weekday = Schema.Literals(['mon', 'tue', 'wed', 'thu', 'fri'])
+export type Weekday = typeof Weekday.Type
+
+// With `multiple` it is a group of toggle buttons (`aria-pressed`), any number
+// on, and `name` submits each chosen value. `Segmented.toggled(pressed, value,
+// { multiple: true })` is the update. Draw it without `fluid`: the pill marks one.
+export const segmentedMultiple = <Message>(
+  style: NamedStyle<typeof SegmentedSlots>,
+  days: ReadonlyArray<Weekday>,
+  onDay: (day: Weekday) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Segmented.view(
+    {
+      multiple: true,
+      label: 'Repeat on',
+      name: 'repeat',
+      options: Weekday.literals.map(value => ({
+        value,
+        label: value[0]!.toUpperCase() + value.slice(1),
+      })),
+      pressed: days,
+      onPress: onDay,
+      style,
+    },
+    h,
   )
 // #endregion
 
@@ -8464,8 +8973,9 @@ export interface Panels {
   readonly order: ReadonlyArray<string>
 }
 
-// Folded with `FloatingPanel.update()`; opened with `FloatingPanel.open(model,
-// { opener })`, and its `Raised` folded into `order` with `FloatingPanel.raise`.
+// Folded with `FloatingPanel.update()`; opened with `FloatingPanel.open(model)`,
+// and its `Raised` folded into `order` with `FloatingPanel.raise`. Closing it
+// gives focus back to the button that opened it, by `FloatingPanel.focusReturn`.
 export const floatingPanel = <Message>(
   style: NamedStyle<typeof FloatingPanelSlots>,
   panels: Panels,
@@ -8491,6 +9001,7 @@ export const floatingPanel = <Message>(
           content: h.p([], ['Drag the header, resize from an edge, or use the arrows.']),
           order: panels.order,
           style,
+          mixins: FloatingPanel.focusReturn,
         },
         h,
       ),
@@ -8501,7 +9012,7 @@ export const floatingPanel = <Message>(
 // #region tour-basic
 export const TourStyle = forSlots(TourSlots)(Recipes.Tour({}))
 
-/** Folded with `Tour.update(TOUR)`; started with `Tour.start(model, TOUR, { opener })`. */
+/** Folded with `Tour.update(TOUR)`; started with `Tour.start(model, TOUR)`. */
 export const TOUR: Tour.Config = {
   steps: [
     { title: 'Search', description: 'Find any page by its name.', target: 'preview-tour-search' },
@@ -8511,7 +9022,7 @@ export const TOUR: Tour.Config = {
 }
 
 // Each step beside its target, the page dimmed around it; the arrows move on
-// and back, Escape skips, and focus returns to the button that started it.
+// and back, Escape skips, and `Tour.focusReturn` gives focus back to the button that started it.
 export const tour = <Message>(
   style: NamedStyle<typeof TourSlots>,
   model: Tour.Model,
@@ -8538,8 +9049,624 @@ export const tour = <Message>(
         ]),
       ),
       h.button(button.attrs([h.Id('preview-tour-save'), h.Type('button')]), ['Save']),
-      Tour.view({ model, config: TOUR, onMessage, style }, h),
+      Tour.view({ model, config: TOUR, onMessage, style, mixins: Tour.focusReturn }, h),
     ],
   )
 }
+// #endregion
+
+// #region search-field-basic
+export const SearchFieldStyle = forSlots(SearchFieldSlots)(Recipes.SearchField({}))
+
+/** What typing and clearing send. Answer `onClear` with `SearchField.Focus`: the button leaves with its focus. */
+export interface SearchMessages<Message> {
+  readonly onInput: (value: string) => Message
+  readonly onClear: Message
+}
+
+// The application owns the text. Escape clears a field with text, and one
+// without it reaches whatever encloses the field, such as a dialog.
+export const searchField = <Message>(
+  style: NamedStyle<typeof SearchFieldSlots>,
+  query: string,
+  messages: SearchMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  SearchField.view(
+    {
+      id: 'preview-search',
+      label: 'Search recipes',
+      placeholder: 'Search recipes',
+      value: query,
+      onInput: messages.onInput,
+      onClear: messages.onClear,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region search-field-routes
+export const RECIPES = ['Apple crumble', 'Apple pie', 'Banana bread', 'Lemon tart', 'Carrot cake']
+
+/** The recipes whose name holds every word of the query. */
+export const recipesFor = (query: string): ReadonlyArray<string> =>
+  query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(word => word !== '')
+    .reduce((found, word) => found.filter(name => name.toLowerCase().includes(word)), RECIPES)
+
+export interface KeyedSearch<Message> extends SearchMessages<Message> {
+  /** Sent with 1 or -1 by the arrow keys. */
+  readonly onMove: (by: number) => Message
+}
+
+// The arrows are the application's: `routes` adds them to the field's own
+// Escape under one keydown owner, and a key another route already takes is
+// a diagnostic naming both. The text stays the field's.
+export const searchFieldRoutes = <Message>(
+  style: NamedStyle<typeof SearchFieldSlots>,
+  search: { readonly query: string; readonly active: number },
+  messages: KeyedSearch<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.5rem' })],
+    [
+      SearchField.view(
+        {
+          id: 'preview-search-keys',
+          label: 'Find a recipe',
+          placeholder: 'Type apple, then press the down arrow',
+          value: search.query,
+          onInput: messages.onInput,
+          onClear: messages.onClear,
+          routes: [
+            Behaviors.Keys.route<string, Message>('Next', {
+              on: [Behaviors.Keys.chord('ArrowDown')],
+              handle: () => Option.some(messages.onMove(1)),
+            }),
+            Behaviors.Keys.route<string, Message>('Previous', {
+              on: [Behaviors.Keys.chord('ArrowUp')],
+              handle: () => Option.some(messages.onMove(-1)),
+            }),
+          ],
+          style,
+        },
+        h,
+      ),
+      h.ul(
+        [h.Style({ margin: '0', paddingInlineStart: '1.25rem' })],
+        recipesFor(search.query).map((name, index) =>
+          h.li(
+            [
+              h.Key(name),
+              ...(index === search.active
+                ? [h.AriaCurrent('true'), h.Style({ fontWeight: '600' })]
+                : []),
+            ],
+            [name],
+          ),
+        ),
+      ),
+    ],
+  )
+// #endregion
+
+// #region search-field-states
+// Invalid names a field that cannot be searched yet; disabled takes no text
+// or keys and draws no clear button.
+export const searchFieldStates = <Message>(
+  style: NamedStyle<typeof SearchFieldSlots>,
+  messages: SearchMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.5rem' })],
+    [
+      SearchField.view(
+        {
+          id: 'preview-search-invalid',
+          label: 'Search by order number',
+          value: 'ord-',
+          invalid: true,
+          onInput: messages.onInput,
+          onClear: messages.onClear,
+          style,
+        },
+        h,
+      ),
+      SearchField.view(
+        {
+          id: 'preview-search-disabled',
+          label: 'Search is off',
+          placeholder: 'Search is off',
+          value: '',
+          disabled: true,
+          onInput: messages.onInput,
+          onClear: messages.onClear,
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region toolbar-basic
+export const ToolbarStyle = forSlots(ToolbarSlots)(Recipes.Toolbar({}))
+const ToolStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'icon' }))
+
+export interface ToolbarState {
+  /** The one tab stop: the control focused last. */
+  readonly roving: RovingTabindex.Model
+  readonly pressed: ReadonlyArray<string>
+  readonly align: string
+}
+
+export interface ToolbarMessages<Message> {
+  readonly onFocus: (id: string) => Message
+  readonly onPress: (id: string) => Message
+}
+
+const LINK = 'M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 0 1 4.5 9l1-1'
+
+// One tab stop for every control, the arrows (Home and End too) between them,
+// and a disabled one skipped. The controls are the application's own Buttons,
+// handed the stop's attributes; the toolbar adds no markup around them.
+export const toolbar = <Message>(
+  style: NamedStyle<typeof ToolbarSlots>,
+  state: ToolbarState,
+  messages: ToolbarMessages<Message>,
+  direction: 'ltr' | 'rtl',
+  h: HtmlBuilder<Message>,
+): Html => {
+  const tool = (
+    id: string,
+    label: string,
+    icon: string,
+    on: boolean,
+    disabled = false,
+  ): ToolbarControl<Message> => ({
+    id,
+    disabled,
+    draw: stop =>
+      Button.view(
+        {
+          label,
+          icon: outline(h, icon),
+          pressed: on,
+          disabled: stop.disabled,
+          onClick: messages.onPress(id),
+          attributes: { button: stop.attributes },
+          style: ToolStyle,
+        },
+        h,
+      ),
+  })
+  return Toolbar.view(
+    {
+      id: 'preview-toolbar',
+      label: 'Text formatting',
+      roving: state.roving,
+      onFocus: messages.onFocus,
+      direction,
+      items: [
+        tool(
+          'bold',
+          'Bold',
+          'M4.5 2.5h4.25a2.75 2.75 0 0 1 0 5.5H4.5zM4.5 8h5a2.75 2.75 0 0 1 0 5.5h-5z',
+          state.pressed.includes('bold'),
+        ),
+        tool(
+          'italic',
+          'Italic',
+          'M7 2.5h5M4 13.5h5M10 2.5l-4 11',
+          state.pressed.includes('italic'),
+        ),
+        tool(
+          'underline',
+          'Underline',
+          'M4.5 2.5v5a3.5 3.5 0 0 0 7 0v-5M3.5 14h9',
+          state.pressed.includes('underline'),
+        ),
+        'separator',
+        {
+          label: 'Alignment',
+          controls: [
+            tool('left', 'Align left', 'M2.5 4h11M2.5 8h7M2.5 12h9', state.align === 'left'),
+            tool('center', 'Align center', 'M2.5 4h11M4.5 8h7M3.5 12h9', state.align === 'center'),
+            tool('right', 'Align right', 'M2.5 4h11M6.5 8h7M4.5 12h9', state.align === 'right'),
+          ],
+        },
+        'separator',
+        tool('link', 'Link', LINK, false, true),
+      ],
+      style,
+    },
+    h,
+  )
+}
+// #endregion
+
+// #region file-input-multiple
+export const FileInputStyle = forSlots(FileInputSlots)(Recipes.FileInput({}))
+
+/** What a pick and a remove send; answer both with `FileInput.Sync`, and a remove with `FileInput.Focus`. */
+export interface FileMessages<Message> {
+  readonly onChange: (files: ReadonlyArray<File>) => Message
+  readonly onRemove: (file: File) => Message
+}
+
+// The application owns the list. The input forgets what it was given, so
+// `Sync` writes the list back into it and a surrounding form submits what the
+// list shows; the trigger is the input's `label`, so a press on it opens the
+// browser's dialog with no script between.
+export const fileInputMultiple = <Message>(
+  style: NamedStyle<typeof FileInputSlots>,
+  files: ReadonlyArray<File>,
+  messages: FileMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  FileInput.view(
+    {
+      id: 'preview-attachments',
+      name: 'attachments',
+      label: 'Attach files',
+      description: 'Images only, any number.',
+      accept: 'image/*',
+      multiple: true,
+      files,
+      onChange: messages.onChange,
+      onRemove: messages.onRemove,
+      words: { remove: 'Take {name} off' },
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region file-input-required
+// A single file replaces the last pick. `required` is the browser's own, and
+// `invalid` with a `description` says why the form would not submit.
+export const fileInputRequired = <Message>(
+  style: NamedStyle<typeof FileInputSlots>,
+  files: ReadonlyArray<File>,
+  messages: FileMessages<Message>,
+  h: HtmlBuilder<Message>,
+): Html =>
+  FileInput.view(
+    {
+      id: 'preview-statement',
+      name: 'statement',
+      label: 'Choose a statement',
+      description:
+        files.length === 0 ? 'A CSV file is required.' : 'One file; choosing again replaces it.',
+      accept: '.csv,text/csv',
+      required: true,
+      invalid: files.length === 0,
+      files,
+      onChange: messages.onChange,
+      onRemove: messages.onRemove,
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region picker-basic
+export const PickerStyle = forSlots(PickerSlots)(Recipes.Picker({}))
+const PickerListboxStyle = forSlots(ListboxSlots)(Recipes.Listbox({ width: 'trigger' }))
+const PickerSheetStyle = forSlots(DialogSlots)(Recipes.Sheet({}))
+
+export const SORTS = ['relevance', 'price', 'name'] as const
+export const Sort = Schema.Literals(SORTS)
+export type Sort = typeof Sort.Type
+
+export const SORT_OPTIONS: ReadonlyArray<Picker.PickerOption<Sort>> = [
+  { value: 'relevance', label: 'Most relevant' },
+  { value: 'price', label: 'Lowest price', description: 'The cheapest first' },
+  { value: 'name', label: 'Name', description: 'A to Z' },
+]
+
+// One control, one Model and one set of Messages at every width: a dropdown
+// above the theme's `md` breakpoint, and below it an opener that shows the
+// options in a bottom sheet. Both are drawn and the style shows one, so a
+// server render is right at any width; narrow the window to see the sheet.
+export const picker = <Message>(
+  style: NamedStyle<typeof PickerSlots>,
+  state: { readonly picker: Picker.Model; readonly sort: Option.Option<Sort> },
+  onMessage: (message: Picker.Message) => Message,
+  h: HtmlBuilder<Message>,
+): Html =>
+  Picker.view(
+    {
+      model: state.picker,
+      onMessage,
+      label: 'Sort',
+      options: SORT_OPTIONS,
+      value: state.sort,
+      placeholder: 'Sort by',
+      style,
+      listbox: [PickerListboxStyle.mixin],
+      sheet: [PickerSheetStyle.mixin],
+    },
+    h,
+  )
+// #endregion
+
+// #region aspect-ratio-basic
+export const AspectRatioStyle = forSlots(AspectRatioSlots)(Recipes.AspectRatio({}))
+
+// The frame holds its ratio before its content arrives, so nothing below it
+// moves when the picture does. The content fills it; the ratio is the style's.
+export const aspectRatio = (
+  style: NamedStyle<typeof AspectRatioSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(100%, 20rem)' })],
+    [
+      AspectRatio.view(
+        {
+          content: h.div(
+            [
+              h.Style({
+                display: 'grid',
+                placeItems: 'center',
+                blockSize: '100%',
+                background: token.surface.muted,
+              }),
+            ],
+            ['Reserved before it loads'],
+          ),
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region figure-basic
+export const FigureStyle = forSlots(FigureSlots)(Recipes.Figure({}))
+
+// A `figure` whose caption names it for assistive technology on its own: the
+// caption needs no ARIA. The content is anything: a picture, a chart, a quote.
+export const figure = (style: NamedStyle<typeof FigureSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ inlineSize: 'min(100%, 22rem)' })],
+    [
+      Figure.view(
+        {
+          content: CodeBlock.view(
+            { code: 'const total = items.length', language: 'ts', style: CodeBlockStyle },
+            h,
+          ),
+          caption: 'Listing 1. The count is read, never stored.',
+          style,
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region label-basic
+export const LabelStyle = forSlots(LabelSlots)(Recipes.Label({}))
+
+// `for` is the id the control carries. Pass the one `FieldAssociation`
+// derived, so there is no second naming scheme beside it.
+export const label = (style: NamedStyle<typeof LabelSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.375rem', inlineSize: 'min(100%, 18rem)' })],
+    [
+      Label.view({ for: 'label-email', text: 'Email address', style }, h),
+      Input.view(
+        {
+          id: 'label-email',
+          type: 'email',
+          style: InputStyle,
+          draw: (resolved, h) => h.input(resolved.input),
+        },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region typography-basic
+const voices = [
+  ['h1', 'Heading one'],
+  ['h2', 'Heading two'],
+  ['h3', 'Heading three'],
+  ['lead', 'A lead paragraph sets the page apart from the body under it.'],
+  ['body', 'Body copy keeps a readable measure, so a long paragraph stays easy to follow.'],
+  ['small', 'Small print for a footnote.'],
+  ['muted', 'Muted, for what is secondary.'],
+  ['quote', 'A quote keeps its blockquote and a rule at its start.'],
+  ['code', 'Recipes.Typography({ level })'],
+] as const
+
+// One style per voice: `level` chooses the look, and the same `level` the
+// element, so a heading stays a heading to a screen reader.
+const VoiceStyles = voices.map(([level]) => ({
+  level,
+  style: forSlots(TypographySlots)(Recipes.Typography({ level })),
+}))
+
+export const typography = (h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
+    voices.flatMap(([level, text], index) => {
+      const voice = VoiceStyles[index]
+      return voice === undefined ? [] : [Typography.view({ level, text, style: voice.style }, h)]
+    }),
+  )
+// #endregion
+
+// #region icon-basic
+export const IconStyle = forSlots(IconSlots)(Recipes.Icon({}))
+
+// An icon is data (here from `icons.json`, built by the icons plugin). With a
+// `label` it is an image that has a name; without one it is ornament and a
+// screen reader skips it. Two copies of one icon on a page need a `key`.
+export const icon = (style: NamedStyle<typeof IconSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'flex', alignItems: 'center', gap: '1rem' })],
+    [
+      Icon.view({ icon: icons.check, label: 'Saved', style }, h),
+      Icon.view({ icon: icons.link, label: 'Linked', key: 'link', style }, h),
+      h.span([], ['Copy ', Icon.view({ icon: icons.copy, key: 'copy', style }, h)]),
+    ],
+  )
+// #endregion
+
+// #region code-block-basic
+export const CodeBlockStyle = forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
+
+const SOURCE = 'export const total = 3 // items\nexport const done = "yes"'
+
+// Highlighting is the caller's: pass the tokens a tokenizer found as offsets
+// into the code (`foldkit-richtext-code-shiki` finds them), and each is drawn
+// with its `kind`, which the theme colours. The text of the block is the code.
+export const codeBlock = (style: NamedStyle<typeof CodeBlockSlots>, h: HtmlBuilder<never>): Html =>
+  CodeBlock.view(
+    {
+      code: SOURCE,
+      title: 'totals.ts',
+      lineNumbers: true,
+      tokens: [
+        { from: 0, to: 6, kind: 'syntax-keyword' },
+        { from: 7, to: 12, kind: 'syntax-keyword' },
+        { from: 19, to: 20, kind: 'syntax-operator' },
+        { from: 21, to: 22, kind: 'syntax-number' },
+        { from: 23, to: 31, kind: 'syntax-comment' },
+        { from: 32, to: 38, kind: 'syntax-keyword' },
+        { from: 39, to: 44, kind: 'syntax-keyword' },
+        { from: 52, to: 57, kind: 'syntax-string' },
+      ],
+      style,
+    },
+    h,
+  )
+// #endregion
+
+// #region code-block-copy
+// The button sends what `onCopy` makes of the code: run `copyText` from
+// `foldkit-primitives` in that Message's Command, then draw `copied: true`.
+// Both states are drawn here, with no handler, as the page's script would.
+export const codeBlockCopy = (
+  style: NamedStyle<typeof CodeBlockSlots>,
+  h: HtmlBuilder<never>,
+): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem' })],
+    [
+      CodeBlock.view({ code: 'npm install foldkit-plus', language: 'sh', copy: {}, style }, h),
+      CodeBlock.view(
+        { code: 'npm install foldkit-plus', language: 'sh', copy: { copied: true }, style },
+        h,
+      ),
+    ],
+  )
+// #endregion
+
+// #region fieldset-basic
+export const FieldsetStyle = forSlots(FieldsetSlots)(Recipes.Fieldset({ variant: 'bordered' }))
+
+// The legend names the group and the description is read after it: the base
+// derives their ids (`legendId`, `descriptionId`) and wires `aria-describedby`.
+// A disabled fieldset disables every control in it, and dims its legend and description.
+export const fieldset = (style: NamedStyle<typeof FieldsetSlots>, h: HtmlBuilder<never>): Html => {
+  const group = (id: string, disabled: boolean): Html =>
+    UiFieldset.view(
+      {
+        id,
+        isDisabled: disabled,
+        hasDescription: true,
+        toView: Fieldset.toView(
+          [style.mixin],
+          { input: undefined, h },
+          ({ fieldset, legend, description }) =>
+            h.fieldset(fieldset, [
+              h.legend(legend, [disabled ? 'Billing address (locked)' : 'Shipping address']),
+              h.p(description, ['Where the order is sent. We never share it.']),
+              Input.view(
+                {
+                  id: `${id}-street`,
+                  type: 'text',
+                  style: InputStyle,
+                  draw: (resolved, h) =>
+                    h.div([], [h.label(resolved.label, ['Street']), h.input(resolved.input)]),
+                },
+                h,
+              ),
+            ]),
+        ),
+      },
+      h,
+    )
+  return h.div(
+    [h.Style({ display: 'grid', gap: '1rem', inlineSize: 'min(100%, 24rem)' })],
+    [group('shipping', false), group('billing', true)],
+  )
+}
+// #endregion
+
+// #region image-basic
+export const ImageStyle = forSlots(ImageSlots)(Recipes.Image({ ratio: 'video', radius: 'md' }))
+
+// What the page knows of a file: its size and what stands in for it while it
+// loads. An application gets these from `foldkit-media`'s build step.
+const DUNES = Schema.decodeUnknownSync(ImageAsset)({
+  key: 'dunes.svg',
+  width: 800,
+  height: 500,
+  alpha: false,
+  hash: null,
+  placeholder: { _tag: 'Color', value: '#d9c7a3' },
+})
+
+const dunesUrl = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500"><rect width="800" height="500" fill="#e9d8b4"/><path d="M0 360 C200 260 330 420 520 330 S760 300 800 340 V500 H0Z" fill="#c9a870"/><circle cx="610" cy="130" r="52" fill="#f6efe0"/></svg>',
+)}`
+
+// Where its variants live: here one file per width, in a real build the
+// provider that wrote them (`Provider.hosted`, `Provider.cloudflare`).
+const dunes = Provider.fromFiles(
+  [400, 800].map(width => ({ width, format: 'webp' as const, url: dunesUrl })),
+  { sources: [], fallback: 'webp' },
+)
+
+// `alt` is required: words for what the picture shows, or `Image.decorative`
+// for ornament. The frame holds the box (the asset's ratio, or the recipe's
+// crop) before the file arrives, so the page does not move when it does.
+export const image = (style: NamedStyle<typeof ImageSlots>, h: HtmlBuilder<never>): Html =>
+  h.div(
+    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: 'min(100%, 24rem)' })],
+    [
+      Image.view(
+        {
+          asset: DUNES,
+          provider: dunes,
+          layout: Layout.Constrained({ width: 400 }),
+          alt: 'Dunes under a pale sun',
+          style,
+        },
+        h,
+      ),
+      Image.view(
+        {
+          asset: DUNES,
+          provider: dunes,
+          layout: Layout.Constrained({ width: 200 }),
+          alt: Image.decorative,
+          style,
+        },
+        h,
+      ),
+    ],
+  )
 // #endregion

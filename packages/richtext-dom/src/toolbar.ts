@@ -56,6 +56,13 @@ export const marksToolbar =
     )
   }
 
+/**
+ * What marks an element of the application's chrome as holding the editor's controls, so that a
+ * press in it leaves the focus in the text, and the decoration kind the editor draws its selection
+ * with while a control does hold the focus.
+ */
+export { CONTROLS_ATTRIBUTE, SELECTION_DECORATION } from './events.js'
+
 /** What places a floating toolbar over the selection (§143), and a block handle beside its block (§144). */
 export { blockAnchor, selectionAnchor } from './floating.js'
 

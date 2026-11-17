@@ -41,6 +41,8 @@ const Model = Schema.Struct({
   ...Placement.fields,
   accepted: Schema.Array(Schema.String),
   refused: Schema.Array(Schema.String),
+  /** Each copy reported, as `rows x columns`. */
+  copied: Schema.Array(Schema.String),
 })
 type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Placement.cases })
@@ -62,6 +64,9 @@ const application = Bundle.assemble<Model, Message>()([
         RedoRequested: () => ({ model }),
         Filled: () => ({ model }),
         RowsRequested: () => ({ model }),
+        Copied: ({ rows, columns }) => ({
+          model: modifyFields(model, { copied: copied => [...copied, `${rows}x${columns}`] }),
+        }),
       }),
   }),
 ])
@@ -108,7 +113,12 @@ test('copy, cut and paste work on the range, as one change to the application', 
   const container = document.createElement('div')
   container.id = 'grid-clipboard'
   document.body.appendChild(container)
-  let latest: Model = { grid: Grid.bundle.init(undefined).model, accepted: [], refused: [] }
+  let latest: Model = {
+    grid: Grid.bundle.init(undefined).model,
+    accepted: [],
+    refused: [],
+    copied: [],
+  }
   const update = application.update()
   const handle = Runtime.embed(
     Runtime.makeElement({
@@ -144,6 +154,7 @@ test('copy, cut and paste work on the range, as one change to the application', 
       expect(grid().getAttribute('aria-activedescendant')).toBe(id('r1', 'name')),
     )
     expect(send('copy').text).toBe('Item 1')
+    await vi.waitFor(() => expect(latest.copied).toEqual(['1x1']))
 
     // A range copies as rows of tab-separated cells.
     click('r2', 'qty', true)
@@ -156,6 +167,7 @@ test('copy, cut and paste work on the range, as one change to the application', 
       ['Item 1', '1'],
       ['Item 2', '2'],
     ])
+    await vi.waitFor(() => expect(latest.copied).toEqual(['1x1', '2x2']))
 
     // A paste lands from the range's corner; each cell is checked by its column.
     expect(send('paste', 'Anchor\t7\nBolt\tseven\n').prevented).toBe(true)
@@ -164,7 +176,7 @@ test('copy, cut and paste work on the range, as one change to the application', 
     )
     expect(latest.refused).toEqual(['r2.qty=seven'])
 
-    // A cut copies the range and clears its editable cells.
+    // A cut copies the range and clears its editable cells, which it reports as the change.
     const cut = send('cut')
     expect(Clipboard.parseTsv(cut.text)).toEqual([
       ['Item 1', '1'],
@@ -173,6 +185,15 @@ test('copy, cut and paste work on the range, as one change to the application', 
     await vi.waitFor(() =>
       expect(latest.accepted.slice(3)).toEqual(['r1.name=', 'r1.qty=', 'r2.name=', 'r2.qty=']),
     )
+
+    // A range taller than it is wide, so rows and columns cannot be swapped unseen.
+    click('r0', 'id')
+    click('r2', 'name', true)
+    await vi.waitFor(() =>
+      expect(document.querySelectorAll('#items [aria-selected="true"]')).toHaveLength(6),
+    )
+    send('copy')
+    await vi.waitFor(() => expect(latest.copied).toEqual(['1x1', '2x2', '3x2']))
 
     // While a cell is edited, the clipboard is the field's: nothing is intercepted.
     click('r0', 'name')
@@ -186,6 +207,12 @@ test('copy, cut and paste work on the range, as one change to the application', 
     const inField = clipboardEvent('paste', 'typed')
     document.querySelector('#items input')!.dispatchEvent(inField.event)
     expect(inField.event.defaultPrevented).toBe(false)
+    const copiedInField = clipboardEvent('copy')
+    document.querySelector('#items input')!.dispatchEvent(copiedInField.event)
+    expect(copiedInField.event.defaultPrevented).toBe(false)
+    // The cut and the field's copy reported no copy: only the copies above did.
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(latest.copied).toEqual(['1x1', '2x2', '3x2'])
   } finally {
     handle.dispose()
   }

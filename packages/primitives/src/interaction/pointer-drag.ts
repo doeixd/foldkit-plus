@@ -10,6 +10,7 @@ import type { EdgeScroll } from '../dom/edge-scroll.js'
 import { PointerDrag as PointerDragMount, type DragFact } from '../dom/pointer-drag.js'
 
 export {
+  DRAGGING,
   DRAG_THRESHOLD,
   DragCancelled,
   DragDropped,
@@ -30,9 +31,12 @@ export interface BehaviorOptions<Slots, ParentMessage> {
   readonly attribute: string
   /**
    * Where a drag may land when not among the container's own: elements marked
-   * by `attribute` inside the one `within` selects, such as a page for a palette.
+   * by each `attribute` inside the one its `within` selects, such as a page and
+   * its layers for a palette.
    */
-  readonly targets?: { readonly attribute: string; readonly within: string }
+  readonly targets?: ReadonlyArray<{ readonly attribute: string; readonly within: string }>
+  /** Over a container's own space, the place between its children by the pointer's position (see the Mount's `gaps`). */
+  readonly gaps?: boolean
   /** An attribute naming a part of what a drop lands on, which the place then carries. */
   readonly part?: string
   /**
@@ -70,6 +74,7 @@ export function behavior<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) 
                 attribute: options.attribute,
                 ...(options.targets === undefined ? {} : { targets: options.targets }),
                 ...(options.part === undefined ? {} : { part: options.part }),
+                ...(options.gaps === undefined ? {} : { gaps: options.gaps }),
                 ...(options.edgeScroll === undefined ? {} : { edgeScroll: options.edgeScroll }),
               }),
               options.toMessage,

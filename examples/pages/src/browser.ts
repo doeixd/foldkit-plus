@@ -4,7 +4,7 @@ import { Sync, Transport, TransportSocket } from 'foldkit-sync'
 import { Message, PeerPresence } from './app.js'
 import { mountPages, PagesSync } from './contract.js'
 import { sandboxSocket } from './sandbox/connection.js'
-import { stylesheet } from './style.js'
+import { NARROW, stylesheet } from './style.js'
 import { view } from './view.js'
 
 Style.install(stylesheet)
@@ -27,10 +27,16 @@ const replica = await Effect.runPromise(
 const tab = `tab-${replica.replicaId}`
 const session = `s${crypto.randomUUID().replaceAll('-', '')}`
 
+// Read before the first drawing and followed from then on, like the replica's status below.
+const narrow = matchMedia(NARROW)
 const mounted = mountPages(session, replica, {
   container: document.getElementById('pages')!,
   view,
+  narrow: narrow.matches,
 })
+narrow.addEventListener('change', event =>
+  mounted.dispatch(Message.NarrowChanged({ narrow: event.matches })),
+)
 // `start` exchanges after each local edit and whenever the server announces a commit, and
 // retries on a backoff while the server is down; the socket reconnects on its own. The
 // edits wait in the replica's outbox meanwhile, across reloads too. The transport is built

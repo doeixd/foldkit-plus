@@ -15,7 +15,7 @@ import { Bundle } from 'foldkit-bundle'
 import * as RichText from 'foldkit-richtext'
 import { expect, it } from 'vitest'
 import { editorAt, Model, type ParentMessage } from '../src/editor-bundle.js'
-import { attachmentIn } from '../src/host.js'
+import { attachmentIn, type EditorName } from '../src/host.js'
 
 const content = RichText.decodeDocument({
   version: 1,
@@ -50,8 +50,10 @@ const page = (
   serving: { now: boolean } | undefined,
   document: RichText.Document = content,
   rendering: RichText.Rendering = RichText.standardRendering,
+  name: EditorName = {},
 ) => {
   const placed = editorAt(hostId, {
+    ...name,
     rendering,
     // Drawn over the document on the server as in the browser, or adoption would refuse it.
     decorate: () => [
@@ -165,4 +167,14 @@ it('serves text holding a NUL, and a kind drawn as a custom element, where the b
   expect(document.getElementById('odd-editor')?.querySelector('x-callout')?.textContent).toBe(
     'note',
   )
+})
+
+it('serves the editable root with its name, as a parser reads it back', async () => {
+  await serve(page('named-editor', { now: true }, content, undefined, { label: 'Body' }))
+  const root = document.querySelector('#named-editor [contenteditable]')
+  expect(root?.getAttribute('aria-label')).toBe('Body')
+  await serve(page('named-by-editor', { now: true }, content, undefined, { labelledBy: 'caption' }))
+  const labelled = document.querySelector('#named-by-editor [contenteditable]')
+  expect(labelled?.getAttribute('aria-labelledby')).toBe('caption')
+  expect(labelled?.hasAttribute('aria-label')).toBe(false)
 })

@@ -24,3 +24,18 @@ export const renderBehindTheQueue = (panelId: string) => {
     window.requestAnimationFrame = real
   }
 }
+
+/**
+ * Holds `requestAnimationFrame`, as a loaded page does, so keys pressed meanwhile meet the
+ * view the last frame drew. Returns the function that puts the real one back and runs what
+ * was asked for.
+ */
+export const holdFrames = () => {
+  const real = window.requestAnimationFrame.bind(window)
+  const held: Array<FrameRequestCallback> = []
+  window.requestAnimationFrame = callback => held.push(callback)
+  return () => {
+    window.requestAnimationFrame = real
+    for (const callback of held.splice(0)) real(callback)
+  }
+}

@@ -103,23 +103,29 @@ export const collapsedOf = (
   }
 }
 
-/** The rows of the Menu a folded trail opens: one per hidden step, in order, for `Menu.init` and the view. */
+/**
+ * The rows of the Menu a folded trail opens: one per hidden step, in order,
+ * for `Menu.init` and the view. A row's value is its step's place among the
+ * hidden ones, so two steps with one label are two rows.
+ */
 export const menuRows = (
   steps: ReadonlyArray<BreadcrumbStep>,
   max: number,
-): ReadonlyArray<Menu.ItemRow> =>
-  collapsedOf(steps, max).hidden.map(step => ({ label: step.label }))
+): ReadonlyArray<Menu.ItemRow> => rowsOf(collapsedOf(steps, max).hidden)
+
+const rowsOf = (hidden: ReadonlyArray<BreadcrumbStep>): ReadonlyArray<Menu.ItemRow> =>
+  hidden.map((step, index) => ({ value: String(index), label: step.label }))
 
 /**
- * The hidden step a Menu row chosen stands for, by its label (the Menu's
- * `Selected` value): the first of that label, none when no hidden step has it.
+ * The hidden step a Menu row chosen stands for, by the row's value (the
+ * Menu's `Selected` value); none when no hidden step has it.
  */
 export const chosen = (
   steps: ReadonlyArray<BreadcrumbStep>,
   max: number,
   value: string,
 ): Option.Option<BreadcrumbStep> =>
-  Option.fromNullishOr(collapsedOf(steps, max).hidden.find(step => step.label === value))
+  Option.fromNullishOr(collapsedOf(steps, max).hidden[Number(value)])
 
 /**
  * A breadcrumb trail in one call: the steps from the site root to here, a
@@ -174,7 +180,7 @@ const ellipsisOf = <Message>(
   return Menu.view(
     {
       model: menu.model,
-      rows: hidden.map(step => ({ label: step.label })),
+      rows: rowsOf(hidden),
       buttonContent: h.span(builders.dots.attrs([h.AriaHidden(true)]), ['…']),
       onMessage: menu.onMessage,
       mixins: [...menu.mixins, asEllipsis],

@@ -7,7 +7,15 @@ import { Effect, Layer, Schema, Option } from 'effect'
 import { FetchHttpClient } from 'effect/http'
 import { RpcClient, RpcSerialization } from 'effect/rpc'
 import { expectTypeOf } from 'vitest'
-import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
+import {
+  Entity as DomainEntity,
+  Expr,
+  Judge,
+  Order,
+  Write,
+  evaluate,
+  type AnyQuery,
+} from 'foldkit-entity'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -26,7 +34,10 @@ import {
   RemotePolicy,
   RemoteRpc,
   type LiveDependencies,
+  type ConnectionSpec,
+  type DefinedQuery,
   type MutationStarted,
+  type QueryDescriptor,
   type ReadDependencies,
   type RemoteRpcClient,
   type RemoteMessage,
@@ -317,7 +328,27 @@ const TasksByOwner = Query.define('TasksByOwner', { ownerId: Schema.String }, ({
 )
 
 expectTypeOf(TasksByOwner.name).toEqualTypeOf<'TasksByOwner'>()
-expectTypeOf(TasksByOwner.body).toEqualTypeOf<AnyQuery | undefined>()
+// The body `define` built is present, and its type is the built one.
+expectTypeOf(TasksByOwner.body).toExtend<AnyQuery>()
+expectTypeOf(TasksByOwner.body).not.toBeUndefined()
+Query.show(TasksByOwner.body)
+Query.dependencies(TasksByOwner.body)
+evaluate(TasksByOwner.body, { ownerId: 'u1' }, [])
+declare const heldTask: Parameters<typeof Judge.query>[2]
+Judge.query(TasksByOwner.body, { ownerId: 'u1' }, heldTask)
+
+// A DefinedQuery is a QueryDescriptor wherever one is taken, `queries` included.
+expectTypeOf(TasksByOwner).toExtend<
+  QueryDescriptor<'TasksByOwner', { readonly ownerId: string }, ConnectionSpec<'Task'>>
+>()
+expectTypeOf(TasksByOwner).toExtend<
+  DefinedQuery<'TasksByOwner', { readonly ownerId: string }, typeof Task>
+>()
+declare const plain: QueryDescriptor<'Plain', {}, ConnectionSpec<'Task'>>
+// @ts-expect-error a plain descriptor's body is optional, so it is not a DefinedQuery
+expectTypeOf(plain).toExtend<DefinedQuery<'Plain', {}, typeof Task>>()
+// @ts-expect-error nor does its body pass where a body is required
+Query.show(plain.body)
 
 // 11. The sixty-second example as the README now writes it: the domain
 // declared with `foldkit-entity`, which is what can also carry a query body.
@@ -330,6 +361,7 @@ const TicketSummary = DomainEntity.select(Ticket, { id: true, name: true })
 const TicketModel = Schema.Struct({ remote: Remote.Model })
 const TicketApp = Surface.application({ Model: TicketModel, Message })
 const Tickets = Remote.make({ model: TicketApp.model.remote, entities: [Ticket] })
+Remote.make({ model: TicketApp.model.remote, entities: [Task], queries: [TasksByOwner] })
 
 const ticket = Tickets.get(TicketSummary, 't1')
 expectTypeOf(ticket.read).parameter(0).toEqualTypeOf<typeof TicketModel.Type>()

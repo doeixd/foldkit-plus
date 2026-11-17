@@ -3,901 +3,250 @@
  * design system, styled to read like shadcn: zinc-like surfaces, hairline
  * borders, roomy corners, black primary buttons, and a red destructive tone.
  *
- * The application state is ordinary local UI state (hue, scheme, tabs, form
- * drafts, toggles, a click counter); every control draws through a shipped
- * recipe, so the page is the documentation.
+ * This is the part the page loads at start: the theme studio, its specimen and
+ * the static sections. The catalog's other sections are islands
+ * (`sections/*.ts`, `islands.ts`), each its own small runtime that loads when
+ * its section nears the window.
  */
-import { Option, Schema } from 'effect'
-import { Calendar as FoldkitCalendar, File, Update } from 'foldkit'
+import { Effect, Equal, Option, Schema } from 'effect'
+import { Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
-import { childAttributes } from 'foldkit/html'
+import * as Command from 'foldkit/command'
+import * as Render from 'foldkit/render'
 import { defineMessageUnion } from 'foldkit/message'
-import { makeModifyFieldsFor, modifyFields } from 'foldkit/struct'
-import {
-  Combobox as UiCombobox,
-  DatePicker as UiDatePicker,
-  Dialog as UiDialog,
-  FileDrop as UiFileDrop,
-  HoverIntent as UiHoverIntent,
-  Listbox as UiListbox,
-  Menu as UiMenu,
-  Popover as UiPopover,
-  RadioGroup as UiRadioGroup,
-  Tabs as UiTabs,
-} from '@foldkit/ui'
-import type { EntryHandlers } from '@foldkit/ui/toast'
-import * as UiCheckbox from '@foldkit/ui/checkbox'
-import * as UiDisclosure from '@foldkit/ui/disclosure'
-import * as UiFieldset from '@foldkit/ui/fieldset'
-import * as UiSelect from '@foldkit/ui/select'
-import * as UiSwitch from '@foldkit/ui/switch'
-import * as UiTooltip from '@foldkit/ui/tooltip'
+import { modifyFields } from 'foldkit/struct'
 import { SlotView, type SlotBuilders } from 'foldkit-mixins'
+import { chooseScheme } from 'foldkit-mixins/theme'
 import {
   Alert,
-  Anchor,
   AppShell,
   Avatar,
-  Breadcrumb,
   Button,
-  ButtonGroup,
-  Calendar,
-  CalendarSlots,
-  CardSlots,
-  Checkbox,
-  Combobox,
-  ComboboxView,
-  Dialog,
-  Disclosure,
-  Empty,
-  Fieldset,
-  FileDrop,
-  HoverIntent,
-  HoverIntentSlots,
   Input,
-  Item,
   Kbd,
-  Listbox,
-  ListboxView,
-  Menu,
-  MenuView,
-  Pagination,
-  Patterns,
-  Popover,
-  RadioGroup,
-  ScrollArea,
-  SegmentedSlots,
-  Select,
   Separator,
   Sidebar,
   Skeleton,
-  Slider,
   Spinner,
-  Switch,
-  Table,
-  Tabs,
-  Textarea,
-  Toast,
-  ToastView,
-  Tooltip,
 } from 'foldkit-mixins-ui'
 import {
-  AlertSuccessStyle,
   AlertWarningStyle,
-  AreaStyle,
   AvatarLgStyle,
   AvatarMdStyle,
   AvatarSmStyle,
-  BreadcrumbStyle,
-  ButtonGroupStyle,
-  CalendarStyle,
-  CardPressedStyle,
-  CardStyle,
-  CheckStyle,
-  ComboBoxStyle,
-  DateChromeStyle,
   DestructiveButtonStyle,
-  DialogActionsStyle,
-  DialogPreviewStyle,
-  DisclosureStyle,
-  EmptyStyle,
   FieldStyle,
-  FieldsetStyle,
-  FilledFieldStyle,
-  FileDropStyle,
-  FileTextStyle,
-  GhostButtonStyle,
-  HoverCardStyle,
-  IconStyle,
-  InputGroupStyle,
-  ItemStyle,
   KbdStyle,
-  LargeButtonStyle,
-  LineTabsStyle,
-  ListboxStyle,
-  MenuStyle,
-  NoticeListStyle,
   OutlineButtonStyle,
   PageStyle,
-  PaginationStyle,
-  PillTabsStyle,
-  PlanStyle,
-  PopoverStyle,
+  CascadeStyle,
+  TokenStyle,
   PrimaryButtonStyle,
-  RadioRowStyle,
-  RadioStyle,
-  ScrollAreaStyle,
   SecondaryButtonStyle,
-  SelectStyle,
   SeparatorStyle,
   SkeletonCircleStyle,
   SkeletonStyle,
-  SliderStyle,
-  SmallButtonStyle,
   SpinnerStyle,
-  StatusStyle,
-  TableStyle,
-  ToastEntryStyle,
-  ToastStyle,
-  ToggleStyle,
-  TooltipStyle,
   AppShellStyle,
   SidebarStyle,
   SidebarSheetStyle,
 } from './style.js'
-import {
-  BadgeSlots,
-  DateChromeSlots,
-  DialogActionsSlots,
-  FileTextSlots,
-  IconSlots,
-  InputGroupSlots,
-  NoticeListSlots,
-  PageSlots,
-  RadioRowSlots,
-  ToastEntrySlots,
-} from './slots.js'
-
-// --- model -------------------------------------------------------------------
+import { CascadeSlots, PageSlots, TokenSlots } from './slots.js'
+import { studioPanel, titled, type Direction } from './studio.js'
+import { ContrastSlots, StudioSlots } from './slots.js'
+import { ContrastStyle, StudioStyle } from './style.js'
+import { initialTheme, tokenGroups } from './themeData.js'
+import { chooseTheme } from 'foldkit-mixins/theme/runtime'
+import { foldsFor } from './fold.js'
+import { measure, pairs, gradeOf, probeId } from './contrast.js'
+import { bootIslands } from './islands.js'
+import { BadgesView, neverH } from './shared.js'
+import { ThemeName, looks } from './looks.js'
+import { TweakName, Tweaks, hasTweaks, noTweaks, tweaksCss, withTweak } from './tweaks.js'
 
 const Scheme = Schema.Union([
   Schema.Literal('system'),
   Schema.Literal('light'),
   Schema.Literal('dark'),
 ])
+
 type Scheme = typeof Scheme.Type
 
-const LineTab = Schema.Union([
-  Schema.Literal('overview'),
-  Schema.Literal('account'),
-  Schema.Literal('settings'),
-])
-type LineTab = typeof LineTab.Type
-
-const PillTab = Schema.Union([
-  Schema.Literal('day'),
-  Schema.Literal('week'),
-  Schema.Literal('month'),
-])
-type PillTab = typeof PillTab.Type
-
-const Plan = Schema.Union([
-  Schema.Literal('starter'),
-  Schema.Literal('pro'),
-  Schema.Literal('enterprise'),
-])
-type Plan = typeof Plan.Type
-
-const Contact = Schema.Union([
-  Schema.Literal('email'),
-  Schema.Literal('phone'),
-  Schema.Literal('none'),
-])
-type Contact = typeof Contact.Type
-
-const ContactGroup = UiRadioGroup.create<Contact>()
-const SectionsTabs = UiTabs.create<LineTab>()
-const RangeTabs = UiTabs.create<PillTab>()
-
-const MenuAction = Schema.Union([
-  Schema.Literal('Reply'),
-  Schema.Literal('Forward'),
-  Schema.Literal('Archive'),
-  Schema.Literal('Delete'),
-])
-type MenuAction = typeof MenuAction.Type
-
-const Frequency = Schema.Union([
-  Schema.Literal('Daily'),
-  Schema.Literal('Weekly'),
-  Schema.Literal('Monthly'),
-])
-type Frequency = typeof Frequency.Type
-
-const ToastPayload = Schema.Struct({
-  title: Schema.String,
-  maybeDescription: Schema.Option(Schema.String),
-})
-export type ToastPayload = typeof ToastPayload.Type
-
-const ActionMenu = MenuView.create<MenuAction>()
-const FrequencyBox = ListboxView.create<Frequency>()
-const CityBox = ComboboxView.create<string>()
-// Annotated: the inferred type names a foldkit internal module, which a
-// composite project cannot emit a declaration for.
-export const ToastStack: ReturnType<
-  typeof ToastView.make<ToastPayload, typeof ToastPayload.Encoded>
-> = ToastView.make(ToastPayload)
+// --- model -------------------------------------------------------------------
 
 export const Model = Schema.Struct({
-  hue: Schema.Number,
+  theme: ThemeName,
   scheme: Scheme,
-  shadow: Schema.Number,
-  lineTab: LineTab,
-  pillTab: PillTab,
-  plan: Plan,
-  name: Schema.String,
-  bio: Schema.String,
-  marketing: Schema.Boolean,
-  notifications: Schema.Boolean,
+  tweaks: Tweaks,
+  dir: Schema.Literals(['ltr', 'rtl']),
+  status: Schema.String,
   clicks: Schema.Number,
-  page: Schema.Number,
-  bold: Schema.Boolean,
-  italic: Schema.Boolean,
-  underline: Schema.Boolean,
-  country: Schema.String,
-  detailsOpen: Schema.Boolean,
-  contact: Contact,
-  volume: Schema.Number,
-  tooltip: UiTooltip.Model,
-  contactGroup: UiRadioGroup.Model,
-  sectionsTabs: UiTabs.Model,
-  rangeTabs: UiTabs.Model,
-  dialog: UiDialog.Model,
-  hoverCard: UiHoverIntent.Model,
-  menu: UiMenu.Model,
-  menuChoice: Schema.String,
-  listbox: UiListbox.Model,
-  maybeFrequency: Schema.Option(Frequency),
-  combobox: UiCombobox.Model,
-  maybeCity: Schema.Option(Schema.String),
-  picker: UiDatePicker.Model,
-  maybeDue: Schema.Option(FoldkitCalendar.CalendarDate),
-  toast: ToastStack.Model,
-  drop: UiFileDrop.Model,
-  files: Schema.Array(File.File),
-  popover: UiPopover.Model,
-  address: Schema.String,
   sidebar: Sidebar.Model,
+  /** The measured contrast ratio of each palette pair, none until read. */
+  contrast: Schema.Array(Schema.OptionFromNullOr(Schema.Number)),
 })
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
-  HueSelected: { hue: Schema.Number },
+  ThemePicked: { name: ThemeName },
   SchemeSelected: { scheme: Scheme },
-  ShadowSelected: { strength: Schema.Number },
-  PlanSelected: { plan: Plan },
-  NameTyped: { value: Schema.String },
-  BioTyped: { value: Schema.String },
-  MarketingToggled: { value: Schema.Boolean },
-  NotificationsToggled: { value: Schema.Boolean },
+  TweakChanged: { tweak: TweakName, value: Schema.Number },
+  TweaksReset: {},
+  DirectionSelected: { dir: Schema.Literals(['ltr', 'rtl']) },
+  ThemeChangedElsewhere: { name: ThemeName },
+  SchemeChangedElsewhere: { scheme: Scheme },
+  Applied: {},
   ButtonClicked: {},
-  PageSelected: { page: Schema.Number },
-  BoldToggled: { value: Schema.Boolean },
-  ItalicToggled: { value: Schema.Boolean },
-  UnderlineToggled: { value: Schema.Boolean },
-  CountrySelected: { value: Schema.String },
-  DetailsToggled: { value: Schema.Boolean },
-  VolumeChanged: { value: Schema.Number },
-  Tooltip: { message: UiTooltip.Message },
-  ContactGroup: { message: UiRadioGroup.Message },
-  SectionsTabs: { message: UiTabs.Message },
-  RangeTabs: { message: UiTabs.Message },
-  OpenDeleteDialog: {},
-  CloseDeleteDialog: {},
-  DeleteDialog: { message: UiDialog.Message },
-  HoverCard: { message: UiHoverIntent.Message },
-  Menu: { message: UiMenu.Message },
-  Listbox: { message: UiListbox.Message },
-  Combobox: { message: UiCombobox.Message },
-  DatePicker: { message: UiDatePicker.Message },
-  Toast: { message: ToastStack.Message },
-  NotifyPressed: {},
-  DropFiles: { message: UiFileDrop.Message },
-  RemoveFile: { index: Schema.Number },
-  Popover: { message: UiPopover.Message },
-  AddressTyped: { value: Schema.String },
   GotSidebar: { message: Sidebar.Message },
+  Contrasted: { ratios: Schema.Array(Schema.OptionFromNullOr(Schema.Number)) },
 })
 export type Message = typeof Message.Type
 
-export type CalendarDate = typeof FoldkitCalendar.CalendarDate.Type
-
-/** The initial Model for a day: the date picker opens on it. Tests pass a fixed date. */
-export const initModel = (today: CalendarDate): Model => ({
-  hue: 222,
-  scheme: 'system',
-  shadow: 100,
-  lineTab: 'overview',
-  pillTab: 'week',
-  plan: 'pro',
-  name: '',
-  bio: '',
-  marketing: true,
-  notifications: false,
+/** The initial Model: the theme and scheme the head script showed. */
+export const initModel = (
+  shown: { readonly theme: ThemeName; readonly scheme: Scheme } = {
+    theme: initialTheme,
+    scheme: 'system',
+  },
+): Model => ({
+  theme: shown.theme,
+  scheme: shown.scheme,
+  tweaks: noTweaks,
+  dir: 'ltr',
+  status: '',
   clicks: 0,
-  page: 1,
-  bold: false,
-  italic: false,
-  underline: false,
-  country: 'us',
-  detailsOpen: false,
-  contact: 'email',
-  volume: 60,
-  tooltip: UiTooltip.init({ id: 'hint-tooltip' }),
-  contactGroup: UiRadioGroup.init({ id: 'contact-group' }),
-  sectionsTabs: UiTabs.init({ id: 'sections-tabs' }),
-  rangeTabs: UiTabs.init({ id: 'range-tabs' }),
-  dialog: UiDialog.init({ id: 'delete-dialog' }),
-  hoverCard: UiHoverIntent.init(),
-  menu: UiMenu.init({ id: 'row-actions' }),
-  menuChoice: '',
-  listbox: UiListbox.init({ id: 'backup-frequency' }),
-  maybeFrequency: Option.none(),
-  combobox: UiCombobox.init({ id: 'home-city' }),
-  maybeCity: Option.none(),
-  picker: UiDatePicker.init({
-    id: 'due-date',
-    today,
-    minDate: FoldkitCalendar.subtractYears(today, 5),
-    maxDate: FoldkitCalendar.addYears(today, 5),
-  }),
-  maybeDue: Option.none(),
-  toast: ToastStack.init({ id: 'notify-toast' }),
-  drop: UiFileDrop.init({ id: 'attachments' }),
-  files: [],
-  popover: UiPopover.init({ id: 'details-popover' }),
-  address: 'about',
   sidebar: Sidebar.init({ id: 'sections', rows: [] }),
+  contrast: pairs.map(() => Option.none()),
+})
+
+/** Reads the contrast of every palette pair once the page has drawn the theme it shows. */
+const MeasureContrast = Command.define('MeasureContrast', {
+  messages: [Message.Contrasted],
+  execute: Render.afterCommit.pipe(Effect.map(() => Message.Contrasted({ ratios: measure() }))),
+})
+
+/** Boots the islands once the first frame is drawn: their placeholders exist then. */
+const BootIslands = Command.define('BootIslands', {
+  messages: [Message.Applied],
+  execute: Render.afterCommit.pipe(
+    Effect.map(() => {
+      bootIslands()
+      return Message.Applied()
+    }),
+  ),
+})
+
+/** The first Model and the Command that boots the islands. */
+export const init = (shown?: { readonly theme: ThemeName; readonly scheme: Scheme }) => ({
+  model: initModel(shown),
+  commands: [BootIslands()],
+})
+
+/** Shows the theme on the root and keeps it for the next visit and the other tabs. */
+const ApplyTheme = Command.define('ApplyTheme', {
+  args: { name: ThemeName },
+  messages: [Message.Applied],
+  execute: ({ name }) => chooseTheme(looks, name).pipe(Effect.as(Message.Applied())),
+})
+
+const ApplyScheme = Command.define('ApplyScheme', {
+  args: { scheme: Scheme },
+  messages: [Message.Applied],
+  execute: ({ scheme }) => chooseScheme(scheme).pipe(Effect.as(Message.Applied())),
+})
+
+const ApplyDirection = Command.define('ApplyDirection', {
+  args: { dir: Schema.Literals(['ltr', 'rtl']) },
+  messages: [Message.Applied],
+  execute: ({ dir }) =>
+    Effect.sync(() => {
+      document.documentElement.dir = dir
+    }).pipe(Effect.as(Message.Applied())),
 })
 
 export const update = (model: Model, message: Message) =>
   Message.match(message, {
-    HueSelected: ({ hue }) => ({ model: modifyFields(model, { hue: () => hue }) }),
-    SchemeSelected: ({ scheme }) => ({ model: modifyFields(model, { scheme: () => scheme }) }),
-    ShadowSelected: ({ strength }) => ({
-      model: modifyFields(model, { shadow: () => strength }),
-    }),
-    PlanSelected: ({ plan }) => ({ model: modifyFields(model, { plan: () => plan }) }),
-    NameTyped: ({ value }) => ({ model: modifyFields(model, { name: () => value }) }),
-    BioTyped: ({ value }) => ({ model: modifyFields(model, { bio: () => value }) }),
-    MarketingToggled: ({ value }) => ({
-      model: modifyFields(model, { marketing: () => value }),
-    }),
-    NotificationsToggled: ({ value }) => ({
-      model: modifyFields(model, { notifications: () => value }),
-    }),
+    ThemePicked: ({ name }) =>
+      name === model.theme && !hasTweaks(model.tweaks)
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              theme: () => name,
+              tweaks: () => noTweaks,
+              status: () => `${titled(name)} theme applied`,
+            }),
+            commands: [ApplyTheme({ name })],
+          },
+    SchemeSelected: ({ scheme }) =>
+      scheme === model.scheme
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              scheme: () => scheme,
+              status: () => `${titled(scheme)} colour scheme`,
+            }),
+            commands: [ApplyScheme({ scheme })],
+          },
+    TweakChanged: ({ tweak, value }) => {
+      const tweaks = withTweak(model.tweaks, tweak, value)
+      return tweaks === model.tweaks
+        ? { model }
+        : { model: modifyFields(model, { tweaks: () => tweaks }), commands: [MeasureContrast()] }
+    },
+    TweaksReset: () =>
+      hasTweaks(model.tweaks)
+        ? {
+            model: modifyFields(model, { tweaks: () => noTweaks, status: () => 'Tweaks reset' }),
+          }
+        : { model },
+    DirectionSelected: ({ dir }) =>
+      dir === model.dir
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              dir: () => dir,
+              status: () => `Direction ${dir === 'rtl' ? 'right to left' : 'left to right'}`,
+            }),
+            commands: [ApplyDirection({ dir })],
+          },
+    ThemeChangedElsewhere: ({ name }) =>
+      name === model.theme
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              theme: () => name,
+              tweaks: () => noTweaks,
+              status: () => `${titled(name)} theme chosen in another tab`,
+            }),
+            commands: [ApplyTheme({ name })],
+          },
+    SchemeChangedElsewhere: ({ scheme }) =>
+      scheme === model.scheme
+        ? { model }
+        : {
+            model: modifyFields(model, {
+              scheme: () => scheme,
+              status: () => `${titled(scheme)} colour scheme chosen in another tab`,
+            }),
+            commands: [ApplyScheme({ scheme })],
+          },
+    // Every theme, scheme and direction is shown by a Command that answers `Applied`: only then is the page drawn in it.
+    Applied: () => ({ model, commands: [MeasureContrast()] }),
+    Contrasted: ({ ratios }) =>
+      ratios.length === model.contrast.length &&
+      ratios.every((ratio, index) => Equal.equals(ratio, model.contrast[index]))
+        ? { model }
+        : { model: modifyFields(model, { contrast: () => ratios }) },
     ButtonClicked: () => ({ model: modifyFields(model, { clicks: clicks => clicks + 1 }) }),
-    PageSelected: ({ page }) => ({ model: modifyFields(model, { page: () => page }) }),
-    BoldToggled: ({ value }) => ({ model: modifyFields(model, { bold: () => value }) }),
-    ItalicToggled: ({ value }) => ({ model: modifyFields(model, { italic: () => value }) }),
-    UnderlineToggled: ({ value }) => ({ model: modifyFields(model, { underline: () => value }) }),
-    CountrySelected: ({ value }) => ({ model: modifyFields(model, { country: () => value }) }),
-    DetailsToggled: ({ value }) => ({
-      model: modifyFields(model, { detailsOpen: () => value }),
-    }),
-    VolumeChanged: ({ value }) => ({ model: modifyFields(model, { volume: () => value }) }),
-    Tooltip: ({ message }) => foldTooltip(model, message),
-    ContactGroup: ({ message }) => foldContactGroup(model, message),
-    SectionsTabs: ({ message }) => foldSectionsTabs(model, message),
-    RangeTabs: ({ message }) => foldRangeTabs(model, message),
-    OpenDeleteDialog: () => foldDeleteDialogOpen(model),
-    CloseDeleteDialog: () => foldDeleteDialogClose(model),
-    DeleteDialog: ({ message }) => foldDeleteDialog(model, message),
-    HoverCard: ({ message }) => foldHoverCard(model, message),
-    Menu: ({ message }) => foldMenu(model, message),
-    Listbox: ({ message }) => foldListbox(model, message),
-    Combobox: ({ message }) => foldCombobox(model, message),
-    DatePicker: ({ message }) => foldDatePicker(model, message),
-    Toast: ({ message }) => foldToast(model, message),
-    NotifyPressed: () =>
-      foldToastShow(model, {
-        variant: 'Success',
-        payload: {
-          title: 'Saved',
-          maybeDescription: Option.some('Your changes are live.'),
-        },
-      }),
-    DropFiles: ({ message }) => foldDropFiles(model, message),
-    RemoveFile: ({ index }) => ({
-      model: modifyFields(model, { files: files => files.filter((_, at) => at !== index) }),
-    }),
-    Popover: ({ message }) => foldPopover(model, message),
     GotSidebar: ({ message }) => foldSidebar(model, message),
-    AddressTyped: ({ value }) => ({ model: modifyFields(model, { address: () => value }) }),
   })
 
-/**
- * A child fold over one Model field: `read` lifts the field, `write` stores
- * it back, `toParentMessage` wraps the child's messages. Every fold below
- * repeats these three lines around its own `update` and `foldOutMessage`,
- * so each fold states only what differs. `makeModifyFieldsFor` (not a bare
- * object spread) keeps the write typed: the transform is checked against
- * the Model while the field stays generic.
- */
-const modifyModel = makeModifyFieldsFor<Model>()
-
-const own = <K extends keyof Model, ChildMessage>(
-  field: K,
-  wrap: (args: { readonly message: ChildMessage }) => Message,
-): {
-  readonly read: (model: Model) => Option.Option<Model[K]>
-  readonly write: (model: Model, child: Model[K]) => Model
-  readonly toParentMessage: (message: ChildMessage) => Message
-} => ({
-  read: model => Option.some(model[field]),
-  // The computed key keeps its association to the field through the mapped
-  // type; an object literal would widen it to `string` and lose the check.
-  write: (model, child) =>
-    modifyModel(model, { [field]: () => child } as { readonly [P in K]: () => Model[P] }),
-  toParentMessage: message => wrap({ message }),
-})
-
-/** Visibility notifications need no parent state: showing is the child's own fact. */
-const foldTooltip = Update.foldChild({
-  ...own('tooltip', Message.Tooltip),
-  update: UiTooltip.update,
-  foldOutMessage: UiTooltip.OutMessage.match<Update.Step<Model, Message>>({
-    Shown: () => model => ({ model }),
-    Hidden: () => model => ({ model }),
-  }),
-})
-
-/** The contact preference lives in the parent; the group owns focus only. */
-const foldContactGroup = Update.foldChild({
-  ...own('contactGroup', Message.ContactGroup),
-  update: ContactGroup.update,
-  foldOutMessage: UiRadioGroup.OutMessage.match<
-    Update.Step<Model, Message>,
-    UiRadioGroup.OutMessage<Contact>
-  >({
-    Selected:
-      ({ value }) =>
-      model => ({
-        model: modifyFields(model, { contact: () => value }),
-      }),
-  }),
-})
-
-const foldSectionsTabs = Update.foldChild({
-  ...own('sectionsTabs', Message.SectionsTabs),
-  update: SectionsTabs.update,
-  foldOutMessage: UiTabs.OutMessage.match<Update.Step<Model, Message>, UiTabs.OutMessage<LineTab>>({
-    Selected:
-      ({ value }) =>
-      model => ({
-        model: modifyFields(model, { lineTab: () => value }),
-      }),
-  }),
-})
-
-const foldRangeTabs = Update.foldChild({
-  ...own('rangeTabs', Message.RangeTabs),
-  update: RangeTabs.update,
-  foldOutMessage: UiTabs.OutMessage.match<Update.Step<Model, Message>, UiTabs.OutMessage<PillTab>>({
-    Selected:
-      ({ value }) =>
-      model => ({
-        model: modifyFields(model, { pillTab: () => value }),
-      }),
-  }),
-})
-
-const foldDeleteDialogOut = UiDialog.OutMessage.match<Update.Step<Model, Message>>({
-  Opened: () => model => ({ model }),
-  Closed: () => model => ({ model }),
-})
-
-const foldDeleteDialog = Update.foldChild({
-  ...own('dialog', Message.DeleteDialog),
-  update: UiDialog.update,
-  foldOutMessage: foldDeleteDialogOut,
-})
-
-const foldDeleteDialogOpen = Update.foldChildStep({
-  ...own('dialog', Message.DeleteDialog),
-  update: UiDialog.open,
-  foldOutMessage: foldDeleteDialogOut,
-})
-
-const foldDeleteDialogClose = Update.foldChildStep({
-  ...own('dialog', Message.DeleteDialog),
-  update: UiDialog.close,
-  foldOutMessage: foldDeleteDialogOut,
-})
-
-const foldHoverCard = Update.foldChild({
-  ...own('hoverCard', Message.HoverCard),
-  update: UiHoverIntent.update,
-  foldOutMessage: UiHoverIntent.OutMessage.match<Update.Step<Model, Message>>({
-    Opened: () => model => ({ model }),
-    Closed: () => model => ({ model }),
-  }),
-})
-
-const foldPopover = Update.foldChild({
-  ...own('popover', Message.Popover),
-  update: UiPopover.update,
-  foldOutMessage: UiPopover.OutMessage.match<Update.Step<Model, Message>>({
-    Opened: () => model => ({ model }),
-    Closed: () => model => ({ model }),
-  }),
-})
+const own = foldsFor<Model, Message>()
 
 const foldSidebar = Update.foldChild({
   ...own('sidebar', Message.GotSidebar),
   update: Sidebar.update,
 })
-
-/** The chosen action is the parent's fact; the menu already closed itself. */
-const foldMenu = Update.foldChild({
-  ...own('menu', Message.Menu),
-  update: ActionMenu.update,
-  foldOutMessage: UiMenu.OutMessage.match<
-    Update.Step<Model, Message>,
-    UiMenu.OutMessage<MenuAction>
-  >({
-    Selected:
-      ({ value }) =>
-      model => ({
-        model: modifyFields(model, { menuChoice: () => value }),
-      }),
-  }),
-})
-
-const foldListbox = Update.foldChild({
-  ...own('listbox', Message.Listbox),
-  update: FrequencyBox.update,
-  foldOutMessage: UiListbox.OutMessage.match<
-    Update.Step<Model, Message>,
-    UiListbox.OutMessage<Frequency>
-  >({
-    Selected:
-      ({ value }) =>
-      model => ({
-        model: modifyFields(model, { maybeFrequency: () => Option.some(value) }),
-      }),
-  }),
-})
-
-const foldCombobox = Update.foldChild({
-  ...own('combobox', Message.Combobox),
-  update: CityBox.update,
-  foldOutMessage: UiCombobox.OutMessage.match<
-    Update.Step<Model, Message>,
-    UiCombobox.OutMessage<string>
-  >({
-    Selected:
-      ({ value }) =>
-      model => ({
-        model: modifyFields(model, { maybeCity: () => Option.some(value) }),
-      }),
-    ClearedSelection: () => model => ({
-      model: modifyFields(model, { maybeCity: () => Option.none() }),
-    }),
-  }),
-})
-
-const foldDatePicker = Update.foldChild({
-  ...own('picker', Message.DatePicker),
-  update: UiDatePicker.update,
-  foldOutMessage: UiDatePicker.OutMessage.match<Update.Step<Model, Message>>({
-    SelectedDate:
-      ({ date }) =>
-      model => ({
-        model: modifyFields(model, { maybeDue: () => Option.some(date) }),
-      }),
-    ClearedDate: () => model => ({ model: modifyFields(model, { maybeDue: () => Option.none() }) }),
-    ChangedViewMonth: () => model => ({ model }),
-  }),
-})
-
-const foldToast = Update.foldChild({
-  ...own('toast', Message.Toast),
-  update: ToastStack.update,
-  foldOutMessage: ToastStack.OutMessage.match<Update.Step<Model, Message>>({
-    DismissedToast: () => model => ({ model }),
-  }),
-})
-
-const foldToastShow = Update.foldChild({
-  ...own('toast', Message.Toast),
-  update: ToastStack.show,
-  foldOutMessage: ToastStack.OutMessage.match<Update.Step<Model, Message>>({
-    DismissedToast: () => model => ({ model }),
-  }),
-})
-
-const foldDropFiles = Update.foldChild({
-  ...own('drop', Message.DropFiles),
-  update: UiFileDrop.update,
-  foldOutMessage: UiFileDrop.OutMessage.match<Update.Step<Model, Message>>({
-    ReceivedFiles:
-      ({ files }) =>
-      model => ({
-        model: modifyFields(model, { files: current => [...current, ...files] }),
-      }),
-    RejectedNonFiles: () => model => ({ model }),
-  }),
-})
-
-// --- views -------------------------------------------------------------------
-
-type PageBuilders = SlotBuilders<typeof PageSlots, Message>
-
-const hues: ReadonlyArray<{ readonly label: string; readonly hue: number }> = [
-  { label: 'Slate', hue: 222 },
-  { label: 'Violet', hue: 270 },
-  { label: 'Teal', hue: 172 },
-  { label: 'Amber', hue: 38 },
-  { label: 'Rose', hue: 336 },
-]
-
-const schemes: ReadonlyArray<{ readonly label: string; readonly scheme: Scheme }> = [
-  { label: 'System', scheme: 'system' },
-  { label: 'Light', scheme: 'light' },
-  { label: 'Dark', scheme: 'dark' },
-]
-
-const shadows: ReadonlyArray<{ readonly label: string; readonly strength: number }> = [
-  { label: 'Faint', strength: 30 },
-  { label: 'Soft', strength: 60 },
-  { label: 'Full', strength: 100 },
-]
-
-const lineTabs: ReadonlyArray<{ readonly value: LineTab; readonly label: string }> = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'account', label: 'Account' },
-  { value: 'settings', label: 'Settings' },
-]
-
-const pillTabs: ReadonlyArray<{ readonly value: PillTab; readonly label: string }> = [
-  { value: 'day', label: 'Day' },
-  { value: 'week', label: 'Week' },
-  { value: 'month', label: 'Month' },
-]
-
-const plans: ReadonlyArray<{ readonly value: Plan; readonly label: string }> = [
-  { value: 'starter', label: 'Starter' },
-  { value: 'pro', label: 'Pro' },
-  { value: 'enterprise', label: 'Enterprise' },
-]
-
-/**
- * The section tabs, live: the component owns focus and arrow-key movement,
- * the Model owns which tab shows. Only the active panel renders.
- */
-const tabPanels: Record<LineTab, string> = {
-  overview: 'Overview: everything, one screen.',
-  account: 'Account: who pays and who belongs.',
-  settings: 'Settings: knobs for the whole page.',
-}
-
-const LineTabsView = (
-  model: Pick<Model, 'lineTab' | 'sectionsTabs'>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.submodel({
-    slotId: model.sectionsTabs.id,
-    model: model.sectionsTabs,
-    view: SectionsTabs.view,
-    viewInputs: {
-      tabs: lineTabs.map(tab => tab.value),
-      selectedValue: model.lineTab,
-      ariaLabel: 'Sections',
-      toView: render => {
-        const resolved = Tabs.resolve(render, [LineTabsStyle.mixin], { input: undefined, h })
-        return h.div(resolved.tablist, [
-          ...resolved.tabs.map(tab => h.button(tab.tab, [lineTabs[tab.index]?.label ?? tab.value])),
-          ...resolved.tabs
-            .filter(tab => tab.index === resolved.activeIndex)
-            .map(tab => h.div(tab.panel, [tabPanels[tab.value]])),
-        ])
-      },
-    },
-    toParentMessage: message => Message.SectionsTabs({ message }),
-  })
-
-const PillTabsView = (model: Pick<Model, 'pillTab' | 'rangeTabs'>, h: HtmlBuilder<Message>): Html =>
-  h.submodel({
-    slotId: model.rangeTabs.id,
-    model: model.rangeTabs,
-    view: RangeTabs.view,
-    viewInputs: {
-      tabs: pillTabs.map(tab => tab.value),
-      selectedValue: model.pillTab,
-      ariaLabel: 'Range',
-      toView: render => {
-        const resolved = Tabs.resolve(render, [PillTabsStyle.mixin], { input: undefined, h })
-        return h.div(resolved.tablist, [
-          ...resolved.tabs.map(tab => h.button(tab.tab, [pillTabs[tab.index]?.label ?? tab.value])),
-        ])
-      },
-    },
-    toParentMessage: message => Message.RangeTabs({ message }),
-  })
-
-const PlanView = SlotView.forMessages<Message>()
-  .define(SegmentedSlots, (active: Plan, slots, h) =>
-    h.div(slots.group.attrs([h.Role('group'), h.AriaLabel('Plan')]), [
-      ...plans.map(plan =>
-        h.button(
-          slots.option.attrs([
-            h.Type('button'),
-            h.AriaPressed(active === plan.value ? 'true' : 'false'),
-            h.OnClick(Message.PlanSelected({ plan: plan.value })),
-          ]),
-          [plan.label],
-        ),
-      ),
-    ]),
-  )
-  .pipe(SlotView.attach(PlanStyle.mixin))
-
-const BadgesView = SlotView.forMessages<Message>()
-  .define(BadgeSlots, (_input: unknown, slots, h) =>
-    h.div(slots.row.attrs(), [
-      ...(
-        [
-          ['plain', 'Draft'],
-          ['ok', 'Live'],
-          ['warn', 'Expiring'],
-          ['info', 'New'],
-          ['bad', 'Failed'],
-        ] as const
-      ).map(([state, label]) =>
-        h.span(slots.badge.attrs([h.DataAttribute('state', state)]), [label]),
-      ),
-    ]),
-  )
-  .pipe(SlotView.attach(StatusStyle.style.mixin))
-
-/**
- * The delete confirmation, live: a real modal with focus trap, Escape to
- * cancel, and backdrop click. Nothing is actually deleted. The recipe's
- * close bundle draws the corner X; the actions dispatch a parent message
- * that runs the close step, so each keeps its own button styling.
- */
-const DialogDemo = (model: Pick<Model, 'dialog'>, h: HtmlBuilder<Message>): Html =>
-  h.submodel({
-    slotId: model.dialog.id,
-    model: model.dialog,
-    view: UiDialog.view,
-    viewInputs: {
-      hasDescription: true,
-      toView: render => {
-        const dialog = Dialog.resolve(render, [DialogPreviewStyle.mixin], { input: undefined, h })
-        const actions = SlotView.buildersFor(DialogActionsSlots, [DialogActionsStyle.style.mixin], {
-          input: undefined,
-          h,
-        })
-        return h.dialog(
-          dialog.dialog,
-          dialog.isVisible
-            ? [
-                h.div(dialog.backdrop),
-                h.div(dialog.panel, [
-                  h.button(dialog.closeButton, [h.span([], ['×'])]),
-                  h.h2(dialog.title, ['Delete this project?']),
-                  h.p(dialog.description, [
-                    'It goes for good, with its history. This dialog is a live modal: focus is trapped, Escape cancels.',
-                  ]),
-                  h.div(actions.actions.attrs(), [
-                    Button.view(
-                      {
-                        label: 'Delete',
-                        style: DestructiveButtonStyle,
-                        onClick: Message.CloseDeleteDialog(),
-                      },
-                      h,
-                    ),
-                    Button.view(
-                      {
-                        label: 'Cancel',
-                        style: GhostButtonStyle,
-                        onClick: Message.CloseDeleteDialog(),
-                      },
-                      h,
-                    ),
-                  ]),
-                ]),
-              ]
-            : [],
-        )
-      },
-    },
-    toParentMessage: message => Message.DeleteDialog({ message }),
-  })
-
-const CardView = SlotView.forMessages<Message>()
-  .define(CardSlots, (clicks: number, slots, h) =>
-    h.article(slots.root.attrs(), [
-      h.div(slots.header.attrs(), [
-        h.h3(slots.title.attrs(), ['Usage this month']),
-        h.p(slots.description.attrs(), ['Synced just now']),
-      ]),
-      h.p(slots.content.attrs(), [
-        `The team pressed a button ${clicks} ${clicks === 1 ? 'time' : 'times'}. A card is page slots plus a recipe: no new CSS.`,
-      ]),
-      h.div(slots.footer.attrs(), [
-        Button.view(
-          { label: 'View report', style: PrimaryButtonStyle, onClick: Message.ButtonClicked() },
-          h,
-        ),
-        Button.view({ label: 'Dismiss', style: GhostButtonStyle }, h),
-      ]),
-    ]),
-  )
-  .pipe(SlotView.attach(CardStyle.mixin), SlotView.attach(CardPressedStyle.mixin))
-
-const countries: ReadonlyArray<readonly [value: string, label: string]> = [
-  ['us', 'United States'],
-  ['ca', 'Canada'],
-  ['gb', 'United Kingdom'],
-  ['au', 'Australia'],
-]
-
-const menuItems: ReadonlyArray<MenuAction> = ['Reply', 'Forward', 'Archive', 'Delete']
-
-const itemGroupKey = (item: MenuAction): string =>
-  item === 'Archive' || item === 'Delete' ? 'Manage' : 'Respond'
-
-const frequencies: ReadonlyArray<Frequency> = ['Daily', 'Weekly', 'Monthly']
-
-const cities: ReadonlyArray<string> = [
-  'Johannesburg',
-  'Kyiv',
-  'Oxford',
-  'Plymouth',
-  'Quito',
-  'Wellington',
-  'Zurich',
-]
-
-const filterCities = (inputValue: string): ReadonlyArray<string> =>
-  inputValue === ''
-    ? cities
-    : cities.filter(city => city.toLowerCase().includes(inputValue.toLowerCase()))
-
-const formatIsoDate = (date: CalendarDate): string =>
-  `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`
-
-const formatFileSize = (bytes: number): string =>
-  bytes < 1024
-    ? `${bytes} B`
-    : bytes < 1024 * 1024
-      ? `${(bytes / 1024).toFixed(1)} KB`
-      : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-
-const contacts: ReadonlyArray<{ readonly value: Contact; readonly label: string }> = [
-  { value: 'email', label: 'Email' },
-  { value: 'phone', label: 'Phone' },
-  { value: 'none', label: 'None' },
-]
-
-const contactDescriptions: Record<Contact, string> = {
-  email: 'Receipts and news, most weeks.',
-  phone: 'Only when something is on fire.',
-  none: 'No contact at all.',
-}
-
-/** A message-free builder for the stateless views: alert, avatar, breadcrumb,
- * empty, item, kbd, separator, skeleton, spinner, and table take no messages,
- * so their views never ask the builder to dispatch. Built once, shared by
- * every static draw below — like the inert builder the package tests use.
- * Their VNodes carry no handlers and mount as static content in the live page.
- */
-const neverH = SlotView.inertBuilder<never>()
 
 /** A hermetic picture tile: the avatar demo loads no network images. Hex fills
  * stay out: `%23` will not load as an image (nor will a bare `#`, which
@@ -905,478 +254,113 @@ const neverH = SlotView.inertBuilder<never>()
 const avatarTile =
   'data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2764%27 height=%2764%27 viewBox=%270%200%2064%2064%27><rect width=%2764%27 height=%2764%27 fill=%27slategray%27/></svg>'
 
-/**
- * The contact preference, live: radio semantics with arrow keys, the choice
- * in the Model. Replaces the static pills that used to sit here.
- */
-const RadioDemo = (model: Pick<Model, 'contact' | 'contactGroup'>, h: HtmlBuilder<Message>): Html =>
-  h.submodel({
-    slotId: model.contactGroup.id,
-    model: model.contactGroup,
-    view: ContactGroup.view,
-    viewInputs: {
-      selectedValue: Option.some(model.contact),
-      options: contacts.map(contact => contact.value),
-      ariaLabel: 'Preferred contact',
-      hasOptionDescription: () => true,
-      toView: render => {
-        const resolved = RadioGroup.resolve(render, [RadioStyle.mixin], { input: undefined, h })
-        const rows = SlotView.buildersFor(RadioRowSlots, [RadioRowStyle.style.mixin], {
-          input: undefined,
-          h,
-        })
-        return h.div(resolved.group, [
-          ...resolved.options.map(option => {
-            const known = contacts.find(contact => contact.value === option.value)
-            // The label and description select too: they dispatch the
-            // option's own selection through the group, exactly as the
-            // circle's click does — but only when the option takes input.
-            const select =
-              option.isDisabled || option.isReadOnly
-                ? []
-                : [
-                    h.OnClick(
-                      Message.ContactGroup({
-                        message: UiRadioGroup.Message.SelectedOption({
-                          index: option.index,
-                          value: option.value,
-                        }),
-                      }),
-                    ),
-                  ]
-            return h.div(rows.row.attrs(), [
-              h.button(option.option, []),
-              h.div(rows.text.attrs(select), [
-                h.label(option.label, [known?.label ?? option.value]),
-                h.span(option.description, [contactDescriptions[option.value]]),
-              ]),
-            ])
-          }),
-        ])
-      },
-    },
-    toParentMessage: message => Message.ContactGroup({ message }),
-  })
-
-/**
- * The live volume slider: a native range input owns the drag and the keys,
- * the Model owns the value, and each move arrives as `VolumeChanged`,
- * already on the step.
- */
-const SliderDemo = (model: Pick<Model, 'volume'>, h: HtmlBuilder<Message>): Html =>
-  Slider.view(
-    {
-      id: 'volume-slider',
-      label: 'Volume',
-      value: model.volume,
-      step: 5,
-      format: value => `${value}%`,
-      showValue: true,
-      onChange: value => Message.VolumeChanged({ value }),
-      style: SliderStyle,
-    },
-    h,
-  )
-
-/**
- * A row-action menu: grouped items, one disabled, the choice reported back.
- * The draw mirrors the fork's default markup with the resolved bundles.
- */
-const MenuDemo = (model: Pick<Model, 'menu' | 'menuChoice'>, h: HtmlBuilder<Message>): Html =>
-  h.submodel({
-    slotId: model.menu.id,
-    model: model.menu,
-    view: ActionMenu.view,
-    viewInputs: {
-      anchor: { placement: 'bottom-start', gap: 4, padding: 8 },
-      items: menuItems,
-      itemToConfig: (item: MenuAction) => ({ content: h.span([], [item]) }),
-      buttonContent: h.span([], ['Actions']),
-      isItemDisabled: (item: MenuAction) => item === 'Archive',
-      itemGroupKey,
-      groupToHeading: (groupKey: string) =>
-        groupKey === 'Manage' ? { content: h.span([], ['Manage']) } : undefined,
-      toView: Menu.toView([MenuStyle.mixin], { h }),
-    },
-    toParentMessage: message => Message.Menu({ message }),
-  })
-
-/** A backup-frequency listbox: the button shows the choice. */
-const ListboxDemo = (
-  model: Pick<Model, 'listbox' | 'maybeFrequency'>,
-  h: HtmlBuilder<Message>,
-): Html => {
-  const label = Option.getOrElse(model.maybeFrequency, () => 'Select frequency')
-  return h.submodel({
-    slotId: model.listbox.id,
-    model: model.listbox,
-    view: FrequencyBox.view,
-    viewInputs: {
-      anchor: { placement: 'bottom-start', gap: 4, padding: 8 },
-      items: frequencies,
-      maybeSelectedValue: model.maybeFrequency,
-      itemToConfig: (frequency: Frequency) => ({ content: h.span([], [frequency]) }),
-      buttonContent: h.span([], [label]),
-      toView: Listbox.toView([ListboxStyle.mixin], { h }),
-    },
-    toParentMessage: message => Message.Listbox({ message }),
-  })
-}
-
-/** A city combobox: type to filter, pick to fill. */
-const ComboboxDemo = (
-  model: Pick<Model, 'combobox' | 'maybeCity'>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.submodel({
-    slotId: model.combobox.id,
-    model: model.combobox,
-    view: CityBox.view,
-    viewInputs: {
-      anchor: { placement: 'bottom-start', gap: 8, padding: 8 },
-      items: filterCities(model.combobox.inputValue),
-      restingInputValue: Option.getOrElse(model.maybeCity, () => ''),
-      itemToConfig: (city: string) => ({ content: h.span([], [city]) }),
-      itemToValue: (city: string) => city,
-      itemToDisplayText: (city: string) => city,
-      buttonContent: h.span([], ['▾']),
-      maybeSelectedValue: model.maybeCity,
-      inputPlaceholder: 'Search cities…',
-      toView: Combobox.toView([ComboBoxStyle.mixin], { h }),
-    },
-    toParentMessage: message => Message.Combobox({ message }),
-  })
-
-/**
- * A due-date picker: the shell rides attribute bundles (the adapter resolves
- * in the child's own universe), while the month grid inside draws through
- * CalendarSlots like the preview above.
- */
-const DatePickerDemo = (
-  model: Pick<Model, 'picker' | 'maybeDue'>,
-  h: HtmlBuilder<Message>,
-): Html => {
-  const chrome = SlotView.buildersFor(DateChromeSlots, [DateChromeStyle.style.mixin], {
-    input: model,
-    h,
-  })
-  return h.submodel({
-    slotId: model.picker.id,
-    model: model.picker,
-    view: UiDatePicker.view,
-    viewInputs: {
-      // Locked: paging months and years resizes the panel, which must not
-      // flip it to the other side of the trigger mid-use.
-      anchor: { placement: 'bottom-start', gap: 4, padding: 8, isPlacementLocked: true },
-      maybeSelectedDate: model.maybeDue,
-      triggerContent: maybeDue =>
-        h.span(
-          [],
-          [Option.match(maybeDue, { onNone: () => 'Pick a date', onSome: formatIsoDate })],
-        ),
-      attributes: childAttributes(chrome.picker.attrs()),
-      triggerAttributes: childAttributes(chrome.trigger.attrs()),
-      panelAttributes: childAttributes(chrome.panel.attrs()),
-      backdropAttributes: childAttributes(chrome.backdrop.attrs()),
-      toCalendarView: Calendar.toView(
-        Calendar.Selection.Single({ date: model.maybeDue }),
-        [CalendarStyle.mixin],
-        { h },
+/** What the knobs act on, at once: states of the controls that carry them, not a catalog. */
+const Specimen = (model: Model, h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(StudioSlots, [StudioStyle.style.mixin], { input: model, h })
+  return h.div(slots.specimen.attrs(), [
+    h.p(slots.specimenLabel.attrs(), [
+      'Buttons: rest and disabled. Hover, press or Tab to the rest.',
+    ]),
+    h.div(slots.specimenRow.attrs(), [
+      Button.view(
+        { label: 'Default', style: PrimaryButtonStyle, onClick: Message.ButtonClicked() },
+        h,
       ),
-    },
-    toParentMessage: message => Message.DatePicker({ message }),
-  })
-}
-
-/** A notify button and the stack it feeds: entries auto-dismiss. */
-const ToastDemo = (model: Pick<Model, 'toast'>, h: HtmlBuilder<Message>): Html => {
-  const entry = SlotView.buildersFor(ToastEntrySlots, [ToastEntryStyle.style.mixin], {
-    input: model,
-    h,
-  })
-  // A bare wrapper: the section's stack layout forces `inline-size: 100%` on
-  // its direct children, which would stretch the fixed container full-width.
-  // The wrapper takes that rule instead, and the container keeps its size.
-  return h.div(
-    [],
-    [
-      h.submodel({
-        slotId: model.toast.id,
-        model: model.toast,
-        view: ToastStack.view,
-        viewInputs: {
-          position: 'BottomRight',
-          entryToView: (toastEntry, handlers: EntryHandlers) =>
-            h.div(
-              [],
-              [
-                h.p(entry.title.attrs(), [toastEntry.payload.title]),
-                ...Option.match(toastEntry.payload.maybeDescription, {
-                  onNone: () => [],
-                  onSome: text => [h.p(entry.text.attrs(), [text])],
-                }),
-                h.button(entry.dismiss.attrs(handlers.dismiss), ['Dismiss']),
-              ],
-            ),
-          toView: Toast.toView([ToastStyle.mixin], { h }, resolved =>
-            h.div(
-              resolved.container,
-              resolved.entries.map(entryView =>
-                h.keyed('div')(entryView.id, entryView.attributes, [entryView.content]),
-              ),
-            ),
-          ),
-        },
-        toParentMessage: message => Message.Toast({ message }),
-      }),
-    ],
-  )
-}
-
-/** An attachment drop zone with the files it collected. */
-const FileDropDemo = (
-  model: Pick<Model, 'drop' | 'files'>,
-  slots: PageBuilders,
-  h: HtmlBuilder<Message>,
-): Html => {
-  const text = SlotView.buildersFor(FileTextSlots, [FileTextStyle.style.mixin], { input: model, h })
-  return h.div(
-    [],
-    [
-      h.submodel({
-        slotId: model.drop.id,
-        model: model.drop,
-        view: UiFileDrop.view,
-        viewInputs: {
-          multiple: true,
-          toView: attributes => {
-            const resolved = FileDrop.resolve(attributes, [FileDropStyle.mixin], { h })
-            return h.label(resolved.root, [
-              h.p(text.primary.attrs(), ['Drop files or click to browse']),
-              h.p(text.secondary.attrs(), [
-                model.files.length === 0
-                  ? 'Any file type. This demo just lists them.'
-                  : `${model.files.length} attached.`,
-              ]),
-              h.input(resolved.input),
-            ])
-          },
-        },
-        toParentMessage: message => Message.DropFiles({ message }),
-      }),
-      ...model.files.map((file, index) =>
-        h.div(slots.row.attrs([h.Key(`${File.name(file)}:${File.size(file)}`)]), [
-          h.span(text.fileName.attrs(), [
-            `${File.name(file)} (${formatFileSize(File.size(file))})`,
-          ]),
-          Button.view(
-            {
-              label: 'Remove',
-              style: GhostButtonStyle,
-              onClick: Message.RemoveFile({ index }),
-            },
-            h,
-          ),
-        ]),
+      Button.view(
+        { label: 'Secondary', style: SecondaryButtonStyle, onClick: Message.ButtonClicked() },
+        h,
       ),
-    ],
-  )
-}
-
-const weekDays: ReadonlyArray<string> = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-const monthDays: ReadonlyArray<number> = [12, 13, 14, 15, 16, 17, 18]
-
-const CalendarPreview = SlotView.forMessages<Message>()
-  .define(CalendarSlots, (selected: number, slots, h) => {
-    const card = SlotView.buildersFor(CardSlots, [CardStyle.mixin], { input: selected, h })
-    // The recipe pads content, not the root: the calendar rides the content
-    // slot so the preview card breathes.
-    return h.div(card.root.attrs(), [
-      h.div(card.content.attrs(), [
-        h.div(slots.root.attrs(), [
+      Button.view(
+        { label: 'Outline', style: OutlineButtonStyle, onClick: Message.ButtonClicked() },
+        h,
+      ),
+      Button.view(
+        { label: 'Destructive', style: DestructiveButtonStyle, onClick: Message.ButtonClicked() },
+        h,
+      ),
+      Button.view({ label: 'Disabled', style: PrimaryButtonStyle, disabled: true }, h),
+    ]),
+    Input.view(
+      {
+        id: 'specimen-email',
+        value: 'ada@',
+        invalid: true,
+        style: FieldStyle,
+        described: true,
+        draw: (resolved, h) =>
           h.div(
-            slots.grid.attrs([h.Role('grid'), h.AriaLabel('October 2026'), h.AriaRowcount(1)]),
+            [],
             [
-              h.div(slots.headerRow.attrs([h.Role('row')]), [
-                ...weekDays.map(day =>
-                  h.span(slots.columnHeader.attrs([h.Role('columnheader')]), [day]),
-                ),
-              ]),
-              h.div(slots.weekRow.attrs([h.Role('row')]), [
-                ...monthDays.map(day =>
-                  h.span(slots.dayCell.attrs([h.Role('gridcell')]), [
-                    h.button(
-                      slots.dayButton.attrs([
-                        h.Type('button'),
-                        ...(day === selected ? [h.DataAttribute('selected', 'true')] : []),
-                        h.AriaLabel(`October ${day}`),
-                      ]),
-                      [String(day)],
-                    ),
-                  ]),
-                ),
-              ]),
+              h.label(resolved.label, ['Email, invalid']),
+              h.input(resolved.input),
+              h.span(resolved.description, ['Add the domain after the @.']),
             ],
           ),
-        ]),
-      ]),
-    ])
-  })
-  .pipe(SlotView.attach(CalendarStyle.mixin))
-
-/**
- * A live details popover: anchored against its trigger, dismissed on escape
- * or outside press. The draw places the resolved bundles; the backdrop only
- * exists while open.
- */
-const PopoverDemo = (model: Pick<Model, 'popover'>, h: HtmlBuilder<Message>): Html =>
-  h.submodel({
-    slotId: model.popover.id,
-    model: model.popover,
-    view: UiPopover.view,
-    viewInputs: {
-      anchor: { placement: 'bottom-start', gap: 4, padding: 8 },
-      toView: attributes => {
-        const resolved = Popover.resolve(attributes, [PopoverStyle.mixin], {
-          input: undefined,
-          h,
-        })
-        return h.div(
-          [],
-          [
-            h.button(resolved.button, ['Show details']),
-            ...(resolved.isVisible
-              ? [
-                  h.div(resolved.backdrop, []),
-                  h.div(resolved.panel, [
-                    'Project details, anchored live: six people, three open milestones, and one demo that keeps growing.',
-                  ]),
-                ]
-              : []),
-          ],
-        )
       },
-    },
-    toParentMessage: message => Message.Popover({ message }),
-  })
-
-/**
- * The live hint tooltip: the panel renders only while the component is
- * visible — after the hover delay, or on keyboard focus — and positions
- * itself against the trigger through the anchor.
- */
-const TooltipDemo = (model: Pick<Model, 'tooltip'>, h: HtmlBuilder<Message>): Html =>
-  h.submodel({
-    slotId: model.tooltip.id,
-    model: model.tooltip,
-    view: UiTooltip.view,
-    viewInputs: {
-      anchor: { placement: 'top', gap: 6, padding: 8 },
-      toView: attributes => {
-        const { trigger, panel, isVisible } = Tooltip.resolve(attributes, [TooltipStyle.mixin], {
-          input: undefined,
-          h,
-          id: model.tooltip.id,
-        })
-        return h.div(
-          [],
-          [
-            h.button(trigger, ['Hover or focus me']),
-            ...(isVisible ? [h.span(panel, ['A helpful hint'])] : []),
-          ],
-        )
+      h,
+    ),
+    BadgesView(undefined, neverH),
+    Alert.view(
+      {
+        layout: 'inline',
+        title: 'Storage almost full',
+        description: 'Only 2 GB left on this project.',
+        icon: h.span([h.AriaHidden(true)], ['!']),
+        style: AlertWarningStyle,
       },
-    },
-    toParentMessage: message => Message.Tooltip({ message }),
-  })
+      neverH,
+    ),
+    h.div(slots.specimenRow.attrs(), [
+      Spinner.view({ label: 'Loading projects', style: SpinnerStyle }, neverH),
+      Skeleton.view({ label: 'Loading title', style: SkeletonStyle }, neverH),
+    ]),
+  ])
+}
 
-/**
- * A team-member hover card, live: open and close delays keep it from
- * flickering, and the Anchor behavior positions the panel against the
- * trigger. The panel renders only while open.
- */
-const AnchorCard = Anchor.behavior(HoverIntentSlots)<unknown, Message>({
-  floating: 'panel',
-  config: () => ({
-    buttonId: 'teammate-button',
-    anchor: { placement: 'bottom-start', gap: 4, padding: 8 },
-  }),
-})
-
-const HoverDemo = (model: Pick<Model, 'hoverCard'>, h: HtmlBuilder<Message>): Html =>
-  h.submodel({
-    slotId: 'teammate-card',
-    model: model.hoverCard,
-    view: UiHoverIntent.view,
-    viewInputs: {
-      focusTriggerSelector: '#teammate-button',
-      toView: render => {
-        const resolved = HoverIntent.resolve(render, [HoverCardStyle.mixin, AnchorCard.mixin], {
-          input: undefined,
-          h,
-        })
-        return h.div(
-          [],
-          [
-            h.button(
-              [...resolved.trigger, h.Type('button'), h.Id('teammate-button')],
-              ['A team member'],
+/** A scale from the theme, one row per token: its name, a bar the token itself sizes, and its expression. */
+const TokenTable = (kind: 'space' | 'radius', h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(TokenSlots, [TokenStyle.style.mixin], { input: undefined, h })
+  return h.div(
+    slots.table.attrs(),
+    tokenGroups[kind].map(([name, expression]) =>
+      h.div(slots.row.attrs([h.Key(`${kind}-${name}`)]), [
+        h.p(slots.name.attrs(), [name]),
+        h.div(
+          slots.bar.attrs([
+            h.AriaHidden(true),
+            h.Style(
+              kind === 'space'
+                ? { inlineSize: `var(--fk-space-${name})` }
+                : {
+                    inlineSize: '2.5rem',
+                    blockSize: '2.5rem',
+                    borderRadius: `var(--fk-radius-${name})`,
+                  },
             ),
-            ...(resolved.isVisible
-              ? [
-                  h.div(resolved.panel, [
-                    'Wren Quan, design engineer. Moving into the card keeps it open; leaving either side starts the close delay.',
-                  ]),
-                ]
-              : []),
-          ],
-        )
-      },
-    },
-    toParentMessage: message => Message.HoverCard({ message }),
-  })
-
-const InputGroupDemo = SlotView.forMessages<Message>()
-  .define(InputGroupSlots, (value: string, slots, h) =>
-    h.div(
-      [],
-      [
-        h.div(slots.group.attrs(), [
-          h.span(slots.affix.attrs(), ['/']),
-          h.input(
-            slots.control.attrs([
-              h.Type('text'),
-              h.Value(value),
-              h.AriaLabel('Site path'),
-              h.OnInput((typed: string) => Message.AddressTyped({ value: typed })),
-            ]),
-          ),
-        ]),
-      ],
+          ]),
+          [],
+        ),
+        h.p(slots.expression.attrs(), [expression]),
+      ]),
     ),
   )
-  .pipe(SlotView.attach(InputGroupStyle.style.mixin))
+}
 
-const IconsDemo = SlotView.forMessages<Message>()
-  .define(IconSlots, (_input: unknown, slots, h) =>
-    h.div(slots.row.attrs(), [
-      h.span(slots.chip.attrs([h.DataAttribute('icon', 'dot')]), ['Status']),
-      h.span(slots.chip.attrs([h.DataAttribute('icon', 'star')]), ['Featured']),
-    ]),
-  )
-  .pipe(SlotView.attach(IconStyle.style.mixin))
+/** Four boxes setting one property from four places: the later layer wins, and `Style.inline` beats every layer. */
+const CascadeDemo = (h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(CascadeSlots, [CascadeStyle.style.mixin], {
+    input: undefined,
+    h,
+  })
+  return h.div(slots.row.attrs(), [
+    h.div(slots.base.attrs(), ['components layer']),
+    h.div(slots.variant.attrs(), ['+ variants layer']),
+    h.div(slots.app.attrs(), ['+ app layer']),
+    h.div(slots.inline.attrs(), ['+ Style.inline']),
+  ])
+}
 
-/**
- * The `:root` override the view renders from the Model. The hue and shadow
- * knobs and color scheme must be set on `:root`, not on the page: derived
- * tokens (`--fk-hue-accent`, every `light-dark()` color, every shadow layer)
- * are computed at `:root` and inherited already resolved, so a knob
- * overridden on a subtree never re-derives them. Unlayered, this wins over
- * the layered token declarations.
- */
-export const rootOverrideOf = (model: Pick<Model, 'hue' | 'scheme' | 'shadow'>): string =>
-  `:root{--fk-knob-accent-h:${model.hue};--fk-knob-shadow-strength:${model.shadow}%;color-scheme:${model.scheme === 'system' ? 'light dark' : model.scheme}}`
-
+/** The knobs the reader tweaked, written on `:root`; the theme's own are in the sheet. */
 const fillSwatch = (
   slots: PageBuilders,
   h: HtmlBuilder<Message>,
@@ -1407,27 +391,94 @@ const textSwatch = (slots: PageBuilders, h: HtmlBuilder<Message>, name: string):
 
 /** The page's sections, in order: the sidebar links to each by its id. */
 const sections = [
+  ['theme', 'Theme'],
   ['colors', 'Colors'],
   ['buttons', 'Buttons'],
   ['form', 'Form'],
   ['choice', 'Choice'],
-  ['menu', 'Menu'],
   ['feedback', 'Feedback'],
-  ['overlays', 'Overlays'],
+  ['overlays', 'Menu and overlays'],
   ['navigation', 'Navigation'],
   ['calendar', 'Date'],
-  ['card', 'Card'],
   ['display', 'Display'],
   ['collections', 'Collections'],
   ['utilities', 'Utilities'],
   ['tokens', 'Tokens'],
+  ['cascade', 'Cascade'],
 ] as const
+
+const tokenRef = ([group, name]: readonly [string, string]): string => `var(--fk-${group}-${name})`
+
+/** The contrast of the palette the theme derives, as the page paints it now: see `contrast.ts`. */
+const ContrastTable = (model: Pick<Model, 'contrast'>, h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(ContrastSlots, [ContrastStyle.style.mixin], {
+    input: undefined,
+    h,
+  })
+  return h.div(
+    slots.table.attrs([h.AriaLabel('Contrast of the derived palette')]),
+    pairs.map((pair, index) => {
+      const measured = model.contrast[index] ?? Option.none()
+      return h.div(slots.row.attrs([h.Key(`contrast-${index}`)]), [
+        h.div(
+          slots.sample.attrs([
+            h.Id(probeId(index)),
+            h.AriaHidden(true),
+            h.Style({ color: tokenRef(pair.foreground), background: tokenRef(pair.background) }),
+          ]),
+          ['Aa'],
+        ),
+        h.p(slots.label.attrs(), [pair.label]),
+        h.p(slots.ratio.attrs(), [
+          Option.match(measured, {
+            onNone: () => 'measuring',
+            onSome: ratio => `${ratio.toFixed(2)} : 1`,
+          }),
+        ]),
+        Option.match(measured, {
+          onNone: () => h.span([], []),
+          onSome: ratio => {
+            const grade = gradeOf(ratio)
+            return h.span(
+              slots.grade.attrs([
+                h.DataAttribute(
+                  'state',
+                  grade === 'Fail' ? 'bad' : grade === 'Large' ? 'warn' : 'ok',
+                ),
+              ]),
+              [grade],
+            )
+          },
+        }),
+      ])
+    }),
+  )
+}
+
+type PageBuilders = SlotBuilders<typeof PageSlots, Message>
+
+/** Where an island draws: its heading is here, so the sidebar link and the page's length are there at start. */
+const IslandSlot = (
+  slots: PageBuilders,
+  h: HtmlBuilder<Message>,
+  id: string,
+  title: string,
+): Html =>
+  h.section(slots.section.attrs([h.Id(id)]), [
+    h.h2(slots.sectionTitle.attrs(), [title]),
+    h.div(slots.island.attrs([h.Id(`${id}-island`)]), []),
+  ])
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   const slots = SlotView.buildersFor(PageSlots, [PageStyle.style.mixin], { input: model, h })
-  const rootOverride = rootOverrideOf(model)
+  const rootOverride = tweaksCss(model.tweaks)
+  const studioSlots = SlotView.buildersFor(StudioSlots, [StudioStyle.style.mixin], {
+    input: model,
+    h,
+  })
   const tokensCode = [
-    'AppStyle.make({})   the shipped theme',
+    "Themes.make({ shadcn, compact, soft, hard }, { initial: 'shadcn' })",
+    'AppStyle.make({ themes })',
     '',
     'Default     -> Button variant primary',
     'Secondary   -> tone neutral, solid',
@@ -1468,59 +519,30 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               'Every control below draws through a shipped foldkit-mixins-ui recipe over the shipped tokens. The shadcn look is two decisions: near-zero surface saturation with a larger radius, and one recipe selection per intent.',
             ]),
           ]),
-          h.div(slots.controls.attrs(), [
-            h.div(slots.controlGroup.attrs(), [
-              h.p(slots.controlLabel.attrs(), ['Accent hue (re-derives live)']),
-              h.div(slots.row.attrs(), [
-                ...hues.map(preset =>
-                  Button.view(
-                    {
-                      label: preset.label,
-                      style: model.hue === preset.hue ? SecondaryButtonStyle : GhostButtonStyle,
-                      onClick: Message.HueSelected({ hue: preset.hue }),
-                    },
-                    h,
-                  ),
-                ),
-              ]),
+          h.section(slots.section.attrs([h.Id('theme')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Theme']),
+            h.p(slots.sectionText.attrs(), [
+              'A theme is a handful of knob values. Pick one, or move a knob over it, and every control on the page follows: spacing, corners, accent, shadow, text size and motion all derive from the same numbers.',
             ]),
-            h.div(slots.controlGroup.attrs(), [
-              h.p(slots.controlLabel.attrs(), ['Scheme']),
-              h.div(slots.row.attrs(), [
-                ...schemes.map(entry =>
-                  Button.view(
-                    {
-                      label: entry.label,
-                      style:
-                        model.scheme === entry.scheme ? SecondaryButtonStyle : GhostButtonStyle,
-                      onClick: Message.SchemeSelected({ scheme: entry.scheme }),
-                    },
-                    h,
-                  ),
-                ),
-              ]),
-            ]),
-            h.div(slots.controlGroup.attrs(), [
-              h.p(slots.controlLabel.attrs(), ['Shadow strength (dims every shadow)']),
-              h.div(slots.row.attrs(), [
-                ...shadows.map(preset =>
-                  Button.view(
-                    {
-                      label: preset.label,
-                      style:
-                        model.shadow === preset.strength ? SecondaryButtonStyle : GhostButtonStyle,
-                      onClick: Message.ShadowSelected({ strength: preset.strength }),
-                    },
-                    h,
-                  ),
-                ),
-              ]),
+            h.div(studioSlots.studio.attrs(), [
+              studioPanel(
+                model,
+                {
+                  theme: name => Message.ThemePicked({ name }),
+                  scheme: scheme => Message.SchemeSelected({ scheme }),
+                  dir: (dir: Direction) => Message.DirectionSelected({ dir }),
+                  tweak: (tweak, value) => Message.TweakChanged({ tweak, value }),
+                  reset: Message.TweaksReset(),
+                },
+                h,
+              ),
+              Specimen(model, h),
             ]),
           ]),
           h.section(slots.section.attrs([h.Id('colors')]), [
             h.h2(slots.sectionTitle.attrs(), ['Colors']),
             h.p(slots.sectionText.attrs(), [
-              'Token families, as var(--fk-group-name) references. Picking a hue above rewrites one knob and every family follows.',
+              'Token families, as var(--fk-group-name) references. The hue slider rewrites one knob and every family follows.',
             ]),
             h.div(slots.swatchGrid.attrs(), [
               ...['bedrock', 'base', 'subtle', 'muted', 'default', 'overt'].map(name =>
@@ -1543,379 +565,18 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
                   ),
                 ]),
             ),
+            h.p(slots.controlLabel.attrs(), [
+              'Contrast of the derived palette, measured as painted (WCAG 2: AA is 4.5, large text 3)',
+            ]),
+            ContrastTable(model, h),
           ]),
-          h.section(slots.section.attrs([h.Id('buttons')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Buttons']),
-            h.p(slots.sectionText.attrs(), [
-              `Default is primary ink, Secondary a neutral fill, then Outline, Ghost, and Destructive. Pressed ${model.clicks} ${model.clicks === 1 ? 'time' : 'times'} — every button dispatches.`,
-            ]),
-            h.div(slots.row.attrs(), [
-              Button.view(
-                { label: 'Default', style: PrimaryButtonStyle, onClick: Message.ButtonClicked() },
-                h,
-              ),
-              Button.view(
-                {
-                  label: 'Secondary',
-                  style: SecondaryButtonStyle,
-                  onClick: Message.ButtonClicked(),
-                },
-                h,
-              ),
-              Button.view(
-                { label: 'Outline', style: OutlineButtonStyle, onClick: Message.ButtonClicked() },
-                h,
-              ),
-              Button.view(
-                { label: 'Ghost', style: GhostButtonStyle, onClick: Message.ButtonClicked() },
-                h,
-              ),
-              Button.view(
-                {
-                  label: 'Destructive',
-                  style: DestructiveButtonStyle,
-                  onClick: Message.ButtonClicked(),
-                },
-                h,
-              ),
-            ]),
-            h.div(slots.row.attrs(), [
-              Button.view(
-                { label: 'Small', style: SmallButtonStyle, onClick: Message.ButtonClicked() },
-                h,
-              ),
-              Button.view(
-                { label: 'Large', style: LargeButtonStyle, onClick: Message.ButtonClicked() },
-                h,
-              ),
-              Button.view({ label: 'Disabled', style: PrimaryButtonStyle, disabled: true }, h),
-            ]),
-            h.p(slots.sectionText.attrs(), [
-              'A joined group toggles real style: bold, italic, and underline write the Model, and the line below reads it back.',
-            ]),
-            ButtonGroup.view(
-              {
-                label: 'Text style',
-                items: [
-                  Button.view(
-                    {
-                      label: 'B',
-                      style: model.bold ? SecondaryButtonStyle : OutlineButtonStyle,
-                      onClick: Message.BoldToggled({ value: !model.bold }),
-                    },
-                    h,
-                  ),
-                  Button.view(
-                    {
-                      label: 'I',
-                      style: model.italic ? SecondaryButtonStyle : OutlineButtonStyle,
-                      onClick: Message.ItalicToggled({ value: !model.italic }),
-                    },
-                    h,
-                  ),
-                  Button.view(
-                    {
-                      label: 'U',
-                      style: model.underline ? SecondaryButtonStyle : OutlineButtonStyle,
-                      onClick: Message.UnderlineToggled({ value: !model.underline }),
-                    },
-                    h,
-                  ),
-                ],
-                style: ButtonGroupStyle,
-              },
-              neverH,
-            ),
-            h.p(
-              slots.sectionText.attrs([
-                h.Style({
-                  fontWeight: model.bold ? '700' : '400',
-                  fontStyle: model.italic ? 'italic' : 'normal',
-                  textDecoration: model.underline ? 'underline' : 'none',
-                }),
-              ]),
-              ['The quick brown fox'],
-            ),
-          ]),
-          h.section(slots.section.attrs([h.Id('form')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Form']),
-            h.p(slots.sectionText.attrs(), [
-              'Input, Textarea, Checkbox, and Switch, each a headless component resolved through its slot contract — plus a drop zone for attachments.',
-            ]),
-            Input.view(
-              {
-                id: 'name',
-                value: model.name,
-                onInput: (value: string) => Message.NameTyped({ value }),
-                placeholder: 'Ada Lovelace',
-                style: FieldStyle,
-                described: true,
-                draw: (resolved, h) =>
-                  h.div(
-                    [],
-                    [
-                      h.label(resolved.label, ['Name']),
-                      h.input(resolved.input),
-                      h.span(resolved.description, [
-                        `Hello${model.name === '' ? '' : `, ${model.name}`}.`,
-                      ]),
-                    ],
-                  ),
-              },
-              h,
-            ),
-            Input.view(
-              {
-                id: 'slug',
-                value: 'design-system',
-                placeholder: 'slug',
-                style: FilledFieldStyle,
-                draw: (resolved, h) =>
-                  h.div(
-                    [],
-                    [
-                      h.label(resolved.label, ['Slug (filled, read-only)']),
-                      h.input(resolved.input),
-                    ],
-                  ),
-              },
-              h,
-            ),
-            Textarea.view(
-              {
-                id: 'bio',
-                value: model.bio,
-                onInput: (value: string) => Message.BioTyped({ value }),
-                placeholder: 'What is this space for?',
-                rows: 3,
-                style: AreaStyle,
-                draw: (resolved, h) =>
-                  h.div([], [h.label(resolved.label, ['Bio']), h.textarea(resolved.textarea)]),
-              },
-              h,
-            ),
-            UiCheckbox.view(
-              {
-                id: 'marketing',
-                isChecked: model.marketing,
-                onToggle: (value: boolean) => Message.MarketingToggled({ value }),
-                toView: Checkbox.toView([CheckStyle.mixin], { h }, resolved =>
-                  h.div(slots.row.attrs(), [
-                    h.button(resolved.checkbox, []),
-                    h.label(resolved.label, ['Marketing emails']),
-                    h.span(resolved.description, ['Product news, monthly.']),
-                  ]),
-                ),
-              },
-              h,
-            ),
-            UiSwitch.view(
-              {
-                id: 'notifications',
-                isChecked: model.notifications,
-                onToggle: (value: boolean) => Message.NotificationsToggled({ value }),
-                toView: Switch.toView([ToggleStyle.mixin], { h }, resolved =>
-                  h.div(slots.row.attrs(), [
-                    h.button(resolved.button, []),
-                    h.label(resolved.label, ['Email notifications']),
-                    h.span(resolved.description, [
-                      model.notifications ? 'On: digests on Monday.' : 'Off.',
-                    ]),
-                  ]),
-                ),
-              },
-              h,
-            ),
-            FileDropDemo(model, slots, h),
-          ]),
-          h.section(slots.section.attrs([h.Id('choice')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Choice']),
-            h.p(slots.sectionText.attrs(), [
-              'One value from many: a native Select, radio circles, a live slider — drag it or use the arrow keys — a listbox, a filtering combobox, and a Disclosure, each through its slot contract.',
-            ]),
-            UiSelect.view(
-              {
-                id: 'country',
-                value: model.country,
-                onChange: (value: string) => Message.CountrySelected({ value }),
-                hasDescription: true,
-                toView: Select.toView([SelectStyle.mixin], { h }, resolved =>
-                  h.div(
-                    [],
-                    [
-                      h.label(resolved.label, ['Country']),
-                      h.select(
-                        resolved.select,
-                        countries.map(([value, label]) => h.option([h.Value(value)], [label])),
-                      ),
-                      h.span(resolved.description, ['Where you currently reside.']),
-                    ],
-                  ),
-                ),
-              },
-              h,
-            ),
-            UiDisclosure.view(
-              {
-                id: 'details',
-                isOpen: model.detailsOpen,
-                onToggle: (value: boolean) => Message.DetailsToggled({ value }),
-                toView: Disclosure.toView([DisclosureStyle.mixin], { h }, resolved =>
-                  h.div(
-                    [],
-                    [
-                      h.button(resolved.button, [
-                        model.detailsOpen ? 'Hide project details' : 'Show project details',
-                      ]),
-                      model.detailsOpen
-                        ? h.div(resolved.panel, [
-                            'Six people, three open milestones, and one demo that keeps growing.',
-                          ])
-                        : h.empty,
-                    ],
-                  ),
-                ),
-              },
-              h,
-            ),
-            UiFieldset.view(
-              {
-                id: 'contact-prefs',
-                hasDescription: true,
-                toView: Fieldset.toView([FieldsetStyle.mixin], { h }, resolved =>
-                  h.fieldset(resolved.fieldset, [
-                    h.legend(resolved.legend, ['Preferred contact']),
-                    RadioDemo(model, h),
-                    h.span(resolved.description, [
-                      `Currently ${model.contact}. The group is a live radio: arrow keys move, the choice stays in the Model.`,
-                    ]),
-                  ]),
-                ),
-              },
-              h,
-            ),
-            SliderDemo(model, h),
-            ListboxDemo(model, h),
-            ComboboxDemo(model, h),
-          ]),
-          h.section(slots.section.attrs([h.Id('menu')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Menu']),
-            h.p(slots.sectionText.attrs(), [
-              model.menuChoice === ''
-                ? 'Grouped actions with one disabled. Open it and pick one.'
-                : `Chose ${model.menuChoice}.`,
-            ]),
-            MenuDemo(model, h),
-          ]),
-          h.section(slots.section.attrs([h.Id('feedback')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Feedback']),
-            h.p(slots.sectionText.attrs(), [
-              'One badge style serves every tone through data-state; alerts speak up in their own tones; toasts stack bottom-right and dismiss themselves.',
-            ]),
-            BadgesView(undefined, h),
-            Alert.view(
-              {
-                layout: 'inline',
-                title: 'Storage almost full',
-                description: 'Only 2 GB left on this project.',
-                icon: h.span([h.AriaHidden(true)], ['!']),
-                assertive: true,
-                style: AlertWarningStyle,
-              },
-              neverH,
-            ),
-            Alert.view(
-              {
-                layout: 'inline',
-                title: 'All checks passed',
-                description: 'The deploy finished in 42 seconds.',
-                icon: h.span([h.AriaHidden(true)], ['✓']),
-                style: AlertSuccessStyle,
-              },
-              neverH,
-            ),
-            h.div(slots.row.attrs(), [
-              Button.view(
-                {
-                  label: 'Delete this project?',
-                  style: DestructiveButtonStyle,
-                  onClick: Message.OpenDeleteDialog(),
-                },
-                h,
-              ),
-            ]),
-            DialogDemo(model, h),
-            h.div(slots.row.attrs(), [
-              Button.view(
-                { label: 'Notify', style: PrimaryButtonStyle, onClick: Message.NotifyPressed() },
-                h,
-              ),
-            ]),
-            ToastDemo(model, h),
-          ]),
-          h.section(slots.section.attrs([h.Id('overlays')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Overlays']),
-            h.p(slots.sectionText.attrs(), [
-              'Floating UI with real state: a popover that anchors, a tooltip that shows on hover or focus, and a hover card. Escape or an outside press dismisses them.',
-            ]),
-            PopoverDemo(model, h),
-            TooltipDemo(model, h),
-            HoverDemo(model, h),
-          ]),
-          h.section(slots.section.attrs([h.Id('navigation')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Navigation']),
-            h.p(slots.sectionText.attrs(), [
-              'Tabs in line and pill variants, and a Segmented plan picker — all driven by this page\u2019s own tab state.',
-            ]),
-            LineTabsView(model, h),
-            PillTabsView(model, h),
-            PlanView(model.plan, h),
-            h.p(slots.sectionText.attrs(), [
-              `Showing ${model.lineTab}, ${model.pillTab} view, ${model.plan} plan.`,
-            ]),
-            Pagination.view(
-              {
-                page: model.page,
-                pageCount: 10,
-                onPage: page => Message.PageSelected({ page }),
-                style: PaginationStyle,
-              },
-              h,
-            ),
-            h.p(slots.sectionText.attrs(), [`Page ${model.page} of 10.`]),
-            Breadcrumb.view(
-              {
-                steps: [
-                  { label: 'Projects', href: '#' },
-                  { label: 'Website', href: '#' },
-                  { label: 'Launch checklist', current: true },
-                ],
-                style: BreadcrumbStyle,
-              },
-              neverH,
-            ),
-          ]),
-          h.section(slots.section.attrs([h.Id('calendar')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Date']),
-            h.p(slots.sectionText.attrs(), [
-              'A month grid preview through the Calendar slots, and a live picker that writes the due date. The picker shell rides attribute bundles; its grid draws through the same Calendar slots as the preview.',
-            ]),
-            CalendarPreview(15, h),
-            DatePickerDemo(model, h),
-            h.p(slots.sectionText.attrs(), [
-              Option.match(model.maybeDue, {
-                onNone: () => 'No due date yet.',
-                onSome: date => `Due ${formatIsoDate(date)}.`,
-              }),
-            ]),
-          ]),
-          h.section(slots.section.attrs([h.Id('card')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Card']),
-            h.p(slots.sectionText.attrs(), [
-              'The shadcn card: base surface, hairline border, large radius, soft shadow.',
-            ]),
-            CardView(model.clicks, h),
-          ]),
+          IslandSlot(slots, h, 'buttons', 'Buttons'),
+          IslandSlot(slots, h, 'form', 'Form'),
+          IslandSlot(slots, h, 'choice', 'Choice'),
+          IslandSlot(slots, h, 'feedback', 'Feedback'),
+          IslandSlot(slots, h, 'overlays', 'Menu and overlays'),
+          IslandSlot(slots, h, 'navigation', 'Navigation'),
+          IslandSlot(slots, h, 'calendar', 'Date'),
           h.section(slots.section.attrs([h.Id('display')]), [
             h.h2(slots.sectionTitle.attrs(), ['Display']),
             h.p(slots.sectionText.attrs(), [
@@ -1948,124 +609,25 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               h.span([], ['Loading projects']),
             ]),
           ]),
-          h.section(slots.section.attrs([h.Id('collections')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Collections']),
-            h.p(slots.sectionText.attrs(), [
-              'Structured content: an empty state, a notification list, and a plain table with a numeric column.',
-            ]),
-            Empty.view(
-              {
-                title: 'No projects yet',
-                description: 'Create one to get started.',
-                icon: neverH.span([neverH.AriaHidden(true)], ['∅']),
-                style: EmptyStyle,
-              },
-              neverH,
-            ),
-            h.div(
-              SlotView.buildersFor(NoticeListSlots, [NoticeListStyle.style.mixin], {
-                input: undefined,
-                h,
-              }).list.attrs(),
-              [
-                Item.view(
-                  {
-                    media: neverH.span([neverH.AriaHidden(true)], ['●']),
-                    title: 'Deploy finished',
-                    description: '2 minutes ago',
-                    content: neverH.span([], ['Production is live.']),
-                    style: ItemStyle,
-                  },
-                  neverH,
-                ),
-                Separator.view({ style: SeparatorStyle }, neverH),
-                Item.view(
-                  {
-                    media: neverH.span([neverH.AriaHidden(true)], ['●']),
-                    title: 'Review requested',
-                    description: '1 hour ago',
-                    content: neverH.span([], ['The website redesign is ready.']),
-                    style: ItemStyle,
-                  },
-                  neverH,
-                ),
-                Separator.view({ style: SeparatorStyle }, neverH),
-                Item.view(
-                  {
-                    media: neverH.span([neverH.AriaHidden(true)], ['●']),
-                    title: 'Mentioned by Wren',
-                    description: 'Yesterday',
-                    content: neverH.span([], ['Feedback on the onboarding flow.']),
-                    style: ItemStyle,
-                  },
-                  neverH,
-                ),
-              ],
-            ),
-            Table.view(
-              {
-                caption: 'Team plans',
-                columns: [
-                  { header: 'Plan', value: row => row.plan },
-                  { header: 'Seats', numeric: true, value: row => String(row.seats) },
-                  { header: 'Price', value: row => row.price },
-                ],
-                rows: [
-                  { plan: 'Starter', seats: 5, price: 'Free' },
-                  { plan: 'Pro', seats: 25, price: '$20' },
-                  { plan: 'Enterprise', seats: 500, price: 'Custom' },
-                ],
-                style: TableStyle,
-              },
-              neverH,
-            ),
-          ]),
-          h.section(slots.section.attrs([h.Id('utilities')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Utilities']),
-            h.p(slots.sectionText.attrs(), [
-              'Mechanisms, not components: an InputGroup address field, attribute-dispatched icons with coarse-pointer touch targets, and the accessibility pattern catalog every adapter is gated against.',
-            ]),
-            InputGroupDemo(model.address, h),
-            h.p(slots.sectionText.attrs(), [`Previewing “/${model.address}”.`]),
-            h.p(slots.sectionText.attrs(), [
-              'A scroll area chains at its edge: the box scrolls instead of the page.',
-            ]),
-            ScrollArea.view(
-              {
-                content: h.div(
-                  [],
-                  [
-                    'The first line stays put while the rest moves.',
-                    'Chained scrolling stops here instead of taking the page with it.',
-                    'The bars stay thin in both schemes.',
-                    'Keyboard users reach it by Tab: the viewport is a stop.',
-                    'Twelve rems of box; the rest is overflow.',
-                    'Short lines, many of them: the box never grows.',
-                    'Each line is ordinary section text in a plain div.',
-                    'Nothing here dispatches; the demo scrolls, nothing more.',
-                    'Nine lines at this measure clear twelve rems.',
-                  ].map(line => h.p(slots.sectionText.attrs(), [line])),
-                ),
-                style: ScrollAreaStyle,
-              },
-              neverH,
-            ),
-            IconsDemo(undefined, h),
-            h.div(slots.code.attrs(), [
-              Patterns.catalog
-                .map(
-                  entry =>
-                    `${entry.name} (${entry.tier}): roles [${entry.roles.join(', ')}] floor [${entry.floor.join(', ') || 'none'}]`,
-                )
-                .join('\n'),
-            ]),
-          ]),
+          IslandSlot(slots, h, 'collections', 'Collections'),
+          IslandSlot(slots, h, 'utilities', 'Utilities'),
           h.section(slots.section.attrs([h.Id('tokens')]), [
             h.h2(slots.sectionTitle.attrs(), ['Tokens']),
             h.p(slots.sectionText.attrs(), [
-              'The whole skin, as application code. No forked CSS: knobs plus selections.',
+              'The whole skin, as application code. No forked CSS: knobs plus selections. The scales below are read from the theme, not typed here: each bar is sized by its own token, so a knob moves it.',
             ]),
+            h.p(slots.controlLabel.attrs(), ['Space (density multiplies it)']),
+            TokenTable('space', h),
+            h.p(slots.controlLabel.attrs(), ['Radius (radius factor multiplies it)']),
+            TokenTable('radius', h),
             h.div(slots.code.attrs(), [tokensCode]),
+          ]),
+          h.section(slots.section.attrs([h.Id('cascade')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Cascade']),
+            h.p(slots.sectionText.attrs(), [
+              'Each box sets background from one more place than the last. Components, variants and app are layers, so the later layer wins whatever the order in the source; Style.inline sits outside every layer and wins over all of them, which is why only values no theme may touch belong there.',
+            ]),
+            CascadeDemo(h),
           ]),
           h.p(slots.footer.attrs(), [
             'Recipes, tokens, and the full specimen page live in foldkit-mixins-ui. This demo is local state plus selections.',

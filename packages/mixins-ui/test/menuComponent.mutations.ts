@@ -195,4 +195,47 @@ export default [
     edits: [{ file, find: "  minBlockSize: '0',\n", replace: '' }],
     tests: [browser],
   },
+  {
+    name: "a Menu's items are its rows' labels",
+    edits: [
+      {
+        file,
+        find: 'items: rows.map(row => row.value),',
+        replace: 'items: rows.map(row => row.label),',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'a row is disabled by its label',
+    edits: [{ file, find: 'isDisabled(row.value)', replace: 'isDisabled(row.label)' }],
+    tests: [unit, browser],
+  },
+  {
+    name: 'typeahead matches the values, not the words drawn',
+    edits: [{ file, find: "rows[index]?.label ?? ''", replace: "rows[index]?.value ?? ''" }],
+    tests: [unit],
+  },
+  {
+    name: "a submenu's rows are never disabled",
+    edits: [
+      {
+        file,
+        find: 'rowInputs(row.items, row.isItemDisabled, h)',
+        replace: 'rowInputs(row.items, undefined, h)',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a choice in a submenu names the row that holds it by its position',
+    edits: [
+      {
+        file,
+        find: 'submenu: Option.some(sub.value)',
+        replace: 'submenu: Option.some(String(sub.row))',
+      },
+    ],
+    tests: [unit],
+  },
 ]

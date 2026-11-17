@@ -2,7 +2,7 @@
 import type { Html } from 'foldkit/html'
 
 import { demoRows } from './home.js'
-import type { H, Slots } from './layout.js'
+import type { H, Slots } from './shellLayout.js'
 
 export const demosPage = (slots: Slots, h: H): ReadonlyArray<Html> => [
   h.section(slots.hero.attrs(), [

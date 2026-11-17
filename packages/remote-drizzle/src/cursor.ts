@@ -226,18 +226,41 @@ export const orderByTerms = (
   })
 
 /**
- * Each term's key under an alias of its own (`key0`, `key1`, …), to select
- * beside a row: an expression has no name, and two columns may share one.
- * `keysOf` reads them back.
+ * The name each term's key is read under: one a `base` column already
+ * selected, or an alias of its own (`key0`, `key1`, …). A column held once is
+ * selected once, so the id tie-break does not list `id` a second time.
  */
-export const cursorSelection = (terms: readonly OrderTerm[]): Record<string, AnyColumn | SQL> =>
-  Object.fromEntries(terms.map((term, index) => [`key${index}`, term.key]))
+const keyNames = (
+  terms: readonly OrderTerm[],
+  base: Readonly<Record<string, AnyColumn | SQL>>,
+): ReadonlyArray<readonly [name: string, key: AnyColumn | SQL]> => {
+  const held: Array<readonly [string, AnyColumn | SQL]> = Object.entries(base)
+  return terms.map((term, index) => {
+    const same = held.find(([, key]) => key === term.key)
+    if (same !== undefined) return same
+    const named = [`key${index}`, term.key] as const
+    held.push(named)
+    return named
+  })
+}
+
+/**
+ * `base` and each term's key under an alias of its own, to select beside a
+ * row: an expression has no name, and two columns may share one. A key
+ * already in `base`, or in an earlier term, is not selected again. `keysOf`
+ * reads them back, given the same `base`.
+ */
+export const cursorSelection = (
+  terms: readonly OrderTerm[],
+  base: Readonly<Record<string, AnyColumn | SQL>> = {},
+): Record<string, AnyColumn | SQL> => ({ ...base, ...Object.fromEntries(keyNames(terms, base)) })
 
 /** The values a row selected with `cursorSelection` holds, in the terms' order. */
 export const keysOf = (
   terms: readonly OrderTerm[],
   row: Readonly<Record<string, unknown>>,
-): ReadonlyArray<unknown> => terms.map((_, index) => row[`key${index}`])
+  base: Readonly<Record<string, AnyColumn | SQL>> = {},
+): ReadonlyArray<unknown> => keyNames(terms, base).map(([name]) => row[name])
 
 /** What marks a cursor holding key values, apart from an id from before them. */
 const KEYED = 'k:'

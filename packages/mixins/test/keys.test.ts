@@ -225,6 +225,44 @@ describe('two routes declaring one press', () => {
   })
 })
 
+describe('Keys.conflict', () => {
+  const clashing = [routeOf('A', [Keys.chord('Escape')]), routeOf('B', [Keys.chord('Escape')])]
+
+  it('is the diagnostic the throwing paths raise, without throwing', () => {
+    const thrown = diagnosticOf(() => Keys.behavior(Bound)({ slot: 'input', routes: clashing }))
+    expect(Keys.conflict(clashing, Option.some('input'))).toEqual(Option.some(thrown))
+  })
+
+  it('names no slot unless given one', () => {
+    const found = Keys.conflict(clashing)
+    expect(Option.isSome(found) && found.value.slot).toBeUndefined()
+    expect(Option.isSome(found) && found.value.details).toMatchObject({ contributors: ['A', 'B'] })
+  })
+
+  it.each([
+    [
+      'routes on different keys',
+      [routeOf('A', [Keys.chord('a')]), routeOf('B', [Keys.chord('b')])],
+    ],
+    ['no routes', []],
+    ['one route', [routeOf('A', [Keys.chord('a')])]],
+    ['two routes ordered by Keys.first', [Keys.first(clashing[0]!, clashing[1]!)]],
+  ])('finds none in %s', (_, routes) => {
+    expect(Keys.conflict(routes)).toEqual(Option.none())
+  })
+
+  it('finds a clash between routes that are not neighbours', () => {
+    const found = Keys.conflict([
+      routeOf('A', [Keys.chord('Escape')]),
+      routeOf('B', [Keys.chord('b')]),
+      routeOf('C', [Keys.chord('Escape')]),
+    ])
+    expect(Option.isSome(found) && found.value.details).toMatchObject({
+      contributors: ['A', 'C'],
+    })
+  })
+})
+
 describe('Keys.first', () => {
   it('lets two routes declare one press, asking the first before the second', () => {
     const asked: Array<string> = []

@@ -84,6 +84,9 @@ export interface BuilderWords {
   /** The preview's group, and a context key left unset. */
   readonly previewAs: string
   readonly unset: string
+  /** The selected node's handle (`{label}`), and the group of commands it opens. */
+  readonly moveNode: string
+  readonly nodeActions: string
   /** The canvas, and what it says while the page is empty. */
   readonly canvas: string
   readonly emptyPage: string
@@ -138,6 +141,8 @@ export const builderWords: BuilderWords = Object.freeze({
   narrow: 'Narrow',
   previewAs: 'Preview as',
   unset: 'unset',
+  moveNode: 'Move or change {label}',
+  nodeActions: 'Actions for {label}',
   canvas: 'Page',
   emptyPage: 'This page is empty. Begin with a block the palette offers: the others go inside it.',
 })

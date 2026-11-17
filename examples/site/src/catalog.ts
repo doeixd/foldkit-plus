@@ -84,7 +84,10 @@ export const subsites: ReadonlyArray<Subsite> = [
       shelf: 'Foundations',
       packages: ['mixins', 'mixins-surface', 'mixins-ui'],
     },
-    [doc('composition', 'Inside-out composition', 'mixins')],
+    [
+      doc('composition', 'Inside-out composition', 'mixins'),
+      doc('authoring', 'Authoring components', 'authoring-components'),
+    ],
   ),
   family(
     {
@@ -121,6 +124,7 @@ export const subsites: ReadonlyArray<Subsite> = [
     },
     [
       doc('domain', 'One domain declaration', 'entity'),
+      doc('expressions', 'Expressions', 'expressions'),
       doc('laws', 'Laws', 'laws'),
       doc('operators', 'Operators', 'operators'),
     ],
@@ -132,11 +136,16 @@ export const subsites: ReadonlyArray<Subsite> = [
       tagline: 'Server data, normalized in the Model: queries, mutations and live updates.',
       owner: 'the server',
       shelf: 'Data',
-      packages: ['remote', 'remote-server', 'remote-drizzle'],
+      packages: ['remote', 'remote-server', 'remote-drizzle', 'remote-domain'],
     },
     [
       doc('server-state', 'Server-derived state', 'remote'),
       doc('writes', 'Declared writes', 'declared-writes'),
+      doc(
+        'event-sourced-domains',
+        'An event-sourced domain behind Remote',
+        'event-sourced-domains',
+      ),
     ],
   ),
   family(

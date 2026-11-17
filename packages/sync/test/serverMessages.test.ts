@@ -864,6 +864,37 @@ describe('a reaction that fails', () => {
     expect(await cursorOf(journal)).toEqual(Option.some({ cursor: 1, attempts: 1 }))
   })
 
+  it('keeps a failed run’s own words for who runs the server, and sends a replica none of them', async () => {
+    const journal = openJournal()
+    const reported: Array<Diagnostic> = []
+    const canary = 'SECRET-CANARY: smtp://mailer:hunter2@10.0.0.9 refused the connection'
+    const server = await run(
+      serverJournal({
+        sync: Orders,
+        journal,
+        server: SERVER,
+        reactions: [
+          receiptOf(() => Effect.fail(new Error(canary)), { attempts: 1, parkAfter: '0 millis' }),
+        ],
+        diagnostics: diagnostic => Effect.sync(() => void reported.push(diagnostic)),
+      }),
+    )
+    await pay(server, 'o1')
+    await reactAt(server)
+    // The operator's reads: the parked run, and the report of it.
+    expect(await run(server.parked)).toEqual([
+      expect.objectContaining({ reaction: 'receipt', sequence: 1, error: canary }),
+    ])
+    expect(reported).toEqual([expect.objectContaining({ _tag: 'ReactionParked', cause: canary })])
+    // A replica's: everything the document's exchange answers, from the start.
+    const reply = await journalExchange({ sync: Orders, journal, principal: 'ada' }).exchange(
+      sequence(0),
+      [],
+    )
+    expect(JSON.stringify(reply)).toContain('ConfirmedPayment')
+    expect(JSON.stringify(reply)).not.toContain('SECRET-CANARY')
+  })
+
   it('parks nothing while the journal itself fails', async () => {
     const real = openJournal()
     const handler = counting()

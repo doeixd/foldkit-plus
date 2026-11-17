@@ -396,15 +396,19 @@ describe('Where rows without a value go, said on the term', () => {
   // SQLite sorts nulls first ascending and Postgres last, when nothing says.
   // A term always says, and SQL is told the same, so the two agree.
   it.each([
-    ['ascending, nulls last by default', Order.asc(Post.fields.archivedAt), ['b', 'a', 'c', 'd']],
+    [
+      'ascending, nulls last by default',
+      Order.asc(Post.fields.archivedAt, { collation: Collation.binary }),
+      ['b', 'a', 'c', 'd'],
+    ],
     [
       'descending, nulls first by default',
-      Order.desc(Post.fields.archivedAt),
+      Order.desc(Post.fields.archivedAt, { collation: Collation.binary }),
       ['a', 'c', 'd', 'b'],
     ],
     [
       'ascending, nulls first when said',
-      Order.asc(Post.fields.archivedAt, { nulls: 'first' }),
+      Order.asc(Post.fields.archivedAt, { nulls: 'first', collation: Collation.binary }),
       ['a', 'c', 'd', 'b'],
     ],
   ])('%s', (_, term, expected) => {

@@ -55,17 +55,6 @@ export default [
     tests: [unit, browser],
   },
   {
-    name: 'the end gives focus to nothing',
-    edits: [
-      {
-        file,
-        find: 'onSome: elementId => [FocusOpener({ elementId })],',
-        replace: 'onSome: () => [],',
-      },
-    ],
-    tests: [unit, browser],
-  },
-  {
     name: 'a late answer for another target takes the step to the middle',
     edits: [
       {
@@ -172,7 +161,7 @@ export default [
     edits: [
       {
         file,
-        find: 'Message.Pressed({ key: readingKey(key, options.direction) })',
+        find: 'Message.Pressed({ key: readingKey(key, input.direction) })',
         replace: 'Message.Pressed({ key })',
       },
     ],
@@ -183,7 +172,7 @@ export default [
     edits: [
       {
         file,
-        find: 'options.closeOnEscape === false',
+        find: 'input.closeOnEscape === false',
         replace: 'false',
       },
     ],

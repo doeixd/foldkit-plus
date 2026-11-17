@@ -50,7 +50,7 @@ import {
   type ScriptedRequest,
 } from 'foldkit-remote'
 import { declaresTooLarge, discardBody, readJson, tooLargeAnswer } from './body.js'
-import { cachedReadDiffers, serverDefect } from './diagnostics.js'
+import { cachedReadDiffers, internalFailure } from './diagnostics.js'
 import {
   cacheKey,
   notingHandlers,
@@ -249,7 +249,10 @@ const LiveFetchRequest = Schema.Struct({
  */
 const errorFrame = (
   message: string,
-  refusal: Partial<RemoteJsonAnswer> | { readonly refused: true } = {},
+  refusal:
+    | Partial<RemoteJsonAnswer>
+    | { readonly refused: true }
+    | { readonly incident?: string } = {},
 ): string => `event: error\ndata: ${JSON.stringify({ message, ...refusal })}\n\n`
 
 /**
@@ -277,16 +280,20 @@ const liveBytes = <R, RC>(
       }).pipe(
         Stream.map(change => `data: ${JSON.stringify(change)}\n\n`),
         Stream.catchTags({
-          RemoteLiveError: error => Stream.succeed(errorFrame(error.message)),
+          RemoteLiveError: error =>
+            Stream.succeed(
+              errorFrame(
+                error.message,
+                error.incident === undefined ? {} : { incident: error.incident },
+              ),
+            ),
           // The client reads `refused` as asking again being refused again.
           RemoteLiveRefused: error => Stream.succeed(errorFrame(error.message, { refused: true })),
           RemoteProtocolError: error => Stream.succeed(errorFrame(error.message)),
-          Unauthenticated: error =>
-            Stream.succeed(
-              errorFrame(error.message, {
-                unauthenticated: unauthenticatedAnswer(error).body.unauthenticated,
-              }),
-            ),
+          Unauthenticated: error => {
+            const { body } = unauthenticatedAnswer(error)
+            return Stream.succeed(errorFrame(body.error, { unauthenticated: body.unauthenticated }))
+          },
         }),
         // A defect says nothing of itself to the client, as a 500 does, and is
         // reported; an interruption is the client leaving, with no one to tell.
@@ -294,7 +301,9 @@ const liveBytes = <R, RC>(
           Cause.hasInterruptsOnly(cause)
             ? Stream.failCause(cause)
             : Stream.fromEffect(
-                Effect.as(Diagnostics.report(serverDefect(cause)), errorFrame('Internal error')),
+                Effect.map(internalFailure('live', cause), ({ message, incident }) =>
+                  errorFrame(message, { incident }),
+                ),
               ),
         ),
         Stream.ensuring(Deferred.succeed(ended, undefined)),
@@ -569,10 +578,11 @@ export const serveFetch = <P, R, Env, RP = never>(
     // A failure of the layer, or a defect anywhere: this side broke, and the
     // caller learns that it did, not what; the diagnostics learn what. `answer`
     // already maps its own failures and defects to 400/500 answers.
-    await Effect.runPromise(
-      Diagnostics.report(serverDefect(exit.cause)).pipe(reportingFor(request)),
+    const told = await Effect.runPromise(
+      internalFailure('request', exit.cause).pipe(reportingFor(request)),
     )
-    return Response.json({ error: 'Internal error' }, { status: 500 })
+    // The fixed words and the id the cause was reported under: nothing of `exit.cause`.
+    return Response.json({ error: told.message, incident: told.incident }, { status: 500 })
   }
   // Every answer but a public read's is read as one principal: no cache may
   // keep it for another. A `cache-control` of the application's own (`headers`) stands.

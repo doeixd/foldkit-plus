@@ -8,11 +8,8 @@ import { Runtime } from 'foldkit'
 import { afterEach, expect, test, vi } from 'vitest'
 import { page } from 'vitest/browser'
 
-import { initModel, update, view, Message, Model } from '../src/main.js'
-
-const modelForTests = initModel({ year: 2026, month: 10, day: 8 })
+import { initModel, update, view, Model } from '../src/sections/overlays.js'
 import { stylesheet } from '../src/appStyle.js'
-import { subscriptions } from '../src/subscriptions.js'
 
 afterEach(() => {
   document.body.replaceChildren()
@@ -24,14 +21,12 @@ test('hover shows the hint, leaving hides it', async () => {
   container.id = 'root'
   document.body.append(container)
   Runtime.run(
-    Runtime.makeApplication({
+    Runtime.makeElement({
       Model,
-      init: () => ({ model: modelForTests }),
+      init: () => ({ model: initModel() }),
       update,
       view,
-      subscriptions,
       container,
-      devTools: { Message },
     }),
   )
 
@@ -47,7 +42,7 @@ test('hover shows the hint, leaving hides it', async () => {
     { timeout: 10_000 },
   )
 
-  await page.getByRole('heading', { name: 'Components in a shadcn skin' }).hover()
+  await page.getByRole('button', { name: 'Actions' }).hover()
   await vi.waitFor(() => expect(document.querySelector('[role="tooltip"]')).toBeNull(), {
     timeout: 10_000,
   })

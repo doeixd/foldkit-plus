@@ -13,11 +13,13 @@
  * (`url.init`) and on every navigation (`url.onUrlChange`); the store is read
  * once at start and its Message dispatched.
  */
-import { Effect, Match, Option } from 'effect'
+import { Effect, Match, Option, Schema, Stream } from 'effect'
 import { modifyFields } from 'foldkit/struct'
+import * as Subscription from 'foldkit/subscription'
 import { KeyValueStore } from 'effect/persistence'
 import type { Mounted, Replica } from 'foldkit-sync'
 import { Message, initialModel, type Model, type Shared } from './app.js'
+import type { Network } from './network.js'
 import { wiring } from './surface.js'
 import { mountTodos } from './sync.js'
 import { viewWith } from './view.js'
@@ -28,14 +30,40 @@ export const mountApp = (
   options: {
     /** Who the page is signed in as, for the intro to say. */
     readonly as?: string
+    /** The switch the "go offline" button moves; without it the button only shows. */
+    readonly network?: Network
   } = {},
 ): Mounted<Model, Message> => {
   const storage = KeyValueStore.layerStorage(() => window.localStorage)
   const start = wiring.initial(initialModel)
+  // The replica's status and the connection switch are not Model fields the
+  // mount reads: they enter the Model as local Messages, and the Model's
+  // `offline` drives the switch. Neither is shared state.
+  const connection = Subscription.make<Model, Message, never>()(() => ({
+    status: Subscription.persistentEntry(
+      replica.statusChanges.pipe(
+        Stream.map(status =>
+          Message.SyncStatusChanged({
+            pending: status.pending,
+            failed: status.lastError !== undefined,
+          }),
+        ),
+      ),
+    ),
+    network: {
+      dependenciesSchema: Schema.Struct({ offline: Schema.Boolean }),
+      modelToDependencies: (model: Model) => ({ offline: model.offline }),
+      dependenciesToStream: ({ offline }: { readonly offline: boolean }) =>
+        Stream.fromEffect(Effect.sync(() => options.network?.set(offline))).pipe(Stream.drain),
+    },
+  }))
   const mounted = mountTodos(replica, {
     container,
     view: viewWith(Option.fromUndefinedOr(options.as)),
-    subscriptions: wiring.subscriptions(),
+    subscriptions: Subscription.aggregate<Model, Message, KeyValueStore.KeyValueStore>()(
+      wiring.subscriptions(),
+      connection,
+    ),
     resources: storage,
     url: wiring.url(url => Message.UrlChanged({ url })),
     onPersistenceFailure: (model, error) =>

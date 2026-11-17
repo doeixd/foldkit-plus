@@ -63,8 +63,8 @@ export default [
     edits: [
       {
         file,
-        find: "moves('Next', 'ArrowDown', () => step(1))",
-        replace: "moves('Next', 'ArrowDown', () => step(-1))",
+        find: 'Next: moves(() => step(1)),',
+        replace: 'Next: moves(() => step(-1)),',
       },
     ],
     tests: [unit],
@@ -74,8 +74,8 @@ export default [
     edits: [
       {
         file,
-        find: 'enabled[(at + by + enabled.length) % enabled.length]',
-        replace: 'enabled[Math.max(0, Math.min(at + by, enabled.length - 1))]',
+        find: 'at((from + by + enabled.length) % enabled.length)',
+        replace: 'at(Math.max(0, Math.min(from + by, enabled.length - 1)))',
       },
     ],
     tests: [unit],
@@ -85,8 +85,8 @@ export default [
     edits: [
       {
         file,
-        find: "route('Run', 'Enter', ({ current }) => Option.map(current, options.onRun))",
-        replace: "route('Run', 'Enter', () => Option.none())",
+        find: 'Run: ({ current }) => Option.map(current, options.onRun),',
+        replace: 'Run: () => Option.none(),',
       },
     ],
     tests: [unit],
@@ -133,8 +133,8 @@ export default [
     edits: [
       {
         file,
-        find: '({ query }) =>' + '\n' + "        query === ''",
-        replace: '({ query }) =>' + '\n' + "        query === '' || true",
+        find: 'Back: ({ query }) =>' + '\n' + "      query === ''",
+        replace: 'Back: ({ query }) =>' + '\n' + "      query === '' || true",
       },
     ],
     tests: [browser],
@@ -144,15 +144,15 @@ export default [
     edits: [
       {
         file,
-        find: '({ query }) =>' + '\n' + "        query === ''",
-        replace: '() =>' + '\n' + "        options.query === ''",
+        find: 'Back: ({ query }) =>' + '\n' + "      query === ''",
+        replace: 'Back: () =>' + '\n' + "      options.query === ''",
       },
     ],
     tests: [browser],
   },
   {
     name: 'what is typed before the next frame is not kept for Backspace',
-    edits: [{ file, find: '          typed.query = query\n', replace: '' }],
+    edits: [{ file, find: '          reached.query = query\n', replace: '' }],
     tests: [browser],
   },
   {
@@ -228,15 +228,15 @@ export default [
     edits: [
       {
         file,
-        find: 'Math.min(Math.max(position + by, 0), enabled.length - 1)',
-        replace: '(position + by + enabled.length) % enabled.length',
+        find: 'Math.min(Math.max(positionOf() + by, 0), enabled.length - 1)',
+        replace: '(positionOf() + by + enabled.length) % enabled.length',
       },
     ],
     tests: [unit],
   },
   {
     name: 'the application routes are dropped',
-    edits: [{ file, find: '...(options.routes ?? []),', replace: '' }],
+    edits: [{ file, find: ', ...(options.routes ?? [])', replace: '' }],
     tests: [unit],
   },
   {
@@ -251,13 +251,22 @@ export default [
     tests: [browser],
   },
   {
+    name: 'a key reads the highlight the last drawing showed, not where the previous key left it',
+    edits: [{ file, find: '      reached.current = Option.some(value)\n', replace: '' }],
+    tests: [browser],
+  },
+  {
     name: 'Home moves the highlight, not the caret',
     edits: [
       {
         file,
-        find: "moves('PageDown', 'PageDown', () => jump(PAGE)),",
-        replace:
-          "moves('PageDown', 'PageDown', () => jump(PAGE)), moves('First', 'Home', () => at(0)),",
+        find: "['PageDown', 'PageDown'],",
+        replace: "['PageDown', 'PageDown'], ['First', 'Home'],",
+      },
+      {
+        file,
+        find: 'PageDown: moves(() => jump(PAGE)),',
+        replace: 'PageDown: moves(() => jump(PAGE)), First: moves(() => at(0)),',
       },
     ],
     tests: [unit, browser],

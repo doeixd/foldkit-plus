@@ -7,7 +7,7 @@
 import { Option } from 'effect'
 import { Style } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
-import { DialogSlots } from '../src/dialog.js'
+import { DialogSlots, update as DialogUpdate } from '../src/dialog.js'
 import { Dialog as DialogRecipe } from '../src/recipes/dialog.js'
 import { Sheet as SheetRecipe } from '../src/recipes/sheet.js'
 import * as Sheet from '../src/sheet.js'
@@ -138,6 +138,15 @@ describe('update', () => {
     expect(round.model.at).toBe(0)
   })
 
+  it('snaps to a point it is told of, and is no change at one it holds or has not got', () => {
+    const model = opened()
+    expect(Sheet.update(model, Sheet.Message.SnappedTo({ at: 1 })).model.at).toBe(1)
+    expect(Sheet.update(model, Sheet.Message.SnappedTo({ at: 0 })).model).toBe(model)
+    for (const at of [2, -1, 0.5, Number.NaN]) {
+      expect(Sheet.update(model, Sheet.Message.SnappedTo({ at })).model).toBe(model)
+    }
+  })
+
   it('a cancelled drag comes back to where it rested', () => {
     const model = Sheet.update(grabbed(), Sheet.Message.Dragged({ delta: 300 })).model
     const next = Sheet.update(
@@ -260,5 +269,25 @@ describe('the recipe', () => {
 
   it('slides on the Dialog transition, which the travel knob stills', () => {
     expect(css).toContain('calc(var(--fk-motion-slow) * var(--fk-knob-travel))')
+  })
+})
+
+describe('closing a closed sheet', () => {
+  const closed = () => Sheet.init({ id: 'x', points: [0.3, 1] })
+  it('Sheet.close returns the Model it was given', () => {
+    const model = closed()
+    expect(Sheet.close(model).model).toBe(model)
+  })
+  it('a RequestedClose while closed returns the Model it was given', () => {
+    const model = closed()
+    const step = Sheet.update(
+      model,
+      Sheet.Message.GotDialog({ message: UiDialog.Message.RequestedClose() }),
+    )
+    expect(step.model).toBe(model)
+  })
+  it('Dialog.update does the same for its own Model', () => {
+    const model = UiDialog.init({ id: 'x', isAnimated: true })
+    expect(DialogUpdate(model, UiDialog.Message.RequestedClose()).model).toBe(model)
   })
 })

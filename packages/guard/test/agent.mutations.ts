@@ -3,7 +3,7 @@
  * `pnpm mutate packages/guard/test/agent.mutations.ts`.
  */
 const file = '../src/agent.ts'
-const tests = ['packages/guard/test/agent.test.ts']
+const tests = ['packages/guard/test/agent.test.ts', 'packages/guard/test/mayUnanswered.test.ts']
 
 export default [
   {
@@ -30,7 +30,17 @@ export default [
   },
   {
     name: 'every interaction is read as an update',
-    edits: [{ file, find: 'May.can(may, interaction)', replace: "May.can(may, 'Update')" }],
+    edits: [{ file, find: 'May.answer(may, interaction)', replace: "May.answer(may, 'Update')" }],
+    tests,
+  },
+  {
+    name: 'what the answer does not say is refused',
+    edits: [{ file, find: 'onNone: () => true,', replace: 'onNone: () => false,' }],
+    tests,
+  },
+  {
+    name: 'a refusal is allowed',
+    edits: [{ file, find: 'onSome: allowed =>', replace: 'onSome: () =>\n          true ||' }],
     tests,
   },
   {

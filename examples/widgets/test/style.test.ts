@@ -42,10 +42,13 @@ import { initial as toggleGroupInitial } from '../src/toggle-group/app.js'
 import { Toolbar } from '../src/toolbar/view.js'
 import { initial as toolbarInitial } from '../src/toolbar/app.js'
 import { pageStylesheet } from '../src/style.js'
+import { lazyIslands } from '../src/lazy.js'
 import { islands } from '../src/widgets.js'
 
+const bodies = [...islands, ...(await Promise.all(lazyIslands.map(island => island.load())))]
+
 const sheet = (): string =>
-  pageStylesheet + Style.stylesheet(...islands.map(island => island.style()))
+  pageStylesheet + Style.stylesheet(...bodies.map(island => island.style()))
 
 describe('showcase styles', () => {
   it('builds one sheet with state read from ARIA', () => {

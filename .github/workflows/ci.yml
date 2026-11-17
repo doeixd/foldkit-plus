@@ -175,7 +175,9 @@ jobs:
   # Vite, and drives a real Chromium.
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The files run one at a time and took 29.5 minutes on 2026-11-17 (the site's adoption
+    # check alone builds production and takes 8), so 30 cancelled the job before its verdict.
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v7
 

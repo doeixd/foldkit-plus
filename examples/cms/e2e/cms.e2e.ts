@@ -62,12 +62,44 @@ const visitor = async (path: string, selector: string) => {
 }
 const blogTitles = () => visitor('/site/blog', 'main li h3')
 
+test('the body shows what is selected while a tool of its bar has the focus, in the light and the dark scheme', async () => {
+  const wren = await open('/?as=wren')
+  await wren.page.getByRole('button', { name: 'New post' }).click({ timeout: 120_000 })
+  await wren.page.getByRole('textbox', { name: 'Body' }).click()
+  await wren.page.keyboard.type('Loaf')
+  await wren.page.keyboard.press('Shift+Home')
+  const bold = wren.page.getByRole('toolbar').getByRole('button', { name: 'Bold' })
+  await expect.poll(() => bold.getAttribute('aria-disabled'), { timeout: 10_000 }).toBe('false')
+  await bold.focus()
+  const drawn = wren.page.locator('#post-body [data-decoration="selection"]')
+  await expect.poll(() => drawn.textContent(), { timeout: 10_000 }).toBe('Loaf')
+  const painted = () =>
+    drawn.evaluate(element => {
+      const style = getComputedStyle(element)
+      return { fill: style.backgroundColor, ink: style.color }
+    })
+  const seen: Array<string> = []
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await wren.page.emulateMedia({ colorScheme })
+    const { fill, ink } = await painted()
+    // A tint over the text's own ink: neither nothing, nor the ink itself.
+    expect(fill).not.toBe('rgba(0, 0, 0, 0)')
+    expect(fill).not.toBe(ink)
+    seen.push(ink)
+  }
+  // The scheme was followed, so the tint was read under each.
+  expect(seen[0]).not.toBe(seen[1])
+  await wren.page.close()
+})
+
 test('a writer’s draft is saved but not public, and an editor’s publish makes it so', async () => {
   const wren = await open('/?as=wren')
   await wren.page.getByRole('button', { name: 'New post' }).click({ timeout: 120_000 })
   await wren.page.getByRole('textbox', { name: 'Title' }).fill('Notes on bread')
   await wren.page.getByRole('textbox', { name: 'Excerpt' }).fill('Flour, water, salt, time.')
-  await wren.page.getByRole('textbox', { name: 'Body' }).fill('A loaf wants a day.')
+  // The body is the rich-text editor: no field to fill, so write into it as a person does.
+  await wren.page.getByRole('textbox', { name: 'Body' }).click()
+  await wren.page.keyboard.type('A loaf wants a day.')
   await expect.poll(() => status(wren.page), { timeout: 10_000 }).toBe('Draft saved.')
   expect(await wren.page.getByRole('textbox', { name: 'Address' }).inputValue()).toBe(
     'notes-on-bread',

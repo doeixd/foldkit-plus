@@ -87,6 +87,69 @@ test('the built CLI answers from the installed docs, and fails on nothing found'
   expect(unknown.stderr).toContain('The topics are: remote.')
 })
 
+// A project whose installed `foldkit-plus` ships a skill and a guide, and keeps an older skill of its own.
+const shippedApp = () => {
+  const app = join(root, 'shipped-app')
+  const plus = join(app, 'node_modules', 'foldkit-plus')
+  mkdirSync(join(plus, 'skill', 'references'), { recursive: true })
+  mkdirSync(join(plus, 'guides'), { recursive: true })
+  mkdirSync(join(app, '.agents', 'skills', 'foldkit-plus'), { recursive: true })
+  writeFileSync(
+    join(app, 'package.json'),
+    JSON.stringify({ name: 'shipped', dependencies: { 'foldkit-plus': '5.0.0' } }),
+  )
+  writeFileSync(
+    join(plus, 'package.json'),
+    JSON.stringify({ name: 'foldkit-plus', version: '5.0.0' }),
+  )
+  writeFileSync(
+    join(plus, 'skill', 'SKILL.md'),
+    "---\nname: foldkit-plus\nmetadata:\n  version: '5.1.0'\n---\n# Skill\n\n## Owners\n\nOne owner per datum.\n",
+  )
+  writeFileSync(
+    join(plus, 'skill', 'references', 'remote.md'),
+    '# Remote\n\n## Zebra stripes\n\nStripe a list.\n',
+  )
+  writeFileSync(join(plus, 'guides', 'wiring.md'), '# Wiring\n\n## Seams\n\nWire the seams once.\n')
+  writeFileSync(
+    join(app, '.agents', 'skills', 'foldkit-plus', 'SKILL.md'),
+    "---\nname: foldkit-plus\nmetadata:\n  version: '0.9.0'\n---\n",
+  )
+  return app
+}
+
+test('the built CLI answers from the skill and guides shipped with foldkit-plus, and notes an older skill', () => {
+  const app = shippedApp()
+  const guide = run(app, ['docs', 'wire the seams'])
+  expect(guide.status).toBe(0)
+  expect(guide.stdout).toContain('From foldkit-plus@5.0.0 guide wiring.md › Wiring › Seams')
+  expect(guide.stderr).toContain(
+    'The skill in .agents/skills/foldkit-plus is 0.9.0, older than the 5.1.0 that ships with foldkit-plus@5.0.0',
+  )
+  const reference = run(app, ['docs', 'zebra stripes', '--json'])
+  expect(JSON.parse(reference.stdout).sections[0]).toMatchObject({
+    source: 'foldkit-plus@5.0.0 skill references/remote.md',
+  })
+  expect(run(app, ['docs', '--list']).stdout).toContain('wiring')
+})
+
+test('the built CLI installs the shipped skill, and refuses a different version until forced', () => {
+  const app = shippedApp()
+  const refused = run(app, ['skill'])
+  expect(refused.status).toBe(1)
+  expect(refused.stderr).toContain('.agents/skills/foldkit-plus holds foldkit-plus skill 0.9.0')
+  const forced = run(app, ['skill', '--force'])
+  expect(forced.status).toBe(0)
+  expect(forced.stdout).toBe(
+    'Replaced .agents/skills/foldkit-plus: foldkit-plus skill 5.1.0 from foldkit-plus@5.0.0 (2 files).\n',
+  )
+  expect(
+    readFileSync(join(app, '.agents', 'skills', 'foldkit-plus', 'references', 'remote.md'), 'utf8'),
+  ).toContain('Zebra')
+  expect(run(app, ['skill']).stdout).toContain('is already foldkit-plus skill 5.1.0')
+  expect(run(app, ['skill', '--bogus']).status).toBe(1)
+})
+
 // A project with no `tsx` anywhere above it (the temporary folder's ancestors hold none): the
 // module loads through Node's own TypeScript support, and `foldkit-entity` is the project's.
 const lawsApp = () => {

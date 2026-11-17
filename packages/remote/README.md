@@ -1656,7 +1656,10 @@ richer declaration.
 
 What comes back is an ordinary descriptor — the same name, `Input`, `ref` and
 connection identity — carrying its `body` besides, and the result is a
-connection over the Entity the body reads, so it is not named twice. A server
+connection over the Entity the body reads, so it is not named twice. Its type
+is a `DefinedQuery`, whose `body` is always there and typed as built, so
+`Query.show(TasksByOwner.body)` and `evaluate(TasksByOwner.body, …)` need no
+check; it is a `QueryDescriptor` wherever one is taken. A server
 can compile that body rather than be told the same thing again in its own
 dialect; one that would rather answer the query its own way still can, and a
 descriptor from `Query.make` has no body at all. The descriptor also carries
@@ -3695,6 +3698,15 @@ tells "sign in again" from "could not load" without comparing tags. Remote
 treats either as any failure: a read or query is `Failed`, and a live stream
 restarts with its backoff, refused again each time, until the application
 signs in again and calls `Data.forget`.
+
+**The server failed.** When Remote's server breaks on its own side (a Source
+fails, something throws), the call's error says `Internal error` and carries
+an `incident`: the id the server reported the cause under. `RemoteData.incident(error)`
+reads it as an `Option<string>`, some for such a failure only, so a view
+tells "something went wrong on our side, quote this reference" from a refusal
+whose message was written for the reader. The message never says what broke;
+whoever runs the server finds it by the id. A failure on this side of the
+wire, and one from a server that sends no incident, read as none.
 
 A mutation naming someone other than who asks (a durable write's `principal`)
 fails with `_tag: 'PrincipalChanged'` over every transport: the 409 Remote's

@@ -21,8 +21,11 @@ import {
   controlCorner,
   cornerSides,
   disabled,
+  filledHover,
   focusRing,
   hover,
+  invalidEdge,
+  invalidEdgeHeld,
   listScroll,
   onLadder,
   ref,
@@ -74,8 +77,11 @@ export const CascadeSelect = Style.recipeFor(CascadeSelectSlots)({
         cursor: 'pointer',
         ...transition('border-color, background-color'),
       }),
-      Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: ref.outline.overt }),
-      Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
+      // An invalid trigger keeps its error edge under the pointer.
+      Style.pseudo(':hover:not(:focus, :disabled, [aria-invalid="true"])', {
+        borderColor: ref.outline.overt,
+      }),
+      invalidEdge,
       focusRing,
       disabled,
     ),
@@ -202,12 +208,18 @@ export const CascadeSelect = Style.recipeFor(CascadeSelectSlots)({
     trigger: {
       outline: {},
       filled: {
-        trigger: variant(Style.self({ background: ref.surface.field, borderColor: 'transparent' })),
+        trigger: variant(
+          Style.self({ background: ref.surface.field, borderColor: 'transparent' }),
+          filledHover,
+          invalidEdge,
+        ),
       },
       ghost: {
         trigger: variant(
           Style.self({ background: 'transparent', borderColor: 'transparent' }),
           hover({ background: unfilledHover, borderColor: 'transparent' }),
+          invalidEdge,
+          invalidEdgeHeld,
         ),
       },
     },

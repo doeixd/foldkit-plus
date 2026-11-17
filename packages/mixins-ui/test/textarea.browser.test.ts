@@ -165,6 +165,8 @@ test('a framed field is one box, ringed while its text has focus', async () => {
   try {
     await vi.waitFor(() => expect(area('composer')).not.toBeNull())
     const frame = area('composer').parentElement!
+    // Under the pointer too: the filled hover must not lay its fill on the text, which sits on the frame's.
+    await userEvent.hover(area('composer'))
     const text = getComputedStyle(area('composer'))
     // The filled variant's well is the frame's, not the text's.
     expect(text.borderTopWidth).toBe('0px')

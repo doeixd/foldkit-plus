@@ -548,25 +548,29 @@ export const cases: ReadonlyArray<ConformanceCase> = [
   },
   {
     what: 'puts rows without a value last ascending, unless told otherwise',
-    body: from.pipe(Query.orderBy(Order.asc(Subject.fields.tag))),
+    body: from.pipe(Query.orderBy(Order.asc(Subject.fields.tag, { collation: Collation.binary }))),
     input: {},
     expected: ['b', 'd', 'e', 'a', 'c'],
   },
   {
     what: 'puts rows without a value first descending, unless told otherwise',
-    body: from.pipe(Query.orderBy(Order.desc(Subject.fields.tag))),
+    body: from.pipe(Query.orderBy(Order.desc(Subject.fields.tag, { collation: Collation.binary }))),
     input: {},
     expected: ['a', 'c', 'e', 'b', 'd'],
   },
   {
     what: 'puts rows without a value first ascending when the term says so',
-    body: from.pipe(Query.orderBy(Order.asc(Subject.fields.tag, { nulls: 'first' }))),
+    body: from.pipe(
+      Query.orderBy(Order.asc(Subject.fields.tag, { nulls: 'first', collation: Collation.binary })),
+    ),
     input: {},
     expected: ['a', 'c', 'b', 'd', 'e'],
   },
   {
     what: 'puts rows without a value last descending when the term says so',
-    body: from.pipe(Query.orderBy(Order.desc(Subject.fields.tag, { nulls: 'last' }))),
+    body: from.pipe(
+      Query.orderBy(Order.desc(Subject.fields.tag, { nulls: 'last', collation: Collation.binary })),
+    ),
     input: {},
     expected: ['e', 'b', 'd', 'a', 'c'],
   },

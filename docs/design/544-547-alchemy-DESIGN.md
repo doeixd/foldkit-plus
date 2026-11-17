@@ -1,8 +1,24 @@
 # Alchemy Domain as a second authority: receipts, one lowered write, one scenario, the graph import (#544 to #547)
 
-Status: decided 2026-11-12 (decisions delegated by the owner). Nothing here is
-built by this note. It is Phase 6 of
-[contract-layer-PLAN.md](./contract-layer-PLAN.md) (§6.6), planned whole.
+Status: decided 2026-11-12 (decisions delegated by the owner), and **built**:
+every work package of §8 (WP1 to WP11) is on `main` as of 2026-11-14, in
+`packages/remote-domain` (`foldkit-remote-domain` 0.1.0), `RemoteServer.memoryWriter`
+in `foldkit-remote-server`, row revisions and read-after tokens on Remote's
+wire, and `examples/writes-domain` (TODO.md item 5 names the pull requests).
+The text below is the plan as decided; where the build differs it says "As
+built". It is Phase 6 of [contract-layer-PLAN.md](./contract-layer-PLAN.md)
+(§6.6).
+
+Still open: a read-after token on Remote's *query* request (WP8's follow-up),
+everything in §9, and the upstream reports of §10.3. Changed since the
+decision: the workspace runs `effect@4.1.4` (WP1 raised it), so D14 and §10.1
+describe a state that has passed.
+
+For a user, the result is documented in the
+[`foldkit-remote-domain` README](../../packages/remote-domain/README.md) and
+[`examples/writes-domain`](../../examples/writes-domain/README.md); the
+declarations a lowered write is made from are taught in
+[One domain declaration](../entity.md).
 
 It follows AGENTS.md's "Scope: build the feature": nothing below is deferred
 because no application uses it yet. Each thing not built names one of the four
@@ -15,7 +31,8 @@ lacks, a measured cost, an unsound design, another owner).
 about **`@alchemy.run/domain`**: Commands, Aggregates that `decide` and
 `evolve`, Events, typed Rejections, Views, an Api every client is derived from,
 and Stories. It is an external library. Before this note it was not installed
-anywhere in the workspace, and no code here imports it; only
+anywhere in the workspace, and no code here imported it (as built,
+`packages/remote-domain` and `examples/writes-domain` do); then only
 `contract-layer-PLAN.md`, `docs/effect-ecosystem.md` and
 `docs/effect-adjacent-projects.md` mention it.
 

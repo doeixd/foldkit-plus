@@ -139,8 +139,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: 'collapsedOf(steps, max).hidden.map(step => ({ label: step.label }))',
-        replace: 'steps.map(step => ({ label: step.label }))',
+        find: 'rowsOf(collapsedOf(steps, max).hidden)',
+        replace: 'rowsOf(steps)',
       },
     ],
     tests,
@@ -150,8 +150,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: 'step.label === value',
-        replace: 'step.label !== value',
+        find: 'hidden[Number(value)]',
+        replace: 'hidden[Number(value) + 1]',
       },
     ],
     tests: [...tests, menu],
@@ -161,7 +161,7 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: 'rows: hidden.map(step => ({ label: step.label })),',
+        find: 'rows: rowsOf(hidden),',
         replace: 'rows: [],',
       },
     ],

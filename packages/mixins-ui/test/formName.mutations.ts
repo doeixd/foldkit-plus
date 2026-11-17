@@ -27,4 +27,37 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a tags input drops its name',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'h.Name(name), h.Value(tag)',
+        replace: 'h.Value(tag)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a tags input submits its draft under the name',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "h.Type('text'),",
+        replace: "h.Type('text'), ...(name === undefined ? [] : [h.Name(name)]),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a file input drops its name',
+    edits: [
+      {
+        file: '../src/fileInput.ts',
+        find: '...(options.name === undefined ? [] : [h.Name(options.name)]),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
 ]

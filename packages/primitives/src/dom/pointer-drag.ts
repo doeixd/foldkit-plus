@@ -1,6 +1,7 @@
 import { Effect, Queue, Schema, Stream } from 'effect'
 import * as Mount from 'foldkit/mount'
 import { EdgeScroll, edgeScrollerLater } from './edge-scroll.js'
+import { gapPlace } from './drag-gap.js'
 import { escapeEnds, whilePressed } from './press-session.js'
 import { targetOf } from './targets.js'
 
@@ -61,6 +62,18 @@ export const HOLD_TO_DRAG_MS = 400
 
 /** How far, in CSS pixels, a held finger may wander before the hold is a scroll. */
 export const HOLD_SLOP = 8
+
+/**
+ * What a drag under way writes on the document's root, for something that follows
+ * the pointer to read without the view drawing again on every move: the pointer's
+ * viewport position in pixels (`x`, `y`), and its kind (`mouse`, `touch` or `pen`)
+ * as the `kind` attribute. All are removed when the drag ends.
+ */
+export const DRAGGING = {
+  x: '--fk-drag-x',
+  y: '--fk-drag-y',
+  kind: 'data-fk-drag',
+} as const
 
 interface Box {
   readonly top: number
@@ -124,18 +137,28 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
     attribute: Schema.String,
     /**
      * Where a drag may land, when not on the element's own marked descendants:
-     * the elements marked by `attribute` inside the one `within` selects, such
-     * as a palette's Blocks dragged onto a page. A drop's `over` is then one of
-     * those; what is dragged is still one of the element's own. `within` is
-     * looked for nearest first, under the element's closest ancestor that holds
-     * a match, so two editors on one page each drop onto their own.
+     * the elements marked by each `attribute` inside the one its `within` selects,
+     * such as a palette's Blocks dragged onto a page and onto its layers. A drop's
+     * `over` is then one of those; what is dragged is still one of the element's own.
+     * `within` is looked for nearest first, under the element's closest ancestor that
+     * holds a match, so two editors on one page each drop onto their own.
      */
-    targets: Schema.optionalKey(Schema.Struct({ attribute: Schema.String, within: Schema.String })),
+    targets: Schema.optionalKey(
+      Schema.Array(Schema.Struct({ attribute: Schema.String, within: Schema.String })),
+    ),
     /**
      * An attribute that names a part of what a drop lands on, on an element
      * also marked as one: a place over it carries the part and is `inside`.
      */
     part: Schema.optionalKey(Schema.String),
+    /**
+     * Over a container's own space (its padding, the gap between two children), where the
+     * descendants are nested, report the place between its children by where the pointer is
+     * along their flow, not the container's own thirds: before the first child whose middle is
+     * past the pointer, else after the last (past the last of the whole region, `over: null`).
+     * Only that one container's children are measured. Absent: a container is one place.
+     */
+    gaps: Schema.optionalKey(Schema.Boolean),
     /**
      * Scroll the nearest scrolling ancestor while the drag is held near its
      * edge, and report the place under the still pointer after each step.
@@ -143,15 +166,16 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
      */
     edgeScroll: Schema.optionalKey(EdgeScroll),
   },
-  execute: ({ element, attribute, targets, part, edgeScroll }) =>
+  execute: ({ element, attribute, targets, part, gaps, edgeScroll }) =>
     Stream.callback<DragFact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
           const owner = element.ownerDocument
           // What a drop lands on: the element's own marked descendants, or those of `targets`.
-          const landsOn = targets?.attribute ?? attribute
+          const lands = targets ?? [{ attribute, within: '' }]
           // Looked for at each move, so a redraw that replaced it is followed.
           const regionOf = (within: string): Element | null => {
+            if (targets === undefined) return element
             for (let at = element.parentElement; at !== null; at = at.parentElement) {
               const found = at.querySelector(within)
               if (found !== null) return found
@@ -159,14 +183,30 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             return null
           }
           const find = (from: EventTarget | null) => {
-            if (!(from instanceof Element)) return { marked: null, inRegion: false }
-            const region = targets === undefined ? element : regionOf(targets.within)
-            const marked = from.closest(`[${landsOn}]`)
-            return {
-              marked: marked !== null && region !== null && region.contains(marked) ? marked : null,
-              // Only a drag onto `targets` tells its region's empty space from elsewhere.
-              inRegion: targets !== undefined && region !== null && region.contains(from),
+            if (!(from instanceof Element))
+              return { marked: null, landsOn: attribute, inRegion: false, scope: null }
+            let inRegion = false
+            let scope: Element | null = null
+            let scopeAttribute = attribute
+            for (const land of lands) {
+              const region = regionOf(land.within)
+              if (region === null) continue
+              const marked = from.closest(`[${land.attribute}]`)
+              if (marked !== null && region.contains(marked))
+                return {
+                  marked,
+                  landsOn: land.attribute,
+                  inRegion: targets !== undefined,
+                  scope: region,
+                }
+              if (region.contains(from)) {
+                scope = region
+                scopeAttribute = land.attribute
+                // Only a drag onto `targets` tells its regions' empty space from elsewhere.
+                inRegion ||= targets !== undefined
+              }
             }
+            return { marked: null, landsOn: scopeAttribute, inRegion, scope }
           }
           // A press not yet a drag, or a drag under way: one pointer's, the first down.
           let pressed: {
@@ -176,12 +216,30 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             readonly y: number
             /** A finger's: a drag once held still, a scroll if it moves first. */
             readonly touch: boolean
+            readonly kind: string
           } | null = null
           let holding: ReturnType<typeof setTimeout> | undefined
-          const begin = (id: string) => {
-            dragging = id
+          const root = owner.documentElement
+          const writeAt = (x: number, y: number) => {
+            root.style.setProperty(DRAGGING.x, `${x}px`)
+            root.style.setProperty(DRAGGING.y, `${y}px`)
+          }
+          const clearAt = () => {
+            root.style.removeProperty(DRAGGING.x)
+            root.style.removeProperty(DRAGGING.y)
+            root.removeAttribute(DRAGGING.kind)
+          }
+          const begin = (pressed: {
+            readonly id: string
+            readonly kind: string
+            readonly x: number
+            readonly y: number
+          }) => {
+            dragging = pressed.id
             owner.getSelection()?.removeAllRanges()
-            Queue.offerUnsafe(queue, DragStarted.make({ id }))
+            root.setAttribute(DRAGGING.kind, pressed.kind === '' ? 'mouse' : pressed.kind)
+            writeAt(pressed.x, pressed.y)
+            Queue.offerUnsafe(queue, DragStarted.make({ id: pressed.id }))
           }
           let dragging: string | null = null
           let over: DragPlace | null = null
@@ -196,15 +254,38 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
               typeof owner.elementFromPoint === 'function' && event.clientX !== undefined
                 ? owner.elementFromPoint(event.clientX, event.clientY ?? 0)
                 : null
-            const { marked, inRegion: region } = find(under ?? event.target)
+            const { marked, landsOn, inRegion: region, scope } = find(under ?? event.target)
             const id = marked?.getAttribute(landsOn) ?? null
             // Over itself is over nothing, where what is dragged is among what it lands on.
             const named = part === undefined ? null : (marked?.getAttribute(part) ?? null)
+            const skip = targets === undefined ? dragging : null
+            const x = event.clientX ?? 0
+            const y = event.clientY ?? 0
+            // Over a container's own space, not over one of its children: between its children, by
+            // where the pointer is now (the children of that one container are measured, no others).
+            const container = marked !== null ? (named === null ? marked : null) : undefined
+            if (
+              gaps === true &&
+              scope !== null &&
+              container !== null &&
+              (marked === null || (id !== null && id !== skip))
+            ) {
+              const gap = gapPlace({
+                scope: container ?? scope,
+                host: container ?? null,
+                attribute: landsOn,
+                part,
+                x,
+                y,
+                skip,
+              })
+              if (gap !== undefined) return { place: gap, region }
+            }
             const place: DragPlace | null =
-              marked === null || id === null || (targets === undefined && id === dragging)
+              marked === null || id === null || id === skip
                 ? null
                 : named === null
-                  ? { id, zone: zoneOf(boxOf(marked), event.clientY ?? 0) }
+                  ? { id, zone: zoneOf(boxOf(marked), y) }
                   : { id, zone: 'inside', part: named }
             return { place, region }
           }
@@ -222,6 +303,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
             clearTimeout(holding)
             holding = undefined
             scroller?.stop()
+            clearAt()
             const id = dragging
             if (id !== null && at?.clientX !== undefined && at.clientY !== undefined) {
               const { place, region } = placeAt(at)
@@ -287,8 +369,9 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                   // A finger that moves before its hold is up is scrolling, not dragging.
                   if (pressed.touch) return moved < HOLD_SLOP ? undefined : end(false)
                   if (moved < DRAG_THRESHOLD) return
-                  begin(pressed.id)
+                  begin(pressed)
                 }
+                writeAt(positioned.clientX ?? 0, positioned.clientY ?? 0)
                 heard = {
                   clientX: positioned.clientX,
                   clientY: positioned.clientY,
@@ -367,12 +450,13 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
                   x: positioned.clientX ?? 0,
                   y: positioned.clientY ?? 0,
                   touch,
+                  kind: positioned.pointerType ?? 'mouse',
                 }
                 listen()
                 if (touch) {
                   holding = setTimeout(() => {
                     holding = undefined
-                    if (pressed !== null && dragging === null) begin(pressed.id)
+                    if (pressed !== null && dragging === null) begin(pressed)
                   }, HOLD_TO_DRAG_MS)
                 }
               },
@@ -405,6 +489,7 @@ export const PointerDrag = Mount.defineStream('PointerDrag', {
           const stop = () => {
             clearTimeout(holding)
             scroller?.stop()
+            clearAt()
             release()
             if (!(element instanceof HTMLElement)) return
             if (callout === undefined || callout === '') {

@@ -7,6 +7,7 @@ import {
   Slot,
   Slots,
   SlotView,
+  type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
@@ -17,8 +18,8 @@ import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import {
   checkChosen,
-  grouping,
   toView as menuToView,
+  rowInputs,
   withRows,
   type InitOptions,
   type LeafRow,
@@ -237,23 +238,24 @@ export const update = (model: Model, message: Message): Return =>
     CompletedFocusTrigger: () => ({ model }),
   })
 
-export interface MenubarMenu {
+export interface MenubarMenu<Value extends string = string> {
   /** The trigger's text. */
   readonly label: string
   /** A Menu's rows, but none opens a submenu: checkbox and radio rows, shortcuts, groups and tones. */
-  readonly rows: ReadonlyArray<LeafRow>
-  readonly isRowDisabled?: ((label: string) => boolean) | undefined
+  readonly rows: ReadonlyArray<LeafRow<Value>>
+  /** Asked of each row's `value`. */
+  readonly isRowDisabled?: ((value: Value) => boolean) | undefined
 }
 
 /** A key the bar answers beside its own; it is pressed on the bar or a trigger or row inside it. */
 export type Route<Message> = Behaviors.Keys.Route<unknown, Message>
 
-export interface MenubarView<ParentMessage> {
+export interface MenubarView<ParentMessage, Value extends string = string> {
   /** The bar's name. */
   readonly label: string
   readonly model: Model
   /** One per menu of the Model, in its order. */
-  readonly menus: ReadonlyArray<MenubarMenu>
+  readonly menus: ReadonlyArray<MenubarMenu<Value>>
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
   /**
    * Under `'rtl'` ArrowLeft and ArrowRight swap. Given, it is drawn as the
@@ -270,27 +272,49 @@ export interface MenubarView<ParentMessage> {
   /** A style of `MenubarSlots`, for the bar's look. */
   readonly style?: NamedStyle<typeof MenubarSlots> | undefined
   /** The menus' mixins: a style of `MenuSlots` (`Recipes.MenubarMenu`), and `Menu.fluid`. */
-  readonly menuMixins: MixinList<ParentMessage>
+  readonly menuMixins?: MixinList<ParentMessage> | undefined
   /** A style of `KbdSlots` for the rows' shortcuts (`Recipes.Kbd`); without one they are the keys' words. */
   readonly kbd?: NamedStyle<typeof KbdSlots> | undefined
 }
 
-export const view = <ParentMessage>(
-  options: MenubarView<ParentMessage>,
+/** The bar's own keys: the arrows, Home and End, which `'rtl'` swaps. */
+const ownRoutes = <ParentMessage>(
+  direction: 'ltr' | 'rtl' | undefined,
+  answer: (reading: BarKey) => Option.Option<ParentMessage>,
+): ReadonlyArray<Route<ParentMessage>> =>
+  BarKey.literals.map(reading =>
+    Behaviors.Keys.route<unknown, ParentMessage>(`Menubar ${reading}`, {
+      on: [...Behaviors.Keys.withShift(direction === 'rtl' ? RTL_KEYS[reading] : reading)],
+      handle: () => answer(reading),
+    }),
+  )
+
+/**
+ * The `mixins:key-conflict` that drawing the bar with `routes` would throw, or
+ * none: the application's routes against the bar's own and against each other.
+ * `direction` is the one the view is given, since `'rtl'` moves the arrows.
+ */
+export const conflict = <ParentMessage>(
+  routes: ReadonlyArray<Route<ParentMessage>>,
+  input: Pick<MenubarView<ParentMessage>, 'direction'> = {},
+): Option.Option<Diagnostic> =>
+  Behaviors.Keys.conflict(
+    [...ownRoutes<ParentMessage>(input.direction, () => Option.none()), ...routes],
+    Option.some('bar'),
+  )
+
+export const view = <ParentMessage, Value extends string = string>(
+  options: MenubarView<ParentMessage, Value>,
   h: HtmlBuilder<ParentMessage>,
 ): Html => {
   const { model, onMessage } = options
+  const menuMixins = options.menuMixins ?? []
   const keys = Behaviors.Keys.behavior(MenubarSlots)<unknown, ParentMessage>({
     slot: 'bar',
     name: 'MenubarKeys',
     routes: [
-      ...BarKey.literals.map(reading =>
-        Behaviors.Keys.route<unknown, ParentMessage>(`Menubar ${reading}`, {
-          on: [
-            ...Behaviors.Keys.withShift(options.direction === 'rtl' ? RTL_KEYS[reading] : reading),
-          ],
-          handle: () => Option.some(onMessage(Message.Pressed({ key: reading }))),
-        }),
+      ...ownRoutes(options.direction, reading =>
+        Option.some(onMessage(Message.Pressed({ key: reading }))),
       ),
       ...(options.routes ?? []),
     ],
@@ -321,19 +345,16 @@ export const view = <ParentMessage>(
               view: Menus.view,
               viewInputs: {
                 anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
-                items: shown.rows.map(row => row.label),
-                itemToConfig: (item: string) => ({ content: h.span([], [item]) }),
-                isItemDisabled: shown.isRowDisabled ?? (() => false),
+                ...rowInputs(shown.rows, shown.isRowDisabled, h),
                 buttonContent: h.span([], [shown.label]),
-                ...grouping(shown.rows, h),
                 // The bar's tab stop, and a trigger as the APG's menubar names it.
-                toView: menuToView(options.menuMixins, { h }, resolved =>
+                toView: menuToView(menuMixins, { h }, resolved =>
                   drawMenu(
                     {
                       ...withRows(
                         resolved,
                         shown.rows,
-                        { mixins: options.menuMixins, kbd: options.kbd },
+                        { mixins: menuMixins, kbd: options.kbd },
                         h,
                       ),
                       button: [
@@ -349,7 +370,7 @@ export const view = <ParentMessage>(
               toParentMessage: message =>
                 onMessage(
                   Option.match(checkChosen(shown.rows, message), {
-                    onSome: row => Message.ChoseCheck({ menu: index, value: row.label }),
+                    onSome: row => Message.ChoseCheck({ menu: index, value: row.value }),
                     onNone: () => Message.GotMenu({ index, message }),
                   }),
                 ),

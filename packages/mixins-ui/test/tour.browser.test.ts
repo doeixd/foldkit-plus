@@ -58,12 +58,7 @@ afterEach(() => {
   window.scrollTo(0, 0)
 })
 
-const mount = (
-  view: Partial<Tour.TourView<Got>> = {},
-  direction: 'ltr' | 'rtl' = 'ltr',
-  // Whether `start` is told what opened the tour.
-  named = true,
-) => {
+const mount = (view: Partial<Tour.TourView<Got>> = {}, direction: 'ltr' | 'rtl' = 'ltr') => {
   document.documentElement.dir = direction
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -86,8 +81,7 @@ const mount = (
       init: () => ({ model: { tour: Tour.init({ id: 'tour' }), pressed: 0, helpGone: false } }),
       update: (model: Model, message: Got) =>
         Got.match(message, {
-          Started: () =>
-            fold(model, Tour.start(model.tour, config, named ? { opener: 'help' } : {})),
+          Started: () => fold(model, Tour.start(model.tour, config)),
           GotTour: ({ message: inner }) => fold(model, update(model.tour, inner)),
           PressedNav: () => ({
             model: modifyFields(model, { pressed: pressed => pressed + 1 }),
@@ -235,8 +229,8 @@ test('a step whose target is missing stands in the middle of the viewport, focus
   }
 })
 
-test('Escape ends it, giving focus back to what started it', async () => {
-  const mounted = mount()
+test('Escape ends it, and focusReturn gives focus back to what started it', async () => {
+  const mounted = mount({ mixins: Tour.focusReturn })
   try {
     await started()
     await userEvent.keyboard('{Escape}')
@@ -261,13 +255,17 @@ test('right to left, ArrowLeft goes on and ArrowRight back', async () => {
   }
 })
 
-test('with Tour.focusReturn, a tour that was not told its opener gives focus back to what started it', async () => {
-  const mounted = mount({ mixins: Tour.focusReturn }, 'ltr', false)
+test('with Tour.focusReturn, a tour started by a press that took no focus gives focus back to what had it', async () => {
+  const mounted = mount({ mixins: Tour.focusReturn })
   try {
-    await started()
+    await vi.waitFor(() => expect(document.getElementById('help')).not.toBeNull())
+    byId('nav').focus()
+    // `click()` moves no focus, as a press on a button in Safari moves none.
+    byId('help').click()
+    await vi.waitFor(() => expect(document.activeElement).toBe(panel()))
     await userEvent.keyboard('{Escape}')
     await vi.waitFor(() => expect(panel()).toBeNull())
-    await vi.waitFor(() => expect(document.activeElement).toBe(byId('help')))
+    await vi.waitFor(() => expect(document.activeElement).toBe(byId('nav')))
   } finally {
     mounted.dispose()
   }

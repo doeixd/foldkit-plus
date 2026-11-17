@@ -178,6 +178,7 @@ export interface KeyOptions<Input> {
 export interface BehaviorOptions<
   Input,
   Slots,
+  ParentMessage,
   Container extends keyof Slots & string = keyof Slots & string,
   Item extends keyof Slots & string = keyof Slots & string,
 > extends KeyOptions<Input> {
@@ -185,6 +186,12 @@ export interface BehaviorOptions<
   readonly container: Container
   /** The slot rendered once per cell; must carry the cell's id (see `Behaviors.Collection`). */
   readonly item: Item
+  /**
+   * Keys the grid answers beside its own (Space, Ctrl+A), on the same `keydown`
+   * owner: a route on a key the grid takes, Shift+arrow included, is a
+   * `mixins:key-conflict` naming both.
+   */
+  readonly routes?: ReadonlyArray<Behaviors.Keys.Route<Input, ParentMessage>>
 }
 
 /**
@@ -240,7 +247,8 @@ export const keys =
  * does, with `move` above deciding the cell: the container's arrows, Home and
  * End (and PageUp and PageDown, given `page`) (`keys`) focus the next cell (synchronously, then dispatch) or, under `virtual`,
  * only dispatch and point with `aria-activedescendant`; each cell gets
- * `tabindex` 0 or -1 and reports `Focused` when focused.
+ * `tabindex` 0 or -1 and reports `Focused` when focused. `routes` are the
+ * application's keys on the same container `keydown`.
  */
 export const behavior = <Field extends string>(
   declared: Declared<typeof bundle, Field>,
@@ -249,7 +257,7 @@ export const behavior = <Field extends string>(
   function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
     bound: SlotView.Bound<Slots, Input, ParentMessage>,
   ): <Container extends keyof Slots & string, Item extends keyof Slots & string>(
-    options: BehaviorOptions<Input, Slots, Container, Item>,
+    options: BehaviorOptions<Input, Slots, ParentMessage, Container, Item>,
   ) => Behavior.NamedBehavior<
     Slots,
     Input,
@@ -259,19 +267,19 @@ export const behavior = <Field extends string>(
   function place<Slots>(
     slots: SlotView.Unbound<Slots>,
   ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
-    options: BehaviorOptions<Input, Slots>,
+    options: BehaviorOptions<Input, Slots, ParentMessage>,
   ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
   function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
     const slots = SlotView.boundSlots(given)
     return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
-      options: BehaviorOptions<Input, Slots>,
+      options: BehaviorOptions<Input, Slots, ParentMessage>,
     ): Behavior.NamedBehavior<Slots, Input, ParentMessage> => {
       const wrap = (id: string): ParentMessage =>
         declared.wrapper.make(Message.Focused({ id })) as unknown as ParentMessage
       const slice = (input: Input): Model => input[declared.field]
       const itemsOf = perInput(options.items)
       const keydown = Behaviors.Keys.attribute<Input, ParentMessage>(
-        [keys<Field>(declared, args)<Input, ParentMessage>(options)],
+        [keys<Field>(declared, args)<Input, ParentMessage>(options), ...(options.routes ?? [])],
         { slot: options.container, moveFocus: !args.virtual },
       )
       return Behavior.forSlots(slots)<Input, ParentMessage>(

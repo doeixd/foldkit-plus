@@ -7,8 +7,9 @@
  * them. Which theme is active is the application's Model's fact; `apply` is
  * the Command's effect that shows it, and `choose` shows it and keeps it,
  * for `script` to show in the head of the next page before the first paint.
+ * Those run-time functions live in `runtime.ts`, which imports no style code.
  */
-import { Effect, Schema, Stream } from 'effect'
+import { Schema } from 'effect'
 import { global, type StyleValue } from '../styleValue.js'
 import { compose, VAR_PREFIX, type ThemeTokens } from './core.js'
 import {
@@ -20,8 +21,7 @@ import {
   type Standard,
 } from './knobs.js'
 import { palette, type Palette } from './oklch.js'
-import { scriptLiteral } from './scriptLiteral.js'
-import { storageChanges } from './storageChanges.js'
+import type { ThemeNames } from './runtime.js'
 import { tokens, type Tokens } from './tokens.js'
 
 /** Every shipped token: the scales, the palette, and the knobs they read. */
@@ -50,13 +50,9 @@ const knobRule = (selector: string, theme: KnobTheme<KnobSet>) =>
     .join(';')}}`
 
 /** A set of named themes, one of them shown until the Model chooses another. */
-export interface Themes<Name extends string> {
+export interface Themes<Name extends string> extends ThemeNames<Name> {
   /** The names, as a Schema for the Model field that holds the active one. */
   readonly Name: Schema.Literals<ReadonlyArray<Name>>
-  readonly names: ReadonlyArray<Name>
-  readonly initial: Name
-  /** The root element's attribute that names the active theme. */
-  readonly attribute: string
   readonly theme: (name: Name) => KnobTheme<Standard>
   /** Every token with the initial theme's knobs: what the root declares, and what `t` reads. */
   readonly root: StandardTokens
@@ -91,72 +87,6 @@ export const make = <const Record extends { readonly [name: string]: KnobTheme<S
     ),
   }
 }
-
-/**
- * Shows `name` on the root element, as a Command's effect: the initial theme
- * removes the attribute, so the root's own declarations apply.
- */
-export const apply = <Name extends string>(themes: Themes<Name>, name: Name): Effect.Effect<void> =>
-  Effect.sync(() => {
-    const root = document.documentElement
-    if (name === themes.initial) root.removeAttribute(themes.attribute)
-    else root.setAttribute(themes.attribute, name)
-  })
-
-/** The storage key a chosen theme's name is kept under, unless one is given. */
-export const THEME_KEY = 'foldkit:theme'
-
-/**
- * The text of a `<script>` for the document's head: it shows the theme whose
- * name is kept under `key`, so a reader who chose one never sees the initial
- * theme for a frame. A kept name that is not one of `themes` (a theme a later
- * build removed), and storage that throws, leave the initial theme.
- */
-export const script = <Name extends string>(
-  themes: Themes<Name>,
-  key: string = THEME_KEY,
-): string =>
-  `(function(){try{var n=localStorage.getItem(${scriptLiteral(key)});` +
-  `if(${scriptLiteral(themes.names.filter(name => name !== themes.initial))}.indexOf(n)!==-1)` +
-  `document.documentElement.setAttribute(${scriptLiteral(themes.attribute)},n)}catch(e){}})()`
-
-/**
- * Shows `name`, as `apply` does, and keeps it under `key` for the next visit,
- * as a Command's effect: the initial theme keeps nothing. Storage that throws
- * still shows it on this page.
- */
-export const choose = <Name extends string>(
-  themes: Themes<Name>,
-  name: Name,
-  key: string = THEME_KEY,
-): Effect.Effect<void> =>
-  apply(themes, name).pipe(
-    Effect.andThen(
-      Effect.sync(() => {
-        try {
-          if (name === themes.initial) localStorage.removeItem(key)
-          else localStorage.setItem(key, name)
-        } catch {
-          // Storage refused (a private window, a full quota): this visit keeps it.
-        }
-      }),
-    ),
-  )
-
-/**
- * The theme another tab chose, each time it does: what its `choose` kept
- * under `key`, with a name no theme has, a removed key and anything else read
- * as the initial theme, as `script` reads it. For a Subscription whose Message
- * the application's `update` stores and answers with `apply`: this tab's
- * Model owns the chosen name, so the stream applies nothing itself.
- */
-export const changes = <Name extends string>(
-  themes: Themes<Name>,
-  key: string = THEME_KEY,
-): Stream.Stream<Name> =>
-  storageChanges(key).pipe(
-    Stream.map(value => themes.names.find(name => name === value) ?? themes.initial),
-  )
 
 /**
  * `theme` on the elements `selector` matches, below the root: its knobs and

@@ -26,6 +26,7 @@ const fresh: Model = {
   held: [],
 }
 const M = LongPress.Message
+const none = { shiftKey: false, ctrlKey: false, metaKey: false, altKey: false }
 const send = (model: Model, ...messages: ReadonlyArray<LongPress.Message>) => {
   let last = {
     model,
@@ -52,7 +53,7 @@ describe('LongPress placement', () => {
     const released = send(
       fresh,
       M.PointerDown({ pointerId: 1, button: 0, pointerType: 'mouse' }),
-      M.PointerUp({ pointerId: 1, pointerType: 'mouse', shiftKey: false }),
+      M.PointerUp({ pointerId: 1, pointerType: 'mouse', modifiers: none }),
     ).model
     expect(released.hold.holding).toBe(false)
     expect(send(released, M.Elapsed({ generation: 1, pointerType: 'mouse' })).model.held).toEqual(
@@ -82,8 +83,14 @@ describe('LongPress placement', () => {
     const key = send(fresh, M.KeyDown({ key: 'Enter', repeat: false })).model
     expect(key.hold).toMatchObject({ holding: true, key: 'Enter' })
     expect(send(key, M.KeyDown({ key: 'Enter', repeat: true })).model.hold.generation).toBe(1)
-    expect(send(fresh, M.Clicked({ detail: 1, shiftKey: false })).model.hold.holding).toBe(false)
-    expect(send(key, M.KeyUp({ key: 'Enter', shiftKey: false })).model.hold.holding).toBe(false)
+    expect(send(fresh, M.Clicked({ detail: 1, modifiers: none })).model.hold.holding).toBe(false)
+    expect(send(key, M.KeyUp({ key: 'Enter', modifiers: none })).model.hold.holding).toBe(false)
+  })
+
+  it('a key cancelled by a disabled element stops the hold, and another key does not', () => {
+    const key = send(fresh, M.KeyDown({ key: 'Enter', repeat: false })).model
+    expect(send(key, M.KeyCancelled({ key: ' ' })).model).toBe(key)
+    expect(send(key, M.KeyCancelled({ key: 'Enter' })).model.hold.holding).toBe(false)
   })
 
   it('the threshold runs on the clock', async () => {

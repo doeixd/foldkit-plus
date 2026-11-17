@@ -9,6 +9,112 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-remote`: `RemoteData.incident(error)` reads the id the server reported a failure of its own under, as an `Option<string>`: some when the server broke rather than refused, so a view can show a reference to quote. `RemoteReadError`, `RemoteQueryError`, `RemoteMutationError` and `RemoteLiveError`, the JSON error answer, a live stream's error frame and `RemoteError` each gain an optional `incident`; nothing else on the wire changed, and a client or server without it still decodes.
+- `foldkit-remote-server`: `RemoteServer.tell(message)` fails a Source with words written for the caller, sent as they are. `RemoteServerError` takes a `cause`, which is reported and never sent. The `ServerDefect` diagnostic carries `incident` and `during` (what was asked).
+- `foldkit-remote-server`: `RemoteServer.report(during, cause)` reports a failure no handler answers (a scheduled job's, an adapter's on a transport of its own) as the server reports its own: a `ServerDefect` holding `cause` under a new incident, with `during`. It answers `{ message: 'Internal error', incident }`, the `InternalFailure` type now exported, and nothing of the cause (#575).
+- `foldkit-sync`: `ExchangeRefused`, a failed exchange in words written for the replica: thrown from a handler given to `Sync.transport.serve`, its `message` is sent as it is. The `ExchangeDefect` diagnostic carries what any other throw was, and the `incident` its replica was answered; `Sync.transport.serve` takes a `diagnostics` reporter for it, which `serveJournal` passes on. `TransportError` and an error frame carry an optional `incident` (#575).
+- `foldkit-guard`: `May.answer(may, interaction)` reads what `may` says of a row interaction as an `Option<boolean>`: yes, no, or none where the answer does not say, since the rule reads another row and one row cannot decide it. `May.refused(may, interaction)` is true only on a no, as `May.can` is true only on a yes: hide or disable on `refused`, and what was not said stays live for the server to decide (#571).
+- `foldkit-ssr`: `staticSite({ site, plugins })` loads the site module with the Vite plugins it is given. The build renders pages from a server that has none of the application's, so Foldkit's view-identity branding was missing from them, the browser could not match the pages' markers, and a production build rebuilt every element on hydration without a warning.
+- `foldkit-ssr`: `staticSite`'s `plan` (and `generateStaticSite`'s) may be a function of the path, so a site can serve two applications, each page resuming with the plan of the application `config` returns for it. A plan function that throws fails the build and names the path.
+- Docs and examples: a new guide, [An event-sourced domain behind Remote](./docs/event-sourced-domains.md), says how an Alchemy Domain model and a declared domain fit together (who owns what, the write loop, lowering, binding or importing a Command, and each failure with the test that holds it). `examples/writes-domain` gains `pnpm --filter foldkit-example-writes-domain loop`, which follows one reservation from the page's prediction through the Command, its Event, a View behind and a lost reply. The `foldkit-remote-domain` README gains the loop, when not to use it, its `/server` entry in the entries table and its exact peers; [One domain declaration](./docs/entity.md) gains an agent step and prints a query's body directly.
+- Docs and examples: a new guide, [Expressions](./docs/expressions.md), teaches the `Expr` language in one place; [One domain declaration](./docs/entity.md) now carries one small domain from its declarations through `Laws.check`, the server and the page, with failure and recovery. `examples/entity` gains `pnpm --filter foldkit-example-entity language` (five query bodies answered by SQLite, `evaluate` and `Judge`, with the SQL each compiled to, and a generated test holding the three to one answer), and `examples/writes` gains `pnpm --filter foldkit-example-writes laws`.
+- `foldkit-primitives`: `PointerDrag` takes `gaps: true` (and `PointerDrag.behavior` `gaps`): over a container's own space, such as its padding or the gap between two children, the place is between its children by where the pointer is along their flow (a column, a row, a right-to-left row), `before` the first whose middle is past it, else `after` the last, and `over: null` past the last of the whole region. Only that one container's children are measured, found by halving. The release is hit-tested again, so the drop lands where the pointer let go.
+- `foldkit-mixins-builder`: a drop over a container's own space lands between its children, with the mark drawn there; the page's end (`data-builder-drop="end"`) is only for a pointer past the last node of the page. The handle is marked `data-grip-place="inside"` where there is no room above the selected node for the grip (its top is within the grip's height of the top of what can be reached: the scrolling ancestors' tops and the window's, each moved down by its `scroll-padding-top`), and the grip then sits in the node's top corner, so it is never under a sticky bar.
+- `foldkit-mixins-builder`: a Block's tile and the selected node's grip can be dropped on a layer row, which takes the drop by its thirds as a node does, and a drop over the page's own space is marked: the frame and the layers' `tree` carry `data-builder-drop="end"`. While a drag is under way `dragPreview`, `canvas` and `tree` carry `data-drag-place`, `here` where a drop would land and `nowhere` where it would be refused, so a look can show a dashed preview and a `not-allowed` cursor.
+- `foldkit-mixins-ui`: `Command`, `SearchField`, `Menubar`, `CascadeSelect`, `Tour`, `FloatingPanel`, `Picker`, `Nav`, `Tabs`, `TagsInput` and `Toolbar` export `conflict(routes, input?)`, the `mixins:key-conflict` that drawing the widget with those application key routes would throw, as an `Option` of the diagnostic and without drawing. It is built from the one list of own routes the view draws and `Keys.conflict`, so a settings screen that lets a user rebind keys can judge a candidate set without catching a throw. `input` is the part of the view's options that decides the widget's own keys (`direction`, `closeOnEscape`, `orientation`, `close`, `delimiter`, `panelRoutes`); Command, SearchField, CascadeSelect and Picker take `routes` alone.
+- `foldkit-richtext-dom`: `richTextInput(hostId, placement, { codec })` takes a codec (`value`, `fill`, and an optional `blank` value for a blank document), so a form key can hold another type, such as Markdown text, while the editor holds a Document. A blank document is never passed to `value`; a `fill` that throws fails the form's `fill`.
+- `foldkit-richtext-dom`: an editor placement takes `label` (`aria-label`) or `labelledBy` (`aria-labelledby`), not both, naming the `role="textbox"` root, in server markup too. Without either, an editor drawn in a labelled `role="group"` (the group `foldkit-mixins-form` draws around a control) takes the group's label, and a click on that label focuses the editor.
+- `foldkit-mixins-richtext`: `formattingToolbar`, the standard formatting bar: one tab stop with arrow, Home and End keys, undo and redo (availability from the caller), the text style menu, marks, link, lists, quote and an insert menu, with pressed state and `aria-disabled` unavailable controls. `items` may hold the application's own `{ control }` (message, pressed, disabled, an optional popup) and `{ low: item }` controls that are not drawn when `compact`; `inserts` is one ordered list of `InsertEntry.Editor` and `InsertEntry.App` entries; `returned` is what Escape sends to go back to the text. The application keeps the open menu, the tab stop and the width signal.
+- `foldkit-mixins`: a page built with `foldkit-mixins/vite`'s `modules`, which ships no style compiler, can
+  switch, keep and follow a named theme. `foldkit-mixins/theme/runtime` exports `applyTheme`, `chooseTheme`,
+  `themeScript`, `themeChanges`, `THEME_KEY` and `ThemeNames` (names, initial, attribute); `Themes.apply`,
+  `Themes.choose`, `Themes.script` and `themeChanges` from `foldkit-mixins/theme` are these same functions,
+  and a compiled `Themes` is a `ThemeNames`. `foldkit-mixins/theme/knob-data` holds each range knob of
+  `Knobs.standard` as plain data, one named export per knob (`shapeDensity`, `accentChromaLight` and
+  `accentChromaDark` for a two-scheme knob) as `{ name, title, variable, unit, min, max, step, default }`,
+  for a theme panel's sliders; a page keeps only the knobs it imports, and `knobData` is the same entries by
+  path (`'shape.density'`) for a panel that draws all. The file is generated from `Knobs.standard` by
+  `pnpm --filter foldkit-mixins generate:knob-data`, and a test fails when it differs. A range knob's
+  `control` now carries its `variable`.
+- `foldkit-mixins`: `Behaviors.Keys.conflict(routes, slot?)` returns the `mixins:key-conflict`
+  clash as an `Option<Diagnostic>`, for seeing a clash without drawing the view and catching the
+  throw; `behavior`, `attribute` and `answer` raise the same diagnostic from the same detection.
+- `foldkit-primitives`: `Repeat.behavior` takes the `SlotView.over` binder as `Press.behavior` does (options
+  and Message inferred, bare slots with named generics still work), gains `disabled`, and supplies the
+  `activation` obligation on its target. The pointer leaving a held button ends the hold, as documented.
+- `foldkit-primitives`: `Selection` gains the `Selected { id }` Message and the `select(id)` (replace with
+  one item and anchor) and `range(id, order)` helpers.
+- `foldkit-primitives`: `GridNavigation.behavior` takes `routes`, the application's keys on the grid's one
+  `keydown` owner; a route on a key the grid takes is a `mixins:key-conflict`.
+- `foldkit-data-grid`: what an application asks of a grid from outside its view. `Placed.helpers.reveal(rows,
+  { row, column?, rowHeight, headerHeight })` scrolls a row (and column) into view by the least scroll and
+  moves no focus, for a "go to row" control; `Grid.rangeSize(rows, model.grid)` is the selected cell range's
+  `{ rows, columns, cells }` or none; `Grid.hasFilters(filters)` and `Grid.filterCount(filters)` say whether
+  and how many columns are filtered, which the union of differently typed Options in `Filters` made awkward.
+- `foldkit-mixins-data-grid`: `words.readOnly` (default `Read-only`) is the `title` a column that does not
+  edit shows on hover, and the first word of its `aria-description`; the title was a fixed English literal.
+- `foldkit-primitives`: a `PointerDrag` under way writes the pointer's viewport place on the document root
+  (`--fk-drag-x`, `--fk-drag-y`, and `data-fk-drag="mouse | touch | pen"`, named by `DRAGGING`) and removes them
+  when it ends, so something follows the pointer with no draw per move. `DragPreview()` (`/dom`) is the
+  Mount that shows an element the view draws with `popover="manual"` in the top layer.
+- `foldkit-mixins-builder`: the Builder shows what a drag carries (`dragPreview`, drawn by the new `Carried`
+  part, in the top layer, `aria-hidden`, above a finger's hold) and draws a handle over the selected node
+  (`nodeHandle`, `nodeGrip`: a finger-sized grip with `touch-action: none` that drags the node, and whose tap
+  opens `nodeMenu`, a `popover` of its commands in `nodeAction` buttons). Its words gain `moveNode` and
+  `nodeActions`. The layers, the canvas and the palette scroll while a held drag is near their edge.
+- `foldkit-builder`: `DragDropped` takes an optional `aim` (`OverNode`, `OverRegion`, `OverPage`,
+  `OverNothing`, exported as `DropAim`): where the pointer was when it let go.
+- `foldkit-mixins-crud`: a `ListView` and `RowListView` row carries its key as `data-row-key` on the `row`
+  Slot, server markup included, so an application can return focus to a row's button after a re-read
+  with `Dom.focus` and a `CSS.escape`d selector.
+- `foldkit-mixins-ui`: a `Table` column's `sortKey` keeps its literal type, so `sort.onSort` receives
+  the union of the keys and `Table.TableSort` and `Table.nextSort` carry it (`TableColumn`, `TableSort`
+  and `TableView` take a `Key` parameter, defaulting to `string`). `Table.defineColumns<Row>()([...])`
+  keeps the literals of columns written once and hoisted.
+- `foldkit-mixins-ui`: `FileInput.cases`, the Messages `FileInput.Sync` and `FileInput.Focus` answer with
+  (`CompletedSync`, `CompletedFocus`), to spread into the application's Message union:
+  `defineMessageUnion({ ..., ...FileInput.cases })`. A union without them is a type error where the
+  Commands are returned.
+- `foldkit-mixins-ui`: `Table` has a `control` slot, the name of a `FocusRecovery` part for a control
+  the application draws in a cell. With `FocusRecovery.behavior(TableSlots)` on the `frame`, focus stays
+  on the same control (that, the open button or a sort heading) when a re-sort moves its row.
+- `foldkit-plus`: the package ships the agent skill (`skill/`) and the conceptual guides the
+  site publishes (`guides/`), copied at build time, so they are the version of the installed
+  code; relative links in a guide, and the skill's links to `main`, point at the release's tag.
+  `npx foldkit-plus docs` answers from them (labelled `foldkit-plus@<version> skill …` and
+  `guide …`), and notes on stderr a dot-folder skill of another version instead of reading it.
+  `npx foldkit-plus skill [--force]` installs the shipped skill under `.claude` and `.agents`
+  (or where one already is); `setup`'s skill step uses it, and `npx skills add` stays the way
+  to get the skill without the package.
+- `foldkit-mixins-ui`: `Sheet.view` takes `style`, a style of `DialogSlots`, beside `mixins`,
+  as `Drawer.view`, `Command.view` and `Picker.view` do.
+- `foldkit-mixins-ui`: a `Sheet` with more than one point draws its handle as a focusable
+  `separator` (it was `aria-hidden` and drag-only), named by `words.handle` (default
+  `Resize sheet`), with `aria-valuenow` the percent shown and `aria-valuemin`, `-max` and
+  `-controls`. The arrow keys along the sheet's edge (the one toward the page raises it:
+  ArrowUp for a bottom sheet, ArrowDown for a top one, ArrowLeft for a right one, ArrowRight
+  for a left one), Home and End step between the points through `Message.SnappedTo { at }`,
+  the transition a release at that point leaves, and stop at the ends; Escape still closes
+  the sheet, and `Recipes.Sheet` rings the focused handle. With no `initialFocus` an opened
+  sheet with points takes focus on its handle, the first focusable element. A sheet with
+  one point keeps a decorative, hidden handle; a `handle: 'none'` application moves its
+  sheet with `SnappedTo` from a control of its own. `DialogContext` takes `interactiveHandle`.
+- `foldkit-mixins-ui`: `TagsInput.view` takes `words` (`TagsInput.TagsInputWords`): `remove`,
+  a function of the tag for the remove button's accessible name (default `Remove <tag>`),
+  and `mark`, what it draws (default `×`).
+- `foldkit-mixins-ui`: `TagsInput.view` takes `name`, which draws one hidden input per tag
+  (`TagsInputSlots.hiddenInput`) so a form submits the tags, in order, and not the draft.
+- `foldkit-mixins-ui`: `TagsInput.view` takes `addOnBlur`, which adds the draft when the input
+  loses focus, so text left in it is not thrown away. Off by default.
+- `foldkit-mixins-ui`: a Menu row takes an `icon` (before its label) and a `hint` (at its end, before its shortcut), each in a Slot of its own (`MenuSlots.icon`, `MenuSlots.hint`) that `Recipes.Menu` styles; a submenu's items take them too.
+
+- `foldkit-mixins-ui`: `TagsInput`'s chips are one roving tab stop (`Model.chip`, set by
+  `Message.FocusMoved`, the last chip until an arrow moves it): ArrowLeft and ArrowRight
+  move among the chips, Home and End go to the ends, Backspace and Delete remove the
+  focused chip, ArrowRight past the last returns to the input, and ArrowLeft in the input
+  from the start of its text (nothing selected) enters the last chip. `TagsInput.view`
+  takes `direction: 'rtl'` to mirror the arrows. A model stored from before has no `chip`
+  field.
 - `foldkit-site`, `foldkit-ssr`: route code from the Site tree (#438). A page placed with
   `Site.placement` from a `Bundle.lazy` carries it as `page.code`, and `Site.routing`
   returns `codeFor(route)`, the code of every page of its `pages` on a route's chain,
@@ -533,6 +639,27 @@ version changed; `pnpm` skips versions already in the registry.
   `routes`, `Behaviors.Keys.Route`s, add keys beside Escape on the same keydown owner
   (#558).
 
+- `foldkit-mixins-ui`: `Toolbar` and `Recipes.Toolbar`, the APG's toolbar: `role="toolbar"`
+  named by `label`, one tab stop over controls the application draws, the arrows along
+  `orientation` (mirrored by `direction: 'rtl'`), Home and End moving focus, and disabled
+  controls skipped. `items` are controls `{ id, disabled?, draw }`, groups
+  `{ label, controls }` and `'separator'`; `draw` receives the control's `attributes` (its
+  id, `tabindex` and a focus report, which `Button.view`'s `attributes.button` takes) and
+  `disabled`. The application keeps the stop (`roving`, a placed `RovingTabindex`'s slice,
+  answered from `onFocus`), so Tab returns to the control focused last. A focused text
+  field, select or range keeps the keys it uses, and a key from something the toolbar did
+  not draw is left alone. `routes` adds keys on the same keydown owner. `examples/widgets`'
+  toolbar is drawn with it, in place of the primitives it assembled by hand.
+
+- `foldkit-mixins-ui`: `FileInput` and `Recipes.FileInput`, a file picker: a native
+  `type="file"` input, hidden but focusable, and a button drawn on the `<label for>` that
+  names it, so a press and Enter or Space open the browser's dialog with no script. The
+  chosen files are rows with a named `remove` button. The application owns `files`: fold a
+  pick in with `FileInput.added`, and answer `onChange` and `onRemove` with
+  `FileInput.Sync`, which writes the list back into the input so a form submits what the
+  list shows and a removed file can be chosen again; answer `onRemove` with
+  `FileInput.Focus` so focus stays on the field.
+
 - `foldkit-mixins-ui`: `Dialog.update(model, message)` and `Dialog.open(model)` are
   `@foldkit/ui`'s `update` and `open` plus one focus repair: a dialog opened again during
   its exit gets focus back inside it (`Dialog.RestoreFocus`). `Dialog.isLeaving(model)`,
@@ -658,11 +785,73 @@ version changed; `pnpm` skips versions already in the registry.
   triggers (`panelRoutes` for a panel's links) and `TabsContext.routes` for a tab. A tab
   with no key to answer draws no keydown at all. `Tour.focusReturn` and
   `FloatingPanel.focusReturn` are opt-in mixins that give focus a way back, by
-  `FocusReturn`'s rules, when the opener is gone or none was named; the `opener` given to
-  `start` or `open` is still focused after them.
+  `FocusReturn`'s rules, when the opener is gone or none was named.
 
 ### Changed
 
+- `foldkit-mixins-ui`: a TagsInput's chip (and the Combobox's, which shares it) and a Badge are pills (`radius.full`, rounder than the control corner, squarer as `shape.radius` falls), and the chip reads `surface.default` instead of `surface.muted`: a step lighter than its field in a dark scheme, where the recessed `muted` step read darker, and a little darker than it in a light one.
+- `foldkit-mixins`: **Breaking:** `surface.saturation` defaults to 0.005 (dark 0.0067), not 0: the page, cards, lines and text lean a little toward the accent's hue, so a dark page is a faintly cool grey (chroma 0.006) and a light page still reads white. Set `surface: { saturation: 0 }` to keep pure greys.
+- `foldkit-mixins`: **Breaking:** the accent's lightness defaults to 54 in both schemes (55 light, 70 dark before). A dark accent fill is deeper, with light words on it (4.8:1, and 3.2:1 against the page) where it was a bright cyan under near-black words; the light fill is darkened a point so its words read at 4.5:1 once painted (4.4996 at 55). Set `accent: { lightness: { light: 55, dark: 70 } }` to keep the old look.
+- `foldkit-mixins-ui`: the Menubar's bar reads `surface.default`, not `surface.muted`: a raised bar, lighter than the page in a dark scheme where the recessed step was darker, and a little darker in a light one. A Toolbar already read it; Segmented and Tabs trays stay recessed.
+- `foldkit-mixins`: **Breaking:** `shape.radius` defaults to 1, not 0.45: controls are 6px, panels 8px and small parts 3px, where the old factor drew them 2.7, 3.6 and 1.35px. Set `shape: { radius: 0.45 }` to keep the old look. The Floating panel's maximize glyph reads `radius.xs` rather than a literal 2px, and the widgets example's panels and rows read radius tokens instead of 6, 8 and 10px.
+- `foldkit-mixins`: **Breaking:** `menu.panel` defaults to `default`, not `inverted`: a menu, listbox or combobox panel takes the page's own raised surface in both schemes, where the inverted panel was pure white on a dark page. Set `menu: { panel: 'inverted' }` to keep the old look; `inverted`, `translucent` and `inverted-translucent` are unchanged.
+- `foldkit-mixins-ui`: **Breaking:** `ColorPicker.view`'s `eyedropper` defaults to `false`, not to `canEyedrop()`. The view read `'EyeDropper' in globalThis` while it drew, so a server drew no eyedropper button and a browser drew one, and a server-rendered page had the picker's controls rebuilt when it took over. An application that passed nothing loses the button until it opts in: keep `eyedropper: ColorPicker.canEyedrop()` in the Model (read in `init`, or sent by a Command after hydration) and pass it.
+- `foldkit-mixins-ui`: `Avatar`'s initials are upper-cased with `toUpperCase`, not the runtime's default locale, so a Turkish server and an English browser draw the same letters.
+- `foldkit-cms-drizzle`: **Breaking:** an author let `Update` and not `Read` is answered `There is no such entry` (for a `CmsSaveDraft` naming a `basedOn`, the conflict of a discarded draft; for a first save of a taken id, `This draft cannot be saved as this entry`) where a refusal named the entry's type, state or revisions, a `transitions` or `allow` denial, or a taken address, and gets no patches from a write (#577). For every author, `CmsSchedule` refuses a time that is not one before it looks the entry up, so that sentence now comes before `There is no such entry`.
+- **Breaking:** `foldkit-entity`: `evaluate` and `compareRows` refuse an order over text with no declared collation, with the reason `Query.placement` gives (`it orders by Post.title, text with no declared collation`), through the one predicate they share; they used to answer in code point order, where SQLite compares bytes and Postgres follows its database's locale. `evaluateEach`, which only judges membership, does not refuse it. Migration: declare a collation on the text key you order by (`Entity.annotateMembers({ title: Collation.of(Collation.binary) })`, or `Order.asc(field, { collation })`). The conformance suite's null-placement cases order `tag` under `Collation.binary` (#569).
+- `foldkit-remote-server`: **Breaking:** a `RemoteServerError` is this side's unless it was made with `RemoteServer.tell`: its caller reads `Internal error` and an `incident`, and its message and cause go to the `ServerDefect` diagnostic. A Source author wraps text meant for the reader in `RemoteServer.tell('…')` and passes what was caught as `new RemoteServerError({ message, cause })`. A defect in a handler is answered the same way by `RemoteServer.handlers` itself (it no longer propagates to an in-process caller or to an `RpcServer` route), as are a refusal made for another mutation and a mutation output its Schema refuses, which answered `Invalid mutation refusal` and `Invalid mutation output`. A committed write whose answer read failed on this side reports the cause as a `ServerDefect`, and its `AnswerUnread` names that incident.
+- `foldkit-sync`: **Breaking:** an exchange that throws on the server no longer sends the error's message to its replica. `Sync.transport.serve` answers `{ error: 'Exchange failed', incident }` and reports what was thrown as an `ExchangeDefect` under that incident; it used to send the message of whatever the handler threw, a journal's or a driver's included. The replica fails the exchange as before (a `TransportError`, `status.lastError`, a retry on its backoff with its outbox whole), now reading `Exchange failed`. The journal's own words for a replica (`This connection may not open the document`, a cursor ahead of the server's, a pending entry that names no operation) are thrown as `ExchangeRefused` and arrive as written, as does `UnsupportedMessageVersionError`. Migration: a handler of your own that throws words for the replica throws `new ExchangeRefused({ message })`. The wire is compatible both ways: `error` is still a string, and `incident` a field an older replica ignores (#575).
+- `foldkit-sync`: **Breaking:** a document host (`documentHost`, `defineDocumentHost`) no longer sends a caller its resolver's `RemoteUnauthenticated.message` (#576). A refused upgrade's 401 says the refusal's `reason` when it has one, else `Unauthenticated`, and a revalidation that refuses closes the socket with 4401 and the same words, cut to the 123 bytes a close reason carries (a longer one used to lose the code where the platform refused it). The status and close codes of a refusal are unchanged, and one made with `RemoteServer.unauthenticated(reason?)` reads as before. Migration: a resolver that built `new RemoteUnauthenticated({ message })` for the caller to read gives the words as `reason` too. A resolver that fails with anything but a `RemoteUnauthenticated`, past its type, is this side's: a 500, or a 1011 close, reported as a `HostDefect`, where it was a 401 or a 4401 carrying that error's message.
+- `foldkit-remote-drizzle`: **Breaking:** the adapter's failures follow `RemoteServer.tell`. A caller reads the adapter's own words only about the request it sent: a query window that combines `after` with `before` or `first` with `last`, a query or relation cursor that no longer resolves or is not this server's, a relation cursor sent with more than one parent, and an operation id sent again with another request. Every other failure (a statement the driver fails, a body that cannot be compiled, a binding with no column for what a write names, a collection past `maxCollection`) reads `Internal error` with an incident, its message in the `ServerDefect` report. `runStatement`, the ledger and the row log keep the driver's error as the failure's `cause`, and a compile error is the cause of the failure it becomes, so the report holds them. The reused operation id now reads `Operation "…" cannot be sent again with another mutation, keys or input: a retry sends the same ones`; it was `<Entity> <id>: operation "…" was recorded for another request; …`. Migration: a client that matched on `Database query failed`, `Database write failed` or the old operation sentence reads `RemoteData.incident` or the new sentence.
+- `foldkit-cms-drizzle`: **Breaking:** the CMS's own refusals (`There is no such entry`, `This entry cannot be published as it stands`, `An archived entry takes no draft` and the rest) are told with `RemoteServer.tell` and arrive as written; a handler of yours that fails with a plain `RemoteServerError`, and a statement the database refuses, read `Internal error` with an incident. A draft the publish mutation's Input refuses reads `This draft is not ready to publish: check title, body`, naming the fields it would not take; it used to carry the Schema's own message, which quotes values. A scheduled publish that fails keeps on the entry (`state.schedule.error`) only a reason written for a reader (a denial, a declared refusal, `RemoteServer.tell`), and `Internal error, incident <id>` for any other failure, whose cause `due` reports as a `ServerDefect` under that incident (`RemoteServer.report`, `during: 'publish due <entry>'`); it used to keep the failure's own message, and a defect's text, a driver's failed statement included, where authors read it. `due`'s `error` is still the failure in its own words, for the host. Migration: a `cms_drafts.schedule_error` stored before this still holds what was written then, and authors still read it; overwrite such values once (`update cms_drafts set schedule_error = 'Internal error' where schedule_error is not null`), which keeps each draft waiting for a change as before (#575).
+- `foldkit-guard`: a Read rule `GuardDrizzle.visible` cannot compile for who asks fails as `<Entity>'s Read rule could not be compiled to SQL` with the compiler's error as its `cause`, which the caller reads as `Internal error`; it used to copy the compiler's message. The writer's own failures (a write that reads a member its writer may not, a pin on another field, a row that moved three times) are unchanged and, being untold, now read `Internal error` too, so the member a Read rule hides is named in the report alone.
+- `foldkit-remote-domain`: a lowered write (`Lower.write`) whose chain fails on its own side, or in which anything throws (a rule's body, an operator, a codec), dies as `Internal error, incident <id>` and reports the cause as a `ServerDefect` under that incident (`RemoteServer.report`, `during: 'decide <Mutation>'`); it used to die with the `RemoteServerError` or the thrown error itself, whose message and cause a Domain Api's transport sends with a defect, so a guard's own sentence naming a member a Read rule hides crossed the wire. Words the chain told its caller die as those words alone (#575).
+- **Breaking:** `foldkit-entity`: a write's `when` that reads `Expr.viewer` or `Expr.now` (also through a path from the viewer or an exists) is refused where the write is declared, as a computed assignment already was; it used to be accepted and refused only where a writer served it. A `when` reads the row before the write and the input only; who is asking is a guard rule's (#572).
+- `foldkit-guard`: an interaction `may` does not answer no longer reads as refused. `May.locks` locks a key only where the row's `Update` or the key's own rule said no, so a Crud editor over a row whose `Update` rule reads another row (a path, an exists) is editable, and the server's refusal is shown when it comes. `GuardAgent.authorize` and `available` allow and offer such an interaction; they still refuse a row not read, and a no. `May.can`, `canSet` and `canLink` are unchanged, true only on a yes: a view that hides a control with `!May.can(…)` hides it on what was not said too, and reads `May.refused(…)` to hide only what was refused. The wire is unchanged: the server already wrote `false` for a refusal and left out only what one row cannot decide (#571).
+- `foldkit-remote`: `Query.define` returns a `DefinedQuery`, a `QueryDescriptor` whose `body` is always present and typed as built, so `Query.show`, `Query.dependencies`, `evaluate` and `Judge.query` take it without an undefined check or a cast.
+- `foldkit-primitives`: **Breaking:** `PointerDrag`'s `targets` (and `PointerDrag.behavior`'s) is an array of `{ attribute, within }`, one entry per region a drag may land on, each with its own attribute; a single region is `targets: [{ attribute, within }]`.
+- `foldkit-primitives`: edge scrolling scrolls a box only while the pointer is over it, and only after it has stayed 150ms in the strip. A tile dragged from a palette to the layers below it no longer scrolls the palette away.
+- `foldkit-mixins-builder`: a finger's drag preview is centred over the finger, so a phone's edge cuts neither side of it.
+- `foldkit-cms`: `Cms.bySlug` takes a `ContentReader` (`name`, `entity`, `roles`; a `Content` is one), so a public site can find content by address without importing its form.
+- `foldkit-mixins`: **Breaking:** composing a conditional rule (media, pseudo, nest, container,
+  supports, `states`, or a rule inside `whenInput`) beside an inline declaration of the same
+  property, or a shorthand and its longhand, throws `mixins:dead-conditional-rule`: an inline
+  declaration beats every rule, so the rule never applied. A rule marked `!important` is exempt.
+  This check and `mixins:inline-shorthand-conflict` are development-time: they run where
+  `import.meta.env.DEV` is true (Vite's dev server and Vitest) and are absent from a production
+  build, saving about 340 bytes brotli on Chirp's client.
+- `foldkit-primitives`: **Breaking:** a `FocusRecovery` `{ part }` step must name a key of `parts`
+  (a type error otherwise, in the bound form). A key of `parts` that is no slot now names a part a
+  widget draws itself (`recoveryPart`) and marks nothing; it was a type error.
+- `foldkit-primitives`: **Breaking:** `Press`'s `Pressed` and the `PointerUp`, `KeyUp` and `Clicked`
+  facts of `Press`, `Repeat` and `LongPress` carry `modifiers: { shiftKey, ctrlKey, metaKey, altKey }`
+  in place of `shiftKey`. Migrate `out.shiftKey` to `out.modifiers.shiftKey`.
+- `foldkit-data-grid`: **Breaking:** the grid's `Out` has a `Copied({ rows, columns })`, sent when the view's copy
+  has put a box on the clipboard (a cut still reports its cleared cells as `Pasted`). An `onOut` that matches
+  every variant needs a `Copied` arm, which may ignore it.
+- `examples/widgets`, `examples/authoring`: the examples show the newer capabilities, each section with
+  its tests. Widgets gained file-input, tags-input, app-keys, menu-rows, choices, table, sheet,
+  focus-kept and tour sections, and the window list's `findable` and `reveal`; authoring gained
+  inline-edit, spatial, box, stepper, swipe, grid and hotkeys sections and tests for nested, odd-id,
+  back-to-back, reduced-motion and two-list focus recovery. Both pages load the newer sections (and the
+  authoring editor, with Remote and the agent) when they near the window, so the start chunks
+  (widgets 144.8 kB, authoring 152.1 kB brotli) hold far less than before.
+- `foldkit-mixins-ui`: **Breaking:** `Tour.start` and `FloatingPanel.open` take no `opener`, and `Tour.Model` and `FloatingPanel.Model` have no `opener` field (nor `Tour` a `FocusOpener` Command and `CompletedFocus` Message): `Tour.focusReturn` and `FloatingPanel.focusReturn` are the one way focus returns, to what had it when the widget opened, by `FocusReturn`'s rules when that is gone. Without the mixin, ending a tour or closing a panel gives focus to nothing. A caller that named an opener passes the mixin instead (`mixins: Tour.focusReturn`).
+
+- `foldkit-mixins-ui`: `Menubar.view`'s `menuMixins` is optional, as the other views' `mixins` are; a bar given none draws its menus unstyled.
+
+- `foldkit-mixins-ui`: **Breaking:** a Menu row is named by a `value` of its own, beside its `label`. `Menu.ItemRow`, `CheckRow`, `SubmenuRow`, `LeafRow` and `Row` take `value` (and `Row<Value>` types it by the application's union); the menu's items, `isRowDisabled`, a submenu's `isItemDisabled`, `Selected`'s `value` and `submenu`, `Menu.checkChosen` and `Menubar`'s `Selected` and `isRowDisabled` go by it, so two rows with one label (a "Delete" in two groups) are told apart in the disabled state and in what is chosen. A submenu's `items` are `ItemRow`s, not strings. `label` is what is drawn and what typeahead matches. `Breadcrumb.menuRows` gives each hidden step's place as its row's value, and `Breadcrumb.chosen` reads it. `Menu.rowInputs` is the Menu view inputs for rows, shared by Menu and Menubar.
+
+- `foldkit-mixins-ui`: **Breaking:** `TagsInput`'s keys are `Behaviors.Keys` routes on its
+  `input` Slot, and `TagsInput.view` takes `routes` for the application's own. The input
+  no longer reports every key: `Message.Pressed { key }` is `Message.BackspacedEmpty`,
+  sent for Backspace only when the input itself (not the Model's frame-old draft) holds no
+  text, so Backspace over text typed since the last frame still edits it. A route on
+  Enter, the delimiter or such a Backspace is a `mixins:key-conflict`.
+- `foldkit-mixins-ui`: **Breaking:** removing a `TagsInput` tag, by its button or from the
+  keyboard, focuses the chip that takes its place, else the one before it, else the input
+  (it was always the input), through `update`'s Command, which finds a chip by its id
+  whatever the tag's text. `Message.CompletedFocusInput` is `Message.CompletedFocus`.
 - `foldkit-site`: a `Bundle.lazy` page's `changed` is required and returns a Message (a
   type error otherwise, and refused by `Site.placement` at run time), since a page whose
   arrival says nothing draws its placeholder for good. `Site.sources` and
@@ -868,6 +1057,76 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- `foldkit-mixins-ui`: a lit row takes its ink from the surface it is on. A popup panel sets `--_fk-row-highlight`, `--_fk-row-press` and `--_fk-row-highlight-ink` on itself, and a row outside a panel (an inline Command, a Picker's sheet) reads the new `popup.plain-highlight`, `plain-press` and `plain-highlight-ink` tokens, the text's own films or the accent. The inline Command's active row read the inverted panel's dark ink on a dark page, and was unreadable. A row inside a panel looks as before for every `menu` option.
+- `foldkit-mixins-ui`: a filled Textarea inside its frame no longer lays the hover fill on the text under the pointer; the frame is the one filled box, as at rest.
+- `foldkit-remote-server`: a mutation's answer no longer carries values of a row its caller may not read (#578). Each patch in the handler's `entities` is cut to what `authorize` and `filter` let the caller read of that row, a row the caller may read none of sends no patch, and a failed read sends none of that entity's patches and reports `AnswerUnread` while the write still succeeds. A source with no `authorize`, `filter` or `visible` is answered as it is, with no read. The live hub is still told every patch and reads each subscriber through its own rules. What a handler must tell a caller who may not read the row goes in `output`.
+- `foldkit-remote-server`: a 401 and a 403 no longer send the `message` of a refusal that gave no reason (#573). `RemoteServer.answer` and `serveFetch` say the refusal's `reason` in `error`, or `Unauthenticated` or `Forbidden` when it has none, and a live stream's error frame for a revoked session says the same; they sent `message`, which a `new RemoteUnauthenticated({ message })` or `new RemoteForbidden({ message })` built by hand may fill with anything. A refusal made with `RemoteServer.unauthenticated(reason?)` or `RemoteServer.forbid(reason?)` reads as before, and `foldkit-sync`'s document host follows the same rule. Over Effect RPC the error is still encoded whole, by its schema.
+- `foldkit-sync`: the 500 a document host answers an upgrade it broke on carries an `incident`, `{ error: 'Internal error', incident }`, and the `HostDefect` that reports the cause carries the same id (`incident: Option<string>`, none for a close or a notice) (#576). A stored operation no build reads (`UnreadableHistoryError`) again answers a socket's replica `This server cannot read the history of this document`, now beside an incident, with the error reported as an `ExchangeDefect`; since the fix for #575 the replica read `Exchange failed`. Why a reaction's run failed (`parked`'s `error`, `ReactionFailed` and `ReactionParked`'s `cause`) is the failure's own text, stored beside the journal and read only by whoever runs the server: no exchange sends it, and a page for a document's readers should not show it.
+- `foldkit-cms-drizzle`: a principal the `authors` guards let `Update` and not `Read` no longer learns of an unpublished entry from a write (#577). A refusal said the entry's type (`This entry is of "x", not "y"`), its state (`cannot be published as it stands`, an archived entry), its revisions, its draft's address and unready fields, and whether it was there at all, and a write that was made answered the entry's, the draft's and the revision's rows. Every operation now passes one gate: such a caller's refused write answers as for an entry that is not there, and one that is made answers its `output` and only the rows the server lets that caller read of its patches (`RemoteServer` cuts a mutation's answer to what the caller may read, #578), so the live hub hears the write, and it answers no row of the entry, its draft or its revisions. An author who may read is answered as before.
+- `foldkit-richtext-markdown`: `print` writes a link's `href` and an image's `src` so they read back as the same string. It escaped no backslash before punctuation or at the end of a destination (`\*` read back as `*`, a trailing `\` swallowed the closing `)`), and no `&` that begins a character reference (`&amp;` read back as `&`); it now escapes both, and percent-encodes a control character, which Markdown cannot hold. A URL that already read back prints exactly as before. Markdown already stored was written by the old printer: text that read back correctly still does, but a body that hit the bug already holds a different URL than the author typed, and nothing can recover it (#566).
+- `foldkit-remote-server`: a server no longer sends a client the text of what failed on its side (#573). `RemoteServer.memory` copied any thrown error's message (a `readable`, an operator, the interpreter) into its read and list failures, `memoryWriter` a thrown precondition's, every Source's `RemoteServerError` message was copied onto the read, query, mutation and live errors, and a handler's defect reached an `RpcServer` route. Each is now answered `Internal error` with an incident id, and reported.
+- `foldkit-guard`: `GuardServer.memory` throws where it is made for an Entity whose Read rule reads another row. A memory server judges each stored row alone, so every read of such an Entity failed, with the interpreter's message as its `RemoteReadError`. Serve it through `GuardDrizzle.visible`, whose statement judges the rule (#570).
+- `foldkit-guard`: `GuardServer.mutation` and `GuardSync.document` throw where they are made when the row rule they check (the handler's `interaction`, a document's `Update`) reads another row: a path, a path from the viewer, or an exists. Each judges over the one row it reads and runs no statement, so such a rule ended every request as a defect (`this interpreter does not run path`). `GuardServer.writer` already refused the same case where it is made, and a declared write through it is how such a rule is held (#570).
+- `foldkit-remote-drizzle`: a list page's statement selects each column once. The id, a page's row identity and its order's last key, was listed twice (`select "id", "headline", "id" from ...`); `cursorSelection` and `keysOf` take the columns already selected and read a key held there from it, so a cursor is the same one as before (#568).
+- `foldkit-mixins-ui`: keys pressed before the next frame, which a held key repeating on a
+  busy page sends, each met the last drawing's state and acted as the first had. `Listbox`
+  (and so `Picker`'s dropdown) and `Menu` continue arrows, Home, End, type-ahead,
+  Space and Enter from the item the drawing's previous key reached, `Segmented` from the
+  option it chose, and `TagsInput` removes each chip a Backspace or Delete reaches. `Nav`'s
+  row and panel links and `Picker`'s Sheet options move focus in the key handler, not in a
+  Command a later key outran: `Nav.Message.MovedTop` and `MovedInPanel`, and
+  `Picker.Message.Stepped`, are now what an application's own key route answers.
+- `foldkit-mixins-ui`: a filled `CascadeSelect` trigger showed no hover and lost its error
+  edge when invalid, and a ghost one lost it under the pointer; an invalid `Input`,
+  `Textarea` frame, `Select` and ghost `Listbox` trigger lost it under the pointer too, since
+  the hover rule's edge outranked the invalid one. Each keeps the error edge.
+- `foldkit-mixins-builder`: a tile dropped in the gap between two nodes landed at the end of the page, with the mark off screen. It lands between them.
+- `foldkit-primitives`: held at the window's edge over a box that can still scroll that way, a drag scrolled the window and left the box. The box goes first, and the window once it is at its end.
+- `foldkit-primitives`: `MediaQuery` started at `matches: false` and learned the window's answer from its Subscription, which lands after the first frame, so a phone drew one frame of the wide layout. `init` now reads `matchMedia(query).matches` where there is a window (still `false` on a server), and `args.initial` says the first value instead, for a server that knows the device from a hint or a test. A page resumed by `foldkit-ssr` keeps the server's value, since `init` does not run there, and the stream's first report corrects it.
+- `foldkit-richtext-dom`, `foldkit-mixins-richtext`: since the editor stopped restoring its selection while a control has the focus, a command sent from a formatting control left the text looking unselected, and what a browser then reported of its collapsed range could replace the Model's selection. A pointer press inside an element marked `data-editor-controls` (`CONTROLS_ATTRIBUTE` from `foldkit-richtext-dom/toolbar`, on the roots of `formattingToolbar`, `markToolbar`, `blockStyles`, `blockStyleMenu`, `tableToolbar`, `codeToolbar`, `slashMenuView` and `linkEditor`) no longer takes the focus from the text, so the selection stays the browser's through it. While a control reached by key, or another field, has the focus, the editor reports no selection, draws its range selection as a `selection` decoration (`SELECTION_DECORATION`, `span[data-decoration="selection"]`, for the application's stylesheet to paint), and gives it back to the browser when a key or `focus` returns to the text. A pointer press on a toolbar control therefore no longer focuses it, and the tab stop does not follow a press.
+- `foldkit-richtext-dom`: the caret reveal threw where nothing is laid out (jsdom has no `Range.getClientRects` and no `visualViewport`), which failed fourteen of the package's unit tests and would fail an application's own test that edits through the editor there.
+- `foldkit-mixins-builder`: the selected node's commands could not be pressed with a pointer: the handle takes none, and the menu inherited that, so a click or a tap went through it to the page (the tests clicked by script). The menu takes the pointer.
+- `foldkit-mixins-builder`: an application's `display` on `nodeMenu` overrode the browser's hiding of a closed popover, so every selected node's commands stood open over the page. A closed menu is hidden by an important rule in `components`, whatever the look sets.
+- `foldkit-richtext-dom`: the editor did not scroll the caret into view as the document grew, since it sets the selection itself and `setBaseAndExtent` does not scroll: on a short screen, Enter and typing left the caret's line below the window. After the person's own edit, undo or redo, or a caret the editor moved itself, the selection's focus end is scrolled into view by the least amount, in the scrolling boxes around the editor and the window, instantly, honouring `scroll-padding` for a sticky bar. Another person's edit, a decoration refresh and a control holding the focus scroll nothing.
+- `foldkit-richtext-dom`: a content redraw (another person's edit, an undo from a toolbar) restored the editor's selection while focus was on a control beside it, which pulled the focus into the text. The editor now owns the selection only while the focus is not on another control, one rule for content and decoration redraws.
+- `foldkit-mixins-data-grid`: on a touch screen the header's funnel and menu buttons were 24px high. Each now reaches
+  the touch floor across the row (a pseudo-element, so the header keeps its height) and the funnel 12px into
+  its label's side; the menu button keeps its width, since the column's resize handle covers the edge beside it.
+- `foldkit-primitives`: `Press.events` no longer drops the end of a press that began while the element
+  was enabled. An `aria-disabled` element refuses new presses, but its release or key up arrives as a
+  cancel (`PointerCancelled`, new `KeyCancelled`), so a stepper that disables itself at its bound while
+  held does not leave `Repeat` held and ignoring every later press.
+- `foldkit-richtext-dom`: a decoration refresh (`overlay`, `redecorateEditor`) put the editor's selection
+  back even while focus was on a control beside it, which pulled the focus into the text a moment after
+  the user tabbed to a toolbar button. It restores the selection only while the editor holds the focus.
+- `foldkit-mixins-data-grid`: a mouse click on a column's filter funnel left its form open for about 25 ms.
+  Foldkit's Vite plugin brands each node with the function that returned it and the differ replaces a node
+  whose brand changed; the funnel (and the column menu's button) came from one arrow while the form was shut
+  and another while open, so the press that opened it replaced the focused button, and the header's
+  focus-leave handler took that for leaving and closed the form. Each button is now returned from the same
+  arrow either way. An installed package is not branded, so the fault showed in workspace builds.
+- `foldkit-mixins-builder`: a drop lands where the pointer let go. It landed where the last move had been
+  over, so a list scrolled under a still pointer dropped a row away.
+- `foldkit-primitives`: an edge-scrolling drag no longer throws where the document has no `scrollingElement` (jsdom).
+- `foldkit-mixins-ui`: `Sheet.close` on a closed Sheet, and `Dialog.update` given a
+  `RequestedClose` while the dialog is not open, return the Model they were given instead of an
+  equal copy that rendered the page. `Dialog.close` is new: `@foldkit/ui`'s `close` through that
+  guard.
+- `foldkit-mixins-ui`: `Command.view`'s keys continue from the highlight the drawing's
+  previous key reached, so ArrowDown, PageDown and the like pressed before the next frame
+  each count, and Enter (and an application route) reads the row the last one reached
+  instead of the drawn one.
+- `foldkit-mixins-ui`: a filled `Input`, `Textarea`, `Select` and `Listbox` trigger show
+  their hover as a change of fill (the border is transparent in that look), and a filled
+  `Select` shows its invalid edge.
+- `foldkit-mixins-ui`: a pressed `Button` of the `primary` variant rests on its deeper fill,
+  so a toggle reads as pressed.
+- `foldkit-mixins-ui`: a disabled `Segmented` option is dimmed, and a disabled `NumberField`
+  no longer changes its border under the pointer.
+- `foldkit-mixins-ui`: `Combobox` keys typed before the next frame continue from the option
+  the previous key reached, so none is lost and Enter chooses the option last reached.
+- `foldkit-mixins-ui`: with two `FloatingPanel`s drawn side by side, closing the first left focus on the second: the closed panel draws nothing, so the second panel's view took over its element, holding focus, and focus stayed in it. The panel's root is keyed by its `id`, so `FloatingPanel.focusReturn` gives focus back to what opened the closed panel, and a panel closed from elsewhere leaves focus where the reader put it.
+
 - `foldkit-primitives`: modal layers drawn as siblings, as portaled dialogs
   are, stack. `FocusScope` and `HideOutside` share a stack of open layers whose
   topmost owns containment: a scope with a layer open above it no longer pulls
@@ -936,6 +1195,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 - `foldkit-primitives`: Escape during a `Move` drag ends it as not completed, and goes no
   further (#558).
+- `foldkit-mixins-ui`: `WindowList.reveal` stops when the list it began in is replaced. A reveal still scrolling when a page was remounted with a list of the same id scrolled the new list away from its first rows.
 
 ## 0.40.0
 

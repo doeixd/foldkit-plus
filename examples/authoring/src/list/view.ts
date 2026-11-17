@@ -61,8 +61,16 @@ export const Recovers = FocusRecovery.behavior(List)({
   parts: {
     // A keyed move takes the row out and back, and the browser drops its focus.
     grip: ['same'],
-    dismiss: ['next', 'previous', { part: 'add' }],
+    // A child's own parent row comes first; a row with none goes straight to its neighbours.
+    dismiss: ['parent', 'next', 'previous', { part: 'add' }],
+    // Named so the step above can land on it; the Add button itself needs no recovery.
+    add: [],
   },
+  parent: (model, item) =>
+    Option.flatMap(
+      Option.fromUndefinedOr(model.items.find(each => each.id === item.id)),
+      each => each.parent,
+    ),
 })
 
 export const EditorKeys = Keys.behavior(List)({
@@ -96,6 +104,7 @@ export const ListStyle = Style.forSlots(ListSlots)(
         transitionProperty: 'opacity',
         transitionDuration: `calc(${t.motion.fast} * ${t.knob.travel})`,
       }),
+      Style.pseudo('[data-level]', { paddingInlineStart: t.space.lg }),
       Style.pseudo('[data-presence="hiding"]', { opacity: '0' }),
       Style.pseudo('[data-reorder-over="before"]', {
         boxShadow: `inset 0 2px 0 ${t.outline.focus}`,
@@ -131,13 +140,22 @@ export const EditableList = List.define((model, slots, h) =>
       model.items.map((item, index) => {
         const editing = Option.exists(model.editing, id => id === item.id)
         return h.li(
-          slots.row.attrs([h.Key(item.id)], { index, id: item.id }),
+          slots.row.attrs(
+            [
+              h.Key(item.id),
+              ...Option.match(item.parent, {
+                onNone: () => [],
+                onSome: () => [h.DataAttribute('level', '1')],
+              }),
+            ],
+            { index, id: item.id },
+          ),
           editing
             ? [
                 h.input(
                   slots.editor.attrs(
                     [
-                      h.Id(editorId(item.id)),
+                      h.Id(editorId(model.id, item.id)),
                       h.AriaLabel(`Rename ${item.title}`),
                       h.Value(model.draft),
                       h.OnInput(text => Message.Drafted({ text })),
@@ -158,7 +176,7 @@ export const EditableList = List.define((model, slots, h) =>
                 h.button(
                   slots.edit.attrs(
                     [
-                      h.Id(editId(item.id)),
+                      h.Id(editId(model.id, item.id)),
                       h.Type('button'),
                       h.AriaLabel(`Edit ${item.title}`),
                       h.OnClick(Message.StartedEdit({ id: item.id })),

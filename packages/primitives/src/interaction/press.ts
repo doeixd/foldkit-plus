@@ -7,7 +7,7 @@
  * by a clock read in a handler. Activation is an OutMessage, `Pressed`, so
  * the placement must say what a press does.
  */
-import { Effect, Queue, Schema, Stream } from 'effect'
+import { Effect, Option, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import type * as Update from 'foldkit/update'
@@ -17,6 +17,15 @@ import { BundleBehavior } from './bundle-behavior.js'
 
 export const PointerType = Schema.Literals(['mouse', 'touch', 'pen', 'keyboard', 'virtual'])
 export type PointerType = typeof PointerType.Type
+
+/** The keys held when a press completed, as the pointer, key or click event reported them. */
+export const Modifiers = Schema.Struct({
+  shiftKey: Schema.Boolean,
+  ctrlKey: Schema.Boolean,
+  metaKey: Schema.Boolean,
+  altKey: Schema.Boolean,
+})
+export type Modifiers = typeof Modifiers.Type
 
 export const Model = Schema.Struct({
   /** Down and not yet released or cancelled. For styling. */
@@ -33,20 +42,22 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   PointerDown: { pointerId: Schema.Number, button: Schema.Number, pointerType: Schema.String },
-  PointerUp: { pointerId: Schema.Number, pointerType: Schema.String, shiftKey: Schema.Boolean },
+  PointerUp: { pointerId: Schema.Number, pointerType: Schema.String, modifiers: Modifiers },
   PointerCancelled: { pointerId: Schema.Number },
   KeyDown: { key: Schema.String, repeat: Schema.Boolean },
-  KeyUp: { key: Schema.String, shiftKey: Schema.Boolean },
+  KeyUp: { key: Schema.String, modifiers: Modifiers },
+  /** The key went up on an element that had since disabled itself: the press ends, and activates nothing. */
+  KeyCancelled: { key: Schema.String },
   /** `detail` is 0 for a click no pointer made: keyboard on a native control, or assistive technology. */
-  Clicked: { detail: Schema.Number, shiftKey: Schema.Boolean },
+  Clicked: { detail: Schema.Number, modifiers: Modifiers },
   Unsuppressed: { generation: Schema.Number },
 })
 export type Message = typeof Message.Type
 
 export const Pressed = Schema.TaggedStruct('Pressed', {
   pointerType: PointerType,
-  /** Shift was held, for a range selection. */
-  shiftKey: Schema.Boolean,
+  /** Shift, Ctrl, Meta and Alt as the completing event reported them: a range or a toggle reads them. */
+  modifiers: Modifiers,
 })
 export type Pressed = typeof Pressed.Type
 
@@ -81,7 +92,7 @@ export const bundle = Bundle.make('Press', {
         button !== 0 || model.pointerId !== null
           ? { model }
           : { model: { ...model, pressed: true, pointerId } },
-      PointerUp: ({ pointerId, pointerType, shiftKey }) => {
+      PointerUp: ({ pointerId, pointerType, modifiers }) => {
         if (model.pointerId !== pointerId) return { model }
         const generation = model.generation + 1
         return {
@@ -96,7 +107,7 @@ export const bundle = Bundle.make('Press', {
               ),
             },
           ],
-          outMessage: Pressed.make({ pointerType: asPointerType(pointerType), shiftKey }),
+          outMessage: Pressed.make({ pointerType: asPointerType(pointerType), modifiers }),
         }
       },
       PointerCancelled: ({ pointerId }) =>
@@ -105,16 +116,17 @@ export const bundle = Bundle.make('Press', {
         !isActivationKey(key) || repeat || model.key !== null || model.pointerId !== null
           ? { model }
           : { model: { ...model, pressed: true, key } },
-      KeyUp: ({ key, shiftKey }) =>
+      KeyUp: ({ key, modifiers }) =>
         model.key === key
-          ? { model: idle(model), outMessage: Pressed.make({ pointerType: 'keyboard', shiftKey }) }
+          ? { model: idle(model), outMessage: Pressed.make({ pointerType: 'keyboard', modifiers }) }
           : { model },
-      Clicked: ({ detail, shiftKey }) =>
+      KeyCancelled: ({ key }) => (model.key === key ? { model: idle(model) } : { model }),
+      Clicked: ({ detail, modifiers }) =>
         detail === 0
-          ? { model, outMessage: Pressed.make({ pointerType: 'virtual', shiftKey }) }
+          ? { model, outMessage: Pressed.make({ pointerType: 'virtual', modifiers }) }
           : model.suppressing !== null
             ? { model }
-            : { model, outMessage: Pressed.make({ pointerType: 'mouse', shiftKey }) },
+            : { model, outMessage: Pressed.make({ pointerType: 'mouse', modifiers }) },
       Unsuppressed: ({ generation }) =>
         model.suppressing === generation ? { model: { ...model, suppressing: null } } : { model },
     }),
@@ -124,7 +136,17 @@ type PointerLike = Event & {
   readonly pointerId?: number
   readonly button?: number
   readonly pointerType?: string
-  readonly shiftKey?: boolean
+}
+
+/** A test's plain `Event` carries none of these, so each reads as not held. */
+const modifiersOf = (event: Event): Modifiers => {
+  const held = event as Partial<Modifiers>
+  return {
+    shiftKey: held.shiftKey ?? false,
+    ctrlKey: held.ctrlKey ?? false,
+    metaKey: held.metaKey ?? false,
+    altKey: held.altKey ?? false,
+  }
 }
 
 /** What the element reports; `Unsuppressed` comes from the timer, not the DOM. */
@@ -134,8 +156,11 @@ export type Fact = Exclude<Message, { readonly _tag: 'Unsuppressed' }>
  * The element's press-relevant events as facts. Enter and Space key downs
  * are default-prevented so a native control does not also click, and Space
  * does not scroll; the Bundle owns activation. An element marked
- * `aria-disabled="true"` (which the Behavior writes) reports nothing, read
- * at event time so a toggle needs no remount. Nothing else is decided here.
+ * `aria-disabled="true"` (which the Behavior writes) refuses new presses, read
+ * at event time so a toggle needs no remount. A press that began while it was
+ * enabled still ends: a release or a key up after it disabled is reported as a
+ * cancel, so a stepper that disables itself at its bound mid-hold is not left
+ * held. Nothing else is decided here.
  */
 export const events = Mount.defineStream('PressEvents', {
   messages: [
@@ -144,24 +169,35 @@ export const events = Mount.defineStream('PressEvents', {
     Message.PointerCancelled,
     Message.KeyDown,
     Message.KeyUp,
+    Message.KeyCancelled,
     Message.Clicked,
   ],
   execute: ({ element }) =>
     Stream.callback<Fact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
-          const offer = (message: Fact) => {
-            if (element.getAttribute('aria-disabled') === 'true') return
-            Queue.offerUnsafe(queue, message)
+          const isDisabled = () => element.getAttribute('aria-disabled') === 'true'
+          const offer = (message: Fact) => Queue.offerUnsafe(queue, message)
+          // What began while enabled, which is what disabling must not strand.
+          let began: Option.Option<number> = Option.none()
+          let beganKey: Option.Option<string> = Option.none()
+          const pointerEnds = (id: number, whenEnabled: Fact) => {
+            const ending = Option.contains(began, id)
+            if (ending) began = Option.none()
+            if (ending && isDisabled()) offer(Message.PointerCancelled({ pointerId: id }))
+            else if (!isDisabled()) offer(whenEnabled)
           }
           const listeners: ReadonlyArray<readonly [string, (event: Event) => void]> = [
             [
               'pointerdown',
               event => {
+                if (isDisabled()) return
                 const pointer = event as PointerLike
+                const pointerId = pointer.pointerId ?? 0
+                began = Option.some(pointerId)
                 offer(
                   Message.PointerDown({
-                    pointerId: pointer.pointerId ?? 0,
+                    pointerId,
                     button: pointer.button ?? 0,
                     pointerType: pointer.pointerType ?? 'mouse',
                   }),
@@ -172,34 +208,35 @@ export const events = Mount.defineStream('PressEvents', {
               'pointerup',
               event => {
                 const pointer = event as PointerLike
-                offer(
+                const pointerId = pointer.pointerId ?? 0
+                pointerEnds(
+                  pointerId,
                   Message.PointerUp({
-                    pointerId: pointer.pointerId ?? 0,
+                    pointerId,
                     pointerType: pointer.pointerType ?? 'mouse',
-                    shiftKey: pointer.shiftKey ?? false,
+                    modifiers: modifiersOf(event),
                   }),
                 )
               },
             ],
-            [
-              'pointerleave',
-              event =>
-                offer(
-                  Message.PointerCancelled({ pointerId: (event as PointerLike).pointerId ?? 0 }),
-                ),
-            ],
-            [
-              'pointercancel',
-              event =>
-                offer(
-                  Message.PointerCancelled({ pointerId: (event as PointerLike).pointerId ?? 0 }),
-                ),
-            ],
+            ...['pointerleave', 'pointercancel'].map(
+              (type): readonly [string, (event: Event) => void] => [
+                type,
+                event => {
+                  const pointerId = (event as PointerLike).pointerId ?? 0
+                  pointerEnds(pointerId, Message.PointerCancelled({ pointerId }))
+                },
+              ],
+            ),
             [
               'keydown',
               event => {
                 const key = event as KeyboardEvent
                 if (isActivationKey(key.key)) key.preventDefault()
+                if (isDisabled()) return
+                if (isActivationKey(key.key) && !key.repeat && Option.isNone(beganKey)) {
+                  beganKey = Option.some(key.key)
+                }
                 offer(Message.KeyDown({ key: key.key, repeat: key.repeat }))
               },
             ],
@@ -207,16 +244,19 @@ export const events = Mount.defineStream('PressEvents', {
               'keyup',
               event => {
                 const key = event as KeyboardEvent
-                offer(Message.KeyUp({ key: key.key, shiftKey: key.shiftKey }))
+                const ending = Option.contains(beganKey, key.key)
+                if (ending) beganKey = Option.none()
+                if (ending && isDisabled()) offer(Message.KeyCancelled({ key: key.key }))
+                else if (!isDisabled())
+                  offer(Message.KeyUp({ key: key.key, modifiers: modifiersOf(event) }))
               },
             ],
             [
               'click',
               event => {
+                if (isDisabled()) return
                 const click = event as MouseEvent
-                offer(
-                  Message.Clicked({ detail: click.detail ?? 0, shiftKey: click.shiftKey ?? false }),
-                )
+                offer(Message.Clicked({ detail: click.detail ?? 0, modifiers: modifiersOf(event) }))
               },
             ],
           ]

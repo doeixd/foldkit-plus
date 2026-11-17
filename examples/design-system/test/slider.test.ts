@@ -6,10 +6,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
-import { initModel, Message, Model, update, view } from '../src/main.js'
-
-const modelForTests = initModel({ year: 2026, month: 10, day: 8 })
-import { subscriptions } from '../src/subscriptions.js'
+import { initModel, Message, Model, update, view } from '../src/sections/choice.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -28,10 +25,9 @@ const mount = (): { readonly dispose: () => void } => {
 
   const program = Runtime.makeElement({
     Model,
-    init: () => ({ model: modelForTests }),
+    init: () => ({ model: initModel() }),
     update,
-    view: (model: Model, h: HtmlBuilder<Message>) => view(model, h).body,
-    subscriptions,
+    view: (model: Model, h: HtmlBuilder<Message>) => view(model, h),
     container,
   })
   const handle = Runtime.embed(program)

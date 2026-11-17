@@ -39,7 +39,7 @@ export default [
     edits: [
       {
         file: knobs,
-        find: "variable: 'accent-l',\n        default: 55,",
+        find: "variable: 'accent-l',\n        default: 54,",
         replace: "variable: 'accent-l',\n        default: 63,",
       },
     ],

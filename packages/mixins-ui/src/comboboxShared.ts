@@ -211,13 +211,27 @@ export const computeRender = (
     isDisabledAtIndex,
   )(items.length - 1, -1)
 
-  const resolveActiveIndex = keyToIndex(
-    'ArrowDown',
-    'ArrowUp',
-    items.length,
-    Option.getOrElse(maybeActiveItemIndex, () => -1),
-    isDisabledAtIndex,
-  )
+  // Keys come faster than frames, and this closure is the last drawn view's:
+  // each press continues from where the previous one of this drawing left the
+  // active option, since the Model's index reaches the next drawing only.
+  let pressed = { isOpen, activeIndex: maybeActiveItemIndex }
+
+  const resolveActiveIndex = (key: 'ArrowDown' | 'ArrowUp'): number => {
+    const targetIndex = keyToIndex(
+      'ArrowDown',
+      'ArrowUp',
+      items.length,
+      Option.getOrElse(pressed.activeIndex, () => -1),
+      isDisabledAtIndex,
+    )(key)
+    pressed = { isOpen: true, activeIndex: Option.some(targetIndex) }
+    return targetIndex
+  }
+
+  const opened = (index: number): Option.Option<Message> => {
+    pressed = { isOpen: true, activeIndex: Option.some(index) }
+    return Option.some(Message.Opened({ maybeActiveItemIndex: Option.some(index) }))
+  }
 
   const resolveImmediateSelection = (targetIndex: number): Option.Option<{ item: string }> => {
     if (isReadOnly) {
@@ -233,15 +247,17 @@ export const computeRender = (
     }
   }
 
-  const maybeValidActiveItemIndex = Option.flatMap(maybeActiveItemIndex, index =>
-    Option.as(Array.get(items, index), index),
-  )
+  const validIndex = (maybeIndex: Option.Option<number>) =>
+    Option.flatMap(maybeIndex, index => Option.as(Array.get(items, index), index))
+
+  const maybeValidActiveItemIndex = validIndex(maybeActiveItemIndex)
 
   const resolveCommitMessage = (): Option.Option<Message> => {
+    const maybeCommitIndex = validIndex(pressed.activeIndex)
     if (isReadOnly) {
-      return Option.as(maybeValidActiveItemIndex, Message.SuppressedItemCommit())
+      return Option.as(maybeCommitIndex, Message.SuppressedItemCommit())
     } else {
-      return Option.map(maybeValidActiveItemIndex, index => Message.RequestedItemClick({ index }))
+      return Option.map(maybeCommitIndex, index => Message.RequestedItemClick({ index }))
     }
   }
 
@@ -252,13 +268,7 @@ export const computeRender = (
           return Option.some(Message.SuppressedEmptyItemNavigation())
         }
 
-        if (!isOpen) {
-          return Option.some(
-            Message.Opened({
-              maybeActiveItemIndex: Option.some(firstEnabledIndex),
-            }),
-          )
-        }
+        if (!pressed.isOpen) return opened(firstEnabledIndex)
         const targetIndex = resolveActiveIndex('ArrowDown')
         return Option.some(
           Message.ActivatedItem({
@@ -273,13 +283,7 @@ export const computeRender = (
           return Option.some(Message.SuppressedEmptyItemNavigation())
         }
 
-        if (!isOpen) {
-          return Option.some(
-            Message.Opened({
-              maybeActiveItemIndex: Option.some(lastEnabledIndex),
-            }),
-          )
-        }
+        if (!pressed.isOpen) return opened(lastEnabledIndex)
         const targetIndex = resolveActiveIndex('ArrowUp')
         return Option.some(
           Message.ActivatedItem({
@@ -290,15 +294,16 @@ export const computeRender = (
         )
       }),
       Match.when('Enter', () => {
-        if (!isOpen) {
+        if (!pressed.isOpen) {
           return Option.none()
         }
         return resolveCommitMessage()
       }),
       Match.when('Escape', () => {
-        if (!isOpen) {
+        if (!pressed.isOpen) {
           return Option.none()
         }
+        pressed = { isOpen: false, activeIndex: Option.none() }
         return Option.some(Message.Closed({ restingInputValue, isClearable: !isReadOnly }))
       }),
       // Home and End are the text's: the APG has an editable combobox keep them

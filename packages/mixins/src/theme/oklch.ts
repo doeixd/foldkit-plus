@@ -356,6 +356,19 @@ export const palette = define({
       `color-mix(in oklab, ${v('popup', 'ink')} 14%, transparent)`,
     ),
     'highlight-ink': share(v('accent', 'on-fill'), 'popup-bold', v('popup', 'ink')),
+    // The lit row on a plain surface (an inline list, a Sheet), where the
+    // panel's inverted ink would not read: the text's own films, or the accent.
+    'plain-highlight': share(
+      v('accent', 'default'),
+      'popup-bold',
+      `color-mix(in oklab, ${v('text', 'default')} 8%, transparent)`,
+    ),
+    'plain-press': share(
+      v('accent', 'active'),
+      'popup-bold',
+      `color-mix(in oklab, ${v('text', 'default')} 14%, transparent)`,
+    ),
+    'plain-highlight-ink': share(v('accent', 'on-fill'), 'popup-bold', v('text', 'default')),
     blur: v('knob', 'popup-blur'),
   },
   success: feedback('success', 55, 0.15, 64),

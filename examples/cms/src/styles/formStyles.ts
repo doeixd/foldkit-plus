@@ -10,6 +10,7 @@ import { FieldSlots, FormSlots, type FieldInput } from 'foldkit-mixins-form'
 import { Field, Form } from 'foldkit-mixins-form/recipes'
 import { Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
+import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
 import { app, button, field, L, serif, stateBadge, t, visuallyHidden } from './style.js'
 
@@ -82,6 +83,52 @@ export const WritingFieldStyle = Style.forSlots(FieldSlots)(
         }),
       ),
       onKey(['cover'], Style.self({ order: '5' })),
+    ),
+    // The body's rich-text editor, written on as the page reads: the site's own prose
+    // (`siteStyle`'s `body`), so what is written is what is read.
+    control: onKey(
+      ['body'],
+      Style.compose(
+        L.in('components', Prose.style({ measure: 'none', leading: '1.75' })),
+        Style.self({
+          color: t.text.default,
+          fontFamily: serif,
+          fontSize: '1.2rem',
+          minBlockSize: '55vh',
+        }),
+        Style.nest('[contenteditable]', { minBlockSize: '55vh', outline: 'none' }),
+        // The editor's own selection, drawn while a tool of the bar has the focus: a tint of the
+        // accent over the text's own ink, so it reads in the light and the dark scheme.
+        Style.nest('[data-decoration="selection"]', {
+          background: `color-mix(in oklab, ${t.accent.default} 30%, transparent)`,
+        }),
+        // The blocks are the editable's children, a level below where the prose piece spaces them.
+        Style.nest('[contenteditable] > * + *', { marginBlockStart: '1em' }),
+        Style.nest('[contenteditable] > h2', { marginBlockStart: '1.6em' }),
+        Style.nest('h2', { color: t.text.overt, fontSize: '1.35rem', letterSpacing: '-0.01em' }),
+        Style.nest(':not(pre) > code', {
+          background: t.surface.muted,
+          borderRadius: t.radius.sm,
+          fontFamily: t.font.mono,
+          fontSize: '0.8em',
+          padding: '0.1em 0.3em',
+        }),
+        Style.nest('pre', {
+          background: t.surface.muted,
+          border: `1px solid ${t.outline.subtle}`,
+          borderRadius: t.radius.md,
+          fontFamily: t.font.mono,
+          fontSize: '0.95rem',
+          padding: `${t.space.sm} ${t.space.md}`,
+        }),
+        // A blank document says what to write, where the placeholder option marks its block.
+        Style.nest('[data-placeholder]::before', {
+          color: t.text.muted,
+          content: 'attr(data-placeholder)',
+          pointerEvents: 'none',
+          position: 'absolute',
+        }),
+      ),
     ),
     // An address's `/` inside the field, as one box: the recipe's pieces, as
     // tall as a text field beside it.

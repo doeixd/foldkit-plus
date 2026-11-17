@@ -94,17 +94,28 @@ export const Board = App.surface('Board', {
     Message.FilterSelected,
     Message.ToggledTodo,
     Message.PrioritySet,
-    Message.DeletedTodo,
+    Message.DeleteRequested,
     Message.EditingStarted,
     Message.EditDraftChanged,
     Message.EditingCommitted,
+    Message.EditingSubmitted,
     Message.EditingStopped,
   ],
 })
 
 export const Footer = App.surface('Footer', {
-  model: ({ model }) => ({ todos: model.todos, lastError: model.lastError }),
-  messages: [Message.ClearedCompleted],
+  model: ({ model }) => ({ todos: model.todos, lastError: model.lastError, undo: model.undo }),
+  messages: [Message.ClearedCompleted, Message.UndoRequested],
+})
+
+/** The connection strip: where the replica stands against the server, and the sandbox's switch. */
+export const Connection = App.surface('Connection', {
+  model: ({ model }) => ({
+    offline: model.offline,
+    pending: model.pending,
+    syncFailed: model.syncFailed,
+  }),
+  messages: [Message.OfflineSet],
 })
 
 /**

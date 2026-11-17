@@ -23,6 +23,11 @@
         font-size: 1rem;
         margin: 0 0 0.75rem;
       }
+      /* A section not yet loaded still takes room, so those far down stay unloaded. */
+      .row > div:empty {
+        min-height: 14rem;
+        flex-basis: 100%;
+      }
       .row {
         display: flex;
         flex-wrap: wrap;
@@ -35,7 +40,9 @@
     <h1>Authoring a UI from primitives</h1>
     <p>
       Each section is assembled from primitives in this repository, with no widget from a library: a
-      search field, an editable list, a popup, a sortable listbox and an editor an agent can save.
+      search field, an editable list, a popup, a sortable listbox, an editor an agent can save, and
+      the newer primitives: inline edit, spatial navigation, a box, repeat, swipe actions, a grid
+      and hotkeys.
     </p>
     <main id="sections"></main>
     <script type="module" src="/src/entry.ts"></script>

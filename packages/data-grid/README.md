@@ -199,6 +199,15 @@ const shown = VirtualGrid.window({
 - **`VirtualGrid.reveal(options)`** is the least scroll that shows a cell,
   as `{ top, left }`, or none when it is already in view. A pinned column
   never scrolls, so only its row is brought in.
+- **The grid's `reveal` helper** asks for that scroll from outside the view,
+  as a "go to row" control does: `Placed.helpers.reveal(rows, { row, column,
+  rowHeight, headerHeight })` is a Step of the application, folded in its own
+  `update` like any helper (`Bundle.helpersOf(Grid.bundle).reveal(model.grid,
+  rows, target)` on the grid's Model alone). `row` counts from zero in `rows`
+  as they are now; `column` is optional, and without it the sideways scroll
+  stays where it is. It moves no focus, and does nothing for a row in view
+  or one that `rows` does not have. `rowHeight` and `headerHeight` are the
+  ones the view is given.
 - **`GridViewport.bundle`** holds `{ top, left, width, height }`.
   `GridViewport.Measure` is a Mount for the scroll container: it reports the
   geometry when it mounts and on every scroll and resize. Readings that are
@@ -293,6 +302,9 @@ GridSelection.isSelected(picked.selection.rows)('p1') // true
   `GridSelection.boxOf(projection, range)` is what it covers now. A plain
   click or key (`Focused`, `Moved`) lets it go: one focused cell is the
   default selection. `GridSelection.extend` is the range a Shift key makes.
+  `Grid.rangeSize(rows, model.grid)` is `Some({ rows, columns, cells })` for
+  the range the Model holds now (hidden columns left out), or none with no
+  range or a corner no longer shown: what a status line counts.
 - **`GridSelection.isSelected(selection)`** indexes a selection once; call it
   once per render, not per row.
 
@@ -330,8 +342,8 @@ const priced = Columns.define<Product>()({
   },
 })
 const Prices = DataGrid.make({ id: 'prices', columns: priced })
-// Edited({ row, column, text }) | Pasted({ accepted, refused }) | Filled({ source, to })
-// | UndoRequested | RedoRequested | RowsRequested({ from, to })
+// Edited({ row, column, text }) | Pasted({ accepted, refused }) | Copied({ rows, columns })
+// | Filled({ source, to }) | UndoRequested | RedoRequested | RowsRequested({ from, to })
 type Out = typeof Prices.Out.Type
 
 // In `onOut`: the committed text read back as its column's value, a number here.
@@ -467,6 +479,12 @@ Clipboard.toHtml([['a<b', 'x\ny']]) // '<table><tbody><tr><td>a&lt;b</td><td>x<b
   })`: one change for the application to apply, and say what it refused. A
   paste or cut that changes no cell reports nothing. A paste while a cell is
   edited is the field's.
+- **`Copied({ rows, columns })`** is what the view's copy reports once it
+  has put the text on the clipboard: the size of the box copied, so a status
+  line can say "Copied 12 cells". It carries no text and changes nothing. A
+  cut reports the cells it clears as a `Pasted` and no `Copied`; a copy while
+  a cell is edited or a filter form is open is the field's and reports
+  nothing.
 - **`UndoRequested` and `RedoRequested`** (Ctrl or Meta with Z, with Shift or
   Ctrl+Y to redo) report `Out.UndoRequested` and `Out.RedoRequested`. They
   carry nothing: the grid keeps no history, since what an edit meant and how
@@ -693,6 +711,7 @@ const filtered = (filters: JobFilters, out: typeof JobGrid.Out.Type) =>
     Filtered: ({ change }) => JobGrid.setFilter(filters, change),
     Edited: () => filters,
     Pasted: () => filters,
+    Copied: () => filters,
     UndoRequested: () => filters,
     RedoRequested: () => filters,
     Filled: () => filters,
@@ -721,7 +740,9 @@ const shown = (all: ReadonlyArray<Job>, filters: JobFilters) =>
   variant. Each column's is typed by its spec (`FilterOf`), so
   `JobGrid.Filters.Type['status']` is `Option<OneOf<'Open' | 'Done'>>`.
 - **`Out.Filtered({ change })`** carries one column's new filter or none;
-  `setFilter` writes it in. Only a grid with a filtering column has this arm,
+  `setFilter` writes it in. `hasFilters(filters)` and `filterCount(filters)`
+  say whether any column is filtered and how many, since `Filters` is a record
+  of differently typed Options that no one `Option.isSome` reads. Only a grid with a filtering column has this arm,
   so a grid that filters nothing matches no `Filtered`.
 - **`keeps(filters, read)`** is a predicate over held rows. `read` names
   each filtering column's own field, typed by its variant, never the text a

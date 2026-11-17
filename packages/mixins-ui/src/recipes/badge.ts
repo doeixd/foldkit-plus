@@ -83,8 +83,8 @@ export const Badge = (options: BadgeOptions): { readonly badge: StyleValue } => 
       '--_fk-badge-on-fill': ref.surface.base,
       '--_fk-badge-line': ref.outline.default,
       alignItems: 'center',
-      // A pill at the default radius, rounder or squarer with the radius knob.
-      borderRadius: ref.radius.xl,
+      // A pill, squarer as the radius knob falls below 1.
+      borderRadius: ref.radius.full,
       display: 'inline-flex',
       // Its words never wrap, so it never shrinks below them: squeezed in a
       // row, a badge's text ran into the next one.

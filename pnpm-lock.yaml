@@ -31,6 +31,9 @@ importers:
       '@effect/sql-pg':
         specifier: 4.1.4
         version: 4.1.4(effect@4.1.4)
+      '@foldkit/vite-plugin':
+        specifier: 0.29.0
+        version: 0.29.0(effect@4.1.4)(foldkit@0.170.0(@effect/platform-browser@4.1.4(effect@4.1.4))(effect@4.1.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       '@iconify-json/heroicons':
         specifier: ^1.2.3
         version: 1.2.3
@@ -498,6 +501,9 @@ importers:
       foldkit-mixins-form:
         specifier: workspace:*
         version: link:../../packages/mixins-form
+      foldkit-mixins-richtext:
+        specifier: workspace:*
+        version: link:../../packages/mixins-richtext
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui
@@ -583,6 +589,12 @@ importers:
       foldkit-mixins-data-grid:
         specifier: workspace:*
         version: link:../../packages/mixins-data-grid
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../packages/mixins-ui
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../packages/primitives
     devDependencies:
       '@effect/platform-browser':
         specifier: ^4.1.4
@@ -620,6 +632,9 @@ importers:
       foldkit-mixins-ui:
         specifier: workspace:*
         version: link:../../packages/mixins-ui
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../packages/primitives
     devDependencies:
       '@foldkit/vite-plugin':
         specifier: 0.29.0
@@ -706,6 +721,9 @@ importers:
       foldkit-surface:
         specifier: workspace:*
         version: link:../../packages/surface
+      sql.js:
+        specifier: 1.15.1
+        version: 1.15.1
     devDependencies:
       '@effect/platform-browser':
         specifier: ^4.1.4
@@ -713,6 +731,9 @@ importers:
       '@foldkit/vite-plugin':
         specifier: 0.29.0
         version: 0.29.0(effect@4.1.4)(foldkit@0.170.0(@effect/platform-browser@4.1.4(effect@4.1.4))(effect@4.1.4))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@types/sql.js':
+        specifier: 1.4.11
+        version: 1.4.11
       effect:
         specifier: 4.1.4
         version: 4.1.4

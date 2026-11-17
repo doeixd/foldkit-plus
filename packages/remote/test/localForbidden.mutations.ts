@@ -76,7 +76,7 @@ export default [
   edit(
     "may's relation refusal is not read",
     may,
-    'Object.hasOwn(value.relations, relation) && !value.relations[relation]![interaction],',
+    'refusesLink(value, relation, interaction),',
     'false,',
     [guard],
   ),

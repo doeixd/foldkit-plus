@@ -12,7 +12,7 @@ import { Entity, Expr } from 'foldkit-entity'
 import { Guards } from 'foldkit-guard'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { Form } from 'foldkit-form'
-import { Mutation } from 'foldkit-remote'
+import { Diagnostics, Mutation } from 'foldkit-remote'
 import { DrizzleDatabase, bind, databaseLayer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -133,6 +133,7 @@ const open = () => {
     mutations: [...cms.mutations],
   })
   const layer = databaseLayer(drizzle({ client: sqlite }))
+  const collected = Diagnostics.collect()
   let requests = 0
   const as = (principal: Principal) => {
     const handlers = RemoteServer.handlers(server, principal)
@@ -140,7 +141,10 @@ const open = () => {
       Effect.runPromise(
         handlers
           .FoldkitRemoteMutate({ requestId: `r${++requests}`, mutation, input })
-          .pipe(Effect.provide(layer)),
+          .pipe(
+            Effect.provide(layer),
+            Effect.provideService(Diagnostics.Reporter, collected.report),
+          ),
       )
     return {
       mutate,
@@ -177,7 +181,7 @@ const open = () => {
   }
   const count = (where: string) =>
     Number((sqlite.prepare(`select count(*) as n from ${where}`).get() as { n: number }).n)
-  return { as, count }
+  return { as, count, reported: collected.reported }
 }
 
 describe('finding content by its slug', () => {
@@ -232,14 +236,25 @@ describe('publishing to a slug that is taken', () => {
   })
 
   it('does not blame the slug for another unique index', async () => {
-    const { as } = open()
+    const { as, reported } = open()
     await as(author).draft('e5', { title: 'Collides', slug: 'fresh' })
-    // A defect, not a refusal: nothing is said about the slug.
-    const failed = await as(author)
-      .mutate('CmsPublish', { entry: 'e5', basedOn: null })
-      .catch((error: unknown) => String(error))
-    expect(failed).toContain('Failed query')
-    expect(failed).not.toContain('That address is taken')
+    // A defect, not a refusal: nothing is said about the slug, or of the statement.
+    const failed = as(author).mutate('CmsPublish', { entry: 'e5', basedOn: null })
+    await expect(failed).rejects.toMatchObject({
+      message: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
+    await failed.catch(error =>
+      expect(JSON.stringify(error)).not.toMatch(/That address is taken|refusal|Failed query/),
+    )
+    // The driver's words are the report's.
+    expect(reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: 'mutate CmsPublish',
+        message: expect.stringContaining('Failed query'),
+      }),
+    )
   })
 
   it('lets a row keep its own slug', async () => {

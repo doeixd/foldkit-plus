@@ -38,6 +38,8 @@ export const RemoteJsonAnswer = Schema.Union([
     principalChanged: Schema.optional(Schema.Struct({})),
     /** The request body was larger than the server takes, `limit` bytes when it says; a 413. */
     tooLarge: Schema.optional(Schema.Struct({ limit: Schema.optional(Schema.Number) })),
+    /** The server failed on its side, and reported why under this id; a 500 whose `error` says nothing of it. */
+    incident: Schema.optional(Schema.String),
   }),
 ])
 export type RemoteJsonAnswer = typeof RemoteJsonAnswer.Type
@@ -109,24 +111,24 @@ export const json = (send: RemoteJsonSend): RemoteJsonClient => ({
       send,
       'read',
       payload,
-      failure(({ error }) => new RemoteReadError({ message: error })),
+      failure(({ error, incident }) => new RemoteReadError({ message: error, incident })),
     ),
   FoldkitRemoteQuery: payload =>
     call(
       send,
       'query',
       payload,
-      failure(({ error }) => new RemoteQueryError({ message: error })),
+      failure(({ error, incident }) => new RemoteQueryError({ message: error, incident })),
     ),
   FoldkitRemoteMutate: payload =>
     call(
       send,
       'mutate',
       payload,
-      failure(({ error, refusal, forbidden, principalChanged }) => {
+      failure(({ error, refusal, forbidden, principalChanged, incident }) => {
         if (principalChanged !== undefined) return new RemotePrincipalChanged({ message: error })
         return forbidden === undefined
-          ? new RemoteMutationError({ message: error, refusal })
+          ? new RemoteMutationError({ message: error, refusal, incident })
           : new RemoteForbidden({
               message: error,
               ...(forbidden.reason === undefined ? {} : { reason: forbidden.reason }),

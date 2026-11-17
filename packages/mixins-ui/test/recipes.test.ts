@@ -503,7 +503,7 @@ describe('Recipes', () => {
     ['*', 'currentColor calc(var(--fk-knob-state-hover) *', 'a scrollbar thumb takes the text'],
   ]
   const stateRead =
-    /--_fk-state-ink|--_fk-tone-|--fk-(?!state-)[a-z]+-(hover|active|press)\b|--fk-popup-(highlight|press)|^\s*(transparent|none|inherit)\s*$/
+    /--_fk-state-ink|--_fk-tone-|--fk-(?!state-)[a-z]+-(hover|active|press)\b|--_fk-row-(highlight|press)|--fk-popup-(plain-)?(highlight|press)|^\s*(transparent|none|inherit)\s*$/
   it.each(Object.entries(compiled))('%s draws its hovers from the state tokens', (name, sheets) => {
     const strays = new Set<string>()
     for (const css of sheets)
@@ -997,7 +997,7 @@ describe('Recipes', () => {
       Style.forSlots(BadgeSlots)({ badge: Recipes.Badge({ attribute, tones }).badge }).css
 
     it('compiles the pill, its appearances, and one rule per mapped value', () => {
-      expect(css()).toContain('border-radius:var(--fk-radius-xl)')
+      expect(css()).toContain('border-radius:var(--fk-radius-full)')
       expect(css()).toContain('[data-state="Published"]')
       expect(css()).toContain('[data-state="Changed"]')
       expect(css()).toContain('[data-state="New"]')

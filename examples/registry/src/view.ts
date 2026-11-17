@@ -18,12 +18,20 @@ import {
   GridStyle,
   MoreOnScroll,
 } from 'foldkit-mixins-data-grid'
-import { Alert, AppShell, Input } from 'foldkit-mixins-ui'
+import { Alert, AppShell, Button, Input } from 'foldkit-mixins-ui'
 import { Grid, Message, Products, exchangeOf, geometryOf, marksOf, type Model } from './app.js'
 import type { EditedColumn } from './domain.js'
 import { ProductSort } from './operations.js'
 import { ownershipPanel } from './ownership.js'
-import { GridFrame, Page, RefusedStyle, ReplacedStyle, SearchStyle, ShellStyle } from './style.js'
+import {
+  GridFrame,
+  OfflineButtonStyle,
+  Page,
+  RefusedStyle,
+  ReplacedStyle,
+  SearchStyle,
+  ShellStyle,
+} from './style.js'
 
 const Registry = DataGridView<Message>().define(Grid).pipe(
   Style.attach(GridStyle),
@@ -105,24 +113,24 @@ export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleMani
           },
           h,
         ),
-        h.label(slots.offline.attrs(), [
-          h.input(
-            slots.box.attrs([
-              h.Type('checkbox'),
-              h.Checked(model.offline),
-              h.OnChange(() => Message.OfflineToggled()),
-            ]),
-          ),
-          'Work offline',
-        ]),
       ]),
     ]),
+    // What a copy took, said where a screen reader hears it.
+    h.p(
+      slots.counts.attrs([h.Id('copied'), h.Role('status')]),
+      Option.match(model.copied, {
+        onNone: () => [],
+        onSome: ({ rows, columns }) => [
+          `Copied ${rows.toLocaleString()} ${rows === 1 ? 'row' : 'rows'} by ${columns.toLocaleString()} ${columns === 1 ? 'column' : 'columns'}.`,
+        ],
+      }),
+    ),
     Legend({}, h),
     ownershipPanel(manifest, model, shown, slots, h),
     // What the server refused, said once per edit with its reason; the cells
     // it had changed show the server's value again, edged in red.
     h.ul(
-      slots.notices.attrs([h.Id('refused'), h.AriaLabel('Edits not saved')]),
+      slots.notices.attrs([h.Id('refused'), h.AriaLabel('Edits not saved'), h.AriaLive('polite')]),
       refusedEdits(model).map(({ opId, cells, reason }) =>
         notice(
           h,
@@ -135,7 +143,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleMani
     ),
     // What another device's later commit replaced: last writer wins, said here.
     h.ul(
-      slots.notices.attrs([h.Id('replaced'), h.AriaLabel('Edits replaced')]),
+      slots.notices.attrs([h.Id('replaced'), h.AriaLabel('Edits replaced'), h.AriaLive('polite')]),
       model.replaced.map(({ id, column, by, was }) =>
         notice(
           h,
@@ -151,7 +159,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleMani
     ),
     // What an undo or a redo left alone: a cell changed since is not overwritten.
     h.ul(
-      slots.notices.attrs([h.Id('held-back'), h.AriaLabel('Cells left alone')]),
+      slots.notices.attrs([
+        h.Id('held-back'),
+        h.AriaLabel('Cells left alone'),
+        h.AriaLive('polite'),
+      ]),
       Option.match(model.heldBack, {
         onNone: () => [],
         onSome: ({ by, cells }) => [
@@ -188,7 +200,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleMani
     {
       title: 'Products',
       style: ShellStyle,
-      // Always in the page, so a change is announced; a pill only when it says something.
+      // Always in the page, so a change is announced. The words say the state,
+      // so the dot's colour is not the only sign.
       status: [
         h.p(
           slots.exchange.attrs([
@@ -196,7 +209,27 @@ export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleMani
             h.Role('status'),
             h.DataAttribute('waiting', String(waiting)),
           ]),
-          [exchangeOf(model)],
+          [
+            h.span(
+              slots.dot.attrs([
+                h.AriaHidden(true),
+                h.DataAttribute('link', model.offline ? 'offline' : 'online'),
+              ]),
+              [],
+            ),
+            exchangeOf(model),
+          ],
+        ),
+      ],
+      // The device's network, in its own hand: cut it, and edits wait here.
+      actions: [
+        Button.view(
+          {
+            label: model.offline ? 'Go online' : 'Go offline',
+            style: OfflineButtonStyle,
+            onClick: Message.OfflineToggled(),
+          },
+          h,
         ),
       ],
     },

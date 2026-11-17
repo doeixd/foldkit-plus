@@ -105,4 +105,9 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the application’s routes are dropped',
+    edits: [{ file, find: ', ...(options.routes ?? [])]', replace: ']' }],
+    tests,
+  },
 ]

@@ -34,7 +34,8 @@ import {
   Tooltip,
 } from 'foldkit-mixins-ui'
 
-import { showcaseOf, type Selection } from '../gallery/showcases.js'
+import { showcaseOf } from '../gallery/showcases.js'
+import type { Selection } from '../gallery/showcase.js'
 import * as Specimens from '../gallery/specimens.js'
 import {
   Canvas,

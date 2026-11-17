@@ -18,7 +18,7 @@ import type { SliderSlots } from './slider.js'
 /**
  * A color picker after ReUI's: a 2D `area` of saturation (across) and
  * brightness (up) at the color's hue, hue and alpha sliders (two Sliders of
- * this package), an eyedropper where the browser has one, the color as text
+ * this package), an eyedropper when the application asks for one, the color as text
  * in a chosen format (hex, rgb, hsl or oklch) that the user can type into,
  * and `presets`, a radio group of swatches. `popover` draws it in the
  * package's Popover, opened by a swatch of the color.
@@ -399,7 +399,12 @@ const areaStep = (key: string, shift: boolean): { readonly s: number; readonly v
   }
 }
 
-/** Whether the eyedropper is there to open; false off a browser and where it is unsupported. */
+/**
+ * Whether this runtime has an eyedropper to open; false off a browser and where it is
+ * unsupported. The view never calls it, since a server and a browser would then draw
+ * different markup: the application reads it where it learns its environment and passes
+ * the answer as `eyedropper`.
+ */
 export const canEyedrop = (): boolean =>
   typeof globalThis === 'object' && 'EyeDropper' in globalThis
 
@@ -549,7 +554,10 @@ export interface ColorPickerView<Message> {
   readonly presets?: ReadonlyArray<ColorPickerPreset> | undefined
   /** Default `true`; without it the color is opaque and its slider is not drawn. */
   readonly alpha?: boolean | undefined
-  /** Draws the eyedropper; default whether the browser has one (`canEyedrop`). */
+  /**
+   * Draws the eyedropper button; default `false`, on a server and in a browser alike. The view
+   * reads no environment, so the application decides from its Model (see `canEyedrop`).
+   */
   readonly eyedropper?: boolean | undefined
   readonly labels?: Partial<ColorPickerLabels> | undefined
   readonly disabled?: boolean | undefined
@@ -602,7 +610,7 @@ const drawn = <Outer>(
   const labelId = `${model.id}-label`
   const presets = options.presets ?? []
   const withAlpha = options.alpha !== false
-  const eyedropper = options.eyedropper ?? canEyedrop()
+  const eyedropper = options.eyedropper === true
   const shown = Option.getOrElse(model.draft, () => format(current, model.format))
 
   const channel = (key: 'hue' | 'alpha', slider: Html) =>

@@ -1,23 +1,15 @@
 # foldkit-entity
 
-A domain declared once as typed values: each entity's intrinsic fields, its
-relations to other entities, and the derived values consumers may read; and,
-over that, a small language for saying which rows (`Expr`, `Query`), what a
-write does to one (`Write`), and what every stored row must hold
-(invariants). Other packages interpret these declarations; this one only
-describes, and gives the reference meaning of the language over rows already
-in hand.
+A domain declared once as typed values, which other packages interpret: each
+Entity's fields, relations and derived members, and over them a small language
+for which rows (`Expr`, `Query`), what a write does to one (`Write`), and what
+every stored row must hold (invariants). This package only describes, and
+gives the language its reference meaning over rows already in hand.
 
-> **Who reads it.** `foldkit-remote`
-> [registers Entities and reads Selections and query bodies](../remote/README.md#entities-declared-with-foldkit-entity),
-> and judges the rows it holds by them. `foldkit-remote-drizzle` binds a related
-> set to tables with
-> [`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain) and
-> compiles bodies, writes and invariants to SQL. [`foldkit-form`](../form/README.md)
-> builds a form from `Entity.input`, [`foldkit-crud`](../crud/README.md) joins
-> one to a Remote operation, and `foldkit-guard` writes its rules as `Expr`.
-
-For the whole path in one runnable trace, domain to client to SQL, see
+New to the idea of one declared domain? Start with the guide,
+[One domain declaration](../../docs/entity.md), which carries a small domain
+through every reader; this README is the reference for each declaration. For
+the whole path in one runnable trace, domain to client to SQL, see
 [`examples/entity`](../../examples/entity).
 
 ## What it owns
@@ -42,6 +34,15 @@ It does not own:
 - **Who may.** Authorization is `foldkit-guard`'s, written in the same `Expr`.
 - **Application state.** Nothing here touches a Model or dispatches a Message.
 
+Its readers are the neighbouring packages. `foldkit-remote`
+[registers Entities and reads Selections and query bodies](../remote/README.md#entities-declared-with-foldkit-entity),
+and judges the rows it holds by them. `foldkit-remote-drizzle` binds a related
+set to tables with
+[`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain) and
+compiles bodies, writes and invariants to SQL. [`foldkit-form`](../form/README.md)
+builds a form from `Entity.input`, [`foldkit-crud`](../crud/README.md) joins
+one to a Remote operation, and `foldkit-guard` writes its rules as `Expr`.
+
 ## Mental model
 
 ```text
@@ -62,27 +63,9 @@ interpreter ──(foldkit-metadata)──► Entity / member        attaches wh
 interpreter ◄── reads all of the above, and runs it (SQL, the client's store)
 ```
 
-An Entity has **one set of members**, and one set of invariants.
-`Entity.relate`, `Entity.derived`, `Entity.sets` and `Entity.invariant` add
-to it, and every descriptor of the Entity reads it: the one declared before
-`relate`, the one a relation's `target()` returns, the one a query captured.
-Metadata is the exception: `Entity.annotate` and `Entity.annotateMembers`
-return a new descriptor that carries its own, so one reader's view (a form's
-labels) stays its own. Compare descriptors with `Entity.same(a, b)`, not
-`a === b`.
-
-```text
-identity ── relations, derived, sets, invariants   one per Entity; relate / derived / sets / invariant add
-   ├── descriptor  fields, metadata                 define, relate, derived, sets, invariant return it
-   └── descriptor  fields, metadata'                annotate / annotateMembers make one
-```
-
-A descriptor's *type* still shows only the steps it came through: read typed
-members from the descriptor `relate` returned, or a later one.
-
-Everything here is checked where it is declared: a type error where the types
-can see it, and a throw for what they cannot. An interpreter that cannot run
-something refuses it by name rather than skipping it.
+A declaration is checked where it is made wherever it can be: a type error
+where the types can see it, a throw for what they cannot. An interpreter that
+cannot run something refuses it by name rather than skipping it.
 
 ## Install
 
@@ -114,6 +97,16 @@ unless you select it.
 Next, hand the Entity to Remote for client reads or bind it to Drizzle tables
 on the server. Declare operation input separately when adding a form: selecting
 readable fields does not grant permission to write them.
+
+## Where to go next
+
+| To | Reference, here | Taught in |
+| --- | --- | --- |
+| Declare Entities, relations and derived members, and select what a reader wants | [Relations and derived values](#relations-and-derived-values), [Selecting a view](#selecting-a-view), [variants](#rows-of-several-shapes-variants) | [One domain declaration](../../docs/entity.md) |
+| Say which rows, and judge one you hold | [`Expr`, `Query`, `Judge`](#saying-something-about-a-row-expr) | [Expressions](../../docs/expressions.md) |
+| Read an operation's input and declare what it writes | [Reading an operation's input](#reading-an-operations-input), [Declaring what an input writes](#declaring-what-an-input-writes) | [Declared writes](../../docs/declared-writes.md) |
+| Say what every row must hold, and check every write against it | [Invariants](#what-every-row-and-change-must-hold-invariants), [States and `Laws.check`](#states-of-a-row-and-what-every-write-does-to-them) | [Laws](../../docs/laws.md) |
+| Name a question an interpreter answers its own way | [Operators](#naming-a-question-operators) | [Operators](../../docs/operators.md) |
 
 ## Relations and derived values
 
@@ -189,12 +182,44 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
 - `Entity.relate` takes the entities and every relation between them, adds
   the relations to them, and returns them typed with their relations. Use the
   returned ones (`Blog.Post`) for their types; the `Post` you passed in has the
-  same relations at runtime.
+  same relations at runtime. It is one step over Entities that already
+  exist because Entities point at each other, and TypeScript cannot infer two
+  constants each typed by the other.
 - `Relation.one` / `Relation.many` state what the owner sees. `Post.author: one`
   and `Author.posts: many` together are the familiar one-to-many; neither side
   names it.
 - `target()` returns the related entity, so relations can be followed from
   there, around a cycle too.
+`Entity.relate` throws for a relation key that is already a member, an owner
+that is not in the first argument, and a target that is not in the first
+argument. The types reject the first two where they are written; a stray
+target is found when `relate` runs.
+
+### One Entity, several descriptors
+
+An Entity has **one set of members**, and one set of invariants.
+`Entity.relate`, `Entity.derived`, `Entity.sets` and `Entity.invariant` add
+to it, and every descriptor of the Entity reads it: the one declared before
+`relate`, the one a relation's `target()` returns, the one a query captured.
+Metadata is the exception: `Entity.annotate` and `Entity.annotateMembers`
+return a new descriptor that carries its own, so one reader's view (a form's
+labels) stays its own. Compare descriptors with `Entity.same(a, b)`, not
+`a === b`.
+
+```text
+identity ── relations, derived, sets, invariants   one per Entity; relate / derived / sets / invariant add
+   ├── descriptor  fields, metadata                 define, relate, derived, sets, invariant return it
+   └── descriptor  fields, metadata'                annotate / annotateMembers make one
+```
+
+A descriptor's *type* still shows only the steps it came through: read typed
+members from the descriptor `relate` returned, or a later one.
+
+### What a delete does to the rows pointing at it
+
+A `one` relation may say what happens to its row when the row it points at
+is deleted.
+
 - `Relation.one(Post, { onDelete: 'cascade' })` says a row goes when the row
   it points at is deleted: a comment with its post, a reply with the post it
   answers. It is declared on the link the row holds, as its foreign key is,
@@ -205,9 +230,10 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
   without foreign keys too.
 - `Relation.one(Topic, { onDelete: 'restrict' })` says the row it points at
   cannot be deleted while it points there: a topic with notes under it.
-  `Entity.restricting(Topic)` lists those relations, and `remote-drizzle`'s
-  writer refuses such a delete as `Refusal.referenced`, naming the relation
-  and none of the rows.
+  `Entity.restricting(Topic)` lists those relations; `remote-drizzle`'s
+  writer finds such a delete and `RemoteServer.write` refuses it as
+  `Refusal.referenced` (`foldkit-remote`), naming the relation and none of
+  the rows.
 - `Relation.one(Folder, { optional: true, onDelete: 'setNull' })` says the
   row stays and points nowhere when the row it points at is deleted: a doc
   whose folder went. Only a link that may point nowhere can say it, and the
@@ -222,18 +248,9 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
   post may take these rows with it, whoever wrote them: a post's author
   removing everyone's likes of it. `authorizedBy` is said only beside
   `onDelete: 'cascade'`, and reads back as the relation's `authorizedBy`.
-
-`Entity.relate` throws, and the types reject, a relation key that is already a
-member, an owner that is not in the first argument, and a target that is not
-in the first argument.
-
-### Why relations are declared in one step
-
-Entities point at each other: a Post has Comments and a Comment has a Post. If
-each entity declared its own relations, `Post` would be typed in terms of
-`Comment` and `Comment` in terms of `Post`, and TypeScript cannot infer two
-constants that way. Declaring the relations over entities that already exist
-avoids the cycle, and lets `relate` check every target up front.
+- A cascade may not reach an Entity whose rows are themselves pointed at
+  through a `setNull` or `restrict` relation: `RemoteServer.write` refuses
+  such a delete where the server is defined.
 
 ## Ids of their own
 
@@ -269,8 +286,8 @@ Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
 - A Selection carries its Entity's id type, so `foldkit-remote`'s
   `Data.get(PostPage, id)` takes a `PostId` and refuses an `AuthorId`, or plain
   text.
-- Nothing here is new API to opt into. An Entity with `id: Schema.String` types
-  exactly as before.
+- An Entity with `id: Schema.String` has plain `string` ids and refs: a brand
+  is opt-in.
 
 ## Selecting a view
 
@@ -325,7 +342,9 @@ const PostWithComments = Entity.select(Blog.Post, {
 // { title: string, comments: { items: { body: string }[], hasNext: boolean, hasPrevious: boolean } }
 ```
 
-The window is `first` or `last`, with `after` or `before` a cursor. A page is a
+The window is `first` with an optional `after`, or `last` with an optional
+`before`, each cursor a string and each size a non-negative integer;
+`Entity.page` throws for any other combination. A page is a
 view's shape, as neutral as "`many` means an array", so it is declared here.
 What a cursor is and how the rows are ordered belong to whoever fetches: the
 cursor is an opaque string an earlier answer handed out. Reading on is another
@@ -333,7 +352,9 @@ Selection with another window.
 
 An unknown member, a nested Selection on a field, a page of a `one` relation,
 and a Selection of the wrong
-Entity are type errors, and `Entity.select` throws for untyped callers.
+Entity are type errors, and `Entity.select` throws for untyped callers. The
+types tell Entities apart by name, so a Selection of another Entity that
+shares the name is caught only by the throw.
 
 ## Attaching metadata
 
@@ -381,24 +402,9 @@ Words.of(Schema.String.annotate({ title: 'Name' }).check(Schema.isMinLength(1)))
 ## Saying something about a row: `Expr`
 
 An Entity says what a domain has. An `Expr` says something about one row of it,
-as a value:
-
-> **Why query semantics live in this package.** They describe and interpret
-> nothing, which is the line this package already draws: an `Expr` says which
-> rows and fetches none of them, and the interpreters that *fetch* live
-> elsewhere — `foldkit-remote-drizzle` compiles a body to SQL against a
-> database.
->
-> `evaluate` is here rather than there because it is the **reference
-> semantics** of the IR: what the operator definitions mean, operationally, over
-> rows already in hand. A specification's reference implementation belongs with
-> the specification, and it reaches nothing — no database, no transport, no
-> Remote concept. The rule that keeps it honest is that **it may depend on the
-> IR and nothing else**; the moment it wants one of those it has moved to the
-> wrong place. Nothing that imports only
-> `Entity` pays for them: they are ordinary consts in a `sideEffects: false`
-> package, so a bundler drops them, and a package like `foldkit-form` imports
-> only types from here in any case.
+as a value. This section is the reference; the
+[Expressions guide](../../docs/expressions.md) teaches the language in order,
+with one body answered by SQL, by `evaluate` and by `Judge`.
 
 ```ts
 import { Schema } from 'effect'
@@ -410,9 +416,14 @@ const newestTerms = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fie
 ```
 
 Building one performs no work: it reads nothing, names no database, and runs no
-query. An interpreter compiles it — `foldkit-remote-drizzle` to SQL, an
-in-memory evaluator to a predicate over rows — which is what lets one query mean
-the same thing in more than one place.
+query. An interpreter runs it (`foldkit-remote-drizzle` compiles it to SQL,
+`evaluate` judges rows in memory), which is what lets one query mean the same
+thing in more than one place.
+
+> **Why `evaluate` lives here.** It is the reference semantics of the
+> language: what each operation means over rows already in hand. It may depend
+> on the language and nothing else (no database, no transport, no Remote
+> concept), and a page importing only `Entity` does not carry it.
 
 A comparison coerces what it is given, so the common forms read as they mean: a
 field becomes a reference, a plain value becomes a literal, and an `Expr` is
@@ -422,13 +433,6 @@ than a row that never matches. The value's type comes from the left, so `eq` tak
 the field on the left; `Expr.eq('Hello', Blog.Post.fields.title)` is refused with
 that sentence. The comparisons (`lt`, `gte`, …) also take a field second,
 wrapped in `Expr.field(…)`.
-
-**An input is a placeholder, not a value.** A query's body is built once, so
-`Expr.input('title', …)` stands for whatever the query is given when it runs —
-there is nothing there yet to branch on. An `InputExpr` is an object, so a
-`condition ? a : b` over one is always truthy and decides itself once, forever.
-A query that depends on what it was passed says so with a comparison over the
-placeholder instead of a branch around it.
 
 `dependenciesOf(...)` says which fields and inputs an expression reads and which
 operations it uses, so a planner knows what it needs and an interpreter can
@@ -474,10 +478,11 @@ const anyStatus = draftOrLive(Post.fields.status)
   member and not the function's own data-last form.
 - A wrong value is refused at the step: `pipe(Post.fields.status, Expr.eq.step(42))`
   is an error where it is written. `Expr.eq(Post.fields.status)` is still an arity error.
-- A comparison's `step` takes the options its builder takes
+- The `step` of `lt`, `lte`, `gt` and `gte` takes the options its builder takes
   (`Expr.lt.step('m', { collation })`); an operator's takes none, so a call that
   needs a collation is written data-first. A step takes the arguments past the
-  first, then the first: `trim.step()` takes nothing, `Text.startsWith.step(prefix)` one.
+  first, then the first: an operator of one argument has a `step()` that takes
+  nothing, and `Text.startsWith.step(prefix)` takes one.
 - Data-first stays the form to learn first; a step earns its place in a chain.
 
 ### Asking a question that depends on an input, without branching on it
@@ -518,23 +523,20 @@ not match `é`, though each matches itself. Text holding a NUL character is
 refused by every interpreter here, in `contains`, `eq` and `in` alike, since
 Postgres text cannot hold one and SQLite compares only up to it.
 
-**`in` asks whether a value is one of a list**, written out or given as an
-input: `Expr.in(Todo.fields.projectId, input.projectIds)`. Each element is
+**`in` asks whether a value is one of a list**, written out
+(`Expr.in(Post.fields.status, ['draft', 'live'])`) or given as an input of a
+list. Each element is
 compared as `eq` compares, and it reads as SQL's `in`: a null value is
 unknown, so is no match against a list holding a null, and an empty list
 matches no row (on Postgres too, which refuses `in ()`; the compiler says
 `false` instead).
 
-**It searches text, and the operand is constrained to text.** `contains` over a
-number would compile to `lower(rank) like …`, which SQLite coerces into an
-answer and Postgres rejects at runtime — so a non-text operand is a compile
-error where it is written rather than a surprise where it runs. Nullable text is
-allowed, because it is a real case with a real meaning:
-
-**Over a column that can be null it is not the same as no filter.** A null
-contains nothing, not even the empty string, so its rows drop out. The column
-the CMS searches is declared not-null, which is what makes an empty search
-exactly everything there.
+**`contains` searches text, and its operand is constrained to text.** Over a
+number it would compile to `lower(rank) like …`, which SQLite coerces into an
+answer and Postgres rejects at runtime, so a non-text operand is a compile
+error where it is written. Nullable text is allowed, and there an empty search
+is not the same as no filter: a null contains nothing, not even the empty
+string, so its rows drop out.
 
 ### Who asks, and when: the context
 
@@ -652,9 +654,15 @@ unless the terms already read the id, so rows with equal keys come out in one
 order on every interpreter rather than each breaking ties its own way.
 
 **How text orders is declared, or left to the server.** Left unsaid, SQLite
-compares bytes, Postgres follows the database's locale and a JavaScript sort
-follows UTF-16 code units. A field declares its collation, and every
-interpreter that can honour it orders the same; one that cannot refuses:
+compares bytes, Postgres follows the database's locale and a plain JavaScript
+sort follows UTF-16 code units. A field declares its collation, which SQL
+compiles, and `Query.placement` says whether a client can order the same way.
+`evaluate` refuses an order over text with no declared collation, with the
+reason `Query.placement` gives, so a page and the reference agree on whether
+the question can be answered; a database orders such text by its own default,
+which differs between SQLite and Postgres. `evaluateEach`, which only judges
+membership, does not refuse, and its `matched` list is then in code point
+order:
 
 ```ts
 const Tagged = Entity.define('Tagged', Schema.Struct({ id: Schema.String, name: Schema.String })).pipe(
@@ -735,11 +743,11 @@ Expr.and(
 ```
 
 Numbers compare as numbers, and nothing compares across kinds or for a value
-stored as neither a number nor text. Text orders by a collation, and backends disagree
-about the default one (SQLite's `BINARY`, the Postgres database's locale,
-JavaScript's UTF-16 units), so text is compared only under `Collation.binary`
-or `Collation.asciiFold`, declared on the field or passed, and only against a
-field: anything else is refused where the comparison is written. A value is
+stored as neither a number nor text. Text orders by a collation, and the
+defaults disagree (above), so text is compared only under `Collation.binary`
+or `Collation.asciiFold`, passed or declared on a side that carries one (a
+field, a path to one, an operator call with a collation): anything else
+throws where the comparison is built. A value is
 compared in its encoded form, which is why a date stored as an ISO string is
 text here. A null on either side is unknown, as in SQL. There is no `between`;
 it is the `and` above.
@@ -789,8 +797,9 @@ it declares.)
   does. At most four relations.
 - `Expr.exists(relation, where?)` names the pointing edge, a `one` relation of
   another Entity (`Follow.followee`), as `Derived.count` does. Only rows the
-  reader may see count. `where` reads the pointing row's own fields and the
-  input; anything past them is refused where it is written.
+  reader may see count. `where` reads the pointing row's own fields, the
+  input and the context (`Expr.viewer`, `Expr.now`); another Entity's field or
+  a further path or exists is refused where it is written.
 - A list does not order by a path.
 
 A `one` relation is itself an operand: the id it points at, typed as the
@@ -808,7 +817,7 @@ does not order by a link: a client holds it as a ref, not as the id it would
 order by.
 
 `foldkit-remote-drizzle` compiles both to subqueries under each reached
-table's `visible` rule. `evaluate`, given one row, cannot follow them: it
+table's `visible` rule. `evaluate`, given one table's rows, cannot follow them: it
 refuses such a body, as it refuses any operation it does not run. `Judge`,
 below, reads them from what a holder has.
 
@@ -857,6 +866,7 @@ an interpreter does not have:
 
 ```ts
 const missing = Query.unsupported(ByHandle, ['eq', 'isNull', 'isNotNull'])
+// ['path']: ByHandle reads a path, which this interpreter does not list
 if (missing.length > 0) throw new Error(`cannot run ${missing.join(', ')}`)
 ```
 
@@ -878,21 +888,15 @@ WHERE Post.slug = $slug
 ORDER BY Post.updatedAt DESC
 ```
 
-For a person — an explanation, a diagnostic, a test asserting on a whole
-predicate at once — and never for an interpreter. It is close enough to SQL to
-read at a glance and unlike it everywhere that matters: an input is `$slug`
-rather than a bound parameter, `contains` is named rather than rendered as
-somebody's `like`, and no dialect's escaping or collation is implied. What
-actually ran is whatever that backend compiled, which is not this.
-`Expr.show(node)` does the same for one expression.
+It is for a person (an explanation, a diagnostic, a test asserting on a whole
+predicate at once), never for an interpreter: an input is `$slug` rather than
+a bound parameter, `contains` is named rather than rendered as somebody's
+`like`, and no dialect's escaping or collation is implied. `Expr.show(node)`
+does the same for one expression.
 
-A `Query` says which rows. It does not say which fields — that is a Selection —
-and it does not say how many, whether absence is an error, or whether to watch
-for changes: those belong to the consumer doing the reading, not to the
-relation.
-
-Only the operations a real query in this repository needs exist. The set grows
-from queries, not from what a database could express.
+A `Query` says which rows. It does not say which fields (a Selection does),
+how many, whether absence is an error, or whether to watch for changes: those
+belong to the consumer doing the reading.
 
 ## Rows of several shapes: variants
 
@@ -934,9 +938,11 @@ stored row   Domain.fields        { _tag, id, name, price | null, years | null }
   reading which fields are null. `Entity.variantsOf(Domain)` holds the codec
   between the two (`stored`): a stored row, encoded, decodes to its case, and
   one holding another case's field is refused.
-- **Each case says what it holds.** A case with fields of its own gets an
-  invariant (`variant_Available`: an Available holds `price` and `years`;
-  `variant_Unconfirmed`: an Unconfirmed holds none of them), so `Entity.judge`
+- **Each case says what it holds.** A case gets an invariant wherever a stored
+  row could break it: it has a field of its own that may not be null, or
+  another case has a field it must not hold (`variant_Available`: an Available
+  holds `price` and `years`; `variant_Unconfirmed`: an Unconfirmed holds none
+  of them), so `Entity.judge`
   and a form refuse a row that mixes cases, and `foldkit-remote-drizzle`
   writes each as a CHECK.
 
@@ -1006,7 +1012,8 @@ CreatePostById.members.authorId.relation.target() // Blog.Author: what a picker 
 CreatePostById.members.notify // Entity.unmapped: about the operation, not the Post
 ```
 
-- A key that names a field, with a value that fits it, maps itself. Only the
+- A key that names a field, with a value that fits it, maps itself (the fit is
+  the types' to check; at run time any key naming a field maps). Only the
   present value has to fit: a key may be optional (a partial update), admit
   `null` (clearing it), or hold an `Option` (an id absent for something new),
   which is the input schema's rule to make.
@@ -1042,9 +1049,9 @@ const CreatePost = Entity.input(
 )
 ```
 
-A `one` holds the nested input's value, a `many` a list of them; the nested
-input must be of the relation's target, and both are checked by type and at
-runtime. `Entity.selectFor` then loads what the nested input writes of the
+A `one` holds the nested input's value, a `many` a list of them, which the
+types check; the nested input must be of the relation's target, checked by
+type and at runtime. `Entity.selectFor` then loads what the nested input writes of the
 target, and `Entity.valuesFor` turns the loaded target back into nested values.
 What a nested write *does* (insert, update, replace the list) is the
 operation's handler to decide.
@@ -1055,10 +1062,10 @@ An edit screen has to load the current values and turn them into input values.
 Both follow from the reading, so neither is written by hand:
 
 ```ts
-const PostForEdit = Entity.selectFor(CreatePost)
+const PostForEdit = Entity.selectFor(CreatePostById)
 // a Selection of `title` and `author`, the members the input writes; `author` as a ref
 
-Entity.valuesFor(CreatePost, { title: 'Hello', author: { entity: 'Author', id: 'a1' } })
+Entity.valuesFor(CreatePostById, { title: 'Hello', author: { entity: 'Author', id: 'a1' } })
 // { title: 'Hello', authorId: 'a1' }
 ```
 
@@ -1144,8 +1151,11 @@ An update or a delete may also say when it makes sense: `when` is what the row
 must hold for it to land, written as a query body is: `() =>
 Expr.eq(Post.fields.title, 'Draft')`, or with the input, `({ input }) =>
 Expr.eq(Post.fields.title, input.from)`. It reads the row as it is before the write and the input,
-never who is asking (that is a guard's), and only its own Entity: a field of
-another is a type error, and refused where the write is declared. It is held as
+and only its own Entity: a field of another is a type error, and refused where
+the write is declared. Who is asking is a guard's: a `when` reading
+`Expr.viewer` or `Expr.now` (also through a path from the viewer or an exists)
+is refused where the write is declared; a writer, given neither, refuses a
+hand-built one again where it is served. It is held as
 a query body (`write.when`), so an interpreter checks it in the statement that
 writes, and a row it does not hold of is refused as unmet. A write declared with
 one is a `ConditionedWrite`, which is how `Mutation.write` knows it may be
@@ -1160,10 +1170,13 @@ writes, so no concurrent change is lost. A retry must not add twice, so either i
 expects a revision (a retry of a write that landed is then a conflict), or its
 writer keeps a ledger, which answers the retry from its record and lets two
 concurrent increments both land. `RemoteServer.write` refuses one with neither,
-and one of a real number with no revision even under a ledger: floating-point
-addition does not associate, so two concurrent sums could land as two results.
-The field must be stored as a number, and may not be the id, the revision, or
-set by another key. `Write.bind` gives the amounts apart from the values (`increments`), so a
+and one of a real number with no revision even under a ledger, unless its
+writer pins the row it read (`foldkit-guard`'s writer with a `revision`):
+floating-point addition does not associate, so two concurrent sums could land
+as two results. The field must be stored as a number that is never null, and
+may not be the id, the revision, or set by another key; the amount is an
+unmapped key, and an integer field takes an integer amount. Each is refused
+where the write is declared. `Write.bind` gives the amounts apart from the values (`increments`), so a
 client can add them to the value it holds as it reads it (Remote does), never
 fixing a sum over a row that may since have moved. `Write.reads(write)` is what a write
 reads from its row: what its `when` reads, each field it increments, what its
@@ -1194,8 +1207,9 @@ value for each implementation the writer runs (`Conformance.laws` in memory,
 the row before it: values set, amounts added (a null stays null, as in SQL),
 assignments computed. It is the one computation of that row: a guard judges
 it, a writer explains a miss by it, a client predicts it. `unknown` names each
-field it could not work out (one the row lacks, or an operator the table lacks),
-which keeps what the row holds.
+field it could not work out (one the row lacks, an amount added to a value
+that is no number, or an operator the table lacks), which keeps what the row
+holds.
 
 ### What a client foresees of a supplied member
 
@@ -1356,9 +1370,10 @@ Refusal.isInvalidBy(refusal, reservedWithinQuantity)
 ```
 
 - `before` is each field as the row before holds it (`Expr.field`), and `after`
-  each as the row after holds it (`Expr.next`), both typed as the field. Each
-  is an expression already, so it goes on either side as it is; `Expr.field`
-  wraps an Entity's own field, and refuses one of these:
+  each as the row after holds it (`Expr.next`), both typed as the field's
+  encoded, stored form. Each is an expression already, so it goes on either
+  side as it is; `Expr.field` wraps an Entity's own field, and one of these is
+  a type error there:
 
   | Write | Not |
   | --- | --- |
@@ -1366,7 +1381,8 @@ Refusal.isInvalidBy(refusal, reservedWithinQuantity)
 - It is declared once, on the Entity itself, and attaching more adds to it;
   the Entity stays the same (`Entity.same`). Its interpreters read it from there.
 - It reads stored rows only: one over another Entity, or reading an input, is
-  refused where it is declared, as is an id declared twice or a `path` naming
+  refused when it is attached to its Entity (a `DeclaredInvariant` held apart
+  is checked when it is piped on), as is an id declared twice or a `path` naming
   neither a field nor a `one` relation. So is one reading nothing of `after`: which rows a write may start from
   is its `when`. Who may write is a guard's; whether a write applies now is its `when`'s.
 - `Entity.judge(entity, { after, before? })` judges rows as the store holds them
@@ -1418,7 +1434,7 @@ Expr.show(Draft.predicate) // 'Product.Draft'
 Entity.inState(Draft, { status: 'draft' }) // Option.some(true); none for a row without `status`
 ```
 
-- The literal form is one `Expr.eq` per key, each typed by what its field
+- The literal form is one `Expr.eq` per key (`Expr.isNull` for a `null`), each typed by what its field
   stores: a key that is no field, or a value the field cannot hold, does not
   compile. Its `is(row)` is a type guard narrowing the fields it names
   (`row.status` is `'draft'` inside `if (Draft.is(row))`); the predicate form's
@@ -1510,10 +1526,11 @@ Laws.show(report)
 ```
 
 
-For the writes example, with a `reservedWithinStock` state invariant and a
-`publishedStaysPublished` transition invariant, it prints
-([`examples/writes/LAWS.md`](https://github.com/doeixd/foldkit-plus/blob/main/examples/writes/LAWS.md)
-keeps it, so a write added changes a checked-in file):
+For the writes example, whose domain has a `reservedWithinStock` state
+invariant, a `publishedStaysPublished` transition invariant and an `Archived`
+state that the snippet above does not, it prints lines such as these (abridged;
+[`examples/writes/LAWS.md`](https://github.com/doeixd/foldkit-plus/blob/main/examples/writes/LAWS.md)
+keeps the whole report, so a write added changes a checked-in file):
 
 ```text
 Product
@@ -1573,7 +1590,9 @@ enumeration, a create against a transition invariant, a delete) carries an
 `Enumerated` record in `evidence`, issued by `foldkit-entity/laws`. A pair
 kept on its author's word (`declared`), refused or undecided carries none:
 for those, the evidence is a walk through the writer, a scenario, or
-`Evidence.runtimeOnly` with its reason (`foldkit-metadata`).
+`Evidence.runtimeOnly` with its reason. These records are
+`foldkit-metadata`'s `Evidence`; the `Evidence` this package exports is an
+operator law's (`Tested`, `Proven`, [below](#laws-and-holding-an-implementation-to-them)).
 
 ```ts
 import { Option } from 'effect'
@@ -1581,7 +1600,7 @@ import { lawFactsOf } from 'foldkit-entity'
 import { Evidence } from 'foldkit-metadata'
 
 const records = report.pairs.flatMap(pair => Option.toArray(pair.evidence))
-records.map(Evidence.issuedBy) // some('foldkit-entity/laws') for each
+records.map(Evidence.issuedBy) // some('foldkit-entity/laws') for each kept pair
 Laws.transition(Rename) // 'write:Rename'
 const { nodes, edges } = Laws.facts(report)
 lawFactsOf([Rename]) // the same shape, read off the declarations, with no check run
@@ -1604,7 +1623,9 @@ has a `Writes` edge to each member a law of its Entity reads. A transition
 invariant (`pair.readsBefore`) also reads its whole row (`['Product']`), since
 a write leaving every member it reads alone can still break it.
 `lawFactsOf(entries)` gives the same shape from `Laws.check`'s entries without
-judging them: what Surface's `Graph.of` derives a contract's
+judging them, so not the same facts: a `State` for every state, local or not,
+`From` and `To` from each write's declared `from` and `becomes`, a `Writes`
+edge to every field for an `Unknown` footprint, and no `Keeps`. It is what Surface's `Graph.of` derives a contract's
 `laws.entities` with (a Remote domain declares its writes there), so only a
 page that asks for the graph carries it, and never the check.
 
@@ -1640,16 +1661,14 @@ Query.show(PublicStories)
 // WHERE acme.published(Story.publishedAt)
 ```
 
-- **It computes nothing of its own.** `definedAs` builds an expression from a
-  call's arguments, once per call, and every interpreter runs that expression
-  (`Expr.expanded` writes a predicate's calls out), so the operator needs no
-  SQL, no evaluator, and no support list. The SQL a body compiles to is the SQL
-  of the body written out by hand.
-- **What it adds is a name.** `Query.show` prints the call, and
-  `Query.dependencies(body).operators` lists each operator a body uses.
-- **It reads only its arguments.** A `definedAs` that closes over a field or an
-  input, instead of taking it, is refused when called: nothing asking what the
-  call reads (Guard's checks, Remote's matching) would see it.
+- **It computes nothing of its own, and reads only its arguments.**
+  `definedAs` builds an expression from a call's arguments, once per call, and
+  every interpreter runs that expression (`Expr.expanded` writes a predicate's
+  calls out); one that closes over a field or an input instead of taking it is
+  refused when called. `Query.show` prints the call, and
+  `Query.dependencies(body).operators` lists each operator a body uses. The
+  guide's [What the calls mean](../../docs/operators.md#what-the-calls-mean)
+  says why.
 - **Arguments are checked by their stored form**, at compile time and when
   called: a field, scalar or plain value of the input's stored type, or a
   predicate where it takes a boolean. A boolean `output` makes a call a
@@ -1784,7 +1803,7 @@ Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence
   first `Counterexample` with both sides and its collation: declaring `concat` commutative
   finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`. Two sides that both refuse agree,
   but are no case: a record counts only cases whose sides both answered, and a law with
-  none is `Unanswered`, with the first refusal's reason, and records nothing.
+  none is `Unanswered`, with the reason the first left side refused for, and records nothing.
 - **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
   of an operator the table lacks or a law it does not declare, and a `Tested`
   record `Conformance.laws` did not make of this table's own implementation
@@ -1809,42 +1828,16 @@ generated from each argument's samples, null where its schema admits one, and
 text holding NUL, under `binary` and `asciiFold` where the operator compares
 text. `Conformance.memory(table)` is the reference interpreter's runner; a
 defined operator's expansion runs beside the others as `expansion`, a name an
-implementation of it may not take. `foldkit-remote-drizzle`
+implementation of a defined operator may not take. `foldkit-remote-drizzle`
 runs the kernel's operators and an application's through it on SQLite and
 Postgres.
 
-### One operator, from declaration to description
+### Describing what a table runs
 
-The `concat` above, as an application ships it: declared once, implemented for
-each interpreter that runs it, held to itself, and described for whoever asks
-what a server runs.
-
-```ts
-import { sql } from 'drizzle-orm'
-import { Operators } from 'foldkit-entity'
-import { Conformance } from 'foldkit-entity/conformance'
-import { DrizzleOperators } from 'foldkit-remote-drizzle'
-
-// In memory, as above; in SQL, for a binding (`bind(…, { operators: { memory, sql } })`).
-const memory = Operators.memory(Operators.implement(concat, (left, right) => `${left}${right}`))
-const sqlTable = DrizzleOperators.make(
-  DrizzleOperators.implement(concat, ({ args: [left, right] }) => sql`(${left} || ${right})`),
-)
-
-// Its laws, against the memory implementation.
-const held = Conformance.laws(concat, memory)
-
-// The two implementations against each other: an SQL runner selects
-// `compileCall(call, binding, name)` from a database (foldkit-remote-drizzle's
-// test/operatorConformance.test.ts has one); here the memory one alone.
-const report = await Conformance.operator(concat, {
-  implementations: { memory: Conformance.memory(memory) },
-})
-
-// Its signature as JSON: name, version, each argument and the result as a JSON
-// Schema of what is stored, its null and collation rules, its laws.
-Operators.describe(concat)
-```
+Declared once, implemented per interpreter, held to its laws and described for
+whoever asks what a server runs: the guide carries one operator the whole way
+([An operator of your own](../../docs/operators.md#an-operator-of-your-own) to
+[Publishing what a server runs](../../docs/operators.md#publishing-what-a-server-runs)).
 
 `Operators.describe` gives an `OperatorDescription`, a Schema whose decoder
 checks a description another server publishes; it says what an operator takes
@@ -1855,6 +1848,24 @@ primitive ones it calls). A version is part of an operator's name: a table
 holding `acme.slug` does not answer a body calling `acme.slug@2`, and the
 refusal names both (`acme.slug@2 (this table has acme.slug)`), so a client and a
 server on different deploys see which side is behind.
+
+## Limits
+
+- The identifier is the field named `id`; no other field can be declared as it,
+  because Remote keys its store by `id`.
+- A Selection has no filtering or ordering, and a page has no total; those
+  belong to the interpreter that fetches.
+- A relation reaches only the entities of its own `Entity.relate` call; relate
+  them again to add relations between them.
+- `target()` returns the entity as `relate` returned it: every member added
+  since is on it (`likeCount`), but metadata annotated afterwards (`CmsPost`
+  above) is on that new descriptor only, so annotate before relating when a
+  target should carry it. Its type shows the members as related; read a later
+  one as an `AnyEntity`.
+- A member is added once per Entity: two pipe chains from one descriptor that
+  each add `score` are refused, as one chain adding it twice is. Adding the very
+  spec again (`Guards.may` on a second view) is the member it added.
+- No registry: nothing checks that two different entities share a name.
 
 ## API
 
@@ -1924,7 +1935,7 @@ server on different deploys see which side is behind.
 | `Operators.memory(...)` / `implement` / `implementHandlingNulls` / `merge` / `override` / `checked` / `kernel` | Tables of in-memory implementations of primitive operators, passed to `evaluate` and every judge. |
 | `Law.associative` / `commutative` / `idempotent` / `identity` / `absorbing` / `inverse` / `distributes` / `monotonic` / `preservesCollation` / `within` / `describe` | Laws an operator declares (`Expr.operator(id, { laws })`), checked where declared, described as JSON. |
 | `Operators.withEvidence(table, evidence)` / `describeTable(table)` / `Evidence.Proven` | What is known of a table's implementations' laws, and the table as JSON. |
-| `Conformance.laws(op, table)` / `lawsBy(op, runner)` / `operator(op, { implementations })` / `memory(table)` (`foldkit-entity/conformance`) | Test an implementation's laws, in memory or through any runner; run one set of calls through several implementations. |
+| `Conformance.laws(op, table)` / `lawsBy(op, runner, { implementation })` (a Promise) / `operator(op, { implementations })` / `memory(table)` (`foldkit-entity/conformance`) | Test an implementation's laws, in memory or through any runner; run one set of calls through several implementations. |
 | `Operators.describe(op)` / `OperatorDescription` / `Query.operators(body)` | An operator's signature as JSON, the Schema it keeps, and the operators a body calls, by name. |
 | `valueOfOperand(node, { operators })` | What an operand, a call of literals say, comes to over no row. |
 | `Expr.expanded(predicate)` | The predicate with every call of a defined operator written out as what it means, deeply; what an interpreter compiles. |
@@ -1944,21 +1955,3 @@ server on different deploys see which side is behind.
 | `Query.dependencies(query)` | What the whole query reads, with its fields also split by role: `predicate` (can change which rows match) and `order` (can change where a row sits). |
 | `Query.unsupported(query, supported)` | The operations it needs that an interpreter does not run. |
 | `Query.show(query)` / `Expr.show(node)` | The query or expression as readable text, for a person and not for an interpreter. |
-
-## Limits
-
-- The identifier is the field named `id`; no other field can be declared as it,
-  because Remote keys its store by `id`.
-- A Selection has no filtering or ordering, and a page has no total; those
-  belong to the interpreter that fetches.
-- A relation reaches only the entities of its own `Entity.relate` call; relate
-  them again to add relations between them.
-- `target()` returns the entity as `relate` returned it: every member added
-  since is on it (`likeCount`), but metadata annotated afterwards (`CmsPost`
-  above) is on that new descriptor only, so annotate before relating when a
-  target should carry it. Its type shows the members as related; read a later
-  one as an `AnyEntity`.
-- A member is added once per Entity: two pipe chains from one descriptor that
-  each add `score` are refused, as one chain adding it twice is. Adding the very
-  spec again (`Guards.may` on a second view) is the member it added.
-- No registry: nothing checks that two different entities share a name.

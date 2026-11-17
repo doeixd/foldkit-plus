@@ -8,6 +8,7 @@ import {
   Event,
   Slot,
   Slots,
+  type Diagnostic,
   type SlotAttributes,
 } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
@@ -196,6 +197,31 @@ export const readingKeys = Behavior.forSlots(TabsSlots)<unknown, never>(
   { name: 'TabsReadingKeys' },
 ).mixin
 
+/** A tab's own key: Delete closes it, when the tabs are closable. */
+const ownRoutes = <Value extends string, Message>(
+  close: TabsClose<Value, Message> | undefined,
+): ReadonlyArray<Route<Value, Message>> =>
+  close === undefined
+    ? []
+    : [
+        Behaviors.Keys.route<TabInfo<Value>, Message>('Close', {
+          on: [Behaviors.Keys.chord('Delete')],
+          handle: ({ input }) =>
+            input.isDisabled ? Option.none() : Option.some(close.onClose(input.value)),
+        }),
+      ]
+
+/**
+ * The `mixins:key-conflict` that resolving the tabs with `routes` would throw,
+ * or none: the application's routes against Delete, which a closable tab
+ * takes (`close` is the one the tabs are given), and against each other.
+ */
+export const conflict = <Value extends string, Message>(
+  routes: ReadonlyArray<Route<Value, Message>>,
+  input: Pick<TabsContext<Value, unknown, Message>, 'close'> = {},
+): Option.Option<Diagnostic> =>
+  Behaviors.Keys.conflict([...ownRoutes(input.close), ...routes], Option.some('tab'))
+
 /** Resolves the tabs' nested render groups, preserving `activeIndex`. */
 export const resolve = <Value extends string, Input, Message>(
   render: RenderInfo<Value>,
@@ -207,15 +233,7 @@ export const resolve = <Value extends string, Input, Message>(
   const closable = (item: TabInfo<Value>) =>
     close === undefined || item.isDisabled ? Option.none() : Option.some(close)
   const routes: ReadonlyArray<Route<Value, Message>> = [
-    ...(close === undefined
-      ? []
-      : [
-          Behaviors.Keys.route<TabInfo<Value>, Message>('Close', {
-            on: [Behaviors.Keys.chord('Delete')],
-            handle: ({ input }) =>
-              input.isDisabled ? Option.none() : Option.some(close.onClose(input.value)),
-          }),
-        ]),
+    ...ownRoutes(close),
     ...(context.routes ?? []),
   ]
   // No keydown at all unless there is a key to answer.

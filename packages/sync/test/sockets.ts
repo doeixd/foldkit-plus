@@ -35,13 +35,19 @@ export const socketPair = (): { client: SocketLike; server: SocketLike } => {
   return { client, server }
 }
 
+interface FakeEvent {
+  readonly data?: unknown
+  readonly code?: number
+  readonly reason?: string
+}
+
 /**
  * One end of a linked pair of fake `WebSocket`s: `send` arrives as a message
  * event on the peer, `close` closes both ends. Cast to `WebSocket` where a
  * `WebSocket` is taken; the shape is what the adapter touches.
  */
 export class FakeWebSocket {
-  private readonly listeners = new Map<string, Set<(event: { data?: unknown }) => void>>()
+  private readonly listeners = new Map<string, Set<(event: FakeEvent) => void>>()
   private peer: FakeWebSocket | undefined
   private lingering = false
 
@@ -62,7 +68,7 @@ export class FakeWebSocket {
     return [first, second]
   }
 
-  addEventListener(type: string, listener: (event: { data?: unknown }) => void): void {
+  addEventListener(type: string, listener: (event: FakeEvent) => void): void {
     let listeners = this.listeners.get(type)
     if (listeners === undefined) {
       listeners = new Set()
@@ -71,7 +77,7 @@ export class FakeWebSocket {
     listeners.add(listener)
   }
 
-  removeEventListener(type: string, listener: (event: { data?: unknown }) => void): void {
+  removeEventListener(type: string, listener: (event: FakeEvent) => void): void {
     this.listeners.get(type)?.delete(listener)
   }
 
@@ -90,6 +96,9 @@ export class FakeWebSocket {
   closed: { readonly code?: number; readonly reason?: string } | undefined
 
   close(code?: number, reason?: string): void {
+    // As a platform's socket refuses it, closing nothing.
+    if (reason !== undefined && new TextEncoder().encode(reason).length > 123)
+      throw new SyntaxError('The close reason must not be greater than 123 UTF-8 bytes')
     this.closed = {
       ...(code === undefined ? {} : { code }),
       ...(reason === undefined ? {} : { reason }),
@@ -98,10 +107,7 @@ export class FakeWebSocket {
     if (!this.lingering) this.emit('close', this.closed)
   }
 
-  emit(
-    type: string,
-    event: { readonly data?: unknown; readonly code?: number; readonly reason?: string },
-  ): void {
+  emit(type: string, event: FakeEvent): void {
     for (const listener of [...(this.listeners.get(type) ?? [])]) listener(event)
   }
 }

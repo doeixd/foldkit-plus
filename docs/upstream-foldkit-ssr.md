@@ -494,9 +494,8 @@ check:
 6. Proposal 5 as an issue, any time: it needs nothing from the others.
 7. Proposal 6 as an issue, any time: it needs nothing from the others.
 8. Proposal 7 as a comment on foldkit#1657, now: our half is done.
-9. The leave that ends before it is drawn (below) as an issue, now. A draft
-   is ready; it was not filed because this repository's sessions cannot
-   post to foldkit/foldkit.
+9. The leave that ends before it is drawn (below): filed as
+   [foldkit#1927](https://github.com/foldkit/foldkit/issues/1927).
 10. Proposal 8 as an issue, any time: it needs nothing from the others. Not
     posted.
 
@@ -505,13 +504,33 @@ with the SSR plan and README updated in the same commit.
 
 ## Other Foldkit behaviour we work around
 
-Beyond SSR, this repository works around the behaviour below. Four
-`@foldkit/ui` gaps are filed (listed at the end). The rest are not filed
+Beyond SSR, this repository works around the behaviour below. Eight
+`@foldkit/ui` gaps and three core ones are filed (listed at the end). The rest are not filed
 yet: each is a candidate once it has the use case Foldkit asks for. The
 working detail of each is a trap in `AGENTS.md`, named here by its title.
 
 Runtime and view:
 
+- **A node returned by a different function is replaced, in a workspace
+  build.** `foldkit:view-identity` (the Vite plugin) brands each node with the
+  function that returned it, and the differ replaces a node whose brand
+  changed. A focused button returned from one arrow while a form is shut and
+  from another while it is open is replaced when the form opens, and loses
+  focus. An installed package is not branded, and a test project that does
+  not run the plugin never shows it. We return such a control from one
+  function whatever the state, and test it on a Vite server with the plugin
+  (`packages/mixins-data-grid/test/branded.test.ts`). Asking for: nothing
+  yet; it is the plugin's intended behaviour, and the cost is ours to know.
+- **`RequestedClose` on a closed, animated `@foldkit/ui` Dialog returns a new,
+  equal Model**, so Foldkit renders for a dismissal that changed nothing. Our
+  `Dialog.update` returns the Model it was given when the dialog is closed.
+  Asking for: a no-op that keeps identity.
+- **The dev-tools relay has been seen to reject a `File` in a Model or
+  Message** (`SchemaError: Expected JSON value`, an unhandled rejection under
+  `vite dev`; `devTools/webSocketBridge.js` encodes each frame synchronously).
+  Seen in a full e2e run of `examples/widgets`' file input, not reproduced
+  alone, so it is not filed; that e2e ignores exactly that message. The relay
+  runs only under `import.meta.hot`, so a production build is not affected.
 - **An element holds one Mount** (`OnMount` replaces the vnode's `insert`
   hook), while `addDataOn` chains every `On…` handler. A second Mount, such as
   one a Slot adds beside `@foldkit/ui`'s anchor, silently drops the first.
@@ -598,6 +617,22 @@ Testing:
 - **A second `ShowDialog` for a dialog already held is a no-op**, so reopening
   one mid-exit restores no focus. `Dialog.open` and `Dialog.update` put it back
   after the commit (`Dialog.RestoreFocus`).
+- **The Checkbox toggles on Enter.** It draws a `button` with
+  `role="checkbox"`, so the browser's native Enter click toggles it. The APG
+  checkbox lists Space alone, and a native `input[type=checkbox]` ignores
+  Enter (and submits its form). Foldkit has no Message-free way to prevent a
+  key's default: `OnKeyDownPreventDefault` prevents only when its handler
+  returns a Message, so a wrapper cannot swallow Enter without inventing one.
+  Upstream needs to draw a native checkbox, or prevent Enter's default on the
+  checkbox element (calling `form.requestSubmit()` to keep implicit
+  submission) without sending a Message. Until then
+  `packages/mixins-ui/test/keyboardMaps.browser.test.ts` holds it as a
+  `test.fails`.
+- **The Combobox's and Listbox's key Messages take an absolute index**, worked
+  out in the view from the last drawn active item, so two keys pressed inside
+  one frame compute the same target. Our Combobox view keeps a record per
+  drawing and continues from it; a relative move in upstream's Message
+  (`next`, `previous`) would let `update` continue from the Model.
 - **HoverIntent has no leave state**, so a hover card cannot animate out: the
   panel is removed at once. It also closes on Escape only from the trigger or
   the panel, not while the pointer alone rests on the card and focus is
@@ -625,3 +660,29 @@ Filed against `@foldkit/ui`, each with the workaround it would retire
 - [foldkit#1689](https://github.com/foldkit/foldkit/issues/1689): a modal
   `<dialog>` in the top layer, an opt-in beside `show()`, which upstream
   keeps for DevTools, so a transformed ancestor no longer captures it.
+- [foldkit#1936](https://github.com/foldkit/foldkit/issues/1936): the
+  Checkbox toggling on Enter, its Enter default prevented without a Message,
+  so the `test.fails` in `keyboardMaps.browser.test.ts` turns around.
+- [foldkit#1937](https://github.com/foldkit/foldkit/issues/1937): a leaving
+  Dialog's panel controls, an `inert` panel or `isLeaving` in `RenderInfo`,
+  so `Dialog.isLeaving` and our inert panel can go.
+- [foldkit#1939](https://github.com/foldkit/foldkit/issues/1939): Escape on
+  hover-opened Tooltip and HoverIntent content while focus is elsewhere (WCAG
+  1.4.13), a document listener while open.
+- [foldkit#1940](https://github.com/foldkit/foldkit/issues/1940): the
+  VirtualList dropping a focused row, a view input of indices kept drawn, so
+  `WindowList`'s `Model.held` and the `test.fails` in
+  `virtualListFocus.browser.test.ts` can go.
+
+Filed against `foldkit`, each with the workaround it would retire:
+
+- [foldkit#1938](https://github.com/foldkit/foldkit/issues/1938): a
+  `focusFallback` on `closeDialog` for an opener that is gone, so
+  `Dialog.update({ focusFallback })` and `Sheet.init({ focusFallback })`
+  can go.
+- [foldkit#1941](https://github.com/foldkit/foldkit/issues/1941): `Class`
+  and `Style` merging instead of keeping the last, so the mixins resolver's
+  class merge within a Slot is no longer needed.
+- [foldkit#1942](https://github.com/foldkit/foldkit/issues/1942):
+  `Route.string` percent-decoding and encoding, so slugs no longer need
+  `schemaSegment` with an encoding Schema.

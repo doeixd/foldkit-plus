@@ -12,7 +12,7 @@ import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { TableSlots, nextSort, view, type TableView } from '../src/table.js'
+import { TableSlots, defineColumns, nextSort, view, type TableView } from '../src/table.js'
 // From the modules, not the index: the test reads nothing else.
 import { CheckboxSlots } from '../src/checkbox.js'
 import { Table } from '../src/recipes/table.js'
@@ -312,5 +312,20 @@ describe('Table empty state', () => {
 
   it('is not drawn beside rows', () => {
     expect(Inert.text(drawn({ empty }))).not.toContain('No products yet')
+  })
+})
+
+describe('defineColumns', () => {
+  it('returns the columns it was given, drawn as written', () => {
+    const named = defineColumns<Product>()([
+      { header: 'Name', sortKey: 'name', value: row => row.name },
+    ])
+    const table = drawn({
+      columns: named,
+      sort: { by: Option.none(), onSort: column => Pressed.Sorted({ column }) },
+    })
+    expect(named).toHaveLength(1)
+    expect(Inert.byTag(table, 'button')).toHaveLength(1)
+    expect(Inert.text(table)).toContain(rows[0]?.name)
   })
 })

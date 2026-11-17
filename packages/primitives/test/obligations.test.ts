@@ -4,6 +4,7 @@ import {
   GridNavigation,
   ListNavigation,
   Press,
+  Repeat,
   RovingTabindex,
   Selection,
   SpatialNavigation,
@@ -32,6 +33,7 @@ import {
 } from './obligations.fixture.js'
 
 const Spatial = Bundle.declare(SpatialNavigation.bundle, 'spatial')
+const Repeating = Bundle.declare(Repeat.bundle, 'repeat')
 
 /** Per slot, what a Behavior's metadata says it supplies. */
 const supplied = (mixin: MixinValue<any>): Readonly<Record<string, ReadonlyArray<string>>> =>
@@ -98,6 +100,13 @@ describe('what each primitive supplies', () => {
     [
       'Press',
       Press.behavior(Pressing)(Options)({ target: 'option' }).mixin,
+      { option: ['activation'] },
+    ],
+    [
+      'Repeat',
+      Repeat.behavior(Repeating)(ListboxSlots)<Input & { readonly repeat: Repeat.Model }, Message>({
+        target: 'option',
+      }).mixin,
       { option: ['activation'] },
     ],
     [

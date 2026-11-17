@@ -47,6 +47,7 @@ import {
 import {
   attachedRules,
   enforced,
+  reachingRules,
   readRowsRuled,
   readRuled,
   surfaceOf,
@@ -261,7 +262,9 @@ export const GuardServer = {
    * `RemoteServer.memory`'s `readable` and `filter` for `entities`, the
    * Entities as `Guards.attach` returned them. A row's Read is decided per
    * stored row, an inherited Read by looking the related row up; an Entity
-   * not listed is read by everyone.
+   * not listed is read by everyone. A Read rule that reads another row (a
+   * path, an exists) is refused here: each stored row is judged alone, and
+   * only a statement judges such a rule (`GuardDrizzle.visible`).
    */
   memory: <User>(policy: Policy<User>, entities: ReadonlyArray<AnyEntity>) => ({
     readable: rowRules.add(
@@ -310,7 +313,7 @@ export const GuardServer = {
           },
         ),
       policy,
-      entities,
+      readingOneRow(entities),
     ),
     filter: Object.fromEntries(
       entities.map(entity => [entity.name, GuardServer.filter(entity, policy)] as const),
@@ -412,18 +415,12 @@ export const GuardServer = {
     // A rule reading another row is judged in the statement that writes: the writer must.
     const reaching = Option.match(enforced(entity), {
       onNone: () => [],
-      onSome: ({ row }) =>
-        (['Update', 'Delete'] as const).flatMap(interaction =>
-          (row[interaction]?.rules ?? []).flatMap(function names(rule): ReadonlyArray<string> {
-            return Match.valueTags(rule, {
-              PrincipalGuard: () => [],
-              RowGuard: guard =>
-                Query.dependencies(guard.query).reaches.length > 0 ? [guard.name] : [],
-              All: ({ rules }) => rules.flatMap(names),
-              Inherit: () => [],
-            })
-          }),
-        ),
+      onSome: attachment => [
+        ...new Set([
+          ...reachingRules(attachment, 'Update'),
+          ...reachingRules(attachment, 'Delete'),
+        ]),
+      ],
     })
     if (reaching.length > 0 && writer.requires !== true) {
       throw new Error(
@@ -1061,6 +1058,11 @@ export const GuardServer = {
    * answer shows its writer only what they may see, a row it hid from them
    * as deleted.
    *
+   * A rule for `interaction` that reads another row (a path, an exists) is
+   * refused here, where the handler is made: this check reads one row and
+   * runs no statement. A declared write through `GuardServer.writer` is held
+   * to such a rule.
+   *
    * ```ts
    * GuardServer.mutation(ArchiveTodo, {
    *   entity: Todo, policy: Policy, interaction: Archive.key,
@@ -1097,7 +1099,17 @@ export const GuardServer = {
     >,
   ): MutationSource<Option.Option<User>, R | RS | RM> => {
     const { entity, policy, interaction, id, source } = guard
-    enforced(entity)
+    // The check reads one row through `source` and runs no statement: a rule reading
+    // another row would be judged by nothing, so it is refused here, not per request.
+    const reaching = Option.match(enforced(entity), {
+      onNone: () => [],
+      onSome: attachment => reachingRules(attachment, interaction),
+    })
+    if (reaching.length > 0) {
+      throw new Error(
+        `[foldkit-guard] GuardServer.mutation: ${mutation.name} is checked against ${entity.name}'s ${interaction} rule, whose ${reaching.join(', ')} reads another row (a path or an exists), which a handler's check over the one row it reads cannot judge; declare the write (Mutation.write) and land it through GuardServer.writer over a writer that judges rules in its statement (foldkit-remote-drizzle's writer), or check ${interaction} by a rule over the row alone`,
+      )
+    }
     if (!rowRules.has(source.visible, policy, entity)) {
       throw new Error(
         `[foldkit-guard] GuardServer.mutation: ${mutation.name}'s Source does not apply ${entity.name}'s Read rules`,
@@ -1441,6 +1453,26 @@ export const GuardServer = {
       )
     }
   },
+}
+
+/**
+ * `entities`, refused where one's Read rule reads another row: a memory
+ * server's `readable` judges each stored row alone and runs no statement, so
+ * such a rule would fail every read of the Entity.
+ */
+const readingOneRow = (entities: ReadonlyArray<AnyEntity>): ReadonlyArray<AnyEntity> => {
+  for (const entity of entities) {
+    const reaching = Option.match(enforced(entity), {
+      onNone: () => [],
+      onSome: attachment => reachingRules(attachment, 'Read'),
+    })
+    if (reaching.length > 0) {
+      throw new Error(
+        `[foldkit-guard] GuardServer.memory: ${entity.name}'s Read rule's ${reaching.join(', ')} reads another row (a path or an exists), which a memory server, judging each stored row alone, cannot judge; serve ${entity.name} from a table whose statement judges it (GuardDrizzle.visible), or rule Read over the row alone`,
+      )
+    }
+  }
+  return entities
 }
 
 /** Whether a read asks for `may`, of an Entity that has it (`Guards.may`). */

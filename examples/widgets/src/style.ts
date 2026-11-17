@@ -141,18 +141,7 @@ const modalPanel = (width: string): ReturnType<typeof Style.self> =>
   })
 
 export const toolbarStyle = (slots: typeof ToolbarSlots) =>
-  Style.forSlots(slots)(
-    {
-      root: Style.self({ display: 'flex', gap: '0.5rem' }),
-      tool: Style.compose(
-        control,
-        focus,
-        pressed,
-        Style.states({ true: { opacity: '0.45', cursor: 'not-allowed' } }, 'aria-disabled'),
-      ),
-    },
-    { name: 'ShowcaseToolbar' },
-  )
+  Style.forSlots(slots)({ root: Style.self({ display: 'block' }) }, { name: 'ShowcaseToolbar' })
 
 export const searchFieldStyle = (slots: typeof SearchSlots) =>
   Style.forSlots(slots)(
@@ -342,7 +331,7 @@ export const autocompleteStyle = (slots: typeof AutocompleteSlots) =>
         zIndex: '10',
         display: 'grid',
         border: `1px solid ${line}`,
-        borderRadius: '8px',
+        borderRadius: t.radius.lg,
         overflow: 'hidden',
         background: onAccent,
       }),
@@ -404,7 +393,7 @@ export const commandStyle = (slots: typeof CommandSlots) =>
         zIndex: '10',
         display: 'grid',
         border: `1px solid ${line}`,
-        borderRadius: '8px',
+        borderRadius: t.radius.lg,
         overflow: 'hidden',
         background: onAccent,
       }),
@@ -444,7 +433,7 @@ export const hoverCardStyle = (slots: typeof HoverCardSlots) =>
           padding: '0.75rem',
           background: onAccent,
           border: `1px solid ${line}`,
-          borderRadius: '10px',
+          borderRadius: t.radius.lg,
           boxShadow: t.shadow.lg,
           color: muted,
           fontSize: '0.875rem',
@@ -481,7 +470,7 @@ export const contextMenuStyle = (slots: typeof ContextMenuSlots) =>
           minWidth: '10rem',
           background: onAccent,
           border: `1px solid ${line}`,
-          borderRadius: '10px',
+          borderRadius: t.radius.lg,
           boxShadow: t.shadow.lg,
           padding: '0.25rem',
         }),
@@ -492,7 +481,7 @@ export const contextMenuStyle = (slots: typeof ContextMenuSlots) =>
           textAlign: 'start',
           background: 'transparent',
           border: 'none',
-          borderRadius: '6px',
+          borderRadius: t.radius.sm,
           paddingBlock: '0.375rem',
           paddingInline: '0.75rem',
           cursor: 'pointer',
@@ -515,7 +504,7 @@ export const menubarStyle = (slots: typeof MenubarSlots) =>
         padding: '0.25rem',
         background: wash,
         border: `1px solid ${line}`,
-        borderRadius: '10px',
+        borderRadius: t.radius.lg,
       }),
       trigger: Style.compose(control, focus),
       popup: Style.compose(
@@ -528,7 +517,7 @@ export const menubarStyle = (slots: typeof MenubarSlots) =>
           minWidth: '12rem',
           background: onAccent,
           border: `1px solid ${line}`,
-          borderRadius: '10px',
+          borderRadius: t.radius.lg,
           boxShadow: t.shadow.lg,
           padding: '0.25rem',
         }),
@@ -539,7 +528,7 @@ export const menubarStyle = (slots: typeof MenubarSlots) =>
           textAlign: 'start',
           background: 'transparent',
           border: 'none',
-          borderRadius: '6px',
+          borderRadius: t.radius.sm,
           paddingBlock: '0.375rem',
           paddingInline: '0.75rem',
           cursor: 'pointer',
@@ -566,7 +555,7 @@ export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
           minWidth: '12rem',
           background: onAccent,
           border: `1px solid ${line}`,
-          borderRadius: '10px',
+          borderRadius: t.radius.lg,
           boxShadow: t.shadow.lg,
           padding: '0.25rem',
         }),
@@ -581,7 +570,7 @@ export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
           textAlign: 'start',
           background: 'transparent',
           border: 'none',
-          borderRadius: '6px',
+          borderRadius: t.radius.sm,
           paddingBlock: '0.375rem',
           paddingInline: '0.75rem',
           cursor: 'pointer',
@@ -616,7 +605,7 @@ export const paletteStyle = (slots: typeof PaletteSlots) =>
           textAlign: 'start',
           background: 'transparent',
           border: 'none',
-          borderRadius: '6px',
+          borderRadius: t.radius.sm,
           paddingBlock: '0.375rem',
           paddingInline: '0.75rem',
           cursor: 'pointer',
@@ -673,7 +662,7 @@ export const resizableStyle = (slots: typeof ResizableSlots) =>
         Style.self({
           flex: 'none',
           width: '0.625rem',
-          borderRadius: '9999px',
+          borderRadius: t.radius.full,
           background: line,
           cursor: 'col-resize',
           position: 'relative',

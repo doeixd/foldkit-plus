@@ -44,6 +44,8 @@ const placements = Page.assemble(Page.at(Dark, { args: { query: '(prefers-color-
 const update = placements.update(model => ({ model }))
 ```
 
+`MediaQuery`'s `matches` starts as `matchMedia(query).matches` at `init` (false with no window), or as `args.initial` says, so the
+first frame is right; the Subscription's first report, after that frame, corrects it.
 `PrefersDark` and `PrefersReducedMotion` are presets that place with no args.
 `Online`, `Visibility`, and `WindowSize` (no args), `Timer` and `Interval`
 (`{ intervalMs }`), `Tween` (`{ from, to, ms }`), `Spring` (`{ from, to,
@@ -88,6 +90,14 @@ shape inside an area and return the box they were given when nothing moves;
 the same two calls, so a key and a `Move` drag obey the same limits.
 
 ## Common tasks
+
+Pick by task:
+
+- Keep focus when a row, clear button or toast goes: `FocusRecovery` (Keep focus when its part goes away), or `FocusReturn` / `Dialog.focusReturn` when an opener is gone.
+- A keyboard-reorderable list: `Reorder`; with arrows and typeahead on the same list, `Reorder.routed` beside `ListNavigation`.
+- Arrows over a grid of cells, a tree, or freely placed cards: `GridNavigation`, `TreeNavigation`, `SpatialNavigation`.
+- A value edited where it shows: `InlineEdit`. A key of the application's on a primitive's host: its `keys(...)` route in one `Behaviors.Keys.behavior`, or a `routes` option.
+- Swipe to reveal row actions with a key way: `SwipeActions`. A held stepper button: `Repeat`. Move or resize limits for a box: `Box` with `Move.nudge` and `Move.resizeKeys`.
 
 - **Place a preset:** `Page.place(PrefersDark, 'dark')` — no config needed.
 - **Drive a timer in tests:** the tick stream runs on Effect's clock, so
@@ -154,15 +164,22 @@ the same two calls, so a key and a `Move` drag obey the same limits.
   press is a drag once held still `HOLD_TO_DRAG_MS` (400ms); one that moves `HOLD_SLOP`
   (8px) first is a scroll, so leave the marked elements' `touch-action` alone and a list of
   them still scrolls. No roles or keys: `Reorder` is the keyboard's way. Swallows the click a drop ends with. Onto another region (a palette onto a
-  page): `targets: { attribute, within: selector }`, so `over` is one of those; `within` is
+  page): `targets: [{ attribute, within: selector }]` (one entry per region), so `over` is one of those; `within` is
   found nearest the container first, and each fact carries `region: boolean`, so `over: null`
   with `region: true` is the region's empty space. `part: attribute` reports an element
-  marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say.
+  marked by it as `{ id, zone: 'inside', part }`: a node's empty Region, say. `gaps: true`: over a
+  container's own space the place is between its children by the pointer along their flow
+  (before the first child whose middle is past it, else after the last; past the region's last,
+  `over: null`), measuring only that container's children.
   `edgeScroll: {}` (or `{ edge, speed }`) scrolls the nearest scrolling ancestor, then the
   page, while the drag is held near its edge (default 40px strip, 600px/s, instant steps,
   jumps every 150ms under reduced motion) and reports the place under the still pointer after
-  each step; absent, a plain drag scrolls nothing. Only a box the pointer is over is pulled,
+  each step; absent, a plain drag scrolls nothing. Only a box the pointer is over is pulled, and only after 150ms in its strip (at the window's edge a box under the pointer that can still scroll goes first),
   nothing above a `position: fixed` box, and not a page under a scroll lock.
+  While a drag lasts it writes `--fk-drag-x`, `--fk-drag-y` (viewport px) and
+  `data-fk-drag="mouse|touch|pen"` on the root (`DRAGGING`), so a preview follows the
+  pointer with no draw per move: draw an element with `popover="manual"` while the drag
+  is in the Model and mount `DragPreview()` (`/dom`) on it (top layer); a rule reads the vars.
 - **A lasso over marked items** (select by dragging a rectangle on empty space):
   `Marquee.behavior(Slots)<Input, Message>({ container, attribute, edgeScroll?, toMessage })`
   (Mount `Marquee({ attribute })` in `/dom`), attached beside `PointerDrag` on the same
@@ -197,7 +214,7 @@ the same two calls, so a key and a `Move` drag obey the same limits.
   Only `keydown` is written: attach `ListNavigation.item(Declared, args)(Slots)({ item, items })` for its items'
   tab stop and `OnFocus` (the others: `RovingTabindex.itemAttributes`), and draw `aria-activedescendant` yourself.
 - **Cells in rows:** `GridNavigation.bundle` (`{ columns, wrap, virtual }`) with
-  `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction? })`.
+  `GridNavigation.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items, direction?, routes? })` (`routes`: the application's keys on the same `keydown`; a clash is `mixins:key-conflict`).
   Same Model slice and item attributes as `RovingTabindex`; arrows move within the row or
   column, `wrap` continues into the next row or column, Home/End are per row and Ctrl+Home/End
   per grid. The pure move is `GridNavigation.move(enabled, count, current, key, modifiers, options)`.
@@ -206,13 +223,95 @@ the same two calls, so a key and a `Move` drag obey the same limits.
   each arrow moves the one tab stop to the nearest item drawn that way (a board, a canvas),
   measured when the key is handled and never kept. Home/End follow the view's order, directions are
   physical, and the pure rule is `SpatialNavigation.nearest(items, current, direction)`. Same
-  Model slice and item attributes as `RovingTabindex`.
+  Model slice and item attributes as `RovingTabindex`. The `item` slot must have
+  `Capability.Focusable` (another capability, a `Container`, throws `mixins:capability-mismatch`
+  when the Behavior is defined); a card `Selection` also drives takes `Focusable` too.
+The items come from `Behaviors.Collection.of`, described once per change of the list:
+
+```ts standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
+import { Behaviors, Capability, Slot, Slots } from 'foldkit-mixins'
+import { SpatialNavigation } from 'foldkit-primitives/interaction'
+
+const Card = Schema.Struct({ id: Schema.String, disabled: Schema.Boolean })
+const Board = Bundle.declare(SpatialNavigation.bundle, 'board')
+const Model = Schema.Struct({ ...Board.fields, cards: Schema.Array(Card) })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Board.cases })
+type Message = typeof Message.Type
+
+const BoardSlots = Slots.define({
+  board: Slot.make({ capability: Capability.Interactive }),
+  card: Slot.make({ capability: Capability.Focusable }),
+})
+const arrows = SpatialNavigation.behavior(Board, { id: 'board' })(BoardSlots)<Model, Message>({
+  container: 'board',
+  item: 'card',
+  items: model =>
+    Behaviors.Collection.of(model.cards, { id: card => card.id, disabled: card => card.disabled }),
+})
+```
+
 - **Edit a value in place:** `InlineEdit.bundle` (args `{ id, blur: 'commit' | 'cancel' }`) with
   `InlineEdit.behavior(Declared, args)(Slots)<Model, Message>({ display, input, error?, value, disabled?, routes? })`.
   Enter, F2, a double click or a typed key starts; Enter saves, Escape cancels without closing a dialog
   around it. A changed value is the `Committed` OutMessage; the parent saves it or hands it back with
   `refuse(committed, error)`, which keeps the editor open. Enter and Escape are `Behaviors.Keys` routes,
   and `routes` adds more.
+
+InlineEdit is wired through the placement's `onOut`, which saves a `Committed` or refuses it:
+
+```ts standalone
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import type * as Update from 'foldkit/update'
+import { Bundle } from 'foldkit-bundle'
+import { Capability, Event, Slot, Slots } from 'foldkit-mixins'
+import { InlineEdit } from 'foldkit-primitives/interaction'
+
+const Item = Schema.Struct({ id: Schema.String, title: Schema.String })
+const Title = Bundle.declare(InlineEdit.bundle, 'title')
+const Model = Schema.Struct({ ...Title.fields, items: Schema.Array(Item) })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Title.cases })
+type Message = typeof Message.Type
+const Page = Bundle.parent({ Model, Message })
+
+const args = { id: 'titles', blur: 'commit' } as const
+const placed = Page.at(Title, {
+  args,
+  onOut:
+    (committed: InlineEdit.Committed) =>
+    (model: Model): Update.Return<Model, Message> =>
+      committed.value.trim() === ''
+        ? placed.helpers.refuse(committed, 'A title is needed')(model)
+        : {
+            model: {
+              ...model,
+              items: model.items.map(item =>
+                item.id === committed.id ? { ...item, title: committed.value } : item,
+              ),
+            },
+          },
+})
+
+const ListSlots = Slots.define({
+  title: Slot.make({ capability: Capability.Focusable }),
+  field: Slot.make({ capability: Capability.TextInput, events: [Event.KeyDown] }),
+  error: Slot.make({ capability: Capability.Base }),
+})
+const editor = InlineEdit.behavior(Title, args)(ListSlots)<Model, Message>({
+  display: 'title',
+  input: 'field',
+  error: 'error',
+  value: (model, id) => model.items.find(item => item.id === id)?.title ?? '',
+})
+```
+
+The view draws the `field` (with its own `aria-label`) in place of the `title` of the item being edited, and `InlineEdit.errorOf(model.title)` is the refusal's text.
+
 - **Keep focus inside an overlay:** `FocusScope.behavior(Slots)<Input, Message>({ container, contain?, restore?, initialFocus? })`
   attaches the `foldkit-primitives/dom` `FocusScope` Mount (no Bundle: focus is a DOM fact).
   Initial focus on insert, Tab and Shift+Tab wrap and a stray focus comes back under
@@ -229,8 +328,32 @@ the same two calls, so a key and a `Move` drag obey the same limits.
   the parts (`data-fk-focus-*`, key from `item.id`). A removed, hidden, `inert` or
   `disabled` focused part, or a row a keyed reorder moved, sends focus to the first step
   that can take it: `same`, `next`, `previous`, `parent`, `stop`, `{ part }`, `owner`.
+  A `{ part }` step names a key of `parts` (a type error otherwise, in the bound form
+  `behavior(Bound)({ … })`); a key that is no slot names a part a widget marks itself
+  (`recoveryPart: 'dismiss'` on an Alert or a Card), so no never-drawn slot is needed.
   Never when focus moved elsewhere; nested owners decide innermost first, then outward;
-  a row not drawn yet is the Model's (a Command), not the Mount's. Opt-in.
+  a row not drawn yet is the Model's (a Command), not the Mount's. Opt-in. `FOCUS_MARK` (`/dom`) names the
+  marks (`data-fk-focus-owner`, `-part`, `-key`, `-parent`) for a view that draws a part by hand.
+
+The smallest use, a row that falls back to its neighbours and then to the field above it:
+```ts standalone
+import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { FocusRecovery } from 'foldkit-primitives/interaction'
+
+const RowSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  input: Slot.make({ capability: Capability.TextInput }),
+  row: Slot.make({ capability: Capability.Focusable }),
+})
+const RowView = SlotView.over(RowSlots)<{ readonly rows: ReadonlyArray<{ readonly id: string }> }, never>()
+
+// Each part names where focus goes if it is removed, hidden or made inert while it holds focus.
+const recovers = FocusRecovery.behavior(RowView)({
+  owner: 'root',
+  parts: { input: [], row: ['next', 'previous', { part: 'input' }] },
+})
+```
+
 - **A row that leaves without taking input:** `Presence.behavior(Slots)<Input, Message>({ content, phase: (input, item) => 'shown' | 'hiding' | 'hidden' })`
   draws `data-presence` and `inert` (not `aria-hidden`) on the slot for every phase but `shown`;
   it sends no Message. The phase and the timed `Hidden` are `Presence.bundle`'s (`motion`), one
@@ -241,10 +364,12 @@ the same two calls, so a key and a `Move` drag obey the same limits.
   `onOut` for `Pressed { pointerType }`; attach `Press.behavior(Declared)(Slots)<Model, Message>({ target, disabled? })`.
   The `Press.events` Mount reports pointer, key, and click facts; `update` decides
   (primary button, one pointer, cancel, Enter/Space without repeat, virtual clicks,
-  ghost click suppressed by a timed Command; `Pressed` carries `shiftKey`). `data-pressed` while down.
+  ghost click suppressed by a timed Command; `Pressed { pointerType, modifiers }`, `modifiers` being `{ shiftKey, ctrlKey, metaKey, altKey }` of the completing event; it does not say which row). `data-pressed` while down.
+  An `aria-disabled` target refuses new presses but still ends one that began enabled (its release arrives as
+  a cancel, never as a `Pressed`), so a control that disables itself mid-hold is not left held.
 - **Swipe-to-reveal actions with a keyboard way:** `SwipeActions.bundle` (`{ fullSwipe, flick, full }`, `onOut` for `FullSwiped { side }`); `SwipeActions.decide(model, release, args)` reads a `SwipeEnded`; `SwipeActions.keys({ open, rtl, toMessage })` is a `Behaviors.Keys` route (arrows open and close, Escape closes). Hide a closed row's actions with `inert`.
 - **Held stepper:** `Repeat.bundle` (`{ delayMs, intervalMs }`, required `onOut` for `Stepped { count, input }` and `Ended { count }`) with
-  `Repeat.behavior(Declared)(Slots)({ target })`; send `Repeat.Message.Stopped()` at a bound. A tap steps on release for a finger; one slot takes one of `Press`, `LongPress`, `Repeat`.
+  `Repeat.behavior(Declared)(binder)({ target, disabled? })` (the `SlotView.over` binder, as `Press.behavior`; the target supplies `activation`); send `Repeat.Message.Stopped()` at a bound. A tap steps on release for a finger; the pointer leaving the button ends the hold (no resume on return); one slot takes one of `Press`, `LongPress`, `Repeat`.
 - **Hold:** `LongPress.bundle` (`{ thresholdMs }`, required `onOut` for `LongPressed`) with
   `LongPress.behavior(Declared)(Slots)({ target })`; reads `Press.events`, so not on the same slot as `Press`.
 - **Keep the selection in view:** the `KeepInView({ selector })` Mount (`foldkit-primitives/dom`) on a
@@ -313,14 +438,14 @@ the same two calls, so a key and a `Move` drag obey the same limits.
   `data-fk-placed="above"` (`Placing.placedSide`, `Placing.placedAbove`) so a hover bridge can
   overlap that side. `Anchor.behavior` portals and tracks; this places once.
 - **A parent's own decisions are helpers, never the child's Messages:** `Selection`'s
-  `activate(id)`, `replace(ids)`, `clear()`; `TreeNavigation`'s `focus`, `open`, `close`,
+  `activate(id)`, `select(id)` (one item, anchored), `range(id, order)` (a Shift range), `replace(ids)`, `clear()`; `TreeNavigation`'s `focus`, `open`, `close`,
   `toggle(id)`; `focus(id)` on `RovingTabindex`, `ListNavigation`, `GridNavigation`;
   `Typeahead`'s `clear()`; `LiveAnnounce`'s `announce(text, politeness?)`. Call them on the
   placement (`Picks.helpers.activate(id)(model)`); a control the parent draws sends a parent
   Message and `update` calls the helper.
 - **Selected items:** `Selection.bundle` (`{ mode: 'single' | 'multiple' | 'none', allowEmpty }`, slice `{ selected, anchor }`)
   with `Selection.behavior(Declared, args)(Slots)({ container?, item, items, click? })` writing `aria-selected`,
-  `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range (Shift comes from `Pressed.shiftKey`).
+  `aria-multiselectable`, and a click to `Activated`; `Ranged { id, order }` for a Shift range and `Selected { id }` for a click that replaces (Shift comes from `Pressed.modifiers.shiftKey`).
 - **Announce to assistive technology:** place `LiveAnnounce.bundle` once (`{ debounceMs, clearAfterMs }`), fold
   the placement's `helpers.announce(text, politeness?)` in `update`, render `LiveAnnounce.view(slice, h)` once and hide it visually.
 

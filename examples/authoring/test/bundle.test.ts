@@ -8,11 +8,14 @@ import { resolve } from 'node:path'
 import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 
 // Brotli bytes. Never raise it without saying here what the growth bought.
-// 206.8 kB (206,805 bytes) measured on 2026-11-14; the ceiling is that plus about 2%, rounded up
-// to the next 500 bytes. The page draws every section at once, so it carries Remote and the
-// agent for the editor (about 64 kB brotli between them, with Entity); a page drawing only the
-// primitives' sections loads none of it.
-const CEILING = 211_000
+// 152.1 kB measured on 2026-11-15; the ceiling is that plus about 2%, rounded up to the next 500
+// bytes. The editor and the sections added for the newer primitives load when they near the
+// window (`src/entry.ts`), so the start chunk holds the first five sections and no Remote, agent or
+// Entity (92.9 kB brotli, in lazy chunks this budget leaves out). Before, with every section in
+// the page: 206.8 kB on 2026-11-14, 208.8 kB with the list's later changes. Lazy sections alone,
+// with the editor still in the start chunk, measured 219.8 kB: more chunks cost brotli its shared
+// dictionary, so the editor's 64 kB was the part worth moving.
+const CEILING = 155_500
 
 clientBudget({
   name: 'authoring',

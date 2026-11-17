@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Repeat: a held stepper. A mouse or a key steps as it goes down and repeats
  * after the delay; a finger steps on a tap or once held; a click no pointer
@@ -7,10 +8,12 @@
 import { Effect, Fiber, Option, Schema } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Mount from 'foldkit/mount'
 import { Bundle } from 'foldkit-bundle'
 import { Attributes, Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import { describe, expect, it } from 'vitest'
 import { Repeat } from '../src/interaction/index.js'
+import { takeMessages } from './support.js'
 
 const Hold = Bundle.declare(Repeat.bundle, 'hold')
 const Model = Schema.Struct({ ...Hold.fields, out: Schema.Array(Schema.Unknown) })
@@ -35,6 +38,7 @@ const fresh: Model = {
   out: [],
 }
 const M = Repeat.Message
+const none = { shiftKey: false, ctrlKey: false, metaKey: false, altKey: false }
 const send = (model: Model, ...messages: ReadonlyArray<Repeat.Message>) => {
   let last = {
     model,
@@ -47,9 +51,9 @@ const send = (model: Model, ...messages: ReadonlyArray<Repeat.Message>) => {
   return last
 }
 const mouseDown = M.PointerDown({ pointerId: 1, button: 0, pointerType: 'mouse' })
-const mouseUp = M.PointerUp({ pointerId: 1, pointerType: 'mouse', shiftKey: false })
+const mouseUp = M.PointerUp({ pointerId: 1, pointerType: 'mouse', modifiers: none })
 const touchDown = M.PointerDown({ pointerId: 7, button: 0, pointerType: 'touch' })
-const touchUp = M.PointerUp({ pointerId: 7, pointerType: 'touch', shiftKey: false })
+const touchUp = M.PointerUp({ pointerId: 7, pointerType: 'touch', modifiers: none })
 const stepped = (count: number, input: Repeat.Stepped['input']) =>
   Repeat.Stepped.make({ count, input })
 
@@ -88,7 +92,7 @@ describe('Repeat placement', () => {
       down,
     )
     expect(
-      send(down, M.PointerUp({ pointerId: 2, pointerType: 'mouse', shiftKey: false })).model,
+      send(down, M.PointerUp({ pointerId: 2, pointerType: 'mouse', modifiers: none })).model,
     ).toBe(down)
     expect(
       send(fresh, M.PointerDown({ pointerId: 1, button: 2, pointerType: 'mouse' })).model,
@@ -109,6 +113,28 @@ describe('Repeat placement', () => {
     expect(released).toHaveLength(3)
   })
 
+  it('a key cancelled by a disabled element ends its hold, and another key does not', () => {
+    const down = send(fresh, M.KeyDown({ key: 'Enter', repeat: false })).model
+    expect(send(down, M.KeyCancelled({ key: ' ' })).model).toBe(down)
+    const ended = send(down, M.KeyCancelled({ key: 'Enter' })).model
+    expect(ended.hold.holding).toBe(false)
+    expect(ended.out.at(-1)).toEqual(Repeat.Ended.make({ count: 1 }))
+  })
+
+  it('a pointer leaving ends a mouse hold for good: coming back while down does not resume it', () => {
+    const left = send(
+      fresh,
+      mouseDown,
+      M.Elapsed({ generation: 1 }),
+      M.PointerCancelled({ pointerId: 1 }),
+    )
+    expect(left.model.out.at(-1)).toEqual(Repeat.Ended.make({ count: 2 }))
+    expect(left.model.hold.holding).toBe(false)
+    expect(send(left.model, M.Elapsed({ generation: 1 })).model).toBe(left.model)
+    // Re-entering sends nothing, and the pointer's later up belongs to no press.
+    expect(send(left.model, mouseUp).model).toBe(left.model)
+  })
+
   it('a cancelled finger steps nothing', () => {
     expect(send(fresh, touchDown, M.PointerCancelled({ pointerId: 7 })).model.out).toEqual([])
   })
@@ -121,7 +147,7 @@ describe('Repeat placement', () => {
     const ended = send(
       down.model,
       M.Elapsed({ generation: 1 }),
-      M.KeyUp({ key: 'Enter', shiftKey: false }),
+      M.KeyUp({ key: 'Enter', modifiers: none }),
     )
     expect(ended.model.out).toEqual([
       stepped(1, 'keyboard'),
@@ -129,16 +155,16 @@ describe('Repeat placement', () => {
       Repeat.Ended.make({ count: 2 }),
     ])
     expect(send(fresh, M.KeyDown({ key: 'a', repeat: false })).model).toBe(fresh)
-    expect(send(down.model, M.KeyUp({ key: ' ', shiftKey: false })).model).toBe(down.model)
+    expect(send(down.model, M.KeyUp({ key: ' ', modifiers: none })).model).toBe(down.model)
   })
 
   it('a click no pointer made steps once; the click after a press does not', () => {
-    expect(send(fresh, M.Clicked({ detail: 0, shiftKey: false })).model.out).toEqual([
+    expect(send(fresh, M.Clicked({ detail: 0, modifiers: none })).model.out).toEqual([
       stepped(1, 'virtual'),
     ])
-    expect(send(fresh, M.Clicked({ detail: 1, shiftKey: false })).model).toBe(fresh)
+    expect(send(fresh, M.Clicked({ detail: 1, modifiers: none })).model).toBe(fresh)
     const down = send(fresh, mouseDown).model
-    expect(send(down, M.Clicked({ detail: 0, shiftKey: false })).model).toBe(down)
+    expect(send(down, M.Clicked({ detail: 0, modifiers: none })).model).toBe(down)
   })
 
   it('the parent stopping at a bound ends the stepping but not the press', () => {
@@ -213,5 +239,48 @@ describe('Repeat.behavior', () => {
     expect(Attributes.find(attrs(fresh), 'DataAttribute')).toBeUndefined()
     const down = send(fresh, mouseDown).model
     expect(Attributes.find(attrs(down), 'DataAttribute')).toBeDefined()
+  })
+
+  it('takes the binder, and `disabled` marks the target aria-disabled while it holds', () => {
+    const Buttons = SlotView.over(ButtonSlots)<Model & { readonly locked: boolean }, Message>()
+    const Bound = Repeat.behavior(Hold)(Buttons)({
+      target: 'button',
+      disabled: input => input.locked,
+    })
+    const drawn = (locked: boolean) =>
+      SlotView.buildersFor(ButtonSlots, [Bound.mixin], {
+        input: { ...fresh, locked },
+        h: SlotView.inertBuilder<Message>(),
+      }).button.attrs()
+    expect(Attributes.find(drawn(true), 'AriaDisabled')?.value).toBe(true)
+    expect(Attributes.find(drawn(false), 'AriaDisabled')).toBeUndefined()
+    // Without the option nothing is marked.
+    expect(Attributes.find(attrs(fresh), 'AriaDisabled')).toBeUndefined()
+  })
+
+  it('maps the Press facts into the placement’s Messages', async () => {
+    const element = document.createElement('div')
+    document.body.appendChild(element)
+    try {
+      const mount = Attributes.find(attrs(fresh), 'OnMount')?.action
+      expect(mount).toBeDefined()
+      const facts = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(mount!.f(element, Mount.liveViewStateChanges), 1),
+          )
+          for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+          const event = new window.Event('pointerdown', { bubbles: true })
+          Object.assign(event, { pointerId: 3, button: 0, pointerType: 'touch' })
+          element.dispatchEvent(event)
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(facts).toEqual([
+        Hold.wrapper.make(M.PointerDown({ pointerId: 3, button: 0, pointerType: 'touch' })),
+      ])
+    } finally {
+      element.remove()
+    }
   })
 })

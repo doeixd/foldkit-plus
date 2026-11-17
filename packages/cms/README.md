@@ -435,7 +435,7 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 | `Cms.offers(facts, now, content)` | The transitions it offers now. |
 | `Cms.Entities`, `Cms.Operations`, `Cms.operations` | The CMS's own Entities and mutations. |
 | `Cms.Entries` | The worklist query: one content type's entries, by label, archived or not. |
-| `Cms.bySlug(content)` | The query `<name>BySlug`: the content at an address, a connection of one or none. Throws with no `slug` role. |
+| `Cms.bySlug(content)` | The query `<name>BySlug`: the content at an address, a connection of one or none. Takes what a reader needs (`ContentReader`: `name`, `entity`, `roles`; a `Content` is one), so a public site need not import the form that authors it. Throws with no `slug` role. |
 | `Cms.refusal` | What a server refuses `SaveDraft` and `Publish` with: `field(key, reason)` for one key of the form, `conflict` for work saved or published since. Both operations declare it as their `Refusal`. |
 
 ## End-to-end example

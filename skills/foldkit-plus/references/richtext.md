@@ -147,7 +147,7 @@ and clipboard events into editor intent while preventing the browser from mutati
 the subtree behind the document. `onSelection` reports a caret the application did
 not just commit; a press on an atom, or an arrow reaching it, reports a node selection of it, marked `data-selected`
 (Delete removes it, Enter opens a paragraph after it, typing replaces it), and a press below the
-last block writes after it (a new paragraph after a table or code), and `mountInto(host, content, options)` at
+last block writes after it (a new paragraph after a table or code), the caret the editor drew after the person's own edit, undo or key is scrolled into view by the least amount (scrolling boxes and the window, honouring `scroll-padding` for a sticky bar; never for another person's edit, a decoration refresh or a control holding the focus), while something outside the editor has the focus the editor restores and reports no selection and draws its range selection as a `selection` decoration (`SELECTION_DECORATION`) until a key or `focus` brings the focus back, a press inside an element marked `data-editor-controls` (`CONTROLS_ATTRIBUTE`) does not take the focus from the text, and `mountInto(host, content, options)` at
 `foldkit-richtext-dom/host` renders into a view's host element and records the
 attachment a patch Command later finds; if the host already holds exactly the subtree it would
 build (server markup), it keeps those elements (`adopt`), and otherwise replaces what is there. A registry can also be `placeRendering`d for
@@ -192,7 +192,20 @@ chrome's icon set (Lucide, ISC). `blockStyles<Message>()` is the
 style picker: `{ document, selection, wrap }` in, `BlockStyleSlots` (`root`, `toolbar`,
 `button`) out, one `data-style` button per retype entry (Paragraph, Heading 1–3), pressed from
 `RichText.textBlockAt`, all disabled without a text selection; `blockStyleMenu<Message>()` is the
-same as one trigger and a menu (`{ …, open, toggled }`, `BlockStyleMenuSlots`). `linkEditor<Message>()` is the link
+same as one trigger and a menu (`{ …, open, toggled }`, `BlockStyleMenuSlots`). `formattingToolbar<Message>()` is the
+standard bar, one `role="toolbar"` with one tab stop: `{ id, document, selection, storedMarks?, wrap, menu?, toggled(menu, open),
+roving: { current }, onFocus(id), items?, history?, inserts?, returned?, shortcuts?, words?, direction? }` in, `FormattingToolbarSlots` out;
+`items` (default `standardFormattingItems`) lists `'undo' | 'redo' | 'style' | 'link' | 'bulleted-list' | 'numbered-list' | 'checklist' |
+'quote' | 'insert' | 'separator' | { mark } | { control: ApplicationControl }` (the application's own control, in the same tab stop:
+`{ id, label, icon?, shortcut?, pressed?, disabled?, message, popup?: { kind, open } }`); `{ low: item }` is left undrawn (so not a tab stop) when `compact` is true, which the application drives from a media query (`MediaQuery` in `foldkit-primitives/media`); `inserts` is one ordered list of
+`InsertEntry.Editor({ entry })` and `InsertEntry.App({ id, label, message })`; the application keeps which menu is open and the tab stop id;
+an unavailable control (its own too: `update` must refuse its Message) is `aria-disabled`, focusable, and sends nothing; `history` lets the
+application say what undo and redo apply to. A pointer press on a control leaves the focus and the browser's selection in the text
+(the root carries `data-editor-controls`, `CONTROLS_ATTRIBUTE` from `foldkit-richtext-dom/toolbar`, as the roots of `markToolbar`, `blockStyles`,
+`blockStyleMenu`, `tableToolbar`, `codeToolbar`, `slashMenuView` and `linkEditor` do; mark your own chrome with `h.Attribute(CONTROLS_ATTRIBUTE, '')`). A control
+reached by key holds the focus and a command leaves it there; commands read the Model's selection, which the editor draws as
+`span[data-decoration="selection"]` (style it as selected text) until the focus returns; Escape on a control sends
+`returned` (run the editor's `focus` Command) to return to the text. `linkEditor<Message>()` is the link
 editor: `{ document, selection, draft, drafted, wrap, closed?, submitted? }` in (Escape sends `closed`; Enter sends `submitted`, for `update` to apply `linkEdit(document, selection, draft)` to the Model's draft), `LinkEditorSlots` (`root`, `input`,
 `apply`, `remove`) out; it opens on `RichText.linkAt`, sends `AppliedMark` with
 `RichText.safeUrl(draft)` (disabled when the policy refuses it, or when there is neither a range
@@ -256,7 +269,10 @@ editor. An `Edited` OutMessage carries the `transactions` the edit applied.
 `foldkit-richtext-dom/input`'s `richTextInput(hostId, placement)` is the editor as a
 `foldkit-form` control (`Input.bundle`): `EditorInput` holds the document in its own Model,
 a blank document is no value, `fill` starts a fresh history, and `settled` keeps caret, stored
-marks, and history for a resumed draft.
+marks, and history for a resumed draft. An editor placement takes `label` or `labelledBy` (not both) as its accessible name (`aria-label` / `aria-labelledby` on the `role="textbox"` root, in server markup too); a form-drawn editor takes its group's label and a click on the label focuses it. `richTextInput`'s third argument `{ codec: { value, fill } }` makes the
+key hold another type (Markdown text: `print(document).markdown` and `parse(text, { mint }).document`)
+while the editor holds a document; `value` is never called with a blank document (a codec may give `blank: A` as that document's value instead of "required"), and a `fill`
+that throws fails the form's `fill`.
 
 The read-only view (`foldkit-richtext-dom/view`) renders a document or a
 slice as ordinary Foldkit `Html` through `inertHtml` — no dispatch, no DOM

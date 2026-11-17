@@ -18,7 +18,7 @@ each of those.
 | **Mount** | Element-scoped imperative work. Emits Messages while the element is live; cleans up on unmount. |
 | **Resource / ManagedResource** | A dependency shared with Commands and Subscriptions. A `ManagedResource`'s lifetime follows a Model slice. |
 | **Submodel** | A child state machine whose state is a field of the parent Model and whose Messages are a variant of the parent's. |
-| **Owner** | The one authoritative source for a datum. Every package in this repository is built around there being exactly one. |
+| **Owner** | The one authoritative source for a datum. Every package in this repository is built around there being exactly one. On a view's slot it is the one attachment that writes an event, an attribute or a style property: a second is a diagnostic, not a winner. |
 
 ## `foldkit-surface`: boundaries
 
@@ -47,13 +47,18 @@ each of those.
 | Term | What it is |
 | --- | --- |
 | **Entity** | A named record type with an `id`, declared once with `Entity.define`, and read by Remote, the Drizzle binding and forms. [The package](../packages/entity/README.md) |
+| **Domain module** | The one module that declares an application's Entities, relations, invariants, states, writes, query bodies and guard rules, importing neither a database nor a client; the server, the page, forms and checks each read it. [One domain declaration](./entity.md) |
 | **Relation** | A member that points at another Entity (`Relation.one`, `Relation.many`, declared together with `Entity.relate`). Remote's store holds it as a ref key such as `'User:u1'`, a table as a foreign key; never a copy. |
 | **Derived member** | A readable value that is not a field: supplied by an interpreter (`Derived.make`), a count of the rows pointing here (`Derived.count`), or the row the reader has pointing here (`Derived.exists`). |
 | **Selection** | Exactly which fields of an Entity, and through which relations, a consumer needs; it decodes to that shape. `Entity.select`. |
-| **`Expr`** | A statement about one row, as a value: comparisons, `and`/`or`/`not`, paths through `one` relations, an exists, an input placeholder, who asks (`Expr.viewer`) and when (`Expr.now`). Three-valued, as SQL is. [Expr](../packages/entity/README.md#saying-something-about-a-row-expr) |
+| **`Expr`** | A statement about one row, as a value: comparisons, `and`/`or`/`not`, paths through `one` relations, an exists, an input placeholder, who asks (`Expr.viewer`) and when (`Expr.now`). Three-valued, as SQL is. [Expressions](./expressions.md) |
 | **Query body** | What a list means, as a value: `Query.from(Entity)` with `Expr` predicates and an order; `foldkit-remote`'s `Query.define(name, Input, ({ input }) => …)` names one. Compiled to SQL on a server, judged over held rows on the client. |
 | **Collation** | How text compares and orders (`Collation.binary`, `asciiFold`, `locale`), declared on a field or a term; text with none is not compared, since databases disagree. |
 | **`Judge`** | The reference meaning of a body over rows a holder has (`Held.rows`): a verdict, `Known` (as SQL answers) or `Unknown` with why, never a guess. |
+| **Interpreter** | Whatever answers an `Expr`: the SQL compiler of `foldkit-remote-drizzle`, `evaluate` over one table's rows in memory, or `Judge` over what a holder has. Each refuses, by name, what it does not run. [Expressions](./expressions.md#three-interpreters-one-answer) |
+| **Conformance suite** | Bodies, rows and expected ids (`foldkit-entity/conformance`), chosen to make interpreters disagree; every interpreter here runs it, and one written elsewhere can. |
+| **Reach** | What a body reads in other rows: a path through `one` relations or an exists. Listed in `Query.dependencies(body).reaches`, never in `fields`. |
+| **Holder** | Whoever has some rows and some fields of them (`Held.rows`): a page's store, a test. To a holder a missing field is not held, which is not null. |
 | **Operator** | A word an application adds to `Expr` (`Expr.operator`): defined by an expression, or primitive and implemented per interpreter, held to its laws by `Conformance`. [Operators](./operators.md) |
 | **Context set** | A member the write's context fills, never the input: `Entity.sets({ author: Expr.viewer(User) }, { on: 'create' })`. |
 | **Declared write** | A change to one row by id, as data (`Write.update`, `insert`, `delete`): what it sets, adds, and must find. Served with no handler. [Declared writes](./declared-writes.md) |
@@ -93,6 +98,24 @@ each of those.
 | **Revision** | The highest journal sequence a row of a read model has applied: an edit committed after it is not in the row yet. |
 | **Absorbed** | An edit the read model holds, recorded so by the server; replicas drop it and the log compacts. |
 | **Held edit** | An absorbed edit a page keeps while the row it has cached is behind it, so the row never shows a stale read (`EditableEntity.held`). |
+| **Alchemy Domain** | An external event-sourcing library (`@alchemy.run/domain`): Commands go to Aggregates that decide, Events are the facts, Views fold them into rows. `foldkit-remote-domain` lets a page read and write such a model through Remote. Not the `alchemy` deploy tool. Command, Aggregate, Event, View, Rejection, Story and Api are its words. [An event-sourced domain behind Remote](./event-sourced-domains.md) |
+| **Receipt** | What a Domain command answers with (`{ stream, version }`). Remote keeps it as a read-after token until the View shows the write, so a read never shows the row from before it. |
+| **Lowering** | Turning a declared write into one Alchemy Domain Aggregate's Command (`Lower.write`): its `decide` lands the write through the chain a server runs, over the one row the Aggregate holds, so the rules are stated once. A write that reads another row cannot be lowered (`Lower.check`). [An event-sourced domain behind Remote](./event-sourced-domains.md) |
 | **Agent contract** | What an agent may see (a Projection) and do (a Message subset), built from `Agent.forApplication(App)` and served by an adapter. [Agents](./agents.md) |
-| **Slot** | A named extension point in a view (`root`, `label`, …) that Style and Behavior attach to. [`foldkit-mixins`](../packages/mixins/README.md) |
-| **SlotView** | A pure view that renders its slots and resolves what is attached to them. |
+
+## `foldkit-mixins` and `foldkit-primitives`: views and interaction
+
+| Term | What it is |
+| --- | --- |
+| **Slot** | A named extension point in a view (`root`, `label`, …) that Style and Behavior attach to. A metadata contract, not a DOM node. [`foldkit-mixins`](../packages/mixins/README.md#slots-the-public-contract) |
+| **SlotView** | A pure view that renders its slots and resolves what is attached to them. [SlotView](../packages/mixins/README.md#slotview) |
+| **Style** | Appearance attached to a slot as data: classes, declarations and compiled rules, built from tokens. A *piece* is one value of it. [Style](../packages/mixins/README.md#style-appearance-as-data) |
+| **Behavior** | Element-level interaction attached to a slot: attributes and an optional Mount, built from the view's input. It sends Messages and owns no state. [Behavior](../packages/mixins/README.md#behavior-reusable-element-level-interaction) |
+| **Mixin** | What Style and Behavior both compile to. The resolver merges the Mixins on a view and refuses two owners of one event, attribute or style property. |
+| **Recipe** | A widget's default look: pieces for its slots over the theme's tokens, chosen by axes (`size`, `variant`) and adjusted with `.extend`, never forked. [Recipes](../packages/mixins-ui/README.md) |
+| **Obligation** | Something a pattern asks an attachment to do on a slot: navigate its items, make each reachable, activate it, write a state attribute, give it a name. [Obligations](../packages/mixins/README.md#obligations-who-does-what-a-pattern-asks) |
+| **Supply** | A claim that an obligation is met: a Behavior slot's `provides`, or `A11y.base` (the view's own markup), `A11y.native` (a native element) and `A11y.delegated` (another slot's Behavior). `A11y.conform` refuses a view where one has none. |
+| **Key route** | One named `keydown` answer for a slot: the chords it takes and the Message each means. `Behaviors.Keys` folds a slot's routes into its one handler, so a widget's own keys and an application's share it; two routes on a chord are `mixins:key-conflict`. [Keys](../packages/mixins/README.md#keys-one-owner-for-a-slots-keydown) |
+| **Part** | In `SlotView.parts`, a piece of a view that is drawn again only when the input keys it reads change. In `FocusRecovery`, a slot whose element focus can be lost with, given fallback steps. |
+| **Conformance** | `foldkit-mixins/testing`'s rendered scenarios (`listbox`, `tree`, `dialog`, `tabs`, `checkbox`): they drive a real page and read what it did, where `A11y.check` only reads declarations. [Conformance](../packages/mixins/README.md#conformance-the-rendered-check) |
+| **Primitive** | A ready-made piece of browser or interaction state in `foldkit-primitives`: a Bundle (state in your Model), a Mount (a DOM fact), a Behavior (the Bundle attached to slots), a Command or a pure function. [Primitives](../packages/primitives/README.md) |

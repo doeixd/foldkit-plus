@@ -279,7 +279,10 @@ DetailView.forMessages<PageMessage>().define(PostDetail)({ value: Shown.value(mo
 
 A list whose markup is rows rather than a table (a navigation, a picker of
 whole rows) uses `RowListView`, which carries the same state contract over
-`ul`/`li`; you draw each row, and `onOpen` makes the whole row a button:
+`ul`/`li`; you draw each row, and `onOpen` makes the whole row a button. Rows of
+both views carry their key as `data-row-key` on the `row` Slot (escape it with
+`CSS.escape` in a selector), to return focus with
+``Dom.focus(`[data-row-key="${CSS.escape(id)}"] button`)``:
 
 <!-- docs-check
 import type { Page as RemotePage, RemoteData } from 'foldkit-remote'

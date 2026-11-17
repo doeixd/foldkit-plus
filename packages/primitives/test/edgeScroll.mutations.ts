@@ -161,8 +161,24 @@ export default [
     tests: edgeTests,
   },
   {
-    name: 'a scroller the pointer is only beside is pulled too',
-    edits: [{ file: scroll, find: '        if (!across) continue\n', replace: '' }],
+    name: 'a scroller the pointer is only beside, above or below is pulled too',
+    edits: [{ file: scroll, find: '        if (!over) continue\n', replace: '' }],
+    tests: edgeTests,
+  },
+  {
+    name: 'a pointer passing through the strip scrolls it at once',
+    edits: [
+      {
+        file: scroll,
+        find: 'if (now - since < EDGE_DWELL_MS) {',
+        replace: 'if (false as boolean) {',
+      },
+    ],
+    tests: edgeTests,
+  },
+  {
+    name: 'the window scrolls before a box under the pointer that still can',
+    edits: [{ file: scroll, find: 'under.find(each => canMove(each, by))', replace: 'undefined' }],
     tests: edgeTests,
   },
   {
@@ -191,7 +207,7 @@ export default [
     edits: [
       {
         file: scroll,
-        find: 'if (by < 0 ? at <= low : at >= low + room(scroller.element, axis) - 0.5) continue',
+        find: 'if (!canMove(scroller, by)) continue',
         replace: '',
       },
     ],
@@ -224,8 +240,9 @@ export default [
     edits: [
       {
         file: scroll,
-        find: 'if (steps.length === 0) return',
-        replace: 'if (steps.length === 0) { frame = view?.requestAnimationFrame(tick); return }',
+        find: '      since = undefined\n      return\n',
+        replace:
+          '      since = undefined\n      frame = view?.requestAnimationFrame(tick)\n      return\n',
       },
     ],
     tests: edgeTests,
@@ -235,8 +252,8 @@ export default [
     edits: [
       {
         file: drag,
-        find: '            scroller?.stop()\n            const id = dragging',
-        replace: '            const id = dragging',
+        find: '            scroller?.stop()\n            clearAt()\n            const id = dragging',
+        replace: '            clearAt()\n            const id = dragging',
       },
     ],
     tests: edgeTests,
@@ -246,8 +263,8 @@ export default [
     edits: [
       {
         file: drag,
-        find: '            clearTimeout(holding)\n            scroller?.stop()\n            release()',
-        replace: '            clearTimeout(holding)\n            release()',
+        find: '            clearTimeout(holding)\n            scroller?.stop()\n            clearAt()\n            release()',
+        replace: '            clearTimeout(holding)\n            clearAt()\n            release()',
       },
     ],
     tests: edgeTests,

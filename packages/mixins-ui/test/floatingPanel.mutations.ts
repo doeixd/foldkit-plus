@@ -135,13 +135,6 @@ export default [
     tests: [unit],
   },
   {
-    name: 'close gives focus to nothing',
-    edits: [
-      { file, find: 'onSome: elementId => [Focus({ elementId })],', replace: 'onSome: () => [],' },
-    ],
-    tests: [unit, browser],
-  },
-  {
     name: 'focus lands nowhere',
     edits: [{ file, find: 'document.getElementById(elementId)?.focus()', replace: '' }],
     tests: [browser],
@@ -230,7 +223,7 @@ export default [
     edits: [
       {
         file,
-        find: 'handle: () => Option.some(send(Message.Closed())),',
+        find: 'handle: close,',
         replace: 'handle: () => Option.none(),',
       },
     ],
@@ -238,7 +231,7 @@ export default [
   },
   {
     name: 'Escape closes when told not to',
-    edits: [{ file, find: '...(options.closeOnEscape === false', replace: '...(false' }],
+    edits: [{ file, find: 'closeOnEscape === false', replace: 'false' }],
     tests: [unit],
   },
   {
@@ -271,6 +264,17 @@ export default [
   {
     name: 'focusReturn gives focus back to nothing',
     edits: [{ file, find: 'mount: () => FocusReturn(),', replace: 'attributes: () => [],' }],
+    tests: [browser],
+  },
+  {
+    name: "a panel's root is unkeyed, so the next panel takes its element when it closes",
+    edits: [
+      {
+        file,
+        find: 'builders.root.attrs([h.Key(id), h.Style({ display: ',
+        replace: 'builders.root.attrs([h.Style({ display: ',
+      },
+    ],
     tests: [browser],
   },
 ]

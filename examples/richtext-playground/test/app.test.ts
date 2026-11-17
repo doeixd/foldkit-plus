@@ -13,6 +13,7 @@ import { parse } from 'foldkit-richtext-markdown'
 import {
   codeBlockAt,
   exported,
+  sourceOf,
   Menu,
   Message,
   init,
@@ -496,6 +497,51 @@ describe('menus', () => {
     })
     const caption = openMenu(step(initial, Message.OpenedMenu({ menu: Menu.Caption({ node }) })))
     expect(Option.getOrUndefined(caption.block)).toEqual({ node, caption: true })
+  })
+
+  it('the formatting bar keeps its tab stop on the control last used', () => {
+    const model = step(start(), Message.FocusedControl({ id: 'mark-Bold' }))
+    expect(Option.getOrUndefined(model.tabStop)).toBe('mark-Bold')
+    expect(update(model, Message.FocusedControl({ id: 'mark-Bold' })).model).toBe(model)
+  })
+
+  it('the Image button closes a menu and asks for the file dialog', () => {
+    const opened = step(start(), Message.OpenedMenu({ menu: Menu.Insert() }))
+    const result = update(opened, Message.OpenedFileDialog())
+    expect(Option.isNone(result.model.menu)).toBe(true)
+    expect(result.commands?.map(command => command.name)).toEqual(['OpenFileDialog'])
+  })
+
+  it('the source panel opens on a format, switches, and hides', () => {
+    const opened = step(
+      start(),
+      Message.OpenedMenu({ menu: Menu.Insert() }),
+      Message.ShowedSource({ format: 'Markdown' }),
+    )
+    expect(Option.getOrUndefined(opened.source)).toBe('Markdown')
+    expect(Option.isNone(opened.menu)).toBe(true)
+    expect(update(opened, Message.ShowedSource({ format: 'Markdown' })).model).toBe(opened)
+    expect(
+      Option.getOrUndefined(step(opened, Message.ShowedSource({ format: 'JSON' })).source),
+    ).toBe('JSON')
+    expect(Option.isNone(step(opened, Message.HidSource()).source)).toBe(true)
+    const closed = start()
+    expect(update(closed, Message.HidSource()).model).toBe(closed)
+  })
+
+  it('the source of a document is its Markdown, or its JSON', () => {
+    const { document } = start()
+    expect(sourceOf(document, 'Markdown')).toContain('# A little room to think.')
+    expect(JSON.parse(sourceOf(document, 'JSON')).version).toBe(1)
+  })
+
+  it('the reading direction toggles and starts left to right', () => {
+    const model = start()
+    expect(model.direction).toBe('ltr')
+    expect(step(model, Message.ToggledDirection()).direction).toBe('rtl')
+    expect(step(model, Message.ToggledDirection(), Message.ToggledDirection()).direction).toBe(
+      'ltr',
+    )
   })
 
   it('a no-op keeps the Model', () => {

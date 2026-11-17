@@ -297,6 +297,72 @@ it('scrolls no box the pointer is beside rather than over', async () => {
   }
 })
 
+it('scrolls no box the pointer is below, over another panel', async () => {
+  const { box, list } = rows(20)
+  const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
+  try {
+    await later(20)
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    // Past the box's bottom edge, in the span across it: the pull would be full if this were its edge.
+    pointer(10, 140, 'pointermove')
+    await later(300)
+    expect(box.scrollTop).toBe(0)
+    pointer(10, 140, 'pointerup')
+  } finally {
+    await run.stop()
+  }
+})
+
+it('scrolls nothing for a pointer that only passes through the strip, and scrolls once it stays', async () => {
+  const { box, list } = rows(20)
+  const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
+  try {
+    await later(20)
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    // In the strip for a few frames, then out of it: a tile on its way elsewhere.
+    pointer(10, 95, 'pointermove')
+    await later(60)
+    pointer(10, 50, 'pointermove')
+    await later(300)
+    expect(box.scrollTop).toBe(0)
+    // Held there, it does scroll.
+    pointer(10, 95, 'pointermove')
+    await until(() => box.scrollTop > 0)
+    expect(box.scrollTop).toBeGreaterThan(0)
+    pointer(10, 95, 'pointerup')
+  } finally {
+    await run.stop()
+  }
+})
+
+it('scrolls the box under a pointer held at the window’s edge before the window, while it can', async () => {
+  // A box that runs past the bottom of the window: its own strip is off screen.
+  const { box, list } = rows(
+    200,
+    `height:${document.documentElement.clientHeight + 300}px;overflow:auto`,
+  )
+  const spacer = document.createElement('div')
+  spacer.style.cssText = 'height:3000px'
+  document.body.append(spacer)
+  const run = drive(list, { attribute: 'data-row', edgeScroll: {} })
+  try {
+    await later(20)
+    const bottom = document.documentElement.clientHeight - 3
+    pointer(10, 15, 'pointerdown')
+    pointer(10, 40, 'pointermove')
+    pointer(10, bottom, 'pointermove')
+    await until(() => box.scrollTop > 100)
+    expect(box.scrollTop).toBeGreaterThan(100)
+    expect(window.scrollY).toBe(0)
+    pointer(10, bottom, 'pointerup')
+  } finally {
+    await run.stop()
+  }
+  window.scrollTo(0, 0)
+})
+
 it('walks the ancestors once a frame, not once a move, while nothing scrolls', async () => {
   const { list } = rows(20)
   const run = drive(list, { attribute: 'data-row', edgeScroll: {} })

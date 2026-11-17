@@ -7,6 +7,8 @@ application adds to that vocabulary: a rule it asks in many places
 a value a write computes (a joined label). It is declared once, as data, and
 then every place a body runs means the same thing by it: the server's SQL, the
 client's judgement of the rows it holds, a guard's rule, an invariant, a form.
+The vocabulary itself is taught in [Expressions](./expressions.md); read that
+first if `Expr` is new.
 
 What this enables, in short:
 

@@ -74,7 +74,7 @@ export const standard = {
       Knob.percent({
         title: 'Lightness',
         variable: 'accent-l',
-        default: 55,
+        default: 54,
         min: 5,
         max: 98,
         step: 1,
@@ -84,7 +84,7 @@ export const standard = {
       Knob.percent({
         title: 'Lightness, dark',
         variable: 'accent-l-dark',
-        default: 70,
+        default: 54,
         min: 5,
         max: 98,
         step: 1,
@@ -119,7 +119,7 @@ export const standard = {
       Knob.number({
         title: 'Surface tint',
         variable: 'surface-c',
-        default: 0,
+        default: 0.005,
         min: 0,
         max: 0.04,
         step: 0.001,
@@ -128,7 +128,7 @@ export const standard = {
       Knob.number({
         title: 'Surface tint, dark',
         variable: 'surface-c-dark',
-        default: 0,
+        default: 0.0067,
         follows: `calc(${ref('knob', 'surface-c')} * 4 / 3)`,
         min: 0,
         max: 0.04,
@@ -214,7 +214,7 @@ export const standard = {
     radius: Knob.number({
       title: 'Radius',
       variable: 'radius-factor',
-      default: 0.45,
+      default: 1,
       min: 0,
       max: 2.5,
       step: 0.05,
@@ -516,7 +516,7 @@ export const standard = {
     }),
     panel: Knob.choice({
       title: 'Menu color',
-      default: 'inverted',
+      default: 'default',
       options: {
         default: { 'popup-invert': '0', 'popup-alpha': '1', 'popup-blur': '0px' },
         inverted: { 'popup-invert': '1', 'popup-alpha': '1', 'popup-blur': '0px' },

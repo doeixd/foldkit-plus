@@ -3,7 +3,7 @@
  * examples/site/test/widgets.mutations.ts`.
  */
 const tests = ['examples/site/test/widgets.test.ts']
-const widgets = '../src/gallery/widgets.ts'
+const widgets = '../src/gallery/widgetsUpdate.ts'
 
 export default [
   {
@@ -173,4 +173,37 @@ export default [
     edits: [{ file: widgets, find: find!, replace: replace! }],
     tests,
   })),
+  {
+    name: 'a refused code is typed into the filling field',
+    edits: [
+      {
+        file: widgets,
+        find: 'otpStates: states => ({ ...states, [field]: code }) }',
+        replace: 'otpStates: states => ({ ...states, filling: code }) }',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the same state code is written again',
+    edits: [
+      {
+        file: widgets,
+        find: 'code === model.otpStates[field]',
+        replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a drawer press is not kept',
+    edits: [
+      {
+        file: widgets,
+        find: ': { model: modifyFields(model, { drawer: () => drawer }) }',
+        replace: ': { model }',
+      },
+    ],
+    tests,
+  },
 ]

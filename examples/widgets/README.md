@@ -21,8 +21,9 @@ npx vitest run examples/widgets
 
 ## Widgets
 
-- `src/toolbar/` — formatting toolbar: `RovingTabindex` + Collection +
-  pressed state (`PressedTool`).
+- `src/toolbar/` — formatting toolbar: `foldkit-mixins-ui`'s `Toolbar` over a
+  placed `RovingTabindex` (the Model keeps the one tab stop) + pressed state
+  (`PressedTool`).
 - `src/toggle/` — a single pressable with `aria-pressed` (`ToggleState`).
 - `src/toggle-group/` — exclusive pressables over `Selection` single mode.
   The selected value is an `Option`.
@@ -85,7 +86,50 @@ npx vitest run examples/widgets
 - `src/window-list/` — a thousand names in `foldkit-mixins-ui`'s
   `WindowList`, which scrolls with the page: only the rows in view are drawn,
   between spacers as tall as the rest, under a heading that sticks to the
-  window's top. Last on the page, which it makes long.
+  window's top. A form above it goes to a row by its number: submitting returns `WindowList.reveal`
+  from `update`, which centres the row however far away it is. The names are `findable`, so the
+  browser's find-in-page matches a row that is not drawn and the list brings it into view, and a name
+  that holds focus stays drawn while the page scrolls away. Last on the page, which it makes long.
+
+These sections load their code when they near the window (`src/lazy.ts`), each from its folder's
+`island.ts`, and run the capabilities of the newer widgets:
+
+- `src/file-input/` — a resume form whose attachments the application owns. `FileInput` writes the
+  list back into the native input after every pick and removal (`FileInput.Sync`), so the form submits
+  exactly the rows listed, even after a repeat pick or a cancelled dialog. Removing a row from the
+  keyboard moves focus to the file input (`FileInput.Focus`) instead of dropping it to the page.
+- `src/tags-input/` — a topics form where the application folds `TagsInput`'s Messages into its
+  Model. Enter and the comma add tags without submitting; the arrow keys, Home and End walk the chips,
+  and Delete or Backspace removes one. A draft left in the input is added when focus leaves it
+  (`addOnBlur`). One hidden input per tag submits the chips and never the draft.
+- `src/app-keys/` — a Command and a Menubar take keys of the application's through `routes`: Escape
+  empties the Command's field, End moves its highlight to the last row the query leaves, and PageDown
+  on the bar moves the bar's tab stop to its last menu, while the widgets' own arrows and Enter still
+  work. A route on a key the widget owns is refused when the view is drawn, with `mixins:key-conflict`
+  naming both routes; the section draws two refusals as text.
+- `src/menu-rows/` — a shipped `Menu` with rows that carry a `value`, an icon and a hint. Two rows read
+  "Copy"; the Model stores the value the Menu reports (`copy-text`, `copy-link`), so the second Copy's
+  pick is `copy-link`.
+- `src/choices/` — a single-choice `Segmented` (a radio group: one tab stop, arrows move choice and focus)
+  beside a `multiple` one, and a `Slider` with `description` and `onCommit` that keeps the live value
+  apart from the committed one.
+- `src/table/` — a roster in `Table` whose Model owns the sort and each member's standing. The name is
+  the row's heading (`th scope="row"`), the Name and Role headings sort, and the last column's cell is
+  markup, a `Button` that sends a Message.
+- `src/sheet/` — a bottom `Sheet` that rests at 30, 60 or 100% of its panel. The handle is a focusable
+  separator: the arrows, Home and End move between points, and Escape closes the sheet and returns focus
+  to the opener. A drag lets go on the nearest point, a quick flick goes on to the next, and a long
+  drag down closes it.
+- `src/focus-kept/` — two lists the demo owns, one of Alerts and one of Cards, mark their dismiss
+  buttons with `recoveryPart` and attach `FocusRecovery.behavior`: a keyboard dismissal hands focus to
+  the next row's button, else the previous, else the list's Add button, and the lists recover apart. A
+  Toast stack with `Toast.keepFocus` takes no focus when a toast arrives or leaves.
+- `src/tour/` — a `Tour` and a `FloatingPanel` opened by buttons of the page's, each drawn with
+  `focusReturn` and no `opener`: when either ends, focus goes back to the control that had it.
+
+Only the toolbar and the window list boot with the page, so the first load stays small
+(`test/bundle.test.ts`); every other section is a lazy entry in `src/lazy.ts`. Without an
+`IntersectionObserver` (jsdom) the entry loads them all at once.
 
 Each folder holds `app.ts` (Model, Message, update) and `view.ts` (the
 SlotView and its `runDemo`). The toolbar's trace lives in `demo.ts`; the search field's
@@ -100,8 +144,9 @@ the picker and the window list are `foldkit-mixins-ui` components, drawn with
 its recipes (`Recipes.Picker`, `Recipes.Listbox`, `Recipes.Sheet`).
 `src/entry.ts` installs `pageStylesheet`. `test/style.test.ts` pins the sheet.
 
-Adding a widget means adding one entry to `src/widgets.ts` (plus its folder
-and tests): the entry's demo trace, the page sections, the style sheet, and
-the interactive boot all derive from that registry. Each `mount` closure
-keeps its own Model and Message types; the list only reads `id`, `title`,
-`runDemo`, `style`, and `mount`.
+Adding a widget means adding one entry to `src/lazy.ts` (plus its folder, whose `island.ts`
+exports the section's `runDemo`, `style` and `mount`, and its tests): the demo trace, the page
+sections, the style sheet and the interactive boot all derive from that registry. Each `mount`
+closure keeps its own Model and Message types; the registries only read `id`, `title`, `runDemo`,
+`style`, and `mount`. A browser claim gets a `*.browser.test.ts` and, for the page, an
+`e2e/<section>.e2e.ts` built on `e2e/harness.ts`, which scrolls a lazy section into view.

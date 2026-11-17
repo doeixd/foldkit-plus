@@ -201,6 +201,8 @@ const Base = Bundle.compose({
   redo: Schema.Array(UndoStep),
   /** What the last undo or redo left alone, until dismissed or the next. Local. */
   heldBack: Schema.OptionFromNullOr(HeldBack),
+  /** What the last copy took, said in the live region until the next edit. Local. */
+  copied: Schema.OptionFromNullOr(Schema.Struct({ rows: Schema.Number, columns: Schema.Number })),
 }).pipe(
   Bundle.withMessages({
     ...Remote.messages,
@@ -375,6 +377,7 @@ const edited = (model: Model, cells: ReadonlyArray<Cell>) => {
       undo: undo => (step.length === 0 ? undo : [...undo, step].slice(-UNDO_DEPTH)),
       redo: () => [],
       heldBack: () => Option.none(),
+      copied: () => Option.none(),
     }),
     commands: [fact(Message.EditedProducts({ changes }))],
   }
@@ -474,6 +477,9 @@ const Page = Base.pipe(
         Pasted: ({ accepted }) => edited(model, accepted),
         // What a fill writes is worked out from the rows as the page shows them now.
         Filled: request => edited(model, Grid.fill(rowsOf(model), model.grid, request).accepted),
+        Copied: ({ rows, columns }) => ({
+          model: modifyFields(model, { copied: () => Option.some({ rows, columns }) }),
+        }),
         UndoRequested: () => replay(model, 'undo'),
         RedoRequested: () => replay(model, 'redo'),
         RowsRequested: request => ({
@@ -574,6 +580,7 @@ export const initial = (): Model =>
     undo: [],
     redo: [],
     heldBack: Option.none(),
+    copied: Option.none(),
   }).model
 
 /** The application as Sync replays it: the same references, with its initial value and update. */
@@ -591,15 +598,20 @@ const shownOf =
 export const rowsOf = (model: Model): RowModel<Row> =>
   GridCrud.rows(Products.page(model), row => row.id)
 
-/** Where the edits stand with the server, for the status line. */
+/** Where the edits stand with the server, for the status line: the words the todo app uses. */
 export const exchangeOf = (model: Model): string => {
   const { pending, error } = model.exchange
   const edits = `${pending} ${pending === 1 ? 'edit' : 'edits'}`
   if (model.offline)
-    return pending === 0 ? 'Working offline.' : `Working offline: ${edits} kept on this device.`
+    return pending === 0
+      ? 'Offline: edits are kept on this device'
+      : `Offline: ${edits} waiting to sync`
   return Option.match(error, {
-    onSome: reason => `${edits} kept on this device; the server cannot be reached (${reason}).`,
-    onNone: () => (pending === 0 ? '' : `Sending ${edits}…`),
+    onSome: reason =>
+      pending === 0
+        ? `The server did not answer: retrying (${reason})`
+        : `The server did not answer: ${edits} waiting to sync (${reason})`,
+    onNone: () => (pending === 0 ? 'In sync' : `Syncing ${edits}…`),
   })
 }
 

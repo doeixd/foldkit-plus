@@ -10,7 +10,7 @@ import { Effect, Fiber, Option, Ref } from 'effect'
 import { RemoteClient } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { world as makeWorld } from '../../src/scenario/index.js'
-import { page, poll } from './page.js'
+import { page, poll } from '../../src/scenario/page.js'
 
 const bolt = {
   id: 'p1',

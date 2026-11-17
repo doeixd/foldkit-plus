@@ -173,7 +173,10 @@ test.each([true, false])(
 // no gap for a portaled panel to fall through, but the placement is pinned.
 test("under direction rtl a Menu's bottom-start panel lines up with the trigger's right edge", async () => {
   const MenuModel = Schema.Struct({ menu: Menu.Model })
-  const rows: ReadonlyArray<Menu.Row> = [{ label: 'Rename' }, { label: 'A much longer menu row' }]
+  const rows: ReadonlyArray<Menu.Row> = [
+    { value: 'Rename', label: 'Rename' },
+    { value: 'A much longer menu row', label: 'A much longer menu row' },
+  ]
   const style = Style.forSlots(MenuSlots)(Recipes.Menu({}))
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''

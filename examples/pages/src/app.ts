@@ -106,6 +106,14 @@ export const Model = Schema.Struct({
   hovered: Schema.Option(RichText.NodeId),
   /** The address in the link editor, while it is open. */
   linkDraft: Schema.String,
+  /** The formatting bar's control that has the tab stop: the one focused last. */
+  tabStop: Schema.Option(Schema.String),
+  /** Whether the window is `NARROW`, where the formatting bar draws only what fits one row. */
+  narrow: Schema.Boolean,
+  /** What the sidebar's field holds: only pages whose title has it are listed. */
+  filter: Schema.String,
+  /** The page this tab just moved to the trash, which the empty page offers to bring back. */
+  justTrashed: Schema.Option(Schema.String),
   /**
    * This tab's own edits, newest last, each as the ops that take it back: undo applies
    * them as a new edit, so it reverses only what this tab did and keeps everyone else's.
@@ -133,6 +141,18 @@ export const Message = defineMessageUnion({
   AddedPage: { title: Schema.String },
   OpenedPage: { id: Schema.String },
   TrashedPage: { id: Schema.String },
+  /** The notice's Undo: the page just trashed, restored and opened again. */
+  UndidTrash: { id: Schema.String },
+  /** A formatting bar control took focus, so Tab returns to it. */
+  FocusedControl: { id: Schema.String },
+  /** Escape on a formatting bar control: back to the text, caret where it was. */
+  ReturnedToText: {},
+  /** The sidebar's filter field changed. */
+  FilteredPages: { query: Schema.String },
+  /** The window became `NARROW`, or stopped being it. */
+  NarrowChanged: { narrow: Schema.Boolean },
+  /** Enter in the title: on to the text. */
+  EnteredTitle: {},
   GotEditor: { message: EditorMessage },
   GotPeers: { peers: Schema.Array(Peer) },
   ExchangeChanged: Exchange.fields,
@@ -181,7 +201,11 @@ const blank = RichText.decodeDocument({
   ],
 })
 
-export const initialModel = (session: string): Model => ({
+/**
+ * `narrow` is read from the window before the first drawing, not learned from a Subscription,
+ * which lands after it: a phone would draw the wide bar for a frame and shift the page.
+ */
+export const initialModel = (session: string, narrow = false): Model => ({
   pages: [],
   open: Option.none(),
   session,
@@ -193,6 +217,10 @@ export const initialModel = (session: string): Model => ({
   menu: Option.none(),
   hovered: Option.none(),
   linkDraft: '',
+  tabStop: Option.none(),
+  narrow,
+  filter: '',
+  justTrashed: Option.none(),
   undo: [],
   redo: [],
   undoGroup: Option.none(),
@@ -214,6 +242,8 @@ const afresh = (model: Model, open: Option.Option<string>): Model =>
     menu: () => Option.none(),
     hovered: () => Option.none(),
     linkDraft: () => '',
+    // Closing a page is how the notice appears, and an exchange closes one too.
+    justTrashed: held => (Option.isSome(open) ? Option.none() : held),
     undoGroup: () => Option.none(),
   })
 
@@ -268,6 +298,20 @@ const samePlace = (
 /** The page with this id, unless it is in the trash. */
 export const pageOf = (model: Model, id: string): Option.Option<Page> =>
   Option.fromUndefinedOr(model.pages.find(page => page.id === id && page.trashed !== true))
+
+/**
+ * The pages the sidebar lists: those not in the trash whose title has the filter, whatever the
+ * case and the space around it. An untitled page is listed as "Untitled", and found by it.
+ */
+export const listedPages = (model: Model): ReadonlyArray<Page> => {
+  const wanted = model.filter.trim().toLowerCase()
+  return model.pages.filter(
+    page => page.trashed !== true && titleOf(page).toLowerCase().includes(wanted),
+  )
+}
+
+/** A page's title as it is shown: its own, or "Untitled". */
+export const titleOf = (page: Page): string => (page.title === '' ? 'Untitled' : page.title)
 
 /** The page in the editor, unless none is open or it went to the trash. */
 export const pageInEditor = (model: Model): Option.Option<Page> =>
@@ -421,6 +465,8 @@ const commit = (
       model: {
         ...model,
         selection: translated.selection,
+        // The caret is where the handle goes next, as the pointer was.
+        hovered: Option.none(),
         undoGroup: moved ? Option.none() : model.undoGroup,
       },
       commands,
@@ -594,13 +640,44 @@ export const update = (model: Model, message: Message): Return =>
       const id = `${model.session}:${model.minted}`
       return {
         model: modifyFields(afresh(model, Option.some(id)), { minted: () => model.minted + 1 }),
-        commands: [durableFact(Message.CreatedPage({ id, title, key: `${id}:seed` }))],
+        // A new page is named first, so the title takes the focus.
+        commands: [
+          durableFact(Message.CreatedPage({ id, title, key: `${id}:seed` })),
+          FocusField({ selector: '#page-title' }),
+        ],
       }
     },
-    // Closes the page here if it is open, then trashes it everywhere.
+    // Closes the page here if it is open, then trashes it everywhere. The notice that takes its
+    // place holds the focus, so a keyboard user is not dropped on the page.
     TrashedPage: ({ id }) => ({
-      model: Option.contains(model.open, id) ? afresh(model, Option.none()) : model,
-      commands: [durableFact(Message.DeletedPage({ id }))],
+      model: Option.contains(model.open, id)
+        ? modifyFields(afresh(model, Option.none()), { justTrashed: () => Option.some(id) })
+        : model,
+      commands: [
+        durableFact(Message.DeletedPage({ id })),
+        ...(Option.contains(model.open, id) ? [FocusField({ selector: '#undo-trash' })] : []),
+      ],
+    }),
+    UndidTrash: ({ id }) => ({
+      model: afresh(model, Option.some(id)),
+      commands: [
+        durableFact(Message.RestoredPage({ id })),
+        FocusField({ selector: '#page-title' }),
+      ],
+    }),
+    FocusedControl: ({ id }) =>
+      Option.contains(model.tabStop, id)
+        ? { model }
+        : { model: modifyFields(model, { tabStop: () => Option.some(id) }) },
+    FilteredPages: ({ query }) =>
+      query === model.filter ? { model } : { model: modifyFields(model, { filter: () => query }) },
+    NarrowChanged: ({ narrow }) =>
+      narrow === model.narrow
+        ? { model }
+        : { model: modifyFields(model, { narrow: () => narrow }) },
+    EnteredTitle: () => ({
+      model,
+      commands: [FocusField({ selector: '#page-body [contenteditable]' })],
     }),
     OpenedPage: ({ id }) => {
       if (Option.contains(model.open, id)) return { model }
@@ -707,6 +784,13 @@ export const update = (model: Model, message: Message): Return =>
             ...result,
             commands: [...(result.commands ?? []), toApp(focus(hostId, selection))],
           }
+    },
+    ReturnedToText: () => {
+      const selection = Option.match(pageInEditor(model), {
+        onNone: () => null,
+        onSome: page => editorViewOf(model, page).selection,
+      })
+      return selection === null ? { model } : { model, commands: [toApp(focus(hostId, selection))] }
     },
     FocusedField: () => ({ model }),
   })

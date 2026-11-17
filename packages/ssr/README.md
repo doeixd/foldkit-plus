@@ -846,7 +846,12 @@ Model is prepared per page returns its own); `paths` may be a thunk that seeds
 and lists; `head` is the same `head`; and `sitemap`/`robots` write their files
 from the generated pages. `files` is the host's layout — `'directory'`
 (`/about` as `about/index.html`, the default) or `'flat'` (`about.html`, for a
-host with clean addresses and no directory indexes):
+host with clean addresses and no directory indexes). `plan` is one plan, or a
+function of the path for a site of more than one application: a path then
+resumes with the plan of the application `config` returns for it, so a site's
+guides and its interactive pages can have Models of their own. A plan function
+that throws fails the build and names the path; the sitemap and robots text
+still list every path:
 
 <!-- docs-check standalone use ssr-app
 import { Resume, SSR } from 'foldkit-ssr'
@@ -871,6 +876,13 @@ export const site = {
   robots: true,
 } satisfies SiteModule
 ```
+
+`staticSite({ site, plugins })` loads the site module with `plugins`: the build
+renders the pages from a Vite server of its own, which has none of the
+application's, so a plugin that changes what a view draws must be passed here
+too. Foldkit's view-identity branding is one: the browser compares the identity
+markers it computes with the page's, and a page drawn without them is rebuilt
+element by element rather than adopted, silently in a production build.
 
 `emit` adds files made from the generated pages, written beside them: what the
 pages reference and the build must also serve, such as the image variants

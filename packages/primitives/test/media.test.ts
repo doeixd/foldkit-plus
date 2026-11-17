@@ -19,11 +19,11 @@ import { takeMessages } from './support.js'
 
 type Listener = (event: { matches: boolean }) => void
 
-const installMatchMedia = () => {
+const installMatchMedia = (matches = false) => {
   const listeners = new Set<Listener>()
   const seen: Array<string> = []
   const list = {
-    matches: false,
+    matches,
     media: '',
     addEventListener: (_type: string, listener: Listener) => {
       listeners.add(listener)
@@ -58,6 +58,30 @@ type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Dark.cases, ThemeSet: { theme: Schema.String } })
 type Message = typeof Message.Type
 const Page = Bundle.parent({ Model, Message })
+
+describe('MediaQuery at init', () => {
+  const dark = '(prefers-color-scheme: dark)'
+  const started = (args: { readonly query: string; readonly initial?: boolean }) =>
+    Page.at(Dark, { args }).init({ dark: { matches: false }, theme: 'light' }).model.dark
+
+  it.each([true, false])('starts as the window answers: %s', matches => {
+    const { seen } = installMatchMedia(matches)
+    expect(started({ query: dark })).toEqual({ matches })
+    expect(seen).toEqual([dark])
+  })
+
+  it('starts unmatched where there is no matchMedia to ask', () => {
+    expect(started({ query: dark })).toEqual({ matches: false })
+  })
+
+  it.each([
+    [true, false],
+    [false, true],
+  ])('starts as `initial` says (%s), whatever the window answers', (initial, matches) => {
+    installMatchMedia(matches)
+    expect(started({ query: dark, initial })).toEqual({ matches: initial })
+  })
+})
 
 describe('MediaQuery transitions', () => {
   it('starts unmatched and follows Changed', () => {

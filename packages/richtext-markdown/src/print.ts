@@ -4,7 +4,9 @@
  * needs no parser, which is why it came first — and it is what serves Markdown export and
  * the source mode that section describes.
  */
+import { decodeString } from 'micromark-util-decode-string'
 import * as RichText from 'foldkit-richtext'
+import { PUNCTUATION as ASCII_PUNCTUATION, REFERENCE } from './caret.js'
 import type { MarkdownDiagnostic } from './diagnostic.js'
 import { parse } from './parse.js'
 import { canonicalStyle, type MarkdownStyle } from './style.js'
@@ -127,9 +129,35 @@ const codeSpan = (text: string): string => {
   return `${fence}${pad}${text}${pad}${fence}`
 }
 
-/** A link destination, in angle brackets when a space, a parenthesis, or a bracket would end it. */
-const destination = (url: string): string =>
-  /[\s()<>]/.test(url) ? `<${url.replace(/[<>\\]/g, '\\$&')}>` : url
+/** What no destination can hold, and what `RichText.safeUrl` removes on the way back in. */
+const CONTROL = /[\x00-\x1f\x7f]/g
+
+/**
+ * A link or image destination that reads back as `url`. A destination is decoded on the way
+ * in, so what would decode to something else is escaped: a backslash that precedes
+ * punctuation, or ends the destination (where it would escape the closing `)` or `>`), and an
+ * `&` that begins a character reference the parser knows (`&foo;` names nothing and stays as
+ * it is). A control character cannot be written at all, since a line ending ends the link and
+ * `safeUrl` strips the rest, so it is percent-encoded. Angle brackets are the form for a URL
+ * a bare destination cannot hold (a space, a parenthesis, `<` or `>`); inside them `<` and `>`
+ * are escaped too. Nothing else is touched: `%` and the rest read back as written.
+ */
+const destination = (url: string): string => {
+  const plain = url.replace(
+    CONTROL,
+    control => `%${control.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`,
+  )
+  const written = plain.replace(/[\\&<>]/g, (character, at: number) => {
+    if (character === '&') {
+      const reference = REFERENCE.exec(plain.slice(at))?.[0]
+      return reference !== undefined && decodeString(reference) !== reference ? '\\&' : '&'
+    }
+    if (character !== '\\') return `\\${character}`
+    const next = plain[at + 1]
+    return next === undefined || ASCII_PUNCTUATION.test(next) ? '\\\\' : '\\'
+  })
+  return /[\s()<>]/.test(plain) ? `<${written}>` : written
+}
 
 /** A mark's opening and closing syntax, or `undefined` when Markdown has none for it. */
 const delimiters = (

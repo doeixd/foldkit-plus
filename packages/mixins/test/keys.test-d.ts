@@ -4,7 +4,16 @@
  * Type-checked, not executed.
  */
 import { Option } from 'effect'
-import { Behavior, Behaviors, Capability, Event, Slot, SlotView, Slots } from '../src/index.js'
+import {
+  Behavior,
+  Behaviors,
+  Capability,
+  Event,
+  Slot,
+  SlotView,
+  Slots,
+  type Diagnostic,
+} from '../src/index.js'
 
 const { Keys } = Behaviors
 
@@ -103,3 +112,18 @@ Keys.behavior(Search)({ slot: 'internals', routes: [] })
 // A binder is never read as slots: the slots-first overload refuses it.
 // @ts-expect-error -- `Search` is a binder, not a slot set
 Keys.behavior<typeof Search>(Search)
+
+// A clash is seen as a value: `Option` of a `Diagnostic`, never null.
+const clash: Option.Option<Diagnostic> = Keys.conflict(
+  [
+    Keys.route<SearchInput, Message>('A', {
+      on: [Keys.chord('a')],
+      handle: () => Option.some(Cleared),
+    }),
+  ],
+  Option.some('input'),
+)
+void clash
+
+// @ts-expect-error -- the slot is an Option, not a bare name
+Keys.conflict([], 'input')

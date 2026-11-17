@@ -125,6 +125,18 @@ What each part does, and does not do:
   caret in an empty text node nor move one there with the arrow keys, so without it a new line
   made with Enter had no height and could not be reached. The caret on an empty line stands
   before it; it holds no text or position, server markup draws it too, and an import drops it.
+- **`label` / `labelledBy`**: the editor's accessible name. The editable root is a
+  `role="textbox"`, which a screen reader announces as an unnamed field unless it has one.
+  `label` is written as `aria-label` on it, `labelledBy` (the id of the element that names it)
+  as `aria-labelledby`, and passing both is a type error. Server markup carries them. With
+  neither, an editor drawn inside a `role="group"` that is itself labelled (the group
+  `foldkit-mixins-form` draws around a control, named by the key's label) takes that group's
+  label, and a click on the label focuses the editor, which the label's own `for` cannot do
+  since it names the group. That is discovered in the browser, so server markup has no name from
+  the group until hydration: give a `labelledBy` where the page must be named before then. An
+  editor given no name and not in a labelled group has none: this package keeps no diagnostics
+  channel (the accessibility obligations are `foldkit-mixins`'), so nothing warns.
+
 - **`placeholder`**: what a blank document shows (`RichText.isBlank`). It is put on the block as
   `data-placeholder`, and the root, a `role="textbox"`, carries it as `aria-placeholder`.
   Drawing it is the stylesheet's, so the text never enters the content:
@@ -183,7 +195,7 @@ the `transactions` the edit applied, which is what `RichText.Replicated.translat
 ## As a form control
 
 `foldkit-richtext-dom/input` puts the editor in a `foldkit-form` form: a key whose value is a
-`RichText.Document`. It is the one entry that imports `foldkit-form`, an optional peer.
+`RichText.Document`, or whatever a codec converts it to. It is the one entry that imports `foldkit-form`, an optional peer.
 
 <!-- docs-check
 import { Schema } from 'effect'
@@ -207,13 +219,57 @@ holding its document in its own Model, with each committed edit and undo folded 
 form owns that Model as the key's draft; the document is the key's value, validated,
 submitted, and reported by `authoredChanged` like any other.
 
-- **Placement:** `richTextInput(hostId, placement)` places what `editorAt` places, under that
+- **Placement:** `richTextInput(hostId, placement, { codec }?)` places what `editorAt` places, under that
   host id. Since one host id is one editor, a key repeated in a form's rows cannot be a
   rich-text control yet.
 - **Nothing entered:** a new record starts on one empty paragraph, which is where a caret can
   go. A blank document reads as no value, so a required key refuses it.
 - **Filling:** `fill` shows a given document with a history of its own and no selection, since
   the caret was in runs the given document does not have.
+- **Another stored type:** a field stored as text, Markdown say, cannot hold a `Document`
+  without every reader of its Entity decoding one. Pass a codec and the key holds what it
+  converts to, while the editor still holds a document. A blank document is no value before the
+  codec runs, so `value` is never called with one; a codec whose stored type has a value for
+  nothing (an empty text) gives it as `blank`, and a required key then accepts a blank document.
+- **Failure:** `fill` takes stored data, and a codec whose `fill` throws makes the form's
+  `fill` throw, as any control that cannot show a value does: nothing catches it, so parse
+  defensively where the stored text may be bad. An empty text parses to a document with no
+  block, where the editor has nowhere to put a caret: a codec that stores `''` for blank fills
+  an empty text with `EditorInput.init({ hostId }).model.document`, the editor's own blank.
+  `value` runs on each read of the key, so keep it cheap.
+
+<!-- docs-check
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+const Note = Entity.define('Note', Schema.Struct({ id: Schema.String, body: Schema.String }))
+const NoteInput = Entity.input(Note, Schema.Struct({ body: Note.fields.body.schema }))
+-->
+```ts
+import { Form } from 'foldkit-form'
+import { parse, print } from 'foldkit-richtext-markdown'
+import { richTextInput } from 'foldkit-richtext-dom/input'
+
+const NoteForm = Form.make('NoteForm', NoteInput, {
+  inputs: {
+    body: richTextInput(
+      'note-body',
+      {},
+      {
+        codec: {
+          value: document => print(document).markdown,
+          fill: text => {
+            let next = 0
+            // The editor mints ids starting with `e`, so these never meet them.
+            return parse(text, { mint: () => `m${next++}` }).document
+          },
+        },
+      },
+    ),
+  },
+})
+```
+
+`foldkit-richtext-markdown` is the application's to import: this entry does not depend on it.
 - **Resuming:** `settled`, for a stored draft shown again, keeps the caret, the stored marks,
   and the history, clears only the slash menu's highlight and dismissal, and takes this placement's host id
   in case the draft was stored under another.
@@ -520,9 +576,35 @@ that transition committed.
   else (a table, code, an image) opens a paragraph there, which no caret could reach.
   `attachment.sync(state, changeSet)` patches and restores the
   selection in one call, but only while the browser's selection is inside the editor: a sync
-  never takes the caret from another editor or an input. While an IME is composing, the latest
+  never takes the caret from another editor or an input.
+  The editor owns the browser's selection only while the focus is not on something outside it,
+  such as a toolbar button or another field. While it is, a redraw puts no selection back
+  (setting one in the text would take the focus), and what the browser then says of its selection
+  is not reported, so the application's selection is what it was when the focus left, plus what
+  its own commands did. When the focus moves outside, and in every state drawn while it is
+  there, a range selection is drawn as a decoration of kind `selection`
+  (`SELECTION_DECORATION`): `span[data-decoration="selection"]` over the selected text, for a
+  stylesheet to paint as selected (`background: Highlight; color: HighlightText`). A caret and
+  a selected block draw none. When the focus comes back to the text by a key or by `focus`, the
+  decoration goes and the browser's selection is the application's again; a press in the text
+  places its own caret.
+  A press inside an element marked `data-editor-controls` (`CONTROLS_ATTRIBUTE`; both names are
+  exported from `foldkit-richtext-dom/toolbar`) does not take the focus from the text at all: while
+  the editor owns the selection it prevents the press's default, and the click still happens. A
+  field in such an element (`input`, `select`, `textarea`, anything `contenteditable`) takes the
+  focus as usual, and so does a marked control pressed while the focus is elsewhere.
+  While an IME is composing, the latest
   state waits and is drawn when composition ends, so another person's edit never rewrites the
   text under the IME.
+  The caret is kept in view: after an edit, an undo or redo, or a caret the editor itself moved
+  (a held arrow key, select-all in code, an arrow onto an atom), the focus end of the
+  selection is scrolled into view by the least amount (`scrollIntoView({ block: 'nearest' })`,
+  but for the caret's own line, so the bottom of a tall block does not bring its top up),
+  in every scrolling box around the editor and in the window, instantly. A sticky toolbar
+  or header stays clear when the page names it: `html { scroll-padding-top: 3rem }` (and the
+  scrolling box's own `scroll-padding`). Another person's edit, a decoration refresh, a
+  focus held by a control beside the editor, and a pointer selection (the browser's own
+  autoscroll) scroll nothing; `focus(hostId, selection)` scrolls as described above.
   `detach()` removes the listeners.
 - **`patch(dom, content, changeSet, decorations?)`** removes what the change set removed,
   re-renders what it marked dirty, and places inserted or moved elements in document order.

@@ -25,11 +25,16 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   PointerDown: { pointerId: Schema.Number, button: Schema.Number, pointerType: Schema.String },
-  PointerUp: { pointerId: Schema.Number, pointerType: Schema.String, shiftKey: Schema.Boolean },
+  PointerUp: {
+    pointerId: Schema.Number,
+    pointerType: Schema.String,
+    modifiers: Press.Modifiers,
+  },
   PointerCancelled: { pointerId: Schema.Number },
   KeyDown: { key: Schema.String, repeat: Schema.Boolean },
-  KeyUp: { key: Schema.String, shiftKey: Schema.Boolean },
-  Clicked: { detail: Schema.Number, shiftKey: Schema.Boolean },
+  KeyUp: { key: Schema.String, modifiers: Press.Modifiers },
+  KeyCancelled: { key: Schema.String },
+  Clicked: { detail: Schema.Number, modifiers: Press.Modifiers },
   Elapsed: { generation: Schema.Number, pointerType: Press.PointerType },
 })
 export type Message = typeof Message.Type
@@ -103,6 +108,7 @@ export const bundle = Bundle.make('LongPress', {
           ? { model }
           : start(model, args, { key }, 'keyboard'),
       KeyUp: ({ key }) => (model.key === key ? { model: released(model) } : { model }),
+      KeyCancelled: ({ key }) => (model.key === key ? { model: released(model) } : { model }),
       Clicked: () => ({ model }),
       Elapsed: ({ generation, pointerType }) =>
         model.holding && model.generation === generation

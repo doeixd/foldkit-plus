@@ -10,16 +10,8 @@ import { Theme } from 'foldkit-mixins/theme'
 
 import { defaults, presets, sameTheme, valueAt, withValue } from '../src/gallery/theme.js'
 import { addressOf, queryOf } from '../src/gallery/themeUrl.js'
-import {
-  Message,
-  Page,
-  addressIn,
-  initial,
-  openedTheme,
-  plan,
-  update,
-  type Model,
-} from '../src/main.js'
+import { Message, addressIn, initial, openedTheme, plan, update, type Model } from '../src/main.js'
+import { Page } from '../src/page.js'
 
 const home = { values: defaults, scheme: 'system', canvas: 'components', direction: 'ltr' } as const
 

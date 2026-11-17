@@ -17,7 +17,7 @@ import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { ImageAsset } from 'foldkit-media'
 import * as RichText from 'foldkit-richtext'
-import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
+import { Message as EditorMessage, redecorateEditor } from 'foldkit-richtext-dom/editor'
 import {
   Editor,
   EditorState,
@@ -33,6 +33,7 @@ import { firstThread, initialDocument } from './document.js'
 import {
   Blocks,
   decorate,
+  installTokenizers,
   playgroundSlashEntries,
   rendering,
   RETURN_TO_REFERENCE,
@@ -129,6 +130,12 @@ export const Model = Schema.Struct({
   /** What the last copy did, shown in the footer. */
   status: Schema.Option(Status),
   find: Schema.Option(Find),
+  /** The formatting bar's one tab stop: the control last used, so Tab comes back to it. */
+  tabStop: Schema.Option(Schema.String),
+  /** The format the source panel shows the document in, while it is open. */
+  source: Schema.Option(ExportFormat),
+  /** The page's reading direction, which the editor, the bars and the menus follow. */
+  direction: Schema.Literals(['ltr', 'rtl']),
 })
 export type Model = typeof Model.Type
 
@@ -191,6 +198,18 @@ export const Message = defineMessageUnion({
    */
   JumpedTo: { node: RichText.NodeId },
   Reset: {},
+  /** A formatting bar control took focus, by a key or a press: the bar's tab stop moves to it. */
+  FocusedControl: { id: Schema.String },
+  /** The toolbar's Image, video or file: the file dialog opens. */
+  OpenedFileDialog: {},
+  /** The file dialog was asked for. */
+  AskedForFile: {},
+  /** The source panel opened on a format, or switched to one. */
+  ShowedSource: { format: ExportFormat },
+  HidSource: {},
+  ToggledDirection: {},
+  /** The code grammars arrived, or could not: code is coloured, or stays plain. */
+  LoadedHighlighting: {},
 })
 export type Message = typeof Message.Type
 type Return = Update.Return<Model, Message>
@@ -228,7 +247,11 @@ export const init = (): Return => ({
     notice: Option.none(),
     status: Option.none(),
     find: Option.none(),
+    tabStop: Option.none(),
+    source: Option.none(),
+    direction: 'ltr',
   },
+  commands: [LoadHighlighting()],
 })
 
 // --- reads ---------------------------------------------------------------------------------
@@ -396,6 +419,19 @@ export const exported = (
   }
 }
 
+const sources = new WeakMap<RichText.Document, Map<ExportFormat, string>>()
+
+/** The document as text for the source panel, kept by the document's identity: a render reads it. */
+export const sourceOf = (document: RichText.Document, format: ExportFormat): string => {
+  const byFormat = sources.get(document) ?? new Map<ExportFormat, string>()
+  sources.set(document, byFormat)
+  const kept = byFormat.get(format)
+  if (kept !== undefined) return kept
+  const { text } = exported(document, format)
+  byFormat.set(format, text)
+  return text
+}
+
 // --- the editor ----------------------------------------------------------------------------
 
 /** Every field of the editor's state; the check below fails to compile when one is missing. */
@@ -544,6 +580,36 @@ const ExpireStatus = Command.define('ExpireStatus', {
   messages: [Message.StatusExpired],
   execute: ({ status }) =>
     Effect.sleep(STATUS_LASTS).pipe(Effect.as(Message.StatusExpired({ status }))),
+})
+
+/**
+ * Loads the code grammars after the first frame, then has the editor draw its decorations again.
+ * Without them code is plain text, which is all a failed import leaves.
+ */
+const LoadHighlighting = Command.define('LoadHighlighting', {
+  messages: [Message.LoadedHighlighting],
+  execute: Effect.tryPromise(() => import('./highlight.js')).pipe(
+    Effect.tap(({ tokenizers }) =>
+      Effect.sync(() => {
+        installTokenizers(tokenizers)
+        redecorateEditor(hostId)
+      }),
+    ),
+    Effect.ignore,
+    Effect.as(Message.LoadedHighlighting()),
+  ),
+})
+
+/** The id of the one file field, which the toolbar's Image button opens and the picker reads. */
+export const FILE_INPUT = 'playground-file'
+
+/** Opens the file dialog: a button cannot, since only the file field itself can be asked to. */
+const OpenFileDialog = Command.define('OpenFileDialog', {
+  messages: [Message.AskedForFile],
+  execute: Effect.sync(() => {
+    document.getElementById(FILE_INPUT)?.click()
+    return Message.AskedForFile()
+  }),
 })
 
 /** Gives the focus to the field a control just opened, so its keys go there at once. */
@@ -907,6 +973,26 @@ const step = (model: Model, message: Message): Return =>
     }),
     ClosedFind: () => ({ model: modifyFields(model, { find: () => Option.none() }) }),
     FocusedField: () => ({ model }),
+    AskedForFile: () => ({ model }),
+    LoadedHighlighting: () => ({ model }),
+    ShowedSource: ({ format }) =>
+      Option.contains(model.source, format)
+        ? { model }
+        : { model: modifyFields(closed(model), { source: () => Option.some(format) }) },
+    HidSource: () =>
+      Option.isNone(model.source)
+        ? { model }
+        : { model: modifyFields(model, { source: () => Option.none() }) },
+    ToggledDirection: () => ({
+      model: modifyFields(closed(model), {
+        direction: direction => (direction === 'ltr' ? 'rtl' : 'ltr'),
+      }),
+    }),
+    OpenedFileDialog: () => ({ model: closed(model), commands: [OpenFileDialog()] }),
+    FocusedControl: ({ id }) =>
+      Option.contains(model.tabStop, id)
+        ? { model }
+        : { model: modifyFields(model, { tabStop: () => Option.some(id) }) },
     LinkSubmitted: () =>
       Option.match(linkEdit(model.document, model.editor.selection, model.linkDraft), {
         onNone: () => ({ model }),

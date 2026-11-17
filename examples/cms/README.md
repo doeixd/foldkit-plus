@@ -181,7 +181,13 @@ write into a declaration file.
 ## The files
 
 - `domain.ts` imports neither Remote's client nor Drizzle. It declares the
-  Entity, the form, the two publish mutations, and the content type.
+  Entity, its queries and `PostsBySlug`, which the public site reads. `postForm.ts` is the
+  authoring side: the form (its body is the rich-text editor), the two publish mutations and
+  the content type. They are apart so the site, which imports `domain.ts` only, loads no editor
+  (`routes.test.ts` holds that).
+- `markdownBody.ts` reads a post's Markdown into a rich-text document and draws it, for the
+  site and the preview; `bodyTools.ts` is the formatting toolbar over the editor; `focus.ts`
+  says where focus goes as an editor opens and closes.
 - `server.ts` binds the Entity to SQLite with a `visible` rule, writes the two
   handlers, and gives both to `CmsServer.make`. Note `cms.sources`, not
   `source(Db.Post)`, and the unique index on `slug`.
@@ -197,6 +203,21 @@ write into a declaration file.
   its appearance and the site's, as `foldkit-mixins` Style, and `sheet.ts` the
   page's foundations (layers, reset, tokens, theme).
 - `articleDemo.ts` is the article's content type, application and story in one module.
+
+## The body is written in the rich-text editor
+
+A post's body is stored as Markdown text and written in `foldkit-richtext`'s editor, which holds a
+document. The two meet at one seam: the form control is `richTextInput` with a `codec`
+(`postForm.ts`), which prints the document to Markdown for the key's value and reads stored
+Markdown into the editor, so the Entity, the seed, the server and the drafts all keep a string.
+The site and the preview read the same Markdown into a document and draw it with the standard
+rendering (`markdownBody.ts`), so bold, links, quotes and numbered lists show as written. The
+toolbar is `formattingToolbar` from `foldkit-mixins-richtext`: one tab stop kept in the posts
+Model, marks pressed while the selection carries them, the text style and insert menus.
+No link control yet, since it needs a draft for `linkEditor`.
+
+Opening a post puts focus in its title and closing it returns focus to the row it was opened
+from (the list when that row is gone), so a keyboard reader never starts again from the top.
 
 ## In the browser
 

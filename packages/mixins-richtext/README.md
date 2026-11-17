@@ -53,9 +53,24 @@ const Message = defineMessageUnion({
   DraftedSource: { draft: Schema.String },
   MovedInSource: { caret: Schema.Number },
   LeftSource: {},
+  ToggledMenu: { menu: Schema.Literals(['style', 'insert', 'link']), open: Schema.Boolean },
+  FocusedControl: { id: Schema.String },
+  ToggledFind: {},
+  PickedFile: {},
+  ReturnedToText: {},
 })
 type Message = typeof Message.Type
-const { DraftedLink, DraftedSource, MovedInSource, LeftSource } = Message
+const {
+  DraftedLink,
+  DraftedSource,
+  MovedInSource,
+  LeftSource,
+  ToggledMenu,
+  FocusedControl,
+  ToggledFind,
+  PickedFile,
+  ReturnedToText,
+} = Message
 const edited = (message: EditorEvent): Message => Message.GotEditor({ message })
 declare const model: {
   readonly document: RichText.Document
@@ -63,6 +78,8 @@ declare const model: {
   readonly linkDraft: string
   readonly palette: { readonly query: string; readonly index: number } | null
   readonly source: SourceSession | null
+  readonly menu: 'style' | 'insert' | 'link' | undefined
+  readonly tabStop: string | null
 }
 declare const h: HtmlBuilder<Message>
 declare const document: RichText.Document
@@ -159,6 +176,178 @@ menu. The trigger is disabled without a text selection, and the menu draws nothi
 | `icon` | Container | a style's icon |
 | `label` | Container | a style's label |
 | `check` | Container | the check beside the current style |
+
+## The formatting toolbar
+
+The standard bar: undo and redo, the text style menu, marks, link, lists, quote and an insert
+menu, in one `role="toolbar"` with one tab stop. What is pressed or unavailable is a read of the
+document and selection, as everywhere here. Two things are the caller's, because only the caller
+knows them: which menu is open, and where the tab stop is.
+
+```ts
+import { formattingToolbar } from 'foldkit-mixins-richtext'
+
+formattingToolbar<Message>()(
+  {
+    id: 'body-bar',
+    document: model.document,
+    selection: model.editor.selection,
+    storedMarks: model.editor.storedMarks,
+    wrap: edited,
+    menu: model.menu,
+    toggled: (menu, open) => ToggledMenu({ menu, open }),
+    roving: { current: model.tabStop },
+    onFocus: id => FocusedControl({ id }),
+  },
+  h,
+)
+```
+
+`id` prefixes the ids of the controls, which the arrow keys move focus by, and is unique on the
+page. `toggled` is what a menu's trigger sends, to open or close that menu; `menu` is the one
+the application says is open. A choice in the style or insert menu goes through `wrap`, which is
+where the caller closes the menu. `link` is a trigger only: the popup is `linkEditor`, which the
+caller places when `menu` is `'link'`. `roving` and `onFocus` are the tab stop, the same slice
+`foldkit-mixins-ui`'s Toolbar asks for: store the id `onFocus` sends and give it back, so that Tab
+returns to the control last used. The first control holds the stop until one has had focus.
+
+Choose controls with `items`, in order. Each is `'undo'`, `'redo'`, `'style'`, `'link'`,
+`'bulleted-list'`, `'numbered-list'`, `'checklist'`, `'quote'`, `'insert'`, `'separator'`, or
+`{ mark: 'Underline' }` for a mark of the document's vocabulary, or `{ control }` for one of the
+application's own (below); the default is
+`standardFormattingItems`, which lists the marks `foldkit-richtext` ships. A control left out is
+not drawn, so it is not a tab stop: an application that drops the less used ones on a phone
+passes a shorter list there. `inserts` is the insert menu's entries in one list the caller
+orders: `InsertEntry.Editor({ entry })` for an entry of the slash menu's catalogue (sent through
+`wrap`, so the two menus never disagree) and `InsertEntry.App({ id, label, description?, icon?,
+message })` for the application's own, whose Message is sent as it is. The default is the editor's
+blocks. `history` says whether undo and redo apply:
+the editor cannot know what the application undoes, so a page that undoes only its own steps
+passes `{ undo: false, redo: true }`. `words` overrides the toolbar's name and its controls'.
+`shortcuts` adds `foldkit-primitives` patterns (`'mod+u'`) by control id (`mark-Underline`) beside
+the ones the editor itself binds (undo, redo, Bold, Italic, Code, Strikethrough), and each shows as
+the title and `aria-keyshortcuts`.
+
+The keys are the APG toolbar's: ArrowLeft and ArrowRight (mirrored with `direction: 'rtl'`), Home
+and End move between controls and wrap, and Tab leaves. ArrowDown on a closed menu's trigger opens
+it; a second ArrowDown, once its items are drawn, enters the menu, where the arrows, Home and End
+walk the items and Escape closes it and returns to the trigger. A control that is on is
+`aria-pressed` (a mark the selection carries, a link around the caret); a menu's trigger is
+`aria-expanded`, and the style trigger names the current style. An unavailable control (a mark or
+a wrap without a selection, the style menu without a text selection, link where the selection
+covers no text, undo or redo as `history` says) is `aria-disabled`, stays focusable so the arrows
+still reach it, and sends nothing. It is never natively `disabled`, which would take it out of
+the tab order. The package ships no styles: the application styles the slots, and a bar that
+should fit a phone wraps (`flex-wrap`) or scrolls in its own `root`.
+
+### The application's own controls and entries
+
+An item `{ control: { id, label, icon?, shortcut?, pressed?, disabled?, message, popup? } }` joins
+the same tab stop and arrow order, where `items` puts it; its element and `data-item` are
+`app-<id>`. A press sends `message`. While `disabled` it is `aria-disabled`, stays focusable and
+sends nothing, but the view cannot make a Message unsendable from elsewhere: the application's
+`update` must refuse it in that state too. `popup: { kind, open }` makes it a trigger for something
+the application draws, as `link` is: `aria-haspopup` says which kind, a `menu` is `aria-expanded`
+while `open`, and `message` toggles it. ArrowDown on a closed menu's trigger, and Escape on an open
+popup's, send `message`.
+
+```ts
+import { formattingToolbar, InsertEntry } from 'foldkit-mixins-richtext'
+
+formattingToolbar<Message>()(
+  {
+    id: 'body-bar',
+    document: model.document,
+    selection: model.editor.selection,
+    wrap: edited,
+    toggled: (menu, open) => ToggledMenu({ menu, open }),
+    roving: { current: model.tabStop },
+    onFocus: id => FocusedControl({ id }),
+    items: [
+      'undo',
+      'redo',
+      'separator',
+      { mark: 'Bold' },
+      { control: { id: 'find', label: 'Find', icon: 'search', message: ToggledFind() } },
+      'insert',
+    ],
+    inserts: [InsertEntry.App({ id: 'file', label: 'Image, video or file', message: PickedFile() })],
+    returned: ReturnedToText(),
+  },
+  h,
+)
+```
+
+### Narrow screens
+
+Wrap an item as `{ low: item }` to say it gives way: with `compact: true` it is not drawn, so it is
+neither a tab stop nor an arrow-key target, and a separator a hidden group leaves at an end or
+beside another is dropped. If the control the tab stop names is the one that goes, the stop falls to
+the nearest control still drawn (the next one, else the one before). The bar knows no width: the
+application keeps `compact` in its Model. `foldkit-primitives/media`'s `MediaQuery.with({ query:
+'(max-width: 40rem)' })` is that signal, a Bundle holding `matches` that a `matchMedia` Subscription
+keeps current, so pass `compact: model.narrow.matches`. What is left out is still offered by the
+slash menu.
+
+```ts
+formattingToolbar<Message>()(
+  {
+    id: 'body-bar',
+    document: model.document,
+    selection: model.editor.selection,
+    wrap: edited,
+    toggled: (menu, open) => ToggledMenu({ menu, open }),
+    roving: { current: model.tabStop },
+    onFocus: id => FocusedControl({ id }),
+    items: ['undo', 'redo', 'separator', { mark: 'Bold' }, { low: { mark: 'Code' } }, { low: 'quote' }],
+    compact: true,
+  },
+  h,
+)
+```
+
+### Where the focus goes
+
+**A pointer press leaves the focus in the text.** The bar's root carries `data-editor-controls`
+(`CONTROLS_ATTRIBUTE` from `foldkit-richtext-dom/toolbar`), and while the focus is in the text the
+editor holds back the focus change of a press inside such an element. The click still happens. So
+after pressing Bold the same text is still selected in the browser, pressing Italic marks it too,
+and typing replaces it. A menu opened by a press is chosen from by a press, and its entry lands on
+the selection or caret that is still in the text. No control took the focus, so the tab stop does
+not move. A press made while a bar control or another field has the focus moves the focus to the
+pressed control, as any button does.
+
+**A control reached by key holds the focus.** After Tab or Shift+Tab to the bar and the arrows, a
+command (Enter or Space on Bold, a list wrap, undo) leaves the focus on its button, so the next
+control is an arrow away. Every command reads the selection the editor keeps in the Model, which
+the focus leaving does not change, so two commands in a row act on the same text. The browser
+cannot show a selection in the text while a button has the focus, so the editor draws it as a
+decoration, `span[data-decoration="selection"]`, which the application's stylesheet paints as
+selected text. Typing then is not typing in the text: a letter reaches the button, and Space
+presses it again.
+
+To go back to the text, press Escape on a control. It sends `returned`, usually
+a Message whose `update` runs `foldkit-richtext-dom/editor-bundle`'s `focus(hostId, selection)`;
+without `returned` Escape does nothing there. It closes an open popup first, and then returns.
+Tab into the text returns too. Either way the decoration goes and the selection is the browser's
+again, so typing replaces it. To come back to the bar, Tab or Shift+Tab reaches the control last
+focused.
+
+`markToolbar`, `blockStyles`, `blockStyleMenu`, `tableToolbar`, `codeToolbar`, `slashMenuView` and
+`linkEditor` mark their roots the same way. A field in a marked element (the link editor's
+address) takes the focus as usual. Mark your own chrome that acts on the selection, such as a
+block menu, with `h.Attribute(CONTROLS_ATTRIBUTE, '')`.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | the bar, `role="toolbar"`, `data-editor-controls`; owns `keydown` |
+| `button` | Interactive | one control, `data-item` its id, `aria-pressed` or `aria-expanded` |
+| `separator` | Container | a rule between sets |
+| `anchor` | Container | a menu's trigger and its open panel, to anchor the panel to |
+| `label` | Container | a trigger's text |
+| `menu` | Collection | the open panel, `role="menu"` |
+| `item` | Interactive | one entry, `data-style` or `data-insert` its id |
+| `itemLabel`, `itemDescription` | Container | an entry's label and description |
 
 ## The link editor
 

@@ -14,6 +14,7 @@ import { inertHtml as h, type Html } from 'foldkit/html'
 import * as RichText from 'foldkit-richtext'
 import { decorationAttributes, decorationSpans, piecesOf, type Spans } from './decorations.js'
 import { FILLER_ATTRIBUTE, needsFiller } from './filler.js'
+import type { EditorName } from './host.js'
 
 /** A rendered child is either an element or literal text. */
 type Child = Html | string
@@ -235,6 +236,7 @@ export const renderEditable = (
   document: RichText.Document,
   renderer: RichText.Rendering = RichText.noRendering,
   decorations: RichText.DecorationSet = [],
+  name: EditorName = {},
 ): Html => {
   const spans = decorationSpans(document, decorations)
   return h.div(
@@ -242,6 +244,8 @@ export const renderEditable = (
       h.Attribute('contenteditable', 'true'),
       h.Role('textbox'),
       h.Attribute('aria-multiline', 'true'),
+      ...(name.label === undefined ? [] : [h.Attribute('aria-label', name.label)]),
+      ...(name.labelledBy === undefined ? [] : [h.Attribute('aria-labelledby', name.labelledBy)]),
     ],
     document.children.map(block => editableBlock(renderer, block, spans)),
   )

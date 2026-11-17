@@ -29,6 +29,7 @@ import {
   variables,
   withValue,
 } from './theme/knobs.js'
+import { applyTheme, chooseTheme, themeScript } from './theme/runtime.js'
 import * as ThemeSet from './theme/themes.js'
 import { root, scoped } from './theme/root.js'
 import { chooseScheme, currentScheme, schemeScript } from './theme/scheme.js'
@@ -91,11 +92,12 @@ export const Knobs = { standard, schema: schemaOf, paths, at, valueAt, withValue
  */
 export const Themes = {
   make: ThemeSet.make,
-  apply: ThemeSet.apply,
-  choose: ThemeSet.choose,
-  script: ThemeSet.script,
+  apply: applyTheme,
+  choose: chooseTheme,
+  script: themeScript,
 } as const
-export { changes as themeChanges, THEME_KEY } from './theme/themes.js'
+export { themeChanges, THEME_KEY } from './theme/runtime.js'
+export type { ThemeNames } from './theme/runtime.js'
 export type { StandardTokens, Themes as ThemesOf } from './theme/themes.js'
 export { raise, raisedSurface } from './theme/raise.js'
 export type { Palette } from './theme/oklch.js'

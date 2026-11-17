@@ -5,6 +5,7 @@
  * is the script's, so the schedule comes due when the story says.
  */
 import { Effect, Option } from 'effect'
+import { print } from 'foldkit-richtext-markdown'
 import { Cms } from 'foldkit-cms'
 import { Display } from 'foldkit-crud'
 import { RemoteData, RemotePolicy } from 'foldkit-remote'
@@ -19,9 +20,37 @@ import {
   postPage,
   update,
 } from '../apps/app.js'
-import { PostForm, Posts } from '../content/domain.js'
+import { PostsBySlug } from '../content/domain.js'
+import { PostForm, Posts } from '../content/postForm.js'
+import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import type { Principal } from '../server/server.js'
 import { chairHarness, openBackend, visitBySlug } from './harness.js'
+
+/**
+ * The editor Messages that replace the body with `text`: select every run, then type over it,
+ * as a writer does with the editor's own keys.
+ */
+export const writeBody = (form: Parameters<typeof PostForm.field>[0], text: string) => {
+  const body = PostForm.control('body')
+  const runs = body
+    .field(form)
+    .value.document.children.flatMap(block => (block.type === 'Node' ? [] : block.children))
+  const first = runs[0]
+  const last = runs[runs.length - 1]
+  if (first === undefined || last === undefined) throw new Error('the body holds no run to select')
+  return [
+    body.send(
+      EditorMessage.Selected({
+        selection: {
+          type: 'Range',
+          anchor: { node: first.id, offset: 0, affinity: 'after' },
+          focus: { node: last.id, offset: last.text.length, affinity: 'after' },
+        },
+      }),
+    ),
+    body.send(EditorMessage.Typed({ text })),
+  ]
+}
 
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const lines: string[] = []
@@ -40,6 +69,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       actives,
       prefetch: (model, projection) =>
         Data.prefetch(model, projection, { policy: RemotePolicy.networkOnly }),
+      // The editor's patch and answer Commands reach a host element this story has none of.
+      skipCommand: name => name === 'RichText.patch' || name === 'RichText.answer',
       runCommand: (effect, client) => Effect.runPromise(effect.pipe(Effect.provide(client))),
     })
     const { send, look, sent } = harness
@@ -51,7 +82,12 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       look,
       editor,
       type: (key: 'title' | 'slug' | 'body', value: string) =>
-        editor(PostForm.Message.Changed({ key, value })),
+        key === 'body'
+          ? writeBody(harness.model().editor.form, value).reduce(
+              (done, message) => done.then(() => editor(message)),
+              Promise.resolve(),
+            )
+          : editor(PostForm.Message.Changed({ key, value })),
       /** What was sent since this was last asked. */
       sent,
       status: () => PostEditor.status(harness.model()),
@@ -66,8 +102,12 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
           onNone: () => 'no error',
           onSome: ({ message }) => message.replace(/^.*?: /, ''),
         }),
-      field: (key: 'title' | 'slug' | 'body') =>
-        PostForm.field(harness.model().editor.form, key).value,
+      field: (key: 'title' | 'slug') => PostForm.field(harness.model().editor.form, key).value,
+      /** The body as the editor holds it, printed as Markdown. */
+      body: () =>
+        print(
+          PostForm.control('body').field(harness.model().editor.form).value.document,
+        ).markdown.trim(),
       resumed: () => Option.getOrElse(PostEditor.resumed(harness.model()), () => 'not opened'),
       worklist: () => {
         const page = Worklist.page(harness.model())
@@ -99,7 +139,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       visit: (slug: string) =>
         visitBySlug({
           chair: harness,
-          query: Cms.bySlug(Posts),
+          query: PostsBySlug,
           entity: 'Post',
           fields: ['title', 'body'],
           render: values => `"${values['title']}": ${values['body']}`,
@@ -138,7 +178,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`writer: ${wren.status()} (${wren.why()})`)
   await edda.send(Message.OpenedEntry({ entry: 'entry-1' }))
   await edda.look()
-  say(`editor opens it: resumed from the ${edda.resumed()}; body "${edda.field('body')}"`)
+  say(`editor opens it: resumed from the ${edda.resumed()}; body "${edda.body()}"`)
   await edda.editor(Editor.Message.PublishAsked())
   say(`editor: ${edda.status()}; sent ${edda.sent()}; state ${edda.state()}`)
   say(`a visitor at /blog/hello-world: ${await visitor.visit('hello-world')}`)
@@ -172,9 +212,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   await edda.look()
   await wren.type('body', 'Wren was here.')
   await edda.type('body', 'Edda was here.')
-  say(
-    `writer: ${wren.status()}; editor: ${edda.status()}, with "${edda.field('body')}" still in the form`,
-  )
+  say(`writer: ${wren.status()}; editor: ${edda.status()}, with "${edda.body()}" still in the form`)
   await edda.editor(Editor.Message.OverwriteAsked())
   await edda.look()
   say(`the editor saves over it: ${edda.status()}`)
@@ -189,11 +227,11 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   )
   await edda.editor(Editor.Message.RestoreAsked({ revision: 1 }))
   await edda.look()
-  say(`restored as a draft: "${edda.field('body')}"; state ${edda.state()}`)
+  say(`restored as a draft: "${edda.body()}"; state ${edda.state()}`)
   say(`nothing was published by that: ${await visitor.visit('hello-world')}`)
   await edda.editor(Editor.Message.DiscardAsked())
   await edda.look()
-  say(`discarded: "${edda.field('body')}"; state ${edda.state()}`)
+  say(`discarded: "${edda.body()}"; state ${edda.state()}`)
 
   say('— off show —')
   await edda.editor(Editor.Message.UnpublishAsked())

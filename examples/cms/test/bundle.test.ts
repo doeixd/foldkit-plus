@@ -33,7 +33,26 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +293 on 2026-11-14, after merging main: measured 292,943 (main's reading 292,599). The page draws
 // the builder's widgets, which carry this branch's kept widget work beside main's primitives; not
 // bisected. Ceiling raised to the reading, rounded up.
-const CEILING = 293_000
+// +100 on 2026-11-15, the widget round on this branch: measured 293,074 against 292,830 for main
+// (ab3421ba6) in fresh builds of both, +244. By module (minified): recipes/design.js +165
+// (`filledHover`, a filled field's hover fill, for Input, Select and Listbox), recipes/select.js
+// +67 (its filled look's invalid edge), recipes/button.js +42 (a pressed primary Button's fill),
+// foldkit-builder and foldkit-mixins-builder +50 between them; the other 40-odd moved modules are
+// within +-14 each and sum to about -80. It was 293,068 before `filledHover` moved from
+// recipes/field.js to design.js; it is the same page. Ceiling raised to the reading, rounded up.
+// +100 on 2026-11-15 for the studio's focus Commands (focus.ts): measured 293,138 against 293,074
+// before it, +64 (a Command per open and close of an editor, in both sections). Ceiling raised to
+// the reading, rounded up.
+// +25,300 on 2026-11-15 for Markdown bodies: the site and the studio's preview read a post's
+// Markdown into a rich-text document (`markdownBody.ts`) and draw it with the standard rendering,
+// which brings the Markdown parser (micromark, mdast, GFM) and the rich-text renderer into the
+// page: measured 317,844 against 293,138 before. It replaces the 60-line hand parser, which
+// drew only paragraphs, headings, lists and code. Ceiling raised to the reading, rounded up.
+// Lowered to 164,000 on 2026-11-15 (163.2 kB measured): the entry now holds only what both
+// applications share (the runtime, Remote, Entity and the start-up), since the studio and the
+// public site are chunks of their own, loaded by the address (`client.ts`). What each screen loads
+// first is held by `routes.test.ts`, which adds the chunk: studio 366.6 kB, site 322.2 kB.
+const CEILING = 164_000
 
 clientBudget({
   name: 'cms',

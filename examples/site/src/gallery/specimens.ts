@@ -40,7 +40,8 @@ import {
   TableStyle,
 } from '../snippets/components.js'
 import { forSlots } from '../snippets/theme.js'
-import { showcaseOf, type Live } from './showcases.js'
+import { showcaseOf } from './showcases.js'
+import type { Live } from './showcase.js'
 import * as Widgets from './widgets.js'
 import type { Message } from '../main.js'
 import type { H, Slots } from '../view/layout.js'

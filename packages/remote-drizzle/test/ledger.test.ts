@@ -18,7 +18,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
+import { Diagnostics, Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.js'
@@ -167,7 +167,7 @@ const mutate = (
 const reused = (operation: string) => ({
   _tag: 'Failure',
   failure: {
-    message: `Item i1: operation "${operation}" was recorded for another request; a retry sends the same mutation, keys and input`,
+    message: `Operation "${operation}" cannot be sent again with another mutation, keys or input: a retry sends the same ones`,
   },
 })
 const send = (
@@ -392,6 +392,7 @@ describe('A writer with a ledger', () => {
     const untransacted = new Proxy(database, {
       get: (target, key) => (key === 'transaction' ? undefined : Reflect.get(target, key)),
     })
+    const collected = Diagnostics.collect()
     const failed = await Effect.runPromise(
       RemoteServer.handlers(serving(), 'ada')
         .FoldkitRemoteMutate({
@@ -400,12 +401,24 @@ describe('A writer with a ledger', () => {
           input: { id: 'i1', quantity: 5 },
           operation: 'op-a',
         })
-        .pipe(Effect.result, Effect.provide(databaseLayer(untransacted))),
+        .pipe(
+          Effect.result,
+          Effect.provide(databaseLayer(untransacted)),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
+        ),
     )
+    // The server's own setup, for whoever runs it: the caller reads none of it.
     expect(failed).toMatchObject({
       _tag: 'Failure',
-      failure: { message: "Item's ledger needs a database with transactions" },
+      failure: { message: 'Internal error', incident: expect.stringMatching(/^[0-9a-f]{16}$/) },
     })
+    expect(collected.reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: 'mutate Restock',
+        message: expect.stringContaining("Item's ledger needs a database with transactions"),
+      }),
+    )
     expect(stock()).toEqual({ stock: 10 })
   })
 

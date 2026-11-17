@@ -92,9 +92,8 @@ export default [
     edits: [
       {
         file: view,
-        find: "            targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: '[data-builder-canvas]' },\n            part: `data-${REGION_ATTRIBUTE}`,\n",
-        replace:
-          "            targets: { attribute: `data-${NODE_ATTRIBUTE}`, within: '[data-builder-canvas]' },\n",
+        find: '            part: `data-${REGION_ATTRIBUTE}`,\n            toMessage: tileDrag,\n',
+        replace: '            toMessage: tileDrag,\n',
       },
     ],
     tests: runtimeTests,

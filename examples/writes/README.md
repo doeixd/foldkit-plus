@@ -8,6 +8,15 @@ a retry cannot apply twice: a **restock** that expects a revision, and a
 holds more reserved than it has in stock) and a **transition invariant** (a
 published product does not go back to draft).
 
+| Run | It shows |
+| --- | --- |
+| `pnpm --filter foldkit-example-writes demo` | each write sent as a client sends it, and what the server answered or refused |
+| `pnpm --filter foldkit-example-writes laws` | every declared write judged against every invariant and state, with no database |
+
+The guides are [One domain declaration](../../docs/entity.md), which builds a
+domain like this one a step at a time, [Laws](../../docs/laws.md) and
+[Declared writes](../../docs/declared-writes.md).
+
 ```text
 domain.ts   Product · who may change it (Shop) · what every row holds (an invariant)
             and every change (a transition invariant) · Rename · Publish · Revert · Restock · Sell
@@ -54,6 +63,11 @@ pnpm --filter foldkit-example-writes demo
 ```
 
 ```text
+WARN [foldkit-remote-drizzle] Product's table "products" holds no CHECK for this rule, so only the server's declared writes do, and a write past the server is not refused: Product's invariant "publishedStaysPublished": reads the row before the write
+can publish the draft: Yes
+can publish a published product: No(Unmet)
+can publish an archived product: No(Unmet)
+can put the published product back to draft: No(Invalid publishedStaysPublished)
 rename by its owner: written {"id":"p1","name":"Bolt, M6","revision":2}
 rename by another: Forbidden
 publish the draft: written {"id":"p1","status":"published","revision":3}
@@ -72,6 +86,16 @@ row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":
 
 ## What each line means
 
+- **The warning** is the writer's `ServerOnlyRules` diagnostic, printed once
+  (the log line's timestamp is left out above). A transition invariant reads
+  the row before the write, which a `CHECK` cannot, so the table does not hold
+  it and the writer says so.
+- **The four `can` lines** are the page asking before it sends anything.
+  `Data.can` judges the same declarations over three products the page holds,
+  with no I/O: the draft may be published, a published or archived one is not
+  a draft (`Unmet`), and putting a published product back to draft would break
+  the transition invariant (`Invalid`). They are hints. Further down, the
+  server answers "publish it again" as written, where the page said `Unmet`.
 - **A guarded rename.** `Rename` is a plain `Write.update`. Its guard, built with
   `{ revision: 'revision' }`, writes only the revision its rules were decided
   over, and the revision moves on with the write (1 to 2). Had the owner changed
@@ -125,6 +149,33 @@ rule of its own, or one whose `when` or `expect` reads a member its writer may
 not read, and reports an `UnpinnedWrites` diagnostic for a guarded writer with
 no `revision`.
 
+## The laws, checked
+
+```bash
+pnpm --filter foldkit-example-writes laws
+```
+
+prints what `Laws.check` says of the five writes from their declarations
+alone: the arrows they make between the product's states, and each write
+against each invariant. [`LAWS.md`](./LAWS.md) keeps that report with the
+evidence for each pair, and `test/laws.test.ts` fails when a change to
+`domain.ts` changes it.
+
+```text
+Product
+  Draft -> Published   Publish   holds
+  Published -> Draft   Revert    refused by publishedStaysPublished
+  Archived -> Draft    Revert    undeclared
+  * -> InStock         Sell      enforced
+  Archived                       unreached
+```
+
+`Publish` is proved to leave every draft published. `Revert` from a published
+product is found refused by the transition invariant. `Sell` and `Restock`
+move the stock by an amount, which cannot be enumerated, so the report calls
+them `undecided` against `reservedWithinStock` and `test/sell.walk.test.ts`
+walks them through the real server instead.
+
 ## The page agrees with the server
 
 `test/law.test.ts` builds a page (`Remote.make` over the same domain) and runs
@@ -133,6 +184,18 @@ through the page's own `Data.mutate` and through this server, and every part
 the page predicted (a renamed name, a published status, a stock computed from
 an increment) must be what SQLite then holds, and a write the server refuses
 for its transition invariant must be refused on the page too.
+
+## What to read
+
+| File | Read it for |
+| --- | --- |
+| [`src/domain.ts`](./src/domain.ts) | the whole domain: one Entity, a guard, two invariants, four states, five writes |
+| [`src/server.ts`](./src/server.ts) | the table, the invariant as a `CHECK`, guarded writers, one with a ledger |
+| [`src/demo.ts`](./src/demo.ts) | the trace above: `Data.can` over held rows, then each write through the server |
+| [`src/laws.ts`](./src/laws.ts) | `Laws.check` over every write the domain exports |
+| [`test/law.test.ts`](./test/law.test.ts) | `Law.check`: each write through a page and through the server, compared |
+| [`test/sell.walk.test.ts`](./test/sell.walk.test.ts) | a seeded walk of `Sell` and `Restock` that an invariant must survive |
+| [`test/domainGuide.test.ts`](./test/domainGuide.test.ts) | the snippets of One domain declaration, run |
 
 ## Limits
 

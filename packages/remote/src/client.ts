@@ -193,11 +193,13 @@ export const remoteError = (error: {
   readonly message: string
   readonly refusal?: unknown
   readonly reason?: string | undefined
+  readonly incident?: string | undefined
 }): RemoteError => ({
   _tag: error._tag,
   message: error.message,
   ...(error.refusal === undefined ? {} : { refusal: error.refusal }),
   ...(error.reason === undefined ? {} : { reason: error.reason }),
+  ...(error.incident === undefined ? {} : { incident: error.incident }),
 })
 
 /**

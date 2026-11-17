@@ -56,6 +56,7 @@
       "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"],
       "foldkit-mixins-form/recipes": ["../../packages/mixins-form/src/recipes.ts"],
       "foldkit-mixins-form/ui": ["../../packages/mixins-form/src/ui.ts"],
+      "foldkit-mixins-richtext": ["../../packages/mixins-richtext/src/index.ts"],
       "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
@@ -65,6 +66,8 @@
       "foldkit-mixins/prose": ["../../packages/mixins/src/prose.ts"],
       "foldkit-mixins/testing": ["../../packages/mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
+      "foldkit-mixins/theme/knob-data": ["../../packages/mixins/src/theme/knobData.ts"],
+      "foldkit-mixins/theme/runtime": ["../../packages/mixins/src/theme/runtime.ts"],
       "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
       "foldkit-mixins/vite": ["../../packages/mixins/src/vite.ts"],
       "foldkit-primitives": ["../../packages/primitives/src/index.ts"],
@@ -122,6 +125,9 @@
     },
     {
       "path": "../../packages/mixins-ui/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-richtext/tsconfig.build.json"
     },
     {
       "path": "../../packages/bundle/tsconfig.build.json"

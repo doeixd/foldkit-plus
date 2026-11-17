@@ -152,6 +152,11 @@ const pages = (model: Model, h: HtmlBuilder<Message>): Html =>
 refresh kept above its rows are handled exactly as for `ListView` — one
 implementation, so the two cannot drift.
 
+Each row of either view carries its key as `data-row-key` on the `row` Slot, in the
+markup a server sends too, so an application can return focus to a row's button after a
+re-read: ``Dom.focus(`[data-row-key="${CSS.escape(id)}"] button`)``. The key is the row's
+own text, quotes and all, so the caller escapes it with `CSS.escape`.
+
 ## Follow a row click
 
 The table reads the `page` value you pass it. `onOpen` constructs `OpenedPost`;
@@ -388,7 +393,7 @@ Adjust one with `.extend`, never a fork: `List.extend({ base: { cell: { padding:
 | The header and the body | `thead`, its `tr`, and `tbody` | `head`, `headRow`, `body` |
 | A column header | `th scope="col"`, with `aria-sort` when it sorts | `headCell` |
 | A header that sorts | `button type="button"` | `sort` |
-| A row | `tr`, keyed by `rowKey`, else the row's `id`, else its position | `row` |
+| A row | `tr`, keyed by `rowKey`, else the row's `id`, else its position, and carrying that key as `data-row-key` | `row` |
 | A cell | `td` | `cell` |
 | The way into a row | `button type="button"` in the first shown cell | `open` |
 | The next page | `button type="button"`, disabled while refreshing | `more` |

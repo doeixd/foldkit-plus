@@ -293,7 +293,10 @@ RemoteServer.make({
 - `CmsSchedule { entry, at }` promises a draft that would publish now; nothing runs
   until the host calls `cms.due(new Date(), { as: name => principal })` (cron, interval,
   queue: the package owns no timer). A failed one stays scheduled with its error
-  (state reads overdue) and is not retried until the draft changes.
+  (state reads overdue) and is not retried until the draft changes. The entry shows a
+  reason written for a reader, else `Internal error, incident <id>` with the cause
+  reported as a `ServerDefect` under that id; `due`'s own `error` is the failure's
+  words, for the host.
 - Seeding or migrating: `cms.import({ type, values, as, at?, entry? })` (an Effect needing the
   database) publishes content that exists already by the publish path (your `create` writes the
   row; entry and revision 1 follow), in one transaction. Never insert into the CMS tables by hand.
@@ -304,7 +307,10 @@ RemoteServer.make({
 - A scheduled draft is published as its scheduler, so saving, restoring or
   discarding it is refused to an author `transitions` or `allow` would not let `schedule`.
 - A statement the database refuses fails the operation as a `RemoteServerError`
-  (`Database write failed`), its SQL logged, never sent; a `Transaction` may fail so.
+  (`Database write failed`), which the author reads as `Internal error` with an incident;
+  its SQL is reported, never sent; a `Transaction` may fail so. The CMS's own refusals
+  (`There is no such entry`, `This draft is not ready to publish: check title`) are told
+  with `RemoteServer.tell`; a handler of yours tells the author the same way.
 - Every operation is one `transaction`; `Transaction.statements` serialises them
   on the connection. Wrap your own writes on that connection in it too.
 - `CmsArchive` also hides the row of a type with a `published` role; `CmsUnarchive`
@@ -316,7 +322,7 @@ RemoteServer.make({
   `eq(isNotNull(archivedAt), input.archived)` and the search as
   `contains(label, input.search)` — no branch on an input, since a body is built
   once. An empty search is everything because `label` is not nullable.
-- A `slug` role adds `Cms.bySlug(Posts)` (`postsBySlug`, input `{ slug }`) to
+- A `slug` role adds `Cms.bySlug(Posts)` (`postsBySlug`, input `{ slug }`; it takes a `ContentReader`, the content's `name`, `entity` and `roles`, so a public site passes a form-free one) to
   `cms.queries`; a visitor finds only published rows. It is declared with
   `Query.define`, so it carries its body (`eq(slug field, input.slug)`, ordered by
   id) and `foldkit-cms-drizzle` registers it as `query(descriptor, { entity })`
@@ -328,7 +334,10 @@ RemoteServer.make({
   `Form.checks` step; it asks that query and excepts the row the editor says the
   form is about.
 - `authors` and `transitions` are principal guards, decided once per read; `allow(principal,
-  transition, entry)` adds a rule about the entry. A refusal is `Forbidden`. A publishable
+  transition, entry)` adds a rule about the entry. A refusal is `Forbidden`. An author
+  let `Update` and not `Read` writes and reads nothing: a write made answers its `output`
+  and no patch of the entry, draft or revisions (the server answers only rows the caller may read), and one refused answers as for an entry that is not there, whatever refused
+  it (a first save of a taken id reads `This draft cannot be saved as this entry`). A publishable
   type's Read rule must read its published field, and its binding's `visible` must be the
   guard set's (`GuardServer.validate` runs at `make`). The principal is an `Option`; `now` is the clock.
 

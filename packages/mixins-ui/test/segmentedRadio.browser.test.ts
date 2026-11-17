@@ -10,6 +10,7 @@ import * as Runtime from 'foldkit/runtime'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Layers, Style } from 'foldkit-mixins'
+import { holdFrames } from './frames.js'
 import { Theme } from 'foldkit-mixins/theme'
 import { Recipes, Segmented, SegmentedSlots } from '../src/index.js'
 
@@ -143,6 +144,33 @@ test.each(keys)('%s: %s from Day lands on %s, over the disabled Week', async (di
     await userEvent.keyboard(`{${key}}`)
     await vi.waitFor(() => expect(document.activeElement).toBe(radio(lands)))
     expect(chosen()).toEqual([lands])
+  } finally {
+    handle.dispose()
+  }
+})
+
+// Keys come faster than frames: a held key repeating on a busy page sends several before the
+// next drawing, and each continues from the option the previous one of this drawing chose.
+test.each([
+  ['ltr', '{ArrowRight}{ArrowRight}', 'Year'],
+  ['ltr', '{ArrowRight}{ArrowRight}{ArrowRight}', 'Day'],
+  ['ltr', '{ArrowLeft}{ArrowLeft}', 'Month'],
+  ['ltr', '{End}{ArrowLeft}', 'Month'],
+  ['ltr', '{ArrowRight}{ArrowRight}{Home}{ArrowRight}{ArrowRight}', 'Year'],
+  ['rtl', '{ArrowLeft}{ArrowLeft}', 'Year'],
+] as const)('%s: keys %s before the next frame land on %s', async (dir, typed, lands) => {
+  const handle = mount(dir === 'rtl' ? { dir } : {})
+  try {
+    await ready()
+    radio('Day').focus()
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard(typed)
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(chosen()).toEqual([lands]))
+    expect(document.activeElement).toBe(radio(lands))
   } finally {
     handle.dispose()
   }

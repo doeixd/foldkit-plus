@@ -10,8 +10,10 @@ import {
   component,
   controlCorner,
   disabled,
+  filledHover,
   focusRing,
   focusWithin,
+  HOVERED,
   onLadder,
   ref,
   steps,
@@ -33,7 +35,10 @@ const control = component(
     ...onLadder,
     ...transition('border-color, background-color, box-shadow'),
   }),
-  Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: ref.outline.overt }),
+  // An invalid control keeps its error edge under the pointer.
+  Style.pseudo(':hover:not(:focus, :disabled, [aria-invalid="true"])', {
+    borderColor: ref.outline.overt,
+  }),
   Style.pseudo('::placeholder', { color: ref.text.muted }),
   Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
   focusRing,
@@ -63,6 +68,7 @@ const description = component(
 // invalid control's: the invalid rules sit here too, for the control and its frame.
 const filled: StyleValue = variant(
   Style.self({ background: ref.surface.field, borderColor: 'transparent' }),
+  filledHover,
   Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
   Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
 )
@@ -96,7 +102,9 @@ const fieldBox = (layout: Declarations): StyleValue =>
       boxShadow: ref.shadow.field,
       ...transition('border-color'),
     }),
-    Style.pseudo(':hover:not(:focus-within)', { borderColor: ref.outline.overt }),
+    Style.pseudo(':hover:not(:focus-within, :has([aria-invalid="true"]))', {
+      borderColor: ref.outline.overt,
+    }),
     focusWithin,
     Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
   )
@@ -127,6 +135,11 @@ export const Textarea = Style.recipeFor(TextareaSlots)({
           border: '0',
           background: 'transparent',
           boxShadow: 'none',
+        }),
+        // `filledHover` styles the text under the pointer too, with a selector of its own
+        // that outweighs the rule above; this one repeats it with the frame's weight on top.
+        Style.nest(`:is([data-textarea-frame]) > &${HOVERED}:not(:has(:disabled))`, {
+          backgroundColor: 'transparent',
         }),
         Style.nest(':is([data-textarea-frame]) > &:focus-visible', { outline: 'none' }),
       ),

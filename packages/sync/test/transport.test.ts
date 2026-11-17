@@ -1,7 +1,9 @@
 import { Effect, Fiber, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { describe, expect, it, vi } from 'vitest'
+import { Diagnostics } from 'foldkit-surface'
 import {
+  ExchangeRefused,
   layerFromPromise,
   layerLoopback,
   layerSocket,
@@ -11,6 +13,7 @@ import {
   toPromise,
   Transport,
   TransportSocket,
+  UnreadableHistoryError,
   type SocketLike,
 } from '../src/index.js'
 import { socketPair } from './sockets.js'
@@ -332,9 +335,99 @@ describe('the socket transport', () => {
     expect(exchanged).toBe(0)
   })
 
-  it('returns a handler failure to the client as a transport error', async () => {
+  it('answers a handler that threw with fixed words and an incident, and reports what it threw', async () => {
+    const { client, server } = socketPair()
+    const collected = Diagnostics.collect()
+    // Every frame the server sent, as the bytes on the socket.
+    const frames: Array<string> = []
+    client.onMessage(data => frames.push(data))
+    serveSocket(server, {
+      diagnostics: collected.report,
+      exchange: () => {
+        throw new Error('SECRET-CANARY: SQLITE_CONSTRAINT: UNIQUE constraint failed: journal.seq')
+      },
+    })
+
+    const failed = await Effect.runPromise(withSocket(client))
+    expect(failed).toMatchObject({
+      _tag: 'Failure',
+      failure: {
+        _tag: 'SyncTransportError',
+        message: 'Exchange failed',
+        incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+      },
+    })
+    expect(frames.join(' ')).not.toMatch(/SECRET-CANARY|SQLITE|journal/)
+    expect(frames).toHaveLength(1)
+    expect(collected.reported).toEqual([
+      expect.objectContaining({
+        _tag: 'ExchangeDefect',
+        level: 'error',
+        incident: failed._tag === 'Failure' ? failed.failure.incident : undefined,
+        message: expect.stringContaining('SECRET-CANARY'),
+      }),
+    ])
+  })
+
+  it('sends words a handler wrote for the replica as they are, and reports nothing', async () => {
+    const { client, server } = socketPair()
+    const collected = Diagnostics.collect()
+    serveSocket(server, {
+      diagnostics: collected.report,
+      exchange: () => {
+        throw new ExchangeRefused({ message: 'This connection may not open the document' })
+      },
+    })
+
+    const failed = await Effect.runPromise(withSocket(client))
+    expect(failed).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: 'This connection may not open the document' },
+    })
+    expect(failed._tag === 'Failure' ? failed.failure.incident : 'answered').toBeUndefined()
+    expect(collected.reported).toEqual([])
+  })
+
+  it('sends the sentence for a history no build reads, and reports whose operation it was', async () => {
+    const { client, server } = socketPair()
+    const collected = Diagnostics.collect()
+    const frames: Array<string> = []
+    client.onMessage(data => frames.push(data))
+    serveSocket(server, {
+      diagnostics: collected.report,
+      exchange: () => {
+        throw new UnreadableHistoryError({
+          documentId: 'note',
+          opId: 'SECRET-CANARY-replica:1',
+          version: 1,
+          message: 'This server cannot read the history of this document',
+        })
+      },
+    })
+
+    const failed = await Effect.runPromise(withSocket(client))
+    expect(failed).toMatchObject({
+      _tag: 'Failure',
+      failure: {
+        message: 'This server cannot read the history of this document',
+        incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+      },
+    })
+    // Another replica's operation id is the server's to know.
+    expect(frames.join(' ')).not.toContain('SECRET-CANARY')
+    expect(collected.reported).toEqual([
+      expect.objectContaining({
+        _tag: 'ExchangeDefect',
+        incident: failed._tag === 'Failure' ? failed.failure.incident : undefined,
+        thrown: expect.objectContaining({ opId: 'SECRET-CANARY-replica:1' }),
+      }),
+    ])
+  })
+
+  it('answers the replica though the reporter itself fails', async () => {
     const { client, server } = socketPair()
     serveSocket(server, {
+      diagnostics: () => Effect.die(new Error('the reporter is down')),
       exchange: () => {
         throw new Error('handler down')
       },
@@ -342,8 +435,20 @@ describe('the socket transport', () => {
 
     expect(await Effect.runPromise(withSocket(client))).toMatchObject({
       _tag: 'Failure',
-      failure: { _tag: 'SyncTransportError', message: 'handler down' },
+      failure: { message: 'Exchange failed' },
     })
+  })
+
+  it('reads an error frame with no incident, as a server before incidents sent it', async () => {
+    const { client, server } = socketPair()
+    server.onMessage(data => {
+      const frame = JSON.parse(data) as { id: string }
+      server.send(JSON.stringify({ id: frame.id, error: 'handler down' }))
+    })
+
+    const failed = await Effect.runPromise(withSocket(client))
+    expect(failed).toMatchObject({ _tag: 'Failure', failure: { message: 'handler down' } })
+    expect(failed._tag === 'Failure' ? failed.failure.incident : 'answered').toBeUndefined()
   })
 
   it('does not leak an unhandled rejection when the reply cannot be sent', async () => {

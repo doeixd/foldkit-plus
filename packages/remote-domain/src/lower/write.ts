@@ -9,7 +9,7 @@ import type { DecideContext, Envelope } from '@alchemy.run/domain/Aggregate'
 import type { CommandClass, CommandRpc } from '@alchemy.run/domain/Command'
 import type { RejectionClass } from '@alchemy.run/domain/Rejection'
 import type { Context } from 'effect'
-import { DateTime, Effect, Match, Option, Result, Schema, SchemaAST } from 'effect'
+import { Cause, DateTime, Effect, Match, Option, Result, Schema, SchemaAST } from 'effect'
 import { Write, type AnyEntity, type MemoryOperators } from 'foldkit-entity'
 import type { Policy } from 'foldkit-guard'
 import { GuardServer } from 'foldkit-guard/server'
@@ -391,44 +391,63 @@ export const write = <
         ...Object.fromEntries(Object.keys(commandFields).map(key => [key, fields[key]])),
         [ID]: ctx.id,
       } as Input
+      /**
+       * A failure of this side inside `decide`. A Domain Api's transport sends a
+       * defect with its message and its cause, so the cause is reported here
+       * (`RemoteServer.report`) and the defect says only what a caller may read:
+       * that it failed, and the incident it was reported under.
+       */
+      const internal = (cause: Cause.Cause<unknown>) =>
+        Effect.flatMap(
+          RemoteServer.report(`decide ${mutation.name}`, cause),
+          ({ message, incident }) => Effect.die(new Error(`${message}, incident ${incident}`)),
+        )
       /** The write landed over a copy of the row, which only a success keeps. */
-      const land = (input: Input) => {
-        const held = storeOf(entity.name, encodeRow(row))
-        return chainOver(held.store)
-          .run({
-            input,
-            principal,
-            viewer: Option.none(),
-            requestId: ctx.commandId,
-            operation: Option.none(),
-            now: DateTime.toEpochMillis(ctx.now),
-            read: () => Effect.succeedNone,
-          })
-          .pipe(
-            Effect.map(() => decodeRow(held.row())),
-            Effect.catchTags({
-              MutationRefused: ({ refusal }) =>
-                Schema.is(Refusal)(refusal)
-                  ? Effect.fail(
-                      reject(
-                        refusal._tag,
-                        Object.fromEntries(
-                          (refusalFields.get(refusal._tag) ?? []).map(key => [
-                            key,
-                            (refusal as unknown as Readonly<Record<string, unknown>>)[key],
-                          ]),
-                        ),
+      const land = (input: Input) =>
+        Effect.suspend(() => {
+          const held = storeOf(entity.name, encodeRow(row))
+          return chainOver(held.store)
+            .run({
+              input,
+              principal,
+              viewer: Option.none(),
+              requestId: ctx.commandId,
+              operation: Option.none(),
+              now: DateTime.toEpochMillis(ctx.now),
+              read: () => Effect.succeedNone,
+            })
+            .pipe(Effect.map(() => decodeRow(held.row())))
+        }).pipe(
+          // Whatever threw in the chain (a rule's body, an operator, a codec) may say anything.
+          Effect.catchDefect(defect => internal(Cause.die(defect))),
+          Effect.catchTags({
+            MutationRefused: ({ refusal }) =>
+              Schema.is(Refusal)(refusal)
+                ? Effect.fail(
+                    reject(
+                      refusal._tag,
+                      Object.fromEntries(
+                        (refusalFields.get(refusal._tag) ?? []).map(key => [
+                          key,
+                          (refusal as unknown as Readonly<Record<string, unknown>>)[key],
+                        ]),
                       ),
-                    )
-                  : Effect.die(
+                    ),
+                  )
+                : internal(
+                    Cause.fail(
                       new Error(`${mutation.name} was refused with what it does not declare`),
                     ),
-              Forbidden: () => Effect.fail(reject('Forbidden')),
-              Unauthenticated: () => Effect.fail(reject('Unauthenticated')),
-              RemoteServerError: error => Effect.die(error),
-            }),
-          )
-      }
+                  ),
+            Forbidden: () => Effect.fail(reject('Forbidden')),
+            Unauthenticated: () => Effect.fail(reject('Unauthenticated')),
+            // Words the chain told its caller go as they are; any other failure is this side's.
+            RemoteServerError: error =>
+              error.told === true
+                ? Effect.die(new Error(error.message))
+                : internal(Cause.fail(error)),
+          }),
+        )
       const asked = decidedOf(mutation.name, ctx.commandId)
       const reused = Option.filter(asked, ({ operation, digest }) =>
         state.operations.some(each => each.operation === operation && each.digest !== digest),

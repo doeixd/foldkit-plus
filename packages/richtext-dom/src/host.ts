@@ -104,6 +104,25 @@ export const placePlaceholders = (hostId: string, placed: Placeholders): void =>
 /** The placeholders placed for a host id; none when nothing was placed. */
 export const placeholdersFor = (hostId: string): Placeholders => placeholders.get(hostId) ?? {}
 
+/**
+ * How an editor is named for assistive technology: by a label of its own (`aria-label`) or by the
+ * element that labels it (`aria-labelledby`), never both.
+ */
+export type EditorName =
+  | { readonly label: string; readonly labelledBy?: undefined }
+  | { readonly labelledBy: string; readonly label?: undefined }
+  | { readonly label?: undefined; readonly labelledBy?: undefined }
+
+const names = new Map<string, EditorName>()
+
+/** Records how a placement names its editor, by host id. */
+export const placeName = (hostId: string, name: EditorName): void => {
+  names.set(hostId, name)
+}
+
+/** The name placed for a host id; none when nothing was placed. */
+export const nameFor = (hostId: string): EditorName => names.get(hostId) ?? {}
+
 const keymaps = new Map<string, ReadonlyArray<KeyBinding>>()
 
 /** Records the chords a placement's editor adds to the built-in ones, by host id. */

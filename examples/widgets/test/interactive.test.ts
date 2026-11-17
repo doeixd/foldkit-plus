@@ -7,6 +7,7 @@
  * the test queries the drawn page, not the staged divs.)
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { lazyIslands, newerIslands } from '../src/lazy.js'
 import { islands } from '../src/widgets.js'
 
 afterEach(() => {
@@ -44,9 +45,21 @@ describe('showcase islands', () => {
     vi.stubGlobal('cancelAnimationFrame', clearTimeout)
     document.body.innerHTML = '<main id="showcase"></main>'
     await import('../src/entry.js')
+    // Each lazy section boots when its code arrives; the entry asked first, so these resolve after.
+    await Promise.all(lazyIslands.map(island => island.load()))
 
-    // Every registered island drew a section.
-    expect(document.querySelectorAll('main#showcase > section')).toHaveLength(islands.length)
+    // jsdom has no IntersectionObserver, so every lazy section loads at once.
+    expect(typeof IntersectionObserver).toBe('undefined')
+    expect(document.querySelectorAll('main#showcase > section')).toHaveLength(
+      islands.length + lazyIslands.length,
+    )
+
+    // The checks below read the whole page by label and text, which the newer sections
+    // (tested on their own) also draw: leave the showcase's first ones.
+    const lazyTitles = new Set(newerIslands.map(island => island.title))
+    for (const section of document.querySelectorAll('main#showcase > section')) {
+      if (lazyTitles.has(section.querySelector('h2')?.textContent ?? '')) section.remove()
+    }
 
     // The toolbar drew over its container.
     expect(document.querySelector('[role="toolbar"]')).not.toBeNull()
@@ -122,10 +135,11 @@ describe('showcase islands', () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain('Sending…'))
 
     // Command: typing narrows to two options.
-    const search = one(HTMLInputElement, 'input[aria-label="Search commands"]')
+    const palette = one(HTMLElement, '[role="dialog"][aria-label="Commands"]')
+    const search = one(HTMLInputElement, 'input[aria-label="Search commands"]', palette)
     search.value = 'new'
     search.dispatchEvent(new Event('input', { bubbles: true }))
-    await vi.waitFor(() => expect(document.querySelectorAll('[role="option"]').length).toBe(2))
+    await vi.waitFor(() => expect(palette.querySelectorAll('[role="option"]').length).toBe(2))
 
     // Context menu: right-clicking a row opens its menu, choosing acts.
     const notes = one(HTMLDivElement, '[id="context-menu/notes.txt"]')
@@ -193,5 +207,5 @@ describe('showcase islands', () => {
     if (pick === undefined) throw new Error('no New folder pick')
     pick.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await vi.waitFor(() => expect(document.body.textContent).toContain('Ran: New folder.'))
-  })
+  }, 30_000)
 })

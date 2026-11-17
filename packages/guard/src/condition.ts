@@ -18,7 +18,14 @@ import {
   type HeldRows,
   type MemoryOperators,
 } from 'foldkit-entity'
-import { attached, defaultDeny, surfaceOf, type AnyRule, type Deny } from './attach.js'
+import {
+  attached,
+  defaultDeny,
+  reachesOther,
+  surfaceOf,
+  type AnyRule,
+  type Deny,
+} from './attach.js'
 import type { PrincipalGuard, RowGuard } from './index.js'
 
 export type Condition =
@@ -34,10 +41,6 @@ export type Condition =
   | { readonly _tag: 'Inherit'; readonly relation: string }
   | { readonly _tag: 'And'; readonly conditions: ReadonlyArray<Condition> }
   | { readonly _tag: 'Or'; readonly conditions: ReadonlyArray<Condition> }
-
-/** Whether a row guard reads another row: one row cannot judge it. */
-const reachesOther = (guard: RowGuard<any, AnyEntity>): boolean =>
-  Query.dependencies(guard.query).reaches.length > 0
 
 const always: Condition = Object.freeze({ _tag: 'Always' })
 const never: Condition = Object.freeze({ _tag: 'Never' })

@@ -17,7 +17,12 @@ import { PresenceMessage } from 'foldkit-primitives/motion'
 
 export const DURATION_MS = 200
 
-export const Item = Schema.Struct({ id: Schema.String, title: Schema.String })
+/** A flat row; `parent` names the row that holds it, which a dismissed child's focus falls back to. */
+export const Item = Schema.Struct({
+  id: Schema.String,
+  title: Schema.String,
+  parent: Schema.Option(Schema.String),
+})
 export type Item = typeof Item.Type
 
 export const Rows = Bundle.declare(Reorder.bundle, 'rows')
@@ -27,6 +32,7 @@ export const GotPresence = Link.keyedWrapper('GotPresence', PresenceMessage)
 export const Model = Schema.Struct({
   ...Rows.fields,
   ...Live.fields,
+  id: Schema.String,
   items: Schema.Array(Item),
   presence: Schema.Record(Schema.String, Presence.bundle.Model),
   editing: Schema.Option(Schema.String),
@@ -49,9 +55,12 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-/** The element id of an item's edit button, which takes focus back when its editor closes. */
-export const editId = (id: string): string => `list:${id}:edit`
-export const editorId = (id: string): string => `list:${id}:editor`
+/**
+ * The element id of an item's edit button, which takes focus back when its editor closes.
+ * Every id starts with the list's own, so two lists on one page share none.
+ */
+export const editId = (list: string, id: string): string => `${list}:${id}:edit`
+export const editorId = (list: string, id: string): string => `${list}:${id}:editor`
 
 const FocusById = Command.define('FocusById', {
   args: { id: Schema.String },
@@ -114,15 +123,19 @@ const Reordered = Page.at(Rows, {
 export const placements = Bundle.assemble<Model, Message>()([Announcer, Reordered, Presences])
 
 const ITEMS: ReadonlyArray<Item> = [
-  { id: 'item-1', title: 'Write the guide' },
-  { id: 'item-2', title: 'Review the pull request' },
-  { id: 'item-3', title: 'Ship it' },
+  { id: 'item-1', title: 'Write the guide', parent: Option.none() },
+  { id: 'item-2', title: 'Review the pull request', parent: Option.none() },
+  { id: 'item-3', title: 'Ship it', parent: Option.none() },
 ]
 
-export const initial = (): { readonly model: Model } => {
+export const initial = (
+  options: { readonly id?: string; readonly items?: ReadonlyArray<Item> } = {},
+): { readonly model: Model } => {
+  const items = options.items ?? ITEMS
   const { model } = placements.initial({
-    items: ITEMS,
-    presence: Object.fromEntries(ITEMS.map(item => [item.id, shown])),
+    id: options.id ?? 'list',
+    items,
+    presence: Object.fromEntries(items.map(item => [item.id, shown])),
     editing: Option.none(),
     draft: '',
     added: 0,
@@ -136,7 +149,10 @@ export const update = placements.update((model, message) =>
       const id = `new-${model.added + 1}`
       return {
         model: modifyFields(model, {
-          items: items => [...items, { id, title: `New item ${model.added + 1}` }],
+          items: items => [
+            ...items,
+            { id, title: `New item ${model.added + 1}`, parent: Option.none() },
+          ],
           presence: presence => ({ ...presence, [id]: shown }),
           added: count => count + 1,
         }),
@@ -148,7 +164,7 @@ export const update = placements.update((model, message) =>
         editing: () => Option.some(id),
         draft: () => titleOf(model, id),
       }),
-      commands: [FocusById({ id: editorId(id) })],
+      commands: [FocusById({ id: editorId(model.id, id) })],
     }),
     Drafted: ({ text }) => ({ model: modifyFields(model, { draft: () => text }) }),
     Committed: () =>
@@ -164,7 +180,7 @@ export const update = placements.update((model, message) =>
                     item.id === id ? { ...item, title: model.draft.trim() } : item,
                   ),
           }),
-          commands: [FocusById({ id: editId(id) })],
+          commands: [FocusById({ id: editId(model.id, id) })],
         }),
       }),
     Cancelled: () =>
@@ -172,7 +188,7 @@ export const update = placements.update((model, message) =>
         onNone: () => ({ model }),
         onSome: id => ({
           model: modifyFields(model, { editing: () => Option.none() }),
-          commands: [FocusById({ id: editId(id) })],
+          commands: [FocusById({ id: editId(model.id, id) })],
         }),
       }),
     CompletedFocus: () => ({ model }),

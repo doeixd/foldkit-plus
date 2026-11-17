@@ -2,13 +2,22 @@
 /**
  * `npx foldkit-plus`: `setup` prints `setup.ts`'s instructions for the project
  * in this folder; `docs` answers from the docs installed there (`docs.ts`);
- * `laws` prints a module's law report (`laws.ts`).
+ * `skill` installs the agent skill this package ships; `laws` prints a
+ * module's law report (`laws.ts`).
  */
 import { Option } from 'effect'
 import { fileURLToPath } from 'node:url'
 
 import { answer, answerJson, answerText, found, outlineText, topicsOf } from './docs.js'
-import { Refusal, familyOf, libraryIn, managerIn, projectIn, readManifest } from './project.js'
+import {
+  Refusal,
+  familyOf,
+  installSkill,
+  libraryIn,
+  managerIn,
+  projectIn,
+  readManifest,
+} from './project.js'
 import { type Printed, lawsReport } from './laws.js'
 import { setupGuide } from './setup.js'
 
@@ -16,10 +25,15 @@ const usage = `Usage:
   npx foldkit-plus setup            How to install Foldkit Plus in the project
                                     in this folder: instructions for a coding agent.
   npx foldkit-plus docs <query>     The best sections of the installed packages'
-                                    docs (READMEs and the foldkit-plus skill) for
-                                    a symbol (Remote.make) or words; --json for a program.
+                                    docs (READMEs, and the skill and guides that
+                                    ship with foldkit-plus) for a symbol
+                                    (Remote.make) or words; --json for a program.
   npx foldkit-plus docs --list [topic]
                                     The installed documents, or one topic's outline.
+  npx foldkit-plus skill [--force]  Install the agent skill that ships with the
+                                    installed foldkit-plus into the project's agent
+                                    folders (.claude, .agents); --force replaces
+                                    a different version or a skill of another name.
   npx foldkit-plus laws <module>[#export]
                                     What Laws.show says of the module's LawReport
                                     (its default export, or the named one), or of
@@ -35,7 +49,17 @@ const ownVersions = () => {
   return { plus: own.version, ...own.setup }
 }
 
-const library = () => libraryIn(process.cwd(), familyOf(own))
+// The package folder the CLI runs from, whose skill and guides answer when the
+// project has no installed foldkit-plus of its own.
+const ownDir = fileURLToPath(new URL('..', import.meta.url))
+
+const library = () => {
+  const found = libraryIn(process.cwd(), familyOf(own), ownDir)
+  for (const note of found.notes)
+    process.stderr.write(`${note}
+`)
+  return found
+}
 
 /**
  * `docs`' answer to a search, read afresh, so a reinstall shows at once. One
@@ -88,6 +112,17 @@ const docs = (args: ReadonlyArray<string>) => {
   print(refused(() => search(words.join(' '), flags.includes('--json'))))
 }
 
+const skill = (args: ReadonlyArray<string>) => {
+  const unknown = args.filter(arg => arg !== '--force')
+  if (unknown.length > 0) {
+    process.stderr.write(`${usage}
+`)
+    process.exitCode = 1
+    return
+  }
+  print(refused(() => installSkill(process.cwd(), args.includes('--force'), ownDir)))
+}
+
 const laws = async (args: ReadonlyArray<string>) => {
   const [spec, ...extra] = args
   if (spec === undefined || extra.length > 0) {
@@ -106,6 +141,8 @@ if (command === 'setup') {
   )
 } else if (command === 'docs') {
   docs(rest)
+} else if (command === 'skill') {
+  skill(rest)
 } else if (command === 'laws') {
   await laws(rest)
 } else {

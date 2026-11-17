@@ -91,7 +91,13 @@ import {
   aliasedField,
   type CachePolicy,
 } from 'foldkit-remote'
-import { answerUnread, clockSkewed, publishFailed, serverDefect } from './diagnostics.js'
+import {
+  answerUnread,
+  clockSkewed,
+  internalFailure,
+  publishFailed,
+  type InternalFailure,
+} from './diagnostics.js'
 import { unauthenticatedAnswer } from './refusal.js'
 import { memoryWriter } from './memoryWriter.js'
 
@@ -106,12 +112,66 @@ type AnswerError =
   | RemotePrincipalChanged
   | RemoteProtocolError
 
+/**
+ * A Source's failure. Its `message` and `cause` stay on this side: the server
+ * reports them as a `ServerDefect` and answers "Internal error" with the id it
+ * reported them under, so a driver's words, a thrown error's or a rule's
+ * internals reach no caller. Only `RemoteServer.tell` makes one whose message
+ * the caller reads.
+ */
 export class RemoteServerError extends Schema.TaggedError<RemoteServerError>()(
   'RemoteServerError',
   {
     message: Schema.String,
+    /** What was caught, for the report; never sent. */
+    cause: Schema.optional(Schema.Unknown),
+    /** Set by `RemoteServer.tell` alone: `message` was written for the caller, who reads it as it is. */
+    told: Schema.optional(Schema.Literal(true)),
   },
 ) {}
+
+/** A failure as `answer`'s body: its message, and the id it was reported under when it has one. */
+const failureBody = (failure: Said) => ({
+  error: failure.message,
+  ...(failure.incident === undefined ? {} : { incident: failure.incident }),
+})
+
+/** A failure for a report of what it left unanswered: its message, and the incident that holds its cause. */
+const reasonOf = (failure: Said): string =>
+  failure.incident === undefined
+    ? failure.message
+    : `${failure.message}, incident ${failure.incident}`
+
+/** See `RemoteServer.tell`. */
+const tell = (message: string): RemoteServerError => new RemoteServerError({ message, told: true })
+
+/** What a caller reads of a failure: its words, and the id it was reported under when it was this side's. */
+interface Said {
+  readonly message: string
+  readonly incident?: string | undefined
+}
+
+/**
+ * How a handler fails for its caller, as `fail` builds its error: a Source's
+ * failure in the Source's own words only where it wrote them for the caller
+ * (`tell`), and anything else, a defect included, reported and answered with
+ * nothing of it.
+ */
+const failingAs = <F>(during: string, fail: (said: Said) => F) => {
+  const internal = (cause: Cause.Cause<unknown>): Effect.Effect<never, F> =>
+    Effect.flatMap(internalFailure(during, cause), said => Effect.fail(fail(said)))
+  return {
+    source: (error: RemoteServerError): Effect.Effect<never, F> =>
+      error.told === true
+        ? Effect.fail(fail({ message: error.message }))
+        : internal(Cause.fail(error)),
+    internal,
+  }
+}
+
+/** The names of `asked` the server serves, for a report: a name it does not serve is the caller's text. */
+const servedOf = (served: ReadonlyMap<string, unknown>, asked: Iterable<string>): string =>
+  [...new Set(asked)].filter(name => served.has(name)).join(', ')
 
 /**
  * A writer's word that the row does not hold what the write's `when` asks of
@@ -1873,10 +1933,9 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
                   )
                   return [{ id, values }]
                 }),
-              catch: error =>
-                new RemoteServerError({
-                  message: error instanceof Error ? error.message : String(error),
-                }),
+              // What threw (a `readable`, a derived member) may say anything: it is reported, not sent.
+              catch: cause =>
+                new RemoteServerError({ message: `${name} could not be read`, cause }),
             }),
           ),
       },
@@ -1921,7 +1980,8 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
                   const locate = (cursor: string) => {
                     const row = rows.find(candidate => String(candidate.id) === cursor)
                     if (row === undefined) {
-                      throw new Error(`Cursor "${cursor}" names a row that no longer exists`)
+                      // The caller's own cursor, and nothing of a row: theirs to read.
+                      throw tell(`Cursor "${cursor}" names a row that no longer exists`)
                     }
                     const placed = evaluate(
                       { ...body, where: [] } as typeof body,
@@ -1941,10 +2001,11 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
                     end: page.end,
                   }
                 },
-                catch: error =>
-                  new RemoteServerError({
-                    message: error instanceof Error ? error.message : String(error),
-                  }),
+                // What threw (an operator, the interpreter, a `readable`) may say anything.
+                catch: cause =>
+                  cause instanceof RemoteServerError
+                    ? cause
+                    : new RemoteServerError({ message: `${query.name} could not be run`, cause }),
               }),
           ),
         ),
@@ -1976,18 +2037,103 @@ const pickKeys = <T>(
   Object.fromEntries(Object.entries(record).filter(([key]) => keys.has(key)))
 
 /**
+ * What a mutation's answer may say of the rows its handler patched (#578): of
+ * each, the keys the caller may read, with the handler's own values. A source
+ * with no `authorize`, `filter` or `visible` declares no reader rule, so its
+ * rows are answered as they are, with no read. Otherwise each such entity is read as
+ * the caller reads it, once, and a row the read does not return, or no field of
+ * it, is not answered. A read that fails answers none of that entity's rows:
+ * the write has committed, and the client reads what it lacks.
+ */
+const readablePatches = <P, R>(
+  server: ServerDefinition<P, R>,
+  principal: P,
+  options: HandlerOptions<P, R>,
+  mutation: string,
+  patches: ReadonlyArray<NormalizedPatch>,
+): Effect.Effect<ReadonlyArray<NormalizedPatch>, never, R> =>
+  Effect.gen(function* () {
+    const ruled = new Map<string, Array<NormalizedPatch>>()
+    for (const patch of patches) {
+      const source = server.entities.get(patch.entity)
+      if (
+        source === undefined ||
+        (source.authorize === undefined &&
+          source.filter === undefined &&
+          source.visible === undefined)
+      )
+        continue
+      const group = ruled.get(patch.entity) ?? []
+      group.push(patch)
+      ruled.set(patch.entity, group)
+    }
+    if (ruled.size === 0) return patches
+
+    const maxIds = Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY)
+    // Per ruled entity, the keys the caller may read of each row it read; an entity
+    // whose read failed has none, so none of its patches is sent.
+    const readable = new Map<string, Map<string, ReadonlySet<string>>>()
+    for (const [entity, group] of ruled) {
+      const source = server.entities.get(entity)!
+      const ids = [...new Set(group.map(patch => patch.id))]
+      const fields = [...new Set(group.flatMap(patch => Object.keys(patch.values)))]
+      const rows = new Map<string, ReadonlySet<string>>()
+      yield* Effect.forEach(
+        Array.from({ length: Math.ceil(ids.length / maxIds) }, (_, chunk) =>
+          ids.slice(chunk * maxIds, (chunk + 1) * maxIds),
+        ),
+        chunk =>
+          Effect.map(
+            readAs(source, { ids: chunk, fields, principal, viewer: viewerOf(server, principal) }),
+            records => {
+              if (Option.isNone(records)) return
+              for (const record of records.value)
+                rows.set(record.id, new Set(Object.keys(record.values)))
+            },
+          ),
+      ).pipe(
+        Effect.catchTag(
+          'RemoteServerError',
+          failingAs(`read ${entity}`, said => new RemoteReadError(said)).source,
+        ),
+        Effect.matchEffect({
+          onSuccess: () => Effect.sync(() => readable.set(entity, rows)),
+          onFailure: error =>
+            Diagnostics.report(answerUnread(mutation, reasonOf(error))).pipe(
+              Effect.andThen(Effect.sync(() => readable.set(entity, new Map()))),
+            ),
+        }),
+      )
+    }
+
+    return patches.flatMap(patch => {
+      const rows = readable.get(patch.entity)
+      if (rows === undefined) return [patch]
+      const keys = rows.get(patch.id)
+      if (keys === undefined) return []
+      const values: Record<string, unknown> = Object.create(null)
+      for (const key of Object.keys(patch.values)) {
+        if (keys.has(key)) values[key] = patch.values[key]
+      }
+      return Object.keys(values).length === 0 ? [] : [{ ...patch, values }]
+    })
+  })
+
+/**
  * A fresh read, after a mutation, of what the client shows of each row its
  * outcome names: of each, the shown fields the answer left out, and every
  * shown relation, since the answer's ref alone does not reach what the client
  * reads of its target. Read as any read is, so `authorize` and `filter` hold.
  * Only rows the read returned are answered: a row hidden from the asker keeps
- * what the answer gave it rather than reading as gone.
+ * what the answer gave it rather than reading as gone. `sent` is what the
+ * answer carries of the outcome's patches: a key cut from it is read, not answered.
  */
 const answerRead = <P, R>(
   server: ServerDefinition<P, R>,
   principal: P,
   options: HandlerOptions<P, R>,
   shown: ReadonlyArray<RelationRequirement>,
+  sent: ReadonlyArray<NormalizedPatch>,
   outcome: {
     readonly entities: ReadonlyArray<NormalizedPatch>
     readonly connections: ReadonlyArray<ConnectionChange>
@@ -2021,7 +2167,9 @@ const answerRead = <P, R>(
       for (const field of answered) row.answered.add(field)
       named.set(key, row)
     }
-    for (const patch of outcome.entities) name(patch.entity, patch.id, Object.keys(patch.values))
+    // A row is named by what the handler patched, but answered only for the keys sent of it.
+    for (const patch of outcome.entities) name(patch.entity, patch.id, [])
+    for (const patch of sent) name(patch.entity, patch.id, Object.keys(patch.values))
     for (const change of outcome.connections)
       if (change._tag === 'Insert') name(change.edge.entity, change.edge.id, [])
     for (const row of outcome.pointed ?? []) name(row.entity, row.id, [])
@@ -2105,8 +2253,9 @@ const answerQuery = <P, R>(
         ...(select === undefined ? {} : { select }),
       })
       .pipe(
-        Effect.catchTag('RemoteServerError', error =>
-          Effect.fail(new RemoteQueryError({ message: error.message })),
+        Effect.catchTag(
+          'RemoteServerError',
+          failingAs(`query ${payload.query}`, said => new RemoteQueryError(said)).source,
         ),
       )
 
@@ -2130,8 +2279,9 @@ const answerQuery = <P, R>(
     if (requirements.length === 0)
       return { edges: page.edges, start: page.start, end: page.end, entities: [], settled: [] }
     const read = yield* RemoteServer.readHelper(server, caller, options, requirements).pipe(
-      Effect.catchTag('RemoteReadError', error =>
-        Effect.fail(new RemoteQueryError({ message: error.message })),
+      // Already what the caller may read: the read reported what it withheld.
+      Effect.catchTag('RemoteReadError', ({ message, incident }) =>
+        Effect.fail(new RemoteQueryError({ message, incident })),
       ),
     )
     return { edges: page.edges, start: page.start, end: page.end, ...read }
@@ -2168,7 +2318,7 @@ const admitLists = <P, R>(
 /**
  * A Source's refusal as the client receives it: encoded by the mutation's own
  * `Refusal`. A refusal made for another mutation, or one the mutation does not
- * declare, is this side's bug, and says so without the value.
+ * declare, is this side's bug: reported with the value, and answered without it.
  */
 const refusalError = (
   Refusal: Schema.Codec<unknown, unknown>,
@@ -2176,10 +2326,10 @@ const refusalError = (
   refused: MutationRefused,
 ): Effect.Effect<never, RemoteMutationError> =>
   Effect.gen(function* () {
-    const invalid = new RemoteMutationError({ message: 'Invalid mutation refusal' })
-    if (refused.mutation !== mutation) return yield* invalid
+    const { internal } = failingAs(`mutate ${mutation}`, said => new RemoteMutationError(said))
+    if (refused.mutation !== mutation) return yield* internal(Cause.fail(refused))
     const encoded = yield* Schema.encodeUnknownEffect(Refusal)(refused.refusal).pipe(
-      Effect.mapError(() => invalid),
+      Effect.catch(error => internal(Cause.fail(error))),
     )
     return yield* new RemoteMutationError({ message: refused.message, refusal: encoded })
   })
@@ -2306,6 +2456,25 @@ export const RemoteServer = {
     refusal: NoInfer<Refused>,
     message = `Mutation ${mutation.name} was refused`,
   ): MutationRefused => new MutationRefused({ mutation: mutation.name, refusal, message }),
+
+  /**
+   * A failure whose `message` the caller reads as it is: fail a Source with it
+   * (`yield* RemoteServer.tell('That report is still being built')`) for words
+   * written for whoever asked. Every other `RemoteServerError` is this side's:
+   * reported, and answered "Internal error". It takes text, not what was
+   * caught: an error's own message may say anything.
+   */
+  tell,
+
+  /**
+   * Reports a failure on this side that no handler answers, as the server
+   * reports its own: a scheduled job's, or an adapter's on a transport of its
+   * own. `cause` goes to a `ServerDefect` under a new incident, with `during`
+   * (what was being done: `publish due e3`). It answers what a caller may be
+   * told of it, the fixed words and that id, and nothing of `cause`.
+   */
+  report: (during: string, cause: unknown): Effect.Effect<InternalFailure> =>
+    internalFailure(during, Cause.isCause(cause) ? cause : Cause.fail(cause)),
 
   /**
    * A writer's refusal of a row that does not hold the write's `when`: fail
@@ -2753,9 +2922,9 @@ export const RemoteServer = {
                   Option.isNone(operation)
                 ) {
                   // The ledger keys a write by its operation: with none, a retry could add twice.
-                  return yield* new RemoteServerError({
-                    message: `${mutation.name} moves a field with no revision, so it needs an operation id`,
-                  })
+                  return yield* tell(
+                    `${mutation.name} moves a field with no revision, so it needs an operation id`,
+                  )
                 }
                 const written = yield* invalid(
                   unmet(
@@ -2782,11 +2951,8 @@ export const RemoteServer = {
                   ])
                 return yield* Option.isSome(expect)
                   ? Effect.fail(conflict(bound))
-                  : Effect.fail(
-                      new RemoteServerError({
-                        message: `No ${bound.entity} ${bound.id} to update`,
-                      }),
-                    )
+                  : // The id is the caller's own, and a row hidden from its writer reads alike.
+                    Effect.fail(tell(`No ${bound.entity} ${bound.id} to update`))
               }),
             // Written whole: there is no row a client could have changed some keys of.
             Insert: () =>
@@ -3143,8 +3309,9 @@ export const RemoteServer = {
               chunks => chunks.flat(),
             ),
           ).pipe(
-            Effect.catchTag('RemoteServerError', error =>
-              Effect.fail(new RemoteReadError({ message: error.message })),
+            Effect.catchTag(
+              'RemoteServerError',
+              failingAs(`read ${name}`, said => new RemoteReadError(said)).source,
             ),
           )
 
@@ -3196,8 +3363,9 @@ export const RemoteServer = {
    * could not be told a 401; a refusal of who is asking a 403; a write made
    * for someone else (`RemotePrincipalChanged`) a 409; a mutation's
    * declared refusal a 422, or a 409 when it is `Refusal.taken`; a handler's
-   * failure a 500 with its message; a defect a 500 that says nothing of it,
-   * its cause reported as a `ServerDefect` (`Diagnostics`, by default the log).
+   * failure a 500 with its message, and the `incident` it carries; a defect
+   * a 500 that says nothing of it but the `incident` its cause was reported
+   * under, as a `ServerDefect` (`Diagnostics`, by default the log).
    * `Remote.json` and `Remote.http` are the other end.
    */
   answer: <R>(
@@ -3245,7 +3413,8 @@ export const RemoteServer = {
         Effect.succeed({
           status: 403 as const,
           body: {
-            error: error.message,
+            // The reason is written for the caller; the message may be anyone's.
+            error: error.reason ?? 'Forbidden',
             forbidden: error.reason === undefined ? {} : { reason: error.reason },
           },
         }),
@@ -3254,7 +3423,7 @@ export const RemoteServer = {
       Effect.catchTag('RemoteMutationError', error =>
         Effect.succeed(
           error.refusal === undefined
-            ? { status: 500 as const, body: { error: error.message } }
+            ? { status: 500 as const, body: failureBody(error) }
             : {
                 status:
                   Refusal.isTaken(error.refusal) || Refusal.isReferenced(error.refusal)
@@ -3264,15 +3433,14 @@ export const RemoteServer = {
               },
         ),
       ),
-      Effect.catch(error =>
-        Effect.succeed({ status: 500 as const, body: { error: error.message } }),
-      ),
+      Effect.catch(error => Effect.succeed({ status: 500 as const, body: failureBody(error) })),
       // A defect is a bug on this side: the caller learns there was one, not what,
       // and whoever runs the server learns what.
       Effect.catchCause(cause =>
-        Diagnostics.report(serverDefect(cause)).pipe(
-          Effect.as({ status: 500 as const, body: { error: 'Internal error' } }),
-        ),
+        Effect.map(internalFailure('request', cause), said => ({
+          status: 500 as const,
+          body: failureBody(said),
+        })),
       ),
     )
   },
@@ -3293,7 +3461,12 @@ export const RemoteServer = {
     const asking: Effect.Effect<P, never, I> = Context.isKey(principal)
       ? principal
       : Effect.succeed(principal)
-    return {
+    const mutationFailing = (mutation: string) =>
+      failingAs(
+        `mutate ${servedOf(server.mutations, [mutation])}`,
+        said => new RemoteMutationError(said),
+      )
+    const answering: RemoteRpcClient<R | I> = {
       FoldkitRemoteRead: Effect.fn('RemoteServer.FoldkitRemoteRead')(function* (payload) {
         const mismatch = protocolMismatch(payload.version)
         if (mismatch !== undefined) return yield* mismatch
@@ -3326,6 +3499,7 @@ export const RemoteServer = {
         )
         const caller = yield* asking
         yield* madeFor(server, caller, Option.fromUndefinedOr(payload.principal))
+        const failed = mutationFailing(payload.mutation)
         const outcome = yield* source
           .run({
             input,
@@ -3338,25 +3512,39 @@ export const RemoteServer = {
             keys: payload.keys,
           })
           .pipe(
-            Effect.catchTag('RemoteServerError', error =>
-              Effect.fail(new RemoteMutationError({ message: error.message })),
-            ),
+            Effect.catchTag('RemoteServerError', failed.source),
             Effect.catchTag('MutationRefused', refused =>
               refusalError(source.Refusal, payload.mutation, refused),
             ),
           )
 
+        // An output its own Schema refuses is this side's bug, and its error quotes the value.
         const output = yield* Schema.encodeUnknownEffect(source.Output)(outcome.output).pipe(
-          Effect.catchTag('SchemaError', () =>
-            Effect.fail(new RemoteMutationError({ message: 'Invalid mutation output' })),
-          ),
+          Effect.catchTag('SchemaError', error => failed.internal(Cause.fail(error))),
         )
 
-        const read = yield* answerRead(server, caller, options, payload.shown ?? [], outcome).pipe(
+        // The handler's values are the answer, but only of what the caller may read of
+        // the row; what it must tell a caller who may not goes in `output`.
+        const sent = yield* readablePatches(
+          server,
+          caller,
+          options,
+          payload.mutation,
+          outcome.entities,
+        )
+
+        const read = yield* answerRead(
+          server,
+          caller,
+          options,
+          payload.shown ?? [],
+          sent,
+          outcome,
+        ).pipe(
           // The write has committed: answering without the read leaves the
           // client to fetch those fields, where failing would have it retry.
           Effect.catchTag('RemoteReadError', error =>
-            Diagnostics.report(answerUnread(payload.mutation, error.message)).pipe(
+            Diagnostics.report(answerUnread(payload.mutation, reasonOf(error))).pipe(
               Effect.as(Option.none()),
             ),
           ),
@@ -3369,7 +3557,7 @@ export const RemoteServer = {
             Effect.map(result => [{ request, result }]),
             Effect.catchTag('RemoteQueryError', error =>
               Diagnostics.report(
-                answerUnread(payload.mutation, `list "${request.query}": ${error.message}`),
+                answerUnread(payload.mutation, `list "${request.query}": ${reasonOf(error)}`),
               ).pipe(Effect.as([])),
             ),
           ),
@@ -3397,7 +3585,7 @@ export const RemoteServer = {
 
         return {
           output,
-          entities: outcome.entities.map(patch => ({
+          entities: sent.map(patch => ({
             entity: patch.entity,
             id: patch.id,
             values: patch.values,
@@ -3426,6 +3614,13 @@ export const RemoteServer = {
         const maxIds = Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY)
         const refusal = liveRefusal(payload, maxIds)
         if (refusal !== undefined) return Stream.fail(refusal)
+        const failed = failingAs(
+          `live ${servedOf(
+            server.entities,
+            payload.requirements.map(request => request.entity),
+          )}`,
+          said => new RemoteLiveError(said),
+        )
         return Stream.unwrap(
           Effect.gen(function* () {
             const admitted = yield* admitQueries(
@@ -3485,11 +3680,40 @@ export const RemoteServer = {
                 () => payload.after,
                 (cursor, change) => [cursor + 1, [{ ...change, cursor: cursor + 1 }]] as const,
               ),
-              Stream.mapError(error => new RemoteLiveError({ message: error.message })),
+              Stream.catchTag('RemoteServerError', error =>
+                Stream.fromEffect(failed.source(error)),
+              ),
             )
           }),
+        ).pipe(
+          Stream.catchCauseIf(Cause.hasDies, cause => Stream.fromEffect(failed.internal(cause))),
         )
       },
+    }
+    // A defect would otherwise reach the transport, and an RPC transport sends it.
+    return {
+      FoldkitRemoteRead: payload =>
+        Effect.catchCauseIf(answering.FoldkitRemoteRead(payload), Cause.hasDies, cause =>
+          failingAs(
+            `read ${servedOf(
+              server.entities,
+              payload.requests.map(request => request.entity),
+            )}`,
+            said => new RemoteReadError(said),
+          ).internal(cause),
+        ),
+      FoldkitRemoteMutate: payload =>
+        Effect.catchCauseIf(answering.FoldkitRemoteMutate(payload), Cause.hasDies, cause =>
+          mutationFailing(payload.mutation).internal(cause),
+        ),
+      FoldkitRemoteQuery: payload =>
+        Effect.catchCauseIf(answering.FoldkitRemoteQuery(payload), Cause.hasDies, cause =>
+          failingAs(
+            `query ${servedOf(server.queries, [payload.query])}`,
+            said => new RemoteQueryError(said),
+          ).internal(cause),
+        ),
+      FoldkitRemoteLive: answering.FoldkitRemoteLive,
     }
   },
 }
@@ -3501,6 +3725,7 @@ export type {
   AnswerUnread,
   CachedReadDiffers,
   ClockSkewed,
+  InternalFailure,
   PublishFailed,
   RemoteServerDiagnostic,
   ServerDefect,

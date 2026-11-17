@@ -31,18 +31,32 @@ const State = Schema.Struct({
 type State = typeof State.Type
 
 const rowsOf = (state: State): ReadonlyArray<Menu.Row> => [
-  { label: 'Grid', check: 'checkbox', checked: state.grid, group: 'Show', shortcut: ['⌘', 'G'] },
-  { label: 'Rulers', check: 'checkbox', checked: state.rulers, group: 'Show' },
-  { label: 'Fit', check: 'radio', checked: state.zoom === 'Fit', group: 'Zoom' },
-  { label: 'Actual size', check: 'radio', checked: state.zoom === 'Actual size', group: 'Zoom' },
-  { label: 'Delete', tone: 'destructive', shortcut: ['⌫'] },
+  {
+    value: 'grid',
+    label: 'Grid',
+    check: 'checkbox',
+    checked: state.grid,
+    group: 'Show',
+    shortcut: ['⌘', 'G'],
+  },
+  { value: 'rulers', label: 'Rulers', check: 'checkbox', checked: state.rulers, group: 'Show' },
+  { value: 'fit', label: 'Fit', check: 'radio', checked: state.zoom === 'Fit', group: 'Zoom' },
+  {
+    value: 'actual',
+    label: 'Actual size',
+    check: 'radio',
+    checked: state.zoom === 'Actual size',
+    group: 'Zoom',
+  },
+  { value: 'delete', label: 'Delete', tone: 'destructive', shortcut: ['⌫'] },
 ]
 
 /** The application's answer to a chosen row: a check row flips, a radio row picks, any other is chosen. */
 const chose = (state: State, value: string): State => {
-  if (value === 'Grid') return { ...state, grid: !state.grid }
-  if (value === 'Rulers') return { ...state, rulers: !state.rulers }
-  if (value === 'Fit' || value === 'Actual size') return { ...state, zoom: value }
+  if (value === 'grid') return { ...state, grid: !state.grid }
+  if (value === 'rulers') return { ...state, rulers: !state.rulers }
+  if (value === 'fit') return { ...state, zoom: 'Fit' }
+  if (value === 'actual') return { ...state, zoom: 'Actual size' }
   return { ...state, chosen: Option.some(value) }
 }
 
@@ -281,7 +295,7 @@ test('a click, Space or Enter on a check row sets it and leaves the menu open', 
     await userEvent.keyboard('{Enter}')
     await vi.waitFor(() => expect(focusedId()).toBe('view-button'))
     expect(byId('view-items')).toBeNull()
-    expect(document.querySelector('[aria-label="chosen"]')?.textContent).toBe('Delete')
+    expect(document.querySelector('[aria-label="chosen"]')?.textContent).toBe('delete')
   } finally {
     handle.dispose()
   }
@@ -370,7 +384,7 @@ test("a Menubar's checkbox row is set once with its menu left open", async () =>
         return {
           model: {
             bar: next.model,
-            grid: next.outMessage === undefined ? model.grid : !model.grid,
+            grid: next.outMessage?.value === 'grid' ? !model.grid : model.grid,
           },
           commands: mapMessages(next.commands, gotBar),
         }
@@ -381,7 +395,10 @@ test("a Menubar's checkbox row is set once with its menu left open", async () =>
             label: 'Editor',
             model: model.bar,
             menus: [
-              { label: 'View', rows: [{ label: 'Grid', check: 'checkbox', checked: model.grid }] },
+              {
+                label: 'View',
+                rows: [{ value: 'grid', label: 'Grid', check: 'checkbox', checked: model.grid }],
+              },
             ],
             onMessage: gotBar,
             menuMixins: [style.mixin],

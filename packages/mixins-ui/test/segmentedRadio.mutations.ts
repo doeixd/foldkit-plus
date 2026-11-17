@@ -117,4 +117,14 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a key moves from the option the last drawing chose, not from where the previous key left off',
+    edits: [{ file, find: '          reached = next\n', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a key reads the option the last drawing chose',
+    edits: [{ file, find: 'enabled, reached, key', replace: 'enabled, chosenAt, key' }],
+    tests,
+  },
 ]

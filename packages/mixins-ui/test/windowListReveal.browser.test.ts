@@ -158,6 +158,21 @@ describe('WindowList.reveal', () => {
     }
   })
 
+  test('a reveal still scrolling when its list goes does not scroll the list drawn in its place', async () => {
+    await mount()
+    jumpTo(1500, 'start')
+    await vi.waitFor(() => expect(window.scrollY).toBeGreaterThan(0))
+    // The page the reveal began on is replaced by another list of the same id.
+    handle?.dispose()
+    document.body.replaceChildren()
+    window.scrollTo(0, 0)
+    await mount()
+    // Frames for every attempt the first reveal had left, which stand still if it stopped.
+    for (let frame = 0; frame < 40; frame++)
+      await new Promise(resolve => requestAnimationFrame(resolve))
+    expect(window.scrollY).toBe(0)
+  })
+
   test('scrolls at once, never smoothly', async () => {
     await mount()
     const scrolls = [vi.spyOn(Element.prototype, 'scrollIntoView'), vi.spyOn(window, 'scrollBy')]

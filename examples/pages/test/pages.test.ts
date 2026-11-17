@@ -19,10 +19,12 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   initialModel,
+  listedPages,
   Menu,
   Message,
   pageInEditor,
   pageOf,
+  reinstalled,
   savedOf,
   update,
   type Model,
@@ -117,7 +119,7 @@ describe('two people on one page', () => {
     const aliceReplica = await open('alice')
     const bobReplica = await open('bob')
     replicas.push(aliceReplica, bobReplica)
-    alice = mountPages('alice', aliceReplica, { container, view })
+    alice = mountPages('alice', aliceReplica, { container, view, narrow: false })
     const host = () => document.getElementById('page-body')
 
     alice.dispatch(Message.AddedPage({ title: 'Plan' }))
@@ -170,7 +172,7 @@ describe('two people on one page', () => {
 
   /** Alice's tab, with one page open and a caret at the start of its empty paragraph. */
   const aliceOnPage = async (replica: Replica<Message, Shared>) => {
-    alice = mountPages('alice', replica, { container, view })
+    alice = mountPages('alice', replica, { container, view, narrow: false })
     alice.dispatch(Message.AddedPage({ title: 'Plan' }))
     await vi.waitFor(() => expect(document.getElementById('page-body')).not.toBeNull())
     const body = alice.model().pages[0]!.body
@@ -630,11 +632,95 @@ describe('two people on one page', () => {
   it('closes the page it trashes, and trashes it through the log', () => {
     const result = update(carried(), Message.TrashedPage({ id: 'mine' }))
     expect(result.model).toMatchObject({ open: Option.none(), ...nothingCarried })
-    expect(result.commands?.map(command => command.name)).toEqual(['foldkit-sync/fact'])
-    // Another page trashed leaves the open one alone.
-    expect(update(carried(), Message.TrashedPage({ id: 'other' })).model.open).toEqual(
+    expect(result.commands?.map(command => command.name)).toEqual([
+      'foldkit-sync/fact',
+      'FocusField',
+    ])
+    expect(result.model.justTrashed).toEqual(Option.some('mine'))
+    // Another page trashed leaves the open one alone, and offers nothing to undo.
+    const other = update(carried(), Message.TrashedPage({ id: 'other' }))
+    expect(other.model.open).toEqual(Option.some('mine'))
+    expect(other.model.justTrashed).toEqual(Option.none())
+    expect(other.commands?.map(command => command.name)).toEqual(['foldkit-sync/fact'])
+  })
+
+  it('keeps the notice through the exchange that trashes the page, and drops it on the next page', () => {
+    const model = { ...carried(), justTrashed: Option.some('mine') }
+    expect(reinstalled({ ...model, open: Option.none() }, model).model.justTrashed).toEqual(
       Option.some('mine'),
     )
+    expect(update(model, Message.AddedPage({ title: 'T' })).model.justTrashed).toEqual(
+      Option.none(),
+    )
+    expect(update(model, Message.OpenedPage({ id: 'x' })).model.justTrashed).toEqual(Option.none())
+  })
+
+  it('restores the page the notice offers back, opens it, and focuses its title', () => {
+    const result = update(
+      { ...carried(), open: Option.none(), justTrashed: Option.some('mine') },
+      Message.UndidTrash({ id: 'mine' }),
+    )
+    expect(result.model).toMatchObject({ open: Option.some('mine'), justTrashed: Option.none() })
+    expect(result.commands?.map(command => command.name)).toEqual([
+      'foldkit-sync/fact',
+      'FocusField',
+    ])
+  })
+
+  it('holds the bar’s tab stop on the control focused last, and renders nothing for the same one', () => {
+    const model = initialModel('alice')
+    const stopped = update(model, Message.FocusedControl({ id: 'mark-Bold' })).model
+    expect(stopped.tabStop).toEqual(Option.some('mark-Bold'))
+    expect(update(stopped, Message.FocusedControl({ id: 'mark-Bold' })).model).toBe(stopped)
+    expect(update(stopped, Message.FocusedControl({ id: 'link' })).model.tabStop).toEqual(
+      Option.some('link'),
+    )
+  })
+
+  it('returns to the text on Escape from a bar control, and does nothing with no page open', async () => {
+    const replica = await open('bob')
+    replicas.push(replica)
+    let model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'P' }))
+    const page = Option.getOrThrow(model.open)
+    const run = Replicated.project(Option.getOrThrow(pageOf(model, page)).body).children[0]!
+      .children[0]!.id
+    model = await bobEdits(
+      replica,
+      model,
+      Message.GotEditor({ message: EditorMessage.Selected({ selection: caretAt(run, 0) }) }),
+    )
+    const result = update(model, Message.ReturnedToText())
+    expect(result.model).toBe(model)
+    expect(result.commands?.map(command => command.name)).toEqual(['RichText.focus'])
+    const closed = initialModel('bob')
+    expect(update(closed, Message.ReturnedToText())).toEqual({ model: closed })
+  })
+
+  it('gives a new page’s title the focus, and Enter in it the text', () => {
+    expect(
+      update(initialModel('alice'), Message.AddedPage({ title: 'T' })).commands?.map(
+        command => command.name,
+      ),
+    ).toEqual(['foldkit-sync/fact', 'FocusField'])
+    expect(
+      update(carried(), Message.EnteredTitle()).commands?.map(command => command.name),
+    ).toEqual(['FocusField'])
+  })
+
+  it('hands the handle from the pointer to the caret when the caret moves', async () => {
+    const replica = await open('bob')
+    replicas.push(replica)
+    let model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'P' }))
+    const page = Option.getOrThrow(model.open)
+    const run = () =>
+      Replicated.project(Option.getOrThrow(pageOf(model, page)).body).children[0]!.children[0]!.id
+    const editor = async (message: EditorMessage) => {
+      model = await bobEdits(replica, model, Message.GotEditor({ message }))
+    }
+    const hovered = Option.some(RichText.NodeId.make('x'))
+    model = { ...model, hovered }
+    await editor(EditorMessage.Selected({ selection: caretAt(run(), 0) }))
+    expect(model.hovered).toEqual(Option.none())
   })
 
   it('ends a run of typing when the caret is put elsewhere, so undo takes back what followed', async () => {
@@ -835,5 +921,73 @@ describe('the line that says whether edits reached the server', () => {
       Message.ExchangeChanged({ pending: 1, error: Option.none() }),
     ).model
     expect(savedOf(back).state).toBe('saving')
+  })
+})
+
+describe('the window’s width, which the formatting bar is compact at', () => {
+  it('starts as the window was read, and follows a change', () => {
+    const wide = initialModel('s')
+    expect(wide.narrow).toBe(false)
+    expect(initialModel('s', true).narrow).toBe(true)
+    const narrowed = update(wide, Message.NarrowChanged({ narrow: true })).model
+    expect(narrowed.narrow).toBe(true)
+    expect(update(narrowed, Message.NarrowChanged({ narrow: true })).model).toBe(narrowed)
+  })
+
+  it('draws the wide bar’s every control, and only the high ones when narrow', async () => {
+    const container = document.createElement('div')
+    container.id = 'pages-narrow'
+    document.body.append(container)
+    const replica = await Effect.runPromise(PagesSync.openReplica(memoryStorage()))
+    const mounted = mountPages('s', replica, { container, view, narrow: true })
+    try {
+      mounted.dispatch(Message.AddedPage({ title: 'Plan' }))
+      const drawn = () =>
+        [...document.querySelectorAll('[role="toolbar"][aria-label="Formatting"] button')].map(
+          button => button.getAttribute('data-item'),
+        )
+      const high = ['undo', 'redo', 'style', 'mark-Bold', 'mark-Italic', 'link', 'insert']
+      await vi.waitFor(() => expect(drawn()).toEqual(high))
+      mounted.dispatch(Message.NarrowChanged({ narrow: false }))
+      await vi.waitFor(() => expect(drawn()).toHaveLength(15))
+      expect(drawn().filter(item => !high.includes(item ?? ''))).toEqual([
+        'mark-Underline',
+        'mark-Strikethrough',
+        'mark-Code',
+        'mark-Highlight',
+        'bulleted-list',
+        'numbered-list',
+        'checklist',
+        'quote',
+      ])
+    } finally {
+      await mounted.dispose()
+      document.body.replaceChildren()
+    }
+  })
+})
+
+describe('the sidebar’s filter', () => {
+  const titled = (titles: ReadonlyArray<string>): Model =>
+    titles.reduce(
+      (model, title, index) =>
+        update(model, Message.CreatedPage({ id: `p${index}`, title, key: `k${index}` })).model,
+      initialModel('s'),
+    )
+  const listed = (model: Model) => listedPages(model).map(page => page.id)
+
+  it('lists the pages whose title has the query, whatever its case and the space around it', () => {
+    const model = titled(['Groceries', 'Plans', '', 'Trip plans'])
+    expect(listed(model)).toEqual(['p0', 'p1', 'p2', 'p3'])
+    const filtered = update(model, Message.FilteredPages({ query: ' PLAN ' })).model
+    expect(listed(filtered)).toEqual(['p1', 'p3'])
+    // A page with no title is shown as Untitled, and found by that.
+    expect(listed(update(model, Message.FilteredPages({ query: 'untit' })).model)).toEqual(['p2'])
+    expect(update(filtered, Message.FilteredPages({ query: ' PLAN ' })).model).toBe(filtered)
+  })
+
+  it('never lists a page in the trash', () => {
+    const model = update(titled(['Plans', 'Trip plans']), Message.DeletedPage({ id: 'p0' })).model
+    expect(listed(update(model, Message.FilteredPages({ query: 'plan' })).model)).toEqual(['p1'])
   })
 })

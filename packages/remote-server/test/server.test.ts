@@ -350,7 +350,7 @@ describe('RemoteServer', () => {
     await expect(query('Nope', {}, {})).rejects.toThrow()
   })
 
-  it('remaps a source RemoteServerError onto the wire error', async () => {
+  it('answers a source RemoteServerError as the wire error, without its message', async () => {
     const failing = RemoteServer.make({
       entities: [
         RemoteServer.entity<string>(User, {
@@ -377,7 +377,10 @@ describe('RemoteServer', () => {
     expect(result._tag).toBe('Failure')
     if (result._tag !== 'Failure') return
     expect(result.failure._tag).toBe('RemoteReadError')
-    expect(result.failure.message).toBe('source refused the read')
+    expect(result.failure).toMatchObject({
+      message: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
   })
 
   it('groups requests per entity, unions fields, and dedupes ids', async () => {

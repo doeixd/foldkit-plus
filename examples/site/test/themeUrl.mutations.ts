@@ -62,9 +62,9 @@ export default [
     edits: [
       {
         file: '../src/main.ts',
-        find: 'boot: () => [ReadPageScheme(), ReadThemeAddress()],',
+        find: 'boot: () => [Shell.ReadPageScheme(), ReadThemeAddress()],',
         replace:
-          'boot: model => [ReadPageScheme(), ...(onCreate(model.page) ? [ReadThemeAddress()] : [])],',
+          'boot: model => [Shell.ReadPageScheme(), ...(onCreate(model.page) ? [ReadThemeAddress()] : [])],',
       },
     ],
     tests,

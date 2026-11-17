@@ -277,17 +277,23 @@ describe('a mutation answers what the client shows', () => {
       connections: [],
       deleted: [],
     })
-    expect(collected.reported).toEqual([
-      {
-        _tag: 'AnswerUnread',
-        source: 'foldkit-remote-server',
-        level: 'warning',
-        message:
-          'Touch committed, but reading its answer failed (The database went away): the client reads what it lacks again.',
-        mutation: 'Touch',
-        reason: 'The database went away',
-      },
-    ])
+    // The read's cause is reported under an incident, which the unread answer names.
+    const [defect, unread] = collected.reported
+    expect(defect).toMatchObject({
+      _tag: 'ServerDefect',
+      during: 'read Post',
+      message: expect.stringContaining('The database went away'),
+    })
+    const incident = /^incident ([0-9a-f]{16}):/.exec(defect?.message ?? '')?.[1]
+    expect(unread).toEqual({
+      _tag: 'AnswerUnread',
+      source: 'foldkit-remote-server',
+      level: 'warning',
+      message: `Touch committed, but reading its answer failed (Internal error, incident ${incident}): the client reads what it lacks again.`,
+      mutation: 'Touch',
+      reason: `Internal error, incident ${incident}`,
+    })
+    expect(collected.reported).toHaveLength(2)
   })
 })
 

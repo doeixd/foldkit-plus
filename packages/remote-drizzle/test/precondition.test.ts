@@ -11,7 +11,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
+import { Diagnostics, Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, writer } from '../src/index.js'
@@ -187,6 +187,7 @@ describe('A write with a precondition', () => {
     seed('active')
     const Plain = Mutation.write('Plain', Write.update(StatusInput, { id: 'id' }))
     const wrong = { ...writer(Db.Project), update: () => Effect.fail(RemoteServer.unmet()) }
+    const collected = Diagnostics.collect()
     const failed = await Effect.runPromise(
       RemoteServer.handlers(
         RemoteServer.make({ entities: [], mutations: [RemoteServer.write(Plain, wrong)] }),
@@ -197,12 +198,25 @@ describe('A write with a precondition', () => {
           mutation: 'Plain',
           input: { id: 'p1', status: 'x' },
         })
-        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+        .pipe(
+          Effect.result,
+          Effect.provide(databaseLayer(drizzle({ client: sqlite }))),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
+        ),
     )
     expect(failed).toMatchObject({
       _tag: 'Failure',
-      failure: { message: "Project's writer refused Plain, which has no precondition, as unmet" },
+      failure: { message: 'Internal error', incident: expect.stringMatching(/^[0-9a-f]{16}$/) },
     })
+    expect(collected.reported).toContainEqual(
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        during: 'mutate Plain',
+        message: expect.stringContaining(
+          "Project's writer refused Plain, which has no precondition, as unmet",
+        ),
+      }),
+    )
   })
 
   it('refuses a writer that does not check preconditions, where the write is declared', () => {

@@ -115,6 +115,7 @@ const application = Bundle.assemble<Model, Message>()([
         RedoRequested: () => ({ model }),
         Filled: () => ({ model }),
         RowsRequested: () => ({ model }),
+        Copied: () => ({ model }),
       }),
   }),
 ])
@@ -147,7 +148,13 @@ export const tasks: ReadonlyArray<Task> = [
  * The grid on the real runtime, with the latest Model, and `write` to change
  * the filters as the application would from outside the grid (a URL).
  */
-export const mountTasks = (options: { readonly store?: Store } = {}) => {
+export const mountTasks = (
+  options: {
+    readonly store?: Store
+    readonly columnMenu?: boolean
+    readonly headerHeight?: number
+  } = {},
+) => {
   store = options.store ?? 'now'
   held.length = 0
   const container = document.createElement('div')
@@ -197,7 +204,8 @@ export const mountTasks = (options: { readonly store?: Store } = {}) => {
                 wrap,
                 label: 'Tasks',
                 rowHeight: 24,
-                headerHeight: 28,
+                headerHeight: options.headerHeight ?? 28,
+                columnMenu: options.columnMenu === true,
                 filters: model.filters,
               },
               h,

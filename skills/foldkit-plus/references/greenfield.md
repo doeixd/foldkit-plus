@@ -63,8 +63,8 @@ back two things:
 
 If they would rather not design one, start from the shipped theme: the
 style module is `export const { t, slots, forSlots, stylesheet } =
-AppStyle.make({})`, a vivid blue on pure greys with bold headings, inverted
-menus and Heroicons, what `/create` opens on as its Default preset. Ask a few
+AppStyle.make({})`, a vivid blue on faintly cool greys with bold headings and
+Heroicons, what `/create` opens on as its Default preset. Ask a few
 questions only if that is not the look they want (a calm or a bold look;
 light, dark or both; dense or roomy; sharp or round; one accent colour; a
 typeface they like), and choose the nearest of the page's presets with them. Either way, write the answers, the link and the code into
@@ -90,7 +90,9 @@ npx --legacy-peer-deps foldkit-plus setup
 Follow the second `setup` output: the `.gitattributes` it gives when the
 project has none, the block that pins every Effect package to the release
 Foldkit Plus is tested on (in a pnpm workspace it names the root's file, since
-pnpm reads pins only there), the install, the skill, and the imports. Install
+pnpm reads pins only there), the install, the skill (`npx foldkit-plus skill`
+copies the one shipped inside the installed package, the version of the code),
+and the imports. Install
 an adapter only when the mapping (phase 5) calls for it. Then:
 
 - Run the project's `typecheck` and `test` once, so a later failure is yours.

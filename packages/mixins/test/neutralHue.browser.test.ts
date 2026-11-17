@@ -37,15 +37,16 @@ const toLinear = (value: number) =>
 
 /** A computed `oklab(…)` or `oklch(…)` color's chroma and hue. */
 const readOf = (computed: string) => {
-  const [space, , y = 0, z = 0] = computed
+  const [space, x = 0, y = 0, z = 0] = computed
     .replace(/[(),/]/g, ' ')
     .trim()
     .split(/\s+/)
   const [first, second] = [Number(y), Number(z)]
-  if (space === 'oklch') return { computed, chroma: first, hue: second }
+  if (space === 'oklch') return { computed, lightness: Number(x), chroma: first, hue: second }
   if (space === 'oklab')
     return {
       computed,
+      lightness: Number(x),
       chroma: Math.hypot(first, second),
       hue: ((Math.atan2(second, first) * 180) / Math.PI + 360) % 360,
     }
@@ -77,6 +78,7 @@ const painted = (token: string) => {
   const b = 0.0259040371 * long + 0.7827717662 * medium - 0.808675766 * short
   return {
     computed,
+    lightness: 0.2104542553 * long + 0.793617785 * medium - 0.0040720468 * short,
     chroma: Math.hypot(a, b),
     hue: ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360,
   }
@@ -105,7 +107,7 @@ const GREY = 0.008
 const ceiling = (surface: number) => surface * 2.2 * 2 + GREY
 
 const themes: ReadonlyArray<readonly [string, KnobValues<Standard>, number, number]> = [
-  ['the default', {}, 235, 0],
+  ['the default', {}, 235, 0.0067],
   ['a tinted page', { surface: { saturation: { light: 0.02, dark: 0.02 } } }, 235, 0.02],
   [
     'a tinted page on a green neutral, inked lines',
@@ -129,8 +131,11 @@ const themes: ReadonlyArray<readonly [string, KnobValues<Standard>, number, numb
 
 const offNeutral = (hue: number, surface: number) =>
   neutrals.flatMap(token => {
-    const { computed, chroma, hue: at } = painted(token)
-    const wrong = chroma > ceiling(surface) || (chroma > GREY && turn(at, hue) > 12)
+    const { computed, lightness, chroma, hue: at } = painted(token)
+    // An 8-bit near-black has no hue to read: one step of a channel turns the
+    // bedrock's (0.06) by 40 degrees, so only its chroma is held.
+    const wrong =
+      chroma > ceiling(surface) || (chroma > GREY && lightness > 0.1 && turn(at, hue) > 12)
     return wrong ? [`${token}: ${computed}, chroma ${chroma.toFixed(3)} at ${at.toFixed(0)}`] : []
   })
 

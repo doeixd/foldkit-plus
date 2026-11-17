@@ -18,6 +18,38 @@ grid's OutMessage (`Edited`, `Pasted`, or `Filled`, whose cells `Grid.fill` work
 into the products. A refused cell stays in the editor with its message, or is
 listed under `refused` in a paste.
 
+The filters are the page's too: the grid reports each as `Filtered`, and
+`rowsOf` filters the products before the grid sees a row. Around the grid the
+page says what to try, shows how many products a filter keeps ("42 of 100,000
+products match") beside a Clear filters button, and announces what an action
+did in a live region of its own. The selection count stays outside it: it
+changes on every key, and a screen reader would read it each time. The button
+stays drawn (`aria-disabled` when no filter is on), so pressing it never drops
+focus.
+
+Above the grid, a toolbar searches the products (description, line or UPC, on
+top of the column filters) and sets the row density. The search text and the
+density are the toolbar's Model slice; `rowsOf` reads the text, and the view
+reads the density as the grid's `rowHeight`. The toolbar is a `Bundle.lazy`
+in [toolbar.ts](src/toolbar.ts): its Model, Messages and a plain field that
+stands in are in the first load, and its widgets (`SearchField`, `Segmented`,
+in [toolbarBody.ts](src/toolbarBody.ts)) are a chunk fetched right after the
+page starts. `test/bundle.test.ts` holds both the size and that those widget
+modules are absent at start.
+
+Go to row takes a number from one and scrolls the least that shows it
+(`Placed.helpers.reveal`, which moves no focus); a Command then puts the keyboard
+on that row's UPC cell, since the reveal does not. A range of cells says its size
+in the counts (`Grid.rangeSize`), and a copy says what it took ("Copied 3 rows by
+2 columns") through the grid's `Out.Copied`. The toolbar's "Keyboard shortcuts"
+disclosure lists the keys with `formatHotkey`, so a Mac reads `⌘C` where
+Windows reads `Ctrl+C`; it is in the toolbar's chunk, so the first load does not
+carry it.
+
+On a phone (40rem or narrower), a viewer with no saved layout starts with the
+UPC at 124px and the description at 200px, so the second column shows beside
+the pinned one. The rest scrolls sideways inside the grid; the page does not.
+
 The columns stay as you leave them, in this browser. After any transition
 that changes the column state (a width, the order, a pin, a hidden column),
 `update` saves it to `localStorage` with a Command, and the entry reads it
@@ -56,6 +88,14 @@ The workspace packages resolve to their source, so no build is needed first.
   two rows with one refused cell, and selects every product.
 - `test/layout.test.ts` saves a resized column, opens the page from the
   save, and reads a save naming a removed column.
+- `test/registry.test.ts` also searches through the toolbar and sets a density;
+  `test/toolbar.mutations.ts` breaks each.
+- `test/filters.test.ts` clears filters, and a clear with none on returns the
+  same Model.
+- `test/layout.test.ts` also starts a narrow screen with the narrower columns,
+  and keeps a saved layout over them.
+- `e2e/grid.e2e.ts` drives the page: a price edit, a filter by keyboard with
+  its live announcement and Clear filters, and the page at 390px.
 - `test/registry.browser.test.ts` (Chromium) scrolls to the last product at
   full size, checks that a window of rows is drawn, and checks that the UPC
   stays at the left edge while the rest scrolls sideways.

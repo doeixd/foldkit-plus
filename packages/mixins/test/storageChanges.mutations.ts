@@ -48,7 +48,7 @@ export default [
     name: 'a name no theme has is passed on',
     edits: [
       {
-        file: '../src/theme/themes.ts',
+        file: '../src/theme/runtime.ts',
         find: 'themes.names.find(name => name === value) ?? themes.initial',
         replace: '(value as typeof themes.initial | null) ?? themes.initial',
       },

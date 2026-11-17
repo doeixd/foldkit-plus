@@ -20,10 +20,29 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // child attribute's Mount composed through its own boundary) and behavior.js
 // 406 (each Behavior's attachment metadata, which describe reads), measured by
 // minifying the two sources before and after. The page then measured 143,531.
-const CEILING = 144_000
+// 2026-11-15, demo round: 144,187 bytes measured (about 650 more than the 143,531 above), all
+// of it the page's own first screen in main.ts: the live status region, the filtered count
+// (`addressableRows`), the Clear filters button and its Message, the narrow-screen start and
+// the hint line. No package grew. Ceiling is the measure plus 0.5%, rounded up to the next 500.
+// Later the same day, the toolbar: 146,020 bytes at start (+1,833). Its declaration, the Model,
+// Messages, a plain field shown until the chunk arrives, `Bundle.lazy` and `Link`, and the search
+// in `rowsOf` are the page's own; the widgets are not here: SearchField, Segmented and their
+// recipes (9.8 kB brotli) load as a chunk after boot, which `absent` below holds. Ceiling the
+// measure plus about 0.5%, rounded up to the next 500.
+// 2026-11-15, by module (brotli~, `scripts/bundle-report.mjs`), now 146,044 against 143,531 at 66cad5485.
+// The old page built against today's packages is 143.7 kB, so the packages grew about 0.2 kB. The
+// page's own 2.3 kB: (app) src +0.9 and the unmapped glue beside it +0.6, `foldkit-bundle` +0.2 (the
+// lazy bundle and Link), `effect` +0.3 and `foldkit` +0.3 (what the new code calls), the rest +0.2.
+// The toolbar's widgets are the 9.8 kB lazy chunk, not counted, and `absent` holds them out.
+const CEILING = 147_000
 
 clientBudget({
   name: 'data-grid',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
+  absent: [
+    'foldkit-mixins-ui/searchField',
+    'foldkit-mixins-ui/segmented',
+    'foldkit-primitives/events/hotkeys',
+  ],
 })

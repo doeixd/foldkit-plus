@@ -400,10 +400,11 @@ const selectRows = (
 }
 
 /**
- * A statement, failing as a `RemoteServerError` that says only `failed`. The
- * driver's error carries the SQL and its parameters: it is reported for
- * operators (`StatementFailed`) and never sent, where a defect would reach the
- * client over RPC. Run every statement a handler makes through it.
+ * A statement, failing as a `RemoteServerError` whose message is `failed` and
+ * whose `cause` is the driver's error. That error carries the SQL and its
+ * parameters: it is reported for operators (`StatementFailed`, and the
+ * server's `ServerDefect`), and the caller reads "Internal error". Run every
+ * statement a handler makes through it.
  *
  * ```ts
  * yield* runStatement(() => db.update(posts).set({ title }).where(eq(posts.id, id)), 'Database write failed')
@@ -426,7 +427,7 @@ export const runStatement = <A>(
     }),
   ).pipe(
     Effect.tapError(error => Diagnostics.report(statementFailed(failed, error))),
-    Effect.mapError(() => new RemoteServerError({ message: failed })),
+    Effect.mapError(cause => new RemoteServerError({ message: failed, cause })),
   )
 
 /** What `compile` builds, or the body it could not compile, refused as the server's error. */
@@ -436,7 +437,8 @@ const compileFor = <A>(compile: () => A): Effect.Effect<A, RemoteServerError> =>
       return Effect.succeed(compile())
     } catch (error) {
       if (error instanceof QueryCompileError)
-        return Effect.fail(new RemoteServerError({ message: error.message }))
+        // Its words name the query, its operators and the dialect: for the report, never told.
+        return Effect.fail(new RemoteServerError({ message: error.message, cause: error }))
       throw error
     }
   })
@@ -681,9 +683,7 @@ export const source = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
           if (window !== undefined) {
             const shape = shapeWindow(window, { defaultSize: 20 })
             if (shape.cursor !== undefined && context.ids.length !== 1) {
-              return yield* new RemoteServerError({
-                message: `Relation "${field}" cursor needs a single parent`,
-              })
+              return yield* RemoteServer.tell(`Relation "${field}" cursor needs a single parent`)
             }
             const empty = { refs: [] as ReadonlyArray<string>, hasNext: false, hasPrevious: false }
             const traversalOrder = orderByTerms(heldOrder, shape.traversal)
@@ -700,9 +700,7 @@ export const source = <P = unknown, B extends AnyEntityBinding = AnyEntityBindin
               })
               const cursorRow = cursorRows[0]
               if (cursorRow === undefined) {
-                return yield* new RemoteServerError({
-                  message: `Relation "${field}" cursor no longer resolves`,
-                })
+                return yield* RemoteServer.tell(`Relation "${field}" cursor no longer resolves`)
               }
               keyset = keysetWhere(heldOrder, keysOf(order, cursorRow), shape.traversal)
             }
@@ -954,9 +952,9 @@ export const query = <P = unknown, Input = unknown>(
           (window.after !== undefined && window.before !== undefined) ||
           (window.first !== undefined && window.last !== undefined)
         ) {
-          return yield* new RemoteServerError({
-            message: 'A query window cannot combine after with before, or first with last',
-          })
+          return yield* RemoteServer.tell(
+            'A query window cannot combine after with before, or first with last',
+          )
         }
 
         const binding = options.entity
@@ -1033,9 +1031,7 @@ export const query = <P = unknown, Input = unknown>(
               }),
               rows => Option.map(Option.fromUndefinedOr(rows[0]), row => keysOf(orderBy, row)),
             )
-          const gone = new RemoteServerError({
-            message: 'The query cursor no longer resolves to a row',
-          })
+          const gone = RemoteServer.tell('The query cursor no longer resolves to a row')
           // A keyed cursor says where its page ended. One from before keys is an id,
           // whose row is read for its keys as it is now; such an id may begin as a
           // keyed cursor does, so a row holding the whole cursor as its id is that row.
@@ -1052,9 +1048,9 @@ export const query = <P = unknown, Input = unknown>(
                   ),
                 Invalid: () =>
                   Effect.fail(
-                    new RemoteServerError({
-                      message: 'The query cursor is not one this server minted for this order',
-                    }),
+                    RemoteServer.tell(
+                      'The query cursor is not one this server minted for this order',
+                    ),
                   ),
               })
           const predicate = keysetWhere(orderBy, values, shape.traversal)
@@ -1066,9 +1062,10 @@ export const query = <P = unknown, Input = unknown>(
                 : and(where, predicate)
         }
 
-        // Each order term under a key of its own: the id column may be named
-        // anything, and may be one of them.
-        const columns: Record<string, AnyColumn | SQL> = { id, ...cursorSelection(orderBy) }
+        // Each order term under a key of its own, unless it is the id column,
+        // which may be named anything and is selected once.
+        const own: Record<string, AnyColumn | SQL> = { id }
+        const columns = cursorSelection(orderBy, own)
         const rows = yield* selectRows(database, binding.table, columns, {
           where,
           orderBy: orderByTerms(orderBy, shape.traversal),
@@ -1083,7 +1080,7 @@ export const query = <P = unknown, Input = unknown>(
           cursor: shape.cursor,
           idOf: row => String(row.id),
           cursorOf: row =>
-            Option.getOrElse(keyCursor(keysOf(orderBy, row)), () => idCursor(String(row.id))),
+            Option.getOrElse(keyCursor(keysOf(orderBy, row, own)), () => idCursor(String(row.id))),
         })
       }),
   }
@@ -1988,11 +1985,15 @@ export const writer = <P = unknown>(
       gte(book.table.at, cutoff),
     )
 
-  /** An operation id the ledger holds for another request: never answered as its retry. */
-  const reused = (operation: string, id: string) =>
-    new RemoteServerError({
-      message: `${binding.name} ${id}: operation "${operation}" was recorded for another request; a retry sends the same mutation, keys and input`,
-    })
+  /**
+   * An operation id the ledger holds for another request: never answered as
+   * its retry. Told in the caller's own terms (the id it sent, the rule a retry
+   * keeps), with nothing of the request recorded or of who made it.
+   */
+  const reused = (operation: string) =>
+    RemoteServer.tell(
+      `Operation "${operation}" cannot be sent again with another mutation, keys or input: a retry sends the same ones`,
+    )
 
   /**
    * One update in a transaction with its ledger: the recorded answer when the
@@ -2085,7 +2086,10 @@ export const writer = <P = unknown>(
         if (Option.isSome(after)) return after.value
         if (Result.isFailure(written)) {
           yield* Diagnostics.report(statementFailed('Database write failed', written.failure))
-          return yield* new RemoteServerError({ message: 'Database write failed' })
+          return yield* new RemoteServerError({
+            message: 'Database write failed',
+            cause: written.failure,
+          })
         }
         return { _tag: 'Written', rows: [] } satisfies Ledgered
       })
@@ -2119,7 +2123,10 @@ export const writer = <P = unknown>(
               Effect.tapError(error =>
                 Diagnostics.report(statementFailed('Database write failed', error)),
               ),
-              Effect.mapError(() => new RemoteServerError({ message: 'Database write failed' })),
+              // Not told: `RemoteServer` answers "Internal error" and keeps the cause for its report.
+              Effect.mapError(
+                cause => new RemoteServerError({ message: 'Database write failed', cause }),
+              ),
             )
           : yield* runStatement(
               () =>
@@ -2148,7 +2155,7 @@ export const writer = <P = unknown>(
               'Database write failed',
             )
       return yield* Match.valueTags(done, {
-        Reused: () => reused(operation, id),
+        Reused: () => reused(operation),
         Recorded: recorded => Effect.succeed(recorded),
         Written: written => Effect.succeed(written),
       })
@@ -2284,7 +2291,7 @@ export const writer = <P = unknown>(
               const record = Option.fromUndefinedOr(found[0])
               const digest = yield* digestOf(request)
               if (Option.isSome(record) && !recordedFor(record.value, digest)) {
-                return yield* reused(operation, id)
+                return yield* reused(operation)
               }
               if (Option.isNone(record)) return Option.none()
               return Option.some(yield* recordedAnswer(database, String(record.value['answer'])))

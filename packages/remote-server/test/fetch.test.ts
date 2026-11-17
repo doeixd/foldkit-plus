@@ -8,12 +8,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity } from 'foldkit-entity'
-import {
-  REMOTE_PROTOCOL_VERSION,
-  Mutation,
-  Remote,
-  type RemoteUnauthenticated,
-} from 'foldkit-remote'
+import { REMOTE_PROTOCOL_VERSION, Mutation, Remote, RemoteUnauthenticated } from 'foldkit-remote'
 import { Surface, type Diagnostic } from 'foldkit-surface'
 import { describe, expect, it, vi } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
@@ -174,16 +169,26 @@ describe('serveFetch', () => {
         RemoteServer.unauthenticated(),
         { error: 'Unauthenticated', unauthenticated: {} },
       ],
+      [
+        'saying nothing of a message it was given no reason beside',
+        new RemoteUnauthenticated({ message: 'SECRET-CANARY: no row in sessions for 9f2c' }),
+        { error: 'Unauthenticated', unauthenticated: {} },
+      ],
     ])('answers a refusal %s with a 401', async (_, refusal, answer) => {
       const response = await resolvedBy(() => Effect.fail(refusal))
       expect(response.status).toBe(401)
-      expect(await response.json()).toEqual(answer)
+      const sent = await response.text()
+      expect(JSON.parse(sent)).toEqual(answer)
+      expect(sent).not.toContain('SECRET-CANARY')
     })
 
     it('answers a resolver that breaks with a 500 that says nothing of it', async () => {
       const response = await resolvedBy(() => Effect.die(new Error('the session store password')))
       expect(response.status).toBe(500)
-      expect(await response.json()).toEqual({ error: 'Internal error' })
+      expect(await response.json()).toEqual({
+        error: 'Internal error',
+        incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+      })
     })
   })
 
@@ -201,7 +206,10 @@ describe('serveFetch', () => {
       {},
     )
     expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({ error: 'Internal error' })
+    expect(await response.json()).toEqual({
+      error: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
   })
 
   it('provides the environment to the Sources and the resolver through the layer', async () => {
@@ -367,7 +375,10 @@ describe('a failure answered "Internal error"', () => {
       ),
     )
     expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({ error: 'Internal error' })
+    expect(await response.json()).toEqual({
+      error: 'Internal error',
+      incident: expect.stringMatching(/^[0-9a-f]{16}$/),
+    })
     expect(reported).toEqual([
       expect.stringMatching(
         /^ServerDefect http:\/\/worker\.test\/remote [^]*Error: the D1 password/,

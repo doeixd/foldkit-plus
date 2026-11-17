@@ -1,5 +1,5 @@
 /**
- * The shop page as the ordering tests drive it: Remote's reducer over the
+ * The shop page as the ordering tests and the `loop` command drive it: Remote's reducer over the
  * adapter's client, one delivery at a time. A delivery is a read, a reply (the
  * mutation's Command run against the client) or a live frame from a stream
  * opened when the page started; each lands in the Model through `Data.reduce`,
@@ -16,8 +16,8 @@ import {
   RemoteClient,
   type RemoteMessage,
 } from 'foldkit-remote'
-import { ReserveStock } from '../../src/domain.js'
-import { Data, type ShopModel } from '../../src/shop.js'
+import { ReserveStock } from '../domain.js'
+import { Data, type ShopModel } from '../shop.js'
 
 const fields = ['status', 'stock', 'reserved', 'revision']
 const selection = Entity.select(Product, {
@@ -80,6 +80,7 @@ export const page = (id: string) =>
       ),
     )
 
+    /** Reads the row, carrying its token while one is held, and answers the rows the read named behind. */
     const read = Effect.gen(function* () {
       const requests = [{ entity: 'Product', id, fields }]
       const after = yield* floors
@@ -95,6 +96,7 @@ export const page = (id: string) =>
         now: 0,
         ...(after.length === 0 ? {} : { after }),
       })
+      return (result.behind ?? []).map(row => entityKey(row.entity, row.id))
     })
 
     /**
@@ -140,6 +142,15 @@ export const page = (id: string) =>
           `${count} live frames`,
         ),
       current: Ref.get(model),
+      /** What Remote knows of the write last started, and the refusal it failed with when it has one. */
+      write: Effect.map(Ref.get(model), current => ({
+        status:
+          requestId === undefined
+            ? { _tag: 'Unknown' as const }
+            : Data.mutation(current, requestId),
+        refusal:
+          requestId === undefined ? Option.none() : Data.refusal(current, requestId, ReserveStock),
+      })),
       /** Starts a reservation: the Model shows it pending, and the Command that settles it is returned. */
       start: (input: {
         readonly id: string

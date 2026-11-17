@@ -17,6 +17,7 @@
       "foldkit-example-site/phone-audit": ["../site/src/phoneAudit.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-data-grid": ["../../packages/mixins-data-grid/src/index.ts"],
+      "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
       "foldkit-mixins/foundations": ["../../packages/mixins/src/foundations.ts"],
@@ -25,6 +26,8 @@
       "foldkit-mixins/prose": ["../../packages/mixins/src/prose.ts"],
       "foldkit-mixins/testing": ["../../packages/mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
+      "foldkit-mixins/theme/knob-data": ["../../packages/mixins/src/theme/knobData.ts"],
+      "foldkit-mixins/theme/runtime": ["../../packages/mixins/src/theme/runtime.ts"],
       "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
       "foldkit-mixins/vite": ["../../packages/mixins/src/vite.ts"],
       "foldkit-primitives": ["../../packages/primitives/src/index.ts"],
@@ -56,6 +59,9 @@
     },
     {
       "path": "../../packages/mixins-data-grid/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-ui/tsconfig.build.json"
     },
     {
       "path": "../../packages/primitives/tsconfig.build.json"

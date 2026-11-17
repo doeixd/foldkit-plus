@@ -212,7 +212,8 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   with a caret of it, so an edit does not look like a cell that only has focus.
 - **The clipboard** works on the range, or the focused cell. Copy puts it on
   the clipboard as tab-separated text, as spreadsheets read it, and as an
-  HTML table (`text/html`, cells escaped) for a target that reads that; paste lays
+  HTML table (`text/html`, cells escaped) for a target that reads that, and the
+  application hears one `Out.Copied({ rows, columns })`; paste lays
   text from the range's corner onto editable cells and the application
   hears one `Out.Pasted`; cut copies and clears the editable cells, and
   Delete or Backspace clears them without copying. While a
@@ -284,7 +285,8 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   inside and closes it. While a column is filtered its header and button
   carry `data-filtered`, and the header says "Filtered" as its
   `aria-description` ("Read-only, Filtered" on a column that does not edit,
-  whose title's description it replaces). Every header is named by its own words
+  whose title's description it replaces; `words.readOnly` is that word, here
+  and in the `title` a column that does not edit shows on hover). Every header is named by its own words
   (`aria-label`), so neither its buttons nor an open form join its name.
   While the form is open the grid's clipboard handlers are off, so copy, cut
   and paste in its fields are the fields' own. The words are `words.filters`; the Slots are

@@ -19,14 +19,22 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Menu, MenuSlots, MenuView, Recipes } from '../src/index.js'
+import { holdFrames } from './frames.js'
 import { marksThrough } from './observe.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(MenuSlots)(Recipes.Menu({}))
 const ROWS: ReadonlyArray<Menu.Row> = [
-  { label: 'New tab' },
-  { label: 'Share', items: ['Email', 'Messages'] },
-  { label: 'Print' },
+  { value: 'New tab', label: 'New tab' },
+  {
+    value: 'Share',
+    label: 'Share',
+    items: [
+      { value: 'Email', label: 'Email' },
+      { value: 'Messages', label: 'Messages' },
+    ],
+  },
+  { value: 'Print', label: 'Print' },
 ]
 const Model = Schema.Struct({ menu: Menu.Model, chosen: Schema.Option(Schema.String) })
 type Model = typeof Model.Type
@@ -44,9 +52,18 @@ interface Mounting {
   readonly direction: 'ltr' | 'rtl'
   readonly around: (menu: Html, h: HtmlBuilder<Message>) => Html
   readonly isAnimated?: boolean
+  readonly rows?: ReadonlyArray<Menu.Row>
+  readonly isRowDisabled?: (value: string) => boolean
 }
 
-const mount = ({ opensAt, direction, around, isAnimated = false }: Mounting) => {
+const mount = ({
+  opensAt,
+  direction,
+  around,
+  isAnimated = false,
+  rows = ROWS,
+  isRowDisabled,
+}: Mounting) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -65,7 +82,8 @@ const mount = ({ opensAt, direction, around, isAnimated = false }: Mounting) => 
           Menu.view(
             {
               model: model.menu,
-              rows: ROWS,
+              rows,
+              ...(isRowDisabled === undefined ? {} : { isRowDisabled }),
               buttonContent: h.span([], ['File']),
               onMessage: got,
               opensAt,
@@ -84,7 +102,7 @@ const mount = ({ opensAt, direction, around, isAnimated = false }: Mounting) => 
       Model,
       container,
       init: () => ({
-        model: { menu: Menu.init('file', ROWS, { isAnimated }), chosen: Option.none() },
+        model: { menu: Menu.init('file', rows, { isAnimated }), chosen: Option.none() },
       }),
       update: (model: Model, message: Message) => {
         const next = Menu.update(model.menu, message.message)
@@ -462,6 +480,195 @@ test("an application's own typed, grouped Menu opens at a point through toView",
     expect(Math.abs(panel.top - (box.top + 30))).toBeLessThan(12)
     expect(document.querySelectorAll('#actions-items [role="group"]')).toHaveLength(2)
     expect(byId('actions-button')?.tabIndex).toBe(-1)
+  } finally {
+    handle.dispose()
+  }
+})
+
+// Two rows read "Delete" in every group: only their values tell them apart.
+const TWINS: ReadonlyArray<Menu.Row> = [
+  { value: 'delete-draft', label: 'Delete' },
+  { value: 'delete-all', label: 'Delete' },
+  {
+    value: 'more',
+    label: 'More',
+    items: [
+      { value: 'copy-delete', label: 'Delete' },
+      { value: 'move-delete', label: 'Delete' },
+    ],
+    isItemDisabled: value => value === 'move-delete',
+  },
+]
+
+const twins = () =>
+  mount({
+    opensAt: 'button',
+    direction: 'ltr',
+    around: (menu, h) => h.div([h.Style({ padding: '40px' })], [menu]),
+    rows: TWINS,
+    isRowDisabled: value => value === 'delete-all',
+  })
+
+const chosenText = () => document.querySelector('[aria-label="chosen"]')?.textContent
+
+const openTwins = async () => {
+  const trigger = await vi.waitFor(() => {
+    const found = byId('file-button')
+    expect(found).not.toBeNull()
+    return found!
+  })
+  trigger.focus()
+  await userEvent.keyboard('{Enter}')
+  await vi.waitFor(() => expect(focusedId()).toBe('file-items'))
+}
+
+test('two rows with one label are told apart by value: one disabled, the keys skip it, each chooses itself', async () => {
+  const handle = twins()
+  try {
+    await openTwins()
+    expect(byId('file-item-0')?.getAttribute('aria-disabled')).toBeNull()
+    expect(byId('file-item-1')?.getAttribute('aria-disabled')).toBe('true')
+    // The first row is active as the menu opens; ArrowDown passes the disabled twin.
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(byId('file-item-2')?.hasAttribute('data-active')).toBe(true))
+    await userEvent.keyboard('{ArrowUp}')
+    await vi.waitFor(() => expect(byId('file-item-0')?.hasAttribute('data-active')).toBe(true))
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(chosenText()).toBe('delete-draft'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test("a submenu's rows with one label are told apart by value, and the choice names both", async () => {
+  const handle = twins()
+  try {
+    await openTwins()
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(byId('file-item-2')?.hasAttribute('data-active')).toBe(true))
+    await userEvent.keyboard('{ArrowRight}')
+    await vi.waitFor(() => expect(focusedId()).toBe('file-sub-2-items'))
+    expect(byId('file-sub-2-item-0')?.getAttribute('aria-disabled')).toBeNull()
+    expect(byId('file-sub-2-item-1')?.getAttribute('aria-disabled')).toBe('true')
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(chosenText()).toBe('copy-delete'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+const FRUIT: ReadonlyArray<Menu.Row> = [
+  'Apple',
+  'Avocado',
+  'Banana',
+  'Blueberry',
+  'Cherry',
+  'Damson',
+].map(value => ({ value, label: value }))
+
+const activeRow = () => {
+  const id = byId('file-items')?.getAttribute('aria-activedescendant')
+  return id === null || id === undefined ? '' : (byId(id)?.textContent ?? '')
+}
+
+/** Opens a flat menu from the keyboard, then types `keys` in one frame: the page draws nothing in between. */
+const burst = async (keys: string) => {
+  const handle = mount({ opensAt: 'button', direction: 'ltr', around: menu => menu, rows: FRUIT })
+  const trigger = await vi.waitFor(() => {
+    const found = byId('file-button')
+    expect(found).not.toBeNull()
+    return found!
+  })
+  trigger.focus()
+  await userEvent.keyboard('{Enter}')
+  await vi.waitFor(() => expect(activeRow()).toBe('Apple'))
+  const release = holdFrames()
+  try {
+    await userEvent.keyboard(keys)
+  } finally {
+    release()
+  }
+  return handle
+}
+
+// Keys come faster than frames: a held key repeating on a busy page sends several before the
+// next drawing, and each continues from where the previous one of this drawing left off.
+test.each([
+  ['{ArrowDown}{ArrowDown}{ArrowDown}', 'Blueberry'],
+  ['{ArrowDown}{ArrowDown}{ArrowUp}', 'Avocado'],
+  ['{End}{ArrowUp}', 'Cherry'],
+  ['{End}{ArrowDown}{ArrowDown}{ArrowDown}', 'Banana'],
+  ['bl', 'Blueberry'],
+  ['b{ArrowDown}', 'Blueberry'],
+] as const)('keys %s before the next frame leave the active row at %s', async (keys, last) => {
+  const handle = await burst(keys)
+  try {
+    await vi.waitFor(() => expect(activeRow()).toBe(last))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('Enter after two ArrowDowns before the next frame chooses the row the second reached', async () => {
+  const handle = await burst('{ArrowDown}{ArrowDown}{Enter}')
+  try {
+    await vi.waitFor(() => expect(chosenText()).toBe('Banana'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a Space typed after letters before the next frame continues the search instead of choosing', async () => {
+  const handle = await burst('b ')
+  try {
+    await vi.waitFor(() => expect(activeRow()).toBe('Banana'))
+    await new Promise(done => setTimeout(done, 50))
+    expect(chosenText()).toBe('nothing')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('ArrowDown twice before the next frame on a shut menu opens it on the first row and moves to the second', async () => {
+  const handle = mount({ opensAt: 'button', direction: 'ltr', around: menu => menu, rows: FRUIT })
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = byId('file-button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    trigger.focus()
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(activeRow()).toBe('Avocado'))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('one key a frame still moves one row each', async () => {
+  const handle = mount({ opensAt: 'button', direction: 'ltr', around: menu => menu, rows: FRUIT })
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = byId('file-button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    trigger.focus()
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(activeRow()).toBe('Apple'))
+    for (const [key, row] of [
+      ['{ArrowDown}', 'Avocado'],
+      ['{ArrowDown}', 'Banana'],
+      ['{ArrowUp}', 'Avocado'],
+    ] as const) {
+      await userEvent.keyboard(key)
+      await vi.waitFor(() => expect(activeRow()).toBe(row))
+    }
   } finally {
     handle.dispose()
   }

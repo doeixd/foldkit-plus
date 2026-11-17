@@ -39,4 +39,14 @@ export default [
     edits: [{ file, find: '? String(answered.error)', replace: "? 'HTTP x'" }],
     tests,
   },
+  {
+    name: 'an error frame drops its incident',
+    edits: [{ file, find: '{ message, ...incidentOf(said) }', replace: '{ message }' }],
+    tests,
+  },
+  {
+    name: 'a failed open drops its incident',
+    edits: [{ file, find: '{ message, ...incidentOf(answered) }', replace: '{ message }' }],
+    tests,
+  },
 ]

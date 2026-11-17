@@ -9,12 +9,11 @@
  * and `Ended` are OutMessages the placement must handle.
  */
 import { Effect, Option, Schema } from 'effect'
-import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import * as Mount from 'foldkit/mount'
 import type * as Update from 'foldkit/update'
 import { Bundle, type Declared } from 'foldkit-bundle'
-import { Behavior, Capability } from 'foldkit-mixins'
+import { A11y, Behavior, Capability, SlotView } from 'foldkit-mixins'
+import { BundleBehavior } from './bundle-behavior.js'
 import * as Press from './press.js'
 
 export const Model = Schema.Struct({
@@ -33,11 +32,16 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   PointerDown: { pointerId: Schema.Number, button: Schema.Number, pointerType: Schema.String },
-  PointerUp: { pointerId: Schema.Number, pointerType: Schema.String, shiftKey: Schema.Boolean },
+  PointerUp: {
+    pointerId: Schema.Number,
+    pointerType: Schema.String,
+    modifiers: Press.Modifiers,
+  },
   PointerCancelled: { pointerId: Schema.Number },
   KeyDown: { key: Schema.String, repeat: Schema.Boolean },
-  KeyUp: { key: Schema.String, shiftKey: Schema.Boolean },
-  Clicked: { detail: Schema.Number, shiftKey: Schema.Boolean },
+  KeyUp: { key: Schema.String, modifiers: Press.Modifiers },
+  KeyCancelled: { key: Schema.String },
+  Clicked: { detail: Schema.Number, modifiers: Press.Modifiers },
   Elapsed: { generation: Schema.Number },
   /** The parent reached a bound (a stepper's maximum): a held press steps no more. */
   Stopped: {},
@@ -162,6 +166,7 @@ export const bundle = Bundle.make('Repeat', {
           ? { model }
           : begin(model, args, { key }, 'keyboard'),
       KeyUp: ({ key }) => (Option.contains(model.key, key) ? release(model) : { model }),
+      KeyCancelled: ({ key }) => (Option.contains(model.key, key) ? release(model) : { model }),
       // The click after a pointer press has a detail; one with none is no pointer's (assistive technology).
       Clicked: ({ detail }) =>
         detail === 0 && !model.holding
@@ -181,8 +186,14 @@ export const bundle = Bundle.make('Repeat', {
     }),
 })
 
-export interface BehaviorOptions<Slots> {
-  readonly target: keyof Slots & string
+export interface BehaviorOptions<
+  Input,
+  Slots,
+  Target extends keyof Slots & string = keyof Slots & string,
+> {
+  readonly target: Target
+  /** Marks the target `aria-disabled`: it refuses new presses, but a hold already under way still ends on release. */
+  readonly disabled?: (input: Input) => boolean
 }
 
 /**
@@ -191,32 +202,37 @@ export interface BehaviorOptions<Slots> {
  * `LongPress` and `Repeat` on one slot are refused by the resolver (two Mounts
  * of one name), so a slot takes one of them.
  */
-export const behavior =
-  <Field extends string>(declared: Declared<typeof bundle, Field>) =>
-  <Slots>(slots: Slots) =>
-  <Input extends { readonly [K in Field]: Model }, ParentMessage>(
-    options: BehaviorOptions<Slots>,
-  ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
-    Behavior.forSlots(slots)<Input, ParentMessage>(
-      {
-        [options.target]: Behavior.slot({
-          requires: { capability: Capability.Interactive },
-          attributes: ({
-            input,
-            h,
-          }: {
-            readonly input: Input
-            readonly h: HtmlBuilder<ParentMessage>
-          }) => (input[declared.field].holding ? [h.DataAttribute('holding', 'true')] : []),
-          mount: () =>
-            Mount.mapMessage(
-              Press.events(),
-              // The facts are the same tagged structs; only the union differs.
-              (fact): ParentMessage =>
-                declared.wrapper.make(fact as unknown as Message) as unknown as ParentMessage,
-            ),
-        }),
-        // Keyed by a value the caller chose; `forSlots` checks the key exists.
-      } as unknown as Behavior.BehaviorSpec<Slots, Input, ParentMessage>,
-      { name: 'Repeat' },
-    )
+export const behavior = <Field extends string>(declared: Declared<typeof bundle, Field>) => {
+  function place<Slots, Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    bound: SlotView.Bound<Slots, Input, ParentMessage>,
+  ): <Target extends keyof Slots & string>(
+    options: BehaviorOptions<Input, Slots, Target>,
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage, A11y.ProvidedOn<Target, 'activation'>>
+  function place<Slots>(
+    slots: SlotView.Unbound<Slots>,
+  ): <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+    options: BehaviorOptions<Input, Slots>,
+  ) => Behavior.NamedBehavior<Slots, Input, ParentMessage>
+  function place<Slots>(given: Slots | SlotView.Bound<Slots, any, any>) {
+    // As `Press.behavior`: `boundSlots` took a binder apart, and `Unbound<Slots>` is a conditional no plain `Slots` is known to satisfy.
+    const slots = SlotView.boundSlots(given) as SlotView.Unbound<Slots>
+    return <Input extends { readonly [K in Field]: Model }, ParentMessage>(
+      options: BehaviorOptions<Input, Slots>,
+    ): Behavior.NamedBehavior<Slots, Input, ParentMessage> =>
+      BundleBehavior.fromBundle(declared)<Slots>(slots)<Input, ParentMessage>(
+        {
+          [options.target]: {
+            requires: { capability: Capability.Interactive },
+            provides: [A11y.Activation],
+            attributes: ({ input, h }) => [
+              ...(input[declared.field].holding ? [h.DataAttribute('holding', 'true')] : []),
+              ...(options.disabled?.(input) === true ? [h.AriaDisabled(true)] : []),
+            ],
+            events: Press.events(),
+          },
+        },
+        { name: 'Repeat' },
+      )
+  }
+  return place
+}

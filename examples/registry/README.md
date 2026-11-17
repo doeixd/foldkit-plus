@@ -65,10 +65,12 @@ this example's own is below.
   mark's tooltip): not yet sent, saved and not yet in the table, refused, or
   replaced by a later edit; and where the other device is. The `revision`
   column is hidden; a column's menu shows it, to watch a row catch up.
-- **Working offline, on purpose.** The *Work offline* switch pauses the
-  transport (`pausable` in `sync.ts`): exchanges fail as an unreachable server
-  would, so edits wait on the device, through a reload. Switching back
-  exchanges at once. An unreachable server is retried on a backoff (0.5 s up
+- **Working offline, on purpose.** *Go offline*, in each device's header,
+  pauses the transport (`pausable` in `sync.ts`): exchanges fail as an
+  unreachable server would, so edits wait on the device, through a reload;
+  *Go online* exchanges at once. The strip beside it says where the device
+  stands in words (`exchangeOf` in `app.ts`: "In sync", "Syncing 2 edits…", "Offline: 2 edits waiting to sync", the todo
+  app's wording, with "In sync" shortened to fit a narrow header), with a dot for online or offline, in a live region. An unreachable server is retried on a backoff (0.5 s up
   to 30 s) and at once on the next edit.
 - **The rows drawn follow the table live.** The rows the grid draws are a
   live subscription, and each edit the journal writes to the table is told to
@@ -151,9 +153,16 @@ It holds 10,000 products, so it starts quickly. `SharedHost` from
 `foldkit-primitives/net` routes each page's conversations to it: every tab
 meets the same server, and a browser with no SharedWorker runs it in the top
 page, which both frames reach. A page that goes ends its conversations, so a
-reloaded device leaves nothing behind on the server. Each device has the offline
-switch, so a conflict takes three clicks: offline in B, the same price in
-both, online in B.
+reloaded device leaves nothing behind on the server. Each device has its
+*Go offline* button, so a conflict takes three clicks: offline in B, the same
+price in both, online in B. The page says what then happens, as far as Sync
+promises it: the journal orders the commits, the later commit wins in both
+devices, the device whose edit lost marks the cell *Replaced* and says what
+it held, and nothing is merged.
+
+On a phone (under 64rem) one device shows at a time, chosen by a switch above
+them; both stay mounted, so a hidden device keeps its replica running and its
+status in its card.
 
 Each device shows where the other is: the cell it has focused, outlined in
 violet, through Sync's presence on the same socket (`sharePresence` in
@@ -219,7 +228,10 @@ committed one is back to the seed.
   - a cell's mark goes from not yet sent, to saved but not in the table, to
     none;
   - a refused edit marks its cell and says why until dismissed;
-  - working offline keeps an edit on the device until the switch is off;
+  - working offline keeps an edit on the device until the device goes online,
+    and the strip says so in words, with its dot and button, and refused,
+    replaced and left-alone notices are live regions;
+  - a copy the grid reports is said in the status line, and an edit clears it;
   - another device's later commit of a field replaces this page's edit and is
     said, while an edit this page committed later, another device's over a
     third's, the same value again, or a refusal over this page's own commit is
@@ -235,6 +247,11 @@ committed one is back to the seed.
   a commit wakes another replica's exchange loop, and a request naming an
   operation the server does not have is refused.
 
+- `e2e/sandbox.e2e.ts`: the published sandbox, built and served as static
+  files: an edit in one device shows in the other, the later of two edits
+  wins and the loser is told, an offline edit survives a reload, presence,
+  and on a phone one device at a time with both mounted and no sideways
+  scroll (measured against `document.documentElement.clientWidth`).
 - `e2e/registry.e2e.ts`: the server and the Vite dev server started, and a
   real Chromium driving the page: reading on as the end comes into view, a
   sort over all 100,000 products, an edit read back from the table through

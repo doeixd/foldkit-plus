@@ -14,8 +14,17 @@ import type { RelationRequirement, Requirement } from './requirement.js'
  */
 export const REMOTE_PROTOCOL_VERSION = 7
 
+/**
+ * The id of a failure on the server's side, on the error that answers it:
+ * present when the server broke rather than refused, and then `message` says
+ * nothing of what broke. The server reported the cause under the same id, so
+ * a person can quote it. Read it from a `RemoteError` with `RemoteData.incident`.
+ */
+const incident = Schema.optional(Schema.String)
+
 export class RemoteReadError extends Schema.TaggedError<RemoteReadError>()('RemoteReadError', {
   message: Schema.String,
+  incident,
 }) {}
 
 export class RemoteMutationError extends Schema.TaggedError<RemoteMutationError>()(
@@ -24,6 +33,7 @@ export class RemoteMutationError extends Schema.TaggedError<RemoteMutationError>
     message: Schema.String,
     /** The mutation's own `Refusal`, encoded, when the server refused it as one. */
     refusal: Schema.optional(Schema.Unknown),
+    incident,
   },
 ) {}
 
@@ -88,6 +98,7 @@ export class RemotePrincipalChanged extends Schema.TaggedError<RemotePrincipalCh
 
 export class RemoteLiveError extends Schema.TaggedError<RemoteLiveError>()('RemoteLiveError', {
   message: Schema.String,
+  incident,
 }) {}
 
 /**
@@ -521,6 +532,7 @@ export const Live = Rpc.make('FoldkitRemoteLive', {
 
 export class RemoteQueryError extends Schema.TaggedError<RemoteQueryError>()('RemoteQueryError', {
   message: Schema.String,
+  incident,
 }) {}
 
 export const QueryRpc = Rpc.make('FoldkitRemoteQuery', {

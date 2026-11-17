@@ -25,22 +25,20 @@ const config: Config = {
   ],
 }
 const update = Tour.update(config)
-const started = (opener?: string) =>
-  Tour.start(init({ id: 'tour' }), config, opener === undefined ? {} : { opener })
+const started = () => Tour.start(init({ id: 'tour' }), config)
 const at = (step: number) =>
   Array.from({ length: step }).reduce<Tour.Model>(
     model => update(model, Message.Next()).model,
-    started('help').model,
+    started().model,
   )
 const names = (result: { readonly commands?: ReadonlyArray<{ readonly name: string }> }) =>
   (result.commands ?? []).map(command => command.name)
 
 describe('Tour.update', () => {
   it('starts at the first step, scrolling its target into view', () => {
-    const { model, commands } = started('help')
+    const { model, commands } = started()
     expect(model.open).toBe(true)
     expect(model.step).toBe(0)
-    expect(model.opener).toEqual(Option.some('help'))
     expect(commands?.[0]?.args).toEqual({ id: 'tour', target: Option.some('nav') })
     // Started again, it begins over.
     expect(Tour.start(at(2), config).model.step).toBe(0)
@@ -55,16 +53,15 @@ describe('Tour.update', () => {
     expect(update(first, Message.Back()).model).toBe(first)
   })
 
-  it('ends completed by Next on the last step, with focus back to what started it', () => {
+  it('ends completed by Next on the last step, sending no Command', () => {
     const done = update(at(2), Message.Next())
     expect(done.model.open).toBe(false)
     expect(done.outMessage).toEqual(Tour.Ended.make({ completed: true }))
-    expect(names(done)).toEqual(['Tour.FocusOpener'])
-    expect(done.commands?.[0]?.args).toEqual({ elementId: 'help' })
+    expect(names(done)).toEqual([])
     expect(update(done.model, Message.Next()).model).toBe(done.model)
   })
 
-  it('ends skipped, and with no opener gives focus to nothing', () => {
+  it('ends skipped', () => {
     const skipped = update(started().model, Message.Skipped())
     expect(skipped.outMessage).toEqual(Tour.Ended.make({ completed: false }))
     expect(names(skipped)).toEqual([])

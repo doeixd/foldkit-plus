@@ -60,7 +60,11 @@ export default [
   {
     name: 'a host answers a defect with no report',
     edits: [
-      { file: host, find: '      await Effect.runPromise(report(stage, cause))\n', replace: '' },
+      {
+        file: '../src/diagnostics.ts',
+        find: 'reportTo(reporter, hostDefect(stage, cause, Option.some(incident))),',
+        replace: 'Effect.void,',
+      },
     ],
     tests,
   },
@@ -151,8 +155,8 @@ export default [
     edits: [
       {
         file: durable,
-        find: "            hostDefect('Upgrade', Cause.die(error)),",
-        replace: "            hostDefect('Upgrade', Cause.die('no pair')),",
+        find: '            Cause.die(error),',
+        replace: "            Cause.die('no pair'),",
       },
     ],
     tests,

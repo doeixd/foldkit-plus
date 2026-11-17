@@ -9,12 +9,11 @@ import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
-  blockStyleMenu,
   codeToolbar,
   editorStatus,
   findReplace,
   footnotePreview,
-  isRichTextIcon,
+  formattingToolbar,
   linkEditor,
   richTextIcon,
   slashMenu,
@@ -22,24 +21,29 @@ import {
   slashMove,
   tableOfContents,
   tableToolbar,
+  InsertEntry,
+  type FormattingItem,
+  type FormattingMenu,
   type RichTextIconName,
 } from 'foldkit-mixins-richtext'
 import { AppShell } from 'foldkit-mixins-ui'
 import { richtextDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
 import * as RichText from 'foldkit-richtext'
-import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
+import { Message as EditorMessage, type EditorEvent } from 'foldkit-richtext-dom/editor'
 import { editorView as editorHost, menuTextOf } from 'foldkit-richtext-dom/editor-bundle'
 import { blockAnchor, blockDrag, markActive, selectionAnchor } from 'foldkit-richtext-dom/toolbar'
 import {
   editorView,
   hostId,
   ExportFormat,
+  FILE_INPUT,
   Menu,
   Message,
   codeBlockAt,
   openMenu,
   openThreads,
+  sourceOf,
   quoteOf,
   threadAt,
   type Model,
@@ -47,10 +51,11 @@ import {
 } from './app.js'
 import { canvasEvents, dismissOnOutside, filePicker, findShortcut } from './canvas.js'
 import {
-  BlockStyleMenuStyle,
   CodeToolbarStyle,
   FindReplaceStyle,
   FootnotePreviewStyle,
+  FormattingBarStyle,
+  SelectionBarStyle,
   LinkEditorStyle,
   Page,
   ShellStyle,
@@ -72,7 +77,8 @@ const slashEntries = playgroundSlashEntries.map(entry => ({
 
 const SlashMenu = slashMenuView<Message>().pipe(Style.attach(SlashMenuStyle))
 const LinkEditor = linkEditor<Message>().pipe(Style.attach(LinkEditorStyle))
-const StyleMenu = blockStyleMenu<Message>().pipe(Style.attach(BlockStyleMenuStyle))
+const Bar = formattingToolbar<Message>().pipe(Style.attach(FormattingBarStyle))
+const SelectionBar = formattingToolbar<Message>().pipe(Style.attach(SelectionBarStyle))
 const Status = editorStatus<Message>().pipe(Style.attach(StatusStyle))
 const TableTools = tableToolbar<Message>().pipe(Style.attach(TableToolbarStyle))
 const CodeTools = codeToolbar<Message>().pipe(Style.attach(CodeToolbarStyle))
@@ -84,20 +90,75 @@ const DemoGuide = demoGuide<Message>()
 /** What says whether a slash menu is open and what it matches, as the editor's Enter reads it. */
 const menuText = (model: Model): string => menuTextOf(editorView(model))
 
-/** The marks the toolbars offer; the less used ones step aside on a phone. */
-const MARKS: ReadonlyArray<
-  readonly [mark: string, icon: RichTextIconName, title: string, priority: 'high' | 'low']
-> = [
-  ['Bold', 'bold', 'Bold (Ctrl+B)', 'high'],
-  ['Italic', 'italic', 'Italic (Ctrl+I)', 'high'],
-  ['Underline', 'underline', 'Underline (Ctrl+U)', 'low'],
-  ['Strikethrough', 'strikethrough', 'Strikethrough (Ctrl+Shift+S)', 'low'],
-  ['Code', 'code', 'Inline code (Ctrl+E)', 'low'],
-  ['Highlight', 'highlight', 'Highlight (Ctrl+Shift+H)', 'low'],
+/** The marks the bars offer, this vocabulary's beside the editor's own. */
+const MARKS = ['Bold', 'Italic', 'Underline', 'Strikethrough', 'Code', 'Highlight'] as const
+
+/** The bar's controls; the page's own (`app`) end it, in the same tab stop. */
+const barItems = (
+  app: ReadonlyArray<FormattingItem<Message>>,
+): ReadonlyArray<FormattingItem<Message>> => [
+  'undo',
+  'redo',
+  'separator',
+  'style',
+  'separator',
+  ...MARKS.map((mark): FormattingItem<Message> => ({ mark })),
+  'link',
+  'separator',
+  'bulleted-list',
+  'numbered-list',
+  'checklist',
+  'quote',
+  'insert',
+  'separator',
+  ...app,
 ]
 
-/** What the insert menu offers after a file, by slash entry id, in this order. */
+/** Over selected text the edits that are not marks are left to the slash menu and the main bar. */
+const SELECTION_ITEMS: ReadonlyArray<FormattingItem<Message>> = [
+  'style',
+  'separator',
+  ...MARKS.map((mark): FormattingItem<Message> => ({ mark })),
+  'link',
+]
+
+/** The chords this page's keymap binds beyond the editor's own, shown on their controls. */
+const SHORTCUTS = {
+  'mark-Underline': 'mod+u',
+  'mark-Highlight': 'mod+shift+h',
+  link: 'mod+k',
+}
+
+/** What the insert menu offers, by slash entry id, in this order; a file has its own button. */
 const INSERTS = ['table', 'callout', 'toggle', 'divider', 'footnote'] as const
+const inserts: ReadonlyArray<InsertEntry<Message>> = [
+  // A file is the page's own to read, so it is not an editor entry.
+  InsertEntry.App({
+    id: 'file',
+    label: 'Image, video or file',
+    description: 'From your device, up to 8 MB',
+    icon: 'file',
+    message: Message.OpenedFileDialog(),
+  }),
+  ...INSERTS.flatMap(id =>
+    playgroundSlashEntries.flatMap(entry =>
+      entry.id === id ? [InsertEntry.Editor({ entry })] : [],
+    ),
+  ),
+]
+
+/**
+ * What a bar's control sends. A block goes at the top level, beside the caret's, and every edit
+ * closes the menu it was chosen in as it is made.
+ */
+const barEdit = (event: EditorEvent): Message =>
+  Match.value(event).pipe(
+    Match.tag('InsertedBlock', ({ block }) => Message.Inserted({ block })),
+    Match.orElse(message => Message.MenuEdit({ message })),
+  )
+
+const menuOf = (which: FormattingMenu, place: 'toolbar' | 'floating'): Menu =>
+  which === 'style' ? Menu.Style({ place }) : which === 'insert' ? Menu.Insert() : Menu.Link()
 
 const EXPORTS: ReadonlyArray<readonly [format: ExportFormat, description: string]> = [
   ['Markdown', 'Plain text, with # and *'],
@@ -105,22 +166,11 @@ const EXPORTS: ReadonlyArray<readonly [format: ExportFormat, description: string
   ['JSON', 'The document itself'],
 ]
 
-/** The id of the one file field, which the insert menu's File entry is a label for. */
-const FILE_INPUT = 'playground-file'
-
-/** A slash entry's icon, where the set has one. */
-const iconOf = (name: string | undefined): RichTextIconName =>
-  name !== undefined && isRichTextIcon(name) ? name : 'plus'
-
 export const PlaygroundView = SlotView.forMessages<Message>()
   .define(Page.slots, (model: Model, slots, h): Html => {
-    const state = {
-      document: model.document,
-      selection: model.editor.selection,
-      storedMarks: model.editor.storedMarks,
-    }
     const open = openMenu(model)
     const covers = RichText.coversText(model.editor.selection)
+    const sourceOpen = Option.isSome(model.source)
     const tool = (
       name: RichTextIconName,
       title: string,
@@ -153,15 +203,6 @@ export const PlaygroundView = SlotView.forMessages<Message>()
           richTextIcon(h, name),
           ...(label === undefined ? [] : [h.span(slots.toolLabel.attrs(), [label])]),
         ],
-      )
-    const separator = (priority: 'high' | 'low' = 'high') =>
-      h.span(slots.separator.attrs([h.AriaHidden(true), h.DataAttribute('priority', priority)]), [])
-    const markTools = () =>
-      MARKS.map(([mark, name, title, priority]) =>
-        tool(name, title, wrap(EditorMessage.ToggledMark({ mark })), {
-          pressed: markActive(state, mark),
-          priority,
-        }),
       )
     const toggleMenu = (menu: Menu, isOpen: boolean): Message =>
       isOpen ? Message.ClosedMenu() : Message.OpenedMenu({ menu })
@@ -208,62 +249,6 @@ export const PlaygroundView = SlotView.forMessages<Message>()
         h.span(slots.menuLabel.attrs(), [label]),
         h.span(slots.menuDescription.attrs(), [description]),
       ])
-    const styleMenu = (place: 'toolbar' | 'floating') => {
-      const isOpen = open.style === place
-      // Over selected text on a phone, the marks are room enough; the toolbar's menu remains.
-      return h.div(
-        slots.anchor.attrs([h.DataAttribute('priority', place === 'floating' ? 'low' : 'high')]),
-        [
-          StyleMenu(
-            {
-              document: model.document,
-              selection: model.editor.selection,
-              open: isOpen,
-              toggled: toggleMenu(Menu.Style({ place }), isOpen),
-              // A choice closes the menu as it retypes the block.
-              wrap: message => Message.MenuEdit({ message }),
-            },
-            h,
-          ),
-          ...(isOpen ? [dismiss()] : []),
-        ],
-      )
-    }
-
-    // --- the toolbar ---
-    const insertMenu = anchored(
-      tool('plus', 'Insert a block', toggleMenu(Menu.Insert(), open.insert), {
-        pressed: open.insert,
-        label: 'Insert',
-      }),
-      open.insert
-        ? [
-            h.label(slots.menuItem.attrs([h.Role('menuitem'), h.For(FILE_INPUT)]), [
-              richTextIcon(h, 'file'),
-              h.span(slots.menuLabel.attrs(), ['Image, video or file']),
-              h.span(slots.menuDescription.attrs(), ['From your device, up to 8 MB']),
-            ]),
-            ...INSERTS.flatMap(id => {
-              const entry = playgroundSlashEntries.find(each => each.id === id)
-              return entry === undefined
-                ? []
-                : [
-                    menuEntry(
-                      iconOf(entry.icon),
-                      entry.label,
-                      entry.description ?? '',
-                      // A block goes at the top level, beside the caret's; the rest are edits.
-                      Match.value(entry.message).pipe(
-                        Match.tag('InsertedBlock', ({ block }) => Message.Inserted({ block })),
-                        Match.orElse(message => Message.MenuEdit({ message })),
-                      ),
-                    ),
-                  ]
-            }),
-          ]
-        : undefined,
-      { label: 'Insert' },
-    )
     const exportMenu = anchored(
       tool(
         'download',
@@ -281,66 +266,93 @@ export const PlaygroundView = SlotView.forMessages<Message>()
         : undefined,
       { align: 'end', label: 'Export' },
     )
-    const toolbar = h.div(slots.bar.attrs([h.Role('toolbar'), h.AriaLabel('Editor')]), [
-      tool('undo', 'Undo (Ctrl+Z)', wrap(EditorMessage.Undone()), {
-        disabled: !RichText.canUndo(model.editor.history),
-      }),
-      tool('redo', 'Redo (Ctrl+Shift+Z)', wrap(EditorMessage.Redone()), {
-        disabled: !RichText.canRedo(model.editor.history),
-      }),
-      separator(),
-      styleMenu('toolbar'),
-      separator(),
-      ...markTools(),
-      tool('link', 'Link (Ctrl+K)', toggleMenu(Menu.Link(), open.link), {
-        pressed: open.link || RichText.linkAt(model.document, model.editor.selection) !== undefined,
-        disabled: !covers,
-      }),
-      separator(),
-      tool(
-        'bulleted-list',
-        'Bulleted list',
-        wrap(EditorMessage.WrappedBlock({ containers: [{ kind: 'List' }, { kind: 'ListItem' }] })),
-        { priority: 'low' },
+    // One bar for the formatting, and beside it the actions that are the page's own.
+    const appControls: ReadonlyArray<FormattingItem<Message>> = [
+      {
+        control: {
+          id: 'comment',
+          label: 'Comment',
+          icon: 'comment',
+          disabled: !covers,
+          message: Message.StartedComment(),
+        },
+      },
+      {
+        control: {
+          id: 'find',
+          label: 'Find and replace',
+          icon: 'search',
+          shortcut: 'mod+f',
+          pressed: Option.isSome(model.find),
+          message: Message.OpenedFind(),
+        },
+      },
+      {
+        control: {
+          id: 'source',
+          label: 'Source',
+          icon: 'code-block',
+          pressed: sourceOpen,
+          message: sourceOpen ? Message.HidSource() : Message.ShowedSource({ format: 'Markdown' }),
+        },
+      },
+      {
+        control: {
+          id: 'direction',
+          label: 'Right to left',
+          icon: 'paragraph',
+          pressed: model.direction === 'rtl',
+          message: Message.ToggledDirection(),
+        },
+      },
+    ]
+    const formatting = (place: 'toolbar' | 'floating'): Html => {
+      const onToolbar = place === 'toolbar'
+      return (onToolbar ? Bar : SelectionBar)(
+        {
+          id: onToolbar ? 'bar' : 'selection',
+          document: model.document,
+          selection: model.editor.selection,
+          storedMarks: model.editor.storedMarks,
+          wrap: barEdit,
+          items: onToolbar ? barItems(appControls) : SELECTION_ITEMS,
+          history: {
+            undo: RichText.canUndo(model.editor.history),
+            redo: RichText.canRedo(model.editor.history),
+          },
+          menu:
+            open.style === place
+              ? 'style'
+              : open.link
+                ? 'link'
+                : open.insert && onToolbar
+                  ? 'insert'
+                  : undefined,
+          toggled: (which, isOpen) =>
+            isOpen ? Message.OpenedMenu({ menu: menuOf(which, place) }) : Message.ClosedMenu(),
+          inserts,
+          roving: { current: Option.getOrNull(model.tabStop) },
+          onFocus: id => Message.FocusedControl({ id }),
+          shortcuts: SHORTCUTS,
+          words: onToolbar ? undefined : { toolbar: 'Selection' },
+          direction: model.direction,
+        },
+        h,
+      )
+    }
+    const toolbar = h.div(slots.bar.attrs(), [
+      formatting('toolbar'),
+      h.div(slots.barActions.attrs([h.Role('group'), h.AriaLabel('Export')]), [exportMenu]),
+      h.input(
+        slots.file.attrs([
+          h.Id(FILE_INPUT),
+          h.Type('file'),
+          h.Tabindex(-1),
+          h.AriaHidden(true),
+          h.OnMount(filePicker()),
+        ]),
       ),
-      tool(
-        'numbered-list',
-        'Numbered list',
-        wrap(
-          EditorMessage.WrappedBlock({
-            containers: [{ kind: 'List', props: { ordered: true } }, { kind: 'ListItem' }],
-          }),
-        ),
-        { priority: 'low' },
-      ),
-      tool(
-        'checklist',
-        'Checklist',
-        wrap(
-          EditorMessage.WrappedBlock({
-            containers: [{ kind: 'List' }, { kind: 'TaskItem', props: { checked: false } }],
-          }),
-        ),
-        { priority: 'low' },
-      ),
-      tool(
-        'quote',
-        'Quote',
-        wrap(EditorMessage.WrappedBlock({ containers: [{ kind: 'Quote' }] })),
-        { priority: 'low' },
-      ),
-      separator('low'),
-      insertMenu,
-      tool('comment', 'Comment on the selection', Message.StartedComment(), {
-        disabled: !covers,
-        priority: 'low',
-      }),
-      h.span(slots.spacer.attrs(), []),
-      tool('search', 'Find and replace (Ctrl+F)', Message.OpenedFind(), {
-        pressed: Option.isSome(model.find),
-      }),
-      exportMenu,
-      h.input(slots.file.attrs([h.Id(FILE_INPUT), h.Type('file'), h.OnMount(filePicker())])),
+      ...(open.style === 'toolbar' || open.insert ? [dismiss()] : []),
     ])
     const findBar = Option.match(model.find, {
       onNone: () => [],
@@ -371,8 +383,8 @@ export const PlaygroundView = SlotView.forMessages<Message>()
         ? [
             h.div(
               slots.floating.attrs([
-                h.Role('toolbar'),
-                h.AriaLabel('Selection'),
+                h.Role('group'),
+                h.AriaLabel('Selection actions'),
                 h.OnMount(selectionAnchor({ hostId, gap: 8 })),
               ]),
               open.link
@@ -392,15 +404,9 @@ export const PlaygroundView = SlotView.forMessages<Message>()
                     tool('close', 'Close', Message.ClosedMenu()),
                   ]
                 : [
-                    styleMenu('floating'),
-                    separator('low'),
-                    ...markTools(),
-                    separator(),
-                    tool('link', 'Link (Ctrl+K)', Message.OpenedMenu({ menu: Menu.Link() }), {
-                      pressed:
-                        RichText.linkAt(model.document, model.editor.selection) !== undefined,
-                    }),
+                    formatting('floating'),
                     tool('comment', 'Comment', Message.StartedComment()),
+                    ...(open.style === 'floating' ? [dismiss()] : []),
                   ],
             ),
           ]
@@ -481,7 +487,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
     return AppShell.view(
       { title: 'Rich text playground', actions: [reset], style: ShellStyle },
       [
-        h.div(slots.page.attrs([h.OnMount(findShortcut())]), [
+        h.div(slots.page.attrs([h.Dir(model.direction), h.OnMount(findShortcut())]), [
           h.p(slots.lede.attrs(), [
             'One document to try foldkit-richtext on: blocks to move, text to discuss, tables, code, media and footnotes. Type / to add anything.',
           ]),
@@ -546,6 +552,32 @@ export const PlaygroundView = SlotView.forMessages<Message>()
               ),
               discussions(model, slots, h),
             ]),
+            ...Option.match(model.source, {
+              onNone: () => [],
+              onSome: format => [
+                h.section(slots.source.attrs([h.AriaLabel('Source')]), [
+                  h.div(slots.actions.attrs([h.Role('group'), h.AriaLabel('Source format')]), [
+                    ...ExportFormat.literals.map(each =>
+                      h.button(
+                        slots.tool.attrs([
+                          h.Type('button'),
+                          h.AriaPressed(each === format ? 'true' : 'false'),
+                          h.OnClick(Message.ShowedSource({ format: each })),
+                        ]),
+                        [each],
+                      ),
+                    ),
+                    h.button(slots.tool.attrs([h.Type('button'), h.OnClick(Message.HidSource())]), [
+                      'Hide',
+                    ]),
+                  ]),
+                  // Left to right whatever the page's direction: it is code, not prose.
+                  h.pre(slots.sourceText.attrs([h.Dir('ltr'), h.Tabindex(0)]), [
+                    sourceOf(model.document, format),
+                  ]),
+                ]),
+              ],
+            }),
             h.footer(slots.footer.attrs(), [
               Status({ document: model.document }, h),
 

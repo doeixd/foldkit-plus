@@ -54,3 +54,19 @@ test('a saved layout naming a column no longer here keeps the rest', () => {
   // Something that is no layout at all opens the page as declared.
   expect(init(10, Option.some('nonsense')).model.grid.columns).toEqual(init(10).model.grid.columns)
 })
+
+test('a narrow screen starts with narrower columns, and a saved layout still wins', () => {
+  const widthOf = (model: ReturnType<typeof init>['model'], column: 'upc' | 'description') =>
+    Grid.columnState.widthOf(model.grid.columns)(column)
+  const narrow = init(10, Option.none(), true).model
+  expect([widthOf(narrow, 'upc'), widthOf(narrow, 'description')]).toEqual([124, 200])
+  expect(widthOf(init(10).model, 'upc')).toBe(150)
+
+  // 140 is neither the declared 150 nor the phone's 124, so only the save can explain it.
+  const saved = update(
+    init(10).model,
+    Message.GotGridMessage({ message: Grid.Message.ColumnResized({ column: 'upc', width: 140 }) }),
+  )
+  const reopened = init(10, Option.some(JSON.parse(JSON.stringify(saved.model.grid.columns))), true)
+  expect(widthOf(reopened.model, 'upc')).toBe(140)
+})

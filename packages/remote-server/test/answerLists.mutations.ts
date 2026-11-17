@@ -89,8 +89,8 @@ export default [
     edits: [
       {
         file,
-        find: 'answerUnread(payload.mutation, `list "${request.query}": ${error.message}`)',
-        replace: 'answerUnread(payload.mutation, error.message)',
+        find: 'answerUnread(payload.mutation, `list "${request.query}": ${reasonOf(error)}`)',
+        replace: 'answerUnread(payload.mutation, reasonOf(error))',
       },
     ],
     tests,

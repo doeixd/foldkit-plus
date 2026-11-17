@@ -34,8 +34,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/listbox.ts',
-        find: "    Style.self({ background: ref.surface.field, borderColor: 'transparent' }),\n    invalidEdge,",
-        replace: "    Style.self({ background: ref.surface.field, borderColor: 'transparent' }),",
+        find: '    filledHover,\n    invalidEdge,',
+        replace: '    filledHover,',
       },
     ],
     tests,

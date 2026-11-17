@@ -13,6 +13,7 @@
  */
 import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
+import { CONTROLS_ATTRIBUTE } from 'foldkit-richtext-dom/toolbar'
 import { isRichTextIcon, richTextIcon } from './icons.js'
 import { slashMenu, type SlashEntry } from './slash.js'
 
@@ -78,7 +79,7 @@ export const slashMenuView = <Message>(): SlotView.SlotView<
         ? [h.div(slots.heading.attrs([h.Role('presentation')]), [entry.group]), item(entry, index)]
         : [item(entry, index)],
     )
-    return h.div(slots.root.attrs(), [
+    return h.div(slots.root.attrs([h.Attribute(CONTROLS_ATTRIBUTE, '')]), [
       matches.length === 0
         ? h.p(slots.empty.attrs(), ['No matches'])
         : h.div(slots.list.attrs([h.Role('menu'), h.AriaLabel('Insert')]), rows),

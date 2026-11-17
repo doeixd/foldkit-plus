@@ -486,21 +486,29 @@ describe('DataGridView', () => {
       qty: { header: 'Qty', value: item => item.qty, width: 80 },
     })
     const Editing = DataGrid.make({ id: 'editing', columns: editing })
-    const drawn = Inert.draw(DataGridView<typeof Editing.Message.Type>().define(Editing), {
-      state: {
-        ...Editing.bundle.init(undefined).model,
-        viewport: { top: 0, left: 0, width: 400, height: 120 },
-      },
-      rows: allRows,
-      wrap: message => message,
-      label: 'Editing',
-      rowHeight: 20,
-      headerHeight: 20,
-    })
+    const drawWith = (words: { readonly readOnly?: string }) =>
+      Inert.draw(DataGridView<typeof Editing.Message.Type>().define(Editing), {
+        state: {
+          ...Editing.bundle.init(undefined).model,
+          viewport: { top: 0, left: 0, width: 400, height: 120 },
+        },
+        rows: allRows,
+        wrap: message => message,
+        label: 'Editing',
+        rowHeight: 20,
+        headerHeight: 20,
+        words,
+      })
+    const drawn = drawWith({})
     const readOnly = (root: ReturnType<typeof draw>, role: string) =>
       Inert.byRole(root, role).map(node => Inert.value(node, 'aria-readonly') ?? '-')
     expect(readOnly(drawn, 'columnheader')).toEqual(['true', '-', 'true'])
     expect(readOnly(drawn, 'gridcell').slice(0, 3)).toEqual(['true', '-', 'true'])
+    // The tooltip says it in the application's words, and only on the columns that do not edit.
+    const titles = (root: ReturnType<typeof draw>) =>
+      Inert.byRole(root, 'columnheader').map(node => Inert.value(node, 'title') ?? '-')
+    expect(titles(drawn)).toEqual(['Read-only', '-', 'Read-only'])
+    expect(titles(drawWith({ readOnly: 'Nur lesen' }))).toEqual(['Nur lesen', '-', 'Nur lesen'])
     // A grid where nothing edits is plainly read-only, and marks no column so.
     expect(readOnly(draw(input()), 'columnheader').every(value => value === '-')).toBe(true)
     expect(readOnly(draw(input()), 'gridcell').every(value => value === '-')).toBe(true)

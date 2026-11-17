@@ -31,7 +31,27 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // Worker renders the page, so it carries this branch's kept `WindowList` growth (the focus-holding
 // row, reveal, find-in-page stand-ins) and the widgets' source as main's primitives reshaped them;
 // not bisected between the two. Ceiling raised to the reading, rounded up.
-const CEILING = 3_273_000
+// +1,500 on 2026-11-15, the widget round on this branch: 3,274,129 against 3,271,654 for main
+// (ab3421ba6) in fresh builds of both, +2,475 raw. It read 3,292,532 until two fixes: the
+// Sheet's handle keys took `Behaviors.Keys` and `RovingTabindex` into every page that draws a
+// Sheet, one-point sheets included (-11.8 kB), and the Select
+// and Listbox recipes imported `filledHover` from recipes/field.js, which brought the Input and
+// Textarea recipes and their slots (input.js, textarea.js) into a Worker that draws neither
+// (-6.6 kB). What remains, by module (raw): sheet.js +1,582 (the handle's key handler and
+// separator attributes, and `SnappedTo`), unmapped +429 and recipes/design.js +204 (`filledHover`),
+// attr.js +115 and dialog.js +104 (the handle's slot attributes). Ceiling raised to the reading,
+// rounded up.
+// +7,500 on 2026-11-16: measured 3,281,613 at 028970eaf. Measured parts: +533 for `evaluate`
+// refusing an uncollated text order (#569, with and without in one tree) and +2,465 for the
+// mutation answer cut to what its caller may read (#578, `readablePatches`, measured against
+// the commit before it). The other 4,100 or so is the server's error path from #573 and #575
+// (`tell`, `report`, incident ids, the fixed 401 and 403 reasons, and their doc comments, which
+// count here), not bisected commit by commit. Ceiling raised to the reading, rounded up.
+// +500 on 2026-11-17: measured 3,282,293. The popup rows' inks now come from their panel
+// (three `popup.plain-*` tokens and the panel's private properties, 73212841e), which the
+// Worker's rendered page carries: 286 of it by a build without the default-look changes,
+// 7 more with them.
+const CEILING = 3_282_500
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

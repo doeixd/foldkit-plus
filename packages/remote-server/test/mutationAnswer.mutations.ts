@@ -89,7 +89,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'Diagnostics.report(answerUnread(payload.mutation, error.message)).pipe(',
+        find: 'Diagnostics.report(answerUnread(payload.mutation, reasonOf(error))).pipe(',
         replace: 'Effect.void.pipe(',
       },
     ],

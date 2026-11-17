@@ -24,7 +24,8 @@ const Activate = BundleBehavior.fromBundle(Button)(CardSlots)<CardInput, Message
   action: {
     requires: { capability: Capability.Interactive },
     attributes: ({ send }) => {
-      const message: Message = send(Press.Message.Clicked({ detail: 1, shiftKey: false }))
+      const none = { shiftKey: false, ctrlKey: false, metaKey: false, altKey: false }
+      const message: Message = send(Press.Message.Clicked({ detail: 1, modifiers: none }))
       void message
       return []
     },

@@ -167,4 +167,15 @@ export default [
     ],
     tests: unit,
   },
+  {
+    name: 'a framed text takes the filled hover fill under the pointer',
+    edits: [
+      {
+        file: recipe,
+        find: '        Style.nest(`:is([data-textarea-frame]) > &${HOVERED}:not(:has(:disabled))`, {',
+        replace: '        Style.nest(`:is([data-textarea-frame]) > &:focus`, {',
+      },
+    ],
+    tests: browser,
+  },
 ]

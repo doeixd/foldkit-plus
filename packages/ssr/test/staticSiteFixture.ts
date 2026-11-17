@@ -4,12 +4,12 @@
  * caller passes its own directory, since test files may build in parallel.
  */
 import { join } from 'node:path'
-import { build } from 'vite'
+import { build, type PluginOption } from 'vite'
 import { staticSite } from 'foldkit-ssr/vite'
 import { dir } from './fixtureDir.js'
 import { buildId } from './fixture-site/src/app.js'
 
-export const buildFixtureSite = async (outDir: string): Promise<string> => {
+export const buildFixtureSite = async (outDir: string, plugins?: PluginOption): Promise<string> => {
   await build({
     configFile: false,
     root: dir,
@@ -18,7 +18,12 @@ export const buildFixtureSite = async (outDir: string): Promise<string> => {
     define: { 'import.meta.env.FOLDKIT_BUILD_ID': JSON.stringify(buildId) },
     resolve: { conditions: ['foldkit-plus:source'] },
     build: { outDir, emptyOutDir: true },
-    plugins: [staticSite({ site: { module: '/src/site.ts' } })],
+    plugins: [
+      staticSite({
+        site: { module: '/src/site.ts' },
+        ...(plugins === undefined ? {} : { plugins }),
+      }),
+    ],
   })
   return join(dir, outDir)
 }

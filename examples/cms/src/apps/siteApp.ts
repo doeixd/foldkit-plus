@@ -28,8 +28,8 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import { Url } from 'foldkit/url'
-import { ORIGIN, Post, PostPage, Posts, PostById, RecentPosts } from '../content/domain.js'
-import { Page, Pages, PublishedPages } from '../content/pageDomain.js'
+import { ORIGIN, Post, PostPage, PostById, PostsBySlug, RecentPosts } from '../content/domain.js'
+import { Page, PagesBySlug, PublishedPages } from '../content/pageDomain.js'
 import { PostCard, Site as Kit } from '../content/site.js'
 import {
   Route,
@@ -66,14 +66,7 @@ export const App = Surface.application({ Model, Message })
 export const Data = Remote.make({
   model: App.model.remote,
   entities: [Post, Page, ...Object.values(Cms.Entities)],
-  queries: [
-    Cms.Entries,
-    Cms.bySlug(Posts),
-    Cms.bySlug(Pages),
-    RecentPosts,
-    PostById,
-    PublishedPages,
-  ],
+  queries: [Cms.Entries, PostsBySlug, PagesBySlug, RecentPosts, PostById, PublishedPages],
   mutations: [],
   // Off in a build; `tsx` has no `import.meta.env`.
   verifyPredictions: import.meta.env?.DEV === true,
@@ -84,14 +77,14 @@ const PageRead = Entity.select(Page, { title: true, slug: true, document: true }
 /** The page the address names, read by its slug; none on another route. */
 export const pageRead = (model: Model) =>
   Option.map(pageSlugOf(model.route), slug =>
-    Data.query(Cms.bySlug(Pages), { slug }, { select: PageRead, first: 1 }),
+    Data.query(PagesBySlug, { slug }, { select: PageRead, first: 1 }),
   )
 
 /** The post the address names. */
 export const postRead = (model: Model) =>
   Match.value(model.route).pipe(
     Match.tag('Post', ({ slug }) =>
-      Option.some(Data.query(Cms.bySlug(Posts), { slug }, { select: PostPage, first: 1 })),
+      Option.some(Data.query(PostsBySlug, { slug }, { select: PostPage, first: 1 })),
     ),
     Match.orElse(() => Option.none()),
   )

@@ -206,8 +206,8 @@ export default [
     edits: [
       {
         file: view,
-        find: '...PANEL_KEYS.map(key =>',
-        replace: '...([] as unknown as typeof PANEL_KEYS).map(key =>',
+        find: 'PANEL_KEYS.map(key =>',
+        replace: '([] as unknown as typeof PANEL_KEYS).map(key =>',
       },
     ],
     tests,
@@ -228,9 +228,9 @@ export default [
     edits: [
       {
         file: view,
-        find: 'Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {\n        on: [...Behaviors.Keys.withShift(key)],',
+        find: 'Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {\n      on: [...Behaviors.Keys.withShift(key)],',
         replace:
-          'Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {\n        on: [Behaviors.Keys.chord(key)],',
+          'Behaviors.Keys.route<NavEntry, Message>(`Nav ${key}`, {\n      on: [Behaviors.Keys.chord(key)],',
       },
     ],
     tests: unit,
@@ -242,6 +242,34 @@ export default [
         file: view,
         find: 'Option.fromNullishOr(id === undefined ? undefined : panelAt.get(id))',
         replace: 'Option.some(0)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row key moves focus in a Command, which a key before it ran does not wait for',
+    edits: [
+      {
+        file: view,
+        find: `            Behaviors.Keys.focus(
+              entryId(model.id, target(index, count, move)),
+              onMessage(Message.CompletedFocus()),
+            ),`,
+        replace: '            onMessage(Message.MovedTop({ from: index, count, move })),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a panel link key moves focus in a Command, which a key before it ran does not wait for',
+    edits: [
+      {
+        file: view,
+        find: `                Behaviors.Keys.focus(
+                  panelLinkId(model.id, entry, target(from, count, move)),
+                  onMessage(Message.CompletedFocus()),
+                ),`,
+        replace: '                onMessage(Message.MovedInPanel({ entry, from, count, move })),',
       },
     ],
     tests,

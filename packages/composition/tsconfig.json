@@ -26,6 +26,8 @@
       "foldkit-mixins/prose": ["../mixins/src/prose.ts"],
       "foldkit-mixins/testing": ["../mixins/src/testing.ts"],
       "foldkit-mixins/theme": ["../mixins/src/theme.ts"],
+      "foldkit-mixins/theme/knob-data": ["../mixins/src/theme/knobData.ts"],
+      "foldkit-mixins/theme/runtime": ["../mixins/src/theme/runtime.ts"],
       "foldkit-mixins/utilities": ["../mixins/src/utilities.ts"],
       "foldkit-mixins/vite": ["../mixins/src/vite.ts"],
       "foldkit-react": ["../react/src/index.ts"],

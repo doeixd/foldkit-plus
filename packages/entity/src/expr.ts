@@ -19,6 +19,7 @@ import type { Law, Side } from './law.js'
 import { Laws, lawKind } from './lawCore.js'
 import { now, viewer, type NowExpr, type ViewerExpr, type ViewerPathExpr } from './context.js'
 import { own, put } from './record.js'
+import { uncollatedText } from './uncollated.js'
 import { variantsOf } from './variants.js'
 import { EntityTypeId } from './ids.js'
 import type { Refinement } from './refine.js'
@@ -2334,18 +2335,6 @@ export type Placement =
 const placeable: Placement = Object.freeze({ _tag: 'Placeable' })
 const notPlaceable = (reason: string): Placement => Object.freeze({ _tag: 'NotPlaceable', reason })
 
-/**
- * Whether values encoded by `ast` order the same everywhere: numbers and
- * booleans, never text. A null among them does too: where it goes is said on
- * every order term.
- */
-const ordersIntrinsically = (ast: SchemaAST.AST): boolean =>
-  SchemaAST.isNumber(ast) ||
-  SchemaAST.isBoolean(ast) ||
-  (SchemaAST.isLiteral(ast) && typeof ast.literal !== 'string') ||
-  (SchemaAST.isUnion(ast) &&
-    ast.types.every(member => SchemaAST.isNull(member) || ordersIntrinsically(member)))
-
 /** Why a term cannot be placed by a client running `operators`, if it cannot. */
 const unplaceable = (orderTerm: OrderTerm, operators: OperatorTable): Option.Option<string> =>
   Match.value(orderTerm.expr).pipe(
@@ -2361,12 +2350,7 @@ const unplaceable = (orderTerm: OrderTerm, operators: OperatorTable): Option.Opt
     }),
     Match.tag('Field', field =>
       Option.match(orderTerm.collation, {
-        onNone: () =>
-          ordersIntrinsically(Schema.toEncoded(field.schema).ast)
-            ? Option.none()
-            : Option.some(
-                `it orders by ${field.owner.name}.${field.key}, text with no declared collation`,
-              ),
+        onNone: () => uncollatedText(orderTerm),
         onSome: collation =>
           Match.value(collation).pipe(
             Match.tagsExhaustive({

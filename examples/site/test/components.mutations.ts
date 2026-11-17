@@ -12,10 +12,44 @@ const pages = ['examples/site/test/prerender.test.ts']
 
 export default [
   {
+    name: 'a page whose notes link a README heading that is not there',
+    edits: [
+      {
+        file: '../src/gallery/notes.ts',
+        find: "heading: 'Image',",
+        replace: "heading: 'Pictures',",
+        all: true,
+      },
+    ],
+    tests: ['examples/site/test/notes.test.ts'],
+  },
+  {
+    name: 'the Drawer notes link a README heading that is not there',
+    edits: [
+      {
+        file: '../src/gallery/notes.ts',
+        find: "heading: 'Sheet and Drawer',",
+        replace: "heading: 'Drawers',",
+      },
+    ],
+    tests: ['examples/site/test/notes.test.ts'],
+  },
+  {
+    name: 'a preview left live before the page is taken over',
+    edits: [
+      {
+        file: '../src/view/components.ts',
+        find: "size !== 'thumb' && !model.addressRead",
+        replace: 'false',
+      },
+    ],
+    tests: ['examples/site/test/busy.test.ts'],
+  },
+  {
     name: 'an example forgets the values it pins',
     edits: [
       {
-        file: '../src/gallery/showcases.ts',
+        file: '../src/gallery/define.ts',
         find: 'drawExample(styleOf({ ...selection, ...pins }), live)',
         replace: 'drawExample(styleOf(selection), live)',
       },
@@ -26,7 +60,7 @@ export default [
     name: 'a picked value the recipe does not have reaches it',
     edits: [
       {
-        file: '../src/gallery/showcases.ts',
+        file: '../src/gallery/showcase.ts',
         find: 'picked !== undefined && axis.values.includes(picked)',
         replace: 'picked !== undefined',
       },
@@ -37,7 +71,7 @@ export default [
     name: "a picked value read through the selection's prototype",
     edits: [
       {
-        file: '../src/gallery/showcases.ts',
+        file: '../src/gallery/showcase.ts',
         find: 'Object.hasOwn(selection, axis.name) ? selection[axis.name] : undefined',
         replace: 'selection[axis.name]',
       },
@@ -48,7 +82,7 @@ export default [
     name: 'every value named in the code, the defaults too',
     edits: [
       {
-        file: '../src/gallery/showcases.ts',
+        file: '../src/gallery/showcase.ts',
         find: "value === axis.initial ? [] : [`${axis.name}: '${value}'`]",
         replace: "[`${axis.name}: '${value}'`]",
       },
@@ -241,5 +275,50 @@ export default [
       },
     ],
     tests: ['examples/site/test/components.test.ts'],
+  },
+  {
+    name: 'the decorative image is described anyway',
+    edits: [
+      {
+        file: '../src/snippets/components.ts',
+        find: 'alt: Image.decorative,',
+        replace: "alt: 'Dunes under a pale sun',",
+      },
+    ],
+    tests: ['examples/site/test/showcases.test.ts'],
+  },
+  {
+    name: 'the ornamental icon is given a name',
+    edits: [
+      {
+        file: '../src/snippets/components.ts',
+        find: "Icon.view({ icon: icons.copy, key: 'copy', style }, h)",
+        replace: "Icon.view({ icon: icons.copy, key: 'copy', label: 'Copy', style }, h)",
+      },
+    ],
+    tests: ['examples/site/test/showcases.test.ts'],
+  },
+  {
+    name: 'the fieldset’s description is drawn without its id',
+    edits: [
+      {
+        file: '../src/snippets/components.ts',
+        find: 'h.p(description, [',
+        replace: 'h.p([], [',
+      },
+    ],
+    tests: ['examples/site/test/showcases.test.ts'],
+  },
+  {
+    name: 'the refused code is not marked invalid',
+    edits: [
+      {
+        file: '../src/snippets/components.ts',
+        find: `value: codes.refused,
+          invalid: true,`,
+        replace: `value: codes.refused,`,
+      },
+    ],
+    tests: ['examples/site/test/showcases.test.ts'],
   },
 ]

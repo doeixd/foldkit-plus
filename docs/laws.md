@@ -64,7 +64,9 @@ declaration (data) -> every reader of it -> the owner decides where the state ch
 ```
 
 The server's writer is the owner of a stored row. The client, a form and Crud
-only read the same declaration to say something early. What they say is a
+only read the same declaration to say something early. Each rule below is
+written in `Expr`, the language [Expressions](./expressions.md) teaches, and
+[One domain declaration](./entity.md) shows the kinds together in one domain. What they say is a
 hint over what is held; a hint that cannot decide (a field it has not read)
 refuses nothing, and the server judges.
 

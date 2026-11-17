@@ -1,36 +1,8 @@
-import { Style } from 'foldkit-mixins'
-import { FOLDKIT_APP_ATTRIBUTE, SSR } from 'foldkit-ssr/client'
+/**
+ * The browser's entry: the first application takes every page over except the
+ * component pages and the theme creator, which the second takes (`main.ts`).
+ * Each is a chunk of its own, so a guide loads none of the previews' code.
+ */
+import { isComponentPath } from './paths.js'
 
-import { browserLibrary } from './library.js'
-import { Message, Model, initial, plan, subscriptions, update, viewWith } from './main.js'
-import { stylesheet } from './style.js'
-
-// A page the build rendered carries the stylesheet in its head already, which
-// `install` finds and keeps; the dev server's empty page is given it here.
-Style.install(stylesheet)
-
-// `#root` is where a page without a server render draws, such as the source
-// `index.html` opened without the dev server; a rendered page replaced it with
-// the application's own root.
-const container =
-  document.getElementById('root') ??
-  document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
-if (container === null) throw new Error('the page has no #root and no rendered application')
-
-// The browser starts from the Model the page carries, not from `init`, and
-// draws no static region: they are all in the page. The build's id is the
-// deployment `FOLDKIT_BUILD_ID` named, compiled into this bundle and into the
-// server entry by the `foldkit` Vite plugin.
-SSR.hydrate(
-  {
-    Model,
-    init: () => ({ model: initial }),
-    update,
-    view: viewWith(browserLibrary),
-    subscriptions,
-    container,
-    devTools: { Message },
-  },
-  plan,
-  { buildId: import.meta.env.FOLDKIT_BUILD_ID },
-)
+await (isComponentPath(location.pathname) ? import('./entryGallery.js') : import('./entryShell.js'))

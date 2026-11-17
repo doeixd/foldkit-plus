@@ -28,7 +28,8 @@ import {
   update,
   type Model,
 } from '../src/apps/app.js'
-import { PostForm } from '../src/content/domain.js'
+import { PostForm } from '../src/content/postForm.js'
+import { writeBody } from '../src/demo/postDemo.js'
 import type { Principal } from '../src/server/server.js'
 import { Studio } from '../src/views/view.js'
 
@@ -58,6 +59,12 @@ const button = (tree: Html, id: string) =>
   Inert.all(tree).find(node => node.sel === 'button' && Inert.value(node, 'id') === id)
 
 const postFields = ['id', 'title', 'slug', 'excerpt', 'cover', 'body', 'publishedAt']
+
+/** Writes the body through the editor's own Messages, as a writer's keys do. */
+const writeBodyOf = async (harness: ReturnType<typeof setup>['harness'], text: string) => {
+  for (const message of writeBody(harness.model().editor.form, text))
+    await harness.send(Message.GotEditorMessage({ message }))
+}
 
 describe('the posts’ editor', () => {
   it('shows a still-loading preview as loading, not as an empty draft', () => {
@@ -147,11 +154,7 @@ describe('the posts’ editor', () => {
   it('disables Publish while the form cannot be submitted', async () => {
     const { harness, look } = setup()
     await harness.send(Message.StartedPost({ entry: 'entry-gated' }))
-    await harness.send(
-      Message.GotEditorMessage({
-        message: PostForm.Message.Changed({ key: 'body', value: 'A first post.' }),
-      }),
-    )
+    await writeBodyOf(harness, 'A first post.')
     await look()
     // Saved as New, but the title is empty: the form cannot submit.
     expect(PostForm.canSubmit(harness.model().editor.form)).toBe(false)
@@ -194,14 +197,12 @@ describe('the schedule box', () => {
   const ready = async () => {
     const { harness, look } = setup()
     await harness.send(Message.StartedPost({ entry: 'entry-later' }))
-    for (const [key, value] of [
-      ['title', 'Later'],
-      ['body', 'Soon.'],
-    ] as const) {
-      await harness.send(
-        Message.GotEditorMessage({ message: PostForm.Message.Changed({ key, value }) }),
-      )
-    }
+    await harness.send(
+      Message.GotEditorMessage({
+        message: PostForm.Message.Changed({ key: 'title', value: 'Later' }),
+      }),
+    )
+    await writeBodyOf(harness, 'Soon.')
     await look()
     /** Sends `message` and keeps its Commands: the schedule is on its way. */
     const hold = (message: Message) => {
@@ -292,14 +293,12 @@ describe('the schedule box', () => {
   /** A post of its own, started through the Message that opens a new one. */
   const startPost = async ({ harness, look }: Awaited<ReturnType<typeof ready>>, entry: string) => {
     await harness.send(Message.StartedPost({ entry }))
-    for (const [key, value] of [
-      ['title', entry],
-      ['body', 'Soon.'],
-    ] as const) {
-      await harness.send(
-        Message.GotEditorMessage({ message: PostForm.Message.Changed({ key, value }) }),
-      )
-    }
+    await harness.send(
+      Message.GotEditorMessage({
+        message: PostForm.Message.Changed({ key: 'title', value: entry }),
+      }),
+    )
+    await writeBodyOf(harness, 'Soon.')
     await look()
   }
 

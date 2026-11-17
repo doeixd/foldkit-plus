@@ -164,6 +164,19 @@ const inputsOf = (
 /** A relational `Query` over one Entity, as `Query.define`'s body returns. */
 type RelationalQueryOf<E extends AnyEntity> = ReturnType<typeof RelationalQuery.from<E>>
 
+/**
+ * What `Query.define` returns: a descriptor whose `body` is always there and
+ * typed as built, so it passes to `evaluate`, `Query.show` and the like without
+ * a check. Still a `QueryDescriptor` wherever one is taken.
+ */
+export interface DefinedQuery<
+  Name extends string,
+  Input,
+  E extends AnyEntity,
+> extends QueryDescriptor<Name, Input, ConnectionSpec<E['name']>> {
+  readonly body: RelationalQueryOf<E>
+}
+
 // Built in a call marked pure: a spread object literal is kept as if reading it could
 // do something, and with it `define` and the body capability it installs (#378).
 export const Query = /* @__PURE__ */ (() => ({
@@ -227,9 +240,9 @@ export const Query = /* @__PURE__ */ (() => ({
    * )
    * ```
    *
-   * What comes back is an ordinary `QueryDescriptor` — the same name, `Input`,
-   * `ref` and connection identity `Query.make` gives — carrying its `body`
-   * besides. A server can compile that body instead of being told the same
+   * What comes back is a `DefinedQuery`, an ordinary `QueryDescriptor` — the
+   * same name, `Input`, `ref` and connection identity `Query.make` gives — whose
+   * `body` is always present and typed as built. A server can compile that body instead of being told the same
    * thing again in its own dialect, and one that would rather answer the query
    * its own way still can.
    *
@@ -246,7 +259,7 @@ export const Query = /* @__PURE__ */ (() => ({
       /** See `QueryDescriptor.cache`. */
       readonly cache?: CacheOptions | undefined
     },
-  ): QueryDescriptor<Name, TypeOf<Input>, ConnectionSpec<E['name']>> => {
+  ): DefinedQuery<Name, TypeOf<Input>, E> => {
     const schema = schemaOf(Input)
     const built = body({ input: inputsOf(name, schema) as QueryInputs<TypeOf<Input>> })
     const descriptor = Query.make(name, {

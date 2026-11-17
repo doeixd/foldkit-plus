@@ -16,8 +16,8 @@ import { Message, Model, initialModel, reinstalled, update, type Shared } from '
  * initial Model; everything that replays (the durable Messages and their update) is the
  * same for every session.
  */
-const application = (session: string) =>
-  Surface.application({ Model, Message, initial: initialModel(session), update })
+const application = (session: string, narrow = false) =>
+  Surface.application({ Model, Message, initial: initialModel(session, narrow), update })
 
 const contractFor = (App: ReturnType<typeof application>) =>
   forApplication(App).make({
@@ -56,12 +56,15 @@ export const mountPages = (
   options: {
     readonly container: HTMLElement
     readonly view: (model: Model, h: HtmlBuilder<Message>) => Document
+    /** Whether the window is `NARROW` now, for the first drawing. */
+    readonly narrow: boolean
   },
 ): Mounted<Model, Message, Shared> => {
-  const App = application(session)
+  const App = application(session, options.narrow)
   return mount(App, contractFor(App), {
     replica,
     onReinstall: reinstalled,
-    ...options,
+    container: options.container,
+    view: options.view,
   })
 }

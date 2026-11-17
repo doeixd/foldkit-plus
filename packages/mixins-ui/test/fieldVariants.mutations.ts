@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "borderColor: 'transparent' }),\n  Style.pseudo('[aria-invalid=\"true\"]', { borderColor: ref.error.outline }),",
-        replace: "borderColor: 'transparent' }),",
+        find: 'filledHover,\n  Style.pseudo(\'[aria-invalid="true"]\', { borderColor: ref.error.outline }),',
+        replace: 'filledHover,',
       },
     ],
     tests,

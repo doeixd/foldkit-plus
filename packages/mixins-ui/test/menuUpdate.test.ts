@@ -16,10 +16,24 @@ import { attributeOf } from './fixture.js'
 
 // Two submenus, so opening one has another to leave shut.
 const ROWS: ReadonlyArray<Menu.Row> = [
-  { label: 'New tab' },
-  { label: 'Share', items: ['Email', 'Messages'] },
-  { label: 'Export', items: ['PDF', 'PNG'] },
-  { label: 'Print' },
+  { value: 'New tab', label: 'New tab' },
+  {
+    value: 'Share',
+    label: 'Share',
+    items: [
+      { value: 'Email', label: 'Email' },
+      { value: 'Messages', label: 'Messages' },
+    ],
+  },
+  {
+    value: 'Export',
+    label: 'Export',
+    items: [
+      { value: 'PDF', label: 'PDF' },
+      { value: 'PNG', label: 'PNG' },
+    ],
+  },
+  { value: 'Print', label: 'Print' },
 ]
 const shut = Menu.init('file', ROWS)
 const SHARE = 1
@@ -36,6 +50,10 @@ const press = (model: Menu.Model, key: 'ArrowRight' | 'ArrowLeft' | 'Tab') =>
 const open = (model: Menu.Model) => model.submenus.map(sub => sub.menu.isOpen)
 const sub = (model: Menu.Model, row: number) => model.submenus.find(each => each.row === row)
 
+/** A menu of `rows` open with `row` active. */
+const onRowsOf = (rows: ReadonlyArray<Menu.Row>, row = 0) =>
+  menu(Menu.init('twins', rows), UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(row) }))
+    .model
 /** The menu open with `row` active, as the keys leave it. */
 const onRow = (row: number) =>
   menu(shut, UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(row) })).model
@@ -44,11 +62,11 @@ const shareOpen = press(onRow(SHARE), 'ArrowRight').model
 
 describe('Menu.update', () => {
   it('keeps one shut submenu per row with items, at its row', () => {
-    expect(shut.submenus.map(each => [each.row, each.label, each.menu.id])).toEqual([
+    expect(shut.submenus.map(each => [each.row, each.value, each.menu.id])).toEqual([
       [SHARE, 'Share', 'file-sub-1'],
       [EXPORT, 'Export', 'file-sub-2'],
     ])
-    expect(Menu.init('plain', [{ label: 'Rename' }]).submenus).toEqual([])
+    expect(Menu.init('plain', [{ value: 'Rename', label: 'Rename' }]).submenus).toEqual([])
   })
 
   it('makes the menu modal alone: its submenus are drawn inside it', () => {
@@ -370,8 +388,8 @@ describe('Menu.update', () => {
 
   it('finds the check row a Menu Message chooses, and no other', () => {
     const rows: ReadonlyArray<Menu.Row> = [
-      { label: 'Cut' },
-      { label: 'Grid', check: 'checkbox', checked: false },
+      { value: 'Cut', label: 'Cut' },
+      { value: 'Grid', label: 'Grid', check: 'checkbox', checked: false },
     ]
     const chosen = (index: number) =>
       Menu.checkChosen(rows, UiMenu.Message.SelectedItem({ index, item: 'x' }))
@@ -380,6 +398,67 @@ describe('Menu.update', () => {
     expect(Menu.checkChosen(rows, UiMenu.Message.RequestedItemClick({ index: 1 }))).toEqual(
       Option.none(),
     )
+  })
+
+  describe('rows of one label', () => {
+    const rows: ReadonlyArray<Menu.Row> = [
+      { value: 'delete-draft', label: 'Delete' },
+      { value: 'delete-all', label: 'Delete', check: 'checkbox', checked: false },
+      {
+        value: 'more',
+        label: 'More',
+        items: [
+          { value: 'copy-delete', label: 'Delete' },
+          { value: 'move-delete', label: 'Delete' },
+        ],
+      },
+    ]
+    const h = SlotView.inertBuilder<never>()
+
+    it('are items by value, asked disabled by value, and typeahead matches the label', () => {
+      const inputs = Menu.rowInputs(rows, value => value === 'delete-all', h)
+      expect(inputs.items).toEqual(['delete-draft', 'delete-all', 'more'])
+      expect(rows.map((_row, index) => inputs.isItemDisabled?.('', index))).toEqual([
+        false,
+        true,
+        false,
+      ])
+      expect(rows.map((_row, index) => inputs.itemToSearchText?.('', index))).toEqual([
+        'Delete',
+        'Delete',
+        'More',
+      ])
+    })
+
+    it('a chosen one is reported by its value, whichever the label', () => {
+      const result = Menu.update(
+        onRowsOf(rows),
+        Menu.Message.GotMenu({
+          message: UiMenu.Message.SelectedItem({ index: 0, item: 'delete-draft' }),
+        }),
+      )
+      expect(result.outMessage).toEqual(
+        Menu.OutMessage.Selected({ value: 'delete-draft', submenu: Option.none() }),
+      )
+      expect(
+        Option.map(
+          Menu.checkChosen(rows, UiMenu.Message.SelectedItem({ index: 1, item: 'delete-all' })),
+          row => row.value,
+        ),
+      ).toEqual(Option.some('delete-all'))
+    })
+
+    it("a submenu's row names its own value and the value of the row that holds it", () => {
+      const opened = press(onRowsOf(rows, 2), 'ArrowRight').model
+      const result = submenu(
+        opened,
+        2,
+        UiMenu.Message.SelectedItem({ index: 1, item: 'move-delete' }),
+      )
+      expect(result.outMessage).toEqual(
+        Menu.OutMessage.Selected({ value: 'move-delete', submenu: Option.some('more') }),
+      )
+    })
   })
 
   it('names keys drawn as symbols for aria-keyshortcuts', () => {

@@ -27,6 +27,10 @@ export const open = async (
     readonly lines?: number
     readonly scalesPage?: boolean
     readonly covered?: boolean
+    /** What names the handle, as the application words it. */
+    readonly words?: Sheet.SheetWords
+    /** How the recipe reaches the view: `mixins` (the default) or `style`. */
+    readonly via?: 'mixins' | 'style'
     /** More of the panel's content, after its paragraphs. */
     readonly content?: (h: HtmlBuilder<Sheet.Message>) => ReadonlyArray<Html>
   } = {},
@@ -58,7 +62,8 @@ export const open = async (
           {
             model,
             onMessage: message => message,
-            mixins: [style.mixin],
+            ...(options.via === 'style' ? { style } : { mixins: [style.mixin] }),
+            ...(options.words === undefined ? {} : { words: options.words }),
             scalesPage: options.scalesPage ?? false,
             covered: options.covered ?? false,
             draw: dialog =>

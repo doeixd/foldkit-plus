@@ -52,10 +52,24 @@ const previewHue = (page: Page) =>
 
 const DEFAULT_HUE = Theme.variables(Theme.make(defaults))['accent-h']
 
-const open = async (page: Page, path: string) => {
+/**
+ * Served markup answers nothing until the browser's code has taken it over, which a development
+ * server does late; the previews are busy until then.
+ */
+const taken = (page: Page) =>
+  page.waitForFunction(
+    () => document.querySelector('[data-size][aria-busy="true"]') === null,
+    undefined,
+    {
+      timeout: 120_000,
+    },
+  )
+
+const open = async (page: Page, path: string, wait = true) => {
   // A first load pre-bundles the workspace, which takes a while.
   await page.goto(`${url}${path}`, { timeout: 120_000 })
   await page.waitForSelector('[data-size="page"], [data-size="canvas"]', { timeout: 120_000 })
+  if (wait) await taken(page)
 }
 
 /** A colour's hue on the OKLCH wheel, in degrees, as the browser paints it. */
@@ -119,6 +133,7 @@ test('a theme made on /create follows the reader to every component page', async
   // A reload is another page load, which reads the kept theme again.
   await page.reload({ timeout: 120_000 })
   await page.waitForSelector('[data-size="page"]', { timeout: 60_000 })
+  await taken(page)
   await expect.poll(() => previewHue(page), { timeout: 15_000 }).toBe('30')
 
   // The notice keeps its place once hidden, so the previews below it stay put.
@@ -154,14 +169,14 @@ test('a kept theme is drawn in the first frame, before the application starts', 
   await page.route('**/src/entry.ts*', route =>
     route.fulfill({ contentType: 'text/javascript', body: '' }),
   )
-  await open(page, '/components/button')
+  await open(page, '/components/button', false)
   expect(await previewHue(page)).toBe('30')
 
   // Nothing kept, the head draws nothing over the default. (The dev server
   // styles the page from its script, which is blocked, so only the build's
   // first frame has the default theme to show.)
   await page.evaluate(() => localStorage.clear())
-  await open(page, '/components/badge')
+  await open(page, '/components/badge', false)
   expect(await page.locator('style[data-fk-knobs]').count()).toBe(0)
   expect(await previewHue(page)).not.toBe('30')
   await context.close()

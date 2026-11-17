@@ -78,6 +78,8 @@ export interface AvatarView<Message = never, Asset extends ImageAsset = ImageAss
   readonly mixins?: MixinList<Message> | undefined
 }
 
+// Not `toLocaleUpperCase`: its default locale is the runtime's, so a Turkish server and an
+// English browser would draw different initials for the same name.
 const initialsOf = (name: string): string =>
   name
     .split(/\s+/)
@@ -85,7 +87,7 @@ const initialsOf = (name: string): string =>
     .slice(0, 2)
     .map(part => part[0])
     .join('')
-    .toLocaleUpperCase()
+    .toUpperCase()
 
 /** A hue from the name's characters (FNV-1a), so one person keeps one colour on every page and server. */
 const hueOf = (name: string): number => {

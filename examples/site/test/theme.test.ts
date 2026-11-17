@@ -147,7 +147,7 @@ describe('the theme creator', () => {
 
   it('declares on the preview every derived token, over the default theme’s knobs', () => {
     expect(declared['--fk-radius-md']).toBe('calc(6px * var(--fk-knob-radius-factor))')
-    expect(declared['--fk-knob-radius-factor']).toBe('0.45')
+    expect(declared['--fk-knob-radius-factor']).toBe('1')
     expect(declared['--fk-accent-default']).toContain('var(--fk-knob-accent-l)')
   })
 

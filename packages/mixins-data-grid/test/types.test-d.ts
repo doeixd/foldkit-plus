@@ -97,6 +97,7 @@ View(
     RedoRequested: () => 0,
     Filled: () => 0,
     RowsRequested: () => 0,
+    Copied: () => 0,
   })
   Grid.Out.match(Grid.Out.UndoRequested(), {
     Edited: () => 0,
@@ -105,6 +106,7 @@ View(
     RedoRequested: () => 0,
     Filled: () => 0,
     RowsRequested: () => 0,
+    Copied: () => 0,
     // @ts-expect-error a grid that filters nothing has no `Filtered` to match
     Filtered: () => 0,
   })
@@ -124,5 +126,6 @@ View(
     RedoRequested: () => 0,
     Filled: () => 0,
     RowsRequested: () => 0,
+    Copied: () => 0,
   })
 }

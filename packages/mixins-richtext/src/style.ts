@@ -14,11 +14,12 @@ import type { Html } from 'foldkit/html'
 import { Capability, Slot, Slots, SlotView } from 'foldkit-mixins'
 import * as RichText from 'foldkit-richtext'
 import { slashEntries, type EditorEvent, type SlashEntry } from 'foldkit-richtext-dom/editor'
+import { CONTROLS_ATTRIBUTE } from 'foldkit-richtext-dom/toolbar'
 import { isRichTextIcon, richTextIcon } from './icons.js'
 
 type Retype = Extract<EditorEvent, { readonly _tag: 'RetypedBlock' }>
 
-const styles = slashEntries.filter(
+export const styles = slashEntries.filter(
   (entry): entry is SlashEntry<Retype> => entry.message._tag === 'RetypedBlock',
 )
 
@@ -50,7 +51,7 @@ export const blockStyles = <Message>(): SlotView.SlotView<
   SlotView.forMessages<Message>().define(BlockStyleSlots, (input, slots, h): Html => {
     const current = RichText.textBlockAt(input.document, input.selection)
     const live = input.selection?.type === 'Range'
-    return h.div(slots.root.attrs(), [
+    return h.div(slots.root.attrs([h.Attribute(CONTROLS_ATTRIBUTE, '')]), [
       h.div(
         slots.toolbar.attrs([h.Role('toolbar'), h.AriaLabel('Text style')]),
         styles.map((style, index) =>
@@ -118,7 +119,7 @@ export const blockStyleMenu = <Message>(): SlotView.SlotView<
       name !== undefined && isRichTextIcon(name)
         ? [h.span(slots.icon.attrs(), [richTextIcon(h, name)])]
         : []
-    return h.div(slots.root.attrs(), [
+    return h.div(slots.root.attrs([h.Attribute(CONTROLS_ATTRIBUTE, '')]), [
       h.button(
         slots.trigger.attrs([
           h.Type('button'),

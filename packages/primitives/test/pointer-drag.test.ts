@@ -13,6 +13,7 @@ import {
   DragCancelled,
   DragDropped,
   type DragPlace,
+  DRAGGING,
   DragStarted,
   DraggedOver,
   HOLD_SLOP,
@@ -274,6 +275,88 @@ describe('PointerDrag', () => {
     }))
 })
 
+describe('PointerDrag writes where the pointer is', () => {
+  const root = document.documentElement
+  const written = () => [
+    root.style.getPropertyValue(DRAGGING.x),
+    root.style.getPropertyValue(DRAGGING.y),
+    root.getAttribute(DRAGGING.kind),
+  ]
+  const clear = ['', '', null]
+
+  it('on the root, per move, for as long as a drag lasts', () =>
+    withList(async ({ list, a, c }) => {
+      const seen: Array<ReadonlyArray<string | null>> = []
+      await run(list, 3, () => {
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        // Not a drag yet: nothing written.
+        fire(a, 'pointermove', { clientX: 11, clientY: 11 })
+        seen.push(written())
+        fire(c, 'pointermove', { clientX: 20, clientY: 70 })
+        seen.push(written())
+        fire(c, 'pointermove', { clientX: 25, clientY: 75 })
+        seen.push(written())
+        fire(c, 'pointerup', { clientX: 25, clientY: 75 })
+        seen.push(written())
+      })
+      expect(seen).toEqual([clear, ['20px', '70px', 'mouse'], ['25px', '75px', 'mouse'], clear])
+    }))
+
+  it('names a finger’s drag as one, from where it was held', () =>
+    withList(async ({ list, a, b }) => {
+      let held: ReadonlyArray<string | null> = []
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(
+              PointerDrag({ attribute: 'data-row' }).f(list, Mount.liveViewStateChanges),
+              2,
+            ),
+          )
+          for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+          yield* Effect.promise(async () => {
+            fire(a, 'pointerdown', {
+              button: 0,
+              pointerType: 'touch',
+              pointerId: 5,
+              clientX: 12,
+              clientY: 14,
+            })
+            await new Promise(resolve => setTimeout(resolve, HOLD_TO_DRAG_MS + 50))
+            held = written()
+            // One more fact, so the stream is still open when the place is read.
+            fire(b, 'pointermove', {
+              button: 0,
+              pointerType: 'touch',
+              pointerId: 5,
+              clientX: 12,
+              clientY: 40,
+            })
+          })
+          yield* Fiber.join(fiber)
+        }),
+      )
+      expect(held).toEqual(['12px', '14px', 'touch'])
+    }))
+
+  it('takes them away on Escape and when the mount ends mid-drag', () =>
+    withList(async ({ list, a, b }) => {
+      await run(list, 2, () => {
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        fire(b, 'pointermove', { clientX: 10, clientY: 40 })
+        expect(written()).toEqual(['10px', '40px', 'mouse'])
+        fire(document, 'keydown', { key: 'Escape' })
+        expect(written()).toEqual(clear)
+      })
+      // Ended by the mount going, with the pointer still down.
+      await run(list, 1, () => {
+        fire(a, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+        fire(b, 'pointermove', { clientX: 10, clientY: 40 })
+      })
+      expect(written()).toEqual(clear)
+    }))
+})
+
 describe('PointerDrag onto a part', () => {
   it('reports a part of what it is over as inside it, and a move between parts of one id', () =>
     withList(async ({ list, a, b, c }) => {
@@ -361,7 +444,7 @@ describe('PointerDrag onto another region', () => {
             takeMessages(
               PointerDrag({
                 attribute: 'data-row',
-                targets: { attribute: 'data-node', within: '#page' },
+                targets: [{ attribute: 'data-node', within: '#page' }],
               }).f(palette, Mount.liveViewStateChanges),
               6,
             ),
@@ -395,6 +478,71 @@ describe('PointerDrag onto another region', () => {
   })
 })
 
+describe('PointerDrag onto two regions', () => {
+  it('lands on the marked descendants of each, by each one’s own attribute', async () => {
+    const palette = document.createElement('ul')
+    const tile = row('Heading', 0)
+    palette.append(tile)
+    const marked = (attribute: string, id: string, top: number) => {
+      const element = document.createElement('div')
+      element.setAttribute(attribute, id)
+      element.getBoundingClientRect = () =>
+        DOMRect.fromRect({ x: 0, y: top, width: 100, height: 30 })
+      return element
+    }
+    const page = document.createElement('div')
+    page.id = 'page'
+    const node = marked('data-node', 'n1', 100)
+    page.append(node)
+    const layers = document.createElement('ol')
+    layers.id = 'layers'
+    const layer = marked('data-layer', 'n2', 200)
+    layers.append(layer)
+    // A layer marked outside the layers, and a node inside the layers: neither is a place.
+    const strayLayer = marked('data-layer', 'stray', 300)
+    const wrongNode = marked('data-node', 'wrong', 210)
+    layers.append(wrongNode)
+    document.body.append(palette, page, layers, strayLayer)
+    try {
+      const facts = await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            takeMessages(
+              PointerDrag({
+                attribute: 'data-row',
+                targets: [
+                  { attribute: 'data-node', within: '#page' },
+                  { attribute: 'data-layer', within: '#layers' },
+                ],
+              }).f(palette, Mount.liveViewStateChanges),
+              6,
+            ),
+          )
+          for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+          fire(tile, 'pointerdown', { button: 0, clientX: 10, clientY: 10 })
+          fire(node, 'pointermove', { clientX: 10, clientY: 105 })
+          fire(layer, 'pointermove', { clientX: 10, clientY: 225 })
+          fire(wrongNode, 'pointermove', { clientX: 10, clientY: 215 })
+          fire(strayLayer, 'pointermove', { clientX: 10, clientY: 310 })
+          fire(layer, 'pointerup', { clientX: 10, clientY: 205 })
+          return yield* Fiber.join(fiber)
+        }),
+      )
+      expect(facts).toEqual([
+        DragStarted.make({ id: 'Heading' }),
+        DraggedOver.make({ over: { id: 'n1', zone: 'before' }, region: true }),
+        DraggedOver.make({ over: { id: 'n2', zone: 'after' }, region: true }),
+        // Over the layers' own space, not over a layer: no place, still in a region.
+        DraggedOver.make({ over: null, region: true }),
+        DraggedOver.make({ over: null, region: false }),
+        DragDropped.make({ id: 'Heading', over: { id: 'n2', zone: 'before' }, region: true }),
+      ])
+    } finally {
+      for (const each of [palette, page, layers, strayLayer]) each.remove()
+    }
+  })
+})
+
 describe('PointerDrag onto another region, in the second of two editors', () => {
   it('lands on the region nearest its own element, not the first on the page', async () => {
     /** An editor: a palette with one tile, and a page with one node. */
@@ -423,7 +571,7 @@ describe('PointerDrag onto another region, in the second of two editors', () => 
             takeMessages(
               PointerDrag({
                 attribute: 'data-row',
-                targets: { attribute: 'data-node', within: '.page' },
+                targets: [{ attribute: 'data-node', within: '.page' }],
               }).f(second.palette, Mount.liveViewStateChanges),
               3,
             ),

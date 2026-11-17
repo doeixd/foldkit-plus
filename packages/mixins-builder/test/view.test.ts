@@ -693,6 +693,52 @@ describe('the drawn Builder', () => {
     ).toBe(false)
   })
 
+  it('draws what a drag carries only while one lasts, and a grip for the selected node', () => {
+    const heading = required(
+      PageBuilder.document(page).nodes[section]?.regions['body']?.[0],
+      'the heading',
+    )
+    const banner = some(page.selected, 'the banner')
+    const carriedIn = (root: Html) =>
+      Inert.all(root).find(node => Inert.value(node, 'data-drag-source') !== undefined)
+    expect(carriedIn(draw(page))).toBeUndefined()
+    const node = carriedIn(
+      draw(send(page, Message.DragStarted({ source: { _tag: 'Existing', id: heading } }))),
+    )
+    expect([Inert.value(node, 'data-drag-source'), Inert.value(node, 'aria-hidden')]).toEqual([
+      'node',
+      'true',
+    ])
+    expect(Inert.value(node, 'popover')).toBe('manual')
+    expect(Inert.text(node)).toContain('Heading')
+    const tile = carriedIn(
+      draw(send(page, Message.DragStarted({ source: { _tag: 'New', block: 'Banner' } }))),
+    )
+    expect(Inert.value(tile, 'data-drag-source')).toBe('new')
+    expect(Inert.text(tile)).toContain('Promo banner')
+
+    // The selected node has a grip to hold and a menu of its commands; nothing selected, none.
+    const root = draw(page)
+    const grip = Inert.all(root).find(
+      each => Inert.value(each, 'data-builder-handle') !== undefined,
+    )
+    expect(Inert.value(grip, 'data-builder-handle')).toBe(banner)
+    expect(Inert.value(grip, 'aria-label')).toBe('Move or change Promo banner')
+    const menu = Inert.all(root).find(each => Inert.value(each, 'popover') === 'auto')
+    expect(Inert.value(grip, 'popovertarget')).toBe(Inert.value(menu, 'id'))
+    expect(
+      Inert.all(menu).flatMap(each => {
+        const action = Inert.value(each, 'data-action')
+        return action === undefined ? [] : [action]
+      }),
+    ).toEqual(expect.arrayContaining(['move-up', 'move-down', 'move-out', 'move-in', 'delete']))
+    expect(
+      Inert.all(draw(send(page, Message.Deselected()))).some(
+        each => Inert.value(each, 'data-builder-handle') !== undefined,
+      ),
+    ).toBe(false)
+  })
+
   it('shows a refusal, and the live region the Builder speaks through', () => {
     const refused = send(
       page,

@@ -98,4 +98,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a 401 sends the message of a refusal that gave no reason',
+    edits: [
+      {
+        file: '../src/refusal.ts',
+        find: "error: refusal.reason ?? 'Unauthenticated',",
+        replace: 'error: refusal.message,',
+      },
+    ],
+    tests: [...tests, 'packages/remote-server/test/fetch.test.ts'],
+  },
 ]

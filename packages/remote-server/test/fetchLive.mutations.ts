@@ -121,7 +121,7 @@ export default [
     edits: [
       {
         file,
-        find: ": Stream.fromEffect(\n                Effect.as(Diagnostics.report(serverDefect(cause)), errorFrame('Internal error')),\n              ),",
+        find: ": Stream.fromEffect(\n                Effect.map(internalFailure('live', cause), ({ message, incident }) =>\n                  errorFrame(message, { incident }),\n                ),\n              ),",
         replace: ': Stream.failCause(cause),',
       },
     ],
@@ -131,9 +131,9 @@ export default [
     name: 'a defect mid-stream is not reported',
     edits: [
       {
-        file,
-        find: 'Effect.as(Diagnostics.report(serverDefect(cause)), ',
-        replace: 'Effect.as(Effect.void, ',
+        file: '../src/diagnostics.ts',
+        find: 'return Effect.as(Diagnostics.report(defect), { message: INTERNAL_ERROR, incident })',
+        replace: 'return Effect.succeed({ message: INTERNAL_ERROR, incident })',
       },
     ],
     tests,
@@ -147,6 +147,11 @@ export default [
         replace: '{}',
       },
     ],
+    tests,
+  },
+  {
+    name: 'a live error frame sends the message of a refusal that gave no reason',
+    edits: [{ file, find: 'errorFrame(body.error, {', replace: 'errorFrame(error.message, {' }],
     tests,
   },
 ]

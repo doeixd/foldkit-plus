@@ -83,7 +83,15 @@ export default defineConfig({
       // whose free memory lowered `maxWorkers` failed before any test ran.
       {
         extends: './examples/foldkit/domains/vitest.config.ts',
-        test: { name: 'foldkit-domains', root: './examples/foldkit/domains', maxWorkers },
+        // Its slowest Scene test (the mobile TLD sheet, 0.9s alone) ran past Vitest's 5s in a
+        // CI shard that also held the browser and workerd tests; the limit here is the unit
+        // project's own headroom, not upstream's default.
+        test: {
+          name: 'foldkit-domains',
+          root: './examples/foldkit/domains',
+          maxWorkers,
+          testTimeout: 20_000,
+        },
       },
       mergeConfig(inBrowser, {
         test: {

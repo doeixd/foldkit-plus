@@ -161,9 +161,11 @@ export const GuardDrizzle = {
           decided =>
             Effect.try({
               try: () => compile(name, self, new Map(decided), policy.inputOf(principal)),
-              catch: error =>
+              // What the compiler says names the rule's members and operators: for the report.
+              catch: cause =>
                 new RemoteServerError({
-                  message: error instanceof Error ? error.message : String(error),
+                  message: `${name}'s Read rule could not be compiled to SQL`,
+                  cause,
                 }),
             }),
         )

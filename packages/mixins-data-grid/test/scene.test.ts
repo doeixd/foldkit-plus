@@ -194,6 +194,7 @@ test('a filter form opens in Scene from its header, its focus resolved as the ru
           RedoRequested: () => model,
           Filled: () => model,
           RowsRequested: () => model,
+          Copied: () => model,
         }),
       }),
     }),

@@ -587,11 +587,30 @@ describe('dragging a node', () => {
     )
     // Nothing moves until the drop.
     expect(over.page).toBe(page.page)
-    const dropped = send(over, Message.DragDropped())
+    const dropped = send(over, Message.DragDropped({}))
     expect(dropped.drag).toEqual(Option.none())
     expect(dropped.page.present.nodes[id('g')]?.regions['items']).toEqual([id('h1')])
     expect(dropped.announcer.pending?.message).toBe('Moved Heading, 1 of 1 in Group items')
     expect(send(dropped, Message.Undid()).page.present).toBe(document)
+  })
+
+  it('drops where the release aimed, not where the last move was over', () => {
+    const started = send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('h1') } }))
+    const over = send(started, Message.DraggedOver({ id: id('h2'), zone: 'after' }))
+    // The pointer was let go over the Group, after a scroll moved it there.
+    const dropped = send(
+      over,
+      Message.DragDropped({ aim: { _tag: 'OverNode', id: id('g'), zone: 'inside' } }),
+    )
+    expect(dropped.page.present.nodes[id('g')]?.regions['items']).toEqual([id('h1')])
+    // Let go over nothing: nothing moves, whatever the last move said.
+    const nowhere = send(over, Message.DragDropped({ aim: { _tag: 'OverNothing' } }))
+    expect(nowhere.page).toBe(page.page)
+    expect(nowhere.announcer.pending?.message).toBe('Not moved')
+    // Absent, the place the last move gave.
+    expect(
+      send(over, Message.DragDropped({})).page.present.nodes[id('s1')]?.regions['body'],
+    ).toEqual([id('g'), id('h2'), id('h1')])
   })
 
   it('moves nothing on a drop the page refuses, or a cancel, and says so', () => {
@@ -608,7 +627,7 @@ describe('dragging a node', () => {
     expect(Option.flatMap(beside.drag, drag => drag.over)).toEqual(
       Option.some({ id: id('h2'), zone: 'after', region: Option.none() }),
     )
-    const dropped = send(refused, Message.DragDropped())
+    const dropped = send(refused, Message.DragDropped({}))
     expect(dropped.page).toBe(page.page)
     expect(dropped.drag).toEqual(Option.none())
     expect(dropped.announcer.pending?.message).toBe('Not moved')
@@ -684,7 +703,7 @@ describe('dragging a node', () => {
         at: Option.some(Composition.region(id('c'), 'right', 0)),
       }),
     )
-    const dropped = send(over, Message.DragDropped())
+    const dropped = send(over, Message.DragDropped({}))
     expect(dropped.page.present.nodes[id('c')]?.regions).toEqual({
       left: [id('l')],
       right: [id('h')],
@@ -712,7 +731,7 @@ describe('dragging a node', () => {
     // What was selected stays so until the new node is there.
     expect(started.selected).toEqual(Option.some(id('h1')))
     const over = send(started, Message.DraggedOver({ id: id('h2'), zone: 'after' }))
-    const dropped = send(over, Message.DragDropped())
+    const dropped = send(over, Message.DragDropped({}))
     const body = required(dropped.page.present.nodes[id('s1')]?.regions['body'], 'a body')
     expect(body).toHaveLength(4)
     const added = required(body[3], 'the new heading')
@@ -735,19 +754,19 @@ describe('dragging a node', () => {
     // An empty page takes a Section as its first root.
     const empty = send(
       dragged(PageBuilder.initial, { _tag: 'New', block: 'Section' }),
-      Message.DragDropped(),
+      Message.DragDropped({}),
     )
     expect(empty.page.present.roots).toHaveLength(1)
     // A Heading, no root, goes last in the last Region that takes one: the empty Section.
-    const heading = send(dragged(page, { _tag: 'New', block: 'Heading' }), Message.DragDropped())
+    const heading = send(dragged(page, { _tag: 'New', block: 'Heading' }), Message.DragDropped({}))
     expect(heading.page.present.nodes[id('s2')]?.regions['body']).toHaveLength(1)
     // Over the page's space, a node on it goes nowhere.
-    const node = send(dragged(page, { _tag: 'Existing', id: id('h1') }), Message.DragDropped())
+    const node = send(dragged(page, { _tag: 'Existing', id: id('h1') }), Message.DragDropped({}))
     expect(node.page).toBe(page.page)
     // Over nothing at all, a tile is not added.
     const off = send(
       send(dragged(page, { _tag: 'New', block: 'Heading' }), Message.DraggedOff()),
-      Message.DragDropped(),
+      Message.DragDropped({}),
     )
     expect(off.page).toBe(page.page)
   })
@@ -802,7 +821,7 @@ describe('dragging a node', () => {
     // h1 goes before the drop. First in the body is still a place, but not the one
     // aimed at: before h1, which is not there.
     const gone = send(over, Message.Applied({ op: Composition.Op.remove(id('h1')) }))
-    const dropped = send(gone, Message.DragDropped())
+    const dropped = send(gone, Message.DragDropped({}))
     expect(dropped.page.present).toBe(gone.page.present)
     expect(dropped.announcer.pending?.message).toBe('Not moved')
   })
@@ -825,7 +844,7 @@ describe('dragging a node', () => {
       send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('gone') } })).drag,
     ).toEqual(Option.none())
     expect(send(page, Message.DraggedOff())).toBe(page)
-    expect(send(page, Message.DragDropped())).toBe(page)
+    expect(send(page, Message.DragDropped({}))).toBe(page)
     expect(send(page, Message.DragCancelled())).toBe(page)
     const dragging = send(page, Message.DragStarted({ source: { _tag: 'Existing', id: id('h1') } }))
     expect(PageBuilder.settle(dragging).drag).toEqual(Option.none())

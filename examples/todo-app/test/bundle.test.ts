@@ -18,7 +18,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // Ceiling that plus about 1%, rounded up to the next 500 bytes.
 // -321 bytes: the law graph's facts left the page for `Module.graph`'s own path (#537 review): measured with and without the move in one tree on 2026-11-14,
 // the page fell by that, and the ceiling with it.
-const CEILING = 162_679
+// 164,333 bytes on 2026-11-15 (162.5 kB before): the demo's own code grew, (app) src
+// 6.1 to 7.9 kB brotli~ and nothing else moved. It gained the connection strip with
+// its offline switch (network.ts), delete with undo, the focus Commands and the
+// empty states. Ceiling that plus about 1%, rounded up to the next 500 bytes.
+const CEILING = 166_000
 
 clientBudget({
   name: 'todo-app',

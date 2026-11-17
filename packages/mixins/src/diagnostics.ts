@@ -23,6 +23,7 @@ export type DiagnosticCode =
   | 'mixins:duplicate-item-id'
   | 'mixins:ragged-grid-areas'
   | 'mixins:inline-shorthand-conflict'
+  | 'mixins:dead-conditional-rule'
   | 'mixins:unknown-key'
   | 'mixins:key-conflict'
   | 'style:duplicate-layer'

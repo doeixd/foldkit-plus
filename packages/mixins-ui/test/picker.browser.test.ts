@@ -10,8 +10,10 @@
  */
 import { Option } from 'effect'
 import { Behaviors } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
+import { holdFrames } from './frames.js'
 import { Picker } from '../src/index.js'
 import {
   chosen,
@@ -143,6 +145,21 @@ describe('on a phone', () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(opener()))
   })
 
+  test('the sheet’s hovered option keeps the text’s ink under a bold menu accent', async () => {
+    await page.viewport(390, 844)
+    const palette = Theme.standard(Theme.make({ menu: { highlight: 'bold', panel: 'inverted' } }))
+    handle = await mount({}, Option.some('price'), [], palette)
+    await userEvent.click(opener())
+    const sheet = await vi.waitFor(() => (expect(panel()).not.toBeNull(), panel()!))
+    await settled(sheet)
+    const lit = sheetOptions()[0]!
+    await userEvent.hover(lit)
+    await vi.waitFor(() => expect(lit.matches(':hover')).toBe(true))
+    // The accent's on-fill ink would be pale on this pale film, and the inverted panel's ink on a light sheet.
+    expect(getComputedStyle(lit).color).toBe(getComputedStyle(sheet).color)
+    expect(getComputedStyle(lit).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+  })
+
   test("an application's key on an option joins the arrows through the one keydown owner", async () => {
     await page.viewport(390, 844)
     const toLast = Behaviors.Keys.route<undefined, Message>('Jump to the last', {
@@ -164,6 +181,27 @@ describe('on a phone', () => {
     // Shift does not stop an option's own keys.
     await userEvent.keyboard('{Shift>}{ArrowDown}{/Shift}')
     await vi.waitFor(() => expect(focusedId()).toBe(ids[2]))
+  })
+
+  // Keys come faster than frames: a held key repeating on a busy page sends several before the
+  // next drawing, and each continues from the option the previous one moved focus to.
+  test.each([
+    ['{ArrowDown}{ArrowDown}', 2],
+    ['{End}{ArrowUp}', 1],
+    ['{ArrowDown}{ArrowDown}{ArrowUp}', 1],
+    ['{End}{Home}{ArrowDown}{ArrowDown}', 2],
+  ] as const)('keys %s before the next frame leave focus on option %i', async (keys, last) => {
+    await page.viewport(390, 844)
+    handle = await mount()
+    await userEvent.click(opener())
+    await vi.waitFor(() => expect(focusedId()).toBe(sheetOptions()[0]?.id))
+    const release = holdFrames()
+    try {
+      await userEvent.keyboard(keys)
+    } finally {
+      release()
+    }
+    await vi.waitFor(() => expect(focusedId()).toBe(sheetOptions()[last]?.id))
   })
 
   test('opened with nothing chosen, focus starts on the first option', async () => {

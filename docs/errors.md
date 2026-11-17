@@ -303,9 +303,9 @@ its Entity and its id, since an id is unique only within an Entity. A
 refusal made where the write is made is the one the server would send, so the
 application handles both alike (see [Refused where it is made](../packages/remote/README.md#refused-where-it-is-made)).
 A `CHECK` constraint from `checkConstraints` or `entityChecks` is a backstop for writes past the
-server: one tripped by a handler's statement fails it as `Database write
-failed`, and the driver's error goes only to the `StatementFailed`
-diagnostic. See [Declared writes](declared-writes.md#failure-and-recovery).
+server: one tripped by a handler's statement answers the caller `Internal
+error` with an `incident`, and the driver's error goes only to the
+`StatementFailed` and `ServerDefect` diagnostics under that id. See [Declared writes](declared-writes.md#failure-and-recovery).
 
 ## Forms
 
@@ -357,15 +357,16 @@ internal leaks. Over `RemoteServer.answer` and `serveFetch`:
 
 | On the server | The client receives |
 | --- | --- |
-| A Source fails with `RemoteServerError(message)` | `RemoteReadError`, `RemoteQueryError` or `RemoteMutationError` with that message: write it for the reader |
+| A Source fails with `RemoteServerError`, or anything in it throws | `Internal error` and an `incident`, on the call's own error; the message and cause go to `ServerDefect` under that id |
+| A Source fails with `RemoteServer.tell(message)` | `RemoteReadError`, `RemoteQueryError`, `RemoteMutationError` or `RemoteLiveError` with that message, as written: words for the reader |
 | `RemoteServer.refuse(mutation, refusal)` | a 422 with the refusal (a 409 for a `Refusal.taken`), which `Data.refusal` decodes |
 | A writer's `RemoteServer.taken()`, for a declared insert of a taken id | a 409 with the mutation's `Taken` refusal, naming only the Entity and the id |
 | `RemoteServer.forbid(reason?)` | a 403, `_tag: 'Forbidden'`, with `reason` only when given |
 | `RemoteServer.unauthenticated(reason?)` from a resolver | a 401, `_tag: 'Unauthenticated'`, with `reason` only when given |
 | A mutation's input does not decode | `Invalid mutation input`, and nothing of the schema's message |
 | A field `authorize` withholds | the field settled, never why; an id withheld whole reads like an id that does not exist |
-| A Drizzle statement fails | `Database query failed` for a read or query, `Database write failed` for a write; the driver's error goes to `StatementFailed` |
-| A defect, or a layer or resolver that breaks | a 500, `Internal error`; the cause goes to `ServerDefect` |
+| A Drizzle statement fails | `Internal error` and an `incident`; the driver's error goes to `StatementFailed`, and `Database query failed` or `Database write failed` to `ServerDefect` under that id |
+| A defect, or a layer or resolver that breaks | a 500, `Internal error` and an `incident`; the cause goes to `ServerDefect` under that id, which `RemoteData.incident` reads on the client |
 | A write committed and its answer's read failed | the answer without the rows; the client reads them again (`AnswerUnread`) |
 | A write committed and its live publish failed | the write's answer; live subscribers do not hear it (`PublishFailed`) |
 
@@ -495,7 +496,7 @@ package's variants:
 | `foldkit-remote-server` | `ServerDefect`, `AnswerUnread`, `PublishFailed`, `ClockSkewed` |
 | `foldkit-remote-drizzle` | `StatementFailed`, `ServerOnlyRules` |
 | `foldkit-guard` | `ComputeRefused`, `UnpinnedWrites` |
-| `foldkit-sync` | `ExchangeFailed`, `HistoryRebuilt`, `HostDefect`, `ListenerFailed` |
+| `foldkit-sync` | `ExchangeFailed`, `ExchangeDefect`, `HistoryRebuilt`, `HostDefect`, `ListenerFailed` |
 | `foldkit-mirror` | `StoreUnread`, `StoreUnwritten`, `StoreMalformed` |
 | `foldkit-ssr` | `PageContained`, `StaticRegionMissing`, `BundleUnloaded`, `PageFailed`, `HandlerUnnamed` |
 | `foldkit-media` | `StoreFailed`, `AdmissionFailed`, `ImageFailed`, `FactsUnanswered`, `RequestDefect` |

@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file: server,
-        find: 'if (refused.mutation !== mutation) return yield* invalid',
+        find: 'if (refused.mutation !== mutation) return yield* internal(Cause.fail(refused))',
         replace: '',
       },
     ],
@@ -44,8 +44,8 @@ export default [
     edits: [
       {
         file: `${remote}/json.ts`,
-        find: 'new RemoteMutationError({ message: error, refusal })',
-        replace: 'new RemoteMutationError({ message: error })',
+        find: 'new RemoteMutationError({ message: error, refusal, incident })',
+        replace: 'new RemoteMutationError({ message: error, incident })',
       },
     ],
     tests,

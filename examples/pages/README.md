@@ -8,8 +8,9 @@ together, and what each one owns.
 
 **Try it:** the sandbox is at
 [foldkit-pages-demo.pages.dev](https://foldkit-pages-demo.pages.dev/). Its journal
-runs in your browser, shared by every tab of it: open two tabs, edit one page from
-both, and each sees the other's typing.
+runs in your browser, shared by every tab of it: the sidebar's "Open a second tab" link opens one, and
+editing one page from both shows each the other's typing. Deleting a page says so and offers Undo,
+with the focus on it; a new page's title takes the focus, and Enter there goes on to the text.
 
 ## Who owns what
 
@@ -80,6 +81,28 @@ What a menu does is an editor Message (`RetypedBlock`, `InsertedBlock`, `MovedBl
 it on the projection, `translate` restates it as ops, and it is shared, undone and converged as
 typing is. The slash catalogue (`src/vocabulary.ts`) is handed to `placeEditor`, so the menu
 the view draws and what Enter chooses are one list.
+
+A press on a control of the bar leaves the focus and the selection in the text, so Bold and then
+Italic mark the same words and typing replaces them. Reached by key (Shift+Tab from the text), a
+control holds the focus, the page paints the editor's `selection` decoration as selected text
+(`[data-decoration="selection"]` in `src/style.ts`), and Escape returns to the text.
+
+On a window at most 40rem wide the bar is `compact`: the controls wrapped `{ low }` in
+`src/view.ts` (four marks, the lists and the quote) are not drawn, and the seven left are one
+row of a phone. The Model's `narrow` is read from `matchMedia` before the first drawing
+(`src/browser.ts` passes it to the initial Model) and followed by a `NarrowChanged` Message, so
+a phone never draws the wide bar first. The sidebar's field filters the page list by title
+(`listedPages`).
+
+The formatting bar, over the page and over selected text, is `formattingToolbar` from
+`foldkit-mixins-richtext`: one `role="toolbar"` with one tab stop, the arrows, Home and End
+moving between its controls, and a control that does not apply (nothing to undo) kept focusable but
+`aria-disabled`. The page owns the two things the bar cannot know: which menu is open (`menu`) and
+which control last had focus (`tabStop`, an `Option` in the Model, set by `FocusedControl`).
+What is pressed or unavailable is read from the document and selection, and a press sends an
+editor Message through `MenuEdit`, which also closes the open menu. Undo and redo are offered from
+this tab's own steps (`history`), not the editor's. Shortcuts the page binds beyond the
+editor's (Ctrl+U, Ctrl+Shift+H, Ctrl+K) are passed as `shortcuts`, so they show on the controls.
 
 
 The two-replica trace, which is what CI runs:

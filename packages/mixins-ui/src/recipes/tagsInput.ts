@@ -58,8 +58,10 @@ export const chip: StyleValue = component(
     paddingBlock: '0.1rem',
     paddingInlineStart: '0.6rem',
     paddingInlineEnd: '0.2rem',
-    borderRadius: ref.radius.xl,
-    background: ref.surface.muted,
+    borderRadius: ref.radius.full,
+    // A step off the field the other way from `muted`, which is a recessed
+    // step: lighter in a dark scheme, darker in a light one.
+    background: ref.surface.default,
     color: ref.text.default,
     ...role('caption'),
     fontWeight: ref.weight.medium,

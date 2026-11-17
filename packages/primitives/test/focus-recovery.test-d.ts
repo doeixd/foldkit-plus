@@ -1,7 +1,8 @@
 /**
- * Compile-time contract of `FocusRecovery.behavior`: the owner, the part
- * slots and the `{ part }` steps are slots of the contract, and `parent` reads
- * the view's input. Type-checked, not executed.
+ * Compile-time contract of `FocusRecovery.behavior`: the owner is a slot of
+ * the contract, a `{ part }` step names a key of `parts`, a key of `parts`
+ * that is no slot names a part a widget draws itself (`recoveryPart`), and
+ * `parent` reads the view's input. Type-checked, not executed.
  */
 import { Option } from 'effect'
 import { Capability, Slot, SlotView, Slots } from 'foldkit-mixins'
@@ -33,16 +34,30 @@ FocusRecovery.behavior(Search)({
   parts: {},
 })
 
+// A key that is no slot names the part a widget marks itself, as an Alert's
+// `recoveryPart: 'dismiss'` does, and a step may go to it.
+const widgetPart = FocusRecovery.behavior(Search)({
+  owner: 'root',
+  parts: { dismiss: ['next', { part: 'input' }], input: [] },
+})
+void widgetPart
+
 FocusRecovery.behavior(Search)({
   owner: 'root',
-  // @ts-expect-error a part slot the contract does not publish.
-  parts: { nope: [] },
+  // @ts-expect-error a step naming a part `parts` does not declare, though the contract publishes it as a slot.
+  parts: { row: [{ part: 'input' }] },
 })
 
 FocusRecovery.behavior(Search)({
   owner: 'root',
-  // @ts-expect-error a step naming a slot the contract does not publish.
-  parts: { row: [{ part: 'inputt' }] },
+  // @ts-expect-error a step naming a part `parts` does not declare, and no slot either.
+  parts: { row: [{ part: 'add' }] },
+})
+
+FocusRecovery.behavior(Search)({
+  owner: 'root',
+  // @ts-expect-error a misspelt step beside a declared part.
+  parts: { row: [{ part: 'inputt' }], input: [] },
 })
 
 FocusRecovery.behavior(Search)({

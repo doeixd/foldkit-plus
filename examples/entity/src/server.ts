@@ -6,11 +6,10 @@
 import { DatabaseSync } from 'node:sqlite'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { bind, databaseLayer, query, returning, source, writer } from 'foldkit-remote-drizzle'
+import { databaseLayer, query, returning, source, writer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Blog, PostId } from './domain.js'
+import { PostId } from './domain.js'
 import {
   AuthorsQuery,
   DeletePostMutation,
@@ -18,50 +17,10 @@ import {
   PostsQuery,
   WritePostMutation,
 } from './operations.js'
+import { Db, authors, comments, ddl, posts } from './tables.js'
 
 /** A `count(*)` row, as node:sqlite returns it. */
 const Counted = Schema.Struct({ n: Schema.Number })
-
-const authors = sqliteTable('authors', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-})
-const posts = sqliteTable('posts', {
-  id: text('id').primaryKey(),
-  // The column is `headline`; the domain calls it `title`.
-  headline: text('headline').notNull(),
-  published: integer('published', { mode: 'boolean' }).notNull(),
-  authorId: text('author_id').notNull(),
-  editorId: text('editor_id'),
-})
-const comments = sqliteTable('comments', {
-  id: text('id').primaryKey(),
-  body: text('body').notNull(),
-  postId: text('post_id').notNull(),
-  authorId: text('author_id').notNull(),
-  createdAt: text('created_at').notNull(),
-})
-
-export const Db = bind(Blog, {
-  Author: { table: authors, relations: { posts: { foreignKey: posts.authorId } } },
-  Post: {
-    table: posts,
-    fields: { title: posts.headline },
-    relations: {
-      author: { field: posts.authorId },
-      editor: { field: posts.editorId },
-      comments: {
-        foreignKey: comments.postId,
-        orderBy: [{ key: comments.createdAt, direction: 'asc' }],
-      },
-    },
-    derived: { commentCount: { relation: 'comments' } },
-  },
-  Comment: {
-    table: comments,
-    relations: { post: { field: comments.postId }, author: { field: comments.authorId } },
-  },
-})
 
 /**
  * An in-memory database with a little data, the server over it, and the layer
@@ -70,10 +29,8 @@ export const Db = bind(Blog, {
  */
 export const openServer = () => {
   const sqlite = new DatabaseSync(':memory:')
+  sqlite.exec(ddl)
   sqlite.exec(`
-    create table authors (id text primary key, name text not null);
-    create table posts (id text primary key, headline text not null, published integer not null, author_id text not null, editor_id text);
-    create table comments (id text primary key, body text not null, post_id text not null, author_id text not null, created_at text not null);
     insert into authors values ('a1', 'Ada'), ('a2', 'Grace');
     insert into posts values ('p1', 'Notes on the Engine', 1, 'a1', null), ('p2', 'Compilers', 0, 'a1', 'a2');
     insert into comments values ('c1', 'Remarkable.', 'p1', 'a2', '2026-01-01'), ('c2', 'Thank you.', 'p1', 'a1', '2026-01-02');

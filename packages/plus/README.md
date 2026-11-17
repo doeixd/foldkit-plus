@@ -21,8 +21,9 @@ foldkit-mixins/theme        ->  foldkit-plus/mixins/theme
 A subpath is the package itself, re-exported: `foldkit-plus/remote`'s `Remote`
 is `foldkit-remote`'s, so the two can be mixed in one application. This package
 owns no state and adds no runtime API of its own: what each package owns is in
-its own guide. What it adds is the `setup` and `docs` commands, and two subpaths
-for testing a running application.
+its own guide. What it adds is the `setup`, `docs` and `skill` commands, and two
+subpaths for testing a running application. It also ships the agent skill and the
+conceptual guides, so they are the version of the code you installed.
 
 ## Setup
 
@@ -41,7 +42,7 @@ that project, what the agent should run, in order:
 2. **Install** Effect, Foldkit and Foldkit Plus with the package manager the
    project uses, after the version pins described under [Versions](#versions),
    and the command that adds each [adapter](#what-it-does-not-install-adapters).
-3. **Add the agent skill**, and paste its `AGENTS.md` block into the project.
+3. **Add the agent skill** with [`skill`](#the-skill-and-the-guides-ship-with-the-package), and paste its `AGENTS.md` block into the project.
 4. **Import**: which package does which job.
 
 `--legacy-peer-deps` only stops npx installing the package's peers beside it,
@@ -107,17 +108,45 @@ npx foldkit-plus docs "optimistic delete" # words: the three best sections
 npx foldkit-plus docs --list remote       # one topic's headings, with line numbers
 ```
 
-`docs` answers from what is installed in the project it runs in, so it
-describes the versions the application has, not `main`. It reads the README
-of each Foldkit Plus package that an import from the project would load (one
-the project names from its own folder; the rest from beside `foldkit-plus`),
-the `foldkit-plus` skill if it is installed in a dot-folder's `skills/` (the
-project's, its repository's, or the home folder's), and for a symbol the
-package's `.d.mts`. Each section comes with its file and line, so the rest is
-one read away. Nothing is indexed ahead of time and nothing is fetched.
-`--json` prints the same for a program. A query that matches nothing, a
-project with no Foldkit Plus package, or one whose `package.json` names a
-package that is not installed exits 1 and says which.
+The skill and the guides are in the package, built from the repository at
+release time: `skill/` (`SKILL.md` and `references/`) and `guides/` (the
+conceptual guides the website publishes, not the design notes), so they are the
+version of the code installed, not `main`. A relative link in a guide to a
+source file or a README is rewritten to that file on GitHub at the release's
+tag (`vX.Y.Z`, the changelog's heading), and the skill's links to `main` are
+pinned to the same tag; both stay in the repository as they were.
+
+`docs` answers from what is installed in the project it runs in. It reads the
+skill and the guides of the project's installed `foldkit-plus` (labelled
+`foldkit-plus@0.22.0 skill references/remote.md`, `foldkit-plus@0.22.0 guide
+remote.md`; the CLI's own copy only when the project has none), the README of
+each Foldkit Plus package that an import from the project would load (one the
+project names from its own folder; the rest from beside `foldkit-plus`), and for
+a symbol the package's `.d.mts`. A skill installed in a dot-folder is not read:
+if its version differs from the shipped one, `docs` says which is newer on
+standard error and answers from the shipped one, which matches the installed
+code. Each section comes with its file and line, so the rest is one read away.
+Nothing is indexed ahead of time and nothing is fetched. `--json` prints the
+same for a program. A query that matches nothing, a project with no Foldkit Plus
+package, or one whose `package.json` names a package that is not installed exits
+1 and says which.
+
+## The skill and the guides ship with the package
+
+```bash
+npx foldkit-plus skill           # copy the shipped skill into the project
+npx foldkit-plus skill --force   # replace a different version, after an upgrade
+```
+
+`skill` writes `skills/foldkit-plus/` under the agent folders of the project:
+the ones that already hold it, else `.claude` and `.agents`, the two
+[skills.sh](https://skills.sh) installs to. It prints each folder it wrote. A
+folder holding the same version is left alone; a different version, or a skill
+of another name, is refused until you pass `--force`, which replaces the folder
+whole. It copies from the project's installed `foldkit-plus`, so the skill is
+the version of the code. `npx skills add doeixd/foldkit-plus --skill
+foldkit-plus` still installs the repository's latest without this package, and
+nothing keeps that copy in step with the code.
 
 ## The laws of your writes
 
@@ -337,6 +366,11 @@ references are generated from the workspace:
 ```bash
 pnpm --filter foldkit-plus generate   # then pnpm install and pnpm paths
 ```
+
+`skill/` and `guides/` are generated and git-ignored: `build` copies them
+(`scripts/bundle.ts`), taking the guides from the site's catalog
+(`examples/site/src/catalog.ts`), so the list has one home. `pnpm pack:check`
+fails if a tarball lacks them or holds a design note.
 
 `test/generated.test.ts` fails until it has run after a package or an entry
 point is added, moved or removed, and when the setup guide's list of adapters

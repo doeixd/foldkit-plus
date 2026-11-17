@@ -59,9 +59,16 @@ const mount = (
             label: 'Editor',
             model: model.bar,
             menus: [
-              { label: 'File', rows: [{ label: 'New' }] },
-              { label: 'Edit', rows: [{ label: 'Copy' }] },
-              { label: 'View', rows: [{ label: 'Zoom' }] },
+              {
+                label: 'File',
+                rows: [
+                  { value: 'new-file', label: 'New' },
+                  { value: 'new-window', label: 'New' },
+                ],
+                isRowDisabled: value => value === 'new-window',
+              },
+              { label: 'Edit', rows: [{ value: 'Copy', label: 'Copy' }] },
+              { label: 'View', rows: [{ value: 'Zoom', label: 'Zoom' }] },
             ],
             onMessage: got,
             direction,
@@ -202,6 +209,24 @@ test('left to right, the arrows, Home and End move the tab stop, and an applicat
       expect(document.getElementById('file-button')?.ariaExpanded).toBe('true'),
     )
     expect(document.getElementById('view-button')?.ariaExpanded).toBe('false')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('two rows of one label are told apart by value: only the disabled one is disabled', async () => {
+  const handle = mount()
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = document.getElementById('file-button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    trigger.focus()
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(document.getElementById('file-item-0')).not.toBeNull())
+    expect(document.getElementById('file-item-0')?.getAttribute('aria-disabled')).toBeNull()
+    expect(document.getElementById('file-item-1')?.getAttribute('aria-disabled')).toBe('true')
   } finally {
     handle.dispose()
   }

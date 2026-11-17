@@ -18,7 +18,7 @@ import { Effect, Match, Option, Schema } from 'effect'
 import type { AnyEntity } from 'foldkit-entity'
 import type { EntitySource } from 'foldkit-remote-server'
 import type { AuthorizeDecision, Operation } from 'foldkit-sync'
-import { enforced, isAnyone, restricts, surfaceOf, type Deny } from './attach.js'
+import { enforced, isAnyone, reachingRules, restricts, surfaceOf, type Deny } from './attach.js'
 import { Condition } from './condition.js'
 import type { Policy, PrincipalGuard } from './index.js'
 
@@ -77,8 +77,10 @@ export const GuardSync = {
    * field of the Entity, a member with a Read rule
    * of its own (its value would reach a reader the rule hides it from), a
    * reader the row's Read rule does not name (it would receive edits to rows
-   * it cannot read), a guarded row with no readers, and `always` rules that
-   * read the row (no reader could be shown to pass them).
+   * it cannot read), a guarded row with no readers, `always` rules that
+   * read the row (no reader could be shown to pass them), and an `Update`
+   * rule that reads another row (an edit is admitted over the one row read,
+   * by no statement).
    *
    * ```ts
    * const Edits = GuardSync.document(ProductEdits, { readers: [G.isStaff] })
@@ -116,6 +118,12 @@ export const GuardSync = {
       }
       if (attachment.always.some(rule => rule._tag !== 'PrincipalGuard' && !isAnyone(rule)))
         fail('its `always` rules read the row, which no reader can be shown to pass')
+      // `admit` judges an edit over the one row it reads, and a document runs no statement.
+      const reaching = reachingRules(attachment, 'Update')
+      if (reaching.length > 0)
+        fail(
+          `its Update rule's ${reaching.join(', ')} reads another row (a path or an exists), which an edit admitted over the one row read cannot judge; write those members through a declared write and GuardServer.writer over a writer that judges rules in its statement, or rule Update over the row alone`,
+        )
     })
     return Object.freeze({ entity, members, readers: options.readers })
   },

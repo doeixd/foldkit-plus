@@ -117,16 +117,19 @@ describe('A refused mutation', () => {
 })
 
 describe('A refusal the server cannot stand behind', () => {
-  it('is refused as invalid when it was made for another mutation', async () => {
+  it('is answered as this side’s failure when it was made for another mutation', async () => {
     refusing = () => Effect.fail(RemoteServer.refuse(Other, { _tag: 'Conflict' }))
     const answered = await answer({
       operation: 'mutate',
       payload: { requestId: 'r2', mutation: 'SetPrice', input: { id: 'a', price: 50 } },
     })
-    expect(answered).toEqual({ status: 500, body: { error: 'Invalid mutation refusal' } })
+    expect(answered).toEqual({
+      status: 500,
+      body: { error: 'Internal error', incident: expect.stringMatching(/^[0-9a-f]{16}$/) },
+    })
   })
 
-  it('is refused as invalid when it is not a value the mutation declares', async () => {
+  it('is answered as this side’s failure when it is not a value the mutation declares', async () => {
     refusing = () =>
       Effect.fail(
         // @ts-expect-error a value the mutation does not declare
@@ -136,6 +139,9 @@ describe('A refusal the server cannot stand behind', () => {
       operation: 'mutate',
       payload: { requestId: 'r3', mutation: 'SetPrice', input: { id: 'a', price: 50 } },
     })
-    expect(answered).toEqual({ status: 500, body: { error: 'Invalid mutation refusal' } })
+    expect(answered).toEqual({
+      status: 500,
+      body: { error: 'Internal error', incident: expect.stringMatching(/^[0-9a-f]{16}$/) },
+    })
   })
 })

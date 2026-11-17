@@ -19,7 +19,14 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // 174.8 kB (174,824 bytes) on 2026-11-14, after merging main: this branch's kept widget work
 // reaches the page (the SearchField widget and its section, WindowList's larger follower,
 // Resizable, Sidebar), +3,524 over main's 171,300; the ceiling is that plus about 2%.
-const CEILING = 178_500
+// Lowered to 148,000 on 2026-11-15: the page now loads every section but the toolbar and the window
+// list when it nears the window (`src/lazy.ts`), so the start chunk holds those two and the shared
+// runtime: 144.8 kB (144,8xx bytes), against 187.0 kB when the sections added for newer widgets
+// were still in it (178,833 on CI before them). The sections' own chunks (125.6 kB) are not counted.
+// +6,500 on 2026-11-16: measured 154,065 with `output.strictExecutionOrder` (vite.config.ts),
+// against a page that loaded less and drew nothing: the chunks imported each other, and one
+// ran before the helper it called was defined. The growth is Rolldown's per-module wrappers.
+const CEILING = 154_500
 
 clientBudget({
   name: 'widgets',

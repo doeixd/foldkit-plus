@@ -43,8 +43,8 @@ export default [
     edits: [
       {
         file: '../src/code.ts',
-        find: "          h.DataAttribute('code', 'copy'),\n          h.OnClick(input.copied),",
-        replace: "          h.DataAttribute('code', 'copy'),",
+        find: "h.DataAttribute('code', 'copy'),\n            h.OnClick(input.copied),",
+        replace: "h.DataAttribute('code', 'copy'),",
       },
     ],
     tests,

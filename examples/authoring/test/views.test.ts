@@ -19,6 +19,20 @@ import { CompactSearchField, SearchField } from '../src/search/view.js'
 import { initial as sortableInitial } from '../src/sortable/app.js'
 import { SortableListbox, itemsOf as rowsOf } from '../src/sortable/view.js'
 import { pageStylesheet } from '../src/style.js'
+import { initial as boxInitial } from '../src/box/app.js'
+import { MovableBox } from '../src/box/view.js'
+import { initial as gridInitial } from '../src/grid/app.js'
+import { FileGrid } from '../src/grid/view.js'
+import { initialOf as hotkeysInitial } from '../src/hotkeys/app.js'
+import { editorView } from '../src/hotkeys/view.js'
+import { initial as inlineInitial } from '../src/inline-edit/app.js'
+import { EditableTitles } from '../src/inline-edit/view.js'
+import { initial as spatialInitial } from '../src/spatial/app.js'
+import { SelectableBoard } from '../src/spatial/view.js'
+import { initial as stepperInitial } from '../src/stepper/app.js'
+import { NumberStepper } from '../src/stepper/view.js'
+import { initial as swipeInitial } from '../src/swipe/app.js'
+import { SwipeRow } from '../src/swipe/view.js'
 
 const typed = { ...searchInitial('s').model, query: 'ap' }
 const open = { ...popupInitial('p').model, open: true }
@@ -32,6 +46,19 @@ const drawn = [
   ['an open popup', Inert.draw(ChoicePopup, open)],
   ['the sortable listbox', Inert.draw(SortableListbox, sortableInitial().model)],
   ['the editor', Inert.draw(SaveEditor, saveInitial().model)],
+  ['the inline-edit titles', Inert.draw(EditableTitles, inlineInitial().model)],
+  ['the spatial board', Inert.draw(SelectableBoard, spatialInitial().model)],
+  ['the box', Inert.draw(MovableBox, boxInitial().model)],
+  ['the stepper', Inert.draw(NumberStepper, stepperInitial().model)],
+  ['the swipe row', Inert.draw(SwipeRow, swipeInitial().model)],
+  ['the file grid', Inert.draw(FileGrid, gridInitial().model)],
+  [
+    'the hotkeys editor',
+    Inert.draw(
+      editorView(() => 0),
+      hotkeysInitial('windows').model,
+    ),
+  ],
 ] as const
 
 describe('every section drawn inert', () => {

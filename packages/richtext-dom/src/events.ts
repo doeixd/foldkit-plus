@@ -15,6 +15,7 @@ import {
   type EditorDom,
 } from './index.js'
 import { parseHtml } from './html.js'
+import { caretRect, reveal as scrollTo } from './reveal.js'
 
 export interface Intent {
   /** The semantic command to run, when the event maps to one. */
@@ -242,6 +243,13 @@ export interface AttachOptions {
   readonly decorate?: Decorate | undefined
   /** What a blank document shows (`RichText.isBlank`): "Write something…". */
   readonly placeholder?: string | undefined
+  /** The editor's accessible name, as `aria-label` on the editable root. */
+  readonly label?: string | undefined
+  /**
+   * The id of the element that names the editor, as `aria-labelledby`. Without a `label` or this,
+   * the editor takes the name of the group it is drawn in (the label a form gives its control).
+   */
+  readonly labelledBy?: string | undefined
   /**
    * What the empty paragraph a collapsed caret is in shows, as `data-hint` on it, which a
    * stylesheet draws as it draws the placeholder (usually only while the editor has the focus).
@@ -353,6 +361,19 @@ const sameSelection = (
  * content the adapter reads back or the caret mapping. The block, not the root, carries it,
  * so the text sits on the line the caret is on.
  */
+const setOrRemove = (element: Element, name: string, value: string | undefined): void => {
+  if (value === undefined) element.removeAttribute(name)
+  else element.setAttribute(name, value)
+}
+
+/**
+ * The element that names an editor drawn in a labelled group, such as the `role="group"` a form
+ * draws around a control it labels: a form's `label for` names that group, which the label cannot
+ * focus, so the editable root is named by the same label instead.
+ */
+const groupLabelOf = (root: Element): string | undefined =>
+  root.closest('[role="group"][aria-labelledby]')?.getAttribute('aria-labelledby') ?? undefined
+
 const drawPlaceholder = (
   dom: EditorDom,
   placeholder: string,
@@ -408,6 +429,47 @@ const caretBeside = (
 const INTERACTIVE = 'a, button, input, select, textarea, video, audio'
 
 /**
+ * Marks an element whose controls act on the editor: a toolbar, a menu of blocks. A press in one
+ * does not take the focus from the text, so the selection stays the browser's through it. A
+ * field in it (`TYPED_IN`) still takes the focus, since it is typed in.
+ */
+export const CONTROLS_ATTRIBUTE = 'data-editor-controls'
+
+const TYPED_IN = 'input, select, textarea, [contenteditable]'
+
+/**
+ * The decoration kind the editor draws its own selection with while a control beside it has the
+ * focus: `[data-decoration="selection"]`, for a stylesheet to paint as selected text.
+ */
+export const SELECTION_DECORATION = 'selection'
+
+/**
+ * A range as the decoration that stands in for it; nothing for a caret, a selected block or no
+ * selection. `decorationsIn` orders two runs itself, and draws nothing for one run's offsets given
+ * backwards.
+ */
+const standInFor = (selection: RichText.Selection | null): RichText.Decoration | undefined => {
+  if (selection?.type !== 'Range' || samePosition(selection.anchor, selection.focus)) {
+    return undefined
+  }
+  const { anchor, focus } = selection
+  const backwards = anchor.node === focus.node && anchor.offset > focus.offset
+  return {
+    from: backwards ? focus : anchor,
+    to: backwards ? anchor : focus,
+    kind: SELECTION_DECORATION,
+  }
+}
+
+const sameStandIn = (
+  left: RichText.Decoration | undefined,
+  right: RichText.Decoration | undefined,
+): boolean =>
+  left === undefined || right === undefined
+    ? left === right
+    : samePosition(left.from, right.from) && samePosition(left.to, right.to)
+
+/**
  * Wires the owned subtree to an application. The adapter never decides what an
  * edit means: it translates events into commands, hands them to `onIntent`, and
  * patches whatever the application commits.
@@ -445,8 +507,12 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     target?.setAttribute('data-hint', options.lineHint)
     hinted = target
   }
+  const labelledBy =
+    options.label === undefined ? (options.labelledBy ?? groupLabelOf(current.root)) : undefined
   const redraw = (next: EditorDom): void => {
     current = next
+    setOrRemove(current.root, 'aria-label', options.label)
+    setOrRemove(current.root, 'aria-labelledby', labelledBy)
     if (options.placeholder !== undefined) {
       marked = drawPlaceholder(current, options.placeholder, marked)
     }
@@ -462,6 +528,11 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
    * reading its absence back would turn a selected block into no selection at all.
    */
   const reportSelection = (): void => {
+    // While a control has the focus the browser's selection is no longer drawn from the Model's
+    // (a patch leaves it collapsed where its text was), so it says nothing about the Model's.
+    if (ownsSelection()) reportLive()
+  }
+  const reportLive = (): void => {
     // While composing, the caret points into text the document does not have.
     if (composing) return
     const selection = readSelection(current)
@@ -471,14 +542,40 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     markSelected()
     options.onSelection?.(selection)
   }
+  /**
+   * Scrolls the focus end of a selection the editor just drew into view, by the least amount.
+   * It reads one rectangle after the patch, in the call that set the selection: a read forces
+   * the layout it needs, so it cannot see a stale one. A browser moving its own caret scrolls
+   * for itself; this is for the ones the editor sets, which `setBaseAndExtent` does not scroll.
+   */
+  const revealSelection = (selection: RichText.Selection | null): void => {
+    if (selection === null) return
+    if (selection.type === 'Node') {
+      const element = current.elements.get(selection.node)
+      if (element !== undefined) scrollTo(element, element.getBoundingClientRect())
+      return
+    }
+    const range = positionToRange(current, selection.focus)
+    if (range === undefined) return
+    const rect = caretRect(range)
+    const node = range.startContainer
+    const from = node instanceof Element ? node : node.parentElement
+    if (rect !== undefined && from !== null) scrollTo(from, rect)
+  }
   /** Takes a selection the editor made itself, as a click on an image or an arrow key does. */
-  const select = (selection: RichText.Selection): void => {
+  const select = (selection: RichText.Selection, reveal = false): void => {
     restoreSelection(current, selection)
+    if (reveal) revealSelection(selection)
     if (sameSelection(selection, lastSelection)) return
     lastSelection = selection
     hint()
     markSelected()
     options.onSelection?.(selection)
+  }
+  /** Whether something outside the editor has the focus: a control beside it, another field. */
+  const focusElsewhere = (): boolean => {
+    const { activeElement, body } = current.root.ownerDocument
+    return activeElement !== null && activeElement !== body && !current.root.contains(activeElement)
   }
   /**
    * The browser's selection is the page's, not the editor's: the editor moves it only while
@@ -486,10 +583,32 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
    * Read before a patch replaces the nodes it points into.
    */
   const ownsSelection = (): boolean => {
+    // A selection kept in the text while focus is on a control beside it is not the user's to put
+    // back: restoring it would pull the focus into the editor.
+    if (focusElsewhere()) return false
     const live = current.root.ownerDocument.defaultView?.getSelection()
     if (live === null || live === undefined || live.rangeCount === 0) return false
     return current.root.contains(live.anchorNode) && current.root.contains(live.focusNode)
   }
+  /**
+   * The Model's selection as a decoration, drawn while the focus is elsewhere. The editor cannot
+   * put the browser's selection back then (that takes the focus), and a patch or a field taking
+   * the focus removes what the browser showed of it, so without this a command sent from a
+   * toolbar would act on text that no longer looks selected.
+   */
+  let standIn: RichText.Decoration | undefined
+  const standInWhileElsewhere = (selection: RichText.Selection | null): void => {
+    standIn = focusElsewhere() ? standInFor(selection) : undefined
+  }
+  const decorationsOver = (content: RichText.Document): RichText.DecorationSet | undefined => {
+    const drawn = options.decorate?.(content)
+    return standIn === undefined ? drawn : [...(drawn ?? []), standIn]
+  }
+  /**
+   * True from a press in the text until its task ends, which is when the browser moves the focus
+   * for it: that focus is followed by the caret the press itself places.
+   */
+  let pressing = false
   let placeholderIds = 0
   /**
    * A state the application committed while the browser was composing: drawing it then
@@ -525,6 +644,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       if (live === null || live === undefined || !ownsSelection()) return
       live.modify(move.extend ? 'extend' : 'move', move.direction, move.granularity)
       reportSelection()
+      revealSelection(readSelection(current))
     })
   }
   const ask = (command: RichText.Command): void => {
@@ -543,11 +663,24 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       ask(command)
     })
   }
+  /**
+   * An undo or redo asked for and not yet drawn. Unlike an edit it is never answered, so a
+   * timer ends the wait for one that changes nothing.
+   */
+  let undoing: ReturnType<typeof setTimeout> | undefined
   const draw = (state: RichText.EditorState, changeSet: RichText.ChangeSet): void => {
     const owned = ownsSelection()
+    // Only what the person's own input asked for follows the caret: another person's edit
+    // landing meanwhile must not move this one's page.
+    const asked = unanswered > 0 || undoing !== undefined
+    clearTimeout(undoing)
+    undoing = undefined
     lastSelection = state.selection
-    redraw(patchInto(current, state.document, changeSet, options.decorate?.(state.document)))
-    if (owned) restoreSelection(current, state.selection)
+    standInWhileElsewhere(state.selection)
+    redraw(patchInto(current, state.document, changeSet, decorationsOver(state.document)))
+    if (!owned) return
+    restoreSelection(current, state.selection)
+    if (asked) revealSelection(state.selection)
   }
   /** For Mod+A in a kind whose text keeps line breaks (code), its text, unless that is selected. */
   const codeToSelect = (event: KeyboardEvent): RichText.Selection | undefined => {
@@ -632,7 +765,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       if (after || key === 'ArrowLeft' || key === 'ArrowUp') {
         event.preventDefault()
         const beside = caretBeside(current.content, live.node, after)
-        if (beside !== null) select(beside)
+        if (beside !== null) select(beside, true)
         return
       }
     }
@@ -641,7 +774,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       const code = codeToSelect(event as KeyboardEvent)
       if (code !== undefined) {
         event.preventDefault()
-        select(code)
+        select(code, true)
         return
       }
     }
@@ -651,7 +784,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       const reached = atomReached(event as KeyboardEvent)
       if (reached !== undefined) {
         event.preventDefault()
-        select({ type: 'Node', node: reached })
+        select({ type: 'Node', node: reached }, true)
         return
       }
     }
@@ -675,7 +808,13 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       reportSelection()
       onIntent(intent.command)
     }
-    if (intent.history !== undefined) options.onHistory?.(intent.history)
+    if (intent.history !== undefined) {
+      clearTimeout(undoing)
+      undoing = setTimeout(() => {
+        undoing = undefined
+      }, UNANSWERED_MS)
+      options.onHistory?.(intent.history)
+    }
   }
   const onCompositionStart = (): void => {
     reportSelection()
@@ -825,6 +964,10 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   // A press on an atom (an image, a divider) selects it whole, as there is no text in it for
   // a caret, and keeps the browser from dragging it or putting the caret elsewhere.
   const onMouseDown = (event: MouseEvent): void => {
+    pressing = true
+    setTimeout(() => {
+      pressing = false
+    })
     const origin = event.target
     if (event.button !== 0 || !(origin instanceof Element)) return
     if (origin === current.root && pressBelow(event)) return
@@ -859,11 +1002,46 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     current.root.focus({ preventScroll: true })
     select({ type: 'Node', node: block.id })
   }
+  /**
+   * A press on one of the editor's controls (`CONTROLS_ATTRIBUTE`) does not take the focus from
+   * the text: the click still happens, and what it sends acts on a selection that is still the
+   * browser's. A control that holds the focus already, or a field, is left to the browser.
+   */
+  const onControlPress = (event: MouseEvent): void => {
+    const origin = event.target
+    if (!(origin instanceof Element) || origin.closest(`[${CONTROLS_ATTRIBUTE}]`) === null) return
+    if (origin.closest(TYPED_IN) !== null) return
+    if (ownsSelection()) event.preventDefault()
+  }
+  /**
+   * The focus moved: to a control, where the selection is drawn as a decoration from then on, or
+   * back into the text, where the decoration goes and the browser's selection is the Model's
+   * again, since no patch made meanwhile could put it back.
+   */
+  const onFocusIn = (event: FocusEvent): void => {
+    // The focus just left the text: the browser still holds the person's own selection, and the
+    // `selectionchange` of a press made just before comes after this, too late to be the editor's.
+    const left = event.relatedTarget
+    if (focusElsewhere() && left instanceof Node && current.root.contains(left)) reportLive()
+    const drawn = standIn
+    standInWhileElsewhere(lastSelection)
+    if (!sameStandIn(drawn, standIn)) {
+      redraw(patchInto(current, current.content, unchanged, decorationsOver(current.content)))
+    }
+    // A press puts the caret where it lands, and focus on a control inside an atom stays there:
+    // only the text itself, reached another way (a key, a script), takes the selection back.
+    if (pressing || lastSelection === null) return
+    if (current.root.ownerDocument.activeElement === current.root) {
+      restoreSelection(current, lastSelection)
+    }
+  }
   const target = dom.root
   // The caret belongs to the document, not the subtree: a click elsewhere on the
   // page, or an arrow key, moves it without an event the root would see.
   const ownerDocument = target.ownerDocument
   ownerDocument.addEventListener('selectionchange', reportSelection)
+  ownerDocument.addEventListener('mousedown', onControlPress)
+  ownerDocument.addEventListener('focusin', onFocusIn)
   target.addEventListener('beforeinput', onEvent)
   target.addEventListener('keydown', onEvent)
   target.addEventListener('compositionstart', onCompositionStart)
@@ -873,6 +1051,11 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
   target.addEventListener('paste', onPaste)
   target.addEventListener('click', onClick)
   target.addEventListener('mousedown', onMouseDown)
+  // A label the browser cannot hand the focus to (a form's `for` names a group) sends it here.
+  const labelElement = labelledBy === undefined ? null : ownerDocument.getElementById(labelledBy)
+  const labelFor = labelElement?.tagName === 'LABEL' ? labelElement : null
+  const focusFromLabel = (): void => current.root.focus({ preventScroll: true })
+  labelFor?.addEventListener('click', focusFromLabel)
   return {
     current: () => current,
     held: () => deferred?.state.document ?? current.content,
@@ -881,8 +1064,9 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     redecorate: () => {
       if (composing) return
       const selection = readSelection(current)
-      redraw(patchInto(current, current.content, unchanged, options.decorate?.(current.content)))
-      if (selection !== null) restoreSelection(current, selection)
+      const owned = ownsSelection()
+      redraw(patchInto(current, current.content, unchanged, decorationsOver(current.content)))
+      if (selection !== null && owned) restoreSelection(current, selection)
     },
     focus: selection => {
       current.root.focus({ preventScroll: true })
@@ -907,7 +1091,10 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
     },
     detach: () => {
       clearTimeout(fallback)
+      clearTimeout(undoing)
       ownerDocument.removeEventListener('selectionchange', reportSelection)
+      ownerDocument.removeEventListener('mousedown', onControlPress)
+      ownerDocument.removeEventListener('focusin', onFocusIn)
       target.removeEventListener('beforeinput', onEvent)
       target.removeEventListener('keydown', onEvent)
       target.removeEventListener('compositionstart', onCompositionStart)
@@ -917,6 +1104,7 @@ export const attach = (dom: EditorDom, options: AttachOptions): Attachment => {
       target.removeEventListener('paste', onPaste)
       target.removeEventListener('click', onClick)
       target.removeEventListener('mousedown', onMouseDown)
+      labelFor?.removeEventListener('click', focusFromLabel)
     },
   }
 }

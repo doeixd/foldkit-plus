@@ -117,6 +117,27 @@ const held = (declarations: Declarations): Declarations => {
   return declarations
 }
 
+/**
+ * A control's error edge while it is `aria-invalid`. A look that sets the edge
+ * itself (`filled`'s transparent one) writes it again, since a variant beats
+ * the base's.
+ */
+export const invalidEdge: StyleValue = Style.states(
+  { true: { borderColor: ref.error.outline } },
+  'aria-invalid',
+)
+
+/**
+ * The same edge while the pointer is over or presses the control, for a look
+ * whose own hover rule writes the edge (a ghost's transparent one) and would
+ * otherwise win by specificity: an invalid control keeps its error edge under
+ * the pointer.
+ */
+export const invalidEdgeHeld: StyleValue = Style.pseudo(
+  '[aria-invalid="true"]:is(:hover, :active)',
+  { borderColor: ref.error.outline },
+)
+
 export const focusRing: StyleValue = Style.pseudo(':focus-visible', {
   outline: `${ref.border.thick} solid ${ref.outline.focus}`,
   outlineOffset: '2px',
@@ -362,6 +383,17 @@ export const surfaceInk = (paint: string): string =>
  * surface step vanished on a page of that step.
  */
 export const unfilledHover = `color-mix(in oklab, var(--_fk-state-ink, ${ref.state.ink}) ${ref.knob['state-hover']}, transparent)`
+
+/**
+ * A filled control's hover: the field fill with the state ink laid over it,
+ * as a ghost's hover is laid over nothing. Its edge is transparent, so the
+ * border the outline looks change on hover has nothing to show. Skips a
+ * disabled control, and a frame holding one. The fill's longhand, so a
+ * select's chevron stays.
+ */
+export const filledHover: StyleValue = Style.pseudo(`${HOVERED}:not(:has(:disabled))`, {
+  backgroundColor: `color-mix(in oklab, var(--_fk-state-ink, ${ref.state.ink}) ${ref.knob['state-hover']}, ${ref.surface.field})`,
+})
 
 /**
  * The same film held down: a press lays the hover's ink at 1.75, so a row, a

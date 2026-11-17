@@ -368,6 +368,84 @@ export default [
     tests: ['examples/registry/test/prices.test.ts'],
   },
   {
+    name: 'the button always offers to go offline',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: "label: model.offline ? 'Go online' : 'Go offline',",
+        replace: "label: 'Go offline',",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the dot says online while offline',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: "h.DataAttribute('link', model.offline ? 'offline' : 'online'),",
+        replace: "h.DataAttribute('link', 'online'),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refused edit is not announced',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: "h.AriaLabel('Edits not saved'), h.AriaLive('polite')",
+        replace: "h.AriaLabel('Edits not saved')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a copy is not said',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'model: modifyFields(model, { copied: () => Option.some({ rows, columns }) }),',
+        replace: 'model,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an edit leaves the copy said',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: '      heldBack: () => Option.none(),\n      copied: () => Option.none(),',
+        replace: '      heldBack: () => Option.none(),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the refused region is redrawn as a new element on each change',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: "slots.notices.attrs([h.Id('refused'), h.AriaLabel('Edits not saved'), h.AriaLive('polite')]),",
+        replace:
+          "slots.notices.attrs([h.Id('refused'), h.AriaLabel('Edits not saved'), h.AriaLive('polite'), h.Key(String(model.refused.length))]),",
+      },
+    ],
+    tests: ['examples/registry/test/connection.browser.test.ts'],
+  },
+  {
+    name: 'the button label does not follow the connection',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: "label: model.offline ? 'Go online' : 'Go offline',",
+        replace: "label: 'Go offline',",
+      },
+    ],
+    tests: ['examples/registry/test/connection.browser.test.ts'],
+  },
+  {
     name: 'a whole number of cents is rounded away',
     edits: [
       {

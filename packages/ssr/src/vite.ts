@@ -14,7 +14,7 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { Effect, Schema } from 'effect'
 import type { RenderError } from 'foldkit/experimental/server'
-import type { Plugin } from 'vite'
+import type { Plugin, PluginOption } from 'vite'
 import { SSR, type Head, type ResumeUnsafe } from './index.js'
 import type { ResumableConfig, ResumePlan } from './shared.js'
 
@@ -64,7 +64,13 @@ export interface StaticSite<
   Resolved = ResumableConfig<Model, Message>,
 > {
   readonly config: Resolved | ((path: string) => Resolved | Promise<Resolved>)
-  readonly plan: ResumePlan<Model, Fields>
+  /**
+   * The plan every page resumes with, or a function of the path for a site of
+   * more than one application: each path then resumes with the plan of the
+   * application `config` returns for it. A function that throws fails the
+   * build, naming the path.
+   */
+  readonly plan: ResumePlan<Model, Fields> | ((path: string) => ResumePlan<Model, Fields>)
   readonly buildId?: string | undefined
   readonly origin: string
   readonly paths:
@@ -156,6 +162,7 @@ export const generateStaticSite = <Model, Fields extends Schema.Struct.Fields, M
         : pathsInput
     const files = site.files ?? 'directory'
     const configInput = site.config
+    const planInput = site.plan
     if (specs.length === 0) {
       throw new Error(
         'foldkit-ssr: the site lists no paths: a site of nothing is a misconfigured paths',
@@ -182,7 +189,17 @@ export const generateStaticSite = <Model, Fields extends Schema.Struct.Fields, M
         typeof configInput === 'function'
           ? yield* Effect.promise(async () => configInput(path))
           : configInput
-      const [page] = yield* SSR.generate(config, site.plan, {
+      const plan =
+        typeof planInput === 'function'
+          ? yield* Effect.try({
+              try: () => planInput(path),
+              catch: cause =>
+                new Error(`foldkit-ssr: the plan for "${path}" failed: ${String(cause)}`, {
+                  cause,
+                }),
+            }).pipe(Effect.orDie)
+          : planInput
+      const [page] = yield* SSR.generate(config, plan, {
         buildId,
         template: site.template,
         origin: site.origin,
@@ -243,7 +260,7 @@ export interface SiteModule {
   readonly config:
     | ResumableConfig<any, any>
     | ((path: string) => ResumableConfig<any, any> | Promise<ResumableConfig<any, any>>)
-  readonly plan: ResumePlan<any, any>
+  readonly plan: ResumePlan<any, any> | ((path: string) => ResumePlan<any, any>)
   readonly buildId?: string | undefined
   readonly origin: string
   readonly paths:
@@ -273,6 +290,13 @@ const conditions = ['foldkit-plus:source']
 export const staticSite = (options: {
   /** The site description's module, root-relative (`/src/site.ts`), and its export. */
   readonly site: { readonly module: string; readonly export?: string | undefined }
+  /**
+   * Vite plugins the site module is loaded with. The build renders the pages
+   * from a server of its own, which loads none of the application's: pass the
+   * ones that change what a view draws, such as Foldkit's view-identity
+   * branding, whose markers the browser compares with the page it adopts.
+   */
+  readonly plugins?: PluginOption | undefined
   /** What `vite build` wrote: defaults to the resolved `build.outDir`. */
   readonly outDir?: string | undefined
 }): Plugin => {
@@ -310,6 +334,7 @@ export const staticSite = (options: {
         server: { middlewareMode: true, hmr: false },
         resolve: { conditions },
         ssr: { resolve: { conditions } },
+        ...(options.plugins === undefined ? {} : { plugins: [options.plugins] }),
         optimizeDeps: { noDiscovery: true, include: [] },
       })
       try {

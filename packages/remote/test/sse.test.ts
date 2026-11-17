@@ -72,6 +72,22 @@ describe('liveFetch', () => {
     expect(error.message).toBe('gone')
   })
 
+  it.each([
+    [
+      'an error frame',
+      serve(['event: error\ndata: {"message":"Internal error","incident":"0123456789abcdef"}\n\n']),
+    ],
+    [
+      'a failed open',
+      async () =>
+        Response.json({ error: 'Internal error', incident: '0123456789abcdef' }, { status: 500 }),
+    ],
+  ])('carries the incident %s names', async (_, fetch) => {
+    const error = await failed(fetch)
+    expect(error).toMatchObject({ _tag: 'RemoteLiveError', message: 'Internal error' })
+    expect('incident' in error ? error.incident : undefined).toBe('0123456789abcdef')
+  })
+
   it('fails when a data frame is not a change', async () => {
     const error = await failed(serve(['data: {"nope":1}\n\n']))
     expect(error._tag).toBe('RemoteLiveError')

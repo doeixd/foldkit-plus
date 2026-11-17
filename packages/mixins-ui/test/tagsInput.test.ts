@@ -10,7 +10,7 @@ import { Effect, Option } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
-import { A11y, Style, SlotView } from 'foldkit-mixins'
+import { A11y, Behaviors, Style, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Patterns, Recipes, TagsInput, TagsInputSlots } from '../src/index.js'
 import { h, message, sends, type TestMessage } from './fixture.js'
@@ -150,33 +150,63 @@ describe('TagsInput.update', () => {
 
   it('takes the last tag on Backspace only while the draft is empty', () => {
     const empty = withDraft(['a', 'b'], '')
-    expect(update(empty, Message.Pressed({ key: 'Backspace' })).model.tags).toEqual(['a'])
+    expect(update(empty, Message.BackspacedEmpty()).model.tags).toEqual(['a'])
     const typing = withDraft(['a', 'b'], 'c')
-    expect(update(typing, Message.Pressed({ key: 'Backspace' })).model).toBe(typing)
-    expect(update(empty, Message.Pressed({ key: 'x' })).model).toBe(empty)
+    expect(update(typing, Message.BackspacedEmpty()).model).toBe(typing)
     const none = init({ id: 'topics' })
-    expect(update(none, Message.Pressed({ key: 'Backspace' })).model).toBe(none)
+    expect(update(none, Message.BackspacedEmpty()).model).toBe(none)
   })
 
-  it('removes a tag by its text and sends the focus back to the input', () => {
+  it('removes a tag by its text, and changes nothing for one that is not there', () => {
     const model = init({ id: 'topics', tags: ['a', 'b', 'c'] })
-    const result = update(model, Message.Removed({ tag: 'b' }))
-    expect(result.model.tags).toEqual(['a', 'c'])
-    expect((result.commands ?? []).map(command => command.name)).toEqual(['FocusInput'])
+    expect(update(model, Message.Removed({ tag: 'b' })).model.tags).toEqual(['a', 'c'])
     const gone = update(model, Message.Removed({ tag: 'z' }))
     expect(gone.model).toBe(model)
     expect(gone.commands).toBeUndefined()
   })
 
-  it("focuses the field's own input once a tag is removed", async () => {
-    document.body.innerHTML = '<input id="topics"><input id="topics-input">'
-    const [command] = update(
-      init({ id: 'topics', tags: ['a'] }),
-      Message.Removed({ tag: 'a' }),
-    ).commands!
-    await Effect.runPromise(command!.effect)
-    expect(document.activeElement?.id).toBe('topics-input')
-    document.body.replaceChildren()
+  describe('focus after a removal', () => {
+    // What each removal focuses, found by running its Command against the page the view draws.
+    const focusedAfter = async (tags: ReadonlyArray<string>, removed: string) => {
+      const page = document.createElement('div')
+      page.append(
+        ...['topics-input', ...tags.map(tag => `topics-chip-${tag}`)].map(id => {
+          const element = document.createElement('button')
+          element.id = id
+          return element
+        }),
+      )
+      document.body.append(page)
+      const { model, commands } = update(
+        init({ id: 'topics', tags }),
+        Message.Removed({ tag: removed }),
+      )
+      expect(commands).toHaveLength(1)
+      await Effect.runPromise(commands![0]!.effect)
+      const id = document.activeElement?.id
+      page.remove()
+      return { id, chip: model.chip }
+    }
+
+    it.each([
+      ['a middle chip', ['a', 'b', 'c'], 'b', 'topics-chip-c', Option.some('c')],
+      ['the first chip', ['a', 'b', 'c'], 'a', 'topics-chip-b', Option.some('b')],
+      ['the last chip', ['a', 'b', 'c'], 'c', 'topics-chip-b', Option.some('b')],
+      ['the only chip', ['a'], 'a', 'topics-input', Option.none()],
+    ] as const)(
+      '%s goes to the chip that takes its place, else the input',
+      async (_, tags, removed, id, chip) => {
+        expect(await focusedAfter(tags, removed)).toEqual({ id, chip })
+      },
+    )
+
+    it('finds a chip whose text is no safe selector', async () => {
+      const awkward = 'say "hi" #1'
+      expect(await focusedAfter(['a', awkward, 'b'], 'a')).toEqual({
+        id: `topics-chip-${awkward}`,
+        chip: Option.some(awkward),
+      })
+    })
   })
 })
 
@@ -203,20 +233,187 @@ describe('TagsInput.view', () => {
     ])
   })
 
-  it('commits on Enter and on the delimiter, and passes every key on', () => {
-    const view = (h: HtmlBuilder<TagsInput.Message>) =>
-      TagsInput.view({ model: init({ id: 'topics' }), onMessage: m => m, label: 'Topics' }, h)
+  const plain = (h: HtmlBuilder<TagsInput.Message>) =>
+    TagsInput.view({ model: init({ id: 'topics' }), onMessage: m => m, label: 'Topics' }, h)
+
+  it.each(['Enter', ','])('commits on %s', key => {
     sends(
-      view,
-      Scene.keydown(Scene.label('Topics'), 'Enter'),
-      Scene.expectOutMessages(Message.Committed(), Message.Pressed({ key: 'Enter' })),
-      Scene.keydown(Scene.label('Topics'), ','),
-      Scene.expectOutMessages(Message.Committed(), Message.Pressed({ key: ',' })),
-      Scene.keydown(Scene.label('Topics'), 'a'),
-      Scene.expectOutMessage(Message.Pressed({ key: 'a' })),
+      plain,
+      Scene.keydown(Scene.label('Topics'), key),
+      Scene.expectOutMessage(Message.Committed()),
+    )
+  })
+
+  describe('adding on blur', () => {
+    it('commits the draft when the input loses focus, if asked to', () => {
+      sends(
+        (h: HtmlBuilder<TagsInput.Message>) =>
+          TagsInput.view(
+            { model: init({ id: 'topics' }), onMessage: m => m, label: 'Topics', addOnBlur: true },
+            h,
+          ),
+        Scene.blur(Scene.label('Topics')),
+        Scene.expectOutMessage(Message.Committed()),
+      )
+    })
+
+    it('leaves the draft alone by default, and while disabled', () => {
+      const [plain] = Inert.byTag(drawn([]), 'input')
+      expect(plain?.data?.on?.['blur']).toBeUndefined()
+      const [off] = Inert.byTag(
+        TagsInput.view(
+          {
+            model: init({ id: 'topics' }),
+            onMessage: () => message('Clicked'),
+            label: 'Topics',
+            addOnBlur: true,
+            disabled: true,
+          },
+          h,
+        ),
+        'input',
+      )
+      expect(off?.data?.on?.['blur']).toBeUndefined()
+    })
+  })
+
+  it('reports the text typed', () => {
+    sends(
+      plain,
       Scene.type(Scene.label('Topics'), 'react'),
       Scene.expectOutMessage(Message.Typed({ text: 'react', drawn: 0 })),
     )
+  })
+
+  describe('routes of the application', () => {
+    type Outer = TagsInput.Message | { readonly _tag: 'Down' }
+    const routeOn = (key: 'ArrowDown' | 'Enter') =>
+      Behaviors.Keys.route<TagsInput.Model, Outer>(key, {
+        on: [Behaviors.Keys.chord(key)],
+        handle: () => Option.some({ _tag: 'Down' }),
+      })
+    const withRoutes = (routes: ReadonlyArray<TagsInput.Route<Outer>>) => (h: HtmlBuilder<Outer>) =>
+      TagsInput.view(
+        { model: init({ id: 'topics' }), onMessage: m => m, label: 'Topics', routes },
+        h,
+      )
+
+    it('answer beside the keys of the field', () => {
+      sends(
+        withRoutes([routeOn('ArrowDown')]),
+        Scene.keydown(Scene.label('Topics'), 'ArrowDown'),
+        Scene.expectOutMessage({ _tag: 'Down' }),
+      )
+      sends(
+        withRoutes([routeOn('ArrowDown')]),
+        Scene.keydown(Scene.label('Topics'), 'Enter'),
+        Scene.expectOutMessage(Message.Committed()),
+      )
+    })
+
+    it('may not take a key the field takes', () => {
+      expect(() =>
+        TagsInput.view(
+          {
+            model: init({ id: 'topics' }),
+            onMessage: m => m,
+            label: 'Topics',
+            routes: [routeOn('Enter')],
+          },
+          SlotView.inertBuilder<Outer>(),
+        ),
+      ).toThrow(/Enter/)
+    })
+  })
+
+  describe('chips by keyboard', () => {
+    const three = init({ id: 'topics', tags: ['a', 'b', 'c'] })
+    const chips =
+      (direction: 'ltr' | 'rtl' = 'ltr') =>
+      (h: HtmlBuilder<TagsInput.Message>) =>
+        TagsInput.view({ model: three, onMessage: m => m, label: 'Topics', direction }, h)
+    const moved = (tag: string) => Message.FocusMoved({ chip: Option.some(tag) })
+
+    it('holds one tab stop, the chip last moved to, else the last', () => {
+      const stops = (model: TagsInput.Model) =>
+        Inert.byTag(
+          TagsInput.view({ model, onMessage: () => message('Clicked'), label: 'Topics' }, h),
+          'button',
+        ).map(button => Inert.value(button, 'tabindex'))
+      expect(stops(three)).toEqual([-1, -1, 0])
+      expect(stops(update(three, moved('a')).model)).toEqual([0, -1, -1])
+      // The chip it last moved to is gone: the stop falls back to the last.
+      const gone = update(update(three, moved('c')).model, Message.BackspacedEmpty()).model
+      expect(gone.tags).toEqual(['a', 'b'])
+      expect(stops(gone)).toEqual([-1, 0])
+    })
+
+    it('records where focus went, and is no change when it is there already', () => {
+      expect(update(three, moved('b')).model.chip).toEqual(Option.some('b'))
+      const there = update(three, moved('b')).model
+      expect(update(there, moved('b')).model).toBe(there)
+      expect(update(there, Message.FocusMoved({ chip: Option.none() })).model.chip).toEqual(
+        Option.none(),
+      )
+    })
+
+    it.each([
+      ['ltr', 'b', 'ArrowLeft', moved('a')],
+      ['ltr', 'b', 'ArrowRight', moved('c')],
+      ['ltr', 'a', 'ArrowLeft', moved('a')],
+      ['ltr', 'c', 'ArrowRight', Message.FocusMoved({ chip: Option.none() })],
+      ['ltr', 'c', 'Home', moved('a')],
+      ['ltr', 'a', 'End', moved('c')],
+      ['rtl', 'b', 'ArrowLeft', moved('c')],
+      ['rtl', 'b', 'ArrowRight', moved('a')],
+      ['rtl', 'c', 'ArrowLeft', Message.FocusMoved({ chip: Option.none() })],
+      ['ltr', 'b', 'Backspace', Message.Removed({ tag: 'b' })],
+      ['ltr', 'b', 'Delete', Message.Removed({ tag: 'b' })],
+    ] as const)(
+      '%s: a key on chip %s, %s, sends the move or removal',
+      (direction, tag, key, sent) => {
+        sends(
+          chips(direction),
+          Scene.keydown(Scene.label(`Remove ${tag}`), key),
+          Scene.expectOutMessage(sent),
+        )
+      },
+    )
+
+    it.each([
+      ['ltr', 'ArrowLeft'],
+      ['rtl', 'ArrowRight'],
+    ] as const)('%s: %s in an empty input moves to the last chip', (direction, key) => {
+      sends(
+        chips(direction),
+        Scene.keydown(Scene.label('Topics'), key),
+        Scene.expectOutMessage(moved('c')),
+      )
+    })
+
+    it('takes no keys on a chip while disabled', () => {
+      const [remove] = Inert.byTag(drawn(['a'], true), 'button')
+      expect(remove?.data?.on?.['keydown']).toBeUndefined()
+    })
+  })
+
+  it('words the remove button as the application asks, and says `Remove` and × otherwise', () => {
+    const buttons = (words?: TagsInput.TagsInputWords) =>
+      Inert.byTag(
+        TagsInput.view(
+          {
+            model: init({ id: 'topics', tags: ['a$&b'] }),
+            onMessage: () => message('Clicked'),
+            label: 'Topics',
+            words,
+          },
+          h,
+        ),
+        'button',
+      ).map(button => [Inert.value(button, 'aria-label'), Inert.text(button)])
+    expect(buttons()).toEqual([['Remove a$&b', '×']])
+    expect(buttons({ remove: tag => `Retirer ${tag}`, mark: '✕' })).toEqual([['Retirer a$&b', '✕']])
+    expect(buttons({ mark: '✕' })).toEqual([['Remove a$&b', '✕']])
   })
 
   it('removes the tag whose button is pressed', () => {

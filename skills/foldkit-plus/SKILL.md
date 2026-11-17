@@ -1,6 +1,6 @@
 ---
 name: foldkit-plus
-description: Explains Foldkit Plus packages (foldkit-surface, foldkit-remote, -server, -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-site, foldkit-ssr and -host, foldkit-agent and adapters, foldkit-mixins and -ui, foldkit-react, foldkit-bundle, foldkit-primitives, foldkit-entity, foldkit-guard, foldkit-auth, foldkit-form, foldkit-crud, foldkit-cms, foldkit-data-grid, foldkit-media, foldkit-richtext, foldkit-composition), which owns which state, basic use. Use when starting a new Foldkit app, writing or reviewing one with a foldkit-* package, picking one for server data, live lists, offline writes or sync, URL or storage state, server rendering, AI agent tools, view styling, reusable Submodels, domain entities, authorization, Yielded Auth, forms, a data grid, a CMS, rich text, images, or when the user names Foldkit Plus, Surface, Projection, Remote, Data.query, Sync, Mirror, Site.target, Agent.expose, Mixins, Bundle, Entity.select, Guards.declare, Form.make, Crud.editor, DataGrid.make, or Cms.content.
+description: Explains Foldkit Plus packages (foldkit-surface, -remote, -sync, -durable, -mirror, -site, -ssr, -host, -agent, -mixins, -mixins-ui, -react, -bundle, -primitives, -entity, -guard, -auth, -form, -crud, -cms, -data-grid, -media, -richtext, -composition, and their adapters), which owns which state, basic use. Use when starting a Foldkit app, writing or reviewing one with a foldkit-* package, picking one for server data, live lists, offline writes or sync, URL or storage state, server rendering, AI agent tools, view styling, UI widgets (search field, toolbar, file input, command palette, dialog), writing a widget or recipe, key routes, focus recovery, accessibility conformance, reusable Submodels, domain entities, authorization, Yielded Auth, forms, a data grid, a CMS, rich text, images, or when the user names Foldkit Plus, Surface, Projection, Remote, Data.query, Sync, Mirror, Site.target, Agent.expose, Mixins, Bundle, Entity.select, Guards.declare, Form.make, Crud.editor, DataGrid.make, or Cms.content.
 license: MIT
 metadata:
   version: '0.40.0'
@@ -32,13 +32,13 @@ Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.4`. APIs are
 | A filter in the URL, a draft or preference remembered on a device, a cart a server renders from a cookie | the local Model | `foldkit-mirror` | [mirror.md](references/mirror.md) |
 | Where the application is: route nodes in a hierarchy, typed targets, titles, history intent | the tree, as data; the route value stays in the local Model | `foldkit-site` (early) | [site.md](references/site.md) |
 | What an AI agent may see and do, over MCP, WebMCP, A2A, or Agent Native | the application | `foldkit-agent` + one adapter | [agent.md](references/agent.md) |
-| Restyling or adding behaviour to views, including `@foldkit/ui`; ready components (`Picker`, a window-scrolled `WindowList`) | the view contract; a component's state is the parent Model's | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md) |
+| Restyling or adding behaviour to views, including `@foldkit/ui`; ready widgets (`SearchField`, `Toolbar`, `FileInput`, `Command`, `Picker`, `WindowList`), the application's key routes, accessibility obligations | the view contract; a component's state is the parent Model's | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md); your own component, widget, recipe or primitive: [authoring.md](references/authoring.md) |
 | A reusable Submodel placed several times or per key, with every part wired | the parent Model | `foldkit-bundle` (+ `-surface`) | [bundle.md](references/bundle.md) |
 | Responsive images (widths, `srcset`, formats, placeholders) and icons as data | the image's source; variants are a cache; an uploaded file is the `FileStore`'s, the row holding it the app's | `foldkit-media` (+ `Image`, `Icon` in `foldkit-mixins-ui`; early) | [media.md](references/media.md) |
-| A media query, presence, timer, pagination, undo history, socket, resize, clipboard, or a virtual list's measured rows | the parent Model | `foldkit-primitives` | [primitives.md](references/primitives.md) |
+| A media query, presence, timer, pagination, undo history, socket, resize, clipboard, a virtual list's measured rows; keyboard navigation, reorder, inline edit, focus recovery | the parent Model | `foldkit-primitives` | [primitives.md](references/primitives.md) |
 | A React component in a Foldkit view, a Foldkit program in a React app, or views compiled to TSX | the Model / the embedded program | `foldkit-react` (+ `-codegen`) | [react.md](references/react.md) |
 | Typed facts a package attaches to another package's declaration (package authors only) | the key's package | `foldkit-metadata` (re-exported by `foldkit-surface`) | [surface.md](references/surface.md) |
-| An Alchemy Domain model (Commands, Aggregates, Views) read and written through Remote | the Domain model decides and records Events; Remote keeps the client's copy and pending state; the adapter keeps only receipts in flight | `foldkit-remote-domain` (experimental) | [remote-domain.md](references/remote-domain.md) |
+| An Alchemy Domain model (Commands, Aggregates, Views) read and written through Remote | the Domain model decides and records Events; Remote keeps the client's copy and pending state; the adapter owns no row and decides nothing (it keeps recent replies only to spare a retry its call) | `foldkit-remote-domain` (experimental) | [remote-domain.md](references/remote-domain.md) |
 | A domain entity's fields, relations and derived members, its invariants, and writes declared as data | the domain declaration; the server's writer enforces it where it commits | `foldkit-entity` | [entity.md](references/entity.md) |
 | Where a rule goes: a value's Schema, an invariant, a state, a write's `when`, a guard, a document's law; which refusal each gives; `Laws.check`, evidence, `Data.can` | the owner of the state; declared once, held where it changes | `foldkit-entity` + `foldkit-guard` + `foldkit-sync` | [laws.md](references/laws.md) |
 | Who may do what, on reads, writes, Sync edits, agents and uploads | the domain declaration, decided on the server; the client's `may` is only a hint | `foldkit-guard` (`/server`, `/drizzle`, `/sync`, `/agent`) | [guard.md](references/guard.md) |
@@ -59,9 +59,10 @@ holds a write until the server judges it, and the answer is the truth; Sync's
 log holds client-authored edits every replica replays in the log's order.
 
 Read only the reference for the package at hand; its first line names the
-versions it was checked against. For one symbol or topic in the installed
-release, `npx foldkit-plus docs Data.preload` (or `"optimistic delete"`) prints
-the best README sections with the declaration; `docs --list remote`, an outline.
+versions it was checked against. This skill and the guides ship inside the
+`foldkit-plus` npm package, at the code's version; `npx foldkit-plus skill`
+installs that copy, and `npx foldkit-plus docs Data.preload` (or `"optimistic
+delete"`) answers offline from them and the READMEs; `docs --list remote`, an outline.
 An application's `AGENTS.md` takes the block in [agents-md.md](references/agents-md.md).
 
 ## How they connect

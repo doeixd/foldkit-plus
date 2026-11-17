@@ -1,11 +1,10 @@
 import { Option } from 'effect'
 import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
-import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
 import { Message, Roving, TOOLS, initial, update, type Model } from '../src/toolbar/app.js'
-import { Toolbar, ToolbarSlots, describeTools } from '../src/toolbar/view.js'
+import { Toolbar } from '../src/toolbar/view.js'
 import { runDemo } from '../src/toolbar/demo.js'
 
 const pressed = (model: Model, id: string): Model =>
@@ -35,7 +34,7 @@ describe('update flows', () => {
 })
 
 describe('view structure', () => {
-  it('draws one button per tool with pressed state', () => {
+  it('draws one button per tool with pressed state, inside one toolbar', () => {
     const bar = Inert.draw(Toolbar, pressed(initial.model, 'italic'))
     expect(Inert.byRole(bar, 'toolbar')).toHaveLength(1)
     const buttons = Inert.byTag(bar, 'button')
@@ -44,19 +43,20 @@ describe('view structure', () => {
     expect(Inert.value(buttons[0], 'aria-pressed')).toBe('false')
   })
 
-  it('marks the disabled tool without a click', () => {
-    const h = SlotView.inertBuilder<Message>()
-    const builders = SlotView.buildersFor(ToolbarSlots, Toolbar.mixins, {
-      input: initial.model,
-      h,
-    })
-    const items = describeTools()
-    const strike = builders.tool.attrs([], items.slotItem(2))
-    expect(Attributes.find(strike, 'AriaDisabled')?.value).toBe(true)
-    expect(Attributes.find(strike, 'OnClick')).toBeUndefined()
+  it('gives the tab stop to the first tool until focus moves it', () => {
+    const tabindexes = (model: Model) =>
+      Inert.byTag(Inert.draw(Toolbar, model), 'button').map(button =>
+        Inert.value(button, 'tabindex'),
+      )
+    expect(tabindexes(initial.model)).toEqual([0, -1, -1, -1])
+    const focused = update(
+      initial.model,
+      Roving.wrapper.make(RovingTabindex.Message.Focused({ id: 'link' })),
+    ).model
+    expect(tabindexes(focused)).toEqual([-1, -1, -1, 0])
   })
 
-  it('enabled tools are clickable and the disabled one is not', () => {
+  it('enabled tools are clickable and the disabled one says why it is not', () => {
     const bar = Inert.draw(Toolbar, initial.model)
     expect(typeof clickOf(Inert.byLabel(bar, 'Bold')[0])).toBe('function')
     const strike = Inert.byLabel(bar, 'Strikethrough')[0]

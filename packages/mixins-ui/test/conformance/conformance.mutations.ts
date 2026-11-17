@@ -258,8 +258,10 @@ export default [
     edits: [
       edit(
         selection,
-        ': { model: { selected: [id], anchor: id, ranged: [] } }',
-        ': { model: { selected: [...model.selected, id], anchor: id, ranged: [] } }',
+        `: { model: { selected: [id], anchor: id, ranged: [] } }
+      }`,
+        `: { model: { selected: [...model.selected, id], anchor: id, ranged: [] } }
+      }`,
       ),
     ],
     tests: listbox,

@@ -10,6 +10,11 @@ policy the server enforces.
 runs in your browser, shared by every tab of it: open a second tab, or add
 `?token=bob` to be someone else, and a todo added in one shows in the other.
 
+**What to try first:** press *Go offline*, add a few todos, and watch the strip
+above the list count the changes waiting; reload; press *Go online* and watch
+them sync, and show up in a second tab. Delete a todo and press *Undo*. The
+whole page works from the keyboard.
+
 ## Follow one user action
 
 Start with adding a todo. The composer emits `DraftSubmitted`, which names no
@@ -68,7 +73,7 @@ file it exercises. `test/demo.test.ts` pins its lines.
 flowchart TB
   app["app.ts<br/>Model + Message + update — the only reducer"]
   surface["surface.ts<br/>Surface.application(App)"]
-  surfaces["Surfaces<br/>Header, Composer, Board, Footer, Overview"]
+  surfaces["Surfaces<br/>Header, Connection, Composer, Board, Footer, Overview"]
   fragments["sync fragments (sync.ts)<br/>Todos, ListMeta"]
   contract["agent contract (agent.ts)<br/>Overview + capabilities"]
   mirrors["mirrors (surface.ts)<br/>Filters: Mirror.url · Prefs: Mirror.kv"]
@@ -98,6 +103,7 @@ value.
 | `surface.ts` | `Surface.application` and the feature Surfaces. A Surface is what a part of the UI observes and may cause; its Message list is a compile-time capability boundary. It also declares the two mirrors: `Mirror.url` keeps the filter in the URL (`?filter=active`, linkable, read back on navigation) and `Mirror.kv` remembers the composer's draft in Web Storage. Both observe the Model and own nothing, and `update` takes their reducer as an argument so the Model stays a leaf of the import graph. |
 | `style.ts` | Slots, Styles, Behaviors, and a Theme. Appearance and interaction attached from outside the views. `Style.recipe`, `Style.whenInput`, `pseudo`/`media`/`nest` compiling to one stylesheet. |
 | `view.ts` | The views. No class names, no inline style, no keyboard code: `slots.x.attrs(base)` merges what is attached. `@foldkit/ui` Button and Checkbox resolved through `foldkit-mixins-ui`. `Surface.rootView` at the Root boundary. |
+| `network.ts` | The sandbox's *Go offline* switch: a gate in front of the Sync socket. Offline, the transport is given a socket that never opens, so exchanges wait and edits queue in the outbox as with no network; back online it is closed and the transport reconnects. |
 | `sync.ts` | The local-first contract derived from the application: two fragments composed into one document, `authorize` rules per durable variant, and `mountTodos` over `Sync.mount`. |
 | `agent.ts` | The agent contract: capabilities are existing Messages, the context is a Surface, `add_todo` exposes the intent and completes on its fact, `rename_list` completes on state with `Agent.when`, `authorize` mirrors the sync policy. |
 | `module.ts` | `Module.make` over every contract: validation and the ownership manifest. |
@@ -149,8 +155,21 @@ branches in the view.
   `RenamedList`, and the exchange the submit triggered rolls the edit back. The
   footer stays quiet — it reports `onPersistenceFailure`, which is the local
   save, not a server refusal.
-- Double-click a title to rename it; Escape cancels, Enter or blur commits.
-  `EditingCommitted` is local; its Command emits `RenamedTodo`.
+- Press *Go offline* in the strip above the list, add todos, and reload: the
+  strip counts the edits waiting (`Offline: 2 changes waiting to sync`) and the
+  outbox, which lives in IndexedDB, keeps them. The count is the replica's own
+  status (`replica.statusChanges`) entering the Model as a local Message
+  (`SyncStatusChanged`), and the switch is the Model's `offline` field read by a
+  Subscription (`runtime.ts`), so neither is shared state.
+- Click a title, or focus it and press Enter, to rename it; Escape cancels, Enter
+  or blur commits, and Enter and Escape put focus back on the title.
+  `EditingSubmitted` and `EditingCommitted` are local; their Command emits
+  `RenamedTodo`.
+- Delete a todo: focus moves to the next row, the footer says what was deleted
+  (a live region) and offers *Undo* for eight seconds. The delete is a durable
+  fact; the undo is another, `RestoredTodo`, which carries the todo as it was.
+  Both are intents (`DeleteRequested`, `UndoRequested`) that emit their fact with
+  `Sync.fact`, so the fact is applied in the same transition and focus can follow it.
 - Click a priority badge to cycle it; the list re-sorts, highest first.
 - With a browser that supports WebMCP, the same capabilities appear as tools
   named `add_todo`, `toggle_todo`, `rename_todo`, `set_priority`, `delete_todo`,

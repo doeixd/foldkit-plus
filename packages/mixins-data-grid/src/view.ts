@@ -59,6 +59,8 @@ export interface GridWords {
   readonly unpin?: string
   readonly hide?: string
   readonly show?: string
+  /** The title and description of a column that does not edit. Default `Read-only`. */
+  readonly readOnly?: string
   /** The words of the columns' filters. */
   readonly filters?: FilterWords
 }
@@ -1030,6 +1032,14 @@ const view = <Message>() => ({
           const corner = cornerOf(box)
           return [
             h.OnCopyText(text),
+            h.OnCopy(
+              input.wrap(
+                grid.Message.Copied({
+                  rows: box.rows.end - box.rows.start,
+                  columns: box.columns.length,
+                }),
+              ),
+            ),
             // A cut clears the cells it copied that can be edited.
             h.OnCutText(text, input.wrap(grid.Message.Pasted({ cells: clearedOf(box) }))),
             h.OnPastePreventDefault(pasted =>
@@ -1370,65 +1380,72 @@ const view = <Message>() => ({
             ]),
             [String.fromCharCode(0x22ee)],
           )
-          return Option.match(open, {
-            onNone: () => [button],
-            onSome: ({ active }) => {
-              const items = grid.menuItems(state.columns, id)
-              const count = items.length
-              const menuKey = (key: string): Option.Option<typeof grid.Message.Type> => {
-                if (key === 'ArrowDown') {
-                  return Option.some(grid.Message.MenuMoved({ active: (active + 1) % count }))
+          // One arrow returns the button open or shut; see `columnFilter`.
+          return [
+            button,
+            ...Option.match(open, {
+              onNone: () => [],
+              onSome: ({ active }) => {
+                const items = grid.menuItems(state.columns, id)
+                const count = items.length
+                const menuKey = (key: string): Option.Option<typeof grid.Message.Type> => {
+                  if (key === 'ArrowDown') {
+                    return Option.some(grid.Message.MenuMoved({ active: (active + 1) % count }))
+                  }
+                  if (key === 'ArrowUp') {
+                    return Option.some(
+                      grid.Message.MenuMoved({ active: (active - 1 + count) % count }),
+                    )
+                  }
+                  if (key === 'Home') return Option.some(grid.Message.MenuMoved({ active: 0 }))
+                  if (key === 'End')
+                    return Option.some(grid.Message.MenuMoved({ active: count - 1 }))
+                  if (key === 'Enter' || key === ' ') {
+                    return Option.some(grid.Message.MenuChosen({ index: active }))
+                  }
+                  if (key === 'Escape') return Option.some(grid.Message.MenuClosed())
+                  // Tab is left to the browser: focus leaving the menu closes it.
+                  return Option.none()
                 }
-                if (key === 'ArrowUp') {
-                  return Option.some(
-                    grid.Message.MenuMoved({ active: (active - 1 + count) % count }),
-                  )
-                }
-                if (key === 'Home') return Option.some(grid.Message.MenuMoved({ active: 0 }))
-                if (key === 'End') return Option.some(grid.Message.MenuMoved({ active: count - 1 }))
-                if (key === 'Enter' || key === ' ') {
-                  return Option.some(grid.Message.MenuChosen({ index: active }))
-                }
-                if (key === 'Escape') return Option.some(grid.Message.MenuClosed())
-                // Tab is left to the browser: focus leaving the menu closes it.
-                return Option.none()
-              }
-              return [
-                button,
-                h.div(
-                  slots.menu.attrs([
-                    h.Key(menuPart(id, 'list')),
-                    h.Role('menu'),
-                    h.Id(menuPart(id, 'list')),
-                    h.Tabindex(-1),
-                    h.AriaLabel(grid.columns.byId[id].header),
-                    ...(count === 0 ? [] : [h.AriaActiveDescendant(menuPart(id, String(active)))]),
-                    h.OnKeyDownPreventDefault(key => Option.map(menuKey(key), input.wrap)),
-                    h.OnFocusLeave(input.wrap(grid.Message.MenuClosed())),
-                    h.OnMount(holdFocus),
-                    h.Style({ position: 'absolute', top: '100%', insetInlineEnd: '0' }),
-                  ]),
-                  items.map((item, index) =>
-                    h.div(
-                      slots.menuItem.attrs([
-                        h.Role('menuitem'),
-                        h.Id(menuPart(id, String(index))),
-                        ...(index === active ? [h.DataAttribute('active', 'true')] : []),
-                        h.OnClick(input.wrap(grid.Message.MenuChosen({ index }))),
-                      ]),
-                      [itemLabel(item)],
+                return [
+                  h.div(
+                    slots.menu.attrs([
+                      h.Key(menuPart(id, 'list')),
+                      h.Role('menu'),
+                      h.Id(menuPart(id, 'list')),
+                      h.Tabindex(-1),
+                      h.AriaLabel(grid.columns.byId[id].header),
+                      ...(count === 0
+                        ? []
+                        : [h.AriaActiveDescendant(menuPart(id, String(active)))]),
+                      h.OnKeyDownPreventDefault(key => Option.map(menuKey(key), input.wrap)),
+                      h.OnFocusLeave(input.wrap(grid.Message.MenuClosed())),
+                      h.OnMount(holdFocus),
+                      h.Style({ position: 'absolute', top: '100%', insetInlineEnd: '0' }),
+                    ]),
+                    items.map((item, index) =>
+                      h.div(
+                        slots.menuItem.attrs([
+                          h.Role('menuitem'),
+                          h.Id(menuPart(id, String(index))),
+                          ...(index === active ? [h.DataAttribute('active', 'true')] : []),
+                          h.OnClick(input.wrap(grid.Message.MenuChosen({ index }))),
+                        ]),
+                        [itemLabel(item)],
+                      ),
                     ),
                   ),
-                ),
-              ]
-            },
-          })
+                ]
+              },
+            }),
+          ]
         }
 
         // Four parts, so a filter's ids are never a cell's (three) or a header's (two).
         const filterPart = (column: Id, part: string): string =>
           [grid.id, column, 'filter', part].map(encodeURIComponent).join(':')
         const filterWords = input.words?.filters ?? {}
+        const readOnlyWord = input.words?.readOnly ?? 'Read-only'
         /** A filtering column's button, and its form while open. */
         const columnFilter = (id: Id): ReadonlyArray<Html> =>
           Option.match(filterOf(id), {
@@ -1455,40 +1472,46 @@ const view = <Message>() => ({
                 // A funnel's outline, for a page with no style; GridStyle draws its own.
                 [String.fromCharCode(0x25bd)],
               )
-              return Option.match(open, {
-                onNone: () => [button],
-                onSome: ({ form, sent, generation }) => {
-                  // The form owns its draft while open: the application's filter
-                  // is stale only when it is none the form sent, so a store that
-                  // is late or cleans the value does not undo what was typed.
-                  const stale = isEcho(sent, drawn)
-                    ? Option.none()
-                    : Option.some({ drawn, generation })
-                  return [
-                    button,
-                    filterForm<Message>({
-                      h,
-                      slots,
-                      idOf: part => filterPart(id, part),
-                      header: grid.columns.byId[id].header,
-                      kind,
-                      // A stale frame shows what the application wrote, which the next key starts from.
-                      form: Option.isSome(stale) ? formOf(drawn) : form,
-                      filtered: Option.isSome(drawn),
-                      words: filterWords,
-                      hold: h.OnMount(holdFocus),
-                      typed: (field, text) =>
-                        input.wrap(grid.Message.FilterTyped({ field, text, stale })),
-                      toggled: option =>
-                        input.wrap(grid.Message.FilterOptionToggled({ option, stale })),
-                      checked: checked =>
-                        input.wrap(grid.Message.FilterChecked({ state: checked, stale })),
-                      cleared: input.wrap(grid.Message.FilterCleared({ stale })),
-                      closed: input.wrap(grid.Message.FilterClosed()),
-                    }),
-                  ]
-                },
-              })
+              // The button is returned from this one arrow whether or not the form
+              // is open: Foldkit's view-identity brand names the function that
+              // returned a node, and a node that changes arrow is replaced, which
+              // drops the focus the press just gave the button.
+              return [
+                button,
+                ...Option.match(open, {
+                  onNone: () => [],
+                  onSome: ({ form, sent, generation }) => {
+                    // The form owns its draft while open: the application's filter
+                    // is stale only when it is none the form sent, so a store that
+                    // is late or cleans the value does not undo what was typed.
+                    const stale = isEcho(sent, drawn)
+                      ? Option.none()
+                      : Option.some({ drawn, generation })
+                    return [
+                      filterForm<Message>({
+                        h,
+                        slots,
+                        idOf: part => filterPart(id, part),
+                        header: grid.columns.byId[id].header,
+                        kind,
+                        // A stale frame shows what the application wrote, which the next key starts from.
+                        form: Option.isSome(stale) ? formOf(drawn) : form,
+                        filtered: Option.isSome(drawn),
+                        words: filterWords,
+                        hold: h.OnMount(holdFocus),
+                        typed: (field, text) =>
+                          input.wrap(grid.Message.FilterTyped({ field, text, stale })),
+                        toggled: option =>
+                          input.wrap(grid.Message.FilterOptionToggled({ option, stale })),
+                        checked: checked =>
+                          input.wrap(grid.Message.FilterChecked({ state: checked, stale })),
+                        cleared: input.wrap(grid.Message.FilterCleared({ stale })),
+                        closed: input.wrap(grid.Message.FilterClosed()),
+                      }),
+                    ]
+                  },
+                }),
+              ]
             },
           })
 
@@ -1508,7 +1531,7 @@ const view = <Message>() => ({
                     h.DataAttribute('filtered', 'true'),
                     h.AriaDescription(
                       [
-                        ...(readOnly(id) ? ['Read-only'] : []),
+                        ...(readOnly(id) ? [readOnlyWord] : []),
                         filterWords.filtered ?? 'Filtered',
                       ].join(', '),
                     ),
@@ -1545,7 +1568,7 @@ const view = <Message>() => ({
                 onSome: edge => [h.DataAttribute('pinned', edge)],
               }),
               ...pinnedEdge(id),
-              ...(readOnly(id) ? [h.AriaReadonly(true), h.Title('Read-only')] : []),
+              ...(readOnly(id) ? [h.AriaReadonly(true), h.Title(readOnlyWord)] : []),
               ...Option.match(sortOf(id), {
                 onNone: () => [],
                 onSome: sorted => [h.AriaSort(ariaSort(sorted.direction))],

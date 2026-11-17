@@ -298,4 +298,26 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a style given as `style` is ignored',
+    edits: [
+      {
+        file: '../src/sheet.ts',
+        find: '...(options.style === undefined ? [] : [options.style.mixin]),',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'closing a closed dialog rebuilds its Model',
+    edits: [
+      {
+        file: '../src/dialog.ts',
+        find: 'if (isDismissal(message) && !model.isOpen) return { model, commands: [] }',
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
 ]

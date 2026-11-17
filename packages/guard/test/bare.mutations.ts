@@ -38,8 +38,9 @@ export default [
     edits: [
       {
         file: '../src/server.ts',
-        find: 'const { entity, policy, interaction, id, source } = guard\n    enforced(entity)',
-        replace: 'const { entity, policy, interaction, id, source } = guard',
+        find: 'enforced(entity), {\n      onNone: () => [],\n      onSome: attachment => reachingRules(attachment, interaction),',
+        replace:
+          'Option.none(), {\n      onNone: () => [],\n      onSome: attachment => reachingRules(attachment, interaction),',
       },
     ],
     tests,

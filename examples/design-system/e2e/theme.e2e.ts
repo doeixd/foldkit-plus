@@ -1,0 +1,260 @@
+/**
+ * The theme studio on the real page: a named theme, a tweaked knob, the scheme,
+ * the direction, another tab's choice, and a phone's width. `SHOTS=<dir>` also
+ * writes screenshots there, for looking at.
+ */
+import { writeFileSync } from 'node:fs'
+import { afterAll, beforeAll, expect, test } from 'vitest'
+import type { Page } from 'playwright'
+import { reveal, startHarness, type Harness } from './harness.js'
+
+let harness: Harness
+
+beforeAll(async () => {
+  harness = await startHarness()
+})
+afterAll(async () => {
+  await harness.close()
+})
+
+const shots = process.env['SHOTS']
+const shoot = async (page: Page, name: string) => {
+  if (shots !== undefined) await page.screenshot({ path: `${shots}/ds2-${name}.png` })
+}
+
+const root = (page: Page, read: string) =>
+  page.evaluate(
+    name => getComputedStyle(document.documentElement).getPropertyValue(name).trim(),
+    read,
+  )
+
+test('a named theme restyles the page, is announced, and survives a reload', async () => {
+  const { page, problems } = await harness.visit(1280, 900)
+  await page.getByRole('heading', { name: 'Theme', exact: true }).waitFor()
+  const corner = () =>
+    page
+      .getByRole('button', { name: 'Default', exact: true })
+      .first()
+      .evaluate(button => getComputedStyle(button).borderTopLeftRadius)
+  const before = await corner()
+  await shoot(page, 'shadcn-light-1280')
+  await page.getByRole('radio', { name: 'Soft' }).click()
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset['theme']))
+    .toBe('soft')
+  expect(await page.locator('#theme-status').textContent()).toBe('Soft theme applied')
+  expect(await corner()).not.toBe(before)
+  await shoot(page, 'soft-light-1280')
+  await page.reload()
+  await page.getByRole('radio', { name: 'Soft' }).waitFor()
+  expect(await page.evaluate(() => document.documentElement.dataset['theme'])).toBe('soft')
+  expect(await page.getByRole('radio', { name: 'Soft' }).getAttribute('aria-checked')).toBe('true')
+  expect(problems).toEqual([])
+  await page.close()
+})
+
+test('a knob slider moves one knob over the theme, and a theme clears it', async () => {
+  const { page } = await harness.visit(1280, 900)
+  const radius = page.getByRole('slider', { name: 'Radius' })
+  await radius.focus()
+  await page.keyboard.press('End')
+  await expect.poll(() => root(page, '--fk-knob-radius-factor')).toBe('2.5')
+  await page.getByRole('radio', { name: 'Hard' }).click()
+  await expect.poll(() => root(page, '--fk-knob-radius-factor')).toBe('0')
+  expect(
+    await page.getByRole('button', { name: 'Reset tweaks' }).getAttribute('aria-disabled'),
+  ).toBe('true')
+  await page.close()
+})
+
+test('the hard theme stills transitions through the motion knob', async () => {
+  const { page } = await harness.visit(1280, 900)
+  const duration = () =>
+    page
+      .getByRole('button', { name: 'Secondary', exact: true })
+      .first()
+      .evaluate(button => getComputedStyle(button).transitionDuration)
+  expect(await duration()).not.toMatch(/^(0s,? ?)+$/)
+  await page.getByRole('radio', { name: 'Hard' }).click()
+  await expect.poll(duration).toMatch(/^(0s,? ?)+$/)
+  await page.close()
+})
+
+test('the scheme and direction reach the root, and RTL swaps the arrow keys', async () => {
+  const { page } = await harness.visit(1280, 900)
+  await page.getByRole('radio', { name: 'Dark' }).click()
+  expect(await page.evaluate(() => document.documentElement.style.colorScheme)).toBe('dark')
+  await shoot(page, 'shadcn-dark-1280')
+  if (shots !== undefined) {
+    await page.locator('#tokens').screenshot({ path: `${shots}/ds2-tokens-dark.png` })
+    await page.locator('#cascade').screenshot({ path: `${shots}/ds2-cascade-dark.png` })
+  }
+  await page.getByRole('radio', { name: 'Rtl' }).click()
+  await expect.poll(() => page.evaluate(() => document.documentElement.dir)).toBe('rtl')
+  // The arrow keys are bound by the frame that draws the direction: press only once it is drawn.
+  await expect
+    .poll(() => page.getByRole('radio', { name: 'Rtl' }).getAttribute('aria-checked'))
+    .toBe('true')
+  // Three schemes, so a swap and a wrap-around differ: with Dark last, ArrowRight in LTR wraps
+  // to System, and in RTL goes back to Light. (Of two directions either key reaches the other.)
+  await page.getByRole('radio', { name: 'Dark' }).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect
+    .poll(() => page.getByRole('radio', { name: 'Light' }).getAttribute('aria-checked'))
+    .toBe('true')
+  await page.close()
+})
+
+test('another tab\u2019s theme and scheme are taken up here', async () => {
+  const context = await harness.browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const url = harness.vite.resolvedUrls!.local[0]!
+  const first = await context.newPage()
+  const second = await context.newPage()
+  await first.goto(url)
+  await second.goto(url)
+  await first.getByRole('radio', { name: 'Compact' }).waitFor()
+  await second.getByRole('radio', { name: 'Compact' }).waitFor()
+  await second.getByRole('radio', { name: 'Hard' }).click()
+  await first
+    .getByRole('radio', { name: 'Hard' })
+    .and(first.locator('[aria-checked="true"]'))
+    .waitFor()
+  expect(await first.evaluate(() => document.documentElement.dataset['theme'])).toBe('hard')
+  expect(await first.locator('#theme-status').textContent()).toBe(
+    'Hard theme chosen in another tab',
+  )
+  await second.getByRole('radio', { name: 'Dark' }).click()
+  await first
+    .getByRole('radio', { name: 'Dark' })
+    .and(first.locator('[aria-checked="true"]'))
+    .waitFor()
+  expect(await first.evaluate(() => document.documentElement.style.colorScheme)).toBe('dark')
+  await context.close()
+})
+
+test('at a phone width the page does not scroll sideways', async () => {
+  const { page } = await harness.visit(390, 800)
+  await page.getByRole('heading', { name: 'Theme', exact: true }).waitFor()
+  await shoot(page, 'shadcn-light-390')
+  const islands = [
+    'buttons',
+    'form',
+    'choice',
+    'overlays',
+    'feedback',
+    'navigation',
+    'calendar',
+    'collections',
+    'utilities',
+  ]
+  for (const theme of ['Soft', 'Hard', 'Compact']) {
+    await page.getByRole('radio', { name: theme }).click()
+    for (const island of islands) {
+      await reveal(page, island)
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow, `${theme}, ${island}`).toBeLessThanOrEqual(0)
+    }
+    await page.evaluate(() => window.scrollTo(0, 0))
+  }
+  await page.close()
+})
+
+const contrastOf = (page: Page) =>
+  page.evaluate(() => {
+    const table = document.querySelector('[aria-label="Contrast of the derived palette"]')
+    return Object.fromEntries(
+      [...(table?.children ?? [])].map(row => [
+        row.children[1]?.textContent ?? '',
+        Number.parseFloat(row.children[2]?.textContent ?? 'NaN'),
+      ]),
+    )
+  })
+
+test('the palette contrast is measured as painted, and follows the theme and the scheme', async () => {
+  const { page } = await harness.visit(1280, 900)
+  await page.getByRole('heading', { name: 'Colors', exact: true }).waitFor()
+  const seen: Record<string, unknown> = {}
+  for (const scheme of ['Light', 'Dark']) {
+    await page.getByRole('radio', { name: scheme }).click()
+    for (const theme of ['Shadcn', 'Compact', 'Soft', 'Hard']) {
+      await page.getByRole('radio', { name: theme }).click()
+      await expect
+        .poll(async () =>
+          Object.values(await contrastOf(page)).every(value => !Number.isNaN(value)),
+        )
+        .toBe(true)
+      // The grid is read after the theme's own Applied: wait for the page to hold the theme.
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.dataset['theme'] ?? 'shadcn'))
+        .toBe(theme.toLowerCase())
+      const ratios = await contrastOf(page)
+      seen[`${scheme}/${theme}`] = ratios
+      expect(ratios['Text'], `${scheme} ${theme} text`).toBeGreaterThanOrEqual(7)
+      expect(ratios['Muted text'], `${scheme} ${theme} muted`).toBeGreaterThanOrEqual(4.5)
+    }
+  }
+  if (shots !== undefined)
+    writeFileSync(`${shots}/ds2-contrast.json`, JSON.stringify(seen, null, 1))
+  await page.close()
+})
+
+test('a tweaked hue is measured again', async () => {
+  const { page } = await harness.visit(1280, 900)
+  await page.getByRole('heading', { name: 'Colors', exact: true }).waitFor()
+  await expect.poll(async () => (await contrastOf(page))['Link']).toBeGreaterThan(0)
+  const before = (await contrastOf(page))['Link']
+  const hue = page.getByRole('slider', { name: 'Hue' })
+  await hue.focus()
+  await page.keyboard.press('End')
+  await expect.poll(async () => (await contrastOf(page))['Link']).not.toBe(before)
+  await page.close()
+})
+
+test.skipIf(shots === undefined)(
+  'screenshots of the whole page, light and dark, at a phone and a desktop width',
+  async () => {
+    const islands = [
+      'buttons',
+      'form',
+      'choice',
+      'overlays',
+      'feedback',
+      'navigation',
+      'calendar',
+      'collections',
+      'utilities',
+    ]
+    for (const [width, height] of [
+      [390, 800],
+      [1280, 900],
+    ] as const) {
+      for (const scheme of ['Light', 'Dark']) {
+        const { page } = await harness.visit(width, height)
+        await page.getByRole('radio', { name: scheme }).click()
+        for (const island of islands) await reveal(page, island)
+        await page.evaluate(() => window.scrollTo(0, 0))
+        await page.screenshot({
+          path: `${shots}/ds2-full-${scheme.toLowerCase()}-${width}.png`,
+          fullPage: true,
+        })
+        await page.close()
+      }
+    }
+  },
+  600_000,
+)
+
+test('every link of the sidebar points at a section on the page', async () => {
+  const { page } = await harness.visit(1280, 900)
+  await page.getByRole('heading', { name: 'Theme', exact: true }).waitFor()
+  const missing = await page.evaluate(() =>
+    [...document.querySelectorAll('nav a[href^="#"]')]
+      .map(link => link.getAttribute('href')?.slice(1) ?? '')
+      .filter(id => id === '' || document.getElementById(id) === null),
+  )
+  expect(missing).toEqual([])
+  expect(await page.locator('nav a[href^="#"]').count()).toBeGreaterThan(8)
+  await page.close()
+})

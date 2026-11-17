@@ -1,12 +1,21 @@
 // @vitest-environment node
 /** What the CLI reads from a project's folder and the folders above it. */
 import { Option } from 'effect'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterAll, describe, expect, it, test } from 'vitest'
 
-import { Refusal, libraryIn, projectIn } from '../src/project.js'
+import { Refusal, installSkill, libraryIn, projectIn } from '../src/project.js'
 
 const root = mkdtempSync(join(tmpdir(), 'foldkit-plus-project-'))
 afterAll(() => rmSync(root, { recursive: true, force: true }))
@@ -102,6 +111,13 @@ describe('libraryIn', () => {
     manifest('foldkit-plus', '1.0.0', { 'foldkit-remote': '2.0.0' }),
   )
   write(join(store, 'foldkit-plus', 'README.md'), '# Plus\n')
+  // What the package ships: a skill at 1.2.0 and a guide.
+  write(
+    join(store, 'foldkit-plus', 'skill', 'SKILL.md'),
+    "---\nname: foldkit-plus\nmetadata:\n  version: '1.2.0'\n---\n# Shipped skill\n",
+  )
+  write(join(store, 'foldkit-plus', 'skill', 'references', 'remote.md'), '# Shipped remote\n')
+  write(join(store, 'foldkit-plus', 'guides', 'wiring.md'), '# Wiring\n\n## Seams\n')
   write(
     join(store, 'foldkit-plus', 'dist', 'remote.d.mts'),
     '/** A copy. */\ndeclare const Remote: {};\n',
@@ -126,15 +142,64 @@ describe('libraryIn', () => {
   )
   write(join(skill, 'references', 'remote.md'), '# Remote reference\n')
 
-  it("reads the installed packages' READMEs, through the link, and the project's skill", () => {
+  it("reads the installed packages' READMEs, through the link, and the skill and guides they ship", () => {
     const { docs } = libraryIn(app, [])
     expect(docs.map(doc => [doc.topic, doc.label])).toEqual([
-      ['skill', 'foldkit-plus skill 0.9.0 SKILL.md'],
-      ['remote', 'foldkit-plus skill 0.9.0 references/remote.md'],
+      ['skill', 'foldkit-plus@1.0.0 skill SKILL.md'],
+      ['remote', 'foldkit-plus@1.0.0 skill references/remote.md'],
+      ['wiring', 'foldkit-plus@1.0.0 guide wiring.md'],
       ['plus', 'foldkit-plus@1.0.0 README.md'],
       ['remote', 'foldkit-remote@2.0.0 README.md'],
     ])
-    expect(docs[3]!.text).toContain('## Preload')
+    expect(docs[4]!.text).toContain('## Preload')
+    // The project's own, older skill is not mixed in.
+    expect(docs.map(doc => doc.text).join('\n')).not.toContain('# Remote reference')
+  })
+
+  it("answers from the shipped skill, not the project's, and says which is newer", () => {
+    const skillFile = join(skill, 'SKILL.md')
+    const versioned = (version: string) =>
+      `---\nname: foldkit-plus\nmetadata:\n  version: '${version}'\n---\n`
+    try {
+      expect(libraryIn(app, []).notes).toEqual([
+        expect.stringContaining(
+          'The skill in .agents/skills/foldkit-plus is 0.9.0, older than the 1.2.0 that ships with foldkit-plus@1.0.0',
+        ),
+      ])
+      writeFileSync(skillFile, versioned('2.0.0'))
+      expect(libraryIn(app, []).notes).toEqual([
+        expect.stringContaining('is 2.0.0, newer than the 1.2.0'),
+      ])
+      writeFileSync(skillFile, versioned('1.2.0'))
+      expect(libraryIn(app, []).notes).toEqual([])
+    } finally {
+      writeFileSync(skillFile, versioned('0.9.0') + '# Skill\n')
+    }
+  })
+
+  it("falls back to the CLI's own skill when the project's foldkit-plus ships none", () => {
+    const own = join(root, 'own-copy')
+    write(join(own, 'package.json'), manifest('foldkit-plus', '3.0.0'))
+    write(
+      join(own, 'skill', 'SKILL.md'),
+      "---\nname: foldkit-plus\nmetadata:\n  version: '3.1.0'\n---\n",
+    )
+    const bare = join(root, 'library', 'bare-app')
+    write(join(bare, 'package.json'), manifest('bare-app', '0.0.0', { 'foldkit-remote': '2.0.0' }))
+    write(
+      join(bare, 'node_modules', 'foldkit-remote', 'package.json'),
+      manifest('foldkit-remote', '2.0.0'),
+    )
+    expect(libraryIn(bare, ['foldkit-remote'], own).docs.map(doc => doc.label)).toContain(
+      'foldkit-plus@3.0.0 skill SKILL.md',
+    )
+    // The installed one is for the code in use, so the CLI's copy never outranks it.
+    expect(libraryIn(app, [], own).docs.map(doc => doc.label)).not.toContain(
+      'foldkit-plus@3.0.0 skill SKILL.md',
+    )
+    expect(libraryIn(bare, ['foldkit-remote']).docs.map(doc => doc.label)).not.toContain(
+      'foldkit-plus@3.0.0 skill SKILL.md',
+    )
   })
 
   it("looks a symbol up in each package's types, not in foldkit-plus's copies", () => {
@@ -168,10 +233,105 @@ describe('libraryIn', () => {
   it('refuses a folder with no project, and a project with nothing installed', () => {
     const bare = join(root, 'bare')
     mkdirSync(bare, { recursive: true })
-    expect(() => libraryIn(bare, [])).toThrow(/There is no package.json in/)
+    expect(() => libraryIn(bare, ['foldkit-remote'])).toThrow(/There is no package.json in/)
     writeFileSync(join(bare, 'package.json'), manifest('bare', '0.0.0'))
     expect(() => libraryIn(bare, ['foldkit-remote'])).toThrow(
       /No Foldkit Plus package is installed in/,
     )
+  })
+})
+
+describe('installSkill', () => {
+  const write = (path: string, text: string) => {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, text)
+  }
+  const skillText = (version: string, name = 'foldkit-plus') =>
+    `---\nname: ${name}\nmetadata:\n  version: '${version}'\n---\n# Skill ${version}\n`
+  const project = (name: string, shippedVersion: string) => {
+    const app = join(root, 'install', name)
+    write(
+      join(app, 'package.json'),
+      JSON.stringify({ name, dependencies: { 'foldkit-plus': '1.0.0' } }),
+    )
+    const plus = join(app, 'node_modules', 'foldkit-plus')
+    write(join(plus, 'package.json'), JSON.stringify({ name: 'foldkit-plus', version: '1.0.0' }))
+    write(join(plus, 'skill', 'SKILL.md'), skillText(shippedVersion))
+    write(join(plus, 'skill', 'references', 'remote.md'), '# Remote\n')
+    return app
+  }
+  const at = (app: string, home: string) => join(app, home, 'skills', 'foldkit-plus')
+  const reference = (app: string, home: string) => join(at(app, home), 'references', 'remote.md')
+
+  it('writes the shipped skill under .claude and .agents of a project that has neither', () => {
+    const app = project('fresh', '1.2.0')
+    const printed = installSkill(app, false)
+    expect(printed.isError).toBe(false)
+    expect(printed.text).toBe(
+      'Wrote .claude/skills/foldkit-plus: foldkit-plus skill 1.2.0 from foldkit-plus@1.0.0 (2 files).\n' +
+        'Wrote .agents/skills/foldkit-plus: foldkit-plus skill 1.2.0 from foldkit-plus@1.0.0 (2 files).\n',
+    )
+    for (const home of ['.claude', '.agents'])
+      expect(readFileSync(reference(app, home), 'utf8')).toBe('# Remote\n')
+  })
+
+  it('leaves the same version alone, even where its files were edited', () => {
+    const app = project('same', '1.2.0')
+    installSkill(app, false)
+    write(reference(app, '.claude'), '# Mine\n')
+    expect(installSkill(app, false)).toEqual({
+      text:
+        '.agents/skills/foldkit-plus is already foldkit-plus skill 1.2.0.\n' +
+        '.claude/skills/foldkit-plus is already foldkit-plus skill 1.2.0.\n',
+      isError: false,
+    })
+    expect(readFileSync(reference(app, '.claude'), 'utf8')).toBe('# Mine\n')
+  })
+
+  it('refuses a different version without force, and replaces it, files and all, with it', () => {
+    const app = project('older', '1.2.0')
+    write(join(at(app, '.agents'), 'SKILL.md'), skillText('0.9.0'))
+    write(join(at(app, '.agents'), 'references', 'gone.md'), '# Gone\n')
+    const refused = installSkill(app, false)
+    expect(refused.isError).toBe(true)
+    expect(refused.text).toBe(
+      '.agents/skills/foldkit-plus holds foldkit-plus skill 0.9.0, not the 1.2.0 that ships with the installed code. Run `npx foldkit-plus skill --force` to replace it.\n',
+    )
+    expect(readFileSync(join(at(app, '.agents'), 'SKILL.md'), 'utf8')).toContain('0.9.0')
+    const forced = installSkill(app, true)
+    expect(forced.isError).toBe(false)
+    expect(forced.text).toContain('Replaced .agents/skills/foldkit-plus')
+    expect(existsSync(join(at(app, '.agents'), 'references', 'gone.md'))).toBe(false)
+    expect(readFileSync(join(at(app, '.agents'), 'SKILL.md'), 'utf8')).toContain('1.2.0')
+    // Only where a skill already was.
+    expect(existsSync(at(app, '.claude'))).toBe(false)
+  })
+
+  it('refuses an unrelated skill in the folder, with or without a SKILL.md, until forced', () => {
+    const cases: ReadonlyArray<readonly [string, string, string]> = [
+      ['named', 'SKILL.md', skillText('1.2.0', 'other')],
+      ['plain', 'notes.txt', 'mine'],
+    ]
+    for (const [name, file, text] of cases) {
+      const app = project(`unrelated-${name}`, '1.2.0')
+      write(join(at(app, '.cursor'), file), text)
+      const refused = installSkill(app, false)
+      expect(refused.isError).toBe(true)
+      expect(refused.text).toContain(
+        '.cursor/skills/foldkit-plus holds a skill that is not foldkit-plus',
+      )
+      expect(existsSync(reference(app, '.cursor'))).toBe(false)
+      expect(installSkill(app, true).isError).toBe(false)
+      expect(existsSync(reference(app, '.cursor'))).toBe(true)
+    }
+  })
+
+  it('refuses a folder with no project, and a project whose foldkit-plus ships no skill', () => {
+    const bare = join(root, 'install', 'bare')
+    mkdirSync(bare, { recursive: true })
+    expect(() => installSkill(bare, false)).toThrow(/There is no package.json in/)
+    const old = project('old', '1.2.0')
+    rmSync(join(old, 'node_modules', 'foldkit-plus', 'skill'), { recursive: true })
+    expect(() => installSkill(old, false)).toThrow(Refusal)
   })
 })

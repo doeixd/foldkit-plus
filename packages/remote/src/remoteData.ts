@@ -16,6 +16,11 @@ export interface RemoteError {
    * `'Forbidden'`), when it said. Read it with `RemoteData.denied`.
    */
   readonly reason?: string | undefined
+  /**
+   * The id the server reported a failure of its own under, when that is what
+   * this is. Read it with `RemoteData.incident`.
+   */
+  readonly incident?: string | undefined
 }
 
 /**
@@ -51,6 +56,7 @@ export const remoteErrorSchema = Schema.Struct({
   message: Schema.String,
   refusal: Schema.optional(Schema.Unknown),
   reason: Schema.optional(Schema.String),
+  incident: Schema.optional(Schema.String),
 })
 
 /**
@@ -251,6 +257,21 @@ export const RemoteData = {
     isDenial(error._tag)
       ? Option.some(deny[error._tag]({ reason: Option.fromUndefinedOr(error.reason) }))
       : Option.none(),
+
+  /**
+   * The id of a failure on the server's side: it broke rather than refused,
+   * its `message` says nothing of what broke, and the server reported the
+   * cause under this id, for a person to quote. None for every refusal, and
+   * for a failure this side of the wire.
+   *
+   * ```ts
+   * Option.match(RemoteData.incident(error), {
+   *   onNone: () => error.message,
+   *   onSome: id => `Something went wrong on our side. Reference: ${id}`,
+   * })
+   * ```
+   */
+  incident: (error: RemoteError): Option.Option<string> => Option.fromUndefinedOr(error.incident),
 
   /**
    * Whether nothing answered (`RemoteUnreachable`): the request was not sent,

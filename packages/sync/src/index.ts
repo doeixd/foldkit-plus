@@ -105,6 +105,7 @@ export const Sync = {
 }
 
 export type {
+  ExchangeDefect,
   ExchangeFailed,
   HistoryRebuilt,
   HostDefect,
@@ -216,6 +217,7 @@ export {
   Transport,
   TransportSocket,
   TransportError,
+  ExchangeRefused,
   type ExchangeFrame,
   type ExchangeReply,
   type NotifyFrame,

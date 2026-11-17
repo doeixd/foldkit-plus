@@ -82,6 +82,8 @@ import { PaginationSlots } from './pagination.js'
 import { PickerSlots } from './picker.js'
 import { ScrollAreaSlots } from './scrollArea.js'
 import { SearchFieldPattern, SearchFieldSlots } from './searchField.js'
+import { ToolbarPattern, ToolbarSlots } from './toolbar.js'
+import { FileInputPattern, FileInputSlots } from './fileInput.js'
 import { TableSlots } from './table.js'
 import { WindowListSlots } from './windowList.js'
 
@@ -313,8 +315,9 @@ export const TagsInput = A11y.pattern({
   list: { capability: Capability.Container },
   remove: {
     capability: Capability.Interactive,
-    events: [Event.Click],
+    events: [Event.Click, Event.KeyDown],
     attributes: [Attr.AriaLabel],
+    obligations: [A11y.Navigation, A11y.FocusStrategy],
   },
 })
 
@@ -1145,6 +1148,18 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateful',
     ['textbox', 'list', 'listitem', 'button'],
     ['native-control'],
+    [
+      drawn(
+        'TagsInput.view: Behaviors.Keys routes on each chip (the arrows, Home and End, Backspace and Delete), and a route on the input entering the last chip from the start of its text (tagsInput.ts)',
+        'remove',
+        Navigation,
+      ),
+      drawn(
+        'TagsInput.view: tabindex 0 on the one chip that holds the stop, -1 on the rest (tagsInput.ts)',
+        'remove',
+        FocusStrategy,
+      ),
+    ],
   ),
   entry(
     'password-input',
@@ -1502,5 +1517,42 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
     'stateless',
     ['searchbox', 'button'],
     ['native-control'],
+  ),
+  entry(
+    'toolbar',
+    ToolbarPattern,
+    ToolbarSlots,
+    'stateless',
+    ['toolbar', 'group', 'separator'],
+    [],
+    [
+      drawn(
+        'Toolbar.view: Behaviors.Keys route on the root, the arrows of the orientation, Home and End (toolbar.ts)',
+        'root',
+        Navigation,
+      ),
+      drawn(
+        'Toolbar.view: tabindex 0 on the control that holds the stop, -1 on the rest (toolbar.ts)',
+        'root',
+        FocusStrategy,
+      ),
+      drawn('Toolbar.view: aria-label on the root (toolbar.ts)', 'root', Name),
+    ],
+  ),
+  entry(
+    'file-input',
+    FileInputPattern,
+    FileInputSlots,
+    'stateless',
+    ['button', 'list', 'listitem'],
+    ['native-control', 'form-submission'],
+    [
+      native('input', 'input', Activation, FocusStrategy),
+      drawn(
+        'FileInput.view: the trigger is a label for the input, so its words name it (fileInput.ts)',
+        'input',
+        Name,
+      ),
+    ],
   ),
 ])

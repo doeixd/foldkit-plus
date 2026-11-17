@@ -283,6 +283,16 @@ interface ContentForm<E extends AnyEntity, Value> {
   readonly engine: { readonly value: (model: any) => Value | undefined }
 }
 
+/**
+ * What a reader of a type of content needs: its name, its Entity and the roles. A `Content` is one, so a
+ * public site can ask for the content by address without importing the form that authors it.
+ */
+export interface ContentReader<Name extends string, E extends AnyEntity> {
+  readonly name: Name
+  readonly entity: E
+  readonly roles: Roles
+}
+
 /** How a type of content is authored: the application's facts, beside the Entity's roles. */
 export interface Content<
   Name extends string,
@@ -436,7 +446,7 @@ export const Cms = {
    * connection of one or none. It throws for a content type with no `slug` role:
    * a capability is declared, never implied.
    */
-  bySlug: <Name extends string, E extends AnyEntity>(content: Content<Name, E, any, any, any>) => {
+  bySlug: <Name extends string, E extends AnyEntity>(content: ContentReader<Name, E>) => {
     const address = content.roles.slug
     if (address === undefined) {
       return fail(`content "${content.name}" has no slug role, so nothing is found by slug`)

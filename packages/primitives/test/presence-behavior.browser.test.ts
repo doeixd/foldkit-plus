@@ -213,9 +213,21 @@ describe('focus', () => {
 
   it('does the same when the exit is pressed with the pointer', async () => {
     await boot(['a', 'b', 'c'])
-    await userEvent.click(el('left-hide-b'))
-    await expect.poll(() => document.activeElement).toBe(el('left-c'))
-    expect(document.getElementById('left-b')).not.toBeNull()
+    // Read as focus moves: the click's own round trip outlasted the exit on a loaded runner,
+    // and a read after it found the row already gone.
+    const present: Array<boolean> = []
+    const moved = (): void => {
+      if (document.activeElement === el('left-c'))
+        present.push(document.getElementById('left-b') !== null)
+    }
+    document.addEventListener('focusin', moved)
+    try {
+      await userEvent.click(el('left-hide-b'))
+      await expect.poll(() => document.activeElement).toBe(el('left-c'))
+      expect(present[0]).toBe(true)
+    } finally {
+      document.removeEventListener('focusin', moved)
+    }
   })
 
   it('keeps a dialog the action opened: focus was not lost', async () => {

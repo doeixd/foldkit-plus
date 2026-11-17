@@ -1,0 +1,277 @@
+/**
+ * The site's first application: the home page, the demos, the guides and API
+ * pages, and the 404. It holds the frame's state (the phone menu, the page's
+ * light or dark), the home page's example tab, the code blocks' copy button and
+ * the two primitives the Primitives overview runs. The component pages and the
+ * theme creator are a second application (`main.ts`) that adds their state to
+ * this one's, so a visitor to a guide loads none of their code.
+ */
+import { Effect, Match, Option, Schema } from 'effect'
+import { Command, Dom, Subscription, Update } from 'foldkit'
+import type { Document, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { Bundle } from 'foldkit-bundle'
+import { chooseScheme, currentScheme } from 'foldkit-mixins/theme'
+import { PrefersDark } from 'foldkit-primitives/media'
+import { Timer } from 'foldkit-primitives/time'
+import { SSR } from 'foldkit-ssr/client'
+import { Projection, Surface } from 'foldkit-surface'
+
+import { allSubsites } from './catalog.js'
+import { COPY_ATTRIBUTE, type Library } from './library.js'
+import { Example, Page, PageScheme } from './page.js'
+import { Body } from './view/shellLayout.js'
+
+// MODEL
+
+/** The primitives the Primitives overview shows running: each a field of this Model. */
+export const Dark = Bundle.declare(PrefersDark, 'dark')
+export const Ticks = Bundle.declare(Timer, 'ticks')
+
+/** What the second application adds its own fields to. */
+export const fields = {
+  path: Schema.String,
+  page: Page,
+  menuOpen: Schema.Boolean,
+  example: Example,
+  copied: Schema.Boolean,
+  pageScheme: PageScheme,
+  ...Dark.fields,
+  ...Ticks.fields,
+}
+
+export const Model = Schema.Struct(fields)
+export type Model = typeof Model.Type
+
+// MESSAGE
+
+/** What the second application shares with this one: its Messages are these and more. */
+export const cases = {
+  ToggledMenu: {},
+  ChoseExample: { example: Example },
+  PressedCopy: { text: Schema.String },
+  CopiedText: {},
+  PressedCodeCopy: { index: Schema.Number },
+  CopiedCode: {},
+  FailedToCopy: {},
+  ChosePageScheme: { scheme: PageScheme },
+  FoundPageScheme: { scheme: PageScheme },
+  AppliedPageScheme: {},
+  ...Dark.cases,
+  ...Ticks.cases,
+}
+
+export const Message = defineMessageUnion(cases)
+export type Message = typeof Message.Type
+
+const Parent = Bundle.parent({ Model, Message })
+
+export const placements = Parent.assemble(
+  Parent.at(Dark),
+  Parent.at(Ticks, { args: { intervalMs: 1000 } }),
+)
+
+// COMMAND
+
+/** The clipboard refuses outside a secure context, or when the reader denies it. */
+export const writeClipboard = (text: string) =>
+  Effect.tryPromise(() => navigator.clipboard.writeText(text))
+
+export const CopyText = Command.define('CopyText', {
+  args: { text: Schema.String },
+  messages: [Message.CopiedText, Message.FailedToCopy],
+  execute: ({ text }) =>
+    writeClipboard(text).pipe(
+      Effect.as(Message.CopiedText()),
+      Effect.orElseSucceed(() => Message.FailedToCopy()),
+    ),
+})
+
+/**
+ * Copies the code of the code block whose button is the `index`th on the
+ * page, and marks the button done. The block is in a static region, which
+ * the browser never draws again, so the button is marked where it stands.
+ */
+export const CopyCode = Command.define('CopyCode', {
+  args: { index: Schema.Number },
+  messages: [Message.CopiedCode, Message.FailedToCopy],
+  execute: ({ index }) =>
+    Effect.gen(function* () {
+      const button = document.querySelectorAll<HTMLElement>(`[${COPY_ATTRIBUTE}]`)[index]
+      const code = button?.closest('figure')?.querySelector('pre code')?.textContent
+      if (button === undefined || code === undefined || code === null) return Message.FailedToCopy()
+      yield* writeClipboard(code)
+      button.dataset['copied'] = 'true'
+      button.textContent = 'Copied'
+      return Message.CopiedCode()
+    }).pipe(Effect.orElseSucceed(() => Message.FailedToCopy())),
+})
+
+/** Applies the reader's scheme to the page and keeps it for the next visit. */
+export const ApplyPageScheme = Command.define('ApplyPageScheme', {
+  args: { scheme: PageScheme },
+  messages: [Message.AppliedPageScheme],
+  execute: ({ scheme }) => chooseScheme(scheme).pipe(Effect.as(Message.AppliedPageScheme())),
+})
+
+/** What the head script applied, read once the browser takes the page over. */
+export const ReadPageScheme = Command.define('ReadPageScheme', {
+  messages: [Message.FoundPageScheme],
+  execute: Effect.sync(() => Message.FoundPageScheme({ scheme: currentScheme() })),
+})
+
+// UPDATE
+
+type UpdateReturn = Update.Return<Model, Message>
+
+/** What a placement's wrapper never reaches: the placements take theirs. */
+export type OwnMessage = Bundle.OwnMessage<Message, typeof placements.placements>
+
+/** The Messages both applications answer alike: the second hands them back to this. */
+export const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
+  Match.valueTags(message, {
+    ToggledMenu: () => ({ model: modifyFields(model, { menuOpen: open => !open }) }),
+    ChoseExample: ({ example }) =>
+      example === model.example
+        ? { model }
+        : { model: modifyFields(model, { example: () => example }) },
+    PressedCopy: ({ text }) => ({ model, commands: [CopyText({ text })] }),
+    CopiedText: () => ({ model: modifyFields(model, { copied: () => true }) }),
+    PressedCodeCopy: ({ index }) => ({ model, commands: [CopyCode({ index })] }),
+    CopiedCode: () => ({ model }),
+    FailedToCopy: () => ({ model }),
+    ChosePageScheme: ({ scheme }) =>
+      scheme === model.pageScheme
+        ? { model }
+        : {
+            model: modifyFields(model, { pageScheme: () => scheme }),
+            commands: [ApplyPageScheme({ scheme })],
+          },
+    FoundPageScheme: ({ scheme }) =>
+      scheme === model.pageScheme
+        ? { model }
+        : { model: modifyFields(model, { pageScheme: () => scheme }) },
+    AppliedPageScheme: () => ({ model }),
+  })
+
+export const update = placements.update(updateOwn)
+
+// SUBSCRIPTION
+
+/** Which copy button a click landed on, counted in the page's order. */
+export const codeCopyOf = (event: MouseEvent): Option.Option<Message> => {
+  const button =
+    event.target instanceof Element ? event.target.closest(`[${COPY_ATTRIBUTE}]`) : null
+  if (button === null) return Option.none()
+  const index = Array.from(document.querySelectorAll(`[${COPY_ATTRIBUTE}]`)).indexOf(button)
+  return index === -1 ? Option.none() : Option.some(Message.PressedCodeCopy({ index }))
+}
+
+/** A code block's copy button, answered for the static region that drew it without a handler. */
+export const codeCopy = Subscription.persistentEntry(
+  Dom.streamFromEventFilterMap({
+    target: () => document,
+    type: 'click',
+    filterMapEvent: codeCopyOf,
+  }),
+)
+
+export const subscriptions = placements.subscriptions(
+  Subscription.make<Model, Message>()(() => ({ codeCopy })),
+)
+
+// INIT
+
+/** The Model a page starts from, before the server names it. */
+export const initial: Model = placements.initial({
+  path: '/',
+  page: Page.Missing(),
+  menuOpen: false,
+  example: 'view',
+  copied: false,
+  pageScheme: 'system',
+}).model
+
+/** The page at `path`, as the library knows it; the browser never runs this. */
+export const modelAt = (library: Library, path: string): Model =>
+  modifyFields(initial, { path: () => path, page: () => library.pageAt(path) })
+
+// SSR
+
+const App = Surface.application({ Model, Message, initial, update })
+
+/** A page of the component application, which this one is never given: a routing mistake, said loudly. */
+const elsewhere = (page: string): never => {
+  throw new Error(`the ${page} page is drawn by the component application, not this one`)
+}
+
+export const DESCRIPTION =
+  'Ready-made patterns for Foldkit: server data, offline sync, routing, forms, a CMS and AI agents, as packages that keep their state in your Model. Less code to write, fewer tokens to spend.'
+
+export const descriptionOf = (page: Page): string =>
+  Page.match(page, {
+    Home: () => DESCRIPTION,
+    Demos: () => 'Examples from the Foldkit Plus repository, built as static files.',
+    Components: () => elsewhere('Components'),
+    Component: () => elsewhere('Component'),
+    Create: () => elsewhere('Create'),
+    Doc: ({ description }) => (description === '' ? DESCRIPTION : description),
+    Missing: () => DESCRIPTION,
+  })
+
+/**
+ * The address and what the page is cross to the browser; the menu, the
+ * example and the copy state start from `initial`. The guides, the API and the
+ * sidebars are static regions, rendered on the server only.
+ */
+const planOf = (withMeta: boolean) =>
+  SSR.plan(App, {
+    id: 'site',
+    state: Projection.pick(App.model.path, App.model.page),
+    local: [
+      App.model.menuOpen,
+      App.model.example,
+      App.model.copied,
+      App.model.pageScheme,
+      App.model.dark,
+      App.model.ticks,
+    ],
+    // The server cannot know a reader's scheme; the head script applied it.
+    boot: () => [ReadPageScheme()],
+    ...(withMeta ? { meta: (model: Model) => ({ description: descriptionOf(model.page) }) } : {}),
+  })
+
+/** The plan the build generates pages with. */
+export const plan = planOf(true)
+/** The dev server's plan: it serves pages without a template head to write meta into. */
+export const servingPlan = planOf(false)
+
+// VIEW
+
+/** Where the site is served: a canonical address starts here. */
+export const ORIGIN = 'https://foldkit-plus.pages.dev'
+
+export const titleOf = (page: Page): string =>
+  Page.match(page, {
+    Home: () => 'Foldkit Plus: ready-made patterns for Foldkit',
+    Demos: () => 'Demos · Foldkit Plus',
+    Components: () => elsewhere('Components'),
+    Component: () => elsewhere('Component'),
+    Create: () => elsewhere('Create'),
+    Doc: ({ subsite, title }) => {
+      const family = allSubsites.find(each => each.id === subsite)
+      return family === undefined || family.title === title
+        ? `${title} · Foldkit Plus`
+        : `${title} · ${family.title} · Foldkit Plus`
+    },
+    Missing: () => 'Not found · Foldkit Plus',
+  })
+
+export const viewWith =
+  (library: Library) =>
+  (model: Model, h: HtmlBuilder<Message>): Document => ({
+    title: titleOf(model.page),
+    canonical: `${ORIGIN}${model.path}`,
+    body: Body({ model, library }, h),
+  })

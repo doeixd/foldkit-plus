@@ -239,18 +239,18 @@ follows another knob until a theme sets it.
 | --- | --- | --- | --- | --- |
 | `accent.hue` | angle | 235 | 0 to 360 | `accent-h` |
 | `accent.chroma` | schemed number | 0.225, dark `min(0.4, c + 0.03)` | 0 to 0.4 | `accent-c`, `accent-c-dark` |
-| `accent.lightness` | schemed percent | 55, dark 70 | 15 to 90 | `accent-l`, `accent-l-dark` |
+| `accent.lightness` | schemed percent | 54, dark 54 | 15 to 90 | `accent-l`, `accent-l-dark` |
 | `accent.secondaryShift` | angle | 60 | | `secondary-shift` |
 | `accent.tertiaryShift` | angle | -90 | | `tertiary-shift` |
 | `surface.hue` | angle | follows `accent.hue` | 0 to 360 | `neutral-h` |
-| `surface.saturation` | schemed number | 0, dark 4/3 of it | 0 to 0.04 | `surface-c`, `surface-c-dark` |
+| `surface.saturation` | schemed number | 0.005, dark 0.0067 (4/3 of it) | 0 to 0.04 | `surface-c`, `surface-c-dark` |
 | `surface.lightness` | schemed percent | 100, dark 24.5 | 75 to 100, dark 6 to 36 | `base-l`, `base-l-dark` |
 | `surface.contrast` | percent | 70 | 0 to 100 | `surface-contrast` |
 | `surface.textContrast` | number | 1 | | `contrast-factor` |
 | `surface.hover` | choice | `surface` | `surface`, `neutral`, `accent` | `surface-ink`, `state-ink` |
 | `surface.hoverStrength` | percent | 12 | 4 to 24 | `state-hover`; a press lays 1.75 of it |
 | `state.disabledOpacity` | number | 0.5 | 0.3 to 0.7 | `state-disabled` |
-| `shape.radius` | number | 0.45 | 0 to 2.5 | `radius-factor` |
+| `shape.radius` | number | 1 | 0 to 2.5 | `radius-factor` |
 | `shape.density` | number | 1.1 | 0.75 to 1.3 | `density` |
 | `shape.size` | choice | `default` | `default`, `compact` | `step` |
 | `shape.controls` | choice | `rounded` | `rounded`, `pill` | `control-round` |
@@ -280,7 +280,7 @@ follows another knob until a theme sets it.
 | `shadow.hue` | angle | follows `surface.hue` | | `shadow-h` |
 | `shadow.chroma` | number | follows `surface.saturation` × 2 | | `shadow-c` |
 | `menu.highlight` | choice | `subtle` | `subtle`, `bold` | `popup-bold` |
-| `menu.panel` | choice | `inverted` | `default`, `inverted`, `translucent`, `inverted-translucent` | `popup-invert`, `popup-alpha`, `popup-blur` |
+| `menu.panel` | choice | `default` | `default`, `inverted`, `translucent`, `inverted-translucent` | `popup-invert`, `popup-alpha`, `popup-blur` |
 | `feedback.success` ... `info` | angle | 145, 75, 25, 245 | | `success-h` ... |
 | `code.chroma` | number | 0.14 | 0 to 0.4 | `syntax-c` |
 | `chart.hue` | angle | 255 | | `chart-h` |
@@ -289,9 +289,9 @@ follows another knob until a theme sets it.
 
 Variables written without a prefix above are `--fk-knob-...`. The defaults are
 the theme #255 made the shipped one
-([design](./design/255-default-theme-DESIGN.md)): a vivid blue on pure greys,
-tight corners, roomy spacing, bold fluid headings, no resting shadows,
-inverted menus and a spring.
+([design](./design/255-default-theme-DESIGN.md)): a vivid blue on faintly cool greys,
+rounded corners, roomy spacing, bold fluid headings, no resting shadows,
+menus on the page's own raised surface and a spring.
 
 ### Fluid type
 

@@ -8,15 +8,19 @@ import { Runtime } from 'foldkit'
 import { afterEach, expect, test, vi } from 'vitest'
 import { page } from 'vitest/browser'
 
-import { initModel, update, view, Message, Model } from '../src/main.js'
+import { init, update, view, Message, Model } from '../src/main.js'
 import { stylesheet } from '../src/appStyle.js'
 import { subscriptions } from '../src/subscriptions.js'
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   document.body.replaceChildren()
 })
 
+// With no IntersectionObserver every island loads at once (as in `islands.ts`), so a test finds
+// any section without scrolling to it.
 const mount = (): void => {
+  vi.stubGlobal('IntersectionObserver', undefined)
   Style.install(stylesheet)
   const container = document.createElement('div')
   container.id = 'root'
@@ -24,7 +28,7 @@ const mount = (): void => {
   Runtime.run(
     Runtime.makeApplication({
       Model,
-      init: () => ({ model: initModel({ year: 2026, month: 10, day: 8 }) }),
+      init: () => init(),
       update,
       view,
       subscriptions,
@@ -42,7 +46,7 @@ const seen = (text: string, timeout = 10_000): Promise<void> =>
 test('menu picks an action', async () => {
   mount()
   await page.getByRole('button', { name: 'Actions' }).click()
-  await page.getByRole('menuitem', { name: 'Forward' }).click()
+  await page.getByRole('menuitem', { name: /Forward/ }).click()
   await seen('Chose Forward.')
 })
 
@@ -71,7 +75,9 @@ test('radio circles center on their labels’ first lines', async () => {
   // so the style nudges it down. Fails at 3.5px without the nudge.
   await vi.waitFor(
     () => {
-      const radio = document.querySelector('[role="radio"]') as HTMLElement
+      const radio = document.querySelector(
+        '[aria-label="Preferred contact"] [role="radio"]',
+      ) as HTMLElement
       const label = radio.parentElement?.querySelector('label') as HTMLElement
       const circle = radio.getBoundingClientRect()
       const range = document.createRange()
@@ -144,7 +150,7 @@ test('delete dialog gaps its actions', async () => {
 test('feedback warns and confirms with alerts', async () => {
   mount()
   await seen('Storage almost full')
-  await seen('All checks passed')
+  await seen('Backup finished')
 })
 
 test('navigation trails a breadcrumb', async () => {
@@ -156,10 +162,13 @@ test('the plan picker spans its column, its plans in equal shares', async () => 
   mount()
   await seen('Team plans')
   await vi.waitFor(() => {
-    const plans = document.querySelector('[role="group"][aria-label="Plan"]')
+    const plans = document.querySelector('[role="radiogroup"][aria-label="Plan"]')
     if (!(plans instanceof HTMLElement) || plans.parentElement === null) throw new Error('no plans')
     expect(plans.getBoundingClientRect().width).toBeCloseTo(plans.parentElement.clientWidth, 0)
-    const widths = Array.from(plans.children, plan => plan.getBoundingClientRect().width)
+    const widths = Array.from(
+      plans.querySelectorAll('[role="radio"]'),
+      plan => plan.getBoundingClientRect().width,
+    )
     expect(widths).toHaveLength(3)
     widths.forEach(width => expect(width).toBeCloseTo(widths[0]!, 0))
   })
@@ -184,14 +193,20 @@ test('collections show an empty state, a list, and a table', async () => {
   await seen('Team plans')
 })
 
-test('shadow presets rewrite the strength knob on :root', async () => {
+test('a knob slider writes its knob on :root', async () => {
   mount()
-  await page.getByRole('button', { name: 'Soft' }).click()
+  const slider = await vi.waitFor(() => {
+    const input = document.querySelector('input[type="range"][id^="tweak-shadow"]')
+    if (!(input instanceof HTMLInputElement)) throw new Error('no shadow slider')
+    return input
+  })
+  slider.value = '30'
+  slider.dispatchEvent(new Event('input', { bubbles: true }))
   await vi.waitFor(
     () =>
       expect(
         [...document.querySelectorAll('style')].some(element =>
-          (element.textContent ?? '').includes('--fk-knob-shadow-strength:60%'),
+          (element.textContent ?? '').includes(':root{--fk-knob-shadow-strength:30%}'),
         ),
       ).toBe(true),
     { timeout: 10_000 },

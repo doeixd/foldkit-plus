@@ -439,15 +439,20 @@ single-writer class: each accepted socket exchanges against one journal,
 opened once on the first upgrade (D1 with `d1: true`, or object storage),
 non-upgrades are 404s, and the replica side is the socket transport it
 already speaks (`Sync.transport.socket({ url })`). `resolvePrincipal` is an
-Effect refusing with `RemoteUnauthenticated` (a 401), whose services come
+Effect refusing with `RemoteUnauthenticated` (a 401 saying its `reason`, or `Unauthenticated`;
+never its `message`), whose services come
 from `layer: env => Layer` (kept while the socket is open); `revalidate: { every,
-key? }` asks it again while the socket is open, closing with 4401 on a
-refusal and 1012 on a changed principal. `settle: (env, journal) =>
+key? }` asks it again while the socket is open, closing with 4401 (the same words) on a
+refusal, 1012 on a changed principal and 1011 when the resolver breaks. A resolver that dies, or fails
+with anything else, is a 500 `{ error: 'Internal error', incident }`. `settle: (env, journal) =>
 Effect` runs after each exchange's appends to apply what committed elsewhere
 (`journal.recover` makes it idempotent). A failure answered 500 (or 1011, or
-a notice unsent, or a commit stream broken: stage `Changes`) is reported as a `HostDefect` with its `stage` and `cause`, to
+a notice unsent, or a commit stream broken: stage `Changes`) is reported as a `HostDefect` with its `stage`, `cause` and, for a 500, the `incident` answered, to
 `diagnostics: (diagnostic, request) => Effect` when given, else
-`Diagnostics.Reporter`. `Sync.transport.workerSocket` wraps an
+`Diagnostics.Reporter`. An exchange that throws on the server (`Sync.transport.serve`) answers
+`{ error: 'Exchange failed', incident }` and reports what was thrown as an `ExchangeDefect`
+under that incident; the replica keeps its outbox and retries. Throw
+`new ExchangeRefused({ message })` for words the replica should read. `Sync.transport.workerSocket` wraps an
 accepted pair end anywhere else a platform hands one over. Off Cloudflare,
 `server: { principal, reactions: env => [...] }` gives the object its
 reactions (below): registered on open, the alarm set before the reply to an

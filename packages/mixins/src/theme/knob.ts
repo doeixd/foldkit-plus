@@ -14,6 +14,8 @@ export type Variables<Names extends string = string> = Readonly<Record<Names, st
 export type Control =
   | {
       readonly kind: 'range'
+      /** The variable it writes, the name after `--fk-knob-`. */
+      readonly variable: string
       readonly min: number
       readonly max: number
       readonly step: number
@@ -71,7 +73,14 @@ const ranged =
     default: options.default,
     title: options.title,
     description: options.description,
-    control: { kind: 'range', min: options.min, max: options.max, step: options.step, unit },
+    control: {
+      kind: 'range',
+      variable: options.variable,
+      min: options.min,
+      max: options.max,
+      step: options.step,
+      unit,
+    },
   })
 
 /** A plain number: a multiplier, a chroma. */

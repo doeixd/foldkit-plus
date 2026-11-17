@@ -37,6 +37,7 @@ export const mount = async (
   recipe: Parameters<typeof Recipes.Picker>[0] = {},
   sort: Option.Option<Sort> = Option.none(),
   routes: ReadonlyArray<Picker.Route<Message>> = [],
+  palette: typeof theme = theme,
 ) => {
   const style = Style.forSlots(PickerSlots)(Recipes.Picker(recipe))
   const listbox = Style.forSlots(ListboxSlots)(Recipes.Listbox({ width: 'trigger' }))
@@ -47,7 +48,7 @@ export const mount = async (
     Style.stylesheet(
       Layers.standard.declare,
       Layers.standard.in('reset', Defaults.reset),
-      Layers.standard.in('theme', Theme.root(theme)),
+      Layers.standard.in('theme', Theme.root(palette)),
     ) +
     style.css +
     listbox.css +

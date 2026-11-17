@@ -122,7 +122,7 @@ const about = {
 /**
  * The blog: posts that explain how this demo is made. A body is lines, joined:
  * a blank line between parts, `## ` for a heading, `- ` for a list, and three
- * backticks around code (see `bodyOf` in `site.ts`).
+ * backticks around code (see `drawMarkdown` in `markdownBody.ts`).
  */
 const posts: ReadonlyArray<Seeded> = [
   post(

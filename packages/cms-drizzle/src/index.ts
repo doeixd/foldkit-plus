@@ -24,7 +24,7 @@ import {
   type AnyColumn,
   type SQL,
 } from 'drizzle-orm'
-import { Effect, Exit, Option, Schema, Semaphore } from 'effect'
+import { Cause, Effect, Exit, Match, Option, Schema, SchemaIssue, Semaphore } from 'effect'
 import { Cms, type Content, type Facts, type Transition } from 'foldkit-cms'
 import { Entity, type AnyEntity } from 'foldkit-entity'
 import { Guards, type Policy, type PrincipalGuard } from 'foldkit-guard'
@@ -218,7 +218,25 @@ export interface ImportItem<P> {
   readonly entry?: string | undefined
 }
 
-const refuse = (message: string) => new RemoteServerError({ message })
+const issuesOf = SchemaIssue.makeFormatterStandardSchemaV1()
+
+/**
+ * Why a draft cannot be published, for its author: the fields the publish
+ * mutation would not take, by name. The Schema's own message stays here: it
+ * quotes values, and whatever a check's author wrote of them.
+ */
+const notReady = (error: Schema.SchemaError): string => {
+  const fields = new Set(
+    issuesOf(error.issue).issues.flatMap(({ path }) => {
+      const first = path?.[0]
+      const key = typeof first === 'object' ? first.key : first
+      return typeof key === 'string' ? [key] : []
+    }),
+  )
+  return fields.size === 0
+    ? 'This draft is not ready to publish'
+    : `This draft is not ready to publish: check ${[...fields].join(', ')}`
+}
 
 /**
  * Whether a unique index on this column refused a write. Drivers say so in their
@@ -511,27 +529,72 @@ export const CmsServer = {
     // on the binding is conjoined with the body, as for every source here.
     const worklist: QuerySource<P, DrizzleDatabase> = query(Cms.Entries, { entity: Db.Entry })
 
-    /** A mutation of this server: its principal and its database are fixed, its input is the descriptor's. */
+    type Failure = RemoteServerError | MutationRefused | RemoteForbidden | RemoteUnauthenticated
+    const noEntry = () => RemoteServer.tell('There is no such entry')
+
+    /**
+     * An operation's answer to an author who may not read unpublished work. A
+     * write that was made answers as the server cuts it: its patches are rows of
+     * the entry, its draft and its revisions, which the server answers only as
+     * far as the caller may read them. One that was refused answers `missing`,
+     * whatever refused it. A failure of this side stays one, and is reported.
+     */
+    const unread = <Output>(
+      made: Effect.Effect<MutationOutcome<Output>, Failure, DrizzleDatabase>,
+      missing: Failure,
+    ) =>
+      made.pipe(
+        Effect.map(({ output, entities = [] }): MutationOutcome<Output> => ({ output, entities })),
+        Effect.mapError(failure =>
+          Match.valueTags(failure, {
+            RemoteServerError: error => (error.told === true ? missing : error),
+            MutationRefused: () => missing,
+            Forbidden: () => missing,
+            Unauthenticated: () => missing,
+          }),
+        ),
+      )
+
+    /**
+     * A mutation of this server: its principal and its database are fixed, its
+     * input is the descriptor's. Every operation is made here, so none can answer
+     * with a stored fact before who is asking is known to read it.
+     */
     const operation = <Name extends string, Input, Output>(
       descriptor: MutationDescriptor<Name, Input, Output>,
-      run: (context: {
-        readonly input: Input
-        readonly principal: P
-      }) => Effect.Effect<
-        MutationOutcome<Output>,
-        RemoteServerError | MutationRefused | RemoteForbidden | RemoteUnauthenticated,
-        DrizzleDatabase
-      >,
+      steps: {
+        /**
+         * Refuses what was sent, from that alone. It is given no database, so what
+         * it says is anyone's who may write, of any entry.
+         */
+        readonly accepts?: (input: Input) => Effect.Effect<void, RemoteServerError>
+        /**
+         * The answer when the entry asked about is not there. It is also all that
+         * one who may not read unpublished work is told of a write that was not
+         * made: the entry's type, its state, its revisions and whether it is there
+         * at all are what such a caller may not read.
+         */
+        readonly missing: (input: Input) => Failure
+        /** Each `tell` in it is read as written, by one who may read the entry it is about. */
+        readonly run: (context: {
+          readonly input: Input
+          readonly principal: P
+        }) => Effect.Effect<MutationOutcome<Output>, Failure, DrizzleDatabase>
+      },
     ): MutationSource<P, DrizzleDatabase> =>
-      // Asked before anything is looked up: a visitor is not told which entries there are.
-      // Then the whole of it is one transaction: a save that made an entry and
-      // could not make its draft leaves neither.
       RemoteServer.mutation<P, DrizzleDatabase, Name, Input, Output>(descriptor, context =>
-        Effect.flatMap(isAuthor(context.principal, 'Update'), author =>
-          author
-            ? config.transaction(run(context))
-            : Effect.fail(RemoteServer.forbid('Only an author may change unpublished work')),
-        ),
+        Effect.gen(function* () {
+          // Asked before anything is looked up: a visitor is not told which entries there are.
+          if (!(yield* isAuthor(context.principal, 'Update')))
+            return yield* RemoteServer.forbid('Only an author may change unpublished work')
+          if (steps.accepts !== undefined) yield* steps.accepts(context.input)
+          // The whole of it is one transaction: a save that made an entry and
+          // could not make its draft leaves neither.
+          const made = config.transaction(steps.run(context))
+          return yield* (yield* isAuthor(context.principal, 'Read'))
+            ? made
+            : unread(made, steps.missing(context.input))
+        }),
       )
 
     /**
@@ -602,136 +665,154 @@ export const CmsServer = {
         )
       })
 
-    const SaveDraft = operation(Cms.Operations.SaveDraft, ({ input, principal }) =>
-      Effect.gen(function* () {
-        if (!byType.has(input.type))
-          return yield* refuse(`"${input.type}" is not a type of content this server knows`)
-        const size = JSON.stringify([input.values, input.model]).length
-        if (size > maxDraftSize)
-          return yield* refuse(
-            `This draft is too large to save: ${size} characters, and ${maxDraftSize} is the most`,
-          )
-        // An id nobody has is something new: the client named it, and this makes it.
-        const existing = yield* findEntry(input.entry)
-        if (existing !== undefined && existing.type !== input.type)
-          return yield* refuse(`This entry is of "${existing.type}", not "${input.type}"`)
-        if (existing?.archivedAt != null) return yield* refuse('An archived entry takes no draft')
-        yield* asking(principal, 'save', existing)
-        if (existing !== undefined) yield* promised(principal, existing)
-
-        const database = yield* drizzleWrites
-        const who = nameOf(principal)
-        const id = existing?.id ?? input.entry
-        const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, id)
-        const previous = held === undefined ? null : String(held.updatedAt)
-        // Two saves in one millisecond must still be told apart by the next one.
-        const at = now().toISOString()
-        const updatedAt =
-          previous !== null && at <= previous
-            ? new Date(new Date(previous).getTime() + 1).toISOString()
-            : at
-        const written = {
-          values: input.values,
-          model: input.model,
-          form: input.form,
-          updatedAt,
-          updatedBy: who,
-          // A draft that changed is worth trying again when its time comes.
-          scheduleError: null,
-        }
-
-        // The first draft of an entry has nothing to have been based on. Asked before
-        // anything is written, so a refusal leaves no entry behind.
-        if (previous === null && input.basedOn !== null)
-          return yield* RemoteServer.refuse(
-            Cms.Operations.SaveDraft,
-            Cms.refusal.conflict,
-            'This draft was discarded',
-          )
-        if (existing === undefined) {
-          yield* runStatement(
-            () =>
-              database.insert(tables.entries).values({
-                id,
-                type: input.type,
-                targetId: null,
-                label: input.label,
-                createdBy: who,
-                createdAt: at,
-                archivedAt: null,
-                revision: null,
-              }),
-            'Database write failed',
-          )
-        }
-        if (previous === null) {
-          yield* runStatement(
-            () => database.insert(tables.drafts).values({ id, ...written, baseRevision: null }),
-            'Database write failed',
-          )
-        } else {
-          // Compare and set: the save names what it was made from, and a newer one
-          // on the server means someone else saved in between.
-          const changed = yield* runStatement(
-            () =>
-              database
-                .update(tables.drafts)
-                .set(written)
-                .where(
-                  and(eq(tables.drafts.id, id), eq(tables.drafts.updatedAt, input.basedOn ?? '')),
-                )
-                .returning({ id: tables.drafts.id }),
-            'Database write failed',
-          )
-          if (changed.length === 0)
-            return yield* RemoteServer.refuse(
-              Cms.Operations.SaveDraft,
-              Cms.refusal.conflict,
-              'This draft was saved by someone else since',
+    const discarded = () =>
+      RemoteServer.refuse(
+        Cms.Operations.SaveDraft,
+        Cms.refusal.conflict,
+        'This draft was discarded',
+      )
+    const SaveDraft = operation(Cms.Operations.SaveDraft, {
+      accepts: input =>
+        Effect.gen(function* () {
+          if (!byType.has(input.type))
+            return yield* RemoteServer.tell(
+              `"${input.type}" is not a type of content this server knows`,
             )
-        }
-        if (existing !== undefined && existing.label !== input.label) {
+          const size = JSON.stringify([input.values, input.model]).length
+          if (size > maxDraftSize)
+            return yield* RemoteServer.tell(
+              `This draft is too large to save: ${size} characters, and ${maxDraftSize} is the most`,
+            )
+        }),
+      // A first save of an id nobody has is made, so there is no refusal of one to
+      // repeat: of an id that is taken, only that the draft was not saved as it.
+      missing: input =>
+        input.basedOn === null
+          ? RemoteServer.tell('This draft cannot be saved as this entry')
+          : discarded(),
+      run: ({ input, principal }) =>
+        Effect.gen(function* () {
+          // An id nobody has is something new: the client named it, and this makes it.
+          const existing = yield* findEntry(input.entry)
+          if (existing !== undefined && existing.type !== input.type)
+            return yield* RemoteServer.tell(
+              `This entry is of "${existing.type}", not "${input.type}"`,
+            )
+          if (existing?.archivedAt != null)
+            return yield* RemoteServer.tell('An archived entry takes no draft')
+          yield* asking(principal, 'save', existing)
+          if (existing !== undefined) yield* promised(principal, existing)
+
+          const database = yield* drizzleWrites
+          const who = nameOf(principal)
+          const id = existing?.id ?? input.entry
+          const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, id)
+          const previous = held === undefined ? null : String(held.updatedAt)
+          // Two saves in one millisecond must still be told apart by the next one.
+          const at = now().toISOString()
+          const updatedAt =
+            previous !== null && at <= previous
+              ? new Date(new Date(previous).getTime() + 1).toISOString()
+              : at
+          const written = {
+            values: input.values,
+            model: input.model,
+            form: input.form,
+            updatedAt,
+            updatedBy: who,
+            // A draft that changed is worth trying again when its time comes.
+            scheduleError: null,
+          }
+
+          // The first draft of an entry has nothing to have been based on. Asked before
+          // anything is written, so a refusal leaves no entry behind.
+          if (previous === null && input.basedOn !== null) return yield* discarded()
+          if (existing === undefined) {
+            yield* runStatement(
+              () =>
+                database.insert(tables.entries).values({
+                  id,
+                  type: input.type,
+                  targetId: null,
+                  label: input.label,
+                  createdBy: who,
+                  createdAt: at,
+                  archivedAt: null,
+                  revision: null,
+                }),
+              'Database write failed',
+            )
+          }
+          if (previous === null) {
+            yield* runStatement(
+              () => database.insert(tables.drafts).values({ id, ...written, baseRevision: null }),
+              'Database write failed',
+            )
+          } else {
+            // Compare and set: the save names what it was made from, and a newer one
+            // on the server means someone else saved in between.
+            const changed = yield* runStatement(
+              () =>
+                database
+                  .update(tables.drafts)
+                  .set(written)
+                  .where(
+                    and(eq(tables.drafts.id, id), eq(tables.drafts.updatedAt, input.basedOn ?? '')),
+                  )
+                  .returning({ id: tables.drafts.id }),
+              'Database write failed',
+            )
+            if (changed.length === 0)
+              return yield* RemoteServer.refuse(
+                Cms.Operations.SaveDraft,
+                Cms.refusal.conflict,
+                'This draft was saved by someone else since',
+              )
+          }
+          if (existing !== undefined && existing.label !== input.label) {
+            yield* runStatement(
+              () =>
+                database
+                  .update(tables.entries)
+                  .set({ label: input.label })
+                  .where(eq(tables.entries.id, id))
+                  .returning({ id: tables.entries.id }),
+              'Database write failed',
+            )
+          }
+
+          const entities = [
+            ...(yield* entryPatches(id)),
+            ...draftPatch.patches(yield* readRows(Db.Draft, draftPatch.columns, id)),
+          ]
+          return { output: { entry: id as never, updatedAt }, entities }
+        }),
+    })
+
+    const DiscardDraft = operation(Cms.Operations.DiscardDraft, {
+      missing: noEntry,
+      run: ({ input, principal }) =>
+        Effect.gen(function* () {
+          const entry = yield* findEntry(input.entry)
+          if (entry === undefined) return yield* noEntry()
+          yield* asking(principal, 'discard', entry)
+          yield* promised(principal, entry)
+          const database = yield* drizzleWrites
           yield* runStatement(
-            () =>
-              database
-                .update(tables.entries)
-                .set({ label: input.label })
-                .where(eq(tables.entries.id, id))
-                .returning({ id: tables.entries.id }),
+            () => database.delete(tables.drafts).where(eq(tables.drafts.id, entry.id)),
             'Database write failed',
           )
-        }
-
-        const entities = [
-          ...(yield* entryPatches(id)),
-          ...draftPatch.patches(yield* readRows(Db.Draft, draftPatch.columns, id)),
-        ]
-        return { output: { entry: id as never, updatedAt }, entities }
-      }),
-    )
-
-    const DiscardDraft = operation(Cms.Operations.DiscardDraft, ({ input, principal }) =>
-      Effect.gen(function* () {
-        const entry = yield* findEntry(input.entry)
-        if (entry === undefined) return yield* refuse('There is no such entry')
-        yield* asking(principal, 'discard', entry)
-        yield* promised(principal, entry)
-        const database = yield* drizzleWrites
-        yield* runStatement(
-          () => database.delete(tables.drafts).where(eq(tables.drafts.id, entry.id)),
-          'Database write failed',
-        )
-        const gone = [{ entity: 'CmsDraft', id: entry.id }]
-        // Never published, and now with nothing entered: there is nothing left of it.
-        if (entry.targetId !== null)
-          return { output: {}, deleted: gone, entities: yield* entryPatches(entry.id) }
-        yield* runStatement(
-          () => database.delete(tables.entries).where(eq(tables.entries.id, entry.id)),
-          'Database write failed',
-        )
-        return { output: {}, deleted: [...gone, { entity: 'CmsEntry', id: entry.id }] }
-      }),
-    )
+          const gone = [{ entity: 'CmsDraft', id: entry.id }]
+          // Never published, and now with nothing entered: there is nothing left of it.
+          if (entry.targetId !== null)
+            return { output: {}, deleted: gone, entities: yield* entryPatches(entry.id) }
+          yield* runStatement(
+            () => database.delete(tables.entries).where(eq(tables.entries.id, entry.id)),
+            'Database write failed',
+          )
+          return { output: {}, deleted: [...gone, { entity: 'CmsEntry', id: entry.id }] }
+        }),
+    })
 
     const done: Readonly<Record<Exclude<Transition, 'save' | 'discard'>, string>> = {
       publish: 'published',
@@ -746,13 +827,15 @@ export const CmsServer = {
     const offering = (id: string, transition: Exclude<Transition, 'save' | 'discard'>) =>
       Effect.gen(function* () {
         const entry = yield* findEntry(id)
-        if (entry === undefined) return yield* refuse('There is no such entry')
+        if (entry === undefined) return yield* noEntry()
         const served = byType.get(entry.type)
         if (served === undefined)
-          return yield* refuse(`"${entry.type}" is not a type of content this server knows`)
+          return yield* RemoteServer.tell(
+            `"${entry.type}" is not a type of content this server knows`,
+          )
         const facts = (yield* factsOf([entry])).get(entry.id)!
         if (!Cms.offers(facts, now(), served.type).includes(transition))
-          return yield* refuse(`This entry cannot be ${done[transition]} as it stands`)
+          return yield* RemoteServer.tell(`This entry cannot be ${done[transition]} as it stands`)
         return { entry, served, facts }
       })
 
@@ -779,7 +862,7 @@ export const CmsServer = {
             ? draft?.values
             : { ...draft.values, id: entry.targetId }
         const decoded = yield* Schema.decodeUnknownEffect(handler.Input)(value).pipe(
-          Effect.mapError(error => refuse(`This draft is not ready to publish: ${String(error)}`)),
+          Effect.mapError(error => RemoteServer.tell(notReady(error))),
         )
         return { draft, creating, handler, decoded }
       })
@@ -932,13 +1015,15 @@ export const CmsServer = {
         )
       })
 
-    const Publish = operation(Cms.Operations.Publish, ({ input, principal }) =>
-      Effect.gen(function* () {
-        const found = yield* offering(input.entry, 'publish')
-        yield* asking(principal, 'publish', found.entry)
-        return yield* publishing(found, principal, input.basedOn)
-      }),
-    )
+    const Publish = operation(Cms.Operations.Publish, {
+      missing: noEntry,
+      run: ({ input, principal }) =>
+        Effect.gen(function* () {
+          const found = yield* offering(input.entry, 'publish')
+          yield* asking(principal, 'publish', found.entry)
+          return yield* publishing(found, principal, input.basedOn)
+        }),
+    })
 
     /** Writes to an entry's draft, and answers with both as the client should now hold them. */
     const drafted = (id: string, values: object) =>
@@ -962,39 +1047,45 @@ export const CmsServer = {
         }
       })
 
-    const Schedule = operation(Cms.Operations.Schedule, ({ input, principal }) =>
-      Effect.gen(function* () {
-        const found = yield* offering(input.entry, 'schedule')
-        yield* asking(principal, 'schedule', found.entry)
-        if (Number.isNaN(new Date(input.at).getTime()))
-          return yield* refuse(`"${input.at}" is not a time`)
-        // What cannot be published now is not promised for later.
-        yield* readied(found)
-        return yield* drafted(found.entry.id, {
-          scheduledFor: new Date(input.at).toISOString(),
-          scheduledBy: nameOf(principal),
-          scheduleError: null,
-        })
-      }),
-    )
+    const Schedule = operation(Cms.Operations.Schedule, {
+      accepts: input =>
+        Number.isNaN(new Date(input.at).getTime())
+          ? Effect.fail(RemoteServer.tell(`"${input.at}" is not a time`))
+          : Effect.void,
+      missing: noEntry,
+      run: ({ input, principal }) =>
+        Effect.gen(function* () {
+          const found = yield* offering(input.entry, 'schedule')
+          yield* asking(principal, 'schedule', found.entry)
+          // What cannot be published now is not promised for later.
+          yield* readied(found)
+          return yield* drafted(found.entry.id, {
+            scheduledFor: new Date(input.at).toISOString(),
+            scheduledBy: nameOf(principal),
+            scheduleError: null,
+          })
+        }),
+    })
 
-    const Unschedule = operation(Cms.Operations.Unschedule, ({ input, principal }) =>
-      Effect.gen(function* () {
-        const found = yield* offering(input.entry, 'unschedule')
-        yield* asking(principal, 'unschedule', found.entry)
-        return yield* drafted(found.entry.id, {
-          scheduledFor: null,
-          scheduledBy: null,
-          scheduleError: null,
-        })
-      }),
-    )
+    const Unschedule = operation(Cms.Operations.Unschedule, {
+      missing: noEntry,
+      run: ({ input, principal }) =>
+        Effect.gen(function* () {
+          const found = yield* offering(input.entry, 'unschedule')
+          yield* asking(principal, 'unschedule', found.entry)
+          return yield* drafted(found.entry.id, {
+            scheduledFor: null,
+            scheduledBy: null,
+            scheduleError: null,
+          })
+        }),
+    })
 
     /** Archiving and its undoing: a fact about the entry, and for what can be hidden, the row. */
     const archiving = (transition: 'archive' | 'unarchive') =>
-      operation(
-        transition === 'archive' ? Cms.Operations.Archive : Cms.Operations.Unarchive,
-        ({ input, principal }) =>
+      operation(transition === 'archive' ? Cms.Operations.Archive : Cms.Operations.Unarchive, {
+        missing: noEntry,
+        run: ({ input, principal }) =>
           Effect.gen(function* () {
             const { entry, served } = yield* offering(input.entry, transition)
             yield* asking(principal, transition, entry)
@@ -1042,7 +1133,7 @@ export const CmsServer = {
               ],
             }
           }),
-      )
+      })
 
     /**
      * A revision's value becomes the working copy, and nothing is published. It
@@ -1050,72 +1141,108 @@ export const CmsServer = {
      * was scheduled is not what is there now. The saved Model goes too, so an
      * editor fills its form from the values, key by key.
      */
-    const Restore = operation(Cms.Operations.Restore, ({ input, principal }) =>
-      Effect.gen(function* () {
-        const { entry } = yield* offering(input.entry, 'restore')
-        yield* asking(principal, 'restore', entry)
-        yield* promised(principal, entry)
-        const database = yield* DrizzleDatabase
-        const [revision] = yield* runStatement(
-          () =>
-            database
-              .select({ values: tables.revisions.values })
-              .from(tables.revisions)
-              .where(
-                and(eq(tables.revisions.entryId, entry.id), eq(tables.revisions.n, input.revision)),
-              )
-              .limit(1),
-          'Database query failed',
-        )
-        if (revision === undefined)
-          return yield* refuse(`This entry has no revision ${input.revision}`)
+    const Restore = operation(Cms.Operations.Restore, {
+      missing: noEntry,
+      run: ({ input, principal }) =>
+        Effect.gen(function* () {
+          const { entry } = yield* offering(input.entry, 'restore')
+          yield* asking(principal, 'restore', entry)
+          yield* promised(principal, entry)
+          const database = yield* DrizzleDatabase
+          const [revision] = yield* runStatement(
+            () =>
+              database
+                .select({ values: tables.revisions.values })
+                .from(tables.revisions)
+                .where(
+                  and(
+                    eq(tables.revisions.entryId, entry.id),
+                    eq(tables.revisions.n, input.revision),
+                  ),
+                )
+                .limit(1),
+            'Database query failed',
+          )
+          if (revision === undefined)
+            return yield* RemoteServer.tell(`This entry has no revision ${input.revision}`)
 
-        const writes = yield* drizzleWrites
-        const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, entry.id)
-        const at = now().toISOString()
-        const updatedAt =
-          held !== undefined && at <= String(held.updatedAt)
-            ? new Date(new Date(String(held.updatedAt)).getTime() + 1).toISOString()
-            : at
-        const restored = {
-          values: revision.values,
-          model: null,
-          form: `restored@${input.revision}`,
-          updatedAt,
-          updatedBy: nameOf(principal),
-          baseRevision: entry.revision,
-          scheduledFor: null,
-          scheduledBy: null,
-          scheduleError: null,
-        }
-        yield* runStatement(
-          () =>
-            held === undefined
-              ? writes.insert(tables.drafts).values({ id: entry.id, ...restored })
-              : writes
-                  .update(tables.drafts)
-                  .set(restored)
-                  .where(eq(tables.drafts.id, entry.id))
-                  .returning({ id: tables.drafts.id }),
-          'Database write failed',
-        )
-        return {
-          output: { updatedAt },
-          entities: [
-            ...(yield* entryPatches(entry.id)),
-            ...draftPatch.patches(yield* readRows(Db.Draft, draftPatch.columns, entry.id)),
-            ...scheduledPatch.patches(yield* readRows(Db.Draft, scheduledPatch.columns, entry.id)),
-          ],
-        }
-      }),
-    )
+          const writes = yield* drizzleWrites
+          const [held] = yield* readRows(Db.Draft, { updatedAt: tables.drafts.updatedAt }, entry.id)
+          const at = now().toISOString()
+          const updatedAt =
+            held !== undefined && at <= String(held.updatedAt)
+              ? new Date(new Date(String(held.updatedAt)).getTime() + 1).toISOString()
+              : at
+          const restored = {
+            values: revision.values,
+            model: null,
+            form: `restored@${input.revision}`,
+            updatedAt,
+            updatedBy: nameOf(principal),
+            baseRevision: entry.revision,
+            scheduledFor: null,
+            scheduledBy: null,
+            scheduleError: null,
+          }
+          yield* runStatement(
+            () =>
+              held === undefined
+                ? writes.insert(tables.drafts).values({ id: entry.id, ...restored })
+                : writes
+                    .update(tables.drafts)
+                    .set(restored)
+                    .where(eq(tables.drafts.id, entry.id))
+                    .returning({ id: tables.drafts.id }),
+            'Database write failed',
+          )
+          return {
+            output: { updatedAt },
+            entities: [
+              ...(yield* entryPatches(entry.id)),
+              ...draftPatch.patches(yield* readRows(Db.Draft, draftPatch.columns, entry.id)),
+              ...scheduledPatch.patches(
+                yield* readRows(Db.Draft, scheduledPatch.columns, entry.id),
+              ),
+            ],
+          }
+        }),
+    })
+
+    /**
+     * A scheduled publish that failed on this side, as authors read it on the
+     * entry: that it failed, and the incident its cause was reported under
+     * (`RemoteServer.report`), as a caller of the publish operation would read it.
+     */
+    const withheld = (entry: string, cause: Cause.Cause<unknown>) =>
+      Effect.map(
+        RemoteServer.report(`publish due ${entry}`, cause),
+        ({ message, incident }) => `${message}, incident ${incident}`,
+      )
+    /**
+     * A failed scheduled publish as authors read it on the entry: the reason
+     * where it was written for a reader (a denial, a refusal,
+     * `RemoteServer.tell`), and of any other failure only `withheld`.
+     */
+    const shownOf = (
+      entry: string,
+      failure: RemoteServerError | MutationRefused | RemoteForbidden | RemoteUnauthenticated,
+    ): Effect.Effect<string> =>
+      Match.valueTags(failure, {
+        RemoteServerError: error =>
+          error.told === true ? Effect.succeed(error.message) : withheld(entry, Cause.fail(error)),
+        MutationRefused: ({ message }) => Effect.succeed(message),
+        Forbidden: ({ message }) => Effect.succeed(message),
+        Unauthenticated: ({ message }) => Effect.succeed(message),
+      })
 
     /**
      * Publishes every draft whose time has come, each in its own transaction, as
      * whoever scheduled it: `as` says who a stored name is. One that fails stays
      * scheduled with the reason, and is left alone until its draft changes, so a
-     * fault the author must fix is not tried again every minute. The package owns
-     * no timer: a cron trigger, an interval or a queue calls this.
+     * fault the author must fix is not tried again every minute. An outcome's
+     * `error` is the failure in its own words, for the host that called this;
+     * the draft keeps `shownOf` it, which authors read. The package owns no
+     * timer: a cron trigger, an interval or a queue calls this.
      */
     const due = (at: Date, options: { readonly as: (scheduledBy: string | null) => P }) =>
       Effect.gen(function* () {
@@ -1140,7 +1267,7 @@ export const CmsServer = {
         for (const draft of waiting) {
           const id = String(draft.id)
           const principal = options.as((draft.scheduledBy as string | null) ?? null)
-          const error = yield* config
+          const failed = yield* config
             .transaction(
               Effect.gen(function* () {
                 if (!(yield* isAuthor(principal, 'Update')))
@@ -1148,16 +1275,29 @@ export const CmsServer = {
                 const found = yield* offering(id, 'publish')
                 yield* asking(principal, 'publish', found.entry)
                 yield* publishing(found, principal, found.entry.revision)
-                return null
+                return Option.none<{ readonly own: string; readonly shown: string }>()
               }),
             )
             .pipe(
-              Effect.catch(failure => Effect.succeed(failure.message)),
-              Effect.catchDefect(defect => Effect.succeed(String(defect))),
+              Effect.catch(failure =>
+                Effect.map(shownOf(id, failure), shown =>
+                  Option.some({ own: failure.message, shown }),
+                ),
+              ),
+              // A defect's words are a driver's or a bug's: the host's, never an author's.
+              Effect.catchDefect(defect =>
+                Effect.map(withheld(id, Cause.die(defect)), shown =>
+                  Option.some({ own: String(defect), shown }),
+                ),
+              ),
             )
           // Recorded after the failed publish was undone, or it would be undone with it.
-          if (error !== null) yield* config.transaction(drafted(id, { scheduleError: error }))
-          outcomes.push({ entry: id, error })
+          if (Option.isSome(failed))
+            yield* config.transaction(drafted(id, { scheduleError: failed.value.shown }))
+          outcomes.push({
+            entry: id,
+            error: Option.getOrNull(Option.map(failed, ({ own }) => own)),
+          })
         }
         return outcomes
       })
@@ -1175,7 +1315,9 @@ export const CmsServer = {
         Effect.gen(function* () {
           const served = byType.get(item.type)
           if (served === undefined)
-            return yield* refuse(`"${item.type}" is not a type of content this server knows`)
+            return yield* RemoteServer.tell(
+              `"${item.type}" is not a type of content this server knows`,
+            )
           const writes = yield* drizzleWrites
           const id = item.entry ?? Cms.newEntryId()
           const at = item.at ?? now()
@@ -1224,31 +1366,33 @@ export const CmsServer = {
         }),
       )
 
-    const Unpublish = operation(Cms.Operations.Unpublish, ({ input, principal }) =>
-      Effect.gen(function* () {
-        const { entry, served } = yield* offering(input.entry, 'unpublish')
-        yield* asking(principal, 'unpublish', entry)
-        const shown = served.type.roles.published!
-        const writes = yield* drizzleWrites
-        yield* runStatement(
-          () =>
-            writes
-              .update(served.binding.table)
-              .set({ [shown.key]: null })
-              .where(eq(served.binding.columns.id!, entry.targetId!))
-              .returning({ id: served.binding.columns.id! }),
-          'Database write failed',
-        )
-        const content = returning(served.binding, [shown.key])
-        return {
-          output: {},
-          entities: [
-            ...content.patches(yield* readRows(served.binding, content.columns, entry.targetId!)),
-            ...(yield* entryPatches(entry.id)),
-          ],
-        }
-      }),
-    )
+    const Unpublish = operation(Cms.Operations.Unpublish, {
+      missing: noEntry,
+      run: ({ input, principal }) =>
+        Effect.gen(function* () {
+          const { entry, served } = yield* offering(input.entry, 'unpublish')
+          yield* asking(principal, 'unpublish', entry)
+          const shown = served.type.roles.published!
+          const writes = yield* drizzleWrites
+          yield* runStatement(
+            () =>
+              writes
+                .update(served.binding.table)
+                .set({ [shown.key]: null })
+                .where(eq(served.binding.columns.id!, entry.targetId!))
+                .returning({ id: served.binding.columns.id! }),
+            'Database write failed',
+          )
+          const content = returning(served.binding, [shown.key])
+          return {
+            output: {},
+            entities: [
+              ...content.patches(yield* readRows(served.binding, content.columns, entry.targetId!)),
+              ...(yield* entryPatches(entry.id)),
+            ],
+          }
+        }),
+    })
 
     const sources: ReadonlyArray<EntitySource<P, DrizzleDatabase>> = [
       entries,

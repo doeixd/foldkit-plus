@@ -7,7 +7,7 @@ import { Effect, Option } from 'effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { COPY_ATTRIBUTE } from '../src/library.js'
-import { CopyCode, Message, codeCopyOf } from '../src/main.js'
+import { CopyCode, Message, codeCopyOf } from '../src/shell.js'
 
 /** Two blocks as the build draws them: a figure, its copy button, its code. */
 const page = () => {

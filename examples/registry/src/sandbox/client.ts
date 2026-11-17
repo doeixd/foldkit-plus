@@ -10,12 +10,18 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import * as Subscription from 'foldkit/subscription'
 import { SlotView } from 'foldkit-mixins'
-import { AppShell, Badge, Card } from 'foldkit-mixins-ui'
+import { AppShell, Badge, Card, Segmented } from 'foldkit-mixins-ui'
 import { registryDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
 import { Sync } from 'foldkit-sync'
 import { startDevice } from '../device.js'
-import { DeviceBadgeStyle, DeviceCardStyle, Sandbox, ShellStyle } from '../style.js'
+import {
+  DeviceBadgeStyle,
+  DeviceCardStyle,
+  PaneSwitchStyle,
+  Sandbox,
+  ShellStyle,
+} from '../style.js'
 import { connectSandbox } from './connection.js'
 import { DeviceStatus } from './protocol.js'
 
@@ -25,19 +31,28 @@ const devices = [
 ] as const
 
 /** What each device's frame last said of its edits; a device yet to say is absent. */
-const Model = Schema.Struct({ statuses: Schema.Array(DeviceStatus) })
+const Model = Schema.Struct({
+  statuses: Schema.Array(DeviceStatus),
+  /** The device a phone shows; both stay mounted, so each keeps its replica running. */
+  chosen: Schema.String,
+})
 type Model = typeof Model.Type
 
-const Message = defineMessageUnion({ GotStatus: { status: DeviceStatus } })
+const Message = defineMessageUnion({
+  GotStatus: { status: DeviceStatus },
+  ChoseDevice: { device: Schema.String },
+})
 type Message = typeof Message.Type
 
 const update = (model: Model, message: Message): { readonly model: Model } =>
   Message.match(message, {
     GotStatus: ({ status }) => ({
       model: {
+        ...model,
         statuses: [...model.statuses.filter(({ device }) => device !== status.device), status],
       },
     }),
+    ChoseDevice: ({ device }) => ({ model: { ...model, chosen: device } }),
   })
 
 const decodeStatus = Schema.decodeUnknownOption(DeviceStatus)
@@ -59,17 +74,20 @@ const subscriptions = Subscription.make<Model, Message>()(() => ({
   ),
 }))
 
-/** A card's badge for a device's status: settled once all is sent, waiting while edits are kept. */
+/** A card's badge for a device's status, in the words the device itself uses. */
 const statusOf = (status: Option.Option<DeviceStatus>) =>
   Option.match(status, {
     onNone: () => ({ text: 'Starting…', tone: 'waiting' }),
     onSome: ({ offline, waiting, unreachable }) => {
       const edits = `${waiting} ${waiting === 1 ? 'edit' : 'edits'}`
       if (offline)
-        return { text: waiting === 0 ? 'Offline' : `Offline · ${edits} waiting`, tone: 'waiting' }
-      if (unreachable) return { text: `No server · ${edits} waiting`, tone: 'waiting' }
-      if (waiting > 0) return { text: `Sending ${edits}…`, tone: 'waiting' }
-      return { text: 'Synced', tone: 'synced' }
+        return {
+          text: waiting === 0 ? 'Offline' : `Offline · ${edits} waiting to sync`,
+          tone: 'waiting',
+        }
+      if (unreachable) return { text: `No server · ${edits} waiting to sync`, tone: 'waiting' }
+      if (waiting > 0) return { text: `Syncing ${edits}…`, tone: 'waiting' }
+      return { text: 'Online · in sync', tone: 'synced' }
     },
   })
 
@@ -90,6 +108,27 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html => {
               h.p(slots.lede.attrs(), [
                 '10,000 products on a server that runs in this browser. Each device keeps its own replica, so its edits wait while it is offline and reach the other when it is back.',
               ]),
+              h.ol(
+                slots.steps.attrs([h.AriaLabel('Try a conflict')]),
+                [
+                  'Press Go offline in Device B, then edit the same price in both devices. Each shows its own value; B’s cell is marked Not yet sent.',
+                  'Press Go online in B. Its edit reaches the server after A’s, and the server’s order decides: B’s price wins in both devices.',
+                  'This page marks A’s cell Replaced, and a notice in A says what it held. Nothing is merged: one write wins, by the order the server committed them, not by who typed last.',
+                ].map(text => h.li([h.Key(text)], [text])),
+              ),
+            ]),
+            h.div(slots.switch.attrs(), [
+              Segmented.view(
+                {
+                  id: 'device',
+                  label: 'Device shown',
+                  options: devices.map(({ id, name }) => ({ value: id, label: name })),
+                  pressed: [model.chosen],
+                  onPress: device => Message.ChoseDevice({ device }),
+                  style: PaneSwitchStyle,
+                },
+                h,
+              ),
             ]),
             h.div(
               slots.devices.attrs(),
@@ -99,7 +138,11 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html => {
                 )
                 // A region per device, named for it, holding its frame: its page of its own.
                 return h.section(
-                  [h.Key(id), h.AriaLabel(name)],
+                  [
+                    h.Key(id),
+                    h.AriaLabel(name),
+                    h.DataAttribute('chosen', String(id === model.chosen)),
+                  ],
                   [
                     Card.view(
                       {
@@ -124,7 +167,7 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html => {
         ],
         h,
       ),
-      Guide({ demo: registryDemo }, h),
+      Guide({ demo: registryDemo, corner: 'top-end', compact: true, inset: '0.75rem' }, h),
     ],
   )
 }
@@ -145,7 +188,7 @@ export const startSandbox = async (container: HTMLElement): Promise<void> => {
     Runtime.makeElement({
       Model,
       container,
-      init: () => ({ model: { statuses: [] } }),
+      init: () => ({ model: { statuses: [], chosen: devices[0].id } }),
       update,
       view,
       subscriptions,

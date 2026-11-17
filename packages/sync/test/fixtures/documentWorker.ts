@@ -48,7 +48,9 @@ export class SyncHost extends defineDocumentHost(DurableObject, {
   resolvePrincipal: request => {
     const actor = request.headers.get('x-actor') ?? 'anon'
     return revoked.has(actor)
-      ? Effect.fail(new RemoteUnauthenticated({ message: 'Session revoked' }))
+      ? Effect.fail(
+          new RemoteUnauthenticated({ message: 'Session revoked', reason: 'Session revoked' }),
+        )
       : Effect.succeed(actor)
   },
   revalidate: { every: '50 millis' },

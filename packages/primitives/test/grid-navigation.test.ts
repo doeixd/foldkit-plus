@@ -180,6 +180,60 @@ describe('GridNavigation behavior', () => {
     expect(Option.isNone(paged(args)('PageDown', plain))).toBe(true)
   })
 
+  describe('routes', () => {
+    const chosen = Cells.wrapper.make(GridNavigation.Message.Focused({ id: 'c0' }))
+    const withRoutes = (...routes: ReadonlyArray<Behaviors.Keys.Route<GridInput, Message>>) =>
+      SlotView.buildersFor(
+        GridSlots,
+        [
+          behavior(Cells, args)(GridSlots)<GridInput, Message>({
+            container: 'grid',
+            item: 'cell',
+            items: input => describeCells(input.data),
+            routes,
+          }).mixin,
+        ],
+        { input, h },
+      )
+    const ctrlA = Behaviors.Keys.route<GridInput, Message>('ChooseAll', {
+      on: [Behaviors.Keys.chord('a', { ctrl: true }), Behaviors.Keys.chord(' ')],
+      handle: () => Option.some(chosen),
+    })
+    const press = (b: ReturnType<typeof withRoutes>, key: string, modifiers = plain) =>
+      Attributes.find(b.grid.attrs(), 'OnKeyDownFocus')!.f(key, modifiers)
+
+    it('answers the application’s keys beside the grid’s own, on the one keydown owner', () => {
+      const b = withRoutes(ctrlA)
+      // The route's answer is a Message alone: focus stays where it is.
+      expect(Option.getOrThrow(press(b, 'a', ctrl))).toEqual({
+        focusSelector: ':not(*)',
+        message: chosen,
+      })
+      expect(Option.getOrThrow(press(b, ' '))).toEqual({
+        focusSelector: ':not(*)',
+        message: chosen,
+      })
+      expect(Option.getOrThrow(press(b, 'ArrowDown'))).toEqual({
+        focusSelector: '[id="c7"]',
+        message: Cells.wrapper.make(GridNavigation.Message.Focused({ id: 'c7' })),
+      })
+      expect(Option.isNone(press(b, 'q'))).toBe(true)
+    })
+
+    it('without routes a key the grid does not own is not handled', () => {
+      expect(Option.isNone(press(builders(input), ' '))).toBe(true)
+    })
+
+    it('refuses a route on a key the grid owns, naming both', () => {
+      const arrow = Behaviors.Keys.route<GridInput, Message>('ExtendDown', {
+        on: [Behaviors.Keys.chord('ArrowDown', { shift: true })],
+        handle: () => Option.some(chosen),
+      })
+      expect(() => withRoutes(arrow)).toThrow(/ExtendDown/)
+      expect(() => withRoutes(arrow)).toThrow(/GridNavigation/)
+    })
+  })
+
   it('gives the current cell the tab stop and the rest -1', () => {
     const b = builders(input)
     expect(Attributes.find(b.cell.attrs([], items.slotItem(1)), 'Tabindex')?.value).toBe(0)

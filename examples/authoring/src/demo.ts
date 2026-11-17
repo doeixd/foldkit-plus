@@ -3,6 +3,13 @@
  * the Model, and what the views draw for it. `main.ts` prints it.
  */
 import { Option } from 'effect'
+import { runDemo as runSwipeDemo } from './swipe/demo.js'
+import { runDemo as runStepperDemo } from './stepper/demo.js'
+import { runDemo as runSpatialDemo } from './spatial/demo.js'
+import { runDemo as runInlineEditDemo } from './inline-edit/demo.js'
+import { runDemo as runHotkeysDemo } from './hotkeys/demo.js'
+import { runDemo as runGridDemo } from './grid/demo.js'
+import { runDemo as runBoxDemo } from './box/demo.js'
 import { SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Reorder } from 'foldkit-primitives/interaction'
@@ -70,6 +77,17 @@ export const runDemo = (): ReadonlyArray<string> => {
   )
   list = listUpdate(list, ListMessage.Added()).model
   lines.push(`list added: ${list.items.length} rows`)
+
+  for (const run of [
+    runInlineEditDemo,
+    runSpatialDemo,
+    runBoxDemo,
+    runStepperDemo,
+    runSwipeDemo,
+    runGridDemo,
+    runHotkeysDemo,
+  ])
+    lines.push(...run())
 
   return lines
 }

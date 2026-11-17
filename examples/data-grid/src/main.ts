@@ -11,18 +11,19 @@
  * and the page filters the products by them before the grid sees a row. How
  * the columns stand is kept in this browser, and read back as the page opens.
  */
-import { Effect, Option, Schema, SchemaGetter } from 'effect'
+import { Effect, Match, Option, Schema, SchemaGetter } from 'effect'
 import { Command, type Update } from 'foldkit'
 import { type Document, type HtmlBuilder } from 'foldkit/html'
 import { gridDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { Bundle } from 'foldkit-bundle'
-import { Columns, DataGrid, RowModel, RowSelection } from 'foldkit-data-grid'
+import { Bundle, Link } from 'foldkit-bundle'
+import { Columns, DataGrid, RowModel, RowSelection, addressableRows } from 'foldkit-data-grid'
 import { Style } from 'foldkit-mixins'
 import { DataGridView, GridSlots, GridStyle } from 'foldkit-mixins-data-grid'
 import { Product, products } from './products.js'
+import { Toolbar, ToolbarMessage, ToolbarModel, rowHeights } from './toolbar.js'
 
 /** A description as typed: its spaces around dropped, and something left. */
 const Description = Schema.Trim.pipe(
@@ -83,21 +84,32 @@ export const Grid = DataGrid.make({
 })
 
 const Placement = Bundle.declare(Grid.bundle, 'grid')
+const GotToolbarMessage = Link.wrapper('GotToolbarMessage', ToolbarMessage)
 
 export const Model = Schema.Struct({
   ...Placement.fields,
+  /** The search and the row density, drawn by a toolbar whose widgets load on demand. */
+  toolbar: ToolbarModel,
   products: Schema.Array(Product),
   /** What each column is filtered by: the page's, as the grid reports it. */
   filters: Grid.Filters,
   /** What the last change said: what it wrote, or why some cells were refused. */
   notice: Schema.String,
+  /** The row number typed into Go to row. */
+  goTo: Schema.String,
 })
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   ...Placement.cases,
+  ...GotToolbarMessage.cases,
   /** The column layout was written to this browser's storage. */
   SavedLayout: {},
+  /** Every column's filter was taken off at once. */
+  ClearedFilters: {},
+  TypedRow: { text: Schema.String },
+  /** Go to row was pressed, or Enter in its field. */
+  WentToRow: {},
 })
 export type Message = typeof Message.Type
 
@@ -110,12 +122,25 @@ const allRowsOf = (model: Model) => RowModel.fromArray(model.products, productKe
 // projection, which is kept per row model.
 const shown = new WeakMap<
   object,
-  { readonly products: ReadonlyArray<Product>; readonly rows: RowModel<Product> }
+  {
+    readonly products: ReadonlyArray<Product>
+    readonly search: string
+    readonly rows: RowModel<Product>
+  }
 >()
-/** The products the filters keep, as the grid shows them. */
+/** The products the filters keep and the search finds, as the grid shows them. */
 const rowsOf = (model: Model): RowModel<Product> => {
+  const { search } = model.toolbar
   const known = shown.get(model.filters)
-  if (known !== undefined && known.products === model.products) return known.rows
+  if (known !== undefined && known.products === model.products && known.search === search) {
+    return known.rows
+  }
+  const needle = search.trim().toLowerCase()
+  const found = (product: Product) =>
+    needle === '' ||
+    [product.description, product.line, product.upc].some(text =>
+      text.toLowerCase().includes(needle),
+    )
   const keeps = Grid.keeps(model.filters, {
     description: product => product.description,
     line: product => product.line,
@@ -123,8 +148,11 @@ const rowsOf = (model: Model): RowModel<Product> => {
     // The price itself, not the text its cell shows.
     price: product => product.price,
   })
-  const rows = RowModel.fromArray(model.products.filter(keeps), productKey)
-  shown.set(model.filters, { products: model.products, rows })
+  const rows = RowModel.fromArray(
+    model.products.filter(product => keeps(product) && found(product)),
+    productKey,
+  )
+  shown.set(model.filters, { products: model.products, search, rows })
   return rows
 }
 
@@ -155,6 +183,10 @@ const written = (model: Model, cells: ReadonlyArray<Cell>): ReadonlyArray<Produc
   return next
 }
 
+/** A count with its noun, "1 row" or "3 rows". */
+const counted = (count: number, noun: string): string =>
+  `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`
+
 /** A paste's or a fill's cells written, and what the columns refused said. */
 const laid = (
   model: Model,
@@ -171,42 +203,56 @@ const laid = (
   }),
 })
 
-const application = Bundle.assemble<Model, Message>()([
-  Bundle.parent({ Model, Message }).at(Placement, {
-    onOut: out => model =>
-      Grid.Out.match(out, {
-        Edited: edited => ({
-          model: modifyFields(model, {
-            products: () => written(model, [edited]),
-            notice: () => `Saved ${edited.column} of ${edited.row}.`,
-          }),
-        }),
-        Pasted: ({ accepted, refused }) => laid(model, 'Pasted', accepted, refused),
-        // What a fill writes is worked out from the products as they are now.
-        Filled: request => {
-          const { accepted, refused } = Grid.fill(rowsOf(model), model.grid, request)
-          return accepted.length === 0 && refused.length === 0
-            ? { model }
-            : laid(model, 'Filled', accepted, refused)
-        },
-        Filtered: ({ change }) => ({
-          model: modifyFields(model, {
-            filters: filters => Grid.setFilter(filters, change),
-            notice: () => `Filtered by ${change.column}.`,
-          }),
-        }),
-        // These rows keep no history; the registry demo shows undo as new edits.
-        UndoRequested: () => ({ model }),
-        RedoRequested: () => ({ model }),
-        // Which rows a Shift-click spans is worked out from the products as they are now.
-        RowsRequested: request => ({
-          model: modifyFields(model, {
-            grid: () => Grid.extendRows(rowsOf(model), model.grid, request),
-          }),
+const PlacedToolbar = Toolbar.at(Link.field<Model>()('toolbar', GotToolbarMessage))
+
+const PlacedGrid = Bundle.parent({ Model, Message }).at(Placement, {
+  onOut: out => model =>
+    Grid.Out.match(out, {
+      Edited: edited => ({
+        model: modifyFields(model, {
+          products: () => written(model, [edited]),
+          notice: () => `Saved ${edited.column} of ${edited.row}.`,
         }),
       }),
-  }),
-])
+      Pasted: ({ accepted, refused }) => laid(model, 'Pasted', accepted, refused),
+      // The text is on the clipboard already: this only says how much.
+      Copied: ({ rows, columns }) => ({
+        model: modifyFields(model, {
+          notice: () => `Copied ${counted(rows, 'row')} by ${counted(columns, 'column')}.`,
+        }),
+      }),
+      // What a fill writes is worked out from the products as they are now.
+      Filled: request => {
+        const { accepted, refused } = Grid.fill(rowsOf(model), model.grid, request)
+        return accepted.length === 0 && refused.length === 0
+          ? { model }
+          : laid(model, 'Filled', accepted, refused)
+      },
+      Filtered: ({ change }) => {
+        const filtered = modifyFields(model, {
+          filters: filters => Grid.setFilter(filters, change),
+        })
+        // The count is what a screen reader hears: the grid's rows change out of its sight.
+        const kept = addressableRows(rowsOf(filtered).count).toLocaleString()
+        return {
+          model: modifyFields(filtered, {
+            notice: () => `${change.column} filter: ${kept} products match.`,
+          }),
+        }
+      },
+      // These rows keep no history; the registry demo shows undo as new edits.
+      UndoRequested: () => ({ model }),
+      RedoRequested: () => ({ model }),
+      // Which rows a Shift-click spans is worked out from the products as they are now.
+      RowsRequested: request => ({
+        model: modifyFields(model, {
+          grid: () => Grid.extendRows(rowsOf(model), model.grid, request),
+        }),
+      }),
+    }),
+})
+
+const application = Bundle.assemble<Model, Message>()([PlacedToolbar, PlacedGrid])
 
 /** Where this browser keeps the column layout: one viewer's convenience, not shared state. */
 const layoutKey = 'foldkit-grid-demo:columns'
@@ -237,22 +283,43 @@ const SaveLayout = Command.define('SaveLayout', {
     }),
 })
 
+/** The widths a narrow screen starts with, until the viewer resizes a column. */
+const phoneWidths = [
+  { column: 'upc', width: 124 },
+  { column: 'description', width: 200 },
+] as const
+
 /**
  * The page as it opens: the products, and the columns as this browser left
  * them, read leniently, so a layout saved before a column was renamed keeps
- * the rest.
+ * the rest. A narrow screen with no saved layout starts with narrower columns.
  */
 export const init = (
   count = 100_000,
   saved: Option.Option<unknown> = Option.none(),
+  narrow = false,
 ): Update.Return<Model, Message, unknown> => {
-  const start = application.initial({
+  const initial = application.initial({
     products: products(count),
     filters: Grid.noFilters,
     notice: '',
+    goTo: '',
   })
+  const start = { ...initial, commands: [...(initial.commands ?? []), LoadToolbar({})] }
   return Option.match(saved, {
-    onNone: () => start,
+    // A phone keeps the UPC pinned but narrow, so the next column shows beside it.
+    onNone: () =>
+      narrow
+        ? {
+            ...start,
+            model: modifyFields(start.model, {
+              grid: grid =>
+                modifyFields(grid, {
+                  columns: columns => ({ ...columns, widths: phoneWidths }),
+                }),
+            }),
+          }
+        : start,
     onSome: layout => ({
       ...start,
       model: modifyFields(start.model, {
@@ -262,7 +329,81 @@ export const init = (
   })
 }
 
-const placed = application.update()
+/** Fetches the toolbar's widgets once the page is up, so its field is the real one before anyone types. */
+const LoadToolbar = Command.define('LoadToolbar', {
+  args: {},
+  messages: [Message.GotToolbarMessage],
+  execute: () =>
+    Effect.promise(() => Toolbar.load()).pipe(
+      Effect.as(Message.GotToolbarMessage({ message: ToolbarMessage.Loaded() })),
+    ),
+})
+
+/** The grid's header height, which the view and a reveal both need to agree on. */
+const headerHeight = 36
+
+/** Puts the keyboard on a cell the page scrolled to: the reveal moves no focus of its own. */
+const FocusRow = Command.define('FocusRow', {
+  args: { row: Schema.String },
+  messages: [Message.GotGridMessage],
+  execute: ({ row }) =>
+    Effect.sync(() => {
+      document.getElementById(Grid.id)?.focus()
+      return Message.GotGridMessage({
+        message: Grid.Message.Focused({ address: { row, column: 'upc' } }),
+      })
+    }),
+})
+
+const placed = application.update((model, message) =>
+  Match.value(message).pipe(
+    Match.tags({
+      TypedRow: ({ text }) =>
+        text === model.goTo ? { model } : { model: modifyFields(model, { goTo: () => text }) },
+      WentToRow: () => {
+        const rows = rowsOf(model)
+        const wanted = Number(model.goTo)
+        // `keyAt` is none for anything that is no index: a fraction, zero, NaN, past the end.
+        const key = rows.keyAt(wanted - 1)
+        return Option.match(key, {
+          onNone: () => ({
+            model: modifyFields(model, {
+              notice: () =>
+                `No row ${model.goTo.trim() === '' ? 'typed' : model.goTo.trim()}: rows run from 1 to ${addressableRows(rows.count).toLocaleString()}.`,
+            }),
+          }),
+          onSome: row => {
+            // Scrolls the least that shows it; the Command then moves the keyboard there.
+            const step = PlacedGrid.helpers.reveal(rows, {
+              row: wanted - 1,
+              rowHeight: rowHeights[model.toolbar.density],
+              headerHeight,
+            })(model)
+            return {
+              model: modifyFields(step.model, {
+                notice: () => `Went to row ${wanted.toLocaleString()}.`,
+              }),
+              commands: [...(step.commands ?? []), FocusRow({ row })],
+            }
+          },
+        })
+      },
+      // Nothing to read back: the save is the Command's own.
+      SavedLayout: () => ({ model }),
+      // A no-op returns the Model it was given, so nothing is drawn again.
+      ClearedFilters: () =>
+        Grid.hasFilters(model.filters)
+          ? {
+              model: modifyFields(model, {
+                filters: () => Grid.noFilters,
+                notice: () => 'Filters cleared.',
+              }),
+            }
+          : { model },
+    }),
+    Match.exhaustive,
+  ),
+)
 /** Every transition, and a save of the column layout when one changed it. */
 export const update = (model: Model, message: Message) => {
   const next = placed(model, message)
@@ -304,6 +445,12 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
     Keys: ({ keys }) => keys.length,
     AllExcept: ({ except }) => model.products.length - except.length,
   })
+  const rows = rowsOf(model)
+  const shownCount = addressableRows(rows.count)
+  const total = model.products.length
+  const searching = model.toolbar.search.trim() !== ''
+  const filtersOn = Grid.hasFilters(model.filters)
+  const filtered = filtersOn || searching
   return {
     title: 'Product registry',
     body: h.main(
@@ -315,7 +462,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           // The columns' 830px, the grid's border and this padding: no empty band beside the grid.
           maxWidth: '55rem',
           margin: '0 auto',
-          padding: '2.5rem 1.5rem',
+          padding: 'clamp(1rem, 4vw, 2.5rem) clamp(0.75rem, 4vw, 1.5rem)',
           font: '14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif',
           color: 'var(--fk-text-default)',
         }),
@@ -333,23 +480,122 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           ['Product registry'],
         ),
         h.p(
+          [h.Style({ margin: '0', color: 'var(--fk-text-muted)', fontSize: '13px' })],
           [
-            h.Role('status'),
-            h.Style({ margin: '0 0 1.25rem', color: 'var(--fk-text-muted)', fontSize: '13px' }),
-          ],
-          [
-            `${model.products.length.toLocaleString()} products, ${selectedCount.toLocaleString()} selected. `,
-            model.notice,
+            'Enter edits a cell, Shift+arrows select a range, Ctrl+C copies it. ',
+            'A header’s funnel filters and its menu pins or hides; scroll sideways for the rest.',
           ],
         ),
+        h.div(
+          [
+            h.Style({
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '0.5rem',
+              margin: '0 0 1rem',
+              color: 'var(--fk-text-muted)',
+              fontSize: '13px',
+            }),
+          ],
+          [
+            h.span(
+              [h.Id('registry-counts')],
+              [
+                filtered
+                  ? `${shownCount.toLocaleString()} of ${total.toLocaleString()} products match, `
+                  : `${total.toLocaleString()} products, `,
+                `${selectedCount.toLocaleString()} selected.`,
+                Option.match(Grid.rangeSize(rows, model.grid), {
+                  onNone: () => '',
+                  onSome: range =>
+                    ` A range of ${counted(range.cells, 'cell')} (${counted(range.rows, 'row')} by ${counted(range.columns, 'column')}) is selected.`,
+                }),
+              ],
+            ),
+            // Only what an action did is announced: a selection changes on every key, and a screen
+            // reader reading the whole count each time would talk over the person moving through cells.
+            h.span(
+              [h.Role('status')],
+              [
+                searching
+                  ? `${shownCount.toLocaleString()} products match “${model.toolbar.search.trim()}”. `
+                  : '',
+                model.notice,
+              ],
+            ),
+            // Always drawn, so pressing it never drops focus to the body, and so nothing shifts.
+            h.button(
+              [
+                h.Type('button'),
+                h.AriaDisabled(!filtersOn),
+                h.OnClick(Message.ClearedFilters()),
+                h.Style({
+                  font: 'inherit',
+                  color: 'inherit',
+                  background: 'transparent',
+                  border: '1px solid',
+                  borderRadius: '6px',
+                  minHeight: '2.5rem',
+                  padding: '0 0.75rem',
+                  opacity: filtersOn ? '1' : '0.5',
+                  cursor: filtersOn ? 'pointer' : 'default',
+                }),
+              ],
+              ['Clear filters'],
+            ),
+            // The grid scrolls the least that shows the row; Enter or the button then puts the keyboard on it.
+            h.form(
+              [
+                h.OnSubmit(Message.WentToRow()),
+                // The page says what is wrong with a number in its notice; the browser's own bubble would hide that.
+                h.Attribute('novalidate', ''),
+                h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' }),
+              ],
+              [
+                h.label([h.For('go-to-row')], ['Go to row']),
+                h.input([
+                  h.Id('go-to-row'),
+                  h.Type('number'),
+                  h.Min('1'),
+                  h.Max(String(total)),
+                  h.Value(model.goTo),
+                  h.OnInput(text => Message.TypedRow({ text })),
+                  h.Style({
+                    font: 'inherit',
+                    inlineSize: '6rem',
+                    minHeight: '2.5rem',
+                    boxSizing: 'border-box',
+                  }),
+                ]),
+                h.button(
+                  [
+                    h.Type('submit'),
+                    h.Style({
+                      font: 'inherit',
+                      color: 'inherit',
+                      background: 'transparent',
+                      border: '1px solid',
+                      borderRadius: '6px',
+                      minHeight: '2.5rem',
+                      padding: '0 0.75rem',
+                    }),
+                  ],
+                  ['Go'],
+                ),
+              ],
+            ),
+          ],
+        ),
+        PlacedToolbar.view(model, h),
         Registry(
           {
             state: model.grid,
-            rows: rowsOf(model),
+            rows,
             wrap: wrapGrid,
             label: 'Products',
-            rowHeight: 32,
-            headerHeight: 36,
+            rowHeight: rowHeights[model.toolbar.density],
+            headerHeight,
             overscan: { rows: 6, columns: 1 },
             columnMenu: true,
             filters: model.filters,

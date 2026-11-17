@@ -1,0 +1,722 @@
+/// <reference types="@vitest/browser-playwright" />
+/**
+ * The formatting toolbar beside a real editor, in a real browser: one tab stop that returns to the
+ * control used last, arrows, Home and End moving real focus, Bold toggling the selection's mark with
+ * the selection kept, an unavailable control that is focusable and refuses, a menu entered and left
+ * by key, and a bar that fits a phone's width. A press on a control leaves the focus and the
+ * selection in the text; a control reached by key holds the focus while the text still shows what
+ * is selected, and every command, menu choice and link acts on that selection.
+ */
+import { Effect, Option, Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Runtime from 'foldkit/runtime'
+import type * as Update from 'foldkit/update'
+import * as RichText from 'foldkit-richtext'
+import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
+import { EditorView, editorView, focus } from 'foldkit-richtext-dom/editor-bundle'
+import { EditorInput, richTextInput } from 'foldkit-richtext-dom/input'
+import { afterEach, expect, test, vi } from 'vitest'
+import { page, userEvent } from 'vitest/browser'
+import { formattingToolbar, linkEdit, linkEditor, type FormattingItem } from '../src/index.js'
+
+const hostId = 'fmt-body'
+// The standard vocabulary, so a link is a mark this editor takes.
+const control = richTextInput(hostId, {
+  vocabulary: {
+    marks: RichText.markRegistry(RichText.standardMarks),
+    nodes: RichText.nodeRegistry(RichText.standardNodes),
+  },
+  rendering: RichText.standardRendering,
+})
+const initial = EditorInput.init({ hostId }).model
+
+const App = defineMessageUnion({
+  GotEditor: { message: EditorMessage },
+  Toggled: { menu: Schema.Literals(['style', 'insert', 'link']), open: Schema.Boolean },
+  Focused: { id: Schema.String },
+  Picked: { what: Schema.String },
+  Returned: {},
+  Drafted: { href: Schema.String },
+  Submitted: {},
+})
+type App = typeof App.Type
+
+const Model = Schema.Struct({
+  editor: EditorView,
+  menu: Schema.UndefinedOr(Schema.Literals(['style', 'insert', 'link'])),
+  current: Schema.NullOr(Schema.String),
+  picked: Schema.Array(Schema.String),
+  draft: Schema.String,
+})
+type Model = typeof Model.Type
+
+const Toolbar = formattingToolbar<App>()
+const LinkEditor = linkEditor<App>()
+
+const hello = RichText.decodeDocument({
+  version: 1,
+  children: [
+    {
+      type: 'Paragraph',
+      id: 'p',
+      children: [{ type: 'Text', id: 't', text: 'hello', marks: [] }],
+    },
+  ],
+})
+
+const update = (model: Model, message: App): Update.Return<Model, App> =>
+  App.match<Update.Return<Model, App>>(message, {
+    Drafted: ({ href }) => ({ model: { ...model, draft: href } }),
+    // What an application does with Enter in the link editor: the draft applied to the selection.
+    Submitted: () =>
+      Option.match(linkEdit(model.editor.document, model.editor.selection, model.draft), {
+        onNone: () => ({ model }),
+        onSome: edit => update({ ...model, menu: undefined }, App.GotEditor({ message: edit })),
+      }),
+    GotEditor: ({ message: editorMessage }) => {
+      const next = EditorInput.update(model.editor, editorMessage, { hostId })
+      return {
+        model: { ...model, editor: next.model },
+        commands: (next.commands ?? []).map(command => ({
+          ...command,
+          effect: Effect.map(command.effect, inner => App.GotEditor({ message: inner })),
+        })),
+      }
+    },
+    Toggled: ({ menu, open }) => ({ model: { ...model, menu: open ? menu : undefined } }),
+    Focused: ({ id }) => ({ model: { ...model, current: id } }),
+    Picked: ({ what }) => ({ model: { ...model, picked: [...model.picked, what] } }),
+    // What an application does with Escape from the bar: puts the caret back in the text.
+    Returned: () => {
+      const { selection } = model.editor
+      return selection === null
+        ? { model }
+        : {
+            model,
+            commands: [focus(hostId, selection)].map(command => ({
+              ...command,
+              effect: Effect.map(command.effect, inner => App.GotEditor({ message: inner })),
+            })),
+          }
+    },
+  })
+
+const items: ReadonlyArray<FormattingItem<App>> = [
+  'undo',
+  { mark: 'Bold' },
+  { mark: 'Italic' },
+  'style',
+  'quote',
+]
+
+interface Options {
+  readonly items?: ReadonlyArray<FormattingItem<App>>
+  readonly history?: { readonly undo: boolean; readonly redo: boolean }
+  readonly compact?: boolean
+}
+
+const view = (options: Options) => (model: Model, h: HtmlBuilder<App>) =>
+  h.div(
+    [h.Id('page')],
+    [
+      h.input([h.Id('before'), h.Type('text')]),
+      Toolbar(
+        {
+          id: 'bar',
+          document: model.editor.document,
+          selection: model.editor.selection,
+          storedMarks: model.editor.storedMarks,
+          wrap: message => App.GotEditor({ message }),
+          items: options.items ?? items,
+          history: options.history,
+          compact: options.compact,
+          menu: model.menu,
+          toggled: (menu, open) => App.Toggled({ menu, open }),
+          roving: { current: model.current },
+          onFocus: id => App.Focused({ id }),
+          returned: App.Returned(),
+        },
+        h,
+      ),
+      h.input([h.Id('after'), h.Type('text')]),
+      ...(model.menu === 'link'
+        ? [
+            LinkEditor(
+              {
+                document: model.editor.document,
+                selection: model.editor.selection,
+                draft: model.draft,
+                drafted: href => App.Drafted({ href }),
+                wrap: message => App.GotEditor({ message }),
+                submitted: App.Submitted(),
+              },
+              h,
+            ),
+          ]
+        : []),
+      h.submodel({
+        slotId: 'editor',
+        model: model.editor,
+        view: editorView,
+        toParentMessage: message => App.GotEditor({ message }),
+      }),
+      // The Model's document and selection, which is what a command reads.
+      h.pre(
+        [h.Id('runs')],
+        [
+          JSON.stringify(
+            model.editor.document.children.flatMap(block =>
+              block.type === 'Paragraph' ? block.children.map(run => [run.text, run.marks]) : [],
+            ),
+          ),
+        ],
+      ),
+      h.pre([h.Id('selection')], [JSON.stringify(model.editor.selection)]),
+      h.pre(
+        [h.Id('blocks')],
+        [
+          model.editor.document.children
+            .map(block =>
+              block.type === 'Node'
+                ? block.kind
+                : block.type === 'Heading'
+                  ? `Heading ${block.level}`
+                  : block.type,
+            )
+            .join('|'),
+        ],
+      ),
+      h.pre([h.Id('picked')], [model.picked.join('|')]),
+    ],
+  )
+
+afterEach(() => {
+  document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+  document.body.replaceChildren()
+})
+
+const mount = (options: Options = {}) => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  // What an application's own style must give: a bar that may wrap.
+  sheet.textContent = `[role="toolbar"] { display: flex; flex-wrap: wrap; gap: 2px; } [role="toolbar"] button { padding: 2px 4px; }`
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'fmt-browser'
+  document.body.append(container)
+  return Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({
+        model: {
+          editor: control.data.fill(initial, hello),
+          menu: undefined,
+          current: null,
+          picked: [],
+          draft: '',
+        },
+      }),
+      update,
+      view: view(options),
+    }),
+  )
+}
+
+const active = () =>
+  document.activeElement?.getAttribute('data-item') ?? document.activeElement?.id ?? ''
+const runs = () => document.querySelector('#runs')?.textContent
+const selection = () => document.querySelector('#selection')?.textContent
+const ready = () =>
+  vi.waitFor(() => expect(document.querySelector('[role="toolbar"] button')).not.toBeNull())
+const item = (name: string) => document.querySelector<HTMLElement>(`[data-item="${name}"]`)!
+
+/** Selects the word in the editor the way a user does, so the editor reports its own selection. */
+const selectWord = async () => {
+  await vi.waitFor(() => expect(document.querySelector('[contenteditable] p')).not.toBeNull())
+  const walker = document.createTreeWalker(
+    document.querySelector('[contenteditable] p')!,
+    NodeFilter.SHOW_TEXT,
+  )
+  const text = walker.nextNode()!
+  document.querySelector<HTMLElement>('[contenteditable]')!.focus()
+  window.getSelection()!.setBaseAndExtent(text, 0, text, text.textContent?.length ?? 0)
+  await vi.waitFor(() => expect(selection()).not.toBe('null'))
+}
+
+test('Tab enters at the first control and leaves in one more, then returns to the one used last', async () => {
+  const handle = mount()
+  try {
+    await ready()
+    document.querySelector<HTMLElement>('#before')!.focus()
+    await userEvent.tab()
+    expect(active()).toBe('undo')
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}')
+    expect(active()).toBe('mark-Italic')
+    await userEvent.tab()
+    expect(active()).toBe('after')
+    await userEvent.tab({ shift: true })
+    expect(active()).toBe('mark-Italic')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('the arrows, Home and End move focus and wrap, and an unavailable control is reached', async () => {
+  const handle = mount({ history: { undo: false, redo: false } })
+  try {
+    await ready()
+    document.querySelector<HTMLElement>('#before')!.focus()
+    await userEvent.tab()
+    // Undo is unavailable and still takes the stop.
+    expect(active()).toBe('undo')
+    expect(item('undo').getAttribute('aria-disabled')).toBe('true')
+    await userEvent.keyboard('{End}')
+    expect(active()).toBe('quote')
+    await userEvent.keyboard('{ArrowRight}')
+    expect(active()).toBe('undo')
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(active()).toBe('quote')
+    await userEvent.keyboard('{Home}')
+    expect(active()).toBe('undo')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('a press on an unavailable control changes nothing', async () => {
+  // The editor has an edit to undo; the application says undo is not available.
+  const handle = mount({ history: { undo: false, redo: false } })
+  try {
+    await ready()
+    await selectWord()
+    await userEvent.click(item('mark-Bold'))
+    await vi.waitFor(() => expect(runs()).toBe('[["hello",["Bold"]]]'))
+    // Playwright will not press an aria-disabled element; a script's click is what reaches it.
+    item('undo').click()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(runs()).toBe('[["hello",["Bold"]]]')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('Bold toggles the mark on the selected word and the editor keeps its selection', async () => {
+  const handle = mount()
+  try {
+    await ready()
+    await selectWord()
+    const selected = selection()
+    expect(item('mark-Bold').getAttribute('aria-pressed')).toBe('false')
+    await userEvent.click(item('mark-Bold'))
+    await vi.waitFor(() => expect(item('mark-Bold').getAttribute('aria-pressed')).toBe('true'))
+    expect(runs()).toBe('[["hello",["Bold"]]]')
+    expect(selection()).toBe(selected)
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('the style menu opens with Down, is entered with a second Down, and Escape returns to its trigger', async () => {
+  const handle = mount()
+  try {
+    await ready()
+    await selectWord()
+    item('style').focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(item('style').getAttribute('aria-expanded')).toBe('true'))
+    await userEvent.keyboard('{ArrowDown}')
+    expect(document.activeElement?.getAttribute('role')).toBe('menuitemradio')
+    const first = document.activeElement?.id
+    await userEvent.keyboard('{ArrowDown}')
+    expect(document.activeElement?.id).not.toBe(first)
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(item('style').getAttribute('aria-expanded')).toBe('false'))
+    expect(active()).toBe('style')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('a bar of every standard control fits a phone without a sideways scroll', async () => {
+  await page.viewport(390, 800)
+  const handle = mount({
+    items: [
+      'undo',
+      'redo',
+      'separator',
+      'style',
+      'separator',
+      { mark: 'Bold' },
+      { mark: 'Italic' },
+      { mark: 'Code' },
+      'link',
+      'separator',
+      'bulleted-list',
+      'numbered-list',
+      'checklist',
+      'quote',
+      'separator',
+      'insert',
+    ],
+  })
+  try {
+    await ready()
+    const root = document.documentElement
+    expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth)
+    const bar = document.querySelector('[role="toolbar"]')!.getBoundingClientRect()
+    expect(bar.right).toBeLessThanOrEqual(root.clientWidth)
+  } finally {
+    await handle.dispose()
+    await page.viewport(1440, 900)
+  }
+})
+
+const picked = () => document.querySelector('#picked')?.textContent
+const find = (extra: { readonly disabled?: boolean; readonly popup?: boolean } = {}) =>
+  ({
+    control: {
+      id: 'find',
+      label: 'Find',
+      icon: 'search',
+      message: App.Picked({ what: 'find' }),
+      ...(extra.disabled === true ? { disabled: true } : {}),
+      ...(extra.popup === true ? { popup: { kind: 'menu', open: false } } : {}),
+    },
+  }) satisfies FormattingItem<App>
+
+test('the application’s controls take their place in the arrow order', async () => {
+  const handle = mount({ items: ['undo', find(), { mark: 'Bold' }] })
+  try {
+    await ready()
+    document.querySelector<HTMLElement>('#before')!.focus()
+    await userEvent.tab()
+    expect(active()).toBe('undo')
+    await userEvent.keyboard('{ArrowRight}')
+    expect(active()).toBe('app-find')
+    await userEvent.keyboard('{ArrowRight}')
+    expect(active()).toBe('mark-Bold')
+    await userEvent.keyboard('{Home}')
+    expect(active()).toBe('undo')
+    await userEvent.keyboard('{End}')
+    expect(active()).toBe('mark-Bold')
+    // One tab stop: the roving control is the only one Tab reaches.
+    await userEvent.tab()
+    expect(active()).toBe('after')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('an application control sends its Message when pressed, and not while disabled', async () => {
+  const handle = mount({
+    items: [find(), { control: { ...find().control, id: 'off', disabled: true } }],
+  })
+  try {
+    await ready()
+    await userEvent.click(item('app-find'))
+    await vi.waitFor(() => expect(picked()).toBe('find'))
+    expect(item('app-off').getAttribute('aria-disabled')).toBe('true')
+    item('app-off').click()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(picked()).toBe('find')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('ArrowDown on an application menu trigger sends its Message', async () => {
+  const handle = mount({ items: [find({ popup: true })] })
+  try {
+    await ready()
+    item('app-find').focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(picked()).toBe('find'))
+  } finally {
+    await handle.dispose()
+  }
+})
+
+const inEditor = () => document.activeElement?.closest('[contenteditable]') !== null
+
+test('a command from the keyboard leaves the focus on the button, and Escape returns to the text', async () => {
+  const handle = mount()
+  try {
+    await ready()
+    await selectWord()
+    item('mark-Bold').focus()
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(runs()).toBe('[["hello",["Bold"]]]'))
+    expect(active()).toBe('mark-Bold')
+    // Typing here is not typing in the text: the key reaches the button.
+    await userEvent.keyboard('x')
+    expect(runs()).toBe('[["hello",["Bold"]]]')
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(inEditor()).toBe(true))
+    await userEvent.keyboard('x')
+    await vi.waitFor(() => expect(runs()).toBe('[["x",["Bold"]]]'))
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('Escape from a control returns to the text with nothing changed', async () => {
+  const handle = mount()
+  try {
+    await ready()
+    await selectWord()
+    item('mark-Italic').focus()
+    await userEvent.keyboard('x')
+    expect(runs()).toBe('[["hello",[]]]')
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(inEditor()).toBe(true))
+    expect(runs()).toBe('[["hello",[]]]')
+    await userEvent.keyboard('x')
+    await vi.waitFor(() => expect(runs()).toBe('[["x",[]]]'))
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('at a phone width a compact bar draws only what fits, in one row, and the arrows visit just those', async () => {
+  await page.viewport(390, 800)
+  const handle = mount({
+    compact: window.matchMedia('(max-width: 480px)').matches,
+    items: [
+      'undo',
+      'redo',
+      'separator',
+      'style',
+      'separator',
+      { mark: 'Bold' },
+      { mark: 'Italic' },
+      { low: { mark: 'Code' } },
+      'link',
+      'separator',
+      { low: 'bulleted-list' },
+      { low: 'numbered-list' },
+      'quote',
+      'separator',
+      'insert',
+    ],
+  })
+  try {
+    await ready()
+    const shown = [...document.querySelectorAll('[role="toolbar"] button')].map(button =>
+      button.getAttribute('data-item'),
+    )
+    expect(shown).toEqual([
+      'undo',
+      'redo',
+      'style',
+      'mark-Bold',
+      'mark-Italic',
+      'link',
+      'quote',
+      'insert',
+    ])
+    const root = document.documentElement
+    expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth)
+    const tops = new Set(
+      [...document.querySelectorAll('[role="toolbar"] button')].map(
+        button => button.getBoundingClientRect().top,
+      ),
+    )
+    expect(tops.size).toBe(1)
+    document.querySelector<HTMLElement>('#before')!.focus()
+    await userEvent.tab()
+    const visited = [active()]
+    for (let step = 1; step < shown.length; step++) {
+      await userEvent.keyboard('{ArrowRight}')
+      visited.push(active())
+    }
+    expect(visited).toEqual(shown)
+    await userEvent.keyboard('{ArrowRight}')
+    expect(active()).toBe('undo')
+  } finally {
+    await handle.dispose()
+    await page.viewport(1440, 900)
+  }
+})
+
+// --- a press, a key, a menu: the selection each acts on ---------------------------------------
+
+const everything: ReadonlyArray<FormattingItem<App>> = [
+  'undo',
+  { mark: 'Bold' },
+  { mark: 'Italic' },
+  'style',
+  'link',
+  'insert',
+]
+const editor = () => document.querySelector<HTMLElement>('[contenteditable]')!
+const domSelection = () => window.getSelection()?.toString()
+const standIn = () =>
+  [...document.querySelectorAll('[data-decoration="selection"]')]
+    .map(element => element.textContent)
+    .join('')
+const blocks = () => document.querySelector('#blocks')?.textContent
+const marks = () => {
+  const [run] = JSON.parse(runs() ?? '[]') as ReadonlyArray<
+    readonly [string, ReadonlyArray<unknown>]
+  >
+  return [run?.[0], [...(run?.[1] ?? [])].map(mark => JSON.stringify(mark)).sort()]
+}
+
+/** Selects the word with the pointer and keys, as a person does. */
+const selectByHand = async () => {
+  await vi.waitFor(() => expect(document.querySelector('[contenteditable] p')).not.toBeNull())
+  await userEvent.click(editor())
+  await userEvent.keyboard('{End}{Shift>}{Home}{/Shift}')
+  await vi.waitFor(() => expect(domSelection()).toBe('hello'))
+  // The Model has the range once the view draws it: from the end back to the start.
+  await vi.waitFor(() => expect(selection()).toContain('"offset":0'))
+}
+
+test('pressing Bold and then Italic marks the same text, which stays selected, and typing replaces it', async () => {
+  const handle = mount()
+  try {
+    await ready()
+    await selectByHand()
+    const selected = selection()
+    await userEvent.click(item('mark-Bold'))
+    await vi.waitFor(() => expect(marks()).toEqual(['hello', ['"Bold"']]))
+    expect(inEditor()).toBe(true)
+    expect(domSelection()).toBe('hello')
+    expect(selection()).toBe(selected)
+    await userEvent.click(item('mark-Italic'))
+    await vi.waitFor(() => expect(marks()).toEqual(['hello', ['"Bold"', '"Italic"']]))
+    expect(inEditor()).toBe(true)
+    expect(domSelection()).toBe('hello')
+    expect(selection()).toBe(selected)
+    await userEvent.keyboard('x')
+    await vi.waitFor(() => expect(marks()).toEqual(['x', ['"Bold"', '"Italic"']]))
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('from the keyboard, Bold and then Italic mark the same text, which stays drawn as selected, and Escape returns to it', async () => {
+  const handle = mount()
+  try {
+    await ready()
+    await selectByHand()
+    const selected = selection()
+    // Back from the text: the field before it, then the bar's one stop.
+    await userEvent.tab({ shift: true })
+    await userEvent.tab({ shift: true })
+    expect(active()).toBe('undo')
+    expect(standIn()).toBe('hello')
+    await userEvent.keyboard('{ArrowRight}')
+    expect(active()).toBe('mark-Bold')
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(marks()).toEqual(['hello', ['"Bold"']]))
+    await userEvent.keyboard('{ArrowRight}')
+    expect(active()).toBe('mark-Italic')
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(marks()).toEqual(['hello', ['"Bold"', '"Italic"']]))
+    expect(active()).toBe('mark-Italic')
+    expect(selection()).toBe(selected)
+    await vi.waitFor(() => expect(standIn()).toBe('hello'))
+    await userEvent.keyboard('{Escape}')
+    await vi.waitFor(() => expect(inEditor()).toBe(true))
+    expect(standIn()).toBe('')
+    expect(domSelection()).toBe('hello')
+    await userEvent.keyboard('x')
+    await vi.waitFor(() => expect(marks()).toEqual(['x', ['"Bold"', '"Italic"']]))
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('a style chosen from the menu with the pointer retypes the block of the selection', async () => {
+  const handle = mount({ items: everything })
+  try {
+    await ready()
+    await selectByHand()
+    await userEvent.click(item('style'))
+    await vi.waitFor(() => expect(item('style').getAttribute('aria-expanded')).toBe('true'))
+    expect(inEditor()).toBe(true)
+    expect(domSelection()).toBe('hello')
+    await userEvent.click(document.querySelector<HTMLElement>('[data-style="heading-2"]')!)
+    await vi.waitFor(() => expect(blocks()).toBe('Heading 2'))
+    expect(inEditor()).toBe(true)
+    expect(domSelection()).toBe('hello')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('a style chosen from the menu by key retypes the block of the selection', async () => {
+  const handle = mount({ items: everything })
+  try {
+    await ready()
+    await selectByHand()
+    await userEvent.tab({ shift: true })
+    await userEvent.tab({ shift: true })
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}')
+    expect(active()).toBe('style')
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() => expect(item('style').getAttribute('aria-expanded')).toBe('true'))
+    await userEvent.keyboard('{ArrowDown}')
+    await vi.waitFor(() =>
+      expect(document.activeElement?.getAttribute('role')).toBe('menuitemradio'),
+    )
+    const chosen = document.activeElement?.getAttribute('data-style')
+    expect(chosen).toBe('paragraph')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    expect(document.activeElement?.getAttribute('data-style')).toBe('heading-2')
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(blocks()).toBe('Heading 2'))
+    expect(JSON.parse(runs() ?? '[]')).toEqual([])
+    expect(editor().textContent).toBe('hello')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('an entry of the insert menu lands at the caret that was in the text', async () => {
+  const handle = mount({ items: everything })
+  try {
+    await ready()
+    await vi.waitFor(() => expect(document.querySelector('[contenteditable] p')).not.toBeNull())
+    await userEvent.click(editor())
+    await userEvent.keyboard('{End}')
+    await vi.waitFor(() => expect(selection()).toContain('"offset":5'))
+    await userEvent.click(item('insert'))
+    await vi.waitFor(() => expect(item('insert').getAttribute('aria-expanded')).toBe('true'))
+    await userEvent.click(document.querySelector<HTMLElement>('[data-insert="code-block"]')!)
+    await vi.waitFor(() => expect(blocks()).toContain('CodeBlock'))
+    expect(editor().textContent).toBe('hello')
+  } finally {
+    await handle.dispose()
+  }
+})
+
+test('the link control opens the link editor for the selected text, and its address lands on that text', async () => {
+  const handle = mount({ items: everything })
+  try {
+    await ready()
+    await selectByHand()
+    const selected = selection()
+    await userEvent.click(item('link'))
+    await vi.waitFor(() => expect(document.querySelector('[data-link="address"]')).not.toBeNull())
+    expect(selection()).toBe(selected)
+    const address = document.querySelector<HTMLElement>('[data-link="address"]')!
+    await userEvent.click(address)
+    expect(document.activeElement).toBe(address)
+    // The field has the focus now, and the text still shows what the link will go on.
+    await vi.waitFor(() => expect(standIn()).toBe('hello'))
+    await userEvent.keyboard('https://example.com{Enter}')
+    await vi.waitFor(() =>
+      expect(marks()).toEqual([
+        'hello',
+        ['{"name":"Link","props":{"href":"https://example.com"}}'],
+      ]),
+    )
+    expect(selection()).toBe(selected)
+  } finally {
+    await handle.dispose()
+  }
+})

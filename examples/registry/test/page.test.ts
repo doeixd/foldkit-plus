@@ -29,7 +29,7 @@ import {
   type TransportClient,
 } from 'foldkit-sync'
 import { afterEach, expect, test, vi } from 'vitest'
-import { Data, Message, Products, Shown, type Model } from '../src/app.js'
+import { Data, Grid, Message, Products, Shown, type Model } from '../src/app.js'
 import { Product, ProductId } from '../src/domain.js'
 import { memoryJournal } from '../src/journalNode.js'
 import { openServer, productId, seedOf } from '../src/server.js'
@@ -258,6 +258,12 @@ const grid = () => document.getElementById('products')!
 const cell = (row: string, column: string) =>
   document.getElementById(GridFocus.cellId('products', { row, column }))
 const status = () => document.getElementById('exchange')!.textContent
+/** The device's go offline / go online button, in the page's header. */
+const connectionButton = () =>
+  Array.from(document.querySelectorAll<HTMLButtonElement>('header button')).find(button =>
+    /^Go (offline|online)$/.test(button.textContent ?? ''),
+  )!
+const SYNCED = 'In sync'
 const click = (element: Element) =>
   element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 const press = (target: Element, key: string) =>
@@ -404,12 +410,12 @@ test('a pending price edit moves its row in a list sorted by price, before it is
     const third = cheapest[2]!
     await edit(third.id, 'cents', '0.50')
     await vi.waitFor(() => expect(row(0)).toContain(third.upc))
-    expect(status()).toBe('Sending 1 edit…')
+    expect(status()).toBe('Syncing 1 edit…')
     expect(row(1)).toContain(cheapest[0]!.upc)
     expect(row(2)).toContain(cheapest[1]!.upc)
 
     await exchange()
-    await vi.waitFor(() => expect(status()).toBe(''))
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
     expect(row(0)).toContain(third.upc)
   } finally {
     await dispose()
@@ -425,12 +431,12 @@ test('an edit and a paste show at once, and the journal writes them to the table
     // A paste its column refuses all of is no edit at all.
     await pasteAt(productId(5), 'cents', 'free\n')
     await settle()
-    expect(status()).toBe('')
+    expect(status()).toBe(SYNCED)
 
     // Shown before any exchange, and waiting to be sent.
     await edit(productId(2), 'cents', '12.50')
     await vi.waitFor(() => expect(cell(productId(2), 'cents')?.textContent).toBe('12.50'))
-    await vi.waitFor(() => expect(status()).toBe('Sending 1 edit…'))
+    await vi.waitFor(() => expect(status()).toBe('Syncing 1 edit…'))
     expect(server.backend.row(productId(2))).toMatchObject({ cents: seedOf(2).cents })
 
     // Two rows of description, price and line pasted at row 0's description:
@@ -440,10 +446,10 @@ test('an edit and a paste show at once, and the journal writes them to the table
       'description',
       'Brass anchor\tfree\tGarden\nSteel bolt\t4.00\tTools\n',
     )
-    await vi.waitFor(() => expect(status()).toBe('Sending 2 edits…'))
+    await vi.waitFor(() => expect(status()).toBe('Syncing 2 edits…'))
 
     await exchange()
-    await vi.waitFor(() => expect(status()).toBe(''))
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
     expect(server.backend.row(productId(2))).toMatchObject({ cents: 1250 })
     expect(server.backend.row(productId(0))).toMatchObject({
       description: 'Brass anchor',
@@ -470,7 +476,7 @@ test('an edit made offline is kept on the device, through a remount, and sent wh
   await edit(productId(3), 'cents', '7.00')
   await first.exchange()
   await vi.waitFor(() =>
-    expect(status()).toBe('1 edit kept on this device; the server cannot be reached (offline).'),
+    expect(status()).toBe('The server did not answer: 1 edit waiting to sync (offline)'),
   )
   expect(cell(productId(3), 'cents')?.textContent).toBe('7.00')
   await first.dispose()
@@ -482,7 +488,7 @@ test('an edit made offline is kept on the device, through a remount, and sent wh
     expect(server.backend.row(productId(3))).toMatchObject({ cents: seedOf(3).cents })
     server.setOnline(true)
     await second.exchange()
-    await vi.waitFor(() => expect(status()).toBe(''))
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
     expect(server.backend.row(productId(3))).toMatchObject({ cents: 700 })
   } finally {
     await second.dispose()
@@ -518,7 +524,7 @@ test('a reload with the server out of reach paints the kept rows, its edits over
     release()
     server.setOnline(true)
     await second.exchange()
-    await vi.waitFor(() => expect(status()).toBe(''))
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
     expect(server.backend.row(productId(3))).toMatchObject({ cents: 700 })
     await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe('7.00'))
   } finally {
@@ -631,7 +637,7 @@ test('a committed edit shows until the table has it, then the table shows, whoev
     // table does not, and a read of the row still says the seed's price.
     server.setWritable(false)
     await exchange()
-    await vi.waitFor(() => expect(status()).toBe(''))
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
     expect(server.backend.row(productId(7))).toMatchObject({ cents: seedOf(7).cents, revision: 0 })
     const before = server.reads()
     reread()
@@ -939,25 +945,65 @@ test('working offline keeps edits on the device, and going back online sends the
   const paused = pausable(transport, () => latest().offline)
   const exchange = () =>
     Effect.runPromise(replica.synchronize.pipe(Effect.provide(paused), Effect.ignore))
-  const offline = () => document.querySelector<HTMLInputElement>('main input[type="checkbox"]')!
+  const offline = connectionButton
   try {
     await vi.waitFor(() => expect(cell(productId(4), 'cents')?.textContent).toBe(priceOf(4)))
     offline().click()
-    await vi.waitFor(() => expect(status()).toBe('Working offline.'))
+    await vi.waitFor(() => expect(status()).toBe('Offline: edits are kept on this device'))
     await edit(productId(4), 'cents', '4.04')
     // In the outbox first, so the exchange has it to send, and does not.
     await vi.waitFor(() => expect(Effect.runSync(replica.pending)).toHaveLength(1))
     await exchange()
     expect(Effect.runSync(replica.pending)).toHaveLength(1)
-    expect(status()).toBe('Working offline: 1 edit kept on this device.')
+    expect(status()).toBe('Offline: 1 edit waiting to sync')
     expect(server.backend.row(productId(4))).toMatchObject({ cents: seedOf(4).cents })
 
     offline().click()
     await vi.waitFor(() => expect(latest().offline).toBe(false))
     await exchange()
-    await vi.waitFor(() => expect(status()).toBe(''))
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
     await exchange()
     expect(server.backend.row(productId(4))).toMatchObject({ cents: 404 })
+  } finally {
+    await dispose()
+  }
+})
+
+test('the connection strip names the state in words, the button flips it, and notices are live regions', async () => {
+  const server = serve()
+  const { dispose, latest } = await mount(server, memoryStorage())
+  const button = connectionButton
+  const link = () => document.querySelector('#exchange [data-link]')?.getAttribute('data-link')
+  try {
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
+    expect([button().textContent, link()]).toEqual(['Go offline', 'online'])
+    button().click()
+    await vi.waitFor(() => expect(latest().offline).toBe(true))
+    await vi.waitFor(() => expect([button().textContent, link()]).toEqual(['Go online', 'offline']))
+    // Where a result of an action lands, a screen reader hears it.
+    for (const id of ['refused', 'replaced', 'held-back']) {
+      expect(document.getElementById(id)?.getAttribute('aria-live')).toBe('polite')
+    }
+    expect(document.getElementById('exchange')?.getAttribute('role')).toBe('status')
+  } finally {
+    await dispose()
+  }
+})
+
+test('a copy the grid reports is said in the status line, and the next edit clears it', async () => {
+  const server = serve()
+  const { dispose, mounted, latest } = await mount(server, memoryStorage())
+  const copied = () => document.getElementById('copied')?.textContent
+  try {
+    await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
+    expect(copied()).toBe('')
+    mounted.dispatch(
+      Message.GotGridMessage({ message: Grid.Message.Copied({ rows: 2, columns: 3 }) }),
+    )
+    await vi.waitFor(() => expect(copied()).toBe('Copied 2 rows by 3 columns.'))
+    await edit(productId(3), 'cents', '3.03')
+    await vi.waitFor(() => expect(copied()).toBe(''))
+    expect(latest().copied).toEqual(Option.none())
   } finally {
     await dispose()
   }
@@ -1204,7 +1250,7 @@ test('an undo is a new edit that puts the cell back, and a redo another', async 
     await edit(productId(3), 'cents', '7.00')
     await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
     await exchange()
-    await vi.waitFor(() => expect(status()).toBe(''))
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
     expect(server.backend.row(productId(3))).toMatchObject({ cents: 700 })
 
     // Committed, and so not rewound: the old price goes as an edit of its own.
@@ -1212,7 +1258,7 @@ test('an undo is a new edit that puts the cell back, and a redo another', async 
     await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
     await vi.waitFor(() => expect(latest().exchange.pending).toBe(1))
     await exchange()
-    await vi.waitFor(() => expect(status()).toBe(''))
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
     expect(server.backend.row(productId(3))).toMatchObject({ cents: seedOf(3).cents })
 
     redo()
@@ -1256,7 +1302,7 @@ test('an undo leaves a cell another device changed since, and says so', async ()
     expect(cell(productId(3), 'cents')?.textContent).toBe('4.44')
     expect(heldBack()).toEqual([`Price of ${productId(3)} changed since; not undone.`])
     await exchange()
-    await vi.waitFor(() => expect(status()).toBe(''))
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
     expect(server.backend.row(productId(3))).toMatchObject({
       description: seedOf(3).description,
       cents: 444,
@@ -1297,14 +1343,14 @@ test('an undo made offline waits on the device, through a reload, like any edit'
   await edit(productId(3), 'cents', '7.00')
   await vi.waitFor(() => expect(first.latest().exchange.pending).toBe(1))
   await first.exchange()
-  await vi.waitFor(() => expect(status()).toBe(''))
+  await vi.waitFor(() => expect(status()).toBe(SYNCED))
 
   server.setOnline(false)
   undo()
   await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
   await first.exchange()
   await vi.waitFor(() =>
-    expect(status()).toBe('1 edit kept on this device; the server cannot be reached (offline).'),
+    expect(status()).toBe('The server did not answer: 1 edit waiting to sync (offline)'),
   )
   await first.dispose()
 
@@ -1315,7 +1361,7 @@ test('an undo made offline waits on the device, through a reload, like any edit'
     expect(second.latest().redo).toEqual([])
     server.setOnline(true)
     await second.exchange()
-    await vi.waitFor(() => expect(status()).toBe(''))
+    await vi.waitFor(() => expect(status()).toBe(SYNCED))
     expect(server.backend.row(productId(3))).toMatchObject({ cents: seedOf(3).cents })
   } finally {
     await second.dispose()

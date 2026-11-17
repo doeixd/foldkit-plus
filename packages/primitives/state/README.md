@@ -148,8 +148,9 @@ pure, so a key and a drag obey the same limits and the Model is the only owner:
   or Meta; read them from a `Pressed` or an attribute-handler key, not a Mount.
 
 A function that changes nothing returns the box it was given, so a nudge against
-the edge records no undo step (see `History.push`'s `equals`), and a delta that
-is not finite is refused. Announcing the result ("Card moved to 40, 20") is the
+the edge records no undo step (see `History.push`'s `equals`). `moveBy` and
+`moveEach` refuse a delta that is not finite; `resize` reads an infinite one as
+"as far as the limits allow", which is what `resizeKey` sends for Home and End. Announcing the result ("Card moved to 40, 20") is the
 parent's: say it through `LiveAnnounce` in the same transition.
 
 ```ts

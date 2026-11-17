@@ -12,6 +12,27 @@ import { GridSlots } from './slots.js'
 export const ref = Theme.ref(Theme.standard())
 
 const line = `${ref.border.thin} solid ${ref.outline.subtle}`
+
+/**
+ * A header button's reach on a touch screen, made from a pseudo-element so the
+ * header keeps its height and its label its room. Across the row it is the touch
+ * floor (`--fk-touch-floor`, which `Defaults.reset` sets only where the pointer
+ * is coarse). Along the row there is no room to take: the funnel reaches into the
+ * label's side, which does nothing, and the menu stays its own width, since the
+ * column's resize handle covers the cell's edge beyond it.
+ */
+const touchTarget = (reachInline: string) =>
+  Style.at(
+    '@media (pointer: coarse)',
+    Style.nest('&::before', {
+      content: '""',
+      position: 'absolute',
+      insetBlock: 'calc((1.5rem - var(--fk-touch-floor, 1.5rem)) / 2)',
+      insetInlineStart: reachInline,
+      insetInlineEnd: '0',
+    }),
+  )
+
 // Between columns: barely there, so rows read across and columns still part.
 const faint = `${ref.border.thin} solid color-mix(in oklab, ${ref.outline.subtle} 55%, transparent)`
 // Where the pinned columns end and the scrolling ones pass under them.
@@ -283,7 +304,9 @@ export const GridStyle = Style.forSlots(GridSlots)(
         minBlockSize: '1.5rem',
         minInlineSize: '1.5rem',
         paddingInline: ref.space.xs,
+        position: 'relative',
       }),
+      touchTarget('0'),
       Style.nest('&[aria-expanded="true"]', { color: ref.text.default }),
     ),
     menu: Style.compose(
@@ -308,11 +331,12 @@ export const GridStyle = Style.forSlots(GridSlots)(
         border: 'none',
         color: ref.text.muted,
         cursor: 'pointer',
-        // A finger's target, however small the glyph.
         minBlockSize: '1.5rem',
         minInlineSize: '1.5rem',
         paddingInline: ref.space.xs,
+        position: 'relative',
       }),
+      touchTarget('-12px'),
       Style.nest('&[data-filtered="true"]', { color: ref.outline.focus }),
       Style.nest('&[aria-expanded="true"]', { color: ref.text.default }),
     ),
