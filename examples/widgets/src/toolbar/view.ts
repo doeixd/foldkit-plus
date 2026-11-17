@@ -5,7 +5,8 @@
  * toolbar's attributes; a disabled one is skipped by the arrows.
  */
 import { Option } from 'effect'
-import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { Capability, Layers, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { AppStyle } from 'foldkit-mixins/app'
 import {
   Button,
   ButtonSlots,
@@ -22,8 +23,23 @@ export const ToolbarSlots = Slots.define({
 })
 
 export const BarStyle = Style.forSlots(UiToolbarSlots)(Recipes.Toolbar({}))
+const t = AppStyle.make({}).t
+
+// A tool is quiet on the tray (a ghost button: no fill, no line) and fills under the pointer.
+// Pressed, it takes the accent's tint and ink, a different hue from the tray's grey, where the
+// neutral toggle fill was a darker grey that barely parted from it; the `app` layer beats the
+// Button's own pressed, hovered and held fills.
+const pressedTool = Layers.standard.in(
+  'app',
+  Style.pseudo('[aria-pressed="true"]', {
+    background: t.accent.subtle,
+    borderColor: `color-mix(in oklab, ${t.accent.ink} 35%, transparent)`,
+    color: t.accent.ink,
+  }),
+)
+
 export const ToolStyle = Style.forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'outline' }),
+  Recipes.Button.extend({ base: { button: pressedTool } })({ tone: 'neutral', variant: 'ghost' }),
 )
 
 export const Toolbar = SlotView.forMessages<Message>()

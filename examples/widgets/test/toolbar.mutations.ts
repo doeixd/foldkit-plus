@@ -4,6 +4,7 @@
  * fails for every one.
  */
 const tests = ['examples/widgets/test/toolbar.test.ts']
+const browser = ['examples/widgets/test/toolbar.browser.test.ts']
 
 export default [
   {
@@ -49,5 +50,27 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'a pressed tool keeps the neutral toggle fill of the Button recipe',
+    edits: [
+      {
+        file: '../src/toolbar/view.ts',
+        find: 'Recipes.Button.extend({ base: { button: pressedTool } })(',
+        replace: 'Recipes.Button(',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a tool is drawn with a line and a fill at rest, as the outline Button',
+    edits: [
+      {
+        file: '../src/toolbar/view.ts',
+        find: "variant: 'ghost'",
+        replace: "variant: 'solid'",
+      },
+    ],
+    tests: browser,
   },
 ]
