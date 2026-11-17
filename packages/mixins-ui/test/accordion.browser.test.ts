@@ -32,7 +32,7 @@ afterEach(async () => {
   document.body.replaceChildren()
 })
 
-const mount = (selection: Selection = {}, still = true) => {
+const mount = (selection: Selection = {}, still = true, single = false, extraCss = '') => {
   const style = Style.forSlots(AccordionSlots)(Recipes.Accordion(selection))
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -44,7 +44,8 @@ const mount = (selection: Selection = {}, still = true) => {
     ) +
     style.css +
     // Still, so a size is read where it ends rather than mid-flight.
-    (still ? ':root{--fk-knob-motion:0}' : '')
+    (still ? ':root{--fk-knob-motion:0}' : '') +
+    extraCss
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'accordion-browser'
@@ -78,7 +79,7 @@ const mount = (selection: Selection = {}, still = true) => {
       container,
       init: () => ({ model: { open: [] } }),
       update: (model: Model, message: Message) => ({
-        model: { open: Accordion.toggled(model.open, message.id) },
+        model: { open: single ? [message.id] : Accordion.toggled(model.open, message.id) },
       }),
       view,
     }),
@@ -104,6 +105,130 @@ test('a press opens a panel to its content and shuts it to nothing', async () =>
     expect(trigger('Team').getAttribute('aria-expanded')).toBe('true')
     trigger('Team').click()
     await vi.waitFor(() => expect(panelOf('Team').getBoundingClientRect().height).toBe(0))
+  } finally {
+    handle.dispose()
+  }
+})
+
+const heightOf = (name: string) => panelOf(name).getBoundingClientRect().height
+
+const gridRowsDuration = (name: string) =>
+  panelOf(name)
+    .getAnimations()
+    .filter(animation => (animation as CSSTransition).transitionProperty === 'grid-template-rows')
+    .map(animation => Number(animation.effect!.getComputedTiming().duration))
+
+interface Frame {
+  readonly heights: ReadonlyArray<number>
+  readonly inert: ReadonlyArray<boolean>
+  readonly durations: ReadonlyArray<ReadonlyArray<number>>
+}
+
+/** What each named panel shows, one row per frame, for `ms` from now: a poll could miss a short transition. */
+const sampleFrames = (names: ReadonlyArray<string>, ms: number) =>
+  new Promise<ReadonlyArray<Frame>>(resolve => {
+    const frames: Array<Frame> = []
+    const start = performance.now()
+    const tick = () => {
+      frames.push({
+        heights: names.map(heightOf),
+        inert: names.map(name => panelOf(name).hasAttribute('inert')),
+        durations: names.map(gridRowsDuration),
+      })
+      if (performance.now() - start < ms) requestAnimationFrame(tick)
+      else resolve(frames)
+    }
+    tick()
+  })
+
+/** Opens Billing, lets it settle, and returns its open height. */
+const openBilling = async () => {
+  await vi.waitFor(() => expect(trigger('Billing')).toBeDefined())
+  trigger('Billing').click()
+  await vi.waitFor(() => expect(heightOf('Billing')).toBeGreaterThan(5))
+  await vi.waitFor(() => expect(document.getAnimations()).toHaveLength(0))
+  return heightOf('Billing')
+}
+
+/** Opens Billing, then presses Team in a single-open accordion and watches both panels. */
+// Slowed, so a loaded runner still draws several frames of it.
+const switchTo = async (extraCss = ':root{--fk-knob-motion:3}') => {
+  const handle = mount({}, false, true, extraCss)
+  const full = await openBilling()
+  trigger('Team').click()
+  const frames = await sampleFrames(['Billing', 'Team'], 1200)
+  await vi.waitFor(() => expect(document.getAnimations()).toHaveLength(0))
+  return { handle, full, frames }
+}
+
+const firstDuration = (frames: ReadonlyArray<Frame>, panel: 0 | 1) =>
+  frames.map(frame => frame.durations[panel]![0]).find(duration => duration !== undefined)
+
+test('opening another section shuts the open one over the same time, the two moving together', async () => {
+  const { handle, full, frames } = await switchTo()
+  try {
+    // Mid-way both are partly open at once: the total never jumps.
+    expect(
+      frames.some(
+        ({ heights: [billing, team] }) => billing! > 1 && billing! < full - 1 && team! > 1,
+      ),
+    ).toBe(true)
+    const last = frames[frames.length - 1]!
+    expect(last.heights[0]).toBe(0)
+    expect(last.heights[1]).toBeGreaterThan(5)
+    // Several frames of motion, not one jump.
+    expect(
+      frames.filter(({ heights: [billing] }) => billing! > 1 && billing! < full - 1).length,
+    ).toBeGreaterThan(2)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('the shutting panel and the opening one run for the same duration', async () => {
+  const { handle, frames } = await switchTo()
+  try {
+    const opening = firstDuration(frames, 1)
+    expect(opening).toBeGreaterThan(0)
+    expect(firstDuration(frames, 0)).toBe(opening)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('--fk-collapse-close-duration sets the shutting time alone, --fk-collapse-duration both', async () => {
+  const { handle, frames } = await switchTo(
+    ':root{--fk-collapse-duration:200ms;--fk-collapse-close-duration:300ms}',
+  )
+  try {
+    expect(firstDuration(frames, 1)).toBe(200)
+    expect(firstDuration(frames, 0)).toBe(300)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('the shutting panel takes no focus from its first frame, while it is still shutting', async () => {
+  const { handle, full, frames } = await switchTo()
+  try {
+    const shutting = frames.filter(({ heights: [billing] }) => billing! > 0 && billing! < full)
+    expect(shutting.length).toBeGreaterThan(0)
+    expect(shutting.every(frame => frame.inert[0])).toBe(true)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('with the motion knob at 0 the switch is immediate', async () => {
+  const handle = mount({}, true, true)
+  try {
+    const full = await openBilling()
+    trigger('Team').click()
+    const frames = await sampleFrames(['Billing', 'Team'], 200)
+    // Every frame is a whole state: the old section either open or gone, never between.
+    for (const { heights } of frames) expect([0, full]).toContain(heights[0])
+    expect(frames[frames.length - 1]!.heights[0]).toBe(0)
+    expect(document.getAnimations()).toHaveLength(0)
   } finally {
     handle.dispose()
   }

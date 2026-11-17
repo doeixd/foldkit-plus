@@ -288,6 +288,16 @@ export const presence = (tier: 'fast' | 'slow', closed: Declarations): StyleValu
 }
 
 /**
+ * The time a collapsing part (an accordion's panel, a tree's or sidebar's group) opens in and
+ * shuts in. The same by default: shut on the exit tier's shorter, quicker curve, it moved at a
+ * different speed from the section opening beside it and read as a glitch. `--fk-collapse-duration`
+ * sets both and `--fk-collapse-close-duration` the shutting alone; give them a time of the theme
+ * (`var(--fk-motion-slow)`) so the `motion` and `travel` knobs still apply.
+ */
+export const collapseOpens = `var(--fk-collapse-duration, ${ref.motion.moderate})`
+export const collapseShuts = `var(--fk-collapse-close-duration, ${collapseOpens})`
+
+/**
  * A heading row over a part that opens beneath it, `0fr` to `1fr` with no
  * measured height; the part clips itself (`minBlockSize: 0`, `overflow`).
  * Between the two, the container is taller than its rows, and `align-content`
@@ -301,13 +311,12 @@ export const opensBelow = (open: string): StyleValue =>
       gridTemplateRows: 'auto 0fr',
       alignContent: 'start',
       transitionProperty: 'grid-template-rows',
-      transitionDuration: travelled(ref.motion['fast-exit']),
-      transitionTimingFunction: ref.motion['ease-exit'],
+      transitionDuration: travelled(collapseShuts),
+      transitionTimingFunction: ref.motion.ease,
     }),
     Style.pseudo(open, {
       gridTemplateRows: 'auto 1fr',
-      transitionDuration: travelled(ref.motion.fast),
-      transitionTimingFunction: ref.motion.ease,
+      transitionDuration: travelled(collapseOpens),
     }),
   )
 

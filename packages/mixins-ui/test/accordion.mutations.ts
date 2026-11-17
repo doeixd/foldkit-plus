@@ -20,6 +20,28 @@ export default [
     tests: browser,
   },
   {
+    name: 'a panel shuts on the exit tier, quicker than it opens',
+    edits: [
+      {
+        file: recipe,
+        find: '...timing(collapseShuts, ref.motion.ease),',
+        replace: "...timing(ref.motion['fast-exit'], ref.motion['ease-exit']),",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the shutting duration property is not read',
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: 'export const collapseShuts = `var(--fk-collapse-close-duration, ${collapseOpens})`',
+        replace: 'export const collapseShuts = collapseOpens',
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'a single accordion keeps the others open',
     edits: [
       {
