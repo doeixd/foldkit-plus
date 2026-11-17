@@ -76,8 +76,31 @@ interface Section {
   readonly nodes: ReadonlyArray<RootContent>
 }
 
+/**
+ * The sections a package's first page takes in: its example, the first one a
+ * reader runs. Everything before the example (what it is, what it owns, the
+ * mental model, install) is what a newcomer reads to understand the package,
+ * so it is one page with the example, not four.
+ */
+const EXAMPLE =
+  /^(sixty seconds|60[- ]second|quick start|example|a first|the first run|start with|start without|usage)/i
+
+/** A README with no example stops its first page after its install, when that comes early. */
+const INSTALL = /^install/i
+
+/**
+ * The index of the last section on the first page: the example's, else the
+ * install's among the first five, else 0 (the opening alone).
+ */
+const homeEnd = (headings: ReadonlyArray<string>): number => {
+  const example = headings.findIndex((text, at) => at > 0 && EXAMPLE.test(text))
+  if (example > 0) return example
+  const install = headings.findIndex((text, at) => at > 0 && at <= 5 && INSTALL.test(text))
+  return Math.max(install, 0)
+}
+
 /** The file's level-one heading dropped, the rest cut before each level-two heading, short ones joined. */
-const sectionsOf = (root: Root): ReadonlyArray<Section> => {
+const sectionsOf = (root: Root, readme: boolean): ReadonlyArray<Section> => {
   const sections: Array<{ heading: MdHeading | undefined; nodes: Array<RootContent> }> = [
     { heading: undefined, nodes: [] },
   ]
@@ -87,16 +110,22 @@ const sectionsOf = (root: Root): ReadonlyArray<Section> => {
     if (node.type === 'heading' && node.depth === 2) sections.push({ heading: node, nodes: [node] })
     else sections.at(-1)!.nodes.push(node)
   }
-  return sections.reduce<Array<{ heading: MdHeading | undefined; nodes: Array<RootContent> }>>(
-    (pages, section) => {
-      const previous = pages.at(-1)
-      if (previous !== undefined && lengthOf(section.nodes) < SHORT_SECTION)
-        previous.nodes.push(...section.nodes)
-      else pages.push({ heading: section.heading, nodes: [...section.nodes] })
-      return pages
-    },
-    [],
-  )
+  const last = readme
+    ? homeEnd(sections.map(section => (section.heading ? textOf(section.heading) : '')))
+    : 0
+  const home = {
+    heading: undefined,
+    nodes: sections.slice(0, last + 1).flatMap(each => each.nodes),
+  }
+  return [home, ...sections.slice(last + 1)].reduce<
+    Array<{ heading: MdHeading | undefined; nodes: Array<RootContent> }>
+  >((pages, section) => {
+    const previous = pages.at(-1)
+    if (previous !== undefined && lengthOf(section.nodes) < SHORT_SECTION)
+      previous.nodes.push(...section.nodes)
+    else pages.push({ heading: section.heading, nodes: [...section.nodes] })
+    return pages
+  }, [])
 }
 
 interface Cut {
@@ -122,14 +151,16 @@ const cut = (repository: string, subsite: Subsite, source: Source, index: number
     source,
     title: first === undefined ? source.label : textOf(first),
     ids,
-    sections: sectionsOf(root).map((section, at) => {
-      const id = section.heading === undefined ? '' : (ids.get(section.heading) ?? '')
-      return {
-        ...section,
-        slug: id,
-        path: at === 0 ? base : index === 0 ? `/${subsite.id}/guides/${id}` : `${base}/${id}`,
-      }
-    }),
+    sections: sectionsOf(root, /^packages\/[^/]+\/README\.md$/.test(source.file)).map(
+      (section, at) => {
+        const id = section.heading === undefined ? '' : (ids.get(section.heading) ?? '')
+        return {
+          ...section,
+          slug: id,
+          path: at === 0 ? base : index === 0 ? `/${subsite.id}/guides/${id}` : `${base}/${id}`,
+        }
+      },
+    ),
   }
 }
 
