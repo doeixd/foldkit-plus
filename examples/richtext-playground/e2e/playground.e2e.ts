@@ -408,11 +408,14 @@ test('the formatting bar is one tab stop, and its arrow keys move between contro
   await page.keyboard.press('ArrowLeft')
   await expect.poll(focused).toBe('app-direction')
   // One tab stop: every other control is out of the tab order, and the stop is the last one used.
-  expect(
-    await bar
-      .locator('button[tabindex="0"]')
-      .evaluateAll(buttons => buttons.map(b => b.getAttribute('data-item'))),
-  ).toEqual(['app-direction'])
+  // The stop is drawn from the Model by the frame after the focus moved, so it is polled for.
+  await expect
+    .poll(() =>
+      bar
+        .locator('button[tabindex="0"]')
+        .evaluateAll(buttons => buttons.map(b => b.getAttribute('data-item'))),
+    )
+    .toEqual(['app-direction'])
   expect(errors).toEqual([])
 })
 
