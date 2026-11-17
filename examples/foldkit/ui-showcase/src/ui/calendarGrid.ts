@@ -56,6 +56,7 @@ const draw = (
                 headingButton(days.heading, attributes, slots, h),
               Label: ({ heading }) => h.span(heading, [days.heading.text]),
               Dropdowns: () => h.span([], [days.heading.text]),
+              YearDropdown: () => h.span([], [days.heading.text]),
             }),
             ...Option.match(days.nextMonthButton, {
               onNone: () => [],
