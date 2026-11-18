@@ -191,6 +191,8 @@ export const Steps = Style.recipeFor(StepsSlots)({
         marginInlineStart: 'auto',
         flexShrink: '0',
         ...role('caption'),
+        // Level with the title's first line, as the title is with the marker.
+        marginBlockStart: `max(0px, (${markerSize} - 1lh) / 2)`,
         color: ref.text.muted,
       }),
     ),
@@ -312,7 +314,7 @@ export const Steps = Style.recipeFor(StepsSlots)({
         ),
       },
       vertical: {
-        root: variant(Style.self({ flexDirection: 'column' })),
+        root: variant(Style.self({ flexDirection: 'column', inlineSize: '100%' })),
         // The marker's column, then the text's: the step spans both, and
         // under it the line keeps the marker's column beside the content.
         item: variant(
