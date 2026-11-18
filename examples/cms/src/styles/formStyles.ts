@@ -12,7 +12,7 @@ import { Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
-import { app, button, field, L, serif, stateBadge, t, visuallyHidden } from './style.js'
+import { app, button, field, L, phone, serif, stateBadge, t, visuallyHidden } from './style.js'
 
 // --- the form, the worklist, and the Builder --------------------------------------
 
@@ -262,7 +262,11 @@ export const ListStyle = Style.forSlots(ListSlots)(
   {
     ...List.extend({
       base: {
-        cell: { padding: '0.95rem 0.5rem' },
+        // The button in the cell is already a finger tall, so a phone's padding is thin.
+        cell: Style.compose(
+          Style.self({ padding: '0.95rem 0.5rem' }),
+          Style.media(phone, { paddingBlock: '0.3rem' }),
+        ),
         open: { fontSize: t.size.md },
       },
     })({}),

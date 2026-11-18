@@ -90,6 +90,9 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
         top: '0',
         zIndex: '10',
       }),
+      // Brand over links is two rows on a phone: it scrolls away rather than keep them all the
+      // way down a page.
+      Style.media(phone, { position: 'static', paddingBlock: t.space['2xs'], rowGap: '0' }),
     ),
     brand: Style.compose(
       Touch.target,
@@ -136,6 +139,11 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
         boxSizing: 'border-box',
         paddingBlock: `${t.space.xl} ${t.space['3xl']}`,
         paddingInline: t.space.lg,
+      }),
+      Style.media(phone, {
+        gap: t.space.lg,
+        paddingBlock: `${t.space.md} ${t.space['2xl']}`,
+        paddingInline: t.space.md,
       }),
       Touch.targets,
     ),
