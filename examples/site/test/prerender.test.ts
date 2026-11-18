@@ -648,17 +648,21 @@ describe('the generated site', () => {
     expect(zone?.hasAttribute('data-drag-over')).toBe(false)
   })
 
-  test('the table names each row by its first cell, and draws a status as a badge', () => {
+  test('the table names each row by its first cell, the others plain cells', () => {
     const basic = page('/components/table').getElementById('basic')?.closest('section')
     const rows = Array.from(basic?.querySelectorAll('[data-size="page"] tbody tr') ?? [])
     expect(rows.map(row => row.querySelector('th[scope="row"]')?.textContent)).toEqual([
       'INV-001',
       'INV-002',
       'INV-003',
+      'INV-004',
     ])
-    expect(rows.map(row => row.querySelector('td [data-tone]')?.getAttribute('data-tone'))).toEqual(
-      ['live', 'review', 'live'],
-    )
+    expect(rows.map(row => row.querySelector('td')?.textContent)).toEqual([
+      'Paid',
+      'Pending',
+      'Paid',
+      'Overdue',
+    ])
   })
 
   test('the page menu draws icons, hints and a shortcut, and tells two rows of one label apart', () => {
