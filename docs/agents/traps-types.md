@@ -8,6 +8,8 @@ Read before writing a public type, a generic signature, a type test, or an Optio
   `import ts from 'typescript'` gets a version under 7, so what reads source through the API runs on 6: `foldkit-react-codegen` and `examples/site` (its API extractor) keep `typescript@6.0.3` as their own dev dependency, and `scripts/tags-check.mjs` imports the root's `typescript-6` alias. Their packages' own `tsc -b` is 6; the root's, which CI runs, is 7.
 - **Effect's diagnostics under TypeScript 7 are `@effect/tsgo`, not run in CI.**
   `@effect/language-service` is a TypeScript plugin, which 7 does not load (its tsconfig entry still serves an editor on a JS TypeScript). Run `npx @effect/tsgo diagnostics --project <tsconfig> --severity error,warning` after a large Effect change. Run over every project on 2026-10-13, its errors were all in tests (unrun Effects in type tests, `return yield*` style) and its warnings mostly `unstableApiUsage` for `effect/rpc` and `effect/persistence`, used on purpose.
+- **TypeScript 7.1 reports a mismatch on the argument, not the property, so a `@ts-expect-error` goes unused.**
+  `pnpm typecheck:fast` (tsrs 7.1.0-beta.tsrs3) and Microsoft's own 7.1.0-beta both fail `packages/mixins-ui/test/comboboxOptions.test-d.ts` and `onInput.test-d.ts`, which `tsc` 7.0.2 passes: the `HtmlBuilder` mismatch lands on the `h` argument. Move each directive to the `h` line when the repository moves to 7.1.
 - **Since TypeScript 6 no `@types` package is included by itself.**
   `types` defaults to none, so every `process`, `Buffer` and `node:` import failed until `tsconfig.base.json` named `"types": ["node"]`; a project that sets its own `types` (`vite/client`) must name `node` too.
 - **`tsc -p` in a project with references reads the stale `.d.ts`.**

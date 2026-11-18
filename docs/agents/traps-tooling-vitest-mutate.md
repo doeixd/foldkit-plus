@@ -27,8 +27,8 @@ Read before running Vitest or pnpm mutate, adding a Vitest config or alias, or d
   A test's own Vite `build()` has no mutation plugin: pass `mutation()` from `scripts/mutation-plugin.mjs` in its `plugins` (a worker thread loads one too: `examples/site/test/prerender.worker.mjs` loads the site through a Vite server of its own with `mutation()` and `test-resolve.mjs`), or every mutation of what it bundles reads "not applied". A Worker esbuild bundles for miniflare is never mutated: a `Stack` takes the edits through `workerMutation` in its `plugins` (another esbuild-bundled stack needs the same). Code a test builds from disk (`cli.test.ts` builds `src/cli.ts` with tsdown) is unreachable: mutate by hand (copy aside, edit, run, copy back) and say so in the spec, or move the logic to a module the tests import (`project.ts`, `docs.ts`).
 - **`pnpm mutate`'s browser baseline sometimes fails on its first run.**
   It can stop at "Failed to fetch dynamically imported module" before any mutation runs and pass when run again unchanged. Rerun once; a second failure is real.
-- **`pnpm mutate --only` took one name.**
-  Given several, it ran the first and reported "1 of 1"; run the spec whole, or one `--only` per run. (fc7297ff4 made `--only` repeatable: check `scripts/mutate.mjs` before relying on either.)
+- **Repeat `--only` for several mutations; a comma list is not accepted.**
+  `pnpm mutate <spec> --only "a" --only "b"` shares the baselines (fc7297ff4); names contain commas, so a list in one flag is refused, as is an unknown name.
 
 ## Dev servers and browsers
 
