@@ -35,7 +35,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-remote-drizzle`](../packages/remote-drizzle) | 0.21.0 | Published | Compiles Remote selections and queries to Drizzle's typed query graph, and lands declared writes in one statement that checks their revision, precondition and the Entity's invariants, with an optional ledger for retries. |
 | [`foldkit-remote-domain`](../packages/remote-domain) | 0.1.0 | Published | An Alchemy Domain Api beside Remote: `DomainRemote` (a `RemoteClient` over the Api, with receipts), `Lower.write` (a declared write as an aggregate), `Imported` (commands nobody declared a write for) and `Fixture` (a model as a client-test fixture). Early; experimental: it tracks a beta and pins the exact `@alchemy.run/domain` and `alchemy` releases. |
 | [`foldkit-mirror`](../packages/mirror) | 0.11.0 | Published | A Model slice mirrored into the URL or a key-value store, restored on load. |
-| [`foldkit-bundle`](../packages/bundle) | 0.13.0 | Published | A Submodel packaged once and placed through a Link: routing, init, Subscriptions, resources, and view lifted into the parent. |
+| [`foldkit-bundle`](../packages/bundle) | 0.14.0 | Published | A Submodel packaged once and placed through a Link: routing, init, Subscriptions, resources, and view lifted into the parent. |
 | [`foldkit-bundle-surface`](../packages/bundle-surface) | 0.10.0 | Published | Placements as Module contracts that own their Model path. |
 | [`foldkit-primitives`](../packages/primitives) | 0.21.0 | Published | Ready-made primitives (media, net, time, state, motion, device, events, observers, dom, interaction) under tree-shakeable subpaths. |
 | [`foldkit-react`](../packages/react) | 0.8.0 | Published | React components as islands in a Foldkit view, Foldkit programs inside React through Ports, and Suspense over Model-owned `AsyncData`. |
@@ -169,8 +169,9 @@ Peer edges between workspace packages, declared as `workspace:^` (or
   `-native`) → `foldkit-agent`;
 - `foldkit-auth` → `foldkit-remote`;
 - `foldkit-mixins-surface` → `foldkit-mixins` and `foldkit-surface`;
-- `foldkit-mixins-ui` → `foldkit-mixins`, `foldkit-primitives` and
-  `foldkit-media`;
+- `foldkit-mixins-ui` → `foldkit-bundle`, `foldkit-mixins`,
+  `foldkit-primitives` and `foldkit-media` (`foldkit-bundle` for its
+  `Bundles`);
 - `foldkit-richtext-dom` → `foldkit-bundle`.
 
 Optional peers, needed only by the subpath or feature that names them:

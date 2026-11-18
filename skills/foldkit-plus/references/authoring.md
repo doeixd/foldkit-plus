@@ -1,4 +1,4 @@
-Checked against `foldkit-mixins` 0.26.0, `foldkit-mixins-ui` 0.27.0, `foldkit-primitives` 0.21.0 and `foldkit-bundle` 0.13.0.
+Checked against `foldkit-mixins` 0.26.0, `foldkit-mixins-ui` 0.27.0, `foldkit-primitives` 0.21.0 and `foldkit-bundle` 0.14.0.
 
 # Authoring components, widgets, recipes and primitives
 

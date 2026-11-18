@@ -9,28 +9,59 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## 0.41.0
 
-The UI SDK round and the laws work. `foldkit-mixins-ui` and
-`foldkit-primitives` gain keyboard, focus and ARIA conformance across the
-widgets (`Behaviors.Keys` as the one owner of a slot's keys, `FocusRecovery`,
-`FocusReturn`, `Reorder`, `Presence.behavior`, the `Conformance` scenarios),
-and the default theme changes its look: rounder corners, pill chips and
-badges, menu panels on the page's own surface, a deeper accent and faintly
-tinted greys. A domain's laws are declared and checked (`Entity.refine`,
-invariants on the Entity, `Laws.check`, `Evidence`, `Closure`, `npx
-foldkit-plus laws`). Remote's wire carries row revisions and read-after
-tokens, and a server's own failure reaches its caller as `Internal error`
-with an incident id, never as the message of what was thrown. A mutation's
-answer holds only what its caller may read. `foldkit-remote-domain` is new:
-an Alchemy Domain Api behind Remote.
+What to change when you upgrade. `foldkit-mixins-ui` is reshaped (#589), and
+most of it is a rename:
 
-Versions: 43 packages are a new minor: every package whose published files
+- A widget's fixed text is one `words` object, text with `{blanks}` (`labels`,
+  `*Label` options and functions of a count are gone); `Command`, `Tour`,
+  `Carousel`, `Questionnaire`, `Pagination`, `Toast`, `TagsInput`, `Rating`,
+  `Slider`, `SignaturePad`, `ImageCropper`, `FloatingPanel` and others.
+- A feature that pulls in code is a value you pass, so a page that does not
+  use it does not ship it: `Table.fluid` and `Table.checkboxes`, a
+  `Chart.bars`, `Chart.line`, `Chart.area` or `Chart.donut` as the `kind`,
+  `Avatar.picture`, `Card.fluid`, `BreadcrumbMenu.make`,
+  `ImageCropper.zoomSlider`; `Picker.view` takes a `choice` and a `value`.
+- The tone `error` is `danger` (Progress, `Recipes.Alert`); `SearchField`'s
+  `onClear` and `CascadeSelect`'s `clearable` are the one `clear` option;
+  `AppShell.view({ ...options, main }, h)` takes its `main` as an option;
+  `FileInput`'s `accept` is an array; `Recipes.Badge` is a `recipeFor` that
+  reads `data-tone`; `SignaturePad.Message.Began` carries `pointerType`;
+  `ColorPicker`'s `eyedropper` defaults to `false`.
+- `foldkit-bundle` is a peer of `foldkit-mixins-ui`, for `Bundles`.
+- `foldkit-mixins` changes the default theme: `shadow.strength` is 70 (the
+  default theme casts shadows), `shape.radius` 1, the accent's lightness 54,
+  `surface.saturation` 0.005 and `menu.panel` `default`. Each is one knob to
+  set back.
+
+Each is a **Breaking** entry under Changed with what to write instead.
+
+What is new. `foldkit-mixins-ui` gains `Bundles` (one file per stateful widget,
+for `foldkit-bundle`), `X.configure({ base, presets })` to bind a widget's
+look and words once, a slot recipe's `.add` for an axis or value it lacks, the
+`FileUpload` widget and its Bundle, `Frame` and `Field`, and many options on
+existing widgets; its website pages are now example modules. `foldkit-mixins`
+gains a `selection` theme group, so selected text follows the theme. Beyond the
+UI round, `foldkit-mixins-ui` and `foldkit-primitives` gain keyboard, focus and
+ARIA conformance across the widgets (`Behaviors.Keys` as the one owner of a
+slot's keys, `FocusRecovery`, `FocusReturn`, `Reorder`, `Presence.behavior`, the
+`Conformance` scenarios). A domain's laws are declared and checked
+(`Entity.refine`, invariants on the Entity, `Laws.check`, `Evidence`,
+`Closure`, `npx foldkit-plus laws`). Remote's wire carries row revisions and
+read-after tokens, and a server's own failure reaches its caller as `Internal
+error` with an incident id, never as the message of what was thrown. A
+mutation's answer holds only what its caller may read. `foldkit-remote-domain`
+is new: an Alchemy Domain Api behind Remote. Fixes include `foldkit-remote`'s
+Model encoding as JSON (#593), `InputMask` in a real browser (#590) and
+`keepScroll` on a reload (#594).
+
+Versions: 44 packages are a new minor: every package whose published files
 changed and each package that depends on one of them. `foldkit-remote-domain`
-is first published, at 0.1.0. `foldkit-bundle`, `foldkit-host`,
-`foldkit-react` and `foldkit-react-codegen` keep their versions. Breaking
-changes are marked **Breaking** under Changed, in `foldkit-mixins` (theme
-defaults, a view's `pipe`, composing a conditional rule), `foldkit-mixins-ui`
-(Menu rows named by `value`, `TagsInput`, `Tour` and `FloatingPanel` openers,
-`NumberField`, `Drawer`, `Segmented`, `ColorPicker`'s eyedropper and others),
+is first published, at 0.1.0. `foldkit-host`, `foldkit-react` and
+`foldkit-react-codegen` keep their versions. Other breaking changes are marked
+**Breaking** under Changed, in `foldkit-mixins` (a view's `pipe`, composing a
+conditional rule, a `NamedStyle`'s type), `foldkit-mixins-ui` (Menu rows named
+by `value`, `TagsInput`, `Tour` and `FloatingPanel` openers, `NumberField`,
+`Drawer`, `Segmented` and others),
 `foldkit-primitives` (`PointerDrag`'s `targets`, `Press`, `Selection`,
 `KeyboardMessage.Pressed`, `HistoryModel`, `FocusRecovery`),
 `foldkit-entity` (an uncollated text order is refused; invariants belong to
@@ -1216,6 +1247,7 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
   Mixin writing a `keydown` there is now a conflict, and `Patterns.Nav`, `Patterns.Tabs` and
   `Patterns.FloatingPanel` require it.
 - Docs: package READMEs state their mental model in prose, not as ASCII diagrams, and the website's package pages head each package by its name without `foldkit-` and open with its intro, mental model, install and example on one page (the sections that were pages of their own redirect to it).
+- Docs: the website's component pages are example modules (`examples/site/src/examples/<widget>/`), and the gallery no longer holds the state that only the old snippet regions read (#589).
 
 ### Fixed
 
