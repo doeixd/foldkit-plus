@@ -156,6 +156,29 @@ describe('Bundles.Sheet and Bundles.Drawer', () => {
     ).toThrow(/points must ascend/)
   })
 
+  it('opens again at the point it opens at, from the Dialog’s own Message as from the helper', () => {
+    const Sheets = Bundle.compose({}).pipe(
+      Bundle.withChild('sheet', Bundles.Sheet, {
+        args: { id: 'again', points: [0.5, 1] },
+        onOut: Bundle.ignore,
+      }),
+    )
+    const fold = Sheets.placements.update(model => ({ model }))
+    const to = (message: Sheet.Message) => Sheets.Message.GotSheetMessage({ message })
+    const dialog = (message: UiDialog.Message) => to(Sheet.Message.GotDialog({ message }))
+    const opened = fold(
+      Sheets.placements.initial({}).model,
+      dialog(UiDialog.Message.RequestedOpen()),
+    ).model
+    const raised = fold(opened, to(Sheet.Message.SnappedTo({ at: 1 }))).model
+    expect(raised.sheet.at).toBe(1)
+    const shut = fold(raised, dialog(UiDialog.Message.RequestedClose())).model
+    const reopened = fold(shut, dialog(UiDialog.Message.RequestedOpen())).model
+    expect(reopened.sheet.at).toBe(0)
+    // A request to open an open one moves nothing.
+    expect(fold(raised, dialog(UiDialog.Message.RequestedOpen())).model.sheet.at).toBe(1)
+  })
+
   it('open at the point the Sheet names, and toggle the Drawer', () => {
     const fold = Panels.placements.update(model => ({ model }))
     const open = Panels.children.sheet.helpers.open()(start()).model

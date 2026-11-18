@@ -1278,7 +1278,13 @@ Keys and drags reach `update` as what was pressed, so fast keys each step from t
 last color. `ColorPicker.popover` takes a Popover made with `contentFocus: true`
 (it throws for one without): the panel opens on the area's thumb, a press or a
 drag inside never closes it, and focus leaving it closes one the keys or a finger
-opened (a mouse's stays open, as upstream's Popover does).
+opened (a mouse's stays open, as upstream's Popover does). `popover` is a file of
+its own, so a page drawing the picker inline keeps neither upstream's Popover nor
+its anchoring. The picker's own words are `words` (`ColorPicker.words`: `area`,
+`saturation`, `brightness`, `hue`, `alpha`, `format`, `input`, `eyedropper`,
+`presets`), `Bundles.ColorPicker.with({ id, color?, format? })` places its state and
+reports `Changed { color }`, and `ColorPicker.configure({ base, presets })` fixes the
+swatches, the sliders' look and the words once.
 
 The view reads nothing from the environment, so the eyedropper button is the
 `eyedropper` input, `false` by default on a server and in a browser alike.
@@ -1667,6 +1673,25 @@ and `Tooltip.anchor()` give `portal: false` and the placement: 12px and 8px off 
 trigger, 8px inside the viewport, flipping and shifting. Each draws an `arrow` slot
 in its panel that points at the trigger.
 
+**State as Bundles.** Every overlay's state is a Bundle, one file apiece:
+`Bundles.Dialog.with({ id, isAnimated?, focusSelector?, dismissible? })`,
+`Bundles.Sheet`, `Bundles.Drawer`, `Bundles.Popover`, `Bundles.Tooltip` (`showDelay`
+in milliseconds) and `Bundles.HoverIntent` (`openDelay`, `closeDelay`). The upstream
+ones report `Opened` and `Closed` (a Tooltip `Shown` and `Hidden`) for `onOut`, and
+`helpers.open` and `helpers.close` are for a control of the application's. A Dialog
+that is not `dismissible` drops the `RequestedClose` that Escape, the backdrop and
+its close button send, so only an answer closes it, through `helpers.close`: an
+alert dialog is that, with `role: 'alertdialog'` in `Dialog.toView`'s context. A
+Sheet opened by the Dialog's own `RequestedOpen` rests at its `opensAt` point, as
+`helpers.open` does. Pass `isAnimated: true` and the panel stays drawn while it
+leaves, so the recipe's fade runs on the way out as on the way in. The drawing
+stays the adapter's: what a dialog or a popover holds is the application's
+content, so the examples compose it rather than pass it as options. `Dialog`'s
+`overlayBars`, `keyboard` and `focusReturn`, `Drawer.keepFocus` and `Toast.keepFocus`
+are files of their own, so a page that never names one keeps neither its Mount nor
+the primitive it runs. A Drawer imports no Sheet and no Dialog (`swipe.ts` holds
+what the two share).
+
 ## Navigation and structure
 
 | Widget | What it is | Recipe and Slots |
@@ -2051,11 +2076,11 @@ the `color` they name; a sixth series throws.
 | Widget | What it is | Recipe and Slots |
 | --- | --- | --- |
 | `Alert` | `{ layout, title, description?, icon?, actions?, onDismiss?, words?, recoveryPart? }`, and by `layout`: `'inline'` takes `assertive?` and is a live region inside the content, of something that just happened (`role="alert"` when assertive, `role="status"` otherwise); `'banner'` takes `label` and is a full-width strip across a page or a section, there on load, so a `section` landmark named by `label` rather than a live region, which would say nothing on load. Each action is `{ label, href }` (a link) or `{ label, onClick }` (a button); `onDismiss` draws a close button named by `words.dismiss` (`'Dismiss {name}'`, `{name}` the title inline and the label as a banner) with the mark `words.dismissMark`. The icon is `aria-hidden`; whether it shows is the application's. The root writes `data-layout` and `data-dismissible`. `recoveryPart`: see [Focus after removal](#focus-after-removal). `Alert.configure({ base, presets })` binds a look and words. | `tone`: `info` (default), `success`, `warning`, `danger`, `neutral`, `accent`; `emphasis`: `subtle` (default, the family's tint), `bold` (its fill; the neutral tone inverts the page). Slots `root`, `icon`, `title`, `description`, `actions`, `action`, `dismiss`. |
-| `Toast` | A stack of toasts, Sonner's. A small Model: `Toast.init(id, { position?, direction?, duration?, max?, threshold? })`, folded with `Toast.update`, whose `Acted` OutMessage names a pressed action. `Toast.show(model, { type?, title, description?, action?, duration? })` returns the stack and the new toast's `id`; `Toast.settle(model, id, input)` turns a toast into its outcome; `Toast.dismiss(model, id)` takes it away. `Toast.view({ model, onMessage, label?, closeLabel?, expand?, icons? }, h)`. Adapter over the `ToastView` fork for toasts that carry their own payload. See [Toast](#toast). | `tone`: `plain` (default), `rich` (each type on its tint). Slots `container`, `entry`, `list`, `icon`, `body`, `title`, `description`, `action`, `close`, `status`, `alert`. |
+| `Toast` | A stack of toasts, Sonner's. A small Model: `Toast.init(id, { position?, direction?, duration?, max?, threshold? })`, folded with `Toast.update`, whose `Acted` OutMessage names a pressed action. `Toast.show(model, { type?, title, description?, actions?, cancel?, duration? })` returns the stack and the new toast's `id`; `Toast.settle(model, id, input)` turns a toast into its outcome; `Toast.dismiss(model, id)` takes it away; `Toast.nextId(model)` is the id the next `show` will give. `Toast.view({ model, onMessage, label?, words?, expand?, icons? }, h)`, with `Toast.configure({ base, presets })` and `Bundles.Toast.with({ id, position?, direction?, duration?, max?, threshold? })`, whose `helpers` are `show`, `settle` and `dismiss`. Adapter over the `ToastView` fork for toasts that carry their own payload. See [Toast](#toast). | `tone`: `plain` (default), `invert` (the text's ink as the card), `rich` (each type on its tint). Slots `container`, `entry`, `list`, `icon`, `body`, `title`, `description`, `actions`, `action`, `cancel`, `close`, `status`, `alert`. |
 | `Progress` | `@foldkit/ui`'s Progress. `Progress.view({ id, label, value, min?, max?, valueText?, showValue?, buffer?, segments? }, h)` draws a `progressbar` named by its label. `value` is an `Option`; none is indeterminate, and the bar's fill sweeps toward the inline end, leftward right to left. The root carries the share done as `--fk-progress`. `showValue` draws the value (`valueText`, else a percentage) at the end of a bar's label line and inside a ring. A `value` given as `ProgressSection`s is one stacked bar of toned parts, read aloud as their sum; `buffer` draws how far the work could go behind the fill; `segments` cuts the track into steps. | `shape`: `bar` (default), `ring`; `tone`: `accent`, `neutral`, `success`, `warning`, `error`, `info`; `stripes`: `none`, `still`, `moving` (travel-aware); `size`. Slots `root`, `label`, `track`, `indicator`. |
 | `Meter` | `@foldkit/ui`'s Meter, a measurement where `Progress` is work. `Meter.view({ id, label, value, min?, max?, low?, high?, optimum?, valueText? }, h)` draws a `meter` named by its label. The root says how good the value is as `data-level` (`good`, `fair`, `poor`), as the HTML meter judges it; `Meter.levelOf` is that judgment. | No axis; the fill takes success, warning or error by level. Slots `root`, `label`, `track`, `fill`. |
 | `Spinner` | `{ label?, showLabel? }`. `role="status"` named by `label`, and `aria-hidden` without one; `showLabel` draws the label beside the wheel. A turn is about 720ms times `travel`. | `kind`: `ring` (default), `dots`, `bars`, `pulse`, `orbit`; `size`; `tone`: `accent`, `neutral`, `current`, and the status tones `info`, `success`, `warning`, `danger`. Slots `wheel`, `part`, `root`, `text`. |
-| `Timer` | After Zag's: a countdown (`Timer.init({ id, countdown: true, duration })`) or a stopwatch (`Timer.init({ id, interval? })`), folded with `Timer.update`, whose Commands (`Timer.Stamp`, `Timer.Tick`) read Effect's `Clock`, so TestClock drives a run. `Timer.view({ model, onMessage, label, units?, separator?, labels? }, h)`: a `role="timer"` with each unit in a Slot, one press that says what comes next, and reset. `Timer.phase(model)` is `idle`, `running`, `paused` or `done`; to start at once, return `Timer.update(model, Timer.Message.Pressed({ action: 'start' }))` from `init`. | `tone`, `look`, `progress`, `size`. Slots `root`, `label`, `area`, `item`, `separator`, `controls`, `action`. |
+| `Timer` | After Zag's: a countdown (`Timer.init({ id, countdown: true, duration })`) or a stopwatch (`Timer.init({ id, interval? })`), folded with `Timer.update`, whose Commands (`Timer.Stamp`, `Timer.Tick`) read Effect's `Clock`, so TestClock drives a run. `Timer.view({ model, onMessage, label, units?, separator?, controls?, words? }, h)`: a `role="timer"` with each unit in a Slot, one press that says what comes next, and reset; `words` renames the presses (`Timer.words` are the defaults). `Bundles.Timer.with({ id, countdown?, duration?, interval? })` places the state (a countdown without a `duration` throws at placement), and `Timer.configure({ base, presets })` fixes the look, units and words once. `Timer.phase(model)` is `idle`, `running`, `paused` or `done`; to start at once, return `Timer.update(model, Timer.Message.Pressed({ action: 'start' }))` from `init`. | `tone`, `look`, `progress`, `size`. Slots `root`, `label`, `area`, `item`, `separator`, `controls`, `action`. |
 
 ### Toast
 
@@ -2064,9 +2089,17 @@ most `max` (3) showing; a held stack or a hidden page pauses every countdown, ke
 the time left; a swipe toward the edge past `threshold` dismisses one. A toast is
 spoken in a polite region, an error in an assertive one, each toast a keyed child of
 its own (the regions are not atomic), so one added beside another, or with the same
-words, is still read by itself. A toast that is already leaving does not act again
-when its action is pressed. A promise toast is `show` with `type: 'loading'`, the work
-run as a Command, and `settle` on the toast's `id` when its Message comes back.
+words, is still read by itself. A toast takes `actions` (each a `{ label, value }`
+that dismisses it and says its `value` in `Acted`) and a `cancel` (words for a button
+that only dismisses it), drawn in an `actions` row before the close button. A toast
+that is already leaving does not act again when an action is pressed. A promise toast
+is `show` with `type: 'loading'`, the work run as a Command, and `settle` on the
+toast's `id` when its Message comes back; through `Bundles.Toast` the helpers return
+no id, so read `Toast.nextId(model)` before `show`. `words` is `{ label, close }`
+(`Toast.words`); `tone: 'invert'` is the text's ink as the card, as Sonner's inverted
+toasts. A payload toast that shows progress replaces what an entry holds with
+`ToastView.make(schema).revise(model, entryId, payload)`, keeping its place,
+animation and dismissal timing; upstream has no such operation.
 `ToastView` binds upstream's `Toast.make` for the payload and swaps in the
 transcribed view; the dismiss control stays inside the consumer's `entryToView`, so it
 is content, not a slot. `Toast.keepFocus` hands focus from a dismissed toast to a

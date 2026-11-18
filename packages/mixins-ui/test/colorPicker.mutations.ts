@@ -7,6 +7,7 @@ const unit = 'packages/mixins-ui/test/colorPicker.test.ts'
 const browser = 'packages/mixins-ui/test/colorPicker.browser.test.ts'
 const ssr = 'packages/mixins-ui/test/colorPicker.ssr.test.ts'
 const view = '../src/colorPicker.ts'
+const popover = '../src/colorPicker/popover.ts'
 
 export default [
   {
@@ -183,7 +184,7 @@ export default [
     name: 'the panel opens on itself, not on the thumb',
     edits: [
       {
-        file: view,
+        file: popover,
         find: '      focusSelector: idSelector(`${options.model.id}-area`),\n',
         replace: '',
       },
@@ -194,7 +195,7 @@ export default [
     name: 'focus moving inside the picker closes it',
     edits: [
       {
-        file: view,
+        file: popover,
         find: 'if (to instanceof Node && !element.contains(to))',
         replace: 'if (to instanceof Node)',
       },
@@ -205,7 +206,7 @@ export default [
     name: 'focus going nowhere closes it',
     edits: [
       {
-        file: view,
+        file: popover,
         find: 'if (to instanceof Node && !element.contains(to))',
         replace: 'if (!(to instanceof Node && element.contains(to)))',
       },
@@ -215,14 +216,18 @@ export default [
   {
     name: 'focus leaving the picker leaves it open',
     edits: [
-      { file: view, find: "          element.addEventListener('focusout', left)\n", replace: '' },
+      {
+        file: popover,
+        find: "          element.addEventListener('focusout', left)\n",
+        replace: '',
+      },
     ],
     tests: [browser],
   },
   {
     name: 'a Popover that keeps its own focus is drawn anyway',
     edits: [
-      { file: view, find: '  if (!options.popover.contentFocus)\n', replace: '  if (false)\n' },
+      { file: popover, find: '  if (!options.popover.contentFocus)\n', replace: '  if (false)\n' },
     ],
     tests: [browser],
   },

@@ -223,7 +223,16 @@ export const settle = (release: {
 /** The Sheet after `message`; the same Model when nothing changes. */
 export const update = (model: Model, message: Message): Return =>
   Message.match(message, {
-    GotDialog: ({ message }) => dialogStep(model, updateDialog(model.dialog, message)),
+    // An open, from the application's button as from `open`, rests at the point it opens at.
+    GotDialog: ({ message }) =>
+      dialogStep(
+        model,
+        updateDialog(model.dialog, message),
+        Match.value(message).pipe(
+          Match.tag('RequestedOpen', () => (model.dialog.isOpen ? {} : { at: model.opensAt })),
+          Match.orElse(() => ({})),
+        ),
+      ),
     Grabbed: ({ size }) => ({
       model: modifyFields(model, { drag: () => Option.some({ size, delta: 0 }) }),
     }),

@@ -9,6 +9,7 @@ const touch = [
 const unit = ['packages/mixins-ui/test/sheet.test.ts']
 const swipe = '../../primitives/src/dom/swipe.ts'
 const sheet = '../src/sheet.ts'
+const swipeValues = '../src/swipe.ts'
 const drawer = '../src/drawer.ts'
 
 export default [
@@ -139,14 +140,14 @@ export default [
   },
   {
     name: 'a swipe of no speed is taken',
-    edits: [{ file: sheet, find: 'if (!(flickSpeed > 0))', replace: 'if (false)' }],
+    edits: [{ file: swipeValues, find: 'if (!(flickSpeed > 0))', replace: 'if (false)' }],
     tests: unit,
   },
   {
     name: 'a close share past the whole panel is taken',
     edits: [
       {
-        file: sheet,
+        file: swipeValues,
         find: 'if (!(closeShare > 0 && closeShare <= 1))',
         replace: 'if (!(closeShare > 0))',
       },

@@ -78,8 +78,9 @@ describe('showcase examples', () => {
         .slice(lines.map(line => /^import |^\} from /.test(line)).lastIndexOf(true) + 1)
         .join('\n')
       const body = source.slice(source.indexOf('export default example({'))
-      // The longest is a table laid out from `FileUpload.parts`; most are under 25.
-      expect(body.split('\n').length, path).toBeLessThanOrEqual(52)
+      // The longest are the overlays', which draw each Slot of an adapter by hand (Dialog,
+      // Toast with a payload) and a table laid out from `FileUpload.parts`; most are under 25.
+      expect(body.split('\n').length, path).toBeLessThanOrEqual(90)
       expect(afterImports, path).not.toMatch(/\bas (unknown|never|any)\b|[)\]}\w] as [A-Z{[(]/)
     }
   })

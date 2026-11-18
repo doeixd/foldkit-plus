@@ -29,6 +29,9 @@ describe('Toast.update', () => {
     const second = Toast.show(shown.model, { title: 'Sent' })
     expect(second.model.entries.map(each => each.title)).toEqual(['Sent', 'Saved'])
     expect(second.id).not.toBe(shown.id)
+    // The id a caller learns before it shows, since a Bundle's helper returns none.
+    expect(Toast.nextId(empty)).toBe(shown.id)
+    expect(Toast.nextId(shown.model)).toBe(second.id)
     expect(names(shown)).toContain('StartToastClock')
     expect(entry(running).countdown._tag).toBe('Running')
   })

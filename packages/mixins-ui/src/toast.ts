@@ -367,9 +367,16 @@ const durationOf = (model: Model, input: ToastInput): Option.Option<number> => {
   return duration === 'sticky' ? Option.none() : Option.some(duration)
 }
 
+/**
+ * The id the next toast shown will have: for a caller that raises toasts
+ * through a Bundle's `helpers`, which hand back no id, and settles or dismisses
+ * one later.
+ */
+export const nextId = (model: Model): string => `${model.id}-${model.next}`
+
 /** A new toast in front of the stack, and its id, for `settle` and `dismiss`. */
 export const show = (model: Model, input: ToastInput): Return & { readonly id: string } => {
-  const id = `${model.id}-${model.next}`
+  const id = nextId(model)
   const shown = Animation.show(Animation.init({ id, isShowing: false }))
   const duration = durationOf(model, input)
   const entry: Entry = {

@@ -126,7 +126,7 @@ export default [
     name: 'a slow drag never takes it away',
     edits: [
       {
-        file: '../src/sheet.ts',
+        file: '../src/swipe.ts',
         find: 'export const CLOSE_SHARE = 0.25',
         replace: 'export const CLOSE_SHARE = 1',
       },
