@@ -3,8 +3,9 @@ name: Release
 # Publishes every non-private package under `packages/*` to npm, and turns a
 # version tag into a GitHub release. Push a version tag (`v0.1.0`) or run the
 # workflow manually. Publishing needs the `NPM_TOKEN` repository secret; without
-# it the checks run and the publish step is skipped. A manual run publishes but
-# makes no release: there is no tag to make one for.
+# it the publish step is skipped. A manual run publishes but makes no release:
+# there is no tag to make one for. It then redeploys the website and the demos
+# that changed (the `deploy` job), given the Cloudflare secrets.
 on:
   push:
     tags:
@@ -82,6 +83,169 @@ jobs:
             echo "CHANGELOG.md has no '## $version' section for tag $GITHUB_REF_NAME" >&2
             exit 1
           fi
+          # GitHub refuses a release body over 125,000 characters (v0.41.0's
+          # section was longer): then the notes are the section's summary, the
+          # text before its first `### ` heading, and a link to the rest.
+          if [ "$(wc -m < release-notes.md)" -gt 120000 ]; then
+            awk '/^### / { exit } { print }' release-notes.md > summary.md
+            printf '\nThe full list of changes is in [CHANGELOG.md](https://github.com/%s/blob/%s/CHANGELOG.md).\n' \
+              "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" >> summary.md
+            mv summary.md release-notes.md
+          fi
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --notes-file release-notes.md
+
+  # The website and the demos, each only when it needs it: a target is
+  # redeployed when its example, or a workspace package it depends on, changed
+  # since the tag before this one (`pnpm --filter "...[<tag>]"` lists what
+  # changed with everything that depends on it). A manual run deploys them all.
+  # Needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets;
+  # without them every target is skipped. `examples/cloudflare` (a Worker with
+  # D1 migrations to read before applying) stays a manual deploy.
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      # Two at a time: each is a heavy build on a runner of its own.
+      max-parallel: 2
+      matrix:
+        include:
+          # The site also publishes the guides and every README, which no
+          # package depends on.
+          - {
+              package: foldkit-example-site,
+              script: build,
+              dir: examples/site,
+              out: dist,
+              project: foldkit-plus,
+              also: "docs README.md CHANGELOG.md 'packages/*/README.md'",
+            }
+          - {
+              package: foldkit-example-cms,
+              script: 'build:sandbox',
+              dir: examples/cms,
+              out: dist,
+              project: foldkit-cms-demo,
+            }
+          - {
+              package: foldkit-example-registry,
+              script: 'build:sandbox',
+              dir: examples/registry,
+              out: dist,
+              project: foldkit-registry-demo,
+            }
+          - {
+              package: foldkit-example-todo-app,
+              script: 'build:sandbox',
+              dir: examples/todo-app,
+              out: dist,
+              project: foldkit-todo-demo,
+            }
+          - {
+              package: foldkit-example-pages,
+              script: 'build:sandbox',
+              dir: examples/pages,
+              out: dist,
+              project: foldkit-pages-demo,
+            }
+          - {
+              package: foldkit-example-data-grid,
+              script: build,
+              dir: examples/data-grid,
+              out: dist,
+              project: foldkit-grid-demo,
+            }
+          - {
+              package: foldkit-example-richtext-playground,
+              script: build,
+              dir: examples/richtext-playground,
+              out: dist,
+              project: foldkit-richtext-demo,
+            }
+          - {
+              package: foldkit-example-chirp,
+              script: 'build:sandbox',
+              dir: examples/chirp,
+              out: dist,
+              project: foldkit-chirp-demo,
+            }
+          - {
+              package: foldkit-example-widgets,
+              script: build,
+              dir: examples/widgets,
+              out: dist,
+              project: foldkit-widgets-demo,
+            }
+          # A Worker, not a Pages project: its name and assets come from wrangler.jsonc.
+          - {
+              package: foldkit-example-foldkit-domains-plus,
+              script: build,
+              dir: examples/foldkit/domains-plus,
+              worker: true,
+            }
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Every tag, to find the one before this.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Needed?
+        id: needed
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "No Cloudflare secrets: skipping." && echo "deploy=false" >> "$GITHUB_OUTPUT" && exit 0
+          fi
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "A manual run deploys every target." && echo "deploy=true" >> "$GITHUB_OUTPUT" && exit 0
+          fi
+          previous="$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_REF_NAME^" 2>/dev/null || true)"
+          if [ -z "$previous" ]; then
+            echo "No earlier tag: deploying." && echo "deploy=true" >> "$GITHUB_OUTPUT" && exit 0
+          fi
+          pnpm install --frozen-lockfile --ignore-scripts > /dev/null
+          if pnpm --filter "...[$previous]" ls --depth -1 --parseable | grep -qx "$GITHUB_WORKSPACE/${{ matrix.dir }}"; then
+            echo "${{ matrix.package }} or a package it uses changed since $previous." && echo "deploy=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ matrix.also }}" ] && ! git diff --quiet "$previous" "$GITHUB_REF_NAME" -- ${{ matrix.also }}; then
+            echo "A file ${{ matrix.package }} publishes changed since $previous." && echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing ${{ matrix.package }} is built from changed since $previous." && echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.needed.outputs.deploy == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # The examples' configs read some packages' `dist` (`foldkit-ssr/vite`).
+      - if: steps.needed.outputs.deploy == 'true'
+        run: pnpm build:packages
+
+      - name: Build
+        if: steps.needed.outputs.deploy == 'true'
+        run: pnpm --filter ${{ matrix.package }} run ${{ matrix.script }}
+        env:
+          FOLDKIT_BUILD_ID: ${{ github.sha }}
+
+      # From the example's own folder: Wrangler refuses a workspace root, and
+      # the site's `functions/` are read from where it runs.
+      - name: Deploy to Pages
+        if: steps.needed.outputs.deploy == 'true' && !matrix.worker
+        working-directory: ${{ matrix.dir }}
+        run: npx -y wrangler@4 pages deploy ${{ matrix.out }} --project-name ${{ matrix.project }} --branch main --commit-dirty=true
+
+      - name: Deploy the Worker
+        if: steps.needed.outputs.deploy == 'true' && matrix.worker
+        working-directory: ${{ matrix.dir }}
+        run: npx -y wrangler@4 deploy

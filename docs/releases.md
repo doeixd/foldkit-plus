@@ -76,6 +76,12 @@ in its manifest, and `pnpm publish` skips it.
   a manual dispatch and publishes with provenance only when the `NPM_TOKEN`
   secret is set; without the secret it skips the publish step. It runs no
   checks of its own: tag only a commit whose CI run on `main` is green.
+- Its `deploy` job then redeploys the website and each demo, but only those
+  whose example, or a package it is built from, changed since the tag before
+  (the website also when a guide or README changed). It needs the
+  `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets and skips every
+  target without them. `examples/cloudflare` is deployed by hand, because its
+  D1 migrations are read before they are applied.
 - On a tag it then creates the **GitHub release**, with the notes taken from the
   `CHANGELOG.md` section whose heading matches: `v0.8.0` takes `## 0.8.0`. **A
   tag with no matching heading fails the job** — the version bump and the
