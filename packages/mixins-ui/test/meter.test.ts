@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Meter, MeterSlots, Patterns, Recipes } from '../src/index.js'
-import { h } from './fixture.js'
+import { h, type TestMessage } from './fixture.js'
 
 // A battery: low under 20, high over 80, best when full.
 const battery = { low: 20, high: 80, optimum: 100 }
@@ -93,5 +93,38 @@ describe('Meter recipe size', () => {
     expect(css('lg')).not.toContain('0.25rem')
     expect(css('md')).toBe(css())
     expect(css()).toContain('0.5rem')
+  })
+})
+
+describe('Meter orientation and segments', () => {
+  const rootOf = (options: Partial<Meter.MeterView<TestMessage>>) => {
+    const drawn = Meter.view({ id: 'tank', label: 'Tank', value: 25, ...options }, h)
+    const [meter] = Inert.byRole(drawn, 'meter')
+    return { meter: meter!, fill: Inert.byTag(drawn, 'div').at(-1)! }
+  }
+
+  it('stands upright by a data attribute, the share a property the fill reads', () => {
+    const { meter, fill } = rootOf({ orientation: 'vertical' })
+    expect(Inert.value(meter, 'data-orientation')).toBe('vertical')
+    expect(Inert.style(meter)['--fk-meter-share']).toBe('25%')
+    // Upstream's width stays; the recipe floors the fill's inline size.
+    expect(Inert.style(fill)).toEqual({ width: '25%' })
+  })
+
+  it('draws a horizontal meter with no orientation, share or style on the root', () => {
+    const { meter } = rootOf({})
+    expect(Inert.value(meter, 'data-orientation')).toBeUndefined()
+    expect(Inert.style(meter)).toEqual({})
+  })
+
+  it('cuts the track into steps through a segment count on the root', () => {
+    const { meter } = rootOf({ segments: 5, orientation: 'vertical' })
+    expect(Inert.value(meter, 'data-segmented')).toBe('')
+    expect(Inert.style(meter)['--fk-meter-segments']).toBe('5')
+    expect(Inert.style(meter)['--fk-meter-share']).toBe('25%')
+  })
+
+  it.each([1, 2.5, 0, -3])('refuses %s segments', segments => {
+    expect(() => rootOf({ segments })).toThrow(/at least 2/)
   })
 })
