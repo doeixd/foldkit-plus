@@ -12,7 +12,7 @@ import { Message, NAMES, initial, update, type Model } from '../src/window-list/
 import { WindowListIsland, runDemo } from '../src/window-list/view.js'
 
 const placed = (top: number) =>
-  Message.GotList({ message: WindowList.Message.Placed({ top, height: 800 }) })
+  Message.GotListMessage({ message: WindowList.Message.Placed({ top, height: 800 }) })
 
 describe('update flows', () => {
   it('names a thousand rows, each once', () => {
@@ -59,7 +59,7 @@ describe('go to a row', () => {
   it('passes the commands of the list up: a find reveals the row it matched', () => {
     const found = update(
       initial,
-      Message.GotList({ message: WindowList.Message.Found({ index: 600 }) }),
+      Message.GotListMessage({ message: WindowList.Message.Found({ index: 600 }) }),
     )
     expect(found.commands?.map(command => [command.name, command.args])).toEqual([
       ['WindowList.Reveal', { id: initial.list.id, index: 600, align: 'center' }],
@@ -74,7 +74,7 @@ describe('the island', () => {
       Scene.given(initial),
       Scene.Mount.resolveAll(
         WindowList.resolveTrack(
-          message => Message.GotList({ message }),
+          message => Message.GotListMessage({ message }),
           WindowList.Message.Placed({ top: 0, height: 800 }),
         ),
       ),
@@ -89,7 +89,7 @@ describe('the island', () => {
       Scene.given(initial),
       Scene.Mount.resolveAll(
         WindowList.resolveTrack(
-          message => Message.GotList({ message }),
+          message => Message.GotListMessage({ message }),
           WindowList.Message.Placed({ top: 20_000, height: 800 }),
         ),
       ),
