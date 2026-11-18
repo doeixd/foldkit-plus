@@ -75,6 +75,7 @@ const PAGES = [
   '/components',
   '/components/button',
   '/components/tags-input',
+  '/components/combobox',
   '/components/otp-field',
   '/components/disclosure',
   '/components/code-block',

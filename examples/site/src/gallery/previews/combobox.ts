@@ -1,6 +1,10 @@
 import type { Combobox as UiCombobox } from '@foldkit/ui'
-import type { NamedStyle } from 'foldkit-mixins'
 import { ComboboxSlots, Recipes } from 'foldkit-mixins-ui'
+import basic from '../../examples/combobox/basic.js'
+import choice from '../../examples/combobox/choice.js'
+import clear from '../../examples/combobox/clear.js'
+import groups from '../../examples/combobox/groups.js'
+import multiple from '../../examples/combobox/multiple.js'
 import * as Snippet from '../../snippets/components.js'
 import * as Widgets from '../widgets.js'
 import { about } from '../catalogue.js'
@@ -12,33 +16,16 @@ const cityMessage =
   (message: UiCombobox.Message) =>
     live.onWidget(Widgets.Message.GotCityBox({ example, message }))
 
-const comboboxBasic = <Message>(style: NamedStyle<typeof ComboboxSlots>, live: Live<Message>) =>
-  Snippet.combobox(
-    style,
-    live.widgets,
-    message => live.onWidget(Widgets.Message.GotCombobox({ message })),
-    live.h,
-  )
-
 export const showcase = fromRecipe(
   about('combobox'),
   ComboboxSlots,
   Recipes.Combobox,
-  comboboxBasic,
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Basic', draw: comboboxBasic },
-    {
-      name: 'multiple',
-      title: 'Several, as chips',
-      draw: (style, live) =>
-        Snippet.comboboxMultiple(
-          style,
-          live.widgets.cityTags,
-          message => live.onWidget(Widgets.Message.GotCityTags({ message })),
-          live.h,
-        ),
-    },
+    { name: 'basic', example: basic },
+    { name: 'multiple', example: multiple },
+    // These two stay regions until `Combobox.view` takes `creatable` and a loading state.
     {
       name: 'empty',
       title: 'Empty and loading',
@@ -54,28 +41,8 @@ export const showcase = fromRecipe(
           live.h,
         ),
     },
-    {
-      name: 'clear',
-      title: 'A clear button',
-      draw: (style, live) =>
-        Snippet.comboboxClear(
-          style,
-          live.widgets.cityBoxes.clear,
-          cityMessage(live, 'clear'),
-          live.h,
-        ),
-    },
-    {
-      name: 'groups',
-      title: 'Groups',
-      draw: (style, live) =>
-        Snippet.comboboxGroups(
-          style,
-          live.widgets.cityBoxes.groups,
-          cityMessage(live, 'groups'),
-          live.h,
-        ),
-    },
+    { name: 'clear', example: clear },
+    { name: 'groups', example: groups },
     {
       name: 'creatable',
       title: 'Creatable',
@@ -88,5 +55,6 @@ export const showcase = fromRecipe(
           live.h,
         ),
     },
+    { name: 'choice', example: choice },
   ],
 )

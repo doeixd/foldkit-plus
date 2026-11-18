@@ -41,6 +41,7 @@ const READ = [
   '/primitives/gallery',
   '/components/button',
   '/components/tags-input',
+  '/components/combobox',
   '/components/radio-group',
   '/components/file-drop',
   '/components/alert',
@@ -430,6 +431,15 @@ describe('the generated site', () => {
           ['toggle', 'Toggle', 'pressed: model.on.includes(format)'],
           ['configure', 'Configure once', 'const AppButton = Button.configure({'],
           ['add', 'A look of your own', 'Recipes.Button.add({'],
+        ],
+      ],
+      [
+        'combobox',
+        [
+          ['basic', 'Basic', 'const City = Combobox.one(cities)'],
+          ['multiple', 'Several, as chips', 'const Cities = Combobox.many(cities)'],
+          ['empty', 'Empty and loading', 'comboboxEmpty'],
+          ['choice', 'A choice of your own: at most three', 'Choice<Item, ReadonlyArray<Item>>'],
         ],
       ],
       [
