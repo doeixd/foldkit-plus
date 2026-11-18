@@ -3,7 +3,7 @@
  * `pnpm mutate packages/mixins-ui/test/tabsFluid.mutations.ts`.
  */
 const tests = ['packages/mixins-ui/test/tabs.browser.test.ts']
-const adapter = '../src/tabs.ts'
+const adapter = '../src/tabs/fluid.ts'
 const recipe = '../src/recipes/tabs.ts'
 
 export default [

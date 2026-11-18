@@ -10,7 +10,7 @@ export default [
     name: "a Command's bars run on its root, which does not scroll",
     edits: [
       {
-        file: '../src/command.ts',
+        file: '../src/command/overlayBars.ts',
         find: '      list: Behavior.slot({',
         replace: '      root: Behavior.slot({',
       },

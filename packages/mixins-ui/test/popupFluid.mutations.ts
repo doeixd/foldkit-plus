@@ -72,7 +72,7 @@ export default [
       'upstream marks the row under the pointer data-active as it does the keys, and follows lights that row; nearness reads only in gaps, which menu rows have none of',
     edits: [
       {
-        file: '../src/menu.ts',
+        file: '../src/menu/fluid.ts',
         find: 'item: \'[role^="menuitem"]\',',
         replace: 'item: \'[role="none"]\',',
       },

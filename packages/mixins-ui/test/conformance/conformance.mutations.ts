@@ -404,7 +404,7 @@ export default [
   {
     name: 'the shipped tabs read the arrows physically under right to left',
     edits: [
-      edit('../../src/tabs.ts', 'mount: () => ReadingKeys(),', 'mount: () => FollowDirection(),'),
+      edit('../../src/tabs/readingKeys.ts', 'mount: () => ReadingKeys(),', 'mount: () => FollowDirection(),'),
     ],
     tests: tabs,
   },

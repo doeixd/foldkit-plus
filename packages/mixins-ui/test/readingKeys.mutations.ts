@@ -46,7 +46,7 @@ export default [
     name: 'tabs read their keys as upstream does',
     edits: [
       {
-        file: '../src/tabs.ts',
+        file: '../src/tabs/readingKeys.ts',
         find: 'mount: () => ReadingKeys(),',
         replace: 'mount: () => FollowDirection(),',
       },

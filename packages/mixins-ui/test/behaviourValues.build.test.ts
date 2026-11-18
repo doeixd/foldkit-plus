@@ -43,6 +43,9 @@ const keptBy = async (name: string, source: string): Promise<ReadonlyArray<strin
 const values = [
   ['Menu', 'fluid', /fluid-hover/],
   ['Menu', 'overlayBars', /scroll-bars/],
+  ['Tabs', 'fluid', /fluid-hover/],
+  ['Tabs', 'readingKeys', /direction/],
+  ['Command', 'overlayBars', /scroll-bars/],
 ] as const
 
 test('a page that never reads a behaviour value keeps no primitive it runs', async () => {
