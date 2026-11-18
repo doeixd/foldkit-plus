@@ -116,8 +116,6 @@ import {
   ChartSlots,
   Tour,
   TourSlots,
-  FileInput,
-  FileInputSlots,
 } from 'foldkit-mixins-ui'
 
 import { outline } from './icon.js'
@@ -2253,70 +2251,5 @@ export const tour = <Message>(
     ],
   )
 }
-// #endregion
-
-// #region file-input-multiple
-export const FileInputStyle = forSlots(FileInputSlots)(Recipes.FileInput({}))
-
-/** What a pick and a remove send; answer both with `FileInput.Sync`, and a remove with `FileInput.Focus`. */
-export interface FileMessages<Message> {
-  readonly onChange: (files: ReadonlyArray<File>) => Message
-  readonly onRemove: (file: File) => Message
-}
-
-// The application owns the list. The input forgets what it was given, so
-// `Sync` writes the list back into it and a surrounding form submits what the
-// list shows; the trigger is the input's `label`, so a press on it opens the
-// browser's dialog with no script between.
-export const fileInputMultiple = <Message>(
-  style: NamedStyle<typeof FileInputSlots>,
-  files: ReadonlyArray<File>,
-  messages: FileMessages<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  FileInput.view(
-    {
-      id: 'preview-attachments',
-      name: 'attachments',
-      label: 'Attach files',
-      description: 'Images only, any number.',
-      accept: ['image/*'],
-      multiple: true,
-      files,
-      onChange: messages.onChange,
-      onRemove: messages.onRemove,
-      words: { remove: 'Take {name} off' },
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region file-input-required
-// A single file replaces the last pick. `required` is the browser's own, and
-// `invalid` with a `description` says why the form would not submit.
-export const fileInputRequired = <Message>(
-  style: NamedStyle<typeof FileInputSlots>,
-  files: ReadonlyArray<File>,
-  messages: FileMessages<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  FileInput.view(
-    {
-      id: 'preview-statement',
-      name: 'statement',
-      label: 'Choose a statement',
-      description:
-        files.length === 0 ? 'A CSV file is required.' : 'One file; choosing again replaces it.',
-      accept: ['.csv', 'text/csv'],
-      required: true,
-      invalid: files.length === 0,
-      files,
-      onChange: messages.onChange,
-      onRemove: messages.onRemove,
-      style,
-    },
-    h,
-  )
 // #endregion
 

@@ -1,5 +1,5 @@
 /**
- * The file input previews, broken in turn: `pnpm mutate
+ * The slider and segmented previews, broken in turn: `pnpm mutate
  * examples/site/test/fields.mutations.ts`.
  */
 const tests = ['examples/site/test/fields.test.ts']
@@ -12,21 +12,6 @@ const mutation = (name: string, find: string, replace: string) => ({
 })
 
 export default [
-  mutation(
-    'a single file picker keeps every pick',
-    "multiple: example === 'multiple',",
-    'multiple: true,',
-  ),
-  mutation(
-    'a remove drops every file of the same name',
-    'held => held !== file',
-    'held => held.name !== file.name',
-  ),
-  mutation(
-    'a remove does not put focus back on the input',
-    '...Command.mapMessages([FileInput.Focus({ id: FILES_ID[example] })], () =>',
-    '...Command.mapMessages([], () =>',
-  ),
   mutation(
     'a moved slider saves as it goes',
     'brightness => ({ ...brightness, value })',
