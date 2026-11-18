@@ -37,13 +37,15 @@ export const budgetsElsewhere =
  * The tests that make a production build of a page or a package. Run beside
  * the rest in one shard, they starved CI's runner of memory until it lost
  * contact with GitHub (PR #564's fourth shard), so on CI they run in the
- * `builds` job (`FOLDKIT_BUILDS=1`) with few workers; locally they stay in
+ * `builds` job (`FOLDKIT_BUILDS=1`) with few workers, or the `prerender` job; locally they stay in
  * `pnpm test`.
  */
 export const buildTests = [
   'examples/**/test/bundle.test.ts',
   'examples/auth/test/{boot,split}.test.ts',
   'scripts/test/{readOnlyPage,publishedBuild}.test.ts',
+  // Prerenders the whole site: 10 of the 12.5 minutes of the shard that held it.
+  'examples/site/test/prerender.test.ts',
 ] as const
 
 /**

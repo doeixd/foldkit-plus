@@ -70,14 +70,45 @@ jobs:
       # so it takes seconds rather than a job of its own.
       - run: pnpm docs:check
 
-  # Sharded: alone it took over ten minutes, the slowest job by four.
-  test:
+  # Sharded by project and by file count: alone it took over ten minutes, and
+  # four shards of both projects together left the one that drew the site's
+  # prerender at 13.5 minutes against 5 for the others (that test has a job of
+  # its own now, `prerender`). The unit shards need no browser, so they skip
+  # its install.
+  unit:
+    name: unit (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `foldkit-domains` is upstream's copy, happy-dom like the rest of these.
+      - run: pnpm test --project unit --project foldkit-domains --shard=${{ matrix.shard }}/3
+
+  # What jsdom cannot check: layout, focus, the caret, in headless Chromium. The
+  # `browser-touch` project is a touch screen from the start and so a page of
+  # its own, but it is eleven files and rides in the shards.
+  browser:
+    name: browser (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
 
@@ -99,10 +130,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
-      # The browser tests (`*.browser.test.ts`) run in headless Chromium.
       - run: pnpm exec playwright install --with-deps chromium
 
-      - run: pnpm test --shard=${{ matrix.shard }}/4
+      - run: pnpm test --project browser --project browser-touch --shard=${{ matrix.shard }}/3
+
+  # The site's prerender test builds every page, which took 10 minutes beside
+  # other tests; it is in `buildTests`, so the shards leave it out.
+  prerender:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      FOLDKIT_BUILDS: '1'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec vitest run --project unit examples/site/test/prerender.test.ts
 
   # The tests that make a production build of a page or a package
   # (`buildTests` in vitest.shared.ts). In the shards they starved the runner
