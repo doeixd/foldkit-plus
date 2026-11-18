@@ -77,6 +77,8 @@ export const Model = Schema.Struct({
   selection: Schema.Record(Schema.String, Schema.String),
   /** What the previews' own controls hold. */
   switched: Schema.Boolean,
+  /** What the Primitives gallery's search box holds. */
+  primitiveQuery: Schema.String,
   /** What the Primitives gallery's `Resize` example last reported. */
   observed: Schema.Struct({ width: Schema.Number, height: Schema.Number }),
   /** The previews with state of their own: tabs, a dialog, a slider and the rest. */
@@ -115,6 +117,8 @@ export const Message = defineMessageUnion({
   FoundThemeAddress: { query: Schema.String },
   PickedVariant: { axis: Schema.String, value: Schema.String },
   ToggledSwitch: { on: Schema.Boolean },
+  /** The text the Primitives gallery's search box holds. */
+  FilteredPrimitives: { query: Schema.String },
   /** What the `Resize` and `Autofocus` Mounts of the Primitives gallery send. */
   Resized: { width: Schema.Number, height: Schema.Number },
   Focused: {},
@@ -395,6 +399,10 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       Object.hasOwn(model.selection, axis) && model.selection[axis] === value
         ? { model }
         : { model: modifyFields(model, { selection: picked => ({ ...picked, [axis]: value }) }) },
+    FilteredPrimitives: ({ query }) =>
+      query === model.primitiveQuery
+        ? { model }
+        : { model: modifyFields(model, { primitiveQuery: () => query }) },
     ToggledSwitch: ({ on }) =>
       on === model.switched ? { model } : { model: modifyFields(model, { switched: () => on }) },
     GotWidget: ({ message }) => foldWidget(model, message),
@@ -615,6 +623,7 @@ export const initial: Model = placements.initial({
   addressRead: false,
   selection: {},
   switched: false,
+  primitiveQuery: '',
   observed: { width: 0, height: 0 },
   widgets: Widgets.initial,
   examples: Examples.initial,
@@ -656,6 +665,7 @@ const planOf = (withMeta: boolean) =>
       App.model.copied,
       App.model.selection,
       App.model.switched,
+      App.model.primitiveQuery,
       App.model.observed,
       App.model.widgets,
       App.model.examples,

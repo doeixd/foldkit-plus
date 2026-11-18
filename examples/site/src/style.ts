@@ -680,14 +680,17 @@ export const SiteStyle = slots(
     // The packages, shelf by shelf, a card each.
     // Each shelf opens with a rule across and a heading of its own, so the
     // four read as parts of the list rather than as labels on their cards.
-    shelf: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: t.space.md,
-      marginBlockStart: t.space.xl,
-      paddingBlockStart: t.space.lg,
-      borderBlockStart: rule,
-    },
+    shelf: [
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.md,
+        marginBlockStart: t.space.xl,
+        paddingBlockStart: t.space.lg,
+        borderBlockStart: rule,
+      },
+      Style.nest('&[hidden]', { display: 'none' }),
+    ],
     shelfHead: { display: 'flex', flexDirection: 'column', gap: '0.25rem' },
     shelfTitle: {
       margin: '0',
@@ -700,6 +703,90 @@ export const SiteStyle = slots(
       { margin: '0', fontSize: '0.9375rem', color: t.text.muted },
       Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
     ],
+    // A family's primitives, one row each under a hairline: the name, what it
+    // is for, the form it takes. The subpath is the family's, said once above.
+    primitives: {
+      margin: '0',
+      padding: '0',
+      listStyle: 'none',
+      borderBlockStart: rule,
+    },
+    primitive: Style.slot({ capability: Capability.Focusable }, [
+      {
+        display: 'grid',
+        gridTemplateColumns: 'minmax(9rem, 14rem) minmax(0, 1fr) auto',
+        alignItems: 'baseline',
+        gap: `${t.space['2xs']} ${t.space.md}`,
+        paddingBlock: t.space.sm,
+        borderBlockEnd: rule,
+        color: 'inherit',
+        textDecoration: 'none',
+      },
+      Style.pseudo(':hover', { background: t.surface.subtle }),
+      focus,
+      // A phone: the name and the form on one line, what it is for under them.
+      Style.media(PHONE, { gridTemplateColumns: 'minmax(0, 1fr) auto' }),
+      Style.at(
+        `@media ${PHONE}`,
+        Style.nest('> :nth-child(2)', { gridColumn: '1 / -1', gridRow: '2' }),
+      ),
+    ]),
+    primitiveName: {
+      fontFamily: t.font.mono,
+      fontSize: '0.8125rem',
+      fontWeight: t.weight.medium,
+      color: t.text.overt,
+    },
+    primitiveAbout: [
+      { fontSize: '0.875rem', lineHeight: '1.5', color: t.text.muted },
+      Style.nest('code', { fontFamily: t.font.mono, fontSize: '0.85em', color: t.text.default }),
+    ],
+    primitiveForm: { ...mono, color: t.text.subtle, fontSize: '0.6875rem', whiteSpace: 'nowrap' },
+    search: [
+      {
+        font: 'inherit',
+        fontSize: '0.875rem',
+        boxSizing: 'border-box',
+        inlineSize: '100%',
+        maxInlineSize: '24rem',
+        padding: `${t.space.xs} ${t.space.sm}`,
+        border: rule,
+        borderRadius: t.radius.md,
+        background: t.surface.base,
+        color: t.text.overt,
+      },
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
+    ],
+    // A family's examples: a small label, then each as a title, a line, the
+    // running example on a framed stage, and its source whole beneath.
+    examples: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space.lg,
+      marginBlockStart: t.space.md,
+    },
+    examplesLabel: { ...mono, margin: '0', color: t.text.subtle },
+    example: { display: 'flex', flexDirection: 'column', gap: t.space.sm, minWidth: '0' },
+    demo: [
+      {
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.xs,
+        padding: t.space.lg,
+        border: rule,
+        borderRadius: t.radius.lg,
+        background: t.surface.base,
+        color: t.text.default,
+        minWidth: '0',
+        overflowWrap: 'anywhere',
+      },
+      Style.nest('p', { margin: '0' }),
+    ],
+    none: { margin: '0', color: t.text.muted, fontSize: '0.9375rem' },
     cards: {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fill, minmax(14.5rem, 1fr))',
