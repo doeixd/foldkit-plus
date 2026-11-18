@@ -48,7 +48,7 @@ export default example({
   state: {
     Model: Schema.Struct({ uploads: Uploads.Model }),
     Message,
-    init: () => ({ model: { uploads: Uploads.init({ id: 'progress' }) } }),
+    init: () => ({ model: { uploads: Uploads.init({ id: 'toasts-progress' }) } }),
     update: (model, message) =>
       Message.match(message, {
         Started: () => {

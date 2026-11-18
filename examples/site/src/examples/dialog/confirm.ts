@@ -13,7 +13,7 @@ export default example({
   title: 'Confirm',
   slots: DialogSlots,
   recipe: Recipes.Dialog,
-  state: Bundles.Dialog.with({ id: 'confirm', isAnimated: true }),
+  state: Bundles.Dialog.with({ id: 'delete-dialog', isAnimated: true }),
   view: ({ style, model, onMessage, h }) =>
     h.div(
       [],

@@ -5,6 +5,7 @@
 const bundles = 'packages/mixins-ui/test/overlayBundles.test.ts'
 const revise = 'packages/mixins-ui/test/toastRevise.test.ts'
 const toast = 'packages/mixins-ui/test/toast.browser.test.ts'
+const overlays = 'packages/mixins-ui/test/overlays.browser.test.ts'
 const stack = 'packages/mixins-ui/test/toastStack.test.ts'
 
 export default [
@@ -14,6 +15,35 @@ export default [
       { file: '../src/bundles/dialog.ts', find: 'dismissible === false &&', replace: 'false &&' },
     ],
     tests: [bundles],
+  },
+  {
+    name: 'a dialog that is not dismissible closes on Escape and the backdrop in a browser',
+    edits: [
+      { file: '../src/bundles/dialog.ts', find: 'dismissible === false &&', replace: 'false &&' },
+    ],
+    tests: [overlays],
+  },
+  {
+    name: 'a Dialog Bundle drops isAnimated, so its exit is a cut',
+    edits: [
+      {
+        file: '../src/bundles/dialog.ts',
+        find: 'UiDialog.init(config)',
+        replace: 'UiDialog.init({ ...config, isAnimated: false })',
+      },
+    ],
+    tests: [overlays],
+  },
+  {
+    name: 'a Popover Bundle drops isAnimated, so its exit is a cut',
+    edits: [
+      {
+        file: '../src/bundles/popover.ts',
+        find: 'UiPopover.init(args)',
+        replace: 'UiPopover.init({ ...args, isAnimated: false })',
+      },
+    ],
+    tests: [overlays],
   },
   {
     name: 'a countdown with no duration is placed anyway',
@@ -58,9 +88,9 @@ export default [
     edits: [
       {
         file: '../src/toast.ts',
-        find: 'h.OnClick(onMessage(Message.Dismissed({ id: entry.id }))),\n                      ]),\n                      [label],',
+        find: 'h.OnClick(onMessage(Message.Dismissed({ id: entry.id }))),\n                        ]),\n                        [label],',
         replace:
-          'h.OnClick(onMessage(Message.PressedAction({ id: entry.id, index: 1 }))),\n                      ]),\n                      [label],',
+          'h.OnClick(onMessage(Message.PressedAction({ id: entry.id, index: 1 }))),\n                        ]),\n                        [label],',
       },
     ],
     tests: [toast],
@@ -74,6 +104,11 @@ export default [
         replace: '',
       },
     ],
+    tests: [toast],
+  },
+  {
+    name: 'two toast buttons or more stay beside the words',
+    edits: [{ file: '../src/recipes/toast.ts', find: "flexBasis: '100%',", replace: '' }],
     tests: [toast],
   },
   {

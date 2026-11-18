@@ -19,7 +19,7 @@ const titles = {
 // helper. The stack's countdown, hold and swipe are the component's.
 const App = Bundle.compose({}).pipe(
   Bundle.withMessages({ Raised: { type: Schema.Literals(types) } }),
-  Bundle.withChild('toasts', Bundles.Toast, { args: { id: 'types' }, onOut: Bundle.ignore }),
+  Bundle.withChild('toasts', Bundles.Toast, { args: { id: 'toasts-types' }, onOut: Bundle.ignore }),
 )
 
 export default example({

@@ -145,6 +145,7 @@ export const Toast = Style.recipeFor(ToastSlots)({
       Style.self({
         display: 'flex',
         alignItems: 'flex-start',
+        flexWrap: 'wrap',
         gap: ref.space.sm,
         boxSizing: 'border-box',
         padding: ref.space.md,
@@ -274,6 +275,13 @@ export const Toast = Style.recipeFor(ToastSlots)({
         alignItems: 'center',
         gap: ref.space.xs,
       }),
+      // Two buttons or more take a row of their own under the words, the close button
+      // staying at the top corner: `order` moves them, so the markup keeps one order.
+      Style.pseudo('[data-count]:not([data-count="1"])', {
+        flexBasis: '100%',
+        justifyContent: 'flex-end',
+        order: '2',
+      }),
     ),
     cancel: component(
       Style.self({
@@ -318,6 +326,7 @@ export const Toast = Style.recipeFor(ToastSlots)({
       Style.self({
         display: 'inline-grid',
         flex: 'none',
+        order: '1',
         inlineSize: '1.5rem',
         blockSize: '1.5rem',
         padding: ref.space['2xs'],

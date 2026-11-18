@@ -932,29 +932,41 @@ export const view = <ParentMessage>(
         ...(entry.actions.length === 0 && Option.isNone(entry.cancel)
           ? []
           : [
-              h.div(builders.actions.attrs(), [
-                ...entry.actions.map((action, index) =>
-                  h.button(
-                    builders.action.attrs([
-                      h.Type('button'),
-                      h.OnClick(onMessage(Message.PressedAction({ id: entry.id, index }))),
-                    ]),
-                    [action.label],
-                  ),
-                ),
-                ...Option.match(entry.cancel, {
-                  onNone: () => [],
-                  onSome: label => [
-                    h.button(
-                      builders.cancel.attrs([
-                        h.Type('button'),
-                        h.OnClick(onMessage(Message.Dismissed({ id: entry.id }))),
-                      ]),
-                      [label],
+              h.div(
+                builders.actions.attrs([
+                  // How many buttons: the recipe gives two or more a row of their own.
+                  h.DataAttribute(
+                    'count',
+                    String(
+                      entry.actions.length +
+                        Option.match(entry.cancel, { onNone: () => 0, onSome: () => 1 }),
                     ),
-                  ],
-                }),
-              ]),
+                  ),
+                ]),
+                [
+                  ...entry.actions.map((action, index) =>
+                    h.button(
+                      builders.action.attrs([
+                        h.Type('button'),
+                        h.OnClick(onMessage(Message.PressedAction({ id: entry.id, index }))),
+                      ]),
+                      [action.label],
+                    ),
+                  ),
+                  ...Option.match(entry.cancel, {
+                    onNone: () => [],
+                    onSome: label => [
+                      h.button(
+                        builders.cancel.attrs([
+                          h.Type('button'),
+                          h.OnClick(onMessage(Message.Dismissed({ id: entry.id }))),
+                        ]),
+                        [label],
+                      ),
+                    ],
+                  }),
+                ],
+              ),
             ]),
         h.button(
           builders.close.attrs([

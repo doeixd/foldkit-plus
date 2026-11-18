@@ -21,7 +21,7 @@ export default example({
   title: 'A long body',
   slots: DialogSlots,
   recipe: Recipes.Dialog,
-  state: Bundles.Dialog.with({ id: 'terms', isAnimated: true }),
+  state: Bundles.Dialog.with({ id: 'terms-dialog', isAnimated: true }),
   view: ({ style, model, onMessage, h }) =>
     h.div(
       [],

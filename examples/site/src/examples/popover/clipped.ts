@@ -8,7 +8,7 @@ export default example({
   title: 'In a clipped card',
   slots: PopoverSlots,
   recipe: Recipes.Popover,
-  state: Bundles.Popover.with({ id: 'clipped', isAnimated: true }),
+  state: Bundles.Popover.with({ id: 'share-clipped', isAnimated: true }),
   view: ({ style, model, onMessage, h }) =>
     h.div(
       [

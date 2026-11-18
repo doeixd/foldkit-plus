@@ -91,7 +91,7 @@ export const Timer = Style.recipeFor(TimerSlots)({
             minInlineSize: '2ch',
             paddingInline: ref.space.xs,
             borderRadius: ref.radius.md,
-            background: ref.surface.muted,
+            background: ref.surface.subtle,
             textAlign: 'center',
           }),
         ),

@@ -9,7 +9,7 @@ export default example({
   slots: PopoverSlots,
   recipe: Recipes.Popover,
   pins: { arrow: 'none' },
-  state: Bundles.Popover.with({ id: 'no-arrow', isAnimated: true }),
+  state: Bundles.Popover.with({ id: 'share-no-arrow', isAnimated: true }),
   view: ({ style, model, onMessage, h }) =>
     h.submodel({
       slotId: model.id,

@@ -12,7 +12,7 @@ const types = ['info', 'success', 'warning', 'error'] as const
 // same markup, so nothing in the view changes.
 const App = Bundle.compose({}).pipe(
   Bundle.withMessages({ Raised: { type: Schema.Literals(types) } }),
-  Bundle.withChild('toasts', Bundles.Toast, { args: { id: 'rich' }, onOut: Bundle.ignore }),
+  Bundle.withChild('toasts', Bundles.Toast, { args: { id: 'toasts-rich' }, onOut: Bundle.ignore }),
 )
 
 export default example({

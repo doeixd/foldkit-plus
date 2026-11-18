@@ -630,7 +630,14 @@ test('several actions and a cancel: an action says its own value, the cancel onl
       expect(found.map(button => button.textContent)).toEqual(['Undo', 'Open', 'Later', ''])
       return found
     })
-    const [undo, open, later] = buttons
+    const [undo, open, later, close] = buttons
+    // Three buttons take a row of their own under the words, the close button at the corner.
+    expect(undo!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      close!.getBoundingClientRect().bottom,
+    )
+    expect(later!.getBoundingClientRect().right).toBeLessThanOrEqual(
+      close!.getBoundingClientRect().right + 1,
+    )
     // Each button reads its own fill under the pointer: a hover that changes nothing is a dead button.
     for (const button of [undo!, open!, later!]) {
       await userEvent.hover(document.getElementById('acted')!)
