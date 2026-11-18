@@ -146,8 +146,6 @@ export type ToastExample = typeof ToastExample.Type
 /** The checkbox group examples, each with alerts of its own. */
 export const AlertsExample = Schema.Literals(['alerts', 'described', 'select-all', 'invalid'])
 export type AlertsExample = typeof AlertsExample.Type
-export const NotesExample = Schema.Literals(['grow', 'count', 'reply'])
-export type NotesExample = typeof NotesExample.Type
 
 /** A menu drawn open from the start, its enter already over: the gallery shows its rows unasked. */
 const shownMenu = (menu: Menu.Model): Menu.Model => ({
@@ -275,8 +273,6 @@ export const Model = Schema.Struct({
   brandPopover: UiPopover.Model,
   /** The search fields, the toolbar and the file pickers. */
   fields: Fields.Model,
-  /** What each textarea example holds. */
-  notes: Schema.Record(NotesExample, Schema.String),
   /** The chat previews: the answer liked, the failed message retried, the words streamed. */
   answerLiked: Schema.Boolean,
   chatRetried: Schema.Boolean,
@@ -374,7 +370,6 @@ export const Message = defineMessageUnion({
   OpenedSheet: { example: SheetExample },
   ClosedSheet: { example: SheetExample },
   GotCopy: { message: ClipboardMessage },
-  TypedNote: { example: NotesExample, value: Schema.String },
   TurnedLevel: { value: Schema.Number },
   MovedBudget: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotBrand: { message: ColorPicker.Message },
@@ -599,7 +594,6 @@ export const initial: Model = {
   }),
   brandPopover: UiPopover.init({ id: 'preview-brand-popover', contentFocus: true }),
   fields: Fields.init(),
-  notes: { grow: '', count: 'Arriving Thursday, two nights.', reply: '' },
   answerLiked: false,
   chatRetried: false,
   streamed: 6,

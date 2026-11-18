@@ -115,8 +115,6 @@ import {
   SwitchSlots,
   Table,
   TableSlots,
-  Textarea,
-  TextareaSlots,
   Toast,
   ToastSlots,
   ToastView,
@@ -181,128 +179,6 @@ export const AlertStyle = forSlots(AlertSlots)(Recipes.Alert({}))
 export const CardStyle = forSlots(CardSlots)(Recipes.Card({}))
 
 export const InputStyle = forSlots(InputSlots)(Recipes.Input({}))
-
-// #region textarea
-export const TextareaStyle = forSlots(TextareaSlots)(Recipes.Textarea({}))
-
-export const textarea = (style: NamedStyle<typeof TextareaSlots>, h: HtmlBuilder<never>): Html =>
-  Textarea.view(
-    {
-      id: 'message',
-      rows: 3,
-      placeholder: 'What should we know?',
-      style,
-      draw: (resolved, h) =>
-        h.div([], [h.label(resolved.label, ['Message']), h.textarea(resolved.textarea)]),
-    },
-    h,
-  )
-// #endregion
-
-/** What a textarea holds, and the Message that writes it. */
-export interface Note<Message> {
-  readonly value: string
-  readonly onType: (value: string) => Message
-}
-
-// #region textarea-grow
-// `resize: 'auto'` (the default): two lines empty, a line more with each
-// line written, and from six lines on it scrolls.
-export const textareaGrow = <Message>(
-  style: NamedStyle<typeof TextareaSlots>,
-  note: Note<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Textarea.field(
-    {
-      id: 'notes',
-      label: 'Notes',
-      field: FieldValidation.NotValidated({ value: note.value }),
-      changed: note.onType,
-      rows: 2,
-      maxRows: 6,
-      placeholder: 'Write a line, then another…',
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region textarea-fixed
-// Pinned: `Recipes.Textarea({ resize: 'vertical' })`. Four lines whatever
-// the text, and the reader drags the corner for more; `resize: 'none'` holds it.
-export const textareaFixed = (
-  style: NamedStyle<typeof TextareaSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  Textarea.view(
-    {
-      id: 'terms',
-      rows: 4,
-      value:
-        'Terms\n\n1. You keep what you write.\n2. We keep it safe.\n3. Either of us may end this.',
-      readOnly: true,
-      style,
-      draw: (resolved, h) =>
-        h.div([], [h.label(resolved.label, ['Terms']), h.textarea(resolved.textarea)]),
-    },
-    h,
-  )
-// #endregion
-
-// #region textarea-count
-// With a `maxLength` the field counts toward it, in the warning's ink from
-// nine tenths and the error's at the limit, and the count describes the field.
-export const textareaCount = <Message>(
-  style: NamedStyle<typeof TextareaSlots>,
-  note: Note<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Textarea.field(
-    {
-      id: 'request',
-      label: 'Requests for your host',
-      field: FieldValidation.NotValidated({ value: note.value }),
-      changed: note.onType,
-      maxLength: 60,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region textarea-footer
-// A `footer` draws the field as one box, its controls under the text and
-// the count at their end; the ring shows while the text has focus.
-export const ComposerButtonStyle = forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
-)
-export const SendStyle = forSlots(ButtonSlots)(Recipes.Button({ size: 'sm' }))
-
-export const textareaFooter = <Message>(
-  style: NamedStyle<typeof TextareaSlots>,
-  note: Note<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Textarea.field(
-    {
-      id: 'reply',
-      label: 'Reply',
-      field: FieldValidation.NotValidated({ value: note.value }),
-      changed: note.onType,
-      rows: 2,
-      maxRows: 8,
-      maxLength: 500,
-      placeholder: 'Write a reply…',
-      footer: [
-        Button.view({ label: 'Attach', style: ComposerButtonStyle }, h),
-        Button.view({ label: 'Send', disabled: note.value.trim() === '', style: SendStyle }, h),
-      ],
-      style,
-    },
-    h,
-  )
-// #endregion
 
 // #region select-basic
 export const SelectStyle = forSlots(SelectSlots)(Recipes.Select({}))

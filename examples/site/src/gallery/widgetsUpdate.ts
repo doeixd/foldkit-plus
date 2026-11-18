@@ -793,10 +793,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         title: 'Thread archived',
         action: { label: 'Undo', value: 'undo' },
       }),
-    TypedNote: ({ example, value }) =>
-      model.notes[example] === value
-        ? { model }
-        : { model: modifyFields(model, { notes: notes => ({ ...notes, [example]: value }) }) },
     CopiedAnswer: () => ({
       model,
       commands: Command.mapMessages([InputCopy.Copy({ text: ANSWER.join(' ') })], message =>
