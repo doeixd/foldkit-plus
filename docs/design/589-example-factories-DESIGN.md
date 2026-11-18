@@ -1289,3 +1289,12 @@ M1 to M7 and P1 to P3 are recorded in §4. Still open:
 - **The Bundle hides the fold**: mapping the child's Commands, and returning the given Model on a no-op. The README shows the hand-written fold once, as what the placement compiles to.
 - **Inferred coverage.** The 73% is the research's reading of titles. A component built to its rows may find a reference example does something its title did not say.
 - **Scope.** The honest size is about 70 agent-batches; §8 gives the cut order that keeps 0.41.0 whole at about 25.
+
+## F8 menus and navigation: as built (breadcrumb)
+
+- **The Menu is a value in a namespace of its own, `BreadcrumbMenu.make({ max, menu })`** (`breadcrumb/menu.ts`, exported from the package index like `FileUploadProgress`), not a re-export from `Breadcrumb`: a re-export from `breadcrumb.ts` would import Menu again. The design's `Breadcrumb.menuCollapse` is therefore `BreadcrumbMenu.make`.
+- **`CollapseFeature<Message>` is `{ max, draw(input, h) }`**, where `input` is `{ label, ellipsis, hidden, builders }`; `BreadcrumbExpand` stays the second arm of `collapse` (`onExpand`), the two told apart by `draw`'s presence (each declares the other's key `?: undefined`). `Breadcrumb.hiddenRows` (rows of a Menu of hidden steps) is public because the feature module needs it and `menuRows` is its composition.
+- **Words**: `words: { label, more, ellipsis }`, defaults `Breadcrumb.words`. The `label` option and `collapse.label` are gone; the ellipsis mark `…` is a word, so a feature draws `ellipsis` as given.
+- **Measured** (`breadcrumbBuild.test.ts`, the package built as published, a page minified): 68.4 kB brotli for a page of the trail, 96.2 kB for one that also passes `BreadcrumbMenu.make` (27.8 kB, more than the 21.1 kB estimate). The 68.4 kB is mostly outside Menu and is the next thing to measure.
+- **The ellipsis slot draws no underline**, so a fold of your own may be an anchor.
+- Not built yet: `steps[].after`, `steps[].labelHidden`, the recipe `item` axis (looks: plain, pill, button). Left for a later pass.
