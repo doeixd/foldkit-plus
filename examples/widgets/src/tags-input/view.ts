@@ -27,7 +27,7 @@ export const TagsForm = SlotView.forMessages<Message>()
       TagsInput.view(
         {
           model: model.topics,
-          onMessage: message => Message.GotTopics({ message }),
+          onMessage: message => Message.GotTopicsMessage({ message }),
           label: 'Topics',
           placeholder: 'Add a topic',
           name: NAME,

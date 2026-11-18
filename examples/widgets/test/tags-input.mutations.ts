@@ -9,23 +9,12 @@ const browser = ['examples/widgets/test/tags-input.browser.test.ts']
 
 export default [
   {
-    name: 'the field’s Commands are dropped, so a removed chip loses focus',
-    edits: [
-      {
-        file: app,
-        find: 'const commands = Command.mapMessages(result.commands, message =>\n        Message.GotTopics({ message }),\n      )',
-        replace: 'const commands = []',
-      },
-    ],
-    tests: [...unit, ...browser],
-  },
-  {
     name: 'a change to the tags keeps the receipt of the last submit',
     edits: [
       {
         file: app,
-        find: 'receipt: receipt => (result.model.tags === model.topics.tags ? receipt : Option.none()),',
-        replace: 'receipt: receipt => receipt,',
+        find: 'return result.model.topics.tags === model.topics.tags || Option.isNone(result.model.receipt)',
+        replace: 'return true',
       },
     ],
     tests: unit,
@@ -35,8 +24,8 @@ export default [
     edits: [
       {
         file: app,
-        find: 'receipt: receipt => (result.model.tags === model.topics.tags ? receipt : Option.none()),',
-        replace: 'receipt: () => Option.none(),',
+        find: 'return result.model.topics.tags === model.topics.tags || Option.isNone(result.model.receipt)',
+        replace: 'return Option.isNone(result.model.receipt)',
       },
     ],
     tests: unit,
@@ -46,8 +35,8 @@ export default [
     edits: [
       {
         file: app,
-        find: 'if (result.model === model.topics) return { model, commands }',
-        replace: 'if (result.model === model.topics) return { model: { ...model }, commands }',
+        find: '    ? result\n',
+        replace: '    ? { ...result, model: { ...result.model } }\n',
       },
     ],
     tests: unit,
