@@ -1336,7 +1336,7 @@ its last star part way. `onClear` is sent by a press on the star already chosen;
 `showValue` shows the rating beside the stars, said as `words` or `labels` say it. Home and End on a
 star are a key route that focuses the first or last star by its id
 (`<id>-<value>`) and chooses it, as the arrows would; a read-only or disabled
-rating draws no route. `name` defaults to `id`. Tone `error` is `danger`.
+rating draws no route. `name` defaults to `id`. Its tones are the shared `Recipes.Tone` vocabulary.
 
 ### ColorPicker
 

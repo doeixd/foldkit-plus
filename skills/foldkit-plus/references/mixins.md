@@ -12,7 +12,7 @@ from outside. Everything resolves to ordinary Foldkit attributes. No new runtime
 | --- | --- |
 | `foldkit-mixins` | Slot contracts, Style, Behavior, SlotView, the resolver, diagnostics |
 | `foldkit-mixins-surface` | Binds a `foldkit-surface` projection + Message subset to a SlotView |
-| `foldkit-mixins-ui` | Names `@foldkit/ui` components' attribute bundles as Slots (`resolve`) |
+| `foldkit-mixins-ui` | About ninety widgets: adapters naming `@foldkit/ui` components' bundles as Slots (`resolve`), views of its own, `Recipes` (look), `Bundles` (state for `foldkit-bundle`), `X.configure` (drawing stated once) |
 
 **Use when** a view should be restyled/decorated where it is *used*, with checks: design-system
 styling of a feature view, tooltips, analytics, ARIA decoration, focus/resize Mounts, variants.
@@ -28,7 +28,7 @@ attributes are simpler.
 - Focus when a row, clear button or toast goes away: `FocusRecovery.behavior` with `parts` (`primitives.md`); Alert and Card name their dismiss button with `recoveryPart`, Toast has `keepFocus`. When a dialog's, tour's or floating panel's opener is gone: `Dialog.focusReturn`, `Tour.focusReturn`, `FloatingPanel.focusReturn`.
 - A keyboard-reorderable list, arrows over a board, a value edited where it shows: `Reorder`, `SpatialNavigation`, `InlineEdit` in `primitives.md`.
 - A search box `SearchField`; a file picker whose files you own `FileInput`; files that are checked, listed, previewed, dropped and sent `FileUpload` (a Submodel drop zone is `FileDrop`); a toolbar `Toolbar`; a command palette `Command`; a menu bar `Menubar`; a select `Listbox` or `Picker`; tags `TagsInput`; a number `NumberField`.
-- The same style, words or mixins at every call of a widget: `Button.configure({ base: { style }, presets: { danger: { style } } })` returns `{ view }`, called as `AppButton.view({ label, preset: 'danger', onClick }, h)`. Order: `base`, the named preset, the call; `mixins` concatenate and `words` merge word by word (a word is text with `{blanks}`, never a function: `TagsInput`'s are `remove`, `mark`, `repeat`, `empty`, `full`), any other option is replaced; an option given as `undefined` is not given. A preset holds only options with no Message, state or drawing (`style`, `mixins`, `words`; `type` for Button; `placeholder`, `addOnBlur`, `direction` for TagsInput), and may hold a Behavior with a Mount. An undeclared `preset` is a type error (and throws for a name computed at run time); with no `presets`, `preset` is no option. Shipped on `Button`, `TagsInput`, `Combobox`, `Listbox`, `Picker`, `CascadeSelect`, `Calendar`, `DatePicker` and `FileUpload` (which returns `{ view, parts }`) so far.
+- The same style, words or mixins at every call of a widget: `Button.configure({ base: { style }, presets: { danger: { style } } })` returns `{ view }`, called as `AppButton.view({ label, preset: 'danger', onClick }, h)`. Order: `base`, the named preset, the call; `mixins` concatenate and `words` merge word by word (a word is text with `{blanks}`, never a function: `TagsInput`'s are `remove`, `mark`, `repeat`, `empty`, `full`), any other option is replaced; an option given as `undefined` is not given. A preset holds only options with no Message, state or drawing (`style`, `mixins`, `words`; `type` for Button; `placeholder`, `addOnBlur`, `direction` for TagsInput), and may hold a Behavior with a Mount. An undeclared `preset` is a type error (and throws for a name computed at run time); with no `presets`, `preset` is no option. Shipped on about fifty widgets (`Button`, `Tabs`, `Table`, `Card`, `Combobox`, `Calendar`, …); `FileUpload` returns `{ view, parts }` and `Avatar`, `Card`, `Item` and `ChatMessage` `{ view, group }`. `Dialog`, `Popover`, `Tooltip`, `HoverIntent` and `FileDrop` stay adapters. A feature (code a page rarely needs) is a value you pass, never a boolean: `fluid: Table.fluid`, `kind: Chart.bars`, `zoom: ImageCropper.zoomSlider()`, `collapse: BreadcrumbMenu.make({ max, menu })`, `picture: Avatar.picture({ … })`, `choice: Combobox.many(items)`, `mixins: Tabs.fluid`; the widget imports only its type. Worked examples under "One factory for each part" in section 5.
 - A style is typed by its Slots contract (`NamedStyle<typeof XSlots>`): `Style.forSlots(CalendarSlots)(…)` is refused where `DatePickerSlots` is asked, even if both name a `root`; a style for fewer slots than the widget has is accepted.
 - A stateful widget placed with `foldkit-bundle` (a peer dependency, loaded only by `Bundles`): `Bundle.withChild('labels', Bundles.TagsInput, { args: { id, tags?, delimiter?, max? } })`, then `TagsInput.view({ model: model.labels, onMessage: message => App.Message.GotLabelsMessage({ message }), label }, h)`. A Bundle is headless and its args are `init`'s options. `Bundles.Combobox` (args `{ id, multiple?, nullable?, immediate?, animated?, modal?, selectInputOnFocus? }`) holds upstream's interaction Model only; the value is the application's field, folded in `onOut` through a `Choice`: `const City = Combobox.one(cities)`, `onOut: out => model => ({ model: { ...model, city: City.picked(model.city, out) } })`. `Combobox.one` holds `Option<Item>`, `Combobox.many` a list (place with `multiple: true`), `Combobox.text` the typed text; `Choice<Item, Value>` (`items`, `empty`, `picked`, `chosen`, `resting`, `multiple`) is an interface an application may implement, and `ChoiceChange` is `Selected { value } | ClearedSelection | Typed { text }`. Draw it with `Combobox.view({ model: model.cityBox, onMessage, label, choice: City, value: model.city, filter: Combobox.contains, option: item => ({ label, description?, icon?, trailing?, content?, disabled? }), clear: true }, h)`; further options are `items`, `groupBy`, `heading`, `placeholder`, `empty`, `chips`, `buttonContent`, `disabled`, `invalid`, `readOnly`, `name`, `openOnFocus`, `anchor`, `words` (`clear`, `remove`), `style`, `mixins`, and `Combobox.configure({ base, presets })` binds those with no Message, value or drawing. The Bundle's `text` arg is the field's starting text for a value chosen already. `Bundles.Listbox` (args `{ id, multiple?, animated?, modal?, orientation? }`) and `Bundles.Picker` are the same shape over `Listbox.view` and `Picker.view` (`Listbox.one`, `Listbox.many`, `Picker.one`; `Picker` takes a choice of at most one item); their `clear` is `{ onClear, content? }`, a Message of the application's, which empties the field with `choice.picked(value, ChoiceChange.ClearedSelection())`. `Bundles.Calendar` holds its own value, the `Calendar.Selection`, and reports `Changed { selection }`, answered with `onOut` or `Bundle.ignore`: `Bundle.withChild('trip', Bundles.Calendar, { args: { id: 'trip', today, selection: Calendar.empty('Range'), months: 2 }, onOut: Bundle.ignore })`, then `Calendar.view({ model: model.trip, onMessage, label }, h)` and `Calendar.rangeOf(model.trip.selection)`. `Bundles.DatePicker` is the same in a popover (args as the Calendar's without `months`, plus `animated` and `closes: 'complete' | 'manual'`), drawn with `DatePicker.view({ model, onMessage, label, trigger: selection => string, name?, disabled?, anchor?, style?, calendarStyle?, …the Calendar's options }, h)`; outside a Bundle its state is `DatePicker.init`, `DatePicker.fold` (not `update`, which is the adapter's `update(selection, closes?)`) and `DatePicker.set`. For one or two widgets on a page, folding `X.update` by hand is smaller: the first placement costs about 6 kB brotli.
 - Overlay Bundles: `Bundles.Dialog` (args `{ id, isAnimated?, focusSelector?, dismissible? }`; `dismissible: false` drops the `RequestedClose` of Escape, the backdrop and the close button, so only `helpers.close` closes it: an alert dialog), `Bundles.Sheet` and `Bundles.Drawer` (`Sheet.init`'s and `Drawer.init`'s options), `Bundles.Popover`, `Bundles.Tooltip` (`showDelay` in milliseconds) and `Bundles.HoverIntent` (`openDelay`, `closeDelay`), each with `helpers` (`open`, `close`) and, for the upstream ones, `Opened` and `Closed` OutMessages. The drawing stays the adapter's (`h.submodel` with `UiDialog.view` and `Dialog.toView`), since what a dialog holds is content. `Dialog.overlayBars`, `keyboard`, `focusReturn`, `Drawer.keepFocus` and `Toast.keepFocus` are files of their own, so a page that never names one drops its Mount; a Drawer imports no Sheet.
@@ -548,6 +548,104 @@ mechanisms, not components: compose them into your own slots, resolving icon `ur
 `Icons.glyph` masks an element that already exists. `Icon.view({ icon, label?, key? })` is the
 element: it draws the `IconData` into its glyph as inline SVG, with `foldkit-media`'s `Icon.draw`. Never set an
 icon through `innerHTML`.
+
+### One factory for each part
+
+A widget's look, state, drawing and features are each given in one place; a variation is a call, never a copied file.
+
+**State: `Bundles.X`.** The widget's `init` and `update` packaged for `foldkit-bundle` (a peer dependency, loaded only by a page that reads `Bundles`), with `init`'s options as the args. It holds no view: draw the placed Model with the widget's `view`. About forty widgets have one.
+
+```ts standalone
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { Bundle } from 'foldkit-bundle'
+import { Bundles, TagsInput } from 'foldkit-mixins-ui'
+
+const App = Bundle.compose({}).pipe(
+  Bundle.withChild('labels', Bundles.TagsInput, { args: { id: 'labels', max: 3 } }),
+)
+type Model = typeof App.Model.Type
+type Message = typeof App.Message.Type
+
+export const labelsField = (model: Model, h: HtmlBuilder<Message>): Html =>
+  TagsInput.view(
+    {
+      model: model.labels,
+      onMessage: message => App.Message.GotLabelsMessage({ message }),
+      label: 'Labels, up to three',
+    },
+    h,
+  )
+```
+
+**Drawing: `X.configure({ base, presets })`.** Returns the widget's `view` with the options that hold no Message, state or drawing (style, words, mixins, structural choices) given once. Order: `base`, the named preset, the call.
+
+```ts standalone
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Style } from 'foldkit-mixins'
+import { Button, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+
+const Message = defineMessageUnion({ Saved: {}, Deleted: {} })
+type Message = typeof Message.Type
+
+export const AppButton = Button.configure({
+  base: {
+    style: Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' })),
+  },
+  presets: { danger: { style: Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' })) } },
+})
+
+export const actions = (h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
+  AppButton.view({ label: 'Save', onClick: Message.Saved() }, h),
+  AppButton.view({ label: 'Delete', preset: 'danger', onClick: Message.Deleted() }, h),
+]
+```
+
+**Words and passed values.** Fixed text is `words`: an object of strings with `{blanks}` (`'Remove {tag}'`), merged word by word over the widget's `X.words`, never a function. A feature is a value you pass: the widget imports only its type, so a page that never names it never ships it.
+
+```ts standalone
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Style } from 'foldkit-mixins'
+import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
+
+const Message = defineMessageUnion({ Noop: {} })
+type Message = typeof Message.Type
+
+interface Product {
+  readonly name: string
+  readonly price: string
+}
+
+export const products = (rows: ReadonlyArray<Product>, h: HtmlBuilder<Message>): Html =>
+  Table.view(
+    {
+      columns: [
+        { header: 'Product', rowHeader: true, value: row => row.name },
+        { header: 'Price', numeric: true, value: row => row.price },
+      ],
+      rows,
+      rowKey: row => row.name,
+      fluid: Table.fluid,
+      words: { selectAll: 'Choose every product' },
+      style: Style.forSlots(TableSlots)(Recipes.Table({ density: 'compact' })),
+    },
+    h,
+  )
+```
+
+**Look: `Recipes.X(selection)`, `.extend`, `.add`.** `.extend` adjusts a value the recipe has; `.add` gives it an axis or a value it lacks (a value it already has throws `mixins:recipe-value-exists`).
+
+```ts standalone
+import { Style } from 'foldkit-mixins'
+import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+
+const Buttons = Recipes.Button.add({
+  tone: { brand: { button: Style.self({ background: 'rebeccapurple', color: 'white' }) } },
+})
+
+export const Brand = Style.forSlots(ButtonSlots)(Buttons({ tone: 'brand', variant: 'solid' }))
+```
 
 ### States
 
