@@ -14,6 +14,7 @@ import {
   ButtonSlots,
   FileUpload,
   FileUploadSlots,
+  IconSlots,
   TagsInput,
   TagsInputSlots,
 } from '../src/index.js'
@@ -25,6 +26,7 @@ const Message = defineMessageUnion({
 type Message = typeof Message.Type
 declare const h: HtmlBuilder<Message>
 
+const glyphs = Style.forSlots(IconSlots)({ glyph: Style.class('glyph') })
 const quiet = Style.forSlots(ButtonSlots)({ button: Style.class('quiet') })
 const chips = Style.forSlots(TagsInputSlots)({ root: Style.class('chips') })
 
@@ -130,8 +132,9 @@ test('FileUpload’s configured view and parts keep the Message, and a preset ho
   FileUpload.configure({ base: { model } })
   // @ts-expect-error `sort` reads the Model each draw, so it stays at the call.
   FileUpload.configure({ base: { sort: { input: model, mixin: zone.mixin } } })
-  // @ts-expect-error a Button style on a FileUpload.
-  FileUpload.configure({ base: { style: quiet } })
+  // @ts-expect-error an Icon style on a FileUpload. (Pieces are optional, so a style sharing any slot
+  // name with the contract, as a Button's `description` does, is accepted: pick one that shares none.)
+  FileUpload.configure({ base: { style: glyphs } })
   // @ts-expect-error `drop` is no word.
   FileUpload.configure({ base: { words: { drop: 'Drop here' } } })
 })

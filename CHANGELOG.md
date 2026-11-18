@@ -45,6 +45,7 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
 
 ### Added
 
+- `foldkit-mixins-ui`: `Icon.view` takes `glyph` (a drawing of your own in the box: initials, a count, an emoji; an icon is data or a glyph, never both) and `mark` (a Badge or a dot on the box's corner, in the new `mark` slot) (#589). `Recipes.Icon` gains the sizes `xs` and `xl`, a `surface` (`outline`, `soft`, `solid`, `raised`: the box becomes a tile twice the icon's size around it), a `tone` (`accent`, `neutral`, `info`, `success`, `warning`, `danger`) and a `shape` (`circle`, `square`). `IconSlots` gains `mark`.
 - `foldkit-mixins-ui`: `Recipes.Spinner`'s `tone` gains `info`, `success`, `warning` and `danger`, the status tones of `Recipes.Tone` (`danger` is the palette's error family) (#589).
 - `foldkit-mixins-ui`: `Label.view` takes `required` and `optional` (a marker after the text: a star the screen reader skips, or `(optional)` that is read; a field is one or the other, and the types refuse both), `disabled` and `invalid` (`data-disabled`, `data-invalid`, for the recipe's dimmed and error looks; they mark the label only), `trailing` (a drawing beside the label, in a row with it, so an interactive one is not part of what names the control) and `words` (`Label.words`: `required`, `optional`) (#589). `LabelSlots` gains `marker`, `trailing` and `root`.
 - `foldkit-mixins-ui`: `Kbd.view`'s `key` and `Kbd.combo`'s `keys` may be a drawing (`string | Html`), for an arrow or a modifier's glyph; the recipe sizes an `svg` in a key to the letters' height (#589).

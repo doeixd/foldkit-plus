@@ -39,10 +39,10 @@ describe('the showcases', () => {
       { name: 'tone', values: ['accent', 'neutral', 'danger'], initial: 'accent' },
       {
         name: 'variant',
-        values: ['solid', 'outline', 'ghost', 'primary', 'icon'],
+        values: ['solid', 'outline', 'ghost', 'primary', 'link', 'icon'],
         initial: 'solid',
       },
-      { name: 'size', values: ['sm', 'md', 'lg'], initial: 'md' },
+      { name: 'size', values: ['xs', 'sm', 'md', 'lg'], initial: 'md' },
     ])
   })
 

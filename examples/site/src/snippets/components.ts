@@ -173,11 +173,8 @@ import {
   CodeBlockSlots,
   Fieldset,
   FieldsetSlots,
-  Icon,
-  IconSlots,
 } from 'foldkit-mixins-ui'
 
-import { icons } from '../view/iconData.js'
 import { outline } from './icon.js'
 import { forSlots, slots } from './theme.js'
 
@@ -6473,23 +6470,6 @@ export const picker = <Message>(
       sheet: [PickerSheetStyle.mixin],
     },
     h,
-  )
-// #endregion
-
-// #region icon-basic
-export const IconStyle = forSlots(IconSlots)(Recipes.Icon({}))
-
-// An icon is data (here from `icons.json`, built by the icons plugin). With a
-// `label` it is an image that has a name; without one it is ornament and a
-// screen reader skips it. Two copies of one icon on a page need a `key`.
-export const icon = (style: NamedStyle<typeof IconSlots>, h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ display: 'flex', alignItems: 'center', gap: '1rem' })],
-    [
-      Icon.view({ icon: icons.check, label: 'Saved', style }, h),
-      Icon.view({ icon: icons.link, label: 'Linked', key: 'link', style }, h),
-      h.span([], ['Copy ', Icon.view({ icon: icons.copy, key: 'copy', style }, h)]),
-    ],
   )
 // #endregion
 

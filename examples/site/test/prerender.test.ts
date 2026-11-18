@@ -397,7 +397,13 @@ describe('the generated site', () => {
           ['states', 'Invalid and disabled', 'invalid: true'],
         ],
       ],
-      ['toolbar', [['basic', 'Formatting', 'Toolbar.view(']]],
+      [
+        'toolbar',
+        [
+          ['basic', 'Formatting', 'Toolbar.view('],
+          ['configure', 'Configure once', 'Toolbar.configure('],
+        ],
+      ],
       [
         'file-input',
         [
@@ -493,8 +499,9 @@ describe('the generated site', () => {
         'kbd',
         [
           ['key', 'A key', "Kbd.view({ key: 'Enter', style }, h)"],
-          ['combo', 'A combination', "Kbd.combo({ keys: ['⌘', 'K'], style }, h)"],
-          ['joined', 'Joined by words', "joiner: '+'"],
+          ['combo', 'Combinations', "Kbd.combo({ keys: ['⌘', 'K'], style }, h)"],
+          ['glyphs', 'Keys that are drawings', 'h.AriaLabel('],
+          ['shortcut', 'Beside a button', 'trailing: Kbd.combo('],
         ],
       ],
       [
@@ -556,8 +563,8 @@ describe('the generated site', () => {
       page('/components/badge').querySelectorAll('main section [data-size="page"]'),
       preview => preview.textContent,
     )
-    expect(words).toHaveLength(4)
-    expect(new Set(words).size).toBe(4)
+    expect(words).toHaveLength(7)
+    expect(new Set(words).size).toBe(7)
   })
 
   test('the toggle buttons say which are pressed', () => {
@@ -604,7 +611,7 @@ describe('the generated site', () => {
   test('a key combination is one kbd holding a kbd per key', () => {
     const combo = page('/components/kbd').getElementById('combo')?.closest('section')
     const keys = Array.from(combo?.querySelectorAll('[data-size="page"] kbd > kbd') ?? [])
-    expect(keys.map(key => key.textContent)).toEqual(['⌘', 'K'])
+    expect(keys.map(key => key.textContent)).toEqual(['⌘', 'K', 'Ctrl', 'Shift', 'P'])
   })
 
   test('the file drop is a label around its hidden file input', () => {
@@ -753,13 +760,8 @@ describe('the generated site', () => {
       'true',
       'false',
       'false',
-      'true',
-      'false',
-      'false',
-      'false',
     ])
-    expect(bar?.querySelector('[role="group"]')?.getAttribute('aria-label')).toBe('Alignment')
-    expect(bar?.querySelectorAll('[role="separator"]')).toHaveLength(2)
+    expect(bar?.querySelectorAll('[role="separator"]')).toHaveLength(1)
     const link = buttons.at(-1)
     expect(link?.textContent).toBe('Link')
     expect(link?.hasAttribute('disabled') || link?.getAttribute('aria-disabled') === 'true').toBe(

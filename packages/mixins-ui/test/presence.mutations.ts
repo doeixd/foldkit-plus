@@ -62,8 +62,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/icon.ts',
-        find: "        inlineSize: ladder('icon'),\n        blockSize: ladder('icon'),",
-        replace: "        inlineSize: '1rem',\n        blockSize: '1rem',",
+        find: "'--_fk-icon-size': ladder('icon'),",
+        replace: "'--_fk-icon-size': '1rem',",
       },
     ],
     tests: ['packages/mixins-ui/test/ladder.browser.test.ts'],

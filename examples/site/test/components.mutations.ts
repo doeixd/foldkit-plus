@@ -291,7 +291,7 @@ export default [
     name: 'the ornamental icon is given a name',
     edits: [
       {
-        file: '../src/snippets/components.ts',
+        file: '../src/examples/icon/basic.ts',
         find: "Icon.view({ icon: icons.copy, key: 'copy', style }, h)",
         replace: "Icon.view({ icon: icons.copy, key: 'copy', label: 'Copy', style }, h)",
       },
