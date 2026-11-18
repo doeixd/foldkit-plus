@@ -597,7 +597,7 @@ export const command = <Message>(
           active: state.active,
           onActive: messages.onActive,
           onRun: messages.onRun,
-          empty: 'No commands found.',
+          words: { empty: 'No commands found.' },
           hints: [
             { keys: ['↑', '↓'], label: 'to navigate' },
             { keys: ['↵'], label: 'to select' },

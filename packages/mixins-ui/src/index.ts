@@ -257,6 +257,7 @@ export type {
   CommandPage,
   CommandRoute,
   CommandView,
+  CommandWords,
 } from './command.js'
 export type { CheckboxGroupOption, CheckboxGroupView } from './checkboxGroup.js'
 export { CheckboxSlots } from './checkbox.js'

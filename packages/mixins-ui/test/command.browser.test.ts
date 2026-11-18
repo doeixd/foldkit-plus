@@ -141,7 +141,7 @@ const mount = (loading = false) => {
                             onActive: value => ({ _tag: 'Moved', value }),
                             onRun: value => ({ _tag: 'Ran', value }),
                             page: { trail: model.pages, onBack: { _tag: 'Back' } },
-                            ...(loading ? { loading: 'Loading…' } : {}),
+                            loading,
                             hints: [
                               { keys: ['↑', '↓'], label: 'to move' },
                               { keys: ['↵'], label: 'to run' },

@@ -17,9 +17,12 @@ import { keyShortcuts } from './menu.js'
 import type { MixinList } from './resolve.js'
 
 import { CommandSlots } from './command/slots.js'
+import { words as defaultWords, type CommandWords } from './command/words.js'
+import { wordsOf } from './words.js'
 
 export { CommandSlots } from './command/slots.js'
 export { overlayBars } from './command/overlayBars.js'
+export { words, type CommandWords } from './command/words.js'
 
 /** Keys pressed together, as drawn: `['⌘', 'N']`. */
 export type Keys = readonly [string, ...ReadonlyArray<string>]
@@ -90,13 +93,13 @@ export interface CommandView<Value extends string, Message> {
   readonly onActive: (value: Value) => NoInfer<Message>
   /** The Message that runs a row. */
   readonly onRun: (value: Value) => NoInfer<Message>
-  /** What the list says when nothing matches. Default "No results." */
-  readonly empty?: string | undefined
   /**
-   * Given, the list is loading what the query asks for: it says this, and is
-   * `aria-busy`. The rows it holds still show, as cmdk's do.
+   * The list is loading what the query asks for: it says `words.loading`, and
+   * is `aria-busy`. The rows it holds still show, as cmdk's do.
    */
-  readonly loading?: string | undefined
+  readonly loading?: boolean | undefined
+  /** The fixed text: `empty` when nothing matches, `loading` while loading. */
+  readonly words?: Partial<CommandWords> | undefined
   /** The page the menu is on, when the application has stepped into one. */
   readonly page?: CommandPage<Message> | undefined
   /**
@@ -189,6 +192,8 @@ export const view = <Value extends string, Message>(
   const rowId = (value: Value) => `${options.id}-${value}`
   const listId = `${options.id}-list`
   const crumbsId = `${options.id}-page`
+  const loading = options.loading === true
+  const said = wordsOf(defaultWords, options.words)
   // What the field and the highlight hold since this drawing: a key handler reads the view it
   // was drawn with, so a character typed, or a row moved to, before the next frame would be
   // lost to the next key (Backspace deciding on an empty field, two ArrowDowns moving one row).
@@ -291,7 +296,7 @@ export const view = <Value extends string, Message>(
       h.Id(listId),
       h.Role('listbox'),
       h.AriaLabel(options.label),
-      ...(options.loading === undefined ? [] : [h.AriaBusy(true)]),
+      ...(loading ? [h.AriaBusy(true)] : []),
     ]),
     groups.map((group, index) =>
       h.keyed('div')(
@@ -312,10 +317,8 @@ export const view = <Value extends string, Message>(
   // Outside the listbox, whose children are its options, and always drawn,
   // so a region already in the page announces what is put in it.
   const status = h.div(builders.status.attrs([h.Role('status')]), [
-    ...(options.loading === undefined ? [] : [h.div(builders.loading.attrs(), [options.loading])]),
-    ...(groups.length === 0 && options.loading === undefined
-      ? [h.div(builders.empty.attrs(), [options.empty ?? 'No results.'])]
-      : []),
+    ...(loading ? [h.div(builders.loading.attrs(), [said.loading])] : []),
+    ...(groups.length === 0 && !loading ? [h.div(builders.empty.attrs(), [said.empty])] : []),
   ])
   // The list stands in a frame beside its bar, whether or not `overlayBars`
   // runs: a bar no Mount marks scrollable is not drawn by the style. Hidden
@@ -416,7 +419,7 @@ export const keepActiveInView = [
 /** What a Command is given once: its wording, hints, look and mixins. The query, rows and Messages are each use's. */
 export type CommandPreset = Pick<
   CommandView<string, never>,
-  'placeholder' | 'empty' | 'hints' | 'style' | 'kbd'
+  'placeholder' | 'words' | 'hints' | 'style' | 'kbd'
 > & { readonly mixins?: MixinList<never> }
 
 /**

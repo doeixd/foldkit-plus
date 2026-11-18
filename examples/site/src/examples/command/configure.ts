@@ -21,13 +21,13 @@ const Message = defineMessageUnion({
 const AppPalette = Command.configure({
   base: {
     placeholder: 'Type a command or search',
-    empty: 'Nothing matches',
+    words: { empty: 'Nothing matches' },
     hints: [
       { keys: ['↑', '↓'], label: 'to move' },
       { keys: ['↵'], label: 'to run' },
     ],
   },
-  presets: { files: { placeholder: 'Find a file', empty: 'No such file' } },
+  presets: { files: { placeholder: 'Find a file', words: { empty: 'No such file' } } },
 })
 
 const groups = [

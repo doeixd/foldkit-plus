@@ -317,8 +317,8 @@ describe('Command routes', () => {
 
 describe('Command.configure', () => {
   const App = Command.configure({
-    base: { placeholder: 'Type a command', empty: 'Nothing here', style },
-    presets: { files: { placeholder: 'Find a file', empty: 'No files' } },
+    base: { placeholder: 'Type a command', words: { empty: 'Nothing here' }, style },
+    presets: { files: { placeholder: 'Find a file', words: { empty: 'No files' } } },
   })
   const asked = (more: {
     readonly preset?: 'files'
