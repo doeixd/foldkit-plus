@@ -6,7 +6,7 @@ This file is the core every agent must know. Area-specific hazards live in `docs
 
 - Workspace: pnpm, `packages/*` and `examples/*`.
 - Build: `tsdown`. Tests: `vitest`. Types: `tsc -b`. Format: `oxfmt` (`examples/site`'s API extractor keeps `prettier` as a library).
-- CI runs `format:check`, `typecheck`, `test`, `e2e`, and `demo` on push and PR. Run them before pushing; `pnpm e2e` starts servers and a browser, so run it when a change reaches an example with a server.
+- CI (`.github/workflows/ci.yml`) runs lint, typecheck, the unit and browser tests in shards, the production builds, e2e, the performance budgets, `demo`, `pack` and the scaffolds on every PR and on pushes to `main`. Before pushing, run what your change can break (see "A brief that does not make its agent wait"), not the whole list; `pnpm e2e` starts servers and a browser, so run a file of it when a change reaches an example with a server.
 - `PLAN.md` is git-ignored and tracks in-progress work.
 
 ## Commit cadence
