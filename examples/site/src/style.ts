@@ -1024,6 +1024,11 @@ export const SiteStyle = slots(
       }),
       Style.nest('a', { color: t.text.muted, textDecoration: 'none', lineHeight: '1.4' }),
       Style.nest('a:hover', { color: t.text.overt }),
+      // The section the reader is in, marked by the scrollspy (`spy.ts`).
+      Style.nest('a[aria-current="location"]', {
+        color: t.text.overt,
+        fontWeight: t.weight.medium,
+      }),
       Style.nest('.depth-3', { paddingInlineStart: t.space.sm }),
       Style.nest('p', { margin: `${t.space.md} 0 0`, color: t.text.subtle }),
       Style.media(NO_OUTLINE, { display: 'none' }),

@@ -369,6 +369,8 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
     ChosePageScheme: message => asShell(model, message),
     FoundPageScheme: message => asShell(model, message),
     AppliedPageScheme: message => asShell(model, message),
+    SpiedSection: message => asShell(model, message),
+    MarkedSection: message => asShell(model, message),
     PressedCopyLink: () => ({
       model,
       commands: [CopyLink({ query: queryOf(addressIn(model)) })],
@@ -543,6 +545,7 @@ export const subscriptions = placements.subscriptions(
       ),
       codeCopy: Shell.codeCopy,
     })),
+    Shell.sectionSpy,
     Subscription.lift(WidgetsUpdate.subscriptions)<Model, Message>({
       read: model => Option.some(model.widgets),
       toParentMessage: message => Message.GotWidget({ message }),
@@ -627,6 +630,7 @@ export const initial: Model = placements.initial({
   scheme: 'system',
   pack: shippedPack,
   pageScheme: 'system',
+  spied: Option.none(),
 }).model
 
 /** The page at `path`, as the library knows it; the browser never runs this. */
@@ -659,6 +663,7 @@ const planOf = (withMeta: boolean) =>
       App.model.direction,
       App.model.scheme,
       App.model.pageScheme,
+      App.model.spied,
       App.model.dark,
       App.model.ticks,
       App.model.online,

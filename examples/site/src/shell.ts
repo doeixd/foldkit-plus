@@ -6,7 +6,7 @@
  * theme creator are a second application (`main.ts`) that adds their state to
  * this one's, so a visitor to a guide loads none of their code.
  */
-import { Effect, Match, Option, Schema } from 'effect'
+import { Effect, Equal, Match, Option, Schema, Stream } from 'effect'
 import { Command, Dom, Subscription, Update } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -21,6 +21,7 @@ import { Projection, Surface } from 'foldkit-surface'
 import { allSubsites } from './catalog.js'
 import { COPY_ATTRIBUTE, type Library } from './library.js'
 import { Example, Page, PageScheme } from './page.js'
+import { markSection, sections } from './spy.js'
 import { Body } from './view/shellLayout.js'
 
 // MODEL
@@ -37,6 +38,8 @@ export const fields = {
   example: Example,
   copied: Schema.Boolean,
   pageScheme: PageScheme,
+  /** The section the reader is in, read from the scroll for the sidebar's links. */
+  spied: Schema.Option(Schema.String),
   ...Dark.fields,
   ...Ticks.fields,
 }
@@ -58,6 +61,8 @@ export const cases = {
   ChosePageScheme: { scheme: PageScheme },
   FoundPageScheme: { scheme: PageScheme },
   AppliedPageScheme: {},
+  SpiedSection: { section: Schema.Option(Schema.String) },
+  MarkedSection: {},
   ...Dark.cases,
   ...Ticks.cases,
 }
@@ -121,6 +126,17 @@ export const ReadPageScheme = Command.define('ReadPageScheme', {
   execute: Effect.sync(() => Message.FoundPageScheme({ scheme: currentScheme() })),
 })
 
+/** Marks the sidebar link of the section the reader is in, where the static region drew it. */
+export const MarkSection = Command.define('MarkSection', {
+  args: { section: Schema.Option(Schema.String) },
+  messages: [Message.MarkedSection],
+  execute: ({ section }) =>
+    Effect.sync(() => {
+      markSection(section)
+      return Message.MarkedSection()
+    }),
+})
+
 // UPDATE
 
 type UpdateReturn = Update.Return<Model, Message>
@@ -153,6 +169,14 @@ export const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         ? { model }
         : { model: modifyFields(model, { pageScheme: () => scheme }) },
     AppliedPageScheme: () => ({ model }),
+    SpiedSection: ({ section }) =>
+      Equal.equals(section, model.spied)
+        ? { model }
+        : {
+            model: modifyFields(model, { spied: () => section }),
+            commands: [MarkSection({ section })],
+          },
+    MarkedSection: () => ({ model }),
   })
 
 export const update = placements.update(updateOwn)
@@ -177,8 +201,23 @@ export const codeCopy = Subscription.persistentEntry(
   }),
 )
 
+/** The reader's place among the page's sections, restarted with each page so a new page starts unmarked. */
+export const sectionSpy = Subscription.make<Model, Message>()(entry => ({
+  sectionSpy: entry(
+    { path: Schema.String },
+    {
+      modelToDependencies: model => ({ path: model.path }),
+      dependenciesToStream: () =>
+        sections.pipe(Stream.map(section => Message.SpiedSection({ section }))),
+    },
+  ),
+}))
+
 export const subscriptions = placements.subscriptions(
-  Subscription.make<Model, Message>()(() => ({ codeCopy })),
+  Subscription.aggregate(
+    Subscription.make<Model, Message>()(() => ({ codeCopy })),
+    sectionSpy,
+  ),
 )
 
 // INIT
@@ -191,6 +230,7 @@ export const initial: Model = placements.initial({
   example: 'view',
   copied: false,
   pageScheme: 'system',
+  spied: Option.none(),
 }).model
 
 /** The page at `path`, as the library knows it; the browser never runs this. */
@@ -235,6 +275,7 @@ const planOf = (withMeta: boolean) =>
       App.model.example,
       App.model.copied,
       App.model.pageScheme,
+      App.model.spied,
       App.model.dark,
       App.model.ticks,
     ],
