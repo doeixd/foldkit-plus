@@ -291,7 +291,7 @@ export default [
     name: 'the fieldset’s description is drawn without its id',
     edits: [
       {
-        file: '../src/snippets/components.ts',
+        file: '../../../packages/mixins-ui/src/fieldset.ts',
         find: 'h.p(description, [',
         replace: 'h.p([], [',
       },
@@ -302,10 +302,9 @@ export default [
     name: 'the refused code is not marked invalid',
     edits: [
       {
-        file: '../src/snippets/components.ts',
-        find: `value: codes.refused,
-          invalid: true,`,
-        replace: `value: codes.refused,`,
+        file: '../src/examples/otp-field/states.ts',
+        find: `label: 'Refused code', invalid: true`,
+        replace: `label: 'Refused code'`,
       },
     ],
     tests: ['examples/site/test/showcases.test.ts'],

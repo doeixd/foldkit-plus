@@ -115,6 +115,12 @@ const defined = new Set([
   // Written by the views: an avatar's hue from its name, a table row skeleton's column count.
   'avatar-hue',
   'skeleton-columns',
+  // Written on a list slider's `between` thumbs by its view, the only inputs the rule reading them matches.
+  'slider-from',
+  'slider-to',
+  // A lone bar's `inline` and `block` lengths, written only when given; every read has a fallback.
+  'skeleton-inline',
+  'skeleton-block',
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `card-hover-${part}`),
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `table-hover-${part}`),
   // Written on the tablist by `Tabs.fluid`'s Measure and FluidHover.
