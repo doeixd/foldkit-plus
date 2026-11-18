@@ -1,7 +1,7 @@
 import { Empty, EmptySlots, Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { forSlots } from '../../snippets/theme.js'
-import type { Invoice } from './invoices.js'
+import type { Invoice } from '../../snippets/invoices.js'
 
 const Quiet = forSlots(EmptySlots)(Recipes.Empty({ size: 'compact' }))
 

@@ -1,6 +1,6 @@
 import { Chart, ChartSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { Message, state, visitors } from './state.js'
+import { Message, state, visitors } from '../../snippets/chartState.js'
 
 // `stack` puts the series on one another per category; the axis spans the stack.
 export default example({

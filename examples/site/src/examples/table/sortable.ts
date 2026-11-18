@@ -3,7 +3,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { invoices, money, type Invoice } from './invoices.js'
+import { invoices, money, type Invoice } from '../../snippets/invoices.js'
 
 const Key = Schema.Literals(['id', 'status', 'amount'])
 const Model = Schema.Struct({

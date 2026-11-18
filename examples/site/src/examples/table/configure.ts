@@ -1,7 +1,7 @@
 import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { forSlots } from '../../snippets/theme.js'
-import { invoices, money, type Invoice } from './invoices.js'
+import { invoices, money, type Invoice } from '../../snippets/invoices.js'
 
 // Stated once, at module scope: the look, the words and the highlight every
 // table of the application starts from, and a preset over it.

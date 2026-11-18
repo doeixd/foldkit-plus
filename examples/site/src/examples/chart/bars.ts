@@ -1,6 +1,6 @@
 import { Chart, ChartSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { Message, state, visitors } from './state.js'
+import { Message, state, visitors } from '../../snippets/chartState.js'
 
 // The kind is a value you import: a page that draws bars ships bars. The lit
 // point is the chart's own Model, folded with `Chart.update`.

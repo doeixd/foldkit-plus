@@ -1,6 +1,6 @@
 import { Chart, ChartSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { Message, state, visitors } from './state.js'
+import { Message, state, visitors } from '../../snippets/chartState.js'
 
 // `curve: 'step'` runs level to the next category before it rises or falls,
 // and `markers: 'always'` puts a dot on every point, not only the lit one.

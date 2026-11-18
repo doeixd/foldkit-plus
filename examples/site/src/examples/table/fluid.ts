@@ -1,6 +1,6 @@
 import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { invoices, money, type Invoice } from './invoices.js'
+import { invoices, money, type Invoice } from '../../snippets/invoices.js'
 
 // One highlight behind the rows follows the pointer to the nearest one. It is
 // a value you pass: a table that does not draws none and ships none of it.

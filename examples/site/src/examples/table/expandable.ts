@@ -3,7 +3,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { invoices, money, type Invoice } from './invoices.js'
+import { invoices, money, type Invoice } from '../../snippets/invoices.js'
 
 const Model = Schema.Struct({ open: Schema.Array(Schema.String) })
 const Message = defineMessageUnion({ Opened: { id: Schema.String, expanded: Schema.Boolean } })

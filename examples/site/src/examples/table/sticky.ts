@@ -1,6 +1,6 @@
 import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { invoices, money, type Invoice } from './invoices.js'
+import { invoices, money, type Invoice } from '../../snippets/invoices.js'
 
 // The look is the recipe's: a sticky heading, striped rows, compact density.
 // These three are held whatever the controls above pick.

@@ -1,6 +1,6 @@
 import { Chart, ChartSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { Message, state, visitors } from './state.js'
+import { Message, state, visitors } from '../../snippets/chartState.js'
 
 interface Lollipops {
   readonly categories: ReadonlyArray<string>

@@ -1,6 +1,6 @@
 import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { invoices, money, type Invoice } from './invoices.js'
+import { invoices, money, type Invoice } from '../../snippets/invoices.js'
 
 const total = invoices.reduce((sum, invoice) => sum + invoice.amount, 0)
 

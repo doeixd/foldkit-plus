@@ -1,6 +1,6 @@
 import { Chart, ChartSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { Message, state } from './state.js'
+import { Message, state } from '../../snippets/chartState.js'
 
 // `hole: 0` is a pie: the slices meet at the centre, and no total is drawn.
 export default example({

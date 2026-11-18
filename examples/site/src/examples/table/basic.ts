@@ -1,6 +1,6 @@
 import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { invoices, money, type Invoice } from './invoices.js'
+import { invoices, money, type Invoice } from '../../snippets/invoices.js'
 
 // A table is columns and rows; a column's `value` is text or markup. The row
 // header (`th scope="row"`) is what a screen reader names a row by.
