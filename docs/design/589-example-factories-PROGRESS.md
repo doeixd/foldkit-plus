@@ -35,18 +35,19 @@ Each family did its breaking changes first, then options, Bundles, `configure` a
 | F7 overlays: dialog (with alert dialog), sheet, drawer, popover, tooltip, hover-card, toast | done | 36c57b415 | No `Dialog.view` or `Popover.view` (the note put them in 0.42.0), so dialog examples run 50 to 87 lines and the example length limit rose from 52 to 90. Non-modal Dialog. Old page state not deleted. |
 | F8 menus and navigation: breadcrumb, steps, pagination, tabs, menu, context menu, menubar, navigation menu, command | done | f8111984b | Menubar submenus (needs a new Model for the bar). Menu, menubar, navigation-menu and command pages are modules beside old regions. No type tests or build pins for the new Bundles. |
 | F9 layout and disclosure | running | | Sidebar's `make` is phase 3. |
-| F10 data and media | running | | The DataGrid features split is phase 3. |
-| F11 chat | running | | Questionnaire's `make` is phase 3. |
+| F10 data and media: table, chart, progress, meter, code-block, file-input, file-drop, image-cropper, signature-pad, qr-code, marquee | done | bac267981 | No `configure` for the Marquee, ImageCropper, SignaturePad and FileDrop Bundles. SignaturePad has redo and `pointers` only (no replay, export types, shortcuts, `required`). No ImageCropper flip, QR `modules` value or Table `reorder`. Table hover, the chart tooltip, Marquee paused, cropper handles and Progress tones were not captured; only Meter was captured in all four width and scheme pairs. Jev not run on the README and skill diffs (over its budget). The DataGrid features split is phase 3. |
+| F11 chat: thinking-steps, message-scroller, thinking-indicator, questionnaire | done, unverified | 31070333e | No screenshots looked at, no Jev run. The thinking-steps page has two broken in-page links (`#tides`, `#moon`) that fail the prerender test. Questionnaire's `make` is phase 3. |
 | Integration pass 1 | done | 0efdbc873 | #595 fixed (`NamedStyle` branded by its contract, 0830304b1). No page was found carrying a module it does not draw. Eleven bundle ceilings raised by measured amounts; the gallery ceiling is 430,000 and will move again as F9 to F11 land. |
 
 ## The breaking set (must land before the `v0.41.0` tag)
 
 | Change | Status | Commit |
 | --- | --- | --- |
-| `words` as one object per widget | done for F1 to F8; F9 to F11 running | 36c57b415 | |
-| Flags that become passed values: breadcrumb, avatar, card-group, table, image-cropper, chart | breadcrumb, avatar, card-group done; table, image-cropper, chart running (F10) | 4ae203a59 | Breadcrumb alone took 27.8 kB off every trail page. |
+| `words` as one object per widget | done for F1 to F8, F10 and F11; F9 running | 06b1acf10 | |
+| SignaturePad's `Began` carries `pointerType`, not `pen` | done | 65cddfece | |
+| Flags that become passed values: breadcrumb, avatar, card-group, table, image-cropper, chart | done | 098aa0d14 | Breadcrumb alone took 27.8 kB off every trail page. |
 | `Recipes.Badge` as a `recipeFor`; Typography's `level` axis removed | done | 5f4446f38 | |
-| Tone `error` renamed `danger` | alert, badge, rating done; progress running (F10) | cfd4fa9f4 | |
+| Tone `error` renamed `danger` | done (alert, badge, rating, progress) | 4c13b9839 | |
 | One `clear` option: combobox, search-field, cascade-select, listbox, picker | done | 016611c19 | The Combobox adapter's `clearContent`/`clearLabel` rename still waits. |
 | `AppShell.view`'s `main` argument | running (F9) | | |
 | `FileInput.accept` as an array; FileUpload's slot and feature export names | done | 2d38ab852 | |
@@ -95,6 +96,8 @@ An incident on 2026-11-17: a second tree linked into this one's `node_modules` w
 - `Mixin.mapMessages` is missing from `foldkit-mixins`; the Sorting example on the file-upload page waits on it.
 - `cms.e2e.ts` "the body shows what is selected" fails about one local run in ten; cause unknown; it passed on CI snapshots 3 to 5.
 - The domains-plus Worker ceiling is an estimate; CI prints no size when the test passes.
+- The site's prerender test had two failures at bac267981 that no family owns: the scroll-area page's `#native` example (a curly apostrophe in its title) and the thinking-steps page's `#tides` and `#moon` links. The second integration pass takes them.
+- The gallery Model still holds fields the converted pages no longer read (`customers`, `news`, `photo`, `avatarCrop`, `signature`, `drop`, `attachments` and the overlay pages' state); phase 5 deletes them.
 - Several bundle budgets sit within bytes of their ceilings and will need measured raises as the families land.
 
 ## Before the tag
