@@ -5,6 +5,7 @@
  */
 export { AngleSlider } from './angleSlider.js'
 export { Calendar } from './calendar.js'
+export { CascadeSelect } from './cascadeSelect.js'
 export { ColorPicker } from './colorPicker.js'
 export { Combobox } from './combobox.js'
 export { DatePicker } from './datePicker.js'

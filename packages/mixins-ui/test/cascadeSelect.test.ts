@@ -458,7 +458,7 @@ describe('CascadeSelect.view', () => {
   it('clears the value from its button', () => {
     scene(
       init({ id: 'place', value: ['ca', 'qc', 'mtl'] }),
-      { name: 'city', clearable: true },
+      { name: 'city', clear: true },
       Scene.expect(Scene.selector('input[name="city"]')).toHaveAttr('value', 'ca'),
       Scene.click(Scene.role('button', { name: 'Clear' })),
       Scene.Command.resolve(CascadeSelect.FocusTrigger, Message.CompletedFocusTrigger()),
