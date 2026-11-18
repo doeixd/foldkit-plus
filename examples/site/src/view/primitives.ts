@@ -10,12 +10,9 @@ import type { Library } from '../library.js'
 import { Message, type Model } from '../main.js'
 import { examples, type PrimitiveExample } from '../snippets/primitives.js'
 import type { H, Slots } from './layout.js'
+import { row, withCode } from './primitiveRow.js'
 
 const GUIDE = '/primitives'
-
-/** A sentence with `code` in backticks drawn as code. */
-const withCode = (h: H, text: string): ReadonlyArray<Html | string> =>
-  text.split('`').map((part, at) => (at % 2 === 1 ? h.code([], [part]) : part))
 
 /** The rail on the gallery: the guide, and each family. */
 export const primitivesContents = (slots: Slots, h: H): ReadonlyArray<Html> => [
@@ -54,19 +51,6 @@ const exampleBlock = (
     ]),
     h.div(slots.themeCode.attrs(), [SSR.static(example.id, library.primitive(example.id))]),
   ])
-
-/** A primitive as a row of its family's list: name, what it is for, the form it takes. */
-const row = (family: Family, entry: Card, slots: Slots, h: H): Html =>
-  h.li(
-    [],
-    [
-      h.a(slots.primitive.attrs([h.Href(guideOf(family.id))]), [
-        h.span(slots.primitiveName.attrs(), [entry.name]),
-        h.span(slots.primitiveAbout.attrs(), withCode(h, entry.about)),
-        h.span(slots.primitiveForm.attrs(), [entry.form]),
-      ]),
-    ],
-  )
 
 /** Whether a primitive answers the search box: its name, what it says, its form or its module. */
 const matches = (family: Family, entry: Card, query: string): boolean => {

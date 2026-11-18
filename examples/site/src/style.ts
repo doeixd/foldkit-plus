@@ -425,7 +425,7 @@ export const SiteStyle = slots(
     },
     heroTitle: {
       margin: '0',
-      fontSize: Theme.fluidType({ min: '2.25rem', max: '3.5rem' }),
+      fontSize: Theme.fluidType({ min: '2rem', max: '3.5rem' }),
       lineHeight: '1.05',
       letterSpacing: '-0.035em',
       fontWeight: t.weight.semibold,
@@ -442,6 +442,8 @@ export const SiteStyle = slots(
         maxWidth: '38rem',
       },
       Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
+      // A column of 40 characters reads at 1rem; the 1.125rem opening runs ten lines on a phone.
+      Style.media(PHONE, { fontSize: '1rem', lineHeight: '1.55' }),
     ],
     actions: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: t.space.sm },
     primary: Style.slot({ capability: Capability.Focusable }, [
@@ -735,7 +737,7 @@ export const SiteStyle = slots(
       color: t.text.overt,
     },
     shelfAbout: [
-      { margin: '0', fontSize: '0.9375rem', color: t.text.muted },
+      { margin: '0', fontSize: '0.9375rem', lineHeight: '1.5', color: t.text.muted },
       Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
     ],
     // A family's primitives, one row each under a hairline: the name, what it
@@ -759,31 +761,53 @@ export const SiteStyle = slots(
       },
       Style.pseudo(':hover', { background: t.surface.subtle }),
       focus,
-      // A phone: the name and the form on one line, what it is for under them.
-      Style.media(PHONE, { gridTemplateColumns: 'minmax(0, 1fr) auto' }),
+      // A phone: the name and the form on one line, what it is for under them,
+      // in a row tall enough to press (44px) from its padding.
+      Style.media(PHONE, {
+        gridTemplateColumns: 'minmax(0, 1fr) auto',
+        paddingBlock: t.space.md,
+        rowGap: t.space.xs,
+      }),
       Style.at(
         `@media ${PHONE}`,
         Style.nest('> :nth-child(2)', { gridColumn: '1 / -1', gridRow: '2' }),
       ),
     ]),
-    primitiveName: {
-      fontFamily: t.font.mono,
-      fontSize: '0.8125rem',
-      fontWeight: t.weight.medium,
-      color: t.text.overt,
-    },
+    // An identifier may be long (`broadcastMessages`): it breaks where it must.
+    primitiveName: [
+      {
+        fontFamily: t.font.mono,
+        fontSize: '0.8125rem',
+        fontWeight: t.weight.medium,
+        color: t.text.overt,
+        minWidth: '0',
+        overflowWrap: 'anywhere',
+      },
+      Style.media(PHONE, { fontSize: '0.9375rem' }),
+    ],
     primitiveAbout: [
       { fontSize: '0.875rem', lineHeight: '1.5', color: t.text.muted },
-      Style.nest('code', { fontFamily: t.font.mono, fontSize: '0.85em', color: t.text.default }),
+      Style.nest('code', {
+        fontFamily: t.font.mono,
+        fontSize: '0.85em',
+        color: t.text.default,
+        overflowWrap: 'anywhere',
+      }),
+      Style.media(PHONE, { fontSize: '0.9375rem' }),
     ],
-    primitiveForm: { ...mono, color: t.text.subtle, fontSize: '0.6875rem', whiteSpace: 'nowrap' },
+    primitiveForm: [
+      { ...mono, color: t.text.subtle, fontSize: '0.6875rem', whiteSpace: 'nowrap' },
+      Style.media(PHONE, { fontSize: '0.75rem' }),
+    ],
     search: [
       {
         font: 'inherit',
-        fontSize: '0.875rem',
+        // 16px: a smaller field makes a phone zoom in on focus.
+        fontSize: '1rem',
         boxSizing: 'border-box',
         inlineSize: '100%',
         maxInlineSize: '24rem',
+        minBlockSize: '2.75rem',
         padding: `${t.space.xs} ${t.space.sm}`,
         border: rule,
         borderRadius: t.radius.md,
@@ -797,12 +821,15 @@ export const SiteStyle = slots(
     ],
     // A family's examples: a small label, then each as a title, a line, the
     // running example on a framed stage, and its source whole beneath.
-    examples: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: t.space.lg,
-      marginBlockStart: t.space.md,
-    },
+    examples: [
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.lg,
+        marginBlockStart: t.space.md,
+      },
+      Style.media(PHONE, { gap: t.space.md, marginBlockStart: t.space.sm }),
+    ],
     examplesLabel: { ...mono, margin: '0', color: t.text.subtle },
     example: { display: 'flex', flexDirection: 'column', gap: t.space.sm, minWidth: '0' },
     demo: [
@@ -820,6 +847,7 @@ export const SiteStyle = slots(
         overflowWrap: 'anywhere',
       },
       Style.nest('p', { margin: '0' }),
+      Style.media(PHONE, { padding: t.space.md }),
     ],
     none: { margin: '0', color: t.text.muted, fontSize: '0.9375rem' },
     cards: {
