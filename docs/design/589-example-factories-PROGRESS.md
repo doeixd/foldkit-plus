@@ -15,21 +15,40 @@ Status words: **done** (committed, pushed, its own checks green), **running**, *
 | 1.3 | `Bundles`, the `foldkit-bundle` peer, the gate Bundles, options-level views and `configure` | done | b02d8d697 | `Bundles.TagsInput`, `Combobox`, `Calendar`, `DatePicker`, `FileUpload`; options-level `view` and `configure` on Calendar, Combobox and DatePicker; `configure` on Button, TagsInput and FileUpload. All 25 call-with-options rows of the calendar reference table are checked by tests. `ResolvedCaption` gained `YearDropdown` (breaking). `foldkit-bundle` needs a version bump at the end. |
 | 1.4 | The site harness: one module per example, shown whole | done | 0429de335 | Modules and regions mix per page, so pages convert one at a time. One loosely typed seam in `gallery/example.ts`. |
 | 1.5 | The gate: button, tags-input, calendar, date-picker, combobox and the new file-upload page | done, two gaps | 5d3d796dd | All six pages are modules end to end; the old state for them is deleted. Prerender green; adoption e2e counts one heading and one copy of each example after hydration. Gallery first load 410.5 kB against a ceiling moved to 411,500 (file upload is 5.4 kB of it). Example length: 16 of 31 modules are at most 26 lines after imports; compositions run 33 to 65. Gaps: Sorting is not on the file-upload page (needs a way to map a Mixin's Messages in `foldkit-mixins`); the avatar layout has no uploading overlay. A "page drawn twice" in early screenshots was Chrome's full-page capture wrapping past 16,384px. |
-| 2 | The families F1 to F11 | running | | Started 2026-11-18: F1 (buttons and marks), F2 (surfaces and text, with Frame), F8 (menus and navigation). The others follow as these finish; three at a time, for memory. |
+| 2 | The families F1 to F11 | running | | See the family table below. |
 | 3 | `make` for Sidebar and Questionnaire; the DataGrid features split; Chart fills | not started | | Only if P3 passes. |
 | 4 | New widgets: Sortable, time field, Attachment, File Type, Scrollspy, Kanban page, Toggle pages | not started | | Frame is in F2. |
 | 5 | Integration: shared files, README, skill, changelog, generated entries, site state deleted, Jev, CI | not started | | |
+
+## Families (phase 2)
+
+Each family did its breaking changes first, then options, Bundles, `configure` and its website pages as example modules. "Left" lists what its agent did not build or verify.
+
+| Family | Status | Last commit | Left |
+| --- | --- | --- | --- |
+| F1 buttons and marks: badge, button, button-group, toolbar, kbd, icon, spinner, label, separator | done | 6f29a4ec3 | Jev not run on toolbar, kbd, label, spinner, icon. Toolbar's browser and SSR mutations not run. Hover and focus captured for some controls only. |
+| F2 surfaces and text: avatar, card, card-group, item, typography, alert, image, empty, figure, aspect-ratio, skeleton, frame (new) | done | 3de3cb883 | Card elevation `fade`/`stack`, Avatar ring `pulse`/`gradient`, Alert `actions` not built. Hover and focus not captured. |
+| F3 text fields: adornments, input, search-field, number-field, password-input, input-copy, textarea, otp-field, Field shell (new), fieldset | done | 26cc80c98 | Jev not run on search-field, number-field, password-input, input-copy, otp-field. |
+| F4 choice controls: checkbox, checkbox-group, switch, radio-group, segmented, rating, slider, angle-slider, native select | done | e0344c339 | Only rest states looked at. Checkbox group, segmented, slider and angle slider pages are modules beside old regions. |
+| F5 selection popups: listbox, picker, cascade-select | done | 016611c19 | Cascade select: several chosen paths, search, footer, loading level, windowed columns (8 of 21 reference rows). |
+| F6 dates and colour: calendar and date-picker (gate), color-picker, timer | done | 36c57b415 | ColorPicker's priority-3 additions. |
+| F7 overlays: dialog (with alert dialog), sheet, drawer, popover, tooltip, hover-card, toast | done | 36c57b415 | No `Dialog.view` or `Popover.view` (the note put them in 0.42.0), so dialog examples run 50 to 87 lines and the example length limit rose from 52 to 90. Non-modal Dialog. Old page state not deleted. |
+| F8 menus and navigation: breadcrumb, steps, pagination, tabs, menu, context menu, menubar, navigation menu, command | done | f8111984b | Menubar submenus (needs a new Model for the bar). Menu, menubar, navigation-menu and command pages are modules beside old regions. No type tests or build pins for the new Bundles. |
+| F9 layout and disclosure | running | | Sidebar's `make` is phase 3. |
+| F10 data and media | running | | The DataGrid features split is phase 3. |
+| F11 chat | running | | Questionnaire's `make` is phase 3. |
+| Integration pass 1 | done | 0efdbc873 | #595 fixed (`NamedStyle` branded by its contract, 0830304b1). No page was found carrying a module it does not draw. Eleven bundle ceilings raised by measured amounts; the gallery ceiling is 430,000 and will move again as F9 to F11 land. |
 
 ## The breaking set (must land before the `v0.41.0` tag)
 
 | Change | Status | Commit |
 | --- | --- | --- |
-| `words` as one object per widget | partly done | e9fe8a870 | Calendar, Combobox, TagsInput. The rest go with their families. |
-| Flags that become passed values: breadcrumb, avatar, card-group, table, image-cropper, chart | not started | |
-| `Recipes.Badge` as a `recipeFor`; Typography's `level` axis removed | not started | |
-| Tone `error` renamed `danger` | not started | |
-| One `clear` option: combobox, search-field, cascade-select | partly done | d6ec9817f | Combobox at the options-level view; the adapter rename waits on the site page. |
-| `AppShell.view`'s `main` argument | not started | |
+| `words` as one object per widget | done for F1 to F8; F9 to F11 running | 36c57b415 | |
+| Flags that become passed values: breadcrumb, avatar, card-group, table, image-cropper, chart | breadcrumb, avatar, card-group done; table, image-cropper, chart running (F10) | 4ae203a59 | Breadcrumb alone took 27.8 kB off every trail page. |
+| `Recipes.Badge` as a `recipeFor`; Typography's `level` axis removed | done | 5f4446f38 | |
+| Tone `error` renamed `danger` | alert, badge, rating done; progress running (F10) | cfd4fa9f4 | |
+| One `clear` option: combobox, search-field, cascade-select, listbox, picker | done | 016611c19 | The Combobox adapter's `clearContent`/`clearLabel` rename still waits. |
+| `AppShell.view`'s `main` argument | running (F9) | | |
 | `FileInput.accept` as an array; FileUpload's slot and feature export names | done | 2d38ab852 | |
 | `foldkit-bundle` as a peer of `foldkit-mixins-ui` | done | efb186d29 |
 
@@ -64,13 +83,15 @@ Every push to `ui-polish` cancels the run before it, so full readings come from 
 | 2 | b606a2c61 | 11 of 15 passed. Failures: `YearDropdown` in two ported examples (fixed, 1b04a91aa), three budgets (fixed, 091e16249), four formatting-bar tests from the More menu (being fixed). |
 | 3 | 18f81b801 | 13 of 15. Failures: five README snippets (fixed, ab0d627fb), four rotted DatePicker mutation anchors (fixed, b0c1f8e21). |
 | 4 | ab0d627fb | 14 of 15. One unformatted mutation spec (fixed in 0429de335). |
-| 5 | a201c3cb2 | 14 of 15 with the site harness and gate pages in. One failure: `packages/ssr/test/loader.browser.test.ts`, a 3-second real-clock test whose code did not change; rerun pending. |
+| 5 | a201c3cb2 | 15 of 15 after a rerun, with the site harness and gate pages in. The one first-run failure was `packages/ssr/test/loader.browser.test.ts`, a 3-second real-clock test whose code did not change. |
+| 6 | f7d975e35 | 5 of 15, taken while families were mid-change. A stray `/` in `snippets/components.ts` stopped the site building (fixed, dd4a9b4e0) and hid the rest. Integration pass 1 then cleared the known list. |
 
 An incident on 2026-11-17: a second tree linked into this one's `node_modules` was removed and emptied 159 installed packages; the disk was also full. Repaired by a forced reinstall after freeing space; the trap is in `AGENTS.md`.
 
 ## Open findings
 
-- #595: a slot name shared by two contracts lets one's style pass as the other's (type hole in `foldkit-mixins`).
+- #595 is fixed (0830304b1); close it when CI is green.
+- `Dialog.view` and `Popover.view` are not built; the dialog examples are long because of it.
 - `Mixin.mapMessages` is missing from `foldkit-mixins`; the Sorting example on the file-upload page waits on it.
 - `cms.e2e.ts` "the body shows what is selected" fails about one local run in ten; cause unknown; it passed on CI snapshots 3 to 5.
 - The domains-plus Worker ceiling is an estimate; CI prints no size when the test passes.
