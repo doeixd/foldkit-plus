@@ -11,6 +11,48 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Whether anything but prose changed, for the jobs a document cannot break. A
+  # job-level `if` rather than `paths-ignore`: a check that never runs blocks a
+  # merge, a skipped one does not. Always true on main and for a pull request
+  # that touches anything beyond Markdown, `docs/` and the licence. Not `skills/`
+  # (it is shipped, and the `foldkit-plus` package tests read it).
+  #
+  # What a prose change still runs, because it reads the prose: `lint`, `typecheck`
+  # (`docs:check` compiles the snippets in READMEs and `docs/`), `unit` (the guide
+  # tests, `foldkit-plus`'s docs and skill tests, the README fixtures) and
+  # `prerender` (the site builds its guides from them). Everything else is
+  # skipped: browser tests, builds, e2e, perf, postgres, demo, pack and scaffolds.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.files.outputs.code }}
+    steps:
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          code=true
+          if [ "$EVENT" = pull_request ]; then
+            files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate               --jq '.[] | .filename, (.previous_filename // empty)')
+            # An empty list is a failed read, not an empty change.
+            if [ -n "$files" ]; then
+              code=false
+              while IFS= read -r file; do
+                case "$file" in
+                  skills/*) code=true ;;
+                  *.md | docs/* | LICENSE) ;;
+                  *) code=true ;;
+                esac
+              done <<< "$files"
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -102,6 +144,8 @@ jobs:
   # `browser-touch` project is a touch screen from the start and so a page of
   # its own, but it is eleven files and rides in the shards.
   browser:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: browser (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -159,6 +203,8 @@ jobs:
   # (`buildTests` in vitest.shared.ts). In the shards they starved the runner
   # of memory until it lost contact with GitHub; here two at a time.
   builds:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -186,6 +232,8 @@ jobs:
   # suite's first test fails if the database is not in one. The ledger's race
   # runs here too: PGlite runs one transaction at a time.
   postgres-locale:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -229,6 +277,8 @@ jobs:
   # leaves it out of the others on CI), and Vitest's `--shard` splits the rest.
   # Within a job the files still run one at a time, since each starts servers.
   e2e:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: e2e (${{ matrix.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -274,6 +324,8 @@ jobs:
   # grew several times over. Each test writes its reading to PERF_REPORT; the
   # table lands in the job's summary, and a miss fails the job.
   perf:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -323,6 +375,8 @@ jobs:
         if: ${{ !cancelled() }}
 
   demo:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -346,6 +400,8 @@ jobs:
           FOLDKIT_BUILD_ID: ci
 
   pack:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -369,6 +425,8 @@ jobs:
   # scaffold's install takes a minute: setup's printed scaffold command, its
   # install step, then the scaffold's own typecheck and lint, from the tarballs.
   scaffold:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
