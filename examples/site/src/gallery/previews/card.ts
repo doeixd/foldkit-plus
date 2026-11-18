@@ -2,6 +2,9 @@ import { CardSlots, Recipes } from 'foldkit-mixins-ui'
 import basic from '../../examples/card/basic.js'
 import elevation from '../../examples/card/elevation.js'
 import link from '../../examples/card/link.js'
+import overlay from '../../examples/card/overlay.js'
+import sections from '../../examples/card/sections.js'
+import zoom from '../../examples/card/zoom.js'
 import media from '../../examples/card/media.js'
 import profile from '../../examples/card/profile.js'
 import stat from '../../examples/card/stat.js'
@@ -20,6 +23,9 @@ export const showcase = fromRecipe(
     { name: 'media', example: media },
     { name: 'profile', example: profile },
     { name: 'link', example: link },
+    { name: 'sections', example: sections },
+    { name: 'zoom', example: zoom },
+    { name: 'overlay', example: overlay },
     { name: 'elevation', example: elevation },
   ],
   {

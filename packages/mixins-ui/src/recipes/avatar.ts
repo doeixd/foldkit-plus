@@ -46,8 +46,11 @@ export const Avatar = Style.recipeFor(AvatarSlots)({
         blockSize: '100%',
         borderRadius: 'inherit',
         overflow: 'clip',
-        background: ref.surface.muted,
+        // A film of the text over the page, with the picture's own edge: a quiet step off the page
+        // in both schemes. A surface step is darker in both, a heavy slab on a dark page.
+        background: `color-mix(in oklab, ${ref.surface.base}, ${ref.text.default} calc(${ref.knob['state-tint']} * 0.75))`,
         color: ref.text.muted,
+        ...imageEdge,
         lineHeight: '1',
         // Initials are a mark, not words to break or select.
         whiteSpace: 'nowrap',
@@ -78,7 +81,7 @@ export const Avatar = Style.recipeFor(AvatarSlots)({
         borderRadius: ref.radius.full,
         background: ref.surface.base,
         color: ref.text.default,
-        fontSize: '0.625em',
+        fontSize: '0.7em',
         lineHeight: '1',
         boxShadow: `0 0 0 ${ref.border.thick} ${ref.surface.base}`,
       }),

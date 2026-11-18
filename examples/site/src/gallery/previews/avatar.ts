@@ -1,7 +1,9 @@
 import { AvatarSlots, Recipes } from 'foldkit-mixins-ui'
+import badges from '../../examples/avatar/badges.js'
 import configure from '../../examples/avatar/configure.js'
 import group from '../../examples/avatar/group.js'
 import initials from '../../examples/avatar/initials.js'
+import lifted from '../../examples/avatar/lifted.js'
 import named from '../../examples/avatar/named.js'
 import picture from '../../examples/avatar/picture.js'
 import pictures from '../../examples/avatar/pictures.js'
@@ -22,6 +24,8 @@ export const showcase = fromRecipe(
     { name: 'initials', example: initials },
     { name: 'status', example: status },
     { name: 'group', example: group },
+    { name: 'lifted', example: lifted },
+    { name: 'badges', example: badges },
     { name: 'shapes', example: shapes },
     { name: 'named', example: named },
     { name: 'configure', example: configure },

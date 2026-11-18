@@ -194,7 +194,7 @@ describe('Alert recipe', () => {
   })
 
   it('has the whole tone vocabulary, the neutral one quiet and inverting when bold', () => {
-    expect(css({ tone: 'neutral' })).toContain('--_fk-alert-subtle:var(--fk-surface-muted)')
+    expect(css({ tone: 'neutral' })).toContain('--_fk-alert-subtle:var(--fk-surface-subtle)')
     expect(css({ tone: 'neutral' })).toContain('--_fk-alert-fill:var(--fk-text-overt)')
     expect(css({ tone: 'accent' })).toContain('--_fk-alert-subtle:var(--fk-accent-subtle)')
     // @ts-expect-error: `error` is a state; the tone is `danger`.

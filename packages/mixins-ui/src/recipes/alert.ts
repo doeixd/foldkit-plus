@@ -41,7 +41,7 @@ const toned = (family: 'accent' | 'info' | 'success' | 'warning' | 'error'): Sty
 // As quiet as the page's muted text; bold, it inverts the page.
 const neutral: StyleValue = variant(
   Style.self({
-    '--_fk-alert-subtle': ref.surface.muted,
+    '--_fk-alert-subtle': ref.surface.subtle,
     '--_fk-alert-ink': ref.text.default,
     '--_fk-alert-fill': ref.text.overt,
     '--_fk-alert-on-fill': ref.surface.base,

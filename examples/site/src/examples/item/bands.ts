@@ -10,6 +10,7 @@ export default example({
   title: 'Header and footer',
   slots: ItemSlots,
   recipe: Recipes.Item,
+  pins: { variant: 'outline' },
   view: ({ style, h }) =>
     Item.view(
       {
