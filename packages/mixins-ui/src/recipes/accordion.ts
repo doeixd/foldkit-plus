@@ -108,11 +108,21 @@ export const Accordion = Style.recipeFor(AccordionSlots)({
       focusRing,
       disabled,
     ),
+    // A glyph's size, still: what it shows is the application's.
+    leading: component(
+      Style.self({
+        display: 'inline-grid',
+        placeItems: 'center',
+        flex: 'none',
+        color: ref.text.muted,
+      }),
+    ),
     label: component(
-      Style.self({ display: 'block' }),
+      Style.self({ display: 'block', flex: '1 1 auto', minInlineSize: '0' }),
       Style.nest(`:where(${open}) > &`, { fontWeight: ref.weight.semibold }),
       Utilities.steady('semibold'),
     ),
+    trailing: component(Style.self({ display: 'inline-flex', alignItems: 'center', flex: 'none' })),
     chevron: component(
       turningChevron(open, '0.45em'),
       // Relative for the plus indicator's bars.
@@ -231,7 +241,9 @@ export const Accordion = Style.recipeFor(AccordionSlots)({
     indicatorPosition: {
       end: {},
       start: {
-        trigger: variant(Style.self({ flexDirection: 'row-reverse', justifyContent: 'flex-end' })),
+        // By order, so a leading mark and a trailing badge keep their places beside the title.
+        chevron: variant(Style.self({ order: '-1' })),
+        icon: variant(Style.self({ order: '-1' })),
       },
     },
     active: {

@@ -77,6 +77,16 @@ export const Disclosure = Style.recipeFor(DisclosureSlots)({
       focusRing,
       disabled,
     ),
+    root: component(Style.self({})),
+    icon: component(
+      Style.self({
+        display: 'inline-grid',
+        placeItems: 'center',
+        flex: 'none',
+        color: ref.text.muted,
+      }),
+    ),
+    label: component(Style.self({ flex: '1 1 auto', minInlineSize: '0' })),
     panel: component(
       heightTravel,
       Style.self({

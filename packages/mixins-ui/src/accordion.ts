@@ -1,7 +1,11 @@
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { flipped } from './choices.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { toggled } from './accordion/toggled.js'
+
+export { toggled }
+export { Args, Message, Model, controls, init, update } from './accordion/state.js'
 
 /**
  * An accordion: sections whose headings each show and hide their panel, as
@@ -22,7 +26,11 @@ export const AccordionSlots = Slots.define({
     events: [Event.Click],
     attributes: [Attr.AriaExpanded, Attr.AriaControls, Attr.Disabled],
   }),
+  /** An item's `icon`, before its title. */
+  leading: Slot.make({ capability: Capability.Container }),
   label: Slot.make({ capability: Capability.Container }),
+  /** An item's `trailing`, after its title: a badge, a count, a role. */
+  trailing: Slot.make({ capability: Capability.Container }),
   chevron: Slot.make({ capability: Capability.Container }),
   /** The view's own `icon`, drawn in place of the chevron. */
   icon: Slot.make({ capability: Capability.Container }),
@@ -38,7 +46,12 @@ export const AccordionSlots = Slots.define({
 export interface AccordionItem {
   /** Unique within the accordion, and part of its elements' ids. */
   readonly id: string
+  /** The row's name; always text, and `data-label` keeps its width when it turns semibold. */
   readonly title: string
+  /** Drawn before the title: a glyph, an avatar. */
+  readonly icon?: Html | undefined
+  /** Drawn after the title, before the indicator: a badge, a count, a role. */
+  readonly trailing?: Html | undefined
   readonly content: Html | string
   readonly disabled?: boolean | undefined
 }
@@ -62,23 +75,6 @@ export interface AccordionView<Message> {
   readonly style?: NamedStyle<typeof AccordionSlots> | undefined
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
-}
-
-/**
- * The open sections after `id` is pressed. With `multiple`, any number stay
- * open; otherwise opening one shuts the others. A pressed open section shuts
- * unless it is the only one open and `collapsible` is false (shadcn's and
- * Zag's default for a single accordion is collapsible, and so is this).
- */
-export const toggled = (
-  open: ReadonlyArray<string>,
-  id: string,
-  options: { readonly multiple?: boolean; readonly collapsible?: boolean } = {},
-): ReadonlyArray<string> => {
-  const isOpen = open.includes(id)
-  if (options.multiple === true) return flipped(open, id)
-  if (!isOpen) return [id]
-  return options.collapsible === false ? open : []
 }
 
 export const view = <Message>(options: AccordionView<Message>, h: HtmlBuilder<Message>): Html => {
@@ -124,7 +120,11 @@ export const view = <Message>(options: AccordionView<Message>, h: HtmlBuilder<Me
             ]),
             [
               // Its text in `data-label` too, so turning semibold when open moves nothing.
+              ...(item.icon === undefined ? [] : [h.span(builders.leading.attrs(), [item.icon])]),
               h.span(builders.label.attrs([h.DataAttribute('label', item.title)]), [item.title]),
+              ...(item.trailing === undefined
+                ? []
+                : [h.span(builders.trailing.attrs(), [item.trailing])]),
               options.icon === undefined
                 ? h.span(builders.chevron.attrs([h.AriaHidden(true)]), [])
                 : h.span(builders.icon.attrs([h.AriaHidden(true), state]), [options.icon]),
@@ -145,3 +145,24 @@ export const view = <Message>(options: AccordionView<Message>, h: HtmlBuilder<Me
     }),
   )
 }
+
+/** What an Accordion is given once: its look and the options that hold no Message. */
+export type AccordionPreset = Pick<AccordionView<never>, 'icon' | 'headingLevel' | 'style'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Accordion: `base` for every use, `presets` chosen at
+ * a use with `preset`, and the call over both. `mixins` concatenate in that
+ * order; any other option given at the call replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<AccordionPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: AccordionView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

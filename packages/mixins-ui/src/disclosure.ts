@@ -1,16 +1,11 @@
 import type { DisclosureAttributes } from '@foldkit/ui/disclosure'
-import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
+import { DisclosureSlots } from './disclosure/slots.js'
 
-export const DisclosureSlots = Slots.define({
-  button: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.Role, Attr.AriaExpanded, Attr.AriaDisabled, Attr.Disabled],
-  }),
-  panel: Slot.make({ capability: Capability.Container }),
-})
+export { DisclosureSlots }
+export { Args, Message, Model, controls, init, update } from './disclosure/state.js'
+export { configure, view, type DisclosurePreset, type DisclosureView } from './disclosure/view.js'
 
 /** The disclosure's bundles with the attached Mixins applied. */
 export type ResolvedDisclosure<Message> = Resolved<

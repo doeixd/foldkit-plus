@@ -628,14 +628,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       foldCarousel(model, example, carousel => carouselUpdates[example](carousel, message)),
     GotTreeIcons: ({ message }) => foldTreeIcons(model, message),
     GotTreeChecks: ({ message }) => foldTreeChecks(model, message),
-    ToggledFaqPlus: ({ id }) => ({
-      model: modifyFields(model, {
-        faqPlus: () => Accordion.toggled(model.faqPlus, id, { multiple: true }),
-      }),
-    }),
-    ToggledFaqActive: ({ id }) => ({
-      model: modifyFields(model, { faqActive: () => Accordion.toggled(model.faqActive, id) }),
-    }),
     MovedPriceRange: ({ value }) =>
       value.low === model.priceRange.low && value.high === model.priceRange.high
         ? { model }
@@ -865,13 +857,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotNotices: ({ message }) => foldNotices(model, message),
     ChoseRange: ({ range }) =>
       range === model.range ? { model } : { model: modifyFields(model, { range: () => range }) },
-    ToggledFaq: ({ id }) => ({
-      model: modifyFields(model, { faq: () => Accordion.toggled(model.faq, id) }),
-    }),
-    ToggledDetails: ({ isOpen }) =>
-      isOpen === model.details
-        ? { model }
-        : { model: modifyFields(model, { details: () => isOpen }) },
     ToggledAlert: ({ example, value }) => ({
       model: modifyFields(model, {
         alerts: alerts => ({

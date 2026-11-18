@@ -152,10 +152,6 @@ export const Model = Schema.Struct({
   pageChoice: Schema.Option(Schema.String),
   notices: Notices.Model,
   range: Range,
-  /** The accordion's open sections. */
-  faq: Schema.Array(Schema.String),
-  /** Whether the disclosure's panel is open. */
-  details: Schema.Boolean,
   /** Each checkbox group example's checked alerts. */
   alerts: Schema.Record(AlertsExample, Schema.Array(Schema.String)),
   hoverCard: UiHoverIntent.Model,
@@ -187,9 +183,6 @@ export const Model = Schema.Struct({
   /** The tree with icons and the one with checkboxes. */
   treeIcons: TreeView.Model,
   treeChecks: TreeView.Model,
-  /** The open sections of the plus and the tinted accordions. */
-  faqPlus: Schema.Array(Schema.String),
-  faqActive: Schema.Array(Schema.String),
   /** The range slider's price range. */
   priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
   /** The file tree's open, current and chosen rows. */
@@ -285,8 +278,6 @@ export const Message = defineMessageUnion({
   GotNotices: { message: Notices.Message },
   SavedDraft: {},
   ChoseRange: { range: Range },
-  ToggledFaq: { id: Schema.String },
-  ToggledDetails: { isOpen: Schema.Boolean },
   ToggledAlert: { example: AlertsExample, value: Schema.String },
   SetAlerts: { example: AlertsExample, values: Schema.Array(Schema.String) },
   GotHoverCard: { message: UiHoverIntent.Message },
@@ -307,8 +298,6 @@ export const Message = defineMessageUnion({
   GotCarousel: { example: CarouselExample, message: Carousel.Message },
   GotTreeIcons: { message: TreeView.Message },
   GotTreeChecks: { message: TreeView.Message },
-  ToggledFaqPlus: { id: Schema.String },
-  ToggledFaqActive: { id: Schema.String },
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotTreeView: { message: TreeView.Message },
   GotAccent: { message: ColorPicker.Message },
@@ -420,8 +409,6 @@ export const initial: Model = {
   pageChoice: Option.none(),
   notices: Notices.init({ id: 'preview-notices' }),
   range: 'week',
-  faq: ['billing'],
-  details: false,
   alerts: {
     alerts: ['mentions', 'replies'],
     described: ['mentions', 'replies'],
@@ -467,8 +454,6 @@ export const initial: Model = {
   },
   treeIcons: TreeView.init({ id: 'preview-tree-icons', open: ['src'] }),
   treeChecks: TreeView.init({ id: 'preview-tree-checks', open: ['src'], checked: ['index'] }),
-  faqPlus: ['refunds'],
-  faqActive: ['billing'],
   priceRange: { low: 100, high: 350 },
   treeView: TreeView.init({ id: 'preview-tree', open: ['src'] }),
   accent: ColorPicker.init({ id: 'preview-accent', color: ColorPicker.color('#3b82f6') }),

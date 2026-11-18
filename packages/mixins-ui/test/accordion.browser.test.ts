@@ -32,7 +32,13 @@ afterEach(async () => {
   document.body.replaceChildren()
 })
 
-const mount = (selection: Selection = {}, still = true, single = false, extraCss = '') => {
+const mount = (
+  selection: Selection = {},
+  still = true,
+  single = false,
+  extraCss = '',
+  decorated = false,
+) => {
   const style = Style.forSlots(AccordionSlots)(Recipes.Accordion(selection))
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -63,7 +69,17 @@ const mount = (selection: Selection = {}, still = true, single = false, extraCss
                 title: 'Billing',
                 content: h.p([], [h.a([h.Href('#seats')], ['Seats'])]),
               },
-              { id: 'team', title: 'Team', content: 'Invite, remove, and assign roles.' },
+              {
+                id: 'team',
+                title: 'Team',
+                content: 'Invite, remove, and assign roles.',
+                ...(decorated
+                  ? {
+                      icon: h.span([h.Id('lead')], ['@']),
+                      trailing: h.span([h.Id('badge')], ['4']),
+                    }
+                  : {}),
+              },
             ],
             open: model.open,
             onToggle: Toggled,
@@ -384,6 +400,29 @@ test('the indicator at the start sits before the words', async () => {
     handle.dispose()
   }
 })
+
+test.each(['end', 'start'] as const)(
+  'a row’s icon and trailing content keep their places beside the title, indicator at the %s',
+  async indicatorPosition => {
+    const handle = mount({ indicatorPosition }, true, false, '', true)
+    try {
+      await vi.waitFor(() => expect(trigger('Team')).toBeDefined())
+      const at = (selector: string) =>
+        trigger('Team').querySelector(selector)!.getBoundingClientRect()
+      const lead = at('#lead')
+      const words = at('[data-label]')
+      const badge = at('#badge')
+      const mark = at('[aria-hidden="true"]:not(#lead):not(#badge)')
+      expect(lead.right).toBeLessThanOrEqual(words.left)
+      expect(words.right).toBeLessThanOrEqual(badge.left)
+      // Whichever end the indicator takes, the badge is not pushed past it.
+      if (indicatorPosition === 'end') expect(badge.right).toBeLessThanOrEqual(mark.left)
+      else expect(mark.right).toBeLessThanOrEqual(lead.left)
+    } finally {
+      handle.dispose()
+    }
+  },
+)
 
 test.each([
   ['item', 'the section', (name: string) => item(name)],

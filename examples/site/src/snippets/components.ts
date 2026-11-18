@@ -8,7 +8,6 @@ import { Option, Schema } from 'effect'
 import { FieldValidation } from 'foldkit'
 import {
   Dialog as UiDialog,
-  Disclosure as UiDisclosure,
   HoverIntent as UiHoverIntent,
   Nav as UiNav,
   Popover as UiPopover,
@@ -22,12 +21,8 @@ import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import {
-  Accordion,
-  AccordionSlots,
   AppShell,
   AppShellSlots,
-  Disclosure,
-  DisclosureSlots,
   Drawer,
   DrawerSlots,
   HoverIntent,
@@ -1171,128 +1166,6 @@ export const toast = <Message>(
         toParentMessage: messages.toMessage,
       }),
     ],
-  )
-// #endregion
-
-// #region disclosure-basic
-/** One button that shows and hides one panel; the application holds whether it is open. */
-export const disclosure = <Message>(
-  style: NamedStyle<typeof DisclosureSlots>,
-  isOpen: boolean,
-  onToggle: (isOpen: boolean) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  UiDisclosure.view(
-    {
-      id: 'details',
-      isOpen,
-      onToggle,
-      toView: attributes => {
-        const details = Disclosure.resolve(attributes, [style.mixin], { input: undefined, h })
-        return h.div(
-          [],
-          [
-            h.button(details.button, ['Shipping details']),
-            details.animatePanel(h.div(details.panel, ['Shipped in two days, tracked.'])),
-          ],
-        )
-      },
-    },
-    h,
-  )
-// #endregion
-
-// #region accordion-basic
-export const AccordionStyle = forSlots(AccordionSlots)(Recipes.Accordion({}))
-
-export const accordion = <Message>(
-  style: NamedStyle<typeof AccordionSlots>,
-  open: ReadonlyArray<string>,
-  onToggle: (id: string) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Accordion.view(
-    {
-      id: 'faq',
-      items: [
-        {
-          id: 'billing',
-          title: 'Billing',
-          content: 'Seats, invoices and receipts, billed monthly.',
-        },
-        {
-          id: 'team',
-          title: 'Team',
-          content: 'Invite people, remove them, and assign their roles.',
-        },
-        {
-          id: 'keys',
-          title: 'API keys',
-          content: 'Mint a key per service, scope it, and revoke it.',
-        },
-      ],
-      open,
-      onToggle,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region accordion-plus
-export const PlusAccordionStyle = forSlots(AccordionSlots)(
-  Recipes.Accordion({ variant: 'separated', indicator: 'plus', indicatorPosition: 'start' }),
-)
-
-// Several open at once (`Accordion.toggled(open, id, { multiple: true })`), a
-// plus that lies flat into a minus at the start of each card.
-export const accordionPlus = <Message>(
-  style: NamedStyle<typeof AccordionSlots>,
-  open: ReadonlyArray<string>,
-  onToggle: (id: string) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Accordion.view(
-    {
-      id: 'faq-plus',
-      items: [
-        { id: 'refunds', title: 'Refunds', content: 'Within 30 days, to the card that paid.' },
-        { id: 'seats', title: 'Seats', content: 'Add or remove them at any time.' },
-        { id: 'sso', title: 'Single sign-on', content: 'On the Business plan.', disabled: true },
-      ],
-      open,
-      onToggle,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region accordion-active
-export const ActiveAccordionStyle = forSlots(AccordionSlots)(
-  Recipes.Accordion({ variant: 'ghost', separators: 'off', active: 'item' }),
-)
-
-// A ghost accordion whose open section is tinted, row and panel, with its own icon.
-export const accordionActive = <Message>(
-  style: NamedStyle<typeof AccordionSlots>,
-  open: ReadonlyArray<string>,
-  onToggle: (id: string) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Accordion.view(
-    {
-      id: 'faq-active',
-      items: [
-        { id: 'billing', title: 'Billing', content: 'Seats, invoices and receipts.' },
-        { id: 'team', title: 'Team', content: 'Invite people and assign roles.' },
-      ],
-      open,
-      onToggle,
-      icon: outline(h, 'M4 6l4 4 4-4'),
-      style,
-    },
-    h,
   )
 // #endregion
 

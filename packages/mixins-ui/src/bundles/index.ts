@@ -3,6 +3,7 @@
  * one file apiece and re-exported by name, so a page reading
  * `Bundles.TagsInput` keeps that file and no other.
  */
+export { Accordion } from './accordion.js'
 export { AngleSlider } from './angleSlider.js'
 export { Calendar } from './calendar.js'
 export { CascadeSelect } from './cascadeSelect.js'
@@ -10,6 +11,7 @@ export { ColorPicker } from './colorPicker.js'
 export { Combobox } from './combobox.js'
 export { DatePicker } from './datePicker.js'
 export { Dialog } from './dialog.js'
+export { Disclosure } from './disclosure.js'
 export { Drawer } from './drawer.js'
 export { FileUpload } from './fileUpload.js'
 export { HoverIntent } from './hoverIntent.js'
