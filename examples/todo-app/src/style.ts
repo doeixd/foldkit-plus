@@ -76,7 +76,8 @@ const app = Layers.standard.layer('app')
 export const BodyStyle: StyleValue = Layers.standard.in(
   'app',
   Style.global(
-    `:where(body){margin:0;min-height:100vh;display:grid;place-items:start center;padding:4rem 1rem 0;background:${t.surface.muted}}`,
+    // The card is the page on a phone (its own rule drops the radius), so the body leaves no margin there.
+    `:where(body){margin:0;min-height:100dvh;display:grid;place-items:start center;padding:3rem 1rem 0;background:${t.surface.muted}}@media (max-width:30rem){:where(body){padding:0}}`,
   ),
 )
 
@@ -100,7 +101,7 @@ export const PageStyle = Style.forSlots(PageSlots)(
       // Rules, not inline declarations: `inline` sits outside every layer, so the
       // phone's media rule below could never change what it wrote.
       Style.self({ borderRadius: t.radius.card, padding: '1.75rem' }),
-      Style.media('(max-width: 30rem)', { padding: '1rem', borderRadius: '0' }),
+      Style.media('(max-width: 30rem)', { padding: '1rem', borderRadius: '0', gap: '0.75rem' }),
     ),
   },
   { name: 'PageStyle', layer: app },
@@ -137,6 +138,8 @@ export const HeaderStyle = Style.forSlots(HeaderSlots)(
         padding: '0.1rem 0.25rem',
         margin: '0 -0.25rem',
         minWidth: '0',
+        // A small basis, or the input's own 20-character width pushes the tally onto a line below.
+        flex: '1 1 8rem',
       }),
       Style.pseudo(':focus-visible', {
         outline: `2px solid ${t.outline.focus}`,
@@ -533,11 +536,13 @@ export const ConnectionStyle = Style.forSlots(ConnectionSlots)(
         Layout.cluster({ justify: 'space-between', align: 'center', gap: '0.5rem' }),
       ),
       Style.inline({
-        padding: '0.5rem 0.75rem',
         borderRadius: t.radius.control,
         background: t.surface.muted,
         fontSize: '0.85rem',
       }),
+      // A rule, so the phone's narrower padding keeps the toggle beside the words.
+      Style.self({ padding: '0.5rem 0.75rem' }),
+      Style.media('(max-width: 30rem)', { padding: '0.375rem 0.5rem' }),
     ),
     dot: Style.compose(
       Style.inline({
