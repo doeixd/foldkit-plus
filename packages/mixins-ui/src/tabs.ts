@@ -1,7 +1,9 @@
 import { Option } from 'effect'
+import * as UiTabs from '@foldkit/ui/tabs'
 import type { RenderInfo, TabInfo } from '@foldkit/ui/tabs'
-import { Behaviors, type Diagnostic, type SlotAttributes } from 'foldkit-mixins'
-import type { Html } from 'foldkit/html'
+import { Behaviors, type Diagnostic, type NamedStyle, type SlotAttributes } from 'foldkit-mixins'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 
 import { TabsSlots } from './tabs/slots.js'
@@ -20,6 +22,8 @@ export type ResolvedTab<Value extends string, Message> = Omit<TabInfo<Value>, 't
 }
 
 export interface ResolvedTabs<Value extends string, Message> {
+  /** What holds the tablist and the panel, for a drawing with a layout of its own. */
+  readonly root: SlotAttributes<Message>
   readonly tablist: SlotAttributes<Message>
   /** The marker under the chosen tab; drawn, the tabs' recipe reads it in place of each tab's own. */
   readonly indicator: SlotAttributes<Message>
@@ -134,6 +138,7 @@ export const resolve = <Value extends string, Input, Message>(
   // No keydown at all unless there is a key to answer.
   const keys = routes.length === 0 ? undefined : Behaviors.Keys.attribute(routes, { slot: 'tab' })
   return {
+    root: builders.root.attrs(),
     tablist: builders.tablist.attrs(render.tablist),
     indicator: builders.indicator.attrs([h.AriaHidden(true)]),
     highlight: builders.highlight.attrs([h.AriaHidden(true)]),
@@ -173,3 +178,120 @@ export const toView =
   ) =>
   (render: RenderInfo<Value>): Html =>
     draw(resolve(render, mixins, context))
+
+/** One tab of `Tabs.view`: its words, what stands beside them, and the panel it shows. */
+export interface TabsRow {
+  /** What `value` names it by; the application's chosen value is one of these. */
+  readonly value: string
+  readonly label: string
+  /** A mark before the words, hidden from assistive technology. */
+  readonly icon?: Html | undefined
+  /** After the words: a count, a Badge. */
+  readonly trailing?: Html | undefined
+  readonly disabled?: boolean | undefined
+  /** Drawn under the tabs while this one is chosen; none draws no panel. */
+  readonly panel?: Html | undefined
+}
+
+export interface TabsView<Message> {
+  /** The Model the Bundle placed: the focus cursor, not the chosen value. */
+  readonly model: UiTabs.Model
+  readonly onMessage: (message: UiTabs.Message) => Message
+  /** The tablist's accessible name. */
+  readonly label: string
+  readonly tabs: ReadonlyArray<TabsRow>
+  /** The chosen tab's value: the application's, set from `Selected` in `onOut`. */
+  readonly value: string
+  /** Upright tabs take the up and down arrows. Default `horizontal`. */
+  readonly orientation?: 'horizontal' | 'vertical' | undefined
+  /** Each enabled tab gets a close button and answers Delete. */
+  readonly close?: TabsClose<string, NoInfer<Message>> | undefined
+  /** Keys the application answers on a tab. */
+  readonly routes?: ReadonlyArray<Route<string, NoInfer<Message>>> | undefined
+  /** A style of `TabsSlots`. */
+  readonly style?: NamedStyle<typeof TabsSlots> | undefined
+  /** Mixins beside the style: `Tabs.fluid`, `Tabs.readingKeys`. */
+  readonly mixins?: MixinList<Message> | undefined
+}
+
+const bound: UiTabs.Bundle = UiTabs.create()
+
+/**
+ * Tabs in one call: the tablist with each row's mark, words and trailing,
+ * and the chosen row's panel below it. The tabs' focus is the Model's
+ * (`Bundles.Tabs`), the chosen value the application's.
+ */
+export const view = <Message>(options: TabsView<Message>, h: HtmlBuilder<Message>): Html => {
+  const disabled = new Set(options.tabs.filter(row => row.disabled === true).map(row => row.value))
+  const rows = new Map(options.tabs.map(row => [row.value, row]))
+  const mixins = [
+    ...(options.style === undefined ? [] : [options.style.mixin]),
+    ...(options.mixins ?? []),
+  ]
+  return h.submodel({
+    slotId: options.model.id,
+    model: options.model,
+    view: bound.view,
+    viewInputs: {
+      tabs: options.tabs.map(row => row.value),
+      selectedValue: options.value,
+      ariaLabel: options.label,
+      ...(options.orientation === 'vertical' ? { orientation: 'Vertical' as const } : {}),
+      isTabDisabled: value => disabled.has(value),
+      toView: toView<string, Message>(
+        mixins,
+        {
+          h,
+          ...(options.close === undefined ? {} : { close: options.close }),
+          ...(options.routes === undefined ? {} : { routes: options.routes }),
+        },
+        ({ root, tablist, indicator, highlight, label, icon, tabs, activeIndex }) =>
+          h.div(root, [
+            h.div(tablist, [
+              h.div(indicator),
+              h.div(highlight),
+              ...tabs.map(tab => {
+                const row = rows.get(tab.value)
+                const button = h.button(tab.tab, [
+                  ...(row?.icon === undefined ? [] : [h.span(icon, [row.icon])]),
+                  h.span(label, [row?.label ?? tab.value]),
+                  ...(row?.trailing === undefined ? [] : [row.trailing]),
+                ])
+                return Option.match(tab.close, {
+                  onNone: () => button,
+                  onSome: close => h.div(tab.item, [button, h.button(close, [])]),
+                })
+              }),
+            ]),
+            ...tabs
+              .filter(tab => tab.index === activeIndex)
+              .flatMap(tab => {
+                const panel = rows.get(tab.value)?.panel
+                return panel === undefined ? [] : [h.div(tab.panel, [panel])]
+              }),
+          ]),
+      ),
+    },
+    toParentMessage: options.onMessage,
+  })
+}
+
+/** What Tabs are given once: their look and mixins. The Model, rows and value are each use's. */
+export type TabsPreset = Pick<TabsView<never>, 'style' | 'orientation'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Tabs: `base` for every use, `presets` chosen at a use
+ * with `preset`, and the call over both.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<TabsPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: TabsView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

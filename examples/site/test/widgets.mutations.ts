@@ -7,17 +7,6 @@ const widgets = '../src/gallery/widgetsUpdate.ts'
 
 export default [
   {
-    name: 'a chosen tab is not shown',
-    edits: [
-      {
-        file: widgets,
-        find: ': { model: modifyFields(model, { section: () => value }) },',
-        replace: ': { model },',
-      },
-    ],
-    tests,
-  },
-  {
     name: 'a chosen billing is not kept',
     edits: [
       {
@@ -120,16 +109,6 @@ export default [
       'the toppings dash comes back when unchecked',
       "const toppings = checked ? 'all' : 'none'",
       "const toppings = checked ? 'all' : 'some'",
-    ],
-    [
-      'every pagination example moves together',
-      '[example]: page }',
-      'numbered: page, simple: page, ends: page, range: page, siblings: page, compact: page }',
-    ],
-    [
-      'a new page size keeps the old page',
-      'range: Math.floor(((pages.range - 1) * model.perPage) / perPage) + 1,',
-      'range: pages.range,',
     ],
     [
       'a checkbox group example toggles another',

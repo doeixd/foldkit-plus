@@ -6,8 +6,6 @@
  */
 import { Option, Schema } from 'effect'
 import { FieldValidation } from 'foldkit'
-import * as FoldkitCommand from 'foldkit/command'
-import { modifyFields } from 'foldkit/struct'
 import {
   Dialog as UiDialog,
   Disclosure as UiDisclosure,
@@ -16,7 +14,6 @@ import {
   Listbox as UiListbox,
   Popover as UiPopover,
   RadioGroup as UiRadioGroup,
-  Tabs as UiTabs,
 } from '@foldkit/ui'
 import * as UiCheckbox from '@foldkit/ui/checkbox'
 import * as UiFileDrop from '@foldkit/ui/fileDrop'
@@ -129,8 +126,6 @@ import {
   SwitchSlots,
   Table,
   TableSlots,
-  Tabs,
-  TabsSlots,
   Textarea,
   TextareaSlots,
   Toast,
@@ -847,7 +842,31 @@ const portrait = (hue: number): string =>
 /** The avatar the specimens draw: the avatar page's examples are modules (`src/examples/avatar`). */
 export const AvatarStyle = forSlots(AvatarSlots)(Recipes.Avatar({}))
 
+// #region kbd-key
 export const KbdStyle = forSlots(KbdSlots)(Recipes.Kbd({}))
+
+export const kbdKey = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
+  h.p([], ['Press ', Kbd.view({ key: 'Enter', style }, h), ' to send.'])
+// #endregion
+
+// #region kbd-combo
+// Keys pressed together are one `kbd` holding a `kbd` per key.
+export const kbdCombo = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
+  h.p([], ['Search with ', Kbd.combo({ keys: ['⌘', 'K'], style }, h), '.'])
+// #endregion
+
+// #region kbd-joined
+// A joiner between keys whose names run together without one.
+export const kbdJoined = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
+  h.p(
+    [],
+    [
+      'Open the command palette with ',
+      Kbd.combo({ keys: ['Ctrl', 'Shift', 'P'], joiner: '+', style }, h),
+      '.',
+    ],
+  )
+// #endregion
 
 // #region separator-basic
 export const SeparatorStyle = forSlots(SeparatorSlots)(Recipes.Separator({}))
@@ -1192,260 +1211,7 @@ export const tableSticky = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder
   )
 // #endregion
 
-// #region tabs-underline
-export const TabsStyle = forSlots(TabsSlots)(Recipes.Tabs({}))
-
-export const Section = Schema.Literals(['overview', 'activity', 'settings'])
-export type Section = typeof Section.Type
-// Annotated: the inferred type names a foldkit internal module.
-export const SectionTabs: ReturnType<typeof UiTabs.create<Section>> = UiTabs.create<Section>()
-
-const sections: Record<Section, { readonly label: string; readonly text: string }> = {
-  overview: { label: 'Overview', text: 'Six people, three open milestones, one launch.' },
-  activity: { label: 'Activity', text: 'Ada published the pricing page an hour ago.' },
-  settings: { label: 'Settings', text: 'Who can see the project, and who can edit it.' },
-}
-
-/** The tabs' focus is the component's; which tab shows is the Model's. */
-export interface TabsState {
-  readonly tabs: UiTabs.Model
-  readonly section: Section
-}
-
-export const tabs = <Message>(
-  style: NamedStyle<typeof TabsSlots>,
-  state: TabsState,
-  toMessage: (message: UiTabs.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.submodel({
-    slotId: state.tabs.id,
-    model: state.tabs,
-    view: SectionTabs.view,
-    viewInputs: {
-      tabs: Section.literals,
-      selectedValue: state.section,
-      ariaLabel: 'Project',
-      toView: Tabs.toView<Section, Message>(
-        // Arrow keys follow the page's direction: ArrowLeft is the next tab right to left.
-        [style.mixin, ...Tabs.fluid, Tabs.readingKeys],
-        { h },
-        ({ tablist, indicator, highlight, label, tabs, activeIndex }) =>
-          h.div(
-            [],
-            [
-              h.div(tablist, [
-                h.div(indicator),
-                h.div(highlight),
-                // The words in `label`, which keeps their trim in the tab's flex row.
-                ...tabs.map(tab => h.button(tab.tab, [h.span(label, [sections[tab.value].label])])),
-              ]),
-              ...tabs
-                .filter(tab => tab.index === activeIndex)
-                .map(tab => h.div(tab.panel, [h.p([], [sections[tab.value].text])])),
-            ],
-          ),
-      ),
-    },
-    toParentMessage: toMessage,
-  })
-// #endregion
-
-// #region tabs-pill
-// The chosen tab on a pill that glides, drawn by `tabs`.
-export const TabsPillStyle = forSlots(TabsSlots)(Recipes.Tabs({ variant: 'pill' }))
-// #endregion
-
-// #region tabs-icons
-// An icon before each tab's words and a Badge count after them; the words sit in `label`.
-export const Inbox = Schema.Literals(['inbox', 'drafts', 'sent'])
-export type Inbox = typeof Inbox.Type
-export const InboxTabs: ReturnType<typeof UiTabs.create<Inbox>> = UiTabs.create<Inbox>()
-
-const folders: Record<
-  Inbox,
-  { readonly label: string; readonly icon: string; readonly count?: string }
-> = {
-  inbox: { label: 'Inbox', icon: 'M2 9h3l1 2h4l1-2h3M2 9l2-6h8l2 6v4H2z', count: '12' },
-  drafts: { label: 'Drafts', icon: 'M3 13l1-4 7-7 3 3-7 7z', count: '3' },
-  sent: { label: 'Sent', icon: 'M2 8l12-5-5 12-2-5z' },
-}
-
-export interface InboxState {
-  readonly tabs: UiTabs.Model
-  readonly folder: Inbox
-}
-
-export const tabsIcons = <Message>(
-  style: NamedStyle<typeof TabsSlots>,
-  state: InboxState,
-  toMessage: (message: UiTabs.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.submodel({
-    slotId: state.tabs.id,
-    model: state.tabs,
-    view: InboxTabs.view,
-    viewInputs: {
-      tabs: Inbox.literals,
-      selectedValue: state.folder,
-      ariaLabel: 'Mail',
-      toView: Tabs.toView<Inbox, Message>(
-        [style.mixin, ...Tabs.fluid],
-        { h },
-        ({ tablist, indicator, highlight, label, icon, tabs }) =>
-          h.div(tablist, [
-            h.div(indicator),
-            h.div(highlight),
-            ...tabs.map(tab => {
-              const folder = folders[tab.value]
-              return h.button(tab.tab, [
-                h.span(icon, [outline(h, folder.icon)]),
-                h.span(label, [folder.label]),
-                ...(folder.count === undefined
-                  ? []
-                  : [Badge.view({ text: folder.count, style: BadgeStyle }, h)]),
-              ])
-            }),
-          ]),
-      ),
-    },
-    toParentMessage: toMessage,
-  })
-// #endregion
-
-// #region tabs-vertical
-// Upright: the arrows go up and down, and the underline stands at the tabs' inline end.
-export const tabsVertical = <Message>(
-  style: NamedStyle<typeof TabsSlots>,
-  state: InboxState,
-  toMessage: (message: UiTabs.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.submodel({
-    slotId: state.tabs.id,
-    model: state.tabs,
-    view: InboxTabs.view,
-    viewInputs: {
-      tabs: Inbox.literals,
-      selectedValue: state.folder,
-      ariaLabel: 'Mail',
-      orientation: 'Vertical',
-      toView: Tabs.toView<Inbox, Message>(
-        [style.mixin, ...Tabs.fluid],
-        { h },
-        ({ tablist, indicator, highlight, label, tabs, activeIndex }) =>
-          h.div(
-            [h.Style({ display: 'flex', gap: '1.5rem' })],
-            [
-              h.div(tablist, [
-                h.div(indicator),
-                h.div(highlight),
-                ...tabs.map(tab => h.button(tab.tab, [h.span(label, [folders[tab.value].label])])),
-              ]),
-              ...tabs
-                .filter(tab => tab.index === activeIndex)
-                .map(tab => h.div(tab.panel, [`${folders[tab.value].label} is empty.`])),
-            ],
-          ),
-      ),
-    },
-    toParentMessage: toMessage,
-  })
-// #endregion
-
-// #region tabs-closable
-// Each tab closes with its cross or Delete; Tabs.closing says what is left and what takes focus.
-export const OpenFiles = Schema.Struct({
-  tabs: UiTabs.Model,
-  files: Schema.Array(Schema.String),
-  chosen: Schema.String,
-})
-export type OpenFiles = typeof OpenFiles.Type
-export const FileTabs: ReturnType<typeof UiTabs.create<string>> = UiTabs.create<string>()
-
-/** Answers a tab's `onClose`: the file goes, and the tab after it takes focus. */
-export const closeFile = <Message>(
-  state: OpenFiles,
-  file: string,
-  toMessage: (message: UiTabs.Message) => Message,
-): {
-  readonly state: OpenFiles
-  readonly commands: ReadonlyArray<FoldkitCommand.Command<Message>>
-} => {
-  const after = Tabs.closing(state.files, state.chosen, file)
-  return {
-    state: modifyFields(state, {
-      files: () => after.tabs,
-      chosen: chosen => Option.getOrElse(after.selected, () => chosen),
-    }),
-    commands: FoldkitCommand.mapMessages(
-      Option.toArray(
-        Option.map(after.focus, index => UiTabs.FocusTab({ id: state.tabs.id, index })),
-      ),
-      toMessage,
-    ),
-  }
-}
-
-export const tabsClosable = <Message>(
-  style: NamedStyle<typeof TabsSlots>,
-  state: OpenFiles,
-  messages: {
-    readonly toMessage: (message: UiTabs.Message) => Message
-    readonly onClose: (file: string) => Message
-  },
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.submodel({
-    slotId: state.tabs.id,
-    model: state.tabs,
-    view: FileTabs.view,
-    viewInputs: {
-      tabs: state.files,
-      selectedValue: state.chosen,
-      ariaLabel: 'Open files',
-      toView: Tabs.toView<string, Message>(
-        [style.mixin, ...Tabs.fluid],
-        { h, close: { onClose: messages.onClose } },
-        ({ tablist, indicator, highlight, label, tabs }) =>
-          h.div(tablist, [
-            h.div(indicator),
-            h.div(highlight),
-            ...tabs.map(tab =>
-              h.div(tab.item, [
-                h.button(tab.tab, [h.span(label, [tab.value])]),
-                ...Option.match(tab.close, {
-                  onNone: () => [],
-                  onSome: close => [h.button(close, [])],
-                }),
-              ]),
-            ),
-          ]),
-      ),
-    },
-    toParentMessage: messages.toMessage,
-  })
-// #endregion
-
-// #region tabs-scrolling
-export const TabsScrollStyle = forSlots(TabsSlots)(Recipes.Tabs({ overflow: 'scroll' }))
-
-// More tabs than fit: one line that scrolls, its edges fading where more lies
-// past, and focus scrolling a tab into view. The closable files in a narrow box.
-export const tabsScrolling = <Message>(
-  style: NamedStyle<typeof TabsSlots>,
-  state: OpenFiles,
-  messages: {
-    readonly toMessage: (message: UiTabs.Message) => Message
-    readonly onClose: (file: string) => Message
-  },
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div([h.Style({ inlineSize: 'min(20rem, 100%)' })], [tabsClosable(style, state, messages, h)])
-// #endregion
-
-export const RadioGroupStyle = forSlots(RadioGroupSlots)(Recipes.RadioGroup({}))
+/export const RadioGroupStyle = forSlots(RadioGroupSlots)(Recipes.RadioGroup({}))
 
 export const Billing = Schema.Literals(['monthly', 'yearly', 'lifetime'])
 export type Billing = typeof Billing.Type

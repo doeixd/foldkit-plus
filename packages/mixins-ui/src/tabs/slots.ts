@@ -17,6 +17,8 @@ import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
  * trimmed in a box of their own, and a mark before them.
  */
 export const TabsSlots = Slots.define({
+  /** What `Tabs.view` holds the tablist and the chosen panel in; `toView` draws none. */
+  root: Slot.make({ capability: Capability.Container }),
   tablist: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
   item: Slot.make({ capability: Capability.Container }),
   tab: Slot.make({

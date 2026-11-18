@@ -14,7 +14,6 @@ import {
   Listbox as UiListbox,
   Popover as UiPopover,
   RadioGroup as UiRadioGroup,
-  Tabs as UiTabs,
 } from '@foldkit/ui'
 import {
   Menubar,
@@ -65,14 +64,11 @@ import {
   sidebarResizableModel,
   switcherSidebar,
   TEAMS,
-  OpenFiles,
   ViewMode,
-  Inbox,
   ViewOptions,
   viewRows,
   Notices,
   Range,
-  Section,
   Toppings,
   ChatEntry,
   TRIP_QUESTIONS,
@@ -94,11 +90,6 @@ const CHAT: ReadonlyArray<ChatEntry> = [
   'The app layer, after components and variants.',
 ].map((text, at) => ({ id: `chat-${at}`, from: at % 2 === 0 ? 'user' : 'assistant', text }))
 
-/** The tab examples each with tabs of their own, and the navigation menus. */
-export const InboxExample = Schema.Literals(['icons', 'vertical'])
-export type InboxExample = typeof InboxExample.Type
-export const FilesExample = Schema.Literals(['closable', 'scrolling'])
-export type FilesExample = typeof FilesExample.Type
 /** The Sidebar page's examples beyond its first, each with a sidebar of its own. */
 export const SidebarExample = Schema.Literals([
   'resizable',
@@ -111,8 +102,6 @@ export type SidebarExample = typeof SidebarExample.Type
 
 export const NavExample = Schema.Literals(['panels', 'pill', 'vertical'])
 export type NavExample = typeof NavExample.Type
-
-const InboxModel = Schema.Struct({ tabs: UiTabs.Model, folder: Inbox })
 
 /** The carousel examples. */
 export const CarouselExample = Schema.Literals(['places', 'autoplay', 'thumbnails', 'perView'])
@@ -171,8 +160,6 @@ export const Attachment = Schema.Struct({ name: Schema.String, size: Schema.Numb
 export type Attachment = typeof Attachment.Type
 
 export const Model = Schema.Struct({
-  tabs: UiTabs.Model,
-  section: Section,
   billingGroup: UiRadioGroup.Model,
   billingRow: UiRadioGroup.Model,
   billingCards: UiRadioGroup.Model,
@@ -232,10 +219,6 @@ export const Model = Schema.Struct({
   team: Schema.String,
   teamMenu: Menu.Model,
   userMenu: Menu.Model,
-  /** The pill tabs' own tabs and section. */
-  pillTabs: Schema.Struct({ tabs: UiTabs.Model, section: Section }),
-  inboxes: Schema.Record(InboxExample, InboxModel),
-  files: Schema.Record(FilesExample, OpenFiles),
   viewMode: ViewMode,
   navs: Schema.Record(NavExample, Nav.Model),
   /** The menu bar's menus, and the command last chosen from it. */
@@ -347,7 +330,6 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
-  GotTabs: { message: UiTabs.Message },
   GotBillingGroup: { message: UiRadioGroup.Message },
   GotBillingRow: { message: UiRadioGroup.Message },
   GotBillingCards: { message: UiRadioGroup.Message },
@@ -390,10 +372,6 @@ export const Message = defineMessageUnion({
   ActedInSidebar: { action: Schema.String },
   GotTeamMenu: { message: Menu.Message },
   GotUserMenu: { message: Menu.Message },
-  GotPillTabs: { message: UiTabs.Message },
-  GotInboxTabs: { example: InboxExample, message: UiTabs.Message },
-  GotFileTabs: { example: FilesExample, message: UiTabs.Message },
-  ClosedFile: { example: FilesExample, file: Schema.String },
   ChoseViewMode: { mode: ViewMode },
   GotNav: { example: NavExample, message: Nav.Message },
   GotMenubar: { message: Menubar.Message },
@@ -496,18 +474,10 @@ const initialViewOptions: ViewOptions = {
   chosen: Option.none(),
 }
 
-const openFiles = (id: string): OpenFiles => ({
-  tabs: UiTabs.init({ id }),
-  files: ['index.ts', 'tabs.ts', 'nav.ts', 'sidebar.ts', 'menu.ts', 'sheet.ts', 'badge.ts'],
-  chosen: 'tabs.ts',
-})
-
 // The day the page was loaded; a picker that shows another opens on the wrong month.
 const today = Effect.runSync(Calendar.today.local)
 
 export const initial: Model = {
-  tabs: UiTabs.init({ id: 'preview-tabs' }),
-  section: 'overview',
   billingGroup: UiRadioGroup.init({ id: 'preview-billing' }),
   billingRow: UiRadioGroup.init({ id: 'preview-billing-row' }),
   billingCards: UiRadioGroup.init({ id: 'preview-billing-cards' }),
@@ -581,12 +551,6 @@ export const initial: Model = {
   team: 'Acme Inc',
   teamMenu: Menu.init('preview-team-menu', TEAMS, { isAnimated: true }),
   userMenu: Menu.init('preview-user-menu', ACCOUNT, { isAnimated: true }),
-  pillTabs: { tabs: UiTabs.init({ id: 'preview-tabs-pill' }), section: 'overview' },
-  inboxes: {
-    icons: { tabs: UiTabs.init({ id: 'preview-inbox' }), folder: 'inbox' },
-    vertical: { tabs: UiTabs.init({ id: 'preview-inbox-vertical' }), folder: 'inbox' },
-  },
-  files: { closable: openFiles('preview-files'), scrolling: openFiles('preview-files-scroll') },
   viewMode: 'board',
   navs: {
     panels: Nav.init('preview-site-nav'),

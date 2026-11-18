@@ -8,7 +8,6 @@ import {
   Listbox as UiListbox,
   Menu as UiMenu,
   RadioGroup as UiRadioGroup,
-  Tabs as UiTabs,
 } from '@foldkit/ui'
 import { Option } from 'effect'
 import {
@@ -31,16 +30,6 @@ import { Message, initial, update } from '../src/main.js'
 const send = (message: Widgets.Message) => update(initial, Message.GotWidget({ message })).model
 
 describe('the previews with state', () => {
-  it('show the tab that was chosen', () => {
-    const chosen = send(
-      Widgets.Message.GotTabs({
-        message: UiTabs.Message.SelectedTab({ index: 1, value: 'activity' }),
-      }),
-    )
-    expect(chosen.widgets.section).toBe('activity')
-    expect(initial.widgets.section).toBe('overview')
-  })
-
   it('keep the billing that was chosen', () => {
     const chosen = send(
       Widgets.Message.GotBillingGroup({
@@ -285,15 +274,6 @@ describe('the overlay previews', () => {
       Message.GotWidget({ message: Widgets.Message.ClosedSheet({ example: 'drawer' }) }),
     ).model
     expect(Sheet.isOpen(shut.widgets.sheets.drawer)).toBe(false)
-  })
-})
-
-describe('the navigation previews', () => {
-  it('close a file in one tab example and leave the other', () => {
-    const closed = send(Widgets.Message.ClosedFile({ example: 'closable', file: 'tabs.ts' }))
-    expect(closed.widgets.files.closable.files).not.toContain('tabs.ts')
-    expect(closed.widgets.files.closable.chosen).not.toBe('tabs.ts')
-    expect(closed.widgets.files.scrolling.files).toContain('tabs.ts')
   })
 })
 

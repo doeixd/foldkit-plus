@@ -15,7 +15,6 @@ import {
   Listbox as UiListbox,
   Popover as UiPopover,
   RadioGroup as UiRadioGroup,
-  Tabs as UiTabs,
 } from '@foldkit/ui'
 import {
   Accordion,
@@ -67,16 +66,9 @@ import {
   Frequency,
   FrequencyBox,
   MENUBAR,
-  FileTabs,
-  InboxTabs,
-  OpenFiles,
-  closeFile,
-  Inbox,
   ViewOptions,
   TREE_FILES,
   Notices,
-  Section,
-  SectionTabs,
   ANSWER,
   ChatEntry,
   HEADING_LAYOUT,
@@ -91,8 +83,6 @@ import {
   Attachment,
   CarouselExample,
   DialogExample,
-  FilesExample,
-  InboxExample,
   Message,
   Model,
   NavExample,
@@ -138,19 +128,6 @@ const own = <K extends keyof Model, ChildMessage>(
 })
 
 const same: Step = model => ({ model })
-
-const foldTabs = Update.foldChild({
-  ...own('tabs', Message.GotTabs),
-  update: SectionTabs.update,
-  foldOutMessage: UiTabs.OutMessage.match<Step, UiTabs.OutMessage<Section>>({
-    Selected:
-      ({ value }) =>
-      model =>
-        value === model.section
-          ? { model }
-          : { model: modifyFields(model, { section: () => value }) },
-  }),
-})
 
 const billingOut = UiRadioGroup.OutMessage.match<Step, UiRadioGroup.OutMessage<Billing>>({
   Selected:
@@ -425,66 +402,6 @@ const foldUserMenu = Update.foldChild({
   foldOutMessage: Menu.OutMessage.match<Step>({ Selected: () => same }),
 })
 
-const foldPillTabs = Update.foldChild({
-  read: (model: Model) => Option.some(model.pillTabs.tabs),
-  write: (model, tabs) => modifyFields(model, { pillTabs: pill => ({ ...pill, tabs }) }),
-  toParentMessage: message => Message.GotPillTabs({ message }),
-  update: SectionTabs.update,
-  foldOutMessage: UiTabs.OutMessage.match<Step, UiTabs.OutMessage<Section>>({
-    Selected:
-      ({ value }) =>
-      model =>
-        value === model.pillTabs.section
-          ? { model }
-          : { model: modifyFields(model, { pillTabs: pill => ({ ...pill, section: value }) }) },
-  }),
-})
-
-const foldInboxTabs = Update.foldChildAt({
-  update: InboxTabs.update,
-  readAt: (model: Model, example: InboxExample) => Option.some(model.inboxes[example].tabs),
-  writeAt: (model, example, tabs) =>
-    modifyFields(model, {
-      inboxes: inboxes => ({ ...inboxes, [example]: { ...inboxes[example], tabs } }),
-    }),
-  toParentMessage: (example, message) => Message.GotInboxTabs({ example, message }),
-  foldOutMessage: example =>
-    UiTabs.OutMessage.match<Step, UiTabs.OutMessage<Inbox>>({
-      Selected:
-        ({ value }) =>
-        model =>
-          value === model.inboxes[example].folder
-            ? { model }
-            : {
-                model: modifyFields(model, {
-                  inboxes: inboxes => ({
-                    ...inboxes,
-                    [example]: { ...inboxes[example], folder: value },
-                  }),
-                }),
-              },
-    }),
-})
-
-const writeFiles = (model: Model, example: FilesExample, files: OpenFiles): Model =>
-  modifyFields(model, { files: all => ({ ...all, [example]: files }) })
-
-const foldFileTabs = Update.foldChildAt({
-  update: FileTabs.update,
-  readAt: (model: Model, example: FilesExample) => Option.some(model.files[example].tabs),
-  writeAt: (model, example, tabs) => writeFiles(model, example, { ...model.files[example], tabs }),
-  toParentMessage: (example, message) => Message.GotFileTabs({ example, message }),
-  foldOutMessage: example =>
-    UiTabs.OutMessage.match<Step, UiTabs.OutMessage<string>>({
-      Selected:
-        ({ value }) =>
-        model =>
-          value === model.files[example].chosen
-            ? { model }
-            : { model: writeFiles(model, example, { ...model.files[example], chosen: value }) },
-    }),
-})
-
 const foldNav = Update.foldChildAt({
   update: Nav.update,
   readAt: (model: Model, example: NavExample) => Option.some(model.navs[example]),
@@ -730,7 +647,6 @@ const panelStep = (model: Model, step: FloatingPanel.Return): Update.Return<Mode
 
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   Message.match(message, {
-    GotTabs: ({ message }) => foldTabs(model, message),
     GotBillingGroup: ({ message }) => foldBillingGroup(model, message),
     GotBillingRow: ({ message }) => foldBillingRow(model, message),
     GotDrop: ({ message }) => foldDrop(model, message),
@@ -776,15 +692,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     }),
     GotTeamMenu: ({ message }) => foldTeamMenu(model, message),
     GotUserMenu: ({ message }) => foldUserMenu(model, message),
-    GotPillTabs: ({ message }) => foldPillTabs(model, message),
-    GotInboxTabs: ({ example, message }) => foldInboxTabs(model, example, message),
-    GotFileTabs: ({ example, message }) => foldFileTabs(model, example, message),
-    ClosedFile: ({ example, file }) => {
-      const closed = closeFile(model.files[example], file, message =>
-        Message.GotFileTabs({ example, message }),
-      )
-      return { model: writeFiles(model, example, closed.state), commands: closed.commands }
-    },
     ChoseViewMode: ({ mode }) =>
       mode === model.viewMode
         ? { model }
