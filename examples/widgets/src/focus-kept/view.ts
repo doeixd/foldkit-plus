@@ -131,7 +131,7 @@ export const FocusKept = (model: Model, h: HtmlBuilder<Message>): Html => {
       Toast.view(
         {
           model: model.toast,
-          onMessage: message => Message.GotToast({ message }),
+          onMessage: message => Message.GotToastMessage({ message }),
           style: toastStyle,
           mixins: Toast.keepFocus,
         },
