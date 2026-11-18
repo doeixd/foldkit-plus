@@ -118,8 +118,6 @@ import {
   TourSlots,
   FileInput,
   FileInputSlots,
-  CodeBlock,
-  CodeBlockSlots,
 } from 'foldkit-mixins-ui'
 
 import { outline } from './icon.js'
@@ -2322,52 +2320,3 @@ export const fileInputRequired = <Message>(
   )
 // #endregion
 
-// #region code-block-basic
-export const CodeBlockStyle = forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
-
-const SOURCE = 'export const total = 3 // items\nexport const done = "yes"'
-
-// Highlighting is the caller's: pass the tokens a tokenizer found as offsets
-// into the code (`foldkit-richtext-code-shiki` finds them), and each is drawn
-// with its `kind`, which the theme colours. The text of the block is the code.
-export const codeBlock = (style: NamedStyle<typeof CodeBlockSlots>, h: HtmlBuilder<never>): Html =>
-  CodeBlock.view(
-    {
-      code: SOURCE,
-      title: 'totals.ts',
-      lineNumbers: true,
-      tokens: [
-        { from: 0, to: 6, kind: 'syntax-keyword' },
-        { from: 7, to: 12, kind: 'syntax-keyword' },
-        { from: 19, to: 20, kind: 'syntax-operator' },
-        { from: 21, to: 22, kind: 'syntax-number' },
-        { from: 23, to: 31, kind: 'syntax-comment' },
-        { from: 32, to: 38, kind: 'syntax-keyword' },
-        { from: 39, to: 44, kind: 'syntax-keyword' },
-        { from: 52, to: 57, kind: 'syntax-string' },
-      ],
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region code-block-copy
-// The button sends what `onCopy` makes of the code: run `copyText` from
-// `foldkit-primitives` in that Message's Command, then draw `copied: true`.
-// Both states are drawn here, with no handler, as the page's script would.
-export const codeBlockCopy = (
-  style: NamedStyle<typeof CodeBlockSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.75rem' })],
-    [
-      CodeBlock.view({ code: 'npm install foldkit-plus', language: 'sh', copy: {}, style }, h),
-      CodeBlock.view(
-        { code: 'npm install foldkit-plus', language: 'sh', copy: { copied: true }, style },
-        h,
-      ),
-    ],
-  )
-// #endregion

@@ -5,8 +5,9 @@
  * it, a copy button that sends the code, and a recipe that colors each kind
  * from the theme.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
+import { Scene } from 'foldkit/test'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -15,8 +16,11 @@ import { Inert } from 'foldkit-mixins/testing'
 import { Theme } from 'foldkit-mixins/theme'
 import { CodeBlockSlots, linesOf, view } from '../src/codeBlock.js'
 import { Recipes } from '../src/index.js'
+import { sends } from './fixture.js'
 
 const h = SlotView.inertBuilder<never>()
+/** A builder whose Messages are text, for the options that send one. */
+const sent = SlotView.inertBuilder<string>()
 const code = 'const a = "x"\n// note\nreturn a'
 const tokens = [
   { from: 0, to: 5, kind: 'syntax-keyword' },
@@ -142,6 +146,132 @@ describe('CodeBlock view', () => {
   })
 })
 
+describe('CodeBlock lines', () => {
+  const five = 'a\nb\nc\nd\ne'
+  const lines = (block: ReturnType<typeof view>) =>
+    Inert.children(Inert.byTag(block, 'code')[0]).filter(child => child.sel === 'span')
+  const gutters = (block: ReturnType<typeof view>) =>
+    lines(block).map(line => Inert.value(Inert.children(line)[0], 'data-number'))
+
+  it('numbers from startLine, and hands that number to every option', () => {
+    const block = view<string>(
+      {
+        code: five,
+        lineNumbers: true,
+        startLine: 41,
+        marks: [{ line: 42, kind: 'added' }],
+        lineAction: line => (line === 44 ? Option.some(sent.b([], ['!'])) : Option.none()),
+      },
+      sent,
+    )
+    expect(gutters(block)).toEqual(['41', '42', '43', '44', '45'])
+    expect(lines(block).map(line => Inert.value(line, 'data-mark'))).toEqual([
+      undefined,
+      'added',
+      undefined,
+      undefined,
+      undefined,
+    ])
+    expect(Inert.byTag(block, 'b').map(Inert.text)).toEqual(['!'])
+    // The gutter is aria-hidden and empty, so the text is the code and the action.
+    expect(Inert.text(Inert.byTag(block, 'code')[0])).toBe('a\nb\nc\nd!\ne')
+  })
+
+  it('writes the gutter text in place of the number, every gutter as wide as the widest', () => {
+    const block = view({ code: five, gutter: line => (line % 2 === 0 ? '1234' : '+') }, h)
+    expect(gutters(block)).toEqual(['+', '1234', '+', '1234', '+'])
+    expect(Inert.style(Inert.byTag(block, 'figure')[0])['--fk-code-gutter']).toBe('4ch')
+    expect(Inert.value(Inert.byTag(block, 'figure')[0], 'data-line-numbers')).toBe('false')
+  })
+
+  it('draws no gutter unless numbered, given a gutter, or selectable', () => {
+    expect(gutters(view({ code: five }, h))).toEqual(Array(5).fill(undefined))
+    expect(Inert.style(Inert.byTag(view({ code: five }, h), 'figure')[0])).toEqual({})
+  })
+
+  it('makes each gutter a button that sends its line, pressed where the line is selected', () => {
+    const block = view<string>(
+      {
+        code: five,
+        onLineSelect: line => `line ${line}`,
+        marks: [{ line: 3, kind: 'selected' }],
+        words: { selectLine: 'Zeile {line}' },
+      },
+      sent,
+    )
+    const buttons = Inert.byTag(block, 'button')
+    expect(buttons.map(button => Inert.value(button, 'aria-label'))).toEqual([
+      'Zeile 1',
+      'Zeile 2',
+      'Zeile 3',
+      'Zeile 4',
+      'Zeile 5',
+    ])
+    expect(buttons.map(button => Inert.value(button, 'aria-pressed'))).toEqual([
+      'false',
+      'false',
+      'true',
+      'false',
+      'false',
+    ])
+    sends<string>(
+      drawn => view({ code: five, onLineSelect: line => `line ${line}` }, drawn),
+      Scene.click(Scene.role('button', { name: 'Line 2' })),
+      Scene.expectOutMessage('line 2'),
+    )
+  })
+
+  it('draws the first lines of a collapsed block and a button that asks for the rest', () => {
+    const block = view<string>(
+      { code: `${five}\n`, collapsed: { lines: 2, onExpand: 'more' } },
+      sent,
+    )
+    expect(Inert.text(Inert.byTag(block, 'code')[0])).toBe('a\nb')
+    expect(Inert.value(Inert.byTag(block, 'figure')[0], 'data-collapsed')).toBe('true')
+    const [expand] = Inert.byTag(block, 'button')
+    expect([Inert.text(expand), Inert.value(expand, 'aria-expanded')]).toEqual([
+      'Show all 5 lines',
+      'false',
+    ])
+    sends<string>(
+      drawn => view({ code: five, collapsed: { lines: 2, onExpand: 'more' } }, drawn),
+      Scene.click(Scene.role('button', { name: 'Show all 5 lines' })),
+      Scene.expectOutMessage('more'),
+    )
+  })
+
+  it('draws a block shorter than its collapse whole, with no button', () => {
+    const block = view<string>({ code: five, collapsed: { lines: 5, onExpand: 'more' } }, sent)
+    expect(Inert.text(Inert.byTag(block, 'code')[0])).toBe(five)
+    expect(Inert.byTag(block, 'button')).toEqual([])
+    expect(Inert.value(Inert.byTag(block, 'figure')[0], 'data-collapsed')).toBeUndefined()
+  })
+
+  it('wraps only when asked', () => {
+    const wrap = (wrap?: boolean) =>
+      Inert.value(Inert.byTag(view({ code: five, wrap }, h), 'figure')[0], 'data-wrap')
+    expect([wrap(true), wrap(false), wrap()]).toEqual(['true', undefined, undefined])
+  })
+
+  it.each([
+    ['a mark before the first line', { startLine: 10, marks: [{ line: 9, kind: 'dim' }] }],
+    ['a mark past the last line', { marks: [{ line: 6, kind: 'dim' }] }],
+    [
+      'two marks on one line',
+      {
+        marks: [
+          { line: 2, kind: 'added' },
+          { line: 2, kind: 'dim' },
+        ],
+      },
+    ],
+    ['a fractional start', { startLine: 1.5 }],
+    ['a collapse to no lines', { collapsed: { lines: 0, onExpand: 'more' } }],
+  ])('refuses %s', (_, options) => {
+    expect(() => view<string>({ code: five, ...options }, sent)).toThrow(RangeError)
+  })
+})
+
 const Message = defineMessageUnion({ PressedCopy: { code: Schema.String } })
 type Message = typeof Message.Type
 const Model = Schema.Struct({ copied: Schema.Array(Schema.String) })
@@ -188,17 +318,46 @@ describe('CodeBlock recipe', () => {
       expect(sheet).toContain(`[data-kind="syntax-${kind}"]{color:var(--fk-syntax-${kind})`)
   })
 
-  it('numbers lines under the attribute, and marks a copy done under its own', () => {
-    expect(sheet).toMatch(
-      /\[data-line-numbers="true"\] [^{]*::before\{[^}]*content:counter\(line\)/,
-    )
+  it('draws a gutter from its attribute, and marks a copy done under its own', () => {
+    expect(sheet).toMatch(/::before\{[^}]*content:attr\(data-number\)/)
     expect(sheet).toMatch(/\[data-copied="true"]\{[^}]*color:var\(--fk-success-ink\)/)
+  })
+
+  it('tints each mark the view writes', () => {
+    for (const [kind, tone] of [
+      ['added', 'success'],
+      ['removed', 'error'],
+      ['highlight', 'accent'],
+      ['selected', 'accent'],
+      ['error', 'error'],
+      ['warning', 'warning'],
+    ])
+      expect(sheet).toMatch(
+        new RegExp(`\\[data-mark="${kind}"\\]\\{[^}]*background:var\\(--fk-${tone}-subtle\\)`),
+      )
+    expect(sheet).toMatch(/\[data-mark="dim"\]\{[^}]*opacity:/)
   })
 
   it('reads only tokens the theme declares', () => {
     const theme = Theme.standard(Theme.make({ accent: { hue: 260, chroma: 0.15, lightness: 55 } }))
-    const style = Style.forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
-    const block = view({ code, tokens, title: 'a.ts', copy: {}, lineNumbers: true, style }, h)
+    const style = Style.forSlots(CodeBlockSlots)(
+      Recipes.CodeBlock({ header: 'float', scheme: 'dark' }),
+    )
+    const block = view<string>(
+      {
+        code,
+        tokens,
+        title: 'a.ts',
+        copy: {},
+        lineNumbers: true,
+        marks: [{ line: 2, kind: 'added' }],
+        wrap: true,
+        collapsed: { lines: 1, onExpand: 'more' },
+        lineAction: () => Option.some(sent.span([], ['ok'])),
+        style,
+      },
+      sent,
+    )
     expect(Inert.css([block]).length).toBeGreaterThan(0)
     expect(Inert.missingTokens(block, Style.stylesheet(Theme.root(theme)))).toEqual([])
   })
