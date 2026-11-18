@@ -115,8 +115,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: "builders.current.attrs([h.AriaCurrent('page')])",
-        replace: 'builders.current.attrs([])',
+        find: "builders.current.attrs([h.AriaCurrent('page'), ...name])",
+        replace: 'builders.current.attrs([...name])',
       },
     ],
     tests: page,

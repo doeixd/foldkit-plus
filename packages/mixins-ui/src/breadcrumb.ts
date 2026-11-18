@@ -28,9 +28,14 @@ export const BreadcrumbSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] }),
   list: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Container }),
-  link: Slot.make({ capability: Capability.Interactive }),
-  current: Slot.make({ capability: Capability.Container, attributes: [Attr.AriaCurrent] }),
+  link: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  current: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.AriaCurrent, Attr.AriaLabel],
+  }),
   icon: Slot.make({ capability: Capability.Container }),
+  /** A step's `trailing` content, after its label. */
+  trailing: Slot.make({ capability: Capability.Container }),
   separator: Slot.make({ capability: Capability.Container }),
   ellipsis: Slot.make({ capability: Capability.Interactive }),
   /** The ellipsis's dots inside a Menu's trigger, which draws its own content box. */
@@ -44,6 +49,10 @@ export interface BreadcrumbStep {
   readonly current?: boolean | undefined
   /** Drawn before the label, hidden from assistive technology. */
   readonly icon?: Html | undefined
+  /** Drawn after the label: a count, a badge. */
+  readonly trailing?: Html | undefined
+  /** Draws no words: the label is the step's accessible name, for an `icon` that says it. */
+  readonly labelHidden?: boolean | undefined
 }
 
 interface CollapseParts {
@@ -178,40 +187,42 @@ export const view = <Message = never>(
   )
   const text = wordsOf(words, options.words)
   const separator = options.separator
-  const leading = (index: number): ReadonlyArray<Html> =>
-    separator === undefined || index === 0
+  // After the step it follows, so a wrapped trail never begins a line with one.
+  const trailingSeparator = (index: number, total: number): ReadonlyArray<Html> =>
+    separator === undefined || index === total - 1
       ? []
       : [h.span(builders.separator.attrs([h.AriaHidden(true)]), [separator])]
   const labelled = (step: BreadcrumbStep): ReadonlyArray<Html | string> => [
     ...(step.icon === undefined
       ? []
       : [h.span(builders.icon.attrs([h.AriaHidden(true)]), [step.icon])]),
-    step.label,
+    ...(step.labelHidden === true ? [] : [step.label]),
+    ...(step.trailing === undefined ? [] : [h.span(builders.trailing.attrs(), [step.trailing])]),
   ]
-  const drawStep = (step: BreadcrumbStep, index: number): Html =>
-    h.li(builders.item.attrs(), [
-      ...leading(index),
-      ...(step.current === true
-        ? [h.span(builders.current.attrs([h.AriaCurrent('page')]), labelled(step))]
-        : [
-            h.a(
-              builders.link.attrs([...(step.href === undefined ? [] : [h.Href(step.href)])]),
-              labelled(step),
-            ),
-          ]),
+  const drawStep = (step: BreadcrumbStep, index: number, total: number): Html => {
+    const name = step.labelHidden === true ? [h.AriaLabel(step.label)] : []
+    return h.li(builders.item.attrs(), [
+      step.current === true
+        ? h.span(builders.current.attrs([h.AriaCurrent('page'), ...name]), labelled(step))
+        : h.a(
+            builders.link.attrs([...(step.href === undefined ? [] : [h.Href(step.href)]), ...name]),
+            labelled(step),
+          ),
+      ...trailingSeparator(index, total),
     ])
+  }
   const collapse = options.collapse
   const { before, hidden, after } =
     collapse === undefined
       ? { before: options.steps, hidden: [], after: [] }
       : collapsedOf(options.steps, collapse.max)
   const label = fill(text.more, { count: hidden.length })
+  const total = before.length + (hidden.length === 0 ? 0 : 1) + after.length
   const folded =
     collapse === undefined || hidden.length === 0
       ? []
       : [
           h.li(builders.item.attrs(), [
-            ...leading(before.length),
             collapse.draw === undefined
               ? h.button(
                   builders.ellipsis.attrs([
@@ -222,15 +233,16 @@ export const view = <Message = never>(
                   [text.ellipsis],
                 )
               : collapse.draw({ label, ellipsis: text.ellipsis, hidden, builders }, h),
+            ...trailingSeparator(before.length, total),
           ]),
         ]
   return h.nav(builders.root.attrs([h.AriaLabel(text.label), h.Role('navigation')]), [
     h.ol(
       builders.list.attrs(separator === undefined ? [] : [h.DataAttribute('separator', 'custom')]),
       [
-        ...before.map((step, index) => drawStep(step, index)),
+        ...before.map((step, index) => drawStep(step, index, total)),
         ...folded,
-        ...after.map((step, index) => drawStep(step, before.length + folded.length + index)),
+        ...after.map((step, index) => drawStep(step, before.length + folded.length + index, total)),
       ],
     ),
   ])

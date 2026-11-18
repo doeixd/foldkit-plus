@@ -54,10 +54,10 @@ const mount = (separator: 'slash' | 'chevron' | 'dot', direction: 'ltr' | 'rtl')
   )
 }
 
-/** The space on each side of the separator drawn before the second step, along the row. */
+/** The space on each side of the separator drawn after the first step, along the row. */
 const spaces = () => {
   const [first, second] = Array.from(document.querySelectorAll('li'))
-  const separator = getComputedStyle(second!, '::before')
+  const separator = getComputedStyle(first!, '::after')
   // Its border box: a chevron is two of its borders.
   const width = [
     'width',
@@ -68,12 +68,12 @@ const spaces = () => {
   ]
     .map(property => parseFloat(separator.getPropertyValue(property)))
     .reduce((sum, each) => sum + each, 0)
-  const step = second!.getBoundingClientRect()
-  const words = second!.querySelector('span')!.getBoundingClientRect()
-  const before = first!.getBoundingClientRect()
+  const step = first!.getBoundingClientRect()
+  const words = first!.querySelector('a')!.getBoundingClientRect()
+  const next = second!.getBoundingClientRect()
   return document.documentElement.dir === 'rtl'
-    ? { before: before.left - step.right, after: step.right - width - words.right }
-    : { before: step.left - before.right, after: words.left - (step.left + width) }
+    ? { before: words.left - (step.left + width), after: step.left - next.right }
+    : { before: step.right - width - words.right, after: next.left - step.right }
 }
 
 test.each([
@@ -95,3 +95,17 @@ test.each([
     }
   },
 )
+
+test('the separator belongs to the step before it, so a wrapped trail never begins a line with one', async () => {
+  const handle = mount('slash', 'ltr')
+  try {
+    await vi.waitFor(() => expect(document.querySelectorAll('li')).toHaveLength(2))
+    const [first, second] = Array.from(document.querySelectorAll('li'))
+    expect(getComputedStyle(first!, '::after').content).toBe('"/"')
+    expect(getComputedStyle(first!, '::before').content).toBe('none')
+    expect(getComputedStyle(second!, '::before').content).toBe('none')
+    expect(getComputedStyle(second!, '::after').content).toBe('none')
+  } finally {
+    handle.dispose()
+  }
+})

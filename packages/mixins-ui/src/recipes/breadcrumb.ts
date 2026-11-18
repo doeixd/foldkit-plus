@@ -12,11 +12,23 @@ import { Style, type Declarations } from 'foldkit-mixins'
 import { BreadcrumbSlots } from '../breadcrumb.js'
 import { component, cornerSides, focusRing, hover, ref, unfilledHover, variant } from './design.js'
 
-const between = '& > li + li::before'
+// On the step it follows, so a wrapped trail never begins a line with one.
+const between = '& > li:not(:last-child)::after'
 
 const separatorOf = (declarations: Declarations) => ({
   list: variant(Style.nest(between, declarations)),
 })
+
+const pillBox: Declarations = {
+  paddingBlock: ref.space['2xs'],
+  paddingInline: ref.space.sm,
+  borderRadius: ref.radius.full,
+}
+
+const buttonEdge: Declarations = {
+  border: `${ref.border.thin} solid ${ref.outline.default}`,
+  borderRadius: ref.radius.md,
+}
 
 export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
   base: {
@@ -36,7 +48,9 @@ export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
         Style.nest(between, { color: ref.text.muted }),
       ),
       // In the axis's layer, and one attribute more specific, so it beats any separator chosen.
-      variant(Style.nest(`&[data-separator="custom"] > li + li::before`, { content: 'none' })),
+      variant(
+        Style.nest(`&[data-separator="custom"] > li:not(:last-child)::after`, { content: 'none' }),
+      ),
     ),
     item: component(
       Style.self({ display: 'inline-flex', alignItems: 'center', gap: ref.space.xs }),
@@ -60,6 +74,7 @@ export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
         fontWeight: ref.weight.medium,
       }),
     ),
+    trailing: component(Style.self({ display: 'inline-flex', alignItems: 'center' })),
     icon: component(
       Style.self({
         display: 'inline-flex',
@@ -94,6 +109,23 @@ export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
     ),
   },
   variants: {
+    item: {
+      plain: {},
+      pill: {
+        link: variant(
+          Style.self(pillBox),
+          hover({ background: unfilledHover, color: ref.text.overt, textDecoration: 'none' }),
+        ),
+        current: variant(Style.self({ ...pillBox, background: unfilledHover })),
+      },
+      button: {
+        link: variant(
+          Style.self({ ...pillBox, ...buttonEdge }),
+          hover({ background: unfilledHover, color: ref.text.overt, textDecoration: 'none' }),
+        ),
+        current: variant(Style.self({ ...pillBox, ...buttonEdge })),
+      },
+    },
     separator: {
       slash: separatorOf({ content: '"/"' }),
       chevron: {
@@ -105,7 +137,7 @@ export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
             ...cornerSides(ref.border.glyph, 'currentColor'),
             rotate: '-45deg',
           }),
-          Style.nest('&:dir(rtl) > li + li::before', { rotate: '135deg' }),
+          Style.nest('&:dir(rtl) > li:not(:last-child)::after', { rotate: '135deg' }),
         ),
       },
       dot: separatorOf({
@@ -117,5 +149,5 @@ export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
       }),
     },
   },
-  defaults: { separator: 'slash' },
+  defaults: { separator: 'slash', item: 'plain' },
 })

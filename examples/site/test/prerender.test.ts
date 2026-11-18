@@ -451,6 +451,7 @@ describe('the generated site', () => {
           ['basic', 'Basic', 'Recipes.Breadcrumb'],
           ['icons', 'Icons', 'icon: outline(h'],
           ['separator', 'A separator of your own', "separator: h.span([], ['→'])"],
+          ['trailing', 'Icon only, and a count', 'labelHidden: true'],
           ['collapsed', 'Collapsed', 'collapse: { max: 3, onExpand: onMessage('],
           ['menu', 'The hidden steps in a menu', 'collapse: BreadcrumbMenu.make({'],
           ['words', 'In another language', "words: { label: 'Fil d’Ariane'"],

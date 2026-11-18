@@ -5,6 +5,7 @@ import feature from '../../examples/breadcrumb/feature.js'
 import icons from '../../examples/breadcrumb/icons.js'
 import menu from '../../examples/breadcrumb/menu.js'
 import separator from '../../examples/breadcrumb/separator.js'
+import trailing from '../../examples/breadcrumb/trailing.js'
 import words from '../../examples/breadcrumb/words.js'
 import { about } from '../catalogue.js'
 import { fromRecipe } from '../define.js'
@@ -19,6 +20,7 @@ export const showcase = fromRecipe(
     { name: 'basic', example: basic },
     { name: 'icons', example: icons },
     { name: 'separator', example: separator },
+    { name: 'trailing', example: trailing },
     { name: 'collapsed', example: collapsed },
     { name: 'menu', example: menu },
     { name: 'words', example: words },

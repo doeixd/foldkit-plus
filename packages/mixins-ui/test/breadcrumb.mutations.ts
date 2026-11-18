@@ -26,8 +26,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: "? [h.span(builders.current.attrs([h.AriaCurrent('page')]), labelled(step))]",
-        replace: '? [h.span(builders.current.attrs(), labelled(step))]',
+        find: "builders.current.attrs([h.AriaCurrent('page'), ...name])",
+        replace: 'builders.current.attrs([...name])',
       },
     ],
     tests,
@@ -88,12 +88,12 @@ export default [
     tests,
   },
   {
-    name: 'a custom separator leads the first step too',
+    name: 'a custom separator follows the first step instead of the last',
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: 'separator === undefined || index === 0',
-        replace: 'separator === undefined',
+        find: 'separator === undefined || index === total - 1',
+        replace: 'separator === undefined || index === 0',
       },
     ],
     tests,
@@ -114,7 +114,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/breadcrumb.ts',
-        find: "Style.nest('&:dir(rtl) > li + li::before', { rotate: '135deg' }),",
+        find: "Style.nest('&:dir(rtl) > li:not(:last-child)::after', { rotate: '135deg' }),",
         replace: '',
       },
     ],
@@ -203,6 +203,61 @@ export default [
         file: '../src/breadcrumb.ts',
         find: '{ label, ellipsis: text.ellipsis, hidden, builders }',
         replace: '{ label, ellipsis: text.ellipsis, hidden: [], builders }',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a step draws no trailing content',
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: '...(step.trailing === undefined ? [] : [',
+        replace: '...(true ? [] : [',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a hidden label is not the step's name",
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: 'const name = step.labelHidden === true ? [h.AriaLabel(step.label)] : []',
+        replace: 'const name: ReadonlyArray<never> = []',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a hidden label is drawn anyway',
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: '...(step.labelHidden === true ? [] : [step.label]),',
+        replace: 'step.label,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a pill has no corner',
+    edits: [
+      {
+        file: '../src/recipes/breadcrumb.ts',
+        find: '  paddingInline: ref.space.sm,\n  borderRadius: ref.radius.full,\n',
+        replace: '  paddingInline: ref.space.sm,\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the last step is followed by a separator',
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: 'index === total - 1',
+        replace: 'index === total',
       },
     ],
     tests,

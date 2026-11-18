@@ -20,8 +20,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: 'attributes: [Attr.AriaCurrent] }),',
-        replace: '}),',
+        find: 'attributes: [Attr.AriaCurrent, Attr.AriaLabel],',
+        replace: 'attributes: [Attr.AriaLabel],',
       },
     ],
     tests,

@@ -41,11 +41,21 @@ describe('BreadcrumbSlots', () => {
       'link',
       'current',
       'icon',
+      'trailing',
       'separator',
       'ellipsis',
       'dots',
     ])
-    for (const name of ['root', 'list', 'item', 'current', 'icon', 'separator', 'dots'] as const) {
+    for (const name of [
+      'root',
+      'list',
+      'item',
+      'current',
+      'icon',
+      'trailing',
+      'separator',
+      'dots',
+    ] as const) {
       expect(BreadcrumbSlots[name]?.capability).toBe(Capability.Container)
     }
     expect(BreadcrumbSlots.link?.capability).toBe(Capability.Interactive)
@@ -193,10 +203,10 @@ describe('Breadcrumb view', () => {
     expect(Inert.value(icon, 'aria-hidden')).toBe('true')
   })
 
-  it('draws its own separator in every step but the first, and says so on the list', () => {
+  it('draws its own separator after every step but the last, and says so on the list', () => {
     const trail = view({ steps, separator: h.span([], ['›']) }, h)
     const items = Inert.byTag(trail, 'li')
-    expect(items.map(item => Inert.text(item))).toEqual(['Docs', '›Guides', '›Dialog'])
+    expect(items.map(item => Inert.text(item))).toEqual(['Docs›', 'Guides›', 'Dialog'])
     expect(Inert.value(Inert.byTag(trail, 'ol')[0], 'data-separator')).toBe('custom')
     const plain = view({ steps }, h)
     expect(Inert.value(Inert.byTag(plain, 'ol')[0], 'data-separator')).toBeUndefined()
@@ -212,11 +222,38 @@ describe('Breadcrumb view', () => {
       messaging,
     )
     expect(Inert.byTag(trail, 'li').map(item => Inert.text(item))).toEqual([
-      'Home',
-      '›…',
-      '›Dialog',
-      '›Sizes',
+      'Home›',
+      '…›',
+      'Dialog›',
+      'Sizes',
     ])
+  })
+})
+
+describe('a step beyond its words', () => {
+  it('draws trailing content after the label, in its own slot', () => {
+    const trail = view({ steps: [{ label: 'Inbox', href: '/', trailing: h.span([], ['12']) }] }, h)
+    expect(Inert.text(Inert.byTag(trail, 'a')[0])).toBe('Inbox12')
+  })
+
+  it('names an icon-only step by its label, and draws no words', () => {
+    const trail = view(
+      {
+        steps: [
+          { label: 'Home', href: '/', icon: h.span([], ['⌂']), labelHidden: true },
+          { label: 'Here', current: true, labelHidden: true, icon: h.span([], ['★']) },
+          { label: 'Docs', href: '/docs' },
+        ],
+      },
+      h,
+    )
+    const [home, docs] = Inert.byTag(trail, 'a')
+    expect(Inert.text(home)).toBe('⌂')
+    expect(Inert.value(home, 'aria-label')).toBe('Home')
+    expect(Inert.value(docs, 'aria-label')).toBeUndefined()
+    const here = Inert.byLabel(trail, 'Here')[0]
+    expect(Inert.value(here, 'aria-current')).toBe('page')
+    expect(Inert.text(here)).toBe('★')
   })
 })
 
@@ -232,6 +269,14 @@ describe('Breadcrumb recipe', () => {
     expect(sheet).toContain('"/"')
   })
 
+  it('gives pills and buttons their own box, and plain steps none', () => {
+    expect(css({})).not.toContain('border-radius:var(--fk-radius-full)')
+    expect(css({ item: 'pill' })).toContain('border-radius:var(--fk-radius-full)')
+    const button = css({ item: 'button' })
+    expect(button).toContain('border-radius:var(--fk-radius-md)')
+    expect(button).toMatch(/border:var\(--fk-border-thin\) solid/)
+  })
+
   it('draws the ellipsis plain, even as a link a fold of your own draws', () => {
     // The link's own rule and the ellipsis's.
     expect(css({}).split('text-decoration:none')).toHaveLength(3)
@@ -241,13 +286,15 @@ describe('Breadcrumb recipe', () => {
     const chevron = css({ separator: 'chevron' })
     expect(chevron).not.toContain('"/"')
     expect(chevron).toContain('rotate:-45deg')
-    expect(chevron).toMatch(/:dir\(rtl\) > li \+ li::before\{[^}]*rotate:135deg/)
+    expect(chevron).toMatch(/:dir\(rtl\) > li:not\(:last-child\)::after\{[^}]*rotate:135deg/)
     const dot = css({ separator: 'dot' })
     expect(dot).not.toContain('"/"')
     expect(dot).toContain('background:currentColor')
   })
 
   it('takes the drawn divider away where the view draws its own', () => {
-    expect(css({})).toMatch(/\[data-separator="custom"\] > li \+ li::before\{content:none/)
+    expect(css({})).toMatch(
+      /\[data-separator="custom"\] > li:not\(:last-child\)::after\{content:none/,
+    )
   })
 })
