@@ -13,12 +13,14 @@ import { SlotView, Style } from 'foldkit-mixins'
 import {
   DataGridView,
   GridLegend,
+  GridLegendSlots,
   GridLegendStyle,
   GridMarkStyle,
   GridStyle,
   MoreOnScroll,
 } from 'foldkit-mixins-data-grid'
 import { Alert, AppShell, Button, Input } from 'foldkit-mixins-ui'
+import { demoStyle } from 'foldkit-example-site/demo-style'
 import { Grid, Message, Products, exchangeOf, geometryOf, marksOf, type Model } from './app.js'
 import type { EditedColumn } from './domain.js'
 import { ProductSort } from './operations.js'
@@ -42,8 +44,21 @@ const Registry = DataGridView<Message>().define(Grid).pipe(
   MoreOnScroll,
 )
 
+/** On a phone the five marks share one line that scrolls, not three lines above the rows. */
+const LegendLine = demoStyle.forSlots(GridLegendSlots)(
+  {
+    legend: Style.compose(
+      Style.media('(max-width: 30rem)', { flexWrap: 'nowrap', overflowX: 'auto' }),
+    ),
+    legendItem: Style.compose(
+      Style.media('(max-width: 30rem)', { flexShrink: '0', whiteSpace: 'nowrap' }),
+    ),
+  },
+  { name: 'LegendLine' },
+)
+
 /** What each mark on a cell means, each beside a swatch drawn by the cells' own rules. */
-const Legend = GridLegend<Message>().pipe(Style.attach(GridLegendStyle))
+const Legend = GridLegend<Message>().pipe(Style.attach(GridLegendStyle), Style.attach(LegendLine))
 
 const columnName = (column: EditedColumn) => Grid.columns.byId[column].header
 
