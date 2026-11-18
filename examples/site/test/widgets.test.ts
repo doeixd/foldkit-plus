@@ -3,11 +3,7 @@
  * own Model through the site's update, and what it reports becomes the
  * value the preview shows.
  */
-import {
-  Dialog as UiDialog,
-  Listbox as UiListbox,
-  Menu as UiMenu,
-} from '@foldkit/ui'
+import { Dialog as UiDialog, Listbox as UiListbox, Menu as UiMenu } from '@foldkit/ui'
 import { Option } from 'effect'
 import {
   Chart,
