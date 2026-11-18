@@ -121,7 +121,6 @@ export default [
       "const toppings = checked ? 'all' : 'none'",
       "const toppings = checked ? 'all' : 'some'",
     ],
-    ['the trail never unfolds', '{ trailExpanded: () => true }', '{ trailExpanded: () => false }'],
     [
       'every pagination example moves together',
       '[example]: page }',

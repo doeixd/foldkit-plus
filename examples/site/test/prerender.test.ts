@@ -457,10 +457,13 @@ describe('the generated site', () => {
       [
         'breadcrumb',
         [
-          ['basic', 'Basic', 'Recipes.Breadcrumb({})'],
+          ['basic', 'Basic', 'Recipes.Breadcrumb'],
           ['icons', 'Icons', 'icon: outline(h'],
-          ['custom', 'A separator of your own', "separator: h.span([], ['→'])"],
-          ['collapsed', 'Collapsed', 'collapse: { max: 3, onExpand }'],
+          ['separator', 'A separator of your own', "separator: h.span([], ['→'])"],
+          ['collapsed', 'Collapsed', 'collapse: { max: 3, onExpand: onMessage('],
+          ['menu', 'The hidden steps in a menu', 'collapse: BreadcrumbMenu.make({'],
+          ['words', 'In another language', "words: { label: 'Fil d’Ariane'"],
+          ['feature', 'A fold of your own', 'draw: ({ label, ellipsis, builders }, builder) =>'],
         ],
       ],
       [

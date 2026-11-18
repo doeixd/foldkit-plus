@@ -13,6 +13,7 @@ export * as Figure from './figure.js'
 export * as Image from './image.js'
 export * as Badge from './badge.js'
 export * as Breadcrumb from './breadcrumb.js'
+export * as BreadcrumbMenu from './breadcrumb/menu.js'
 export * as Button from './button.js'
 export * as ButtonGroup from './buttonGroup.js'
 export * as Pagination from './pagination.js'
@@ -196,7 +197,13 @@ export type {
   SidebarView,
 } from './sidebar.js'
 export type { NavEntry, NavLink, NavPanel, NavPanelGroup, NavPanelLink, NavView } from './nav.js'
-export type { BreadcrumbCollapse, BreadcrumbExpand, BreadcrumbMenu } from './breadcrumb.js'
+export type {
+  BreadcrumbCollapse,
+  BreadcrumbExpand,
+  BreadcrumbWords,
+  CollapseDraw,
+  CollapseFeature,
+} from './breadcrumb.js'
 export type { TabsClose, TabsContext } from './tabs.js'
 export type { ResizableView } from './resizable.js'
 export type { Mark as SliderMark } from './slider.js'

@@ -50,8 +50,6 @@ import {
   AvatarSlots,
   Badge,
   BadgeSlots,
-  Breadcrumb,
-  BreadcrumbSlots,
   Button,
   ButtonGroup,
   ButtonGroupSlots,
@@ -2077,120 +2075,6 @@ export const tableSticky = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder
   h.div(
     [h.Style({ maxBlockSize: '16rem', overflow: 'auto' })],
     [Table.view<Invoice>({ columns: invoiceColumns, rows: manyInvoices, style }, h)],
-  )
-// #endregion
-
-// #region breadcrumb-basic
-export const BreadcrumbStyle = forSlots(BreadcrumbSlots)(Recipes.Breadcrumb({}))
-
-export const breadcrumb = (
-  style: NamedStyle<typeof BreadcrumbSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  Breadcrumb.view(
-    {
-      steps: [
-        { label: 'Home', href: '#' },
-        { label: 'Components', href: '#' },
-        { label: 'Breadcrumb', current: true },
-      ],
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region breadcrumb-icons
-// An icon before a step's words, hidden from assistive technology.
-export const breadcrumbIcons = (
-  style: NamedStyle<typeof BreadcrumbSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  Breadcrumb.view(
-    {
-      steps: [
-        { label: 'Home', href: '#', icon: outline(h, 'M2 7l6-5 6 5v7H2zM6 14v-4h4v4') },
-        { label: 'Projects', href: '#', icon: outline(h, 'M1 3h5l2 2h7v8H1z') },
-        { label: 'Roadmap.md', current: true, icon: outline(h, 'M3 1h7l3 3v11H3zM10 1v3h3') },
-      ],
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region breadcrumb-custom
-// A separator of the view's own stands in for the recipe's.
-export const breadcrumbCustom = (
-  style: NamedStyle<typeof BreadcrumbSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  Breadcrumb.view(
-    {
-      steps: [
-        { label: 'Settings', href: '#' },
-        { label: 'Billing', href: '#' },
-        { label: 'Invoices', current: true },
-      ],
-      separator: h.span([], ['→']),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region breadcrumb-collapsed
-// A long trail folds its middle into an ellipsis; a press on it sends
-// `onExpand`, and the application draws the trail whole.
-export const breadcrumbCollapsed = <Message>(
-  style: NamedStyle<typeof BreadcrumbSlots>,
-  expanded: boolean,
-  onExpand: Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Breadcrumb.view(
-    {
-      steps: [
-        { label: 'Home', href: '#' },
-        { label: 'Docs', href: '#' },
-        { label: 'Packages', href: '#' },
-        { label: 'Mixins', href: '#' },
-        { label: 'Recipes', href: '#' },
-        { label: 'Breadcrumb', current: true },
-      ],
-      ...(expanded ? {} : { collapse: { max: 3, onExpand } }),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region breadcrumb-menu
-// The "…" opens a Menu of the hidden steps; the application keeps the Menu's Model.
-export const trail: ReadonlyArray<Breadcrumb.BreadcrumbStep> = [
-  { label: 'Home', href: '#' },
-  { label: 'Docs', href: '#' },
-  { label: 'Packages', href: '#' },
-  { label: 'Mixins', href: '#' },
-  { label: 'Recipes', href: '#' },
-  { label: 'Breadcrumb', current: true },
-]
-export const TRAIL_MAX = 3
-export const trailMenu = Menu.init('trail-menu', Breadcrumb.menuRows(trail, TRAIL_MAX))
-
-export const breadcrumbMenu = <Message>(
-  style: NamedStyle<typeof BreadcrumbSlots>,
-  menu: Menu.Model,
-  onMessage: (message: Menu.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Breadcrumb.view(
-    {
-      steps: trail,
-      collapse: { max: TRAIL_MAX, menu: { model: menu, onMessage, mixins: [MenuStyle.mixin] } },
-      style,
-    },
-    h,
   )
 // #endregion
 

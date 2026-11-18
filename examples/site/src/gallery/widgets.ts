@@ -67,7 +67,6 @@ import {
   switcherSidebar,
   TEAMS,
   OpenFiles,
-  trailMenu,
   ViewMode,
   Inbox,
   ViewOptions,
@@ -224,8 +223,6 @@ export const Model = Schema.Struct({
   terms: Schema.Boolean,
   toppings: Toppings,
   teamPlan: Schema.Boolean,
-  /** Whether the long breadcrumb trail was unfolded. */
-  trailExpanded: Schema.Boolean,
   /** The page each pagination example shows, and the rows a page holds in the range one. */
   pages: Schema.Record(PaginationExample, Schema.Number),
   perPage: Schema.Number,
@@ -260,8 +257,6 @@ export const Model = Schema.Struct({
   files: Schema.Record(FilesExample, OpenFiles),
   viewMode: ViewMode,
   navs: Schema.Record(NavExample, Nav.Model),
-  /** The breadcrumb's menu of the steps it folds away. */
-  trailMenu: Menu.Model,
   /** The menu bar's menus, and the command last chosen from it. */
   menubar: Menubar.Model,
   menubarChoice: Schema.Option(Schema.String),
@@ -402,7 +397,6 @@ export const Message = defineMessageUnion({
   ToggledTerms: { checked: Schema.Boolean },
   ToggledToppings: { checked: Schema.Boolean },
   ToggledTeamPlan: { checked: Schema.Boolean },
-  ExpandedTrail: {},
   ChosePage: { example: PaginationExample, page: Schema.Number },
   ChosePerPage: { perPage: Schema.Number },
   ToggledAlert: { example: AlertsExample, value: Schema.String },
@@ -427,7 +421,6 @@ export const Message = defineMessageUnion({
   ClosedFile: { example: FilesExample, file: Schema.String },
   ChoseViewMode: { mode: ViewMode },
   GotNav: { example: NavExample, message: Nav.Message },
-  GotTrailMenu: { message: Menu.Message },
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
   GotCarousel: { example: CarouselExample, message: Carousel.Message },
@@ -588,7 +581,6 @@ export const initial: Model = {
   terms: false,
   toppings: 'some',
   teamPlan: false,
-  trailExpanded: false,
   pages: {
     numbered: 4,
     simple: 2,
@@ -640,7 +632,6 @@ export const initial: Model = {
     pill: Nav.init('preview-pill-nav'),
     vertical: Nav.init('preview-side-nav'),
   },
-  trailMenu,
   menubar: Menubar.init(
     MENUBAR.map(menu => `preview-menubar-${menu.label.toLowerCase()}`),
     { isAnimated: true },

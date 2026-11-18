@@ -5,6 +5,8 @@
  */
 const tests = ['packages/mixins-ui/test/breadcrumb.test.ts']
 
+// `breadcrumb.imports.test.ts` reads the source from disk, which no mutation reaches; it was
+// shown red by hand: `import { type ItemRow } from './menu.js'` in `../src/breadcrumb.ts`.
 const menu = 'packages/mixins-ui/test/breadcrumbMenu.browser.test.ts'
 
 export default [
@@ -13,8 +15,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: "options.label ?? 'Breadcrumb'",
-        replace: "'Breadcrumb'",
+        find: 'h.AriaLabel(text.label)',
+        replace: "h.AriaLabel('Breadcrumb')",
       },
     ],
     tests: ['packages/mixins-ui/test/breadcrumb.test.ts'],
@@ -68,8 +70,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: ', h.OnClick(collapse.onExpand)]',
-        replace: ']',
+        find: 'h.OnClick(collapse.onExpand),',
+        replace: '',
       },
     ],
     tests,
@@ -139,8 +141,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: 'rowsOf(collapsedOf(steps, max).hidden)',
-        replace: 'rowsOf(steps)',
+        find: 'hiddenRows(collapsedOf(steps, max).hidden)',
+        replace: 'hiddenRows(steps)',
       },
     ],
     tests,
@@ -160,8 +162,8 @@ export default [
     name: 'the Menu draws no rows',
     edits: [
       {
-        file: '../src/breadcrumb.ts',
-        find: 'rows: rowsOf(hidden),',
+        file: '../src/breadcrumb/menu.ts',
+        find: 'rows: hiddenRows(hidden),',
         replace: 'rows: [],',
       },
     ],
@@ -171,12 +173,39 @@ export default [
     name: "the Menu's trigger goes unnamed",
     edits: [
       {
-        file: '../src/breadcrumb.ts',
+        file: '../src/breadcrumb/menu.ts',
         find: 'attributes: () => builders.ellipsis.attrs([h.AriaLabel(label)]),',
         replace: 'attributes: () => builders.ellipsis.attrs(),',
       },
     ],
     tests: [menu],
+  },
+  {
+    name: 'the ellipsis name ignores the count of hidden steps',
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: 'fill(text.more, { count: hidden.length })',
+        replace: 'text.more',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the ellipsis ignores its word',
+    edits: [{ file: '../src/breadcrumb.ts', find: '[text.ellipsis],', replace: "['…']," }],
+    tests,
+  },
+  {
+    name: 'a feature is never handed the hidden steps',
+    edits: [
+      {
+        file: '../src/breadcrumb.ts',
+        find: '{ label, ellipsis: text.ellipsis, hidden, builders }',
+        replace: '{ label, ellipsis: text.ellipsis, hidden: [], builders }',
+      },
+    ],
+    tests,
   },
   {
     name: "the ellipsis loses to the Menu style's trigger",

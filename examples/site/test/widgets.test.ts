@@ -179,16 +179,6 @@ describe('the pagination previews', () => {
   })
 })
 
-describe('the breadcrumb preview', () => {
-  it('unfolds its trail once, and stays unfolded', () => {
-    const expanded = send(Widgets.Message.ExpandedTrail())
-    expect([initial.widgets.trailExpanded, expanded.widgets.trailExpanded]).toEqual([false, true])
-    expect(
-      update(expanded, Message.GotWidget({ message: Widgets.Message.ExpandedTrail() })).model,
-    ).toBe(expanded)
-  })
-})
-
 describe('the checkbox group previews', () => {
   it('each check their own alerts', () => {
     const toggled = send(Widgets.Message.ToggledAlert({ example: 'described', value: 'digest' }))

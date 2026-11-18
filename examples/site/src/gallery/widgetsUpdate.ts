@@ -499,13 +499,6 @@ const foldNav = Update.foldChildAt({
   toParentMessage: (example, message) => Message.GotNav({ example, message }),
 })
 
-// The gallery's steps lead to `#`, so a step chosen from the menu only closes it.
-const foldTrailMenu = Update.foldChild({
-  ...own('trailMenu', Message.GotTrailMenu),
-  update: Menu.update,
-  foldOutMessage: Menu.OutMessage.match<Step>({ Selected: () => same }),
-})
-
 /** `ids` with `id` in or out; the same array when it already is. */
 const including = (ids: ReadonlyArray<string>, id: string, on: boolean): ReadonlyArray<string> =>
   ids.includes(id) === on ? ids : on ? [...ids, id] : ids.filter(each => each !== id)
@@ -803,7 +796,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ? { model }
         : { model: modifyFields(model, { viewMode: () => mode }) },
     GotNav: ({ example, message }) => foldNav(model, example, message),
-    GotTrailMenu: ({ message }) => foldTrailMenu(model, message),
     GotSplit: ({ message }) => {
       const split = Resizable.update(model.split, message, { min: 0.2, max: 0.8 })
       return split === model.split
@@ -1137,10 +1129,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       checked === model.teamPlan
         ? { model }
         : { model: modifyFields(model, { teamPlan: () => checked }) },
-    ExpandedTrail: () =>
-      model.trailExpanded
-        ? { model }
-        : { model: modifyFields(model, { trailExpanded: () => true }) },
     ChosePage: ({ example, page }) =>
       page === model.pages[example]
         ? { model }

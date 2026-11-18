@@ -9,7 +9,14 @@ import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { BreadcrumbSlots, chosen, collapsedOf, menuRows, view } from '../src/breadcrumb.js'
+import {
+  BreadcrumbSlots,
+  chosen,
+  collapsedOf,
+  menuRows,
+  view,
+  type CollapseFeature,
+} from '../src/breadcrumb.js'
 import { Recipes } from '../src/index.js'
 import { h as messaging, message } from './fixture.js'
 
@@ -112,9 +119,41 @@ describe('the Menu of the hidden steps', () => {
 describe('Breadcrumb view', () => {
   it('names its landmark Breadcrumb, or what it is given', () => {
     const name = (label?: string) =>
-      Inert.value(Inert.byTag(view({ steps, label }, h), 'nav')[0], 'aria-label')
+      Inert.value(
+        Inert.byTag(view({ steps, words: label === undefined ? {} : { label } }, h), 'nav')[0],
+        'aria-label',
+      )
     expect(name()).toBe('Breadcrumb')
     expect(name('Fil d’Ariane')).toBe('Fil d’Ariane')
+  })
+
+  it('words the ellipsis: its name fills the count of hidden steps, and its mark is text', () => {
+    const trail = view(
+      {
+        steps: long,
+        words: { more: '{count} de plus', ellipsis: '...' },
+        collapse: { max: 3, onExpand: message('Clicked') },
+      },
+      messaging,
+    )
+    const [ellipsis] = Inert.byTag(trail, 'button')
+    expect(Inert.value(ellipsis, 'aria-label')).toBe('3 de plus')
+    expect(Inert.text(ellipsis)).toBe('...')
+  })
+
+  it('hands the ellipsis to a collapse feature written outside the package', () => {
+    const feature: CollapseFeature<never> = {
+      max: 3,
+      draw: ({ label, ellipsis, hidden }, builder) =>
+        builder.span([], [`${ellipsis}${hidden.length}:${label}`]),
+    }
+    const trail = view({ steps: long, collapse: feature }, h)
+    expect(Inert.byTag(trail, 'li').map(item => Inert.text(item))).toEqual([
+      'Home',
+      '…3:Show 3 more',
+      'Dialog',
+      'Sizes',
+    ])
   })
 
   it('lands in a nav landmark with the current page marked', () => {
