@@ -53,6 +53,48 @@ Run subagents in parallel only on disjoint files, and say in each brief what
 the others are editing. Never let two of them run Wrangler (or anything
 that refreshes the Cloudflare login) at once.
 
+### A brief that does not make its agent wait
+
+On 2026-11-18 the agents of one long effort spent most of their time
+waiting on commands. Each ran the whole check list for every commit, cold,
+one command at a time. A brief sets the checks by these rules:
+
+- **Name the inner loop, and keep it to what the change can break.** While
+  building: the one project's typecheck and the one test file. Not
+  `typecheck:force`, not a package's whole suite, not the site's prerender
+  test. Say which files; an agent left to choose runs everything.
+- **The whole check list runs once per piece of work, at its end**, not per
+  commit: format, the lint scripts, `mutate:check`, the docs check. A commit
+  inside the piece needs the project to compile and its own test green.
+- **CI is the verdict on everything else.** An agent pushes and goes on; it
+  does not run locally what CI runs in parallel (the wide suites, bundle
+  budgets it did not move, `pack:check`, e2e of examples it did not touch).
+  The coordinator reads CI. Ask for a local run of a slow check only where
+  the change is its subject.
+- **A fast typecheck is for looking, `tsc` is for deciding.** `tsrs`
+  (Cloudflare's Rust port, experimental) checked `packages/mixins-ui` in 25s
+  against 64s, and reported errors `tsc` does not. An agent may use it to
+  find its own mistakes sooner; a commit is gated on `tsc -b <project>`,
+  which CI runs.
+- **Mutations in one run.** Give the agent the spec, not a name at a time:
+  a run per name is a cold start per name.
+- **One agent looks, the builders build.** Screenshots at four sizes and the
+  Jev review, done by every builder for every widget, were most of the
+  waiting. Builders write the browser test of what they claim; one review
+  agent at the end of a batch takes the screenshots and runs Jev over the
+  batch's diff. Ask a builder for screenshots only when the task is the look.
+- **Size the checks to the risk.** A docs or example change needs its
+  snippet compiled and nothing else. A published API change needs the type
+  tests and Jev. Do not paste one maximal check list into every brief.
+- **Let it work while a command runs.** Where memory allows, a long command
+  runs in the background and the agent writes the next piece; say so in the
+  brief, and say when the machine is too full for it (then: one heavy
+  command at a time, in the foreground).
+- **Independent work goes to an agent with a tree of its own** (a remote
+  environment or an isolated worktree with its own install), so its checks
+  run beside the others' and it commits without the shared-tree ceremony.
+  The shared tree is for work that must see the others' uncommitted files.
+
 ## Reviewing a commit
 
 When re-reading a commit, check each of these deliberately:
