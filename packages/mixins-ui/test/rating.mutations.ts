@@ -79,8 +79,8 @@ export default [
     edits: [
       {
         file: '../src/rating.ts',
-        find: 'onSome: value => `${starLabel(value)} of ${max}`,',
-        replace: 'onSome: value => starLabel(value),',
+        find: 'fill(text.rated, { label: options.label, stars: starLabel(value), max }),',
+        replace: 'starLabel(value),',
       },
     ],
     tests: [unit],
@@ -281,5 +281,66 @@ export default [
     name: 'a large star is small',
     edits: [{ file: recipe, find: 'lg: { root: steps.lg },', replace: 'lg: { root: steps.sm },' }],
     tests: [browser],
+  },
+  {
+    name: 'the words are not read',
+    edits: [
+      {
+        file: '../src/rating.ts',
+        find: 'const text = wordsOf(words, options.words)',
+        replace: 'const text = words',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a star’s own label is ignored',
+    edits: [{ file: '../src/rating.ts', find: 'options.labels?.[value - 1] ?? ', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'one star is said as several',
+    edits: [
+      {
+        file: '../src/rating.ts',
+        find: 'value === 1 ? text.one : text.other',
+        replace: 'text.other',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an unrated read-only rating ignores its word',
+    edits: [
+      {
+        file: '../src/rating.ts',
+        find: 'fill(text.notRated, { label: options.label })',
+        replace: "'not rated'",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a preset is ignored',
+    edits: [
+      {
+        file: '../src/rating.ts',
+        find: 'view(layered(config, options), h)',
+        replace: 'view(options, h)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the danger tone draws the warning colour',
+    edits: [
+      {
+        file: '../src/recipes/rating.ts',
+        find: "danger: { root: variant(Style.self({ '--_fk-rating-on': ref.error.default })) },",
+        replace:
+          "danger: { root: variant(Style.self({ '--_fk-rating-on': ref.warning.default })) },",
+      },
+    ],
+    tests: [unit],
   },
 ]

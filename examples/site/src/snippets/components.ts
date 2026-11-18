@@ -73,8 +73,6 @@ import {
   PasswordInput,
   PasswordInputSlots,
   type PasswordRequirement,
-  Rating,
-  RatingSlots,
   VirtualList,
   VirtualListSlots,
   Progress,
@@ -3951,111 +3949,6 @@ export const virtualList = <Message>(
         h,
       ),
     ],
-  )
-// #endregion
-
-// #region rating-basic
-export const RatingStyle = forSlots(RatingSlots)(Recipes.Rating({}))
-
-export const rating = <Message>(
-  style: NamedStyle<typeof RatingSlots>,
-  value: Option.Option<number>,
-  onChange: (value: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'end' })],
-    [
-      Rating.view({ id: 'preview-stay', label: 'Your stay', value, onChange, style }, h),
-      Rating.view(
-        {
-          id: 'preview-average',
-          label: 'Average of 120 reviews',
-          value: Option.some(4),
-          readOnly: true,
-          style,
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
-
-// #region rating-half
-export const ratingHalf = <Message>(
-  style: NamedStyle<typeof RatingSlots>,
-  value: Option.Option<number>,
-  onChange: (value: number) => Message,
-  onClear: () => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  // A press on the star already chosen clears it.
-  Rating.view(
-    { id: 'half-film', label: 'The film', value, onChange, onClear, precision: 0.5, style },
-    h,
-  )
-// #endregion
-
-// #region rating-fraction
-export const ratingFraction = (
-  style: NamedStyle<typeof RatingSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  Rating.view(
-    {
-      id: 'fraction-average',
-      label: 'Average of 1,204 reviews',
-      value: Option.some(4.3),
-      readOnly: true,
-      showValue: true,
-      starLabel: value => `${value} stars`,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region rating-hearts
-// Pinned: `Recipes.Rating({ glyph: 'heart', tone: 'error', size: 'lg' })`.
-export const ratingHearts = <Message>(
-  style: NamedStyle<typeof RatingSlots>,
-  value: Option.Option<number>,
-  onChange: (value: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Rating.view(
-    {
-      id: 'hearts-recipe',
-      label: 'How much you liked it',
-      value,
-      onChange,
-      starLabel: value => (value === 1 ? '1 heart' : `${value} hearts`),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region rating-labels
-const verdicts = ['Useless', 'Poor', 'Ok', 'Good', 'Excellent']
-
-export const ratingLabels = <Message>(
-  style: NamedStyle<typeof RatingSlots>,
-  value: Option.Option<number>,
-  onChange: (value: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Rating.view(
-    {
-      id: 'labels-support',
-      label: 'Your support call',
-      value,
-      onChange,
-      starLabel: value => verdicts[value - 1] ?? `${value} stars`,
-      showValue: true,
-      style,
-    },
-    h,
   )
 // #endregion
 

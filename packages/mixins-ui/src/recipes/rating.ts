@@ -106,7 +106,11 @@ export const Rating = Style.recipeFor(RatingSlots)({
     tone: {
       warning: { root: variant(Style.self({ '--_fk-rating-on': ref.warning.default })) },
       accent: { root: variant(Style.self({ '--_fk-rating-on': ref.accent.default })) },
-      error: { root: variant(Style.self({ '--_fk-rating-on': ref.error.default })) },
+      danger: { root: variant(Style.self({ '--_fk-rating-on': ref.error.default })) },
+      success: { root: variant(Style.self({ '--_fk-rating-on': ref.success.default })) },
+      info: { root: variant(Style.self({ '--_fk-rating-on': ref.info.default })) },
+      // The page's own ink, for a rating that carries no meaning of colour.
+      neutral: { root: variant(Style.self({ '--_fk-rating-on': ref.text.default })) },
     },
     glyph: {
       star: {},

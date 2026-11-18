@@ -272,10 +272,6 @@ export const Model = Schema.Struct({
   ),
   invoicesChosen: Schema.Array(Schema.String),
   invoicesOpen: Schema.Array(Schema.String),
-  /** The half-star, heart and worded ratings. */
-  film: Schema.Option(Schema.Number),
-  hearts: Schema.Option(Schema.Number),
-  support: Schema.Option(Schema.Number),
   /** The collapsible split and the nested ones. */
   collapsibleSplit: Resizable.Model,
   outerSplit: Resizable.Model,
@@ -290,8 +286,6 @@ export const Model = Schema.Struct({
   fields: Fields.Model,
   /** What each textarea example holds. */
   notes: Schema.Record(NotesExample, Schema.String),
-  /** The rating's stars, none before any are given. */
-  stay: Schema.Option(Schema.Number),
   /** The chat previews: the answer liked, the failed message retried, the words streamed. */
   answerLiked: Schema.Boolean,
   chatRetried: Schema.Boolean,
@@ -393,7 +387,6 @@ export const Message = defineMessageUnion({
   GotCopy: { message: ClipboardMessage },
   TypedPassword: { value: Schema.String },
   ToggledPassword: {},
-  RatedStay: { value: Schema.Number },
   TypedNote: { example: NotesExample, value: Schema.String },
   TurnedLevel: { value: Schema.Number },
   MovedBudget: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
@@ -404,10 +397,6 @@ export const Message = defineMessageUnion({
   ChoseInvoice: { id: Schema.String, selected: Schema.Boolean },
   ChoseInvoices: { ids: Schema.Array(Schema.String) },
   OpenedInvoice: { id: Schema.String, expanded: Schema.Boolean },
-  RatedFilm: { value: Schema.Number },
-  ClearedFilm: {},
-  RatedHearts: { value: Schema.Number },
-  RatedSupport: { value: Schema.Number },
   GotCollapsibleSplit: { message: Resizable.Message },
   GotOuterSplit: { message: Resizable.Message },
   GotInnerSplit: { message: Resizable.Message },
@@ -581,7 +570,6 @@ export const initial: Model = {
   inputCopy: InputCopy.init({ resetAfter: 2000 }),
   password: '',
   passwordShown: false,
-  stay: Option.none(),
   selects: {
     custom: fruitState('custom', Option.some('Apple')),
     icons: fruitState('icons', Option.some('Cherry')),
@@ -621,9 +609,6 @@ export const initial: Model = {
   invoiceSort: Option.none(),
   invoicesChosen: ['INV-002'],
   invoicesOpen: [],
-  film: Option.some(3.5),
-  hearts: Option.some(4),
-  support: Option.none(),
   collapsibleSplit: Resizable.init(0.3),
   outerSplit: Resizable.init(0.3),
   innerSplit: Resizable.init(0.6),

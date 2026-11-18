@@ -820,10 +820,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     ToggledPassword: () => ({
       model: modifyFields(model, { passwordShown: () => !model.passwordShown }),
     }),
-    RatedStay: ({ value }) =>
-      Option.contains(model.stay, value)
-        ? { model }
-        : { model: modifyFields(model, { stay: () => Option.some(value) }) },
     TypedNote: ({ example, value }) =>
       model.notes[example] === value
         ? { model }
@@ -944,17 +940,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ? { model }
         : { model: modifyFields(model, { invoicesOpen: () => open }) }
     },
-    RatedFilm: ({ value }) => ({ model: modifyFields(model, { film: () => Option.some(value) }) }),
-    ClearedFilm: () =>
-      Option.isNone(model.film)
-        ? { model }
-        : { model: modifyFields(model, { film: () => Option.none() }) },
-    RatedHearts: ({ value }) => ({
-      model: modifyFields(model, { hearts: () => Option.some(value) }),
-    }),
-    RatedSupport: ({ value }) => ({
-      model: modifyFields(model, { support: () => Option.some(value) }),
-    }),
     // The bounds the collapsible example's view takes, which must agree with these.
     GotCollapsibleSplit: ({ message }) => {
       const split = Resizable.update(model.collapsibleSplit, message, {

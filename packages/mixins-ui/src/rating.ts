@@ -10,7 +10,12 @@ import {
   type NamedStyle,
 } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
+import { words, type RatingWords } from './rating/words.js'
+
+export { words, type RatingWords } from './rating/words.js'
 
 /**
  * A star rating, the APG's radio group of native radios: a `root` with
@@ -54,9 +59,11 @@ interface RatingCommon<Message> {
   readonly value: Option.Option<number>
   /** The number of stars; default 5. */
   readonly max?: number | undefined
-  /** How a number of stars reads aloud, and shows with `showValue`; default `"3 stars"`. */
-  readonly starLabel?: ((value: number) => string) | undefined
-  /** Shows the rating in words beside the stars, as `starLabel` says it. */
+  /** What each whole number of stars reads aloud, from one star up: `['Poor', 'Fair', 'Good']`. A star with none is said by `words`. */
+  readonly labels?: ReadonlyArray<string> | undefined
+  /** The fixed text; see `RatingWords`. */
+  readonly words?: Partial<RatingWords> | undefined
+  /** Shows the rating in words beside the stars, as it reads aloud. */
   readonly showValue?: boolean | undefined
   /** A style of `RatingSlots`, for the look. */
   readonly style?: NamedStyle<typeof RatingSlots> | undefined
@@ -90,8 +97,6 @@ export type RatingView<Message> = RatingInput<Message> | RatingDisplay<Message>
 /** A star's share of `left` stars, 0 to 1, rid of the float noise of a subtraction (4.3 - 4). */
 const share = (left: number): number => Math.round(Math.min(1, Math.max(0, left)) * 1000) / 1000
 
-const stars = (value: number): string => (value === 1 ? '1 star' : `${value} stars`)
-
 export const view = <Message>(options: RatingView<Message>, h: HtmlBuilder<Message>): Html => {
   const max = options.max ?? 5
   const step = options.readOnly === true ? 1 : (options.precision ?? 1)
@@ -122,7 +127,10 @@ export const view = <Message>(options: RatingView<Message>, h: HtmlBuilder<Messa
     ],
     { input: undefined, h },
   )
-  const starLabel = options.starLabel ?? stars
+  const text = wordsOf(words, options.words)
+  // A whole number of stars is named by `labels`, else by the words; a fraction by the words.
+  const starLabel = (value: number): string =>
+    options.labels?.[value - 1] ?? fill(value === 1 ? text.one : text.other, { value })
   const given = Option.getOrElse(options.value, () => 0)
   const labelId = `${options.id}-label`
   const filled = (value: number) => h.DataAttribute('filled', String(value <= given))
@@ -137,10 +145,10 @@ export const view = <Message>(options: RatingView<Message>, h: HtmlBuilder<Messa
 
   if (options.readOnly === true) {
     const said = Option.match(options.value, {
-      onNone: () => 'not rated',
-      onSome: value => `${starLabel(value)} of ${max}`,
+      onNone: () => fill(text.notRated, { label: options.label }),
+      onSome: value => fill(text.rated, { label: options.label, stars: starLabel(value), max }),
     })
-    return h.div(builders.root.attrs([h.Role('img'), h.AriaLabel(`${options.label}: ${said}`)]), [
+    return h.div(builders.root.attrs([h.Role('img'), h.AriaLabel(said)]), [
       h.span(builders.label.attrs([h.AriaHidden(true)]), [options.label]),
       ...Array.from({ length: max }, (_, index) =>
         h.span(
@@ -186,3 +194,26 @@ export const view = <Message>(options: RatingView<Message>, h: HtmlBuilder<Messa
     ...shown,
   ])
 }
+
+/** What a Rating is given once: its look, words and size. The value, the Messages and what is rated are each use's. */
+export type RatingPreset = Pick<
+  RatingInput<never>,
+  'max' | 'precision' | 'showValue' | 'words' | 'labels' | 'style'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own Rating: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both. `mixins` concatenate in that
+ * order and `words` merge word by word; any other option given at the call
+ * replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<RatingPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: RatingView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})
