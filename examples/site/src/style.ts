@@ -1212,7 +1212,10 @@ export const SiteStyle = slots(
       // Served, before the page's code has taken it over: not yet pressable.
       Style.nest('&[aria-busy="true"]', { opacity: '0.6', cursor: 'progress' }),
       // A gallery card's: smaller, and nothing in it takes a click or focus.
+      // Bounded: a card's preview is a thumbnail of its widget, never as tall
+      // as the widget (a list of a thousand rows), and clips what does not fit.
       Style.nest('&[data-size="thumb"]', {
+        maxBlockSize: '22rem',
         minBlockSize: '11rem',
         padding: t.space.lg,
         overflow: 'hidden',
