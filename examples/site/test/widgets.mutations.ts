@@ -131,28 +131,6 @@ export default [
     tests,
   })),
   {
-    name: 'a refused code is typed into the filling field',
-    edits: [
-      {
-        file: widgets,
-        find: 'otpStates: states => ({ ...states, [field]: code }) }',
-        replace: 'otpStates: states => ({ ...states, filling: code }) }',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'the same state code is written again',
-    edits: [
-      {
-        file: widgets,
-        find: 'code === model.otpStates[field]',
-        replace: 'false',
-      },
-    ],
-    tests,
-  },
-  {
     name: 'a drawer press is not kept',
     edits: [
       {

@@ -1,6 +1,8 @@
 import { OtpFieldSlots, Recipes } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import basic from '../../examples/otp-field/basic.js'
+import letters from '../../examples/otp-field/letters.js'
+import masked from '../../examples/otp-field/masked.js'
+import states from '../../examples/otp-field/states.js'
 import { about } from '../catalogue.js'
 import { fromRecipe } from '../define.js'
 
@@ -8,36 +10,12 @@ export const showcase = fromRecipe(
   about('otp-field'),
   OtpFieldSlots,
   Recipes.OtpField,
-  (style, live) =>
-    Snippet.otpField(
-      style,
-      live.widgets.code,
-      code => live.onWidget(Widgets.Message.TypedCode({ code })),
-      live.h,
-    ),
+  basic,
   undefined,
   [
-    {
-      name: 'basic',
-      title: 'Basic',
-      draw: (style, live) =>
-        Snippet.otpField(
-          style,
-          live.widgets.code,
-          code => live.onWidget(Widgets.Message.TypedCode({ code })),
-          live.h,
-        ),
-    },
-    {
-      name: 'states',
-      title: 'Filling, refused, disabled, read only',
-      draw: (style, live) =>
-        Snippet.otpFieldStates(
-          style,
-          live.widgets.otpStates,
-          (field, code) => live.onWidget(Widgets.Message.TypedStateCode({ field, code })),
-          live.h,
-        ),
-    },
+    { name: 'basic', example: basic },
+    { name: 'masked', example: masked },
+    { name: 'letters', example: letters },
+    { name: 'states', example: states },
   ],
 )

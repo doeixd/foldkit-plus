@@ -174,3 +174,24 @@ describe('OtpField.view form attributes', () => {
     expect(cellStates({}, 'data-disabled')).toEqual(Array(6).fill(undefined))
   })
 })
+
+describe('OtpField.view mask', () => {
+  const masked = (mask: Extra['mask']) =>
+    OtpField.view(
+      { label: 'Code', value: '12', onChange: () => message('Clicked'), mask, style },
+      h,
+    )
+  const shown = (mask: Extra['mask']) =>
+    Inert.all(masked(mask))
+      .filter(node => Inert.value(node, 'data-filled') !== undefined)
+      .map(cell => Inert.text(cell))
+
+  it('shows a dot in each filled cell and hides the input, or the mark given', () => {
+    expect(shown(true).slice(0, 3)).toEqual(['•', '•', ''])
+    expect(shown('*').slice(0, 3)).toEqual(['*', '*', ''])
+    expect(shown(false).slice(0, 3)).toEqual(['1', '2', ''])
+    expect(shown(undefined).slice(0, 3)).toEqual(['1', '2', ''])
+    expect(Inert.value(Inert.byTag(masked(true), 'input')[0], 'type')).toBe('password')
+    expect(Inert.value(Inert.byTag(masked(false), 'input')[0], 'type')).toBe('text')
+  })
+})

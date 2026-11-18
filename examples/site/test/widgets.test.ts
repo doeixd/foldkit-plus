@@ -370,29 +370,6 @@ describe('the chat and long-tail previews', () => {
   })
 })
 
-describe('the Input OTP states preview', () => {
-  it('keeps each editable field its own code, apart from the basic one', () => {
-    const filling = send(Widgets.Message.TypedStateCode({ field: 'filling', code: '4829' }))
-    expect(filling.widgets.otpStates).toEqual({ filling: '4829', refused: '482910' })
-    expect(filling.widgets.code).toBe('')
-    const refused = update(
-      filling,
-      Message.GotWidget({
-        message: Widgets.Message.TypedStateCode({ field: 'refused', code: '48291' }),
-      }),
-    ).model
-    expect(refused.widgets.otpStates).toEqual({ filling: '4829', refused: '48291' })
-    expect(
-      update(
-        refused,
-        Message.GotWidget({
-          message: Widgets.Message.TypedStateCode({ field: 'refused', code: '48291' }),
-        }),
-      ).model.widgets,
-    ).toBe(refused.widgets)
-  })
-})
-
 describe('the Drawer preview', () => {
   it('opens on a press of its handle, and a press that changes nothing keeps the Model', () => {
     expect(initial.widgets.drawer.open).toBe(false)

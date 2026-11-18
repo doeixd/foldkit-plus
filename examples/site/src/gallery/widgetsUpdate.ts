@@ -991,12 +991,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ? { model }
         : { model: modifyFields(model, { alerts: alerts => ({ ...alerts, [example]: values }) }) }
     },
-    TypedCode: ({ code }) =>
-      code === model.code ? { model } : { model: modifyFields(model, { code: () => code }) },
-    TypedStateCode: ({ field, code }) =>
-      code === model.otpStates[field]
-        ? { model }
-        : { model: modifyFields(model, { otpStates: states => ({ ...states, [field]: code }) }) },
     SavedDraft: () =>
       notify(model, {
         variant: 'Success',
