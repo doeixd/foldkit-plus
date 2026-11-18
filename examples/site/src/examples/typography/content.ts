@@ -12,8 +12,8 @@ export default example({
       {
         level: 'body',
         content: [
-          'Read the ',
-          h.a([h.Href('/guides/theme')], ['theme guide']),
+          'See the ',
+          h.a([h.Href('/components/button')], ['button page']),
           ' for ',
           h.strong([], ['every']),
           ' knob.',

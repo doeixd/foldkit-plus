@@ -24,7 +24,8 @@ export default example({
           'Donald Knuth',
         ].map((name, index) => ({ name, src: portrait(index * 60) })),
         max: 4,
-        wrap: (avatar, person) => h.a([h.Href(`/people/${person.name}`)], [avatar]),
+        wrap: (avatar, person) =>
+          h.a([h.Href('/components/avatar'), h.AriaLabel(`${person.name}’s page`)], [avatar]),
         style: Stack,
         avatarStyle: style,
       },
