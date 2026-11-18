@@ -8,7 +8,7 @@ const file = '../src/picker/app.ts'
 export default [
   {
     name: 'any value goes, an order or not',
-    edits: [{ file, find: '        isSort,\n', replace: '        () => true,\n' }],
+    edits: [{ file, find: 'Picker.one(SORTS)', replace: "Picker.one([...SORTS, 'rating'])" }],
     tests,
   },
   {
@@ -16,19 +16,8 @@ export default [
     edits: [
       {
         file,
-        find: 'sort: sort => Option.orElse(chosen, () => sort),',
-        replace: 'sort: sort => sort,',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a Message that changes nothing makes a new Model',
-    edits: [
-      {
-        file,
-        find: 'next.model === model.picker && Option.isNone(chosen)',
-        replace: 'false',
+        find: 'sort: sort => Sorts.picked(sort, out)',
+        replace: 'sort: sort => sort',
       },
     ],
     tests,

@@ -5,11 +5,9 @@
  * open. A choice the Picker reports outside the listed orders is ignored.
  */
 import { Option, Schema } from 'effect'
-import * as Command from 'foldkit/command'
-import { defineMessageUnion } from 'foldkit/message'
+import { Bundle } from 'foldkit-bundle'
 import { modifyFields } from 'foldkit/struct'
-import type { Return } from 'foldkit/update'
-import { Picker, type RowContent } from 'foldkit-mixins-ui'
+import { Bundles, Picker, type RowContent } from 'foldkit-mixins-ui'
 
 export const ISLAND = 'picker'
 
@@ -34,35 +32,19 @@ const ROWS: Readonly<Record<Sort, RowContent>> = {
 
 export const rowOf = (sort: Sort): RowContent => ROWS[sort]
 
-export const Model = Schema.Struct({ picker: Picker.Model, sort: Schema.Option(Sort) })
+export const App = Bundle.compose({ sort: Schema.Option(Sort) }).pipe(
+  Bundle.withChild('picker', Bundles.Picker, {
+    args: { id: `${ISLAND}-sort` },
+    onOut: out => model => ({
+      model: modifyFields(model, { sort: sort => Sorts.picked(sort, out) }),
+    }),
+  }),
+)
+export const Model = App.Model
 export type Model = typeof Model.Type
-
-export const Message = defineMessageUnion({ GotPicker: { message: Picker.Message } })
+export const Message = App.Message
 export type Message = typeof Message.Type
 
-export const initial: Model = { picker: Picker.init({ id: `${ISLAND}-sort` }), sort: Option.none() }
+export const initial: Model = App.placements.initial({ sort: Option.none() }).model
 
-const isSort = Schema.is(Sort)
-
-export const update = (model: Model, message: Message): Return<Model, Message> =>
-  Message.match(message, {
-    GotPicker: ({ message }) => {
-      const next = Picker.update(model.picker, message)
-      const chosen = Option.filter(
-        Option.map(Option.fromNullishOr(next.outMessage), ({ value }) => value),
-        isSort,
-      )
-      return {
-        model:
-          next.model === model.picker && Option.isNone(chosen)
-            ? model
-            : modifyFields(model, {
-                picker: () => next.model,
-                sort: sort => Option.orElse(chosen, () => sort),
-              }),
-        commands: Command.mapMessages(next.commands ?? [], inner =>
-          Message.GotPicker({ message: inner }),
-        ),
-      }
-    },
-  })
+export const update = App.placements.update()

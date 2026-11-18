@@ -31,7 +31,7 @@ export const PickerIsland = (model: Model, h: HtmlBuilder<Message>): Html => {
     Picker.view(
       {
         model: model.picker,
-        onMessage: message => Message.GotPicker({ message }),
+        onMessage: message => Message.GotPickerMessage({ message }),
         label: 'Sort',
         choice: Sorts,
         option: rowOf,
@@ -52,11 +52,11 @@ export const PickerIsland = (model: Model, h: HtmlBuilder<Message>): Html => {
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial
   const lines = [`start: sort=${textOf(model.sort)}`]
-  model = update(model, Message.GotPicker({ message: Picker.Message.OpenedSheet() })).model
+  model = update(model, Message.GotPickerMessage({ message: Picker.Message.OpenedSheet() })).model
   lines.push(`opened the sheet: open=${model.picker.sheet.dialog.isOpen}`)
   model = update(
     model,
-    Message.GotPicker({ message: Picker.Message.ChoseInSheet({ value: 'price' }) }),
+    Message.GotPickerMessage({ message: Picker.Message.ChoseInSheet({ value: 'price' }) }),
   ).model
   lines.push(
     `chose in the sheet: sort=${textOf(model.sort)} open=${model.picker.sheet.dialog.isOpen}`,
