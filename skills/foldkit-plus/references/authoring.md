@@ -238,7 +238,7 @@ const search = (text: string, h: HtmlBuilder<Search>) =>
       label: 'Search',
       value: text,
       onInput: text => Search.Typed({ text }),
-      onClear: Search.Cleared(),
+      clear: { onClear: Search.Cleared() },
       style: RoundSearch,
       routes: [
         Keys.route('Open', {

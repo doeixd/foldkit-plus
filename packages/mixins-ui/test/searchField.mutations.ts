@@ -39,7 +39,7 @@ export default [
   },
   {
     name: 'the clear button sends nothing',
-    edits: [{ file: source, find: 'h.OnClick(options.onClear),', replace: '' }],
+    edits: [{ file: source, find: 'h.OnClick(clear.onClear),', replace: '' }],
     tests: [unit],
   },
   {
@@ -69,8 +69,8 @@ export default [
     edits: [
       {
         file: source,
-        find: "words === '' ? Option.none() : Option.some(options.onClear)",
-        replace: 'Option.some(options.onClear)',
+        find: "words === '' ? Option.none() : Option.some(clear.onClear)",
+        replace: 'Option.some(clear.onClear)',
       },
     ],
     tests: [unit, browser],
@@ -80,7 +80,7 @@ export default [
     edits: [
       {
         file: source,
-        find: "words === '' ? Option.none() : Option.some(options.onClear)",
+        find: "words === '' ? Option.none() : Option.some(clear.onClear)",
         replace: 'Option.none()',
       },
     ],
@@ -137,17 +137,74 @@ export default [
   },
   {
     name: 'the clear button sits at the right in a right-to-left page',
-    edits: [{ file: recipe, find: "insetInlineEnd: '0',", replace: "right: '0'," }],
-    tests: [browser],
-  },
-  {
-    name: 'the input draws no focus ring',
     edits: [
       {
         file: recipe,
-        find: '    input: [\n      control,',
+        find: "root: component(Style.self({ display: 'block' })),",
+        replace: "root: component(Style.self({ display: 'block', direction: 'ltr' })),",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the field draws no focus ring',
+    edits: [
+      {
+        file: '../src/recipes/field.ts',
+        find: '    focusWithin,\n    Style.pseudo(\':has([aria-invalid="true"])\'',
+        replace: '    Style.pseudo(\':has([aria-invalid="true"])\'',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: "the application's clear content is dropped",
+    edits: [
+      {
+        file: source,
+        find: 'clear.content === undefined ? [] : [clear.content],',
+        replace: '[],',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a clear button with content is not marked',
+    edits: [
+      {
+        file: source,
+        find: "...(clear.content === undefined ? [] : [h.DataAttribute('content', '')]),",
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a busy field says nothing',
+    edits: [
+      { file: source, find: '...(options.busy === true ? [h.AriaBusy(true)] : []),', replace: '' },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the end drawing is dropped',
+    edits: [
+      {
+        file: source,
+        find: '...(options.end === undefined ? [] : [h.span(builders.end.attrs(), [options.end])]),',
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the clear button covers the text instead of sitting beside it',
+    edits: [
+      {
+        file: recipe,
+        find: "        alignSelf: 'stretch',\n        inlineSize: ladder('height'),",
         replace:
-          "    input: [\n      control,\n      variant(Style.pseudo(':focus-visible', { outline: 'none' })),",
+          "        alignSelf: 'stretch',\n        position: 'absolute',\n        inlineSize: ladder('height'),",
       },
     ],
     tests: [browser],

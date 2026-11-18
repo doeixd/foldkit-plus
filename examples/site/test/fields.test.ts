@@ -1,5 +1,5 @@
 /**
- * The search, toolbar and file input previews: each Message reaches their
+ * The toolbar and file input previews: each Message reaches their
  * state through the site's update, and the Commands a clear or a remove asks
  * for are the ones that put focus and the input's files right.
  */
@@ -18,32 +18,6 @@ const after = (...messages: ReadonlyArray<Fields.Message>): Model =>
   messages.reduce((model, message) => send(model, message).model, initial)
 
 const file = (name: string, size = 10) => new File(['x'.repeat(size)], name)
-
-describe('the search field previews', () => {
-  it('keep what is typed, and clear it with a Command that puts focus back', () => {
-    const typed = after(Fields.Message.TypedSearch({ value: 'pie' }))
-    expect(typed.widgets.fields.search).toBe('pie')
-    expect(send(typed, Fields.Message.TypedSearch({ value: 'pie' })).model).toBe(typed)
-    const cleared = send(typed, Fields.Message.ClearedSearch())
-    expect(cleared.model.widgets.fields.search).toBe('')
-    expect(cleared.commands?.map(command => command.name)).toEqual(['SearchField.Focus'])
-  })
-
-  it('move the highlight within the results, and start again at the first for a new query', () => {
-    const at = (model: Model) => model.widgets.fields.keyed.active
-    // "apple" matches two recipes.
-    const typed = after(Fields.Message.TypedKeyed({ value: 'apple' }))
-    const down = send(typed, Fields.Message.MovedKeyed({ by: 1 })).model
-    expect(at(down)).toBe(1)
-    // Past the last result stays on it, and the Model it was given.
-    expect(send(down, Fields.Message.MovedKeyed({ by: 1 })).model).toBe(down)
-    expect(at(send(down, Fields.Message.MovedKeyed({ by: -1 })).model)).toBe(0)
-    expect(at(send(down, Fields.Message.TypedKeyed({ value: 'app' })).model)).toBe(0)
-    const cleared = send(down, Fields.Message.ClearedKeyed())
-    expect(cleared.model.widgets.fields.keyed).toEqual({ query: '', active: 0 })
-    expect(cleared.commands?.map(command => command.name)).toEqual(['SearchField.Focus'])
-  })
-})
 
 describe('the file input previews', () => {
   it('add each pick to a multiple list once, and replace a single one', () => {

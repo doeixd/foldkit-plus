@@ -1,15 +1,17 @@
 /**
- * A search field: Input's own control, with a magnifier at the start and the
- * clear button, a square the ladder sizes, at the end (the inline end, so a
- * right-to-left page mirrors both). The browser's own cancel button and
- * decoration are hidden, so there is one clear control. `size` and `variant`
- * are Input's axes, the control taken from it rather than restated.
+ * A search field: Input's control in one box (the `group`) with a magnifier
+ * in the `start` Slot, which it draws while that is empty, and the clear
+ * button, a square the ladder sizes, after the control (the inline end, so a
+ * right-to-left page mirrors both). `start` and `end` take the application's
+ * own drawing. The browser's own cancel button and decoration are hidden, so
+ * there is one clear control. `size` and `variant` are Input's axes, the
+ * control and the box taken from it rather than restated.
  */
 import { Style } from 'foldkit-mixins'
 import { ladder } from 'foldkit-mixins/theme'
 import { glyph } from '../icons.js'
 import { SearchFieldSlots } from '../searchField.js'
-import { Input } from './field.js'
+import { Adorned, Input } from './field.js'
 import {
   component,
   disabled,
@@ -25,28 +27,31 @@ const { input: control } = Input({ variant: null })
 
 export const SearchField = Style.recipeFor(SearchFieldSlots)({
   base: {
-    root: component(
-      Style.self({ position: 'relative', display: 'block' }),
-      // The magnifier is drawn, not a slot: it takes no input and names nothing.
-      glyph(ladder('icon')),
-      Style.nest('&::before', {
-        '--icon': ref.icon.search,
-        position: 'absolute',
-        insetBlockStart: '50%',
-        insetInlineStart: ladder('pad'),
-        transform: 'translateY(-50%)',
-        color: ref.text.muted,
-        pointerEvents: 'none',
-      }),
+    root: component(Style.self({ display: 'block' })),
+    group: Adorned.group,
+    start: Style.compose(
+      Adorned.start,
+      component(
+        Style.self({ '--icon': ref.icon.search }),
+        // The magnifier is drawn only while nothing of the application's is: it names nothing.
+        Style.nest('&:empty::before', {
+          WebkitMask: 'var(--icon) center / contain no-repeat',
+          background: 'currentColor',
+          content: '""',
+          flexShrink: '0',
+          height: ladder('icon'),
+          mask: 'var(--icon) center / contain no-repeat',
+          width: ladder('icon'),
+        }),
+      ),
     ),
+    end: Adorned.end,
     input: [
       control,
       variant(
         Style.self({
           appearance: 'none',
-          // Room for the magnifier at the start and the button at the end.
-          paddingInlineStart: `calc(${ladder('pad')} * 2 + ${ladder('icon')})`,
-          paddingInlineEnd: ladder('height'),
+          paddingInlineStart: ref.space['3xs'],
         }),
         // One clear control: the browser's own would sit beside ours.
         Style.pseudo('::-webkit-search-cancel-button', { appearance: 'none', display: 'none' }),
@@ -55,11 +60,10 @@ export const SearchField = Style.recipeFor(SearchFieldSlots)({
     ],
     clear: component(
       Style.self({
-        position: 'absolute',
-        insetBlock: '0',
-        insetInlineEnd: '0',
         display: 'grid',
         placeItems: 'center',
+        flexShrink: '0',
+        alignSelf: 'stretch',
         inlineSize: ladder('height'),
         padding: '0',
         border: '0',
@@ -71,8 +75,10 @@ export const SearchField = Style.recipeFor(SearchFieldSlots)({
         ...transition('background-color, color'),
       }),
       glyph(ladder('icon')),
+      // The application's own drawing stands in place of the cross.
+      Style.nest('&[data-content]::before', { display: 'none' }),
       hover({ background: unfilledHover, color: ref.text.overt }),
-      // Inside the input's own ring, so the two do not draw over each other.
+      // Inside the group's own ring, so the two do not draw over each other.
       Style.pseudo(':focus-visible', {
         outline: `${ref.border.thick} solid ${ref.outline.focus}`,
         outlineOffset: `calc(-1 * ${ref.border.thick})`,
@@ -82,13 +88,15 @@ export const SearchField = Style.recipeFor(SearchFieldSlots)({
   },
   variants: {
     size: {
-      sm: { root: steps.sm, input: steps.sm },
-      md: { root: steps.md, input: steps.md },
-      lg: { root: steps.lg, input: steps.lg },
+      sm: { root: steps.sm, group: steps.sm, input: steps.sm },
+      md: { root: steps.md, group: steps.md, input: steps.md },
+      lg: { root: steps.lg, group: steps.lg, input: steps.lg },
     },
     variant: {
-      outline: { input: Input({ variant: 'outline' }).input },
-      filled: { input: Input({ variant: 'filled' }).input },
+      outline: { group: Input({ variant: 'outline' }).group },
+      filled: { group: Input({ variant: 'filled' }).group },
+      ghost: { group: Input({ variant: 'ghost' }).group },
+      underline: { group: Input({ variant: 'underline' }).group },
     },
   },
   defaults: { variant: 'outline' },

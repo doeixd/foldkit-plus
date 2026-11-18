@@ -46,8 +46,8 @@ export default [
     name: 'the SearchField view stops drawing the shared own routes',
     edits: edit(
       '../src/searchField.ts',
-      "...ownRoutes<Message>(words => (words === '' ? Option.none() : Option.some(options.onClear))),",
-      '',
+      ": ownRoutes<Message>(words => (words === '' ? Option.none() : Option.some(clear.onClear)))),",
+      ': []),',
     ),
     tests,
   },

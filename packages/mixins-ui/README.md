@@ -529,7 +529,7 @@ query, the highlighted row and the rows the keys step through.
 | `Input` | Adapter over `@foldkit/ui`'s Input. `Input.view({ id, value, onInput, type?, placeholder?, name?, readOnly?, required?, autocomplete?, inputMode?, maxLength?, disabled?, invalid?, attributes?, style, label, description?, labelAside?, start?, end? }, h)` draws the field; with `draw` in place of `label` the application places the bundles; `Input.field` draws a whole field from a `FieldValidation.Field`. | `size`: `sm`, `md`, `lg`; `variant`: `outline` (default), `filled`, `ghost`, `underline`. Slots `input`, `label`, `description`, `root`, `header`, `labelAside`, `group`, `start`, `end`. |
 | `Textarea` | `Textarea.view` takes the same and `rows`, `maxRows`, `maxLength`, `count`; `Textarea.field` is the whole field. | `size` and `variant` as Input's; `resize`: `auto` (default), `vertical`, `none`. Slots `textarea`, `label`, `description`, `count`, `frame`, `footer`, `meta`. |
 | `PasswordInput` | `PasswordInput.view({ id, label, value, onInput, visible, onToggle, autocomplete?, toggleLabel?, description?, invalid?, disabled?, name?, required?, attributes? }, h)`: a password field whose toggle (`aria-pressed`, `aria-controls`, one fixed name) shows it as text. `autocomplete` is `current-password` (default) or `new-password`; spellcheck and autocorrect stay off. `strength` is a gauge the app draws (`Meter.view(…, h)`) under the field, so a page with none ships no Meter; `requirements` are `{ label, met }[]` (`PasswordRequirement`), each read as met or not (`requirementStates`); `capsLock: { on, onKey }` says Caps Lock is on, politely, `onKey` given `capsLockOf(key, modifiers)` for each key (an `Option`). The application owns the text, the flag and the Caps Lock reading. | `size` (`sm`, `md`, `lg`). Input's pieces in InputGroup's box; the eye is `Icons.glyph` by `aria-pressed`. Slots `root`, `label`, `group`, `input`, `toggle`, `description`, `strength`, `requirements`, `requirement`, `requirementState`, `capsLock`. |
-| `SearchField` | A native `type="search"` input named by `label`, with a clear button only while there is text. `SearchField.view({ id, label, value, onInput, onClear, placeholder?, invalid?, disabled?, words?, routes?, style?, mixins? }, h)`. See [SearchField](#searchfield). | `size` and `variant` are Input's axes. A magnifier at the start, the clear button at the end (mirrored right to left), the browser's own cancel button hidden. Slots `root`, `input`, `clear`. |
+| `SearchField` | A native `type="search"` input named by `label`, with a clear button only while there is text. `SearchField.view({ id, label, value, onInput, clear?: { onClear, content? }, start?, end?, busy?, placeholder?, invalid?, disabled?, words?, routes?, style?, mixins? }, h)`. See [SearchField](#searchfield). | `size` and `variant` (`outline`, `filled`, `ghost`, `underline`) are Input's axes. One box (`group`) with a magnifier in `start` while it is empty, the clear button after the input (mirrored right to left), the browser's own cancel button hidden. Slots `root`, `group`, `start`, `end`, `input`, `clear`. |
 | `NumberField` | The APG's editable spinbutton. `{ id, label, description?, value, onChange, min?, max?, step?, page?, locale?, name?, required?, disabled? }`, or `format` with `parse` in place of `locale`. `value` is an `Option<number>`: none is an empty field (no `aria-valuenow`, the steppers start from the bounds), and clearing the text sends `onChange(Option.none())`. `NumberField.parseNumber(text, locale?)` reads text as that locale writes a number; `NumberField.settled(value, bounds)` clamps onto the step. | No axis. Slots `root`, `label`, `group`, `input`, `decrement`, `increment`, `description`. |
 | `OtpField` | shadcn's input-otp: one real input (`autocomplete="one-time-code"`, paste and Backspace the browser's) over cells that mirror it, the next marked `data-next`. `{ id?, name?, label, value, onChange, length?, pattern?, groups?, disabled?, readOnly?, invalid? }`; `OtpField.kept(text, length, pattern)` filters a code. | No axis. Slots `root`, `input`, `group`, `cell`, `separator`. |
 | `TagsInput` | Zag's tags input. A small Model: `TagsInput.init({ id, tags?, delimiter?, max? })`, folded with `TagsInput.update` (which returns a focus Command). `TagsInput.view({ model, onMessage, label, placeholder?, name?, disabled?, direction?, addOnBlur?, routes?, words? }, h)`. See [TagsInput](#tagsinput). | No axis; `data-disabled` on `control`. Slots `root`, `label`, `control`, `list`, `tag`, `remove`, `input`, `message`, `hiddenInput`. |
@@ -658,8 +658,13 @@ textarea at its fewest lines, scrolling.
 A native `type="search"` input (role `searchbox`) named by `label`, since a
 search field wears no visible label, and a clear button drawn only while there is
 text. The view keeps nothing: the application owns the text, `onInput` reports
-typing, and `onClear` is what the button and Escape send. Escape acts only on a
+typing, and `clear: { onClear, content? }` is what the button and Escape send; a
+field given no `clear` has neither. `content` is drawn in the button in place of
+the cross. Escape acts only on a
 field with text, so on an empty one it still reaches an enclosing dialog.
+`start` and `end` are drawn inside the field's box beside the input (a field
+with no `start` draws a magnifier there), and `busy` sets `aria-busy` and
+`data-busy` while a search runs: compose a spinner into `end`.
 Pressing the button removes it and the focus it held, so answer `onClear` with the
 `SearchField.Focus({ id })` Command, which puts focus back on the input and
 answers `SearchField.Message.CompletedFocus` (`SearchField.inputId(id)` is the
@@ -695,7 +700,7 @@ const searchView = (text: string, h: HtmlBuilder<Search>) =>
       label: 'Search products',
       value: text,
       onInput: text => Search.Typed({ text }),
-      onClear: Search.Cleared(),
+      clear: { onClear: Search.Cleared() },
       routes: [openResults],
       style: Style.forSlots(SearchFieldSlots)(Recipes.SearchField({})),
     },
@@ -2195,7 +2200,7 @@ const searchWithFocus = (text: string, h: HtmlBuilder<Search>) =>
       label: 'Search products',
       value: text,
       onInput: text => Search.Typed({ text }),
-      onClear: Search.Cleared(),
+      clear: { onClear: Search.Cleared() },
       routes: [Keys.first(openResults, toResults)],
     },
     h,

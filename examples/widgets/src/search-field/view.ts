@@ -30,7 +30,7 @@ export const SearchView = SlotView.forMessages<SearchMessage>()
           label: `Search ${model.id}`,
           value: model.value,
           onInput: value => SearchMessage.Typed({ value }),
-          onClear: SearchMessage.Cleared(),
+          clear: { onClear: SearchMessage.Cleared() },
           routes: [openResults],
           style: FieldStyle,
         },

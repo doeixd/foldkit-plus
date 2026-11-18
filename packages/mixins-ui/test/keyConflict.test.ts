@@ -89,7 +89,7 @@ const searchField: Subject<SearchField.Route<TestMessage>, undefined> = {
         label: 'Search products',
         value: 'lamp',
         onInput: () => other,
-        onClear: other,
+        clear: { onClear: other },
         routes,
       },
       h,

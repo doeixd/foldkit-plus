@@ -24,7 +24,7 @@ import type * as UiVirtualList from '@foldkit/ui/virtualList'
 import type { AnchorConfig } from '@foldkit/ui/anchor'
 import * as UiFieldset from '@foldkit/ui/fieldset'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { Behaviors, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import {
@@ -163,8 +163,6 @@ import {
   FloatingPanelSlots,
   Tour,
   TourSlots,
-  SearchField,
-  SearchFieldSlots,
   Picker,
   PickerSlots,
   FileInput,
@@ -6160,145 +6158,6 @@ export const tour = <Message>(
     ],
   )
 }
-// #endregion
-
-// #region search-field-basic
-export const SearchFieldStyle = forSlots(SearchFieldSlots)(Recipes.SearchField({}))
-
-/** What typing and clearing send. Answer `onClear` with `SearchField.Focus`: the button leaves with its focus. */
-export interface SearchMessages<Message> {
-  readonly onInput: (value: string) => Message
-  readonly onClear: Message
-}
-
-// The application owns the text. Escape clears a field with text, and one
-// without it reaches whatever encloses the field, such as a dialog.
-export const searchField = <Message>(
-  style: NamedStyle<typeof SearchFieldSlots>,
-  query: string,
-  messages: SearchMessages<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  SearchField.view(
-    {
-      id: 'preview-search',
-      label: 'Search recipes',
-      placeholder: 'Search recipes',
-      value: query,
-      onInput: messages.onInput,
-      onClear: messages.onClear,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region search-field-routes
-export const RECIPES = ['Apple crumble', 'Apple pie', 'Banana bread', 'Lemon tart', 'Carrot cake']
-
-/** The recipes whose name holds every word of the query. */
-export const recipesFor = (query: string): ReadonlyArray<string> =>
-  query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(word => word !== '')
-    .reduce((found, word) => found.filter(name => name.toLowerCase().includes(word)), RECIPES)
-
-export interface KeyedSearch<Message> extends SearchMessages<Message> {
-  /** Sent with 1 or -1 by the arrow keys. */
-  readonly onMove: (by: number) => Message
-}
-
-// The arrows are the application's: `routes` adds them to the field's own
-// Escape under one keydown owner, and a key another route already takes is
-// a diagnostic naming both. The text stays the field's.
-export const searchFieldRoutes = <Message>(
-  style: NamedStyle<typeof SearchFieldSlots>,
-  search: { readonly query: string; readonly active: number },
-  messages: KeyedSearch<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.5rem' })],
-    [
-      SearchField.view(
-        {
-          id: 'preview-search-keys',
-          label: 'Find a recipe',
-          placeholder: 'Type apple, then press the down arrow',
-          value: search.query,
-          onInput: messages.onInput,
-          onClear: messages.onClear,
-          routes: [
-            Behaviors.Keys.route<string, Message>('Next', {
-              on: [Behaviors.Keys.chord('ArrowDown')],
-              handle: () => Option.some(messages.onMove(1)),
-            }),
-            Behaviors.Keys.route<string, Message>('Previous', {
-              on: [Behaviors.Keys.chord('ArrowUp')],
-              handle: () => Option.some(messages.onMove(-1)),
-            }),
-          ],
-          style,
-        },
-        h,
-      ),
-      h.ul(
-        [h.Style({ margin: '0', paddingInlineStart: '1.25rem' })],
-        recipesFor(search.query).map((name, index) =>
-          h.li(
-            [
-              h.Key(name),
-              ...(index === search.active
-                ? [h.AriaCurrent('true'), h.Style({ fontWeight: '600' })]
-                : []),
-            ],
-            [name],
-          ),
-        ),
-      ),
-    ],
-  )
-// #endregion
-
-// #region search-field-states
-// Invalid names a field that cannot be searched yet; disabled takes no text
-// or keys and draws no clear button.
-export const searchFieldStates = <Message>(
-  style: NamedStyle<typeof SearchFieldSlots>,
-  messages: SearchMessages<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.5rem' })],
-    [
-      SearchField.view(
-        {
-          id: 'preview-search-invalid',
-          label: 'Search by order number',
-          value: 'ord-',
-          invalid: true,
-          onInput: messages.onInput,
-          onClear: messages.onClear,
-          style,
-        },
-        h,
-      ),
-      SearchField.view(
-        {
-          id: 'preview-search-disabled',
-          label: 'Search is off',
-          placeholder: 'Search is off',
-          value: '',
-          disabled: true,
-          onInput: messages.onInput,
-          onClear: messages.onClear,
-          style,
-        },
-        h,
-      ),
-    ],
-  )
 // #endregion
 
 // #region file-input-multiple

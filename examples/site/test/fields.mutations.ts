@@ -1,5 +1,5 @@
 /**
- * The search and file input previews, broken in turn: `pnpm mutate
+ * The file input previews, broken in turn: `pnpm mutate
  * examples/site/test/fields.mutations.ts`.
  */
 const tests = ['examples/site/test/fields.test.ts']
@@ -12,26 +12,6 @@ const mutation = (name: string, find: string, replace: string) => ({
 })
 
 export default [
-  mutation(
-    'a clear does not put focus back on the search field',
-    "Command.mapMessages([SearchField.Focus({ id: 'preview-search' })], () =>",
-    'Command.mapMessages([], () =>',
-  ),
-  mutation(
-    'a clear does not put focus back on the keyed search field',
-    "Command.mapMessages([SearchField.Focus({ id: 'preview-search-keys' })], () =>",
-    'Command.mapMessages([], () =>',
-  ),
-  mutation(
-    'the highlight runs past the results',
-    'Math.max(0, Math.min(last, model.keyed.active + by))',
-    'model.keyed.active + by',
-  ),
-  mutation(
-    'a new query keeps the highlight',
-    '({ query: value, active: 0 })',
-    '({ query: value, active: model.keyed.active })',
-  ),
   mutation(
     'a single file picker keeps every pick',
     "multiple: example === 'multiple',",
