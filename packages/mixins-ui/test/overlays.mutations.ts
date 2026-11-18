@@ -6,6 +6,8 @@ const bundles = 'packages/mixins-ui/test/overlayBundles.test.ts'
 const revise = 'packages/mixins-ui/test/toastRevise.test.ts'
 const toast = 'packages/mixins-ui/test/toast.browser.test.ts'
 const overlays = 'packages/mixins-ui/test/overlays.browser.test.ts'
+const configured = 'packages/mixins-ui/test/overlayConfigure.test.ts'
+const layer = 'view: (options, h) => view(layered(config, options), h),'
 const stack = 'packages/mixins-ui/test/toastStack.test.ts'
 
 export default [
@@ -45,6 +47,21 @@ export default [
     ],
     tests: [overlays],
   },
+  ...[
+    ['Timer', 'timer'],
+    ['ColorPicker', 'colorPicker'],
+    ['Toast', 'toast'],
+  ].map(([widget, file]) => ({
+    name: `${widget}.configure draws the call alone, ignoring its base and presets`,
+    edits: [
+      {
+        file: `../src/${file}.ts`,
+        find: layer,
+        replace: 'view: (options, h) => view(options, h),',
+      },
+    ],
+    tests: [configured],
+  })),
   {
     name: 'a countdown with no duration is placed anyway',
     edits: [
