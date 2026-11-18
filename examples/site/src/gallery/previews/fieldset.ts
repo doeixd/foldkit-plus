@@ -1,19 +1,13 @@
-import { Recipes, FieldsetSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
+import { FieldsetSlots, Recipes } from 'foldkit-mixins-ui'
+import basic from '../../examples/fieldset/basic.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
 export const showcase = fromRecipe(
   about('fieldset'),
   FieldsetSlots,
   Recipes.Fieldset,
-  style => Snippet.fieldset(style, inert),
+  basic,
   undefined,
-  [
-    {
-      name: 'basic',
-      title: 'Enabled and disabled',
-      draw: style => Snippet.fieldset(style, inert),
-    },
-  ],
+  [{ name: 'basic', example: basic }],
 )

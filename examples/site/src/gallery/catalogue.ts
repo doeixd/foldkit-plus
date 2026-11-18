@@ -737,6 +737,15 @@ export const catalogue: ReadonlyArray<About> = [
     contract: 'LabelSlots',
   },
   {
+    slug: 'field',
+    title: 'Field',
+    summary:
+      'The shell around a control you drew: its label and mark, a description and errors, beside it or above it.',
+    recipe: 'Field',
+    file: 'fieldShell',
+    contract: 'FieldSlots',
+  },
+  {
     slug: 'fieldset',
     title: 'Fieldset',
     summary: 'A group of related fields under a legend and a description, disabled together.',

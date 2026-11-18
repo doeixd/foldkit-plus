@@ -461,7 +461,7 @@ input (`FormData.getAll(name)` is `[start, end]`). Result types: `ResolvedButton
 
 `Recipes.Disclosure` (`variant`: `plain`, `bordered`, `ghost`; `indicator`: `chevron`, `none`)
 draws the button's chevron as its `::after`; the panel's height is upstream's `animatePanel`, whose
-inline transition the recipe overrides so the `motion` knob and reduced motion reach it. `Recipes.Fieldset` (`variant`: `plain`, `bordered`, `filled`)
+inline transition the recipe overrides so the `motion` knob and reduced motion reach it. `Fieldset.view({ id, legend, content, description?, disabled? }, h)` draws the group, and `Field.view({ id, label, control, description?, errors?, required? | optional?, orientation?, labelAside?, words? }, h)` is the shell around a control you drew (`Recipes.Field`, slots `root`, `header`, `label`, `marker`, `labelAside`, `control`, `description`, `errors`, `error`; give the control `Field.describedBy(h, id, { description, errors })` as attributes). `Recipes.Fieldset` (`variant`: `plain`, `bordered`, `filled`)
 floats the legend into the group and dims the legend and description of a disabled fieldset.
 A disclosure with its recipe: the recipe draws the button and the panel's box,
 and `animatePanel` keeps the shut panel inert and moves its height.

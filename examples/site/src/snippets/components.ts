@@ -18,7 +18,6 @@ import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import type * as UiVirtualList from '@foldkit/ui/virtualList'
 import type { AnchorConfig } from '@foldkit/ui/anchor'
-import * as UiFieldset from '@foldkit/ui/fieldset'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
@@ -148,8 +147,6 @@ import {
   FileInputSlots,
   CodeBlock,
   CodeBlockSlots,
-  Fieldset,
-  FieldsetSlots,
 } from 'foldkit-mixins-ui'
 
 import { outline } from './icon.js'
@@ -5494,44 +5491,3 @@ export const codeBlockCopy = (
   )
 // #endregion
 
-// #region fieldset-basic
-export const FieldsetStyle = forSlots(FieldsetSlots)(Recipes.Fieldset({ variant: 'bordered' }))
-
-// The legend names the group and the description is read after it: the base
-// derives their ids (`legendId`, `descriptionId`) and wires `aria-describedby`.
-// A disabled fieldset disables every control in it, and dims its legend and description.
-export const fieldset = (style: NamedStyle<typeof FieldsetSlots>, h: HtmlBuilder<never>): Html => {
-  const group = (id: string, disabled: boolean): Html =>
-    UiFieldset.view(
-      {
-        id,
-        isDisabled: disabled,
-        hasDescription: true,
-        toView: Fieldset.toView(
-          [style.mixin],
-          { input: undefined, h },
-          ({ fieldset, legend, description }) =>
-            h.fieldset(fieldset, [
-              h.legend(legend, [disabled ? 'Billing address (locked)' : 'Shipping address']),
-              h.p(description, ['Where the order is sent. We never share it.']),
-              Input.view(
-                {
-                  id: `${id}-street`,
-                  type: 'text',
-                  style: InputStyle,
-                  draw: (resolved, h) =>
-                    h.div([], [h.label(resolved.label, ['Street']), h.input(resolved.input)]),
-                },
-                h,
-              ),
-            ]),
-        ),
-      },
-      h,
-    )
-  return h.div(
-    [h.Style({ display: 'grid', gap: '1rem', inlineSize: 'min(100%, 24rem)' })],
-    [group('shipping', false), group('billing', true)],
-  )
-}
-// #endregion
