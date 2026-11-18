@@ -116,6 +116,43 @@ export const ChatMessage = Style.recipeFor(ChatMessageSlots)({
       }),
     ),
     status: component(Style.nest('[data-status="failed"] &', { color: ref.error.ink })),
+    reactions: component(
+      Style.self({
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: ref.space['2xs'],
+      }),
+      Style.nest('[data-from="user"] > * > &', { justifyContent: 'flex-end' }),
+    ),
+    reaction: component(
+      Style.self({
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: ref.space['2xs'],
+        margin: '0',
+        paddingBlock: ref.space['3xs'],
+        paddingInline: ref.space.xs,
+        border: `${ref.border.thin} solid ${ref.outline.subtle}`,
+        borderRadius: ref.radius.full,
+        background: 'transparent',
+        color: ref.text.default,
+        font: 'inherit',
+        ...role('caption'),
+        fontVariantNumeric: 'tabular-nums',
+        lineHeight: '1.5',
+        ...transition('background-color, border-color, color'),
+      }),
+      // A shown reaction is no control: no pointer, no hover.
+      Style.nest('&:is(button)', { cursor: 'pointer' }),
+      Style.nest('&:is(button):hover', { background: unfilledHover }),
+      Style.pseudo('[aria-pressed="true"]', {
+        borderColor: ref.accent.default,
+        color: ref.accent.ink,
+      }),
+      focusRing,
+    ),
+    reactionCount: component(Style.self({ color: ref.text.muted })),
     retry: component(
       Style.self({
         margin: '0',
@@ -192,6 +229,18 @@ export const ChatMessage = Style.recipeFor(ChatMessageSlots)({
     bubble: {
       muted: {
         bubble: variant(Style.nest('[data-from="user"] &', { background: ref.surface.muted })),
+      },
+      // No fill: the words sit on the page, still set apart and at the end.
+      ghost: {
+        bubble: variant(Style.nest('[data-from="user"] &', { background: 'transparent' })),
+      },
+      outline: {
+        bubble: variant(
+          Style.nest('[data-from="user"] &', {
+            background: 'transparent',
+            boxShadow: `inset 0 0 0 ${ref.border.thin} ${ref.outline.subtle}`,
+          }),
+        ),
       },
       accent: {
         bubble: variant(
