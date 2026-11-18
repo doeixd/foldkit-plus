@@ -27,7 +27,6 @@ import type {
   ItemToValueInput,
 } from '@foldkit/ui/listbox'
 import { childAttributes, type ChildAttribute, type Html, type HtmlBuilder } from 'foldkit/html'
-import { defineView, type View as SubmodelView } from 'foldkit/submodel'
 import { readingKey } from './direction.js'
 import {
   findFirstEnabledIndex,

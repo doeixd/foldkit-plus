@@ -12,7 +12,7 @@ import { Behaviors, Style } from 'foldkit-mixins'
 import { afterEach, expect, test, vi } from 'vitest'
 import { cdp, page, userEvent } from 'vitest/browser'
 import { FileUpload, FileUploadSlots, Recipes } from '../src/index.js'
-import { controlled, mount, Msg, type Harness } from './fileUploadHarness.js'
+import { mount, Msg, type Harness } from './fileUploadHarness.js'
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
@@ -89,7 +89,6 @@ const mountUpload = (options: Options = {}) => {
 const input = () => document.querySelector<HTMLInputElement>('#up-input')!
 const picker = () => document.querySelector<HTMLElement>('label[for="up-input"]')!
 const ready = () => vi.waitFor(() => expect(picker()).not.toBeNull())
-const rows = () => Array.from(document.querySelectorAll('li')).map(row => row.textContent)
 const names = () =>
   Array.from(document.querySelectorAll('li span[title]')).map(row => row.textContent)
 const submitted = () =>

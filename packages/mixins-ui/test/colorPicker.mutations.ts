@@ -6,7 +6,6 @@
 const unit = 'packages/mixins-ui/test/colorPicker.test.ts'
 const browser = 'packages/mixins-ui/test/colorPicker.browser.test.ts'
 const ssr = 'packages/mixins-ui/test/colorPicker.ssr.test.ts'
-const view = '../src/colorPicker.ts'
 const popover = '../src/colorPicker/popover.ts'
 
 export default [

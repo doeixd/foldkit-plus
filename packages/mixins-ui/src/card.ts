@@ -1,12 +1,5 @@
-import {
-  Capability,
-  Slot,
-  Slots,
-  SlotView,
-  type NamedStyle,
-  type SlotAttributes,
-} from 'foldkit-mixins'
-import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
+import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { FluidHover } from 'foldkit-primitives/dom'
 import { FOCUS_MARK } from 'foldkit-primitives/dom'
 import { layered, type PresetOption, type Presets } from './configure.js'

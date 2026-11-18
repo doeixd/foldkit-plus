@@ -23,7 +23,6 @@ import {
   tones,
   toneVar,
   transition,
-  trimmed,
   unfilledHover,
   variant,
 } from './design.js'

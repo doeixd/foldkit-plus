@@ -5,7 +5,7 @@
  * make. Only these pages load it.
  */
 import { Effect, Match, Option, Schema, Stream } from 'effect'
-import { Command, Dom, Subscription, Update } from 'foldkit'
+import { Command, Subscription, Update } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
@@ -17,7 +17,6 @@ import { Listbox as UiListbox, Tabs as UiTabs, Tooltip as UiTooltip } from '@fol
 import { Drawer } from 'foldkit-mixins-ui'
 
 import { aboutOf } from './gallery/catalogue.js'
-import { showcaseOf } from './gallery/showcases.js'
 import {
   Canvas,
   CanvasTabs,
@@ -57,7 +56,7 @@ import {
   withValue,
 } from './gallery/theme.js'
 import { addressOf, queryOf } from './gallery/themeUrl.js'
-import { COPY_ATTRIBUTE, CREATE, type Library } from './library.js'
+import { CREATE, type Library } from './library.js'
 import { Body } from './view/layout.js'
 import { Page } from './page.js'
 import * as Shell from './shell.js'

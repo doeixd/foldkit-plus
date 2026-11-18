@@ -5,7 +5,7 @@
  * restore, `ScrollLock`, `HideOutside`). The dialogs are plain elements with
  * `role="dialog"`: the browser's own modal handling is not doing any of it.
  */
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'

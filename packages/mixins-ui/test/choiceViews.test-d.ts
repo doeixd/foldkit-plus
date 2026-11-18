@@ -9,7 +9,6 @@ import { Style } from 'foldkit-mixins'
 import { expectTypeOf, test } from 'vitest'
 import {
   Checkbox,
-  CheckboxSlots,
   IconSlots,
   RadioGroup,
   Select,
@@ -23,7 +22,6 @@ type Message = typeof Message.Type
 declare const h: HtmlBuilder<Message>
 declare const toggled: (checked: boolean) => Message
 
-const boxes = Style.forSlots(CheckboxSlots)({ checkbox: Style.class('box') })
 const tracks = Style.forSlots(SwitchSlots)({ button: Style.class('track') })
 const glyphs = Style.forSlots(IconSlots)({ glyph: Style.class('glyph') })
 declare const plan: Option.Option<'free' | 'team'>

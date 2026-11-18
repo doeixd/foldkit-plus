@@ -16,7 +16,6 @@ import { build, mergeConfig, preview, type PreviewServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 // Read through Vitest, which resolves the workspace sources (see theme.e2e.ts).
 import config from '../vite.config.js'
-import { onFreePort } from '../../../scripts/free-port.mjs'
 
 declare global {
   interface Window {

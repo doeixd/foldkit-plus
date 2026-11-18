@@ -5,26 +5,13 @@
  * reader selected, so the code on the page is the code that drew it.
  */
 import { Option, Schema } from 'effect'
-import {
-  Dialog as UiDialog,
-  HoverIntent as UiHoverIntent,
-  Nav as UiNav,
-  Popover as UiPopover,
-} from '@foldkit/ui'
-import * as UiTooltip from '@foldkit/ui/tooltip'
-import type { AnchorConfig } from '@foldkit/ui/anchor'
+import { Dialog as UiDialog, Nav as UiNav } from '@foldkit/ui'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import { Utilities } from 'foldkit-mixins/utilities'
 import {
-  Drawer,
-  DrawerSlots,
-  HoverIntent,
-  HoverIntentSlots,
   AlertSlots,
-  AvatarGroupSlots,
   AvatarSlots,
-  Badge,
   BadgeSlots,
   Button,
   ButtonSlots,
@@ -39,16 +26,8 @@ import {
   MenubarSlots,
   Nav,
   NavSlots,
-  ColorPicker,
-  ColorPickerSlots,
-  ScrollArea,
-  ScrollAreaSlots,
-  CheckboxSlots,
   Dialog,
   DialogSlots,
-  Empty,
-  EmptySlots,
-  Input,
   InputSlots,
   Item,
   ItemSlots,
@@ -56,53 +35,30 @@ import {
   KbdSlots,
   Menu,
   MenuSlots,
-  Popover,
-  PopoverSlots,
   RadioGroupSlots,
   Recipes,
   Segmented,
   SegmentedSlots,
   SelectSlots,
-  Sheet,
   Slider,
   SliderSlots,
-  Spinner,
   SpinnerSlots,
   TableSlots,
   TextareaSlots,
   Toast,
   ToastSlots,
   ToastView,
-  Tooltip,
   TooltipSlots,
-  ChatMessage,
-  ChatMessageGroupSlots,
-  ChatMessageSlots,
-  MessageScroller,
-  MessageScrollerSlots,
-  ThinkingIndicator,
-  ThinkingIndicatorSlots,
-  ThinkingSteps,
-  ThinkingStepsSlots,
-  type ThinkingStep,
-  Questionnaire,
-  QuestionnaireSlots,
   AngleSlider,
   AngleSliderSlots,
-  Timer,
-  TimerSlots,
-  Chart,
   ChartSlots,
 } from 'foldkit-mixins-ui'
 
 import { outline } from './icon.js'
-import { forSlots, slots } from './theme.js'
+import { forSlots } from './theme.js'
 
 // The Button page's examples are modules of their own (`src/examples/button`).
 export const ButtonStyle = forSlots(ButtonSlots)(Recipes.Button({}))
-
-/** The outlined neutral button the other pages' examples draw their triggers with. */
-const GroupedStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
 
 /** The badge the specimen's plan card carries. */
 export const BadgeStyle = forSlots(BadgeSlots)(Recipes.Badge())
@@ -117,12 +73,6 @@ export const TextareaStyle = forSlots(TextareaSlots)(Recipes.Textarea({}))
 // #region select-basic
 export const SelectStyle = forSlots(SelectSlots)(Recipes.Select({}))
 // #endregion
-
-/** A head and shoulders in `hue`, standing in for a photo. */
-const portrait = (hue: number): string =>
-  `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="hsl(${hue} 45% 78%)"/><circle cx="20" cy="16" r="7" fill="hsl(${hue} 30% 45%)"/><ellipse cx="20" cy="39" rx="13" ry="11" fill="hsl(${hue} 30% 45%)"/></svg>`,
-  )}`
 
 /** The avatar the specimens draw: the avatar page's examples are modules (`src/examples/avatar`). */
 export const AvatarStyle = forSlots(AvatarSlots)(Recipes.Avatar({}))

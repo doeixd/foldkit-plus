@@ -1,4 +1,3 @@
-import { Schema } from 'effect'
 import { mapMessages } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import {

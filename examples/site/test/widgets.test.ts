@@ -5,20 +5,10 @@
  */
 import { Dialog as UiDialog, Menu as UiMenu } from '@foldkit/ui'
 import { Option } from 'effect'
-import {
-  Chart,
-  Drawer,
-  ImageCropper,
-  InputCopy,
-  Menu,
-  MessageScroller,
-  Sheet,
-  FileDrop,
-} from 'foldkit-mixins-ui'
+import { Chart, Drawer, ImageCropper, InputCopy, Menu, Sheet, FileDrop } from 'foldkit-mixins-ui'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
 import { describe, expect, it } from 'vitest'
 
-import * as Snippet from '../src/snippets/components.js'
 import * as Widgets from '../src/gallery/widgets.js'
 import { Message, initial, update } from '../src/main.js'
 

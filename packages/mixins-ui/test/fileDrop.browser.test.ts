@@ -2,7 +2,6 @@
  * The FileDrop recipe in a real browser: Tab to the hidden file input rings
  * the zone; a disabled zone looks disabled.
  */
-import { Schema } from 'effect'
 import * as UpstreamFileDrop from '@foldkit/ui/fileDrop'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'

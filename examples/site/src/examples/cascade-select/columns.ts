@@ -1,4 +1,3 @@
-import { Bundle } from 'foldkit-bundle'
 import { Bundles, CascadeSelect, CascadeSelectSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { Places } from '../../snippets/places.js'

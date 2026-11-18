@@ -20,7 +20,6 @@ import { userEvent } from 'vitest/browser'
 import { Button, Recipes, Toolbar, ToolbarSlots } from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
-const style = Style.forSlots(ToolbarSlots)(Recipes.Toolbar({}))
 const buttonStyle = Style.forSlots(Button.ButtonSlots)(Recipes.Button({}))
 
 const Model = Schema.Struct({ current: Schema.NullOr(Schema.String) })
