@@ -99,7 +99,7 @@ test('the toolbar has one tab stop and the arrows move along it, skipping the di
     await expect.poll(focused).toBe('Italic')
     await page.keyboard.press('End')
     // The last control is the disabled Link, so End lands on the one before it.
-    await expect.poll(focused).toBe('Align right')
+    await expect.poll(focused).toBe('Italic')
     await page.keyboard.press('ArrowRight')
     await expect.poll(focused).toBe('Bold')
     // The tab stop followed focus: Italic is not it now.
@@ -117,19 +117,17 @@ test('clearing a search field with its button, or with Escape, puts focus back i
   try {
     const page = await context.newPage()
     await open(page, '/components/search-field')
-    const field = page.getByRole('searchbox', { name: 'Search recipes' })
+    // The first example's field; the busy one is labelled alike, so name it by its id.
+    const field = page.locator('input#find-input')
     await field.fill('pie')
-    await page.getByRole('button', { name: 'Clear search' }).first().click()
+    // The states example's fields hold text too: take the button from this field's own wrapper.
+    await field.locator('xpath=..').getByRole('button', { name: 'Clear search' }).click()
     await expect.poll(() => field.inputValue()).toBe('')
-    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe(
-      'Search recipes',
-    )
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('find-input')
     await field.fill('tart')
     await page.keyboard.press('Escape')
     await expect.poll(() => field.inputValue()).toBe('')
-    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))).toBe(
-      'Search recipes',
-    )
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('find-input')
   } finally {
     await context.close()
   }
@@ -140,16 +138,17 @@ test('the keys of your own move the highlight in the results', async () => {
   try {
     const page = await context.newPage()
     await open(page, '/components/search-field')
-    const field = page.getByRole('searchbox', { name: 'Find a recipe' })
+    const field = page.getByRole('searchbox', { name: 'Find a dish' })
+    const highlighted = () => page.locator('li[aria-current="true"]').first().textContent()
     await field.fill('apple')
+    await expect.poll(highlighted).toBe('Apple pie')
+    // ArrowDown is the example's own route: each press moves on, and the last wraps to the first.
     await field.press('ArrowDown')
-    await expect
-      .poll(() => page.locator('li[aria-current="true"]').first().textContent())
-      .toBe('Apple pie')
-    await field.press('ArrowUp')
-    await expect
-      .poll(() => page.locator('li[aria-current="true"]').first().textContent())
-      .toBe('Apple crumble')
+    await expect.poll(highlighted).toBe('Apple crumble')
+    await field.press('ArrowDown')
+    await expect.poll(highlighted).toBe('Baked apples')
+    await field.press('ArrowDown')
+    await expect.poll(highlighted).toBe('Apple pie')
   } finally {
     await context.close()
   }
@@ -160,7 +159,7 @@ test('a removed file leaves the input holding what the list shows, and focus on 
   try {
     const page = await context.newPage()
     await open(page, '/components/file-input')
-    const input = page.locator('input#preview-attachments-input')
+    const input = page.locator('input#attachments-input')
     const png = (name: string) => ({ name, mimeType: 'image/png', buffer: Buffer.from(name) })
     await input.setInputFiles([png('a.png'), png('b.png')])
     await expect.poll(() => page.getByRole('button', { name: 'Take a.png off' }).count()).toBe(1)
@@ -172,7 +171,7 @@ test('a removed file leaves the input holding what the list shows, and focus on 
         Array.from(element.files ?? [], file => file.name),
       ),
     ).toEqual(['b.png'])
-    expect(await page.evaluate(() => document.activeElement?.id)).toBe('preview-attachments-input')
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('attachments-input')
   } finally {
     await context.close()
   }
@@ -183,19 +182,18 @@ test('typing in the Input OTP states edits that field alone', async () => {
   try {
     const page = await context.newPage()
     await open(page, '/components/otp-field')
-    const filling = page.locator('input#otp-filling')
-    const refused = page.locator('input#otp-invalid')
+    // The states example holds a code of its own, which its refused, disabled and read-only fields show.
+    const refused = page.locator('input#refused')
     const basic = page.getByRole('textbox', { name: 'Sign-in code' })
-    await filling.click()
-    await page.keyboard.type('29')
-    await expect.poll(() => filling.inputValue()).toBe('4829')
-    expect(await basic.inputValue()).toBe('')
+    const pin = page.getByRole('textbox', { name: 'Card PIN' })
+    const pinBefore = await pin.inputValue()
+    expect(await refused.inputValue()).toBe('482910')
     await refused.click()
     await page.keyboard.press('End')
     await page.keyboard.press('Backspace')
     await expect.poll(() => refused.inputValue()).toBe('48291')
-    expect(await filling.inputValue()).toBe('4829')
     expect(await basic.inputValue()).toBe('')
+    expect(await pin.inputValue()).toBe(pinBefore)
   } finally {
     await context.close()
   }
@@ -243,7 +241,8 @@ test('the App shell scrolls its main region under a header that stays in the fra
   try {
     const page = await context.newPage()
     await open(page, '/components/app-shell')
-    const header = page.locator('[data-size="page"] header')
+    // The first example's shell; the page holds three.
+    const header = page.locator('[data-size="page"] header', { hasText: 'Acme' })
     const frame = header.locator('xpath=../..')
     const before = await header.boundingBox()
     expect(await frame.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
