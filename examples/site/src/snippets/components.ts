@@ -177,8 +177,6 @@ import {
   FieldsetSlots,
   Icon,
   IconSlots,
-  Label,
-  LabelSlots,
 } from 'foldkit-mixins-ui'
 
 import { icons } from '../view/iconData.js'
@@ -6620,29 +6618,6 @@ export const picker = <Message>(
       sheet: [PickerSheetStyle.mixin],
     },
     h,
-  )
-// #endregion
-
-// #region label-basic
-export const LabelStyle = forSlots(LabelSlots)(Recipes.Label({}))
-
-// `for` is the id the control carries. Pass the one `FieldAssociation`
-// derived, so there is no second naming scheme beside it.
-export const label = (style: NamedStyle<typeof LabelSlots>, h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.375rem', inlineSize: 'min(100%, 18rem)' })],
-    [
-      Label.view({ for: 'label-email', text: 'Email address', style }, h),
-      Input.view(
-        {
-          id: 'label-email',
-          type: 'email',
-          style: InputStyle,
-          draw: (resolved, h) => h.input(resolved.input),
-        },
-        h,
-      ),
-    ],
   )
 // #endregion
 
