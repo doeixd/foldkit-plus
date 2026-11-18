@@ -75,7 +75,7 @@ describe('showcase examples', () => {
       const lines = source.split('\n')
       // An import may rename (`Calendar as Dates`); `as const` on a list is no cast.
       const afterImports = lines
-        .slice(lines.findLastIndex(line => /^import |^\} from /.test(line)) + 1)
+        .slice(lines.map(line => /^import |^\} from /.test(line)).lastIndexOf(true) + 1)
         .join('\n')
       const body = source.slice(source.indexOf('export default example({'))
       expect(body.split('\n').length, path).toBeLessThanOrEqual(45)
