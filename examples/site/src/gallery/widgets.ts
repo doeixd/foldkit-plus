@@ -195,15 +195,6 @@ export const Model = Schema.Struct({
   palettePages: Schema.Array(Schema.String),
   paletteRan: Schema.Option(Schema.String),
   toasts: Schema.Record(ToastExample, Toast.Model),
-  /** The invoices table's sort, chosen rows and open rows. */
-  invoiceSort: Schema.Option(
-    Schema.Struct({
-      column: Schema.String,
-      direction: Schema.Literals(['ascending', 'descending']),
-    }),
-  ),
-  invoicesChosen: Schema.Array(Schema.String),
-  invoicesOpen: Schema.Array(Schema.String),
   /** The vertical slider's level and the marked one's budget. */
   level: Schema.Number,
   budget: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
@@ -295,10 +286,6 @@ export const Message = defineMessageUnion({
   GotBrand: { message: ColorPicker.Message },
   GotBrandPopover: { message: UiPopover.Message },
   GotFields: { message: Fields.Message },
-  SortedInvoices: { column: Schema.String },
-  ChoseInvoice: { id: Schema.String, selected: Schema.Boolean },
-  ChoseInvoices: { ids: Schema.Array(Schema.String) },
-  OpenedInvoice: { id: Schema.String, expanded: Schema.Boolean },
   GotViewMenu: { message: Menu.Message },
   OpenedPalette: {},
   GotPalette: { message: UiDialog.Message },
@@ -455,9 +442,6 @@ export const initial: Model = {
     'bottom-center': Toast.init('preview-toasts-bottom-center', { position: 'bottom-center' }),
     'bottom-end': Toast.init('preview-toasts-bottom-end', { position: 'bottom-end' }),
   },
-  invoiceSort: Option.none(),
-  invoicesChosen: ['INV-002'],
-  invoicesOpen: [],
   level: 40,
   budget: { low: 100, high: 350 },
   brand: ColorPicker.init({

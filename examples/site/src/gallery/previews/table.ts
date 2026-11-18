@@ -1,57 +1,26 @@
 import { Recipes, TableSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import basic from '../../examples/table/basic.js'
+import configure from '../../examples/table/configure.js'
+import empty from '../../examples/table/empty.js'
+import expandable from '../../examples/table/expandable.js'
+import fluid from '../../examples/table/fluid.js'
+import footer from '../../examples/table/footer.js'
+import selection from '../../examples/table/selection.js'
+import sortable from '../../examples/table/sortable.js'
+import sticky from '../../examples/table/sticky.js'
+import vertical from '../../examples/table/vertical.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
-export const showcase = fromRecipe(
-  about('table'),
-  TableSlots,
-  Recipes.Table,
-  style => Snippet.table(style, inert),
-  undefined,
-  [
-    { name: 'basic', title: 'Basic', draw: style => Snippet.table(style, inert) },
-    {
-      name: 'sortable',
-      title: 'Sortable headings',
-      draw: (style, live) =>
-        Snippet.tableSortable(
-          style,
-          live.widgets.invoiceSort,
-          column => live.onWidget(Widgets.Message.SortedInvoices({ column })),
-          live.h,
-        ),
-    },
-    {
-      name: 'selection',
-      title: 'Row selection',
-      draw: (style, live) =>
-        Snippet.tableSelection(
-          style,
-          live.widgets.invoicesChosen,
-          (id, selected) => live.onWidget(Widgets.Message.ChoseInvoice({ id, selected })),
-          ids => live.onWidget(Widgets.Message.ChoseInvoices({ ids })),
-          live.h,
-        ),
-    },
-    {
-      name: 'expandable',
-      title: 'Expandable rows',
-      draw: (style, live) =>
-        Snippet.tableExpandable(
-          style,
-          live.widgets.invoicesOpen,
-          (id, expanded) => live.onWidget(Widgets.Message.OpenedInvoice({ id, expanded })),
-          live.h,
-        ),
-    },
-    { name: 'empty', title: 'Empty', draw: style => Snippet.tableEmpty(style, inert) },
-    {
-      name: 'sticky',
-      title: 'Sticky header, striped',
-      draw: style => Snippet.tableSticky(style, inert),
-      pins: { header: 'sticky', rows: 'striped', density: 'compact' },
-    },
-  ],
-)
+export const showcase = fromRecipe(about('table'), TableSlots, Recipes.Table, basic, undefined, [
+  { name: 'basic', example: basic },
+  { name: 'sortable', example: sortable },
+  { name: 'selection', example: selection },
+  { name: 'expandable', example: expandable },
+  { name: 'footer', example: footer },
+  { name: 'fluid', example: fluid },
+  { name: 'vertical', example: vertical },
+  { name: 'empty', example: empty },
+  { name: 'sticky', example: sticky },
+  { name: 'configure', example: configure },
+])

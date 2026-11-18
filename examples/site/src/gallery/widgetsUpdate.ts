@@ -26,7 +26,6 @@ import {
   Carousel,
   Menu,
   Nav,
-  Table,
   Sheet,
   Drawer,
   Command as CommandMenu,
@@ -331,10 +330,6 @@ const foldNav = Update.foldChildAt({
     modifyFields(model, { navs: navs => ({ ...navs, [example]: nav }) }),
   toParentMessage: (example, message) => Message.GotNav({ example, message }),
 })
-
-/** `ids` with `id` in or out; the same array when it already is. */
-const including = (ids: ReadonlyArray<string>, id: string, on: boolean): ReadonlyArray<string> =>
-  ids.includes(id) === on ? ids : on ? [...ids, id] : ids.filter(each => each !== id)
 
 const foldBrand = Update.foldChild({
   ...own('brand', Message.GotBrand),
@@ -769,22 +764,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     OpenedPanel: () => panelStep(model, FloatingPanel.open(model.panels.notes)),
     GotTour: ({ message }) => foldTour(model, message),
     StartedTour: () => startTour(model),
-    SortedInvoices: ({ column }) => ({
-      model: modifyFields(model, { invoiceSort: () => Table.nextSort(model.invoiceSort, column) }),
-    }),
-    ChoseInvoice: ({ id, selected }) => {
-      const chosen = including(model.invoicesChosen, id, selected)
-      return chosen === model.invoicesChosen
-        ? { model }
-        : { model: modifyFields(model, { invoicesChosen: () => chosen }) }
-    },
-    ChoseInvoices: ({ ids }) => ({ model: modifyFields(model, { invoicesChosen: () => ids }) }),
-    OpenedInvoice: ({ id, expanded }) => {
-      const open = including(model.invoicesOpen, id, expanded)
-      return open === model.invoicesOpen
-        ? { model }
-        : { model: modifyFields(model, { invoicesOpen: () => open }) }
-    },
     TurnedLevel: ({ value }) =>
       value === model.level ? { model } : { model: modifyFields(model, { level: () => value }) },
     MovedBudget: ({ value }) =>
