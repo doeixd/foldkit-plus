@@ -90,10 +90,11 @@ one command at a time. A brief sets the checks by these rules:
   runs in the background and the agent writes the next piece; say so in the
   brief, and say when the machine is too full for it (then: one heavy
   command at a time, in the foreground).
-- **Independent work goes to an agent with a tree of its own** (a remote
-  environment or an isolated worktree with its own install), so its checks
-  run beside the others' and it commits without the shared-tree ceremony.
-  The shared tree is for work that must see the others' uncommitted files.
+- **No worktrees and no branches unless the maintainer says so.** Work in
+  the one checked-out tree on its branch. Never create a worktree, a second
+  checkout, a new branch (local or remote), or a remote environment on your
+  own judgment, and never put one in a brief as a default: if one would
+  help, ask the maintainer first and wait for the answer.
 
 ## Reviewing a commit
 
