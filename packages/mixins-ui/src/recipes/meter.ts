@@ -28,7 +28,12 @@ const sized = (size: string) => ({ root: variant(Style.self({ '--_fk-meter-thick
 export const Meter = Style.recipeFor(MeterSlots)({
   base: {
     root: component(
-      Style.self({ display: 'grid', gap: ref.space['2xs'], inlineSize: 'min(20rem, 100%)' }),
+      Style.self({
+        display: 'grid',
+        gap: ref.space['2xs'],
+        inlineSize: '20rem',
+        maxInlineSize: '100%',
+      }),
       Style.nest('&[data-orientation="vertical"]', {
         inlineSize: 'fit-content',
         justifyItems: 'start',

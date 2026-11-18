@@ -38,6 +38,9 @@ export const Chart = Style.recipeFor(ChartSlots)({
         display: 'grid',
         gap: ref.space.sm,
         margin: '0',
+        // A size container has no width of its own, so it takes its container's: centred in a
+        // shrink-wrapping box it would otherwise collapse to nothing.
+        inlineSize: '100%',
         minInlineSize: '0',
         color: ref.text.default,
         containerType: 'inline-size',

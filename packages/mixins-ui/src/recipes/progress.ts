@@ -143,7 +143,11 @@ export const Progress = Style.recipeFor(ProgressSlots)({
     shape: {
       bar: {
         root: variant(
-          Style.self({ inlineSize: 'min(20rem, 100%)', gridTemplateColumns: '1fr auto' }),
+          Style.self({
+            inlineSize: '20rem',
+            maxInlineSize: '100%',
+            gridTemplateColumns: '1fr auto',
+          }),
         ),
         value: variant(Style.self({ gridColumn: '2', gridRow: '1' })),
         track: variant(

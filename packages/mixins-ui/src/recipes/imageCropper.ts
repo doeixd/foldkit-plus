@@ -76,7 +76,14 @@ const control: Declarations = {
 export const ImageCropper = Style.recipeFor(ImageCropperSlots)({
   base: {
     root: component(
-      Style.self({ display: 'grid', gap: ref.space.sm, inlineSize: '100%' }),
+      // A width of its own, so a cropper in a shrink-wrapping box (a centred stack) is not
+      // squeezed to its controls; never wider than its container.
+      Style.self({
+        display: 'grid',
+        gap: ref.space.sm,
+        inlineSize: '32rem',
+        maxInlineSize: '100%',
+      }),
       Style.pseudo('[data-disabled]', { opacity: ref.knob['state-disabled'] }),
     ),
     label: component(
@@ -239,7 +246,10 @@ export const ImageCropper = Style.recipeFor(ImageCropperSlots)({
     viewport: {
       landscape: {},
       wide: { viewport: variant(Style.self({ aspectRatio: '16 / 9' })) },
-      square: { viewport: variant(Style.self({ aspectRatio: '1' })) },
+      square: {
+        root: variant(Style.self({ inlineSize: '20rem' })),
+        viewport: variant(Style.self({ aspectRatio: '1' })),
+      },
     },
   },
   defaults: { guides: 'drag', handles: 'all', viewport: 'landscape' },
