@@ -577,7 +577,7 @@ const siteField = (value: string, h: HtmlBuilder<Message>) =>
       label: 'Website',
       description: 'Without the scheme.',
       value,
-      onInput: value => Message.TypedSite({ value }),
+      onInput: value => Message.TypedTitle({ value }),
       start: h.span([], ['https://']),
       end: h.span([], ['.com']),
       style: FieldStyle,
