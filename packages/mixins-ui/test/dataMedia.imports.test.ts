@@ -46,3 +46,12 @@ test('an ImageCropper page loads no Slider unless it passes the zoom control', (
     from: '../slider.js',
   })
 })
+
+test('a Chart page loads the kinds it passes and no other', () => {
+  const kinds = /(^|\/)(bars|line|area|donut)(\.js)?$/
+  for (const file of ['bars', 'line', 'area', 'donut', 'cartesian', 'paths', 'kind']) {
+    expect(values(`../src/chart/${file}.ts`, kinds)).toEqual([])
+  }
+  const chart = readFileSync(resolve(import.meta.dirname, '../src/chart.ts'), 'utf8')
+  expect(chart).not.toMatch(/^import\s(?!type\s)[^']*'\.\/chart\/(bars|line|area|donut)\.js'/m)
+})
