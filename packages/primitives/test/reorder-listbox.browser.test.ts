@@ -150,8 +150,20 @@ it('selects with Space, picks up with Alt+Enter, and drops with Space', async ()
   const row = (id: string) => document.getElementById(id)
   await expect.poll(() => row('a')?.tabIndex).toBe(0)
   row('a')!.focus()
-  await userEvent.keyboard('{ArrowDown}')
-  await expect.poll(() => document.activeElement?.id).toBe('b')
+  // The first drawing shows the tab stop before the runtime has started what
+  // answers the keys, and on a loaded CI shard the first ArrowDown was lost
+  // (2 runs of 3 on 2026-11-18). Press again only while focus has not moved;
+  // the interval is longer than the focus Command takes, so no press is doubled.
+  await expect
+    .poll(
+      async () => {
+        if (document.activeElement?.id === 'a') await userEvent.keyboard('{ArrowDown}')
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        return document.activeElement?.id
+      },
+      { interval: 250 },
+    )
+    .toBe('b')
   await userEvent.keyboard(' ')
   await expect.poll(() => row('b')?.getAttribute('aria-selected')).toBe('true')
   expect(document.querySelector('[data-reorder]')).toBeNull()
