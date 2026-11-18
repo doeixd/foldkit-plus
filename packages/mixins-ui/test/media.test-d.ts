@@ -26,9 +26,12 @@ Avatar.view(
   { name: 'Ada', picture: Avatar.picture({ asset: hashed, provider: hosted, width: 40 }) },
   h,
 )
-// @ts-expect-error: the same for an avatar's picture.
 Avatar.view(
-  { name: 'Ada', picture: Avatar.picture({ asset: unhashed, provider: hosted, width: 40 }) },
+  {
+    name: 'Ada',
+    // @ts-expect-error: the same for an avatar's picture.
+    picture: Avatar.picture({ asset: unhashed, provider: hosted, width: 40 }),
+  },
   h,
 )
 Avatar.group(

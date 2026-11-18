@@ -76,3 +76,36 @@ export const avatar = [Avatar.view, Avatar.picture]`,
   // The same walk sees @foldkit/ui where the package does reach it.
   expect(everything.some(upstream)).toBe(true)
 }, 120_000)
+
+test('a Card or an Item page ships no pointer highlight, and a group that passes one does', async () => {
+  await buildPackage({
+    ...config,
+    config: false,
+    cwd: packageDir,
+    outDir: join(out, 'dist'),
+    dts: false,
+    logLevel: 'silent',
+  })
+  const [card, item, group] = await Promise.all([
+    keptBy(
+      'card',
+      `import { Card } from 'ui'
+export const page = [Card.view, Card.group]`,
+    ),
+    keptBy(
+      'item',
+      `import { Item } from 'ui'
+export const page = [Item.view, Item.group]`,
+    ),
+    keptBy(
+      'cardFluid',
+      `import { Card } from 'ui'
+export const page = [Card.group, Card.fluid]`,
+    ),
+  ])
+  const highlight = (kept: ReadonlyArray<string>) =>
+    kept.some(id => /\/fluid-hover\.|\/dist\/card\/fluid\.js$/.test(id))
+  expect(highlight(card)).toBe(false)
+  expect(highlight(item)).toBe(false)
+  expect(highlight(group)).toBe(true)
+}, 120_000)

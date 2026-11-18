@@ -45,6 +45,18 @@ const view = (_: Model, h: HtmlBuilder<Message>) =>
             selected: key === 'bluetooth',
             press: { onClick: Message.Pressed({ key }) },
             actions: h.button([h.Type('button'), h.OnClick(Message.Acted())], [`Edit ${key}`]),
+            ...(key === 'sound'
+              ? {
+                  header: h.button(
+                    [h.Type('button'), h.OnClick(Message.Acted())],
+                    ['Sound header'],
+                  ),
+                  footer: h.button(
+                    [h.Type('button'), h.OnClick(Message.Acted())],
+                    ['Sound footer'],
+                  ),
+                }
+              : {}),
           })),
           style: listStyle,
           itemStyle: rowStyle,
@@ -146,6 +158,26 @@ test('a list draws a hairline between rows, and an icon sits in a tinted tile', 
     const tile = rowOf('wifi').firstElementChild!
     expect(getComputedStyle(tile).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
     expect(tile.getBoundingClientRect().width).toBe(40)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a header and a footer span the row and stay pressable above its overlay', async () => {
+  const { handle, log } = await mount('light')
+  try {
+    const row = rowOf('sound')
+    const [header, footer] = ['Sound header', 'Sound footer'].map(name =>
+      Array.from(row.querySelectorAll('button')).find(button => button.textContent === name)!,
+    )
+    const inner = row.getBoundingClientRect()
+    for (const band of [header!, footer!]) {
+      expect(band.parentElement!.getBoundingClientRect().width).toBeGreaterThan(inner.width - 40)
+    }
+    // Not forced: nothing may lie over them.
+    await userEvent.click(header!)
+    await userEvent.click(footer!)
+    await vi.waitFor(() => expect(log()).toEqual(['Acted', 'Acted']))
   } finally {
     handle.dispose()
   }

@@ -17,6 +17,11 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Badge, BadgeSlots, Card, CardGroupSlots, CardSlots, Recipes } from '../src/index.js'
 import { unitKnobs } from './fixture.js'
+import type { CardGroupView } from '../src/card.js'
+
+// A highlight is a value the page passes: these tests draw groups the way a page that wants one does.
+const cardGroup = <M>(options: CardGroupView<M>, h: HtmlBuilder<M>) =>
+  Card.group({ fluid: Card.fluid, ...options }, h)
 
 // At unit knobs, and on an off-white light page: the default's is pure
 // white, where nothing can stand toward white.
@@ -35,7 +40,7 @@ const lifted = Style.forSlots(CardSlots)(Recipes.Card({ lift: 'hover' }))
 const outlined = Style.forSlots(CardSlots)(Recipes.Card({}))
 const plain = Style.forSlots(CardSlots)(Recipes.Card({ surface: 'plain' }))
 const group = Style.forSlots(CardGroupSlots)(Recipes.CardGroup({}))
-const badge = Style.forSlots(BadgeSlots)(Recipes.Badge({ attribute: 'data-tone', tones: {} }))
+const badge = Style.forSlots(BadgeSlots)(Recipes.Badge())
 const styles = [...levels, lifted, outlined, plain, group, badge]
 
 afterEach(() => {
@@ -69,7 +74,7 @@ const view = (_: unknown, h: HtmlBuilder<Message>): Html =>
         },
         h,
       ),
-      Card.group(
+      cardGroup(
         {
           label: 'Plans',
           cards: ['a', 'b'].map(key => ({ key, title: `Plan ${key}`, selected: key === 'b' })),

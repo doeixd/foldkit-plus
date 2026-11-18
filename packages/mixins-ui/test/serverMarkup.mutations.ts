@@ -136,7 +136,7 @@ export default [
     name: 'a selected card is not pressed',
     edits: [
       {
-        file: '../src/card.ts',
+        file: '../src/press.ts',
         find: '...(state.selected === undefined ? [] : [h.AriaPressed(flag(state.selected))]),',
         replace: '',
       },

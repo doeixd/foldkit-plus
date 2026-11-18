@@ -14,6 +14,11 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Card, CardGroupSlots, CardSlots, Recipes } from '../src/index.js'
 import { unitKnobs } from './fixture.js'
+import type { CardGroupView } from '../src/card.js'
+
+// A highlight is a value the page passes: these tests draw groups the way a page that wants one does.
+const cardGroup = <M>(options: CardGroupView<M>, h: HtmlBuilder<M>) =>
+  Card.group({ fluid: Card.fluid, ...options }, h)
 
 const Message = defineMessageUnion({
   Pressed: { key: Schema.String },
@@ -74,7 +79,7 @@ const view = (_: Model, h: HtmlBuilder<Message>) =>
         },
         h,
       ),
-      Card.group(
+      cardGroup(
         {
           cards: ['a', 'b', 'c'].map(key => ({
             key,

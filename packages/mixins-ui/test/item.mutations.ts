@@ -125,4 +125,85 @@ export default [
     edits: [{ file: recipe, find: '            background: ref.accent.subtle,\n', replace: '' }],
     tests: browser,
   },
+  {
+    name: 'the header is not drawn',
+    edits: [
+      {
+        file: view,
+        find: '...(options.header === undefined ? [] : [h.div(builders.header.attrs(), [options.header])]),',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the footer comes before the actions',
+    edits: [
+      {
+        file: view,
+        find: '...(options.footer === undefined ? [] : [h.div(builders.footer.attrs(), [options.footer])]),',
+        replace: '',
+      },
+      {
+        file: view,
+        find: '...(options.actions === undefined',
+        replace:
+          '...(options.footer === undefined ? [] : [h.div(builders.footer.attrs(), [options.footer])]), ...(options.actions === undefined',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a new-tab link ignores its words',
+    edits: [
+      {
+        file: view,
+        find: 'newTab: wordsOf(words, options.words).newTab,',
+        replace: 'newTab: words.newTab,',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a group does not wrap its rows',
+    edits: [{ file: view, find: 'around(view({', replace: '(view({' }],
+    tests: unit,
+  },
+  {
+    name: 'a preset’s style does not reach a group’s rows',
+    edits: [
+      {
+        file: view,
+        find: '...(preset.style === undefined ? {} : { itemStyle: preset.style }),',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the header lies under the overlay',
+    edits: [
+      {
+        file: recipe,
+        find: `header: component(
+      Style.self({ position: 'relative', zIndex: '1', flex: '0 0 100%', minWidth: '0' }),`,
+        replace: `header: component(
+      Style.self({ flex: '0 0 100%', minWidth: '0' }),`,
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a header is only as wide as its words',
+    edits: [
+      {
+        file: recipe,
+        find: `header: component(
+      Style.self({ position: 'relative', zIndex: '1', flex: '0 0 100%', minWidth: '0' }),`,
+        replace: `header: component(
+      Style.self({ position: 'relative', zIndex: '1', minWidth: '0' }),`,
+      },
+    ],
+    tests: browser,
+  },
 ]

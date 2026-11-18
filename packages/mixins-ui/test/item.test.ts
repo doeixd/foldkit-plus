@@ -7,7 +7,14 @@
 import { describe, expect, it } from 'vitest'
 import { Capability, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { ItemGroupSlots, ItemSlots, group, view as drawItem, type ItemView } from '../src/item.js'
+import {
+  ItemGroupSlots,
+  ItemSlots,
+  configure,
+  group,
+  view as drawItem,
+  type ItemView,
+} from '../src/item.js'
 import { Recipes } from '../src/index.js'
 import { h, message, type TestMessage } from './fixture.js'
 
@@ -105,5 +112,67 @@ describe('Item recipe', () => {
   it('sizes the row and its media per density', () => {
     expect(css({})).toContain('2.5rem')
     expect(css({ density: 'compact' })).toContain('1.75rem')
+  })
+})
+
+describe('Item header and footer', () => {
+  it('draws a band before the media and one after the actions, each its own region', () => {
+    const row = view({
+      header: h.span([], ['Header text']),
+      media: h.span([], ['M']),
+      title: 'Title',
+      actions: h.span([], ['A']),
+      footer: h.span([], ['Footer text']),
+    })
+    const order = Inert.children(row).map(child => Inert.text(child))
+    expect(order).toEqual(['Header text', 'M', 'Title', 'A', 'Footer text'])
+  })
+
+  it('draws neither without them', () => {
+    expect(Inert.children(view({ title: 'T' })).map(child => Inert.text(child))).toEqual(['T'])
+  })
+})
+
+describe('Item words and wrap', () => {
+  it('says what a new-tab link is called', () => {
+    const row = view({
+      title: 'Docs',
+      press: { href: 'https://example.com', external: true },
+      words: { newTab: 'Neuer Tab' },
+    })
+    expect(Inert.value(overlayOf(row), 'aria-description')).toBe('Neuer Tab')
+  })
+
+  it('draws around each row inside its list item', () => {
+    const drawn = group(
+      {
+        items: [{ key: 'a', title: 'A' }],
+        wrap: (row, source) => h.a([h.Href(`/${source.key}`)], [row]),
+      },
+      h,
+    )
+    expect(Inert.value(Inert.children(Inert.children(drawn)[0])[0], 'href')).toBe('/a')
+  })
+})
+
+describe('Item.configure', () => {
+  const App = configure({ base: { style }, presets: { de: { words: { newTab: 'Neuer Tab' } } } })
+
+  it('binds the style and a preset’s words', () => {
+    const link = { href: 'https://example.com', external: true }
+    expect(Inert.classes(App.view({ title: 'T' }, h))).toEqual(Inert.classes(view({ title: 'T' })))
+    const row = App.view({ title: 'T', press: link, preset: 'de' }, h)
+    expect(Inert.value(overlayOf(row), 'aria-description')).toBe('Neuer Tab')
+  })
+
+  it('gives a group its rows’ style', () => {
+    const items = [{ key: 'a', title: 'A' }]
+    const rowOf = (drawn: ReturnType<typeof group>) => Inert.children(Inert.children(drawn)[0])[0]
+    expect(Inert.classes(rowOf(App.group({ items }, h)))).toEqual(
+      Inert.classes(view({ title: 'A' })),
+    )
+    expect(Inert.classes(rowOf(group({ items }, h)))).not.toEqual(
+      Inert.classes(view({ title: 'A' })),
+    )
   })
 })
