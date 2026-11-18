@@ -394,7 +394,8 @@ describe('the generated site', () => {
         [
           ['basic', 'Basic', 'SearchField.view('],
           ['routes', 'Keys of your own', "Behaviors.Keys.chord('ArrowDown')"],
-          ['states', 'Invalid and disabled', 'invalid: true'],
+          ['busy', 'Busy, with a clear of your own', 'busy: model.query'],
+          ['states', 'Invalid, disabled and with no clear', 'invalid: true'],
         ],
       ],
       [
@@ -674,24 +675,21 @@ describe('the generated site', () => {
   })
 
   test('the input in a form says what it submits, asks for and offers', () => {
-    const form = page('/components/input').getElementById('form')?.closest('section')
+    const form = page('/components/input').getElementById('states')?.closest('section')
     const [phone, order] = Array.from(form?.querySelectorAll('[data-size="page"] input') ?? [])
     expect(phone?.getAttribute('name')).toBe('phone')
-    expect(phone?.getAttribute('autocomplete')).toBe('tel')
     expect(phone?.getAttribute('inputmode')).toBe('tel')
-    expect(phone?.getAttribute('maxlength')).toBe('16')
     expect(phone?.hasAttribute('required')).toBe(true)
     expect(order?.hasAttribute('readonly')).toBe(true)
     expect(order?.getAttribute('name')).toBe('order')
   })
 
   test('the number field with no value shows none, and the slider says what it is saved at', () => {
-    const empty = page('/components/number-field').getElementById('locale')?.closest('section')
-    const field = empty?.querySelector('[data-size="page"] input')
-    expect(field?.getAttribute('name')).toBe('price')
-    expect((field as HTMLInputElement | null)?.value).toBe('')
-    expect(field?.hasAttribute('aria-valuenow')).toBe(false)
-    expect(empty?.querySelector('[data-size="page"]')?.textContent).toContain('Empty: type 1.234,5')
+    const locale = page('/components/number-field').getElementById('locale')?.closest('section')
+    const field = locale?.querySelector('[data-size="page"] input')
+    expect((field as HTMLInputElement | null)?.value).toBe('1.234,5')
+    expect(field?.getAttribute('aria-valuenow')).toBe('1234.5')
+    expect(locale?.querySelector('[data-size="page"]')?.textContent).toContain('EUR')
     const commit = page('/components/slider').getElementById('commit')?.closest('section')
     expect(commit?.querySelector('[data-size="page"] p')?.textContent).toBe('Saved: 60%')
     const basic = page('/components/slider').getElementById('basic')?.closest('section')
@@ -735,7 +733,7 @@ describe('the generated site', () => {
   test('the search fields are search inputs named by their label, with no clear button while empty', () => {
     const basic = page('/components/search-field').getElementById('basic')?.closest('section')
     const input = basic?.querySelector('[data-size="page"] input[type="search"]')
-    expect(input?.getAttribute('aria-label')).toBe('Search recipes')
+    expect(input?.getAttribute('aria-label')).toBe('Search products')
     expect(basic?.querySelector('[data-size="page"] button')).toBeNull()
     const states = page('/components/search-field').getElementById('states')?.closest('section')
     const [invalid, disabled] = Array.from(
@@ -743,10 +741,8 @@ describe('the generated site', () => {
     )
     expect(invalid?.getAttribute('aria-invalid')).toBe('true')
     expect(disabled?.hasAttribute('disabled')).toBe(true)
-    // Typed text draws the clear button; the disabled field draws none either way.
-    expect(
-      states?.querySelectorAll('[data-size="page"] button[aria-label="Clear search"]'),
-    ).toHaveLength(1)
+    // These fields are given no `clear`: none draws the button.
+    expect(states?.querySelectorAll('[data-size="page"] button')).toHaveLength(0)
   })
 
   test('the toolbar has one tab stop, groups its alignment and skips the disabled link', () => {

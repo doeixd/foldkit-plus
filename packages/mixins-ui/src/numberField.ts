@@ -10,7 +10,9 @@ import {
   type NamedStyle,
 } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { AdornmentSlots, GROUP_MARK, sidesOf, type Adornments } from './adornments.js'
 import type { MixinList } from './resolve.js'
+import { wordsOf } from './words.js'
 
 /**
  * A number field, the APG's editable spinbutton and Zag's number input: a
@@ -24,7 +26,7 @@ import type { MixinList } from './resolve.js'
 export const NumberFieldSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   label: Slot.make({ capability: Capability.Container }),
-  group: Slot.make({ capability: Capability.Container }),
+  ...AdornmentSlots,
   input: Slot.make({
     capability: Capability.Focusable,
     events: [Event.KeyDown],
@@ -43,7 +45,17 @@ export const NumberFieldSlots = Slots.define({
   description: Slot.make({ capability: Capability.Container }),
 })
 
-export interface NumberFieldView<Message> {
+export interface NumberFieldWords {
+  /** The decrement button's name. */
+  readonly decrease: string
+  /** The increment button's name. */
+  readonly increase: string
+}
+
+/** The defaults, in English. */
+export const words: NumberFieldWords = { decrease: 'Decrease', increase: 'Increase' }
+
+export interface NumberFieldView<Message> extends Adornments {
   /** Prefixes every id the field draws, unique on the page. */
   readonly id: string
   readonly label: string
@@ -59,6 +71,12 @@ export interface NumberFieldView<Message> {
   /** PageUp and PageDown move by this; default ten steps. */
   readonly page?: number | undefined
   readonly disabled?: boolean | undefined
+  /** The number is refused: the input is `aria-invalid`, and the box draws the error edge. */
+  readonly invalid?: boolean | undefined
+  /** The number can be read and selected, not changed: no key or typing is handled and the steppers are disabled. */
+  readonly readOnly?: boolean | undefined
+  /** The steppers' names. */
+  readonly words?: Partial<NumberFieldWords> | undefined
   /** The form field the number submits under, as the text the field shows. */
   readonly name?: string | undefined
   /** The field must be filled to submit: the native `required` and `aria-required`. */
@@ -179,6 +197,8 @@ export const view = <Message>(
     options.format ??
     (locale === undefined ? String : (value: number) => formatIn(locale).format(value))
   const parse = options.parse ?? ((text: string) => parseNumber(text, locale))
+  const text = wordsOf(words, options.words)
+  const readOnly = options.readOnly === true
   const disabled = options.disabled === true
   const inputId = `${options.id}-input`
   const descriptionId = `${options.id}-description`
@@ -210,14 +230,22 @@ export const view = <Message>(
         h.AriaLabel(label),
         // Out of the tab order, as the APG has it: the field's own keys step it.
         h.Tabindex(-1),
-        ...(disabled || at ? [h.Disabled(true)] : [h.OnClick(options.onChange(stepped(by)))]),
+        ...(disabled || readOnly || at
+          ? [h.Disabled(true)]
+          : [h.OnClick(options.onChange(stepped(by)))]),
       ]),
       [glyph],
     )
+  const sides = sidesOf(
+    h,
+    { group: [], start: builders.start.attrs(), end: builders.end.attrs() },
+    options,
+  )
   return h.div(builders.root.attrs(), [
     h.label(builders.label.attrs([h.For(inputId)]), [options.label]),
-    h.div(builders.group.attrs(), [
-      stepper(builders.decrement, 'Decrease', atMin, -step, '−'),
+    h.div(builders.group.attrs([h.DataAttribute(GROUP_MARK, '')]), [
+      stepper(builders.decrement, text.decrease, atMin, -step, '−'),
+      ...sides.start,
       h.input(
         builders.input.attrs([
           h.Id(inputId),
@@ -226,6 +254,8 @@ export const view = <Message>(
           h.Role('spinbutton'),
           ...(options.name === undefined ? [] : [h.Name(options.name)]),
           ...(options.required === true ? [h.Required(true), h.AriaRequired(true)] : []),
+          ...(options.invalid === true ? [h.AriaInvalid(true)] : []),
+          ...(readOnly ? [h.Readonly(true)] : []),
           h.Value(Option.match(options.value, { onNone: () => '', onSome: format })),
           ...Option.match(options.value, {
             onNone: () => [],
@@ -236,41 +266,45 @@ export const view = <Message>(
           ...(options.description === undefined ? [] : [h.AriaDescribedBy(descriptionId)]),
           ...(disabled
             ? [h.Disabled(true)]
-            : [
-                h.OnKeyDownPreventDefault((key, modifiers) => {
-                  const spun = Behaviors.SpinValue.spin(
-                    Option.getOrElse(options.value, () => 0),
-                    key,
-                    modifiers,
-                    bounds,
-                  )
-                  // An empty field has no value to step: up and down start at the bounds.
-                  const next =
-                    spun === undefined || Option.isSome(options.value)
-                      ? spun
-                      : key === 'ArrowUp' || key === 'PageUp'
-                        ? (options.min ?? 0)
-                        : key === 'ArrowDown' || key === 'PageDown'
-                          ? (options.max ?? 0)
-                          : spun
-                  return next === undefined || Option.exists(options.value, value => value === next)
-                    ? Option.none()
-                    : Option.some(options.onChange(Option.some(settled(next, bounds))))
-                }),
-                h.OnChange(text =>
-                  options.onChange(
-                    text.trim() === ''
+            : readOnly
+              ? []
+              : [
+                  h.OnKeyDownPreventDefault((key, modifiers) => {
+                    const spun = Behaviors.SpinValue.spin(
+                      Option.getOrElse(options.value, () => 0),
+                      key,
+                      modifiers,
+                      bounds,
+                    )
+                    // An empty field has no value to step: up and down start at the bounds.
+                    const next =
+                      spun === undefined || Option.isSome(options.value)
+                        ? spun
+                        : key === 'ArrowUp' || key === 'PageUp'
+                          ? (options.min ?? 0)
+                          : key === 'ArrowDown' || key === 'PageDown'
+                            ? (options.max ?? 0)
+                            : spun
+                    return next === undefined ||
+                      Option.exists(options.value, value => value === next)
                       ? Option.none()
-                      : Option.match(parse(text), {
-                          onNone: () => options.value,
-                          onSome: typed => Option.some(settled(typed, bounds)),
-                        }),
+                      : Option.some(options.onChange(Option.some(settled(next, bounds))))
+                  }),
+                  h.OnChange(text =>
+                    options.onChange(
+                      text.trim() === ''
+                        ? Option.none()
+                        : Option.match(parse(text), {
+                            onNone: () => options.value,
+                            onSome: typed => Option.some(settled(typed, bounds)),
+                          }),
+                    ),
                   ),
-                ),
-              ]),
+                ]),
         ]),
       ),
-      stepper(builders.increment, 'Increase', atMax, step, '+'),
+      ...sides.end,
+      stepper(builders.increment, text.increase, atMax, step, '+'),
     ]),
     ...(options.description === undefined
       ? []

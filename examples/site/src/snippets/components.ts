@@ -77,8 +77,6 @@ import {
   VirtualListSlots,
   Progress,
   ProgressSlots,
-  NumberField,
-  NumberFieldSlots,
   OtpField,
   OtpFieldSlots,
   Resizable,
@@ -1167,7 +1165,7 @@ export const slider = <Message>(
           step: 10,
           marks: [0, 100, 200, 300, 400, 500],
           format: amount => `$${amount}`,
-          thumbLabels: { low: 'Minimum price', high: 'Maximum price' },
+          words: { low: 'Minimum price', high: 'Maximum price' },
           style,
         },
         h,
@@ -1270,7 +1268,7 @@ export const sliderMarks = <Message>(
       ],
       showValue: true,
       format: amount => `$${amount}`,
-      thumbLabels: { low: 'Minimum budget', high: 'Maximum budget' },
+      words: { low: 'Minimum budget', high: 'Maximum budget' },
       style,
     },
     h,
@@ -2767,63 +2765,6 @@ export const checkboxGroupInvalid = <Message>(
       onToggle,
       // Invalid until one is checked: the error says what would make it valid.
       ...(checked.length === 0 ? { error: 'Pick at least one.' } : {}),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region number-field-basic
-export const NumberFieldStyle = forSlots(NumberFieldSlots)(Recipes.NumberField({}))
-
-export const numberField = <Message>(
-  style: NamedStyle<typeof NumberFieldSlots>,
-  value: number,
-  onChange: (value: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  NumberField.view(
-    {
-      id: 'servings',
-      label: 'Servings',
-      description: 'From 1 to 12; the arrow keys step it.',
-      value: Option.some(value),
-      // This Model holds a number, so a cleared field keeps the last one: see the next example for one that can be empty.
-      onChange: next => onChange(Option.getOrElse(next, () => value)),
-      min: 1,
-      max: 12,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region number-field-locale
-// An empty field is `Option.none()`, so the Model can hold "nothing entered
-// yet"; the steppers then start from the bounds. `locale` draws the number
-// with that locale's marks and reads typed text back the same way, so what the
-// field shows is what it accepts. `name` submits the text shown.
-export const numberFieldLocale = <Message>(
-  style: NamedStyle<typeof NumberFieldSlots>,
-  value: Option.Option<number>,
-  onChange: (value: Option.Option<number>) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  NumberField.view(
-    {
-      id: 'price',
-      name: 'price',
-      label: 'Price in euros',
-      description: Option.match(value, {
-        onNone: () => 'Empty: type 1.234,5 or step from the minimum.',
-        onSome: amount => `Read as ${amount}.`,
-      }),
-      value,
-      onChange,
-      locale: 'de-DE',
-      min: 0,
-      step: 0.5,
-      required: true,
       style,
     },
     h,

@@ -7,6 +7,7 @@
 import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { NumberFieldSlots } from '../numberField.js'
+import { Adorned } from './field.js'
 import {
   component,
   controlCorner,
@@ -16,6 +17,7 @@ import {
   touchText,
   transition,
   unfilledHover,
+  variant,
   controlHeight,
 } from './design.js'
 
@@ -45,8 +47,7 @@ export const NumberField = Style.recipeFor(NumberFieldSlots)({
     ),
     group: component(
       Style.self({
-        display: 'inline-grid',
-        gridTemplateColumns: 'auto 1fr auto',
+        display: 'inline-flex',
         alignItems: 'stretch',
         inlineSize: 'fit-content',
         minBlockSize: controlHeight,
@@ -61,6 +62,8 @@ export const NumberField = Style.recipeFor(NumberFieldSlots)({
       Style.pseudo(':hover:not(:focus-within, :has(> input:disabled))', {
         borderColor: ref.outline.overt,
       }),
+      // The error edge: an `aria-invalid` input in the box.
+      Style.pseudo(':has(> input[aria-invalid="true"])', { borderColor: ref.error.outline }),
       Style.pseudo(':focus-within', {
         outline: `${ref.border.thick} solid ${ref.outline.focus}`,
         outlineOffset: '2px',
@@ -68,6 +71,7 @@ export const NumberField = Style.recipeFor(NumberFieldSlots)({
     ),
     input: component(
       Style.self({
+        flex: '1 1 5ch',
         inlineSize: '5ch',
         minInlineSize: '0',
         padding: '0',
@@ -84,8 +88,26 @@ export const NumberField = Style.recipeFor(NumberFieldSlots)({
       disabled,
       touchText,
     ),
+    start: Adorned.start,
+    end: Adorned.end,
     decrement: stepper,
     increment: stepper,
     description: component(Style.self({ margin: '0', color: ref.text.muted, ...role('caption') })),
   },
+  variants: {
+    // Where the buttons stand: one at each side of the number (the default), both
+    // after it, or none, for a field the keys and the typing alone change.
+    steppers: {
+      split: {},
+      end: {
+        decrement: variant(Style.self({ order: '3' })),
+        increment: variant(Style.self({ order: '4' })),
+      },
+      none: {
+        decrement: variant(Style.self({ display: 'none' })),
+        increment: variant(Style.self({ display: 'none' })),
+      },
+    },
+  },
+  defaults: { steppers: 'split' },
 })

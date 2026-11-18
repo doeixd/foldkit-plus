@@ -1028,10 +1028,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       code === model.otpStates[field]
         ? { model }
         : { model: modifyFields(model, { otpStates: states => ({ ...states, [field]: code }) }) },
-    ChangedServings: ({ value }) =>
-      value === model.servings
-        ? { model }
-        : { model: modifyFields(model, { servings: () => value }) },
     SavedDraft: () =>
       notify(model, {
         variant: 'Success',

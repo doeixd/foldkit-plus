@@ -27,8 +27,6 @@ export default [
     '...Command.mapMessages([FileInput.Focus({ id: FILES_ID[example] })], () =>',
     '...Command.mapMessages([], () =>',
   ),
-  mutation('a changed price is not kept', 'price: () => value', 'price: () => model.price'),
-  mutation('the same price makes a new Model', 'Equal.equals(value, model.price)', 'false'),
   mutation(
     'a moved slider saves as it goes',
     'brightness => ({ ...brightness, value })',

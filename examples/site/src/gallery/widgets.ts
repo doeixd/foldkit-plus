@@ -196,8 +196,6 @@ export const Model = Schema.Struct({
   teamPlan: Schema.Boolean,
   /** Each checkbox group example's checked alerts. */
   alerts: Schema.Record(AlertsExample, Schema.Array(Schema.String)),
-  /** The number field's servings. */
-  servings: Schema.Number,
   /** The one-time code typed so far. */
   code: Schema.String,
   /** The states preview's two editable fields: the one being filled and the refused one. */
@@ -352,7 +350,6 @@ export const Message = defineMessageUnion({
   ToggledTeamPlan: { checked: Schema.Boolean },
   ToggledAlert: { example: AlertsExample, value: Schema.String },
   SetAlerts: { example: AlertsExample, values: Schema.Array(Schema.String) },
-  ChangedServings: { value: Schema.Number },
   TypedCode: { code: Schema.String },
   TypedStateCode: { field: Schema.Literals(['filling', 'refused']), code: Schema.String },
   GotHoverCard: { message: UiHoverIntent.Message },
@@ -518,7 +515,6 @@ export const initial: Model = {
     'select-all': ['mentions', 'offers'],
     invalid: [],
   },
-  servings: 4,
   code: '',
   otpStates: { filling: '48', refused: '482910' },
   hoverCard: UiHoverIntent.init(),

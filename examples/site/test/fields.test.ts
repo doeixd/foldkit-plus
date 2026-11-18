@@ -56,20 +56,7 @@ describe('the file input previews', () => {
   })
 })
 
-describe('the number field, slider and segmented previews', () => {
-  it('hold an empty price as none, and keep the Model for the same price', () => {
-    const priced = after(Fields.Message.ChangedPrice({ value: Option.some(12.5) }))
-    expect(priced.widgets.fields.price).toEqual(Option.some(12.5))
-    expect(send(priced, Fields.Message.ChangedPrice({ value: Option.some(12.5) })).model).toBe(
-      priced,
-    )
-    expect(
-      send(priced, Fields.Message.ChangedPrice({ value: Option.none() })).model.widgets.fields
-        .price,
-    ).toEqual(Option.none())
-    expect(send(initial, Fields.Message.ChangedPrice({ value: Option.none() })).model).toBe(initial)
-  })
-
+describe('the slider and segmented previews', () => {
   it('move the slider without saving, and save only on a commit', () => {
     const moved = after(Fields.Message.MovedBrightness({ value: 30 }))
     expect(moved.widgets.fields.brightness).toEqual({ value: 30, saved: 60 })

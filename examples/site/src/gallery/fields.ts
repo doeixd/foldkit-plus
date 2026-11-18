@@ -3,7 +3,7 @@
  * pickers' lists. The site's widgets hold one of these and fold `Message`
  * into it.
  */
-import { Equal, Option, Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
@@ -23,8 +23,7 @@ export const FILES_ID = {
 
 export const Model = Schema.Struct({
   files: Schema.Record(FilesExample, Schema.Array(Schema.instanceOf(File))),
-  /** A price that can be empty, and the brightness as it moves and as last let go of. */
-  price: Schema.Option(Schema.Number),
+  /** The brightness as it moves and as last let go of. */
   brightness: Schema.Struct({ value: Schema.Number, saved: Schema.Number }),
   repeatOn: Schema.Array(Weekday),
   /** The sort picker: what is open, and the order chosen. */
@@ -37,7 +36,6 @@ export const Message = defineMessageUnion({
   PickedFiles: { example: FilesExample, files: Schema.Array(Schema.instanceOf(File)) },
   RemovedFile: { example: FilesExample, file: Schema.instanceOf(File) },
   /** A Focus or Sync Command ran; nothing to change. */
-  ChangedPrice: { value: Schema.Option(Schema.Number) },
   MovedBrightness: { value: Schema.Number },
   CommittedBrightness: { value: Schema.Number },
   ToggledDay: { day: Weekday },
@@ -48,7 +46,6 @@ export type Message = typeof Message.Type
 
 export const init = (): Model => ({
   files: { multiple: [], required: [] },
-  price: Option.none(),
   brightness: { value: 60, saved: 60 },
   repeatOn: ['mon', 'wed'],
   picker: Picker.init({ id: 'preview-sort' }),
@@ -83,10 +80,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ],
       }
     },
-    ChangedPrice: ({ value }) =>
-      Equal.equals(value, model.price)
-        ? { model }
-        : { model: modifyFields(model, { price: () => value }) },
     MovedBrightness: ({ value }) =>
       value === model.brightness.value
         ? { model }
