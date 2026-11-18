@@ -20,7 +20,7 @@ export default example({
         collapse: {
           max: 3,
           draw: ({ label, ellipsis, builders }, builder) =>
-            builder.a(builders.ellipsis.attrs([builder.Href('#all'), builder.AriaLabel(label)]), [
+            builder.a(builders.ellipsis.attrs([builder.Href('#'), builder.AriaLabel(label)]), [
               ellipsis,
             ]),
         },
