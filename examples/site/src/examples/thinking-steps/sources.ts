@@ -19,17 +19,17 @@ export default example({
             steps: [
               {
                 id: 'tides',
-                title: 'Tide tables, Lisbon',
+                title: 'Tide, Wikipedia',
                 state: 'done',
-                href: '#tides',
-                detail: 'High water at 14:10, 3.4 m.',
+                href: 'https://en.wikipedia.org/wiki/Tide',
+                detail: 'The moon and the sun raise the tides.',
               },
               {
                 id: 'moon',
-                title: 'Lunar calendar',
+                title: 'Lunar phase, Wikipedia',
                 state: 'done',
-                href: '#moon',
-                detail: 'Full moon on Saturday.',
+                href: 'https://en.wikipedia.org/wiki/Lunar_phase',
+                detail: 'Spring tides follow a full or new moon.',
               },
               { id: 'notes', title: 'Cross-checked the two', state: 'done', detail: 'They agree.' },
             ],
