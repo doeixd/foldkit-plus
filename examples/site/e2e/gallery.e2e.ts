@@ -10,7 +10,9 @@ import { createServer, mergeConfig, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 // Read through Vitest, which resolves the workspace sources (see theme.e2e.ts).
 import config from '../vite.config.js'
+import { listed } from '../src/gallery/primitiveExamples.js'
 import { showcases } from '../src/gallery/showcases.js'
+import { examples } from '../src/snippets/primitives.js'
 import { containment } from './containment.js'
 import { onFreePort } from '../../../scripts/free-port.mjs'
 import { mutation } from '../../../scripts/mutation-plugin.mjs'
@@ -79,6 +81,39 @@ test.each([1440, 390, 360])(
       // Measured against the layout viewport: a phone zooms out to fit an overflowing page.
       const found = await page.evaluate(containment, LIMIT)
       expect(found).toEqual({ escaped: [], tall: [], overflow: 0 })
+    } finally {
+      await context.close()
+    }
+  },
+  400_000,
+)
+
+test.each([1440, 360])(
+  'the primitives gallery draws and adopts every live example at %ipx, with no page error or sideways scroll',
+  async width => {
+    const context = await browser.newContext({
+      viewport: { width, height: 900 },
+      hasTouch: width < 600,
+      isMobile: width < 600,
+    })
+    try {
+      const page = await context.newPage()
+      const errors: Array<string> = []
+      page.on('pageerror', error => errors.push(String(error)))
+      await page.goto(`${url}/primitives/gallery`, { timeout: 400_000 })
+      // The examples are held out of reach until the browser has taken the page over.
+      await page.waitForFunction(
+        () => document.querySelector('[aria-busy="true"]') === null,
+        undefined,
+        { timeout: 120_000 },
+      )
+      expect(await page.locator('section[id] [aria-labelledby$="-title"]').count()).toBe(
+        listed.length + examples.length,
+      )
+      const overflow = await page.evaluate(() =>
+        Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      )
+      expect({ errors, overflow }).toEqual({ errors: [], overflow: 0 })
     } finally {
       await context.close()
     }
