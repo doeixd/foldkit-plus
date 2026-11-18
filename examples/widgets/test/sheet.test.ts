@@ -10,8 +10,9 @@ import { describe, expect, it } from 'vitest'
 import { Message, POINTS, initial, percentShown, restingPercent, update } from '../src/sheet/app.js'
 import { island } from '../src/sheet/island.js'
 
-const snapped = (at: number) => Message.GotSheet({ message: Sheet.Message.SnappedTo({ at }) })
-const escape = Message.GotSheet({
+const snapped = (at: number) =>
+  Message.GotSheetMessage({ message: Sheet.Message.SnappedTo({ at }) })
+const escape = Message.GotSheetMessage({
   message: Sheet.Message.GotDialog({ message: UiDialog.Message.RequestedClose() }),
 })
 

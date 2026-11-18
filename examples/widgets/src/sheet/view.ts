@@ -49,7 +49,7 @@ export const SheetIsland = (model: Model, h: HtmlBuilder<Message>): Html => {
     Sheet.view(
       {
         model: model.sheet,
-        onMessage: message => Message.GotSheet({ message }),
+        onMessage: message => Message.GotSheetMessage({ message }),
         style: sheetStyle,
         hasDescription: true,
         draw: dialog =>
