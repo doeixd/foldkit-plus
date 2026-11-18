@@ -706,7 +706,14 @@ the surface knobs. Each hue is a knob (`red-h`), and `scale-c` scales every step
 panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `press`, `highlight-ink`):
 `menu.highlight: 'bold'` lights the row in the accent's fill, and `menu.panel` draws the panel
 as the page's own raised surface (`default`), `inverted` (the other scheme's surface and text) or
-`translucent` over a blur, as shadcn's menu options do. A lit row takes its ink from the surface
+`translucent` over a blur, as shadcn's menu options do. The `selection` group is selected text,
+which `Defaults.body` paints with `:where(*)::selection`: `background` is the accent over whatever
+the text sits on (28% in a light scheme, 40% in a dark one, so the text stays at AA), `ink` is
+`currentColor` so a link or a syntax token keeps its colour, and `fill-background` is the deeper
+accent for text on the accent's own fill, where the tint would be the fill: such a surface sets
+`--fk-selection-background` to it beside its fill. Override like any token,
+`Theme.compose(theme, { selection: { background: 'rebeccapurple' } })`; an application's own
+`::selection` rule wins. A lit row takes its ink from the surface
 it is on: a popup panel sets `--_fk-row-highlight`, `--_fk-row-press` and
 `--_fk-row-highlight-ink` on itself, and a row outside one (an inline Command) reads the `plain-*`
 tokens, the text's own films or the accent.

@@ -3,6 +3,7 @@ export const declaredTokens: ReadonlyArray<string> = [
   ...['base', 'muted', 'subtle', 'default', 'overt', 'bedrock'].map(n => `surface-${n}`),
   ...['default', 'muted', 'subtle', 'overt', 'link', 'link-hover'].map(n => `text-${n}`),
   ...['subtle', 'default', 'overt', 'focus'].map(n => `outline-${n}`),
+  ...['background', 'ink', 'fill-background'].map(n => `selection-${n}`),
   ...['accent', 'secondary', 'tertiary'].flatMap(g =>
     ['default', 'hover', 'active', 'subtle', 'on-fill', 'ink'].map(n => `${g}-${n}`),
   ),

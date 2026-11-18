@@ -324,6 +324,21 @@ export const palette = define({
     edge: `color-mix(in oklab, ${v('text', 'overt')} ${v('knob', 'image-edge')}, transparent)`,
     ink: v('knob', 'state-ink'),
   },
+  // Selected text. The background is the accent laid over whatever the text sits on, so it
+  // follows a tinted band and both schemes; the ink is the element's own, which a theme sets
+  // only where its background would swallow it (`currentColor` keeps each run's colour: a
+  // link, a syntax token).
+  selection: {
+    background: ld(
+      `color-mix(in oklab, ${accent} 28%, transparent)`,
+      `color-mix(in oklab, ${accent} 40%, transparent)`,
+    ),
+    ink: 'currentColor',
+    // For text on the accent's own fill, where the tint above is the fill: a surface painted
+    // with it sets `--fk-selection-background` to this beside its fill, and the deeper accent
+    // keeps the fill's text readable.
+    'fill-background': v('accent', 'active'),
+  },
   // A menu's panel and its lit row, which the popup recipes read.
   popup: {
     surface: `color-mix(in oklab, ${share(

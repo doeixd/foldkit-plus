@@ -45,6 +45,7 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
 
 ### Added
 
+- `foldkit-mixins`: a `selection` theme group for selected text: `background` (the accent over whatever the text sits on, 28% light and 40% dark, text at AA in both), `ink` (`currentColor`, each run keeps its colour) and `fill-background` (the deeper accent, for text on the accent's own fill). `Defaults.body` paints `::selection` with them, so a theme (`Theme.compose(theme, { selection: { … } })`) and the accent knob move it, and the project website follows its theme.
 - `foldkit-mixins-ui`: `Bundles.Carousel.with({ id, count, perView?, loop?, ... })` and `Carousel.configure({ base, presets })`; the layout is kept in the Model so `update` and the view state it once (#589).
 - `foldkit-mixins-ui`: `SignaturePad.view` takes `name`, which submits the signature with a form as the SVG `toSvg` writes (new `hiddenInput` Slot; empty while the pad is empty or unmeasured, and disabled with the pad); the Meter recipe gains `size: 'sm' | 'md' | 'lg'` for the track's thickness (#589).
 - `foldkit-mixins-ui`: `Meter.view` takes `orientation: 'vertical'`, a track standing upright (its length `--fk-meter-length`, 8rem) with the fill growing from its block end, and `segments`, an integer of at least 2 that cuts the track into equal steps; a size is the track's thickness either way (#589).
@@ -1218,6 +1219,7 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
 
 ### Fixed
 
+- `foldkit-mixins`: `Defaults.body`'s selection colour matched nothing. It was written `:where(::selection)`, and a pseudo-element cannot sit inside `:where()`, so the rule was invalid and selected text kept the browser's own colour. It is now `:where(*)::selection`, still at zero specificity beyond the pseudo-element.
 - `foldkit-mixins-ui`: every type a Bundle's args or helpers name is exported by name: `ToastInput` (what `Toast.show` and `Toast.settle` take), `CascadeSelectConfig` and `TreeStructureNode` (a row of `Bundles.TreeView`'s `nodes`). An application exporting a placed `Bundles.Toast`, `CascadeSelect` or `TreeView` failed declaration emit with TS2883 ("cannot be named without a reference to 'ToastInput'") (#589).
 - `foldkit-mixins-ui`: a closed Combobox submits its value. The fork drew the hidden inputs under `formName` only while the list was open, where upstream draws them always, so a form posted with the list closed carried no value for the field.
 - `foldkit-mixins-ui`: a closed Listbox submits its value (#589). The fork drew the hidden inputs under `name` only while the list was open, where upstream draws them always, so a form posted with the list closed carried no value for the field.
