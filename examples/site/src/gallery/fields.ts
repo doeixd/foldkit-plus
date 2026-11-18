@@ -1,7 +1,6 @@
 /**
  * The state of the field previews added with the key-route round: the search
- * fields' text, the toolbar's tab stop and pressed tools, and the file
- * pickers' lists. The site's widgets hold one of these and fold `Message`
+ * fields' text and the file pickers' lists. The site's widgets hold one of these and fold `Message`
  * into it.
  */
 import { Equal, Option, Schema } from 'effect'
@@ -10,7 +9,6 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { FileInput, SearchField } from 'foldkit-mixins-ui'
-import { RovingTabindex } from 'foldkit-primitives/interaction'
 import { Picker, Segmented } from 'foldkit-mixins-ui'
 import { recipesFor, Sort, Weekday } from '../snippets/components.js'
 
@@ -26,11 +24,6 @@ export const FILES_ID = {
 export const Model = Schema.Struct({
   search: Schema.String,
   keyed: Schema.Struct({ query: Schema.String, active: Schema.Number }),
-  toolbar: Schema.Struct({
-    roving: RovingTabindex.Model,
-    pressed: Schema.Array(Schema.String),
-    align: Schema.String,
-  }),
   files: Schema.Record(FilesExample, Schema.Array(Schema.instanceOf(File))),
   /** A price that can be empty, and the brightness as it moves and as last let go of. */
   price: Schema.Option(Schema.Number),
@@ -48,8 +41,6 @@ export const Message = defineMessageUnion({
   TypedKeyed: { value: Schema.String },
   ClearedKeyed: {},
   MovedKeyed: { by: Schema.Number },
-  FocusedTool: { id: Schema.String },
-  PressedTool: { id: Schema.String },
   PickedFiles: { example: FilesExample, files: Schema.Array(Schema.instanceOf(File)) },
   RemovedFile: { example: FilesExample, file: Schema.instanceOf(File) },
   /** A Focus or Sync Command ran; nothing to change. */
@@ -65,7 +56,6 @@ export type Message = typeof Message.Type
 export const init = (): Model => ({
   search: '',
   keyed: { query: '', active: 0 },
-  toolbar: { roving: { current: null }, pressed: ['bold'], align: 'left' },
   files: { multiple: [], required: [] },
   price: Option.none(),
   brightness: { value: 60, saved: 60 },
@@ -73,8 +63,6 @@ export const init = (): Model => ({
   picker: Picker.init({ id: 'preview-sort' }),
   sort: Option.none(),
 })
-
-const ALIGNMENTS: ReadonlyArray<string> = ['left', 'center', 'right']
 
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   Message.match(message, {
@@ -104,28 +92,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ? { model }
         : { model: modifyFields(model, { keyed: keyed => ({ ...keyed, active }) }) }
     },
-    FocusedTool: ({ id }) =>
-      model.toolbar.roving.current === id
-        ? { model }
-        : {
-            model: modifyFields(model, {
-              toolbar: toolbar => ({ ...toolbar, roving: { current: id } }),
-            }),
-          },
-    // Alignment is one of three; the marks each toggle.
-    PressedTool: ({ id }) => ({
-      model: modifyFields(model, {
-        toolbar: toolbar =>
-          ALIGNMENTS.includes(id)
-            ? { ...toolbar, align: id }
-            : {
-                ...toolbar,
-                pressed: toolbar.pressed.includes(id)
-                  ? toolbar.pressed.filter(pressed => pressed !== id)
-                  : [...toolbar.pressed, id],
-              },
-      }),
-    }),
     PickedFiles: ({ example, files }) => {
       const next = FileInput.added(model.files[example], files, {
         multiple: example === 'multiple',

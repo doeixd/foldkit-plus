@@ -6,6 +6,7 @@
 const unit = 'packages/mixins-ui/test/toolbar.test.ts'
 const browser = 'packages/mixins-ui/test/toolbar.browser.test.ts'
 const ssr = 'packages/mixins-ui/test/toolbar.ssr.test.ts'
+const bundle = 'packages/mixins-ui/test/toolbarBundle.test.ts'
 const source = '../src/toolbar.ts'
 const recipe = '../src/recipes/toolbar.ts'
 
@@ -241,5 +242,38 @@ export default [
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'Toolbar.focused reports the wrong control',
+    edits: [
+      {
+        file: source,
+        find: 'wrap(RovingTabindex.Message.Focused({ id }))',
+        replace: "wrap(RovingTabindex.Message.Focused({ id: '' }))",
+      },
+    ],
+    tests: [bundle],
+  },
+  {
+    name: 'a configured Toolbar draws its base and preset',
+    edits: [
+      {
+        file: source,
+        find: 'view: (options, h) => view(layered(config, options), h),',
+        replace: 'view: (options, h) => view(options, h),',
+      },
+    ],
+    tests: [bundle],
+  },
+  {
+    name: 'the Toolbar Bundle starts on no control',
+    edits: [
+      {
+        file: '../src/bundles/toolbar.ts',
+        find: 'model: { current: current ?? null }',
+        replace: 'model: { current: null }',
+      },
+    ],
+    tests: [bundle],
   },
 ]

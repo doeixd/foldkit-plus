@@ -21,7 +21,7 @@ export const Toolbar = Style.recipeFor(ToolbarSlots)({
         padding: ref.space['2xs'],
         border: `${ref.border.thin} solid ${ref.outline.default}`,
         borderRadius: ref.radius.lg,
-        background: ref.surface.default,
+        background: 'transparent',
       }),
       Style.nest(vertical, { flexDirection: 'column', alignItems: 'stretch' }),
     ),

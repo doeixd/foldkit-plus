@@ -1,5 +1,5 @@
 /**
- * The search, toolbar and file input previews, broken in turn: `pnpm mutate
+ * The search and file input previews, broken in turn: `pnpm mutate
  * examples/site/test/fields.mutations.ts`.
  */
 const tests = ['examples/site/test/fields.test.ts']
@@ -32,12 +32,6 @@ export default [
     '({ query: value, active: 0 })',
     '({ query: value, active: model.keyed.active })',
   ),
-  mutation(
-    'the tab stop stays where it was',
-    'roving: { current: id } }),',
-    'roving: toolbar.roving }),',
-  ),
-  mutation('an alignment toggles like a mark', 'ALIGNMENTS.includes(id)', 'false'),
   mutation(
     'a single file picker keeps every pick',
     "multiple: example === 'multiple',",

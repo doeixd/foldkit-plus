@@ -49,7 +49,7 @@ export const Args = Schema.Struct({
 export type Args = typeof Args.Type
 
 // Moving focus by key dispatches `Focused`, and the item's `OnFocus` reports it again.
-const update = (model: Model, message: Message): Update.Return<Model, Message> =>
+export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   model.current === message.id ? { model } : { model: { current: message.id } }
 
 export const bundle = Bundle.make('RovingTabindex', {

@@ -28,7 +28,6 @@ import type { AnchorConfig } from '@foldkit/ui/anchor'
 import * as UiFieldset from '@foldkit/ui/fieldset'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Behaviors, SlotView, type NamedStyle } from 'foldkit-mixins'
-import { RovingTabindex } from 'foldkit-primitives/interaction'
 import { Theme } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import {
@@ -175,9 +174,6 @@ import {
   SearchFieldSlots,
   Picker,
   PickerSlots,
-  Toolbar,
-  ToolbarSlots,
-  type ToolbarControl,
   FileInput,
   FileInputSlots,
   CodeBlock,
@@ -6777,102 +6773,6 @@ export const searchFieldStates = <Message>(
       ),
     ],
   )
-// #endregion
-
-// #region toolbar-basic
-export const ToolbarStyle = forSlots(ToolbarSlots)(Recipes.Toolbar({}))
-const ToolStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'icon' }))
-
-export interface ToolbarState {
-  /** The one tab stop: the control focused last. */
-  readonly roving: RovingTabindex.Model
-  readonly pressed: ReadonlyArray<string>
-  readonly align: string
-}
-
-export interface ToolbarMessages<Message> {
-  readonly onFocus: (id: string) => Message
-  readonly onPress: (id: string) => Message
-}
-
-const LINK = 'M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 0 1 4.5 9l1-1'
-
-// One tab stop for every control, the arrows (Home and End too) between them,
-// and a disabled one skipped. The controls are the application's own Buttons,
-// handed the stop's attributes; the toolbar adds no markup around them.
-export const toolbar = <Message>(
-  style: NamedStyle<typeof ToolbarSlots>,
-  state: ToolbarState,
-  messages: ToolbarMessages<Message>,
-  direction: 'ltr' | 'rtl',
-  h: HtmlBuilder<Message>,
-): Html => {
-  const tool = (
-    id: string,
-    label: string,
-    icon: string,
-    on: boolean,
-    disabled = false,
-  ): ToolbarControl<Message> => ({
-    id,
-    disabled,
-    draw: stop =>
-      Button.view(
-        {
-          label,
-          icon: outline(h, icon),
-          pressed: on,
-          disabled: stop.disabled,
-          onClick: messages.onPress(id),
-          attributes: { button: stop.attributes },
-          style: ToolStyle,
-        },
-        h,
-      ),
-  })
-  return Toolbar.view(
-    {
-      id: 'preview-toolbar',
-      label: 'Text formatting',
-      roving: state.roving,
-      onFocus: messages.onFocus,
-      direction,
-      items: [
-        tool(
-          'bold',
-          'Bold',
-          'M4.5 2.5h4.25a2.75 2.75 0 0 1 0 5.5H4.5zM4.5 8h5a2.75 2.75 0 0 1 0 5.5h-5z',
-          state.pressed.includes('bold'),
-        ),
-        tool(
-          'italic',
-          'Italic',
-          'M7 2.5h5M4 13.5h5M10 2.5l-4 11',
-          state.pressed.includes('italic'),
-        ),
-        tool(
-          'underline',
-          'Underline',
-          'M4.5 2.5v5a3.5 3.5 0 0 0 7 0v-5M3.5 14h9',
-          state.pressed.includes('underline'),
-        ),
-        'separator',
-        {
-          label: 'Alignment',
-          controls: [
-            tool('left', 'Align left', 'M2.5 4h11M2.5 8h7M2.5 12h9', state.align === 'left'),
-            tool('center', 'Align center', 'M2.5 4h11M4.5 8h7M3.5 12h9', state.align === 'center'),
-            tool('right', 'Align right', 'M2.5 4h11M6.5 8h7M4.5 12h9', state.align === 'right'),
-          ],
-        },
-        'separator',
-        tool('link', 'Link', LINK, false, true),
-      ],
-      style,
-    },
-    h,
-  )
-}
 // #endregion
 
 // #region file-input-multiple

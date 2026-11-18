@@ -45,26 +45,6 @@ describe('the search field previews', () => {
   })
 })
 
-describe('the toolbar preview', () => {
-  it('keeps the tab stop where focus last was', () => {
-    const focused = after(Fields.Message.FocusedTool({ id: 'italic' }))
-    expect(focused.widgets.fields.toolbar.roving).toEqual({ current: 'italic' })
-    expect(send(focused, Fields.Message.FocusedTool({ id: 'italic' })).model).toBe(focused)
-  })
-
-  it('toggles a mark, and presses one alignment at a time', () => {
-    const toolbar = (model: Model) => model.widgets.fields.toolbar
-    const marks = after(
-      Fields.Message.PressedTool({ id: 'italic' }),
-      Fields.Message.PressedTool({ id: 'bold' }),
-    )
-    expect(toolbar(marks).pressed).toEqual(['italic'])
-    const aligned = send(marks, Fields.Message.PressedTool({ id: 'center' })).model
-    expect(toolbar(aligned).align).toBe('center')
-    expect(toolbar(aligned).pressed).toEqual(['italic'])
-  })
-})
-
 describe('the file input previews', () => {
   it('add each pick to a multiple list once, and replace a single one', () => {
     const names = (model: Model, example: Fields.FilesExample) =>

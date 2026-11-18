@@ -488,9 +488,13 @@ const barView = (model: typeof BarModel.Type, h: HtmlBuilder<BarMessage>) =>
   )
 ```
 
-`roving` is the `{ current }` slice of a `RovingTabindex` (here kept by hand;
-`examples/widgets` places the Bundle), and `onFocus(id)` is answered by setting
-it. `control.attributes` goes on the one focusable element, and `control.disabled`
+`roving` is the `{ current }` slice of a `RovingTabindex`: kept by hand here, or placed
+as `Bundles.Toolbar` (`Bundle.withChild('bar', Bundles.Toolbar, { args: { current? } })`),
+whose Model is passed as `roving` and whose Message `Toolbar.focused(wrap)` builds for
+`onFocus`: `onFocus: Toolbar.focused(message => GotBar({ message }))`. Otherwise
+`onFocus(id)` is answered by setting it. `Toolbar.configure({ base, presets })` returns a
+`view` with `orientation`, `direction`, `loop` and the look given once, as every
+`configure` does. `control.attributes` goes on the one focusable element, and `control.disabled`
 says to draw it off: the arrows skip it. `routes` are
 [application key routes](#application-key-routes) whose `input` is `undefined`.
 
