@@ -305,12 +305,6 @@ const foldFileMenu = Update.foldChild({
   }),
 })
 
-const foldSaveMenu = Update.foldChild({
-  ...own('saveMenu', Message.GotSaveMenu),
-  update: Menu.update,
-  foldOutMessage: Menu.OutMessage.match<Step>({ Selected: () => model => ({ model }) }),
-})
-
 const foldPageMenu = Update.foldChild({
   ...own('pageMenu', Message.GotPageMenu),
   update: Menu.update,
@@ -806,7 +800,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       model: modifyFields(model, { commandRan: () => Option.some(value) }),
     }),
     GotPageMenu: ({ message }) => (dismisses(message) ? { model } : foldPageMenu(model, message)),
-    GotSaveMenu: ({ message }) => foldSaveMenu(model, message),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
     GotCarousel: ({ example, message }) =>

@@ -57,7 +57,6 @@ import {
   Frequency,
   MENUBAR,
   PAGE_MENU,
-  SAVE_MENU,
   ACCOUNT,
   appSidebar,
   floatingSidebar,
@@ -104,7 +103,6 @@ export const PaginationExample = Schema.Literals([
   'siblings',
   'compact',
   'words',
-  'group',
 ])
 export type PaginationExample = typeof PaginationExample.Type
 
@@ -209,8 +207,6 @@ export const Model = Schema.Struct({
   fileChoice: Schema.Option(Schema.String),
   pageMenu: Menu.Model,
   pageChoice: Schema.Option(Schema.String),
-  /** The split button's menu, in the button group. */
-  saveMenu: Menu.Model,
   listbox: UiListbox.Model,
   frequency: Schema.Option(Frequency),
   notices: Notices.Model,
@@ -387,7 +383,6 @@ export const Message = defineMessageUnion({
   OpenedDialogAt: { example: DialogExample },
   ClosedDialogAt: { example: DialogExample },
   GotPageMenu: { message: Menu.Message },
-  GotSaveMenu: { message: Menu.Message },
   GotListbox: { message: UiListbox.Message },
   GotNotices: { message: Notices.Message },
   SavedDraft: {},
@@ -571,7 +566,6 @@ export const initial: Model = {
   },
   pageMenu: shownMenu(Menu.init('preview-page-menu', PAGE_MENU, { isAnimated: true })),
   pageChoice: Option.none(),
-  saveMenu: Menu.init('preview-save-menu', SAVE_MENU, { isAnimated: true }),
   listbox: UiListbox.init({ id: 'preview-frequency', isAnimated: true }),
   frequency: Option.some('Daily'),
   notices: Notices.init({ id: 'preview-notices' }),
@@ -589,7 +583,6 @@ export const initial: Model = {
     siblings: 18,
     compact: 5,
     words: 3,
-    group: 3,
   },
   perPage: 10,
   alerts: {
