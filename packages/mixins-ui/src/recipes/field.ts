@@ -148,6 +148,7 @@ const side = (edge: 'Start' | 'End'): StyleValue =>
       alignSelf: 'stretch',
       flexShrink: '0',
       color: ref.text.muted,
+      ...role('body'),
       whiteSpace: 'nowrap',
       [`paddingInline${edge}`]: ladder('pad'),
     }),

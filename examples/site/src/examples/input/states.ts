@@ -10,47 +10,49 @@ export default example({
   slots: InputSlots,
   recipe: Recipes.Input,
   view: ({ style, h }) =>
-    stack(h, [
-      Input.view(
-        {
-          id: 'phone',
-          name: 'phone',
-          label: 'Phone',
-          type: 'tel',
-          autocomplete: 'tel',
-          inputMode: 'tel',
-          required: true,
-          maxLength: 16,
-          placeholder: '+1 555 0100',
-          style,
-        },
-        h,
-      ),
-      Input.view(
-        { id: 'order', name: 'order', label: 'Order', value: 'ORD-2041', readOnly: true, style },
-        h,
-      ),
-      Input.view(
-        {
-          id: 'code',
-          label: 'Promo code',
-          description: 'That code has expired.',
-          value: 'SPRING',
-          invalid: true,
-          style,
-        },
-        h,
-      ),
-      Input.view(
-        {
-          id: 'region',
-          label: 'Region',
-          value: 'eu-west',
-          disabled: true,
-          start: h.span([], ['region:']),
-          style,
-        },
-        h,
-      ),
-    ]),
+    stack(
+      h,
+      [
+        Input.view(
+          {
+            id: 'phone',
+            name: 'phone',
+            label: 'Phone',
+            type: 'tel',
+            inputMode: 'tel',
+            required: true,
+            placeholder: '+1 555 0100',
+            style,
+          },
+          h,
+        ),
+        Input.view(
+          { id: 'order', name: 'order', label: 'Order', value: 'ORD-2041', readOnly: true, style },
+          h,
+        ),
+        Input.view(
+          {
+            id: 'code',
+            label: 'Promo code',
+            description: 'That code has expired.',
+            value: 'SPRING',
+            invalid: true,
+            style,
+          },
+          h,
+        ),
+        Input.view(
+          {
+            id: 'region',
+            label: 'Region',
+            value: 'eu-west',
+            disabled: true,
+            start: h.span([], ['region:']),
+            style,
+          },
+          h,
+        ),
+      ],
+      [h.Style({ alignItems: 'stretch', inlineSize: 'min(20rem, 100%)' })],
+    ),
 })
