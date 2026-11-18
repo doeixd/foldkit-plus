@@ -1143,7 +1143,7 @@ Built and pushed on `ui-polish` (2026-11-17): `recipe.add`; `configure.ts`, `wor
 | `Bundles.Calendar`, `Calendar.view`, `Calendar.configure` | Built; see "The Calendar, as built" below. |
 | `Combobox.view(options, h)` and `Combobox.configure` | Built; see "The Combobox, as built" below. |
 | `Bundles.DatePicker`, `DatePicker.view`, `DatePicker.configure` | Built; see "The DatePicker, as built" below. |
-| **TODO: `Bundles.FileUpload` and `FileUpload.configure`** | FileUpload was being built by another session on the same files. Its own `fill` should become `words.ts`'s. |
+| `Bundles.FileUpload` and `FileUpload.configure` | Built; see "FileUpload's Bundle and `configure`, as built" below. |
 | `press.ts`, the `Tone` type and size names in `recipes/design.ts`, the shared `anchor` helper | No gate widget built so far reads them. `rowContent.ts` went in with `Combobox.view`; `anchor` goes with `DatePicker.view`; `press.ts` and the vocabulary types with F1 and F2. |
 | TagsInput's words as text (`remove: 'Remove {tag}'`, the refusals as words in place of `refusalText`) | Breaking, and `examples/site/src/snippets/components.ts` passes `refusalText`; it lands with the site's tags-input page. |
 | M9 (the helper's bytes) | Not measured. `configure.ts` is about 1.3 kB of source and imports nothing. |
@@ -1219,6 +1219,43 @@ Decided where the note was silent or wrong:
 - **The fork drew no hidden inputs while closed**, so a closed Combobox submitted nothing. Upstream draws them always; the `name` test found it. Fixed, with a changelog entry.
 - **`Bundles.Combobox` takes `text`**, the field's starting text. Upstream writes the resting text only as the field is left, so a field placed with a value already chosen started blank.
 - **The rung keeps `clearContent` and `clearLabel`.** `examples/site/src/snippets/components.ts` passes both, so the rename to `clear` on the adapter lands with the site's combobox page; `words.clear` is read where `clearLabel` is not given. The literal `×` in a chip's remove button stays too.
+
+#### FileUpload's Bundle and `configure`, as built
+
+`bundles/fileUpload.ts` and `FileUpload.configure`, which returns `{ view, parts }`. A `FileUploadPreset` is `style`, `words`, `picture`, `itemActions`, `progress` and `mixins`; `sort` reads the Model at each draw and `routes` hold Messages, so both stay at the call. The view's private `fill` is `words.ts`'s, and its words merge through `wordsOf`.
+
+- **The Bundle's args are a Schema beside `InitOptions`, not in place of it.** `InitOptions` allows a key given as `undefined`, which a `Schema.optionalKey` struct does not, and changing it would break callers. A type test holds the two to the same keys.
+- **The Bundle carries no Subscriptions.** A lane needs the application's transport, so an application with `lanes` adds `FileUpload.lanes` to its own Subscriptions, as §3.6 sketches. That sketch's call shape is right as written.
+- **`pnpm mutate:check` listed specs with `git ls-files`**, so a new spec was unchecked until its first commit; it now lists untracked specs too.
+
+#### The site harness and the gate, as built
+
+`examples/site/src/gallery/example.ts` (the declaration), `gallery/examplesState.ts` (one field of the gallery's Model over every example's state), `gallery/define.ts` (`fromRecipe` lists example modules and old regions in one list), `content/library.ts` (`module(slug, name)` reads `src/examples/<slug>/<name>.ts` whole, on the server), and a line under each module's code saying what an application keeps. Thirty-one modules on six pages.
+
+| Page | Modules | Still regions on the page | Old state removed |
+| --- | --- | --- | --- |
+| button | basic, icon, toggle, configure, add | none | yes: its regions, the `formats` field and its arm |
+| tags-input | basic, max, refusals, configure | none | yes: its regions, three fields, three folds |
+| combobox | basic, multiple, clear, groups, choice (a `Choice` of the application's own) | empty, creatable | no |
+| calendar | basic, range, dropdowns, presets (the application's own), appointment (composed through `aside`) | unavailable, several, prices, events | no |
+| date-picker | bundle, presets | single, range | no |
+| file-upload (new) | basic, avatar, drop, gallery, progress, table, images, card, cover, configure | none | nothing to remove |
+
+Decided where the note was silent or wrong:
+
+- **`state` is one of three things, by structure, not a new concept**: a shipped Bundle with its args bound (`Bundles.TagsInput.with({...})`), what `App.placements.runtime({ Model: App.Model, initial })` returns for a composition the module declares, or a hand-written `{ Model, Message, init, update }`. The harness asks only for a Model Schema, an `init` and an `update`, and optionally Subscriptions. An example that owns a value declares the composition in its module, which is the code §7 says is hidden today.
+- **A hand-written state names its `Message` Schema.** An `update` written inline names no type for its parameter, so the Message could not be inferred from it; the Schemas declare both types and `init` and `update` are checked against them.
+- **An example may name a recipe of its own.** `recipe: Recipes.Button.add({...})` with a pin is how the `add` example draws: the page's picks go to that recipe, and its pins are checked against it. A pin on a module applies whatever axes the page offers; a pin on a region still goes through the page's axes, as before.
+- **The seam is `example.ts`'s `render` and `running`**: three casts in one place, from the `unknown` the one Model holds back to the example's own types. The Model is a `Schema.Struct` built from each example's Model Schema under its key (`<slug>/<name>`), and the Message is `GotExample { key, message: unknown }`.
+- **An example's state may start no Command**, and `example(...)` throws for one: the server draws from the same initial Model the browser starts from.
+- **An example's Subscriptions run only on its own page**, each entry under `<key>:<name>`. The four upload examples run `FileUpload.lanes` this way.
+- **A `Bundle.withChild` placement's OutMessage is dropped for a bare Bundle**, as `Bundle.ignore` drops it; an example that acts on one declares a composition.
+- **Pages mix the two shapes at example granularity**, not page granularity. That is what let Combobox's `creatable` and "empty and loading" stay regions: `Combobox.view` takes neither yet.
+- **The FileUpload page has nine of the ten reference examples.** Sorting is left out: its `Reorder` Behavior sends the example's own Messages, and the harness lifts Messages through `onMessage` only, not through a mixin. It stays in `examples/widgets` and the package's fixtures until the harness can map a mixin's Messages.
+- **The zone that showed only "browse" was a fixture, not the widget.** The prompt is a word (`words.prompt`, empty by default) and the recipe's `layout` is CSS, so the view cannot know it is a zone. Every zone on the page passes the word, and a prerender test reads each.
+- **Not done here, and why.** The regions, `widgets.ts` fields and `widgetsUpdate.ts` arms that the Combobox, Calendar and DatePicker modules replaced are still in the tree, unused by any page; their state is shared with examples that remain regions, so removing it is the serial deletion §7 plans. TagsInput's words as text (the breaking change deferred to "the site's tags-input page") is still open: the page passes `refusalText` and a function for `words.remove`. The adapter's `DatePicker.update` was not renamed, since the page's two regions still call it.
+- **Line counts.** After imports a module runs 9 to 65 lines: sixteen of thirty-one are at most 26, the ones that declare a composition are 33 to 50, and the composed table is 65. "About 20" holds for an example on a bare Bundle and not for one that owns a value.
+- **Bytes.** The gallery's first load went from 398,242 to 410,525 brotli bytes: 5.4 kB the FileUpload widget and recipe, 2.9 kB the options-level views and states, 2.9 kB the modules, 0.9 kB the harness and `configure`, less 1.7 kB of regions. The ceiling is 411,500 (`examples/site/test/bundle.test.ts`); §7's 393,000 is superseded.
 
 ### Open measurements
 
