@@ -18,7 +18,7 @@ Status words: **done** (committed, pushed, its own checks green), **running**, *
 | 2 | The families F1 to F11 | done | 037134b38 | See the family table below for what each left. Integration pass 2 is running. |
 | 3 | `make` for Sidebar and Questionnaire; the DataGrid features split; Chart fills | not started | | Only if P3 passes. |
 | 4 | New widgets: Sortable, time field, Attachment, File Type, Scrollspy, Kanban page, Toggle pages | not started | | Frame is in F2. |
-| 5 | Integration: shared files, README, skill, changelog, generated entries, site state deleted, Jev, CI | not started | | |
+| 5 | Integration: shared files, README, skill, changelog, generated entries, site state deleted, Jev, CI | partly done | 09075470a | Done: integration pass 2 (below), the README and skill read against source (424f700ef, fb3d73eb9), `examples/widgets` on Bundles in nine sections (926591f92), 24 unread gallery fields and the dead snippet regions deleted. Left: a full CI run on the new job layout, versions, the changelog summary, `docs/releases.md`, skill stamps. |
 
 ## Families (phase 2)
 
@@ -36,8 +36,9 @@ Each family did its breaking changes first, then options, Bundles, `configure` a
 | F8 menus and navigation: breadcrumb, steps, pagination, tabs, menu, context menu, menubar, navigation menu, command | done | f8111984b | Menubar submenus (needs a new Model for the bar). Menu, menubar, navigation-menu and command pages are modules beside old regions. No type tests or build pins for the new Bundles. |
 | F9 layout and disclosure: accordion, disclosure, tree-view, scroll-area, resizable, carousel, floating-panel, tour, virtual-list, window-list (new page), app-shell, sidebar | done | 037134b38 | Carousel `orientation`, `responsive` and `align` not built. Screenshots looked at for floating-panel, tour and app-shell only; none of sidebar, the lists, tree-view, scroll-area, resizable, carousel or disclosure, and no hover states. No test of the Sidebar's `open` word or of the aside's phone layout without a side column. Sidebar's `make` is phase 3. |
 | F10 data and media: table, chart, progress, meter, code-block, file-input, file-drop, image-cropper, signature-pad, qr-code, marquee | done | bac267981 | No `configure` for the Marquee, ImageCropper, SignaturePad and FileDrop Bundles. SignaturePad has redo and `pointers` only (no replay, export types, shortcuts, `required`). No ImageCropper flip, QR `modules` value or Table `reorder`. Table hover, the chart tooltip, Marquee paused, cropper handles and Progress tones were not captured; only Meter was captured in all four width and scheme pairs. Jev not run on the README and skill diffs (over its budget). The DataGrid features split is phase 3. |
-| F11 chat: thinking-steps, message-scroller, thinking-indicator, questionnaire | done, unverified | 31070333e | No screenshots looked at, no Jev run. The thinking-steps page has two broken in-page links (`#tides`, `#moon`) that fail the prerender test. Questionnaire's `make` is phase 3. |
+| F11 chat: thinking-steps, message-scroller, thinking-indicator, questionnaire | done, unverified | c5e9b5047 | No screenshots looked at, no Jev run. Questionnaire's `make` is phase 3. |
 | Integration pass 1 | done | 0efdbc873 | #595 fixed (`NamedStyle` branded by its contract, 0830304b1). No page was found carrying a module it does not draw. Eleven bundle ceilings raised by measured amounts; the gallery ceiling is 430,000 and will move again as F9 to F11 land. |
+| Integration pass 2 | done | 09075470a | Green locally: `typecheck:force` (0 errors), every lint check, prerender 40 of 40, adoption e2e 43 of 43, `foldkit-mixins-ui` unit (3,214 tests) and `foldkit-mixins` unit (4,557), every budget, `pack:check`. `ToastInput`, `CascadeSelectConfig` and `TreeStructureNode` exported, with a file that fails the build when a Bundle's type cannot be named (0cd79a75e). Solid Badge, bold Alert and the accent ChatMessage set the selection colour beside their fill (87c956467). Ceilings, all measured: gallery 445,000 (reads 442.1 kB after the cleanup), counter, kanban, reference and the domains-plus sheet by the selection rule's bytes, the domains-plus Worker lowered to 3,267,000 from a reading (b35005d6a). Not re-run after the last changes: the full site e2e and the examples' browser projects. |
 
 ## The breaking set (must land before the `v0.41.0` tag)
 
@@ -45,6 +46,7 @@ Each family did its breaking changes first, then options, Bundles, `configure` a
 | --- | --- | --- |
 | `words` as one object per widget | done | 82e8629aa | |
 | SignaturePad's `Began` carries `pointerType`, not `pen` | done | 65cddfece | |
+| Command's `empty` and loading text in `words`; `loading` a boolean | done | 981cb612a | `placeholder` stays an option, as on Combobox, Listbox and Picker. |
 | Flags that become passed values: breadcrumb, avatar, card-group, table, image-cropper, chart | done | 098aa0d14 | Breadcrumb alone took 27.8 kB off every trail page. |
 | `Recipes.Badge` as a `recipeFor`; Typography's `level` axis removed | done | 5f4446f38 | |
 | Tone `error` renamed `danger` | done (alert, badge, rating, progress) | 4c13b9839 | |
@@ -95,10 +97,11 @@ An incident on 2026-11-17: a second tree linked into this one's `node_modules` w
 - `Dialog.view` and `Popover.view` are not built; the dialog examples are long because of it.
 - `Mixin.mapMessages` is missing from `foldkit-mixins`; the Sorting example on the file-upload page waits on it.
 - `cms.e2e.ts` "the body shows what is selected" fails about one local run in ten; cause unknown; it passed on CI snapshots 3 to 5.
-- The domains-plus Worker ceiling is an estimate; CI prints no size when the test passes.
-- The site's prerender test had two failures at bac267981 that no family owns: the scroll-area page's `#native` example (a curly apostrophe in its title) and the thinking-steps page's `#tides` and `#moon` links. The second integration pass takes them.
-- The gallery Model still holds fields the converted pages no longer read (`customers`, `news`, `photo`, `avatarCrop`, `signature`, `drop`, `attachments` and the overlay pages' state); phase 5 deletes them.
-- Several bundle budgets sit within bytes of their ceilings and will need measured raises as the families land.
+- `kbd.browser.test.ts` "⌘ centred" fails on Windows every run (1.45px off against a 1px bound), probably the fallback font for ⌘; whether CI fails it is not known.
+- The Chirp and domains-plus CPU tests fail on Windows, whose timer steps in 16 ms; CI runs them on Linux.
+- In a wide `foldkit-mixins-ui` browser run, `listboxSelect` "filled trigger" failed once and four files failed to import; each passed alone.
+- The CI workflow was reshaped on 2026-11-18 (e2e in five jobs, unit and browser shards, a prerender job, a prose-only skip, shared scaffold tarballs: e7585204d to 546aacff7). Only the e2e split has run on GitHub.
+- `pnpm check:changed` has not completed a real run; its plan (`--dry`) is tested.
 
 ## Before the tag
 
