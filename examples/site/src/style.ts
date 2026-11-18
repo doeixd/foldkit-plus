@@ -20,7 +20,8 @@ const { t, slots, stylesheet } = AppStyle.make({
   theme: Theme.make({
     accent: { hue: 270, chroma: { light: 0, dark: 0 }, lightness: { light: 14, dark: 96 } },
     // A white page, and a near-black one, as plain as the content.
-    surface: { lightness: { light: 100, dark: 14 } },
+    // Contrast 30 (the shipped 70): a card, a field and a code block sit a quiet step off the page.
+    surface: { lightness: { light: 100, dark: 14 }, contrast: 30 },
     type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif' },
   }),
   tokens: Theme.define({
