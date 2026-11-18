@@ -40,11 +40,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Never publish an unverified tree.
-      - run: pnpm format:check
-      - run: pnpm typecheck
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test
+      # No checks here: CI verifies the commit a tag goes on, in shards. This
+      # job ran the whole suite again in one process, where the browser tests
+      # lost their page and collided (v0.41.0, 2026-11-18), and so blocked a
+      # release of a commit CI had passed. Tag only a commit whose CI run on
+      # `main` is green. `pnpm release` still builds every package.
 
       # `pnpm release` builds, then publishes with `--access public`. pnpm
       # rewrites `workspace:^` peer ranges to real ranges as it packs, so it is

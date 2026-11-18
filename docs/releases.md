@@ -73,9 +73,9 @@ in its manifest, and `pnpm publish` skips it.
   for `workspace:^`, `0.1.0` for `workspace:*`) as it packs; `npm publish` would
   ship the `workspace:` protocol verbatim.
 - The [release workflow](../.github/workflows/release.yml) runs on a `v*` tag or
-  a manual dispatch, re-runs `format:check`, `typecheck`, and `test`, and
-  publishes with provenance only when the `NPM_TOKEN` secret is set. Without the
-  secret it runs the checks and skips the publish step.
+  a manual dispatch and publishes with provenance only when the `NPM_TOKEN`
+  secret is set; without the secret it skips the publish step. It runs no
+  checks of its own: tag only a commit whose CI run on `main` is green.
 - On a tag it then creates the **GitHub release**, with the notes taken from the
   `CHANGELOG.md` section whose heading matches: `v0.8.0` takes `## 0.8.0`. **A
   tag with no matching heading fails the job** — the version bump and the
