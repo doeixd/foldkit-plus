@@ -216,6 +216,27 @@ test('4 Gallery: the grid shows thumbnails, the summary totals the size, an acti
   }
 })
 
+test('4 Gallery: in a parent that centres its children the grid has room for tiles side by side', async () => {
+  const style = fileStyle('zone', 'grid')
+  const gallery = run({ multiple: true, accept: ['image/*'] }, [style], (model, lift, h) =>
+    h.div(
+      [h.Style({ display: 'flex', justifyContent: 'center', inlineSize: '480px' })],
+      [FileUpload.view({ model, onMessage: lift, label: 'browse', style }, h)],
+    ),
+  )
+  try {
+    await ready()
+    drop(picker(), [png('a.png', 100), png('b.png', 200), png('c.png', 300)])
+    await vi.waitFor(() => expect(document.querySelectorAll('li img')).toHaveLength(3))
+    const tops = Array.from(document.querySelectorAll('li')).map(each =>
+      Math.round(each.getBoundingClientRect().top),
+    )
+    expect(new Set(tops).size).toBe(1)
+  } finally {
+    gallery.dispose()
+  }
+})
+
 // 5. Progress: three lanes, bars, a failure that is retried, counts.
 test('5 Progress: three at a time with a bar each, the fourth waits, a failure is retried and the counts follow', async () => {
   const style = fileStyle('zone')

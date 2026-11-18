@@ -442,6 +442,9 @@ export const FileUpload = Style.recipeFor(FileUploadSlots)({
         remove: variant(Style.self({ borderRadius: chipCorner(ref.space['2xs']) })),
       },
       grid: {
+        // Tiles need room: in a parent that centres or shrinks its children the frame was the
+        // width of its words, and the grid one column of tiles as wide as the zone.
+        root: variant(Style.self({ inlineSize: '100%', maxInlineSize: '32rem' })),
         list: variant(
           Style.self({
             gridTemplateColumns: 'repeat(auto-fill, minmax(8rem, 1fr))',

@@ -369,6 +369,17 @@ export default [
     tests: [examples],
   },
   {
+    name: 'a gallery in a centring parent is as wide as its words',
+    edits: [
+      {
+        file: recipe,
+        find: "root: variant(Style.self({ inlineSize: '100%', maxInlineSize: '32rem' })),",
+        replace: '',
+      },
+    ],
+    tests: [examples],
+  },
+  {
     name: 'the picture is not veiled on hover',
     edits: [
       {
