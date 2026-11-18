@@ -70,9 +70,6 @@ import {
   ColorPickerSlots,
   InputCopy,
   InputCopySlots,
-  PasswordInput,
-  PasswordInputSlots,
-  type PasswordRequirement,
   VirtualList,
   VirtualListSlots,
   Progress,
@@ -3891,90 +3888,6 @@ export const virtualList = <Message>(
       ),
     ],
   )
-// #endregion
-
-// #region password-input-basic
-export const PasswordInputStyle = forSlots(PasswordInputSlots)(Recipes.PasswordInput({}))
-
-export const passwordInput = <Message>(
-  style: NamedStyle<typeof PasswordInputSlots>,
-  field: {
-    readonly value: string
-    readonly visible: boolean
-    readonly onInput: (value: string) => Message
-    readonly onToggle: Message
-  },
-  h: HtmlBuilder<Message>,
-): Html =>
-  PasswordInput.view(
-    {
-      id: 'preview-password',
-      label: 'Password',
-      description: 'At least twelve characters.',
-      autocomplete: 'new-password',
-      ...field,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region password-input-new
-/** The rules a new password keeps, each read from what is typed. */
-export const passwordRules = (value: string): ReadonlyArray<PasswordRequirement> => [
-  { label: 'At least 12 characters', met: value.length >= 12 },
-  { label: 'A number', met: /[0-9]/.test(value) },
-  { label: 'Upper and lower case', met: /[a-z]/.test(value) && /[A-Z]/.test(value) },
-  { label: 'A symbol', met: /[^a-zA-Z0-9]/.test(value) },
-]
-
-/** The field's text and whether it shows, and what Caps Lock was last read as. */
-export interface NewPassword<Message> {
-  readonly value: string
-  readonly visible: boolean
-  readonly capsLock: boolean
-  readonly onInput: (value: string) => Message
-  readonly onToggle: Message
-  readonly onCapsLock: (reading: Option.Option<boolean>) => Message
-}
-
-// A strength meter over the rules kept, the rules under the field, and a
-// hint while Caps Lock is on, read from each key typed.
-export const passwordInputNew = <Message>(
-  style: NamedStyle<typeof PasswordInputSlots>,
-  field: NewPassword<Message>,
-  h: HtmlBuilder<Message>,
-): Html => {
-  const rules = passwordRules(field.value)
-  return PasswordInput.view(
-    {
-      id: 'preview-new-password',
-      label: 'New password',
-      autocomplete: 'new-password',
-      value: field.value,
-      visible: field.visible,
-      onInput: field.onInput,
-      onToggle: field.onToggle,
-      strength: Meter.view(
-        {
-          id: 'preview-new-password-strength',
-          label: 'Strength',
-          value: rules.filter(rule => rule.met).length,
-          max: 4,
-          low: 2,
-          high: 3,
-          optimum: 4,
-          style: MeterStyle,
-        },
-        h,
-      ),
-      requirements: rules,
-      capsLock: { on: field.capsLock, onKey: field.onCapsLock },
-      style,
-    },
-    h,
-  )
-}
 // #endregion
 
 // #region input-copy

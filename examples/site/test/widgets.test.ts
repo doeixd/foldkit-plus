@@ -192,16 +192,6 @@ describe('the form previews', () => {
     expect(refused.widgets.inputCopy.copied).toBe(false)
     expect(refused.widgets.inputCopy.failed).toBe(true)
   })
-
-  it('keep what Caps Lock was read as through a key that says nothing of it', () => {
-    const on = send(Widgets.Message.ReadCapsLock({ reading: Option.some(true) }))
-    expect(on.widgets.capsLock).toBe(true)
-    const digit = update(
-      on,
-      Message.GotWidget({ message: Widgets.Message.ReadCapsLock({ reading: Option.none() }) }),
-    ).model
-    expect(digit.widgets).toBe(on.widgets)
-  })
 })
 
 describe('the menu, command and toast previews', () => {

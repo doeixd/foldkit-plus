@@ -243,14 +243,7 @@ export const Model = Schema.Struct({
   tripDates: DateSelection.Selection,
   /** Whether the API key shows as copied, until its reset. */
   inputCopy: InputCopy.Model,
-  /** The password field's text, and whether it shows. */
-  password: Schema.String,
-  passwordShown: Schema.Boolean,
   selects: Schema.Record(SelectExample, FruitState),
-  /** The new password field's text, whether it shows, and whether Caps Lock was on. */
-  newPassword: Schema.String,
-  newPasswordShown: Schema.Boolean,
-  capsLock: Schema.Boolean,
   /** The View menu, and what its rows set. */
   viewMenu: Menu.Model,
   viewOptions: ViewOptions,
@@ -382,8 +375,6 @@ export const Message = defineMessageUnion({
   ClosedSheet: { example: SheetExample },
   PressedCopy: { text: Schema.String },
   GotCopy: { message: ClipboardMessage },
-  TypedPassword: { value: Schema.String },
-  ToggledPassword: {},
   TypedNote: { example: NotesExample, value: Schema.String },
   TurnedLevel: { value: Schema.Number },
   MovedBudget: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
@@ -410,9 +401,6 @@ export const Message = defineMessageUnion({
   FinishedUpload: { id: Schema.String },
   Archived: {},
   GotSelect: { example: SelectExample, message: UiListbox.Message },
-  TypedNewPassword: { value: Schema.String },
-  ToggledNewPassword: {},
-  ReadCapsLock: { reading: Schema.Option(Schema.Boolean) },
   GotInputCopy: { message: InputCopy.Message },
   CopiedAnswer: {},
   LikedAnswer: {},
@@ -564,8 +552,6 @@ export const initial: Model = {
   trip: UiCalendar.init({ id: 'preview-trip', today }),
   tripDates: DateSelection.empty('Range'),
   inputCopy: InputCopy.init({ resetAfter: 2000 }),
-  password: '',
-  passwordShown: false,
   selects: {
     custom: fruitState('custom', Option.some('Apple')),
     icons: fruitState('icons', Option.some('Cherry')),
@@ -580,9 +566,6 @@ export const initial: Model = {
     md: fruitState('md', Option.some('Apple')),
     lg: fruitState('lg', Option.some('Apple')),
   },
-  newPassword: '',
-  newPasswordShown: false,
-  capsLock: false,
   viewMenu: Menu.init('preview-view-menu', viewRows(initialViewOptions), { isAnimated: true }),
   viewOptions: initialViewOptions,
   palette: UiDialog.init({ id: 'preview-palette-dialog', isAnimated: true }),

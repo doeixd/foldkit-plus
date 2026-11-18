@@ -799,27 +799,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         title: 'Thread archived',
         action: { label: 'Undo', value: 'undo' },
       }),
-    TypedNewPassword: ({ value }) =>
-      value === model.newPassword
-        ? { model }
-        : { model: modifyFields(model, { newPassword: () => value }) },
-    ToggledNewPassword: () => ({
-      model: modifyFields(model, { newPasswordShown: () => !model.newPasswordShown }),
-    }),
-    // A key that says nothing of Caps Lock, such as a digit, keeps what was read last.
-    ReadCapsLock: ({ reading }) => {
-      const on = Option.getOrElse(reading, () => model.capsLock)
-      return on === model.capsLock
-        ? { model }
-        : { model: modifyFields(model, { capsLock: () => on }) }
-    },
-    TypedPassword: ({ value }) =>
-      value === model.password
-        ? { model }
-        : { model: modifyFields(model, { password: () => value }) },
-    ToggledPassword: () => ({
-      model: modifyFields(model, { passwordShown: () => !model.passwordShown }),
-    }),
     TypedNote: ({ example, value }) =>
       model.notes[example] === value
         ? { model }
