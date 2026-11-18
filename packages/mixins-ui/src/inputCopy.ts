@@ -6,7 +6,9 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
+import { AdornmentSlots, GROUP_MARK, sidesOf, type Adornments } from './adornments.js'
 import type { MixinList } from './resolve.js'
+import { wordsOf } from './words.js'
 
 /**
  * A read-only field showing a value beside a copy button, Zag's clipboard.
@@ -23,9 +25,11 @@ import type { MixinList } from './resolve.js'
 export const InputCopySlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   label: Slot.make({ capability: Capability.Container }),
-  group: Slot.make({ capability: Capability.Container }),
+  ...AdornmentSlots,
   input: Slot.make({ capability: Capability.Focusable, attributes: [Attr.Value] }),
   button: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
+  /** The button's words, set apart when `copyContent` stands in their place. */
+  buttonText: Slot.make({ capability: Capability.Container }),
   status: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
 })
 
@@ -107,7 +111,19 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
         : { model },
   })
 
-export interface InputCopyView<Message> {
+export interface InputCopyWords {
+  /** The button's text. */
+  readonly copy: string
+  /** The button's text once copied, and what the status region says. */
+  readonly copied: string
+  /** What the status region says when the copy failed. */
+  readonly failed: string
+}
+
+/** The defaults, in English. */
+export const words: InputCopyWords = { copy: 'Copy', copied: 'Copied', failed: 'Copy failed' }
+
+export interface InputCopyView<Message> extends Adornments {
   /** Prefixes every id the field draws, unique on the page. */
   readonly id: string
   readonly label: string
@@ -118,12 +134,12 @@ export interface InputCopyView<Message> {
   readonly failed?: boolean | undefined
   /** Sent by the button; answer it with `Copy`. */
   readonly onCopy: NoInfer<Message>
-  /** The button's text; default `Copy`. */
-  readonly copyLabel?: string | undefined
-  /** The button's text once copied, and what the status region says; default `Copied`. */
-  readonly copiedLabel?: string | undefined
-  /** What the status region says when the copy failed; default `Copy failed`. */
-  readonly failedLabel?: string | undefined
+  readonly words?: Partial<InputCopyWords> | undefined
+  /**
+   * Drawn in the button in place of its words, an icon say. The words stay in
+   * it for a screen reader, and the status region still speaks them.
+   */
+  readonly copyContent?: Html | undefined
   /** A style of `InputCopySlots`, for the field's look. */
   readonly style?: NamedStyle<typeof InputCopySlots> | undefined
   /** Mixins beside the style. */
@@ -139,13 +155,20 @@ export const view = <Message>(options: InputCopyView<Message>, h: HtmlBuilder<Me
   const inputId = `${options.id}-input`
   const labelId = `${options.id}-label`
   const buttonId = `${options.id}-button`
-  const copiedLabel = options.copiedLabel ?? 'Copied'
+  const text = wordsOf(words, options.words)
+  const sides = sidesOf(
+    h,
+    { group: [], start: builders.start.attrs(), end: builders.end.attrs() },
+    options,
+  )
   const copied = h.DataAttribute('copied', String(options.copied))
   const failed = options.failed === true
+  const word = options.copied ? text.copied : text.copy
   const failedAttribute = h.DataAttribute('failed', String(failed))
   return h.div(builders.root.attrs([copied, failedAttribute]), [
     h.label(builders.label.attrs([h.Id(labelId), h.For(inputId)]), [options.label]),
-    h.div(builders.group.attrs(), [
+    h.div(builders.group.attrs([h.DataAttribute(GROUP_MARK, '')]), [
+      ...sides.start,
       h.input(
         builders.input.attrs([
           h.Id(inputId),
@@ -155,6 +178,7 @@ export const view = <Message>(options: InputCopyView<Message>, h: HtmlBuilder<Me
           h.Value(options.value),
         ]),
       ),
+      ...sides.end,
       h.button(
         builders.button.attrs([
           h.Id(buttonId),
@@ -165,12 +189,14 @@ export const view = <Message>(options: InputCopyView<Message>, h: HtmlBuilder<Me
           failedAttribute,
           h.OnClick(options.onCopy),
         ]),
-        [options.copied ? copiedLabel : (options.copyLabel ?? 'Copy')],
+        options.copyContent === undefined
+          ? [word]
+          : [options.copyContent, h.span(builders.buttonText.attrs(), [word])],
       ),
     ]),
     h.span(
       builders.status.attrs([h.Role('status')]),
-      options.copied ? [copiedLabel] : failed ? [options.failedLabel ?? 'Copy failed'] : [],
+      options.copied ? [text.copied] : failed ? [text.failed] : [],
     ),
   ])
 }

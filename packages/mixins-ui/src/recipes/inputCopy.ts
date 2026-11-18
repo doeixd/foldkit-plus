@@ -8,6 +8,7 @@ import { Style } from 'foldkit-mixins'
 import { ladder, nested, nests, role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { InputCopySlots } from '../inputCopy.js'
+import { Adorned } from './field.js'
 import {
   component,
   controlCorner,
@@ -93,6 +94,10 @@ export const InputCopy = Style.recipeFor(InputCopySlots)({
       focusRing,
       Style.pseudo(':focus-visible', { outlineOffset: `calc(-1 * ${ref.border.thick})` }),
     ),
+    // The button's words when its own drawing stands in their place: read, not seen.
+    buttonText: component(Utilities.srOnly),
+    start: Adorned.start,
+    end: Adorned.end,
     status: component(Utilities.srOnly),
   },
 })

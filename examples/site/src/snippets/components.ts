@@ -68,8 +68,6 @@ import {
   TreeViewSlots,
   ColorPicker,
   ColorPickerSlots,
-  InputCopy,
-  InputCopySlots,
   VirtualList,
   VirtualListSlots,
   Progress,
@@ -3887,31 +3885,6 @@ export const virtualList = <Message>(
         h,
       ),
     ],
-  )
-// #endregion
-
-// #region input-copy
-export const InputCopyStyle = forSlots(InputCopySlots)(Recipes.InputCopy({}))
-
-export const API_KEY = 'sk-live-4f9a2c71'
-
-export const inputCopy = <Message>(
-  style: NamedStyle<typeof InputCopySlots>,
-  model: InputCopy.Model,
-  onCopy: (text: string) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  InputCopy.view(
-    {
-      id: 'preview-api-key',
-      label: 'API key',
-      value: API_KEY,
-      copied: model.copied,
-      failed: model.failed,
-      onCopy: onCopy(API_KEY),
-      style,
-    },
-    h,
   )
 // #endregion
 

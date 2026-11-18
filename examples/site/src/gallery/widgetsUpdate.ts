@@ -728,12 +728,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotTreeView: ({ message }) => foldTreeView(model, message),
     GotAccent: ({ message }) => foldAccent(model, message),
     GotTripCalendar: ({ message }) => foldTripCalendar(model, message),
-    PressedCopy: ({ text }) => ({
-      model,
-      commands: Command.mapMessages([InputCopy.Copy({ text })], message =>
-        Message.GotCopy({ message }),
-      ),
-    }),
     GotCopy: ({ message }) =>
       ClipboardMessage.match(message, {
         Copied: () => foldInputCopy(model, InputCopy.Message.Copied()),

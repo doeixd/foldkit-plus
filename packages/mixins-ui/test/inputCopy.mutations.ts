@@ -38,9 +38,7 @@ export default [
   },
   {
     name: 'the status region stays silent on a failure',
-    edits: [
-      { file: '../src/inputCopy.ts', find: "options.failedLabel ?? 'Copy failed'", replace: "''" },
-    ],
+    edits: [{ file: '../src/inputCopy.ts', find: 'text.failed', replace: "''" }],
     tests: [unit],
   },
   {
@@ -69,8 +67,8 @@ export default [
     edits: [
       {
         file: '../src/inputCopy.ts',
-        find: "[options.copied ? copiedLabel : (options.copyLabel ?? 'Copy')]",
-        replace: "[options.copyLabel ?? 'Copy']",
+        find: 'const word = options.copied ? text.copied : text.copy',
+        replace: 'const word = text.copy',
       },
     ],
     tests: [unit],
@@ -80,9 +78,8 @@ export default [
     edits: [
       {
         file: '../src/inputCopy.ts',
-        find: "h.span(\n      builders.status.attrs([h.Role('status')]),\n      options.copied ? [copiedLabel] : failed ? [options.failedLabel ?? 'Copy failed'] : [],\n    ),",
-        replace:
-          "...(options.copied ? [h.span(builders.status.attrs([h.Role('status')]), [copiedLabel])] : []),",
+        find: 'options.copied ? [text.copied] : failed ? [text.failed] : []',
+        replace: 'options.copied ? [text.copied] : []',
       },
     ],
     tests: [unit],
@@ -92,8 +89,8 @@ export default [
     edits: [
       {
         file: '../src/inputCopy.ts',
-        find: 'options.copied ? [copiedLabel] : failed',
-        replace: 'false ? [copiedLabel] : failed',
+        find: 'options.copied ? [text.copied] : failed',
+        replace: 'false ? [text.copied] : failed',
       },
     ],
     tests: [unit],
@@ -175,5 +172,38 @@ export default [
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'the copy word is ignored',
+    edits: [{ file: '../src/inputCopy.ts', find: 'text.copy', replace: "'Copy'" }],
+    tests: [unit],
+  },
+  {
+    name: 'the end drawing is dropped',
+    edits: [{ file: '../src/inputCopy.ts', find: '...sides.end,', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'the start drawing is dropped',
+    edits: [{ file: '../src/inputCopy.ts', find: '...sides.start,', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'copyContent is dropped',
+    edits: [
+      { file: '../src/inputCopy.ts', find: 'options.copyContent === undefined', replace: 'true' },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'copyContent drops the words a screen reader needs',
+    edits: [
+      {
+        file: '../src/inputCopy.ts',
+        find: 'h.span(builders.buttonText.attrs(), [word])',
+        replace: "''",
+      },
+    ],
+    tests: [unit],
   },
 ]

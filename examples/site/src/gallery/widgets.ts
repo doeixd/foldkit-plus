@@ -373,7 +373,6 @@ export const Message = defineMessageUnion({
   GotDrawer: { message: Drawer.Message },
   OpenedSheet: { example: SheetExample },
   ClosedSheet: { example: SheetExample },
-  PressedCopy: { text: Schema.String },
   GotCopy: { message: ClipboardMessage },
   TypedNote: { example: NotesExample, value: Schema.String },
   TurnedLevel: { value: Schema.Number },
