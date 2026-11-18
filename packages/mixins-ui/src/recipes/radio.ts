@@ -21,7 +21,7 @@ const checked = '[aria-checked="true"]'
 
 const label = component(Style.self({ color: ref.text.default, ...role('body'), cursor: 'pointer' }))
 
-const description = component(Style.self({ color: ref.text.muted, ...role('body') }))
+const description = component(Style.self({ color: ref.text.muted, ...role('body'), margin: '0' }))
 
 /** The control's edge length; the dot scales from it. */
 const box = (length: string) => variant(Style.self({ '--_fk-toggle-size': length }))
@@ -37,6 +37,15 @@ const edge = `var(--_fk-toggle-size, ${ladder('icon')})`
 
 export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
   base: {
+    root: component(Style.self({ display: 'flex', flexDirection: 'column', gap: ladder('gap') })),
+    legend: component(
+      Style.self({
+        margin: '0',
+        color: ref.text.overt,
+        ...role('body'),
+        fontWeight: ref.weight.semibold,
+      }),
+    ),
     // A column unless the group says it is a row; upstream's groups are vertical by default.
     // A row wraps, so three plans on a phone become a second line instead of
     // overflowing it.
@@ -97,6 +106,14 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
     ),
     label,
     description,
+    text: component(
+      Style.self({ display: 'flex', flexDirection: 'column', flex: '1', minInlineSize: '0' }),
+    ),
+    icon: component(Style.self({ display: 'inline-flex', flexShrink: '0' })),
+    trailing: component(
+      Style.self({ display: 'inline-flex', flexShrink: '0', marginInlineStart: 'auto' }),
+    ),
+    error: component(Style.self({ margin: '0', color: ref.error.ink, ...role('caption') })),
     // A row: the radio on the first line of the words beside it.
     card: component(
       Style.self({
@@ -112,8 +129,21 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
       accent: { option: tones.accent },
       // Checked in the page's ink: the neutral surface was a pale fill under a dark dot.
       neutral: { option: tones.ink },
+      danger: { option: tones.danger },
     },
     size: { sm: { option: sizes.sm }, md: { option: sizes.md }, lg: { option: sizes.lg } },
+    // `grid` sets the rows in columns that wrap as the room allows, as a set of plans is.
+    layout: {
+      stacked: { group: variant(Style.self({})) },
+      grid: {
+        group: variant(
+          Style.self({
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 12rem), 1fr))',
+          }),
+        ),
+      },
+    },
     variant: {
       plain: { group: variant(Style.self({})) },
       // Each option's `card` row is boxed; the chosen one takes the accent's
@@ -140,5 +170,5 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
       },
     },
   },
-  defaults: { tone: 'accent', variant: 'plain' },
+  defaults: { tone: 'accent', variant: 'plain', layout: 'stacked' },
 })

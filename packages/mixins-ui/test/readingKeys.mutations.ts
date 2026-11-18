@@ -57,12 +57,12 @@ export default [
     name: 'the radio group reads its keys as upstream does',
     edits: [
       {
-        file: '../src/radioGroup.ts',
-        find: "import { readingKey } from './direction.js'",
-        replace: "import { FollowDirection, readingKey } from './direction.js'",
+        file: '../src/radioGroup/readingKeys.ts',
+        find: "import { readingKey } from '../direction.js'",
+        replace: "import { FollowDirection, readingKey } from '../direction.js'",
       },
       {
-        file: '../src/radioGroup.ts',
+        file: '../src/radioGroup/readingKeys.ts',
         find: 'mount: () => ArrowPairs(),',
         replace: 'mount: () => FollowDirection(),',
       },

@@ -1,37 +1,10 @@
 import type { CheckboxAttributes } from '@foldkit/ui/checkbox'
-import { Attr, Capability, Event, Slot, Slots } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
+import { CheckboxSlots } from './checkbox/slots.js'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
-/**
- * Both the control and its label carry the base toggle handlers, so both own
- * `click`. `hiddenInput` exists only when a form `name` is configured; its base
- * bundle is then empty.
- */
-export const CheckboxSlots = Slots.define({
-  checkbox: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [
-      Attr.Role,
-      Attr.AriaChecked,
-      Attr.AriaLabelledby,
-      Attr.AriaDisabled,
-      Attr.AriaInvalid,
-      Attr.Disabled,
-      Attr.Value,
-    ],
-  }),
-  label: Slot.make({
-    capability: Capability.Container,
-    events: [Event.Click],
-  }),
-  description: Slot.make({ capability: Capability.Container }),
-  hiddenInput: Slot.make({
-    capability: Capability.Base,
-    attributes: [Attr.Value],
-  }),
-})
+export { CheckboxSlots } from './checkbox/slots.js'
+export { configure, view, type CheckboxPreset, type CheckboxView } from './checkbox/view.js'
 
 /** The checkbox's bundles with the attached Mixins applied. */
 export type ResolvedCheckbox<Message> = Resolved<

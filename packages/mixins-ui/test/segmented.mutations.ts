@@ -11,7 +11,7 @@ export default [
     name: 'options forget their pressed state',
     edits: [
       {
-        file: '../src/segmented.ts',
+        file: '../src/segmented/slots.ts',
         find: 'attributes: [Attr.Role, Attr.AriaPressed, Attr.AriaChecked, Attr.Disabled, Attr.AriaDisabled],',
         replace: 'attributes: [Attr.Role, Attr.AriaChecked, Attr.Disabled, Attr.AriaDisabled],',
       },
@@ -22,7 +22,7 @@ export default [
     name: 'options degrade to a base capability',
     edits: [
       {
-        file: '../src/segmented.ts',
+        file: '../src/segmented/slots.ts',
         find: 'option: Slot.make({\n    capability: Capability.Interactive,',
         replace: 'option: Slot.make({\n    capability: Capability.Base,',
       },

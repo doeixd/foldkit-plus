@@ -72,6 +72,11 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
         fontWeight: ref.weight.semibold,
       }),
       Style.nest(`&:not([data-fluid-hover]) > ${pressed}`, { background: ref.accent.subtle }),
+      // Stacked, the options stretch to the widest.
+      Style.states(
+        { vertical: { display: 'flex', flexDirection: 'column', alignItems: 'stretch' } },
+        'data-orientation',
+      ),
     ),
     indicator: component(
       overlay('chosen'),

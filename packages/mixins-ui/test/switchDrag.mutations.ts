@@ -3,7 +3,7 @@
  * `pnpm mutate packages/mixins-ui/test/switchDrag.mutations.ts`.
  */
 const tests = ['packages/mixins-ui/test/switchDrag.browser.test.ts']
-const source = '../src/switch.ts'
+const source = '../src/switch/draggable.ts'
 const recipe = '../src/recipes/toggle.ts'
 
 export default [

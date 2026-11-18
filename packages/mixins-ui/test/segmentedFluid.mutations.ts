@@ -4,7 +4,7 @@
  */
 const tests = ['packages/mixins-ui/test/segmented.browser.test.ts']
 const recipe = '../src/recipes/segmented.ts'
-const adapter = '../src/segmented.ts'
+const adapter = '../src/segmented/fluid.ts'
 
 export default [
   {
@@ -61,12 +61,12 @@ export default [
     // A Mount that does nothing here in its place, imported so the mutant still loads.
     edits: [
       {
-        file: '../src/segmented.ts',
+        file: '../src/segmented/fluid.ts',
         find: "import { FluidHover, Measure } from 'foldkit-primitives/dom'",
         replace: "import { FluidHover, FollowTabStop, Measure } from 'foldkit-primitives/dom'",
       },
       {
-        file: '../src/segmented.ts',
+        file: '../src/segmented/fluid.ts',
         find: 'mount: () => FollowDirection(),',
         replace: 'mount: () => FollowTabStop(),',
       },

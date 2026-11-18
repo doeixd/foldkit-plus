@@ -142,3 +142,63 @@ export const page = [Image.view, Image.audit]`,
   expect([has(watching, 'watchLoad'), has(watching, 'audit')]).toEqual([true, false])
   expect([has(auditing, 'watchLoad'), has(auditing, 'audit')]).toEqual([false, true])
 }, 120_000)
+
+test('a choice control page keeps the drag, the reading keys, the fluid pill and the options-level views only when it names them', async () => {
+  await buildPackage({
+    ...config,
+    config: false,
+    cwd: packageDir,
+    outDir: join(out, 'dist'),
+    dts: false,
+    logLevel: 'silent',
+  })
+  const [adapters, viewed, dragged, keyed, fluid] = await Promise.all([
+    keptBy(
+      'choiceAdapters',
+      `import { Checkbox, RadioGroup, Segmented, Select, Switch } from 'ui'
+export const page = [Checkbox.toView, RadioGroup.toView, Segmented.view, Select.toView, Switch.toView]`,
+    ),
+    keptBy(
+      'choiceViews',
+      `import { Checkbox, RadioGroup, Select, Switch } from 'ui'
+export const page = [Checkbox.view, RadioGroup.view, Select.view, Switch.view]`,
+    ),
+    keptBy(
+      'switchDraggable',
+      `import { Switch } from 'ui'
+export const page = [Switch.toView, Switch.draggable]`,
+    ),
+    keptBy(
+      'radioKeys',
+      `import { RadioGroup } from 'ui'
+export const page = [RadioGroup.toView, RadioGroup.readingKeys]`,
+    ),
+    keptBy(
+      'segmentedFluid',
+      `import { Segmented } from 'ui'
+export const page = [Segmented.view, Segmented.fluid]`,
+    ),
+  ])
+  const has = (kept: ReadonlyArray<string>, file: string) =>
+    kept.some(id => id.endsWith(`/dist/${file}.js`))
+  expect(
+    [
+      'checkbox/view',
+      'switch/view',
+      'switch/draggable',
+      'radioGroup/view',
+      'radioGroup/readingKeys',
+      'select/view',
+      'segmented/fluid',
+    ].filter(file => has(adapters, file)),
+  ).toEqual([])
+  expect(
+    ['checkbox/view', 'switch/view', 'radioGroup/view', 'select/view'].every(file =>
+      has(viewed, file),
+    ),
+  ).toBe(true)
+  expect(has(viewed, 'switch/draggable') || has(viewed, 'radioGroup/readingKeys')).toBe(false)
+  expect(has(dragged, 'switch/draggable')).toBe(true)
+  expect(has(keyed, 'radioGroup/readingKeys')).toBe(true)
+  expect(has(fluid, 'segmented/fluid')).toBe(true)
+}, 120_000)
