@@ -69,6 +69,77 @@ The component keeps control of the component, and callers get a typed place to
 extend it. A view of this package's own draws its markup through the same Slots,
 so one extension contract covers both families.
 
+## Look, state, drawing, features: one factory each
+
+A variation of a widget is a call with options, never a copied file. A widget
+is made of four kinds of fact, and each has one place it is given:
+
+- **Look** is CSS over fixed markup. `Recipes.X(selection)` picks values on
+  axes, `.extend` adjusts them and `.add` gives a recipe an axis or a value it
+  lacks ([Recipes](#recipes)).
+- **State** is a Model and the Messages that change it, and it is the
+  application's: `X.init` and `X.update` for the widgets that keep interaction
+  state, folded by hand or placed as `Bundles.X`. The value a user chose stays
+  in the application's Model, unless its type is the widget's own (a
+  Calendar's selection).
+- **Drawing** is markup, ARIA, events and words. `X.view(options, h)` draws,
+  and `X.configure({ base, presets })` returns a `view` with the options that
+  never change at a call site given once. Fixed text is `words`, an object of
+  strings with `{blanks}` (`'Remove {tag}'`), never a function.
+- **Features** are code most pages never need: another widget, a Behavior
+  with a Mount, a second way to choose. A feature is a value the application
+  imports and passes (`fluid: Table.fluid`, `kind: Chart.bars`,
+  `choice: Combobox.many(items)`), so a page that never names it never ships
+  it. A boolean that switches code on is the one thing an option is not.
+
+An option is therefore one of three things: **data** (text, a Message, an
+`Html` you drew, a function you wrote), **a passed value** (a feature, above),
+or **composition** (a widget with state of its own, placed beside this one and
+drawn into a slot option such as `aside`, `footer`, `trailing` or `content`).
+
+```ts standalone
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Style } from 'foldkit-mixins'
+import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
+
+const Message = defineMessageUnion({ Noop: {} })
+type Message = typeof Message.Type
+
+interface Product {
+  readonly name: string
+  readonly price: string
+}
+
+// Look: compiled once, at module scope.
+const ProductsStyle = Style.forSlots(TableSlots)(Recipes.Table({ density: 'compact' }))
+
+// Drawing: `fluid` is a passed value, `words` is text with blanks.
+export const products = (rows: ReadonlyArray<Product>, h: HtmlBuilder<Message>): Html =>
+  Table.view(
+    {
+      columns: [
+        { header: 'Product', rowHeader: true, value: row => row.name },
+        { header: 'Price', numeric: true, value: row => row.price },
+      ],
+      rows,
+      rowKey: row => row.name,
+      fluid: Table.fluid,
+      words: { selectAll: 'Choose every product' },
+      style: ProductsStyle,
+    },
+    h,
+  )
+```
+
+`Table.configure({ base, presets })` would state `style`, `fluid` and `words`
+once and leave `columns` and `rows` to each call. About fifty widgets have a
+`configure`, and about forty keep state that `Bundles` places; Dialog,
+Popover, Tooltip, HoverIntent and FileDrop stay adapters over `@foldkit/ui`,
+because what they hold is your own content, and have a Bundle for their state
+only. [One factory for each part](#one-factory-for-each-part) shows each with
+code.
+
 ## Install
 
 ```bash
@@ -82,7 +153,7 @@ pnpm add foldkit-mixins foldkit-mixins-ui foldkit-primitives @foldkit/ui
 Start with a normal `@foldkit/ui` Button. The adapter publishes its consumer
 attribute bundle as the `button` Slot.
 
-```ts
+```ts standalone
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as UiButton from '@foldkit/ui/button'
@@ -285,30 +356,6 @@ Listbox    -> { wrapper, button, backdrop, items, scroll, groups, hiddenInputs, 
 Combobox   -> { wrapper, inputWrapper, input, toggleButton, backdrop, items, scroll, groups, hiddenInputs, isVisible }
 ```
 
-### Look, state, drawing, features: one factory each
-
-A variation of a widget is a call with options, never a copied file. A widget
-is made of four kinds of fact, and each kind has one place it is given.
-
-- **Look** is CSS over fixed markup: `Recipes.X(selection)`, adjusted with
-  `.extend` and widened with `.add` ([Recipes](#recipes)).
-- **State** is a Model and the Messages that change it: the widget's `init`
-  and `update`, which an application folds by hand or places as `Bundles.X`.
-- **Drawing** is markup, ARIA, events and words: `X.view(options, h)`, and
-  `X.configure({ base, presets })` to give the options that never change
-  once.
-- **Features** are code most pages never need: another widget, a Behavior
-  with a Mount, a second way to choose. A feature is a value the application
-  imports and passes (`mixins: Tabs.fluid`, `Combobox.many(items)`); the
-  widget imports only its type, so a page that never names it never ships it.
-  A boolean that switches code on is the one thing an option is not.
-
-`configure` ships on Button, TagsInput, Combobox, Listbox, Picker, CascadeSelect, Calendar, DatePicker and
-FileUpload, and `Bundles` holds TagsInput, Combobox, Listbox, Picker, CascadeSelect, Calendar, DatePicker and
-FileUpload today; the other widgets follow the same shape as they are
-converted. [One factory for each part](#one-factory-for-each-part) shows
-each with code.
-
 ## Finding a widget
 
 | I need... | Use |
@@ -331,6 +378,8 @@ each with code.
 | an alert, a toast, a progress bar, a loading state | Alert, Toast, Progress, Meter, Spinner, Skeleton |
 | a very long list | VirtualList, WindowList |
 | a chat | ChatMessage, MessageScroller, ThinkingIndicator, ThinkingSteps, Questionnaire |
+| a widget's state placed in my Model without writing its fold | [`Bundles.X`](#state-fold-it-by-hand-or-place-a-bundle) |
+| a widget's look, words and mixins stated once | [`X.configure`](#drawing-configure-once-call-with-what-differs), [`Recipes.X`](#recipes) |
 | my own keyboard shortcut on a widget | [Application key routes](#application-key-routes) |
 | focus that survives removing what had it | [Focus after removal](#focus-after-removal) |
 | a form that submits natively | [Form participation](#form-participation) |
@@ -1128,8 +1177,8 @@ natively take a `name` (see [Form participation](#form-participation)).
 | --- | --- | --- |
 | `Checkbox` | `Checkbox.view({ id, checked, onToggle, label, description?, position?, labelAside?, indeterminate?, disabled?, readOnly?, invalid?, name?, value? }, h)` draws the row: the box, its label and a line of description that also describes it; `position: 'end'` puts the words first, `labelAside` is a slot beside the label (a Badge, a Tooltip's trigger). `Checkbox.configure({ base, presets })` states the look once. `Checkbox.toView` stays the adapter, for a layout of your own. | `tone`: `accent` (default), `neutral` (checked in the page's ink), `danger`; `size`; `variant`: `plain` (default), `card` (the row boxed and filled while checked, one press target); `shape`: `square` (default), `round`. Slots `root`, `text`, `heading`, `aside`, `checkbox`, `label`, `description`, `hiddenInput`. |
 | `CheckboxGroup` | `{ id, legend, options, checked, onToggle, error?, name?, selectAll? }`, each option `RowContent` (`{ value, label, description?, icon?, trailing?, content?, disabled? }`: `description` is text or Html, `icon` a mark inside the label, `trailing` a badge or count after it, `content` the words of your own drawing, `label` still the name). `variant: 'card'` boxes each row and stretches its label over it, so a press anywhere on it chooses it. `CheckboxGroup.configure`. A `fieldset` named by its `legend`, each option the APG's checkbox named by a `label` for it, so a press on the words toggles it. `toggled(checked, value)` is one option's transition; `coverage(options, checked)` is `none`, `some` or `all` (a disabled option counts for neither); `setEnabled(options, checked, on)` is every enabled option or none, a disabled one keeping the state `checked` gives it. `selectAll: { label, onSet }` draws a first row checked, `mixed` or unchecked by `coverage` that controls every option; a press sends `onSet` with `setEnabled`'s values, on unless all already are. `error` is shown under the options: the `fieldset` is described by it and each checkbox is `aria-invalid`. | `variant`: `plain` (default), `list` (checked rows fill, and merge where they stand together); `orientation`: `vertical` (default), `horizontal` (a wrapping row). The checkbox sits on the label's row, so a description does not pull it down. Slots `root`, `legend`, `options`, `option`, `checkbox`, `label`, `description`, `error`. |
-| `Switch` | `Switch.view({ id, checked, onToggle, label, description?, position?, labelAside?, disabled?, readOnly?, invalid?, name?, value? }, h)`, as the Checkbox's without `indeterminate`; `Switch.configure`. `Switch.draggable(onToggle)` beside the style lets the thumb be dragged; it lives in a file of its own, so a page that never names it ships no part of it. An invalid switch's track is ringed. `Switch.toView` is the adapter. | `tone`: `accent` (default), `neutral`, `danger`; `size`; `variant`: `plain`, `card` as Checkbox. Slots `root`, `text`, `heading`, `aside`, `button`, `label`, `description`, `hiddenInput`.
-| `RadioGroup` | `RadioGroup.view({ model, onMessage, legend, options, value, orientation?, hideLegend?, disabled?, readOnly?, invalid?, error?, name? }, h)` over the focus cursor `Bundles.RadioGroup` holds; `options` are `{ value, label, description?, icon?, trailing?, content?, disabled? }` (`RowContent`) and `value` is the application's `Option`, set from the `Selected` the Bundle reports. An `error` draws under the group, makes it `aria-invalid` and describes it. `RadioGroup.configure`. `RadioGroup.readingKeys` reads both arrow pairs whichever way the group stands (see [Right to left](#right-to-left)) and lives in a file of its own. `RadioGroup.toView` is the adapter: each row a `label` around its `option`, carrying the `card` bundle. | `variant`: `plain` (default), `card` (frames each card, filling the checked one); `tone`: `accent` (default), `neutral`; `size`. The recipe stacks the group unless `aria-orientation` is `horizontal`, and a row wraps. Slots `group`, `option`, `label`, `description`, `hiddenInput`, `card`. |; `layout`: `stacked` (default), `grid` (rows in columns that fill the room); `tone` adds `danger`. New Slots `root`, `legend`, `text`, `icon`, `trailing`, `error`.
+| `Switch` | `Switch.view({ id, checked, onToggle, label, description?, position?, labelAside?, disabled?, readOnly?, invalid?, name?, value? }, h)`, as the Checkbox's without `indeterminate`; `Switch.configure`. `Switch.draggable(onToggle)` beside the style lets the thumb be dragged; it lives in a file of its own, so a page that never names it ships no part of it. An invalid switch's track is ringed. `Switch.toView` is the adapter. | `tone`: `accent` (default), `neutral`, `danger`; `size`; `variant`: `plain`, `card` as Checkbox. Slots `root`, `text`, `heading`, `aside`, `button`, `label`, `description`, `hiddenInput`. |
+| `RadioGroup` | `RadioGroup.view({ model, onMessage, legend, options, value, orientation?, hideLegend?, disabled?, readOnly?, invalid?, error?, name? }, h)` over the focus cursor `Bundles.RadioGroup` holds; `options` are `{ value, label, description?, icon?, trailing?, content?, disabled? }` (`RowContent`) and `value` is the application's `Option`, set from the `Selected` the Bundle reports. An `error` draws under the group, makes it `aria-invalid` and describes it. `RadioGroup.configure`. `RadioGroup.readingKeys` reads both arrow pairs whichever way the group stands (see [Right to left](#right-to-left)) and lives in a file of its own. `RadioGroup.toView` is the adapter: each row a `label` around its `option`, carrying the `card` bundle. | `variant`: `plain` (default), `card` (frames each card, filling the checked one); `tone`: `accent` (default), `neutral`, `danger`; `layout`: `stacked` (default), `grid` (rows in columns that fill the room); `size`. The recipe stacks the group unless `aria-orientation` is `horizontal`, and a row wraps. Slots `root`, `legend`, `text`, `group`, `option`, `label`, `description`, `icon`, `trailing`, `error`, `hiddenInput`, `card`. |
 | `Segmented` | A tray of buttons where pressing selects. `Segmented.view({ id, label, options: { value, label, icon?, iconOnly?, disabled? }[], pressed, onPress, multiple?, orientation?, direction?, name?, disabled? }, h)`; `Segmented.toggled(pressed, value, { multiple, optional })` is the transition `update` applies; `Segmented.configure`. `multiple` is a toggle group, `orientation: 'vertical'` stacks it. `Segmented.fluid` (the gliding pill) is a file of its own. See [Segmented](#segmented). | `tray`: `tray` (default, muted), `plain`, `underline`; `size`: `xs`, `sm`, `md`, `lg`; `width: 'fill'`. Slots `group`, `option`, `label`, `icon`, `content`, `indicator`, `highlight`, `hiddenInput`. |
 | `Select` | `Select.view({ id, label, options, value?, onChange?, placeholder?, description?, disabled?, invalid?, name? }, h)` draws the native `<select>` from `options: { value, label, group?, disabled? }[]` (neighbours with one `group` sit under an `optgroup`); `Select.configure`. `Select.toView` is the adapter. For icons, descriptions or a check in the list, draw a Listbox as a custom select with `Listbox.parts`. | `size`: `sm`, `md` (default), `lg`; `variant`: `outline` (default), `filled`. Slots `root`, `select`, `label`, `description`. |
 | `Listbox` | A custom select. `Listbox.view({ model, onMessage, label, choice, value, items?, option?, groupBy?, heading?, placeholder?, trigger?, clear?, disabled?, invalid?, readOnly?, name?, anchor?, direction?, words?, style?, mixins? }, h)` draws it over the interaction state `Bundles.Listbox` holds and a value the application owns, read through a `Choice` (`Listbox.one(items)`, `Listbox.many(items)`, or your own); a row is `RowContent`. The trigger is named "label: chosen rows" and shows the chosen row's icon and label, several labels joined, or the placeholder, muted; `trigger: rows => Html` draws something else for them (a stack of dots). `clear: { onClear, content? }` draws a button inside the trigger while something is chosen, and sends the application's own Message, since the value is the application's. `Listbox.configure({ base, presets })` binds `placeholder`, `anchor`, `direction`, `words`, `style` and `mixins`. A closed listbox submits its value under `name`. `Listbox.fluid` and `Listbox.overlayBars` are files of their own. `Listbox.toView`, `resolve` and `parts` are the adapter over a fork (see [Why some components needed a fork](#why-some-components-needed-a-fork)) for a drawing of your own: `parts(mixins, { h }).option(rowContent)` draws a row and `.trigger(chosenRows, placeholder, shown?)` the button's content. An invalid trigger writes `aria-invalid` and draws the error edge, a disabled one shows no hover, and a portaled panel carries the `direction`. | `width`: `auto` (default), `trigger`; `check`: `end` (default), `start`, `none`; `trigger`: `outline` (default), `filled`, `ghost`; `size`. Slots `root`, `wrapper`, `button`, `clear`, `backdrop`, `items`, `scroll`, `item`, `group`, `heading`, `separator`, `rows`, `highlight`, `indicator`, `scrollBar`, `scrollThumb`, the option's and trigger's parts (`itemIcon`, `itemLabel`, `itemDescription`, `itemTrailing`, `itemCheck`, `value`, `valueText`, `chevron`, …). |
@@ -1139,7 +1188,7 @@ natively take a `name` (see [Form participation](#form-participation)).
 | `Slider` | Native `input type="range"` thumbs, so drag, keys, right to left and the form value are the browser's. `Slider.view({ id, label, value, onChange, onCommit?, description?, min?, max?, step?, format?, marks?, showValue?, name?, disabled?, orientation?, ticks?, words? }, h)`; `value` is a number, a `{ low, high }` range or a list of numbers (a thumb each, stopping at its neighbours), and `onChange` is handed the same kind. `words` names a range's thumbs (`low`, `high`) and a list's (`thumb`, with `{index}` and `{count}`). `Slider.configure`. See [Slider](#slider). | `tone`: `accent` (default), `neutral`; `size`: `sm`, `md` (default), `lg`; `track`: `thick` (default), `thin`, `paint`; `value`: `above` (default), `inside`, `end`; `label`: `shown` (default), `hidden`. Slots `root`, `label`, `description`, `control`, `track`, `fill`, `mark`, `value`, `thumb`. |
 | `AngleSlider` | After Zag's: a dial in degrees, 0 at the top and clockwise. A small Model: `AngleSlider.init({ id, value? })` is the angle and the drag, folded with `AngleSlider.update(layout)`, where `layout` (`step`, `largeStep`, `marks`, `restrictToMarks`) is the object the view spreads in too; `Bundles.AngleSlider` packages both, with the layout as its args (`Bundles.AngleSlider.with({ id, ...layout })`), and `AngleSlider.configure` states the look, layout and `words` (`degrees`, the angle read aloud) once. `AngleSlider.view({ ...layout, model, onMessage, label, name?, format?, valueText?, showValue?, disabled?, readOnly?, invalid? }, h)`. A press or drag sends `Pointed` and `Released`; the APG's slider keys reach `update` as what was pressed, and go round past 0. | `tone`; `track`: `ring`, `plain`, `disc`; `value`: `inside`, `below`; `size`. Slots `root`, `label`, `control`, `needle`, `thumb`, `markers`, `marker`, `markerLabel`, `value`, `input`. |
 | `Rating` | A `radiogroup` of native radios named by its label, one per star under one name, so the browser's arrows move the choice and a form submits it. `Rating.view({ id, label, value, onChange, max?, labels?, words?, readOnly?, disabled?, name?, precision?, onClear?, showValue? }, h)`; `value` is an `Option`, none is unrated. `words` is the text with blanks (`one`, `other`, `rated`, `notRated`); `labels` names each whole number of stars. Read-only, it is one `img` whose name says the rating, and takes no `onChange`. `Rating.configure`. | `tone`: `warning` (default, gold), `accent`, `danger`, `success`, `info`, `neutral`; `glyph`: `star` (default), `heart`, `circle`; `size`. Slots `root`, `label`, `star`. |
-| `ColorPicker` | After ReUI's: a saturation and brightness area, hue and alpha Sliders, an eyedropper when the application asks for one (`eyedropper`, default `false`), text in hex, rgb, hsl or oklch, and `presets` as a radio group of swatches. A small Model: `ColorPicker.init({ id, color?, format? })` holds the color, its format and a draft being typed, folded with `ColorPicker.update`. `ColorPicker.view({ model, onMessage, label, presets?, alpha?, eyedropper?, labels?, disabled?, slider? }, h)`; `ColorPicker.popover({ ...options, popover, onPopover, anchor?, popoverMixins? }, h)` draws it behind a swatch in a Popover. See [ColorPicker](#colorpicker). | `size`. Its Sliders take `Recipes.Slider({ track: 'paint', label: 'hidden' })`. Slots `root`, `label`, `area`, `areaThumb`, `controls`, `eyedropper`, `channels`, `channel`, `swatch`, `fields`, `format`, `input`, `presets`, `preset`, `picker`, `trigger`, `value`. |
+| `ColorPicker` | After ReUI's: a saturation and brightness area, hue and alpha Sliders, an eyedropper when the application asks for one (`eyedropper`, default `false`), text in hex, rgb, hsl or oklch, and `presets` as a radio group of swatches. A small Model: `ColorPicker.init({ id, color?, format? })` holds the color, its format and a draft being typed, folded with `ColorPicker.update`. `ColorPicker.view({ model, onMessage, label, presets?, alpha?, eyedropper?, words?, disabled?, slider?, style?, mixins? }, h)`; `ColorPicker.popover({ ...options, popover, onPopover, anchor?, popoverMixins? }, h)` draws it behind a swatch in a Popover. See [ColorPicker](#colorpicker). | `size`. Its Sliders take `Recipes.Slider({ track: 'paint', label: 'hidden' })`. Slots `root`, `label`, `area`, `areaThumb`, `controls`, `eyedropper`, `channels`, `channel`, `swatch`, `fields`, `format`, `input`, `presets`, `preset`, `picker`, `trigger`, `value`. |
 | `Calendar` | One date system, inline. `Calendar.Selection` is `Single`, `Range` or `Multiple`, held by the Calendar's state (`Bundles.Calendar`), or by the application on the adapter rung. See [Calendar and DatePicker](#calendar-and-datepicker). | `size`; `outside`: `shown` (default), `hidden`; `detail`: `text`, `dot`, unset by default. Slots `frame`, `body`, `main`, `months`, `todayButton`, `aside`, `footer` (what `Calendar.view` lays around the months), `root`, `header`, `grid`, `headerRow`, `previousMonthButton`, `nextMonthButton`, `headingButton`, `previousPageButton`, `nextPageButton`, `columnHeader`, `weekRow`, `dayCell`, `dayButton`, `monthCell`, `monthButton`, `yearCell`, `yearButton`. |
 | `DatePicker` | A Calendar in a popover, over a fork that keeps upstream's Popover and Calendar composition. A date, a range or many days. See [Calendar and DatePicker](#calendar-and-datepicker). | Slots `wrapper`, `trigger`, `panel`, `backdrop`. |
 
@@ -1759,7 +1808,7 @@ what the two share).
 | `Breadcrumb` | `{ words?, steps: { label, href?, current?, icon?, trailing?, labelHidden? }[], separator?, collapse? }`. `words` is `{ label, more, ellipsis }` (defaults `Breadcrumb.words`, merged word by word): the landmark's name (`Breadcrumb`), the ellipsis's name (`Show {count} more`, `{count}` the hidden steps) and its mark (`…`). `current` is text with `aria-current="page"`; the others are links. `trailing` draws after the label (a count), in the `trailing` slot; `labelHidden` draws no words, and the label is the step's accessible name, for an `icon` that says it. `collapse: { max, onExpand }` folds the middle of a long trail into an ellipsis (`Breadcrumb.collapsedOf(steps, max)` is the split); `collapse: BreadcrumbMenu.make({ max, menu: { model, onMessage, mixins } })` makes the ellipsis open a Menu of the hidden steps (a value from its own module, so a trail that opens none loads no Menu; any `CollapseFeature`, `{ max, draw }`, is the same seam for a fold of your own), built from `Breadcrumb.menuRows(steps, max)`, with `Breadcrumb.chosen(steps, max, value)` the step a row leads to (a row's value is its step's place among the hidden steps, so two steps of one label are two rows). | `item`: `plain` (default), `pill`, `button`. `separator`: `slash` (default), `chevron`, `dot`. The separator is drawn after each step but the last, so a wrapped trail never begins a line with one. Slots `root`, `list`, `item`, `link`, `current`, `icon`, `trailing`, `separator`, `ellipsis`, `dots`. |
 | `Pagination` | `{ page, pageCount, onPage, siblings?, boundaries?, numbered?, ends?, icons?, range?, words? }`. `Pagination.itemsOf(page, pageCount, window?)` is the stops; `Pagination.summaryOf(page, { total, perPage }, summary?)` is `"1–10 of 97"`, drawn before the stops when `range` is given. See [Pagination](#pagination). | `compact`: `narrow` (default, below a 30rem window), `always`, `never`; `shape`: `square` (default), `round`; `treatment`: `ghost` (default), `outline`. Slots `root`, `summary`, `perPage`, `perPageSelect`, `first`, `prev`, `next`, `last`, `page`, `pageCount`, `ellipsis`. |
 | `Steps` | A stepper, an ordered list named by `label`. `Steps.view({ label, steps: { title, description?, icon?, content?, state?, trailing? }[], current, onSelect?, words?, progress? }, h)`. The step at `current` is `aria-current="step"`, those before it `data-state="complete"` (a check replaces the number), those after `upcoming`. With `onSelect(index)`, completed steps are buttons for going back; steps ahead never are. The application owns `current`. | `orientation`: `horizontal` (default), `vertical`; `size`: `xs`, `sm`, `md`, `lg`; `marker`: `number`, `dot`; `connector`: `line`, `progress`, `segments`; `labels`: `current`, `hidden`. Slots `root`, `item`, `step`, `trigger`, `marker`, `number`, `text`, `title`, `state`, `description`, `content`, `trailing`, `connector`. |
-| `Sidebar` | shadcn's sidebar with Fluid's collapse. A small Model: `Sidebar.init({ id, rows, open?, collapsed?, side?, width? })`, folded with `Sidebar.update`. `Sidebar.view({ model, onMessage, label, groups, header?, footer?, direction?, collapse?, style?, mixins?, tooltip?, sheet? }, h)`. See [Sidebar](#sidebar). | `variant`: `sidebar` (flush with the page's edge, the default), `floating`, `inset`. Slots `root`, `header`, `footer`, `opener`, `title`, `toggle`, `nav`, `section`, `heading`, `trigger`, `chevron`, `links`, `item`, `branch`, `link`, `icon`, `mark`, `detail`, `label`, `badge`, `action`, `tip`, `indicator`, `highlight`, `resize`, `trailing`. |
+| `Sidebar` | shadcn's sidebar with Fluid's collapse. A small Model: `Sidebar.init({ id, rows, open?, collapsed?, side?, width? })`, folded with `Sidebar.update`. `Sidebar.view({ model, onMessage, label, groups, header?, footer?, direction?, collapse?, words?, style?, mixins?, tooltip?, sheet? }, h)`. See [Sidebar](#sidebar). | `variant`: `sidebar` (flush with the page's edge, the default), `floating`, `inset`. Slots `root`, `header`, `footer`, `opener`, `title`, `toggle`, `nav`, `section`, `heading`, `trigger`, `chevron`, `links`, `item`, `branch`, `link`, `icon`, `mark`, `detail`, `label`, `badge`, `action`, `tip`, `indicator`, `highlight`, `resize`, `trailing`. |
 | `AppShell` | An application's page frame: `AppShell.view({ title, main, brand?, status?, actions?, side?, aside?, asideLabel?, footer?, mainId?, words? }, h)`, and `AppShell.configure({ base, presets })` for the look, `mainId` and words said once. A skip link to the main region, a header bar (the banner) with the title and, at its end, `status` and `actions`, an optional side column for a `Sidebar`'s view, the main region (`id` `main` by default, focusable by script so the skip link moves focus there), an `aside` column at its end (a contents list or details, an `aside` landmark named by `asideLabel`, pinned under the header and below the main region on a phone), and a footer. It holds no state and sends no Message. The header and the side column stay in view while the page scrolls; below `md` the side column sits at the start of the header's row. `Patterns.AppShell` is its contract. | `width`: `full` (default), `contained` (the main region's content kept to the theme's `width.page`). Slots `root`, `skip`, `header`, `brand`, `mark`, `title`, `status`, `actions`, `side`, `main`, `aside`, `footer`. |
 | `Accordion` | `{ id, items: { id, title, content, disabled? }[], open, onToggle, headingLevel? }`; `Accordion.toggled(open, id, { multiple?, collapsible? })` is the transition `update` applies, the open ids being the application's. Each trigger is a button in a heading naming its panel; a shut panel stays drawn and `inert`. A panel shuts over the time it opens in (default the theme's `moderate`), so switching sections moves both together; `--fk-collapse-duration` sets both and `--fk-collapse-close-duration` the shutting alone, each a time of the theme (`var(--fk-motion-slow)`) so the `motion` and `travel` knobs still apply. TreeView, Sidebar and ThinkingSteps groups share the two properties. The view takes an `icon` in place of the recipe's. An item may also carry `icon` (Html before its title) and `trailing` (after it: a badge, a role); its `title` stays text. `Bundles.Accordion.with({ open?, multiple?, collapsible? })` keeps the open ids and the two rules once, `Accordion.controls(model, onMessage)` is spread into the view, and `Accordion.configure({ base, presets })` fixes the look and heading level. | `variant`: `plain` (default), `bordered`, `separated`, `filled`, `ghost`; `separators`: `on`, `off`; `indicator`: `chevron`, `plus`; `indicatorPosition`: `end`, `start`; `active`: `none`, `trigger`, `item`. Slots `root`, `item`, `heading`, `trigger`, `leading`, `label`, `trailing`, `chevron`, `icon`, `panel`, `body`, `content`. |
 | `Disclosure` | `Disclosure.view({ id, isOpen, onToggle, label, content, icon?, peek?, disabled? }, h)` draws the button, its icon and label, and the panel; `@foldkit/ui`'s disclosure keeps no state, so `Bundles.Disclosure.with({ isOpen? })` holds the flag and `Disclosure.controls(model, onMessage)` is spread into the view. `peek` keeps a height of the shut panel as an inert preview. `Disclosure.configure({ base, presets })` binds the look. `toView` is the adapter for a layout of your own. Draw the panel only while open, or through upstream's `animatePanel`, which keeps a shut panel inert and moves its height itself by an inline transition that the recipe overrides with an important rule, so the `motion` knob scales it and reduced motion snaps it. | `variant`: `plain` (default), `bordered`, `ghost`; `indicator`: `chevron` (default), `none`. Slots `root`, `button`, `icon`, `label`, `panel`. |
@@ -1903,8 +1952,12 @@ disabled one included. Ids the tree does not hold are left out of both. Independ
 checks that do not cascade, and branches whose rows are not loaded yet, are not
 modelled.
 
-A disclosure with its recipe: the recipe draws the button and the panel's box, and
-`animatePanel` keeps the shut panel inert and moves its height.
+### Disclosure
+
+`Disclosure.view` draws the button and the panel from options (see its row above);
+the adapter below is the rung for a layout of your own. The recipe draws the button
+and the panel's box, and `animatePanel` keeps the shut panel inert and moves its
+height.
 
 <!-- docs-check
 declare const ToggledDetails: (payload: { readonly isOpen: boolean }) => Message
@@ -2246,7 +2299,7 @@ in a box of its own.
 | `MessageScroller` | A conversation's log that follows the newest message while the reader is at the end. A small Model: `MessageScroller.init({ id, opens? })` (`end` by default, `start` for a transcript) holds only whether it follows and how many arrived unseen; the scroll position is the browser's, read by its `FollowEnd` Mount. Fold `MessageScroller.update` (or place `Bundles.MessageScroller.with({ id, opens? })`), and send `Message.Appended({ count })` when your update appends messages (not when it loads older ones, which it holds in place). `MessageScroller.view({ model, label, content, onMessage, words?, areaStyle?, areaMixins? }, h)` draws a named `role="log"` in a ScrollArea, with a jump button counting what arrived while away; give its parent a height. | No axis. Slots `root`, `log`, `jump`, `count`. |
 | `ThinkingIndicator` | An assistant at work: `ThinkingIndicator.view({ label?, detail?, active?, icon? }, h)` draws dots, a pulse or the view's icon beside words a band of light sweeps, and a detail line, in a polite status. Keep it drawn with `active: false` before work starts, so what it says when it starts is announced. Every movement holds under reduced motion. | `mark`: `dots`, `pulse`, `none`; `label`: `shimmer`, `plain`, `hidden`; `tone`: `muted`, `accent`. Slots `root`, `mark`, `dot`, `icon`, `label`, `detail`. |
 | `ThinkingSteps` | The trace of what an assistant did. `ThinkingSteps.view({ id, steps, open, onToggle, duration?, summary?, openSteps?, onToggleStep?, words?, trigger? }, h)`. Each step is `{ id, title, state, duration?, detail?, icon?, steps? }`, `state` being `pending`, `running`, `done`, `failed` or `skipped`, said in words too; `href` makes the title a link (such a step never toggles), `trailing` draws beside the row, outside its button. `trigger: 'none'` draws the steps as a plain list. `Bundles.ThinkingSteps.with({ openSteps?, multiple? })` keeps the open state, and `ThinkingSteps.controls(model, onMessage)` feeds the view. The button says the running step's title, or "Thought for 4s". Its openness is an `Option<boolean>`: none opens it while a step runs and shuts it once all are done, and the press sends the state the reader asked for. `openSteps` and `onToggleStep` make each step's detail collapsible. | `variant`: `plain`, `card`; `connector`: `line`, `none`. Slots `root`, `trigger`, `summary`, `chevron`, `panel`, `list`, `step`, `row`, `head`, `marker`, `title`, `link`, `state`, `duration`, `trailing`, `body`, `detail`. |
-| `Questionnaire` | An assistant's questions answered in the chat. A small Model: `Questionnaire.init({ id, questions, layout? })` with `Questionnaire.single`, `multiple` and `text` questions (`Question` is a Schema, so a tool's input decodes into it), folded with `Questionnaire.update`, which says what is missing and focuses it, and returns `OutMessage.Answered({ answers })` once every required question is answered; the form then gives way to a summary. `Questionnaire.view({ model, onMessage, title?, words?, words?, radioGroup?, checkboxGroup?, input?, textarea?, button?, submitButton? }, h)`: the controls are the package's RadioGroup, CheckboxGroup, Input and Textarea, each taking its own style. | `variant`: `plain`, `card`; `actions`: `end`, `start`. Slots `root`, `title`, `progress`, `question`, `prompt`, `words`, `field`, `other`, `otherLabel`, `error`, `actions`, `summary`, `asked`, `answer`. |
+| `Questionnaire` | An assistant's questions answered in the chat. A small Model: `Questionnaire.init({ id, questions, layout? })` with `Questionnaire.single`, `multiple` and `text` questions (`Question` is a Schema, so a tool's input decodes into it), folded with `Questionnaire.update`, which says what is missing and focuses it, and returns `OutMessage.Answered({ answers })` once every required question is answered; the form then gives way to a summary. `Questionnaire.view({ model, onMessage, title?, words?, style?, mixins?, radioGroup?, checkboxGroup?, input?, textarea?, button?, submitButton? }, h)`: the controls are the package's RadioGroup, CheckboxGroup, Input and Textarea, each taking its own style. | `variant`: `plain`, `card`; `actions`: `end`, `start`. Slots `root`, `title`, `progress`, `question`, `prompt`, `words`, `field`, `other`, `otherLabel`, `error`, `actions`, `summary`, `asked`, `answer`. |
 
 ### MessageScroller
 
@@ -2554,7 +2607,8 @@ an autoplaying carousel stopped.
 
 Tabs, Segmented, Nav, Sidebar, TreeView, Menu, Listbox and Combobox take a `fluid` mixin
 list beside the style that glides one highlight, or an indicator, to the item the
-pointer is near and back to the chosen one. A Mount does the measuring and moves it. It
+pointer is near and back to the chosen one; a Table and a Card group take `fluid:
+Table.fluid` and `fluid: Card.fluid`, values passed the same way. A Mount does the measuring and moves it. It
 is off by default because a Scene test resolves every Mount with a Message and these
 send none, so a default would burden the tests of every page that drew one; the same
 reason makes `readingKeys`, `keepFocus`, `focusReturn`, `keepActiveInView` and the
