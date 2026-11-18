@@ -77,6 +77,7 @@ export const SearchField = Style.recipeFor(SearchFieldSlots)({
       glyph(ladder('icon')),
       // The application's own drawing stands in place of the cross.
       Style.nest('&[data-content]::before', { display: 'none' }),
+      Style.nest('&[data-content]', { inlineSize: 'auto', paddingInline: ladder('pad') }),
       hover({ background: unfilledHover, color: ref.text.overt }),
       // Inside the group's own ring, so the two do not draw over each other.
       Style.pseudo(':focus-visible', {

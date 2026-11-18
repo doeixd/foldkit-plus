@@ -9,8 +9,8 @@ const App = Bundle.compose({ password: Schema.String }).pipe(
   Bundle.withChild('field', Bundles.PasswordInput, { args: { visible: true } }),
 )
 
-// `labelAside` stands beside the label, `start` and `end` inside the box, and
-// `words` renames the toggle: all three are the application's to draw.
+// `labelAside` stands beside the label, and
+// `words` renames the toggle: both are the application's to draw.
 export default example({
   title: 'Sign in, in French',
   slots: PasswordInputSlots,
@@ -28,7 +28,6 @@ export default example({
         id: 'sign-in',
         label: 'Mot de passe',
         labelAside: h.span([], ['Oublié ?']),
-        start: h.span([], ['🔒']),
         words: { toggle: 'Afficher le mot de passe' },
         value: model.password,
         onInput: password => onMessage(App.Message.Typed({ password })),

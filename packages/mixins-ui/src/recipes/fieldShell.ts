@@ -22,7 +22,7 @@ export const Field = Style.recipeFor(FieldSlots)({
       Style.nest('&[data-orientation="horizontal"]', {
         gridTemplateColumns: 'minmax(6rem, 12rem) minmax(0, 1fr)',
         columnGap: ref.space.md,
-        alignItems: 'start',
+        alignItems: 'baseline',
       }),
     ),
     header: component(
