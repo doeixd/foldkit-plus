@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ImageAsset, Provider } from 'foldkit-media'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { AvatarGroupSlots, AvatarSlots, group, view } from '../src/avatar.js'
+import { AvatarGroupSlots, AvatarSlots, configure, group, picture, view } from '../src/avatar.js'
 import { Recipes } from '../src/index.js'
 
 const h = SlotView.inertBuilder<never>()
@@ -62,7 +62,10 @@ describe('Avatar view', () => {
     expect(Inert.value(face, 'aria-label')).toBe('Alan Turing, Away')
     const dot = Inert.all(face).find(node => Inert.value(node, 'data-status') !== undefined)
     expect(Inert.value(dot, 'data-status')).toBe('away')
-    const spoken = view({ name: 'Alan Turing', status: 'busy', statusLabel: 'Occupé', style }, h)
+    const spoken = view(
+      { name: 'Alan Turing', status: 'busy', words: { busy: 'Occupé' }, style },
+      h,
+    )
     expect(Inert.value(spoken, 'aria-label')).toBe('Alan Turing, Occupé')
   })
 
@@ -119,6 +122,30 @@ describe('Avatar group', () => {
     expect(Inert.value(drawn(), 'aria-label')).toBe('Editors')
   })
 
+  it('reads the count from words, filling the blank', () => {
+    const drawnIn = group(
+      { people: people.map(name => ({ name })), max: 3, words: { more: '{count} autres' } },
+      h,
+    )
+    expect(Inert.value(Inert.children(drawnIn)[3], 'aria-label')).toBe('2 autres')
+  })
+
+  it('wraps each avatar it draws, and not the count', () => {
+    const wrapped = group(
+      {
+        people: people.map(name => ({ name })),
+        max: 2,
+        wrap: (avatar, person) => h.a([h.Href(`/${person.name}`)], [avatar]),
+      },
+      h,
+    )
+    const [first, second, count] = Inert.children(wrapped)
+    expect(Inert.value(first, 'href')).toBe('/Ada Lovelace')
+    expect(Inert.value(second, 'href')).toBe('/Grace Hopper')
+    expect(Inert.value(count, 'href')).toBeUndefined()
+    expect(Inert.value(count, 'data-rest')).toBe('3')
+  })
+
   it('refuses a max below one', () => {
     expect(() => drawn(0)).toThrow(/max must be a whole number/)
   })
@@ -159,7 +186,10 @@ describe('Avatar with a derived picture', () => {
   )
 
   it('fetches the widths that cover its 1x and 2x, lazily, still unnamed', () => {
-    const face = view({ name: 'Ada Lovelace', src: { asset, provider, width: 32 }, style }, h)
+    const face = view(
+      { name: 'Ada Lovelace', picture: picture({ asset, provider, width: 32 }), style },
+      h,
+    )
     const [image] = Inert.byTag(face, 'img')
     expect(
       ['srcset', 'sizes', 'src', 'loading', 'alt'].map(name => Inert.value(image, name)),
@@ -171,8 +201,48 @@ describe('Avatar with a derived picture', () => {
       sources: [],
       fallback: 'webp',
     })
-    const face = view({ name: 'Ada Lovelace', src: { asset, provider: none, width: 32 }, style }, h)
+    const face = view(
+      { name: 'Ada Lovelace', picture: picture({ asset, provider: none, width: 32 }), style },
+      h,
+    )
     expect(Inert.byTag(face, 'img')).toHaveLength(0)
     expect(Inert.text(face)).toBe('AL')
+  })
+})
+
+describe('Avatar.configure', () => {
+  const App = configure({
+    base: { style, groupStyle: groupStyle, words: { busy: 'Occupé' } },
+    presets: { quiet: { words: { busy: 'Pas dispo' } } },
+  })
+
+  it('binds words and the avatar style, and a preset and the call win in that order', () => {
+    expect(Inert.value(App.view({ name: 'Alan Turing', status: 'busy' }, h), 'aria-label')).toBe(
+      'Alan Turing, Occupé',
+    )
+    expect(
+      Inert.value(
+        App.view({ name: 'Alan Turing', status: 'busy', preset: 'quiet' }, h),
+        'aria-label',
+      ),
+    ).toBe('Alan Turing, Pas dispo')
+    expect(
+      Inert.value(
+        App.view(
+          { name: 'Alan Turing', status: 'busy', preset: 'quiet', words: { busy: 'Non' } },
+          h,
+        ),
+        'aria-label',
+      ),
+    ).toBe('Alan Turing, Non')
+  })
+
+  it('gives a group its avatars’ style and words and its own groupStyle', () => {
+    const people = [{ name: 'Alan Turing', status: 'busy' as const }]
+    expect(App.group({ people }, h)).toEqual(
+      group({ people, words: { busy: 'Occupé' }, style: groupStyle, avatarStyle: style }, h),
+    )
+    // Without the avatar style the avatars would draw differently, so the equality above can fail.
+    expect(App.group({ people }, h)).not.toEqual(group({ people, words: { busy: 'Occupé' } }, h))
   })
 })

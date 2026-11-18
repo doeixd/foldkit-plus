@@ -6,6 +6,7 @@
 const unit = ['packages/mixins-ui/test/avatar.test.ts']
 const browser = ['packages/mixins-ui/test/avatar.browser.test.ts']
 const view = '../src/avatar.ts'
+const picture = '../src/avatar/picture.ts'
 const recipe = '../src/recipes/avatar.ts'
 
 export default [
@@ -23,17 +24,42 @@ export default [
     name: 'a derived picture is drawn as its URL alone',
     edits: [
       {
-        file: view,
-        find: 'onSome: ({ img }) => [imgAttributes(img, h)] },',
-        replace: 'onSome: ({ img }) => [[h.Src(img.src)]] },',
+        file: picture,
+        find: '({ img }) => imgAttributes(img, h),',
+        replace: '({ img }) => [h.Src(img.src)],',
       },
     ],
     tests: unit,
   },
   {
     name: 'a picture the provider lacks draws an empty img',
+    edits: [{ file: view, find: 'onNone: () => [],', replace: 'onNone: () => [[]],' }],
+    tests: unit,
+  },
+  {
+    name: 'the count ignores words',
     edits: [
-      { file: view, find: '{ onNone: () => [], onSome', replace: '{ onNone: () => [[]], onSome' },
+      {
+        file: view,
+        find: 'fill(wordsOf(words, options.words).more, { count: rest })',
+        replace: 'fill(words.more, { count: rest })',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the group does not wrap its avatars',
+    edits: [{ file: view, find: 'around(view({', replace: '(view({' }],
+    tests: unit,
+  },
+  {
+    name: 'a preset’s style does not reach a group’s avatars',
+    edits: [
+      {
+        file: view,
+        find: '...(preset.style === undefined ? {} : { avatarStyle: preset.style }),',
+        replace: '',
+      },
     ],
     tests: unit,
   },

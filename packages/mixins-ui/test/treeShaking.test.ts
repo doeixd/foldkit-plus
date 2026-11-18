@@ -50,11 +50,16 @@ test('an Avatar and its recipe keep no other component', async () => {
     dts: false,
     logLevel: 'silent',
   })
-  const [avatar, everything] = await Promise.all([
+  const [avatar, withPicture, everything] = await Promise.all([
     keptBy(
       'avatar',
       `import { Avatar, AvatarSlots, Recipes } from 'ui'
 export const avatar = [Avatar.view, AvatarSlots, Recipes.Avatar({ color: 'name' })]`,
+    ),
+    keptBy(
+      'avatarPicture',
+      `import { Avatar } from 'ui'
+export const avatar = [Avatar.view, Avatar.picture]`,
     ),
     keptBy('everything', `export * as UI from 'ui'`),
   ])
@@ -63,6 +68,11 @@ export const avatar = [Avatar.view, AvatarSlots, Recipes.Avatar({ color: 'name' 
   expect(ours(avatar).some(id => id.endsWith('/dist/recipes/avatar.js'))).toBe(true)
   expect(ours(avatar).filter(id => /\/dist\/(recipes\/)?popover\.js$/.test(id))).toEqual([])
   expect(avatar.filter(upstream)).toEqual([])
+  // A picture is a value the page passes: the page that passes none ships none of it.
+  const picture = (kept: ReadonlyArray<string>) =>
+    kept.some(id => id.endsWith('/dist/avatar/picture.js'))
+  expect(picture(avatar)).toBe(false)
+  expect(picture(withPicture)).toBe(true)
   // The same walk sees @foldkit/ui where the package does reach it.
   expect(everything.some(upstream)).toBe(true)
 }, 120_000)
