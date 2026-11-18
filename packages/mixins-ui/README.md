@@ -526,7 +526,7 @@ query, the highlighted row and the rows the keys step through.
 
 | Widget | What it is | Recipe and Slots |
 | --- | --- | --- |
-| `Input` | Adapter over `@foldkit/ui`'s Input. `Input.view({ id, value, onInput, type?, placeholder?, name?, readOnly?, required?, autocomplete?, inputMode?, maxLength?, disabled?, invalid?, attributes?, style, draw }, h)`; `Input.field` draws a whole field from a `FieldValidation.Field`. | `size`: `sm`, `md`, `lg`; `variant`: `outline` (default), `filled`. Slots `input`, `label`, `description`. |
+| `Input` | Adapter over `@foldkit/ui`'s Input. `Input.view({ id, value, onInput, type?, placeholder?, name?, readOnly?, required?, autocomplete?, inputMode?, maxLength?, disabled?, invalid?, attributes?, style, label, description?, labelAside?, start?, end? }, h)` draws the field; with `draw` in place of `label` the application places the bundles; `Input.field` draws a whole field from a `FieldValidation.Field`. | `size`: `sm`, `md`, `lg`; `variant`: `outline` (default), `filled`, `ghost`, `underline`. Slots `input`, `label`, `description`, `root`, `header`, `labelAside`, `group`, `start`, `end`. |
 | `Textarea` | `Textarea.view` takes the same and `rows`, `maxRows`, `maxLength`, `count`; `Textarea.field` is the whole field. | `size` and `variant` as Input's; `resize`: `auto` (default), `vertical`, `none`. Slots `textarea`, `label`, `description`, `count`, `frame`, `footer`, `meta`. |
 | `PasswordInput` | `PasswordInput.view({ id, label, value, onInput, visible, onToggle, autocomplete?, toggleLabel?, description?, invalid?, disabled?, name?, required?, attributes? }, h)`: a password field whose toggle (`aria-pressed`, `aria-controls`, one fixed name) shows it as text. `autocomplete` is `current-password` (default) or `new-password`; spellcheck and autocorrect stay off. `strength` is a gauge the app draws (`Meter.view(…, h)`) under the field, so a page with none ships no Meter; `requirements` are `{ label, met }[]` (`PasswordRequirement`), each read as met or not (`requirementStates`); `capsLock: { on, onKey }` says Caps Lock is on, politely, `onKey` given `capsLockOf(key, modifiers)` for each key (an `Option`). The application owns the text, the flag and the Caps Lock reading. | `size` (`sm`, `md`, `lg`). Input's pieces in InputGroup's box; the eye is `Icons.glyph` by `aria-pressed`. Slots `root`, `label`, `group`, `input`, `toggle`, `description`, `strength`, `requirements`, `requirement`, `requirementState`, `capsLock`. |
 | `SearchField` | A native `type="search"` input named by `label`, with a clear button only while there is text. `SearchField.view({ id, label, value, onInput, onClear, placeholder?, invalid?, disabled?, words?, routes?, style?, mixins? }, h)`. See [SearchField](#searchfield). | `size` and `variant` are Input's axes. A magnifier at the start, the clear button at the end (mirrored right to left), the browser's own cancel button hidden. Slots `root`, `input`, `clear`. |
@@ -560,6 +560,37 @@ const emailField = (value: string, h: HtmlBuilder<Message>) =>
     h,
   )
 ```
+
+Given a `label` instead of a `draw`, `Input.view` draws the field itself: the
+label, the control, and the `description` under it, linked to it. `start` and
+`end` are drawn inside the field's box beside the control, and `labelAside`
+stands beside the label, not inside it:
+
+```ts
+import { Input } from 'foldkit-mixins-ui'
+
+const siteField = (value: string, h: HtmlBuilder<Message>) =>
+  Input.view(
+    {
+      id: 'site',
+      label: 'Website',
+      description: 'Without the scheme.',
+      value,
+      onInput: value => Message.TypedSite({ value }),
+      start: h.span([], ['https://']),
+      end: h.span([], ['.com']),
+      style: FieldStyle,
+    },
+    h,
+  )
+```
+
+The box is the `group` Slot (`data-field-group`): it carries the border, the
+focus ring while the control has focus, and the dimming of a disabled field,
+and the control inside goes borderless. With neither `start` nor `end` no group
+is drawn and the control keeps its own border. SearchField, PasswordInput,
+InputCopy and NumberField take the same two options. `variant` is `outline`,
+`filled`, `ghost` or `underline`.
 
 Beyond `type` and `placeholder`, `Input.view` takes `name`, `readOnly`, `required`,
 `autocomplete`, `inputMode` and `maxLength`, so a form that submits natively needs

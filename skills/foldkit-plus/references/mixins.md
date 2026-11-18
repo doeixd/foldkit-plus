@@ -799,6 +799,8 @@ const view = (model: typeof Model.Type, h: HtmlBuilder<Message>) =>
   )
 ```
 
+Given a `label` instead of `draw`, `Input.view` draws the field itself: `Input.view({ id, label, description?, labelAside?, start?, end?, value, onInput, style }, h)`. `start` and `end` (`Adornments`) go inside the field's box (the `group` Slot, which rings on focus and dims when disabled) beside the control, `labelAside` beside the label; with neither, no group is drawn. `Recipes.Input`'s `variant` is `outline`, `filled`, `ghost` or `underline`; `Recipes.Adorned` is the `group`, `start` and `end` pieces for another field's recipe.
+
 Beyond `type` and `placeholder`, `Input.view` takes `name`, `readOnly`, `required`, `autocomplete`, `inputMode` and `maxLength`, so a form that submits natively needs no hand-drawn `input`, and `attributes: { input?, label?, description? }` adds what another component hands a slot (a blur handler, `aria-busy`) before the mixins resolve. `Textarea.view` takes `name`, `required`, `autocomplete` and `attributes` the same way. A field's description (`Input.field`'s and `Textarea.field`'s) is an always-drawn `role="status"` span, even with nothing to say, since a live region announces only what is put into it.
 
 `Input.view`'s and `PasswordInput.view`'s `onInput` is a closure or the `OnInput` attribute

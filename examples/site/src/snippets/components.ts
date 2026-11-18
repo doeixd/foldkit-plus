@@ -191,73 +191,7 @@ export const AlertStyle = forSlots(AlertSlots)(Recipes.Alert({}))
 
 export const CardStyle = forSlots(CardSlots)(Recipes.Card({}))
 
-// #region input-basic
 export const InputStyle = forSlots(InputSlots)(Recipes.Input({}))
-
-export const input = (style: NamedStyle<typeof InputSlots>, h: HtmlBuilder<never>): Html =>
-  Input.view(
-    {
-      id: 'email',
-      name: 'email',
-      type: 'email',
-      autocomplete: 'email',
-      placeholder: 'ada@example.com',
-      described: true,
-      style,
-      draw: (resolved, h) =>
-        h.div(
-          [],
-          [
-            h.label(resolved.label, ['Email']),
-            h.input(resolved.input),
-            h.span(resolved.description, ['We send the receipt here.']),
-          ],
-        ),
-    },
-    h,
-  )
-// #endregion
-
-// #region input-form
-// What a form reads from a field: the `name` it submits under, `required`, what
-// the browser may fill in (`autocomplete`), the keyboard a phone offers
-// (`inputMode`) and a limit (`maxLength`). A `readOnly` value can be read and
-// selected, and is submitted with the rest.
-export const inputForm = (style: NamedStyle<typeof InputSlots>, h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: 'min(20rem, 100%)' })],
-    [
-      Input.view(
-        {
-          id: 'phone',
-          name: 'phone',
-          type: 'tel',
-          autocomplete: 'tel',
-          inputMode: 'tel',
-          required: true,
-          maxLength: 16,
-          placeholder: '+1 555 0100',
-          style,
-          draw: (resolved, h) =>
-            h.div([], [h.label(resolved.label, ['Phone']), h.input(resolved.input)]),
-        },
-        h,
-      ),
-      Input.view(
-        {
-          id: 'order',
-          name: 'order',
-          value: 'ORD-2041',
-          readOnly: true,
-          style,
-          draw: (resolved, h) =>
-            h.div([], [h.label(resolved.label, ['Order']), h.input(resolved.input)]),
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
 
 // #region textarea
 export const TextareaStyle = forSlots(TextareaSlots)(Recipes.Textarea({}))
