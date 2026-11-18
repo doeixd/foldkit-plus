@@ -127,13 +127,9 @@ describe('summaryOf', () => {
   })
 
   it('takes the words from the application', () => {
-    expect(
-      summaryOf(2, {
-        total: 97,
-        perPage: 10,
-        text: (from, to, total) => `${from} to ${to} of ${total} orders`,
-      }),
-    ).toBe('11 to 20 of 97 orders')
+    expect(summaryOf(2, { total: 97, perPage: 10 }, '{from} to {to} of {total} orders')).toBe(
+      '11 to 20 of 97 orders',
+    )
   })
 })
 
@@ -258,7 +254,7 @@ describe('Pagination view', () => {
           previous: 'Précédent',
           next: 'Suivant',
           last: 'Fin',
-          stopLabel: word => `Page ${word}`,
+          stop: 'Page {word}',
         },
       },
       h,
@@ -277,6 +273,35 @@ describe('Pagination view', () => {
       'Page Suivant',
       'Page Fin',
     ])
+  })
+
+  it('words the landmark, the gap, the count, the page-size label and the summary', () => {
+    const nav = view<Message>(
+      {
+        page: 5,
+        pageCount: 10,
+        onPage: page => Message.Go({ page }),
+        words: {
+          label: 'Seiten',
+          ellipsis: '...',
+          ofCount: ' von {count}',
+          perPage: 'Zeilen',
+          summary: '{from}-{to} von {total}',
+        },
+        range: {
+          total: 97,
+          perPage: 10,
+          choose: { sizes: [10, 20], onPerPage: perPage => Message.Go({ page: perPage }) },
+        },
+      },
+      h,
+    )
+    expect(Inert.value(Inert.byTag(nav, 'nav')[0], 'aria-label')).toBe('Seiten')
+    const spans = Inert.byTag(nav, 'span').map(span => Inert.text(span))
+    expect(spans).toContain('...')
+    expect(spans).toContain(' von 10')
+    expect(spans).toContain('41-50 von 97')
+    expect(Inert.text(Inert.byTag(nav, 'label')[0])).toContain('Zeilen')
   })
 
   it('says the rows shown before the stops', () => {

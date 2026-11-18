@@ -9,7 +9,7 @@ export default [
   {
     name: 'the stops ignore the words given',
     edits: [
-      { file: '../src/pagination.ts', find: "options.words?.next ?? 'Next'", replace: "'Next'" },
+      { file: '../src/pagination.ts', find: "text.next", replace: "'Next'" },
     ],
     tests,
   },
@@ -18,8 +18,57 @@ export default [
     edits: [
       {
         file: '../src/pagination.ts',
-        find: '(options.words?.stopLabel ?? pageOf)(text)',
-        replace: 'pageOf(text)',
+        find: 'fill(text.stop, { word })',
+        replace: 'word',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the landmark ignores its word',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: 'h.AriaLabel(text.label)',
+        replace: "h.AriaLabel('Pagination')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the gap ignores its word',
+    edits: [{ file: '../src/pagination.ts', find: '[text.ellipsis])', replace: "['…'])" }],
+    tests,
+  },
+  {
+    name: 'the count after the current stop ignores its word',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: 'fill(text.ofCount, { count })',
+        replace: '` / ${count}`',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the page-size select ignores its label',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: '      text.perPage,\n',
+        replace: "      'Rows per page',\n",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the summary ignores its words',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: 'summaryOf(current, range, text.summary)',
+        replace: 'summaryOf(current, range)',
       },
     ],
     tests,
@@ -161,7 +210,7 @@ export default [
     edits: [
       {
         file: '../src/pagination.ts',
-        find: "stop(count, 'last', options.words?.last ?? 'Last', current === count)",
+        find: "stop(count, 'last', text.last, current === count)",
         replace: "stop(1, 'last', options.words?.last ?? 'Last', current === count)",
       },
     ],

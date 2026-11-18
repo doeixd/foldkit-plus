@@ -1,6 +1,7 @@
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * Page navigation publishes its regions as slots; it owns no state, only the
@@ -77,18 +78,38 @@ export const itemsOf = (
   return items
 }
 
-/** The words of the stops, which are also their names once `stopLabel` has said them. */
+/** Everything a pagination says, as text with `{blanks}`. */
 export interface PaginationWords {
-  /** Default `"First"`. */
-  readonly first?: string | undefined
-  /** Default `"Previous"`. */
-  readonly previous?: string | undefined
-  /** Default `"Next"`. */
-  readonly next?: string | undefined
-  /** Default `"Last"`. */
-  readonly last?: string | undefined
-  /** A stop's accessible name from its words; default `"Next page"`. */
-  readonly stopLabel?: ((word: string) => string) | undefined
+  /** The landmark's accessible name. */
+  readonly label: string
+  readonly first: string
+  readonly previous: string
+  readonly next: string
+  readonly last: string
+  /** A stop's accessible name, `{word}` its words. */
+  readonly stop: string
+  /** What the gap in a long run of pages shows. */
+  readonly ellipsis: string
+  /** What follows the current page's number, `{count}` the pages. */
+  readonly ofCount: string
+  /** The page-size select's label. */
+  readonly perPage: string
+  /** The range's summary, `{from}`, `{to}` and `{total}` its rows. */
+  readonly summary: string
+}
+
+/** The defaults, in English. */
+export const words: PaginationWords = {
+  label: 'Pagination',
+  first: 'First',
+  previous: 'Previous',
+  next: 'Next',
+  last: 'Last',
+  stop: '{word} page',
+  ellipsis: '…',
+  ofCount: ' / {count}',
+  perPage: 'Rows per page',
+  summary: '{from}–{to} of {total}',
 }
 
 /** The rows a page may show, for a select of them; its value is the range's `perPage`. */
@@ -97,8 +118,6 @@ export interface PaginationPerPage<Message> {
   readonly sizes: ReadonlyArray<number>
   /** Sent with the size chosen; the application sets `perPage` and the page that keeps its rows in view. */
   readonly onPerPage: (perPage: number) => Message
-  /** The words before the select; default `"Rows per page"`. */
-  readonly label?: string | undefined
 }
 
 /** The rows a page shows, from 1, and how many there are in all: what `summary` says. */
@@ -107,8 +126,6 @@ export interface PaginationRange<Message = never> {
   readonly total: number
   /** Rows a page shows. */
   readonly perPage: number
-  /** The words; default `"1–10 of 97"`. */
-  readonly text?: ((from: number, to: number, total: number) => string) | undefined
   /** A select of how many rows a page shows, beside the summary. */
   readonly choose?: PaginationPerPage<Message> | undefined
 }
@@ -122,10 +139,8 @@ export interface PaginationView<Message> extends PaginationWindow {
   readonly page: number
   readonly pageCount: number
   readonly onPage: (page: number) => Message
-  /** The landmark's name. Default: `'Pagination'`. */
-  readonly label?: string | undefined
-  /** The stops' words and names, for another language. */
-  readonly words?: PaginationWords | undefined
+  /** The landmark's, stops', gap's and summary's words, for another language. */
+  readonly words?: Partial<PaginationWords> | undefined
   /** Draws the numbered stops; `false` leaves previous and next alone. Default true. */
   readonly numbered?: boolean | undefined
   /** Draws first and last beside previous and next. Default false. */
@@ -138,17 +153,17 @@ export interface PaginationView<Message> extends PaginationWindow {
   readonly mixins?: MixinList<Message> | undefined
 }
 
-const pageOf = (word: string): string => `${word} page`
-
-const shown = (from: number, to: number, total: number): string => `${from}–${to} of ${total}`
-
 /** The first and last row page `page` shows, and the total: `"11–20 of 97"`. */
-export const summaryOf = <Message>(page: number, range: PaginationRange<Message>): string => {
+export const summaryOf = <Message>(
+  page: number,
+  range: PaginationRange<Message>,
+  text: string = words.summary,
+): string => {
   const total = Math.max(0, Math.floor(range.total))
   const perPage = Math.max(1, Math.floor(range.perPage))
   const from = Math.min(total, (page - 1) * perPage + 1)
   const to = Math.min(total, page * perPage)
-  return (range.text ?? shown)(from, to, total)
+  return fill(text, { from, to, total })
 }
 
 export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<Message>): Html => {
@@ -159,21 +174,22 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
     { input: undefined, h },
   )
+  const text = wordsOf(words, options.words)
   const count = Math.max(0, Math.floor(options.pageCount))
   const current = Math.min(count, Math.max(1, Math.floor(options.page)))
   const stop = (
     page: number,
     slot: 'first' | 'prev' | 'next' | 'last',
-    text: string,
+    word: string,
     atEnd: boolean,
   ) =>
     h.button(
       builders[slot].attrs([
         h.Key(slot),
-        h.AriaLabel((options.words?.stopLabel ?? pageOf)(text)),
+        h.AriaLabel(fill(text.stop, { word })),
         ...(atEnd ? [h.AriaDisabled(true)] : [h.OnClick(options.onPage(page))]),
       ]),
-      [text],
+      [word],
     )
   const ends = options.ends === true
   const range = options.range
@@ -183,7 +199,7 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
       ? []
       : [
           h.label(builders.perPage.attrs([h.Key('per-page')]), [
-            choose.label ?? 'Rows per page',
+            text.perPage,
             h.select(
               builders.perPageSelect.attrs([h.OnChange(value => choose.onPerPage(Number(value)))]),
               choose.sizes.map(size =>
@@ -198,13 +214,13 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
   const stops = lone
     ? []
     : [
-        ...(ends ? [stop(1, 'first', options.words?.first ?? 'First', current === 1)] : []),
-        stop(current - 1, 'prev', options.words?.previous ?? 'Previous', current === 1),
+        ...(ends ? [stop(1, 'first', text.first, current === 1)] : []),
+        stop(current - 1, 'prev', text.previous, current === 1),
         ...(options.numbered === false
           ? []
           : itemsOf(current, count, options).map((item, index) =>
               item === 'ellipsis'
-                ? h.span(builders.ellipsis.attrs([h.Key(`ellipsis-${index}`)]), ['…'])
+                ? h.span(builders.ellipsis.attrs([h.Key(`ellipsis-${index}`)]), [text.ellipsis])
                 : h.button(
                     builders.page.attrs([
                       h.Key(`page-${item}`),
@@ -214,22 +230,25 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
                     item === current
                       ? [
                           String(item),
-                          h.span(builders.pageCount.attrs([h.AriaHidden(true)]), [` / ${count}`]),
+                          h.span(builders.pageCount.attrs([h.AriaHidden(true)]), [
+                            fill(text.ofCount, { count }),
+                          ]),
                         ]
                       : [String(item)],
                   ),
             )),
-        stop(current + 1, 'next', options.words?.next ?? 'Next', current === count),
-        ...(ends ? [stop(count, 'last', options.words?.last ?? 'Last', current === count)] : []),
+        stop(current + 1, 'next', text.next, current === count),
+        ...(ends ? [stop(count, 'last', text.last, current === count)] : []),
       ]
-  return h.nav(
-    builders.root.attrs([h.AriaLabel(options.label ?? 'Pagination'), h.Role('navigation')]),
-    [
-      ...(range === undefined
-        ? []
-        : [h.span(builders.summary.attrs([h.Key('summary')]), [summaryOf(current, range)])]),
-      ...perPage,
-      ...stops,
-    ],
-  )
+  return h.nav(builders.root.attrs([h.AriaLabel(text.label), h.Role('navigation')]), [
+    ...(range === undefined
+      ? []
+      : [
+          h.span(builders.summary.attrs([h.Key('summary')]), [
+            summaryOf(current, range, text.summary),
+          ]),
+        ]),
+    ...perPage,
+    ...stops,
+  ])
 }
