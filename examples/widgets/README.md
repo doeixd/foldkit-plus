@@ -102,8 +102,7 @@ These sections load their code when they near the window (`src/lazy.ts`), each f
   file (PDFs and images, five at most, 2 MB each), names a refusal by file, and writes the local files back into the
   input, so a native submit sends exactly the rows, dropped files included. Removing a row moves focus to the next
   row's button, then the previous, then the input.
-- `src/tags-input/` — a topics form where the application folds `TagsInput`'s Messages into its
-  Model. Enter and the comma add tags without submitting; the arrow keys, Home and End walk the chips,
+- `src/tags-input/` — a topics form that places `Bundles.TagsInput` in its Model. Enter and the comma add tags without submitting; the arrow keys, Home and End walk the chips,
   and Delete or Backspace removes one. A draft left in the input is added when focus leaves it
   (`addOnBlur`). One hidden input per tag submits the chips and never the draft.
 - `src/app-keys/` — a Command and a Menubar take keys of the application's through `routes`: Escape
@@ -134,6 +133,44 @@ These sections load their code when they near the window (`src/lazy.ts`), each f
 Only the toolbar and the window list boot with the page, so the first load stays small
 (`test/bundle.test.ts`); every other section is a lazy entry in `src/lazy.ts`. Without an
 `IntersectionObserver` (jsdom) the entry loads them all at once.
+
+### Widgets that keep a Model are placed Bundles
+
+The sections for the tags input, file upload, sheet, tour (with its floating panel), menu rows,
+application keys (the Menubar), focus-kept (the Toast stack), picker and window list do not fold
+the widget by hand. Each `app.ts` names a field and places the widget's `foldkit-bundle` Bundle,
+`Bundles.X` from `foldkit-mixins-ui`, with `Bundle.withChild`. The placement derives the
+`Got<Field>Message` wrapper and the fold, and a widget's OutMessage is answered where it is placed
+(`onOut`, or `Bundle.ignore` where nothing reacts). The application's `update` is left with what is
+its own: here the tour's `Ended` becomes the application's `ending`, and the other Messages are
+`StartedTour` and `OpenedNotes`, which call the placements' helpers.
+
+```ts
+export const App = Bundle.compose({ ending: Schema.Option(Ending) }).pipe(
+  Bundle.withMessages({ StartedTour: {}, OpenedNotes: {} }),
+  Bundle.withChild('tour', Bundles.Tour, {
+    args: { id: `${ISLAND}-tour`, steps },
+    onOut:
+      ({ completed }) =>
+      model => ({
+        model: modifyFields(model, {
+          ending: () => Option.some<Ending>(completed ? 'finished' : 'skipped'),
+        }),
+      }),
+  }),
+  Bundle.withChild('panel', Bundles.FloatingPanel, {
+    args: { id: `${ISLAND}-notes`, rect: { x: 24, y: 96, width: 300, height: 180 } },
+    onOut: Bundle.ignore,
+  }),
+)
+```
+
+Widgets with no Bundle (the toolbar, toggle, accordion and the rest that sit on primitives, the
+Command and Segmented sections, the table, the search field's own `Bundle.make`) keep their
+hand fold. Where a receipt must drop when the widget's value changes (tags input, file upload),
+`update` wraps the placed update and compares the value's identity, since a placement's `onOut`
+only sees what the widget says, not what it replaced. A placed widget's no-op returns the Model it
+was given, which each section's test asserts with `toBe`.
 
 Each folder holds `app.ts` (Model, Message, update) and `view.ts` (the
 SlotView and its `runDemo`). The toolbar's trace lives in `demo.ts`; the search field's
