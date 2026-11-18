@@ -23,8 +23,34 @@ export const ShellStyle = demoStyle.forSlots(AppShellSlots)(
 )
 export const RowsStyle = demoStyle.forSlots(RowListSlots)(RowList({}), { name: 'RowsStyle' })
 export const EditorStyle = demoStyle.forSlots(EditorSlots)(Editor({}), { name: 'EditorStyle' })
-export const FieldStyle = demoStyle.forSlots(FieldSlots)(Field({}), { name: 'TodoField' })
-export const FormStyle = demoStyle.forSlots(FormSlots)(Form({}), { name: 'TodoForm' })
+/** A phone: the page's stack is tighter and the add form's button sits beside its field. */
+const PHONE = '(max-width: 40rem)'
+
+export const FieldStyle = demoStyle.forSlots(FieldSlots)(
+  {
+    ...Field({}),
+    root: Style.compose(
+      Field({}).root,
+      Style.media(PHONE, { flex: '1 1 12rem', minInlineSize: '0' }),
+    ),
+  },
+  { name: 'TodoField' },
+)
+export const FormStyle = demoStyle.forSlots(FormSlots)(
+  {
+    ...Form({}),
+    root: Style.compose(
+      Form({}).root,
+      Style.media(PHONE, {
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'flex-end',
+        gap: t.space.xs,
+      }),
+    ),
+  },
+  { name: 'TodoForm' },
+)
 export const NameStyle = demoStyle.forSlots(InputSlots)(Recipes.Input({ size: 'sm' }), {
   name: 'NameStyle',
 })
@@ -35,8 +61,14 @@ const small = (tone: 'neutral' | 'danger') =>
 
 export const Page = demoStyle.slots(
   {
-    content: L.in('layouts', Layout.stack({ gap: t.space.lg })),
-    heading: Style.self({ margin: '0', fontSize: t.size['2xl'], color: t.text.overt }),
+    content: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.lg })),
+      Style.media(PHONE, { gap: t.space.sm }),
+    ),
+    heading: Style.compose(
+      Style.self({ margin: '0', fontSize: t.size['2xl'], color: t.text.overt }),
+      Style.media(PHONE, { fontSize: t.size.xl }),
+    ),
     lede: Style.self({ margin: '0', maxInlineSize: '38rem', color: t.text.muted }),
     actor: Style.self({
       display: 'grid',
