@@ -8,51 +8,46 @@
  * send.
  */
 import { Effect, Option, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import type { Return } from 'foldkit/update'
-import { FileUpload } from 'foldkit-mixins-ui'
+import { Bundles } from 'foldkit-mixins-ui'
 
 export const ID = 'documents'
 /** The form field the files submit under. */
 export const NAME = 'attachments'
 export const FORM = 'application'
 
-export const Model = Schema.Struct({
-  upload: FileUpload.Model,
+const OwnCases = { Submitted: {}, GotSubmission: { names: Schema.Array(Schema.String) } }
+const Own = defineMessageUnion(OwnCases)
+
+export const App = Bundle.compose({
   /** The names the form held at the last submit, until the list changes. */
   receipt: Schema.Option(Schema.Array(Schema.String)),
-})
+}).pipe(
+  Bundle.withMessages(OwnCases),
+  Bundle.withChild('upload', Bundles.FileUpload, {
+    args: { id: ID, multiple: true, accept: ['.pdf', 'image/*'], maxFiles: 5, maxSize: 2_000_000 },
+    onOut: Bundle.ignore,
+  }),
+)
+export const Model = App.Model
 export type Model = typeof Model.Type
-
-export const Message = defineMessageUnion({
-  GotUpload: { message: FileUpload.Message },
-  Submitted: {},
-  GotSubmission: { names: Schema.Array(Schema.String) },
-})
+export const Message = App.Message
 export type Message = typeof Message.Type
 
-export const initial = (): Model => ({
-  upload: FileUpload.init({
-    id: ID,
-    multiple: true,
-    accept: ['.pdf', 'image/*'],
-    maxFiles: 5,
-    maxSize: 2_000_000,
-  }),
-  receipt: Option.none(),
-})
+export const initial = (): Model => App.placements.initial({ receipt: Option.none() }).model
 
 export const ReadSubmission = Command.define('ReadSubmission', {
   args: { form: Schema.String },
-  messages: [Message.GotSubmission],
+  messages: [Own.GotSubmission],
   execute: ({ form }) =>
     Effect.sync(() => {
       const element = document.getElementById(form)
       const entries = element instanceof HTMLFormElement ? new FormData(element).getAll(NAME) : []
       // An input holding no file still submits one nameless part.
-      return Message.GotSubmission({
+      return Own.GotSubmission({
         names: entries.flatMap(entry =>
           entry instanceof File && entry.name !== '' ? [entry.name] : [],
         ),
@@ -60,25 +55,19 @@ export const ReadSubmission = Command.define('ReadSubmission', {
     }),
 })
 
-export const update = (model: Model, message: Message): Return<Model, Message> =>
-  Message.match(message, {
-    GotUpload: ({ message: inner }) => {
-      const { model: upload, commands } = FileUpload.update(model.upload, inner)
-      return {
-        model:
-          upload === model.upload
-            ? model
-            : modifyFields(model, {
-                upload: () => upload,
-                // The receipt described a list that has changed.
-                receipt: receipt =>
-                  upload.entries === model.upload.entries ? receipt : Option.none(),
-              }),
-        commands: Command.mapMessages(commands ?? [], next => Message.GotUpload({ message: next })),
-      }
-    },
+const updatePlaced = App.placements.update((model, message) =>
+  Own.match(message, {
     Submitted: () => ({ model, commands: [ReadSubmission({ form: FORM })] }),
     GotSubmission: ({ names }) => ({
       model: modifyFields(model, { receipt: () => Option.some(names) }),
     }),
-  })
+  }),
+)
+
+/** A change to the list drops the receipt, which described the list before it. */
+export const update = (model: Model, message: Message) => {
+  const result = updatePlaced(model, message)
+  return result.model.upload.entries === model.upload.entries || Option.isNone(result.model.receipt)
+    ? result
+    : { ...result, model: modifyFields(result.model, { receipt: () => Option.none() }) }
+}

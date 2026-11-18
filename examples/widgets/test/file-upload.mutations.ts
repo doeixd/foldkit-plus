@@ -10,7 +10,7 @@ const browser = ['examples/widgets/test/file-upload.browser.test.ts']
 export default [
   {
     name: 'the widget is given no limits on its kinds',
-    edits: [{ file: app, find: "accept: ['.pdf', 'image/*'],", replace: '' }],
+    edits: [{ file: app, find: "accept: ['.pdf', 'image/*'], ", replace: '' }],
     tests: unit,
   },
   {
@@ -18,19 +18,30 @@ export default [
     edits: [
       {
         file: app,
-        find: 'upload.entries === model.upload.entries ? receipt : Option.none()',
-        replace: 'receipt',
+        find: 'return result.model.upload.entries === model.upload.entries || Option.isNone(result.model.receipt)',
+        replace: 'return true',
       },
     ],
     tests: unit,
   },
   {
-    name: 'an unchanged widget Model is a new Model',
+    name: 'a Message that changes nothing about the list still drops the receipt',
     edits: [
       {
         file: app,
-        find: 'upload === model.upload\n            ? model',
-        replace: 'false\n            ? model',
+        find: 'return result.model.upload.entries === model.upload.entries || Option.isNone(result.model.receipt)',
+        replace: 'return Option.isNone(result.model.receipt)',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'an unchanged Model is a new Model',
+    edits: [
+      {
+        file: app,
+        find: '    ? result\n',
+        replace: '    ? { ...result, model: { ...result.model } }\n',
       },
     ],
     tests: unit,

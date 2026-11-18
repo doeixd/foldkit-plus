@@ -14,7 +14,7 @@ const trace = (): ReadonlyArray<string> => {
   const lines: Array<string> = []
   let model = initial()
   const send = (label: string, message: FileUpload.Message) => {
-    const result = update(model, Message.GotUpload({ message }))
+    const result = update(model, Message.GotUploadMessage({ message }))
     model = result.model
     const commands = (result.commands ?? []).map(command => command.name).join(', ')
     lines.push(

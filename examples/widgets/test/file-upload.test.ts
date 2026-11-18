@@ -13,7 +13,7 @@ const file = (name: string, size = 1, type = 'text/plain') =>
   new File([new Uint8Array(size)], name, { lastModified: 1, type })
 
 const offer = (files: ReadonlyArray<File>) =>
-  Message.GotUpload({ message: FileUpload.Message.Offered({ files, by: 'drop' }) })
+  Message.GotUploadMessage({ message: FileUpload.Message.Offered({ files, by: 'drop' }) })
 
 const resume = file('resume.pdf', 1, 'application/pdf')
 const photo = file('photo.png', 2, 'image/png')
@@ -48,14 +48,15 @@ describe('update', () => {
     expect(dropped.receipt).toEqual(Option.none())
     const dragged = update(
       receipt,
-      Message.GotUpload({ message: FileUpload.Message.DragEntered() }),
+      Message.GotUploadMessage({ message: FileUpload.Message.DragEntered() }),
     ).model
     expect(dragged.receipt).toEqual(Option.some(['resume.pdf']))
   })
 
   it('a no-op returns the Model it was given', () => {
     expect(
-      update(held, Message.GotUpload({ message: FileUpload.Message.DismissedRefusals() })).model,
+      update(held, Message.GotUploadMessage({ message: FileUpload.Message.DismissedRefusals() }))
+        .model,
     ).toBe(held)
   })
 

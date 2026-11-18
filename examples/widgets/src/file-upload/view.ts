@@ -28,7 +28,7 @@ export const FileUploadForm = SlotView.forMessages<Message>()
       FileUpload.view(
         {
           model: model.upload,
-          onMessage: message => Message.GotUpload({ message }),
+          onMessage: message => Message.GotUploadMessage({ message }),
           label: 'browse',
           name: NAME,
           description: 'PDFs and images.',
