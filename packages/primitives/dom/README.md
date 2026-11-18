@@ -481,10 +481,17 @@ Without a window the stream is empty. The CMS example lifts it beside its
 other subscriptions.
 
 ```ts
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import { keepScroll } from 'foldkit-primitives/dom'
 
-const subscriptions = Subscription.make<Model, Message>()(() => ({
+const ShellModel = Schema.Struct({})
+type ShellModel = typeof ShellModel.Type
+const ShellMessage = defineMessageUnion({ Noted: {} })
+type ShellMessage = typeof ShellMessage.Type
+
+const subscriptions = Subscription.make<ShellModel, ShellMessage>()(() => ({
   // The window, for a page that scrolls as a document.
   scroll: Subscription.persistentEntry(keepScroll()),
   // An element, for a shell whose centre column scrolls and the window does not.

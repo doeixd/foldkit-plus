@@ -54,7 +54,7 @@ const Message = defineMessageUnion({
   DraftedSource: { draft: Schema.String },
   MovedInSource: { caret: Schema.Number },
   LeftSource: {},
-  ToggledMenu: { menu: Schema.Literals(['style', 'insert', 'link']), open: Schema.Boolean },
+  ToggledMenu: { menu: Schema.Literals(['style', 'insert', 'link', 'more']), open: Schema.Boolean },
   FocusedControl: { id: Schema.String },
   ToggledFind: {},
   PickedFile: {},
