@@ -32,7 +32,6 @@ import {
   Marquee,
   ImageCropper,
   SignaturePad,
-  QrCode,
   Chart,
   Tour,
 } from 'foldkit-mixins-ui'
@@ -267,8 +266,6 @@ export const Message = defineMessageUnion({
   GotAvatarCrop: { message: ImageCropper.Message },
   GotSignature: { message: SignaturePad.Message },
   GotChart: { example: ChartExample, message: Chart.Message },
-  PressedQrDownload: { format: QrCode.Format },
-  GotQrDownload: { message: QrCode.Message },
   GotTour: { message: Tour.Message },
   StartedTour: {},
 })

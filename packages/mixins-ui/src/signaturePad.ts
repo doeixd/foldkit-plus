@@ -151,6 +151,15 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
+/** What `Bundles.SignaturePad` reports: the answer to a PNG the application asked for. */
+export const OutMessage = defineMessageUnion({
+  /** The signature, drawn: a PNG data URL of `width` by `height` pixels. */
+  ExportedPng: { url: Schema.String, width: Schema.Number, height: Schema.Number },
+  /** Nothing to draw, or the browser could not. */
+  FailedExport: { reason: Schema.String },
+})
+export type OutMessage = typeof OutMessage.Type
+
 /** Points nearer than this to the last, in the pad's pixels, add nothing but noise. */
 const MIN_DISTANCE = 1
 

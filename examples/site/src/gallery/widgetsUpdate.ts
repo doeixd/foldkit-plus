@@ -52,7 +52,6 @@ import {
   HEADING_LAYOUT,
   ROTATION_LAYOUT,
   TOUR,
-  downloadQr,
 } from '../snippets/components.js'
 
 /** The chart examples, each lighting a point of its own. */
@@ -629,14 +628,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ? { model }
         : { model: modifyFields(model, { charts: all => ({ ...all, [example]: chart }) }) }
     },
-    PressedQrDownload: ({ format }) => ({
-      model,
-      commands: Command.mapMessages([downloadQr(format)], message =>
-        Message.GotQrDownload({ message }),
-      ),
-    }),
-    // A saved file needs no word from the page, and a refused one has nowhere to go here.
-    GotQrDownload: () => ({ model }),
     GotTour: ({ message }) => foldTour(model, message),
     StartedTour: () => startTour(model),
     TurnedLevel: ({ value }) =>

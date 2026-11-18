@@ -11,7 +11,6 @@ import {
   Nav as UiNav,
   Popover as UiPopover,
 } from '@foldkit/ui'
-import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import type * as UiVirtualList from '@foldkit/ui/virtualList'
 import type { AnchorConfig } from '@foldkit/ui/anchor'
@@ -41,8 +40,6 @@ import {
   CheckboxGroupSlots,
   Command,
   CommandSlots,
-  FileDrop,
-  FileDropSlots,
   type CommandGroup,
   Menubar,
   MenubarSlots,
@@ -104,14 +101,6 @@ import {
   AngleSliderSlots,
   Timer,
   TimerSlots,
-  Marquee,
-  MarqueeSlots,
-  ImageCropper,
-  ImageCropperSlots,
-  SignaturePad,
-  SignaturePadSlots,
-  QrCode,
-  QrCodeSlots,
   Chart,
   ChartSlots,
   Tour,
@@ -181,49 +170,6 @@ export const SpinnerStyle = forSlots(SpinnerSlots)(Recipes.Spinner({}))
 export const TableStyle = forSlots(TableSlots)(Recipes.Table({}))
 
 export const RadioGroupStyle = forSlots(RadioGroupSlots)(Recipes.RadioGroup({}))
-
-// #region file-drop-basic
-export const FileDropStyle = forSlots(FileDropSlots)(Recipes.FileDrop({}))
-
-/** What the zone has taken: names and sizes, since a Model holds no `File`. */
-export interface Attachments {
-  readonly drop: UiFileDrop.Model
-  readonly attached: ReadonlyArray<{ readonly name: string; readonly size: number }>
-}
-
-/** A zone that takes any number of files; `accept` narrows what the picker offers. */
-export const fileDrop = <Message>(
-  style: NamedStyle<typeof FileDropSlots>,
-  state: Attachments,
-  toMessage: (message: UiFileDrop.Message) => Message,
-  h: HtmlBuilder<Message>,
-  accept: ReadonlyArray<string> = [],
-): Html =>
-  h.submodel({
-    slotId: state.drop.id,
-    model: state.drop,
-    view: UiFileDrop.view,
-    viewInputs: {
-      multiple: true,
-      accept,
-      toView: FileDrop.toView<Message>([style.mixin], { h }, ({ root, input }) =>
-        h.label(root, [
-          h.span([], ['Drop files or click to browse']),
-          h.span(
-            [],
-            [
-              state.attached.length === 0
-                ? 'Nothing attached yet.'
-                : `${state.attached.length} attached: ${state.attached.map(file => file.name).join(', ')}`,
-            ],
-          ),
-          h.input(input),
-        ]),
-      ),
-    },
-    toParentMessage: toMessage,
-  })
-// #endregion
 
 // #region slider-basic
 export const SliderStyle = forSlots(SliderSlots)(Recipes.Slider({}))
@@ -1985,224 +1931,6 @@ export const angleSliderMarks = <Message>(
     },
     h,
   )
-// #endregion
-
-// #region marquee-basic
-export const MarqueeStyle = forSlots(MarqueeSlots)(Recipes.Marquee({}))
-
-const CUSTOMERS = ['Acme', 'Globex', 'Initech', 'Umbrella', 'Hooli', 'Stark']
-
-/** What it measured and whether it is paused are the marquee's Model, folded with `Marquee.update`. */
-export const marquee = <Message>(
-  style: NamedStyle<typeof MarqueeSlots>,
-  model: Marquee.Model,
-  onMessage: (message: Marquee.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Marquee.view(
-    {
-      model,
-      onMessage,
-      label: 'Our customers',
-      items: CUSTOMERS.map(name => h.strong([], [name])),
-      speed: 40,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region marquee-vertical
-export const marqueeVertical = <Message>(
-  style: NamedStyle<typeof MarqueeSlots>,
-  model: Marquee.Model,
-  onMessage: (message: Marquee.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ blockSize: '8rem' })],
-    [
-      Marquee.view(
-        {
-          model,
-          onMessage,
-          label: 'Latest news',
-          items: ['Release 1.2 is out', 'New docs site', 'Meetup on Friday'].map(line =>
-            h.span([], [line]),
-          ),
-          side: 'top',
-          speed: 20,
-          style,
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
-
-// #region image-cropper-basic
-export const ImageCropperStyle = forSlots(ImageCropperSlots)(Recipes.ImageCropper({}))
-// The zoom is a Slider; its label is the cropper's to say.
-const ZoomStyle = forSlots(SliderSlots)(Recipes.Slider({ label: 'hidden' }))
-
-/** An 800 by 600 landscape, standing in for an upload. */
-export const LANDSCAPE = `data:image/svg+xml,${encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600"><rect width="800" height="600" fill="hsl(205 70% 82%)"/><circle cx="610" cy="150" r="70" fill="hsl(45 95% 65%)"/><path d="M0 460 L230 250 L420 430 L560 320 L800 500 V600 H0 Z" fill="hsl(150 30% 45%)"/></svg>`,
-)}`
-
-/** The crop, zoom and turn are the cropper's Model, folded with `update`; the image is the page's. */
-export const imageCropper = <Message>(
-  style: NamedStyle<typeof ImageCropperSlots>,
-  model: ImageCropper.Model,
-  onMessage: (message: ImageCropper.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ inlineSize: 'min(32rem, 100%)' })],
-    [
-      ImageCropper.view(
-        {
-          model,
-          onMessage,
-          label: 'Crop the photo',
-          src: LANDSCAPE,
-          style,
-          zoom: ImageCropper.zoomSlider(ZoomStyle),
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
-
-// #region image-cropper-avatar
-// A round crop at an aspect of 1, in a square well: its Model from
-// `ImageCropper.init({ id, shape: 'round', aspect: 1 })`.
-export const AvatarCropStyle = forSlots(ImageCropperSlots)(
-  Recipes.ImageCropper({ viewport: 'square', handles: 'corners' }),
-)
-
-/**
- * `RequestedExport` answers with `Exported`, a PNG of the crop as a data URL,
- * which the page keeps to show (`url`).
- */
-export const avatarCropper = <Message>(
-  style: NamedStyle<typeof ImageCropperSlots>,
-  model: ImageCropper.Model,
-  url: Option.Option<string>,
-  onMessage: (message: ImageCropper.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: 'min(20rem, 100%)' })],
-    [
-      ImageCropper.view(
-        {
-          model,
-          onMessage,
-          label: 'Profile picture',
-          src: LANDSCAPE,
-          controls: { rotate: false },
-          style,
-          zoom: ImageCropper.zoomSlider(ZoomStyle),
-        },
-        h,
-      ),
-      h.div(
-        [h.Style({ display: 'flex', gap: '0.75rem', alignItems: 'center' })],
-        [
-          Button.view(
-            {
-              label: 'Use this crop',
-              onClick: onMessage(
-                ImageCropper.Message.RequestedExport({ type: 'image/png', quality: 1 }),
-              ),
-              style: ButtonStyle,
-            },
-            h,
-          ),
-          ...Option.match(url, {
-            onNone: () => [],
-            onSome: src => [
-              h.img([
-                h.Src(src),
-                h.Alt('The cropped picture'),
-                h.Style({ inlineSize: '3rem', blockSize: '3rem', borderRadius: '50%' }),
-              ]),
-            ],
-          }),
-        ],
-      ),
-    ],
-  )
-// #endregion
-
-// #region signature-pad-basic
-export const SignaturePadStyle = forSlots(SignaturePadSlots)(Recipes.SignaturePad({}))
-
-/** The strokes and the typed name are the pad's Model, folded with `update`. */
-export const signaturePad = <Message>(
-  style: NamedStyle<typeof SignaturePadSlots>,
-  model: SignaturePad.Model,
-  onMessage: (message: SignaturePad.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ inlineSize: 'min(28rem, 100%)' })],
-    [SignaturePad.view({ model, onMessage, label: 'Signature', style }, h)],
-  )
-// #endregion
-
-// #region qr-code-basic
-export const QrCodeStyle = forSlots(QrCodeSlots)(Recipes.QrCode({}))
-
-export const qrCode = (style: NamedStyle<typeof QrCodeSlots>, h: HtmlBuilder<never>): Html =>
-  QrCode.view({ id: 'preview-qr', value: 'https://foldkit-plus.pages.dev', style }, h)
-// #endregion
-
-// #region qr-code-logo
-const LOGO = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#4f46e5"/><path d="M10 9h12v4h-8v3h7v4h-7v6h-4z" fill="#fff"/></svg>',
-)}`
-
-// An overlay raises the error correction to H, so the code still reads under it.
-export const qrCodeLogo = (style: NamedStyle<typeof QrCodeSlots>, h: HtmlBuilder<never>): Html =>
-  QrCode.view(
-    {
-      id: 'logo-qr',
-      value: 'https://foldkit-plus.pages.dev/components',
-      label: 'QR code for the Foldkit Plus components',
-      overlay: h.img([h.Src(LOGO), h.Alt('')]),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region qr-code-download
-// The buttons send a Message; `update` answers it with `QrCode.Download`.
-export const qrCodeDownload = <Message>(
-  style: NamedStyle<typeof QrCodeSlots>,
-  onDownload: (format: QrCode.Format) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
-    [
-      QrCode.view({ id: 'download-qr', value: 'WIFI:T:WPA;S:Guests;P:welcome-in;;', style }, h),
-      h.div(
-        [h.Style({ display: 'flex', gap: '0.5rem' })],
-        [
-          Button.view({ label: 'Download PNG', onClick: onDownload('png'), style: ButtonStyle }, h),
-          Button.view({ label: 'Download SVG', onClick: onDownload('svg'), style: ButtonStyle }, h),
-        ],
-      ),
-    ],
-  )
-
-/** In `update`: the drawn code, saved in the colors the page shows it in. */
-export const downloadQr = (format: QrCode.Format) =>
-  QrCode.Download({ id: 'download-qr', format, filename: 'guest-wifi', pixels: 512 })
 // #endregion
 
 export const ChartStyle = forSlots(ChartSlots)(Recipes.Chart({}))

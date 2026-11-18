@@ -47,8 +47,8 @@ export default [
     edits: [
       {
         file: '../src/fileDrop.ts',
-        find: 'Schema.NonEmptyArray(Schema.instanceOf(File))',
-        replace: 'Schema.Array(Schema.instanceOf(File))',
+        find: 'DroppedFiles: { files: Schema.NonEmptyArray(Schema.instanceOf(File)) },',
+        replace: 'DroppedFiles: { files: Schema.Array(Schema.instanceOf(File)) },',
       },
     ],
     tests,
@@ -58,8 +58,8 @@ export default [
     edits: [
       {
         file: '../src/fileDrop.ts',
-        find: 'Schema.NonEmptyArray(Schema.instanceOf(File))',
-        replace: 'Schema.NonEmptyArray(Schema.Any)',
+        find: 'DroppedFiles: { files: Schema.NonEmptyArray(Schema.instanceOf(File)) },',
+        replace: 'DroppedFiles: { files: Schema.NonEmptyArray(Schema.Any) },',
       },
     ],
     tests,

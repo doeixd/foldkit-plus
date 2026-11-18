@@ -379,6 +379,15 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
+/** What `Bundles.ImageCropper` reports: the answer to an export the application asked for. */
+export const OutMessage = defineMessageUnion({
+  /** The crop, drawn: a data URL of `width` by `height` pixels. */
+  Exported: { url: Schema.String, width: Schema.Number, height: Schema.Number },
+  /** Nothing to draw yet, or the browser refused (an image of another origin, say). */
+  FailedExport: { reason: Schema.String },
+})
+export type OutMessage = typeof OutMessage.Type
+
 const keys: ReadonlySet<string> = new Set([
   'ArrowLeft',
   'ArrowRight',
