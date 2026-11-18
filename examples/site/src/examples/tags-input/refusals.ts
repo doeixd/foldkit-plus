@@ -14,12 +14,11 @@ export default example({
         onMessage,
         label: 'Topics',
         placeholder: 'Type effect again',
-        refusalText: refusal =>
-          TagsInput.Refusal.match(refusal, {
-            Repeat: ({ tag }) => `“${tag}” is on the list already.`,
-            Empty: () => 'Type a topic first.',
-            Full: ({ max }) => `That makes more than ${max}.`,
-          }),
+        words: {
+          repeat: '“{tag}” is on the list already.',
+          empty: 'Type a topic first.',
+          full: 'That makes more than {max}.',
+        },
         style,
       },
       h,

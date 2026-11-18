@@ -151,8 +151,8 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
   one point keeps a decorative, hidden handle; a `handle: 'none'` application moves its
   sheet with `SnappedTo` from a control of its own. `DialogContext` takes `interactiveHandle`.
 - `foldkit-mixins-ui`: `TagsInput.view` takes `words` (`TagsInput.TagsInputWords`): `remove`,
-  a function of the tag for the remove button's accessible name (default `Remove <tag>`),
-  and `mark`, what it draws (default `×`).
+  the remove button's accessible name (default `Remove {tag}`), and `mark`, what it draws
+  (default `×`).
 - `foldkit-mixins-ui`: `TagsInput.view` takes `name`, which draws one hidden input per tag
   (`TagsInputSlots.hiddenInput`) so a form submits the tags, in order, and not the draft.
 - `foldkit-mixins-ui`: `TagsInput.view` takes `addOnBlur`, which adds the draft when the input
@@ -840,6 +840,7 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
 
 ### Changed
 
+- `foldkit-mixins-ui`: **Breaking:** `TagsInput`'s words are text with `{blanks}`, as every widget's (#589). `words.remove` is a string (`'Remove {tag}'`, not a function of the tag), and `refusalText` is gone: the refusals are `words.repeat` (`'{tag} is already added'`), `words.empty` and `words.full` (`'At most {max} tags'`). `words` is `Partial<TagsInputWords>`, the defaults are `TagsInput.words`, and `configure` merges them word by word. Before: `refusalText: refusal => …` and `words: { remove: tag => … }`; after: `words: { repeat: '{tag} is on the list', remove: 'Uninvite {tag}' }`. A function cannot sit in a submodel's view inputs.
 - `foldkit-mixins-ui`: **Breaking:** the Combobox's `chips` view input is `{}`: its `label` and `removeLabel` functions are gone (#589). A function below the top level of a submodel's view inputs throws when drawn, so neither could be passed through `h.submodel`; a chip is now labelled by `itemToDisplayText`, and its remove button named by `words.remove` (`Remove {label}`).
 - `foldkit-mixins-ui`: `ComboboxSlots`, `Combobox.fluid` and `Combobox.overlayBars` are files of their own (`combobox/slots`, `combobox/fluid`, `combobox/overlayBars`), re-exported under the same names (#589). A page that passes neither mixin no longer keeps `FluidHover`, `Measure` and `ScrollBars` (about 3 kB brotli, measured in Phase 0).
 - `foldkit-mixins-ui`: **Breaking:** the Calendar's `Dropdowns.labels` (`{ month, year }`, both required) is `words` (`{ month?, year? }`), as every widget's fixed text is (#589). `ResolvedCaption` has a fourth variant, `YearDropdown`, so a `render` that matches every caption must draw it, and a `ResolvedDays` built by hand gives `pagingAtEnd`. `Calendar.Selection`, its readers and `Shown`, `show` and `alongside` moved to modules of their own (`calendar/selection`, `calendar/shown`); `Calendar` re-exports every name, so nothing an application imports changes.

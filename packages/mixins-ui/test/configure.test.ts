@@ -77,11 +77,11 @@ describe('TagsInput.configure', () => {
   const model = TagsInput.init({ id: 'topics', tags: ['a'] })
   const App = TagsInput.configure({
     base: { placeholder: 'Add a topic', words: { mark: '✕' } },
-    presets: { french: { words: { remove: tag => `Retirer ${tag}` } } },
+    presets: { french: { words: { remove: 'Retirer {tag}' } } },
   })
   const drawn = (options: {
     readonly preset?: 'french'
-    readonly words?: TagsInput.TagsInputWords
+    readonly words?: Partial<TagsInput.TagsInputWords>
     readonly placeholder?: string
   }) => App.view({ model, onMessage: () => message('Clicked'), label: 'Topics', ...options }, h)
   const remove = (html: ReturnType<typeof drawn>) => {

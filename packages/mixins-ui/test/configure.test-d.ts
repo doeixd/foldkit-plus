@@ -95,6 +95,25 @@ test('TagsInput’s configured view takes the Model and lifts its Messages', () 
   TagsInput.configure({ presets: { odd: { direction: 'ltl' } } })
 })
 
+test('TagsInput’s words are text, each of the widget’s own', () => {
+  TagsInput.configure({ base: { words: { remove: 'Retirer {tag}', full: 'Au plus {max}' } } })
+  expectTypeOf(TagsInput.words).toEqualTypeOf<TagsInput.TagsInputWords>()
+  // @ts-expect-error a word is text, not a function of the tag.
+  TagsInput.configure({ base: { words: { remove: (tag: string) => tag } } })
+  TagsInput.view(
+    {
+      model: TagsInput.init({ id: 'a' }),
+      onMessage: () => Message.Clicked(),
+      label: 'A',
+      // @ts-expect-error `refusalText` is gone: the refusals are words.
+      refusalText: () => '',
+    },
+    h,
+  )
+  // @ts-expect-error `retry` is no word of a TagsInput.
+  TagsInput.configure({ base: { words: { retry: 'again' } } })
+})
+
 test('FileUpload’s configured view and parts keep the Message, and a preset holds no Model or sort', () => {
   const zone = Style.forSlots(FileUploadSlots)({ root: Style.class('zone') })
   const Upload = FileUpload.configure({

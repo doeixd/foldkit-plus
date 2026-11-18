@@ -6,7 +6,7 @@ import { example } from '../../gallery/example.js'
 // the application's words.
 const Tags = TagsInput.configure({
   base: { addOnBlur: true, placeholder: 'Add and press Enter', words: { mark: '✕' } },
-  presets: { people: { placeholder: 'Add a person', words: { remove: tag => `Uninvite ${tag}` } } },
+  presets: { people: { placeholder: 'Add a person', words: { remove: 'Uninvite {tag}' } } },
 })
 
 export default example({

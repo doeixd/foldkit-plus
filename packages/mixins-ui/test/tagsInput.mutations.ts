@@ -467,8 +467,8 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: 'options.words?.remove?.(tag) ?? ',
-        replace: '',
+        find: 'h.AriaLabel(fill(text.remove, { tag })),',
+        replace: 'h.AriaLabel(`Remove ${tag}`),',
       },
     ],
     tests: [unit],
@@ -478,8 +478,41 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: "options.words?.mark ?? '×'",
-        replace: "'×'",
+        find: '[text.mark],',
+        replace: "['×'],",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a repeat refusal ignores the words',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Repeat: ({ tag }) => fill(text.repeat, { tag }),',
+        replace: 'Repeat: ({ tag }) => `${tag} is already added`,',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an empty refusal ignores the words',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Empty: () => text.empty,',
+        replace: "Empty: () => 'Type a tag to add',",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a full refusal ignores the words',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Full: ({ max }) => fill(text.full, { max }),',
+        replace: 'Full: ({ max }) => `At most ${max} tags`,',
       },
     ],
     tests: [unit],

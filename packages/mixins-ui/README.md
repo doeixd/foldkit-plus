@@ -659,11 +659,13 @@ The search `update` answers `Cleared` with `SearchField.Focus({ id: 'find' })`.
 ### TagsInput
 
 The tags are a list of chips named by the label, each with a `Remove <tag>`
-button (`words` words its name and its `×`), then a text input. Enter or the
+button (`words.remove` names it, `words.mark` is its `×`), then a text input. Enter or the
 delimiter (default `,`) adds the draft split at the delimiter and trimmed,
 refusing empty and repeated parts and parts past `max`: a refusal
 (`TagsInput.Refusal`: `Repeat`, `Empty`, `Full`) is said in a polite `message`
-(worded by `refusalText`) and shakes the field once, the shake travel-aware.
+(worded by `words.repeat`, `words.empty` and `words.full`) and shakes the field
+once, the shake travel-aware. Words are text with blanks, `{tag}` and `{max}`;
+`TagsInput.words` holds the English defaults and `words` takes any of them.
 `addOnBlur` adds the draft when the input loses focus (off by default).
 
 Backspace in an empty input removes the last tag (`Message.BackspacedEmpty`, sent
