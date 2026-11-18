@@ -40,12 +40,12 @@ export default [
     tests,
   },
   {
-    name: 'the dialog does not close',
+    name: 'the palette does not close on a run',
     edits: [
       {
         file: widgets,
-        find: '  ...dialogField,\n  update: UiDialog.close,',
-        replace: '  ...dialogField,\n  update: UiDialog.open,',
+        find: '  ...paletteField,\n  update: UiDialog.close,',
+        replace: '  ...paletteField,\n  update: UiDialog.open,',
       },
     ],
     tests,
@@ -59,11 +59,6 @@ export default [
         replace: 'modifyFields(model, { pageChoice: () => Option.none() })',
       },
     ],
-    tests,
-  },
-  {
-    name: 'saving the draft says something else',
-    edits: [{ file: widgets, find: "title: 'Draft saved'", replace: "title: 'Saved'" }],
     tests,
   },
   {
@@ -84,17 +79,6 @@ export default [
         file: widgets,
         find: '[example]: CheckboxGroup.toggled(alerts[example], value),',
         replace: 'invalid: CheckboxGroup.toggled(alerts[example], value),',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a drawer press is not kept',
-    edits: [
-      {
-        file: widgets,
-        find: ': { model: modifyFields(model, { drawer: () => drawer }) }',
-        replace: ': { model }',
       },
     ],
     tests,

@@ -4,53 +4,25 @@
  * focus, a drag or an open popup and this Model owns the choice. The site
  * holds one of these and folds `Message` into it.
  */
-import { Duration, Effect, Match, Option, Schema } from 'effect'
+import { Match, Option } from 'effect'
 import { Subscription, Update } from 'foldkit'
 import * as Command from 'foldkit/command'
 import { makeModifyFieldsFor, modifyFields } from 'foldkit/struct'
-import {
-  Calendar as UiCalendar,
-  Dialog as UiDialog,
-  HoverIntent as UiHoverIntent,
-  Popover as UiPopover,
-} from '@foldkit/ui'
+import { Calendar as UiCalendar, Dialog as UiDialog } from '@foldkit/ui'
 import {
   CheckboxGroup,
-  Dialog,
   Menubar,
   Calendar as DateSelection,
   Menu,
   Nav,
-  Sheet,
-  Drawer,
   Command as CommandMenu,
-  Toast,
   AngleSlider,
   Chart,
 } from 'foldkit-mixins-ui'
-import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as Fields from './fields.js'
 
-import {
-  MENUBAR,
-  ViewOptions,
-  Notices,
-  HEADING_LAYOUT,
-  ROTATION_LAYOUT,
-} from '../snippets/components.js'
-
-/** The chart examples, each lighting a point of its own. */
-import {
-  DialogExample,
-  Message,
-  Model,
-  NavExample,
-  PopoverExample,
-  SheetExample,
-  ToastExample,
-  TooltipExample,
-  type Step,
-} from './widgets.js'
+import { MENUBAR, ViewOptions, HEADING_LAYOUT, ROTATION_LAYOUT } from '../snippets/components.js'
+import { Message, Model, NavExample, type Step } from './widgets.js'
 
 /**
  * Whether `message` closes a menu only because the reader looked away: a
@@ -87,87 +59,6 @@ const own = <K extends keyof Model, ChildMessage>(
 const same: Step = model => ({ model })
 
 const dialogOut = UiDialog.OutMessage.match<Step>({ Opened: () => same, Closed: () => same })
-const dialogField = own('dialog', Message.GotDialog)
-const foldDialog = Update.foldChild({
-  ...dialogField,
-  update: UiDialog.update,
-  foldOutMessage: dialogOut,
-})
-const openDialog = Update.foldChildStep({
-  ...dialogField,
-  update: UiDialog.open,
-  foldOutMessage: dialogOut,
-})
-const closeDialog = Update.foldChildStep({
-  ...dialogField,
-  update: UiDialog.close,
-  foldOutMessage: dialogOut,
-})
-
-const alertField = own('alertDialog', Message.GotAlertDialog)
-const foldAlertDialog = Update.foldChild({
-  ...alertField,
-  update: UiDialog.update,
-  foldOutMessage: dialogOut,
-})
-const openAlertDialog = Update.foldChildStep({
-  ...alertField,
-  update: UiDialog.open,
-  foldOutMessage: dialogOut,
-})
-const closeAlertDialog = Update.foldChildStep({
-  ...alertField,
-  update: UiDialog.close,
-  foldOutMessage: dialogOut,
-})
-
-const foldPopover = Update.foldChildAt({
-  update: UiPopover.update,
-  readAt: (model: Model, example: PopoverExample) => Option.some(model.popovers[example]),
-  writeAt: (model, example, popover) =>
-    modifyFields(model, { popovers: popovers => ({ ...popovers, [example]: popover }) }),
-  toParentMessage: (example, message) => Message.GotPopover({ example, message }),
-  foldOutMessage: () =>
-    UiPopover.OutMessage.match<Step>({ Opened: () => same, Closed: () => same }),
-})
-
-/** One dialog example stepped: by its own Message, or opened or closed. */
-const foldDialogAt = Update.foldChildAt({
-  update: (
-    dialog: UiDialog.Model,
-    step: (dialog: UiDialog.Model) => ReturnType<typeof UiDialog.update>,
-  ) => step(dialog),
-  readAt: (model: Model, example: DialogExample) => Option.some(model.dialogs[example]),
-  writeAt: (model, example, dialog) =>
-    modifyFields(model, { dialogs: dialogs => ({ ...dialogs, [example]: dialog }) }),
-  toParentMessage: (example, message) => Message.GotDialogAt({ example, message }),
-  foldOutMessage: () => dialogOut,
-})
-
-/** One sheet example stepped: by its own Message, or opened or closed. */
-const foldSheet = Update.foldChildAt({
-  update: (sheet: Sheet.Model, step: (sheet: Sheet.Model) => Sheet.Return) => step(sheet),
-  readAt: (model: Model, example: SheetExample) => Option.some(model.sheets[example]),
-  writeAt: (model, example, sheet) =>
-    modifyFields(model, { sheets: sheets => ({ ...sheets, [example]: sheet }) }),
-  toParentMessage: (example, message) => Message.GotSheet({ example, message }),
-  foldOutMessage: () => dialogOut,
-})
-
-const foldHoverCard = Update.foldChild({
-  ...own('hoverCard', Message.GotHoverCard),
-  update: UiHoverIntent.update,
-  foldOutMessage: UiHoverIntent.OutMessage.match<Step>({ Opened: () => same, Closed: () => same }),
-})
-
-const foldTooltip = Update.foldChildAt({
-  update: UiTooltip.update,
-  readAt: (model: Model, example: TooltipExample) => Option.some(model.tooltips[example]),
-  writeAt: (model, example, tooltip) =>
-    modifyFields(model, { tooltips: tooltips => ({ ...tooltips, [example]: tooltip }) }),
-  toParentMessage: (example, message) => Message.GotTooltip({ example, message }),
-  foldOutMessage: () => UiTooltip.OutMessage.match<Step>({ Shown: () => same, Hidden: () => same }),
-})
 
 /** What each menu last chose is the Model's; the menu has already closed. */
 const chosenOf = ({
@@ -267,55 +158,6 @@ const closePalette = Update.foldChildStep({
   foldOutMessage: dialogOut,
 })
 
-/** The toasts' Commands, as this Model's Messages for the stack they came from. */
-const toastCommands = (
-  example: ToastExample,
-  commands: ReadonlyArray<Command.Command<Toast.Message>> | undefined,
-) => Command.mapMessages(commands ?? [], message => Message.GotToast({ example, message }))
-
-/** `input` shown on one example's stack. */
-const showToast = (
-  model: Model,
-  example: ToastExample,
-  input: Toast.ToastInput,
-): Update.Return<Model, Message> & { readonly id: string } => {
-  const shown = Toast.show(model.toasts[example], input)
-  return {
-    id: shown.id,
-    model: modifyFields(model, { toasts: toasts => ({ ...toasts, [example]: shown.model }) }),
-    commands: toastCommands(example, shown.commands),
-  }
-}
-
-const TOAST_TITLES: ReadonlyMap<Toast.Type, string> = new Map([
-  ['default', 'Event created'],
-  ['info', 'A new version is out'],
-  ['success', 'Changes saved'],
-  ['warning', 'Your session ends in 5 minutes'],
-  ['error', 'The file could not be read'],
-])
-
-/** Waits as an upload would, then says it is done. */
-const FinishUpload = Command.define('FinishUpload', {
-  args: { id: Schema.String },
-  messages: [Message.FinishedUpload],
-  execute: ({ id }) =>
-    Effect.sleep(Duration.millis(1500)).pipe(Effect.as(Message.FinishedUpload({ id }))),
-})
-
-const foldToast = Update.foldChildAt({
-  update: Toast.update,
-  readAt: (model: Model, example: ToastExample) => Option.some(model.toasts[example]),
-  writeAt: (model, example, stack) =>
-    modifyFields(model, { toasts: toasts => ({ ...toasts, [example]: stack }) }),
-  toParentMessage: (example, message) => Message.GotToast({ example, message }),
-  // The archive's Undo: the thread is back, and a toast says so.
-  foldOutMessage: example =>
-    Toast.OutMessage.match<Step>({
-      Acted: () => model => showToast(model, example, { type: 'info', title: 'Thread restored' }),
-    }),
-})
-
 const foldTripCalendar = Update.foldChild({
   ...own('trip', Message.GotTripCalendar),
   update: UiCalendar.update,
@@ -331,19 +173,6 @@ const foldTripCalendar = Update.foldChild({
   }),
 })
 
-const noticesField = own('notices', Message.GotNotices)
-const noticesOut = Notices.OutMessage.match<Step>({ DismissedToast: () => same })
-const foldNotices = Update.foldChild({
-  ...noticesField,
-  update: Notices.update,
-  foldOutMessage: noticesOut,
-})
-const notify = Update.foldChild({
-  ...noticesField,
-  update: Notices.show,
-  foldOutMessage: noticesOut,
-})
-
 const foldHeading = Update.foldChild({
   ...own('heading', Message.GotHeading),
   update: AngleSlider.update(HEADING_LAYOUT),
@@ -357,31 +186,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
   Message.match(message, {
     TurnedVolume: ({ value }) =>
       value === model.volume ? { model } : { model: modifyFields(model, { volume: () => value }) },
-    GotDialog: ({ message }) => foldDialog(model, message),
-    OpenedDialog: () => openDialog(model),
-    ClosedDialog: () => closeDialog(model),
-    // An alert dialog answers only to its buttons: Escape and the backdrop do nothing.
-    GotAlertDialog: ({ message }) =>
-      Dialog.isDismissal(message) ? { model } : foldAlertDialog(model, message),
-    OpenedAlertDialog: () => openAlertDialog(model),
-    ClosedAlertDialog: () => closeAlertDialog(model),
-    GotDrawer: ({ message }) => {
-      const drawer = Drawer.update(model.drawer, message)
-      return drawer === model.drawer
-        ? { model }
-        : { model: modifyFields(model, { drawer: () => drawer }) }
-    },
-    GotSheet: ({ example, message }) =>
-      foldSheet(model, example, sheet => Sheet.update(sheet, message)),
-    OpenedSheet: ({ example }) => foldSheet(model, example, Sheet.open),
-    ClosedSheet: ({ example }) => foldSheet(model, example, Sheet.close),
-    GotDialogAt: ({ example, message }) =>
-      foldDialogAt(model, example, dialog => UiDialog.update(dialog, message)),
-    OpenedDialogAt: ({ example }) => foldDialogAt(model, example, UiDialog.open),
-    ClosedDialogAt: ({ example }) => foldDialogAt(model, example, UiDialog.close),
-    GotPopover: ({ example, message }) => foldPopover(model, example, message),
-    GotTooltip: ({ example, message }) => foldTooltip(model, example, message),
-    GotHoverCard: ({ message }) => foldHoverCard(model, message),
     GotFileMenu: ({ message }) => foldFileMenu(model, message),
     TypedCommand: ({ query }) => ({
       model: modifyFields(model, { commandQuery: () => query }),
@@ -432,36 +236,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       model.palettePages.length === 0
         ? { model }
         : { model: modifyFields(model, { palettePages: pages => pages.slice(0, -1) }) },
-    GotToast: ({ example, message }) => foldToast(model, example, message),
-    RaisedToast: ({ example, type }) =>
-      showToast(model, example, {
-        type,
-        title: TOAST_TITLES.get(type) ?? type,
-        description: 'Just now',
-      }),
-    StartedUpload: () => {
-      const shown = showToast(model, 'promise', { type: 'loading', title: 'Uploading report.pdf…' })
-      return {
-        model: shown.model,
-        commands: [...(shown.commands ?? []), FinishUpload({ id: shown.id })],
-      }
-    },
-    FinishedUpload: ({ id }) => {
-      const settled = Toast.settle(model.toasts.promise, id, {
-        type: 'success',
-        title: 'Uploaded',
-        description: 'report.pdf is in your files.',
-      })
-      return {
-        model: modifyFields(model, { toasts: toasts => ({ ...toasts, promise: settled.model }) }),
-        commands: toastCommands('promise', settled.commands),
-      }
-    },
-    Archived: () =>
-      showToast(model, 'action', {
-        title: 'Thread archived',
-        actions: [{ label: 'Undo', value: 'undo' }],
-      }),
     GotHeading: ({ message }) => foldHeading(model, message),
     GotRotation: ({ message }) => foldRotation(model, message),
     GotChart: ({ example, message }) => {
@@ -487,7 +261,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ),
       }
     },
-    GotNotices: ({ message }) => foldNotices(model, message),
     ChoseRange: ({ range }) =>
       range === model.range ? { model } : { model: modifyFields(model, { range: () => range }) },
     ToggledAlert: ({ example, value }) => ({
@@ -504,23 +277,12 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ? { model }
         : { model: modifyFields(model, { alerts: alerts => ({ ...alerts, [example]: values }) }) }
     },
-    SavedDraft: () =>
-      notify(model, {
-        variant: 'Success',
-        payload: { title: 'Draft saved', text: 'Every edit since noon is safe.' },
-      }),
   })
 
 /**
- * Each toast's timer dismisses it, and ⌘K or Ctrl+K opens the command
- * menu's dialog: the site lifts `palette` only while the Command page shows.
+ * ⌘K or Ctrl+K opens the command menu's dialog: the site lifts `palette`
+ * only while the Command page shows.
  */
-export const subscriptions = Subscription.aggregate(
-  Subscription.make<Model, Message>()(() => ({
-    palette: Subscription.persistentEntry(CommandMenu.hotkey(Message.OpenedPalette())),
-  })),
-  Subscription.lift(Notices.subscriptions)<Model, Message>({
-    read: model => Option.some(model.notices),
-    toParentMessage: message => Message.GotNotices({ message }),
-  }),
-)
+export const subscriptions = Subscription.make<Model, Message>()(() => ({
+  palette: Subscription.persistentEntry(CommandMenu.hotkey(Message.OpenedPalette())),
+}))

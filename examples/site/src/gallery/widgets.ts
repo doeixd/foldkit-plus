@@ -7,24 +7,15 @@
 import { Effect, Option, Schema } from 'effect'
 import { Calendar, Update } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
-import {
-  Calendar as UiCalendar,
-  Dialog as UiDialog,
-  HoverIntent as UiHoverIntent,
-  Popover as UiPopover,
-} from '@foldkit/ui'
+import { Calendar as UiCalendar, Dialog as UiDialog } from '@foldkit/ui'
 import {
   Menubar,
   Calendar as DateSelection,
   Menu,
   Nav,
-  Sheet,
-  Drawer,
-  Toast,
   AngleSlider,
   Chart,
 } from 'foldkit-mixins-ui'
-import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as Fields from './fields.js'
 
 import {
@@ -34,7 +25,6 @@ import {
   ViewMode,
   ViewOptions,
   viewRows,
-  Notices,
   Range,
 } from '../snippets/components.js'
 
@@ -44,23 +34,6 @@ export type ChartExample = typeof ChartExample.Type
 
 export const NavExample = Schema.Literals(['panels', 'pill', 'vertical'])
 export type NavExample = typeof NavExample.Type
-
-/** The popover, tooltip, dialog and sheet examples, each with a Model of its own. */
-export const PopoverExample = Schema.Literals(['below', 'top-start', 'no-arrow', 'clipped'])
-export type PopoverExample = typeof PopoverExample.Type
-export const TooltipExample = Schema.Literals(['above', 'right', 'edge'])
-export type TooltipExample = typeof TooltipExample.Type
-export const DialogExample = Schema.Literals(['terms', 'form', 'nested', 'nested-inner'])
-export type DialogExample = typeof DialogExample.Type
-export const SheetExample = Schema.Literals(['drawer', 'right', 'fixed', 'nested', 'nested-inner'])
-export type SheetExample = typeof SheetExample.Type
-
-/** The toast examples, each with a stack of its own, and a stack at each place. */
-export const ToastExample = Schema.Union([
-  Schema.Literals(['types', 'promise', 'action', 'rich']),
-  Toast.Position,
-])
-export type ToastExample = typeof ToastExample.Type
 
 /** The checkbox group examples, each with alerts of its own. */
 export const AlertsExample = Schema.Literals(['alerts', 'described', 'select-all', 'invalid'])
@@ -75,24 +48,14 @@ const shownMenu = (menu: Menu.Model): Menu.Model => ({
 export const Model = Schema.Struct({
   /** The slider's volume. */
   volume: Schema.Number,
-  dialog: UiDialog.Model,
-  alertDialog: UiDialog.Model,
-  dialogs: Schema.Record(DialogExample, UiDialog.Model),
-  sheets: Schema.Record(SheetExample, Sheet.Model),
-  /** The drawer docked inside its preview frame. */
-  drawer: Drawer.Model,
-  popovers: Schema.Record(PopoverExample, UiPopover.Model),
-  tooltips: Schema.Record(TooltipExample, UiTooltip.Model),
   /** The menu a button opens and the one a right press opens, and what each last chose. */
   fileMenu: Menu.Model,
   fileChoice: Schema.Option(Schema.String),
   pageMenu: Menu.Model,
   pageChoice: Schema.Option(Schema.String),
-  notices: Notices.Model,
   range: Range,
   /** Each checkbox group example's checked alerts. */
   alerts: Schema.Record(AlertsExample, Schema.Array(Schema.String)),
-  hoverCard: UiHoverIntent.Model,
   /** The command menu's query, highlighted row and last command run. */
   commandQuery: Schema.String,
   commandActive: Schema.Option(Schema.String),
@@ -117,7 +80,6 @@ export const Model = Schema.Struct({
   paletteActive: Schema.Option(Schema.String),
   palettePages: Schema.Array(Schema.String),
   paletteRan: Schema.Option(Schema.String),
-  toasts: Schema.Record(ToastExample, Toast.Model),
   /** The vertical slider's level and the marked one's budget. */
   level: Schema.Number,
   budget: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
@@ -131,24 +93,10 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   TurnedVolume: { value: Schema.Number },
-  GotDialog: { message: UiDialog.Message },
-  OpenedDialog: {},
-  ClosedDialog: {},
-  GotAlertDialog: { message: UiDialog.Message },
-  OpenedAlertDialog: {},
-  ClosedAlertDialog: {},
-  GotPopover: { example: PopoverExample, message: UiPopover.Message },
-  GotTooltip: { example: TooltipExample, message: UiTooltip.Message },
-  GotDialogAt: { example: DialogExample, message: UiDialog.Message },
-  OpenedDialogAt: { example: DialogExample },
-  ClosedDialogAt: { example: DialogExample },
   GotPageMenu: { message: Menu.Message },
-  GotNotices: { message: Notices.Message },
-  SavedDraft: {},
   ChoseRange: { range: Range },
   ToggledAlert: { example: AlertsExample, value: Schema.String },
   SetAlerts: { example: AlertsExample, values: Schema.Array(Schema.String) },
-  GotHoverCard: { message: UiHoverIntent.Message },
   GotFileMenu: { message: Menu.Message },
   TypedCommand: { query: Schema.String },
   HighlightedCommand: { value: Schema.String },
@@ -158,10 +106,6 @@ export const Message = defineMessageUnion({
   GotMenubar: { message: Menubar.Message },
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotTripCalendar: { message: UiCalendar.Message },
-  GotSheet: { example: SheetExample, message: Sheet.Message },
-  GotDrawer: { message: Drawer.Message },
-  OpenedSheet: { example: SheetExample },
-  ClosedSheet: { example: SheetExample },
   TurnedLevel: { value: Schema.Number },
   MovedBudget: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotFields: { message: Fields.Message },
@@ -172,11 +116,6 @@ export const Message = defineMessageUnion({
   HighlightedPalette: { value: Schema.String },
   RanPalette: { value: Schema.String },
   LeftPalettePage: {},
-  GotToast: { example: ToastExample, message: Toast.Message },
-  RaisedToast: { example: ToastExample, type: Toast.Type },
-  StartedUpload: {},
-  FinishedUpload: { id: Schema.String },
-  Archived: {},
   GotHeading: { message: AngleSlider.Message },
   GotRotation: { message: AngleSlider.Message },
   GotChart: { example: ChartExample, message: Chart.Message },
@@ -195,36 +134,8 @@ const today = Effect.runSync(Calendar.today.local)
 
 export const initial: Model = {
   volume: 60,
-  dialog: UiDialog.init({ id: 'preview-dialog', isAnimated: true }),
-  alertDialog: UiDialog.init({ id: 'preview-alert-dialog', isAnimated: true }),
-  dialogs: {
-    terms: UiDialog.init({ id: 'preview-terms', isAnimated: true }),
-    form: UiDialog.init({ id: 'preview-rename-dialog', isAnimated: true }),
-    nested: UiDialog.init({ id: 'preview-share', isAnimated: true }),
-    'nested-inner': UiDialog.init({ id: 'preview-share-link', isAnimated: true }),
-  },
-  drawer: Drawer.init({ id: 'preview-drawer' }),
-  sheets: {
-    drawer: Sheet.init({ id: 'preview-sheet', side: 'bottom', points: [0.5, 1] }),
-    right: Sheet.init({ id: 'preview-sheet-right', side: 'right' }),
-    fixed: Sheet.init({ id: 'preview-sheet-fixed', points: [0.4, 0.8], dismissible: false }),
-    nested: Sheet.init({ id: 'preview-sheet-plans' }),
-    'nested-inner': Sheet.init({ id: 'preview-sheet-compare', points: [0.6] }),
-  },
-  popovers: {
-    below: UiPopover.init({ id: 'preview-popover' }),
-    'top-start': UiPopover.init({ id: 'preview-popover-top-start' }),
-    'no-arrow': UiPopover.init({ id: 'preview-popover-no-arrow' }),
-    clipped: UiPopover.init({ id: 'preview-popover-clipped' }),
-  },
-  tooltips: {
-    above: UiTooltip.init({ id: 'preview-tooltip' }),
-    right: UiTooltip.init({ id: 'preview-tooltip-right' }),
-    edge: UiTooltip.init({ id: 'preview-tooltip-edge' }),
-  },
   pageMenu: shownMenu(Menu.init('preview-page-menu', PAGE_MENU, { isAnimated: true })),
   pageChoice: Option.none(),
-  notices: Notices.init({ id: 'preview-notices' }),
   range: 'week',
   alerts: {
     alerts: ['mentions', 'replies'],
@@ -232,7 +143,6 @@ export const initial: Model = {
     'select-all': ['mentions', 'offers'],
     invalid: [],
   },
-  hoverCard: UiHoverIntent.init(),
   fileMenu: Menu.init('preview-file-menu', FILE_MENU, { isAnimated: true }),
   fileChoice: Option.none(),
   commandQuery: '',
@@ -259,18 +169,6 @@ export const initial: Model = {
   paletteActive: Option.none(),
   palettePages: [],
   paletteRan: Option.none(),
-  toasts: {
-    types: Toast.init('preview-toasts-types'),
-    promise: Toast.init('preview-toasts-promise'),
-    action: Toast.init('preview-toasts-action'),
-    rich: Toast.init('preview-toasts-rich'),
-    'top-start': Toast.init('preview-toasts-top-start', { position: 'top-start' }),
-    'top-center': Toast.init('preview-toasts-top-center', { position: 'top-center' }),
-    'top-end': Toast.init('preview-toasts-top-end', { position: 'top-end' }),
-    'bottom-start': Toast.init('preview-toasts-bottom-start', { position: 'bottom-start' }),
-    'bottom-center': Toast.init('preview-toasts-bottom-center', { position: 'bottom-center' }),
-    'bottom-end': Toast.init('preview-toasts-bottom-end', { position: 'bottom-end' }),
-  },
   level: 40,
   budget: { low: 100, high: 350 },
   fields: Fields.init(),

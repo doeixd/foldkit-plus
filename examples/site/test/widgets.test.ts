@@ -3,9 +3,9 @@
  * own Model through the site's update, and what it reports becomes the
  * value the preview shows.
  */
-import { Dialog as UiDialog, Menu as UiMenu } from '@foldkit/ui'
+import { Menu as UiMenu } from '@foldkit/ui'
 import { Option } from 'effect'
-import { Chart, Drawer, Menu, Sheet } from 'foldkit-mixins-ui'
+import { Chart, Menu } from 'foldkit-mixins-ui'
 import { describe, expect, it } from 'vitest'
 
 import * as Widgets from '../src/gallery/widgets.js'
@@ -28,17 +28,6 @@ describe('the previews with state', () => {
     expect(again.model.widgets).toBe(turned.widgets)
   })
 
-  it('open the dialog and close it again', () => {
-    const opened = send(Widgets.Message.OpenedDialog())
-    expect(opened.widgets.dialog.isOpen).toBe(true)
-    const closed = update(
-      opened,
-      Message.GotWidget({ message: Widgets.Message.ClosedDialog() }),
-    ).model
-    expect(closed.widgets.dialog.isOpen).toBe(false)
-    expect(UiDialog.init({ id: 'x' }).isOpen).toBe(false)
-  })
-
   it('keep the action that was chosen', () => {
     const acted = send(
       Widgets.Message.GotPageMenu({
@@ -48,12 +37,6 @@ describe('the previews with state', () => {
       }),
     )
     expect(acted.widgets.pageChoice).toEqual(Option.some('Rename'))
-  })
-
-  it('show a notice when the draft is saved', () => {
-    expect(initial.widgets.notices.entries).toHaveLength(0)
-    const saved = send(Widgets.Message.SavedDraft())
-    expect(saved.widgets.notices.entries.map(entry => entry.payload.title)).toEqual(['Draft saved'])
   })
 
   it('press the range that was chosen, and stay put on the same one', () => {
@@ -88,7 +71,7 @@ describe('the checkbox group previews', () => {
   })
 })
 
-describe('the menu, command and toast previews', () => {
+describe('the menu and command previews', () => {
   const view = (value: string) =>
     Message.GotWidget({
       message: Widgets.Message.GotViewMenu({
@@ -127,38 +110,6 @@ describe('the menu, command and toast previews', () => {
     expect(ran.widgets.paletteRan).toEqual(Option.some('dark'))
     expect(ran.widgets.palette.isOpen).toBe(false)
   })
-
-  it('settle the upload toast it showed, on its own stack', () => {
-    const started = send(Widgets.Message.StartedUpload())
-    const [loading] = started.widgets.toasts.promise.entries
-    expect(loading?.type).toBe('loading')
-    expect(started.widgets.toasts.types.entries).toHaveLength(0)
-    const finished = update(
-      started,
-      Message.GotWidget({
-        message: Widgets.Message.FinishedUpload({ id: loading?.id ?? '' }),
-      }),
-    ).model
-    expect(finished.widgets.toasts.promise.entries.map(entry => [entry.type, entry.title])).toEqual(
-      [['success', 'Uploaded']],
-    )
-  })
-})
-
-describe('the overlay previews', () => {
-  it('open and close each dialog and sheet on its own', () => {
-    const terms = send(Widgets.Message.OpenedDialogAt({ example: 'terms' }))
-    expect(terms.widgets.dialogs.terms.isOpen).toBe(true)
-    expect(terms.widgets.dialogs.form.isOpen).toBe(false)
-    const drawer = send(Widgets.Message.OpenedSheet({ example: 'drawer' }))
-    expect(Sheet.isOpen(drawer.widgets.sheets.drawer)).toBe(true)
-    expect(Sheet.isOpen(drawer.widgets.sheets.right)).toBe(false)
-    const shut = update(
-      drawer,
-      Message.GotWidget({ message: Widgets.Message.ClosedSheet({ example: 'drawer' }) }),
-    ).model
-    expect(Sheet.isOpen(shut.widgets.sheets.drawer)).toBe(false)
-  })
 })
 
 describe('the chart previews', () => {
@@ -171,21 +122,5 @@ describe('the chart previews', () => {
     expect(lit.widgets.charts.line.point).toEqual(Option.some(2))
     expect(lit.widgets.charts.bar.point).toEqual(Option.none())
     expect(update(lit, Message.GotWidget({ message: point })).model.widgets).toBe(lit.widgets)
-  })
-})
-
-describe('the Drawer preview', () => {
-  it('opens on a press of its handle, and a press that changes nothing keeps the Model', () => {
-    expect(initial.widgets.drawer.open).toBe(false)
-    const pressed = send(Widgets.Message.GotDrawer({ message: Drawer.Message.Pressed() }))
-    expect(pressed.widgets.drawer.open).toBe(true)
-    expect(initial.widgets.drawer.open).toBe(false)
-    const dragged = update(
-      pressed,
-      Message.GotWidget({
-        message: Widgets.Message.GotDrawer({ message: Drawer.Message.Dragged({ delta: 5 }) }),
-      }),
-    ).model
-    expect(dragged.widgets.drawer).toBe(pressed.widgets.drawer)
   })
 })
