@@ -759,7 +759,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     Archived: () =>
       showToast(model, 'action', {
         title: 'Thread archived',
-        action: { label: 'Undo', value: 'undo' },
+        actions: [{ label: 'Undo', value: 'undo' }],
       }),
     CopiedAnswer: () => ({
       model,

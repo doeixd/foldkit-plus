@@ -5,7 +5,9 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { wordsOf } from './words.js'
 
 /**
  * A timer after Zag's: a countdown from a `duration`, or a stopwatch counting
@@ -258,8 +260,8 @@ export const partsOf = (
 
 // ---------------------------------------------------------------- the view
 
-/** The words a timer's presses say; each has an English default. */
-export interface TimerLabels {
+/** The words a timer's presses say. */
+export interface TimerWords {
   readonly start: string
   readonly pause: string
   readonly resume: string
@@ -267,7 +269,8 @@ export interface TimerLabels {
   readonly restart: string
 }
 
-const defaultLabels: TimerLabels = {
+/** The defaults, in English. */
+export const words: TimerWords = {
   start: 'Start',
   pause: 'Pause',
   resume: 'Resume',
@@ -287,12 +290,35 @@ export interface TimerView<Message> {
   readonly separator?: string | undefined
   /** Draws the presses; default true. Without them, the application sends `Pressed` itself. */
   readonly controls?: boolean | undefined
-  readonly labels?: Partial<TimerLabels> | undefined
+  readonly words?: Partial<TimerWords> | undefined
   /** A style of `TimerSlots`, for the look. */
   readonly style?: NamedStyle<typeof TimerSlots> | undefined
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
 }
+
+/** What a Timer is given once: its look and each option that holds no Message. */
+export type TimerPreset = Pick<
+  TimerView<never>,
+  'units' | 'separator' | 'controls' | 'words' | 'style'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own Timer: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both. `mixins` concatenate in that
+ * order and `words` merge word by word; any other option given at the call
+ * replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<TimerPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: TimerView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})
 
 /** The press beside reset, by phase: what the timer does next. */
 const primaryOf: Record<Phase, Action> = {
@@ -310,7 +336,7 @@ export const view = <Outer>(options: TimerView<Outer>, h: HtmlBuilder<Outer>): H
   )
   const { model, onMessage: lift } = options
   const now = phase(model)
-  const labels = { ...defaultLabels, ...options.labels }
+  const labels = wordsOf(words, options.words)
   const labelId = `${model.id}-label`
   const parts = partsOf(
     shown(model),

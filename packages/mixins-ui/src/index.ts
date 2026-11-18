@@ -175,10 +175,11 @@ export { TreeViewSlots } from './treeView.js'
 export type { TreeNode, TreeViewView } from './treeView.js'
 export { ColorPickerSlots } from './colorPicker.js'
 export type {
-  ColorPickerLabels,
+  ColorPickerDefaults,
   ColorPickerPopover,
   ColorPickerPreset,
   ColorPickerView,
+  ColorPickerWords,
 } from './colorPicker.js'
 export { InputCopySlots } from './inputCopy.js'
 export type { InputCopyView } from './inputCopy.js'
@@ -328,7 +329,7 @@ export type { QuestionnaireView } from './questionnaire.js'
 export { AngleSliderSlots } from './angleSlider.js'
 export type { AngleMark, AngleSliderLayout, AngleSliderView } from './angleSlider.js'
 export { TimerSlots } from './timer.js'
-export type { TimePart, TimerLabels, TimerView } from './timer.js'
+export type { TimePart, TimerPreset, TimerView, TimerWords } from './timer.js'
 export { MarqueeSlots } from './marquee.js'
 export type { MarqueeSide, MarqueeView } from './marquee.js'
 export { ImageCropperSlots } from './imageCropper.js'
@@ -415,7 +416,7 @@ export type { ResolvedSelect } from './select.js'
 export type { ResolvedSwitch } from './switch.js'
 export type { ResolvedTab, ResolvedTabs } from './tabs.js'
 export type { ResolvedTextarea, TextareaField, TextareaParts, TextareaView } from './textarea.js'
-export type { ResolvedToast, ResolvedToastEntry } from './toast.js'
+export type { ResolvedToast, ResolvedToastEntry, ToastPreset, ToastWords } from './toast.js'
 export type { ToastEntryRender, ToastRenderInfo } from './toastView.js'
 export type { ResolvedTooltip, TooltipContext } from './tooltip.js'
 export type {

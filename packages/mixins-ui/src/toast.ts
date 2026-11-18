@@ -25,16 +25,7 @@
  */
 import * as Animation from '@foldkit/ui/animation'
 import { Clock, Duration, Effect, Match, Option, Queue, Schema, Stream } from 'effect'
-import {
-  Attr,
-  Capability,
-  Event,
-  Slot,
-  Slots,
-  SlotView,
-  type NamedStyle,
-  type SlotAttributes,
-} from 'foldkit-mixins'
+import { SlotView, type NamedStyle, type SlotAttributes } from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -43,49 +34,16 @@ import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import { Move, MoveEnded, MoveStarted, Moved } from 'foldkit-primitives/dom'
-import { FocusRecovery } from 'foldkit-primitives/interaction'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
+import { ToastSlots } from './toast/slots.js'
 import type { ToastEntryRender, ToastRenderInfo } from './toastView.js'
+import { wordsOf } from './words.js'
 
-/**
- * Toast is a nested Submodel: one live-region `container` plus an `entry`
- * per toast. The resolver runs once per bundle and each base attribute
- * passes through by identity.
- *
- * Entries own hover and (when swipe is configured) pointer handlers, none
- * of which has an Event token — but the resolver still refuses a second
- * owner by event name. The dismiss control is drawn by the consumer's
- * `entryToView` and is not a slot: its `dismiss` bundle passes through
- * inside the entry's content.
- *
- * The component draws the rest: the stack's `list`, each toast's `icon`,
- * its `body` (`title` and `description`, where a swipe starts), its
- * `action` and `close` buttons, and the `status` and `alert` live regions.
- */
-export const ToastSlots = Slots.define({
-  container: Slot.make({
-    capability: Capability.Container,
-    attributes: [Attr.Role],
-  }),
-  entry: Slot.make({
-    capability: Capability.Container,
-    attributes: [Attr.Role],
-  }),
-  list: Slot.make({ capability: Capability.Container }),
-  /** The type's mark, with `data-type`, hidden from assistive technology. */
-  icon: Slot.make({ capability: Capability.Container }),
-  body: Slot.make({ capability: Capability.Container }),
-  title: Slot.make({ capability: Capability.Container }),
-  description: Slot.make({ capability: Capability.Container }),
-  action: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
-  close: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-  }),
-  status: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  alert: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-})
+// `keepFocus` is a file of its own, so a page that never reads it keeps neither
+// its Mount nor `FocusRecovery`.
+export { keepFocus } from './toast/keepFocus.js'
+export { ToastSlots }
 
 export type ResolvedToastEntry<Message> = Omit<ToastEntryRender, 'attributes'> & {
   readonly attributes: SlotAttributes<Message>
@@ -166,7 +124,10 @@ export const Entry = Schema.Struct({
   type: Type,
   title: Schema.String,
   description: Schema.Option(Schema.String),
-  action: Schema.Option(Action),
+  /** Buttons that answer it, in order; each dismisses it and says its `value` in `Acted`. */
+  actions: Schema.Array(Action),
+  /** The words of a button that only dismisses it, drawn after the actions. */
+  cancel: Schema.Option(Schema.String),
   /** Its whole duration in milliseconds; none while it waits to be dismissed or settled. */
   duration: Schema.Option(Schema.Number),
   /** What is left of it. */
@@ -217,7 +178,8 @@ const HeldFact = Schema.TaggedStruct('HeldFact', {
 export const Message = defineMessageUnion({
   /** The close button, or Escape inside the toast. */
   Dismissed: { id: Schema.String },
-  PressedAction: { id: Schema.String },
+  /** The `index`th of the toast's `actions` was pressed. */
+  PressedAction: { id: Schema.String, index: Schema.Number },
   /** The pointer, focus or the page's being hidden, holding the stack or letting it go. */
   Held: { by: Holder, on: Schema.Boolean },
   StartedClock: { id: Schema.String, version: Schema.Number, at: Schema.Number },
@@ -269,7 +231,10 @@ export interface ToastInput {
   readonly type?: Type | undefined
   readonly title: string
   readonly description?: string | undefined
-  readonly action?: Action | undefined
+  /** Buttons that answer it, each dismissing it and saying its `value` in `Acted`. */
+  readonly actions?: ReadonlyArray<Action> | undefined
+  /** The words of a button that only dismisses it, after the actions. */
+  readonly cancel?: string | undefined
   /**
    * Milliseconds it shows for, or `'sticky'` to wait for a dismissal. Default
    * the stack's duration, and sticky for a `loading` toast.
@@ -412,7 +377,8 @@ export const show = (model: Model, input: ToastInput): Return & { readonly id: s
     type: input.type ?? 'default',
     title: input.title,
     description: Option.fromNullishOr(input.description),
-    action: Option.fromNullishOr(input.action),
+    actions: input.actions ?? [],
+    cancel: Option.fromNullishOr(input.cancel),
     duration,
     remaining: Option.getOrElse(duration, () => 0),
     countdown: Countdown.Stopped(),
@@ -449,7 +415,8 @@ export const settle = (model: Model, id: string, input: ToastInput): Return =>
               type: () => input.type ?? 'default',
               title: () => input.title,
               description: () => Option.fromNullishOr(input.description),
-              action: () => Option.fromNullishOr(input.action),
+              actions: () => input.actions ?? [],
+              cancel: () => Option.fromNullishOr(input.cancel),
               duration: () => duration,
               remaining: () => Option.getOrElse(duration, () => 0),
               // A running countdown is for what it said before.
@@ -553,12 +520,13 @@ export const update = (model: Model, message: Message): Return =>
           onNone: () => ({ model }),
           onSome: entry => leave(model, entry),
         }),
-      PressedAction: ({ id }) =>
+      PressedAction: ({ id, index }) =>
         Option.match(
           // A leaving toast has acted already, or been dismissed: its button may still be drawn.
           Option.flatMap(
             Option.filter(entryOf(model, id), entry => !isLeaving(entry)),
-            entry => Option.map(entry.action, action => ({ entry, action })),
+            entry =>
+              Option.map(Option.fromNullishOr(entry.actions[index]), action => ({ entry, action })),
           ),
           {
             onNone: () => ({ model }),
@@ -665,24 +633,6 @@ export const update = (model: Model, message: Message): Return =>
         }),
     }),
   )
-
-/**
- * Dismissing the toast that holds focus (its close button, its action) hands
- * focus to the same button of the toast behind it, else of the one in front (an action
- * with none to go to, to a close button). It is a mixin beside
- * the style, not on by default: it sends no Message, which a Scene test of a
- * page drawing the stack could not resolve. With no toast left, focus is not
- * moved: recovery never guesses a place outside the stack.
- */
-export const keepFocus = [
-  FocusRecovery.behavior(ToastSlots)<unknown, never>({
-    owner: 'container',
-    parts: {
-      close: ['next', 'previous'],
-      action: ['next', 'previous', { part: 'close' }],
-    },
-  }).mixin,
-]
 
 /** How soon after a finger's press a focus coming into the stack is that press's own. */
 const TAP_FOCUS_MS = 1000
@@ -828,10 +778,10 @@ const unseen = {
 export interface ToastViewOptions<ParentMessage> {
   readonly model: Model
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
-  /** The stack's landmark name. Default "Notifications". */
+  /** The stack's landmark name, which `words.label` is when not given. */
   readonly label?: string | undefined
-  /** The close button's name. Default "Dismiss". */
-  readonly closeLabel?: string | undefined
+  /** The close button's name and the stack's default landmark name. */
+  readonly words?: Partial<ToastWords> | undefined
   /** Spread out whether or not anything holds the stack, as Sonner's `expand`. */
   readonly expand?: boolean | undefined
   /** A drawing for a type's icon in place of the recipe's, such as a Spinner for `loading`. */
@@ -841,6 +791,40 @@ export interface ToastViewOptions<ParentMessage> {
   /** Mixins beside the style. */
   readonly mixins?: MixinList<ParentMessage> | undefined
 }
+
+/** The fixed text a stack draws. */
+export interface ToastWords {
+  /** The landmark's name. */
+  readonly label: string
+  /** The close button's name. */
+  readonly close: string
+}
+
+/** The defaults, in English. */
+export const words: ToastWords = { label: 'Notifications', close: 'Dismiss' }
+
+/** What a toast stack is given once: its look and each option that holds no Message. */
+export type ToastPreset = Pick<
+  ToastViewOptions<never>,
+  'label' | 'words' | 'expand' | 'icons' | 'style'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own stack: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both. `mixins` concatenate in that
+ * order and `words` merge word by word; any other option given at the call
+ * replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<ToastPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: ToastViewOptions<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})
 
 /** What a toast says, read aloud: its title and its description. */
 const spoken = (entry: Entry): string =>
@@ -859,6 +843,7 @@ export const view = <ParentMessage>(
     { input: undefined, h },
   )
   const { model, onMessage } = options
+  const text = wordsOf(words, options.words)
   const staying = model.entries.filter(entry => !isLeaving(entry))
   const shown = new Set(staying.slice(0, model.max).map(entry => entry.id))
   const expanded = options.expand === true || model.pointer || model.focus
@@ -937,22 +922,37 @@ export const view = <ParentMessage>(
             }),
           ],
         ),
-        ...Option.match(entry.action, {
-          onNone: () => [],
-          onSome: action => [
-            h.button(
-              builders.action.attrs([
-                h.Type('button'),
-                h.OnClick(onMessage(Message.PressedAction({ id: entry.id }))),
+        ...(entry.actions.length === 0 && Option.isNone(entry.cancel)
+          ? []
+          : [
+              h.div(builders.actions.attrs(), [
+                ...entry.actions.map((action, index) =>
+                  h.button(
+                    builders.action.attrs([
+                      h.Type('button'),
+                      h.OnClick(onMessage(Message.PressedAction({ id: entry.id, index }))),
+                    ]),
+                    [action.label],
+                  ),
+                ),
+                ...Option.match(entry.cancel, {
+                  onNone: () => [],
+                  onSome: label => [
+                    h.button(
+                      builders.cancel.attrs([
+                        h.Type('button'),
+                        h.OnClick(onMessage(Message.Dismissed({ id: entry.id }))),
+                      ]),
+                      [label],
+                    ),
+                  ],
+                }),
               ]),
-              [action.label],
-            ),
-          ],
-        }),
+            ]),
         h.button(
           builders.close.attrs([
             h.Type('button'),
-            h.AriaLabel(options.closeLabel ?? 'Dismiss'),
+            h.AriaLabel(text.close),
             h.OnClick(onMessage(Message.Dismissed({ id: entry.id }))),
           ]),
           [],
@@ -964,7 +964,7 @@ export const view = <ParentMessage>(
     builders.container.attrs([
       h.Id(model.id),
       h.Role('region'),
-      h.AriaLabel(options.label ?? 'Notifications'),
+      h.AriaLabel(options.label ?? text.label),
       h.DataAttribute('position', model.position),
       h.Dir(model.direction),
       ...(expanded ? [h.DataAttribute('expanded', '')] : []),

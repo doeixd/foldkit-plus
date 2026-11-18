@@ -4778,7 +4778,7 @@ export const timerStopwatch = <Message>(
       onMessage,
       label: 'Lap',
       units: ['minutes', 'seconds', 'milliseconds'],
-      labels: { start: 'Go', restart: 'Again' },
+      words: { start: 'Go', restart: 'Again' },
       style,
     },
     h,

@@ -509,6 +509,9 @@ describe('Recipes', () => {
     ['Resizable', 'accent-default', 'the handle shows its accent line under the pointer'],
     ['Menu', 'error-default', 'a danger row hovers in its own tone'],
     ['Button', 'text-overt', 'an ink button deepens its own fill'],
+    ['Toast', 'var(--fk-text-default) 82%', 'an ink action softens its own fill'],
+    ['Toast', 'var(--fk-surface-base) 82%', 'an inverted toast’s action softens its own fill'],
+    ['Toast', 'currentColor 15%', 'an inverted toast’s close button films the card’s own ink'],
     ['*', 'currentColor calc(var(--fk-knob-state-hover) *', 'a scrollbar thumb takes the text'],
   ]
   const stateRead =

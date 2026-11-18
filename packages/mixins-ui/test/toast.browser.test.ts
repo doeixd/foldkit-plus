@@ -270,7 +270,7 @@ test('the pointer holds the countdown, and letting go goes on from what was left
 test('a finger holds the countdown without spreading the stack, and a tap’s focus spreads nothing', async () => {
   const { handle, send } = mount(
     { duration: 600 },
-    { s0: show('Saved', { action: { label: 'Undo', value: 'undo' } }) },
+    { s0: show('Saved', { actions: [{ label: 'Undo', value: 'undo' }] }) },
   )
   try {
     await away()
@@ -303,7 +303,7 @@ test('a finger holds the countdown without spreading the stack, and a tap’s fo
 test('focus in the stack holds it, and so does a hidden page', async () => {
   const { handle, send } = mount(
     { duration: 400 },
-    { s0: show('Saved', { action: { label: 'Undo', value: 'undo' } }), s1: show('Again') },
+    { s0: show('Saved', { actions: [{ label: 'Undo', value: 'undo' }] }), s1: show('Again') },
   )
   try {
     await away()
@@ -385,7 +385,7 @@ test('Escape inside a toast and its close button dismiss it; its action sends Ac
     {
       s0: show('One'),
       s1: show('Two'),
-      s2: show('Three', { action: { label: 'Undo', value: 'undo' } }),
+      s2: show('Three', { actions: [{ label: 'Undo', value: 'undo' }] }),
     },
   )
   try {
@@ -446,7 +446,7 @@ test('dismissing the toast that holds focus moves focus to a neighbour, and the 
 test('an action pressed with no other action to go to hands focus to a close button', async () => {
   const { handle, send } = mount(
     { duration: 60_000 },
-    { s0: show('One'), s1: show('Two', { action: { label: 'Undo', value: 'undo' } }) },
+    { s0: show('One'), s1: show('Two', { actions: [{ label: 'Undo', value: 'undo' }] }) },
     Toast.keepFocus,
   )
   try {

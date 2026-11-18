@@ -15,7 +15,7 @@
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
-import { ToastSlots } from '../toast.js'
+import { ToastSlots } from '../toast/slots.js'
 import {
   component,
   focusRing,
@@ -266,10 +266,37 @@ export const Toast = Style.recipeFor(ToastSlots)({
         color: `color-mix(in oklab, currentColor 72%, transparent)`,
       }),
     ),
+    actions: component(
+      Style.self({
+        display: 'flex',
+        flex: 'none',
+        alignSelf: 'center',
+        alignItems: 'center',
+        gap: ref.space.xs,
+      }),
+    ),
+    cancel: component(
+      Style.self({
+        flex: 'none',
+        paddingBlock: ref.space['2xs'],
+        paddingInline: ref.space.sm,
+        border: `${ref.border.thin} solid ${ref.outline.subtle}`,
+        borderRadius: ref.radius.md,
+        background: 'transparent',
+        color: 'inherit',
+        font: 'inherit',
+        ...role('caption'),
+        fontWeight: ref.weight.medium,
+        cursor: 'pointer',
+        position: 'relative',
+      }),
+      fingerTarget('-10px -4px'),
+      hover({ background: unfilledHover }),
+      focusRing,
+    ),
     action: component(
       Style.self({
         flex: 'none',
-        alignSelf: 'center',
         paddingBlock: ref.space['2xs'],
         paddingInline: ref.space.sm,
         border: '0',
@@ -283,6 +310,8 @@ export const Toast = Style.recipeFor(ToastSlots)({
         position: 'relative',
       }),
       fingerTarget('-10px -4px'),
+      // A step toward the page: the fill is the text's own ink, so it softens rather than darkens.
+      hover({ background: `color-mix(in oklab, ${ref.text.default} 82%, ${ref.surface.base})` }),
       focusRing,
     ),
     close: component(
@@ -310,6 +339,36 @@ export const Toast = Style.recipeFor(ToastSlots)({
   variants: {
     tone: {
       plain: {},
+      // The text's ink as the card, as Sonner's inverted toasts: dark on a light page,
+      // light on a dark one. Everything inside borrows the card's colours back.
+      invert: {
+        entry: variant(
+          Style.self({
+            background: ref.text.default,
+            borderColor: ref.text.default,
+            color: ref.surface.base,
+          }),
+        ),
+        icon: variant(Style.pseudo('[data-type]', { color: 'inherit' })),
+        action: variant(
+          Style.self({ background: ref.surface.base, color: ref.text.default }),
+          hover({
+            background: `color-mix(in oklab, ${ref.surface.base} 82%, ${ref.text.default})`,
+          }),
+        ),
+        cancel: variant(
+          Style.self({
+            borderColor: `color-mix(in oklab, currentColor 30%, transparent)`,
+          }),
+        ),
+        close: variant(
+          Style.self({ color: `color-mix(in oklab, currentColor 70%, transparent)` }),
+          hover({
+            background: `color-mix(in oklab, currentColor 15%, transparent)`,
+            color: 'inherit',
+          }),
+        ),
+      },
       rich: {
         entry: variant(
           rich('success', ref.success.subtle, ref.success.outline),
