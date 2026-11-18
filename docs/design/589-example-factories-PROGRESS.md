@@ -15,7 +15,7 @@ Status words: **done** (committed, pushed, its own checks green), **running**, *
 | 1.3 | `Bundles`, the `foldkit-bundle` peer, the gate Bundles, options-level views and `configure` | done | b02d8d697 | `Bundles.TagsInput`, `Combobox`, `Calendar`, `DatePicker`, `FileUpload`; options-level `view` and `configure` on Calendar, Combobox and DatePicker; `configure` on Button, TagsInput and FileUpload. All 25 call-with-options rows of the calendar reference table are checked by tests. `ResolvedCaption` gained `YearDropdown` (breaking). `foldkit-bundle` needs a version bump at the end. |
 | 1.4 | The site harness: one module per example, shown whole | done | 0429de335 | Modules and regions mix per page, so pages convert one at a time. One loosely typed seam in `gallery/example.ts`. |
 | 1.5 | The gate: button, tags-input, calendar, date-picker, combobox and the new file-upload page | done, two gaps | 5d3d796dd | All six pages are modules end to end; the old state for them is deleted. Prerender green; adoption e2e counts one heading and one copy of each example after hydration. Gallery first load 410.5 kB against a ceiling moved to 411,500 (file upload is 5.4 kB of it). Example length: 16 of 31 modules are at most 26 lines after imports; compositions run 33 to 65. Gaps: Sorting is not on the file-upload page (needs a way to map a Mixin's Messages in `foldkit-mixins`); the avatar layout has no uploading overlay. A "page drawn twice" in early screenshots was Chrome's full-page capture wrapping past 16,384px. |
-| 2 | The families F1 to F11 | running | | See the family table below. |
+| 2 | The families F1 to F11 | done | 037134b38 | See the family table below for what each left. Integration pass 2 is running. |
 | 3 | `make` for Sidebar and Questionnaire; the DataGrid features split; Chart fills | not started | | Only if P3 passes. |
 | 4 | New widgets: Sortable, time field, Attachment, File Type, Scrollspy, Kanban page, Toggle pages | not started | | Frame is in F2. |
 | 5 | Integration: shared files, README, skill, changelog, generated entries, site state deleted, Jev, CI | not started | | |
@@ -34,7 +34,7 @@ Each family did its breaking changes first, then options, Bundles, `configure` a
 | F6 dates and colour: calendar and date-picker (gate), color-picker, timer | done | 36c57b415 | ColorPicker's priority-3 additions. |
 | F7 overlays: dialog (with alert dialog), sheet, drawer, popover, tooltip, hover-card, toast | done | 36c57b415 | No `Dialog.view` or `Popover.view` (the note put them in 0.42.0), so dialog examples run 50 to 87 lines and the example length limit rose from 52 to 90. Non-modal Dialog. Old page state not deleted. |
 | F8 menus and navigation: breadcrumb, steps, pagination, tabs, menu, context menu, menubar, navigation menu, command | done | f8111984b | Menubar submenus (needs a new Model for the bar). Menu, menubar, navigation-menu and command pages are modules beside old regions. No type tests or build pins for the new Bundles. |
-| F9 layout and disclosure | running | | Sidebar's `make` is phase 3. |
+| F9 layout and disclosure: accordion, disclosure, tree-view, scroll-area, resizable, carousel, floating-panel, tour, virtual-list, window-list (new page), app-shell, sidebar | done | 037134b38 | Carousel `orientation`, `responsive` and `align` not built. Screenshots looked at for floating-panel, tour and app-shell only; none of sidebar, the lists, tree-view, scroll-area, resizable, carousel or disclosure, and no hover states. No test of the Sidebar's `open` word or of the aside's phone layout without a side column. Sidebar's `make` is phase 3. |
 | F10 data and media: table, chart, progress, meter, code-block, file-input, file-drop, image-cropper, signature-pad, qr-code, marquee | done | bac267981 | No `configure` for the Marquee, ImageCropper, SignaturePad and FileDrop Bundles. SignaturePad has redo and `pointers` only (no replay, export types, shortcuts, `required`). No ImageCropper flip, QR `modules` value or Table `reorder`. Table hover, the chart tooltip, Marquee paused, cropper handles and Progress tones were not captured; only Meter was captured in all four width and scheme pairs. Jev not run on the README and skill diffs (over its budget). The DataGrid features split is phase 3. |
 | F11 chat: thinking-steps, message-scroller, thinking-indicator, questionnaire | done, unverified | 31070333e | No screenshots looked at, no Jev run. The thinking-steps page has two broken in-page links (`#tides`, `#moon`) that fail the prerender test. Questionnaire's `make` is phase 3. |
 | Integration pass 1 | done | 0efdbc873 | #595 fixed (`NamedStyle` branded by its contract, 0830304b1). No page was found carrying a module it does not draw. Eleven bundle ceilings raised by measured amounts; the gallery ceiling is 430,000 and will move again as F9 to F11 land. |
@@ -43,13 +43,13 @@ Each family did its breaking changes first, then options, Bundles, `configure` a
 
 | Change | Status | Commit |
 | --- | --- | --- |
-| `words` as one object per widget | done for F1 to F8, F10 and F11; F9 running | 06b1acf10 | |
+| `words` as one object per widget | done | 82e8629aa | |
 | SignaturePad's `Began` carries `pointerType`, not `pen` | done | 65cddfece | |
 | Flags that become passed values: breadcrumb, avatar, card-group, table, image-cropper, chart | done | 098aa0d14 | Breadcrumb alone took 27.8 kB off every trail page. |
 | `Recipes.Badge` as a `recipeFor`; Typography's `level` axis removed | done | 5f4446f38 | |
 | Tone `error` renamed `danger` | done (alert, badge, rating, progress) | 4c13b9839 | |
 | One `clear` option: combobox, search-field, cascade-select, listbox, picker | done | 016611c19 | The Combobox adapter's `clearContent`/`clearLabel` rename still waits. |
-| `AppShell.view`'s `main` argument | running (F9) | | |
+| `AppShell.view`'s `main` argument | done | f59d3ff2b | All 11 callers moved. |
 | `FileInput.accept` as an array; FileUpload's slot and feature export names | done | 2d38ab852 | |
 | `foldkit-bundle` as a peer of `foldkit-mixins-ui` | done | efb186d29 |
 
