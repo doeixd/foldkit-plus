@@ -368,3 +368,24 @@ test('a grip of dots sits on the line, across it, only when chosen', async () =>
     mounted.dispose()
   }
 })
+
+test('a pill is a rounded capsule across the line, long one way and short the other, with no dots', async () => {
+  const mounted = mountNested({ handle: 'pill' })
+  try {
+    await ready()
+    const [outer, inner] = handles() as [HTMLElement, HTMLElement]
+    const pill = outer.firstElementChild!
+    const box = pill.getBoundingClientRect()
+    const line = outer.getBoundingClientRect()
+    expect(box.height).toBeGreaterThan(box.width * 4)
+    expect(box.left + box.width / 2).toBeCloseTo(line.left + line.width / 2, 0)
+    expect(box.top + box.height / 2).toBeCloseTo(line.top + line.height / 2, 0)
+    expect(getComputedStyle(pill).backgroundImage).toBe('none')
+    expect(Number.parseFloat(getComputedStyle(pill).borderTopLeftRadius)).toBeGreaterThan(box.width)
+    // One over the other, it lies along the horizontal line.
+    const across = inner.firstElementChild!.getBoundingClientRect()
+    expect(across.width).toBeGreaterThan(across.height * 4)
+  } finally {
+    mounted.dispose()
+  }
+})

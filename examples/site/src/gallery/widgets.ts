@@ -15,7 +15,6 @@ import {
 } from '@foldkit/ui'
 import {
   Menubar,
-  Resizable,
   InputCopy,
   Sidebar,
   Calendar as DateSelection,
@@ -158,8 +157,6 @@ export const Model = Schema.Struct({
   commandQuery: Schema.String,
   commandActive: Schema.Option(Schema.String),
   commandRan: Schema.Option(Schema.String),
-  /** The resizable split. */
-  split: Resizable.Model,
   /** The sidebar's open groups, whether it is collapsed, its tooltips and phone Sheet. */
   sidebar: Sidebar.Model,
   /** Each further example's sidebar. */
@@ -207,10 +204,6 @@ export const Model = Schema.Struct({
   ),
   invoicesChosen: Schema.Array(Schema.String),
   invoicesOpen: Schema.Array(Schema.String),
-  /** The collapsible split and the nested ones. */
-  collapsibleSplit: Resizable.Model,
-  outerSplit: Resizable.Model,
-  innerSplit: Resizable.Model,
   /** The vertical slider's level and the marked one's budget. */
   level: Schema.Number,
   budget: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
@@ -279,7 +272,6 @@ export const Message = defineMessageUnion({
   TypedCommand: { query: Schema.String },
   HighlightedCommand: { value: Schema.String },
   RanCommand: { value: Schema.String },
-  GotSplit: { message: Resizable.Message },
   GotSidebar: { message: Sidebar.Message },
   GotSidebarOf: { example: SidebarExample, message: Sidebar.Message },
   ActedInSidebar: { action: Schema.String },
@@ -307,9 +299,6 @@ export const Message = defineMessageUnion({
   ChoseInvoice: { id: Schema.String, selected: Schema.Boolean },
   ChoseInvoices: { ids: Schema.Array(Schema.String) },
   OpenedInvoice: { id: Schema.String, expanded: Schema.Boolean },
-  GotCollapsibleSplit: { message: Resizable.Message },
-  GotOuterSplit: { message: Resizable.Message },
-  GotInnerSplit: { message: Resizable.Message },
   GotViewMenu: { message: Menu.Message },
   OpenedPalette: {},
   GotPalette: { message: UiDialog.Message },
@@ -412,7 +401,6 @@ export const initial: Model = {
   commandQuery: '',
   commandActive: Option.none(),
   commandRan: Option.none(),
-  split: Resizable.init(0.35),
   sidebar: appSidebar,
   sidebars: {
     resizable: sidebarResizableModel,
@@ -470,9 +458,6 @@ export const initial: Model = {
   invoiceSort: Option.none(),
   invoicesChosen: ['INV-002'],
   invoicesOpen: [],
-  collapsibleSplit: Resizable.init(0.3),
-  outerSplit: Resizable.init(0.3),
-  innerSplit: Resizable.init(0.6),
   level: 40,
   budget: { low: 100, high: 350 },
   brand: ColorPicker.init({

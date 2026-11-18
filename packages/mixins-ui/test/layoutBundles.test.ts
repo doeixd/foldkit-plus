@@ -6,7 +6,7 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { describe, expect, it } from 'vitest'
-import { Accordion, Bundles, TreeView } from '../src/index.js'
+import { Accordion, Bundles, Resizable, TreeView } from '../src/index.js'
 
 const App = Bundle.compose({ note: Schema.String }).pipe(
   Bundle.withChild('faq', Bundles.Accordion, { args: { open: ['a'], multiple: true } }),
@@ -61,5 +61,25 @@ describe('Bundles.TreeView', () => {
       Files.Message.GotFilesMessage({ message: TreeView.Message.Pressed({ key: ' ' }) }),
     ).model
     expect(checked.files.checked).toEqual(['index'])
+  })
+})
+
+describe('Bundles.Resizable', () => {
+  const Split = Bundle.compose({ note: Schema.String }).pipe(
+    Bundle.withChild('panes', Bundles.Resizable, { args: { share: 0.4, max: 0.6 } }),
+  )
+  const step = Split.placements.update(model => ({ model }))
+  const first = () => Split.placements.initial({ note: '' }).model
+
+  it('starts from its args, bounds included', () => {
+    expect(first().panes).toMatchObject({ share: 0.4, bounds: { max: 0.6 } })
+  })
+
+  it('folds against the bounds the args hold', () => {
+    const set = step(
+      first(),
+      Split.Message.GotPanesMessage({ message: Resizable.Message.Set({ share: 2 }) }),
+    ).model
+    expect(set.panes.share).toBe(0.6)
   })
 })

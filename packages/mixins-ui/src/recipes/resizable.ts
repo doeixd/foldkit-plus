@@ -75,6 +75,28 @@ export const Resizable = Style.recipeFor(ResizableSlots)({
   variants: {
     handle: {
       line: {},
+      // A capsule on the line that lengthens and takes the accent while it is held or dragged.
+      pill: {
+        grip: variant(
+          Style.self({
+            display: 'block',
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            translate: '-50% -50%',
+            zIndex: '1',
+            inlineSize: '0.25rem',
+            blockSize: '2rem',
+            borderRadius: ref.radius.full,
+            background: ref.outline.default,
+            pointerEvents: 'none',
+            ...transition('background-color'),
+          }),
+          Style.nest(`:where(${vertical}) > * > &`, { inlineSize: '2rem', blockSize: '0.25rem' }),
+          Style.nest(`:where(${held}) > &`, { background: ref.accent.default }),
+          Style.nest(':where([data-dragging]) > * > &', { background: ref.accent.default }),
+        ),
+      },
       grip: {
         // A pill of dots across the line, above its hit area.
         grip: variant(

@@ -41,8 +41,8 @@ export default [
     edits: [
       {
         file,
-        find: ': Option.some(set(options.min ?? 0.1))',
-        replace: ': Option.some(set(options.max ?? 0.9))',
+        find: ': Option.some(set(bounds.min ?? 0.1))',
+        replace: ': Option.some(set(bounds.max ?? 0.9))',
       },
     ],
     tests: [unit],
@@ -250,7 +250,7 @@ export default [
   {
     name: 'the separator cannot say it is collapsed',
     edits: [
-      { file, find: "collapsible === 'first' ? (options.collapsedTo ?? 0) : 1,", replace: '1,' },
+      { file, find: "collapsible === 'first' ? (bounds.collapsedTo ?? 0) : 1)", replace: '1)' },
     ],
     tests: [unit],
   },
@@ -345,7 +345,20 @@ export default [
   },
   {
     name: 'the grip hangs off one side of the line',
-    edits: [{ file: recipe, find: "translate: '-50% -50%',", replace: "translate: '0 -50%'," }],
+    edits: [
+      { file: recipe, find: "translate: '-50% -50%',", replace: "translate: '0 -50%',", all: true },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the pill is not rounded',
+    edits: [
+      {
+        file: recipe,
+        find: "blockSize: '2rem',\n            borderRadius: ref.radius.full,",
+        replace: "blockSize: '2rem',\n            borderRadius: '0',",
+      },
+    ],
     tests: [browser],
   },
   {
@@ -358,5 +371,54 @@ export default [
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'update ignores the bounds the Model holds',
+    edits: [{ file, find: 'bounds: Bounds = model.bounds', replace: 'bounds: Bounds = {}' }],
+    tests: [unit],
+  },
+  {
+    name: 'the view ignores the bounds the Model holds',
+    edits: [
+      {
+        file,
+        find: 'const bounds: Bounds = { ...options.model.bounds, ...given(options) }',
+        replace: 'const bounds: Bounds = { ...given(options) }',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'init keeps no minimum',
+    edits: [
+      {
+        file,
+        find: '...(bounds.min === undefined ? {} : { min: bounds.min }),',
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the Bundle starts without its bounds',
+    edits: [
+      {
+        file: '../src/bundles/resizable.ts',
+        find: 'init: ({ share, ...bounds }) => ({ model: init(share, bounds) }),',
+        replace: 'init: ({ share }) => ({ model: init(share) }),',
+      },
+    ],
+    tests: [unit, 'packages/mixins-ui/test/layoutBundles.test.ts'],
+  },
+  {
+    name: 'a preset is not read',
+    edits: [
+      {
+        file,
+        find: 'view: (options, h) => view(layered(config, options), h),',
+        replace: 'view: (options, h) => view(options, h),',
+      },
+    ],
+    tests: [unit],
   },
 ]

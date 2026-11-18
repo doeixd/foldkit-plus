@@ -19,7 +19,6 @@ import {
   CheckboxGroup,
   Dialog,
   Menubar,
-  Resizable,
   InputCopy,
   Sidebar,
   Calendar as DateSelection,
@@ -594,12 +593,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ? { model }
         : { model: modifyFields(model, { viewMode: () => mode }) },
     GotNav: ({ example, message }) => foldNav(model, example, message),
-    GotSplit: ({ message }) => {
-      const split = Resizable.update(model.split, message, { min: 0.2, max: 0.8 })
-      return split === model.split
-        ? { model }
-        : { model: modifyFields(model, { split: () => split }) }
-    },
     RanCommand: ({ value }) => ({
       model: modifyFields(model, { commandRan: () => Option.some(value) }),
     }),
@@ -791,29 +784,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       return open === model.invoicesOpen
         ? { model }
         : { model: modifyFields(model, { invoicesOpen: () => open }) }
-    },
-    // The bounds the collapsible example's view takes, which must agree with these.
-    GotCollapsibleSplit: ({ message }) => {
-      const split = Resizable.update(model.collapsibleSplit, message, {
-        min: 0.2,
-        max: 0.6,
-        collapsible: 'first',
-      })
-      return split === model.collapsibleSplit
-        ? { model }
-        : { model: modifyFields(model, { collapsibleSplit: () => split }) }
-    },
-    GotOuterSplit: ({ message }) => {
-      const split = Resizable.update(model.outerSplit, message)
-      return split === model.outerSplit
-        ? { model }
-        : { model: modifyFields(model, { outerSplit: () => split }) }
-    },
-    GotInnerSplit: ({ message }) => {
-      const split = Resizable.update(model.innerSplit, message)
-      return split === model.innerSplit
-        ? { model }
-        : { model: modifyFields(model, { innerSplit: () => split }) }
     },
     TurnedLevel: ({ value }) =>
       value === model.level ? { model } : { model: modifyFields(model, { level: () => value }) },

@@ -312,3 +312,56 @@ describe('Resizable grip', () => {
     expect(Inert.value(grip, 'aria-hidden')).toBe('true')
   })
 })
+
+describe('Resizable bounds in the Model', () => {
+  const bounded = init(0.5, { max: 0.7, min: 0.3, collapsible: 'first', collapsedTo: 0.05 })
+
+  it('keeps the bounds init was given, left-out ones undefined', () => {
+    expect(init(0.5).bounds).toEqual({})
+    expect(bounded.bounds).toEqual({ max: 0.7, min: 0.3, collapsible: 'first', collapsedTo: 0.05 })
+  })
+
+  it('lets update read them with none given, and a call’s own win', () => {
+    expect(update(bounded, Message.Set({ share: 2 })).share).toBe(0.7)
+    expect(update(bounded, Message.Set({ share: 2 }), { max: 0.9 }).share).toBe(0.9)
+    expect(update(bounded, Message.Toggled()).share).toBe(0.05)
+  })
+
+  it('lets the view read them too: the handle’s range and its collapse', () => {
+    const drawn = Resizable.view(
+      {
+        model: bounded,
+        onMessage: () => message('Other'),
+        label: 'Resize',
+        first: h.p([], ['one']),
+        second: h.p([], ['two']),
+      },
+      h,
+    )
+    const [handle] = Inert.all(drawn).filter(node => Inert.value(node, 'role') === 'separator')
+    // The collapsed share is a place the handle may stand, below the bounds a drag keeps.
+    expect(Inert.value(handle, 'aria-valuemin')).toBe('5')
+    expect(Inert.value(handle, 'aria-valuemax')).toBe('70')
+    expect(handle?.data?.on?.['dblclick']).toBeTypeOf('function')
+  })
+})
+
+describe('Resizable.configure', () => {
+  const style = Style.forSlots(ResizableSlots)(Recipes.Resizable({}))
+  const Stacked = Resizable.configure({ base: { style, orientation: 'vertical' } })
+
+  it('binds the orientation and look once', () => {
+    const drawn = Stacked.view(
+      {
+        model: init(0.5),
+        onMessage: () => message('Other'),
+        label: 'Resize',
+        first: h.p([], ['one']),
+        second: h.p([], ['two']),
+      },
+      h,
+    )
+    const [handle] = Inert.all(drawn).filter(node => Inert.value(node, 'role') === 'separator')
+    expect(Inert.value(handle, 'aria-orientation')).toBe('horizontal')
+  })
+})

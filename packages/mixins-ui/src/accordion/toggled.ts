@@ -9,7 +9,10 @@ import { flipped } from '../choices.js'
 export const toggled = (
   open: ReadonlyArray<string>,
   id: string,
-  options: { readonly multiple?: boolean; readonly collapsible?: boolean } = {},
+  options: {
+    readonly multiple?: boolean | undefined
+    readonly collapsible?: boolean | undefined
+  } = {},
 ): ReadonlyArray<string> => {
   const isOpen = open.includes(id)
   if (options.multiple === true) return flipped(open, id)

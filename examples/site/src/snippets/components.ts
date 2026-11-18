@@ -59,8 +59,6 @@ import {
   VirtualListSlots,
   Progress,
   ProgressSlots,
-  Resizable,
-  ResizableSlots,
   ScrollArea,
   ScrollAreaSlots,
   Sidebar,
@@ -1290,120 +1288,6 @@ export const appShell = <Message>(
     },
     [h.h2([], ['Orders']), h.p([], ['Nothing is waiting for you.'])],
     h,
-  )
-// #endregion
-
-// #region resizable-basic
-export const ResizableStyle = forSlots(ResizableSlots)(Recipes.Resizable({}))
-
-export const resizable = <Message>(
-  style: NamedStyle<typeof ResizableSlots>,
-  model: Resizable.Model,
-  onMessage: (message: Resizable.Message) => Message,
-  direction: 'ltr' | 'rtl',
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [
-      h.Style({
-        blockSize: '12rem',
-        inlineSize: 'min(32rem, 100%)',
-        border: '1px solid color-mix(in oklab, currentColor 20%, transparent)',
-        borderRadius: '0.5rem',
-        overflow: 'hidden',
-      }),
-    ],
-    [
-      Resizable.view(
-        {
-          model,
-          onMessage,
-          label: 'Resize the file list',
-          min: 0.2,
-          max: 0.8,
-          direction,
-          first: h.ul(
-            [h.Style({ margin: '0', padding: '0.75rem', listStyle: 'none' })],
-            [h.li([], ['notes.txt']), h.li([], ['todo.md']), h.li([], ['grid.ts'])],
-          ),
-          second: h.p(
-            [h.Style({ margin: '0', padding: '0.75rem' })],
-            ['Pick a file to preview it.'],
-          ),
-          style,
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
-
-// #region resizable-collapsible
-// The same bounds go to `Resizable.update(model, message, bounds)`.
-const sidebarBounds = { min: 0.2, max: 0.6, collapsible: 'first' as const }
-
-// Pinned: `Recipes.Resizable({ handle: 'grip' })`.
-export const resizableCollapsible = <Message>(
-  style: NamedStyle<typeof ResizableSlots>,
-  model: Resizable.Model,
-  onMessage: (message: Resizable.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ blockSize: '12rem', inlineSize: 'min(32rem, 100%)' })],
-    [
-      Resizable.view(
-        {
-          model,
-          onMessage,
-          ...sidebarBounds,
-          label: 'Resize the sidebar; Enter or a double-click folds it away',
-          first: h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['Folders']),
-          second: h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['Messages']),
-          style,
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
-
-// #region resizable-nested
-export const resizableNested = <Message>(
-  style: NamedStyle<typeof ResizableSlots>,
-  outer: Resizable.Model,
-  inner: Resizable.Model,
-  onOuter: (message: Resizable.Message) => Message,
-  onInner: (message: Resizable.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ blockSize: '16rem', inlineSize: 'min(36rem, 100%)' })],
-    [
-      Resizable.view(
-        {
-          model: outer,
-          onMessage: onOuter,
-          label: 'Resize the file list',
-          first: h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['Files']),
-          // One over the other, inside the second panel: the split fills it.
-          second: Resizable.view(
-            {
-              model: inner,
-              onMessage: onInner,
-              orientation: 'vertical',
-              label: 'Resize the editor',
-              first: h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['Editor']),
-              second: h.p([h.Style({ margin: '0', padding: '0.75rem' })], ['Terminal']),
-              style,
-            },
-            h,
-          ),
-          style,
-        },
-        h,
-      ),
-    ],
   )
 // #endregion
 
