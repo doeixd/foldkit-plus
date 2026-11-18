@@ -3,7 +3,7 @@
  * own Model through the site's update, and what it reports becomes the
  * value the preview shows.
  */
-import { Dialog as UiDialog, Listbox as UiListbox, Menu as UiMenu } from '@foldkit/ui'
+import { Dialog as UiDialog, Menu as UiMenu } from '@foldkit/ui'
 import { Option } from 'effect'
 import {
   Chart,
@@ -75,7 +75,7 @@ describe('the previews with state', () => {
     expect(UiDialog.init({ id: 'x' }).isOpen).toBe(false)
   })
 
-  it('keep the action and frequency that were chosen', () => {
+  it('keep the action that was chosen', () => {
     const acted = send(
       Widgets.Message.GotPageMenu({
         message: Menu.Message.GotMenu({
@@ -84,11 +84,6 @@ describe('the previews with state', () => {
       }),
     )
     expect(acted.widgets.pageChoice).toEqual(Option.some('Rename'))
-    const backedUp = send(
-      Widgets.Message.GotListbox({ message: UiListbox.Message.SelectedItem({ item: 'Weekly' }) }),
-    )
-    expect(initial.widgets.frequency).toEqual(Option.some('Daily'))
-    expect(backedUp.widgets.frequency).toEqual(Option.some('Weekly'))
   })
 
   it('show a notice when the draft is saved', () => {
@@ -130,17 +125,6 @@ describe('the checkbox group previews', () => {
 })
 
 describe('the form previews', () => {
-  it('keep each custom select its own fruit', () => {
-    const picked = send(
-      Widgets.Message.GotSelect({
-        example: 'icons',
-        message: UiListbox.Message.SelectedItem({ item: 'Banana' }),
-      }),
-    )
-    expect(picked.widgets.selects.icons.fruit).toEqual(Option.some('Banana'))
-    expect(picked.widgets.selects.custom.fruit).toEqual(initial.widgets.selects.custom.fruit)
-  })
-
   it('show the key copied until its reset, and a refused copy as failed', () => {
     const copied = send(Widgets.Message.GotCopy({ message: ClipboardMessage.Copied() }))
     expect(copied.widgets.inputCopy.copied).toBe(true)

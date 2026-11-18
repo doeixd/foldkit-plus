@@ -11,7 +11,6 @@ import {
   Calendar as UiCalendar,
   Dialog as UiDialog,
   HoverIntent as UiHoverIntent,
-  Listbox as UiListbox,
   Popover as UiPopover,
 } from '@foldkit/ui'
 import {
@@ -38,7 +37,6 @@ import {
   SignaturePad,
   QrCode,
   Chart,
-  CascadeSelect,
   FloatingPanel,
   Tour,
 } from 'foldkit-mixins-ui'
@@ -49,9 +47,7 @@ import { ClipboardMessage } from 'foldkit-primitives/dom'
 import * as Fields from './fields.js'
 
 import {
-  Fruit,
   FILE_MENU,
-  Frequency,
   MENUBAR,
   PAGE_MENU,
   ACCOUNT,
@@ -104,25 +100,6 @@ export type NavExample = typeof NavExample.Type
 export const CarouselExample = Schema.Literals(['places', 'autoplay', 'thumbnails', 'perView'])
 export type CarouselExample = typeof CarouselExample.Type
 
-/** The custom select examples, each with a list and a fruit of its own. */
-export const SelectExample = Schema.Literals([
-  'custom',
-  'icons',
-  'descriptions',
-  'groups',
-  'placeholder',
-  'disabled',
-  'check-start',
-  'trigger-filled',
-  'trigger-ghost',
-  'sm',
-  'md',
-  'lg',
-])
-export type SelectExample = typeof SelectExample.Type
-
-const FruitState = Schema.Struct({ listbox: UiListbox.Model, fruit: Schema.Option(Fruit) })
-
 /** The popover, tooltip, dialog and sheet examples, each with a Model of its own. */
 export const PopoverExample = Schema.Literals(['below', 'top-start', 'no-arrow', 'clipped'])
 export type PopoverExample = typeof PopoverExample.Type
@@ -173,8 +150,6 @@ export const Model = Schema.Struct({
   fileChoice: Schema.Option(Schema.String),
   pageMenu: Menu.Model,
   pageChoice: Schema.Option(Schema.String),
-  listbox: UiListbox.Model,
-  frequency: Schema.Option(Frequency),
   notices: Notices.Model,
   range: Range,
   /** The accordion's open sections. */
@@ -226,7 +201,6 @@ export const Model = Schema.Struct({
   tripDates: DateSelection.Selection,
   /** Whether the API key shows as copied, until its reset. */
   inputCopy: InputCopy.Model,
-  selects: Schema.Record(SelectExample, FruitState),
   /** The View menu, and what its rows set. */
   viewMenu: Menu.Model,
   viewOptions: ViewOptions,
@@ -287,8 +261,6 @@ export const Model = Schema.Struct({
   avatarUrl: Schema.Option(Schema.String),
   signature: SignaturePad.Model,
   charts: Schema.Record(ChartExample, Chart.Model),
-  cascade: CascadeSelect.Model,
-  cascadeDrill: CascadeSelect.Model,
   /** The notes panel and the order the page's panels stack in. */
   panels: Schema.Struct({ notes: FloatingPanel.Model, order: Schema.Array(Schema.String) }),
   tour: Tour.Model,
@@ -310,7 +282,6 @@ export const Message = defineMessageUnion({
   OpenedDialogAt: { example: DialogExample },
   ClosedDialogAt: { example: DialogExample },
   GotPageMenu: { message: Menu.Message },
-  GotListbox: { message: UiListbox.Message },
   GotNotices: { message: Notices.Message },
   SavedDraft: {},
   ChoseRange: { range: Range },
@@ -371,7 +342,6 @@ export const Message = defineMessageUnion({
   StartedUpload: {},
   FinishedUpload: { id: Schema.String },
   Archived: {},
-  GotSelect: { example: SelectExample, message: UiListbox.Message },
   GotInputCopy: { message: InputCopy.Message },
   CopiedAnswer: {},
   LikedAnswer: {},
@@ -398,19 +368,12 @@ export const Message = defineMessageUnion({
   GotChart: { example: ChartExample, message: Chart.Message },
   PressedQrDownload: { format: QrCode.Format },
   GotQrDownload: { message: QrCode.Message },
-  GotCascade: { message: CascadeSelect.Message },
-  GotCascadeDrill: { message: CascadeSelect.Message },
   GotPanel: { message: FloatingPanel.Message },
   OpenedPanel: {},
   GotTour: { message: Tour.Message },
   StartedTour: {},
 })
 export type Message = typeof Message.Type
-
-const fruitState = (example: SelectExample, fruit: Option.Option<Fruit>) => ({
-  listbox: UiListbox.init({ id: `preview-select-${example}`, isAnimated: true }),
-  fruit,
-})
 
 const initialViewOptions: ViewOptions = {
   grid: false,
@@ -455,8 +418,6 @@ export const initial: Model = {
   },
   pageMenu: shownMenu(Menu.init('preview-page-menu', PAGE_MENU, { isAnimated: true })),
   pageChoice: Option.none(),
-  listbox: UiListbox.init({ id: 'preview-frequency', isAnimated: true }),
-  frequency: Option.some('Daily'),
   notices: Notices.init({ id: 'preview-notices' }),
   range: 'week',
   faq: ['billing'],
@@ -514,20 +475,6 @@ export const initial: Model = {
   trip: UiCalendar.init({ id: 'preview-trip', today }),
   tripDates: DateSelection.empty('Range'),
   inputCopy: InputCopy.init({ resetAfter: 2000 }),
-  selects: {
-    custom: fruitState('custom', Option.some('Apple')),
-    icons: fruitState('icons', Option.some('Cherry')),
-    descriptions: fruitState('descriptions', Option.some('Banana')),
-    groups: fruitState('groups', Option.some('Cherry')),
-    placeholder: fruitState('placeholder', Option.none()),
-    disabled: fruitState('disabled', Option.some('Apple')),
-    'check-start': fruitState('check-start', Option.some('Banana')),
-    'trigger-filled': fruitState('trigger-filled', Option.some('Apple')),
-    'trigger-ghost': fruitState('trigger-ghost', Option.some('Apple')),
-    sm: fruitState('sm', Option.some('Apple')),
-    md: fruitState('md', Option.some('Apple')),
-    lg: fruitState('lg', Option.some('Apple')),
-  },
   viewMenu: Menu.init('preview-view-menu', viewRows(initialViewOptions), { isAnimated: true }),
   viewOptions: initialViewOptions,
   palette: UiDialog.init({ id: 'preview-palette-dialog', isAnimated: true }),
@@ -598,8 +545,6 @@ export const initial: Model = {
     table: Chart.init(),
     colors: Chart.init(),
   },
-  cascade: CascadeSelect.init({ id: 'preview-cascade' }),
-  cascadeDrill: CascadeSelect.init({ id: 'preview-cascade-drill' }),
   panels: {
     notes: FloatingPanel.init({
       id: 'preview-panel',

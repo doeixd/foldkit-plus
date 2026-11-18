@@ -79,7 +79,7 @@ export const catalogue: ReadonlyArray<About> = [
     slug: 'select',
     title: 'Select',
     summary:
-      'The native select, styled like the fields beside it, and a custom one drawn over Listbox with icons, descriptions and groups.',
+      'The native select, styled like the fields beside it: options, groups, a placeholder, and the states.',
     recipe: 'Select',
     file: 'select',
     contract: 'SelectSlots',
@@ -471,7 +471,8 @@ export const catalogue: ReadonlyArray<About> = [
   {
     slug: 'listbox',
     title: 'Listbox',
-    summary: 'One value from a list that opens under its button.',
+    summary:
+      'A custom select: one value or several from a list that opens under its button, with icons, descriptions, groups, a trailing part, a clear button, and your own rule for what may be chosen.',
     recipe: 'Listbox',
     file: 'listbox',
     contract: 'ListboxSlots',
@@ -689,7 +690,7 @@ export const catalogue: ReadonlyArray<About> = [
     slug: 'picker',
     title: 'Picker',
     summary:
-      'One control that is a dropdown on a desktop and a bottom sheet on a phone, with one Model and one Message for a choice made either way.',
+      'One control that is a dropdown on a desktop and a bottom sheet on a phone, with one Model and one Message for a choice made either way, in groups, with a clear button.',
     recipe: 'Picker',
     file: 'picker',
     contract: 'PickerSlots',

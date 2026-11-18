@@ -4,7 +4,6 @@
  * for are the ones that put focus and the input's files right.
  */
 import { Option } from 'effect'
-import { Picker } from 'foldkit-mixins-ui'
 import { describe, expect, it } from 'vitest'
 
 import * as Fields from '../src/gallery/fields.js'
@@ -73,22 +72,5 @@ describe('the slider and segmented previews', () => {
       'wed',
       'fri',
     ])
-  })
-})
-
-describe('the picker preview', () => {
-  const picker = (message: Picker.Message) => Fields.Message.GotPicker({ message })
-
-  it('keeps the order chosen in the sheet, and closes it', () => {
-    const opened = after(picker(Picker.Message.OpenedSheet()))
-    expect(opened.widgets.fields.picker.sheet.dialog.isOpen).toBe(true)
-    const chosen = send(opened, picker(Picker.Message.ChoseInSheet({ value: 'price' }))).model
-    expect(chosen.widgets.fields.sort).toEqual(Option.some('price'))
-    expect(chosen.widgets.fields.picker.sheet.dialog.isOpen).toBe(false)
-  })
-
-  it('ignores a choice that is no order of the list', () => {
-    const chosen = send(initial, picker(Picker.Message.ChoseInSheet({ value: 'oldest' })))
-    expect(chosen.model.widgets.fields.sort).toEqual(Option.none())
   })
 })

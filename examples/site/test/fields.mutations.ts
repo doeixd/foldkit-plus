@@ -38,10 +38,4 @@ export default [
     'brightness => brightness',
   ),
   mutation('a weekday is only turned on', '{ multiple: true }),', '{ multiple: false }),'),
-  mutation('a choice outside the orders is kept', 'Schema.is(Sort),', '() => true,'),
-  mutation(
-    'a choice made in the sheet is not kept',
-    'sort: sort => Option.orElse(chosen, () => sort),',
-    'sort: sort => sort,',
-  ),
 ]

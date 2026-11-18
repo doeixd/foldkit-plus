@@ -50,17 +50,6 @@ export default [
     ],
     tests,
   },
-  ...['frequency'].map(field => ({
-    name: `the chosen ${field} is not kept`,
-    edits: [
-      {
-        file: widgets,
-        find: `model => ({ model: modifyFields(model, { ${field}: () => Option.some(value) }) }),`,
-        replace: 'model => ({ model }),',
-      },
-    ],
-    tests,
-  })),
   {
     name: 'a chosen page action is not kept',
     edits: [

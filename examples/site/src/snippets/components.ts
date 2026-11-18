@@ -11,7 +11,6 @@ import {
   Disclosure as UiDisclosure,
   HoverIntent as UiHoverIntent,
   Nav as UiNav,
-  Listbox as UiListbox,
   Popover as UiPopover,
 } from '@foldkit/ui'
 import * as UiFileDrop from '@foldkit/ui/fileDrop'
@@ -84,9 +83,6 @@ import {
   ItemSlots,
   Kbd,
   KbdSlots,
-  Listbox,
-  ListboxSlots,
-  ListboxView,
   Menu,
   MenuSlots,
   Popover,
@@ -135,14 +131,10 @@ import {
   QrCodeSlots,
   Chart,
   ChartSlots,
-  CascadeSelect,
-  CascadeSelectSlots,
   FloatingPanel,
   FloatingPanelSlots,
   Tour,
   TourSlots,
-  Picker,
-  PickerSlots,
   FileInput,
   FileInputSlots,
   CodeBlock,
@@ -170,193 +162,6 @@ export const TextareaStyle = forSlots(TextareaSlots)(Recipes.Textarea({}))
 
 // #region select-basic
 export const SelectStyle = forSlots(SelectSlots)(Recipes.Select({}))
-// #endregion
-
-// #region select-custom
-export const SelectMenuStyle = forSlots(ListboxSlots)(Recipes.Listbox({ width: 'trigger' }))
-
-export const Fruit = Schema.Literals(['Apple', 'Banana', 'Cherry', 'Durian'])
-export type Fruit = typeof Fruit.Type
-export const FruitBox: ReturnType<typeof ListboxView.create<Fruit>> = ListboxView.create<Fruit>()
-
-/** The open list is the component's; the fruit chosen is the Model's. */
-export interface FruitState {
-  readonly listbox: UiListbox.Model
-  readonly fruit: Option.Option<Fruit>
-}
-
-/** What the examples below change: a row's parts, which rows are off, and their groups. */
-export interface FruitRows {
-  readonly option?: (fruit: Fruit) => Listbox.OptionContent
-  readonly isDisabled?: (fruit: Fruit) => boolean
-  readonly groupOf?: (fruit: Fruit) => string
-}
-
-// A select drawn over Listbox: `Listbox.parts` draws each row and the
-// trigger's value, or its placeholder, and chevron.
-export const selectCustom = <Message>(
-  style: NamedStyle<typeof ListboxSlots>,
-  state: FruitState,
-  toMessage: (message: UiListbox.Message) => Message,
-  direction: 'ltr' | 'rtl',
-  h: HtmlBuilder<Message>,
-  rows: FruitRows = {},
-): Html => {
-  const part = Listbox.parts([style.mixin], { h })
-  const option = rows.option ?? ((fruit: Fruit) => ({ label: fruit }))
-  return h.submodel({
-    slotId: state.listbox.id,
-    model: state.listbox,
-    view: FruitBox.view,
-    viewInputs: {
-      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
-      direction,
-      items: Fruit.literals,
-      maybeSelectedValue: state.fruit,
-      ...(rows.isDisabled === undefined ? {} : { isItemDisabled: rows.isDisabled }),
-      ...(rows.groupOf === undefined
-        ? {}
-        : {
-            itemGroupKey: rows.groupOf,
-            groupToHeading: (group: string) => ({ content: h.span([], [group]) }),
-          }),
-      itemToConfig: (fruit: Fruit) => ({ content: part.option(option(fruit)) }),
-      buttonContent: part.trigger(Option.map(state.fruit, option), 'Pick a fruit'),
-      toView: Listbox.toView([style.mixin, ...Listbox.fluid], { h }),
-    },
-    toParentMessage: toMessage,
-  })
-}
-// #endregion
-
-// #region select-custom-icons
-const FRUIT_ICONS = new Map<Fruit, string>([
-  ['Apple', '🍎'],
-  ['Banana', '🍌'],
-  ['Cherry', '🍒'],
-  ['Durian', '🥭'],
-])
-
-// An icon before each label, in the list and on the trigger.
-export const selectIcons = <Message>(
-  style: NamedStyle<typeof ListboxSlots>,
-  state: FruitState,
-  toMessage: (message: UiListbox.Message) => Message,
-  direction: 'ltr' | 'rtl',
-  h: HtmlBuilder<Message>,
-): Html =>
-  selectCustom(style, state, toMessage, direction, h, {
-    option: fruit => ({
-      label: fruit,
-      icon: h.span([h.AriaHidden(true)], [FRUIT_ICONS.get(fruit) ?? '']),
-    }),
-  })
-// #endregion
-
-// #region select-custom-descriptions
-const FRUIT_NOTES = new Map<Fruit, string>([
-  ['Apple', 'Crisp, and keeps for weeks'],
-  ['Banana', 'Ripens on the counter'],
-  ['Cherry', 'Early summer only'],
-  ['Durian', 'Strong; ask before opening'],
-])
-
-// A line under each label, in the list only: the trigger shows the label.
-export const selectDescriptions = <Message>(
-  style: NamedStyle<typeof ListboxSlots>,
-  state: FruitState,
-  toMessage: (message: UiListbox.Message) => Message,
-  direction: 'ltr' | 'rtl',
-  h: HtmlBuilder<Message>,
-): Html =>
-  selectCustom(style, state, toMessage, direction, h, {
-    option: fruit => ({ label: fruit, description: FRUIT_NOTES.get(fruit) }),
-  })
-// #endregion
-
-// #region select-custom-groups
-// Rows next to each other with one group key stand under its heading.
-export const selectCustomGroups = <Message>(
-  style: NamedStyle<typeof ListboxSlots>,
-  state: FruitState,
-  toMessage: (message: UiListbox.Message) => Message,
-  direction: 'ltr' | 'rtl',
-  h: HtmlBuilder<Message>,
-): Html =>
-  selectCustom(style, state, toMessage, direction, h, {
-    groupOf: fruit => (fruit === 'Apple' || fruit === 'Banana' ? 'Every day' : 'In season'),
-  })
-// #endregion
-
-// #region select-custom-placeholder
-// Nothing chosen yet: the trigger shows `selectCustom`'s placeholder, muted.
-export const selectPrompt = <Message>(
-  style: NamedStyle<typeof ListboxSlots>,
-  state: FruitState,
-  toMessage: (message: UiListbox.Message) => Message,
-  direction: 'ltr' | 'rtl',
-  h: HtmlBuilder<Message>,
-): Html => selectCustom(style, state, toMessage, direction, h)
-// #endregion
-
-// #region select-custom-disabled
-// A row that shows but cannot be chosen, saying why.
-export const selectDisabledOption = <Message>(
-  style: NamedStyle<typeof ListboxSlots>,
-  state: FruitState,
-  toMessage: (message: UiListbox.Message) => Message,
-  direction: 'ltr' | 'rtl',
-  h: HtmlBuilder<Message>,
-): Html =>
-  selectCustom(style, state, toMessage, direction, h, {
-    option: fruit => ({
-      label: fruit,
-      description: fruit === 'Durian' ? 'Out of season' : undefined,
-    }),
-    isDisabled: fruit => fruit === 'Durian',
-  })
-// #endregion
-
-// #region select-custom-check-start
-// The chosen row's check before its label, as macOS draws it.
-export const SelectCheckStartStyle = forSlots(ListboxSlots)(
-  Recipes.Listbox({ width: 'trigger', check: 'start' }),
-)
-// #endregion
-
-// #region select-custom-trigger-filled
-// A trigger filled like a field, with no outline.
-export const SelectFilledStyle = forSlots(ListboxSlots)(
-  Recipes.Listbox({ width: 'trigger', trigger: 'filled' }),
-)
-// #endregion
-
-// #region select-custom-trigger-ghost
-// A trigger with no fill until hovered, for a toolbar.
-export const SelectGhostStyle = forSlots(ListboxSlots)(
-  Recipes.Listbox({ width: 'trigger', trigger: 'ghost' }),
-)
-// #endregion
-
-// #region select-custom-sizes
-export const SelectSizes = (['sm', 'md', 'lg'] as const).map(size => ({
-  size,
-  style: forSlots(ListboxSlots)(Recipes.Listbox({ width: 'trigger', size })),
-}))
-
-// The trigger and the rows it opens step together.
-export const selectSizes = <Message>(
-  states: Readonly<Record<'sm' | 'md' | 'lg', FruitState>>,
-  toMessage: (size: 'sm' | 'md' | 'lg', message: UiListbox.Message) => Message,
-  direction: 'ltr' | 'rtl',
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' })],
-    SelectSizes.map(({ size, style }) =>
-      selectCustom(style, states[size], message => toMessage(size, message), direction, h),
-    ),
-  )
 // #endregion
 
 /** The checkbox look the table's selection column draws with. */
@@ -1296,44 +1101,6 @@ export const commandDialog = <Message>(
       ),
     ],
   )
-// #endregion
-
-// #region listbox
-export const ListboxStyle = forSlots(ListboxSlots)(Recipes.Listbox({}))
-
-export const Frequency = Schema.Literals(['Hourly', 'Daily', 'Weekly', 'Monthly'])
-export type Frequency = typeof Frequency.Type
-export const FrequencyBox: ReturnType<typeof ListboxView.create<Frequency>> =
-  ListboxView.create<Frequency>()
-
-/** The open list and its highlight are the component's; the choice is the Model's. */
-export interface ListboxState {
-  readonly listbox: UiListbox.Model
-  readonly frequency: Option.Option<Frequency>
-}
-
-export const listbox = <Message>(
-  style: NamedStyle<typeof ListboxSlots>,
-  state: ListboxState,
-  toMessage: (message: UiListbox.Message) => Message,
-  direction: 'ltr' | 'rtl',
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.submodel({
-    slotId: state.listbox.id,
-    model: state.listbox,
-    view: FrequencyBox.view,
-    viewInputs: {
-      anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
-      direction,
-      items: Frequency.literals,
-      maybeSelectedValue: state.frequency,
-      itemToConfig: (frequency: Frequency) => ({ content: h.span([], [frequency]) }),
-      buttonContent: h.span([], [Option.getOrElse(state.frequency, () => 'Back up…')]),
-      toView: Listbox.toView([style.mixin, ...Listbox.fluid], { h }),
-    },
-    toParentMessage: toMessage,
-  })
 // #endregion
 
 export const CalendarStyle = forSlots(CalendarSlots)(Recipes.Calendar({}))
@@ -4117,76 +3884,6 @@ export const chartColors = <Message>(
   )
 // #endregion
 
-// #region cascade-select-columns
-export const CascadeSelectStyle = forSlots(CascadeSelectSlots)(Recipes.CascadeSelect({}))
-
-/** Folded with `CascadeSelect.update(CASCADE_PLACES)`; its Model from `CascadeSelect.init({ id })`. */
-export const CASCADE_PLACES: CascadeSelect.Config = {
-  nodes: [
-    {
-      id: 'ca',
-      label: 'Canada',
-      children: [
-        {
-          id: 'on',
-          label: 'Ontario',
-          children: [
-            { id: 'tor', label: 'Toronto' },
-            { id: 'ott', label: 'Ottawa' },
-          ],
-        },
-        { id: 'qc', label: 'Quebec', children: [{ id: 'mtl', label: 'Montreal' }] },
-      ],
-    },
-    {
-      id: 'jp',
-      label: 'Japan',
-      children: [
-        { id: 'kanto', label: 'Kantō', children: [{ id: 'tyo', label: 'Tokyo' }] },
-        { id: 'kansai', label: 'Kansai', children: [{ id: 'osa', label: 'Osaka' }] },
-      ],
-    },
-    { id: 'sg', label: 'Singapore' },
-  ],
-}
-
-// A city chosen through its country and region: a column per level, the
-// arrows within and between them, the value the path of ids.
-export const cascadeSelect = <Message>(
-  style: NamedStyle<typeof CascadeSelectSlots>,
-  model: CascadeSelect.Model,
-  onMessage: (message: CascadeSelect.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  CascadeSelect.view(
-    {
-      model,
-      config: CASCADE_PLACES,
-      onMessage,
-      label: 'City',
-      placeholder: 'Choose a city',
-      levels: ['Country', 'Region', 'City'],
-      clearable: true,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region cascade-select-drill
-// One level at a time, with a way back: a phone's width holds one column.
-export const cascadeSelectDrill = <Message>(
-  style: NamedStyle<typeof CascadeSelectSlots>,
-  model: CascadeSelect.Model,
-  onMessage: (message: CascadeSelect.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  CascadeSelect.view(
-    { model, config: CASCADE_PLACES, onMessage, label: 'City', layout: 'drill', style },
-    h,
-  )
-// #endregion
-
 // #region floating-panel-basic
 export const FloatingPanelStyle = forSlots(FloatingPanelSlots)(Recipes.FloatingPanel({}))
 
@@ -4343,47 +4040,6 @@ export const fileInputRequired = <Message>(
   )
 // #endregion
 
-// #region picker-basic
-export const PickerStyle = forSlots(PickerSlots)(Recipes.Picker({}))
-const PickerListboxStyle = forSlots(ListboxSlots)(Recipes.Listbox({ width: 'trigger' }))
-const PickerSheetStyle = forSlots(DialogSlots)(Recipes.Sheet({}))
-
-export const SORTS = ['relevance', 'price', 'name'] as const
-export const Sort = Schema.Literals(SORTS)
-export type Sort = typeof Sort.Type
-
-export const SORT_OPTIONS: ReadonlyArray<Picker.PickerOption<Sort>> = [
-  { value: 'relevance', label: 'Most relevant' },
-  { value: 'price', label: 'Lowest price', description: 'The cheapest first' },
-  { value: 'name', label: 'Name', description: 'A to Z' },
-]
-
-// One control, one Model and one set of Messages at every width: a dropdown
-// above the theme's `md` breakpoint, and below it an opener that shows the
-// options in a bottom sheet. Both are drawn and the style shows one, so a
-// server render is right at any width; narrow the window to see the sheet.
-export const picker = <Message>(
-  style: NamedStyle<typeof PickerSlots>,
-  state: { readonly picker: Picker.Model; readonly sort: Option.Option<Sort> },
-  onMessage: (message: Picker.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Picker.view(
-    {
-      model: state.picker,
-      onMessage,
-      label: 'Sort',
-      options: SORT_OPTIONS,
-      value: state.sort,
-      placeholder: 'Sort by',
-      style,
-      listbox: [PickerListboxStyle.mixin],
-      sheet: [PickerSheetStyle.mixin],
-    },
-    h,
-  )
-// #endregion
-
 // #region code-block-basic
 export const CodeBlockStyle = forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
 
@@ -4433,4 +4089,3 @@ export const codeBlockCopy = (
     ],
   )
 // #endregion
-

@@ -3,14 +3,13 @@
  * pickers' lists. The site's widgets hold one of these and fold `Message`
  * into it.
  */
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
-import { FileInput } from 'foldkit-mixins-ui'
-import { Picker, Segmented } from 'foldkit-mixins-ui'
-import { Sort, Weekday } from '../snippets/components.js'
+import { FileInput, Segmented } from 'foldkit-mixins-ui'
+import { Weekday } from '../snippets/components.js'
 
 export const FilesExample = Schema.Literals(['multiple', 'required'])
 export type FilesExample = typeof FilesExample.Type
@@ -26,9 +25,6 @@ export const Model = Schema.Struct({
   /** The brightness as it moves and as last let go of. */
   brightness: Schema.Struct({ value: Schema.Number, saved: Schema.Number }),
   repeatOn: Schema.Array(Weekday),
-  /** The sort picker: what is open, and the order chosen. */
-  picker: Picker.Model,
-  sort: Schema.Option(Sort),
 })
 export type Model = typeof Model.Type
 
@@ -39,7 +35,6 @@ export const Message = defineMessageUnion({
   MovedBrightness: { value: Schema.Number },
   CommittedBrightness: { value: Schema.Number },
   ToggledDay: { day: Weekday },
-  GotPicker: { message: Picker.Message },
   Completed: {},
 })
 export type Message = typeof Message.Type
@@ -48,8 +43,6 @@ export const init = (): Model => ({
   files: { multiple: [], required: [] },
   brightness: { value: 60, saved: 60 },
   repeatOn: ['mon', 'wed'],
-  picker: Picker.init({ id: 'preview-sort' }),
-  sort: Option.none(),
 })
 
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
@@ -97,25 +90,5 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         repeatOn: days => Segmented.toggled(days, day, { multiple: true }),
       }),
     }),
-    GotPicker: ({ message }) => {
-      const next = Picker.update(model.picker, message)
-      // A choice outside the listed orders is ignored.
-      const chosen = Option.filter(
-        Option.map(Option.fromNullishOr(next.outMessage), ({ value }) => value),
-        Schema.is(Sort),
-      )
-      return {
-        model:
-          next.model === model.picker && Option.isNone(chosen)
-            ? model
-            : modifyFields(model, {
-                picker: () => next.model,
-                sort: sort => Option.orElse(chosen, () => sort),
-              }),
-        commands: Command.mapMessages(next.commands ?? [], inner =>
-          Message.GotPicker({ message: inner }),
-        ),
-      }
-    },
     Completed: () => ({ model }),
   })

@@ -1,25 +1,18 @@
-import type { NamedStyle } from 'foldkit-mixins'
-import { Recipes, PickerSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Fields from '../fields.js'
+import { PickerSlots, Recipes } from 'foldkit-mixins-ui'
+import basic from '../../examples/picker/basic.js'
+import clear from '../../examples/picker/clear.js'
+import configure from '../../examples/picker/configure.js'
+import groups from '../../examples/picker/groups.js'
+import icons from '../../examples/picker/icons.js'
+import states from '../../examples/picker/states.js'
 import { about } from '../catalogue.js'
 import { fromRecipe } from '../define.js'
-import { fields } from '../previewShared.js'
-import type { Live } from '../showcase.js'
 
-const pickerBasic = <Message>(style: NamedStyle<typeof PickerSlots>, live: Live<Message>) =>
-  Snippet.picker(
-    style,
-    live.widgets.fields,
-    message => fields(live, Fields.Message.GotPicker({ message })),
-    live.h,
-  )
-
-export const showcase = fromRecipe(
-  about('picker'),
-  PickerSlots,
-  Recipes.Picker,
-  pickerBasic,
-  undefined,
-  [{ name: 'basic', title: 'Sort order', draw: pickerBasic }],
-)
+export const showcase = fromRecipe(about('picker'), PickerSlots, Recipes.Picker, basic, undefined, [
+  { name: 'basic', example: basic },
+  { name: 'icons', example: icons },
+  { name: 'groups', example: groups },
+  { name: 'clear', example: clear },
+  { name: 'states', example: states },
+  { name: 'configure', example: configure },
+])

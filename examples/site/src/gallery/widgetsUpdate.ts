@@ -12,7 +12,6 @@ import {
   Calendar as UiCalendar,
   Dialog as UiDialog,
   HoverIntent as UiHoverIntent,
-  Listbox as UiListbox,
   Popover as UiPopover,
 } from '@foldkit/ui'
 import {
@@ -42,7 +41,6 @@ import {
   ImageCropper,
   SignaturePad,
   Chart,
-  CascadeSelect,
   FloatingPanel,
   Tour,
 } from 'foldkit-mixins-ui'
@@ -58,10 +56,6 @@ import {
   THUMBNAILS_LAYOUT,
   PER_VIEW_LAYOUT,
   TREE_ICONS,
-  Fruit,
-  FruitBox,
-  Frequency,
-  FrequencyBox,
   MENUBAR,
   ViewOptions,
   TREE_FILES,
@@ -70,7 +64,6 @@ import {
   ChatEntry,
   HEADING_LAYOUT,
   ROTATION_LAYOUT,
-  CASCADE_PLACES,
   TOUR,
   downloadQr,
 } from '../snippets/components.js'
@@ -84,7 +77,6 @@ import {
   Model,
   NavExample,
   PopoverExample,
-  SelectExample,
   SheetExample,
   SidebarExample,
   ToastExample,
@@ -125,7 +117,6 @@ const own = <K extends keyof Model, ChildMessage>(
 })
 
 const same: Step = model => ({ model })
-
 
 const foldDrop = Update.foldChild({
   ...own('drop', Message.GotDrop),
@@ -281,32 +272,6 @@ const foldMenubar = Update.foldChild({
 const foldVirtualList = Update.foldChild({
   ...own('virtualList', Message.GotVirtualList),
   update: UiVirtualList.update,
-})
-
-const foldSelect = Update.foldChildAt({
-  update: FruitBox.update,
-  readAt: (model: Model, example: SelectExample) => Option.some(model.selects[example].listbox),
-  writeAt: (model, example, listbox) =>
-    modifyFields(model, {
-      selects: selects => ({ ...selects, [example]: { ...selects[example], listbox } }),
-    }),
-  toParentMessage: (example, message) => Message.GotSelect({ example, message }),
-  foldOutMessage: example =>
-    UiListbox.OutMessage.match<Step, UiListbox.OutMessage<Fruit>>({
-      Selected:
-        ({ value }) =>
-        model =>
-          Option.contains(model.selects[example].fruit, value)
-            ? { model }
-            : {
-                model: modifyFields(model, {
-                  selects: selects => ({
-                    ...selects,
-                    [example]: { ...selects[example], fruit: Option.some(value) },
-                  }),
-                }),
-              },
-    }),
 })
 
 const foldAccent = Update.foldChild({
@@ -510,16 +475,6 @@ const foldTreeView = Update.foldChild({
   update: TreeView.update(TREE_FILES),
 })
 
-const foldListbox = Update.foldChild({
-  ...own('listbox', Message.GotListbox),
-  update: FrequencyBox.update,
-  foldOutMessage: UiListbox.OutMessage.match<Step, UiListbox.OutMessage<Frequency>>({
-    Selected:
-      ({ value }) =>
-      model => ({ model: modifyFields(model, { frequency: () => Option.some(value) }) }),
-  }),
-})
-
 const noticesField = own('notices', Message.GotNotices)
 const noticesOut = Notices.OutMessage.match<Step>({ DismissedToast: () => same })
 const foldNotices = Update.foldChild({
@@ -577,14 +532,6 @@ const foldAvatarCrop = Update.foldChild({
 const foldSignature = Update.foldChild({
   ...own('signature', Message.GotSignature),
   update: SignaturePad.update,
-})
-const foldCascade = Update.foldChild({
-  ...own('cascade', Message.GotCascade),
-  update: CascadeSelect.update(CASCADE_PLACES),
-})
-const foldCascadeDrill = Update.foldChild({
-  ...own('cascadeDrill', Message.GotCascadeDrill),
-  update: CascadeSelect.update(CASCADE_PLACES),
 })
 const tourField = own('tour', Message.GotTour)
 // An application would remember the tour was seen; the gallery starts it again on a press.
@@ -702,7 +649,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         CopyFailed: () => foldInputCopy(model, InputCopy.Message.Failed()),
       }),
     GotInputCopy: ({ message }) => foldInputCopy(model, message),
-    GotSelect: ({ example, message }) => foldSelect(model, example, message),
     GotViewMenu: ({ message }) => foldViewMenu(model, message),
     OpenedPalette: () => openPalette(model),
     GotPalette: ({ message }) => foldPalette(model, message),
@@ -855,8 +801,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     }),
     // A saved file needs no word from the page, and a refused one has nowhere to go here.
     GotQrDownload: () => ({ model }),
-    GotCascade: ({ message }) => foldCascade(model, message),
-    GotCascadeDrill: ({ message }) => foldCascadeDrill(model, message),
     GotPanel: ({ message }) => panelStep(model, updatePanel(model.panels.notes, message)),
     OpenedPanel: () => panelStep(model, FloatingPanel.open(model.panels.notes)),
     GotTour: ({ message }) => foldTour(model, message),
@@ -918,7 +862,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ),
       }
     },
-    GotListbox: ({ message }) => foldListbox(model, message),
     GotNotices: ({ message }) => foldNotices(model, message),
     ChoseRange: ({ range }) =>
       range === model.range ? { model } : { model: modifyFields(model, { range: () => range }) },
