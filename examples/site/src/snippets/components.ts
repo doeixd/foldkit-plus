@@ -29,26 +29,17 @@ import {
   Dialog,
   DialogSlots,
   InputSlots,
-  Item,
-  ItemSlots,
   Kbd,
   KbdSlots,
   Menu,
   MenuSlots,
-  RadioGroupSlots,
   Recipes,
   Segmented,
   SegmentedSlots,
   SelectSlots,
   Slider,
   SliderSlots,
-  SpinnerSlots,
   TableSlots,
-  TextareaSlots,
-  Toast,
-  ToastSlots,
-  ToastView,
-  TooltipSlots,
   AngleSlider,
   AngleSliderSlots,
   ChartSlots,
@@ -68,7 +59,6 @@ export const AlertStyle = forSlots(AlertSlots)(Recipes.Alert({}))
 export const CardStyle = forSlots(CardSlots)(Recipes.Card({}))
 
 export const InputStyle = forSlots(InputSlots)(Recipes.Input({}))
-export const TextareaStyle = forSlots(TextareaSlots)(Recipes.Textarea({}))
 
 // #region select-basic
 export const SelectStyle = forSlots(SelectSlots)(Recipes.Select({}))
@@ -77,37 +67,10 @@ export const SelectStyle = forSlots(SelectSlots)(Recipes.Select({}))
 /** The avatar the specimens draw: the avatar page's examples are modules (`src/examples/avatar`). */
 export const AvatarStyle = forSlots(AvatarSlots)(Recipes.Avatar({}))
 
-// #region kbd-key
-export const KbdStyle = forSlots(KbdSlots)(Recipes.Kbd({}))
-
-export const kbdKey = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
-  h.p([], ['Press ', Kbd.view({ key: 'Enter', style }, h), ' to send.'])
-// #endregion
-
-// #region kbd-combo
-// Keys pressed together are one `kbd` holding a `kbd` per key.
-export const kbdCombo = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
-  h.p([], ['Search with ', Kbd.combo({ keys: ['⌘', 'K'], style }, h), '.'])
-// #endregion
-
-// #region kbd-joined
-// A joiner between keys whose names run together without one.
-export const kbdJoined = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
-  h.p(
-    [],
-    [
-      'Open the command palette with ',
-      Kbd.combo({ keys: ['Ctrl', 'Shift', 'P'], joiner: '+', style }, h),
-      '.',
-    ],
-  )
-// #endregion
-
-export const SpinnerStyle = forSlots(SpinnerSlots)(Recipes.Spinner({}))
-
 export const TableStyle = forSlots(TableSlots)(Recipes.Table({}))
 
-export const RadioGroupStyle = forSlots(RadioGroupSlots)(Recipes.RadioGroup({}))
+/** The keys the command menu draws its shortcuts and hints with. */
+export const KbdStyle = forSlots(KbdSlots)(Recipes.Kbd({}))
 
 // #region slider-basic
 export const SliderStyle = forSlots(SliderSlots)(Recipes.Slider({}))
@@ -766,75 +729,6 @@ export const commandDialog = <Message>(
 // #endregion
 
 export const CalendarStyle = forSlots(CalendarSlots)(Recipes.Calendar({}))
-
-// The Sidebar's rail names its rows in tooltips of this look.
-export const TooltipStyle = forSlots(TooltipSlots)(Recipes.Tooltip({}))
-
-// #region toast-payload
-export const ToastStyle = forSlots(ToastSlots)(Recipes.Toast({}))
-// The toast's card pads the notice, so the row adds none of its own.
-const NoticeStyle = forSlots(ItemSlots)(
-  Recipes.Item.extend({ variants: { density: { comfortable: { root: { padding: '0' } } } } })({}),
-)
-const DismissStyle = forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
-)
-
-export const Notice = Schema.Struct({ title: Schema.String, text: Schema.String })
-// Annotated: the inferred type names a foldkit internal module.
-export const Notices: ReturnType<typeof ToastView.make<typeof Notice.Type, typeof Notice.Encoded>> =
-  ToastView.make(Notice)
-
-/** The stack and each entry's timer are the component's; what was said is the Message's. */
-export interface ToastMessages<Message> {
-  readonly onNotify: Message
-  readonly toMessage: (message: typeof Notices.Message.Type) => Message
-}
-
-export const toast = <Message>(
-  style: NamedStyle<typeof ToastSlots>,
-  model: typeof Notices.Model.Type,
-  messages: ToastMessages<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [],
-    [
-      Button.view({ label: 'Save draft', onClick: messages.onNotify, style: ButtonStyle }, h),
-      h.submodel({
-        slotId: model.id,
-        model,
-        view: Notices.view,
-        viewInputs: {
-          position: 'BottomRight',
-          entryToView: (entry, handlers) =>
-            Item.view(
-              {
-                title: entry.payload.title,
-                description: entry.payload.text,
-                actions: h.button(
-                  SlotView.buildersFor(ButtonSlots, [DismissStyle.mixin], {
-                    input: undefined,
-                    h,
-                  }).button.attrs([...handlers.dismiss, h.Type('button'), h.AriaLabel('Dismiss')]),
-                  ['✕'],
-                ),
-                style: NoticeStyle,
-              },
-              h,
-            ),
-          toView: Toast.toView([style.mixin], { h }, ({ container, entries }) =>
-            h.div(
-              container,
-              entries.map(entry => h.keyed('div')(entry.id, entry.attributes, [entry.content])),
-            ),
-          ),
-        },
-        toParentMessage: messages.toMessage,
-      }),
-    ],
-  )
-// #endregion
 
 // #region checkbox-group-alerts
 export const CheckboxGroupStyle = forSlots(CheckboxGroupSlots)(Recipes.CheckboxGroup({}))
