@@ -1663,8 +1663,8 @@ no ellipses.
 ### Steps
 
 The marker is hidden from assistive technology, so `words: { complete?, current?,
-upcoming? }` (default `Completed`, none, `Upcoming`; the current step's
-`aria-current="step"` already says it) say each step's state in text after its
+upcoming? }` (defaults `Steps.words`: `Completed`, an empty word that says nothing,
+`Upcoming`; the current step's `aria-current="step"` already says it) say each step's state in text after its
 title, in the `state` slot. `progress` (0 to 1) fills the connector after the
 current step when the recipe's connector is a progress bar. A horizontal row
 narrower than 32rem shows only the current step's words, wrapping inside an even

@@ -1,6 +1,7 @@
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
+import { wordsOf } from './words.js'
 
 /**
  * A stepper, Zag's steps and Mantine's Stepper: a named ordered list of
@@ -46,15 +47,16 @@ export interface Step {
   readonly content?: Html | undefined
 }
 
-/** What each state of a step says to a screen reader, after its title. */
+/** What each state of a step says to a screen reader, after its title; an empty word says nothing. */
 export interface StepsWords {
-  /** Default `"Completed"`. */
-  readonly complete?: string | undefined
-  /** Default none: the item's `aria-current="step"` already says it. */
-  readonly current?: string | undefined
-  /** Default `"Upcoming"`. */
-  readonly upcoming?: string | undefined
+  readonly complete: string
+  /** Empty by default: the item's `aria-current="step"` already says it. */
+  readonly current: string
+  readonly upcoming: string
 }
+
+/** The defaults, in English. */
+export const words: StepsWords = { complete: 'Completed', current: '', upcoming: 'Upcoming' }
 
 export interface StepsView<Message> {
   /** The list's accessible name. */
@@ -66,7 +68,7 @@ export interface StepsView<Message> {
   readonly onSelect?: ((index: number) => NoInfer<Message>) | undefined
   /** How far the current step has gone, 0 to 1; outside that, the nearest end. */
   readonly progress?: number | undefined
-  readonly words?: StepsWords | undefined
+  readonly words?: Partial<StepsWords> | undefined
   /** A style of `StepsSlots`, for the look. */
   readonly style?: NamedStyle<typeof StepsSlots> | undefined
   /** Mixins beside the style. */
@@ -87,11 +89,7 @@ export const view = <Message>(options: StepsView<Message>, h: HtmlBuilder<Messag
   const last = options.steps.length - 1
   const onSelect = options.onSelect
   const progress = options.progress
-  const words = {
-    complete: options.words?.complete ?? 'Completed',
-    current: options.words?.current,
-    upcoming: options.words?.upcoming ?? 'Upcoming',
-  }
+  const text = wordsOf(words, options.words)
   return h.ol(
     builders.root.attrs([
       h.AriaLabel(options.label),
@@ -109,9 +107,7 @@ export const view = <Message>(options: StepsView<Message>, h: HtmlBuilder<Messag
         ]),
         h.span(builders.text.attrs(), [
           h.span(builders.title.attrs([marked]), [step.title]),
-          ...(words[state] === undefined
-            ? []
-            : [h.span(builders.state.attrs([marked]), [words[state]])]),
+          ...(text[state] === '' ? [] : [h.span(builders.state.attrs([marked]), [text[state]])]),
           ...(step.description === undefined
             ? []
             : [h.span(builders.description.attrs(), [step.description])]),

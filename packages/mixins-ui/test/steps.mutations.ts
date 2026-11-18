@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: '../src/steps.ts',
-        find: "complete: options.words?.complete ?? 'Completed'",
-        replace: 'complete: undefined',
+        find: "text[state] === ''",
+        replace: 'true',
       },
     ],
     tests: ['packages/mixins-ui/test/steps.test.ts'],
@@ -23,8 +23,8 @@ export default [
     edits: [
       {
         file: '../src/steps.ts',
-        find: "upcoming: options.words?.upcoming ?? 'Upcoming'",
-        replace: "upcoming: 'Upcoming'",
+        find: 'const text = wordsOf(words, options.words)',
+        replace: 'const text = words',
       },
     ],
     tests: ['packages/mixins-ui/test/steps.test.ts'],

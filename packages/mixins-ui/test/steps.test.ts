@@ -60,7 +60,7 @@ describe('Steps.view', () => {
   })
 
   it('says where each step stands in words, the current one by aria-current alone', () => {
-    const wordsOf = (words?: Steps.StepsWords) =>
+    const wordsOf = (words?: Partial<Steps.StepsWords>) =>
       Inert.byTag(Steps.view({ label: 'Checkout', steps, current: 1, words, style }, h), 'span')
         .filter(span =>
           ['Completed', 'Upcoming', 'Done', 'Here', 'Later'].includes(Inert.text(span)),
