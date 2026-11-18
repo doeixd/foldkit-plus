@@ -49,6 +49,9 @@ const READ = [
   '/components/alert',
   '/components/badge',
   '/components/checkbox',
+  '/components/switch',
+  '/components/select',
+  '/components/rating',
   '/components/checkbox-group',
   '/components/steps',
   '/components/pagination',
@@ -366,9 +369,31 @@ describe('the generated site', () => {
       [
         'checkbox',
         [
-          ['basic', 'Basic', 'checkbox'],
-          ['indeterminate', 'Indeterminate', 'checkboxIndeterminate'],
-          ['card', 'Card', 'checkboxCard'],
+          ['basic', 'Basic', 'Checkbox.view('],
+          ['indeterminate', 'Indeterminate', 'indeterminate: model.on.length > 0'],
+          ['card', 'Card', "pins: { variant: 'card' }"],
+          ['aside', 'Aside and position', "position: 'end'"],
+        ],
+      ],
+      [
+        'switch',
+        [
+          ['basic', 'Basic', 'Switch.view('],
+          ['draggable', 'Drag the thumb', 'mixins: [Switch.draggable(onToggle)]'],
+        ],
+      ],
+      [
+        'select',
+        [
+          ['basic', 'Basic', 'Select.view('],
+          ['groups', 'Groups', "group: 'Americas'"],
+        ],
+      ],
+      [
+        'rating',
+        [
+          ['basic', 'Basic', 'Rating.view('],
+          ['labels', 'A word per value', "labels: ['Useless'"],
         ],
       ],
       [
@@ -383,9 +408,9 @@ describe('the generated site', () => {
       [
         'radio-group',
         [
-          ['descriptions', 'Descriptions', 'radioGroup'],
-          ['horizontal', 'Horizontal', 'radioGroupHorizontal'],
-          ['cards', 'Cards', "Recipes.RadioGroup({ variant: 'card' })"],
+          ['basic', 'Descriptions', 'RadioGroup.view('],
+          ['cards', 'Cards', "pins: { variant: 'card' }"],
+          ['grid', 'Grid', "layout: 'grid'"],
         ],
       ],
       ['file-drop', [['basic', 'Dropped files', 'fileDrop']]],
@@ -792,21 +817,21 @@ describe('the generated site', () => {
         'main [data-size="page"] [role="radiogroup"]',
       ),
     )
-    expect(groups).toHaveLength(3)
+    expect(groups).toHaveLength(5)
     expect(
       groups.filter(group => group.getAttribute('aria-orientation') === 'horizontal'),
     ).toHaveLength(1)
-    // Each row is the card slot, marked while its option is checked.
-    expect(
-      groups.map(group =>
-        Array.from(group.querySelectorAll('label'), row => row.getAttribute('data-checked')),
-      ),
-    ).toEqual(groups.map(() => ['false', 'true', 'false']))
     for (const group of groups) {
-      const radios = Array.from(group.querySelectorAll('[role="radio"]'))
-      expect(radios).toHaveLength(3)
-      // A label's `control` is the element a press on it is sent to.
-      expect(radios.map(radio => radio.closest('label')?.control)).toEqual(radios)
+      const rows = Array.from(group.querySelectorAll<HTMLLabelElement>(':scope > label'))
+      expect(rows.length).toBeGreaterThan(1)
+      for (const row of rows) {
+        const radio = row.querySelector('[role="radio"]')
+        // A label's `control` is the element a press on it is sent to; the row is
+        // marked while its option is checked.
+        expect(radio).not.toBeNull()
+        expect(row.control).toBe(radio)
+        expect(row.getAttribute('data-checked')).toBe(radio?.getAttribute('aria-checked'))
+      }
     }
   })
 
