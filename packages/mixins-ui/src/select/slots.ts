@@ -13,6 +13,9 @@ export const SelectSlots = Slots.define({
     events: [Event.Change],
     attributes: [Attr.AriaLabel, Attr.AriaInvalid, Attr.Disabled, Attr.Value],
   }),
+  /** One `option` of the list, and the `optgroup` that heads a run of them; a browser styles little of either. */
+  option: Slot.make({ capability: Capability.Container }),
+  group: Slot.make({ capability: Capability.Container }),
   label: Slot.make({ capability: Capability.Container }),
   description: Slot.make({ capability: Capability.Container }),
 })

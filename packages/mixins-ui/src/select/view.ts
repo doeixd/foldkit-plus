@@ -7,7 +7,7 @@
 import * as UiSelect from '@foldkit/ui/select'
 import { Array as Arr } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import type { NamedStyle } from 'foldkit-mixins'
+import type { NamedStyle, SlotAttributes } from 'foldkit-mixins'
 import { layered, type PresetOption, type Presets } from '../configure.js'
 import type { MixinList } from '../resolve.js'
 import { toView } from '../select.js'
@@ -50,9 +50,10 @@ export const view = <Outer>(options: SelectView<Outer>, h: HtmlBuilder<Outer>): 
     ...(options.style === undefined ? [] : [options.style.mixin]),
     ...(options.mixins ?? []),
   ]
-  const optionOf = (option: SelectOption): Html =>
+  const optionOf = (slot: SlotAttributes<Outer>, option: SelectOption): Html =>
     h.option(
       [
+        ...slot,
         h.Value(option.value),
         ...(option.disabled === true ? [h.Disabled(true)] : []),
         ...(value === undefined ? [] : [h.Selected(option.value === value)]),
@@ -81,6 +82,7 @@ export const view = <Outer>(options: SelectView<Outer>, h: HtmlBuilder<Outer>): 
               : [
                   h.option(
                     [
+                      ...resolved.option,
                       h.Value(''),
                       h.Disabled(true),
                       h.Selected(value === undefined || value === ''),
@@ -91,8 +93,13 @@ export const view = <Outer>(options: SelectView<Outer>, h: HtmlBuilder<Outer>): 
             ...grouped.flatMap(run => {
               const group = run[0].group
               return group === undefined
-                ? run.map(optionOf)
-                : [h.optgroup([h.Attribute('label', group)], run.map(optionOf))]
+                ? run.map(each => optionOf(resolved.option, each))
+                : [
+                    h.optgroup(
+                      [...resolved.group, h.Attribute('label', group)],
+                      run.map(each => optionOf(resolved.option, each)),
+                    ),
+                  ]
             }),
           ]),
           ...(description === undefined ? [] : [h.p(resolved.description, [description])]),
