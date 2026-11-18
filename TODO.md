@@ -430,6 +430,18 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    U-WP1b's first, and `tree-navigation.ts` then U-WP3b's, then U-WP5's. `packages/agent/src/expose.ts` and `runtime.ts`
    are shared with laws WP9: whichever starts second builds on the first.
    Nothing in item 6 touches `packages/remote`, `entity`, `sync` or `guard`.
+7. **Primitives we lack, compared with solid-primitives.** Fifteen missing
+   and four not yet classified; none started.
+   [primitives-gaps-PLAN.md](./docs/design/primitives-gaps-PLAN.md)
+   - First: the leave guard (`foldkit-primitives/events`), the audio and
+     video element (a Mount, Commands and a Bundle), and the `device` batch
+     (notification, vibrate, battery, orientation, motion sensors). Sonnet.
+   - Needs a design first: i18n (a typed dictionary over `Locale`) and the
+     Web Worker Command and stream. Default.
+   - On request only: File System Access, favicon, cursor, match
+     highlighting, scroll and view timelines, analytics.
+   - Classify before building: text selection, native drag and drop between
+     windows, `Mirror.kv` across tabs, general colour helpers.
 
 Waiting on the owner: the upstream posts (foldkit#1657, #1872, the Workers `fetch` signature, the
 identity markers, floating-ui), the three alchemy-run/alchemy reports, and the Jev reviews (no key here).
