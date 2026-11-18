@@ -84,7 +84,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
   base: {
     // The tablist above its panel; beside it where the tabs stand upright.
     root: component(
-      Style.self({ display: 'flex', flexDirection: 'column', gap: ref.space.sm }),
+      Style.self({ display: 'flex', gap: ref.space.sm, flexDirection: 'column' }),
       Style.nest(`&:has(> ${upright})`, { flexDirection: 'row', gap: ref.space.lg }),
     ),
     tablist: component(

@@ -18,6 +18,7 @@ import * as Render from 'foldkit/render'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
 import { FluidHover, Measure } from 'foldkit-primitives/dom'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { Anchor, topLayer } from './anchor.js'
 import { FollowDirection, readingKey } from './direction.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
@@ -58,6 +59,10 @@ export const NavSlots = Slots.define({
   links: Slot.make({ capability: Capability.Container }),
   panelItem: Slot.make({ capability: Capability.Container }),
   panelLink: Slot.make({ capability: Capability.Interactive, events: [Event.KeyDown] }),
+  /** A link's picture, before its words, hidden from assistive technology. */
+  icon: Slot.make({ capability: Capability.Container }),
+  /** A panel's `footer` Html, after its groups: a call to action, a note. */
+  panelFooter: Slot.make({ capability: Capability.Container }),
   /** A panel link's words. */
   title: Slot.make({ capability: Capability.Container }),
   /** A panel link's line under its words. */
@@ -197,6 +202,8 @@ export interface NavLink {
   readonly href: string
   /** Whether it leads to the page shown, `aria-current="page"`. */
   readonly current?: boolean | undefined
+  /** Drawn before the words, in the `icon` slot. */
+  readonly icon?: Html | undefined
   readonly groups?: undefined
 }
 
@@ -206,6 +213,8 @@ export interface NavPanelLink {
   readonly href: string
   readonly description?: string | undefined
   readonly current?: boolean | undefined
+  /** Drawn before the words, in the `icon` slot, beside both lines. */
+  readonly icon?: Html | undefined
 }
 
 /** A column of a panel: its links under an optional heading. */
@@ -220,6 +229,8 @@ export interface NavPanel {
   readonly id: string
   readonly label: string
   readonly groups: ReadonlyArray<NavPanelGroup>
+  /** Drawn in the panel after the groups, in the `panelFooter` slot: not a link, so no key stops on it. */
+  readonly footer?: Html | undefined
   readonly href?: undefined
 }
 
@@ -573,7 +584,12 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
         ...(entry.current === true ? [h.AriaCurrent('page')] : []),
         linkKeys({ input: entry, h, item: { index } }),
       ]),
-      [entry.label],
+      [
+        ...(entry.icon === undefined
+          ? []
+          : [h.span(builders.icon.attrs([h.AriaHidden(true)]), [entry.icon])]),
+        entry.label,
+      ],
     )
 
   const drawPanel = (entry: NavPanel, index: number) => {
@@ -615,6 +631,7 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
                         h.Href(link.href),
                         ...(link.current === true ? [h.AriaCurrent('page')] : []),
                         h.OnClick(onMessage(Message.Dismissed())),
+                        ...(link.icon === undefined ? [] : [h.DataAttribute('iconed', '')]),
                         panelKeys({
                           input: link,
                           h,
@@ -622,6 +639,9 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
                         }),
                       ]),
                       [
+                        ...(link.icon === undefined
+                          ? []
+                          : [h.span(builders.icon.attrs([h.AriaHidden(true)]), [link.icon])]),
                         h.span(builders.title.attrs(), [link.label]),
                         ...(link.description === undefined
                           ? []
@@ -634,6 +654,9 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
             ]),
           ),
         ),
+        ...(entry.footer === undefined
+          ? []
+          : [h.div(builders.panelFooter.attrs(), [entry.footer])]),
       ],
     )
   }
@@ -687,3 +710,23 @@ export const view = <Message>(options: NavView<Message>, h: HtmlBuilder<Message>
     ],
   )
 }
+
+/** What a Nav is given once: its look, `orientation`, `direction` and mixins. The Model, entries and Messages are each use's. */
+export type NavPreset = Pick<NavView<never>, 'orientation' | 'direction'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Nav: `base` for every use, `presets` chosen at a use
+ * with `preset`, and the call over both.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<NavPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: NavView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

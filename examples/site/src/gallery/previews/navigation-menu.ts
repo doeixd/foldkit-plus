@@ -1,4 +1,6 @@
 import { NavSlots, Recipes, type Nav } from 'foldkit-mixins-ui'
+import configure from '../../examples/navigation-menu/configure.js'
+import grid from '../../examples/navigation-menu/grid.js'
 import * as Snippet from '../../snippets/components.js'
 import * as Widgets from '../widgets.js'
 import { about } from '../catalogue.js'
@@ -42,5 +44,7 @@ export const showcase = fromRecipe(
           live.h,
         ),
     },
+    { name: 'grid', example: grid },
+    { name: 'configure', example: configure },
   ],
 )
