@@ -70,6 +70,8 @@ const onFirstLine = (edgeLength: string) =>
 const card = {
   root: variant(
     Style.self({
+      // Cards of a list are one width: their words alone would make each its own.
+      minInlineSize: ref.width['column-lg'],
       padding: ladder('row-pad'),
       border: `${ref.border.thin} solid ${ref.outline.subtle}`,
       borderRadius: ref.radius.lg,

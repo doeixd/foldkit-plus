@@ -7,7 +7,6 @@ import {
   Dialog as UiDialog,
   Listbox as UiListbox,
   Menu as UiMenu,
-  RadioGroup as UiRadioGroup,
 } from '@foldkit/ui'
 import { Option } from 'effect'
 import {
@@ -30,15 +29,6 @@ import { Message, initial, update } from '../src/main.js'
 const send = (message: Widgets.Message) => update(initial, Message.GotWidget({ message })).model
 
 describe('the previews with state', () => {
-  it('keep the billing that was chosen', () => {
-    const chosen = send(
-      Widgets.Message.GotBillingGroup({
-        message: UiRadioGroup.Message.SelectedOption({ index: 2, value: 'lifetime' }),
-      }),
-    )
-    expect(chosen.widgets.billing).toBe('lifetime')
-  })
-
   it('list the files the drop zone took, by name and size', () => {
     const dropped = send(
       Widgets.Message.GotDrop({
@@ -129,25 +119,6 @@ describe('the menu previews', () => {
         [menu.menu, ...menu.submenus.map(submenu => submenu.menu)].map(m => m.isAnimated),
       ).toEqual([menu.menu, ...menu.submenus].map(() => true))
     expect(initial.widgets.fileMenu.submenus.length).toBeGreaterThan(0)
-  })
-})
-
-describe('the checkbox previews', () => {
-  it('each hold their own state', () => {
-    const terms = send(Widgets.Message.ToggledTerms({ checked: true })).widgets
-    expect([terms.terms, terms.toppings, terms.teamPlan]).toEqual([true, 'some', false])
-    const team = send(Widgets.Message.ToggledTeamPlan({ checked: true })).widgets
-    expect([team.terms, team.toppings, team.teamPlan]).toEqual([false, 'some', true])
-  })
-
-  it('turn the indeterminate one from some to all, then to none', () => {
-    const all = send(Widgets.Message.ToggledToppings({ checked: true }))
-    expect(all.widgets.toppings).toBe('all')
-    const none = update(
-      all,
-      Message.GotWidget({ message: Widgets.Message.ToggledToppings({ checked: false }) }),
-    ).model
-    expect(none.widgets.toppings).toBe('none')
   })
 })
 

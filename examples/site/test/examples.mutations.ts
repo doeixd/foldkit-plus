@@ -21,9 +21,9 @@ export default [
     name: 'an example names no region',
     edits: [
       {
-        file: '../src/gallery/previews/checkbox.ts',
-        find: "name: 'basic',\n      title: 'Basic',",
-        replace: "name: 'basics',\n      title: 'Basic',",
+        file: '../src/gallery/previews/checkbox-group.ts',
+        find: "name: 'alerts', title: 'Alerts'",
+        replace: "name: 'alertss', title: 'Alerts'",
       },
     ],
     tests,
@@ -33,8 +33,8 @@ export default [
     edits: [
       {
         file: '../src/snippets/components.ts',
-        find: '// #region checkbox-basic',
-        replace: '// #region checkbox-basics',
+        find: '// #region checkbox-group-alerts',
+        replace: '// #region checkbox-group-alertss',
       },
     ],
     tests,

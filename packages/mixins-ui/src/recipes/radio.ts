@@ -139,6 +139,9 @@ export const RadioGroup = Style.recipeFor(RadioGroupSlots)({
         group: variant(
           Style.self({
             display: 'grid',
+            // As wide as the room allows, or the columns would only be as wide as one row.
+            inlineSize: ref.width.page,
+            maxInlineSize: '100%',
             gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 12rem), 1fr))',
           }),
         ),

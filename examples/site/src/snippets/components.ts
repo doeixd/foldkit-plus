@@ -13,12 +13,8 @@ import {
   Nav as UiNav,
   Listbox as UiListbox,
   Popover as UiPopover,
-  RadioGroup as UiRadioGroup,
 } from '@foldkit/ui'
-import * as UiCheckbox from '@foldkit/ui/checkbox'
 import * as UiFileDrop from '@foldkit/ui/fileDrop'
-import * as UiSelect from '@foldkit/ui/select'
-import * as UiSwitch from '@foldkit/ui/switch'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import type * as UiVirtualList from '@foldkit/ui/virtualList'
 import type { AnchorConfig } from '@foldkit/ui/anchor'
@@ -78,7 +74,6 @@ import {
   ScrollAreaSlots,
   Sidebar,
   SidebarSlots,
-  Checkbox,
   CheckboxSlots,
   Dialog,
   DialogSlots,
@@ -97,10 +92,8 @@ import {
   MenuSlots,
   Popover,
   PopoverSlots,
-  RadioGroup,
   RadioGroupSlots,
   Recipes,
-  Select,
   Segmented,
   SegmentedSlots,
   SelectSlots,
@@ -109,8 +102,6 @@ import {
   SliderSlots,
   Spinner,
   SpinnerSlots,
-  Switch,
-  SwitchSlots,
   Table,
   TableSlots,
   Toast,
@@ -180,137 +171,6 @@ export const InputStyle = forSlots(InputSlots)(Recipes.Input({}))
 
 // #region select-basic
 export const SelectStyle = forSlots(SelectSlots)(Recipes.Select({}))
-
-export const selectBasic = (style: NamedStyle<typeof SelectSlots>, h: HtmlBuilder<never>): Html =>
-  UiSelect.view(
-    {
-      id: 'region',
-      toView: Select.toView([style.mixin], { h }, resolved =>
-        h.div(
-          [],
-          [
-            h.label(resolved.label, ['Region']),
-            h.select(
-              resolved.select,
-              ['Europe', 'Americas', 'Asia Pacific'].map(region => h.option([], [region])),
-            ),
-          ],
-        ),
-      ),
-    },
-    h,
-  )
-// #endregion
-
-// #region select-placeholder
-// A prompt that is chosen until the reader picks a value: an empty, disabled,
-// selected option.
-export const selectPlaceholder = (
-  style: NamedStyle<typeof SelectSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  UiSelect.view(
-    {
-      id: 'region-placeholder',
-      toView: Select.toView([style.mixin], { h }, resolved =>
-        h.div(
-          [],
-          [
-            h.label(resolved.label, ['Region']),
-            h.select(resolved.select, [
-              h.option([h.Value(''), h.Disabled(true), h.Selected(true)], ['Choose a region']),
-              h.option([], ['Europe']),
-              h.option([], ['Americas']),
-              h.option([], ['Asia Pacific']),
-            ]),
-          ],
-        ),
-      ),
-    },
-    h,
-  )
-// #endregion
-
-// #region select-groups
-// Options under headings: an `optgroup` per continent, named by its label.
-export const selectGroups = (style: NamedStyle<typeof SelectSlots>, h: HtmlBuilder<never>): Html =>
-  UiSelect.view(
-    {
-      id: 'region-groups',
-      toView: Select.toView([style.mixin], { h }, resolved =>
-        h.div(
-          [],
-          [
-            h.label(resolved.label, ['Region']),
-            h.select(resolved.select, [
-              h.optgroup(
-                [h.Attribute('label', 'Americas')],
-                [h.option([], ['United States']), h.option([], ['Canada'])],
-              ),
-              h.optgroup(
-                [h.Attribute('label', 'Europe')],
-                [h.option([], ['France']), h.option([], ['Germany'])],
-              ),
-            ]),
-          ],
-        ),
-      ),
-    },
-    h,
-  )
-// #endregion
-
-// #region select-disabled
-// An option the reader cannot pick stays in the list, dimmed.
-export const selectDisabled = (
-  style: NamedStyle<typeof SelectSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  UiSelect.view(
-    {
-      id: 'region-disabled',
-      toView: Select.toView([style.mixin], { h }, resolved =>
-        h.div(
-          [],
-          [
-            h.label(resolved.label, ['Region']),
-            h.select(resolved.select, [
-              h.option([], ['Europe']),
-              h.option([h.Disabled(true)], ['Antarctica (no shipping)']),
-              h.option([], ['Asia Pacific']),
-            ]),
-          ],
-        ),
-      ),
-    },
-    h,
-  )
-// #endregion
-
-// #region select-invalid
-// A refused value: the control draws its error line and names what is wrong.
-export const selectInvalid = (style: NamedStyle<typeof SelectSlots>, h: HtmlBuilder<never>): Html =>
-  UiSelect.view(
-    {
-      id: 'region-invalid',
-      isInvalid: true,
-      hasDescription: true,
-      toView: Select.toView([style.mixin], { h }, resolved =>
-        h.div(
-          [],
-          [
-            h.label(resolved.label, ['Region']),
-            h.select(
-              resolved.select,
-              ['Europe', 'Americas', 'Asia Pacific'].map(region => h.option([], [region])),
-            ),
-            h.span(resolved.description, ['Pick a region we ship to.']),
-          ],
-        ),
-      ),
-    },
-    h,
-  )
 // #endregion
 
 // #region select-custom
@@ -500,128 +360,8 @@ export const selectSizes = <Message>(
   )
 // #endregion
 
-// #region checkbox-basic
+/** The checkbox look the table's selection column draws with. */
 export const CheckboxStyle = forSlots(CheckboxSlots)(Recipes.Checkbox({}))
-
-export const checkbox = <Message>(
-  style: NamedStyle<typeof CheckboxSlots>,
-  checked: boolean,
-  onToggle: (checked: boolean) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  UiCheckbox.view(
-    {
-      id: 'terms',
-      isChecked: checked,
-      onToggle,
-      toView: Checkbox.toView([style.mixin], { h }, resolved =>
-        h.div(
-          [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
-          [h.button(resolved.checkbox, []), h.label(resolved.label, ['Accept the terms'])],
-        ),
-      ),
-    },
-    h,
-  )
-// #endregion
-
-// #region checkbox-indeterminate
-/** How many of the toppings are chosen: the box is a dash while only some are. */
-export const Toppings = Schema.Literals(['none', 'some', 'all'])
-export type Toppings = typeof Toppings.Type
-
-export const checkboxIndeterminate = <Message>(
-  style: NamedStyle<typeof CheckboxSlots>,
-  toppings: Toppings,
-  onToggle: (checked: boolean) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  UiCheckbox.view(
-    {
-      id: 'toppings',
-      isChecked: toppings === 'all',
-      isIndeterminate: toppings === 'some',
-      onToggle,
-      toView: Checkbox.toView([style.mixin], { h }, resolved =>
-        h.div(
-          [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
-          [h.button(resolved.checkbox, []), h.label(resolved.label, ['Toppings'])],
-        ),
-      ),
-    },
-    h,
-  )
-// #endregion
-
-// #region checkbox-card
-// The card is the label and the box sits in it, so a press anywhere on the
-// card toggles the box. The label slot is not used: it carries its own click,
-// and a second one inside the label would turn the box off again. The card's
-// label takes the label's id instead, so the box is named by the card's words.
-const CheckboxCardStyle = forSlots(CardSlots)(
-  Recipes.Card({ surface: 'outlined', padding: 'compact' }),
-)
-
-export const checkboxCard = <Message>(
-  style: NamedStyle<typeof CheckboxSlots>,
-  checked: boolean,
-  onToggle: (checked: boolean) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  UiCheckbox.view(
-    {
-      id: 'plan-team',
-      isChecked: checked,
-      onToggle,
-      toView: Checkbox.toView([style.mixin], { h }, resolved =>
-        h.label(
-          [
-            h.Id(UiCheckbox.labelId('plan-team')),
-            h.Style({ display: 'block', maxInlineSize: '20rem', cursor: 'pointer' }),
-          ],
-          [
-            Card.view(
-              {
-                title: 'Team',
-                description: 'Ten editors and every page.',
-                selected: checked,
-                action: h.button(resolved.checkbox, []),
-                style: CheckboxCardStyle,
-              },
-              h,
-            ),
-          ],
-        ),
-      ),
-    },
-    h,
-  )
-// #endregion
-
-// #region switch
-export const SwitchStyle = forSlots(SwitchSlots)(Recipes.Switch({}))
-
-export const toggle = <Message>(
-  style: NamedStyle<typeof SwitchSlots>,
-  on: boolean,
-  onToggle: (on: boolean) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  UiSwitch.view(
-    {
-      id: 'airplane',
-      isChecked: on,
-      onToggle,
-      toView: Switch.toView([style.mixin], { h }, resolved =>
-        h.div(
-          [h.Style({ display: 'flex', alignItems: 'center', gap: '0.5rem' })],
-          [h.button(resolved.button, []), h.label(resolved.label, ['Airplane mode'])],
-        ),
-      ),
-    },
-    h,
-  )
-// #endregion
 
 /** A head and shoulders in `hue`, standing in for a photo. */
 const portrait = (hue: number): string =>
@@ -859,89 +599,6 @@ export const tableSticky = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder
 // #endregion
 
 export const RadioGroupStyle = forSlots(RadioGroupSlots)(Recipes.RadioGroup({}))
-
-export const Billing = Schema.Literals(['monthly', 'yearly', 'lifetime'])
-export type Billing = typeof Billing.Type
-export const BillingGroup: ReturnType<typeof UiRadioGroup.create<Billing>> =
-  UiRadioGroup.create<Billing>()
-
-const billings: Record<Billing, { readonly label: string; readonly text: string }> = {
-  monthly: { label: 'Monthly', text: '$12 a month, cancel any time.' },
-  yearly: { label: 'Yearly', text: '$120 a year, two months free.' },
-  lifetime: { label: 'Lifetime', text: '$400 once.' },
-}
-
-/** The group's focus is the component's; the choice is the Model's. */
-export interface RadioGroupState {
-  readonly group: UiRadioGroup.Model
-  readonly billing: Billing
-}
-
-// #region radio-group-descriptions
-export const radioGroup = <Message>(
-  style: NamedStyle<typeof RadioGroupSlots>,
-  state: RadioGroupState,
-  toMessage: (message: UiRadioGroup.Message) => Message,
-  h: HtmlBuilder<Message>,
-  orientation: 'Vertical' | 'Horizontal' = 'Vertical',
-): Html =>
-  h.submodel({
-    slotId: state.group.id,
-    model: state.group,
-    view: BillingGroup.view,
-    viewInputs: {
-      selectedValue: Option.some(state.billing),
-      options: Billing.literals,
-      ariaLabel: 'Billing',
-      orientation,
-      hasOptionDescription: () => true,
-      toView: RadioGroup.toView<Billing, Message>(
-        [style.mixin, RadioGroup.readingKeys],
-        { h },
-        ({ group, options }) =>
-          h.div(
-            group,
-            // A row is a `label` around its radio, so a press on the words
-            // presses the radio. The label bundle is only the name's id; the
-            // row is the `card` slot, which the card variant frames.
-            options.map(option =>
-              h.label(
-                [...option.card, h.Style({ display: 'flex', gap: '0.5rem', alignItems: 'start' })],
-                [
-                  h.button(option.option, []),
-                  h.span(
-                    [h.Style({ display: 'grid' })],
-                    [
-                      h.span(option.label, [billings[option.value].label]),
-                      h.span(option.description, [billings[option.value].text]),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ),
-    },
-    toParentMessage: toMessage,
-  })
-// #endregion
-
-// #region radio-group-horizontal
-export const radioGroupHorizontal = <Message>(
-  style: NamedStyle<typeof RadioGroupSlots>,
-  state: RadioGroupState,
-  toMessage: (message: UiRadioGroup.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html => radioGroup(style, state, toMessage, h, 'Horizontal')
-// #endregion
-
-// #region radio-group-cards
-// The group above, `radioGroup`, in the recipe's card variant: each option's
-// label is framed, and the checked one filled. Only the style changes.
-export const RadioGroupCardStyle = forSlots(RadioGroupSlots)(
-  Recipes.RadioGroup({ variant: 'card' }),
-)
-// #endregion
 
 // #region file-drop-basic
 export const FileDropStyle = forSlots(FileDropSlots)(Recipes.FileDrop({}))

@@ -6,14 +6,6 @@ const tests = ['examples/site/test/widgets.test.ts']
 const widgets = '../src/gallery/widgetsUpdate.ts'
 
 export default [
-  {
-    name: 'a chosen billing is not kept',
-    edits: [
-      {
-        file: widgets,
-        find: ': { model: modifyFields(model, { billing: () => value }) },',
-        replace: ': { model },',
-      },
     ],
     tests,
   },
@@ -100,16 +92,6 @@ export default [
     tests,
   },
   ...[
-    [
-      'the terms box toggles the card too',
-      '{ terms: () => checked }',
-      '{ terms: () => checked, teamPlan: () => checked }',
-    ],
-    [
-      'the toppings dash comes back when unchecked',
-      "const toppings = checked ? 'all' : 'none'",
-      "const toppings = checked ? 'all' : 'some'",
-    ],
     [
       'a checkbox group example toggles another',
       '[example]: CheckboxGroup.toggled(alerts[example], value),',

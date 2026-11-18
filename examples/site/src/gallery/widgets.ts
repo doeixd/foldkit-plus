@@ -13,7 +13,6 @@ import {
   HoverIntent as UiHoverIntent,
   Listbox as UiListbox,
   Popover as UiPopover,
-  RadioGroup as UiRadioGroup,
 } from '@foldkit/ui'
 import {
   Menubar,
@@ -50,7 +49,6 @@ import { ClipboardMessage } from 'foldkit-primitives/dom'
 import * as Fields from './fields.js'
 
 import {
-  Billing,
   Fruit,
   FILE_MENU,
   Frequency,
@@ -69,7 +67,6 @@ import {
   viewRows,
   Notices,
   Range,
-  Toppings,
   ChatEntry,
   TRIP_QUESTIONS,
 } from '../snippets/components.js'
@@ -158,13 +155,9 @@ export const Attachment = Schema.Struct({ name: Schema.String, size: Schema.Numb
 export type Attachment = typeof Attachment.Type
 
 export const Model = Schema.Struct({
-  billingGroup: UiRadioGroup.Model,
-  billingRow: UiRadioGroup.Model,
-  billingCards: UiRadioGroup.Model,
   /** The drop zone's, and what it has taken: names and sizes, never the files. */
   drop: UiFileDrop.Model,
   attachments: Schema.Array(Attachment),
-  billing: Billing,
   /** The slider's volume. */
   volume: Schema.Number,
   dialog: UiDialog.Model,
@@ -188,10 +181,6 @@ export const Model = Schema.Struct({
   faq: Schema.Array(Schema.String),
   /** Whether the disclosure's panel is open. */
   details: Schema.Boolean,
-  /** The checkboxes': the terms accepted, how many toppings, and the card's plan. */
-  terms: Schema.Boolean,
-  toppings: Toppings,
-  teamPlan: Schema.Boolean,
   /** Each checkbox group example's checked alerts. */
   alerts: Schema.Record(AlertsExample, Schema.Array(Schema.String)),
   hoverCard: UiHoverIntent.Model,
@@ -307,9 +296,6 @@ export const Model = Schema.Struct({
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
-  GotBillingGroup: { message: UiRadioGroup.Message },
-  GotBillingRow: { message: UiRadioGroup.Message },
-  GotBillingCards: { message: UiRadioGroup.Message },
   GotDrop: { message: FileDrop.Message },
   TurnedVolume: { value: Schema.Number },
   GotDialog: { message: UiDialog.Message },
@@ -330,9 +316,6 @@ export const Message = defineMessageUnion({
   ChoseRange: { range: Range },
   ToggledFaq: { id: Schema.String },
   ToggledDetails: { isOpen: Schema.Boolean },
-  ToggledTerms: { checked: Schema.Boolean },
-  ToggledToppings: { checked: Schema.Boolean },
-  ToggledTeamPlan: { checked: Schema.Boolean },
   ToggledAlert: { example: AlertsExample, value: Schema.String },
   SetAlerts: { example: AlertsExample, values: Schema.Array(Schema.String) },
   GotHoverCard: { message: UiHoverIntent.Message },
@@ -440,12 +423,8 @@ const initialViewOptions: ViewOptions = {
 const today = Effect.runSync(Calendar.today.local)
 
 export const initial: Model = {
-  billingGroup: UiRadioGroup.init({ id: 'preview-billing' }),
-  billingRow: UiRadioGroup.init({ id: 'preview-billing-row' }),
-  billingCards: UiRadioGroup.init({ id: 'preview-billing-cards' }),
   drop: UiFileDrop.init({ id: 'preview-drop' }),
   attachments: [],
-  billing: 'yearly',
   volume: 60,
   dialog: UiDialog.init({ id: 'preview-dialog', isAnimated: true }),
   alertDialog: UiDialog.init({ id: 'preview-alert-dialog', isAnimated: true }),
@@ -482,9 +461,6 @@ export const initial: Model = {
   range: 'week',
   faq: ['billing'],
   details: false,
-  terms: false,
-  toppings: 'some',
-  teamPlan: false,
   alerts: {
     alerts: ['mentions', 'replies'],
     described: ['mentions', 'replies'],

@@ -380,6 +380,12 @@ test('a radio group chooses by press, refuses a disabled option and submits the 
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(radios[2]!.getAttribute('aria-checked')).toBe('false')
     expect(radios[0]!.getAttribute('aria-describedby')).not.toBeNull()
+    // The words are the option's label, and its description follows.
+    expect(
+      Array.from(document.querySelectorAll('[role="radiogroup"] > label')).map(
+        row => row.textContent,
+      ),
+    ).toEqual(['FreeFor one person.', 'TeamTen editors.', 'Organization'])
   } finally {
     handle.dispose()
   }

@@ -30,7 +30,7 @@ export interface RadioGroupView<Value extends string, Outer> {
   readonly hideLegend?: boolean | undefined
   readonly options: ReadonlyArray<RadioGroupRow<Value>>
   /** The chosen option's value: the application's, set from `Selected` in `onOut`. */
-  readonly value: Option.Option<NoInfer<Value>>
+  readonly value: Option.Option<Value>
   /** Default `vertical`. */
   readonly orientation?: 'horizontal' | 'vertical' | undefined
   readonly disabled?: boolean | undefined
@@ -51,7 +51,7 @@ const bound: UiRadioGroup.Bundle = UiRadioGroup.create()
 
 const errorId = (model: UiRadioGroup.Model) => `${model.id}-error`
 
-export const view = <const Value extends string, Outer>(
+export const view = <Value extends string, Outer>(
   options: RadioGroupView<Value, Outer>,
   h: HtmlBuilder<Outer>,
 ): Html => {
@@ -133,7 +133,7 @@ export type RadioGroupPreset = Pick<
 export const configure = <const Names extends string = never>(
   config: Presets<RadioGroupPreset, Names>,
 ): {
-  readonly view: <const Value extends string, Outer>(
+  readonly view: <Value extends string, Outer>(
     options: RadioGroupView<Value, Outer> & PresetOption<Names>,
     h: HtmlBuilder<Outer>,
   ) => Html

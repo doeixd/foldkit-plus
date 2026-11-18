@@ -138,4 +138,15 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a radio’s words are its value, not its label',
+    edits: [
+      {
+        file: '../src/radioGroup/view.ts',
+        find: 'row?.content ?? row?.label ?? option.value',
+        replace: 'option.value',
+      },
+    ],
+    tests: [browser],
+  },
 ]

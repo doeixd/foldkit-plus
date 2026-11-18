@@ -14,7 +14,6 @@ import {
   HoverIntent as UiHoverIntent,
   Listbox as UiListbox,
   Popover as UiPopover,
-  RadioGroup as UiRadioGroup,
 } from '@foldkit/ui'
 import {
   Accordion,
@@ -54,8 +53,6 @@ import { ClipboardMessage } from 'foldkit-primitives/dom'
 import * as Fields from './fields.js'
 
 import {
-  Billing,
-  BillingGroup,
   CAROUSEL_LAYOUT,
   AUTOPLAY_LAYOUT,
   THUMBNAILS_LAYOUT,
@@ -129,20 +126,6 @@ const own = <K extends keyof Model, ChildMessage>(
 
 const same: Step = model => ({ model })
 
-const billingOut = UiRadioGroup.OutMessage.match<Step, UiRadioGroup.OutMessage<Billing>>({
-  Selected:
-    ({ value }) =>
-    model =>
-      value === model.billing
-        ? { model }
-        : { model: modifyFields(model, { billing: () => value }) },
-})
-
-const foldBillingGroup = Update.foldChild({
-  ...own('billingGroup', Message.GotBillingGroup),
-  update: BillingGroup.update,
-  foldOutMessage: billingOut,
-})
 
 const foldDrop = Update.foldChild({
   ...own('drop', Message.GotDrop),
@@ -160,18 +143,6 @@ const foldDrop = Update.foldChild({
       }),
     RejectedNonFiles: () => same,
   }),
-})
-
-const foldBillingRow = Update.foldChild({
-  ...own('billingRow', Message.GotBillingRow),
-  update: BillingGroup.update,
-  foldOutMessage: billingOut,
-})
-
-const foldBillingCards = Update.foldChild({
-  ...own('billingCards', Message.GotBillingCards),
-  update: BillingGroup.update,
-  foldOutMessage: billingOut,
 })
 
 const dialogOut = UiDialog.OutMessage.match<Step>({ Opened: () => same, Closed: () => same })
@@ -647,10 +618,7 @@ const panelStep = (model: Model, step: FloatingPanel.Return): Update.Return<Mode
 
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   Message.match(message, {
-    GotBillingGroup: ({ message }) => foldBillingGroup(model, message),
-    GotBillingRow: ({ message }) => foldBillingRow(model, message),
     GotDrop: ({ message }) => foldDrop(model, message),
-    GotBillingCards: ({ message }) => foldBillingCards(model, message),
     TurnedVolume: ({ value }) =>
       value === model.volume ? { model } : { model: modifyFields(model, { volume: () => value }) },
     GotDialog: ({ message }) => foldDialog(model, message),
@@ -961,22 +929,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       isOpen === model.details
         ? { model }
         : { model: modifyFields(model, { details: () => isOpen }) },
-    ToggledTerms: ({ checked }) =>
-      checked === model.terms
-        ? { model }
-        : { model: modifyFields(model, { terms: () => checked }) },
-    // A press on the dash chooses every topping, and the next none: there is
-    // no way back to some from here, as a select-all box has none.
-    ToggledToppings: ({ checked }) => {
-      const toppings = checked ? 'all' : 'none'
-      return toppings === model.toppings
-        ? { model }
-        : { model: modifyFields(model, { toppings: () => toppings }) }
-    },
-    ToggledTeamPlan: ({ checked }) =>
-      checked === model.teamPlan
-        ? { model }
-        : { model: modifyFields(model, { teamPlan: () => checked }) },
     ToggledAlert: ({ example, value }) => ({
       model: modifyFields(model, {
         alerts: alerts => ({

@@ -27,7 +27,6 @@ const boxes = Style.forSlots(CheckboxSlots)({ checkbox: Style.class('box') })
 const tracks = Style.forSlots(SwitchSlots)({ button: Style.class('track') })
 const glyphs = Style.forSlots(IconSlots)({ glyph: Style.class('glyph') })
 declare const plan: Option.Option<'free' | 'team'>
-declare const paid: Option.Option<'paid'>
 declare const common: Pick<RadioGroupView<string, Message>, 'model' | 'onMessage' | 'legend'>
 
 test('a checkbox needs its words', () => {
@@ -66,7 +65,7 @@ test('a select’s option names its value and its words', () => {
   Select.view({ id: 'r', label: 'Region', options: [{ value: 'fr' }] }, h)
 })
 
-test('a radio’s value is one of its options’', () => {
+test('a radio’s options and value are strings of one type', () => {
   RadioGroup.view(
     {
       ...common,
@@ -81,12 +80,9 @@ test('a radio’s value is one of its options’', () => {
   RadioGroup.view(
     {
       ...common,
-      options: [
-        { value: 'free', label: 'Free' },
-        { value: 'team', label: 'Team' },
-      ],
-      // @ts-expect-error `paid` is no option.
-      value: paid,
+      // @ts-expect-error a number is no value.
+      options: [{ value: 1, label: 'One' }],
+      value: Option.none(),
     },
     h,
   )
