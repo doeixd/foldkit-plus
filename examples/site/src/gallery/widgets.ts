@@ -19,7 +19,6 @@ import {
   Sidebar,
   Calendar as DateSelection,
   ColorPicker,
-  Carousel,
   Menu,
   Nav,
   Sheet,
@@ -93,10 +92,6 @@ export type SidebarExample = typeof SidebarExample.Type
 
 export const NavExample = Schema.Literals(['panels', 'pill', 'vertical'])
 export type NavExample = typeof NavExample.Type
-
-/** The carousel examples. */
-export const CarouselExample = Schema.Literals(['places', 'autoplay', 'thumbnails', 'perView'])
-export type CarouselExample = typeof CarouselExample.Type
 
 /** The popover, tooltip, dialog and sheet examples, each with a Model of its own. */
 export const PopoverExample = Schema.Literals(['below', 'top-start', 'no-arrow', 'clipped'])
@@ -174,8 +169,6 @@ export const Model = Schema.Struct({
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
   virtualList: UiVirtualList.Model,
-  /** Each carousel example's slide and rotation. */
-  carousels: Schema.Record(CarouselExample, Carousel.Model),
   /** The range slider's price range. */
   priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
   /** The color picker's accent, its format and its draft. */
@@ -272,7 +265,6 @@ export const Message = defineMessageUnion({
   GotNav: { example: NavExample, message: Nav.Message },
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
-  GotCarousel: { example: CarouselExample, message: Carousel.Message },
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotAccent: { message: ColorPicker.Message },
   GotTripCalendar: { message: UiCalendar.Message },
@@ -412,12 +404,6 @@ export const initial: Model = {
   ),
   menubarChoice: Option.none(),
   virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
-  carousels: {
-    places: Carousel.init({ id: 'preview-carousel' }),
-    autoplay: Carousel.init({ id: 'preview-carousel-autoplay', autoplay: true }),
-    thumbnails: Carousel.init({ id: 'preview-carousel-thumbs' }),
-    perView: Carousel.init({ id: 'preview-carousel-two' }),
-  },
   priceRange: { low: 100, high: 350 },
   accent: ColorPicker.init({ id: 'preview-accent', color: ColorPicker.color('#3b82f6') }),
   trip: UiCalendar.init({ id: 'preview-trip', today }),

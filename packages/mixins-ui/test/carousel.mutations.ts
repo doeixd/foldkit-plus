@@ -5,6 +5,7 @@
  */
 const unit = 'packages/mixins-ui/test/carousel.test.ts'
 const browser = 'packages/mixins-ui/test/carousel.browser.test.ts'
+const source = '../src/carousel.ts'
 
 export default [
   {
@@ -211,5 +212,28 @@ export default [
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'words are not read',
+    edits: [{ file: source, find: 'wordsOf(words, options.words)', replace: 'words' }],
+    tests: [unit],
+  },
+  {
+    name: 'update ignores the loop the Model holds',
+    edits: [
+      {
+        file: source,
+        find: 'foldFor({ count: model.count, perView: model.perView, loop: model.loop })',
+        replace: 'foldFor({ count: model.count, perView: model.perView })',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the view ignores the Model’s perView',
+    edits: [
+      { file: source, find: 'options.perView ?? model.perView', replace: 'options.perView ?? 1' },
+    ],
+    tests: [unit],
   },
 ]

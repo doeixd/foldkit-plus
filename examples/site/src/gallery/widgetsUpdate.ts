@@ -23,7 +23,6 @@ import {
   Sidebar,
   Calendar as DateSelection,
   ColorPicker,
-  Carousel,
   Menu,
   Nav,
   Sheet,
@@ -48,10 +47,6 @@ import { ClipboardMessage } from 'foldkit-primitives/dom'
 import * as Fields from './fields.js'
 
 import {
-  CAROUSEL_LAYOUT,
-  AUTOPLAY_LAYOUT,
-  THUMBNAILS_LAYOUT,
-  PER_VIEW_LAYOUT,
   MENUBAR,
   ViewOptions,
   Notices,
@@ -66,7 +61,6 @@ import {
 /** The chart examples, each lighting a point of its own. */
 import {
   Attachment,
-  CarouselExample,
   DialogExample,
   Message,
   Model,
@@ -272,25 +266,6 @@ const foldVirtualList = Update.foldChild({
 const foldAccent = Update.foldChild({
   ...own('accent', Message.GotAccent),
   update: ColorPicker.update,
-})
-
-/** Each carousel example's update, over the layout its view draws. */
-const carouselUpdates: Readonly<Record<CarouselExample, ReturnType<typeof Carousel.update>>> = {
-  places: Carousel.update(CAROUSEL_LAYOUT),
-  autoplay: Carousel.update(AUTOPLAY_LAYOUT),
-  thumbnails: Carousel.update(THUMBNAILS_LAYOUT),
-  perView: Carousel.update(PER_VIEW_LAYOUT),
-}
-
-const foldCarousel = Update.foldChildAt({
-  update: (
-    carousel: Carousel.Model,
-    step: (carousel: Carousel.Model) => ReturnType<ReturnType<typeof Carousel.update>>,
-  ) => step(carousel),
-  readAt: (model: Model, example: CarouselExample) => Option.some(model.carousels[example]),
-  writeAt: (model, example, carousel) =>
-    modifyFields(model, { carousels: carousels => ({ ...carousels, [example]: carousel }) }),
-  toParentMessage: (example, message) => Message.GotCarousel({ example, message }),
 })
 
 const foldSidebar = Update.foldChild({
@@ -594,8 +569,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotPageMenu: ({ message }) => (dismisses(message) ? { model } : foldPageMenu(model, message)),
     GotMenubar: ({ message }) => foldMenubar(model, message),
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
-    GotCarousel: ({ example, message }) =>
-      foldCarousel(model, example, carousel => carouselUpdates[example](carousel, message)),
     MovedPriceRange: ({ value }) =>
       value.low === model.priceRange.low && value.high === model.priceRange.high
         ? { model }

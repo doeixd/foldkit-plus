@@ -8,7 +8,9 @@ import * as Mount from 'foldkit/mount'
 import * as Render from 'foldkit/render'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A carousel, the APG's: a group with `aria-roledescription="carousel"`
@@ -91,6 +93,12 @@ export const Model = Schema.Struct({
   turn: Schema.Number,
   /** A wait for `turn` runs, and its end moves the carousel on. */
   counting: Schema.Boolean,
+  /** How many slides the view draws; `update` and the view read it so the layout is stated once. */
+  count: Schema.Number,
+  /** Slides side by side in the track. */
+  perView: Schema.Number,
+  /** Whether next on the last place goes to the first. */
+  loop: Schema.Boolean,
 })
 export type Model = typeof Model.Type
 
@@ -128,6 +136,12 @@ export const init = (options: {
    */
   readonly reducedMotion?: boolean
   readonly delay?: number
+  /** The slides the view draws; with `perView` and `loop` it is the layout `update` and the view read from the Model. */
+  readonly count?: number
+  /** Slides side by side; default 1. */
+  readonly perView?: number
+  /** Next on the last place goes to the first; default false. */
+  readonly loop?: boolean
 }): Model => ({
   id: options.id,
   index: options.index ?? 0,
@@ -137,6 +151,9 @@ export const init = (options: {
   delay: options.delay ?? DELAY,
   turn: 0,
   counting: false,
+  count: options.count ?? 1,
+  perView: options.perView ?? 1,
+  loop: options.loop ?? false,
 })
 
 /** The id of slide `index` of the carousel `id`, which `ShowSlide` looks up. */
@@ -225,7 +242,7 @@ const shown = (model: Model, index: number, scroll: boolean): Return => {
  * The carousel's `update` for `layout`, the slides the view draws; the
  * same Model when nothing changes.
  */
-export const update = (layout: CarouselLayout) => {
+const foldFor = (layout: CarouselLayout) => {
   const places = placesOf(layout)
   const loop = layout.loop === true && places > 1
   return (model: Model, message: Message): Return =>
@@ -272,6 +289,16 @@ export const update = (layout: CarouselLayout) => {
     })
 }
 
+/**
+ * The carousel's `update`. With no `layout` it reads the one the Model holds
+ * (`init`'s `count`, `perView` and `loop`); given one, that layout wins.
+ */
+export const update = (layout?: CarouselLayout) =>
+  layout !== undefined
+    ? foldFor(layout)
+    : (model: Model, message: Message): Return =>
+        foldFor({ count: model.count, perView: model.perView, loop: model.loop })(model, message)
+
 export interface CarouselView<ParentMessage> extends Omit<CarouselLayout, 'count'> {
   /** What the slides are, naming the carousel. */
   readonly label: string
@@ -282,23 +309,36 @@ export interface CarouselView<ParentMessage> extends Omit<CarouselLayout, 'count
   readonly picker?: boolean | undefined
   /** A small copy of each slide, drawn in the picker in place of the dots. */
   readonly thumbnails?: ReadonlyArray<Html> | undefined
-  /** How a slide is named, and the status and its picker button say it; default `"2 of 5"`. */
-  readonly slideLabel?: ((index: number, count: number) => string) | undefined
-  /** Default `Previous slide`. */
-  readonly previousLabel?: string | undefined
-  /** Default `Next slide`. */
-  readonly nextLabel?: string | undefined
-  /** Names the picker as a group; default `Choose a slide`. */
-  readonly pickerLabel?: string | undefined
-  /** The rotation button's words; default the APG's `Stop slide rotation` and `Start slide rotation`. */
-  readonly rotationLabels?: { readonly stop: string; readonly start: string } | undefined
+  /** The fixed text it draws and its screen-reader names, as text with `{blanks}`. */
+  readonly words?: Partial<CarouselWords> | undefined
   /** A style of `CarouselSlots`, for the look. */
   readonly style?: NamedStyle<typeof CarouselSlots> | undefined
   /** Mixins beside the style. */
   readonly mixins?: MixinList<ParentMessage> | undefined
 }
 
-const ofCount = (index: number, count: number) => `${index + 1} of ${count}`
+/** What the carousel says that is no one use's content. */
+export interface CarouselWords {
+  /** How a slide is named, and the status and its picker button say it; `{index}` counts from 1. */
+  readonly slide: string
+  readonly previous: string
+  readonly next: string
+  /** Names the picker as a group. */
+  readonly picker: string
+  /** The rotation button while it rotates: the APG's. */
+  readonly stop: string
+  /** The rotation button while it is stopped. */
+  readonly start: string
+}
+
+export const words: CarouselWords = {
+  slide: '{index} of {count}',
+  previous: 'Previous slide',
+  next: 'Next slide',
+  picker: 'Choose a slide',
+  stop: 'Stop slide rotation',
+  start: 'Start slide rotation',
+}
 
 /**
  * The root's `data-rotation`: `rotating` while a wait counts (the current
@@ -323,12 +363,14 @@ export const view = <ParentMessage>(
   const { model, onMessage } = options
   const { id } = model
   const count = options.slides.length
-  const perView = Math.max(1, Math.floor(options.perView ?? 1))
+  const perView = Math.max(1, Math.floor(options.perView ?? model.perView))
   const places = placesOf({ count, perView })
   const last = places - 1
   const current = clamp(model.index, places)
-  const loop = options.loop === true && places > 1
-  const slideLabel = options.slideLabel ?? ofCount
+  const loop = (options.loop ?? model.loop) && places > 1
+  const said = wordsOf(words, options.words)
+  const slideLabel = (index: number, total: number) =>
+    fill(said.slide, { index: index + 1, count: total })
   const roledescription = (value: string) => h.Attribute('aria-roledescription', value)
   const chose = (index: number) => onMessage(Message.Chose({ index }))
 
@@ -360,10 +402,7 @@ export const view = <ParentMessage>(
       ? []
       : [
           h.div(
-            builders.picker.attrs([
-              h.Role('group'),
-              h.AriaLabel(options.pickerLabel ?? 'Choose a slide'),
-            ]),
+            builders.picker.attrs([h.Role('group'), h.AriaLabel(said.picker)]),
             thumbnails === undefined
               ? Array.from({ length: places }, (_, index) =>
                   h.button(builders.dot.attrs(pick(index)), []),
@@ -379,10 +418,6 @@ export const view = <ParentMessage>(
   const settle = Mount.mapMessage(ScrollSettle({ start: current }), ({ index }) =>
     onMessage(Message.Settled({ index })),
   )
-  const labels = options.rotationLabels ?? {
-    stop: 'Stop slide rotation',
-    start: 'Start slide rotation',
-  }
 
   return h.div(
     builders.root.attrs([
@@ -425,12 +460,12 @@ export const view = <ParentMessage>(
                 h.AriaControls(`${id}-track`),
                 ...(model.rotation === 'Rotating'
                   ? [
-                      h.AriaLabel(labels.stop),
+                      h.AriaLabel(said.stop),
                       h.DataAttribute('state', 'rotating'),
                       h.OnClick(onMessage(Message.StoppedRotation())),
                     ]
                   : [
-                      h.AriaLabel(labels.start),
+                      h.AriaLabel(said.start),
                       h.DataAttribute('state', 'stopped'),
                       h.OnClick(onMessage(Message.StartedRotation())),
                     ]),
@@ -461,7 +496,7 @@ export const view = <ParentMessage>(
         h.button(
           builders.previous.attrs([
             h.Type('button'),
-            h.AriaLabel(options.previousLabel ?? 'Previous slide'),
+            h.AriaLabel(said.previous),
             h.AriaControls(`${id}-track`),
             ...step(wrapped(current - 1)),
           ]),
@@ -471,7 +506,7 @@ export const view = <ParentMessage>(
         h.button(
           builders.next.attrs([
             h.Type('button'),
-            h.AriaLabel(options.nextLabel ?? 'Next slide'),
+            h.AriaLabel(said.next),
             h.AriaControls(`${id}-track`),
             ...step(wrapped(current + 1)),
           ]),
@@ -488,3 +523,24 @@ export const view = <ParentMessage>(
     ],
   )
 }
+
+/** What a Carousel is given once: its look, words and the options that hold no Message. */
+export type CarouselPreset = Pick<CarouselView<never>, 'picker' | 'words' | 'style'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Carousel: `base` for every use, `presets` chosen at
+ * a use with `preset`, and the call over both. `words` merge key by key and
+ * `mixins` concatenate; any other option given at the call replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<CarouselPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: CarouselView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

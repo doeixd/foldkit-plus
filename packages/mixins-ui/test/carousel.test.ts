@@ -405,3 +405,54 @@ describe('Carousel.ShowSlide', () => {
     ])
   })
 })
+
+describe('Carousel words and layout in the Model', () => {
+  const drawn = (model: Carousel.Model, words?: Partial<Carousel.CarouselWords>) =>
+    Carousel.view(
+      {
+        label: 'Places',
+        model,
+        slides,
+        onMessage: () => message('Clicked'),
+        style,
+        ...(words === undefined ? {} : { words }),
+      },
+      h,
+    )
+  const labels = (html: Html) =>
+    Inert.byTag(html, 'button').map(button => Inert.value(button, 'aria-label'))
+
+  it('names slides and buttons from words with blanks, defaults kept for what is not given', () => {
+    const html = drawn(Carousel.init({ id: 'c', count: 3 }), {
+      slide: 'Diapo {index}/{count}',
+      next: 'Suivant',
+    })
+    expect(labels(html)).toContain('Suivant')
+    expect(labels(html)).toContain('Previous slide')
+    expect(labels(html)).toContain('Diapo 1/3')
+  })
+
+  it('reads count, perView and loop from the Model in update, with no layout given', () => {
+    const start = Carousel.init({ id: 'c', count: 3, loop: true })
+    const there = Carousel.update()(start, Carousel.Message.Chose({ index: 99 })).model
+    expect(there.index).toBe(2)
+    // Looping comes from the Model: a finished wait on the last place goes to the first.
+    const last = (loop: boolean) => ({
+      ...Carousel.init({ id: 'c', count: 3, loop, autoplay: true, index: 2 }),
+      counting: true,
+      turn: 1,
+    })
+    const elapsed = Carousel.Message.Elapsed({ turn: 1 })
+    expect(Carousel.update()(last(true), elapsed).model.index).toBe(0)
+    expect(Carousel.update()(last(false), elapsed).model.rotation).toBe('Stopped')
+    expect(
+      Carousel.update()(Carousel.init({ id: 'c', count: 2 }), Carousel.Message.Chose({ index: 5 }))
+        .model.index,
+    ).toBe(1)
+  })
+
+  it('draws the Model’s perView as the track’s width', () => {
+    const html = JSON.stringify(drawn(Carousel.init({ id: 'c', count: 4, perView: 2 })))
+    expect(html).toContain('"--fk-carousel-per-view":"2"')
+  })
+})
