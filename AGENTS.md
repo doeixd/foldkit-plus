@@ -19,6 +19,10 @@ This file is the core every agent must know. Area-specific hazards live in `docs
 
 The project aims to expand what Foldkit Plus can do. Do not defer, decline or close a feature because no application, caller or "second consumer" uses it yet: a design decides how to build it, and its tests, an example or a demo are its first consumer. Defer only for a concrete reason: it waits on upstream, a measured cost outweighs it, the design is unsound, or the work belongs to another package's ownership. The De-slop rules about options nobody passes and wrappers that only forward are about plumbing left dead inside a change, not about which features to build.
 
+## GitHub issues
+
+Read an issue whole before you act on it: the body and every comment, in order (`gh issue view <n> --comments`), plus any issue, PR or design note it links. Comments often narrow the scope, reverse the body's proposal, record a decision or say part of it is already done; the body alone is the oldest and least reliable part. Do the same before you comment on, close or cite an issue.
+
 ## Git in the shared tree
 
 Several sessions share one worktree, one index and one branch.
