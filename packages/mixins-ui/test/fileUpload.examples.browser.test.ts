@@ -397,25 +397,40 @@ test('10 Cover: the image fills the frame, Remove sits over it, and a ring shows
     { accept: ['image/*'], lanes: 1 },
     [style, ring],
     (model, lift, h) =>
-      FileUpload.view(
-        {
-          model,
-          onMessage: lift,
-          label: 'Change cover',
-          style,
-          progress: FileUploadProgress.make({ style: ring }),
-          picture: url =>
-            Option.match(url, {
-              onNone: () => h.span([], ['Add a cover']),
-              onSome: src => h.img([h.Src(src), h.Alt('')]),
-            }),
-        },
-        h,
+      // A parent that centres its children, as a page's preview frame does.
+      h.div(
+        [h.Style({ display: 'flex', justifyContent: 'center', inlineSize: '480px' })],
+        [
+          FileUpload.view(
+            {
+              model,
+              onMessage: lift,
+              label: 'Change cover',
+              style,
+              progress: FileUploadProgress.make({ style: ring }),
+              picture: url =>
+                Option.match(url, {
+                  onNone: () => h.span([h.Id('placeholder')], ['Add a cover']),
+                  onSome: src => h.img([h.Src(src), h.Alt('')]),
+                }),
+            },
+            h,
+          ),
+        ],
       ),
     { send: sends.send },
   )
   try {
     await ready()
+    // Empty, the frame is as wide as its place and its words stand in its middle.
+    const empty = picker().getBoundingClientRect()
+    // The words themselves: a stretched box is centred whatever its text does.
+    const range = document.createRange()
+    range.selectNodeContents(document.getElementById('placeholder')!)
+    const words = range.getBoundingClientRect()
+    expect(empty.width).toBeGreaterThan(400)
+    expect(Math.abs(words.left + words.width / 2 - (empty.left + empty.width / 2))).toBeLessThan(2)
+    expect(Math.abs(words.top + words.height / 2 - (empty.top + empty.height / 2))).toBeLessThan(2)
     drop(picker(), [png('cover.png')])
     await vi.waitFor(() => expect(sends.started).toHaveLength(1))
     await vi.waitFor(() => expect(document.querySelector('img')).not.toBeNull())

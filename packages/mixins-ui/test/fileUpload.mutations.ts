@@ -534,6 +534,29 @@ export default [
     tests: [browser],
   },
   {
+    name: 'a cover in a centring parent is as wide as its words',
+    edits: [
+      {
+        file: recipe,
+        find: "            inlineSize: '100%',\n            ...nests(ref.radius.lg, ref.space.xs, ref.border.thin),",
+        replace: '            ...nests(ref.radius.lg, ref.space.xs, ref.border.thin),',
+      },
+    ],
+    tests: [examples],
+  },
+  {
+    name: "an empty cover's words stand at its top corner",
+    edits: [
+      {
+        file: recipe,
+        find: "            placeItems: 'center',\n            inlineSize: '100%',\n            blockSize: '100%',\n            color: ref.text.muted,",
+        replace:
+          "            inlineSize: '100%',\n            blockSize: '100%',\n            color: ref.text.muted,",
+      },
+    ],
+    tests: [examples],
+  },
+  {
     name: 'the size is left-aligned',
     edits: [
       {

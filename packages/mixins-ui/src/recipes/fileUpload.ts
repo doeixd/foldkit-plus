@@ -366,7 +366,20 @@ export const FileUpload = Style.recipeFor(FileUploadSlots)({
         root: variant(
           Style.self({
             alignItems: 'stretch',
+            // A cover is as wide as its place: in a parent that centres or
+            // shrinks its children, the frame was the width of its words.
+            inlineSize: '100%',
             ...nests(ref.radius.lg, ref.space.xs, ref.border.thin),
+          }),
+        ),
+        // What stands in the frame before an image does is centred in it.
+        picture: variant(
+          Style.self({
+            display: 'grid',
+            placeItems: 'center',
+            inlineSize: '100%',
+            blockSize: '100%',
+            color: ref.text.muted,
           }),
         ),
         picker: [
