@@ -605,7 +605,9 @@ describe('the generated site', () => {
 
   test('the range picker submits its dates under one name', () => {
     const range = page('/components/date-picker').getElementById('range')?.closest('section')
-    expect(range?.querySelector('[data-size="page"] button')?.textContent).toBe('Pick your dates')
+    expect(range?.querySelector('[data-size="page"] button')?.textContent).toBe(
+      'Pick check-in and check-out',
+    )
     expect(
       range?.querySelectorAll('[data-size="page"] input[type="hidden"][name="stay"]'),
     ).toHaveLength(1)
