@@ -172,12 +172,26 @@ jobs:
           FOLDKIT_LOCALE_PG: postgres://postgres:ci@localhost:5432/postgres
 
   # The examples with a server, end to end: each test starts the server and
-  # Vite, and drives a real Chromium.
+  # Vite, and drives a real Chromium. One job took 36 minutes with the files one
+  # at a time, so the files are split: the site's adoption check, which builds
+  # production and takes 8.6 minutes alone, gets a job of its own (the config
+  # leaves it out of the others on CI), and Vitest's `--shard` splits the rest.
+  # Within a job the files still run one at a time, since each starts servers.
   e2e:
+    name: e2e (${{ matrix.name }})
     runs-on: ubuntu-latest
-    # The files run one at a time and took 29.5 minutes on 2026-11-17 (the site's adoption
-    # check alone builds production and takes 8), so 30 cancelled the job before its verdict.
-    timeout-minutes: 50
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: adoption, args: examples/site/e2e/adoption.e2e.ts, adoption: '1' }
+          - { name: 1/4, args: --shard=1/4, adoption: '' }
+          - { name: 2/4, args: --shard=2/4, adoption: '' }
+          - { name: 3/4, args: --shard=3/4, adoption: '' }
+          - { name: 4/4, args: --shard=4/4, adoption: '' }
+    env:
+      FOLDKIT_ADOPTION: ${{ matrix.adoption }}
     steps:
       - uses: actions/checkout@v7
 
@@ -199,7 +213,7 @@ jobs:
 
       - run: pnpm exec playwright install --with-deps chromium
 
-      - run: pnpm e2e
+      - run: pnpm e2e ${{ matrix.args }}
 
   # Every performance budget, on one quiet Linux runner: CPU readings step in
   # 15.6 ms on Windows and drift on a loaded shard, so the budget tests run
