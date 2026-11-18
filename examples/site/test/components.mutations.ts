@@ -244,23 +244,12 @@ export default [
     tests: unit,
   },
   {
-    name: 'a radio option’s words are not its label',
-    edits: [
-      {
-        file: '../src/snippets/components.ts',
-        find: '            options.map(option =>\n              h.label(',
-        replace: '            options.map(option =>\n              h.div(',
-      },
-    ],
-    tests: pages,
-  },
-  {
     name: 'the component pages offer no direction',
     edits: [
       {
         file: '../src/view/components.ts',
-        find: '      schemeChoice(model, slots, h),\n      directionChoice(model, slots, h),',
-        replace: '      schemeChoice(model, slots, h),',
+        find: '        schemeChoice(model, slots, h),\n        directionChoice(model, slots, h),',
+        replace: '        schemeChoice(model, slots, h),',
       },
     ],
     tests: pages,
@@ -280,7 +269,7 @@ export default [
     name: 'the decorative image is described anyway',
     edits: [
       {
-        file: '../src/snippets/components.ts',
+        file: '../src/examples/image/basic.ts',
         find: 'alt: Image.decorative,',
         replace: "alt: 'Dunes under a pale sun',",
       },
@@ -291,7 +280,7 @@ export default [
     name: 'the ornamental icon is given a name',
     edits: [
       {
-        file: '../src/snippets/components.ts',
+        file: '../src/examples/icon/basic.ts',
         find: "Icon.view({ icon: icons.copy, key: 'copy', style }, h)",
         replace: "Icon.view({ icon: icons.copy, key: 'copy', label: 'Copy', style }, h)",
       },
@@ -302,7 +291,7 @@ export default [
     name: 'the fieldset’s description is drawn without its id',
     edits: [
       {
-        file: '../src/snippets/components.ts',
+        file: '../../../packages/mixins-ui/src/fieldset.ts',
         find: 'h.p(description, [',
         replace: 'h.p([], [',
       },
@@ -313,10 +302,9 @@ export default [
     name: 'the refused code is not marked invalid',
     edits: [
       {
-        file: '../src/snippets/components.ts',
-        find: `value: codes.refused,
-          invalid: true,`,
-        replace: `value: codes.refused,`,
+        file: '../src/examples/otp-field/states.ts',
+        find: `label: 'Refused code', invalid: true`,
+        replace: `label: 'Refused code'`,
       },
     ],
     tests: ['examples/site/test/showcases.test.ts'],

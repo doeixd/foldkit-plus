@@ -42,12 +42,9 @@ It does **not** own:
 
 ## Mental model
 
-```text
-request ─► assets? ─► the origin set? ─► routes, in order ─► otherwise (pages)
-           /assets/    500 naming the    '/auth/'  prefix
-           from the    variable if not   '/remote' exactly
-           binding
-```
+A request is tried in this order: assets first (`/assets/`, from the binding); then
+the origin must be set, or the answer is a 500 naming the variable; then the routes,
+in order (`'/auth/'` as a prefix, `'/remote'` exactly); otherwise the page.
 
 The assets come first, so a Worker not yet configured still serves its
 build; nothing else is answered before the origin check. The origin is

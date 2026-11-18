@@ -1,6 +1,8 @@
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A chat message publishes its regions as slots; it owns no state, messages
@@ -33,6 +35,19 @@ export const ChatMessageSlots = Slots.define({
   /** The status and the actions, its height kept so revealing the actions moves nothing. */
   footer: Slot.make({ capability: Capability.Container }),
   status: Slot.make({ capability: Capability.Container }),
+  /** The reactions under the bubble: pills of a mark and a count. */
+  reactions: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.Role, Attr.AriaLabel],
+  }),
+  /** One reaction; a button when it has an `onClick`, a mark otherwise. */
+  reaction: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel, Attr.AriaPressed],
+  }),
+  /** How many gave a reaction. */
+  reactionCount: Slot.make({ capability: Capability.Container }),
   retry: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   actions: Slot.make({
     capability: Capability.Container,
@@ -51,10 +66,45 @@ export type ChatMessageFrom = 'user' | 'assistant' | 'system'
 /** Where a message the user sent stands: on its way, received, or refused. */
 export type ChatMessageStatus = 'sending' | 'sent' | 'failed'
 
-const statusWords: Readonly<Record<ChatMessageStatus, string>> = {
+/** The text a message draws that is not one use's content. */
+export interface ChatMessageWords {
+  /** Where a message stands: on its way, received, refused. */
+  readonly sending: string
+  readonly sent: string
+  readonly failed: string
+  /** The retry button beside a failed message. */
+  readonly retry: string
+  /** Names the actions as a group. */
+  readonly actions: string
+  /** Names the reactions as a group. */
+  readonly reactions: string
+  /** A reaction's name for a reader; `{label}` and `{count}`. */
+  readonly reactionCount: string
+}
+
+export const words: ChatMessageWords = {
   sending: 'Sending…',
   sent: 'Sent',
   failed: 'Not sent',
+  retry: 'Retry',
+  actions: 'Message actions',
+  reactions: 'Reactions',
+  reactionCount: '{label}, {count}',
+}
+
+/** An emoji or a glyph someone gave a message, with how many did. */
+export interface ChatMessageReaction<Message> {
+  /** Keeps the reaction's DOM when the ones before it change. */
+  readonly key: string
+  /** What is drawn: an emoji or a glyph. */
+  readonly mark: string
+  /** Its name for a reader: `Thumbs up`. */
+  readonly label: string
+  readonly count?: number | undefined
+  /** A toggle's state (you gave this one), as `aria-pressed`. */
+  readonly pressed?: boolean | undefined
+  /** Makes it a button that sends this; without it the reaction is shown, not pressed. */
+  readonly onClick?: Message | undefined
 }
 
 /** One thing a message offers: copy, edit, regenerate, a thumb up. */
@@ -91,15 +141,13 @@ export interface ChatMessageView<Message = never> {
   readonly avatar?: Html | undefined
   readonly time?: ChatMessageTime | undefined
   readonly status?: ChatMessageStatus | undefined
-  /** The status as shown and read; `Sending…`, `Sent` or `Not sent` when omitted. */
-  readonly statusLabel?: string | undefined
+  /** The status, the retry and the groups' names. */
+  readonly words?: Partial<ChatMessageWords> | undefined
   /** What the retry button beside a failed status sends; a failed message without it draws none. */
   readonly onRetry?: Message | undefined
-  /** Default `Retry`. */
-  readonly retryLabel?: string | undefined
+  /** Pressable or shown reactions under the bubble, before the footer. */
+  readonly reactions?: ReadonlyArray<ChatMessageReaction<Message>> | undefined
   readonly actions?: ReadonlyArray<ChatMessageAction<Message>> | undefined
-  /** Names the actions as a group; default `Message actions`. */
-  readonly actionsLabel?: string | undefined
   /**
    * Shows the actions at rest, as the latest answer shows its own; others
    * reveal theirs on hover or focus, and always where nothing can hover.
@@ -129,6 +177,8 @@ const draw = <Message>(
   )
   const continued = options.continued === true
   const { status, time, onRetry } = options
+  const text = wordsOf(words, options.words)
+  const reactions = options.reactions ?? []
   const actions = options.actions ?? []
   const header =
     options.author === undefined && time === undefined
@@ -148,13 +198,11 @@ const draw = <Message>(
       ? []
       : [
           h.div(builders.footer.attrs(), [
-            ...(status === undefined
-              ? []
-              : [h.span(builders.status.attrs(), [options.statusLabel ?? statusWords[status]])]),
+            ...(status === undefined ? [] : [h.span(builders.status.attrs(), [text[status]])]),
             ...(status === 'failed' && onRetry !== undefined
               ? [
                   h.button(builders.retry.attrs([h.Type('button'), h.OnClick(onRetry)]), [
-                    options.retryLabel ?? 'Retry',
+                    text.retry,
                   ]),
                 ]
               : []),
@@ -164,7 +212,7 @@ const draw = <Message>(
                   h.div(
                     builders.actions.attrs([
                       h.Role('group'),
-                      h.AriaLabel(options.actionsLabel ?? 'Message actions'),
+                      h.AriaLabel(text.actions),
                       h.DataAttribute('pinned', flag(options.pinActions)),
                     ]),
                     actions.map(action =>
@@ -205,6 +253,48 @@ const draw = <Message>(
       h.div(builders.main.attrs(), [
         ...header,
         h.div(builders.bubble.attrs(), [h.div(builders.body.attrs(), [options.content])]),
+        ...(reactions.length === 0
+          ? []
+          : [
+              h.div(
+                builders.reactions.attrs([h.Role('group'), h.AriaLabel(text.reactions)]),
+                reactions.map(reaction => {
+                  const count = reaction.count
+                  const inner: ReadonlyArray<Html | string> = [
+                    reaction.mark,
+                    ...(count === undefined
+                      ? []
+                      : [
+                          h.span(builders.reactionCount.attrs([h.AriaHidden(true)]), [
+                            String(count),
+                          ]),
+                        ]),
+                  ]
+                  const name = h.AriaLabel(
+                    count === undefined
+                      ? reaction.label
+                      : fill(text.reactionCount, { label: reaction.label, count }),
+                  )
+                  return reaction.onClick === undefined
+                    ? h.span(
+                        builders.reaction.attrs([h.Key(reaction.key), h.Role('img'), name]),
+                        inner,
+                      )
+                    : h.button(
+                        builders.reaction.attrs([
+                          h.Key(reaction.key),
+                          h.Type('button'),
+                          name,
+                          ...(reaction.pressed === undefined
+                            ? []
+                            : [h.AriaPressed(flag(reaction.pressed))]),
+                          h.OnClick(reaction.onClick),
+                        ]),
+                        inner,
+                      )
+                }),
+              ),
+            ]),
         ...footer,
       ]),
     ],
@@ -278,3 +368,50 @@ export const group = <Message = never>(
     }),
   )
 }
+
+/** What a ChatMessage is given once: its look, words and how its actions show. */
+export type ChatMessagePreset = Pick<ChatMessageView<never>, 'style' | 'words' | 'pinActions'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own ChatMessage: `view` and `group` over `base` for every
+ * use, `presets` chosen at a use with `preset`, and the call over both.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<ChatMessagePreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: ChatMessageView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+  readonly group: <Outer>(
+    options: ChatMessageGroupView<Outer> & {
+      readonly preset?: [Names] extends [never] ? undefined : Names
+    },
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+  group: (options, h) => {
+    const { preset, items, messageStyle, ...rest } = options
+    // A run takes the preset's look for its messages (their mixins stay the
+    // view's), and its words and pinned actions for each, unless a message says.
+    const given = layered<ChatMessagePreset & { readonly preset?: string }>(
+      config,
+      preset === undefined ? {} : { preset },
+    )
+    return group(
+      {
+        ...rest,
+        messageStyle: messageStyle ?? given.style,
+        items: items.map(item => ({
+          ...item,
+          words: { ...given.words, ...item.words },
+          pinActions: item.pinActions ?? given.pinActions,
+        })),
+      },
+      h,
+    )
+  },
+})

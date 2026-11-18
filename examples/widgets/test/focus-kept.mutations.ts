@@ -43,7 +43,13 @@ export default [
   },
   {
     name: 'the toasts shown are not counted',
-    edits: [{ file: app, find: 'counted ? shown + 1 : shown', replace: 'shown' }],
+    edits: [
+      {
+        file: app,
+        find: 'toastsShown: count => count + 1',
+        replace: 'toastsShown: count => count',
+      },
+    ],
     tests: unit,
   },
   {

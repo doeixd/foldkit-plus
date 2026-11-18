@@ -1,27 +1,15 @@
-import { Effect, Option, Schema, Stream } from 'effect'
-import { Behavior, Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Option, Schema } from 'effect'
+import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import { Layout, Picture, type ImageAsset, type Provider } from 'foldkit-media'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
-import * as Mount from 'foldkit/mount'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { imgAttributes } from './imageAttributes.js'
+import { ImageSlots } from './image/slots.js'
 import type { MixinList } from './resolve.js'
 
-/**
- * An image publishes its frame (a `picture`), a `source` per format, and the
- * `img`; it owns no
- * state or messages, and the browser owns loading and which candidate to
- * fetch. The `img` carries the original's ratio as `--fk-image-ratio` and the
- * placeholder's background as `--fk-image-placeholder`, the focal point as
- * `--fk-image-focus`, and `data-layout` (`fixed`, `constrained`, `full`). A
- * frame whose provider has no URL for the image is drawn empty, marked
- * `data-unavailable`, holding the image's box (`--fk-image-ratio`,
- * `--fk-image-width`) and its alt text.
- */
-export const ImageSlots = Slots.define({
-  frame: Slot.make({ capability: Capability.Container }),
-  source: Slot.make({ capability: Capability.Container }),
-  image: Slot.make({ capability: Capability.Container }),
-})
+export { audit } from './image/audit.js'
+export { ImageSlots } from './image/slots.js'
+export { watchLoad } from './image/watchLoad.js'
 
 /** What an image says to someone who cannot see it, or that it says nothing. */
 export const Alt = Schema.TaggedUnion({
@@ -143,127 +131,6 @@ export const view = <Message = never, Asset extends ImageAsset = ImageAsset>(
   })
 }
 
-/**
- * Marks the `img` with what became of its file: `data-state` is `loading`
- * until it arrives, then `loaded`, or `failed`. An image already complete when
- * it mounts (from the cache, or loaded before the page hydrated) is marked at
- * once, so it never fades in a second time. A later `src` keeps the mark it
- * has until its own file settles.
- */
-const WatchLoad = Mount.defineStream('ImageLoad', {
-  messages: [Schema.Never],
-  execute: ({ element }) =>
-    Stream.callback<never>(() =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          const mark = (state: string) => element.setAttribute('data-state', state)
-          const settle = () =>
-            mark(
-              element instanceof HTMLImageElement && element.naturalWidth > 0 ? 'loaded' : 'failed',
-            )
-          const failed = () => mark('failed')
-          if (element instanceof HTMLImageElement && element.complete) settle()
-          else mark('loading')
-          element.addEventListener('load', settle)
-          element.addEventListener('error', failed)
-          return { settle, failed }
-        }),
-        ({ settle, failed }) =>
-          Effect.sync(() => {
-            element.removeEventListener('load', settle)
-            element.removeEventListener('error', failed)
-          }),
-      ),
-    ),
-})
-
-/**
- * Marks the `img`'s `data-state` (`loading`, `loaded`, `failed`), for a style
- * to read; `Recipes.Image` hides a failed image, keeping its box, so no
- * broken-image glyph or stray alt text shows. Pass it beside the style. It
- * sends no Message, so it is never on by default; without it (or before a page
- * hydrates) the browser draws a failed image as it does.
- */
-export const watchLoad = [
-  Behavior.forSlots(ImageSlots)<unknown, never>(
-    {
-      image: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => WatchLoad(),
-      }),
-    },
-    { name: 'ImageLoad' },
-  ).mixin,
-]
-
-// The images drawn with priority, across the page: more than one is a warning.
-const prioritized = new Set<Element>()
-
-// A file at least this much narrower than the drawn width reads blurry; this much wider, wasted.
-const BLURRY_BELOW = 0.9
-const WASTED_ABOVE = 2.5
-
-const Audit = Mount.defineStream('ImageAudit', {
-  messages: [Schema.Never],
-  execute: ({ element }) =>
-    Stream.callback<never>(() =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          if (!(element instanceof HTMLImageElement)) return () => {}
-          const image = element
-          const warn = (message: string) => console.warn(`Image.audit: ${message}`, image)
-          if (image.getAttribute('fetchpriority') === 'high') {
-            prioritized.add(image)
-            if (prioritized.size > 1) {
-              warn(
-                `${prioritized.size} images are drawn with priority; give it to the page's largest alone`,
-              )
-            }
-          }
-          // `complete` can be true while the file's `load` is still queued: measure each file once.
-          let measured = ''
-          const measure = () => {
-            const drawn = image.getBoundingClientRect().width * devicePixelRatio
-            if (image.naturalWidth === 0 || drawn === 0 || image.currentSrc === measured) return
-            measured = image.currentSrc
-            const fact = `drawn ${Math.round(drawn)} device pixels wide from a ${image.naturalWidth}px file`
-            if (image.naturalWidth < drawn * BLURRY_BELOW)
-              warn(`${fact}: blurry, offer a wider candidate`)
-            if (image.naturalWidth > drawn * WASTED_ABOVE)
-              warn(`${fact}: wasted bytes, check its sizes`)
-          }
-          if (image.complete) measure()
-          image.addEventListener('load', measure)
-          return () => {
-            prioritized.delete(image)
-            image.removeEventListener('load', measure)
-          }
-        }),
-        release => Effect.sync(release),
-      ),
-    ),
-})
-
-/**
- * Warnings for a development build, in the console, about what the page
- * left to itself: an image drawn wider than its file (blurry) or far
- * narrower (wasted bytes), from its natural width, its drawn width and the
- * device's pixel ratio; and more than one image drawn with `priority`. It
- * logs and changes nothing; like `watchLoad`, it sends no Message, so pass it
- * beside the style, and only where a page is being built.
- */
-export const audit = [
-  Behavior.forSlots(ImageSlots)<unknown, never>(
-    {
-      image: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => Audit(),
-      }),
-    },
-    { name: 'ImageAudit' },
-  ).mixin,
-]
-
 // The attribute values a server render wrote, double-quoted and escaped.
 const attributeOf = (tag: string, name: string): Option.Option<string> =>
   Option.map(Option.fromNullishOr(new RegExp(`\\s${name}="([^"]*)"`).exec(tag)), ([, value]) =>
@@ -312,3 +179,33 @@ export const preloadsIn = (rendered: { readonly html: string }): string => {
   }
   return links.join('')
 }
+
+/** What an Image is given once: its look and how it is laid out; the asset, provider and alt are each use's. */
+export type ImagePreset = Pick<ImageView<never>, 'style' | 'layout' | 'sizes' | 'placeholder'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Image: `base` for every use, `presets` chosen at a
+ * use with `preset` (a hero, a thumbnail), and the call over both. `mixins`
+ * such as `Image.watchLoad` are the application's to pass here, so a page
+ * that never names one ships none.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<ImagePreset, Names>,
+): {
+  readonly view: <Outer, Asset extends ImageAsset = ImageAsset>(
+    options: Omit<ImageView<Outer, Asset>, 'layout'> & {
+      readonly layout?: Layout.Layout | undefined
+    } & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => {
+    const merged = layered(config, options)
+    if (merged.layout === undefined) {
+      throw new Error('Image.configure: a use needs a layout, from the call or a base or preset')
+    }
+    return view({ ...merged, layout: merged.layout }, h)
+  },
+})

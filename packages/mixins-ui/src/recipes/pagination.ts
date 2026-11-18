@@ -4,7 +4,8 @@
  * reads `aria-current`, so its look follows the DOM with no JavaScript.
  * `compact` drops the numbers but the current one, which then reads
  * `"4 / 12"` so the total stays: `narrow` (default) on a window under 30rem,
- * `always`, or `never`.
+ * `always`, or `never`. `shape: 'round'` makes the stops pills and
+ * `treatment: 'outline'` gives each the field's outline.
  */
 import { Style } from 'foldkit-mixins'
 import { PaginationSlots } from '../pagination.js'
@@ -43,6 +44,9 @@ const stop = component(
   focusRing,
   disabled,
 )
+
+const round = variant(Style.self({ borderRadius: ref.radius.full }))
+const outlined = variant(Style.self({ borderColor: ref.outline.default }))
 
 export const Pagination = Style.recipeFor(PaginationSlots)({
   base: {
@@ -138,6 +142,28 @@ export const Pagination = Style.recipeFor(PaginationSlots)({
         ellipsis: variant(Style.self(hidden)),
       },
     },
+    // The stops' corners: `round` makes each a pill.
+    shape: {
+      square: {},
+      round: {
+        first: round,
+        prev: round,
+        page: round,
+        next: round,
+        last: round,
+      },
+    },
+    // `outline` gives every stop the field's outline, not only the current one's tint.
+    treatment: {
+      ghost: {},
+      outline: {
+        first: outlined,
+        prev: outlined,
+        page: outlined,
+        next: outlined,
+        last: outlined,
+      },
+    },
   },
-  defaults: { compact: 'narrow' },
+  defaults: { compact: 'narrow', shape: 'square', treatment: 'ghost' },
 })

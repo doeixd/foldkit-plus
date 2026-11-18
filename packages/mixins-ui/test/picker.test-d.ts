@@ -1,17 +1,15 @@
 /**
- * The Picker's view: `Value` is inferred from the options and holds the
- * value passed beside them, so a value no option has is refused, and
- * `onMessage` maps into the builder's Messages. Type-checked, not executed.
+ * The Picker's view: `Value` is inferred from the `choice`, so a value no
+ * item has is refused, a choice of several is refused (the Sheet closes at a
+ * pick), and `onMessage` and `clear` map into the builder's Messages.
+ * Type-checked, not executed.
  */
 import { Option } from 'effect'
-import { Picker } from '../src/index.js'
+import { Listbox, Picker } from '../src/index.js'
 import { h, message } from './fixture.js'
 
 const model = Picker.init({ id: 'sort' })
-const options = [
-  { value: 'price', label: 'Lowest price' },
-  { value: 'name', label: 'Name', description: 'A to Z' },
-]
+const Sort = Picker.one(['price', 'name'])
 
 /** As an application's Model holds it. */
 const sort: Option.Option<'price' | 'name'> = Option.some('price')
@@ -21,24 +19,22 @@ export const drawn = Picker.view(
     model,
     onMessage: () => message('Other'),
     label: 'Sort',
-    options: [
-      { value: 'price', label: 'Lowest price' },
-      { value: 'name', label: 'Name' },
-    ],
+    choice: Sort,
+    option: item => ({ label: item === 'price' ? 'Lowest price' : 'Name' }),
     value: sort,
     placeholder: 'Sort by',
   },
   h,
 )
 
-export const widened = Picker.view(
+export const clearable = Picker.view(
   {
     model,
     onMessage: () => message('Other'),
     label: 'Sort',
-    options,
-    value: Option.some('anything'),
-    placeholder: 'Sort by',
+    choice: Sort,
+    value: sort,
+    clear: { onClear: message('Other') },
   },
   h,
 )
@@ -48,13 +44,34 @@ export const unknownValue = Picker.view(
     model,
     onMessage: () => message('Other'),
     label: 'Sort',
-    options: [
-      { value: 'price', label: 'Lowest price' },
-      { value: 'name', label: 'Name' },
-    ],
-    // @ts-expect-error No option has the value 'rating'.
+    choice: Sort,
+    // @ts-expect-error No item of the choice is 'rating'.
     value: Option.some('rating'),
-    placeholder: 'Sort by',
+  },
+  h,
+)
+
+export const unknownItem = Picker.view(
+  {
+    model,
+    onMessage: () => message('Other'),
+    label: 'Sort',
+    choice: Sort,
+    value: sort,
+    // @ts-expect-error The choice has no item 'rating'.
+    items: ['price', 'rating'],
+  },
+  h,
+)
+
+export const several = Picker.view(
+  {
+    model,
+    onMessage: () => message('Other'),
+    label: 'Sort',
+    // @ts-expect-error The Sheet closes at a pick: a choice of several is the Listbox's.
+    choice: Listbox.many(['price', 'name']),
+    value: [],
   },
   h,
 )
@@ -65,9 +82,21 @@ export const foreignMessage = Picker.view(
     // @ts-expect-error The picker's Messages map into the builder's, not into another type.
     onMessage: () => 'Clicked',
     label: 'Sort',
-    options,
-    value: Option.none(),
-    placeholder: 'Sort by',
+    choice: Sort,
+    value: sort,
+  },
+  h,
+)
+
+export const foreignClear = Picker.view(
+  {
+    model,
+    onMessage: () => message('Other'),
+    label: 'Sort',
+    choice: Sort,
+    value: sort,
+    // @ts-expect-error The clear button sends a Message of the builder's, not a string.
+    clear: { onClear: 'Cleared' },
   },
   h,
 )
@@ -77,9 +106,8 @@ export const missingLabel = Picker.view(
   {
     model,
     onMessage: () => message('Other'),
-    options,
-    value: Option.none(),
-    placeholder: 'Sort by',
+    choice: Sort,
+    value: sort,
   },
   h,
 )

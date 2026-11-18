@@ -102,8 +102,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/typography.ts',
-        find: '      fontFamily: ref.font.heading,\n      fontSize: size,',
-        replace: '      fontSize: size,',
+        find: '  fontFamily: ref.font.heading,\n  fontSize: size,',
+        replace: '  fontSize: size,',
       },
     ],
     tests: ['packages/mixins-ui/test/typography.test.ts'],

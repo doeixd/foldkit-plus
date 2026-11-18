@@ -10,8 +10,8 @@ import { describe, expect, it } from 'vitest'
 import { Message, initial, update } from '../src/tour/app.js'
 import { island } from '../src/tour/island.js'
 
-const gotTour = (message: Tour.Message) => Message.GotTour({ message })
-const gotPanel = (message: FloatingPanel.Message) => Message.GotPanel({ message })
+const gotTour = (message: Tour.Message) => Message.GotTourMessage({ message })
+const gotPanel = (message: FloatingPanel.Message) => Message.GotPanelMessage({ message })
 
 const started = update(initial, Message.StartedTour())
 
@@ -43,6 +43,15 @@ describe('the tour', () => {
     const again = update(skipped, Message.StartedTour()).model
     expect(again.ending).toEqual(Option.some('skipped'))
     expect(update(again, gotTour(Tour.Message.Next())).model.ending).toEqual(Option.some('skipped'))
+  })
+
+  it('says how it ended last, when it is run a second time', () => {
+    const skipped = update(started.model, gotTour(Tour.Message.Skipped())).model
+    const again = update(skipped, Message.StartedTour()).model
+    const second = update(again, gotTour(Tour.Message.Next())).model
+    expect(update(second, gotTour(Tour.Message.Next())).model.ending).toEqual(
+      Option.some('finished'),
+    )
   })
 
   it('keeps the Model for a Message while it is closed', () => {

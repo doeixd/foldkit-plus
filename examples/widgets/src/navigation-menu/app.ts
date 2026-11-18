@@ -101,6 +101,9 @@ export const initial = assembly.initial({
   openedByPointer: false,
 })
 
+/** The DismissLayer's document listeners: without them an outside press and Escape reach nothing. */
+export const subscriptions = assembly.subscriptions()
+
 export const update = assembly.update((model, message) => {
   return Match.valueTags(message, {
     EnteredSection: message =>

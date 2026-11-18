@@ -146,3 +146,24 @@ export const inferred = Toolbar.view(
   },
   h,
 )
+
+const Configured = Toolbar.configure({
+  base: { loop: false },
+  presets: { stacked: { orientation: 'vertical' } },
+})
+export const stacked = Configured.view({ ...bar, preset: 'stacked' }, h)
+
+// @ts-expect-error `stakced` is no preset.
+export const misspelt = Configured.view({ ...bar, preset: 'stakced' }, h)
+
+// @ts-expect-error the stop is the call's: a preset holds no Model.
+Toolbar.configure({ base: { roving: { current: null } } })
+
+// @ts-expect-error the controls are the call's: a preset holds no drawing.
+Toolbar.configure({ base: { items: [] } })
+
+// @ts-expect-error a preset's orientation is one of the two.
+Toolbar.configure({ base: { orientation: 'diagonal' } })
+
+// @ts-expect-error the Message of another application's cannot answer a focus.
+export const foreign = Toolbar.view({ ...bar, onFocus: Toolbar.focused(() => 'nope') }, h)

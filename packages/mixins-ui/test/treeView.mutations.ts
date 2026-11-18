@@ -87,8 +87,8 @@ export default [
     edits: [
       {
         file: '../src/treeView.ts',
-        find: 'h.span(builders.label.attrs(), [node.label])',
-        replace: 'h.span([], [node.label])',
+        find: 'h.span(builders.label.attrs(), [node.content ?? node.label])',
+        replace: 'h.span([], [node.content ?? node.label])',
       },
     ],
     tests: [unit],
@@ -181,7 +181,7 @@ export default [
     edits: [
       {
         file: '../src/treeView.ts',
-        find: "if (key === ' ' && options.checkable === true) {",
+        find: "if (key === ' ' && (options.checkable ?? model.checkable)) {",
         replace: 'if (false) {',
       },
     ],
@@ -268,5 +268,67 @@ export default [
       },
     ],
     tests: [unit],
+  },
+  {
+    name: 'a node’s content is not drawn in place of its label',
+    edits: [
+      { file: '../src/treeView.ts', find: '[node.content ?? node.label]', replace: '[node.label]' },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a node’s trailing content is not drawn',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: ': [h.span(builders.trailing.attrs(), [node.trailing])]),',
+        replace: ': []),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a node’s action is not drawn',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: ': [h.span(builders.action.attrs(), [node.action])]),',
+        replace: ': []),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'update ignores the Model’s checkable',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: "if (key === ' ' && (options.checkable ?? model.checkable)) {",
+        replace: "if (key === ' ' && options.checkable === true) {",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the view ignores the Model’s checkable',
+    edits: [
+      {
+        file: '../src/treeView.ts',
+        find: '(options.checkable ?? model.checkable) ? checksOf',
+        replace: 'options.checkable === true ? checksOf',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the Bundle folds against no tree',
+    edits: [
+      {
+        file: '../src/bundles/treeView.ts',
+        find: 'foldFor(args.nodes)(model, message)',
+        replace: 'foldFor([])(model, message)',
+      },
+    ],
+    tests: [unit, 'packages/mixins-ui/test/layoutBundles.test.ts'],
   },
 ]

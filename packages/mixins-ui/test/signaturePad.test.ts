@@ -38,7 +38,7 @@ const stroke = (
   const [first, ...rest] = points
   return steps(
     from,
-    Message.Began({ ...box, point: first!, pen }),
+    Message.Began({ ...box, point: first!, pointerType: pen ? 'pen' : 'mouse' }),
     Message.Extended({ ...box, points: rest }),
     Message.Ended(),
   )
@@ -49,6 +49,8 @@ const line = stroke(measured, [at(10, 50), at(60, 50), at(110, 50)])
 interface More {
   readonly model?: SignaturePad.Model
   readonly disabled?: boolean
+  readonly words?: Partial<SignaturePad.SignaturePadWords>
+  readonly name?: string
 }
 
 const Pad = SlotView.forMessages<TestMessage>().define(SignaturePadSlots, (more: More, _, h) =>
@@ -124,15 +126,20 @@ describe('SignaturePad.view', () => {
     expect(Inert.value(Inert.byRole(pad, 'group')[0], 'data-drawn')).toBe('')
   })
 
-  it('enables undo and clear only when they would do something', () => {
+  it('enables undo, redo and clear only when they would do something', () => {
     const disabledOf = (model: SignaturePad.Model) =>
-      (['undo', 'clear'] as const).map(slot =>
+      (['undo', 'redo', 'clear'] as const).map(slot =>
         Inert.value(Inert.bySlot(drawn({ model }), slot)[0], 'disabled'),
       )
-    expect(disabledOf(measured)).toEqual([true, true])
-    expect(disabledOf(line)).toEqual([undefined, undefined])
+    expect(disabledOf(measured)).toEqual([true, true, true])
+    expect(disabledOf(line)).toEqual([undefined, true, undefined])
     // A typed name can be cleared, but there is no stroke to undo.
-    expect(disabledOf(step(measured, Message.Typed({ text: 'Ada' })))).toEqual([true, undefined])
+    expect(disabledOf(step(measured, Message.Typed({ text: 'Ada' })))).toEqual([
+      true,
+      true,
+      undefined,
+    ])
+    expect(disabledOf(step(line, Message.Undid()))).toEqual([true, undefined, true])
   })
 
   it('shows a typed name on the line while nothing is drawn', () => {
@@ -167,7 +174,7 @@ describe('SignaturePad.update', () => {
   it('scales a control drawn at another size into the pad’s coordinates', () => {
     const smaller = steps(
       measured,
-      Message.Began({ width: 200, height: 80, point: at(10, 10), pen: false }),
+      Message.Began({ width: 200, height: 80, point: at(10, 10), pointerType: 'mouse' }),
       Message.Extended({ width: 200, height: 80, points: [at(50, 40, 2)] }),
       Message.Ended(),
     )
@@ -182,7 +189,10 @@ describe('SignaturePad.update', () => {
   })
 
   it('drops points nearer the last than a pixel', () => {
-    const started = step(measured, Message.Began({ ...box, point: at(10, 10), pen: false }))
+    const started = step(
+      measured,
+      Message.Began({ ...box, point: at(10, 10), pointerType: 'mouse' }),
+    )
     const near = step(started, Message.Extended({ ...box, points: [at(10.5, 10), at(10.2, 10.3)] }))
     expect(near).toBe(started)
     const some = step(started, Message.Extended({ ...box, points: [at(10.5, 10), at(12, 10)] }))
@@ -190,8 +200,13 @@ describe('SignaturePad.update', () => {
   })
 
   it('ignores a second pointer, and a move or a release with no stroke under way', () => {
-    const started = step(measured, Message.Began({ ...box, point: at(10, 10), pen: false }))
-    expect(step(started, Message.Began({ ...box, point: at(90, 90), pen: false }))).toBe(started)
+    const started = step(
+      measured,
+      Message.Began({ ...box, point: at(10, 10), pointerType: 'mouse' }),
+    )
+    expect(step(started, Message.Began({ ...box, point: at(90, 90), pointerType: 'mouse' }))).toBe(
+      started,
+    )
     expect(step(measured, Message.Extended({ ...box, points: [at(50, 50)] }))).toBe(measured)
     expect(step(measured, Message.Ended())).toBe(measured)
   })
@@ -205,6 +220,29 @@ describe('SignaturePad.update', () => {
     expect(step(measured, Message.Undid())).toBe(measured)
     expect(step(measured, Message.Cleared())).toBe(measured)
     expect(step(typed, Message.Typed({ text: 'Ada' }))).toBe(typed)
+  })
+
+  it('redoes what undo took, in order, and forgets it at a new stroke or a clear', () => {
+    const two = stroke(line, [at(10, 90), at(80, 90)])
+    const back = steps(two, Message.Undid(), Message.Undid())
+    expect(back.strokes).toEqual([])
+    expect(step(back, Message.Redid()).strokes).toEqual(line.strokes)
+    expect(steps(back, Message.Redid(), Message.Redid()).strokes).toEqual(two.strokes)
+    expect(step(two, Message.Redid())).toBe(two)
+    const drawnOver = stroke(step(two, Message.Undid()), [at(30, 30), at(60, 30)])
+    expect(drawnOver.undone).toEqual([])
+    expect(step(step(two, Message.Undid()), Message.Cleared()).undone).toEqual([])
+  })
+
+  it('starts a stroke only from a pointer it takes, and reads a pen’s pressure', () => {
+    const penOnly = step(SignaturePad.init({ id: 'pen', pointers: ['pen'] }), Message.Measured(box))
+    const press = (pointerType: string) =>
+      step(penOnly, Message.Began({ ...box, point: at(10, 10), pointerType }))
+    expect(press('touch')).toBe(penOnly)
+    expect(press('mouse')).toBe(penOnly)
+    expect(Option.map(press('pen').drawing, drawing => drawing.pressure)).toEqual(Option.some(true))
+    const mouse = step(measured, Message.Began({ ...box, point: at(10, 10), pointerType: 'mouse' }))
+    expect(Option.map(mouse.drawing, drawing => drawing.pressure)).toEqual(Option.some(false))
   })
 
   it('exports a PNG as a Command', () => {
@@ -312,5 +350,68 @@ describe('SignaturePad.toSvg', () => {
     expect(read.querySelector('text')?.textContent).toBe('<Ada> & "Co"')
     expect(SignaturePad.toSvg(measured)).toEqual(Option.none())
     expect(SignaturePad.isEmpty(step(measured, Message.Typed({ text: '  ' })))).toBe(true)
+  })
+})
+
+describe('SignaturePad words', () => {
+  const name = (more: More) => Inert.value(Inert.bySlot(drawn(more), 'control')[0], 'aria-label')
+
+  it('says one stroke in a word of its own, and several with their count', () => {
+    expect(name({ model: stroke(measured, [at(10, 90), at(80, 90)]) })).toBe(
+      'Signature: signed, 1 stroke',
+    )
+    expect(
+      name({ model: stroke(stroke(measured, [at(1, 1), at(5, 5)]), [at(2, 2), at(6, 6)]) }),
+    ).toBe('Signature: signed, 2 strokes')
+  })
+
+  it('takes every word given, with its blanks filled, and keeps the rest', () => {
+    const words = {
+      drawn: '{count} Striche',
+      drawnOne: 'ein Strich',
+      empty: 'leer',
+      typed: 'als {name}',
+    }
+    expect(name({ words })).toBe('Signature: leer')
+    expect(name({ words, model: stroke(measured, [at(10, 90), at(80, 90)]) })).toBe(
+      'Signature: ein Strich',
+    )
+    expect(name({ words, model: step(measured, Message.Typed({ text: 'Ada' })) })).toBe(
+      'Signature: als Ada',
+    )
+    expect(Inert.text(Inert.bySlot(drawn({ words }), 'placeholder')[0])).toBe('Sign here')
+  })
+})
+
+describe('SignaturePad name', () => {
+  const field = (more: More) => Inert.bySlot(drawn(more), 'hiddenInput')
+
+  it('draws no field without a name, and submits nothing while the pad is empty', () => {
+    expect(field({})).toEqual([])
+    const [empty] = field({ name: 'signature' })
+    expect([
+      Inert.value(empty, 'type'),
+      Inert.value(empty, 'name'),
+      Inert.value(empty, 'value'),
+    ]).toEqual(['hidden', 'signature', ''])
+  })
+
+  it('submits the strokes as the SVG toSvg writes, and a typed name as text on the line', () => {
+    const svg = SignaturePad.toSvg(line)
+    expect(Option.isSome(svg)).toBe(true)
+    expect(Inert.value(field({ name: 'signature', model: line })[0], 'value')).toBe(
+      Option.getOrThrow(svg),
+    )
+    const typed = step(measured, Message.Typed({ text: 'Ada' }))
+    expect(String(Inert.value(field({ name: 'signature', model: typed })[0], 'value'))).toContain(
+      '>Ada</text>',
+    )
+  })
+
+  it('is left out of the form while the pad is disabled', () => {
+    expect(
+      Inert.value(field({ name: 'signature', model: line, disabled: true })[0], 'disabled'),
+    ).toBe(true)
+    expect(Inert.value(field({ name: 'signature', model: line })[0], 'disabled')).toBeUndefined()
   })
 })

@@ -16,11 +16,12 @@ import { build, mergeConfig, preview, type PreviewServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 // Read through Vitest, which resolves the workspace sources (see theme.e2e.ts).
 import config from '../vite.config.js'
-import { onFreePort } from '../../../scripts/free-port.mjs'
 
 declare global {
   interface Window {
     served?: ReadonlyArray<Element>
+    /** Each served element's parent as served, since a removed element's own is gone. */
+    servedParents?: ReadonlyArray<Element | null>
   }
 }
 
@@ -64,6 +65,7 @@ const recordServed = (page: Page) =>
       if (document.readyState !== 'interactive') return
       const app = document.querySelector('[data-foldkit-app]')
       window.served = app === null ? [] : [app, ...app.querySelectorAll('*')]
+      window.servedParents = window.served.map(element => element.parentElement)
     })
   })
 
@@ -74,6 +76,11 @@ const PAGES = [
   '/entity/api/entity/query',
   '/components',
   '/components/button',
+  '/components/tags-input',
+  '/components/combobox',
+  '/components/calendar',
+  '/components/date-picker',
+  '/components/file-upload',
   '/components/otp-field',
   '/components/disclosure',
   '/components/code-block',
@@ -146,16 +153,63 @@ test.each(SETTLED)(
 // Foldkit warns of a mismatch in development only, and a production build rebuilds silently: the
 // build's own server once drew views without the view-identity branding the client carries, so the
 // markers never matched and every element of every page was replaced (`vite.config.ts`).
+// A WindowList scrolls with the page: the server draws the rows a viewport at the top would show,
+// and the running list, placed lower (the gallery's card), drops the rows out of its window. A row
+// it dropped, whose key the list no longer draws while the list itself stayed, is not rebuilt; a
+// row replaced under the same key, or a list replaced whole, still counts.
 test.each(PAGES)(
   'the served page %s is adopted, not rebuilt',
   async path => {
     const { page } = await open(path)
-    const rebuilt = await page.evaluate(
-      () =>
-        (window.served ?? []).filter(element => !element.isConnected && element.tagName !== 'STYLE')
-          .length,
-    )
+    const rebuilt = await page.evaluate(() => {
+      const served = window.served ?? []
+      const parents = window.servedParents ?? []
+      const KEY = 'data-window-list-key'
+      const dropped = (element: Element): boolean => {
+        const row = element.closest(`[${KEY}]`)
+        if (row === null) return false
+        const list = parents[served.indexOf(row)]
+        const key = row.getAttribute(KEY) ?? ''
+        return (
+          list !== null &&
+          list !== undefined &&
+          list.isConnected &&
+          [...list.children].every(child => child.getAttribute(KEY) !== key)
+        )
+      }
+      return served.filter(
+        element => !element.isConnected && element.tagName !== 'STYLE' && !dropped(element),
+      ).length
+    })
     expect(rebuilt).toBe(0)
+    await page.close()
+  },
+  120_000,
+)
+
+// A page that looks doubled is usually a capture artefact: Chrome's `fullPage` screenshot wraps
+// past 16,384px, so the 18,000px file-upload page showed its top again below its end. The
+// document itself is counted here: one heading, one rail and the declared previews, after the
+// browser has taken the page over.
+test.each([
+  ['button', 11],
+  ['tags-input', 4],
+  ['combobox', 7],
+  ['calendar', 9],
+  ['date-picker', 3],
+  ['file-upload', 10],
+  ['switch', 5],
+  ['otp-field', 4],
+] as const)(
+  'the hydrated component page %s holds one heading, one rail and %i previews',
+  async (slug, previews) => {
+    const { page } = await open(`/components/${slug}`)
+    const counted = await page.evaluate(() => ({
+      headings: document.querySelectorAll('h1').length,
+      rails: document.querySelectorAll('#rail').length,
+      previews: document.querySelectorAll('[data-size="page"]').length,
+    }))
+    expect(counted).toEqual({ headings: 1, rails: 1, previews })
     await page.close()
   },
   120_000,

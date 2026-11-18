@@ -355,4 +355,26 @@ export default [
     edits: [{ file: '../src/recipes/progress.ts', find: "borderRadius: '50%',", replace: '' }],
     tests: ['packages/mixins-ui/test/progress.browser.test.ts'],
   },
+  {
+    name: 'the danger tone is the accent one',
+    edits: [
+      {
+        file: recipe,
+        find: 'danger: toned(toneOf.danger),',
+        replace: 'danger: toned(toneOf.accent),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a stacked part is toned by the accent rule only',
+    edits: [
+      {
+        file: recipe,
+        find: 'Style.nest(`&[data-tone="${name}"]`',
+        replace: 'Style.nest(`&[data-tone="accent"]`',
+      },
+    ],
+    tests: [unit],
+  },
 ]

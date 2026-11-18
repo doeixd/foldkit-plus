@@ -9,7 +9,7 @@
  * hold still, the bar's fill resting faint across the track.
  *
  * `tone` colours the fill with the tokens Meter's levels use (success,
- * warning, error), and a stacked bar's parts take theirs from `data-tone`.
+ * warning, danger), and a stacked bar's parts take theirs from `data-tone`.
  * `stripes` lays bands over the fill, `moving` sliding them, also only as
  * far as `travel` lets, and not under reduced motion. A buffer is the
  * fill's tone, faint; a segmented track is cut by a mask, so the fill needs
@@ -54,7 +54,7 @@ const toneOf: Readonly<Record<ProgressTone, string>> = {
   neutral: ref.text.muted,
   success: ref.success.default,
   warning: ref.warning.default,
-  error: ref.error.default,
+  danger: ref.error.default,
   info: ref.info.default,
 }
 
@@ -143,7 +143,11 @@ export const Progress = Style.recipeFor(ProgressSlots)({
     shape: {
       bar: {
         root: variant(
-          Style.self({ inlineSize: 'min(20rem, 100%)', gridTemplateColumns: '1fr auto' }),
+          Style.self({
+            inlineSize: '20rem',
+            maxInlineSize: '100%',
+            gridTemplateColumns: '1fr auto',
+          }),
         ),
         value: variant(Style.self({ gridColumn: '2', gridRow: '1' })),
         track: variant(
@@ -210,7 +214,7 @@ export const Progress = Style.recipeFor(ProgressSlots)({
       neutral: toned(toneOf.neutral),
       success: toned(toneOf.success),
       warning: toned(toneOf.warning),
-      error: toned(toneOf.error),
+      danger: toned(toneOf.danger),
       info: toned(toneOf.info),
     },
     stripes: {

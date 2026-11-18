@@ -23,13 +23,11 @@ a Message you gave it.
 
 ## Mental model
 
-```text
-Crud.list('Posts', { query, selection })        columns + Displays (no view)
-      |
-ListView.forMessages<Message>().define(list)    a SlotView over ListSlots
-      |   .pipe(Style.attach(...))
-Table({ page, onOpen, onMore, sort, words }, h) one call in your view
-```
+1. `Crud.list('Posts', { query, selection })` gives columns and Displays, with no
+   view.
+2. `ListView.forMessages<Message>().define(list)` makes a SlotView over
+   `ListSlots`; attach your styles with `.pipe(Style.attach(...))`.
+3. `Table({ page, onOpen, onMore, sort, words }, h)` is then one call in your view.
 
 The view is given the page each time it draws, the same value
 `PostList.page(model)` returns. It never reads Remote itself.

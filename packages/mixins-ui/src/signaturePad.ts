@@ -9,6 +9,7 @@ import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A signature pad after Zag's: strokes drawn with a pointer on a `control`
@@ -49,11 +50,18 @@ export const SignaturePadSlots = Slots.define({
     events: [Event.Click],
     attributes: [Attr.AriaLabel, Attr.Disabled],
   }),
+  redo: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel, Attr.Disabled],
+  }),
   clear: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
     attributes: [Attr.AriaLabel, Attr.Disabled],
   }),
+  /** Carries the signature to a form as `name`: the SVG of `toSvg`, empty while there is none. */
+  hiddenInput: Slot.make({ capability: Capability.Base, attributes: [Attr.Value, Attr.Disabled] }),
   fallback: Slot.make({ capability: Capability.Container }),
   fallbackLabel: Slot.make({ capability: Capability.Container }),
   input: Slot.make({
@@ -90,6 +98,10 @@ export const Pen = Schema.Struct({
 })
 export type Pen = typeof Pen.Type
 
+/** What a pointer is, as the browser's `pointerType` names it. */
+export const PointerKind = Schema.Literals(['mouse', 'pen', 'touch'])
+export type PointerKind = typeof PointerKind.Type
+
 export const Model = Schema.Struct({
   /** Prefixes every id the pad draws; unique on the page. */
   id: Schema.String,
@@ -97,6 +109,10 @@ export const Model = Schema.Struct({
   /** The pad's coordinates: its size when first measured. */
   space: Schema.OptionFromNullOr(Size),
   strokes: Schema.Array(Stroke),
+  /** What undo took, last taken last, for redo; a new stroke or a clear empties it. */
+  undone: Schema.Array(Stroke),
+  /** The pointers that may draw; a press of any other starts nothing (a palm on a tablet). */
+  pointers: Schema.Array(PointerKind),
   /** The stroke under way, while a pointer is down. */
   drawing: Schema.OptionFromNullOr(Stroke),
   /** A name typed instead of drawn. */
@@ -107,11 +123,15 @@ export type Model = typeof Model.Type
 export const init = (options: {
   readonly id: string
   readonly pen?: Partial<Pen> | undefined
+  /** The pointers that may draw; default all three. */
+  readonly pointers?: ReadonlyArray<PointerKind> | undefined
 }): Model => ({
   id: options.id,
   pen: { size: 4, thinning: 0.6, smoothing: 0.5, ...options.pen },
   space: Option.none(),
   strokes: [],
+  undone: [],
+  pointers: options.pointers ?? ['mouse', 'pen', 'touch'],
   drawing: Option.none(),
   typed: '',
 })
@@ -127,11 +147,13 @@ export const Message = defineMessageUnion({
   /** The control's size, when it is drawn and when it changes. */
   Measured: Box,
   /** A pointer went down at `x`, `y` of a control `width` by `height`. */
-  Began: { ...Box, point: Raw, pen: Schema.Boolean },
+  Began: { ...Box, point: Raw, pointerType: Schema.String },
   /** It moved through `points`, in the control's pixels. */
   Extended: { ...Box, points: Schema.Array(Raw) },
   Ended: {},
   Undid: {},
+  /** Puts back the stroke undo took last. */
+  Redid: {},
   Cleared: {},
   Typed: { text: Schema.String },
   /** Answer it with `ExportPng`, which `update` returns as its Command. */
@@ -147,6 +169,15 @@ export const Message = defineMessageUnion({
   FailedExport: { reason: Schema.String },
 })
 export type Message = typeof Message.Type
+
+/** What `Bundles.SignaturePad` reports: the answer to a PNG the application asked for. */
+export const OutMessage = defineMessageUnion({
+  /** The signature, drawn: a PNG data URL of `width` by `height` pixels. */
+  ExportedPng: { url: Schema.String, width: Schema.Number, height: Schema.Number },
+  /** Nothing to draw, or the browser could not. */
+  FailedExport: { reason: Schema.String },
+})
+export type OutMessage = typeof OutMessage.Type
 
 /** Points nearer than this to the last, in the pad's pixels, add nothing but noise. */
 const MIN_DISTANCE = 1
@@ -357,9 +388,11 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
           ? model
           : modifyFields(model, { space: () => Option.some({ width, height }) }),
       ),
-    Began: ({ width, height, point, pen }) => {
-      // A second pointer while one draws starts nothing.
-      if (Option.isSome(model.drawing)) return just(model)
+    Began: ({ width, height, point, pointerType }) => {
+      // A second pointer while one draws starts nothing, and nor does one the pad refuses.
+      if (Option.isSome(model.drawing) || !model.pointers.some(kind => kind === pointerType))
+        return just(model)
+      const pen = pointerType === 'pen'
       const box = { width, height }
       const space = spaceOf(model, box)
       return just(
@@ -398,22 +431,40 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
           onSome: drawing =>
             modifyFields(model, {
               strokes: () => [...model.strokes, drawing],
+              undone: () => [],
               drawing: () => Option.none(),
             }),
         }),
       ),
     Undid: () =>
       just(
-        model.strokes.length === 0
-          ? model
-          : modifyFields(model, { strokes: () => model.strokes.slice(0, -1) }),
+        Option.match(Option.fromUndefinedOr(model.strokes.at(-1)), {
+          onNone: () => model,
+          onSome: last =>
+            modifyFields(model, {
+              strokes: () => model.strokes.slice(0, -1),
+              undone: () => [...model.undone, last],
+            }),
+        }),
+      ),
+    Redid: () =>
+      just(
+        Option.match(Option.fromUndefinedOr(model.undone.at(-1)), {
+          onNone: () => model,
+          onSome: last =>
+            modifyFields(model, {
+              strokes: () => [...model.strokes, last],
+              undone: () => model.undone.slice(0, -1),
+            }),
+        }),
       ),
     Cleared: () =>
       just(
-        isEmpty(model) && Option.isNone(model.drawing)
+        isEmpty(model) && Option.isNone(model.drawing) && model.undone.length === 0
           ? model
           : modifyFields(model, {
               strokes: () => [],
+              undone: () => [],
               drawing: () => Option.none(),
               typed: () => '',
             }),
@@ -458,29 +509,35 @@ const ink: Mount.MountAction<PointerFact | Resized> = {
 // ---------------------------------------------------------------- the view
 
 /** The words a pad says; each has an English default. */
-export interface SignaturePadLabels {
+export interface SignaturePadWords {
   /** On the line while the pad is empty; default `Sign here`. */
   readonly placeholder: string
   readonly undo: string
+  readonly redo: string
   readonly clear: string
   /** The typed field's label; default `Or type your name`. */
   readonly fallback: string
   /** What the control is called with nothing on it; default `empty`. */
   readonly empty: string
-  /** What it is called with strokes on it; default `"signed, 3 strokes"`. */
-  readonly drawn: (strokes: number) => string
-  /** What it is called with a name typed; default `"signed as Ada Lovelace"`. */
-  readonly typed: (name: string) => string
+  /** What it is called with one stroke on it. */
+  readonly drawnOne: string
+  /** What it is called with strokes on it, with `{count}` strokes; default `signed, 3 strokes`. */
+  readonly drawn: string
+  /** What it is called with a name typed, with `{name}`; default `signed as Ada Lovelace`. */
+  readonly typed: string
 }
 
-const defaultLabels: SignaturePadLabels = {
+/** The words a pad starts from; `words` overrides them one at a time. */
+export const words: SignaturePadWords = {
   placeholder: 'Sign here',
   undo: 'Undo',
+  redo: 'Redo',
   clear: 'Clear',
   fallback: 'Or type your name',
   empty: 'empty',
-  drawn: strokes => `signed, ${strokes === 1 ? '1 stroke' : `${strokes} strokes`}`,
-  typed: name => `signed as ${name}`,
+  drawnOne: 'signed, 1 stroke',
+  drawn: 'signed, {count} strokes',
+  typed: 'signed as {name}',
 }
 
 export interface SignaturePadView<Message> {
@@ -491,7 +548,13 @@ export interface SignaturePadView<Message> {
   readonly label: string
   /** Leaves out the typed field; the pad is then for a pointer alone. */
   readonly fallback?: boolean | undefined
-  readonly labels?: Partial<SignaturePadLabels> | undefined
+  /**
+   * Submits the signature with a form under this name: the SVG document
+   * `toSvg(model)` writes (the strokes, or the typed name on the line), or an
+   * empty value while the pad is empty or has not been measured.
+   */
+  readonly name?: string | undefined
+  readonly words?: Partial<SignaturePadWords> | undefined
   readonly disabled?: boolean | undefined
   /** A style of `SignaturePadSlots`, for the look. */
   readonly style?: NamedStyle<typeof SignaturePadSlots> | undefined
@@ -507,15 +570,19 @@ export const view = <Outer>(options: SignaturePadView<Outer>, h: HtmlBuilder<Out
   )
   const { model, onMessage: lift } = options
   const disabled = options.disabled === true
-  const labels = { ...defaultLabels, ...options.labels }
+  const labels = wordsOf(words, options.words)
   const labelId = `${model.id}-label`
   const inputId = `${model.id}-typed`
   const name = model.typed.trim()
   const drawn = model.strokes.length > 0 || Option.isSome(model.drawing)
-  const typedOrEmpty = name === '' ? labels.empty : labels.typed(name)
-  const holds = model.strokes.length > 0 ? labels.drawn(model.strokes.length) : typedOrEmpty
+  const typedOrEmpty = name === '' ? labels.empty : fill(labels.typed, { name })
+  const drawnWords =
+    model.strokes.length === 1
+      ? labels.drawnOne
+      : fill(labels.drawn, { count: model.strokes.length })
+  const holds = model.strokes.length > 0 ? drawnWords : typedOrEmpty
   const strokes = [...model.strokes, ...Option.toArray(model.drawing)]
-  const button = (slot: 'undo' | 'clear', label: string, message: Message, off: boolean) =>
+  const button = (slot: 'undo' | 'redo' | 'clear', label: string, message: Message, off: boolean) =>
     h.button(
       builders[slot].attrs([
         h.Type('button'),
@@ -551,7 +618,7 @@ export const view = <Outer>(options: SignaturePadView<Outer>, h: HtmlBuilder<Out
                       Match.valueTags(fact, {
                         Resized: ({ width, height }) => Message.Measured({ width, height }),
                         PointerPressed: ({ width, height, point, pointerType }) =>
-                          Message.Began({ width, height, point, pen: pointerType === 'pen' }),
+                          Message.Began({ width, height, point, pointerType }),
                         PointerMoved: ({ width, height, points }) =>
                           Message.Extended({ width, height, points }),
                         PointerReleased: () => Message.Ended(),
@@ -591,8 +658,21 @@ export const view = <Outer>(options: SignaturePadView<Outer>, h: HtmlBuilder<Out
       ),
       h.div(builders.controls.attrs(), [
         button('undo', labels.undo, Message.Undid(), model.strokes.length === 0),
+        button('redo', labels.redo, Message.Redid(), model.undone.length === 0),
         button('clear', labels.clear, Message.Cleared(), isEmpty(model)),
       ]),
+      ...(options.name === undefined
+        ? []
+        : [
+            h.input(
+              builders.hiddenInput.attrs([
+                h.Type('hidden'),
+                h.Name(options.name),
+                h.Value(Option.getOrElse(toSvg(model), () => '')),
+                ...(disabled ? [h.Disabled(true)] : []),
+              ]),
+            ),
+          ]),
       ...(options.fallback === false
         ? []
         : [

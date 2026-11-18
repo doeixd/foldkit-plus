@@ -80,8 +80,8 @@ export default [
     edits: [
       {
         file,
-        find: 'return closeOnSelect ? closed(chosen, true)',
-        replace: 'return true ? closed(chosen, true)',
+        find: 'return closeOnSelect ? closing(chosen, true)',
+        replace: 'return true ? closing(chosen, true)',
       },
     ],
     tests: [unit],
@@ -91,8 +91,8 @@ export default [
     edits: [
       {
         file,
-        find: "case 'Escape':\n        return closed(model, true)",
-        replace: "case 'Escape':\n        return closed(model, false)",
+        find: "case 'Escape':\n        return closing(model, true)",
+        replace: "case 'Escape':\n        return closing(model, false)",
       },
     ],
     tests: [unit, browser],
@@ -102,8 +102,8 @@ export default [
     edits: [
       {
         file,
-        find: 'Left: () => closed(model, false)',
-        replace: 'Left: () => closed(model, true)',
+        find: 'Left: () => closing(model, false)',
+        replace: 'Left: () => closing(model, true)',
       },
     ],
     tests: [unit],

@@ -45,19 +45,23 @@ guarded row; this README is the reference for each seam.
 
 ## Mental model
 
-```text
-shared (client and server)               server only
-Guards.declare  names and Exprs          G.implement  principal guards' bodies ──> Policy
-Guards.attach   the rules on an Entity
-        │
-        └─> every seam reads the same rules, decided by the same Policy:
-              reads     GuardDrizzle.visible, GuardServer.memory    which rows
-                        GuardServer.filter                          members, relations, may
-              writes    GuardServer.writer, GuardServer.mutation    checked before, read back after
-              Sync      GuardSync.authorize, admit, opens           edits through the journal
-              agents    GuardAgent                                  reads may
-              startup   GuardServer.validate                        every guarded Source is guarded
-```
+The rules are declared on both sides and decided on the server:
+
+- Shared by client and server: `Guards.declare` names the guards and their `Expr`s,
+  and `Guards.attach` puts the rules on an Entity.
+- Server only: `G.implement` gives the principal guards their bodies, which make the
+  `Policy`.
+
+Every seam reads the same rules, decided by the same Policy:
+
+- **Reads:** `GuardDrizzle.visible` and `GuardServer.memory` decide which rows;
+  `GuardServer.filter` decides members, relations and `may`.
+- **Writes:** `GuardServer.writer` and `GuardServer.mutation` check before and read
+  back after.
+- **Sync:** `GuardSync.authorize`, `admit` and `opens` guard edits through the
+  journal.
+- **Agents:** `GuardAgent` guards reads and `may`.
+- **Startup:** `GuardServer.validate` checks that every guarded Source is guarded.
 
 A rule is decided in two steps: each principal guard by its body, once per
 request, then what is left, row guards, as a condition over the row that SQL

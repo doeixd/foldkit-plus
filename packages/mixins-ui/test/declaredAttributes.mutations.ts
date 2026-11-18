@@ -20,8 +20,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: 'attributes: [Attr.AriaCurrent] }),',
-        replace: '}),',
+        find: 'attributes: [Attr.AriaCurrent, Attr.AriaLabel],',
+        replace: 'attributes: [Attr.AriaLabel],',
       },
     ],
     tests,
@@ -30,7 +30,7 @@ export default [
     name: 'the radio option declares aria-selected, not aria-checked',
     edits: [
       {
-        file: '../src/radioGroup.ts',
+        file: '../src/radioGroup/slots.ts',
         find: '      Attr.AriaChecked,\n      Attr.AriaLabelledby,',
         replace: '      Attr.AriaSelected,\n      Attr.AriaLabelledby,',
       },

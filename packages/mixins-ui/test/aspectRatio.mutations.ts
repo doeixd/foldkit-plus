@@ -17,4 +17,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a configured frame drops its layers',
+    edits: [
+      {
+        file: '../src/aspectRatio.ts',
+        find: 'view: (options, h) => view(layered(config, options), h),',
+        replace: 'view: (options, h) => view(options, h),',
+      },
+    ],
+    tests,
+  },
 ]

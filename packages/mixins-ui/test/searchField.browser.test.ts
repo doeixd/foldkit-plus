@@ -76,7 +76,7 @@ const mount = (options: { readonly disabled?: boolean; readonly dir?: 'rtl' } = 
             label: 'Search products',
             value: model.value,
             onInput: text => Msg.Typed({ text }),
-            onClear: Msg.Cleared(),
+            clear: { onClear: Msg.Cleared() },
             disabled: options.disabled,
             routes: [
               Behaviors.Keys.route('Open results', {
@@ -228,12 +228,13 @@ test('a disabled field takes no text', async () => {
   }
 })
 
-test('the browser draws no cancel button of its own, and the input rings on keyboard focus', async () => {
+test('the browser draws no cancel button of its own, and the field rings on keyboard focus', async () => {
   const handle = mount()
   try {
     await typed('lamp')
     expect(await nativeCancelDrawn()).toBe(false)
-    const ring = getComputedStyle(input())
+    // The group is the box, so it takes the ring while the input inside has focus.
+    const ring = getComputedStyle(input().parentElement!)
     expect(ring.outlineStyle).not.toBe('none')
     expect(parseFloat(ring.outlineWidth)).toBeGreaterThan(0)
   } finally {
@@ -249,12 +250,17 @@ test.each([
   try {
     await typed('lamp')
     const field = input().getBoundingClientRect()
+    const group = input().parentElement!.getBoundingClientRect()
     const button = clear()!.getBoundingClientRect()
-    const middle = field.left + field.width / 2
+    const middle = group.left + group.width / 2
     expect(button.left + button.width / 2 > middle).toBe(direction === 'ltr')
     expect(button.width).toBeGreaterThan(0)
-    expect(button.left).toBeGreaterThanOrEqual(field.left)
-    expect(button.right).toBeLessThanOrEqual(field.right)
+    // Beside the input, inside the box: the button never covers the text.
+    expect(
+      direction === 'ltr' ? button.left >= field.right - 1 : button.right <= field.left + 1,
+    ).toBe(true)
+    expect(button.left).toBeGreaterThanOrEqual(group.left)
+    expect(button.right).toBeLessThanOrEqual(group.right)
   } finally {
     handle.dispose()
   }

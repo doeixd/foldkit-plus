@@ -11,6 +11,7 @@ export const Page = defineTaggedUnion({
   Home: {},
   Demos: {},
   Components: {},
+  Primitives: {},
   Component: { slug: Schema.String },
   Create: {},
   Doc: { subsite: Schema.String, title: Schema.String, description: Schema.String },

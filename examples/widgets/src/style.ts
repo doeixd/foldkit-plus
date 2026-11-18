@@ -82,16 +82,34 @@ const focus = Style.pseudo(':focus-visible', {
   outlineOffset: '2px',
 })
 
-const control = Style.self({
-  font: 'inherit',
-  color: ink,
-  background: onAccent,
-  border: `${t.border.thin} solid ${line}`,
-  borderRadius: t.radius.lg,
-  paddingBlock: '0.375rem',
-  paddingInline: '0.75rem',
-  cursor: 'pointer',
-})
+/**
+ * Under the pointer, a button fills with the quiet wash. A text field keeps its own look, and a
+ * disabled or pressed control keeps the state it already shows.
+ */
+const hoverFill = Style.pseudo(
+  ':hover:not(:is(input, :disabled, [aria-disabled="true"], [aria-pressed="true"]))',
+  { background: wash },
+)
+
+const control = Style.compose(
+  Style.self({
+    font: 'inherit',
+    color: ink,
+    background: onAccent,
+    border: `${t.border.thin} solid ${line}`,
+    borderRadius: t.radius.lg,
+    paddingBlock: '0.375rem',
+    paddingInline: '0.75rem',
+    cursor: 'pointer',
+  }),
+  hoverFill,
+)
+
+/** A row of a list or menu under the pointer, unless it is disabled. */
+const rowHover = Style.pseudo(':hover:not([aria-disabled="true"])', { background: wash })
+
+/** The row the keys (and the pointer, which moves them) have on: lit as a hovered one is. */
+const active = Style.pseudo('[data-active]', { background: wash })
 
 const pressed = Style.states(
   {
@@ -347,6 +365,7 @@ export const autocompleteStyle = (slots: typeof AutocompleteSlots) =>
         }),
         focus,
         selected,
+        rowHover,
       ),
     },
     { name: 'ShowcaseAutocomplete' },
@@ -401,6 +420,8 @@ export const commandStyle = (slots: typeof CommandSlots) =>
         Style.self({ paddingBlock: '0.375rem', paddingInline: '0.75rem', cursor: 'pointer' }),
         focus,
         selected,
+        rowHover,
+        active,
       ),
     },
     { name: 'ShowcaseCommand' },
@@ -488,6 +509,7 @@ export const contextMenuStyle = (slots: typeof ContextMenuSlots) =>
         }),
         focus,
         selected,
+        rowHover,
       ),
     },
     { name: 'ShowcaseContextMenu' },
@@ -535,6 +557,7 @@ export const menubarStyle = (slots: typeof MenubarSlots) =>
         }),
         focus,
         selected,
+        rowHover,
       ),
     },
     { name: 'ShowcaseMenubar' },
@@ -577,6 +600,7 @@ export const navigationMenuStyle = (slots: typeof NavigationMenuSlots) =>
         }),
         focus,
         selected,
+        rowHover,
       ),
     },
     { name: 'ShowcaseNavigationMenu' },
@@ -612,6 +636,8 @@ export const paletteStyle = (slots: typeof PaletteSlots) =>
         }),
         focus,
         selected,
+        rowHover,
+        active,
       ),
     },
     { name: 'ShowcasePalette' },

@@ -11,6 +11,22 @@ const recipe = '../src/recipes/questionnaire.ts'
 
 export default [
   {
+    name: 'the progress words count from 0',
+    edits: [
+      {
+        file: view,
+        find: 'fill(text.progress, { page: model.page + 1, total })',
+        replace: 'fill(text.progress, { page: model.page, total })',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the next button says submit',
+    edits: [{ file: view, find: '? text.next', replace: '? text.submit' }],
+    tests: unit,
+  },
+  {
     name: 'two questions may share an id',
     edits: [{ file: view, find: '    if (seen.has(question.id))', replace: '    if (false)' }],
     tests: unit,

@@ -203,6 +203,41 @@ describe('Sidebar.view', () => {
     const shut = modifyFields(resizable, { collapsed: () => true })
     expect(Inert.value(byLabel(drawn(shut), 'Resize Workspace'), 'aria-valuenow')).toBe('0')
   })
+
+  it('fills {label} into its words, merged key by key', () => {
+    const words = { hide: 'Fold {label}', resize: 'Widen {label}' }
+    expect(byLabel(drawn(model, { words }), 'Fold Workspace')).toBeDefined()
+    expect(byLabel(drawn(collapsed, { words }), 'Show Workspace')).toBeDefined()
+    expect(byLabel(drawn(resizable, { words }), 'Widen Workspace')).toBeDefined()
+  })
+
+  it("draws a row's and a leaf's content in place of their words, and trailing Html after them", () => {
+    const rich: ReadonlyArray<Sidebar.SidebarGroup> = [
+      {
+        id: 'main',
+        rows: [
+          {
+            id: 'inbox',
+            label: 'Inbox',
+            href: '#inbox',
+            content: h.em([], ['Inbox, new']),
+            trailing: h.span([], ['●']),
+          },
+          {
+            id: 'projects',
+            label: 'Projects',
+            items: [{ label: 'Website', href: '#website', trailing: h.span([], ['↗']) }],
+          },
+        ],
+      },
+    ]
+    const page = drawn(model, { groups: rich })
+    const [inbox, website] = Inert.byTag(page, 'a')
+    expect(Inert.byTag(inbox!, 'em').map(Inert.text)).toEqual(['Inbox, new'])
+    expect(Inert.text(inbox!)).not.toContain('Inbox,Inbox')
+    expect(Inert.text(inbox!)).toContain('●')
+    expect(Inert.text(website!)).toBe('Website↗')
+  })
 })
 
 describe('Sidebar.update', () => {

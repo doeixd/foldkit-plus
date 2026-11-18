@@ -152,6 +152,9 @@ const select: Declarations = {
   cursor: 'pointer',
 }
 
+/** The header whose paging buttons both stand after the caption. */
+const pagingEnd = '[data-paging="end"]'
+
 const small: Declarations = {
   color: ref.text.muted,
   ...role('caption'),
@@ -176,7 +179,13 @@ export const Calendar = Style.recipeFor(CalendarSlots)({
         fontWeight: ref.weight.medium,
       }),
     ),
-    heading: component(Style.self({ marginInline: 'auto', fontWeight: ref.weight.medium })),
+    // With the paging buttons after it (`paging: 'end'`), the caption starts the row.
+    heading: component(
+      Style.self({ marginInline: 'auto', fontWeight: ref.weight.medium }),
+      // Beside the year select, the two read as one caption.
+      Style.pseudo('[data-beside-select]', { marginInlineEnd: '0' }),
+      Style.nest(`${pagingEnd} > &`, { marginInlineStart: '0' }),
+    ),
     // Their arrows need no flip right to left: the bidi algorithm mirrors `‹` and `›` there.
     previousMonthButton: quiet,
     nextMonthButton: quiet,
@@ -189,9 +198,11 @@ export const Calendar = Style.recipeFor(CalendarSlots)({
         color: ref.text.overt,
         fontWeight: ref.weight.medium,
       }),
+      Style.nest(`${pagingEnd} > &`, { marginInlineStart: '0' }),
     ),
     monthSelect: component(
       Style.self({ ...select, marginInlineStart: 'auto' }),
+      Style.nest(`${pagingEnd} > &`, { marginInlineStart: '0' }),
       hover({ borderColor: ref.outline.default }),
       focusRing,
       disabled,
@@ -256,11 +267,25 @@ export const Calendar = Style.recipeFor(CalendarSlots)({
         fontWeight: ref.weight.medium,
       }),
     ),
+    // What `Calendar.view` lays around the months: the presets, the months
+    // over the today button and the application's aside in a row, and its
+    // footer under them.
+    frame: component(Style.self({ display: 'inline-grid', gap: ref.space.sm })),
+    body: component(
+      Style.self({ display: 'flex', flexWrap: 'wrap', alignItems: 'start', gap: ref.space.md }),
+    ),
+    main: component(Style.self({ display: 'grid', gap: ref.space.xs, justifyItems: 'start' })),
+    months: component(
+      Style.self({ display: 'flex', flexWrap: 'wrap', alignItems: 'start', gap: ref.space.md }),
+    ),
+    todayButton: component(quiet, Style.self({ color: ref.text.default })),
+    aside: component(Style.self({ minInlineSize: '0' })),
+    footer: component(Style.self({ minInlineSize: '0' })),
   },
   variants: {
     size: {
-      sm: { root: steps.sm, presets: steps.sm },
-      md: { root: steps.md, presets: steps.md },
+      sm: { root: steps.sm, presets: steps.sm, frame: steps.sm },
+      md: { root: steps.md, presets: steps.md, frame: steps.md },
     },
     outside: {
       shown: {},

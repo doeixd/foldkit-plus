@@ -15,8 +15,8 @@ export default [
     edits: [
       {
         file: '../src/icon.ts',
-        find: 'builders.glyph.attrs([h.AriaHidden(true)])',
-        replace: 'builders.glyph.attrs([])',
+        find: '? [h.AriaHidden(true)]',
+        replace: '? []',
       },
     ],
     tests,
@@ -112,5 +112,28 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'a tile is as large as the icon',
+    edits: [
+      {
+        file: '../src/recipes/icon.ts',
+        find: 'inlineSize: `calc(${size} * 2)`,',
+        replace: 'inlineSize: size,',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/iconTile.browser.test.ts'],
+  },
+  {
+    name: 'a solid tile is not filled with its tone',
+    edits: [
+      {
+        file: '../src/recipes/icon.ts',
+        find: 'solid: { glyph: variant(Style.self({ ...tile, background: fill, color: onFill })) },',
+        replace:
+          'solid: { glyph: variant(Style.self({ ...tile, background: tint, color: onFill })) },',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/iconTile.browser.test.ts'],
   },
 ]

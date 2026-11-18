@@ -32,7 +32,7 @@ Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.4`. APIs are
 | A filter in the URL, a draft or preference remembered on a device, a cart a server renders from a cookie | the local Model | `foldkit-mirror` | [mirror.md](references/mirror.md) |
 | Where the application is: route nodes in a hierarchy, typed targets, titles, history intent | the tree, as data; the route value stays in the local Model | `foldkit-site` (early) | [site.md](references/site.md) |
 | What an AI agent may see and do, over MCP, WebMCP, A2A, or Agent Native | the application | `foldkit-agent` + one adapter | [agent.md](references/agent.md) |
-| Restyling or adding behaviour to views, including `@foldkit/ui`; ready widgets (`SearchField`, `Toolbar`, `FileInput`, `Command`, `Picker`, `WindowList`), the application's key routes, accessibility obligations | the view contract; a component's state is the parent Model's | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md); your own component, widget, recipe or primitive: [authoring.md](references/authoring.md) |
+| Restyling or adding behaviour to views, including `@foldkit/ui`; about ninety ready widgets (`Table`, `Tabs`, `Combobox`, `Calendar`, `FileUpload`, `Command`, …) each as look (`Recipes.X`, `.extend`, `.add`), state (`Bundles.X`), drawing (`X.view`, `X.configure`, `words` text with `{blanks}`) and features passed as values (`Table.fluid`, `Chart.bars`); the application's key routes, accessibility obligations | the view contract; a component's state is the parent Model's | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md); your own component, widget, recipe or primitive: [authoring.md](references/authoring.md) |
 | A reusable Submodel placed several times or per key, with every part wired | the parent Model | `foldkit-bundle` (+ `-surface`) | [bundle.md](references/bundle.md) |
 | Responsive images (widths, `srcset`, formats, placeholders) and icons as data | the image's source; variants are a cache; an uploaded file is the `FileStore`'s, the row holding it the app's | `foldkit-media` (+ `Image`, `Icon` in `foldkit-mixins-ui`; early) | [media.md](references/media.md) |
 | A media query, presence, timer, pagination, undo history, socket, resize, clipboard, a virtual list's measured rows; keyboard navigation, reorder, inline edit, focus recovery | the parent Model | `foldkit-primitives` | [primitives.md](references/primitives.md) |
@@ -54,16 +54,16 @@ Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.4`. APIs are
 | Every package above in one install, each under a subpath, and a project-specific setup guide | nothing: it re-exports the packages | `foldkit-plus` | this file |
 | The route, a selection, a transient error | the local Model (topology in `foldkit-site`) | none: plain Foldkit | — |
 
-Remote and Sync both keep writes across a reload: Remote's `durable` outbox
-holds a write until the server judges it, and the answer is the truth; Sync's
-log holds client-authored edits every replica replays in the log's order.
+Remote and Sync both keep writes across a reload: Remote's `durable` outbox holds a write until
+the server judges it, and the answer is the truth; Sync's log holds client-authored edits every replica
+replays in the log's order.
 
 Read only the reference for the package at hand; its first line names the
 versions it was checked against. This skill and the guides ship inside the
 `foldkit-plus` npm package, at the code's version; `npx foldkit-plus skill`
-installs that copy, and `npx foldkit-plus docs Data.preload` (or `"optimistic
-delete"`) answers offline from them and the READMEs; `docs --list remote`, an outline.
-An application's `AGENTS.md` takes the block in [agents-md.md](references/agents-md.md).
+installs that copy, and `npx foldkit-plus docs Data.preload` answers offline from them and the
+READMEs; `docs --list remote`, an outline. An application's `AGENTS.md` takes the block in
+[agents-md.md](references/agents-md.md).
 
 ## How they connect
 
@@ -146,7 +146,6 @@ App.model.<field>, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(Todo
 
 ## More
 
-- Repository and guides: https://github.com/doeixd/foldkit-plus
-- Examples, each with a pinned transcript: https://github.com/doeixd/foldkit-plus/tree/main/examples
+- Repository and guides: https://github.com/doeixd/foldkit-plus; examples, each with a pinned transcript: https://github.com/doeixd/foldkit-plus/tree/main/examples
 - How failures work across the packages (who owns each, what the reader sees, `Diagnostics`): https://github.com/doeixd/foldkit-plus/blob/main/docs/errors.md
 - Versions and publish matrix: https://github.com/doeixd/foldkit-plus/blob/main/docs/releases.md

@@ -321,9 +321,9 @@ test('a layer row dragged above another lands there, and a drag over nowhere say
   await context.close()
 })
 
-const phone = async (browser: Browser) => {
+const phone = async (browser: Browser, height = 844) => {
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 },
+    viewport: { width: 390, height },
     hasTouch: true,
     isMobile: true,
     colorScheme: scheme,
@@ -483,7 +483,10 @@ test('a tile dropped in the gap between two nodes lands between them, with the l
 })
 
 test('at 390px a held finger drops a node into the gap above another, between two, with the line at the gap', async () => {
-  const { context, page, errors } = await phone(browser)
+  // The grip and the gap sit about 650px apart at Verdana's widths and 690px at CI's, and the
+  // finger needs the grip below the studio's bar (100px) and the gap above the window's bottom
+  // edge zone (60px): a window of 844px cannot hold both, so this one is taller.
+  const { context, page, errors } = await phone(browser, 1000)
   const node = (id: string) => page.locator(`[data-composition-node="${id}"] > *`).first()
   await node('text').tap()
   const grip = page.locator('[data-builder-handle]')
@@ -521,7 +524,7 @@ test('at 390px a held finger drops a node into the gap above another, between tw
   const line = (await node('quote').boundingBox())!
   expect(Math.abs(line.y - to.y)).toBeLessThan(40)
   expect(line.y).toBeGreaterThanOrEqual(0)
-  expect(line.y).toBeLessThanOrEqual(844)
+  expect(line.y).toBeLessThanOrEqual(page.viewportSize()!.height)
   await shot(page, 'phone-gap')
   await touch('touchEnd', to)
   await expect
@@ -593,5 +596,45 @@ test('at 390px the page editor does not scroll sideways, and its panels are reac
   expect(scroll).toBeLessThanOrEqual(client)
   for (const name of ['Add', 'Layers', 'Settings'])
     expect(await page.getByRole('button', { name, exact: true }).isVisible()).toBe(true)
+  await context.close()
+})
+
+test('at 1280px a tile held in the bottom strip of the centre column scrolls it, and drops where it is released', async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 600 } })
+  const page = await context.newPage()
+  await openPage(page)
+  await page.waitForTimeout(1500)
+  const main = page.locator('#studio-main')
+  const room = () => main.evaluate(each => each.scrollHeight - each.clientHeight)
+  expect(await room()).toBeGreaterThan(100)
+  const tile = page.getByRole('button', { name: 'Add Heading' })
+  const before = await rowIds(page)
+  const start = await main.evaluate(each => each.scrollTop)
+
+  const from = await middle(tile)
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  // Out of the panel and into the column's last 20px, then held: the strip scrolls after 150ms.
+  for (let step = 1; step <= 10; step++) {
+    await page.mouse.move(from.x + 5 * step, from.y + ((590 - from.y) * step) / 10)
+    await page.waitForTimeout(35)
+  }
+  await expect
+    .poll(() => main.evaluate(each => each.scrollTop), { timeout: 40_000 })
+    .toBeGreaterThan(start + 40)
+  expect(await page.evaluate(() => document.documentElement.scrollTop)).toBe(0)
+  // Still held, over the page's text, which the scroll has brought up: it lands where it is released.
+  const text = page.locator('[data-composition-node="text"] > *').first()
+  await expect
+    .poll(async () => (await text.boundingBox())!.y, { timeout: 15_000 })
+    .toBeLessThan(560)
+  const at = (await text.boundingBox())!
+  await page.mouse.move(at.x + at.width / 2, at.y + 12, { steps: 6 })
+  // What is carried says it can land here.
+  await expect
+    .poll(() => page.locator('[data-drag-source]').getAttribute('data-drag-place'))
+    .toBe('here')
+  await page.mouse.up()
+  await expect.poll(async () => (await rowIds(page)).length).toBe(before.length + 1)
   await context.close()
 })

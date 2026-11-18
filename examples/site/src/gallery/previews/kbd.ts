@@ -1,17 +1,14 @@
-import * as Snippet from '../../snippets/components.js'
+import { KbdSlots, Recipes } from 'foldkit-mixins-ui'
+import combo from '../../examples/kbd/combo.js'
+import glyphs from '../../examples/kbd/glyphs.js'
+import key from '../../examples/kbd/key.js'
+import shortcut from '../../examples/kbd/shortcut.js'
 import { about } from '../catalogue.js'
-import { fixed, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
-export const showcase = fixed(about('kbd'), () => Snippet.kbdCombo(Snippet.KbdStyle, inert), [
-  { name: 'key', title: 'A key', draw: () => Snippet.kbdKey(Snippet.KbdStyle, inert) },
-  {
-    name: 'combo',
-    title: 'A combination',
-    draw: () => Snippet.kbdCombo(Snippet.KbdStyle, inert),
-  },
-  {
-    name: 'joined',
-    title: 'Joined by words',
-    draw: () => Snippet.kbdJoined(Snippet.KbdStyle, inert),
-  },
+export const showcase = fromRecipe(about('kbd'), KbdSlots, Recipes.Kbd, key, undefined, [
+  { name: 'key', example: key },
+  { name: 'combo', example: combo },
+  { name: 'glyphs', example: glyphs },
+  { name: 'shortcut', example: shortcut },
 ])

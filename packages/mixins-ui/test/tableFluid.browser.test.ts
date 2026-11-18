@@ -64,7 +64,7 @@ const mount = () => {
                 ],
                 rows: runs,
                 style,
-                fluid: true,
+                fluid: Table.fluid,
               },
               h,
             ),

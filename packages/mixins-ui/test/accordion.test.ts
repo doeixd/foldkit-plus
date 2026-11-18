@@ -9,8 +9,14 @@ import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import {
   AccordionSlots,
+  Message as AccordionMessage,
+  controls as accordionControls,
+  init as accordionInit,
   toggled,
+  update as accordionUpdate,
   view as drawAccordion,
+  type Args as AccordionArgs,
+  type Model as AccordionModel,
   type AccordionView,
 } from '../src/accordion.js'
 import { Patterns, Recipes } from '../src/index.js'
@@ -86,5 +92,55 @@ describe('Accordion view', () => {
 
   it('heads its sections at the level the page outline needs', () => {
     expect(Inert.byTag(view({ headingLevel: 2 }), 'h2')).toHaveLength(3)
+  })
+})
+
+describe('Accordion rows', () => {
+  it('draws an item’s icon before its title and its trailing content after it, in Slots of their own', () => {
+    const drawn = view({
+      items: [
+        {
+          id: 'a',
+          title: 'Billing',
+          content: 'x',
+          icon: h.span([], ['$']),
+          trailing: h.span([], ['3']),
+        },
+        { id: 'b', title: 'Team', content: 'y' },
+      ],
+    })
+    const [first, second] = triggers(drawn)
+    const spans = (trigger: typeof first) => Inert.children(trigger).map(child => Inert.text(child))
+    expect(spans(first)).toEqual(['$', 'Billing', '3', ''])
+    // A row with neither draws only its title and indicator.
+    expect(spans(second)).toEqual(['Team', ''])
+  })
+})
+
+describe('Accordion state', () => {
+  const press = (model: AccordionModel, id: string, args: AccordionArgs = {}) =>
+    accordionUpdate(model, AccordionMessage.Toggled({ id }), args).model
+
+  it('starts from its args and folds a press through toggled', () => {
+    const start = accordionInit({ open: ['a'], multiple: true })
+    expect(start).toEqual({ open: ['a'] })
+    expect(press(start, 'b', { multiple: true }).open).toEqual(['a', 'b'])
+    expect(press(start, 'a').open).toEqual([])
+  })
+
+  it('returns the Model it was given when a press changes nothing', () => {
+    const only = accordionInit({ open: ['a'] })
+    expect(press(only, 'a', { collapsible: false })).toBe(only)
+  })
+
+  it('hands the view its open ids and a press Message', () => {
+    const sent: Array<unknown> = []
+    const controls = accordionControls({ open: ['a'] }, message => {
+      sent.push(message)
+      return message
+    })
+    expect(controls.open).toEqual(['a'])
+    controls.onToggle('b')
+    expect(sent).toEqual([AccordionMessage.Toggled({ id: 'b' })])
   })
 })

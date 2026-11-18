@@ -10,6 +10,40 @@ const recipe = '../src/recipes/messageScroller.ts'
 
 export default [
   {
+    name: 'opening at the start follows the end anyway',
+    edits: [
+      { file: view, find: "following: options.opens !== 'start',", replace: 'following: true,' },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'opening at the start still scrolls to the end',
+    edits: [{ file: view, find: "if (opens === 'end') toEnd()", replace: 'toEnd()' }],
+    tests: browser,
+  },
+  {
+    name: 'opening at the start with nothing to scroll leaves the jump showing',
+    edits: [
+      {
+        file: view,
+        find: "if (opens === 'end' || distance() <= NEAR) {",
+        replace: "if (opens === 'end') {",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'one new message is read as many',
+    edits: [
+      {
+        file: view,
+        find: 'model.unseen === 1 ? text.one : text.other',
+        replace: 'text.other',
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: 'growth is not followed',
     edits: [{ file: view, find: 'if (following) toEnd()', replace: 'if (false) toEnd()' }],
     tests: browser,

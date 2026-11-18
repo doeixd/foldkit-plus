@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Patterns, Recipes, Steps, StepsSlots } from '../src/index.js'
-import { h, message } from './fixture.js'
+import { h, message, type TestMessage } from './fixture.js'
 
 const style = Style.forSlots(StepsSlots)(Recipes.Steps({ orientation: 'vertical' }))
 const steps = [
@@ -60,7 +60,7 @@ describe('Steps.view', () => {
   })
 
   it('says where each step stands in words, the current one by aria-current alone', () => {
-    const wordsOf = (words?: Steps.StepsWords) =>
+    const wordsOf = (words?: Partial<Steps.StepsWords>) =>
       Inert.byTag(Steps.view({ label: 'Checkout', steps, current: 1, words, style }, h), 'span')
         .filter(span =>
           ['Completed', 'Upcoming', 'Done', 'Here', 'Later'].includes(Inert.text(span)),
@@ -149,6 +149,77 @@ describe('Steps.view', () => {
   })
 })
 
+describe('Steps.view, a step’s own state, trailing and configure', () => {
+  const view = (more: Partial<Steps.StepsView<TestMessage>> = {}) =>
+    Steps.view({ label: 'Checkout', steps, current: 1, style, ...more }, h)
+
+  it('draws the state a step states in place of the one `current` gives, aria-current staying by position', () => {
+    const drawn = view({
+      steps: [
+        { title: 'A' },
+        { title: 'B', state: 'loading' },
+        { title: 'C', state: 'complete' },
+        { title: 'D', state: 'error' },
+      ],
+    })
+    const items = Inert.byTag(drawn, 'li')
+    expect(items.map(item => Inert.value(item, 'data-state'))).toEqual([
+      'complete',
+      'loading',
+      'complete',
+      'error',
+    ])
+    expect(items.map(item => Inert.value(item, 'aria-current'))).toEqual([
+      undefined,
+      'step',
+      undefined,
+      undefined,
+    ])
+    expect(Inert.text(items[1])).toContain('In progress')
+    expect(Inert.text(items[3])).toContain('Failed')
+  })
+
+  it('makes a step that states itself complete a button that goes back', () => {
+    const drawn = view({
+      steps: [{ title: 'A', state: 'upcoming' }, { title: 'B' }, { title: 'C', state: 'complete' }],
+      onSelect: () => message('Clicked'),
+    })
+    expect(Inert.byTag(drawn, 'button').map(button => Inert.text(button))).toContain('3CCompleted')
+    expect(Inert.byTag(drawn, 'button')).toHaveLength(1)
+  })
+
+  it('draws a step’s trailing Html at the end of its row, with the state', () => {
+    const drawn = view({
+      steps: [{ title: 'A', trailing: h.span([], ['09:30']) }, { title: 'B' }],
+    })
+    const [first, second] = Inert.byTag(drawn, 'li')
+    const row = Inert.children(first)[0]
+    expect(Inert.text(Inert.children(row!).at(-1))).toBe('09:30')
+    expect(Inert.value(Inert.children(row!).at(-1), 'data-state')).toBe('complete')
+    expect(Inert.text(second)).not.toContain('09:30')
+  })
+
+  it('merges its words over the defaults key by key', () => {
+    const drawn = view({ words: { error: 'Problem' }, steps: [{ title: 'A', state: 'error' }] })
+    expect(Inert.text(Inert.byTag(drawn, 'li')[0])).toContain('Problem')
+  })
+
+  it('configures the look and words once, the call over both', () => {
+    const App = Steps.configure({
+      base: { style, words: { complete: 'Fait' } },
+      presets: { calm: { words: { upcoming: 'Plus tard' } } },
+    })
+    const text = (preset: 'calm' | undefined, words?: Partial<Steps.StepsWords>) =>
+      Inert.text(
+        App.view({ label: 'x', steps, current: 1, ...(preset ? { preset } : {}), words }, h),
+      )
+    expect(text(undefined)).toContain('Fait')
+    expect(text('calm')).toContain('Plus tard')
+    expect(text('calm', { complete: 'Vu' })).toContain('Vu')
+    expect(text('calm', { complete: 'Vu' })).not.toContain('Fait')
+  })
+})
+
 describe('Steps recipe', () => {
   const css = (selection: Parameters<typeof Recipes.Steps>[0]) =>
     Style.forSlots(StepsSlots)(Recipes.Steps(selection)).css
@@ -160,5 +231,14 @@ describe('Steps recipe', () => {
   it('lays content beside the line when vertical, and draws none in a row', () => {
     expect(css({ orientation: 'vertical' })).toMatch(/grid-column:2;grid-row:2/)
     expect(css({ orientation: 'horizontal' })).toMatch(/\{display:none\}/)
+  })
+
+  it('draws the states a step may state, and hides labels only when asked', () => {
+    expect(css({})).toMatch(/\[data-state="loading"\]\{[^}]*border-style:dashed/)
+    expect(css({})).toMatch(/\[data-state="error"\]\{[^}]*border-color:var\(--fk-error/)
+    const unseen = (selection: Parameters<typeof Recipes.Steps>[0]) =>
+      css(selection).match(/clip:rect/g)?.length ?? 0
+    expect(unseen({ labels: 'hidden' })).toBeGreaterThan(unseen({}))
+    expect(unseen({ labels: 'current' })).toBeGreaterThan(unseen({}))
   })
 })

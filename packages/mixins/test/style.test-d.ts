@@ -8,6 +8,7 @@ import {
   Slots,
   Style,
   Theme,
+  type NamedStyle,
   type StylePieces,
   type StyleValue,
 } from '../src/index.js'
@@ -168,8 +169,66 @@ Style.recipeFor(Pair)({ base: { missing: Style.class('m') } })
 Framed.extend({ base: { missing: Style.class('m') } })
 // @ts-expect-error a hidden slot is not styleable in a base either.
 Style.recipeFor(FieldSlots)({ base: { internals: Style.class('i') } })
+// `add` widens the selection by the values and axes it was given.
+const Loud = Toned.add({ tone: { loud: { root: Style.class('l') } } })
+Loud({ tone: 'loud' })
+Loud({ tone: 'quiet' })
+Loud({ tone: null })
+// @ts-expect-error a value neither the recipe nor `add` gave.
+Loud({ tone: 'shout' })
+const Sized = Loud.add({ size: { sm: { root: Style.class('s') } } })
+Sized({ tone: 'loud', size: 'sm' })
+// @ts-expect-error an axis neither the recipe nor `add` gave.
+Sized({ sizes: 'sm' })
+// The inline curried form infers too.
+Style.forSlots(LayerRoot)(
+  Toned.add({ tone: { loud: { root: Style.class('l') } } })({ tone: 'loud' }),
+)
+// `extend` adjusts and defaults an added value.
+Loud.extend({
+  variants: { tone: { loud: { root: Style.class('l2') } } },
+  defaults: { tone: 'loud' },
+})
+// @ts-expect-error a value the axis already has.
+Toned.add({ tone: { quiet: { root: Style.class('q2') } } })
+// @ts-expect-error a slot the contract lacks.
+Toned.add({ tone: { loud: { missing: Style.class('m') } } })
+// @ts-expect-error `extend` still refuses an axis the recipe lacks.
+Toned.extend({ variants: { tones: { quiet: { root: Style.class('q') } } } })
+// @ts-expect-error and, after `add`, a value neither gave.
+Loud.extend({ variants: { tone: { shout: { root: Style.class('s') } } } })
+// `add` keeps the slots the base surely holds.
+const addedRoot: StyleValue = Framed.add({ tone: { loud: { label: Style.class('l') } } })().root
+void addedRoot
+
 // A base given as a `StylePieces` value names no slot it surely holds.
 const loose: StylePieces<typeof Pair> = { root: Style.class('r') }
 // @ts-expect-error `loose.root` may be absent.
 const looseRoot: StyleValue = Style.recipeFor(Pair)({ base: loose })().root
 void looseRoot
+
+// A style of one contract is not another's, even when the two share a slot name (#595).
+const Shared = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  day: Slot.make({ capability: Capability.Container }),
+})
+const Sibling = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  trigger: Slot.make({ capability: Capability.Container }),
+})
+const Whole = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  day: Slot.make({ capability: Capability.Container }),
+  extra: Slot.make({ capability: Capability.Container }),
+})
+const sharedStyle = Style.forSlots(Shared)({ root: Style.class('a'), day: Style.class('b') })
+const takesSibling = (style: NamedStyle<typeof Sibling>) => style
+const takesShared = (style: NamedStyle<typeof Shared>) => style
+const takesWhole = (style: NamedStyle<typeof Whole>) => style
+// @ts-expect-error `root` is shared, but `day` is a slot the sibling lacks.
+takesSibling(sharedStyle)
+// A contract's own style, and the style of a contract whose slots it has all of, pass.
+takesShared(sharedStyle)
+takesWhole(sharedStyle)
+// @ts-expect-error a style with a slot the asked-for contract lacks would drop its piece.
+takesShared(Style.forSlots(Whole)({ root: Style.class('a') }))

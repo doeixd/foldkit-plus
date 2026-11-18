@@ -7,6 +7,7 @@ import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
 import { Icons, Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { iconUrl, type IconName } from '../views/icons.js'
+import { phoneBarSize } from './adminStyle.js'
 import { app, button, field, L, phone, t, visuallyHidden } from './style.js'
 
 /** A panel of the Builder's: a white card on the editor's grey, scrolling on its own. */
@@ -144,9 +145,11 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         minHeight: '34rem',
         position: 'relative',
       }),
-      // The studio's bar sticks to the top on a phone: nodes scrolled under it keep their grip clear of it.
-      // It is one row of 4rem, or two (about 7.2rem) where its status and actions do not fit side by side.
-      Style.global(`@media ${phone} { html { scroll-padding-top: 7.5rem; } }`),
+      // The studio's bar sticks to the top on a phone, one row of `phoneBarSize`: nodes scrolled
+      // under it keep their grip clear of it.
+      Style.global(
+        `@media ${phone} { html { scroll-padding-top: calc(${phoneBarSize} + 0.5rem); } }`,
+      ),
       Style.container(narrowBuilder, {
         gridTemplateAreas: 'none',
         gridTemplateColumns: 'minmax(0, 1fr)',

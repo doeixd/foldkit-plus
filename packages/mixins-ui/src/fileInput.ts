@@ -109,7 +109,8 @@ export const Focus = Command.define('FileInput.Focus', {
 })
 
 /** What names a file when the browser hands the same one twice: a re-picked file is a new `File`. */
-const keyOf = (file: File): string => `${file.name}:${file.size}:${file.lastModified}:${file.type}`
+export const keyOf = (file: File): string =>
+  `${file.name}:${file.size}:${file.lastModified}:${file.type}`
 
 /**
  * The list after `picked` is chosen. A single field takes the newest pick; with
@@ -153,8 +154,8 @@ export interface FileInputView<Message> {
   readonly onRemove: (file: File) => NoInfer<Message>
   /** The form field the files submit under. */
   readonly name?: string | undefined
-  /** The kinds the dialog offers, as the HTML `accept` attribute takes them. */
-  readonly accept?: string | undefined
+  /** The kinds the dialog offers: `.ext`, `type/*` or `type/subtype` tokens, joined with `,` for the attribute. */
+  readonly accept?: ReadonlyArray<string> | undefined
   readonly multiple?: boolean | undefined
   /** The input takes no pick, the trigger looks off, and the rows cannot be removed. */
   readonly disabled?: boolean | undefined
@@ -190,7 +191,9 @@ export const view = <Message>(options: FileInputView<Message>, h: HtmlBuilder<Me
         h.Id(inputId(options.id)),
         h.Type('file'),
         ...(options.name === undefined ? [] : [h.Name(options.name)]),
-        ...(options.accept === undefined ? [] : [h.Accept(options.accept)]),
+        ...(options.accept === undefined || options.accept.length === 0
+          ? []
+          : [h.Accept(options.accept.join(','))]),
         ...(options.multiple === true ? [h.Multiple(true)] : []),
         ...(options.required === true ? [h.Required(true)] : []),
         ...(options.invalid === true ? [h.AriaInvalid(true)] : []),

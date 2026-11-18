@@ -10,7 +10,7 @@ export default [
     name: 'a Command runs its bars on its root',
     edits: [
       {
-        file: '../src/command.ts',
+        file: '../src/command/overlayBars.ts',
         find: '      list: Behavior.slot({',
         replace: '      root: Behavior.slot({',
       },
@@ -26,7 +26,7 @@ export default [
     name: "a VirtualList's bars look for no scroller",
     edits: [
       {
-        file: '../src/virtualList.ts',
+        file: '../src/virtualList/overlayBars.ts',
         find: "mount: () => ScrollBars({ scroller: ':scope > ul' }),",
         replace: 'mount: () => ScrollBars({}),',
       },
@@ -37,7 +37,7 @@ export default [
     name: 'a menu runs no bars on its scroll region',
     edits: [
       {
-        file: '../src/menu.ts',
+        file: '../src/menu/overlayBars.ts',
         find: 'mount: () => ScrollBars({}),',
         replace: 'mount: () => FluidHover({ name: "x", item: "x", axis: "y", gapClick: false }),',
       },

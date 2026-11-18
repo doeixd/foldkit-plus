@@ -6,10 +6,8 @@ feature boundary to a [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/
 
 The two packages answer different questions:
 
-```text
-Surface   -> what may this feature observe and which Messages may it emit?
-SlotView  -> where may this view be customized with Style and Behavior?
-```
+Surface answers what a feature may observe and which Messages it may emit.
+SlotView answers where a view may be customized with Style and Behavior.
 
 `SurfaceView.define` joins them. The SlotView's input becomes exactly the
 Surface's projected value, and its Message universe becomes exactly the
@@ -157,24 +155,13 @@ the Surface's Message subset.
 Without this package, Surface and SlotView are both type-safe independently, but
 you can accidentally describe the same feature boundary twice:
 
-```text
-Surface projection / Message subset
-             X
-SlotView input / Message universe
-```
+A Surface's projection and Message subset, and a SlotView's input and Message
+universe, are two descriptions of one boundary.
 
 With `SurfaceView.define`, there is one declaration:
 
-```text
-Surface
-  │
-  ├─ projected value ──────────────┐
-  └─ Message subset ────────────┐  │
-                                ▼  ▼
-                             SlotView
-                                │
-                         Style + Behavior
-```
+The Surface's projected value and Message subset flow into the SlotView, and Style
+and Behavior attach to that.
 
 That is the whole package.
 

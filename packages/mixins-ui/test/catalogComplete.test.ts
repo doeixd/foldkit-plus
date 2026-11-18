@@ -18,7 +18,12 @@ const noPattern = [
   ['ChatMessageGroupSlots', 'a run of messages; its slots publish no attribute or event'],
   ['CodeBlockSlots', 'preformatted text; its slots publish no attribute or event'],
   ['EmptySlots', 'a text placeholder; its slots publish no attribute or event'],
+  [
+    'FieldSlots',
+    'the label, description and errors around a control the application drew; its slots publish no attribute',
+  ],
   ['FigureSlots', 'a figure and its caption; its slots publish no attribute'],
+  ['FrameSlots', 'a tray and its panels; its slots publish no attribute or event'],
   ['IconSlots', 'a glyph that names itself or hides; its slots publish no attribute'],
   ['ImageSlots', 'an image that names itself or is decorative; its slots publish no attribute'],
   ['ItemSlots', 'a row of text; its slots publish no attribute or event'],

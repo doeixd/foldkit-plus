@@ -66,7 +66,8 @@ describe('the toast stack', () => {
   it('keeps the Model for a Toast Message about a toast that is gone', () => {
     const shown = update(initial, Message.ShowedToast()).model
     expect(
-      update(shown, Message.GotToast({ message: Toast.Message.Dismissed({ id: 'gone' }) })).model,
+      update(shown, Message.GotToastMessage({ message: Toast.Message.Dismissed({ id: 'gone' }) }))
+        .model,
     ).toBe(shown)
   })
 
@@ -75,7 +76,7 @@ describe('the toast stack', () => {
     const [entry] = shown.toast.entries
     const dismissed = update(
       shown,
-      Message.GotToast({ message: Toast.Message.Dismissed({ id: entry!.id }) }),
+      Message.GotToastMessage({ message: Toast.Message.Dismissed({ id: entry!.id }) }),
     )
     expect(dismissed.model.toast).not.toBe(shown.toast)
     expect(dismissed.model.toastsShown).toBe(1)

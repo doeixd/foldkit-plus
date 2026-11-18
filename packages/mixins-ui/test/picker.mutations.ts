@@ -106,7 +106,7 @@ export default [
     edits: [
       {
         file,
-        find: 'h.AriaSelected(Option.contains(value, option.value)),',
+        find: 'h.AriaSelected(chosen.includes(item)),',
         replace: 'h.AriaSelected(false),',
       },
     ],
@@ -117,8 +117,8 @@ export default [
     edits: [
       {
         file,
-        find: 'h.OnClick(onMessage(Message.ChoseInSheet({ value: option.value }))),',
-        replace: '',
+        find: ': [h.OnClick(onMessage(Message.ChoseInSheet({ value: item })))]',
+        replace: ': []',
       },
     ],
     tests: touch,
@@ -170,8 +170,8 @@ export default [
     edits: [
       {
         file,
-        find: '{ index, id: option.value, count: choices.length },',
-        replace: '{ index: 0, id: option.value, count: choices.length },',
+        find: '{ index, id: item, count: items.length },',
+        replace: '{ index: 0, id: item, count: items.length },',
       },
     ],
     tests: browser,
@@ -193,10 +193,10 @@ export default [
       {
         file,
         find: `          Behaviors.Keys.focus(
-            optionId(model.id, STEPS[key](index, choices.length)),
+            optionId(model.id, STEPS[key](index, items.length)),
             onMessage(Message.CompletedFocus()),
           ),`,
-        replace: '          onMessage(Message.Stepped({ to: STEPS[key](index, choices.length) })),',
+        replace: '          onMessage(Message.Stepped({ to: STEPS[key](index, items.length) })),',
       },
     ],
     tests: browser,

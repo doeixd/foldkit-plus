@@ -35,6 +35,7 @@ import {
 import { focusOn, focusRow, opened } from './focus.js'
 import { EntryRow, Post, PostId, PostPreview, PostsBySlug } from '../content/domain.js'
 import { BODY_HOST, PostForm, Posts } from '../content/postForm.js'
+import { fitTools, initialFit } from '../content/toolsFit.js'
 import { FormStyle, WritingFieldStyle } from '../styles/formStyles.js'
 
 export const Editor = Cms.editor('PostEditor', { content: Posts, rest: '800 millis' })
@@ -83,12 +84,14 @@ const Slot = Bundle.declare(
 export const Roving = Bundle.declare(RovingTabindex.bundle, 'bodyTools')
 
 /** The popups of the body toolbar. */
-export const ToolsMenu = Schema.Literals(['style', 'insert', 'link'])
+export const ToolsMenu = Schema.Literals(['style', 'insert', 'link', 'more'])
 
 export const Model = Schema.Struct({
   remote: Remote.Model,
   ...Slot.fields,
   ...Roving.fields,
+  /** How much of the formatting bar fits its column, learned from the bar itself (`toolsFit.ts`). */
+  toolsFit: Schema.Struct({ level: Schema.Number, needs: Schema.Array(Schema.Number) }),
   /** The toolbar's open popup, if any: the application places it, the toolbar only asks. */
   toolsMenu: Schema.Option(ToolsMenu),
   /**
@@ -121,6 +124,7 @@ export const Message = defineMessageUnion({
   /** A tool of the body toolbar was pressed: the form's Message for the body editor. */
   PressedTool: { message: PostForm.Message },
   ToggledToolsMenu: { menu: ToolsMenu, open: Schema.Boolean },
+  MeasuredTools: { width: Schema.Number, scroll: Schema.Number },
   /** Escape on a tool of the body toolbar: back to the text, with the selection it had. */
   ReturnedToBody: {},
   OpenedEntry: { entry: Schema.String },
@@ -222,6 +226,12 @@ const placed = placements.update((model, message) => {
   return Match.valueTags(message, {
     OpenedEntry: ({ entry }) => leaving(EditorSlot.helpers.open(entry)),
     AskedForPost: () => ({ model, commands: [newPost] }),
+    MeasuredTools: ({ width, scroll }) => {
+      const next = fitTools(model.toolsFit, width, scroll)
+      return next === model.toolsFit
+        ? { model }
+        : { model: modifyFields(model, { toolsFit: () => next }) }
+    },
     ToggledToolsMenu: ({ menu, open }) => ({
       model: modifyFields(model, { toolsMenu: () => (open ? Option.some(menu) : Option.none()) }),
     }),
@@ -418,6 +428,7 @@ export const initial: Model = placements.initial({
   previewAsked: Option.none(),
   fresh: Option.none(),
   toolsMenu: Option.none(),
+  toolsFit: initialFit,
 }).model
 
 /**

@@ -1,5 +1,6 @@
 import { Attr, Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -63,3 +64,27 @@ export const view = <Message = never>(
     ...(detail === undefined ? [] : [h.span(builders.detail.attrs(), [detail])]),
   ])
 }
+
+/** What an indicator is given once: its look, its words and its mark. */
+export type ThinkingIndicatorPreset = Pick<
+  ThinkingIndicatorView<never>,
+  'style' | 'label' | 'icon'
+> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own indicator: `base` for every use (its look, its
+ * `label` in its language, its `icon`), `presets` chosen at a use with
+ * `preset`, and the call over both.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<ThinkingIndicatorPreset, Names>,
+): {
+  readonly view: <Outer = never>(
+    options: ThinkingIndicatorView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

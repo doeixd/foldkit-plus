@@ -63,6 +63,21 @@ export const Menu = Style.recipeFor(MenuSlots)({
     backdrop,
     items: panel,
     scroll,
+    // Bands above and below the rows, set off from them by a hairline.
+    header: component(
+      Style.self({
+        paddingBlock: ref.space.xs,
+        paddingInline: ref.space.sm,
+        borderBlockEnd: `${ref.border.thin} solid ${ref.outline.subtle}`,
+      }),
+    ),
+    footer: component(
+      Style.self({
+        paddingBlock: ref.space.xs,
+        paddingInline: ref.space.sm,
+        borderBlockStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
+      }),
+    ),
     item: Style.compose(
       item,
       component(

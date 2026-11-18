@@ -53,7 +53,13 @@ export default [
   },
   {
     name: 'the name does not say what the code holds',
-    edits: [{ file: source, find: '`QR code: ${options.value}`', replace: "'QR code'" }],
+    edits: [
+      {
+        file: source,
+        find: 'fill(text.label, { value: options.value })',
+        replace: "'QR code'",
+      },
+    ],
     tests: [unit],
   },
   {
@@ -114,5 +120,17 @@ export default [
     name: 'the frame served as an HTML element',
     edits: [{ file: source, find: '          h.svg(', replace: '          h.div(' }],
     tests: ['packages/mixins-ui/test/qrCode.ssr.test.ts'],
+  },
+  {
+    name: 'the label word is not filled with the value',
+    edits: [
+      { file: source, find: 'fill(text.label, { value: options.value })', replace: 'text.label' },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the too-long word given is ignored',
+    edits: [{ file: source, find: '[text.tooLong]', replace: '[words.tooLong]' }],
+    tests: [unit],
   },
 ]

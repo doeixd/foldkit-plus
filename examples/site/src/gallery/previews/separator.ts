@@ -1,28 +1,21 @@
 import { Recipes, SeparatorSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
+import basic from '../../examples/separator/basic.js'
+import dashed from '../../examples/separator/dashed.js'
+import label from '../../examples/separator/label.js'
+import toolbar from '../../examples/separator/toolbar.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
 export const showcase = fromRecipe(
   about('separator'),
   SeparatorSlots,
   Recipes.Separator,
-  style => Snippet.separator(style, inert),
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Basic', draw: style => Snippet.separator(style, inert) },
-    { name: 'label', title: 'A label', draw: style => Snippet.separatorLabel(style, inert) },
-    {
-      name: 'vertical',
-      title: 'In a toolbar',
-      draw: style => Snippet.separatorVertical(style, inert),
-      pins: { spacing: 'sm', inset: 'sm' },
-    },
-    {
-      name: 'dashed',
-      title: 'Dashed',
-      draw: style => Snippet.separatorDashed(style, inert),
-      pins: { line: 'dashed', thickness: 'thick', spacing: 'md' },
-    },
+    { name: 'basic', example: basic },
+    { name: 'label', example: label },
+    { name: 'toolbar', example: toolbar },
+    { name: 'dashed', example: dashed },
   ],
 )

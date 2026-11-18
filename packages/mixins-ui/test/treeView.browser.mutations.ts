@@ -32,7 +32,7 @@ export default [
     name: 'the fluid highlight reaches the rows of a shut group',
     edits: [
       {
-        file: '../src/treeView.ts',
+        file: '../src/treeView/fluid.ts',
         find: ':not([aria-disabled="true"], [inert] *) > :first-child',
         replace: ':not([aria-disabled="true"]) > :first-child',
       },
@@ -43,7 +43,7 @@ export default [
     name: 'the fluid highlight ignores a row the keys focus',
     edits: [
       {
-        file: '../src/treeView.ts',
+        file: '../src/treeView/fluid.ts',
         find: 'focused: \':scope:not([aria-disabled="true"]) > :first-child\',',
         replace: '',
       },
@@ -79,6 +79,17 @@ export default [
         file: '../../primitives/src/dom/fluid-hover.ts',
         find: '(focused === undefined ? null : event.target.querySelector(focused))',
         replace: 'null',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a group shuts at once, with no time to be partly open',
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: 'transitionDuration: travelled(collapseShuts),',
+        replace: "transitionDuration: '0s',",
       },
     ],
     tests,

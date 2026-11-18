@@ -14,6 +14,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import {
   ChatMessageGroupSlots,
   ChatMessageSlots,
+  configure,
   group,
   view as drawMessage,
   type ChatMessageItem,
@@ -80,7 +81,7 @@ describe('ChatMessage view', () => {
     expect(Inert.text(slot(view({ from: 'user', status: 'sending' }), 'status')[0])).toBe(
       'Sending…',
     )
-    const failed = view({ from: 'user', status: 'failed', statusLabel: 'Could not send' })
+    const failed = view({ from: 'user', status: 'failed', words: { failed: 'Could not send' } })
     expect(Inert.text(slot(failed, 'status')[0])).toBe('Could not send')
     expect(Inert.value(failed, 'data-status')).toBe('failed')
   })
@@ -137,6 +138,65 @@ describe('ChatMessage view', () => {
     expect(Inert.value(view({ from: 'assistant' }), 'aria-busy')).toBeUndefined()
   })
 
+  it('names the retry and the groups from words', () => {
+    const tree = (h: HtmlBuilder<TestMessage>) =>
+      drawMessage(
+        {
+          from: 'user',
+          content: 'Hi',
+          status: 'failed',
+          onRetry: message('Other'),
+          words: { retry: 'Try again', actions: 'Aktionen' },
+          actions: [{ key: 'copy', label: 'Copy', onClick: message('Clicked') }],
+        },
+        h,
+      )
+    sends(
+      tree,
+      Scene.click(Scene.role('button', { name: 'Try again' })),
+      Scene.expectOutMessage(message('Other')),
+    )
+    expect(Inert.value(slot(marked(tree), 'actions')[0], 'aria-label')).toBe('Aktionen')
+  })
+
+  it('draws a pressable reaction as a button with its count, a shown one as a mark', () => {
+    const tree = (h: HtmlBuilder<TestMessage>) =>
+      drawMessage(
+        {
+          from: 'assistant',
+          content: 'Answer',
+          reactions: [
+            {
+              key: 'up',
+              mark: '👍',
+              label: 'Thumbs up',
+              count: 3,
+              pressed: true,
+              onClick: message('Other'),
+            },
+            { key: 'party', mark: '🎉', label: 'Party' },
+          ],
+        },
+        h,
+      )
+    const drawn = marked(tree)
+    const [group] = slot(drawn, 'reactions')
+    expect(Inert.value(group, 'aria-label')).toBe('Reactions')
+    const [up, party] = slot(drawn, 'reaction')
+    expect(up?.sel).toContain('button')
+    expect(Inert.value(up, 'aria-label')).toBe('Thumbs up, 3')
+    expect(Inert.value(up, 'aria-pressed')).toBe('true')
+    expect(Inert.text(slot(drawn, 'reactionCount')[0])).toBe('3')
+    expect(party?.sel).toContain('span')
+    expect(Inert.value(party, 'aria-label')).toBe('Party')
+    expect(party?.data?.on?.['click']).toBeUndefined()
+    sends(
+      tree,
+      Scene.click(Scene.role('button', { name: 'Thumbs up, 3' })),
+      Scene.expectOutMessage(message('Other')),
+    )
+  })
+
   it('pins the actions only when asked', () => {
     const actions = [{ key: 'copy', label: 'Copy', onClick: message('Clicked') }]
     const pinned = view({ from: 'assistant', actions, pinActions: true })
@@ -144,6 +204,61 @@ describe('ChatMessage view', () => {
     expect(
       Inert.value(slot(view({ from: 'assistant', actions }), 'actions')[0], 'data-pinned'),
     ).toBe('false')
+  })
+})
+
+describe('ChatMessage configure', () => {
+  const Own = configure({
+    base: { words: { retry: 'Again' }, pinActions: true },
+    presets: { quiet: { words: { failed: 'Nope' } } },
+  })
+
+  it('draws a view with the base, the preset over it and the call over both', () => {
+    const tree = marked(h =>
+      Own.view(
+        {
+          preset: 'quiet',
+          from: 'user',
+          content: 'Hi',
+          status: 'failed',
+          onRetry: message('Other'),
+          actions: [{ key: 'copy', label: 'Copy', onClick: message('Clicked') }],
+          words: { sent: 'Delivered' },
+        },
+        h,
+      ),
+    )
+    expect(Inert.text(slot(tree, 'status')[0])).toBe('Nope')
+    expect(Inert.text(slot(tree, 'retry')[0])).toBe('Again')
+    expect(Inert.value(slot(tree, 'actions')[0], 'data-pinned')).toBe('true')
+  })
+
+  it('gives a run the preset’s words and pinned actions, a message’s own winning', () => {
+    const items: ReadonlyArray<ChatMessageItem<TestMessage>> = [
+      {
+        key: 'a',
+        from: 'assistant',
+        content: 'One',
+        status: 'failed',
+        actions: [{ key: 'copy', label: 'Copy', onClick: message('Clicked') }],
+      },
+      { key: 'b', from: 'assistant', content: 'Two', status: 'failed', words: { failed: 'Mine' } },
+    ]
+    const run = Inert.draw(
+      SlotView.forMessages<TestMessage>().define(ChatMessageSlots, (_: undefined, __, h) =>
+        Own.group({ preset: 'quiet', items }, h),
+      ),
+      undefined,
+    )
+    expect(slot(run, 'status').map(each => Inert.text(each))).toEqual(['Nope', 'Mine'])
+    expect(Inert.value(slot(run, 'actions')[0], 'data-pinned')).toBe('true')
+  })
+
+  it('refuses a preset the config lacks', () => {
+    expect(() =>
+      // @ts-expect-error a name computed at run time reaches `configure` past the types
+      Own.view({ preset: 'loud', from: 'user', content: 'Hi' }, h),
+    ).toThrow(/no preset named "loud"/)
   })
 })
 
@@ -218,6 +333,12 @@ describe('ChatMessage recipe', () => {
     expect(css({ content: 'markdown' })).not.toContain('white-space:pre-wrap')
   })
 
+  it('has a ghost and an outline bubble besides the muted and the accent', () => {
+    expect(css({ bubble: 'outline' })).toContain('inset 0 0 0')
+    expect(css({ bubble: 'ghost' })).not.toContain('--fk-accent-on-fill')
+    expect(css({ bubble: 'muted' })).not.toContain('inset 0 0 0')
+  })
+
   it('reads only tokens the theme declares', () => {
     const theme = Theme.standard(Theme.make({ accent: { hue: 260, chroma: 0.15, lightness: 55 } }))
     const tree = view({
@@ -225,6 +346,9 @@ describe('ChatMessage recipe', () => {
       author: 'Me',
       status: 'failed',
       onRetry: message('Other'),
+      reactions: [
+        { key: 'up', mark: '👍', label: 'Thumbs up', count: 1, onClick: message('Other') },
+      ],
       actions: [{ key: 'copy', label: 'Copy', onClick: message('Clicked') }],
     })
     expect(Inert.missingTokens(tree, Style.stylesheet(Theme.root(theme)))).toEqual([])

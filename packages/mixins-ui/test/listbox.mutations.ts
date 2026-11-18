@@ -33,7 +33,7 @@ export default [
     name: 'the item slot forgets its selected attribute',
     edits: [
       {
-        file: '../src/listbox.ts',
+        file: '../src/listbox/slots.ts',
         find: 'attributes: [Attr.Role, Attr.AriaSelected, Attr.Disabled, Attr.AriaDisabled],',
         replace: 'attributes: [Attr.Role, Attr.Disabled, Attr.AriaDisabled],',
       },
@@ -44,7 +44,7 @@ export default [
     name: 'the item slot degrades to a base capability',
     edits: [
       {
-        file: '../src/listbox.ts',
+        file: '../src/listbox/slots.ts',
         find: 'item: Slot.make({\n    capability: Capability.Interactive,',
         replace: 'item: Slot.make({\n    capability: Capability.Base,',
       },

@@ -786,7 +786,7 @@ export {
   withServices,
   withWiring,
 } from './compose.js'
-export type { AnyComposition, Composition } from './compose.js'
+export type { AnyComposition, Child as ComposedChild, Composition } from './compose.js'
 export type { Body, Lazy, LazySpec, Loadable } from './lazy.js'
 export type { Declared, DeclaredEach, WrapperTag } from './declare.js'
 export { parent } from './parent.js'

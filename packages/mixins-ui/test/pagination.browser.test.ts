@@ -180,3 +180,52 @@ test('a page size above the row count leaves the select to go back', async () =>
     handle.dispose()
   }
 })
+
+test.each([
+  ['round', { shape: 'round' }, 'borderTopLeftRadius', (value: string) => parseFloat(value) > 100],
+  [
+    'outline',
+    { treatment: 'outline' },
+    'borderTopColor',
+    (value: string) => value !== 'rgba(0, 0, 0, 0)',
+  ],
+] as const)(
+  'shape and treatment: %s changes a stop’s drawn corner or border',
+  async (_, selection, property, drawn) => {
+    const styled = Style.forSlots(PaginationSlots)(Recipes.Pagination(selection))
+    const sheet = document.createElement('style')
+    sheet.dataset['test'] = ''
+    sheet.textContent =
+      Style.stylesheet(
+        Layers.standard.declare,
+        Layers.standard.in('theme', Theme.root(Theme.standard(Theme.make({})))),
+      ) + styled.css
+    document.head.append(sheet)
+    const container = document.createElement('div')
+    container.id = 'pagination-shape'
+    document.body.append(container)
+    const handle = Runtime.embed(
+      Runtime.makeElement({
+        Model: Schema.Struct({}),
+        container,
+        init: () => ({ model: {} }),
+        update: (model: object) => ({ model }),
+        view: (_: object, h: HtmlBuilder<Message>) =>
+          Pagination.view(
+            { page: 2, pageCount: 5, onPage: page => Message.Went({ page }), style: styled },
+            h,
+          ),
+      }),
+    )
+    try {
+      const stop = await vi.waitFor(() => {
+        const found = document.querySelector<HTMLElement>('button[aria-label="Next page"]')
+        if (found === null) throw new Error('not drawn')
+        return found
+      })
+      expect(drawn(getComputedStyle(stop)[property])).toBe(true)
+    } finally {
+      handle.dispose()
+    }
+  },
+)

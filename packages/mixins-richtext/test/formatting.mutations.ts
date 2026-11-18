@@ -12,8 +12,9 @@ export default [
     edits: [
       {
         file,
-        find: '...(made.available ? [h.OnClick(made.press)] : []),',
-        replace: 'h.OnClick(made.press),',
+        find: '              h.AriaDisabled(!made.available),\n              ...(made.available ? [h.OnClick(made.press)] : []),',
+        replace:
+          '              h.AriaDisabled(!made.available),\n              h.OnClick(made.press),',
       },
     ],
     tests: [browser],
@@ -148,6 +149,61 @@ export default [
     name: 'a compact bar still draws the low controls',
     edits: [{ file, find: '(input.compact === true ? [] : [item.low])', replace: '[item.low]' }],
     tests: [unit, browser],
+  },
+  {
+    name: 'a compact bar draws no More button',
+    edits: [
+      {
+        file,
+        find: "  return overflowOf(input).length === 0 ? ended : [...ended, 'more']",
+        replace: '  return ended',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'the More menu lists a control that opens a popup of its own',
+    edits: [
+      {
+        file,
+        find: "typeof item === 'object' && 'low' in item && !opensPopup(item.low) ? [item.low] : [],",
+        replace: "typeof item === 'object' && 'low' in item ? [item.low] : [],",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a toggle in the More menu is a plain item, not a checkbox',
+    edits: [
+      {
+        file,
+        find: "h.Role(made.pressed === undefined ? 'menuitem' : 'menuitemcheckbox'),",
+        replace: "h.Role('menuitem'),",
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'an unavailable row of the More menu still sends',
+    edits: [
+      {
+        file,
+        find: "h.DataAttribute('more', control.id),\n                  ...(made.available ? [h.OnClick(made.press)] : []),",
+        replace: "h.DataAttribute('more', control.id),\n                  h.OnClick(made.press),",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the arrows do not enter the More menu',
+    edits: [
+      {
+        file,
+        find: "const inMenu = (['style', 'insert', 'more'] as const).find(",
+        replace: "const inMenu = (['style', 'insert'] as const).find(",
+      },
+    ],
+    tests: [browser],
   },
   {
     name: 'a hidden current control sends the tab stop to the first',

@@ -144,3 +144,39 @@ describe('NumberField.view form attributes', () => {
     expect(Inert.value(plain, 'name')).toBeUndefined()
   })
 })
+
+describe('NumberField.view states, words and adornments', () => {
+  it('says it is invalid only when told', () => {
+    expect(Inert.value(Inert.byTag(drawn(3), 'input')[0], 'aria-invalid')).toBeUndefined()
+    const [input] = Inert.byTag(drawn(3, { invalid: true }), 'input')
+    expect(Inert.value(input, 'aria-invalid')).toBe('true')
+  })
+
+  it('reads but does not change when read only: no keys, no typing, steppers disabled', () => {
+    const tree = drawn(3, { readOnly: true })
+    const [input] = Inert.byTag(tree, 'input')
+    expect(Inert.value(input, 'readonly')).toBe(true)
+    expect(input?.data?.on?.['keydown']).toBeUndefined()
+    expect(input?.data?.on?.['change']).toBeUndefined()
+    for (const button of Inert.byTag(tree, 'button')) {
+      expect(Inert.value(button, 'disabled')).toBe(true)
+    }
+    const [open] = Inert.byTag(drawn(3), 'input')
+    expect(Inert.value(open, 'readonly')).toBeUndefined()
+  })
+
+  it('names the steppers in the words given, and keeps the default for the other', () => {
+    const names = (text: Record<string, unknown>) =>
+      Inert.byTag(drawn(3, text), 'button').map(button => Inert.value(button, 'aria-label'))
+    expect(names({})).toEqual(['Decrease', 'Increase'])
+    expect(names({ words: { decrease: 'Moins' } })).toEqual(['Moins', 'Increase'])
+  })
+
+  it('draws start and end between the steppers, around the input', () => {
+    const tree = drawn(3, { start: h.span([], ['~']), end: h.span([], ['servings']) })
+    expect(Inert.text(tree)).toContain('~')
+    expect(Inert.text(tree)).toContain('servings')
+    const plain = Inert.text(drawn(3))
+    expect(plain).not.toContain('~')
+  })
+})

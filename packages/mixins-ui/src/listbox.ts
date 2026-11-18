@@ -1,18 +1,9 @@
-import { Option } from 'effect'
-import {
-  Attr,
-  Behavior,
-  Capability,
-  Event,
-  Slot,
-  Slots,
-  type SlotAttributes,
-  type SlotBuilder,
-} from 'foldkit-mixins'
+import type { SlotAttributes, SlotBuilder } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { FluidHover, Measure, ScrollBars } from 'foldkit-primitives/dom'
+import { ListboxSlots } from './listbox/slots.js'
 import { scrollBarOf } from './popupScroll.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
+import type { RowContent } from './rowContent.js'
 import type {
   ListboxGroupRender,
   ListboxHeadingRender,
@@ -20,70 +11,6 @@ import type {
   ListboxRenderInfo,
 } from './listboxView.js'
 import { drawListbox } from './popupView.js'
-
-/**
- * Listbox is a nested Submodel: one `button`/`backdrop`/`items` group plus
- * an `item` per entry (and `group`/`heading`/`separator` where the caller
- * groups), so the resolver runs once per bundle and each base attribute
- * passes through by identity. `hiddenInputs` are the form inputs submitted
- * under `name`: generated markup with no styling surface, passed through
- * for the draw to place.
- *
- * The button owns `click` (and `pointerdown`/`keydown` while enabled); an
- * item owns `click` while interactive. A Behavior adding its own handler to
- * one of those is a conflict, not a second silent owner. Disabled buttons
- * and items publish no click, so the contract still lists it as allowed.
- *
- * The slots from `itemContent` on are the parts of a select drawn over the
- * listbox, which `parts` draws: an option's icon, label, description and
- * check, and the trigger's value (or placeholder) and chevron.
- */
-export const ListboxSlots = Slots.define({
-  wrapper: Slot.make({ capability: Capability.Container }),
-  button: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click, Event.PointerDown, Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaExpanded, Attr.Disabled, Attr.AriaDisabled],
-  }),
-  backdrop: Slot.make({ capability: Capability.Container, events: [Event.Click] }),
-  items: Slot.make({
-    capability: Capability.Container,
-    events: [Event.KeyDown, Event.Blur],
-    attributes: [Attr.Role],
-  }),
-  scroll: Slot.make({ capability: Capability.Container }),
-  item: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.Role, Attr.AriaSelected, Attr.Disabled, Attr.AriaDisabled],
-  }),
-  group: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  heading: Slot.make({ capability: Capability.Container }),
-  separator: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  rows: Slot.make({ capability: Capability.Container }),
-  highlight: Slot.make({ capability: Capability.Container }),
-  indicator: Slot.make({ capability: Capability.Container }),
-  scrollBar: Slot.make({ capability: Capability.Container }),
-  scrollThumb: Slot.make({ capability: Capability.Container }),
-  itemContent: Slot.make({ capability: Capability.Container }),
-  itemIcon: Slot.make({ capability: Capability.Container }),
-  itemText: Slot.make({ capability: Capability.Container }),
-  itemLabel: Slot.make({ capability: Capability.Container }),
-  itemDescription: Slot.make({ capability: Capability.Container }),
-  itemCheck: Slot.make({ capability: Capability.Container }),
-  value: Slot.make({ capability: Capability.Container }),
-  valueText: Slot.make({ capability: Capability.Container }),
-  chevron: Slot.make({ capability: Capability.Container }),
-})
-
-/** What an option shows, in the list and, once chosen, on the trigger. */
-export interface OptionContent {
-  readonly label: string
-  /** A line under the label, in the list only. */
-  readonly description?: string | undefined
-  /** Drawn before the label, in the list and on the trigger. */
-  readonly icon?: Html | undefined
-}
 
 type OptionSlot =
   | 'itemContent'
@@ -117,14 +44,18 @@ const marked = <Message>(
 /**
  * An option's content in the slots Listbox and Combobox share: its icon,
  * its label (the stretches matching `query` marked, where a `match` slot is
- * given), its description, and the check the chosen row shows.
+ * given) or `content` of its own in the label's place, its description, what
+ * it holds after the label where the widget has an `itemTrailing` slot, and
+ * the check the chosen row shows.
  */
 export const drawOption = <Message>(
   builders: { readonly [K in OptionSlot]: SlotBuilder<Message> } & {
     readonly match?: SlotBuilder<Message>
+    /** Where a row's `trailing` is drawn; a widget without the slot draws none. */
+    readonly itemTrailing?: SlotBuilder<Message>
   },
   h: HtmlBuilder<Message>,
-  content: OptionContent,
+  content: Pick<RowContent, 'label' | 'description' | 'icon' | 'trailing' | 'content'>,
   query = '',
 ): Html =>
   h.span(builders.itemContent.attrs(), [
@@ -132,14 +63,19 @@ export const drawOption = <Message>(
     h.span(builders.itemText.attrs(), [
       h.span(
         builders.itemLabel.attrs(),
-        builders.match === undefined
-          ? [content.label]
-          : marked(content.label, query, builders.match, h),
+        content.content !== undefined
+          ? [content.content]
+          : builders.match === undefined
+            ? [content.label]
+            : marked(content.label, query, builders.match, h),
       ),
       ...(content.description === undefined
         ? []
         : [h.span(builders.itemDescription.attrs(), [content.description])]),
     ]),
+    ...(builders.itemTrailing === undefined || content.trailing === undefined
+      ? []
+      : [h.span(builders.itemTrailing.attrs(), [content.trailing])]),
     // The row's `aria-selected` says it is chosen; the check is drawn for the eye.
     h.span(builders.itemCheck.attrs([h.AriaHidden(true)]), []),
   ])
@@ -153,8 +89,10 @@ const iconOf = <Message>(
 /**
  * The parts of a select over this listbox, in its slots: `option` is an
  * item's content (`itemToConfig`), and `trigger` the button's
- * (`buttonContent`), the chosen option's icon and label or the placeholder,
- * then the chevron. Pass the mixins the listbox's `toView` gets.
+ * (`buttonContent`): what is chosen, or the placeholder, then the chevron.
+ * One chosen row shows its icon and label, several their labels joined,
+ * none the placeholder, muted; `shown` draws what it holds in place of that.
+ * Pass the mixins the listbox's `toView` gets.
  */
 export const parts = <Message>(
   mixins: MixinList<Message>,
@@ -163,17 +101,24 @@ export const parts = <Message>(
   const builders = buildersOf(ListboxSlots, mixins, context)
   const { h } = context
   return {
-    option: (content: OptionContent): Html => drawOption(builders, h, content),
-    trigger: (chosen: Option.Option<OptionContent>, placeholder: string): Html =>
+    option: (content: RowContent): Html => drawOption(builders, h, content),
+    trigger: (
+      chosen: ReadonlyArray<RowContent>,
+      placeholder: string,
+      shown?: Html | undefined,
+    ): Html =>
       h.span(builders.value.attrs(), [
-        ...Option.match(chosen, {
-          onNone: () => [],
-          onSome: content => iconOf(builders.itemIcon, h, content.icon),
-        }),
-        h.span(
-          builders.valueText.attrs([h.DataAttribute('placeholder', String(Option.isNone(chosen)))]),
-          [Option.match(chosen, { onNone: () => placeholder, onSome: content => content.label })],
-        ),
+        ...(shown !== undefined
+          ? [shown]
+          : [
+              ...(chosen.length === 1 ? iconOf(builders.itemIcon, h, chosen[0]?.icon) : []),
+              h.span(
+                builders.valueText.attrs([
+                  h.DataAttribute('placeholder', String(chosen.length === 0)),
+                ]),
+                [chosen.length === 0 ? placeholder : chosen.map(row => row.label).join(', ')],
+              ),
+            ]),
         h.span(builders.chevron.attrs([h.AriaHidden(true)]), []),
       ]),
   }
@@ -309,58 +254,15 @@ export const toView =
   (render: ListboxRenderInfo): Html =>
     draw(resolve(render, mixins, context))
 
-const chosen = '[aria-selected="true"]'
+// The three shipped choices, a file each, so a page keeps only the one it reads.
+export { many } from './choice/many.js'
+export { one } from './choice/one.js'
 
-/**
- * What moves the open panel's `highlight` and `indicator`: on its rows,
- * the chosen row is measured (`--fk-popup-chosen-*`) and one highlight
- * follows the pointer to the nearest row (`--fk-popup-hover-*`),
- * and to the row the keys mark (`data-active`) while the pointer is away.
- * Pass them beside the style; until they run, each row marks itself.
- */
-export const fluid = [
-  Behavior.forSlots(ListboxSlots)<unknown, never>(
-    {
-      rows: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => Measure({ targets: { 'popup-chosen': chosen } }),
-      }),
-    },
-    { name: 'ListboxChosen' },
-  ).mixin,
-  Behavior.forSlots(ListboxSlots)<unknown, never>(
-    {
-      rows: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () =>
-          FluidHover({
-            name: 'popup-hover',
-            item: '[role="option"]',
-            axis: 'y',
-            gapClick: true,
-            follows: '[data-active]',
-            from: chosen,
-          }),
-      }),
-    },
-    { name: 'ListboxHover' },
-  ).mixin,
-] as const
-
-/**
- * What draws the open panel's `scrollBar` over its `scroll` (`ScrollBars`),
- * in place of the browser's bar, on a pointer that can hover. Pass it beside
- * the style when the listbox scrolls (`itemsScrollAttributes`); without a
- * `scroll` there is no bar.
- */
-export const overlayBars = [
-  Behavior.forSlots(ListboxSlots)<unknown, never>(
-    {
-      scroll: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => ScrollBars({}),
-      }),
-    },
-    { name: 'ListboxScrollBars' },
-  ).mixin,
-] as const
+// The slots, and each Behavior a page may not pass, are files of their own: a
+// page keeps a Behavior, and the primitive behind it, only when it reads the name.
+export { ListboxSlots } from './listbox/slots.js'
+export { fluid } from './listbox/fluid.js'
+export { overlayBars } from './listbox/overlayBars.js'
+// The Listbox drawn from options, and its words.
+export { configure, view, type ListboxPreset, type ListboxView } from './listbox/view.js'
+export { words, type ListboxWords } from './listbox/words.js'

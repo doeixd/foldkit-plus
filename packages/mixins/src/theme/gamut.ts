@@ -227,6 +227,15 @@ export const fit = (color: string, hue: Hue) =>
  * theirs, so it keeps its own, bounded as on `hue`. A mix of two greys is a
  * grey whose hue no engine agrees on, but `fit` only takes chroma away, and
  * nothing in the palette adds chroma to a mix or mixes one again in OKLCH.
+ *
+ * Written in OKLab, scaling `a` and `b` together, and never as
+ * `oklch(from <mix> l c h)`: Chrome 157 reads the hue of an OKLab color whose
+ * chroma is under about 0.02 as missing, so `h` was 0 and the accent's tint
+ * (chroma 0.017, hue 235) painted pink.
  */
-export const fitMix = (color: string, hue: Hue) =>
-  `oklch(from ${color} l ${bounded(hue)} h / alpha)`
+export const fitMix = (color: string, hue: Hue) => {
+  const ref = (value: string) => v('gamut', `${hue}-${value}`)
+  const bound = `min(l * ${ref('s')}, (1 - l) / max(0.001, ${ref('ua')} + ${ref('ub')} * l))`
+  const kept = `min(1, ${bound} / max(0.0001, hypot(a, b)))`
+  return `oklab(from ${color} l calc(a * ${kept}) calc(b * ${kept}) / alpha)`
+}

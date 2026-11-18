@@ -43,11 +43,11 @@ Every later choice follows from six rules. Read them first.
 ## The pieces
 
 ```text
-Theme tokens ─▶ Style / Recipe ─┐
-                                ├─▶ Mixins ─▶ resolver ─▶ Foldkit attributes
-Bundle state ─▶ Behavior ───────┘                ▲
+Theme tokens ─► Style / Recipe ─┐
+                                ├─► Mixins ─► resolver ─► Foldkit attributes
+Bundle state ─► Behavior ───────┘                ▲
                                                  │
-Slots contract ─────────▶ SlotView ──────────────┘   (the view draws each slot)
+Slots contract ─────────► SlotView ──────────────┘   (the view draws each slot)
 ```
 
 - **Slot and Slots** (`foldkit-mixins`). A Slot is a named element of a view's

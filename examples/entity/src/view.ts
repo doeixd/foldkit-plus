@@ -126,34 +126,37 @@ const remove = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyAr
 export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
   const slots = SlotView.buildersFor(Page.slots, [Page.style.mixin], { input: undefined, h })
   return AppShell.view(
-    { title: 'Posts', style: ShellStyle },
-    [
-      h.div(slots.content.attrs(), [
-        h.h1(slots.heading.attrs(), ['Posts']),
-        Tools(
-          {
-            // The search is the query's input. Typing changes the Model; Remote sees a
-            // list that now requires another connection and fetches it.
-            search: Input.view(
-              {
-                id: 'search',
-                type: 'search',
-                placeholder: 'Search titles',
-                // The box shows every keystroke; only the settled value reaches the query.
-                value: model.search.latest ?? '',
-                onInput: text => searched(text),
-                style: SearchStyle,
-                draw: (resolved, h) => h.input([...resolved.input, h.AriaLabel('Search titles')]),
-              },
-              h,
-            ),
-          },
-          h,
-        ),
-        table(model, h),
-        editor(model, slots, h),
-      ]),
-    ],
+    {
+      title: 'Posts',
+      style: ShellStyle,
+      main: [
+        h.div(slots.content.attrs(), [
+          h.h1(slots.heading.attrs(), ['Posts']),
+          Tools(
+            {
+              // The search is the query's input. Typing changes the Model; Remote sees a
+              // list that now requires another connection and fetches it.
+              search: Input.view(
+                {
+                  id: 'search',
+                  type: 'search',
+                  placeholder: 'Search titles',
+                  // The box shows every keystroke; only the settled value reaches the query.
+                  value: model.search.latest ?? '',
+                  onInput: text => searched(text),
+                  style: SearchStyle,
+                  draw: (resolved, h) => h.input([...resolved.input, h.AriaLabel('Search titles')]),
+                },
+                h,
+              ),
+            },
+            h,
+          ),
+          table(model, h),
+          editor(model, slots, h),
+        ]),
+      ],
+    },
     h,
   )
 }

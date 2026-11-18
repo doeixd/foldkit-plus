@@ -123,4 +123,37 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a masked field shows its characters',
+    edits: [
+      {
+        file: '../src/otpField.ts',
+        find: 'const shown = (char: string) => mark ?? char',
+        replace: 'const shown = (char: string) => char',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/otpField.test.ts'],
+  },
+  {
+    name: 'a masked field keeps its input readable',
+    edits: [
+      {
+        file: '../src/otpField.ts',
+        find: "h.Type(mark === undefined ? 'text' : 'password')",
+        replace: "h.Type('text')",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/otpField.test.ts'],
+  },
+  {
+    name: 'a mask of true is no mark',
+    edits: [
+      {
+        file: '../src/otpField.ts',
+        find: "options.mask === true ? '•'",
+        replace: "options.mask === true ? '*'",
+      },
+    ],
+    tests: ['packages/mixins-ui/test/otpField.test.ts'],
+  },
 ]

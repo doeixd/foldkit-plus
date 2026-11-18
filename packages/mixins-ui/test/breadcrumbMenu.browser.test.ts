@@ -17,6 +17,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import * as Breadcrumb from '../src/breadcrumb.js'
 import { BreadcrumbSlots } from '../src/breadcrumb.js'
+import * as BreadcrumbMenu from '../src/breadcrumb/menu.js'
 import * as Menu from '../src/menu.js'
 import { MenuSlots } from '../src/menu.js'
 import { Breadcrumb as BreadcrumbRecipe } from '../src/recipes/breadcrumb.js'
@@ -84,10 +85,10 @@ const mount = () => {
             Breadcrumb.view(
               {
                 steps,
-                collapse: {
+                collapse: BreadcrumbMenu.make({
                   max: MAX,
                   menu: { model: model.menu, onMessage: got, mixins: [menu.mixin] },
-                },
+                }),
                 style: trail,
               },
               h,

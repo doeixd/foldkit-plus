@@ -1,6 +1,8 @@
-import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Attr, Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { wordsOf } from './words.js'
 
 /**
  * An application's page frame: a skip link, a header bar, an optional side
@@ -29,13 +31,18 @@ export const AppShellSlots = Slots.define({
   status: Slot.make({ capability: Capability.Container }),
   side: Slot.make({ capability: Capability.Container }),
   main: Slot.make({ capability: Capability.Container }),
+  /** A column at the main region's end: a table of contents, details, help. */
+  aside: Slot.make({ capability: Capability.Container, attributes: [Attr.AriaLabel] }),
   footer: Slot.make({ capability: Capability.Container }),
 })
 
+/** The fixed text a frame draws. */
 export interface AppShellWords {
-  /** The skip link's text. Default `Skip to content`. */
-  readonly skip?: string | undefined
+  /** The skip link's text. */
+  readonly skip: string
 }
+
+export const words: AppShellWords = { skip: 'Skip to content' }
 
 export interface AppShellView<Message = never> {
   /** The application's name, in the header. */
@@ -48,10 +55,21 @@ export interface AppShellView<Message = never> {
   readonly status?: ReadonlyArray<Html> | undefined
   /** The side column: a `Sidebar`'s view. Without it the page is one column. */
   readonly side?: Html | undefined
+  /** The page's content, in the main region. */
+  readonly main: ReadonlyArray<Html>
+  /**
+   * A column at the main region's end (a table of contents, details), in an
+   * `aside` landmark named by `asideLabel`; below the theme's `md` breakpoint
+   * it follows the main region.
+   */
+  readonly aside?: ReadonlyArray<Html> | undefined
+  /** Names the aside for assistive technology. */
+  readonly asideLabel?: string | undefined
   readonly footer?: ReadonlyArray<Html> | undefined
   /** The main region's id, which the skip link targets. Default `main`. */
   readonly mainId?: string | undefined
-  readonly words?: AppShellWords | undefined
+  /** Defaults `AppShell.words`. */
+  readonly words?: Partial<AppShellWords> | undefined
   /** A style of `AppShellSlots`, for the frame's look. */
   readonly style?: NamedStyle<typeof AppShellSlots> | undefined
   /** Mixins beside the style. */
@@ -60,7 +78,6 @@ export interface AppShellView<Message = never> {
 
 export const view = <Message = never>(
   options: AppShellView<Message>,
-  main: ReadonlyArray<Html>,
   h: HtmlBuilder<Message>,
 ): Html => {
   const builders = SlotView.buildersFor(
@@ -71,27 +88,66 @@ export const view = <Message = never>(
   const mainId = options.mainId ?? 'main'
   // Whether there is a side column is a fact of the layout, so a style reads it.
   const sided = options.side !== undefined
-  return h.div(builders.root.attrs(sided ? [h.DataAttribute('side', '')] : []), [
-    h.a(builders.skip.attrs([h.Href(`#${mainId}`)]), [options.words?.skip ?? 'Skip to content']),
-    h.header(builders.header.attrs(), [
-      h.div(builders.brand.attrs(), [
-        ...(options.brand === undefined
-          ? []
-          : [h.span(builders.mark.attrs([h.AriaHidden(true)]), [options.brand])]),
-        h.span(builders.title.attrs(), [options.title]),
-      ]),
-      ...(options.status === undefined || options.status.length === 0
-        ? []
-        : [h.div(builders.status.attrs(), options.status)]),
-      ...(options.actions === undefined || options.actions.length === 0
-        ? []
-        : [h.div(builders.actions.attrs(), options.actions)]),
+  const aside = options.aside ?? []
+  return h.div(
+    builders.root.attrs([
+      ...(sided ? [h.DataAttribute('side', '')] : []),
+      ...(aside.length === 0 ? [] : [h.DataAttribute('aside', '')]),
     ]),
-    ...(options.side === undefined ? [] : [h.div(builders.side.attrs(), [options.side])]),
-    // Focusable by script only, so the skip link moves focus here and Tab goes on from it.
-    h.main(builders.main.attrs([h.Id(mainId), h.Tabindex(-1)]), main),
-    ...(options.footer === undefined || options.footer.length === 0
-      ? []
-      : [h.footer(builders.footer.attrs(), options.footer)]),
-  ])
+    [
+      h.a(builders.skip.attrs([h.Href(`#${mainId}`)]), [wordsOf(words, options.words).skip]),
+      h.header(builders.header.attrs(), [
+        h.div(builders.brand.attrs(), [
+          ...(options.brand === undefined
+            ? []
+            : [h.span(builders.mark.attrs([h.AriaHidden(true)]), [options.brand])]),
+          h.span(builders.title.attrs(), [options.title]),
+        ]),
+        ...(options.status === undefined || options.status.length === 0
+          ? []
+          : [h.div(builders.status.attrs(), options.status)]),
+        ...(options.actions === undefined || options.actions.length === 0
+          ? []
+          : [h.div(builders.actions.attrs(), options.actions)]),
+      ]),
+      ...(options.side === undefined ? [] : [h.div(builders.side.attrs(), [options.side])]),
+      // Focusable by script only, so the skip link moves focus here and Tab goes on from it.
+      h.main(builders.main.attrs([h.Id(mainId), h.Tabindex(-1)]), options.main),
+      ...(aside.length === 0
+        ? []
+        : [
+            h.aside(
+              builders.aside.attrs(
+                options.asideLabel === undefined ? [] : [h.AriaLabel(options.asideLabel)],
+              ),
+              aside,
+            ),
+          ]),
+      ...(options.footer === undefined || options.footer.length === 0
+        ? []
+        : [h.footer(builders.footer.attrs(), options.footer)]),
+    ],
+  )
 }
+
+/** What an AppShell is given once: its look, words and main region's id. */
+export type AppShellPreset = Pick<AppShellView<never>, 'mainId' | 'words' | 'style'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own frame: `base` for every page, `presets` chosen at a
+ * page with `preset`, and the call over both. `words` merge key by key and
+ * `mixins` concatenate; any other option given at the call replaces the
+ * preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<AppShellPreset, Names>,
+): {
+  readonly view: <Message = never>(
+    options: AppShellView<Message> & PresetOption<Names>,
+    h: HtmlBuilder<Message>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

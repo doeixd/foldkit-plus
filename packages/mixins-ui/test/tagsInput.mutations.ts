@@ -467,8 +467,8 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: 'options.words?.remove?.(tag) ?? ',
-        replace: '',
+        find: 'h.AriaLabel(fill(text.remove, { tag })),',
+        replace: 'h.AriaLabel(`Remove ${tag}`),',
       },
     ],
     tests: [unit],
@@ -478,8 +478,41 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: "options.words?.mark ?? '×'",
-        replace: "'×'",
+        find: '[text.mark],',
+        replace: "['×'],",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a repeat refusal ignores the words',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Repeat: ({ tag }) => fill(text.repeat, { tag }),',
+        replace: 'Repeat: ({ tag }) => `${tag} is already added`,',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an empty refusal ignores the words',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Empty: () => text.empty,',
+        replace: "Empty: () => 'Type a tag to add',",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a full refusal ignores the words',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Full: ({ max }) => fill(text.full, { max }),',
+        replace: 'Full: ({ max }) => `At most ${max} tags`,',
       },
     ],
     tests: [unit],
@@ -530,6 +563,66 @@ export default [
               lift(Message.Removed({ tag })),
             ),`,
         replace: '            lift(Message.Removed({ tag })),',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a sign stroke starts at the start edge, not the middle',
+    edits: [
+      {
+        file: '../src/recipes/tagsInput.ts',
+        find: "insetInlineStart: '50%',",
+        replace: "insetInlineStart: '0',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a chip leaves more room after its button than above and below it',
+    edits: [
+      {
+        file: '../src/recipes/tagsInput.ts',
+        find: 'insetInlineEnd: chipInset,',
+        replace: "insetInlineEnd: '0.3rem',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the remove button is not marked for the drawn sign',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: "? [h.DataAttribute('glyph', 'cross')]",
+        replace: '? []',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the label is centred by its line box, which sits low or high by the face',
+    edits: [
+      {
+        file: '../src/recipes/tagsInput.ts',
+        find: "textBox: 'trim-both cap alphabetic',",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the remove button is not centred on the label’s line',
+    edits: [{ file: '../src/recipes/tagsInput.ts', find: "marginBlock: 'auto',", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'the label is moved the wrong way from the capitals’ middle',
+    edits: [
+      {
+        file: '../src/recipes/tagsInput.ts',
+        find: "const opticalShift = 'calc((1cap - 1ex) / 4)'",
+        replace: "const opticalShift = 'calc((1ex - 1cap) / 4)'",
       },
     ],
     tests: [browser],

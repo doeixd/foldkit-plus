@@ -91,7 +91,7 @@ describe('Picker.view keys', () => {
         model: closed,
         onMessage: message => message,
         label: 'Sort',
-        options: [{ value: 'a', label: 'A' }],
+        choice: Picker.one(['a']),
         value: Option.none(),
         placeholder: 'Sort by',
         routes,

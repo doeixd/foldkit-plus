@@ -5,6 +5,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { encode as encodeQr } from 'uqr'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A QR code, Zag's qr-code: text encoded to a matrix of modules and drawn as
@@ -168,6 +169,20 @@ export const Download = Command.define('QrCode.Download', {
     ),
 })
 
+/** The text a QR code says in words: `label` has the value in `{value}`. */
+export interface QrCodeWords {
+  /** Said in place of the code when the value is too long. */
+  readonly tooLong: string
+  /** The code's accessible name when no `label` is given. */
+  readonly label: string
+}
+
+/** The words a QR code starts from; `words` overrides them one at a time. */
+export const words: QrCodeWords = {
+  tooLong: 'Too long for a QR code',
+  label: 'QR code: {value}',
+}
+
 export interface QrCodeView<Message> {
   /** Prefixes the ids the code draws, unique on the page; `Download` finds the code by it. */
   readonly id: string
@@ -181,8 +196,8 @@ export interface QrCodeView<Message> {
   readonly quietZone?: number | undefined
   /** Drawn over the centre, such as a logo. */
   readonly overlay?: Html | undefined
-  /** Said in place of the code when the value is too long; default `Too long for a QR code`. */
-  readonly tooLong?: string | undefined
+  /** The text the code says in words, over `QrCode.words`. */
+  readonly words?: Partial<QrCodeWords> | undefined
   /** A style of `QrCodeSlots`, for the look. */
   readonly style?: NamedStyle<typeof QrCodeSlots> | undefined
   /** Mixins beside the style. */
@@ -196,19 +211,20 @@ export const view = <Message>(options: QrCodeView<Message>, h: HtmlBuilder<Messa
     { input: undefined, h },
   )
   const { overlay } = options
+  const text = wordsOf(words, options.words)
   const level = options.level ?? (overlay === undefined ? 'M' : 'H')
   const zone = Math.max(0, options.quietZone ?? 4)
   return Option.match(encode(options.value, level), {
     onNone: () =>
       h.div(builders.root.attrs([h.DataAttribute('overflow', 'true')]), [
-        h.span(builders.fallback.attrs(), [options.tooLong ?? 'Too long for a QR code']),
+        h.span(builders.fallback.attrs(), [text.tooLong]),
       ]),
     onSome: matrix => {
       const side = String(matrix.size + zone * 2)
       return h.div(
         builders.root.attrs([
           h.Role('img'),
-          h.AriaLabel(options.label ?? `QR code: ${options.value}`),
+          h.AriaLabel(options.label ?? fill(text.label, { value: options.value })),
           h.DataAttribute('level', level),
         ]),
         [

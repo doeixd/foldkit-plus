@@ -49,13 +49,14 @@ export const raise = (offset: number): StyleValue =>
  * stay there, so shadow alone carries elevation; in a dark scheme each level
  * is an even step lighter (`knob.raise-dark`). Written as an expression, not
  * a token, because the level is the element's own and a token resolves at
- * `:root`.
+ * `:root`. In OKLab, so the base keeps its tint whatever space it was written
+ * in: Chrome 157 reads no hue from a color of little chroma that is not OKLCH.
  */
 export const raisedSurface = (): string => {
   const base = `var(${VAR_PREFIX}-surface-base)`
   const above = `(var(--_fk-level) - 1)`
   return (
-    `light-dark(oklch(from ${base} calc(l + (1 - l) * min(${above}, 2) / 2) c h), ` +
-    `oklch(from ${base} calc(l + var(${VAR_PREFIX}-knob-raise-dark) * ${above}) c h))`
+    `light-dark(oklab(from ${base} calc(l + (1 - l) * min(${above}, 2) / 2) a b), ` +
+    `oklab(from ${base} calc(l + var(${VAR_PREFIX}-knob-raise-dark) * ${above}) a b))`
   )
 }

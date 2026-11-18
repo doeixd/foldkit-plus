@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { Schema } from 'effect'
 import { Scene } from 'foldkit/test'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import * as Animation from '@foldkit/ui/animation'
 import * as UpstreamToast from '@foldkit/ui/toast'
 import { Behavior, Diagnostics, Style, type MixinValue } from 'foldkit-mixins'
 import {

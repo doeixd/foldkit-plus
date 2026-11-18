@@ -50,11 +50,16 @@ test('an Avatar and its recipe keep no other component', async () => {
     dts: false,
     logLevel: 'silent',
   })
-  const [avatar, everything] = await Promise.all([
+  const [avatar, withPicture, everything] = await Promise.all([
     keptBy(
       'avatar',
       `import { Avatar, AvatarSlots, Recipes } from 'ui'
 export const avatar = [Avatar.view, AvatarSlots, Recipes.Avatar({ color: 'name' })]`,
+    ),
+    keptBy(
+      'avatarPicture',
+      `import { Avatar } from 'ui'
+export const avatar = [Avatar.view, Avatar.picture]`,
     ),
     keptBy('everything', `export * as UI from 'ui'`),
   ])
@@ -63,6 +68,137 @@ export const avatar = [Avatar.view, AvatarSlots, Recipes.Avatar({ color: 'name' 
   expect(ours(avatar).some(id => id.endsWith('/dist/recipes/avatar.js'))).toBe(true)
   expect(ours(avatar).filter(id => /\/dist\/(recipes\/)?popover\.js$/.test(id))).toEqual([])
   expect(avatar.filter(upstream)).toEqual([])
+  // A picture is a value the page passes: the page that passes none ships none of it.
+  const picture = (kept: ReadonlyArray<string>) =>
+    kept.some(id => id.endsWith('/dist/avatar/picture.js'))
+  expect(picture(avatar)).toBe(false)
+  expect(picture(withPicture)).toBe(true)
   // The same walk sees @foldkit/ui where the package does reach it.
   expect(everything.some(upstream)).toBe(true)
+}, 120_000)
+
+test('a Card or an Item page ships no pointer highlight, and a group that passes one does', async () => {
+  await buildPackage({
+    ...config,
+    config: false,
+    cwd: packageDir,
+    outDir: join(out, 'dist'),
+    dts: false,
+    logLevel: 'silent',
+  })
+  const [card, item, group] = await Promise.all([
+    keptBy(
+      'card',
+      `import { Card } from 'ui'
+export const page = [Card.view, Card.group]`,
+    ),
+    keptBy(
+      'item',
+      `import { Item } from 'ui'
+export const page = [Item.view, Item.group]`,
+    ),
+    keptBy(
+      'cardFluid',
+      `import { Card } from 'ui'
+export const page = [Card.group, Card.fluid]`,
+    ),
+  ])
+  const highlight = (kept: ReadonlyArray<string>) =>
+    kept.some(id => /\/fluid-hover\.|\/dist\/card\/fluid\.js$/.test(id))
+  expect(highlight(card)).toBe(false)
+  expect(highlight(item)).toBe(false)
+  expect(highlight(group)).toBe(true)
+}, 120_000)
+
+test('an Image page keeps the load watch and the audit only when it names them', async () => {
+  await buildPackage({
+    ...config,
+    config: false,
+    cwd: packageDir,
+    outDir: join(out, 'dist'),
+    dts: false,
+    logLevel: 'silent',
+  })
+  const [plain, watching, auditing] = await Promise.all([
+    keptBy(
+      'imagePlain',
+      `import { Image } from 'ui'
+export const page = [Image.view]`,
+    ),
+    keptBy(
+      'imageWatch',
+      `import { Image } from 'ui'
+export const page = [Image.view, Image.watchLoad]`,
+    ),
+    keptBy(
+      'imageAudit',
+      `import { Image } from 'ui'
+export const page = [Image.view, Image.audit]`,
+    ),
+  ])
+  const has = (kept: ReadonlyArray<string>, file: string) =>
+    kept.some(id => id.endsWith(`/dist/image/${file}.js`))
+  expect([has(plain, 'watchLoad'), has(plain, 'audit')]).toEqual([false, false])
+  expect([has(watching, 'watchLoad'), has(watching, 'audit')]).toEqual([true, false])
+  expect([has(auditing, 'watchLoad'), has(auditing, 'audit')]).toEqual([false, true])
+}, 120_000)
+
+test('a choice control page keeps the drag, the reading keys, the fluid pill and the options-level views only when it names them', async () => {
+  await buildPackage({
+    ...config,
+    config: false,
+    cwd: packageDir,
+    outDir: join(out, 'dist'),
+    dts: false,
+    logLevel: 'silent',
+  })
+  const [adapters, viewed, dragged, keyed, fluid] = await Promise.all([
+    keptBy(
+      'choiceAdapters',
+      `import { Checkbox, RadioGroup, Segmented, Select, Switch } from 'ui'
+export const page = [Checkbox.toView, RadioGroup.toView, Segmented.view, Select.toView, Switch.toView]`,
+    ),
+    keptBy(
+      'choiceViews',
+      `import { Checkbox, RadioGroup, Select, Switch } from 'ui'
+export const page = [Checkbox.view, RadioGroup.view, Select.view, Switch.view]`,
+    ),
+    keptBy(
+      'switchDraggable',
+      `import { Switch } from 'ui'
+export const page = [Switch.toView, Switch.draggable]`,
+    ),
+    keptBy(
+      'radioKeys',
+      `import { RadioGroup } from 'ui'
+export const page = [RadioGroup.toView, RadioGroup.readingKeys]`,
+    ),
+    keptBy(
+      'segmentedFluid',
+      `import { Segmented } from 'ui'
+export const page = [Segmented.view, Segmented.fluid]`,
+    ),
+  ])
+  const has = (kept: ReadonlyArray<string>, file: string) =>
+    kept.some(id => id.endsWith(`/dist/${file}.js`))
+  expect(
+    [
+      'checkbox/view',
+      'switch/view',
+      'switch/draggable',
+      'radioGroup/view',
+      'radioGroup/readingKeys',
+      'select/view',
+      'segmented/fluid',
+    ].filter(file => has(adapters, file)),
+  ).toEqual([])
+  expect(
+    ['checkbox/view', 'switch/view', 'radioGroup/view', 'select/view'].every(file =>
+      has(viewed, file),
+    ),
+  ).toBe(true)
+  expect(has(viewed, 'switch/draggable') || has(viewed, 'radioGroup/readingKeys')).toBe(false)
+  expect(has(dragged, 'switch/draggable')).toBe(true)
+  expect(has(keyed, 'radioGroup/readingKeys')).toBe(true)
+  expect(has(fluid, 'segmented/fluid')).toBe(true)
 }, 120_000)

@@ -31,10 +31,34 @@ export const AppShell = Style.recipeFor(AppShellSlots)({
         gridTemplateColumns: 'auto minmax(0, 1fr)',
         gridTemplateAreas: '"side header" "side main" "side footer"',
       }),
+      Style.nest('&[data-aside]', {
+        gridTemplateColumns: 'minmax(0, 1fr) auto',
+        gridTemplateAreas: '"header header" "main aside" "footer footer"',
+      }),
+      Style.nest('&[data-side][data-aside]', {
+        gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+        gridTemplateAreas: '"side header header" "side main aside" "side footer footer"',
+      }),
       Style.at(
         phone,
         Style.nest('&[data-side]', {
           gridTemplateAreas: '"side header" "main main" "footer footer"',
+        }),
+      ),
+      // The aside follows the main region, in a row of its own.
+      Style.at(
+        phone,
+        Style.nest('&[data-aside]', {
+          gridTemplateColumns: 'minmax(0, 1fr)',
+          gridTemplateRows: 'auto 1fr auto auto',
+          gridTemplateAreas: '"header" "main" "aside" "footer"',
+        }),
+      ),
+      Style.at(
+        phone,
+        Style.nest('&[data-side][data-aside]', {
+          gridTemplateColumns: 'auto minmax(0, 1fr)',
+          gridTemplateAreas: '"side header" "main main" "aside aside" "footer footer"',
         }),
       ),
     ),
@@ -135,6 +159,32 @@ export const AppShell = Style.recipeFor(AppShellSlots)({
       // Focused by the skip link, not by a person: no ring for that.
       Style.nest('&:focus:not(:focus-visible)', { outline: 'none' }),
       Style.at(phone, Style.self({ padding: ref.space.md })),
+    ),
+    aside: component(
+      Style.self({
+        gridArea: 'aside',
+        // Pinned below the header while the main region scrolls past it.
+        position: 'sticky',
+        insetBlockStart: '3.5rem',
+        alignSelf: 'start',
+        inlineSize: '16rem',
+        maxBlockSize: 'calc(100dvh - 3.5rem)',
+        overflowY: 'auto',
+        padding: ref.space.lg,
+        paddingInlineStart: ref.space.md,
+        borderInlineStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
+      }),
+      Style.at(
+        phone,
+        Style.self({
+          position: 'static',
+          inlineSize: 'auto',
+          maxBlockSize: 'none',
+          padding: ref.space.md,
+          borderInlineStart: '0',
+          borderBlockStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
+        }),
+      ),
     ),
     footer: component(
       Style.self({

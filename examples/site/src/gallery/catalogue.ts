@@ -79,7 +79,7 @@ export const catalogue: ReadonlyArray<About> = [
     slug: 'select',
     title: 'Select',
     summary:
-      'The native select, styled like the fields beside it, and a custom one drawn over Listbox with icons, descriptions and groups.',
+      'The native select, styled like the fields beside it: options, groups, a placeholder, and the states.',
     recipe: 'Select',
     file: 'select',
     contract: 'SelectSlots',
@@ -297,6 +297,14 @@ export const catalogue: ReadonlyArray<About> = [
     contract: 'VirtualListSlots',
   },
   {
+    slug: 'window-list',
+    title: 'Window list',
+    summary: 'A list of thousands that scrolls with the page, drawing only the rows in view.',
+    recipe: 'WindowList',
+    file: 'windowList',
+    contract: 'WindowListSlots',
+  },
+  {
     slug: 'steps',
     title: 'Steps',
     summary:
@@ -471,7 +479,8 @@ export const catalogue: ReadonlyArray<About> = [
   {
     slug: 'listbox',
     title: 'Listbox',
-    summary: 'One value from a list that opens under its button.',
+    summary:
+      'A custom select: one value or several from a list that opens under its button, with icons, descriptions, groups, a trailing part, a clear button, and your own rule for what may be chosen.',
     recipe: 'Listbox',
     file: 'listbox',
     contract: 'ListboxSlots',
@@ -677,10 +686,19 @@ export const catalogue: ReadonlyArray<About> = [
     contract: 'FileInputSlots',
   },
   {
+    slug: 'file-upload',
+    title: 'File upload',
+    summary:
+      'A field of files, each with a status: picked, dropped or pasted, checked against limits, previewed, and sent by a transport you pass in.',
+    recipe: 'FileUpload',
+    file: 'fileUpload',
+    contract: 'FileUploadSlots',
+  },
+  {
     slug: 'picker',
     title: 'Picker',
     summary:
-      'One control that is a dropdown on a desktop and a bottom sheet on a phone, with one Model and one Message for a choice made either way.',
+      'One control that is a dropdown on a desktop and a bottom sheet on a phone, with one Model and one Message for a choice made either way, in groups, with a clear button.',
     recipe: 'Picker',
     file: 'picker',
     contract: 'PickerSlots',
@@ -702,6 +720,15 @@ export const catalogue: ReadonlyArray<About> = [
     contract: 'FigureSlots',
   },
   {
+    slug: 'frame',
+    title: 'Frame',
+    summary:
+      'A tray that holds several panels, with a heading, an action and a note: alerts, rows, a list of items.',
+    recipe: 'Frame',
+    file: 'frame',
+    contract: 'FrameSlots',
+  },
+  {
     slug: 'image',
     title: 'Image',
     summary:
@@ -717,6 +744,15 @@ export const catalogue: ReadonlyArray<About> = [
     recipe: 'Label',
     file: 'label',
     contract: 'LabelSlots',
+  },
+  {
+    slug: 'field',
+    title: 'Field',
+    summary:
+      'The shell around a control you drew: its label and mark, a description and errors, beside it or above it.',
+    recipe: 'Field',
+    file: 'fieldShell',
+    contract: 'FieldSlots',
   },
   {
     slug: 'fieldset',

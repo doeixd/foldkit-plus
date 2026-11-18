@@ -1,8 +1,8 @@
 /**
  * A picker that is a dropdown on a desktop and a bottom sheet on a phone:
  * one control, one Model and one set of Messages whatever the width. The
- * application owns the value, as with `@foldkit/ui`'s Listbox, and hears a
- * choice made either way as the same `Chose`.
+ * application owns the value, read through a `Choice` as the Listbox's is,
+ * and hears a choice made either way as the same `Chose`.
  *
  * ```text
  * at or above the breakpoint: Listbox trigger -> Listbox panel -> Selected -> Chose
@@ -23,7 +23,8 @@
  * arrows, Home and End move focus between them, and Enter, Space or a tap
  * chooses, which closes the Sheet and gives focus back to the opener. An
  * option's content and the trigger's are `Listbox.parts`', in the Listbox's
- * slots.
+ * slots, and so is the clear button, drawn beside the opener as the Listbox
+ * draws it beside its trigger.
  */
 import * as UiDialog from '@foldkit/ui/dialog'
 import * as UiListbox from '@foldkit/ui/listbox'
@@ -45,30 +46,44 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
+import type { SingleChoice } from './choice.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { ResolvedDialog } from './dialog.js'
 import { idSelector } from './datePickerUtils.js'
 import * as Listbox from './listbox.js'
+import { ListboxSlots } from './listbox/slots.js'
+import { words as listboxWords, type ListboxWords } from './listbox/words.js'
 import * as ListboxView from './listboxView.js'
-import type { MixinList } from './resolve.js'
+import { buildersOf, type MixinList } from './resolve.js'
+import type { RowContent } from './rowContent.js'
 import * as Sheet from './sheet.js'
+import { wordsOf } from './words.js'
 
 export const PickerSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   /** The desktop's half: the Listbox, its trigger and its panel. */
   dropdown: Slot.make({ capability: Capability.Container }),
-  /** The phone's half: the button that opens the Sheet. */
+  /** The phone's half: the opener with the clear button beside it. */
+  phone: Slot.make({ capability: Capability.Container }),
+  /** The button that opens the Sheet. */
   opener: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
-    attributes: [Attr.AriaExpanded, Attr.AriaLabel],
+    attributes: [Attr.AriaExpanded, Attr.AriaLabel, Attr.AriaDisabled, Attr.AriaInvalid],
   }),
   /** The Sheet's options. */
   list: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
   option: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click, Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaSelected],
+    attributes: [Attr.Role, Attr.AriaSelected, Attr.AriaDisabled],
   }),
+  /** A group of the Sheet's options, and its heading. */
+  group: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.Role, Attr.AriaLabelledby],
+  }),
+  heading: Slot.make({ capability: Capability.Container }),
 })
 
 export const Model = Schema.Struct({
@@ -115,7 +130,7 @@ export const init = (config: InitConfig): Model => ({
 export const optionId = (id: string, index: number): string => `${id}-option-${index}`
 
 /** Upstream's Listbox `update` with this package's view, over the picker's options. */
-const Dropdown = ListboxView.create<PickerOption<string>, string>()
+const Dropdown = ListboxView.create<string>()
 
 const Focus = Command.define('FocusPickerOption', {
   args: { selector: Schema.String },
@@ -168,26 +183,46 @@ export const update = (model: Model, message: Message): Return =>
     CompletedFocus: () => ({ model }),
   })
 
-/** An option: its value, and what it shows in the list and on the trigger. */
-export interface PickerOption<Value extends string> extends Listbox.OptionContent {
-  readonly value: Value
-}
-
 /** A key the application answers on a Sheet option; the press's `item.index` is the option's place. */
 export type Route<Message> = Behaviors.Keys.Route<undefined, Message>
 
-export interface PickerView<Value extends string, Outer> {
+export interface PickerView<Item extends string, Value, Outer> {
   readonly model: Model
   readonly onMessage: (message: Message) => NoInfer<Outer>
   /** Names the control, and titles the Sheet. */
   readonly label: string
-  readonly options: ReadonlyArray<PickerOption<Value>>
-  /** The chosen value, which the application keeps. */
-  readonly value: Option.Option<NoInfer<Value>>
+  /**
+   * How `value` is read: `Picker.one(items)`, or the application's own choice
+   * of at most one item. The item and value types come from here alone.
+   */
+  readonly choice: SingleChoice<Item, Value>
+  /** The application's field, folded through the same `choice` where the Bundle reports. */
+  readonly value: NoInfer<Value>
+  /** The rows offered now; default every item of the choice. */
+  readonly items?: ReadonlyArray<NoInfer<Item>> | undefined
+  /** A row's content; default its item as the label. */
+  readonly option?: ((item: NoInfer<Item>) => RowContent) | undefined
+  /** The group a row belongs to; rows of one group must be adjacent. */
+  readonly groupBy?: ((item: NoInfer<Item>) => string) | undefined
+  /** A group's heading in the dropdown and the Sheet; none draws the groups apart and unnamed. */
+  readonly heading?: ((group: string) => Html) | undefined
   /** Shown on the trigger while nothing is chosen. */
-  readonly placeholder: string
+  readonly placeholder?: string | undefined
+  /**
+   * A button beside the trigger that empties the choice while something is
+   * chosen: it sends `onClear`, and the application folds
+   * `ChoiceChange.ClearedSelection()` through its `choice`.
+   */
+  readonly clear?:
+    | { readonly onClear: NoInfer<Outer>; readonly content?: Html | undefined }
+    | undefined
+  readonly disabled?: boolean | undefined
+  readonly invalid?: boolean | undefined
+  /** Submits the chosen item under this name. */
+  readonly name?: string | undefined
   /** Where the dropdown's panel opens; default below the trigger's start, kept in place. */
   readonly anchor?: UiListbox.AnchorConfig
+  readonly words?: Partial<ListboxWords> | undefined
   /** A style of `PickerSlots` (`Recipes.Picker`). */
   readonly style?: NamedStyle<typeof PickerSlots> | undefined
   /** Mixins beside the style. */
@@ -243,12 +278,18 @@ export const conflict = <Outer>(routes: ReadonlyArray<Route<Outer>>): Option.Opt
   )
 
 /** The picker: the dropdown and the opener, one shown by the style, and the Sheet. */
-export const view = <Value extends string, Outer>(
-  options: PickerView<Value, Outer>,
+export const view = <const Item extends string, Value, Outer>(
+  options: PickerView<Item, Value, Outer>,
   h: HtmlBuilder<Outer>,
 ): Html => {
-  const { model, onMessage, value } = options
-  const choices = options.options
+  const { model, onMessage, choice, value, clear } = options
+  const items = options.items ?? choice.items
+  const rowOf = options.option ?? ((item: Item): RowContent => ({ label: item }))
+  const rows = new Map<string, RowContent>()
+  for (const item of items) rows.set(item, rowOf(item))
+  const chosen = choice.chosen(value)
+  // A chosen item the offered rows no longer hold still shows on the trigger.
+  const chosenRows = chosen.map(item => rows.get(item) ?? rowOf(item))
   const keys = Behaviors.Keys.behavior(PickerSlots)<undefined, Outer>({
     slot: 'option',
     name: 'PickerKeys',
@@ -258,7 +299,7 @@ export const view = <Value extends string, Outer>(
       ...ownRoutes<Outer>((key, index) =>
         Option.some(
           Behaviors.Keys.focus(
-            optionId(model.id, STEPS[key](index, choices.length)),
+            optionId(model.id, STEPS[key](index, items.length)),
             onMessage(Message.CompletedFocus()),
           ),
         ),
@@ -277,53 +318,134 @@ export const view = <Value extends string, Outer>(
   )
   const listboxMixins = options.listbox ?? []
   const part = Listbox.parts(listboxMixins, { h })
-  const chosen = Option.flatMap(value, current =>
-    Option.fromNullishOr(options.options.find(option => option.value === current)),
-  )
-  const trigger = part.trigger(chosen, options.placeholder)
+  const words = wordsOf(listboxWords, options.words)
   const focused = Math.max(
     0,
-    choices.findIndex(option => Option.contains(value, option.value)),
+    items.findIndex(item => chosen.includes(item)),
   )
   // Both triggers say what they choose and what is chosen.
-  const named = `${options.label}: ${Option.match(chosen, {
-    onNone: () => options.placeholder,
-    onSome: option => option.label,
-  })}`
+  const summary =
+    chosenRows.length === 0
+      ? (options.placeholder ?? '')
+      : chosenRows.map(row => row.label).join(', ')
+  const named = summary === '' ? options.label : `${options.label}: ${summary}`
+  const own = buildersOf(ListboxSlots, listboxMixins, { h })
+  const clearable = clear !== undefined && chosen.length > 0 && options.disabled !== true
+
+  const optionRow = (item: Item, index: number, dialog: ResolvedDialog<Outer>): Html => {
+    const row = rows.get(item) ?? { label: item }
+    return h.keyed('button')(
+      item,
+      builders.option.attrs(
+        [
+          h.Type('button'),
+          h.Id(optionId(model.id, index)),
+          h.Role('option'),
+          h.AriaSelected(chosen.includes(item)),
+          h.Tabindex(index === focused ? 0 : -1),
+          ...(index === focused ? dialog.initialFocus : []),
+          ...(row.disabled === true
+            ? [h.AriaDisabled(true)]
+            : [h.OnClick(onMessage(Message.ChoseInSheet({ value: item })))]),
+        ],
+        { index, id: item, count: items.length },
+      ),
+      [part.option(row)],
+    )
+  }
+
+  const sheetRows = (dialog: ResolvedDialog<Outer>): ReadonlyArray<Html> => {
+    const { groupBy, heading } = options
+    if (groupBy === undefined) return items.map((item, index) => optionRow(item, index, dialog))
+    // Rows of one group are adjacent: each run is a group of its own, under its heading.
+    const runs: Array<{ readonly name: string; readonly members: Array<Html> }> = []
+    items.forEach((item, index) => {
+      const name = groupBy(item)
+      const row = optionRow(item, index, dialog)
+      const last = runs.at(-1)
+      if (last !== undefined && last.name === name) last.members.push(row)
+      else runs.push({ name, members: [row] })
+    })
+    return runs.map(({ name, members }, run) => {
+      const headingId = `${model.id}-heading-${run}`
+      return h.div(
+        builders.group.attrs([
+          h.Role('group'),
+          ...(heading === undefined ? [] : [h.AriaLabelledBy(headingId)]),
+        ]),
+        [
+          ...(heading === undefined
+            ? []
+            : [h.div(builders.heading.attrs([h.Id(headingId)]), [heading(name)])]),
+          ...members,
+        ],
+      )
+    })
+  }
+
+  const opener = h.button(
+    builders.opener.attrs([
+      h.Type('button'),
+      h.AriaHasPopup('dialog'),
+      h.AriaExpanded(Sheet.isOpen(model.sheet)),
+      h.AriaLabel(named),
+      ...(options.invalid === true ? [h.AriaInvalid(true)] : []),
+      ...(options.disabled === true
+        ? [h.AriaDisabled(true)]
+        : [h.OnClick(onMessage(Message.OpenedSheet()))]),
+    ]),
+    [part.trigger(chosenRows, options.placeholder ?? '')],
+  )
+
   return h.div(builders.root.attrs(), [
     h.div(builders.dropdown.attrs(), [
-      h.submodel({
-        slotId: model.listbox.id,
-        model: model.listbox,
-        view: Dropdown.view,
-        viewInputs: {
+      Listbox.view(
+        {
+          model: model.listbox,
+          onMessage: message => onMessage(Message.GotListbox({ message })),
+          label: options.label,
+          choice,
+          value,
+          items,
+          option: rowOf,
+          ...(options.groupBy === undefined ? {} : { groupBy: options.groupBy }),
+          ...(options.heading === undefined ? {} : { heading: options.heading }),
+          ...(options.placeholder === undefined ? {} : { placeholder: options.placeholder }),
+          ...(clear === undefined ? {} : { clear }),
+          ...(options.disabled === undefined ? {} : { disabled: options.disabled }),
+          ...(options.invalid === undefined ? {} : { invalid: options.invalid }),
+          ...(options.name === undefined ? {} : { name: options.name }),
           anchor: options.anchor ?? {
             placement: 'bottom-start',
             gap: 4,
             padding: 8,
             portal: false,
           },
-          items: choices,
-          itemToValue: (option: PickerOption<string>) => option.value,
-          maybeSelectedValue: value,
-          ariaLabel: named,
-          itemToConfig: (option: PickerOption<string>) => ({ content: part.option(option) }),
-          buttonContent: trigger,
-          toView: Listbox.toView(listboxMixins, { h }),
+          words,
+          mixins: listboxMixins,
         },
-        toParentMessage: message => onMessage(Message.GotListbox({ message })),
-      }),
+        h,
+      ),
     ]),
-    h.button(
-      builders.opener.attrs([
-        h.Type('button'),
-        h.AriaHasPopup('dialog'),
-        h.AriaExpanded(Sheet.isOpen(model.sheet)),
-        h.AriaLabel(named),
-        h.OnClick(onMessage(Message.OpenedSheet())),
+    // The phone's half: the opener, with the clear button beside it as the Listbox's.
+    h.div(builders.phone.attrs(), [
+      h.div(own.root.attrs(clearable ? [h.DataAttribute('clearable', '')] : []), [
+        opener,
+        ...(clear === undefined || !clearable
+          ? []
+          : [
+              h.button(
+                own.clear.attrs([
+                  h.Type('button'),
+                  h.AriaLabel(words.clear),
+                  h.OnClick(clear.onClear),
+                  ...(clear.content === undefined ? [h.DataAttribute('glyph', 'cross')] : []),
+                ]),
+                clear.content === undefined ? [] : [clear.content],
+              ),
+            ]),
       ]),
-      [trigger],
-    ),
+    ]),
     Sheet.view(
       {
         model: model.sheet,
@@ -343,24 +465,7 @@ export const view = <Value extends string, Outer>(
                         h.Role('listbox'),
                         h.AriaLabelledBy(UiDialog.titleId(model.sheet.dialog)),
                       ]),
-                      choices.map((option, index) =>
-                        h.keyed('button')(
-                          option.value,
-                          builders.option.attrs(
-                            [
-                              h.Type('button'),
-                              h.Id(optionId(model.id, index)),
-                              h.Role('option'),
-                              h.AriaSelected(Option.contains(value, option.value)),
-                              h.Tabindex(index === focused ? 0 : -1),
-                              ...(index === focused ? dialog.initialFocus : []),
-                              h.OnClick(onMessage(Message.ChoseInSheet({ value: option.value }))),
-                            ],
-                            { index, id: option.value, count: choices.length },
-                          ),
-                          [part.option(option)],
-                        ),
-                      ),
+                      sheetRows(dialog),
                     ),
                   ]),
                 ]
@@ -371,3 +476,34 @@ export const view = <Value extends string, Outer>(
     ),
   ])
 }
+
+// The shipped choice, a file of its own, so a page keeps it only when it reads it.
+export { one } from './choice/one.js'
+
+/**
+ * What a Picker is given once: its look and each option that holds no
+ * Message, no drawing and nothing of one field's value.
+ */
+export type PickerPreset = Pick<
+  PickerView<string, unknown, never>,
+  'placeholder' | 'anchor' | 'words' | 'style' | 'listbox' | 'sheet'
+> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Picker: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both. `mixins` concatenate in that
+ * order and `words` merge word by word; any other option given at the call
+ * replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<PickerPreset, Names>,
+): {
+  readonly view: <const Item extends string, Value, Outer>(
+    options: PickerView<Item, Value, Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

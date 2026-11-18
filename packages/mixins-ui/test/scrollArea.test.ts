@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { overlayBars, ScrollAreaSlots, view } from '../src/scrollArea.js'
-import { Recipes } from '../src/index.js'
+import { Recipes, ScrollArea } from '../src/index.js'
 
 const h = SlotView.inertBuilder<never>()
 
@@ -109,5 +109,25 @@ describe('ScrollArea recipe', () => {
     expect(css({})).toContain('timeline-scope:--_fk-scroller-block')
     expect(css({})).toContain('scroll-timeline:--_fk-scroller-block block')
     expect(css({ orientation: 'horizontal' })).toContain('timeline-scope:--_fk-scroller-inline')
+  })
+})
+
+describe('ScrollArea gutter', () => {
+  const css = (selection: Parameters<typeof Recipes.ScrollArea>[0]): string =>
+    Style.forSlots(ScrollAreaSlots)(Recipes.ScrollArea(selection)).css
+
+  it('keeps the bar’s room only when stable', () => {
+    expect(css({})).not.toContain('scrollbar-gutter')
+    expect(css({ gutter: 'stable' })).toContain('scrollbar-gutter:stable')
+  })
+})
+
+describe('ScrollArea.configure', () => {
+  const style = Style.forSlots(ScrollAreaSlots)(Recipes.ScrollArea({}))
+  const App = ScrollArea.configure({ base: { style, mixins: overlayBars } })
+
+  it('binds the look and the bars once, and a call adds its own mixins after', () => {
+    const [, viewport] = Inert.byTag(App.view({ content: h.p([], ['Long words']) }, h), 'div')
+    expect(viewport?.data?.foldkitMount).toEqual({ name: 'ScrollBars', args: {} })
   })
 })

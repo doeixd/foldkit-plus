@@ -52,7 +52,13 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // schemas and `RemoteData.incident` hold on the page. Ceiling raised to the reading, rounded up.
 // +80 (2026-11-16, the default look: 245,180 against a tree at or under 245,100 without it): the
 // shipped theme's knob data and the pill chips' tokens. Ceiling raised to the reading, rounded up.
-const CEILING = 245_200
+// +494 on 2026-11-17 (245,694 at HEAD, 245,102 at the last green main, 4e299cb81; each commit built in
+// its own tree): +145 by the default look and the recipe API (`recipe.add` is a member of every
+// recipe, so `style.ts` is +454 minified in every page using Style; the shadows' and tints' theme
+// data +24, the app's own style +44) and +447 by #593, whose `runtimeJson` codec (1.7 kB minified)
+// is Remote's Model schema, so every Remote page carries it. No module was added to or dropped from
+// the page by the first, so `foldkit-bundle` and FileUpload did not reach it. Ceiling raised to the reading.
+const CEILING = 245_700
 
 clientBudget({
   name: 'chirp',

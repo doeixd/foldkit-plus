@@ -1,7 +1,6 @@
 import { Option } from 'effect'
 import {
   Attr,
-  Behavior,
   Capability,
   Slot,
   Slots,
@@ -10,9 +9,9 @@ import {
   type SlotBuilders,
 } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import * as Menu from './menu.js'
-import { MenuSlots } from './menu.js'
+import type { ItemRow } from './menu.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A breadcrumb trail publishes its regions as slots; it owns no state,
@@ -21,16 +20,22 @@ import type { MixinList } from './resolve.js'
  * recipe draws the separator between steps; a `separator` of the view's own
  * is drawn in each step after the first, hidden from assistive technology.
  * Folded (`collapse`), the middle of a long trail is one ellipsis, which
- * opens a Menu of the steps it hides, as shadcn's does, or asks the
- * application to draw the trail whole.
+ * asks the application to draw the trail whole, or opens what a
+ * `CollapseFeature` draws, such as `BreadcrumbMenu.make`'s Menu of the steps
+ * it hides.
  */
 export const BreadcrumbSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, attributes: [Attr.Role, Attr.AriaLabel] }),
   list: Slot.make({ capability: Capability.Container }),
   item: Slot.make({ capability: Capability.Container }),
-  link: Slot.make({ capability: Capability.Interactive }),
-  current: Slot.make({ capability: Capability.Container, attributes: [Attr.AriaCurrent] }),
+  link: Slot.make({ capability: Capability.Interactive, attributes: [Attr.AriaLabel] }),
+  current: Slot.make({
+    capability: Capability.Container,
+    attributes: [Attr.AriaCurrent, Attr.AriaLabel],
+  }),
   icon: Slot.make({ capability: Capability.Container }),
+  /** A step's `trailing` content, after its label. */
+  trailing: Slot.make({ capability: Capability.Container }),
   separator: Slot.make({ capability: Capability.Container }),
   ellipsis: Slot.make({ capability: Capability.Interactive }),
   /** The ellipsis's dots inside a Menu's trigger, which draws its own content box. */
@@ -44,41 +49,49 @@ export interface BreadcrumbStep {
   readonly current?: boolean | undefined
   /** Drawn before the label, hidden from assistive technology. */
   readonly icon?: Html | undefined
+  /** Drawn after the label: a count, a badge. */
+  readonly trailing?: Html | undefined
+  /** Draws no words: the label is the step's accessible name, for an `icon` that says it. */
+  readonly labelHidden?: boolean | undefined
 }
 
 interface CollapseParts {
   /** The most steps drawn, the ellipsis not counted; at least 2: the first and the last. */
   readonly max: number
-  /** The ellipsis's accessible name; default `"Show 3 more"`. */
-  readonly label?: ((hidden: number) => string) | undefined
 }
 
 /** The middle of a long trail folded into one ellipsis, which shows it all when pressed. */
 export interface BreadcrumbExpand<Message> extends CollapseParts {
   /** Sent by the ellipsis; the application answers it by drawing the trail without `collapse`. */
   readonly onExpand: Message
-  readonly menu?: undefined
+  readonly draw?: undefined
+}
+
+/** What a `CollapseFeature` is given to draw the ellipsis. */
+export interface CollapseDraw<Message> {
+  /** The ellipsis's accessible name: `words.more` with the count of hidden steps. */
+  readonly label: string
+  /** What the ellipsis shows: `words.ellipsis`. */
+  readonly ellipsis: string
+  /** The steps the trail hides, in order. */
+  readonly hidden: ReadonlyArray<BreadcrumbStep>
+  readonly builders: SlotBuilders<typeof BreadcrumbSlots, Message>
 }
 
 /**
- * The middle of a long trail folded into an ellipsis that opens a Menu of
- * the steps it hides, one row each (`menuRows`). The Menu's Model is the
- * application's, made with `Menu.init` and folded with `Menu.update`; a
- * row chosen comes out as `Menu.OutMessage.Selected`, whose step `chosen`
- * finds, for the application to go to.
+ * How a folded trail draws its ellipsis, built by the application and handed
+ * to the view as `collapse`. `BreadcrumbMenu.make` is one, a Menu of the hidden
+ * steps; one of the application's own (a Popover, a dialog) is a value of this
+ * shape. It lives apart from the trail so a page that never folds into a Menu
+ * never loads Menu.
  */
-export interface BreadcrumbMenu<Message> extends CollapseParts {
-  readonly menu: {
-    readonly model: Menu.Model
-    readonly onMessage: (message: Menu.Message) => Message
-    /** The Menu's style (`Recipes.Menu`) and mixins, as `Menu.view` takes them. */
-    readonly mixins: MixinList<Message>
-    readonly direction?: 'ltr' | 'rtl' | undefined
-  }
+export interface CollapseFeature<Message> extends CollapseParts {
+  /** The `li`'s content: the ellipsis, in the trail's `ellipsis` slot or the look of it. */
+  readonly draw: (input: CollapseDraw<Message>, h: HtmlBuilder<Message>) => Html
   readonly onExpand?: undefined
 }
 
-export type BreadcrumbCollapse<Message> = BreadcrumbExpand<Message> | BreadcrumbMenu<Message>
+export type BreadcrumbCollapse<Message> = BreadcrumbExpand<Message> | CollapseFeature<Message>
 
 /**
  * The steps drawn before the ellipsis, the ones it hides, and the ones after
@@ -111,9 +124,10 @@ export const collapsedOf = (
 export const menuRows = (
   steps: ReadonlyArray<BreadcrumbStep>,
   max: number,
-): ReadonlyArray<Menu.ItemRow> => rowsOf(collapsedOf(steps, max).hidden)
+): ReadonlyArray<ItemRow> => hiddenRows(collapsedOf(steps, max).hidden)
 
-const rowsOf = (hidden: ReadonlyArray<BreadcrumbStep>): ReadonlyArray<Menu.ItemRow> =>
+/** The rows of a Menu of these hidden steps; a row's value is its place among them. */
+export const hiddenRows = (hidden: ReadonlyArray<BreadcrumbStep>): ReadonlyArray<ItemRow> =>
   hidden.map((step, index) => ({ value: String(index), label: step.label }))
 
 /**
@@ -133,12 +147,12 @@ export const chosen = (
  * stands behind it.
  */
 export interface BreadcrumbView<Message = never> {
-  /** The landmark's name. Default `'Breadcrumb'`. */
-  readonly label?: string | undefined
+  /** The landmark's name, the ellipsis's name and what it shows. */
+  readonly words?: Partial<BreadcrumbWords> | undefined
   readonly steps: ReadonlyArray<BreadcrumbStep>
   /** A separator of the application's own, in place of the recipe's. */
   readonly separator?: Html | undefined
-  /** Folds the middle of a trail longer than `max` into an ellipsis. */
+  /** Folds the middle of a trail longer than `max` into an ellipsis; `BreadcrumbMenu.make` for a Menu. */
   readonly collapse?: BreadcrumbCollapse<Message> | undefined
   /** A style of `BreadcrumbSlots`, for the trail's look. */
   readonly style?: NamedStyle<typeof BreadcrumbSlots> | undefined
@@ -146,48 +160,20 @@ export interface BreadcrumbView<Message = never> {
   readonly mixins?: MixinList<Message> | undefined
 }
 
-const more = (hidden: number): string => `Show ${hidden} more`
+export interface BreadcrumbWords {
+  /** The landmark's accessible name. */
+  readonly label: string
+  /** The ellipsis's accessible name, `{count}` the steps it hides. */
+  readonly more: string
+  /** What the ellipsis shows. */
+  readonly ellipsis: string
+}
 
-/**
- * The ellipsis: a button that asks to expand, or a Menu's trigger. The Menu
- * draws its own button, so the ellipsis slot's look and the accessible name
- * reach it as a Behavior on the Menu's `button`; the breadcrumb recipe puts
- * the ellipsis's look in the variants layer, over the Menu style's trigger.
- */
-const ellipsisOf = <Message>(
-  collapse: BreadcrumbCollapse<Message>,
-  label: string,
-  hidden: ReadonlyArray<BreadcrumbStep>,
-  builders: SlotBuilders<typeof BreadcrumbSlots, Message>,
-  h: HtmlBuilder<Message>,
-): Html => {
-  if (collapse.menu === undefined) {
-    return h.button(
-      builders.ellipsis.attrs([h.Type('button'), h.AriaLabel(label), h.OnClick(collapse.onExpand)]),
-      ['…'],
-    )
-  }
-  const { menu } = collapse
-  const asEllipsis = Behavior.forSlots(MenuSlots)<unknown, Message>(
-    {
-      button: Behavior.slot({
-        requires: { capability: Capability.Interactive },
-        attributes: () => builders.ellipsis.attrs([h.AriaLabel(label)]),
-      }),
-    },
-    { name: 'BreadcrumbEllipsis' },
-  ).mixin
-  return Menu.view(
-    {
-      model: menu.model,
-      rows: rowsOf(hidden),
-      buttonContent: h.span(builders.dots.attrs([h.AriaHidden(true)]), ['…']),
-      onMessage: menu.onMessage,
-      mixins: [...menu.mixins, asEllipsis],
-      ...(menu.direction === undefined ? {} : { direction: menu.direction }),
-    },
-    h,
-  )
+/** The defaults, in English: text with `{blanks}`. */
+export const words: BreadcrumbWords = {
+  label: 'Breadcrumb',
+  more: 'Show {count} more',
+  ellipsis: '…',
 }
 
 export const view = <Message = never>(
@@ -199,56 +185,65 @@ export const view = <Message = never>(
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
     { input: undefined, h },
   )
+  const text = wordsOf(words, options.words)
   const separator = options.separator
-  const leading = (index: number): ReadonlyArray<Html> =>
-    separator === undefined || index === 0
+  // After the step it follows, so a wrapped trail never begins a line with one.
+  const trailingSeparator = (index: number, total: number): ReadonlyArray<Html> =>
+    separator === undefined || index === total - 1
       ? []
       : [h.span(builders.separator.attrs([h.AriaHidden(true)]), [separator])]
   const labelled = (step: BreadcrumbStep): ReadonlyArray<Html | string> => [
     ...(step.icon === undefined
       ? []
       : [h.span(builders.icon.attrs([h.AriaHidden(true)]), [step.icon])]),
-    step.label,
+    ...(step.labelHidden === true ? [] : [step.label]),
+    ...(step.trailing === undefined ? [] : [h.span(builders.trailing.attrs(), [step.trailing])]),
   ]
-  const drawStep = (step: BreadcrumbStep, index: number): Html =>
-    h.li(builders.item.attrs(), [
-      ...leading(index),
-      ...(step.current === true
-        ? [h.span(builders.current.attrs([h.AriaCurrent('page')]), labelled(step))]
-        : [
-            h.a(
-              builders.link.attrs([...(step.href === undefined ? [] : [h.Href(step.href)])]),
-              labelled(step),
-            ),
-          ]),
+  const drawStep = (step: BreadcrumbStep, index: number, total: number): Html => {
+    const name = step.labelHidden === true ? [h.AriaLabel(step.label)] : []
+    return h.li(builders.item.attrs(), [
+      step.current === true
+        ? h.span(builders.current.attrs([h.AriaCurrent('page'), ...name]), labelled(step))
+        : h.a(
+            builders.link.attrs([...(step.href === undefined ? [] : [h.Href(step.href)]), ...name]),
+            labelled(step),
+          ),
+      ...trailingSeparator(index, total),
     ])
+  }
   const collapse = options.collapse
   const { before, hidden, after } =
     collapse === undefined
       ? { before: options.steps, hidden: [], after: [] }
       : collapsedOf(options.steps, collapse.max)
+  const label = fill(text.more, { count: hidden.length })
+  const total = before.length + (hidden.length === 0 ? 0 : 1) + after.length
   const folded =
     collapse === undefined || hidden.length === 0
       ? []
       : [
           h.li(builders.item.attrs(), [
-            ...leading(before.length),
-            ellipsisOf(collapse, (collapse.label ?? more)(hidden.length), hidden, builders, h),
+            collapse.draw === undefined
+              ? h.button(
+                  builders.ellipsis.attrs([
+                    h.Type('button'),
+                    h.AriaLabel(label),
+                    h.OnClick(collapse.onExpand),
+                  ]),
+                  [text.ellipsis],
+                )
+              : collapse.draw({ label, ellipsis: text.ellipsis, hidden, builders }, h),
+            ...trailingSeparator(before.length, total),
           ]),
         ]
-  return h.nav(
-    builders.root.attrs([h.AriaLabel(options.label ?? 'Breadcrumb'), h.Role('navigation')]),
-    [
-      h.ol(
-        builders.list.attrs(
-          separator === undefined ? [] : [h.DataAttribute('separator', 'custom')],
-        ),
-        [
-          ...before.map((step, index) => drawStep(step, index)),
-          ...folded,
-          ...after.map((step, index) => drawStep(step, before.length + folded.length + index)),
-        ],
-      ),
-    ],
-  )
+  return h.nav(builders.root.attrs([h.AriaLabel(text.label), h.Role('navigation')]), [
+    h.ol(
+      builders.list.attrs(separator === undefined ? [] : [h.DataAttribute('separator', 'custom')]),
+      [
+        ...before.map((step, index) => drawStep(step, index, total)),
+        ...folded,
+        ...after.map((step, index) => drawStep(step, before.length + folded.length + index, total)),
+      ],
+    ),
+  ])
 }

@@ -354,9 +354,14 @@ stays. How the thumb rests, widens and fades is the style's;
 
 **`InputMask({ pattern })`** masks a field against `#` (digit), `A`
 (letter), and `*` (either) placeholders with literal separators, rewrites the
-field with approximate caret restore, and emits `Input { value, raw }` with
-the masked and unmasked text. The parent owns the value, like any controlled
-input. `applyMask(value, pattern)` is the pure rule.
+field, and emits `Input { value, raw }` with the masked and unmasked text. The
+caret stays after the same typed character, counted in the unmasked text, since
+the browser leaves it at an index of the text before the mask added its
+separators: typing straight through, in the middle, or pasting a number each
+leave it where a person expects. A Backspace (or Delete) that would remove only a
+separator takes the typed character on that side of the caret instead, and a
+composition is left alone until the input method commits it. The parent owns the
+value, like any controlled input. `applyMask(value, pattern)` is the pure rule.
 
 **`KeyboardInset`** writes `--fk-keyboard-inset` on its element: how much of the
 layout viewport's bottom the on-screen keyboard covers, from the visual
@@ -474,6 +479,50 @@ keeps the window's scroll across same-document navigations, so a pushed entry
 starts at the top and Back, Forward, or a reload return where that entry was.
 Without a window the stream is empty. The CMS example lifts it beside its
 other subscriptions.
+
+```ts
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Subscription from 'foldkit/subscription'
+import { keepScroll } from 'foldkit-primitives/dom'
+
+const ShellModel = Schema.Struct({})
+type ShellModel = typeof ShellModel.Type
+const ShellMessage = defineMessageUnion({ Noted: {} })
+type ShellMessage = typeof ShellMessage.Type
+
+const subscriptions = Subscription.make<ShellModel, ShellMessage>()(() => ({
+  // The window, for a page that scrolls as a document.
+  scroll: Subscription.persistentEntry(keepScroll()),
+  // An element, for a shell whose centre column scrolls and the window does not.
+  column: Subscription.persistentEntry(
+    keepScroll({
+      scroller: () => document.getElementById('main'),
+      storageKey: 'foldkit:column-scroll',
+    }),
+  ),
+}))
+```
+
+`scroller` names the element that scrolls in place of the window; it is looked up
+each time, since the application draws it. Give each scroller its own `storageKey`.
+
+What it does and when:
+
+- **The offset is taken when the reader acts** (a click or key, in the capture phase) and as Back
+  and Forward begin: the next screen is drawn before the address is pushed, so by then the
+  scroller is already clamped to the shorter page.
+- **A restore holds its place while the screen settles**: the offset is applied each frame once the
+  page is tall enough, and the hold ends when the page's height has stood still for two frames at
+  the offset, the reader scrolls, touches or types, or another navigation starts. `patience`
+  (default 10 s) is only the ceiling.
+- **A reload restores from `sessionStorage`**, keyed by the Navigation API's entry key. The offsets
+  are written at `beforeunload` (the one that runs on a desktop reload before Foldkit disposes the
+  runtime, which it does at `pagehide`), and again at `visibilitychange` to hidden and at
+  `pagehide`, which cover a page put away without `beforeunload` (a phone's tab switch) or kept for
+  Back and Forward. There is no `unload` handler: it makes a page ineligible for the back/forward
+  cache.
+- **Without the Navigation API** the stream attaches nothing and the browser's own behaviour stands.
 
 ## `pointedLinks`: where the reader may go next
 

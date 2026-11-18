@@ -297,6 +297,34 @@ describe('Questionnaire view', () => {
     expect(Inert.value(summary, 'id')).toBe('ask-summary')
   })
 
+  it('says its words in the application’s language, the page counted from 1', () => {
+    const words = {
+      submit: 'Senden',
+      next: 'Weiter',
+      back: 'Zurück',
+      missing: 'Bitte antworten',
+      skipped: 'Übersprungen',
+      progress: 'Frage {page} von {total}',
+    }
+    const first = drawWith(fresh('paged'), { words })
+    expect(Inert.text(first)).toContain('Frage 1 von 3')
+    expect(worded(first)).toEqual(['Weiter'])
+    const second = run(fresh('paged'), chose('plain', 0), Message.Submitted())
+    expect(worded(drawWith(second, { words }))).toEqual(['Zurück', 'Weiter'])
+    const last = run(
+      second,
+      Message.Toggled({ question: 'parts', value: 'intro' }),
+      Message.Submitted(),
+    )
+    expect(worded(drawWith(last, { words }))).toEqual(['Zurück', 'Senden'])
+    const missing = run(fresh(), Message.Submitted())
+    expect(Inert.text(drawWith(missing, { words }))).toContain('Bitte antworten')
+    const sent = update(complete(fresh()), Message.Submitted()).model
+    expect(Inert.byTag(drawWith(sent, { words }), 'dd').map(each => Inert.text(each))).toContain(
+      'Übersprungen',
+    )
+  })
+
   it('draws every element of its own in a Slot', () => {
     expect(Inert.unslotted(drawWith(fresh()))).toEqual([])
     expect(Inert.unslotted(drawWith(update(complete(fresh()), Message.Submitted()).model))).toEqual(

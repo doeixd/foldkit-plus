@@ -10,7 +10,7 @@
 import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { CheckboxGroupSlots } from '../checkboxGroup.js'
-import { component, ref, variant } from './design.js'
+import { component, ref, transition, variant } from './design.js'
 import { Checkbox } from './toggle.js'
 
 const checked = '[data-checked="true"]'
@@ -65,7 +65,8 @@ export const CheckboxGroup = Style.recipeFor(CheckboxGroupSlots)({
     option: component(
       Style.self({
         display: 'grid',
-        gridTemplateColumns: 'auto minmax(0, 1fr)',
+        gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+        position: 'relative',
         alignContent: 'start',
         columnGap: ladder('gap'),
         rowGap: ladder('inset'),
@@ -83,13 +84,22 @@ export const CheckboxGroup = Style.recipeFor(CheckboxGroupSlots)({
       box.checkbox,
       component(Style.self({ gridRow: '1', alignSelf: 'center' })),
     ),
-    // A disabled option's words dim with its box.
+    // A disabled option's words dim with its box. A mark before the words sits on their line.
     label: Style.compose(
       box.label,
-      component(Style.nest(dimmed, { opacity: ref.knob['state-disabled'] })),
+      component(
+        Style.self({ display: 'flex', alignItems: 'center', gap: ladder('gap') }),
+        Style.nest(dimmed, { opacity: ref.knob['state-disabled'] }),
+      ),
+    ),
+    icon: component(Style.self({ display: 'inline-flex', flexShrink: '0' })),
+    // After the words, in the label's row.
+    trailing: component(
+      Style.self({ gridColumn: '3', gridRow: '1', alignSelf: 'center', display: 'inline-flex' }),
+      Style.nest(dimmed, { opacity: ref.knob['state-disabled'] }),
     ),
     description: component(
-      Style.self({ gridColumn: '2', margin: '0', color: ref.text.muted, ...role('caption') }),
+      Style.self({ gridColumn: '2 / -1', margin: '0', color: ref.text.muted, ...role('caption') }),
       Style.nest(dimmed, { opacity: ref.knob['state-disabled'] }),
     ),
     error: component(Style.self({ margin: '0', color: ref.error.ink, ...role('caption') })),
@@ -97,6 +107,35 @@ export const CheckboxGroup = Style.recipeFor(CheckboxGroupSlots)({
   variants: {
     variant: {
       plain: { option: variant(Style.self({})) },
+      // Each row is a card that fills when checked. The label is stretched over it, so
+      // a press anywhere on the card is the label's own click; a trailing mark stays above.
+      card: {
+        option: variant(
+          Style.self({
+            padding: ladder('row-pad'),
+            border: `${ref.border.thin} solid ${ref.outline.subtle}`,
+            background: ref.surface.base,
+            borderRadius: ref.radius.lg,
+            ...transition('background-color, border-color'),
+          }),
+          Style.pseudo(':hover:not(:has(> [aria-disabled="true"]))', {
+            borderColor: ref.outline.overt,
+          }),
+          Style.pseudo(checked, {
+            borderColor: ref.accent.default,
+            background: ref.accent.subtle,
+          }),
+        ),
+        label: variant(
+          Style.pseudo('::after', {
+            content: '""',
+            position: 'absolute',
+            inset: '0',
+            borderRadius: 'inherit',
+          }),
+        ),
+        trailing: variant(Style.self({ position: 'relative' })),
+      },
       list: {
         option: variant(
           Style.self({

@@ -4,6 +4,7 @@
  * test fails for every one.
  */
 const tests = ['packages/mixins-ui/test/codeBlock.test.ts']
+const browser = 'packages/mixins-ui/test/codeBlock.browser.test.ts'
 
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
@@ -35,7 +36,7 @@ export default [
     edits: [
       {
         file: '../src/codeBlock.ts',
-        find: "copy.copied === true ? [copy.copiedLabel ?? 'Copied'] : []",
+        find: 'copy.copied === true ? [text.copied] : []',
         replace: '[]',
       },
     ],
@@ -74,8 +75,8 @@ export default [
   edit(
     'a copied button that still says Copy',
     '../src/codeBlock.ts',
-    "(copy.copiedLabel ?? 'Copied')",
-    "(copy.label ?? 'Copy')",
+    'copy.copied === true ? text.copied : text.copy',
+    'text.copy',
   ),
   edit(
     'line numbers never asked for',
@@ -89,4 +90,206 @@ export default [
     "'syntax-comment': { color: ref.syntax.comment,",
     "'syntax-comment': { color: ref.syntax.keyword,",
   ),
+  edit(
+    'the copied word given is ignored',
+    '../src/codeBlock.ts',
+    'copy.copied === true ? [text.copied] : [],',
+    'copy.copied === true ? [words.copied] : [],',
+  ),
+  edit(
+    'the copy word given is ignored',
+    '../src/codeBlock.ts',
+    'copy.copied === true ? text.copied : text.copy',
+    'copy.copied === true ? text.copied : words.copy,',
+  ),
+  edit(
+    'lines counted from one past startLine',
+    '../src/codeBlock.ts',
+    'const line = first + index',
+    'const line = 1 + index',
+  ),
+  edit(
+    'a mark past the last line accepted',
+    '../src/codeBlock.ts',
+    ' || mark.line >= first + count',
+    '',
+  ),
+  edit(
+    'a second mark on a line accepted',
+    '../src/codeBlock.ts',
+    'if (byLine.has(mark.line))',
+    'if (false)',
+  ),
+  edit(
+    'a fractional start accepted',
+    '../src/codeBlock.ts',
+    'if (!Number.isInteger(first)) throw',
+    'if (false) throw',
+  ),
+  edit(
+    'a line drawn without its mark',
+    '../src/codeBlock.ts',
+    "[h.DataAttribute('mark', mark)]",
+    '[]',
+  ),
+  edit(
+    'the gutter text ignored',
+    '../src/codeBlock.ts',
+    'gutter === undefined ? String(line) : gutter(line)',
+    'String(line)',
+  ),
+  edit(
+    'the gutters as wide as the first',
+    '../src/codeBlock.ts',
+    '...shown.map((_, index) => numberOf(first + index).length)',
+    'numberOf(first).length',
+  ),
+  edit(
+    'a gutter drawn on every block',
+    '../src/codeBlock.ts',
+    'options.lineNumbers === true || onLineSelect !== undefined',
+    'true',
+  ),
+  edit(
+    'a selected line not pressed',
+    '../src/codeBlock.ts',
+    "String(marks.get(line) === 'selected')",
+    "'false'",
+  ),
+  edit(
+    'a gutter button that sends nothing',
+    '../src/codeBlock.ts',
+    'h.OnClick(onLineSelect(line)),',
+    '',
+  ),
+  edit(
+    'a collapsed block drawn whole',
+    '../src/codeBlock.ts',
+    'all.slice(0, collapsed.lines)',
+    'all',
+  ),
+  edit(
+    'the expand button counts the lines drawn',
+    '../src/codeBlock.ts',
+    'fill(text.expand, { count: all.length })',
+    'fill(text.expand, { count: shown.length })',
+  ),
+  edit(
+    'a collapse to no lines accepted',
+    '../src/codeBlock.ts',
+    'collapsed.lines >= 1',
+    'collapsed.lines >= 0',
+  ),
+  edit(
+    'no line action drawn',
+    '../src/codeBlock.ts',
+    'onSome: drawn => [h.span(builders.lineAction.attrs(), [drawn])],',
+    'onSome: () => [],',
+  ),
+  edit('a wrap never written', '../src/codeBlock.ts', "[h.DataAttribute('wrap', 'true')]", '[]'),
+  edit(
+    'a removed line tinted as added',
+    '../src/recipes/codeBlock.ts',
+    'removed: { background: ref.error.subtle,',
+    'removed: { background: ref.success.subtle,',
+  ),
+  {
+    name: 'a dim line drawn at full strength',
+    edits: [
+      {
+        file: '../src/recipes/codeBlock.ts',
+        find: "dim: { opacity: ref.knob['state-disabled'] },",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a short line tinted only as far as its text',
+    edits: [
+      {
+        file: '../src/recipes/codeBlock.ts',
+        find: "        inlineSize: '100%',\n        minBlockSize: '1lh',",
+        replace: "        minBlockSize: '1lh',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the code as wide as the body, not the widest line',
+    edits: [
+      {
+        file: '../src/recipes/codeBlock.ts',
+        find: "inlineSize: 'max-content', minInlineSize: '100%'",
+        replace: "minInlineSize: '100%'",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'each gutter as wide as its own text',
+    edits: [
+      {
+        file: '../src/recipes/codeBlock.ts',
+        find: "minInlineSize: 'var(--fk-code-gutter, 2ch)',",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a wrapped block still scrolls sideways',
+    edits: [
+      {
+        file: '../src/recipes/codeBlock.ts',
+        find: "Style.nest(wrapped, { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }),",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a floating header stays a bar',
+    edits: [
+      {
+        file: '../src/recipes/codeBlock.ts',
+        find: "            position: 'absolute',\n",
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a dark block takes the page scheme',
+    edits: [
+      {
+        file: '../src/recipes/codeBlock.ts',
+        find: "dark: { root: variant(Style.self({ colorScheme: 'dark' })) },",
+        replace: 'dark: {},',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a following block never scrolls to its end',
+    edits: [
+      {
+        file: '../src/codeBlock/follow.ts',
+        find: 'if (following) element.scrollTop = element.scrollHeight',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a following block pulls a reader who scrolled up',
+    edits: [
+      {
+        file: '../src/codeBlock/follow.ts',
+        find: '            following = element.scrollHeight - element.clientHeight - element.scrollTop <= NEAR\n',
+        replace: '',
+      },
+    ],
+    tests: [browser],
+  },
 ]

@@ -9,24 +9,11 @@ already exposes. The generated action delegates validation, availability,
 authorization, dispatch, and completion back to a bound `AgentRuntime`; it does
 not reimplement application behavior.
 
-```text
-Foldkit application
-       |
-       v
-AssistantAgent              protocol-neutral contract
-       |
-       | AgentBuilder.bind(...)
-       v
-AgentRuntime                live Model + dispatch + policy
-       ^
-       |
-resolveRuntime(ctx)
-       |
-foldkit-agent-native        adapter
-       |
-       v
-Agent Native action registry
-```
+The application's `AssistantAgent` is the protocol-neutral contract.
+`AgentBuilder.bind(...)` binds it to an `AgentRuntime`, which holds the live Model,
+dispatch and policy. `foldkit-agent-native` is the adapter: it gives Agent Native
+an action registry, and each invocation reaches the runtime through
+`resolveRuntime(ctx)`.
 
 Application behavior still ends in the existing Foldkit Message and `update`.
 This package is an adapter, not a second agent architecture.
@@ -102,25 +89,10 @@ const runtimeFor = (context: HostContext) =>
 
 That distinction is the heart of this adapter:
 
-```text
-static
-AssistantAgent
-      |
-      v
-Agent Native action descriptions
-
-per invocation
-verified host caller/context
-      |
-      v
-resolveRuntime(ctx)
-      |
-      v
-AgentRuntime
-      |
-      v
-availability -> authorization -> Message -> update
-```
+Statically, the `AssistantAgent` becomes Agent Native action descriptions. Per
+invocation, a verified host caller and context go to `resolveRuntime(ctx)`, which
+returns the `AgentRuntime`; that checks availability, then authorization, then
+dispatches the Message to `update`.
 
 The registry describes capabilities. The bound runtime decides whether a
 particular caller may use one **right now**.

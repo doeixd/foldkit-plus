@@ -10,7 +10,7 @@ export default [
     name: "a Command's bars run on its root, which does not scroll",
     edits: [
       {
-        file: '../src/command.ts',
+        file: '../src/command/overlayBars.ts',
         find: '      list: Behavior.slot({',
         replace: '      root: Behavior.slot({',
       },
@@ -21,7 +21,7 @@ export default [
     name: "a VirtualList's bars take its root for the scroller",
     edits: [
       {
-        file: '../src/virtualList.ts',
+        file: '../src/virtualList/overlayBars.ts',
         find: "mount: () => ScrollBars({ scroller: ':scope > ul' }),",
         replace: 'mount: () => ScrollBars({}),',
       },
@@ -108,7 +108,7 @@ export default [
     name: "a Listbox's bars run nowhere",
     edits: [
       {
-        file: '../src/listbox.ts',
+        file: '../src/listbox/overlayBars.ts',
         find: "        mount: () => ScrollBars({}),\n      }),\n    },\n    { name: 'ListboxScrollBars' },",
         replace:
           "        mount: () => ScrollBars({}),\n      }),\n    },\n    { name: 'ListboxScrollBars' },\n  ).mixin && Behavior.forSlots(ListboxSlots)<unknown, never>(\n    {},\n    { name: 'ListboxScrollBars' },",

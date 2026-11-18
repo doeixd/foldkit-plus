@@ -7,6 +7,7 @@ import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
 import type { MixinList } from './resolve.js'
+import { wordsOf } from './words.js'
 
 /**
  * Content that scrolls on and on, after Zag's marquee: a `region` with
@@ -98,6 +99,15 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
 /** Where the content moves to: the inline start or end, or up or down. */
 export type MarqueeSide = 'start' | 'end' | 'top' | 'bottom'
 
+/** The pause press's words. */
+export interface MarqueeWords {
+  readonly pause: string
+  readonly play: string
+}
+
+/** The words a marquee starts from; `words` overrides them one at a time. */
+export const words: MarqueeWords = { pause: 'Pause', play: 'Play' }
+
 export interface MarqueeView<Message> {
   readonly model: Model
   /** Lifts the marquee's own Messages into the application's. */
@@ -122,8 +132,8 @@ export interface MarqueeView<Message> {
   readonly repeat?: number | undefined
   /** Draws the pause press; default true. */
   readonly controls?: boolean | undefined
-  /** The pause press's words; default `Pause` and `Play`. */
-  readonly pauseLabels?: { readonly pause: string; readonly play: string } | undefined
+  /** The pause press's words, over `Marquee.words`. */
+  readonly words?: Partial<MarqueeWords> | undefined
   /** A style of `MarqueeSlots`, for the look. */
   readonly style?: NamedStyle<typeof MarqueeSlots> | undefined
   /** Mixins beside the style. */
@@ -195,7 +205,7 @@ export const view = <Outer>(options: MarqueeView<Outer>, h: HtmlBuilder<Outer>):
     }),
   }
   const cloned = copies > 1 ? options.items.map(unidentified) : []
-  const labels = options.pauseLabels ?? { pause: 'Pause', play: 'Play' }
+  const labels = wordsOf(words, options.words)
 
   return h.div(
     builders.root.attrs([

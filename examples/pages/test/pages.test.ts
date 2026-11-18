@@ -934,7 +934,7 @@ describe('the window’s width, which the formatting bar is compact at', () => {
     expect(update(narrowed, Message.NarrowChanged({ narrow: true })).model).toBe(narrowed)
   })
 
-  it('draws the wide bar’s every control, and only the high ones when narrow', async () => {
+  it('draws the wide bar’s every control, and only the high ones and More when narrow', async () => {
     const container = document.createElement('div')
     container.id = 'pages-narrow'
     document.body.append(container)
@@ -947,7 +947,8 @@ describe('the window’s width, which the formatting bar is compact at', () => {
           button => button.getAttribute('data-item'),
         )
       const high = ['undo', 'redo', 'style', 'mark-Bold', 'mark-Italic', 'link', 'insert']
-      await vi.waitFor(() => expect(drawn()).toEqual(high))
+      // The low controls are in More, which the wide bar does not draw.
+      await vi.waitFor(() => expect(drawn()).toEqual([...high, 'more']))
       mounted.dispatch(Message.NarrowChanged({ narrow: false }))
       await vi.waitFor(() => expect(drawn()).toHaveLength(15))
       expect(drawn().filter(item => !high.includes(item ?? ''))).toEqual([

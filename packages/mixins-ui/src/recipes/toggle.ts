@@ -26,7 +26,77 @@ const checked = '[aria-checked="true"]'
 
 const label = component(Style.self({ color: ref.text.default, ...role('body'), cursor: 'pointer' }))
 
-const description = component(Style.self({ color: ref.text.muted, ...role('body') }))
+const description = component(Style.self({ color: ref.text.muted, ...role('body'), margin: '0' }))
+
+/**
+ * The row `Checkbox.view` and `Switch.view` draw: the control, then the
+ * words. The control sits on the label's first line, the words take what is
+ * left, and `position: end` reverses the row so the control is at the far
+ * end, as a settings list has it. The root's marks are written by the view.
+ */
+const row = {
+  root: component(
+    Style.self({
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: ladder('gap'),
+    }),
+    Style.states({ end: { flexDirection: 'row-reverse' } }, 'data-position'),
+  ),
+  text: component(
+    Style.self({ display: 'flex', flexDirection: 'column', flex: '1', minInlineSize: '0' }),
+    // The words dim with the control.
+    Style.nest(':where([data-disabled="true"]) > &', { opacity: ref.knob['state-disabled'] }),
+  ),
+  heading: component(
+    Style.self({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: ladder('gap') }),
+  ),
+  aside: component(Style.self({ display: 'inline-flex', alignItems: 'center' })),
+}
+
+/** The control on the label's first line: `1lh` is the label's leading, from the body role. */
+const onFirstLine = (edgeLength: string) =>
+  Style.nest(':where([data-position]) > &', {
+    ...role('body'),
+    marginBlockStart: `calc((1lh - ${edgeLength}) / 2)`,
+  })
+
+/**
+ * `variant: card` boxes the row and fills it while chosen. The label is
+ * stretched over the card, so a press anywhere on it is the label's own
+ * click; the aside stays above it, where a Tooltip or a link can be pressed.
+ */
+const card = {
+  root: variant(
+    Style.self({
+      // Cards of a list are one width: their words alone would make each its own.
+      minInlineSize: ref.width['column-lg'],
+      padding: ladder('row-pad'),
+      border: `${ref.border.thin} solid ${ref.outline.subtle}`,
+      borderRadius: ref.radius.lg,
+      background: ref.surface.base,
+      ...transition('background-color, border-color'),
+    }),
+    Style.pseudo(':hover:not([data-disabled="true"])', { borderColor: ref.outline.overt }),
+    Style.pseudo('[data-checked="true"]', {
+      borderColor: ref.accent.default,
+      background: ref.accent.subtle,
+    }),
+    Style.pseudo('[data-invalid="true"]', { borderColor: ref.error.outline }),
+  ),
+  label: variant(
+    Style.pseudo('::after', {
+      content: '""',
+      position: 'absolute',
+      inset: '0',
+      borderRadius: 'inherit',
+    }),
+  ),
+  aside: variant(Style.self({ position: 'relative' })),
+}
+
+const looks = { plain: { root: variant(Style.self({})) }, card }
 
 /** The control's edge length; the check mark and the thumb scale from it. */
 const box = (length: string) => variant(Style.self({ '--_fk-toggle-size': length }))
@@ -42,6 +112,7 @@ const edge = `var(--_fk-toggle-size, ${ladder('icon')})`
 
 export const Checkbox = Style.recipeFor(CheckboxSlots)({
   base: {
+    ...row,
     checkbox: component(
       Style.self({
         position: 'relative',
@@ -106,6 +177,7 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
         clipPath: 'inset(0 0 0 0)',
         background: toneVar('on-fill'),
       }),
+      onFirstLine(edge),
       focusRing,
       disabled,
     ),
@@ -117,10 +189,16 @@ export const Checkbox = Style.recipeFor(CheckboxSlots)({
       accent: { checkbox: tones.accent },
       // Checked in the page's ink: the neutral surface was a pale fill under a dark mark.
       neutral: { checkbox: tones.ink },
+      danger: { checkbox: tones.danger },
     },
     size: { sm: { checkbox: sizes.sm }, md: { checkbox: sizes.md }, lg: { checkbox: sizes.lg } },
+    variant: looks,
+    shape: {
+      square: { checkbox: variant(Style.self({})) },
+      round: { checkbox: variant(Style.self({ borderRadius: ref.radius.full })) },
+    },
   },
-  defaults: { tone: 'accent' },
+  defaults: { tone: 'accent', variant: 'plain', shape: 'square' },
 })
 
 /**
@@ -133,6 +211,7 @@ const stretch = 'var(--_fk-switch-stretch, 0px)'
 
 export const Switch = Style.recipeFor(SwitchSlots)({
   base: {
+    ...row,
     button: component(
       Style.self({
         position: 'relative',
@@ -180,6 +259,7 @@ export const Switch = Style.recipeFor(SwitchSlots)({
         translate: 'var(--_fk-switch-drag, 0px) 0',
         transitionDuration: '0s',
       }),
+      onFirstLine(rail),
       focusRing,
       disabled,
     ),
@@ -191,8 +271,10 @@ export const Switch = Style.recipeFor(SwitchSlots)({
       accent: { button: tones.accent },
       // On in the page's ink: the neutral surface was paler on than off.
       neutral: { button: tones.ink },
+      danger: { button: tones.danger },
     },
     size: { sm: { button: sizes.sm }, md: { button: sizes.md }, lg: { button: sizes.lg } },
+    variant: looks,
   },
-  defaults: { tone: 'accent' },
+  defaults: { tone: 'accent', variant: 'plain' },
 })

@@ -1,14 +1,20 @@
 import { Recipes, TypographySlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
+import content from '../../examples/typography/content.js'
+import scale from '../../examples/typography/scale.js'
+import tone from '../../examples/typography/tone.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
 export const showcase = fromRecipe(
   about('typography'),
   TypographySlots,
   Recipes.Typography,
-  () => Snippet.typography(inert),
+  scale,
   // Each voice draws its own level, so the page offers no axis to pick.
   [],
-  [{ name: 'basic', title: 'The scale', draw: () => Snippet.typography(inert) }],
+  [
+    { name: 'scale', example: scale },
+    { name: 'content', example: content },
+    { name: 'tone', example: tone },
+  ],
 )

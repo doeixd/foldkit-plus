@@ -111,4 +111,48 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a fitted mix written in OKLCH again, reading the hue Chrome 157 does not give',
+    edits: [
+      {
+        file: gamut,
+        find: 'return `oklab(from ${color} l calc(a * ${kept}) calc(b * ${kept}) / alpha)`',
+        replace: 'return `oklch(from ${color} l ${bounded(hue)} h / alpha)`',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a fitted mix that cuts a and leaves b, which turns the hue',
+    edits: [
+      {
+        file: gamut,
+        find: 'calc(b * ${kept}) / alpha)`',
+        replace: 'calc(b * 1) / alpha)`',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a fitted mix left at its own chroma, outside the boundary',
+    edits: [
+      {
+        file: gamut,
+        find: 'const kept = `min(1, ${bound} / max(0.0001, hypot(a, b)))`',
+        replace: 'const kept = `min(1, 1 / max(0.0001, hypot(a, b)))`',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a raised surface in OKLCH again, reading its base’s hue',
+    edits: [
+      {
+        file: '../src/theme/raise.ts',
+        find: 'calc(l + (1 - l) * min(${above}, 2) / 2) a b), `',
+        replace: 'calc(l + (1 - l) * min(${above}, 2) / 2) c h), `',
+      },
+    ],
+    tests: unit,
+  },
 ]

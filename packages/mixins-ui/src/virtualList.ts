@@ -1,10 +1,14 @@
 import * as UiVirtualList from '@foldkit/ui/virtualList'
-import { Behavior, Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { ScrollBars } from 'foldkit-primitives/dom'
 import type { MixinList } from './resolve.js'
+import { overlayBars } from './virtualList/overlayBars.js'
+import { VirtualListSlots } from './virtualList/slots.js'
 
-/**
+export { overlayBars }
+export { VirtualListSlots }
+
+/*
  * `@foldkit/ui`'s virtual list, which draws only the rows in view and
  * spacers for the rest, so a list of thousands scrolls as one of thirty.
  * The list's Model is upstream's, which the application keeps and folds with
@@ -17,13 +21,9 @@ import type { MixinList } from './resolve.js'
  * handle its events: a handler there would speak the list's Messages. The
  * overlay `bar` and its `thumb` sit beside upstream's list, in `root`, which
  * `overlayBars` runs on: upstream's list holds a Mount of its own.
+ * `Bundles.VirtualList` places the Model, and reports `NearEnd` for a list
+ * that loads more as it is scrolled.
  */
-export const VirtualListSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
-  row: Slot.make({ capability: Capability.Container }),
-  bar: Slot.make({ capability: Capability.Container }),
-  thumb: Slot.make({ capability: Capability.Container }),
-})
 
 export type VirtualListView<Item, Message> = Readonly<{
   model: UiVirtualList.Model
@@ -75,24 +75,6 @@ export const view = <Item, Message>(
     ]),
   ])
 }
-
-/**
- * What draws the bar over upstream's list (`ScrollBars`, run from `root`), in
- * place of the browser's, on a pointer that can hover; pass it beside the
- * style. Not a default: its Mount sends no Message, yet a Scene test of every
- * page that drew one would have to resolve it.
- */
-export const overlayBars = [
-  Behavior.forSlots(VirtualListSlots)<unknown, never>(
-    {
-      root: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => ScrollBars({ scroller: ':scope > ul' }),
-      }),
-    },
-    { name: 'VirtualListScrollBars' },
-  ).mixin,
-] as const
 
 /** The one row-height input the options chose, as upstream's union holds it. */
 const rowHeights = <Item>(

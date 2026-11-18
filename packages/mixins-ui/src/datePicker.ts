@@ -7,7 +7,7 @@ import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
-import { isComplete, picked, type Selection } from './calendar.js'
+import { isComplete, picked, type Selection } from './calendar/selection.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 import { defaultToView, type DatePickerRenderInfo } from './datePickerView.js'
 
@@ -23,6 +23,8 @@ import { defaultToView, type DatePickerRenderInfo } from './datePickerView.js'
  * the popover shows it.
  */
 export const DatePickerSlots = Slots.define({
+  /** The element around the trigger and the popover, which `DatePicker.view` draws. */
+  wrapper: Slot.make({ capability: Capability.Container }),
   trigger: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
@@ -33,6 +35,7 @@ export const DatePickerSlots = Slots.define({
 })
 
 export type ResolvedDatePicker = Omit<DatePickerRenderInfo, 'trigger' | 'panel' | 'backdrop'> & {
+  readonly wrapper: SlotAttributes<Message>
   readonly trigger: SlotAttributes<Message>
   readonly panel: SlotAttributes<Message> | undefined
   readonly backdrop: SlotAttributes<Message> | undefined
@@ -52,6 +55,7 @@ export const resolve = <Input>(
 ): ResolvedDatePicker => {
   const builders = buildersOf(DatePickerSlots, mixins, context)
   return {
+    wrapper: builders.wrapper.attrs(),
     trigger: builders.trigger.attrs(render.trigger),
     triggerContent: render.triggerContent,
     panel: render.panel === undefined ? undefined : builders.panel.attrs(render.panel),
@@ -84,10 +88,11 @@ const toPicker = (message: UiCalendar.Message): Message => Message.GotCalendarMe
  * first end, any day of a Multiple selection), and is upstream's `update`
  * otherwise. Either way it reports `SelectedDate`, which the application
  * folds through `Calendar.picked`. Escape, a press outside and the trigger
- * still close it, leaving whatever was picked so far.
+ * still close it, leaving whatever was picked so far. With `closes:
+ * 'manual'` no pick closes it, as a picker with a time beside its days needs.
  */
 export const update =
-  (selection: Selection) =>
+  (selection: Selection, closes: 'complete' | 'manual' = 'complete') =>
   (model: Model, message: Message): Update.ReturnWithOutMessage<Model, Message, OutMessage> =>
     Match.value(message).pipe(
       Match.tag('GotCalendarMessage', ({ message: calendarMessage }) => {
@@ -100,7 +105,7 @@ export const update =
               ChangedViewMonth: () => Option.none(),
             }),
           ),
-          Option.filter(date => !isComplete(picked(selection, date))),
+          Option.filter(date => closes === 'manual' || !isComplete(picked(selection, date))),
           Option.match({
             onNone: () => upstreamUpdate(model, message),
             onSome: date => ({
@@ -113,3 +118,19 @@ export const update =
       }),
       Match.orElse(() => upstreamUpdate(model, message)),
     )
+
+// The DatePicker's state and its drawing from options, each a file a page
+// that draws through the adapter alone does not keep. The state's fold is
+// `fold` here, since `update` above is the adapter's and takes the
+// application's selection.
+export {
+  Args,
+  Closes,
+  Message,
+  Model,
+  OutMessage,
+  init,
+  set,
+  update as fold,
+} from './datePicker/state.js'
+export { configure, view, type DatePickerPreset, type DatePickerView } from './datePicker/view.js'

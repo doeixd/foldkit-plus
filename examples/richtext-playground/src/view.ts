@@ -7,6 +7,7 @@
 import { Match, Option } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
+import { Resize } from 'foldkit-primitives/observers'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
   codeToolbar,
@@ -93,22 +94,30 @@ const menuText = (model: Model): string => menuTextOf(editorView(model))
 /** The marks the bars offer, this vocabulary's beside the editor's own. */
 const MARKS = ['Bold', 'Italic', 'Underline', 'Strikethrough', 'Code', 'Highlight'] as const
 
+/** The marks a narrow bar moves to its More menu. */
+const LEAST_USED: ReadonlySet<string> = new Set(['Underline', 'Strikethrough', 'Code', 'Highlight'])
+
+/** The width under which the bar cannot hold every control on one row, in pixels. */
+const FULL_BAR = 760
+
 /** The bar's controls; the page's own (`app`) end it, in the same tab stop. */
 const barItems = (
   app: ReadonlyArray<FormattingItem<Message>>,
 ): ReadonlyArray<FormattingItem<Message>> => [
-  'undo',
-  'redo',
+  { low: 'undo' },
+  { low: 'redo' },
   'separator',
   'style',
   'separator',
-  ...MARKS.map((mark): FormattingItem<Message> => ({ mark })),
+  ...MARKS.map((mark): FormattingItem<Message> =>
+    LEAST_USED.has(mark) ? { low: { mark } } : { mark },
+  ),
   'link',
   'separator',
-  'bulleted-list',
-  'numbered-list',
-  'checklist',
-  'quote',
+  { low: 'bulleted-list' },
+  { low: 'numbered-list' },
+  { low: 'checklist' },
+  { low: 'quote' },
   'insert',
   'separator',
   ...app,
@@ -158,7 +167,13 @@ const barEdit = (event: EditorEvent): Message =>
   )
 
 const menuOf = (which: FormattingMenu, place: 'toolbar' | 'floating'): Menu =>
-  which === 'style' ? Menu.Style({ place }) : which === 'insert' ? Menu.Insert() : Menu.Link()
+  which === 'style'
+    ? Menu.Style({ place })
+    : which === 'insert'
+      ? Menu.Insert()
+      : which === 'more'
+        ? Menu.More()
+        : Menu.Link()
 
 const EXPORTS: ReadonlyArray<readonly [format: ExportFormat, description: string]> = [
   ['Markdown', 'Plain text, with # and *'],
@@ -327,9 +342,12 @@ export const PlaygroundView = SlotView.forMessages<Message>()
                 ? 'link'
                 : open.insert && onToolbar
                   ? 'insert'
-                  : undefined,
+                  : open.more && onToolbar
+                    ? 'more'
+                    : undefined,
           toggled: (which, isOpen) =>
             isOpen ? Message.OpenedMenu({ menu: menuOf(which, place) }) : Message.ClosedMenu(),
+          compact: onToolbar && model.barWidth > 0 && model.barWidth < FULL_BAR,
           inserts,
           roving: { current: Option.getOrNull(model.tabStop) },
           onFocus: id => Message.FocusedControl({ id }),
@@ -340,7 +358,8 @@ export const PlaygroundView = SlotView.forMessages<Message>()
         h,
       )
     }
-    const toolbar = h.div(slots.bar.attrs(), [
+    const measured = Mount.mapMessage(Resize(), fact => Message.ResizedBar({ width: fact.width }))
+    const toolbar = h.div(slots.bar.attrs([h.OnMount(measured)]), [
       formatting('toolbar'),
       h.div(slots.barActions.attrs([h.Role('group'), h.AriaLabel('Export')]), [exportMenu]),
       h.input(
@@ -352,7 +371,7 @@ export const PlaygroundView = SlotView.forMessages<Message>()
           h.OnMount(filePicker()),
         ]),
       ),
-      ...(open.style === 'toolbar' || open.insert ? [dismiss()] : []),
+      ...(open.style === 'toolbar' || open.insert || open.more ? [dismiss()] : []),
     ])
     const findBar = Option.match(model.find, {
       onNone: () => [],
@@ -485,124 +504,129 @@ export const PlaygroundView = SlotView.forMessages<Message>()
       { align: 'end', role: 'dialog', label: 'Start over' },
     )
     return AppShell.view(
-      { title: 'Rich text playground', actions: [reset], style: ShellStyle },
-      [
-        h.div(slots.page.attrs([h.Dir(model.direction), h.OnMount(findShortcut())]), [
-          h.p(slots.lede.attrs(), [
-            'One document to try foldkit-richtext on: blocks to move, text to discuss, tables, code, media and footnotes. Type / to add anything.',
-          ]),
-          h.section(slots.surface.attrs([h.AriaLabel('Editor')]), [
-            toolbar,
-            ...findBar,
-            ...Option.match(model.notice, {
-              onNone: () => [],
-              onSome: notice => [
-                h.div(slots.notice.attrs([h.Role('alert')]), [
-                  notice,
-                  tool('close', 'Dismiss', Message.DismissedNotice()),
-                ]),
-              ],
-            }),
-            h.div(slots.body.attrs(), [
-              h.div(
-                slots.canvas.attrs([
-                  h.OnMount(canvasEvents()),
-                  h.OnKeyDownPreventDefault((key, modifiers) => {
-                    if (key === 'Escape' && Option.isSome(model.menu))
-                      return Option.some(Message.ClosedMenu())
-                    if (key === 'Escape' && slash !== undefined)
-                      return Option.some(wrap(EditorMessage.DismissedSlash()))
-                    // Ctrl+K edits the link the selection covers or the caret is in, as the
-                    // toolbar's Link does; elsewhere it is the browser's.
-                    if (
-                      key.toLowerCase() === 'k' &&
-                      (modifiers.ctrlKey || modifiers.metaKey) &&
-                      !modifiers.altKey &&
-                      (RichText.coversText(model.editor.selection) ||
-                        RichText.linkAt(model.document, model.editor.selection) !== undefined)
-                    )
-                      return Option.some(Message.OpenedMenu({ menu: Menu.Link() }))
-                    const index = slashMove(
-                      slashEntries,
-                      menuText(model),
-                      model.editor.menuIndex,
-                      key,
-                      modifiers,
-                    )
-                    return index === undefined
-                      ? Option.none()
-                      : Option.some(Message.SlashMoved({ index }))
-                  }),
-                ]),
-                [
-                  h.div(slots.writing.attrs(), [
-                    h.submodel({
-                      slotId: 'playground-editor',
-                      model: editorView(model),
-                      view: editorHost,
-                      toParentMessage: wrap,
+      {
+        title: 'Rich text playground',
+        actions: [reset],
+        style: ShellStyle,
+        main: [
+          h.div(slots.page.attrs([h.Dir(model.direction), h.OnMount(findShortcut())]), [
+            h.p(slots.lede.attrs(), [
+              'One document to try foldkit-richtext on: blocks to move, text to discuss, tables, code, media and footnotes. Type / to add anything.',
+            ]),
+            h.section(slots.surface.attrs([h.AriaLabel('Editor')]), [
+              toolbar,
+              ...findBar,
+              ...Option.match(model.notice, {
+                onNone: () => [],
+                onSome: notice => [
+                  h.div(slots.notice.attrs([h.Role('alert')]), [
+                    notice,
+                    tool('close', 'Dismiss', Message.DismissedNotice()),
+                  ]),
+                ],
+              }),
+              h.div(slots.body.attrs(), [
+                h.div(
+                  slots.canvas.attrs([
+                    h.OnMount(canvasEvents()),
+                    h.OnKeyDownPreventDefault((key, modifiers) => {
+                      if (key === 'Escape' && Option.isSome(model.menu))
+                        return Option.some(Message.ClosedMenu())
+                      if (key === 'Escape' && slash !== undefined)
+                        return Option.some(wrap(EditorMessage.DismissedSlash()))
+                      // Ctrl+K edits the link the selection covers or the caret is in, as the
+                      // toolbar's Link does; elsewhere it is the browser's.
+                      if (
+                        key.toLowerCase() === 'k' &&
+                        (modifiers.ctrlKey || modifiers.metaKey) &&
+                        !modifiers.altKey &&
+                        (RichText.coversText(model.editor.selection) ||
+                          RichText.linkAt(model.document, model.editor.selection) !== undefined)
+                      )
+                        return Option.some(Message.OpenedMenu({ menu: Menu.Link() }))
+                      const index = slashMove(
+                        slashEntries,
+                        menuText(model),
+                        model.editor.menuIndex,
+                        key,
+                        modifiers,
+                      )
+                      return index === undefined
+                        ? Option.none()
+                        : Option.some(Message.SlashMoved({ index }))
                     }),
                   ]),
-                  ...handle,
-                  ...blockTools(model, slots, h),
-                  ...floating,
-                  ...slashPopup,
-                  ...notePopup,
-                ],
-              ),
-              discussions(model, slots, h),
-            ]),
-            ...Option.match(model.source, {
-              onNone: () => [],
-              onSome: format => [
-                h.section(slots.source.attrs([h.AriaLabel('Source')]), [
-                  h.div(slots.actions.attrs([h.Role('group'), h.AriaLabel('Source format')]), [
-                    ...ExportFormat.literals.map(each =>
-                      h.button(
-                        slots.tool.attrs([
-                          h.Type('button'),
-                          h.AriaPressed(each === format ? 'true' : 'false'),
-                          h.OnClick(Message.ShowedSource({ format: each })),
-                        ]),
-                        [each],
+                  [
+                    h.div(slots.writing.attrs(), [
+                      h.submodel({
+                        slotId: 'playground-editor',
+                        model: editorView(model),
+                        view: editorHost,
+                        toParentMessage: wrap,
+                      }),
+                    ]),
+                    ...handle,
+                    ...blockTools(model, slots, h),
+                    ...floating,
+                    ...slashPopup,
+                    ...notePopup,
+                  ],
+                ),
+                discussions(model, slots, h),
+              ]),
+              ...Option.match(model.source, {
+                onNone: () => [],
+                onSome: format => [
+                  h.section(slots.source.attrs([h.AriaLabel('Source')]), [
+                    h.div(slots.actions.attrs([h.Role('group'), h.AriaLabel('Source format')]), [
+                      ...ExportFormat.literals.map(each =>
+                        h.button(
+                          slots.tool.attrs([
+                            h.Type('button'),
+                            h.AriaPressed(each === format ? 'true' : 'false'),
+                            h.OnClick(Message.ShowedSource({ format: each })),
+                          ]),
+                          [each],
+                        ),
                       ),
-                    ),
-                    h.button(slots.tool.attrs([h.Type('button'), h.OnClick(Message.HidSource())]), [
-                      'Hide',
+                      h.button(
+                        slots.tool.attrs([h.Type('button'), h.OnClick(Message.HidSource())]),
+                        ['Hide'],
+                      ),
+                    ]),
+                    // Left to right whatever the page's direction: it is code, not prose.
+                    h.pre(slots.sourceText.attrs([h.Dir('ltr'), h.Tabindex(0)]), [
+                      sourceOf(model.document, format),
                     ]),
                   ]),
-                  // Left to right whatever the page's direction: it is code, not prose.
-                  h.pre(slots.sourceText.attrs([h.Dir('ltr'), h.Tabindex(0)]), [
-                    sourceOf(model.document, format),
-                  ]),
-                ]),
-              ],
-            }),
-            h.footer(slots.footer.attrs(), [
-              Status({ document: model.document }, h),
+                ],
+              }),
+              h.footer(slots.footer.attrs(), [
+                Status({ document: model.document }, h),
 
-              h.span([], ['Edits and discussions stay in this page; Reset starts over.']),
+                h.span([], ['Edits and discussions stay in this page; Reset starts over.']),
+              ]),
             ]),
+            // What a copy did, said where it is seen and gone by itself (`ExpireStatus`).
+            h.div(
+              slots.toasts.attrs([h.Role('status'), h.AriaLive('polite')]),
+              Option.match(model.status, {
+                onNone: () => [],
+                onSome: status => [
+                  h.div(
+                    slots.toast.attrs([
+                      h.Key(status.text),
+                      h.DataAttribute('failed', String(status.failed)),
+                    ]),
+                    [richTextIcon(h, status.failed ? 'close' : 'check'), status.text],
+                  ),
+                ],
+              }),
+            ),
+            DemoGuide({ demo: richtextDemo }, h),
           ]),
-          // What a copy did, said where it is seen and gone by itself (`ExpireStatus`).
-          h.div(
-            slots.toasts.attrs([h.Role('status'), h.AriaLive('polite')]),
-            Option.match(model.status, {
-              onNone: () => [],
-              onSome: status => [
-                h.div(
-                  slots.toast.attrs([
-                    h.Key(status.text),
-                    h.DataAttribute('failed', String(status.failed)),
-                  ]),
-                  [richTextIcon(h, status.failed ? 'close' : 'check'), status.text],
-                ),
-              ],
-            }),
-          ),
-          DemoGuide({ demo: richtextDemo }, h),
-        ]),
-      ],
+        ],
+      },
       h,
     )
   })

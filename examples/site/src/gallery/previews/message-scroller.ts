@@ -1,32 +1,19 @@
-import type { NamedStyle } from 'foldkit-mixins'
-import { Recipes, MessageScrollerSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import { MessageScrollerSlots, Recipes } from 'foldkit-mixins-ui'
+import basic from '../../examples/message-scroller/basic.js'
+import configure from '../../examples/message-scroller/configure.js'
+import start from '../../examples/message-scroller/start.js'
 import { about } from '../catalogue.js'
 import { fromRecipe } from '../define.js'
-import type { Live } from '../showcase.js'
-
-const scrollerBasic = <Message>(
-  style: NamedStyle<typeof MessageScrollerSlots>,
-  live: Live<Message>,
-) =>
-  Snippet.messageScroller(
-    style,
-    live.widgets.chatScroller,
-    live.widgets.chatEntries,
-    {
-      onMessage: message => live.onWidget(Widgets.Message.GotChatScroller({ message })),
-      onSend: live.onWidget(Widgets.Message.SentChat()),
-      onLoadOlder: live.onWidget(Widgets.Message.LoadedOlderChat()),
-    },
-    live.h,
-  )
 
 export const showcase = fromRecipe(
   about('message-scroller'),
   MessageScrollerSlots,
   Recipes.MessageScroller,
-  scrollerBasic,
+  basic,
   undefined,
-  [{ name: 'basic', title: 'Basic', draw: scrollerBasic }],
+  [
+    { name: 'basic', example: basic },
+    { name: 'start', example: start },
+    { name: 'configure', example: configure },
+  ],
 )

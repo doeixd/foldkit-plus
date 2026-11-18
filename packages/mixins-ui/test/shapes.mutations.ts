@@ -7,7 +7,13 @@ const radius = ['packages/mixins-ui/test/radius.browser.test.ts']
 export default [
   {
     name: 'a squeezed badge shrinks under its words',
-    edits: [{ file: '../src/recipes/badge.ts', find: "      flexShrink: '0',\n", replace: '' }],
+    edits: [
+      {
+        file: '../src/recipes/badge.ts',
+        find: "        flexShrink: '0',\n        ...role('caption'),\n",
+        replace: "        ...role('caption'),\n",
+      },
+    ],
     tests: ['packages/mixins-ui/test/badge.browser.test.ts'],
   },
   {

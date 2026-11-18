@@ -62,22 +62,65 @@ export const barOf = (count: number, at: number, series: number, of: number) => 
   }
 }
 
-/** A line through `values`, one point mid-band each, in a 100 by 100 box. */
-export const lineOf = (ticks: ReadonlyArray<number>, values: ReadonlyArray<number>): string =>
-  values
-    .map(
-      (value, at) =>
-        `${at === 0 ? 'M' : 'L'}${bandOf(values.length, at).middle} ${yOf(ticks, value)}`,
-    )
+/** How a line joins its points: straight, or level to the next category and then up or down. */
+export type Curve = 'linear' | 'step'
+
+/** The path through points `xs` and `ys`, in a 100 by 100 box. */
+const pathOf = (xs: ReadonlyArray<number>, ys: ReadonlyArray<number>, curve: Curve): string =>
+  xs
+    .map((x, at) => {
+      if (at === 0) return `M${x} ${ys[0]}`
+      return curve === 'step' ? `H${x}V${ys[at]}` : `L${x} ${ys[at]}`
+    })
     .join('')
 
-/** The line closed down to zero (or the axis's end nearest it): the area under it. */
-export const areaOf = (ticks: ReadonlyArray<number>, values: ReadonlyArray<number>): string => {
+/** The points before the last, walked back to the first, to close an area along its lower edge. */
+const backOf = (xs: ReadonlyArray<number>, ys: ReadonlyArray<number>, curve: Curve): string => {
+  let path = ''
+  for (let at = xs.length - 2; at >= 0; at--) {
+    path += curve === 'step' ? `V${ys[at]}H${xs[at]}` : `L${xs[at]} ${ys[at]}`
+  }
+  return path
+}
+
+const middles = (count: number) =>
+  Array.from({ length: count }, (_, at) => bandOf(count, at).middle)
+
+/** A line through `values`, one point mid-band each, in a 100 by 100 box. */
+export const lineOf = (
+  ticks: ReadonlyArray<number>,
+  values: ReadonlyArray<number>,
+  curve: Curve = 'linear',
+): string =>
+  pathOf(
+    middles(values.length),
+    values.map(value => yOf(ticks, value)),
+    curve,
+  )
+
+/**
+ * The line closed down to `below`, one value per point (default zero, or the
+ * axis's end nearest it): the area under it. A stacked area's `below` is the
+ * series beneath it.
+ */
+export const areaOf = (
+  ticks: ReadonlyArray<number>,
+  values: ReadonlyArray<number>,
+  curve: Curve = 'linear',
+  below?: ReadonlyArray<number>,
+): string => {
   if (values.length === 0) return ''
   const base = yOf(ticks, Math.min(Math.max(0, ticks[0] ?? 0), ticks[ticks.length - 1] ?? 0))
-  const first = bandOf(values.length, 0).middle
-  const last = bandOf(values.length, values.length - 1).middle
-  return `${lineOf(ticks, values)}L${last} ${base}L${first} ${base}Z`
+  const xs = middles(values.length)
+  const top = pathOf(
+    xs,
+    values.map(value => yOf(ticks, value)),
+    curve,
+  )
+  const last = xs[xs.length - 1]
+  if (below === undefined) return `${top}L${last} ${base}L${xs[0]} ${base}Z`
+  const lower = below.map(value => yOf(ticks, value))
+  return `${top}L${last} ${lower[lower.length - 1]}${backOf(xs, lower, curve)}Z`
 }
 
 /** How far into a donut's ring its hole reaches, of the radius 1. */
@@ -90,15 +133,14 @@ const pointAt = (radius: number, turn: number) => {
 }
 
 /** A ring segment from turn `from` to `to` (0 to 1), in a circle of radius 1 about 0, 0. */
-const segment = (from: number, to: number): string => {
+const segment = (from: number, to: number, hole: number): string => {
   const large = to - from > 0.5 ? 1 : 0
-  return [
-    `M${pointAt(1, from)}`,
-    `A1 1 0 ${large} 1 ${pointAt(1, to)}`,
-    `L${pointAt(HOLE, to)}`,
-    `A${HOLE} ${HOLE} 0 ${large} 0 ${pointAt(HOLE, from)}`,
-    'Z',
-  ].join('')
+  // A hole of nothing is a pie: its slices meet at the centre.
+  const inner =
+    hole === 0
+      ? [`L0 0`]
+      : [`L${pointAt(hole, to)}`, `A${hole} ${hole} 0 ${large} 0 ${pointAt(hole, from)}`]
+  return [`M${pointAt(1, from)}`, `A1 1 0 ${large} 1 ${pointAt(1, to)}`, ...inner, 'Z'].join('')
 }
 
 /**
@@ -106,14 +148,17 @@ const segment = (from: number, to: number): string => {
  * by its share of the total; a value of zero or less draws nothing. A whole
  * ring is drawn as two halves, since an arc cannot end where it starts.
  */
-export const slicesOf = (values: ReadonlyArray<number>): ReadonlyArray<string> => {
+export const slicesOf = (
+  values: ReadonlyArray<number>,
+  hole: number = HOLE,
+): ReadonlyArray<string> => {
   const total = values.reduce((sum, value) => sum + Math.max(0, value), 0)
   let turned = 0
   return values.map(value => {
     if (value <= 0 || total <= 0) return ''
     const from = turned
     turned += value / total
-    if (value === total) return segment(0, 0.5) + segment(0.5, 1)
-    return segment(from, turned)
+    if (value === total) return segment(0, 0.5, hole) + segment(0.5, 1, hole)
+    return segment(from, turned, hole)
   })
 }

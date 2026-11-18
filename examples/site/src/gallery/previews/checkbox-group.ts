@@ -1,3 +1,4 @@
+import cardCheckboxGroup from '../../examples/checkbox-group/card.js'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { NamedStyle } from 'foldkit-mixins'
 import { CheckboxGroupSlots, Recipes } from 'foldkit-mixins-ui'
@@ -56,5 +57,6 @@ export const showcase = fromRecipe(
       title: 'Invalid',
       draw: alertsOf(Snippet.checkboxGroupInvalid, 'invalid'),
     },
+    { name: 'card', example: cardCheckboxGroup },
   ],
 )

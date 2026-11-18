@@ -24,11 +24,9 @@ is not read from the Model and nothing dispatches a Message when it changes.
 
 ## Mental model
 
-```text
-interpreter              carrier                     interpreter / tooling
-Key.of(value)  ──►  Metadata.combine(parts)  ──►  Key.get(metadata)
-                    (each key's own merge)        Metadata.summarize(metadata)
-```
+An interpreter makes a key's entry with `Key.of(value)`. `Metadata.combine(parts)`
+carries the entries, each key merging by its own rule, and an interpreter or tool
+reads them back with `Key.get(metadata)` or `Metadata.summarize(metadata)`.
 
 - The **key** owns the entry type, how duplicates `merge`, and how an entry is
   `summarize`d as text.

@@ -124,7 +124,7 @@ const dropdown = <Value extends string>(
       maybeSelectedValue: Option.some(config.value),
       ariaLabel: `${config.label}: ${chosen}`,
       itemToConfig: option => ({ content: parts.option({ label: option.label }) }),
-      buttonContent: parts.trigger(Option.some({ label: chosen }), chosen),
+      buttonContent: parts.trigger([{ label: chosen }], chosen),
       // The TLD panel's 557 rows scroll inside it, so it is a tab stop of its
       // own (axe's scrollable-region-focusable), as upstream's.
       ...(config.tabStop === true ? { itemsAttributes: childAttributes([h.Tabindex(0)]) } : {}),

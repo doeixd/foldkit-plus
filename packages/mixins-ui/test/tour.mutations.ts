@@ -9,6 +9,9 @@ const recipe = '../src/recipes/tour.ts'
 const trackBox = '../../primitives/src/dom/track-box.ts'
 const unit = 'packages/mixins-ui/test/tour.test.ts'
 const browser = 'packages/mixins-ui/test/tour.browser.test.ts'
+const bundles = 'packages/mixins-ui/test/layoutBundles.test.ts'
+const advance = '../src/tour/advanceOnClick.ts'
+const bundle = '../src/bundles/tour.ts'
 
 export default [
   {
@@ -27,8 +30,8 @@ export default [
     edits: [
       {
         file,
-        find: 'model.step >= last ? ended(model, true) : went(model, model.step + 1)',
-        replace: 'went(model, model.step + 1)',
+        find: 'model.step >= last ? ended(true) : went(model.step + 1)',
+        replace: 'went(model.step + 1)',
       },
     ],
     tests: [unit],
@@ -38,20 +41,20 @@ export default [
     edits: [
       {
         file,
-        find: 'model.step >= last ? ended(model, true)',
-        replace: 'model.step >= last ? ended(model, false)',
+        find: 'model.step >= last ? ended(true)',
+        replace: 'model.step >= last ? ended(false)',
       },
     ],
     tests: [unit],
   },
   {
     name: 'ArrowRight does nothing',
-    edits: [{ file, find: "if (key === 'ArrowRight') return next(model)", replace: '' }],
+    edits: [{ file, find: "if (key === 'ArrowRight') return next()", replace: '' }],
     tests: [unit, browser],
   },
   {
     name: 'Escape does nothing',
-    edits: [{ file, find: "if (key === 'Escape') return ended(model, false)", replace: '' }],
+    edits: [{ file, find: "if (key === 'Escape') return ended(false)", replace: '' }],
     tests: [unit, browser],
   },
   {
@@ -180,12 +183,24 @@ export default [
   },
   {
     name: 'the target cannot be used',
-    edits: [{ file, find: 'anchored && options.interactive !== false', replace: 'false' }],
+    edits: [
+      {
+        file,
+        find: 'const usable = anchored && options.interactive !== false',
+        replace: 'const usable = false',
+      },
+    ],
     tests: [unit, browser],
   },
   {
     name: 'a target not to be used can be',
-    edits: [{ file, find: 'anchored && options.interactive !== false', replace: 'anchored' }],
+    edits: [
+      {
+        file,
+        find: 'const usable = anchored && options.interactive !== false',
+        replace: 'const usable = anchored',
+      },
+    ],
     tests: [unit, browser],
   },
   {
@@ -210,16 +225,78 @@ export default [
     edits: [
       {
         file,
-        find: "isLast ? (labels.done ?? 'Done')",
-        replace: "false ? (labels.done ?? 'Done')",
+        find: 'isLast ? said.done : said.next',
+        replace: 'said.next',
       },
     ],
     tests: [unit],
   },
   {
     name: 'the place counts from 0',
-    edits: [{ file, find: '`${step + 1} of ${count}`', replace: '`${step} of ${count}`' }],
+    edits: [
+      {
+        file,
+        find: 'fill(said.progress, { step: model.step + 1, count })',
+        replace: 'fill(said.progress, { step: model.step, count })',
+      },
+    ],
     tests: [unit],
+  },
+  {
+    name: 'the words given are ignored',
+    edits: [
+      { file, find: 'const said = wordsOf(words, options.words)', replace: 'const said = words' },
+    ],
+    tests: [unit],
+  },
+  {
+    name: "a step's content is not drawn",
+    edits: [{ file, find: 'options.content === undefined', replace: 'true' }],
+    tests: [unit],
+  },
+  {
+    name: 'advanceOnClick listens with the target out of reach',
+    edits: [
+      {
+        file,
+        find: 'usable && options.advanceOnClick !== undefined',
+        replace: 'options.advanceOnClick !== undefined',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'advanceOnClick hears a press anywhere',
+    edits: [
+      {
+        file: advance,
+        find: 'target !== null && event.target instanceof Node && target.contains(event.target)',
+        replace: 'target !== null',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'update ignores the steps the Model holds',
+    edits: [
+      {
+        file,
+        find: 'const { steps } = config ?? model',
+        replace: 'const steps = config?.steps ?? []',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the Bundle starts with no steps',
+    edits: [
+      {
+        file: bundle,
+        find: 'init: args => ({ model: init(args) }),',
+        replace: 'init: args => ({ model: init({ id: args.id }) }),',
+      },
+    ],
+    tests: [bundles],
   },
   {
     name: 'the cutout does not reach past its target',
@@ -288,7 +365,13 @@ export default [
   },
   {
     name: 'focusReturn gives focus back to nothing',
-    edits: [{ file, find: 'mount: () => FocusReturn(),', replace: 'attributes: () => [],' }],
+    edits: [
+      {
+        file: '../src/tour/focusReturn.ts',
+        find: 'mount: () => FocusReturn(),',
+        replace: 'attributes: () => [],',
+      },
+    ],
     tests: [browser],
   },
 ]

@@ -11,7 +11,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
-import { ListboxSlots } from '../listbox.js'
+import { ListboxSlots } from '../listbox/slots.js'
 import {
   component,
   controlCorner,
@@ -45,6 +45,7 @@ import {
   unlit,
 } from './popup.js'
 import { bar, thumb } from './scrollBars.js'
+import { stroke } from './tagsInput.js'
 
 /** An option's parts, which Listbox.parts and Combobox.parts draw; the two recipes share them. */
 export const optionParts = {
@@ -77,6 +78,14 @@ export const optionParts = {
   ),
   // Two sides of a box, turned into a check; kept in place while hidden, so
   // the labels line up whichever row is chosen.
+  // After the label, before the check: a code, a count, a badge, in the panel's quieter ink.
+  itemTrailing: component(
+    Style.self({
+      flex: 'none',
+      color: `color-mix(in oklab, ${ref.popup.ink} 62%, transparent)`,
+      ...role('caption'),
+    }),
+  ),
   itemCheck: component(
     Style.self({
       flex: 'none',
@@ -145,8 +154,54 @@ export const triggerLooks = {
   ),
 } as const
 
+/** The clear button's side: small, but never under the touch floor `Defaults.reset` sets for a coarse pointer. */
+const clearSize = 'max(1.5em, var(--fk-touch-floor, 0px))'
+
+/** A quiet button that empties a choice: the Combobox's and the Listbox's. */
+export const clearButton = component(
+  Style.self({
+    display: 'grid',
+    placeItems: 'center',
+    inlineSize: clearSize,
+    blockSize: clearSize,
+    padding: '0',
+    border: '0',
+    // Concentric with the control it sits in, which is 0.25em inside its own corner.
+    borderRadius: `max(0px, calc(${controlCorner} - 0.25em))`,
+    background: 'transparent',
+    color: ref.text.muted,
+    font: 'inherit',
+    lineHeight: '1',
+    cursor: 'pointer',
+    // The strokes of the cross are placed in it; a use may place the button itself.
+    position: 'relative',
+    ...transition('background-color, color'),
+  }),
+  // With no content of its own the button is marked, and the sign is drawn as a chip's is.
+  Style.nest('&[data-glyph="cross"]', { '--_fk-chip-sign': 'currentColor' }),
+  Style.nest('&[data-glyph="cross"]::before', stroke('45deg')),
+  Style.nest('&[data-glyph="cross"]::after', stroke('-45deg')),
+  hover({ background: unfilledHover, color: ref.text.overt }),
+  focusRing,
+)
+
 export const Listbox = Style.recipeFor(ListboxSlots)({
   base: {
+    // The listbox and, while something is chosen, its clear button beside it.
+    root: component(
+      // As wide as the trigger even as a grid item, so the clear button lands in it.
+      Style.self({ position: 'relative', display: 'inline-block', inlineSize: 'fit-content' }),
+    ),
+    clear: component(
+      clearButton,
+      Style.self({
+        position: 'absolute',
+        insetBlock: '0',
+        marginBlock: 'auto',
+        // Before the chevron, which keeps the trigger's end: its padding, its width and a gap.
+        insetInlineEnd: `calc(${ladder('pad')} + 0.45em + ${ladder('gap')})`,
+      }),
+    ),
     wrapper: component(Style.self({ position: 'relative', display: 'inline-block' })),
     button: trigger,
     backdrop,
@@ -185,6 +240,10 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
         whiteSpace: 'nowrap',
       }),
       Style.states({ true: { color: ref.text.muted } }, 'data-placeholder'),
+      // Room for the clear button, which stands over the end of the value.
+      Style.nest(':where([data-clearable]) &', {
+        paddingInlineEnd: `calc(${clearSize} + ${ladder('gap')})`,
+      }),
     ),
     chevron: component(
       triggerChevron(':where([aria-expanded="true"]) &', '0.45em'),

@@ -15,19 +15,11 @@ component and edit its markup.
 The view keeps its markup, state and Messages. The caller gets a typed customization surface
 instead of an open-ended bag of props.
 
-```text
-Without a slot contract                 With a slot contract
-
-Button                                  Button
-├─ className                            ├─ root slot
-├─ iconClassName                        ├─ icon slot
-├─ tooltip                              └─ label slot
-├─ tracking
-├─ ariaLabelOverride                    callers attach independently:
-├─ onFocusDecoration                    ├─ BrandStyle
-└─ ...                                  ├─ TooltipBehavior
-                                        └─ AnalyticsBehavior
-```
+Without a slot contract, a Button grows a prop for every customization:
+`className`, `iconClassName`, `tooltip`, `tracking`, `ariaLabelOverride`,
+`onFocusDecoration`, and so on. With one, it names its parts (a `root`, an `icon`
+and a `label` slot), and callers attach independently to them: a `BrandStyle`, a
+`TooltipBehavior`, an `AnalyticsBehavior`.
 
 This is not a second component system and it is not a state library. A slot ultimately resolves
 to ordinary Foldkit attributes.
@@ -47,23 +39,9 @@ There are five ideas to learn:
 `Style` and `Behavior` both compile to a `Mixin`. The resolver combines their contributions and
 rejects ambiguous ownership instead of silently choosing a winner.
 
-```text
-                Slots contract
-                      │
-          ┌───────────┴───────────┐
-        Style                  Behavior
-     appearance              interaction
-          │                       │
-          └───────────┬───────────┘
-                      ▼
-                    Mixin
-                      │
-                      ▼
-                   resolver
-                      │
-                      ▼
-          ordinary Foldkit attributes
-```
+A Slots contract names the extension points. Style (appearance) and Behavior
+(interaction) attach to them, each compiles to a Mixin, and the resolver turns the
+Mixins into ordinary Foldkit attributes.
 
 Styling has a pipeline of its own, read left to right, and each step is checked by the one before:
 
@@ -346,7 +324,7 @@ one.
 | `Style.when(condition, piece)` | a boolean known at authoring time |
 | `Style.whenInput(predicate, piece)` | a condition read from the view input at render time |
 | `Style.recipe({ base, variants, defaults, compound })` | one slot: returns `selection => StyleValue`; every field is optional, so a recipe may be only its base |
-| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => RecipePieces`, in which every `base` slot is present and a variant's slot may be absent; `null` unsets a defaulted axis, which is how a recipe makes a piece optional; `.extend(patch)` composes per slot, removes nothing, and refuses a slot the contract lacks |
+| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => RecipePieces`, in which every `base` slot is present and a variant's slot may be absent; `null` unsets a defaulted axis, which is how a recipe makes a piece optional; `.extend(patch)` composes per slot, removes nothing, and refuses a slot the contract lacks; `.add(more)` gives it an axis or a value it lacks ([A look a shipped recipe lacks](#a-look-a-shipped-recipe-lacks)) |
 | `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` inline and the `calc` delay as a rule |
 | `Style.forCapability(Slots)(capability, piece)` | one piece for every public slot whose capability satisfies it |
 | `Style.slots(pieces, options?)` / `Style.slot(slotOptions, piece)` | an application's own Slots declared by their style: `{ slots, style }` (see [An application's own look](#an-applications-own-look)) |
@@ -439,6 +417,59 @@ Beyond `self`, `pseudo`, `media`, `supports`, `container` and `nest`, the rule p
   strings `pseudo` and `nest` take. Each takes a selector list: every top-level selector is
   scoped to the class (`:is(a, b)` is not split), and a selector that writes `&` places the class
   itself (`nest('[data-open] &')`).
+
+### A look a shipped recipe lacks
+
+A recipe from a design system has the axes and values its author chose. An application changes
+it in two ways, and neither forks it:
+
+- `.extend(patch)` adjusts what the recipe **has**: more pieces on its base or on one of its
+  values, another default, another compound. An axis or a value the recipe lacks is a type
+  error there, so a misspelt axis cannot become a new one.
+- `.add(more)` gives it what it **lacks**: a value on an axis it has, or a new axis. A value
+  the axis already has is refused, in the type and with `mixins:recipe-value-exists`.
+
+Both return a recipe, so `.extend`, `.add` and a `null` selection work on the result, and
+neither changes the recipe it was called on.
+
+```ts standalone
+import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
+
+const ButtonSlots = Slots.define({
+  button: Slot.make({ capability: Capability.Interactive }),
+})
+
+// What a design system ships.
+const Button = Style.recipeFor(ButtonSlots)({
+  base: { button: Style.self({ borderRadius: '6px' }) },
+  variants: {
+    tone: {
+      accent: { button: Style.self({ background: 'royalblue', color: 'white' }) },
+      neutral: { button: Style.self({ background: 'gainsboro' }) },
+    },
+  },
+  defaults: { tone: 'accent' },
+})
+
+// What an application adds: a tone the recipe has no word for, and a new axis.
+const AppButton = Button.add({
+  tone: { brand: { button: Style.self({ background: 'rebeccapurple', color: 'white' }) } },
+  width: { full: { button: Style.self({ inlineSize: '100%' }) } },
+})
+
+export const Brand = Style.forSlots(ButtonSlots)(AppButton({ tone: 'brand', width: 'full' }))
+export const Accent = Style.forSlots(ButtonSlots)(AppButton())
+
+// @ts-expect-error `accent` is the recipe's own: adjust it with `extend`.
+Button.add({ tone: { accent: { button: Style.self({ background: 'navy' }) } } })
+// @ts-expect-error `extend` adds no axis.
+Button.extend({ variants: { width: { full: { button: Style.self({ inlineSize: '100%' }) } } } })
+```
+
+An added axis has no default: `AppButton()` above is the recipe as shipped. Give it one with
+`AppButton.extend({ defaults: { width: 'full' } })`. The values are style pieces like any
+recipe's, so a module that calls `add` is still one the build can
+[ship as data](#style-modules-shipped-as-data).
 
 ### Themes as typed knobs
 
@@ -675,7 +706,14 @@ the surface knobs. Each hue is a knob (`red-h`), and `scale-c` scales every step
 panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `press`, `highlight-ink`):
 `menu.highlight: 'bold'` lights the row in the accent's fill, and `menu.panel` draws the panel
 as the page's own raised surface (`default`), `inverted` (the other scheme's surface and text) or
-`translucent` over a blur, as shadcn's menu options do. A lit row takes its ink from the surface
+`translucent` over a blur, as shadcn's menu options do. The `selection` group is selected text,
+which `Defaults.body` paints with `:where(*)::selection`: `background` is the accent over whatever
+the text sits on (28% in a light scheme, 40% in a dark one, so the text stays at AA), `ink` is
+`currentColor` so a link or a syntax token keeps its colour, and `fill-background` is the deeper
+accent for text on the accent's own fill, where the tint would be the fill: such a surface sets
+`--fk-selection-background` to it beside its fill. Override like any token,
+`Theme.compose(theme, { selection: { background: 'rebeccapurple' } })`; an application's own
+`::selection` rule wins. A lit row takes its ink from the surface
 it is on: a popup panel sets `--_fk-row-highlight`, `--_fk-row-press` and
 `--_fk-row-highlight-ink` on itself, and a row outside one (an inline Command) reads the `plain-*`
 tokens, the text's own films or the accent.

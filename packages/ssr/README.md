@@ -76,13 +76,13 @@ and the checks that the browser can start from it.
 
 ## The mental model
 
-```text
-server   init ──▶ Model ──┬── plan.state ──▶ slice ──▶ envelope   (JSON on the stamped root)
-                          └── view ──▶ HTML                        (checked, see below)
+On the server, `init` makes the Model. The plan's `state` turns it into a slice,
+which goes into an envelope as JSON on the stamped root, and the view turns the
+same Model into HTML, which is checked (see below).
 
-browser  envelope ──▶ baseline with the slice set on it ──▶ Model
-         Model + the server's HTML ──▶ Runtime.hydrate adopts ──▶ plan.boot Commands
-```
+In the browser, the envelope sets the slice onto the baseline Model, and that is
+the first Model. `Runtime.hydrate` adopts the server's HTML with that Model, and
+then the plan's `boot` Commands run.
 
 The one rule everything else serves: **the browser's first Model renders the
 same page the server sent.** The browser's Model is the plan's baseline, by
@@ -1153,8 +1153,8 @@ rule above still holds, so the first client view is the served page, and
 such state is split by whether the view draws it:
 
 ```text
-envelope ──▶ resumed Model ──▶ prepare: what the view does not draw ──▶ Runtime.hydrate adopts the served page
-                                                                          └─▶ a Subscription reads the store ──▶ Message ──▶ update ──▶ drawn
+envelope ──► resumed Model ──► prepare: what the view does not draw ──► Runtime.hydrate adopts the served page
+                                                                          └─► a Subscription reads the store ──► Message ──► update ──► drawn
 ```
 
 `prepare: model => Effect` runs once, on the Model a page resumes, before
@@ -1240,10 +1240,10 @@ only when it must, so the first interaction does not wait for the application's
 code to start.
 
 ```text
-server   each handler ──▶ its Message, encoded ──▶ a marker on the element + an entry in the envelope
+server   each handler ──► its Message, encoded ──► a marker on the element + an entry in the envelope
 
-browser  event ──▶ the markers name its Messages ──▶ queued ──▶ the runtime boots
-                                                             ──▶ update runs the queue first
+browser  event ──► the markers name its Messages ──► queued ──► the runtime boots
+                                                             ──► update runs the queue first
 ```
 
 It rests on the fact that a Foldkit handler is already a Message value.
@@ -1416,9 +1416,9 @@ rh.input([rh.Value(model.draft), rh.OnInput(Message.ChangedDraft), rh.KeepTyped(
 ```
 
 ```text
-parse ──▶ typing (the field holds it) ──▶ script: SSR.hydrate reads the marked fields
-      ──▶ each changed one becomes its OnInput Message, first in the queue
-      ──▶ first render adopts the served page ──▶ value and caret put back ──▶ update
+parse ──► typing (the field holds it) ──► script: SSR.hydrate reads the marked fields
+      ──► each changed one becomes its OnInput Message, first in the queue
+      ──► first render adopts the served page ──► value and caret put back ──► update
 ```
 
 There is no inline script: the field itself holds what was typed, and an
@@ -1491,12 +1491,12 @@ load({ runtime: () => import('./entry.js') }) // entry.ts calls SSR.hydrate
 ```
 
 ```text
-load ──▶ read start from the envelope
-  'now'            ──▶ run the chunk
-  'idle'           ──▶ fetch the chunk now ──▶ idle after load, chunk here: run it
-  'on-interaction' ──▶ fetch the chunk now ──▶ first intent: run it
-until SSR.hydrate takes over: a marked event ──▶ held (a submission prevented)
-SSR.hydrate ──▶ starts now ──▶ answers each held event from the markers, once
+load ──► read start from the envelope
+  'now'            ──► run the chunk
+  'idle'           ──► fetch the chunk now ──► idle after load, chunk here: run it
+  'on-interaction' ──► fetch the chunk now ──► first intent: run it
+until SSR.hydrate takes over: a marked event ──► held (a submission prevented)
+SSR.hydrate ──► starts now ──► answers each held event from the markers, once
 ```
 
 - **`start` stays the plan's.** The server writes it into the envelope, and
@@ -1615,9 +1615,9 @@ and one given `Method('post')` posts no Message, which the entry answers
 `400`.
 
 ```text
-POST ──▶ decode the Message ──▶ set the posted fields into it (the typed `title`)
-     ──▶ init, prepare, then boot and its Commands ──▶ update, and every Command after it
-     ──▶ the page, rendered
+POST ──► decode the Message ──► set the posted fields into it (the typed `title`)
+     ──► init, prepare, then boot and its Commands ──► update, and every Command after it
+     ──► the page, rendered
 ```
 
 The Message must be one the page's active Surfaces list. Commands run under the
@@ -1663,8 +1663,8 @@ one that orders or sends something. `answerPost: 'redirect'` answers the post
 (Post/Redirect/Get):
 
 ```text
-POST /todos ──▶ update, and its Commands ──▶ 303, Location: /todos, headers(request, some(model))
-GET  /todos ──▶ init, prepare ──▶ the page, rendered
+POST /todos ──► update, and its Commands ──► 303, Location: /todos, headers(request, some(model))
+GET  /todos ──► init, prepare ──► the page, rendered
 ```
 
 ```ts
@@ -1730,7 +1730,7 @@ the first frame shows whatever the server knew when it rendered.
 [example's](../../examples/foldkit/ssr) count, by the same route:
 
 ```text
-request cookie ─▶ flags ─▶ init ─▶ Model.theme ─┬─ view draws it
+request cookie ─► flags ─► init ─► Model.theme ─┬─ view draws it
                                                  └─ plan.state carries it, so the browser resumes with it
 ```
 

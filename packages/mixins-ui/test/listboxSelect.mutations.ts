@@ -23,8 +23,8 @@ export default [
     edits: [
       {
         file: '../src/listbox.ts',
-        find: 'onSome: content => content.label })',
-        replace: 'onSome: () => placeholder })',
+        find: "chosen.map(row => row.label).join(', ')",
+        replace: 'placeholder',
       },
     ],
     tests: [unit],
@@ -34,7 +34,7 @@ export default [
     edits: [
       {
         file: '../src/listbox.ts',
-        find: "h.DataAttribute('placeholder', String(Option.isNone(chosen)))",
+        find: "h.DataAttribute('placeholder', String(chosen.length === 0))",
         replace: "h.DataAttribute('placeholder', 'false')",
       },
     ],

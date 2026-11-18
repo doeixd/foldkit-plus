@@ -179,7 +179,7 @@ test('stripes fill every other row; a chosen row is washed, see-through, over a 
       isSelected: run => run.name === 'Run 2',
       onToggle: () => pressed,
       onToggleAll: () => pressed,
-      checkbox,
+      control: Table.checkboxes(checkbox),
     },
   }))
   const mounted = mount(css, draw)
@@ -289,7 +289,7 @@ test('density steps the rows down and up the ladder', async () => {
 
 test('with an open row, the highlight lights data rows and passes over the detail', async () => {
   const { css, draw } = tableOf({}, h => ({
-    fluid: true,
+    fluid: Table.fluid,
     expansion: {
       id: 'runs',
       isExpanded: run => run.name === 'Run 1',
@@ -319,6 +319,52 @@ test('with an open row, the highlight lights data rows and passes over the detai
     })
     // The open row's line goes, so its detail reads as its own.
     expect(getComputedStyle(bodyRows()[0]!).borderBlockEndColor).toBe(transparent)
+  } finally {
+    mounted.dispose()
+  }
+})
+
+test('cell borders box every body cell and a hidden header takes no room', async () => {
+  const boxed = tableOf({ borders: 'cells' }, () => ({}))
+  const hidden = tableOf({ header: 'hidden' }, () => ({}))
+  const rowsOnly = tableOf({}, () => ({}))
+  const measured = async (built: typeof boxed) => {
+    const mounted = mount(built.css, built.draw)
+    try {
+      await vi.waitFor(() => expect(bodyRows()).toHaveLength(12))
+      return {
+        cell: getComputedStyle(document.querySelector('tbody td')!).borderInlineEndWidth,
+        head: document.querySelector('thead')!.getBoundingClientRect().height,
+        table: document.querySelector('table')!.getBoundingClientRect().height,
+      }
+    } finally {
+      mounted.dispose()
+      document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+      document.body.replaceChildren()
+    }
+  }
+  const plain = await measured(rowsOnly)
+  expect((await measured(boxed)).cell).not.toBe(plain.cell)
+  const noHeader = await measured(hidden)
+  expect(noHeader.head).toBeLessThanOrEqual(1)
+  expect(noHeader.table).toBeLessThan(plain.table)
+})
+
+test('a footer row closes the table with a line above it', async () => {
+  const built = tableOf({}, () => ({
+    columns: [
+      { header: 'Run', value: (run: Run) => run.name, footer: 'Total' },
+      { header: 'Minutes', numeric: true, value: (run: Run) => run.minutes, footer: '12' },
+    ],
+  }))
+  const mounted = mount(built.css, built.draw)
+  try {
+    await vi.waitFor(() => expect(bodyRows()).toHaveLength(12))
+    const foot = document.querySelector('tfoot tr')!
+    expect(getComputedStyle(foot).borderBlockStartWidth).not.toBe('0px')
+    const last = bodyRows().at(-1)!.getBoundingClientRect()
+    expect(foot.getBoundingClientRect().top).toBeGreaterThanOrEqual(last.bottom - 1)
+    expect(getComputedStyle(document.querySelectorAll('tfoot td')[1]!).textAlign).toBe('end')
   } finally {
     mounted.dispose()
   }

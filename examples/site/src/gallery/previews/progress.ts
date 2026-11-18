@@ -1,50 +1,31 @@
 import { ProgressSlots, Recipes } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
+import add from '../../examples/progress/add.js'
+import basic from '../../examples/progress/basic.js'
+import buffer from '../../examples/progress/buffer.js'
+import ring from '../../examples/progress/ring.js'
+import steps from '../../examples/progress/steps.js'
+import striped from '../../examples/progress/striped.js'
+import stacked from '../../examples/progress/stacked.js'
+import tones from '../../examples/progress/tones.js'
+import value from '../../examples/progress/value.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
 export const showcase = fromRecipe(
   about('progress'),
   ProgressSlots,
   Recipes.Progress,
-  (style, live) => Snippet.progress(style, live.h),
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Basic', draw: (style, live) => Snippet.progress(style, live.h) },
-    {
-      name: 'value',
-      title: 'With its value',
-      draw: style => Snippet.progressValue(style, inert),
-    },
-    {
-      name: 'stacked',
-      title: 'Stacked',
-      draw: style => Snippet.progressStacked(style, inert),
-      pins: { shape: 'bar' },
-    },
-    {
-      name: 'buffer',
-      title: 'Buffered',
-      draw: style => Snippet.progressBuffer(style, inert),
-      pins: { shape: 'bar' },
-    },
-    {
-      name: 'striped',
-      title: 'Striped and moving',
-      draw: style => Snippet.progressStriped(style, inert),
-      pins: { shape: 'bar', stripes: 'moving', size: 'lg' },
-    },
-    {
-      name: 'ring',
-      title: 'A ring with its value',
-      draw: style => Snippet.progressRing(style, inert),
-      pins: { shape: 'ring', size: 'lg' },
-    },
-    {
-      name: 'steps',
-      title: 'Steps as progress',
-      draw: style => Snippet.progressSteps(style, inert),
-      pins: { shape: 'bar' },
-    },
+    { name: 'basic', example: basic },
+    { name: 'value', example: value },
+    { name: 'stacked', example: stacked },
+    { name: 'buffer', example: buffer },
+    { name: 'striped', example: striped },
+    { name: 'ring', example: ring },
+    { name: 'steps', example: steps },
+    { name: 'tones', example: tones },
+    { name: 'add', example: add },
   ],
 )

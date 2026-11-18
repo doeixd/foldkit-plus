@@ -118,12 +118,55 @@ export default [
     tests: unit,
   },
   {
-    name: 'the status label is ignored',
+    name: 'the status words are ignored',
+    edits: [{ file: view, find: 'text[status]', replace: 'words[status]' }],
+    tests: unit,
+  },
+  {
+    name: 'the retry word is ignored',
     edits: [
       {
         file: view,
-        find: 'options.statusLabel ?? statusWords[status]',
-        replace: 'statusWords[status]',
+        find: '                    text.retry,',
+        replace: '                    words.retry,',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a reaction’s count is left out of its name',
+    edits: [
+      {
+        file: view,
+        find: 'fill(text.reactionCount, { label: reaction.label, count })',
+        replace: 'reaction.label',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a shown reaction is a button',
+    edits: [{ file: view, find: 'return reaction.onClick === undefined', replace: 'return false' }],
+    tests: unit,
+  },
+  {
+    name: 'a run ignores the preset’s pinned actions',
+    edits: [
+      {
+        file: view,
+        find: 'pinActions: item.pinActions ?? given.pinActions',
+        replace: 'pinActions: item.pinActions',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a run ignores the preset’s words',
+    edits: [
+      {
+        file: view,
+        find: 'words: { ...given.words, ...item.words },',
+        replace: 'words: item.words,',
       },
     ],
     tests: unit,

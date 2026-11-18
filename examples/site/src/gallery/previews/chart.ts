@@ -1,43 +1,24 @@
-import type { NamedStyle } from 'foldkit-mixins'
-import { Recipes, ChartSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import { ChartSlots, Recipes } from 'foldkit-mixins-ui'
+import area from '../../examples/chart/area.js'
+import bars from '../../examples/chart/bars.js'
+import donut from '../../examples/chart/donut.js'
+import line from '../../examples/chart/line.js'
+import colors from '../../examples/chart/colors.js'
+import own from '../../examples/chart/own.js'
+import pie from '../../examples/chart/pie.js'
+import shown from '../../examples/chart/shown.js'
+import stacked from '../../examples/chart/stacked.js'
 import { about } from '../catalogue.js'
 import { fromRecipe } from '../define.js'
-import type { Live } from '../showcase.js'
 
-/** A chart example on its own lit point of the widgets' Model. */
-const chartOf =
-  (example: Widgets.ChartExample, draw: typeof Snippet.chartBar) =>
-  <Message>(style: NamedStyle<typeof ChartSlots>, live: Live<Message>) =>
-    draw(
-      style,
-      live.widgets.charts[example],
-      message => live.onWidget(Widgets.Message.GotChart({ example, message })),
-      live.h,
-    )
-
-export const showcase = fromRecipe(
-  about('chart'),
-  ChartSlots,
-  Recipes.Chart,
-  chartOf('bar', Snippet.chartBar),
-  undefined,
-  [
-    { name: 'bar', title: 'Bars', draw: chartOf('bar', Snippet.chartBar) },
-    { name: 'line', title: 'A line', draw: chartOf('line', Snippet.chartLine) },
-    {
-      name: 'area',
-      title: 'An area',
-      draw: chartOf('area', Snippet.chartArea),
-      pins: { height: 'sm', grid: 'zero' },
-    },
-    { name: 'donut', title: 'A donut', draw: chartOf('donut', Snippet.chartDonut) },
-    { name: 'table', title: 'Its data, shown', draw: chartOf('table', Snippet.chartTable) },
-    {
-      name: 'colors',
-      title: 'A series keeps its color',
-      draw: chartOf('colors', Snippet.chartColors),
-    },
-  ],
-)
+export const showcase = fromRecipe(about('chart'), ChartSlots, Recipes.Chart, bars, undefined, [
+  { name: 'bars', example: bars },
+  { name: 'stacked', example: stacked },
+  { name: 'line', example: line },
+  { name: 'area', example: area },
+  { name: 'donut', example: donut },
+  { name: 'pie', example: pie },
+  { name: 'shown', example: shown },
+  { name: 'colors', example: colors },
+  { name: 'own', example: own },
+])

@@ -13,6 +13,7 @@ import { Page } from '../page.js'
 import type { SiteStyle } from '../style.js'
 import { componentPage, componentsContents, componentsPage } from './components.js'
 import { createPage } from './create.js'
+import { primitivesContents, primitivesPage } from './primitives.js'
 import { frame, missing } from './frame.js'
 
 export type Slots = SlotBuilders<typeof SiteStyle.slots, Message>
@@ -40,6 +41,7 @@ export const Body = ({ model, library }: Input, h: H) =>
       rail: (slots, h) =>
         Page.match(model.page, {
           Components: () => componentsContents(model.path, slots, h),
+          Primitives: () => primitivesContents(slots, h),
           Component: () => componentsContents(model.path, slots, h),
           Create: () => componentsContents(model.path, slots, h),
           Missing: () => [],
@@ -50,6 +52,7 @@ export const Body = ({ model, library }: Input, h: H) =>
       page: (slots, h) =>
         Page.match(model.page, {
           Components: () => componentsPage(model, slots, h),
+          Primitives: () => primitivesPage(model, library, slots, h),
           Component: ({ slug }) =>
             Option.match(showcaseOf(slug), {
               onNone: () => missing(model, slots, h),

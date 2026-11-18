@@ -12,6 +12,7 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { cdp, userEvent } from 'vitest/browser'
+import { chipMeasures } from './chipMeasures.js'
 import { holdFrames } from './frames.js'
 import { Recipes, TagsInput, TagsInputSlots } from '../src/index.js'
 
@@ -356,6 +357,76 @@ test('a theme with no travel stills the shake', async () => {
     await userEvent.keyboard(' {Enter}')
     await vi.waitFor(() => expect(status().textContent).toBe('Type a tag to add'))
     expect(getComputedStyle(control()).animationDuration).toBe('0s')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a chip holds its remove button as the pill’s end cap: equal room on three sides, the sign centred', async () => {
+  const handle = mount(['foldkit'])
+  try {
+    await vi.waitFor(() => expect(document.querySelector('li button')).not.toBeNull())
+    const chip = document.querySelector('li')!.getBoundingClientRect()
+    const button = document.querySelector('li button') as HTMLElement
+    const box = button.getBoundingClientRect()
+    const above = box.top - chip.top
+    expect(box.width).toBe(box.height)
+    expect(chip.bottom - box.bottom).toBeCloseTo(above, 1)
+    expect(chip.right - box.right).toBeCloseTo(above, 1)
+    expect(getComputedStyle(button).borderRadius).not.toBe('0px')
+    // The sign is two strokes, each centred by its own middle on the button's: font metrics cannot move it.
+    for (const part of ['::before', '::after'] as const) {
+      const stroke = getComputedStyle(button, part)
+      expect(stroke.position).toBe('absolute')
+      expect(parseFloat(stroke.left)).toBeCloseTo(box.width / 2, 1)
+      expect(parseFloat(stroke.top)).toBeCloseTo(box.height / 2, 1)
+      expect(stroke.translate).toBe('-50% -50%')
+    }
+    expect(getComputedStyle(button, '::before').rotate).not.toBe(
+      getComputedStyle(button, '::after').rotate,
+    )
+    // The text stays in the button for a copy and a search, drawn at no size.
+    expect(button.textContent).toBe('×')
+    expect(getComputedStyle(button).fontSize).toBe('0px')
+  } finally {
+    handle.dispose()
+  }
+})
+
+const faces = ['"Segoe UI", sans-serif', 'Verdana, sans-serif', 'Georgia, serif']
+const roundness = ['0.45', '1', '2']
+const textScales = ['1', '1.5']
+
+test.each(faces)('the label and the mark are centred on the pill’s middle, in %s', async face => {
+  const handle = mount(['foldkit', 'effect', 'typing'])
+  try {
+    await vi.waitFor(() => expect(document.querySelectorAll('li button')).toHaveLength(3))
+    for (const radius of roundness) {
+      for (const scale of textScales) {
+        const sheet = document.createElement('style')
+        sheet.dataset['test'] = ''
+        sheet.textContent = `:root{--fk-knob-radius-factor:${radius};--fk-knob-text-scale:${scale}}body{font-family:${face}}`
+        document.head.append(sheet)
+        for (const chip of document.querySelectorAll<HTMLElement>('li')) {
+          const m = chipMeasures(chip)
+          const where = `${face} radius ${radius} scale ${scale}: ${JSON.stringify(m)}`
+          // Centred on the midpoint of the capitals' middle and the x-height band's, which mixed
+          // lowercase reads as centred: the capitals a little above the pill's middle, the band a
+          // little below it (to within the ink's overshoot, which a serif's canvas measure reads
+          // as up to a pixel at 12px).
+          expect(Math.abs(m.cap + m.xBand) / 2, where).toBeLessThanOrEqual(0.75)
+          expect(m.xBand, where).toBeGreaterThan(-0.25)
+          expect(m.xBand, where).toBeLessThanOrEqual(1.5)
+          expect(m.height, where).toBeCloseTo(m.untrimmedHeight, 1)
+          expect(Math.abs(m.mark), where).toBeLessThanOrEqual(0.5)
+          // Clear of the end cap's curve at the start: about half the pill's height.
+          expect(Math.abs(m.startRoom - m.height / 2), where).toBeLessThanOrEqual(1.5)
+          // The button's room after it is the room above it: the end cap's own circle.
+          expect(m.endRoom, where).toBeCloseTo(m.verticalRoom, 1)
+        }
+        sheet.remove()
+      }
+    }
   } finally {
     handle.dispose()
   }

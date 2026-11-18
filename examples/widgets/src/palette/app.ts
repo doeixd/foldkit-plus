@@ -54,6 +54,9 @@ const assembly = Parent.assemble(
   }),
 )
 
+/** The DismissLayer's document listeners: without them an outside press and Escape reach nothing. */
+export const subscriptions = assembly.subscriptions()
+
 const apply = assembly.update((model, message) => {
   return Match.valueTags(message, {
     Queried: message => ({ model: modifyFields(model, { query: () => message.text }) }),

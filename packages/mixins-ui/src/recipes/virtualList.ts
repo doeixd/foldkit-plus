@@ -5,7 +5,7 @@
  * `scrollBars.ts` stands over the list's edge where `ScrollBars` runs.
  */
 import { Style } from 'foldkit-mixins'
-import { VirtualListSlots } from '../virtualList.js'
+import { VirtualListSlots } from '../virtualList/slots.js'
 import { component, ref, rowOnLadder, transition, unfilledHover } from './design.js'
 import { bar, overlaidChild, thumb } from './scrollBars.js'
 

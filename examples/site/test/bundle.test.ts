@@ -25,10 +25,46 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // page (its snippet, state and recipe) and the accessibility notes' text, about 0.2 kB per page with notes.
 // Then the Drawer and App shell pages (their snippets, the Drawer's state, notes and the frame) and the
 // Input OTP states' own codes took it to 389.0 kB, 1.7 kB more; the ceiling is that plus 1%.
-const CEILINGS = { shell: 188_000, gallery: 393_000 }
+// 2026-11-17: the gallery's first load is 397.6 kB, +8.5 kB from the last green main (389.1 kB), built
+// in separate trees: +5.3 kB the Primitives gallery's own code (its data, snippets and view, and the
+// motion and net primitives its live examples run), +3.1 kB shared by the pages: `recipe.add`, the
+// FileUpload and Calendar recipes and the default look's theme text. The shell grew 0.6 kB (the style
+// runtime). Ceiling raised to the reading with the Combobox's options and rows (about 0.4 kB), rounded up.
+// Later that day the example harness (#589) took the gallery from 398,242 to 399,746, both built
+// from one tree with the site's sources swapped: +0.74 kB the harness itself (`define.ts`,
+// `examplesState.ts`, `example.ts`, the line under a module's code and the Model field), +0.15 kB
+// `configure` (first read here), and +0.6 kB net for the Button and Tags input pages as modules,
+// which gained four examples (two `configure`, `recipe.add`, the layout Slots) and lost 0.56 kB of
+// regions and hand-written folds.
+// With the Combobox, Calendar and DatePicker modules and the new File upload page it reads
+// 410,525, by the gallery chunk's modules against the same baseline build: +5.4 kB the FileUpload
+// widget and its recipe (a page the site did not have), +2.9 kB the options-level views and
+// states the modules draw through (`calendar/state`, `view` and `layout`, `datePicker/state` and
+// `view`, `combobox/view`, the Bundles and `Bundle.compose`), +2.9 kB the thirty-one example
+// modules, +0.9 kB the harness and `configure`, less 1.7 kB of regions no page draws any more.
+// The adapter-rung regions of those three pages are still loaded beside the modules.
+// 2026-11-18: the gallery reads 422,177 here and 423,286 on CI, +11.7 kB over the reading above,
+// Not split module by module against the old build (no second tree); what the dump shows is the
+// causes: the example modules of the button, surface, choice-control, menu and text-field pages
+// (`configure.ts` 0.3 to 1.0 kB minified each, about two hundred modules in all, and the
+// `snippets/components.ts` regions still loaded beside them), the recipes' new axis values, and the
+// options-level modules (`calendar/state` 2.2 kB, `combobox/view` 1.6 kB, `bundles/*`, `configure`,
+// `press`, `adornments`, `toggleRow`, `choice/*`, `words`). The component pages draw every widget,
+// so each of those is one a preview draws; the shell (a guide's load, 173.5 kB) holds none of them.
+// Ceiling raised to the reading plus about 0.3%, rounded up: 428,656 in a tree that also held the
+// selection-popup, dialog, accordion and table families' uncommitted work (422,177 an hour earlier
+// without it), so the next family to land re-measures and raises it by what it added.
+// Later on 2026-11-18, with the layout, data-and-media and chat families (F9 to F11) in, it reads
+// 443,558, +14.9 kB. By the gallery's modules (the gallery chunk marked as an entry and attributed
+// by `reportFor`): the 130 example modules of those families' pages come to about 15.4 kB
+// (layout 7.8, data and media 5.6, chat 2.0), less the regions they replaced; their recipes,
+// Bundles and preview lists are 18.8 kB of the total (not compared with a build before them). The gallery Model's fields
+// for converted pages (`widgets.ts`, `widgetsUpdate.ts`, 3.6 kB) are still loaded until phase 5
+// deletes them. Ceiling: the reading plus about 0.3%, rounded up.
+const CEILINGS = { shell: 188_000, gallery: 445_000 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
-const PREVIEWS = ['preview-tabs', 'preview-trip-first']
+const PREVIEWS = ['preview-heading', 'preview-trip']
 
 interface Manifest {
   readonly [key: string]: {

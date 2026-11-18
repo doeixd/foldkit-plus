@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest'
 import { Message, initial, update } from '../src/picker/app.js'
 import { runDemo } from '../src/picker/view.js'
 
-const got = (message: Picker.Message) => Message.GotPicker({ message })
+const got = (message: Picker.Message) => Message.GotPickerMessage({ message })
 
 describe('update flows', () => {
   it('starts with no order', () => {

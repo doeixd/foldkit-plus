@@ -16,6 +16,7 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import { allSubsites, subsites } from '../src/catalog.js'
 import { GITHUB } from '../src/content/guides.js'
 import { demos, onGitHub } from '../src/demos.js'
+import { families } from '../src/gallery/primitives.js'
 import { showcases } from '../src/gallery/showcases.js'
 import { codeOf, defaults } from '../src/gallery/theme.js'
 import type { Links, Share } from './prerendered.js'
@@ -37,12 +38,20 @@ const READ = [
   '/primitives/api/primitives-time/throttle',
   '/primitives',
   '/components',
+  '/primitives/gallery',
   '/components/button',
+  '/components/tags-input',
+  '/components/combobox',
+  '/components/calendar',
+  '/components/file-upload',
   '/components/radio-group',
   '/components/file-drop',
   '/components/alert',
   '/components/badge',
   '/components/checkbox',
+  '/components/switch',
+  '/components/select',
+  '/components/rating',
   '/components/checkbox-group',
   '/components/steps',
   '/components/pagination',
@@ -236,8 +245,8 @@ describe('the generated site', () => {
     expect(hrefs(ssr, 'nav[aria-label="Documentation"] [aria-current="location"]')).toEqual([
       '/ssr/api/ssr',
     ])
-    // The guides that name it are listed under it.
-    expect(hrefs(ssr, '.mentions a')).toEqual(expect.arrayContaining(['/ssr/guides/a-first-page']))
+    // The guides that name it are listed under it: "A first page" is a section of the package's first page now.
+    expect(hrefs(ssr, '.mentions a')).toEqual(expect.arrayContaining(['/ssr']))
     // Before the members, where a reader looking for it at work stops first.
     expect(
       Array.from(ssr.querySelectorAll('article h2[id]'), heading => heading.id).slice(0, 2),
@@ -299,6 +308,21 @@ describe('the generated site', () => {
     expect(hrefs(gallery, 'nav[aria-label="Site"] [aria-current="page"]')).toEqual(['/components'])
   })
 
+  test('the primitives gallery has a card for each module, grouped by family, and the guide stays', () => {
+    const gallery = page('/primitives/gallery')
+    expect(
+      Array.from(gallery.querySelectorAll('main section[id]'), family =>
+        hrefs(family, 'ul > li > a'),
+      ),
+    ).toEqual(families.map(family => family.cards.map(() => `/primitives/guides/${family.id}`)))
+    expect(hrefs(gallery, 'nav[aria-label="Site"] [aria-current="page"]')).toEqual([
+      '/primitives/gallery',
+    ])
+    // The README's guide keeps its address, and the gallery's rail leads to it.
+    expect(links.has('/primitives')).toBe(true)
+    expect(hrefs(gallery, 'nav[aria-label="Primitives"] a')).toContain('/primitives')
+  })
+
   test('the rail lists every component by name, in alphabetical order', () => {
     const rail = page('/components/button').querySelector('nav[aria-label="Components"]')!
     const titles = Array.from(
@@ -334,33 +358,42 @@ describe('the generated site', () => {
     expect(code?.textContent).toContain(
       "Button.view({ label: 'Save changes', icon: outline(h, 'M3 8.5l3 3 7-7'), style }, h)",
     )
-    expect(code?.querySelector('[data-kind="syntax-keyword"]')?.textContent).toBe('export')
+    // The example's whole module is shown, from its imports.
+    expect(code?.querySelector('[data-kind="syntax-keyword"]')?.textContent).toBe('import')
+    expect(code?.textContent).toContain("from 'foldkit-mixins-ui'")
+    expect(button.querySelector('main section > p code')?.textContent).toBe('recipe')
   })
 
   test('a showcase with examples shows each with its preview, code and link', () => {
     for (const [slug, examples] of [
       [
-        'alert',
-        [
-          ['inline', 'Inline', 'alertInline'],
-          ['banner', 'Banner', 'alertBanner'],
-        ],
-      ],
-      [
-        'badge',
-        [
-          ['tinted', 'Tinted', 'badgesTinted'],
-          ['dot', 'Dot', 'badgesDot'],
-          ['outline', 'Outline', 'badgesOutline'],
-          ['solid', 'Solid', 'badgesSolid'],
-        ],
-      ],
-      [
         'checkbox',
         [
-          ['basic', 'Basic', 'checkbox'],
-          ['indeterminate', 'Indeterminate', 'checkboxIndeterminate'],
-          ['card', 'Card', 'checkboxCard'],
+          ['basic', 'Basic', 'Checkbox.view('],
+          ['indeterminate', 'Indeterminate', 'indeterminate: model.on.length > 0'],
+          ['card', 'Card', "pins: { variant: 'card' }"],
+          ['aside', 'Aside and position', "position: 'end'"],
+        ],
+      ],
+      [
+        'switch',
+        [
+          ['basic', 'Basic', 'Switch.view('],
+          ['draggable', 'Drag the thumb', 'mixins: [Switch.draggable(onToggle)]'],
+        ],
+      ],
+      [
+        'select',
+        [
+          ['basic', 'Basic', 'Select.view('],
+          ['groups', 'Groups', "group: 'Americas'"],
+        ],
+      ],
+      [
+        'rating',
+        [
+          ['basic', 'Basic', 'Rating.view('],
+          ['labels', 'A word per value', "labels: ['Useless'"],
         ],
       ],
       [
@@ -375,9 +408,9 @@ describe('the generated site', () => {
       [
         'radio-group',
         [
-          ['descriptions', 'Descriptions', 'radioGroup'],
-          ['horizontal', 'Horizontal', 'radioGroupHorizontal'],
-          ['cards', 'Cards', "Recipes.RadioGroup({ variant: 'card' })"],
+          ['basic', 'Descriptions', 'RadioGroup.view('],
+          ['cards', 'Cards', "pins: { variant: 'card' }"],
+          ['grid', 'Grid', "layout: 'grid'"],
         ],
       ],
       ['file-drop', [['basic', 'Dropped files', 'fileDrop']]],
@@ -386,10 +419,17 @@ describe('the generated site', () => {
         [
           ['basic', 'Basic', 'SearchField.view('],
           ['routes', 'Keys of your own', "Behaviors.Keys.chord('ArrowDown')"],
-          ['states', 'Invalid and disabled', 'invalid: true'],
+          ['busy', 'Busy, with a clear of your own', 'busy: model.query'],
+          ['states', 'Invalid, disabled and with no clear', 'invalid: true'],
         ],
       ],
-      ['toolbar', [['basic', 'Formatting', 'Toolbar.view(']]],
+      [
+        'toolbar',
+        [
+          ['basic', 'Formatting', 'Toolbar.view('],
+          ['configure', 'Configure once', 'Toolbar.configure('],
+        ],
+      ],
       [
         'file-input',
         [
@@ -406,49 +446,99 @@ describe('the generated site', () => {
             "Button.view({ label: 'Save changes', icon: outline(h, 'M3 8.5l3 3 7-7'), style }, h)",
           ],
           ['icon', 'Icon only', "label: 'Reply'"],
-          ['toggle', 'Toggle', 'pressed: pressed.includes(format)'],
+          ['toggle', 'Toggle', 'pressed: model.on.includes(format)'],
+          ['configure', 'Configure once', 'const AppButton = Button.configure({'],
+          ['add', 'A look of your own', 'Recipes.Button.add({'],
+        ],
+      ],
+      [
+        'combobox',
+        [
+          ['basic', 'Basic', 'const City = Combobox.one(cities)'],
+          ['multiple', 'Several, as chips', 'const Cities = Combobox.many(cities)'],
+          ['empty', 'Empty and loading', "label: 'Still loading'"],
+          ['creatable', 'Creatable', 'choice: Combobox.one(known)'],
+          ['choice', 'A choice of your own: at most three', 'Choice<Item, ReadonlyArray<Item>>'],
+        ],
+      ],
+      [
+        'tags-input',
+        [
+          ['basic', 'Basic', "state: Bundles.TagsInput.with({ id: 'topics'"],
+          ['max', 'A maximum', 'max: 3'],
+          ['refusals', 'Refusals', "full: 'That makes more than {max}.'"],
+          ['configure', 'Configure once', 'const Tags = TagsInput.configure({'],
         ],
       ],
       [
         'breadcrumb',
         [
-          ['basic', 'Basic', 'Recipes.Breadcrumb({})'],
+          ['basic', 'Basic', 'Recipes.Breadcrumb'],
           ['icons', 'Icons', 'icon: outline(h'],
-          ['custom', 'A separator of your own', "separator: h.span([], ['→'])"],
-          ['collapsed', 'Collapsed', 'collapse: { max: 3, onExpand }'],
+          ['separator', 'A separator of your own', "separator: h.span([], ['→'])"],
+          ['trailing', 'Icon only, and a count', 'labelHidden: true'],
+          ['collapsed', 'Collapsed', 'collapse: { max: 3, onExpand: onMessage('],
+          ['menu', 'The hidden steps in a menu', 'collapse: BreadcrumbMenu.make({'],
+          ['words', 'In another language', "words: { label: 'Fil d’Ariane'"],
+          ['feature', 'A fold of your own', 'draw: ({ label, ellipsis, builders }, builder) =>'],
         ],
       ],
       [
         'scroll-area',
         [
-          ['native', "The browser's bars", 'Recipes.ScrollArea.extend'],
+          ['native', 'The browser’s bars', 'Recipes.ScrollArea.extend'],
           ['overlay', 'Overlay bars', 'mixins: ScrollArea.overlayBars'],
         ],
       ],
       [
         'date-picker',
         [
-          ['single', 'A day', 'datePicker'],
-          ['range', 'A range', 'DatePicker.update(range)'],
+          ['range', 'A range', "id: 'stay'"],
+          ['bundle', 'Placed as a Bundle', "state: Bundles.DatePicker.with({ id: 'due'"],
+          ['presets', 'A range with presets', 'Calendar.lastDays(today, 30)'],
+        ],
+      ],
+      [
+        'file-upload',
+        [
+          ['basic', 'Basic', "state: Bundles.FileUpload.with({ id: 'logo'"],
+          ['drop', 'Drag and drop', "words: { prompt: 'Drop files here or' }"],
+          ['table', 'Composed: the files as a table', 'const drawn = FileUpload.parts('],
+          ['cover', 'Cover', 'send: job => simulated(job).pipe(Stream.map(lift))'],
+          ['configure', 'Configure once', 'const Upload = FileUpload.configure({'],
+        ],
+      ],
+      [
+        'calendar',
+        [
+          ['basic', 'A day', "state: Bundles.Calendar.with({ id: 'delivery'"],
+          ['range', 'A range over two months, with presets', 'months: 2'],
+          ['presets', 'Presets of your own', 'const weekendOf ='],
+          ['appointment', 'Composed: a day and a time', 'aside: stack('],
+          ['unavailable', 'Weekends, booked days and bounds', 'disabledDaysOfWeek'],
+          ['several', 'Several days', "Calendar.empty('Multiple')"],
+          ['prices', 'A price on each day', 'const priceOf ='],
+          ['events', 'Events and a Today button', 'const eventsOn ='],
         ],
       ],
       [
         'kbd',
         [
           ['key', 'A key', "Kbd.view({ key: 'Enter', style }, h)"],
-          ['combo', 'A combination', "Kbd.combo({ keys: ['⌘', 'K'], style }, h)"],
-          ['joined', 'Joined by words', "joiner: '+'"],
+          ['combo', 'Combinations', "Kbd.combo({ keys: ['⌘', 'K'], style }, h)"],
+          ['glyphs', 'Keys that are drawings', 'h.AriaLabel('],
+          ['shortcut', 'Beside a button', 'trailing: Kbd.combo('],
         ],
       ],
       [
         'pagination',
         [
-          ['numbered', 'Numbered', 'pageCount: 12'],
+          ['basic', 'Numbered', 'pageCount: 12'],
           ['simple', 'Previous and next', 'numbered: false'],
           ['ends', 'First and last', 'ends: true'],
           ['range', 'Rows and page size', 'sizes: [10, 20, 50]'],
-          ['siblings', 'Siblings and boundaries', 'siblings: 2, boundaries: 2'],
-          ['compact', 'Compact', "Recipes.Pagination({ compact: 'always' })"],
+          ['siblings', 'Siblings and boundaries', 'siblings: 2,'],
+          ['compact', 'Compact', "pins: { compact: 'always' }"],
         ],
       ],
       [
@@ -456,7 +546,7 @@ describe('the generated site', () => {
         [
           ['basic', 'Basic', 'steps'],
           ['icons', 'Icons', 'icon: outline(h'],
-          ['vertical', 'Vertical, with content', "Recipes.Steps({ orientation: 'vertical' })"],
+          ['vertical', 'Vertical, with content', "pins: { orientation: 'vertical' }"],
         ],
       ],
     ] as const) {
@@ -475,13 +565,32 @@ describe('the generated site', () => {
     }
   })
 
+  test('every drop zone on the file upload page says what to do, in a list or a grid', () => {
+    const upload = page('/components/file-upload')
+    const said = (name: string) =>
+      upload
+        .getElementById(name)
+        ?.closest('section')
+        ?.querySelector('[data-size="page"] label[for]')
+        ?.textContent?.replace(/\s+/g, ' ')
+    expect(['drop', 'gallery', 'progress', 'table', 'images', 'card'].map(said)).toEqual([
+      'Drop files here or browse',
+      'Drop images here or browse',
+      'Drop files here or browse',
+      'Drop files here or browse',
+      'Drop images here or browse',
+      'Drop files here or browse',
+    ])
+    expect(said('basic')).toBe('Choose an image')
+  })
+
   test('each badge example shows its appearance on words of its own', () => {
     const words = Array.from(
       page('/components/badge').querySelectorAll('main section [data-size="page"]'),
       preview => preview.textContent,
     )
-    expect(words).toHaveLength(4)
-    expect(new Set(words).size).toBe(4)
+    expect(words).toHaveLength(7)
+    expect(new Set(words).size).toBe(7)
   })
 
   test('the toggle buttons say which are pressed', () => {
@@ -517,7 +626,9 @@ describe('the generated site', () => {
 
   test('the range picker submits its dates under one name', () => {
     const range = page('/components/date-picker').getElementById('range')?.closest('section')
-    expect(range?.querySelector('[data-size="page"] button')?.textContent).toBe('Pick your dates')
+    expect(range?.querySelector('[data-size="page"] button')?.textContent).toBe(
+      'Pick check-in and check-out',
+    )
     expect(
       range?.querySelectorAll('[data-size="page"] input[type="hidden"][name="stay"]'),
     ).toHaveLength(1)
@@ -526,7 +637,7 @@ describe('the generated site', () => {
   test('a key combination is one kbd holding a kbd per key', () => {
     const combo = page('/components/kbd').getElementById('combo')?.closest('section')
     const keys = Array.from(combo?.querySelectorAll('[data-size="page"] kbd > kbd') ?? [])
-    expect(keys.map(key => key.textContent)).toEqual(['⌘', 'K'])
+    expect(keys.map(key => key.textContent)).toEqual(['⌘', 'K', 'Ctrl', 'Shift', 'P'])
   })
 
   test('the file drop is a label around its hidden file input', () => {
@@ -537,17 +648,21 @@ describe('the generated site', () => {
     expect(zone?.hasAttribute('data-drag-over')).toBe(false)
   })
 
-  test('the table names each row by its first cell, and draws a status as a badge', () => {
+  test('the table names each row by its first cell, the others plain cells', () => {
     const basic = page('/components/table').getElementById('basic')?.closest('section')
     const rows = Array.from(basic?.querySelectorAll('[data-size="page"] tbody tr') ?? [])
     expect(rows.map(row => row.querySelector('th[scope="row"]')?.textContent)).toEqual([
       'INV-001',
       'INV-002',
       'INV-003',
+      'INV-004',
     ])
-    expect(rows.map(row => row.querySelector('td [data-tone]')?.getAttribute('data-tone'))).toEqual(
-      ['live', 'review', 'live'],
-    )
+    expect(rows.map(row => row.querySelector('td')?.textContent)).toEqual([
+      'Paid',
+      'Pending',
+      'Paid',
+      'Overdue',
+    ])
   })
 
   test('the page menu draws icons, hints and a shortcut, and tells two rows of one label apart', () => {
@@ -589,24 +704,21 @@ describe('the generated site', () => {
   })
 
   test('the input in a form says what it submits, asks for and offers', () => {
-    const form = page('/components/input').getElementById('form')?.closest('section')
+    const form = page('/components/input').getElementById('states')?.closest('section')
     const [phone, order] = Array.from(form?.querySelectorAll('[data-size="page"] input') ?? [])
     expect(phone?.getAttribute('name')).toBe('phone')
-    expect(phone?.getAttribute('autocomplete')).toBe('tel')
     expect(phone?.getAttribute('inputmode')).toBe('tel')
-    expect(phone?.getAttribute('maxlength')).toBe('16')
     expect(phone?.hasAttribute('required')).toBe(true)
     expect(order?.hasAttribute('readonly')).toBe(true)
     expect(order?.getAttribute('name')).toBe('order')
   })
 
   test('the number field with no value shows none, and the slider says what it is saved at', () => {
-    const empty = page('/components/number-field').getElementById('locale')?.closest('section')
-    const field = empty?.querySelector('[data-size="page"] input')
-    expect(field?.getAttribute('name')).toBe('price')
-    expect((field as HTMLInputElement | null)?.value).toBe('')
-    expect(field?.hasAttribute('aria-valuenow')).toBe(false)
-    expect(empty?.querySelector('[data-size="page"]')?.textContent).toContain('Empty: type 1.234,5')
+    const locale = page('/components/number-field').getElementById('locale')?.closest('section')
+    const field = locale?.querySelector('[data-size="page"] input')
+    expect((field as HTMLInputElement | null)?.value).toBe('1.234,5')
+    expect(field?.getAttribute('aria-valuenow')).toBe('1234.5')
+    expect(locale?.querySelector('[data-size="page"]')?.textContent).toContain('EUR')
     const commit = page('/components/slider').getElementById('commit')?.closest('section')
     expect(commit?.querySelector('[data-size="page"] p')?.textContent).toBe('Saved: 60%')
     const basic = page('/components/slider').getElementById('basic')?.closest('section')
@@ -650,7 +762,7 @@ describe('the generated site', () => {
   test('the search fields are search inputs named by their label, with no clear button while empty', () => {
     const basic = page('/components/search-field').getElementById('basic')?.closest('section')
     const input = basic?.querySelector('[data-size="page"] input[type="search"]')
-    expect(input?.getAttribute('aria-label')).toBe('Search recipes')
+    expect(input?.getAttribute('aria-label')).toBe('Search products')
     expect(basic?.querySelector('[data-size="page"] button')).toBeNull()
     const states = page('/components/search-field').getElementById('states')?.closest('section')
     const [invalid, disabled] = Array.from(
@@ -658,10 +770,8 @@ describe('the generated site', () => {
     )
     expect(invalid?.getAttribute('aria-invalid')).toBe('true')
     expect(disabled?.hasAttribute('disabled')).toBe(true)
-    // Typed text draws the clear button; the disabled field draws none either way.
-    expect(
-      states?.querySelectorAll('[data-size="page"] button[aria-label="Clear search"]'),
-    ).toHaveLength(1)
+    // These fields are given no `clear`: none draws the button.
+    expect(states?.querySelectorAll('[data-size="page"] button')).toHaveLength(0)
   })
 
   test('the toolbar has one tab stop, groups its alignment and skips the disabled link', () => {
@@ -675,13 +785,8 @@ describe('the generated site', () => {
       'true',
       'false',
       'false',
-      'true',
-      'false',
-      'false',
-      'false',
     ])
-    expect(bar?.querySelector('[role="group"]')?.getAttribute('aria-label')).toBe('Alignment')
-    expect(bar?.querySelectorAll('[role="separator"]')).toHaveLength(2)
+    expect(bar?.querySelectorAll('[role="separator"]')).toHaveLength(1)
     const link = buttons.at(-1)
     expect(link?.textContent).toBe('Link')
     expect(link?.hasAttribute('disabled') || link?.getAttribute('aria-disabled') === 'true').toBe(
@@ -716,21 +821,21 @@ describe('the generated site', () => {
         'main [data-size="page"] [role="radiogroup"]',
       ),
     )
-    expect(groups).toHaveLength(3)
+    expect(groups).toHaveLength(5)
     expect(
       groups.filter(group => group.getAttribute('aria-orientation') === 'horizontal'),
     ).toHaveLength(1)
-    // Each row is the card slot, marked while its option is checked.
-    expect(
-      groups.map(group =>
-        Array.from(group.querySelectorAll('label'), row => row.getAttribute('data-checked')),
-      ),
-    ).toEqual(groups.map(() => ['false', 'true', 'false']))
     for (const group of groups) {
-      const radios = Array.from(group.querySelectorAll('[role="radio"]'))
-      expect(radios).toHaveLength(3)
-      // A label's `control` is the element a press on it is sent to.
-      expect(radios.map(radio => radio.closest('label')?.control)).toEqual(radios)
+      const rows = Array.from(group.querySelectorAll<HTMLLabelElement>(':scope > label'))
+      expect(rows.length).toBeGreaterThan(1)
+      for (const row of rows) {
+        const radio = row.querySelector('[role="radio"]')
+        // A label's `control` is the element a press on it is sent to; the row is
+        // marked while its option is checked.
+        expect(radio).not.toBeNull()
+        expect(row.control).toBe(radio)
+        expect(row.getAttribute('data-checked')).toBe(radio?.getAttribute('aria-checked'))
+      }
     }
   })
 

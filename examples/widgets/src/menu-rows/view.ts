@@ -54,7 +54,7 @@ export const MenuRows = SlotView.forMessages<Message>()
           model: model.menu,
           rows: rowsOf(h),
           buttonContent: h.span(slots.trigger.attrs(), ['Actions']),
-          onMessage: message => Message.GotMenu({ message }),
+          onMessage: message => Message.GotMenuMessage({ message }),
           mixins: [MenuStyle.mixin],
         },
         h,

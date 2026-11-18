@@ -1,6 +1,6 @@
 /**
  * CSS math, evaluated: numbers, `deg`, `+ - * /`, parentheses, `calc`, `min`,
- * `max`, `clamp`, `pow`, `cos`, `sin`, `var()` with or without a fallback,
+ * `max`, `clamp`, `pow`, `hypot`, `cos`, `sin`, `var()` with or without a fallback,
  * and bare keywords (a relative color's `l` and `c`) from the scope. It works
  * out the hues a theme's knob variables place, and lets a test read the
  * palette's text as the browser does rather than a copy of its formula.
@@ -35,6 +35,7 @@ const evaluateIn = (source: string, scope: Scope, known: Map<string, number>): n
     min: values => Math.min(...values),
     max: values => Math.max(...values),
     clamp: ([low, x, high]) => Math.max(low!, Math.min(x!, high!)),
+    hypot: values => Math.hypot(...values),
     pow: ([x, y]) => x! ** y!,
     cos: ([x]) => Math.cos(x!),
     sin: ([x]) => Math.sin(x!),

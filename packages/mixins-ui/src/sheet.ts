@@ -54,13 +54,19 @@ import {
   type ResolvedDialog,
 } from './dialog.js'
 import type { MixinList } from './resolve.js'
+import {
+  CLOSE_SHARE,
+  FLICK_SPEED,
+  PRESS_SLOP,
+  SwipeFrom,
+  swipeOf,
+  type SwipeConfig,
+} from './swipe.js'
+
+export { CLOSE_SHARE, FLICK_SPEED, PRESS_SLOP, SwipeFrom, swipeOf, type SwipeConfig }
 
 export const Side = Schema.Literals(['top', 'right', 'bottom', 'left'])
 export type Side = typeof Side.Type
-
-/** Where a drag starts: anywhere on the panel for a finger, or the handle alone. */
-export const SwipeFrom = Schema.Literals(['panel', 'handle'])
-export type SwipeFrom = typeof SwipeFrom.Type
 
 export const Model = Schema.Struct({
   dialog: UiDialog.Model,
@@ -100,13 +106,6 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-/** The default `flickSpeed`: a release faster than this, in pixels a millisecond, is a flick (vaul's 0.4). */
-export const FLICK_SPEED = 0.4
-/** The default `closeShare`: the share of the panel a slow drag takes it away by (vaul's 0.25). */
-export const CLOSE_SHARE = 0.25
-/** A press on the handle that moves less than this, in pixels, is a press, not a drag. */
-export const PRESS_SLOP = 4
-
 export interface InitConfig {
   /** The Dialog's id, unique in the document. */
   readonly id: string
@@ -122,28 +121,6 @@ export interface InitConfig {
   readonly isAnimated?: boolean
   /** How it is swiped. */
   readonly swipe?: SwipeConfig
-}
-
-/** How a Sheet or a Drawer is swiped; every field has the default its doc names. */
-export interface SwipeConfig {
-  /** Where a drag starts: `panel` (a finger anywhere on it, the default) or `handle`. */
-  readonly from?: SwipeFrom
-  /** How fast, in pixels a millisecond, a release must be to be a flick. Default `FLICK_SPEED`. */
-  readonly flickSpeed?: number
-  /** The share of the panel, from 0 to 1, a slow drag takes it away by. Default `CLOSE_SHARE`. */
-  readonly closeShare?: number
-}
-
-/** `config`'s fields with their defaults, refusing a speed that is not above 0 or a share outside (0, 1]. */
-export const swipeOf = (id: string, config: SwipeConfig = {}) => {
-  const flickSpeed = config.flickSpeed ?? FLICK_SPEED
-  const closeShare = config.closeShare ?? CLOSE_SHARE
-  if (!(flickSpeed > 0))
-    throw new Error(`${id}: swipe.flickSpeed must be above 0, given ${flickSpeed}`)
-  if (!(closeShare > 0 && closeShare <= 1)) {
-    throw new Error(`${id}: swipe.closeShare must be within (0, 1], given ${closeShare}`)
-  }
-  return { swipeFrom: config.from ?? ('panel' as const), flickSpeed, closeShare }
 }
 
 /** A closed Sheet. Throws on points that are empty, out of order or out of (0, 1], or an `opensAt` among none. */
@@ -246,7 +223,16 @@ export const settle = (release: {
 /** The Sheet after `message`; the same Model when nothing changes. */
 export const update = (model: Model, message: Message): Return =>
   Message.match(message, {
-    GotDialog: ({ message }) => dialogStep(model, updateDialog(model.dialog, message)),
+    // An open, from the application's button as from `open`, rests at the point it opens at.
+    GotDialog: ({ message }) =>
+      dialogStep(
+        model,
+        updateDialog(model.dialog, message),
+        Match.value(message).pipe(
+          Match.tag('RequestedOpen', () => (model.dialog.isOpen ? {} : { at: model.opensAt })),
+          Match.orElse(() => ({})),
+        ),
+      ),
     Grabbed: ({ size }) => ({
       model: modifyFields(model, { drag: () => Option.some({ size, delta: 0 }) }),
     }),

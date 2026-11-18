@@ -177,4 +177,9 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'the pause words given are ignored',
+    edits: [{ file: '../src/marquee.ts', find: 'wordsOf(words, options.words)', replace: 'words' }],
+    tests: [unit],
+  },
 ]

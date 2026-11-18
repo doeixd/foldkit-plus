@@ -10,7 +10,7 @@ import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { DialogSlots, ListboxSlots, Picker, PickerSlots, Recipes } from 'foldkit-mixins-ui'
 import { pickerIslandStyle } from '../style.js'
 import { textOf } from '../text.js'
-import { LABELS, Message, OPTIONS, initial, update, type Model } from './app.js'
+import { LABELS, Message, Sorts, initial, rowOf, update, type Model } from './app.js'
 
 export const PickerIslandSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -31,9 +31,10 @@ export const PickerIsland = (model: Model, h: HtmlBuilder<Message>): Html => {
     Picker.view(
       {
         model: model.picker,
-        onMessage: message => Message.GotPicker({ message }),
+        onMessage: message => Message.GotPickerMessage({ message }),
         label: 'Sort',
-        options: OPTIONS,
+        choice: Sorts,
+        option: rowOf,
         value: model.sort,
         placeholder: 'Sort by',
         style,
@@ -51,11 +52,11 @@ export const PickerIsland = (model: Model, h: HtmlBuilder<Message>): Html => {
 export const runDemo = (): ReadonlyArray<string> => {
   let model = initial
   const lines = [`start: sort=${textOf(model.sort)}`]
-  model = update(model, Message.GotPicker({ message: Picker.Message.OpenedSheet() })).model
+  model = update(model, Message.GotPickerMessage({ message: Picker.Message.OpenedSheet() })).model
   lines.push(`opened the sheet: open=${model.picker.sheet.dialog.isOpen}`)
   model = update(
     model,
-    Message.GotPicker({ message: Picker.Message.ChoseInSheet({ value: 'price' }) }),
+    Message.GotPickerMessage({ message: Picker.Message.ChoseInSheet({ value: 'price' }) }),
   ).model
   lines.push(
     `chose in the sheet: sort=${textOf(model.sort)} open=${model.picker.sheet.dialog.isOpen}`,

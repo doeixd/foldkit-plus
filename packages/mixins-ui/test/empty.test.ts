@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { EmptySlots, view } from '../src/empty.js'
+import { EmptySlots, configure, view } from '../src/empty.js'
 import { Recipes } from '../src/index.js'
 
 const h = SlotView.inertBuilder<never>()
@@ -51,5 +51,27 @@ describe('Empty recipe', () => {
     expect(sheet).toContain('justify-items:center')
     expect(sheet).toContain('text-align:center')
     expect(sheet).toContain('font-weight:var(--fk-weight-heading)')
+  })
+})
+
+describe('Empty.configure', () => {
+  const style = Style.forSlots(EmptySlots)(Recipes.Empty({}))
+  const quiet = Style.forSlots(EmptySlots)(Recipes.Empty({ frame: 'dashed' }))
+  const App = configure({ base: { style }, presets: { quiet: { style: quiet } } })
+
+  it('binds a style once, a preset replaces it and the call replaces both', () => {
+    const classes = (drawn: ReturnType<typeof view>) => Inert.classes(drawn)
+    expect(classes(App.view({ title: 'Nothing here' }, h))).toEqual(
+      classes(view({ title: 'Nothing here', style }, h)),
+    )
+    expect(classes(App.view({ title: 'Nothing here', preset: 'quiet' }, h))).toEqual(
+      classes(view({ title: 'Nothing here', style: quiet }, h)),
+    )
+    expect(classes(App.view({ title: 'Nothing here', preset: 'quiet', style }, h))).toEqual(
+      classes(view({ title: 'Nothing here', style }, h)),
+    )
+    expect(classes(view({ title: 'Nothing here', style }, h))).not.toEqual(
+      classes(view({ title: 'Nothing here', style: quiet }, h)),
+    )
   })
 })

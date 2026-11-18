@@ -3,7 +3,7 @@
  * `pnpm mutate packages/mixins-ui/test/radioGroupKeys.mutations.ts`.
  */
 const tests = ['packages/mixins-ui/test/radioGroupKeys.browser.test.ts']
-const file = '../src/radioGroup.ts'
+const file = '../src/radioGroup/readingKeys.ts'
 
 export default [
   {

@@ -147,6 +147,31 @@ export const Nav = Style.recipeFor(NavSlots)({
       Style.self({ display: 'grid', gap: '0', margin: '0', padding: '0', listStyle: 'none' }),
     ),
     panelItem: component(Style.self({})),
+    // A picture before a link's words: beside both of a panel link's lines.
+    icon: component(
+      Style.self({
+        display: 'inline-flex',
+        alignItems: 'center',
+        flexShrink: '0',
+        inlineSize: '1.25em',
+        blockSize: '1.25em',
+        marginInlineEnd: ref.space['3xs'],
+      }),
+      Style.nest(':where(a[data-iconed]) > &', {
+        gridColumn: '1',
+        gridRow: '1 / span 2',
+        marginBlockStart: ref.space['3xs'],
+        marginInlineEnd: ref.space.xs,
+      }),
+    ),
+    panelFooter: component(
+      Style.self({
+        marginBlockStart: ref.space.xs,
+        paddingBlockStart: ref.space.xs,
+        paddingInline: ref.space.xs,
+        borderBlockStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
+      }),
+    ),
     panelLink: component(
       Style.self({
         display: 'grid',
@@ -162,6 +187,8 @@ export const Nav = Style.recipeFor(NavSlots)({
         background: ref.accent.subtle,
         color: ref.accent.ink,
       }),
+      // With a picture, the words share a second column.
+      Style.pseudo('[data-iconed]', { gridTemplateColumns: 'auto 1fr', alignItems: 'start' }),
       focusRing,
     ),
     title: component(Style.self({ fontWeight: ref.weight.medium })),
@@ -204,6 +231,18 @@ export const Nav = Style.recipeFor(NavSlots)({
     ),
   },
   variants: {
+    // How a panel lays its groups: `grid` is a grid of equal columns that fills the panel.
+    panel: {
+      list: {},
+      grid: {
+        groups: variant(
+          Style.self({
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))',
+          }),
+        ),
+      },
+    },
     indicator: {
       underline: {},
       // A tinted pill behind the current entry, as a chosen pill tab's.
@@ -233,5 +272,5 @@ export const Nav = Style.recipeFor(NavSlots)({
       },
     },
   },
-  defaults: { indicator: 'underline' },
+  defaults: { indicator: 'underline', panel: 'list' },
 })

@@ -1,13 +1,14 @@
-import { Recipes, LabelSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
+import { LabelSlots, Recipes } from 'foldkit-mixins-ui'
+import basic from '../../examples/label/basic.js'
+import markers from '../../examples/label/markers.js'
+import states from '../../examples/label/states.js'
+import trailing from '../../examples/label/trailing.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
-export const showcase = fromRecipe(
-  about('label'),
-  LabelSlots,
-  Recipes.Label,
-  style => Snippet.label(style, inert),
-  undefined,
-  [{ name: 'basic', title: 'Basic', draw: style => Snippet.label(style, inert) }],
-)
+export const showcase = fromRecipe(about('label'), LabelSlots, Recipes.Label, basic, undefined, [
+  { name: 'basic', example: basic },
+  { name: 'markers', example: markers },
+  { name: 'states', example: states },
+  { name: 'trailing', example: trailing },
+])

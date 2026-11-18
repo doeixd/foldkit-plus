@@ -10,7 +10,7 @@ import { island } from '../src/menu-rows/island.js'
 import { MenuRows } from '../src/menu-rows/view.js'
 
 const got = (message: UiMenu.Message) =>
-  Message.GotMenu({ message: Menu.Message.GotMenu({ message }) })
+  Message.GotMenuMessage({ message: Menu.Message.GotMenu({ message }) })
 
 const opened = (at: number): Model =>
   update(initial, got(UiMenu.Message.Opened({ maybeActiveItemIndex: Option.some(at) }))).model

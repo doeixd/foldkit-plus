@@ -73,6 +73,12 @@ export const touchText: StyleValue = Style.media('(pointer: coarse)', {
 /** A row of a list on the ladder: a control's height, so it lines up with the trigger that opened it. */
 export const rowOnLadder: Declarations = { ...onLadder, paddingInline: Theme.ladder('row-pad') }
 
+/** The one vocabulary of the `tone` look: a recipe offers all of it or the members it can draw. */
+export type Tone = 'accent' | 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+
+/** The one ladder of `size` names, `md` the middle: a recipe may ship a subset. */
+export type Size = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+
 /**
  * The steps a `size` axis chooses, set on the recipe's own element so a
  * chosen size beats the region it sits in; a recipe with no size follows the
@@ -288,6 +294,16 @@ export const presence = (tier: 'fast' | 'slow', closed: Declarations): StyleValu
 }
 
 /**
+ * The time a collapsing part (an accordion's panel, a tree's or sidebar's group) opens in and
+ * shuts in. The same by default: shut on the exit tier's shorter, quicker curve, it moved at a
+ * different speed from the section opening beside it and read as a glitch. `--fk-collapse-duration`
+ * sets both and `--fk-collapse-close-duration` the shutting alone; give them a time of the theme
+ * (`var(--fk-motion-slow)`) so the `motion` and `travel` knobs still apply.
+ */
+export const collapseOpens = `var(--fk-collapse-duration, ${ref.motion.moderate})`
+export const collapseShuts = `var(--fk-collapse-close-duration, ${collapseOpens})`
+
+/**
  * A heading row over a part that opens beneath it, `0fr` to `1fr` with no
  * measured height; the part clips itself (`minBlockSize: 0`, `overflow`).
  * Between the two, the container is taller than its rows, and `align-content`
@@ -301,13 +317,12 @@ export const opensBelow = (open: string): StyleValue =>
       gridTemplateRows: 'auto 0fr',
       alignContent: 'start',
       transitionProperty: 'grid-template-rows',
-      transitionDuration: travelled(ref.motion['fast-exit']),
-      transitionTimingFunction: ref.motion['ease-exit'],
+      transitionDuration: travelled(collapseShuts),
+      transitionTimingFunction: ref.motion.ease,
     }),
     Style.pseudo(open, {
       gridTemplateRows: 'auto 1fr',
-      transitionDuration: travelled(ref.motion.fast),
-      transitionTimingFunction: ref.motion.ease,
+      transitionDuration: travelled(collapseOpens),
     }),
   )
 
@@ -332,7 +347,7 @@ export const glide = (tier: 'fast' | 'moderate', moving: string): Declarations =
  * control's hover is a tint of its own text (`unfilledHover`), so it reads on
  * any ground, a colored band included.
  */
-interface Tone {
+interface ToneProperties {
   readonly fill: string
   readonly fillHover: string
   /** The fill while it is pressed: the family's `active`, a step deeper than its hover. */
@@ -349,18 +364,17 @@ interface Tone {
   readonly stateInk: string
 }
 
-const tone = (value: Tone): StyleValue =>
-  variant(
-    Style.self({
-      '--_fk-tone-fill': value.fill,
-      '--_fk-tone-fill-hover': value.fillHover,
-      '--_fk-tone-fill-active': value.fillActive,
-      '--_fk-tone-on-fill': value.onFill,
-      '--_fk-tone-ink': value.ink,
-      '--_fk-tone-line': value.line,
-      '--_fk-state-ink': value.stateInk,
-    }),
-  )
+const toneDeclarations = (value: ToneProperties): Declarations => ({
+  '--_fk-tone-fill': value.fill,
+  '--_fk-tone-fill-hover': value.fillHover,
+  '--_fk-tone-fill-active': value.fillActive,
+  '--_fk-tone-on-fill': value.onFill,
+  '--_fk-tone-ink': value.ink,
+  '--_fk-tone-line': value.line,
+  '--_fk-state-ink': value.stateInk,
+})
+
+const tone = (value: ToneProperties): StyleValue => variant(Style.self(toneDeclarations(value)))
 
 /**
  * What a painted surface names as the state ink: its paint where the theme
@@ -422,6 +436,16 @@ export const toneVar = (
   name: 'fill' | 'fill-hover' | 'fill-active' | 'on-fill' | 'ink' | 'line',
 ): string => `var(--_fk-tone-${name})`
 
+const danger: ToneProperties = {
+  fill: ref.error.default,
+  fillHover: ref.error.hover,
+  fillActive: ref.error.active,
+  onFill: ref.error['on-fill'],
+  ink: ref.error.ink,
+  line: ref.error.outline,
+  stateInk: surfaceInk(ref.error.default),
+}
+
 export const tones = {
   accent: tone({
     fill: ref.accent.default,
@@ -459,13 +483,8 @@ export const tones = {
     line: ref.text.default,
     stateInk: ref.state.ink,
   }),
-  danger: tone({
-    fill: ref.error.default,
-    fillHover: ref.error.hover,
-    fillActive: ref.error.active,
-    onFill: ref.error['on-fill'],
-    ink: ref.error.ink,
-    line: ref.error.outline,
-    stateInk: surfaceInk(ref.error.default),
-  }),
+  danger: tone(danger),
 } as const
+
+/** The danger tone's custom properties, for a control that turns `danger` while it is invalid. */
+export const dangerDeclarations: Declarations = toneDeclarations(danger)

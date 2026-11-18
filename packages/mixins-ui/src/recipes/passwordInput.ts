@@ -13,7 +13,7 @@ import { ladder, role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { byAttribute, glyph } from '../icons.js'
 import { PasswordInputSlots } from '../passwordInput.js'
-import { Input, InputGroup } from './field.js'
+import { Adorned, Input, InputGroup } from './field.js'
 import {
   component,
   disabled,
@@ -26,11 +26,19 @@ import {
   controlHeight,
 } from './design.js'
 
+const { input: inputControl, label, description, header, labelAside } = Input({ variant: null })
+
 export const PasswordInput = Style.recipeFor(PasswordInputSlots)({
   base: {
     // Input without its variant axis: the group, not the control, draws the box.
-    ...Input({ variant: null }),
+    input: inputControl,
+    label,
+    description,
+    header,
+    labelAside,
     group: InputGroup.group,
+    start: Adorned.start,
+    end: Adorned.end,
     toggle: component(
       Style.self({
         display: 'grid',

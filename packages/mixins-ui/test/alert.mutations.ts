@@ -169,19 +169,19 @@ export default [
     edits: [
       {
         file: '../src/alert.ts',
-        find: 'h.AriaLabel(options.dismissLabel ?? `Dismiss ${region.name}`),',
+        find: 'h.AriaLabel(fill(text.dismiss, { name: region.name })),',
         replace: '',
       },
     ],
     tests,
   },
   {
-    name: 'the dismiss button ignores its own label',
+    name: 'the dismiss button ignores its words',
     edits: [
       {
         file: '../src/alert.ts',
-        find: 'options.dismissLabel ?? `Dismiss ${region.name}`',
-        replace: '`Dismiss ${region.name}`',
+        find: 'fill(text.dismiss, { name: region.name })',
+        replace: 'fill(words.dismiss, { name: region.name })',
       },
     ],
     tests,
@@ -209,12 +209,12 @@ export default [
     tests,
   },
   {
-    name: 'errors read as info',
+    name: 'dangers read as info',
     edits: [
       {
         file: '../src/recipes/alert.ts',
-        find: "error: { root: toned('error') },",
-        replace: "error: { root: toned('info') },",
+        find: "danger: { root: toned('error') },",
+        replace: "danger: { root: toned('info') },",
       },
     ],
     tests,
@@ -237,6 +237,39 @@ export default [
         file: '../src/recipes/alert.ts',
         find: 'Style.pseudo(`${banner}[data-dismissible="true"]`, { paddingInline: corner }),',
         replace: 'Style.pseudo(banner, { paddingInline: corner }),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the danger tone reads the warning family',
+    edits: [
+      {
+        file: '../src/recipes/alert.ts',
+        find: "danger: { root: toned('error') },",
+        replace: "danger: { root: toned('warning') },",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the neutral tone is the info one',
+    edits: [
+      {
+        file: '../src/recipes/alert.ts',
+        find: 'neutral: { root: neutral },',
+        replace: "neutral: { root: toned('info') },",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a configured alert drops its words',
+    edits: [
+      {
+        file: '../src/alert.ts',
+        find: 'view: (options, h) => view(layered(config, options), h),',
+        replace: 'view: (options, h) => view(options, h),',
       },
     ],
     tests,

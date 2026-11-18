@@ -3,7 +3,6 @@
  * `pnpm mutate examples/site/test/themeUrl.mutations.ts` checks that a test fails for every one.
  */
 const tests = ['examples/site/test/themeUrl.test.ts']
-const file = '../src/gallery/themeUrl.ts'
 
 export default [
   {

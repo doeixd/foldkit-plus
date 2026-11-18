@@ -36,6 +36,7 @@ export const island: IslandBody = {
         Model: Palette.Model,
         init: () => Palette.initial,
         update: Palette.update,
+        subscriptions: Palette.subscriptions,
         view: (model, h) => PaletteView(model, h),
         container,
       }),

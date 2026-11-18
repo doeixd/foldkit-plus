@@ -1,40 +1,31 @@
-import type { NamedStyle } from 'foldkit-mixins'
-import { Recipes, CascadeSelectSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import { CascadeSelectSlots, Recipes } from 'foldkit-mixins-ui'
+import columns from '../../examples/cascade-select/columns.js'
+import configure from '../../examples/cascade-select/configure.js'
+import drill from '../../examples/cascade-select/drill.js'
+import external from '../../examples/cascade-select/external.js'
+import flat from '../../examples/cascade-select/flat.js'
+import inline from '../../examples/cascade-select/inline.js'
+import localized from '../../examples/cascade-select/localized.js'
+import rows from '../../examples/cascade-select/rows.js'
+import triggerText from '../../examples/cascade-select/trigger-text.js'
 import { about } from '../catalogue.js'
 import { fromRecipe } from '../define.js'
-import type { Live } from '../showcase.js'
-
-const cascadeColumns = <Message>(
-  style: NamedStyle<typeof CascadeSelectSlots>,
-  live: Live<Message>,
-) =>
-  Snippet.cascadeSelect(
-    style,
-    live.widgets.cascade,
-    message => live.onWidget(Widgets.Message.GotCascade({ message })),
-    live.h,
-  )
 
 export const showcase = fromRecipe(
   about('cascade-select'),
   CascadeSelectSlots,
   Recipes.CascadeSelect,
-  cascadeColumns,
+  columns,
   undefined,
   [
-    { name: 'columns', title: 'Columns', draw: cascadeColumns },
-    {
-      name: 'drill',
-      title: 'One level at a time',
-      draw: (style, live) =>
-        Snippet.cascadeSelectDrill(
-          style,
-          live.widgets.cascadeDrill,
-          message => live.onWidget(Widgets.Message.GotCascadeDrill({ message })),
-          live.h,
-        ),
-    },
+    { name: 'columns', example: columns },
+    { name: 'drill', example: drill },
+    { name: 'localized', example: localized },
+    { name: 'rows', example: rows },
+    { name: 'trigger-text', example: triggerText },
+    { name: 'inline', example: inline },
+    { name: 'external', example: external },
+    { name: 'flat', example: flat },
+    { name: 'configure', example: configure },
   ],
 )

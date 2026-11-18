@@ -2,6 +2,7 @@ import * as UiProgress from '@foldkit/ui/progress'
 import { Option } from 'effect'
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Tone } from './recipes/design.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -29,8 +30,8 @@ export const ProgressSlots = Slots.define({
   section: Slot.make({ capability: Capability.Container }),
 })
 
-/** The tones a fill takes, as Meter's levels take success, warning and error. */
-export type ProgressTone = 'accent' | 'neutral' | 'success' | 'warning' | 'error' | 'info'
+/** The tones a fill takes: the shared vocabulary, as Meter's levels take success, warning and error. */
+export type ProgressTone = Tone
 
 /** One part of a stacked bar. */
 export interface ProgressSection {

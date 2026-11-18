@@ -53,6 +53,20 @@ const chevron = Style.compose(
 )
 const chevronOpen = Style.nest('&[open] > summary::before', { transform: 'rotate(45deg)' })
 
+/** The editor's bar, one height so what sticks under it can stand at its bottom edge. */
+export const barSize = '3.5rem'
+/** The bar on a phone: one row, as tall as a control that is pressed. */
+export const phoneBarSize = '2.75rem'
+/** Where a section shows its icon alone. */
+/** The room the guide's pill takes at the end of a phone's page, which scrolls as a document (the guide's own `reserve` is off). */
+const pillRoom = '4.25rem'
+const iconOnly = '(max-width: 40rem)'
+/** Where the row has room for the mark and the icons and avatars at a little less than a pressed control's width, and not for the brand's name. */
+const narrowest = '(max-width: 26rem)'
+/** The workbench beside its settings, and stacked above them below 64rem of window. */
+const stacked = '(max-width: 64rem)'
+const sideBySide = '(min-width: 64.0625rem)'
+
 export const AdminSlots = Slots.define({
   root: part,
   skipLink: control,
@@ -60,8 +74,12 @@ export const AdminSlots = Slots.define({
   sidebar: part,
   brand: part,
   brandMark: part,
+  /** The brand's name beside its mark: read, not shown, on the narrowest phones. */
+  brandName: part,
   nav: part,
   navLink: control,
+  /** A section's name beside its icon: on a narrow phone only the icon shows, and this is read, not shown. */
+  navLabel: part,
   account: part,
   accountLabel: part,
   whoLink: control,
@@ -128,18 +146,30 @@ export const AdminSlots = Slots.define({
 export const AdminStyle = Style.forSlots(AdminSlots)(
   {
     root: Style.compose(
+      // The window does not scroll while the studio fills it: a drag's preview, drawn past the
+      // window's edge, would make the document taller and the edge strip would scroll it, under the
+      // shell, leaving a band below the panels.
+      Style.global(`@media (min-width: 52.0625rem) { html:has(#studio-main) { overflow: clip; } }`),
       Style.self({
         background: t.surface.base,
         color: t.text.default,
         display: 'grid',
+        blockSize: '100dvh',
         fontFamily: t.font.body,
         gridTemplateColumns: '15.5rem minmax(0, 1fr)',
-        minHeight: '100vh',
+        // The window is the shell's height and does not scroll: the sidebar stands for its full
+        // height and the centre column (`main`) is the one scroller.
+        gridTemplateRows: 'minmax(0, 1fr)',
+        overflow: 'hidden',
       }),
-      // The bar as tall as it is, and the section the rest: a short page does not stretch the bar.
+      // On a phone the document scrolls as a page does, the bar at its top. The bar as tall as it is,
+      // and the section the rest: a short page does not stretch the bar.
       Style.media(phone, {
+        blockSize: 'auto',
         gridTemplateColumns: 'minmax(0, 1fr)',
         gridTemplateRows: 'auto minmax(0, 1fr)',
+        minBlockSize: '100dvh',
+        overflow: 'visible',
       }),
     ),
     skipLink,
@@ -151,24 +181,23 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         display: 'flex',
         flexDirection: 'column',
         gap: t.space.lg,
-        height: '100vh',
+        // A panel taller than the window scrolls within itself.
+        overflowY: 'auto',
         padding: `${t.space.lg} ${t.space.sm}`,
-        position: 'sticky',
-        top: '0',
       }),
-      // On a phone, a bar across the top: the brand and who is looking, then the
-      // sections in a row of their own, scrolled sideways where they do not fit.
+      // On a phone, one row across the top: the brand, the sections, and who is looking. It is
+      // the document's, so it scrolls away and leaves the room to the page.
       Style.media(phone, {
         alignItems: 'center',
         borderBlockEnd: `1px solid ${t.outline.subtle}`,
         borderInlineEnd: '0',
         display: 'grid',
         gap: t.space.xs,
-        gridTemplateAreas: '"brand account" "nav nav"',
-        gridTemplateColumns: 'auto minmax(0, 1fr)',
-        height: 'auto',
-        padding: `${t.space.sm} ${t.space.md}`,
-        position: 'static',
+        gridTemplateAreas: '"brand nav account"',
+        gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+        overflowY: 'visible',
+        paddingBlock: t.space['3xs'],
+        paddingInline: t.space.sm,
       }),
     ),
     brand: Style.compose(
@@ -186,6 +215,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         textDecoration: 'none',
       }),
     ),
+    brandName: Style.media(narrowest, hiddenDeclarations),
     brandMark: Style.self({
       alignItems: 'center',
       background: `linear-gradient(135deg, ${t.accent.default}, color-mix(in oklch, ${t.accent.default} 50%, ${t.tertiary.default}))`,
@@ -201,14 +231,24 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.self({ display: 'flex', flexDirection: 'column', gap: '2px' }),
       Style.media(phone, {
         flexDirection: 'row',
+        gap: '0',
         gridArea: 'nav',
-        marginInline: `calc(-1 * ${t.space.md})`,
         overflowX: 'auto',
-        paddingInline: t.space.md,
         scrollbarWidth: 'none',
       }),
     ),
-    navLink,
+    navLink: Style.compose(
+      navLink,
+      // Icon alone below 40rem, where the labels would crowd the avatars out of the row: a square
+      // as wide as it is tall, named by its tooltip and, for a reader, its hidden label.
+      Style.media(iconOnly, {
+        justifyContent: 'center',
+        minInlineSize: '2.75rem',
+        padding: '0.45rem',
+      }),
+      Style.media(narrowest, { minInlineSize: '2.5rem' }),
+    ),
+    navLabel: Style.media(iconOnly, hiddenDeclarations),
     account: Style.compose(
       Style.self({
         borderBlockStart: `1px solid ${t.outline.subtle}`,
@@ -221,6 +261,7 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.media(phone, {
         border: '0',
         flexDirection: 'row',
+        gap: '0',
         gridArea: 'account',
         justifySelf: 'end',
         marginBlockStart: '0',
@@ -242,7 +283,14 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
     whoLink: Style.compose(
       navLink,
       Style.self({ padding: '0.35rem 0.5rem' }),
-      Style.media(phone, { justifyContent: 'center', padding: '0.3rem' }),
+      // The avatar alone, in the same tint as a current section, round as the avatar is.
+      Style.media(phone, {
+        borderRadius: t.radius.full,
+        justifyContent: 'center',
+        minInlineSize: '2.75rem',
+        padding: '0.3rem',
+      }),
+      Style.media(narrowest, { minInlineSize: '2.25rem' }),
     ),
     // Read on a phone, not shown: the avatar stands for the chair.
     whoName: Style.media(phone, hiddenDeclarations),
@@ -281,7 +329,17 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         color: t.tertiary['on-fill'],
       }),
     ),
-    main: Style.compose(Style.self({ minWidth: '0' }), Touch.targets),
+    main: Style.compose(
+      Style.self({
+        minBlockSize: '0',
+        minWidth: '0',
+        overflowY: 'auto',
+        // The editor's bar sticks over the top of this scroller: a node scrolled to it stays clear.
+        scrollPaddingBlockStart: barSize,
+      }),
+      Style.media(phone, { overflowY: 'visible' }),
+      Touch.targets,
+    ),
     manage: Style.compose(
       Style.self({ borderBlockEnd: `1px solid ${t.outline.subtle}`, fontSize: t.size.sm }),
       chevronOpen,
@@ -328,7 +386,9 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         maxWidth: '64rem',
         padding: `${t.space['2xl']} ${t.space.xl}`,
       }),
-      Style.media(phone, { padding: `${t.space.lg} ${t.space.md}` }),
+      Style.media(phone, {
+        padding: `${t.space.lg} ${t.space.md} calc(${t.space.lg} + ${pillRoom})`,
+      }),
       // A lone link or button in the column is as wide as its words, not the column.
       Style.nest('> a', { alignSelf: 'flex-start' }),
     ),
@@ -374,32 +434,39 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
       Style.media(phone, { flex: '1 1 100%', minWidth: '0' }),
       Style.nest('> svg', { insetInlineStart: '0.7rem', position: 'absolute' }),
     ),
-    editorScreen: Style.self({ display: 'flex', flexDirection: 'column', minHeight: '100vh' }),
+    editorScreen: Style.compose(
+      Style.self({ display: 'flex', flexDirection: 'column', minBlockSize: '100%' }),
+      // `main` is as tall as its page here, so a percentage has nothing to stand on.
+      Style.media(phone, { minBlockSize: '100dvh' }),
+    ),
     editorBar: Style.compose(
       Style.self({
         alignItems: 'center',
         // Solid, the page's own color: a translucent bar over a blurred
         // backdrop drew darker and greyer than the page in a GPU-composited Chrome.
         background: t.surface.base,
+        blockSize: barSize,
         borderBlockEnd: `1px solid ${t.outline.subtle}`,
+        boxSizing: 'border-box',
         display: 'flex',
         gap: t.space.sm,
-        padding: `${t.space.sm} ${t.space.lg}`,
+        paddingInline: t.space.lg,
         position: 'sticky',
         top: '0',
         zIndex: '5',
       }),
       // Its actions go under the status where the bar is too narrow for both.
       Style.media(phone, {
-        flexWrap: 'wrap',
+        blockSize: phoneBarSize,
         gap: t.space.xs,
-        padding: `${t.space.xs} ${t.space.md}`,
+        paddingInline: t.space.sm,
       }),
       Style.nest('& a, & button', { whiteSpace: 'nowrap' }),
     ),
     barActions: Style.self({
       alignItems: 'center',
       display: 'flex',
+      flexShrink: '0',
       gap: t.space.xs,
       marginInlineStart: 'auto',
     }),
@@ -413,19 +480,25 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         flex: '1',
         gridTemplateColumns: 'minmax(0, 1fr) 20rem',
       }),
-      Style.media('(max-width: 64rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
+      Style.media(stacked, { gridTemplateColumns: 'minmax(0, 1fr)' }),
     ),
     workbench: Style.compose(
       Style.self({ padding: t.space.lg }),
-      Style.media(phone, { padding: t.space.sm }),
+      Style.media(phone, {
+        padding: `${t.space.sm} ${t.space.sm} calc(${t.space.sm} + ${pillRoom})`,
+      }),
     ),
-    canvas: Style.self({
-      boxSizing: 'border-box',
-      margin: '0 auto',
-      maxWidth: '46rem',
-      padding: `${t.space['2xl']} ${t.space.xl} ${t.space['3xl']}`,
-      width: '100%',
-    }),
+    canvas: Style.compose(
+      Style.self({
+        boxSizing: 'border-box',
+        margin: '0 auto',
+        maxWidth: '46rem',
+        padding: `${t.space['2xl']} ${t.space.xl} ${t.space['3xl']}`,
+        width: '100%',
+      }),
+      // The page's gutter, so the text is as wide as the phone allows.
+      Style.media(phone, { padding: `${t.space.md} ${t.space.md} ${t.space['3xl']}` }),
+    ),
     aside: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.md })),
       Style.self({
@@ -435,6 +508,16 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         boxSizing: 'border-box',
         padding: t.space.lg,
       }),
+      // Beside the page, it stands for the window's height under the bar while the page scrolls,
+      // and scrolls within itself when its cards are taller; stacked below, it scrolls with the page.
+      Style.media(sideBySide, {
+        alignSelf: 'start',
+        blockSize: `calc(100dvh - ${barSize})`,
+        insetBlockStart: barSize,
+        overflowY: 'auto',
+        position: 'sticky',
+      }),
+      Style.media(phone, { paddingBlockEnd: `calc(${t.space.lg} + ${pillRoom})` }),
     ),
     card: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space.xs })),

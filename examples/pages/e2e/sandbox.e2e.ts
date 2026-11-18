@@ -196,7 +196,16 @@ test('on a phone the formatting bar is one row of the controls that fit, one tab
   const drawn = await bar
     .locator('button')
     .evaluateAll(buttons => buttons.map(button => button.getAttribute('data-item')))
-  expect(drawn).toEqual(['undo', 'redo', 'style', 'mark-Bold', 'mark-Italic', 'link', 'insert'])
+  expect(drawn).toEqual([
+    'undo',
+    'redo',
+    'style',
+    'mark-Bold',
+    'mark-Italic',
+    'link',
+    'insert',
+    'more',
+  ])
   // One row: the bar is as high as one control and its padding (43px), where three rows were 145px.
   const height = await bar.evaluate(element => element.getBoundingClientRect().height)
   expect(height).toBeGreaterThan(38)
@@ -230,7 +239,7 @@ test('on a phone the formatting bar is one row of the controls that fit, one tab
   expect(await bar.locator('[data-item="undo"]').getAttribute('aria-disabled')).toBe('true')
   await poll(() => bar.locator('button[tabindex="0"]').getAttribute('id')).toBe('bar-undo')
   await page.keyboard.press('End')
-  await poll(() => focused(page)).toBe('bar-insert')
+  await poll(() => focused(page)).toBe('bar-more')
 
   // Redo has nothing to redo: a press on it changes nothing.
   expect(await bar.locator('[data-item="redo"]').getAttribute('aria-disabled')).toBe('true')
@@ -246,9 +255,9 @@ test('a wide window draws every control of the bar', async () => {
   await page.waitForSelector('#new-page', { timeout: 120_000 })
   await page.click('#new-page')
   await poll(() => formattingBar(page).locator('button').count()).toBe(15)
-  // Narrowed, the low controls go; widened again, they come back.
+  // Narrowed, the low controls go (to More, which is one more button); widened again, they come back.
   await page.setViewportSize(PHONE)
-  await poll(() => formattingBar(page).locator('button').count()).toBe(7)
+  await poll(() => formattingBar(page).locator('button').count()).toBe(8)
   await page.setViewportSize({ width: 1100, height: 800 })
   await poll(() => formattingBar(page).locator('button').count()).toBe(15)
   await context.close()

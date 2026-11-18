@@ -84,6 +84,7 @@ import { ScrollAreaSlots } from './scrollArea.js'
 import { SearchFieldPattern, SearchFieldSlots } from './searchField.js'
 import { ToolbarPattern, ToolbarSlots } from './toolbar.js'
 import { FileInputPattern, FileInputSlots } from './fileInput.js'
+import { FileUploadPattern, FileUploadSlots } from './fileUpload.js'
 import { TableSlots } from './table.js'
 import { WindowListSlots } from './windowList.js'
 
@@ -1537,6 +1538,22 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
         FocusStrategy,
       ),
       drawn('Toolbar.view: aria-label on the root (toolbar.ts)', 'root', Name),
+    ],
+  ),
+  entry(
+    'file-upload',
+    FileUploadPattern,
+    FileUploadSlots,
+    'stateful',
+    ['button', 'list', 'listitem', 'status'],
+    ['native-control', 'form-submission'],
+    [
+      native('input', 'input', Activation, FocusStrategy),
+      drawn(
+        'FileUpload.view: the picker is a label for the input, so its words name it (fileUpload.ts)',
+        'input',
+        Name,
+      ),
     ],
   ),
   entry(

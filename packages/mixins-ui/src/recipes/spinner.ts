@@ -158,6 +158,11 @@ export const Spinner = Style.recipeFor(SpinnerSlots)({
       neutral: { wheel: variant(Style.self({ '--_fk-spinner-ink': ref.text.muted })) },
       // The text around it, as in a button or a badge.
       current: { wheel: variant(Style.self({ '--_fk-spinner-ink': 'currentColor' })) },
+      // The status tones: a spinner beside a status says which one it is working under.
+      info: { wheel: variant(Style.self({ '--_fk-spinner-ink': ref.info.default })) },
+      success: { wheel: variant(Style.self({ '--_fk-spinner-ink': ref.success.default })) },
+      warning: { wheel: variant(Style.self({ '--_fk-spinner-ink': ref.warning.default })) },
+      danger: { wheel: variant(Style.self({ '--_fk-spinner-ink': ref.error.default })) },
     },
   },
   defaults: { kind: 'ring', size: 'md', tone: 'accent' },

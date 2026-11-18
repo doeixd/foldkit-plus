@@ -7,119 +7,17 @@ import {
 import { Effect, Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import * as Render from 'foldkit/render'
-import { Attr, Behavior, Capability, Event, Slot, Slots, type SlotAttributes } from 'foldkit-mixins'
+import { type SlotAttributes } from 'foldkit-mixins'
 import type { Html } from 'foldkit/html'
-import { FocusReturn, KeyboardInset, ScrollBars } from 'foldkit-primitives/dom'
+import { DialogSlots } from './dialog/slots.js'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
-/**
- * Dialog is a Submodel: each published bundle is a `ChildAttribute` group that
- * carries the dialog boundary's dispatcher. The resolver treats those as opaque
- * and preserves their identity, so spreading a resolved bundle into the parent's
- * markup keeps routing through the dialog's `toParentMessage`.
- *
- * `dialog` owns `cancel` (the native Escape handler); `backdrop` and
- * `closeButton` own `click`. A Behavior adding its own handler to one of those
- * is a conflict, not a second silent owner.
- *
- * `body`, `scroll`, `scrollBar`, `scrollThumb` and `footer` are this
- * package's, with no upstream bundle: a panel taller than the viewport
- * scrolls its `scroll` (inside `body`, between the title and the footer)
- * while the title and the `footer`'s answers stay in view. `overlayBars`
- * draws the overlay bar, `scrollBar` with its `scrollThumb`, inside `body`.
- */
-export const DialogSlots = Slots.define({
-  dialog: Slot.make({
-    capability: Capability.Container,
-    events: [Event.Cancel],
-    attributes: [Attr.AriaDescribedby],
-  }),
-  backdrop: Slot.make({ capability: Capability.Container, events: [Event.Click] }),
-  panel: Slot.make({ capability: Capability.Container }),
-  title: Slot.make({ capability: Capability.Container }),
-  description: Slot.make({ capability: Capability.Container }),
-  initialFocus: Slot.make({ capability: Capability.Focusable }),
-  closeButton: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.Role, Attr.Disabled],
-  }),
-  /**
-   * The Sheet's grabber, drawn in the panel: this package's, with no upstream
-   * bundle, and hidden from assistive technology unless the Sheet has more than
-   * one point, when it is a separator the arrow keys move. Draw it in a Sheet's
-   * panel only: the Sheet recipe hides it unless `handle: 'bar'`.
-   */
-  handle: Slot.make({
-    capability: Capability.Container,
-    events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaValuenow],
-  }),
-  /** The part between the heading and the footer, holding `scroll` and its bar. */
-  body: Slot.make({ capability: Capability.Container }),
-  /** What scrolls when the panel would outgrow the viewport. */
-  scroll: Slot.make({ capability: Capability.Container }),
-  scrollBar: Slot.make({ capability: Capability.Container }),
-  scrollThumb: Slot.make({ capability: Capability.Container }),
-  /** The answers, below `body`, in view however far it scrolls. */
-  footer: Slot.make({ capability: Capability.Container }),
-})
-
-/**
- * The overlay bar on the dialog's `scroll`, the popups' list shape: pass it
- * among the mixins, and draw `scrollBar` (holding `scrollThumb`) beside
- * `scroll` in `body`. Where the pointer is coarse the browser's bar stays.
- */
-export const overlayBars = [
-  Behavior.forSlots(DialogSlots)<unknown, never>(
-    {
-      scroll: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => ScrollBars({}),
-      }),
-    },
-    { name: 'DialogScrollBars' },
-  ).mixin,
-] as const
-
-/**
- * The on-screen keyboard's height on the `panel` (`--fk-keyboard-inset`), which the Dialog
- * and Sheet recipes keep the panel above: iOS Safari, and Chrome on Android unless the page
- * asks otherwise, leave a fixed panel under the keys when a field in it takes focus. Pass it
- * among the mixins of a dialog or sheet that holds a field. Opt in, as it sends no Message.
- */
-export const keyboard = [
-  Behavior.forSlots(DialogSlots)<unknown, never>(
-    {
-      panel: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => KeyboardInset({}),
-      }),
-    },
-    { name: 'DialogKeyboard' },
-  ).mixin,
-] as const
-
-/**
- * A way back for focus when the element that opened the dialog is gone when
- * it closes (removed by the action the dialog was opened for, or drawn again
- * as a new element): upstream's return goes to the opener and, with none, to
- * `body`. This goes by `FocusReturn`'s rules: an element with the opener's id,
- * the opener's `FocusRecovery` fallback steps, the dialog below, then the
- * page's first tabbable element. Pass it among the mixins; opt in, as it
- * sends no Message.
- */
-export const focusReturn = [
-  Behavior.forSlots(DialogSlots)<unknown, never>(
-    {
-      panel: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => FocusReturn(),
-      }),
-    },
-    { name: 'DialogFocusReturn' },
-  ).mixin,
-] as const
+// Each behaviour value is a file of its own, so a page that never reads one
+// keeps neither its Mount nor the primitive it runs.
+export { focusReturn } from './dialog/focusReturn.js'
+export { keyboard } from './dialog/keyboard.js'
+export { overlayBars } from './dialog/overlayBars.js'
+export { DialogSlots } from './dialog/slots.js'
 
 /** The dialog's bundles with the attached Mixins applied. */
 export type ResolvedDialog<Message> = Resolved<RenderInfo, typeof DialogSlots, Message>

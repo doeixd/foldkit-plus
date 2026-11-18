@@ -13,17 +13,25 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { expect, vi } from 'vitest'
-import { DialogSlots, ListboxSlots, Picker, PickerSlots, Recipes } from '../src/index.js'
+import {
+  DialogSlots,
+  ListboxSlots,
+  Picker,
+  PickerSlots,
+  Recipes,
+  type RowContent,
+} from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 
 export const SORTS = ['relevance', 'price', 'name'] as const
 type Sort = (typeof SORTS)[number]
-const options = [
-  { value: 'relevance', label: 'Most relevant' },
-  { value: 'price', label: 'Lowest price', description: 'Cheapest first' },
-  { value: 'name', label: 'Name' },
-] as const satisfies ReadonlyArray<Picker.PickerOption<Sort>>
+const Sorts = Picker.one(SORTS)
+const rows: Readonly<Record<Sort, RowContent>> = {
+  relevance: { label: 'Most relevant' },
+  price: { label: 'Lowest price', description: 'Cheapest first' },
+  name: { label: 'Name' },
+}
 
 const Model = Schema.Struct({ picker: Picker.Model, sort: Schema.Option(Schema.Literals(SORTS)) })
 type Model = typeof Model.Type
@@ -69,7 +77,8 @@ export const mount = async (
         model: model.picker,
         onMessage: message => Message.GotPicker({ message }),
         label: 'Sort',
-        options,
+        choice: Sorts,
+        option: item => rows[item],
         value: model.sort,
         placeholder: 'Sort by',
         style,

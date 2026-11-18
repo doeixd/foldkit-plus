@@ -40,6 +40,7 @@ export const island: IslandBody = {
         Model: NavigationMenu.Model,
         init: () => NavigationMenu.initial,
         update: NavigationMenu.update,
+        subscriptions: NavigationMenu.subscriptions,
         view: (model, h) => NavigationMenuView(model, h),
         container,
       }),

@@ -20,8 +20,11 @@ import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { Typeahead } from 'foldkit-primitives/interaction'
 import { layerBox, topLayer } from './anchor.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { readingKey } from './direction.js'
 import type { MixinList } from './resolve.js'
+import type { RowContent } from './rowContent.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A cascade select, Zag's: one value chosen as a path through nested options
@@ -81,7 +84,11 @@ export const CascadeSelectSlots = Slots.define({
     events: [Event.Click, Event.Hover],
     attributes: [Attr.Role, Attr.AriaSelected, Attr.AriaExpanded, Attr.AriaDisabled],
   }),
+  itemIcon: Slot.make({ capability: Capability.Container }),
   itemText: Slot.make({ capability: Capability.Container }),
+  itemLabel: Slot.make({ capability: Capability.Container }),
+  itemDescription: Slot.make({ capability: Capability.Container }),
+  itemTrailing: Slot.make({ capability: Capability.Container }),
   /** The mark on a row that has children. */
   branch: Slot.make({ capability: Capability.Container }),
 })
@@ -92,6 +99,23 @@ export interface Node {
   readonly label: string
   readonly children?: ReadonlyArray<Node> | undefined
   readonly disabled?: boolean | undefined
+}
+
+/** The fixed text a CascadeSelect says. Each is text; `{label}` is the level above's option. */
+export interface CascadeSelectWords {
+  /** Shown on the trigger while nothing is chosen, unless the view gives a `placeholder`. */
+  readonly placeholder: string
+  /** The clear button's name. */
+  readonly clear: string
+  /** Drilled in, the back row's words. */
+  readonly back: string
+}
+
+/** The words a CascadeSelect uses when none are given. */
+export const words: CascadeSelectWords = {
+  placeholder: 'Select…',
+  clear: 'Clear',
+  back: 'Back to {label}',
 }
 
 export const Model = Schema.Struct({
@@ -124,6 +148,8 @@ export const Message = defineMessageUnion({
   /** Focus left the open panel, by Tab or a press elsewhere. */
   Left: {},
   Cleared: {},
+  /** The application sets the value, an empty path clearing it; what cannot be chosen is ignored. */
+  Set: { path: Schema.Array(Schema.String) },
   /** A pause after the last typed letter ended `generation`'s query. */
   QueryExpired: { generation: Schema.Number },
   /** The panel was shown and placed, and whether a column per level would fit the window. */
@@ -142,14 +168,18 @@ export interface Config {
   readonly loop?: boolean | undefined
   /** Whether choosing closes the popup; default true. */
   readonly closeOnSelect?: boolean | undefined
+  /** The panel is drawn in place and always open, with no trigger: pass the same to `init`. */
+  readonly inline?: boolean | undefined
 }
 
 export const init = (options: {
   readonly id: string
   readonly value?: ReadonlyArray<string> | undefined
+  /** Opens it for good: the panel of `Config.inline` is always open. */
+  readonly inline?: boolean | undefined
 }): Model => ({
   id: options.id,
-  open: false,
+  open: options.inline === true,
   value: Option.fromNullishOr(options.value),
   highlighted: [],
   cramped: false,
@@ -283,6 +313,12 @@ export const PlaceCascade = Mount.define('CascadeSelect.Place', {
     }),
 })
 
+/** What the Bundle reports: the chosen path moved, to this, none once cleared. */
+export const OutMessage = defineMessageUnion({
+  Changed: { value: Schema.Option(Schema.Array(Schema.String)) },
+})
+export type OutMessage = typeof OutMessage.Type
+
 type Return = Update.Return<Model, Message>
 
 const closed = (model: Model, focus: boolean): Return =>
@@ -301,6 +337,9 @@ export const update = (config: Config) => {
   const { nodes } = config
   const choosesParents = config.parents === true
   const closeOnSelect = config.closeOnSelect ?? true
+  // An inline panel is always open: nothing closes it.
+  const closing = (model: Model, focus: boolean): Return =>
+    config.inline === true ? { model } : closed(model, focus)
 
   /** Whether every node on `path` exists and may be reached. */
   const reachable = (path: ReadonlyArray<string>): boolean => {
@@ -335,7 +374,27 @@ export const update = (config: Config) => {
         : expanded
     }
     const chosen = modifyFields(model, { value: () => Option.some(path) })
-    return closeOnSelect ? closed(chosen, true) : highlight(chosen, path, false)
+    return closeOnSelect ? closing(chosen, true) : highlight(chosen, path, false)
+  }
+
+  /** Whether the application may set `path`: none, or a reachable option it could choose. */
+  const settable = (path: ReadonlyArray<string>): boolean => {
+    if (path.length === 0) return true
+    const node = nodesOn(nodes, path).at(-1)
+    return node !== undefined && reachable(path) && (choosesParents || !hasChildren(node))
+  }
+
+  const setTo = (model: Model, path: ReadonlyArray<string>): Return => {
+    if (!settable(path)) return { model }
+    const next = path.length === 0 ? Option.none<ReadonlyArray<string>>() : Option.some(path)
+    const same = Option.match(model.value, {
+      onNone: () => Option.isNone(next),
+      onSome: held =>
+        Option.isSome(next) &&
+        held.length === next.value.length &&
+        held.every((step, at) => step === next.value[at]),
+    })
+    return same ? { model } : { model: modifyFields(model, { value: () => next }) }
   }
 
   /** The path to the first enabled row of `level`, under `parent`. */
@@ -436,7 +495,7 @@ export const update = (config: Config) => {
           ? enter(model, path)
           : choose(model, path)
       case 'Escape':
-        return closed(model, true)
+        return closing(model, true)
       default:
         return key.length === 1 ? typed(model, key) : { model }
     }
@@ -445,7 +504,7 @@ export const update = (config: Config) => {
   return (model: Model, message: Message): Return =>
     Message.match<Return>(message, {
       Opened: () => opened(model),
-      Closed: () => closed(model, true),
+      Closed: () => closing(model, true),
       Pressed: ({ key }) => pressed(model, key),
       QueryExpired: ({ generation }) =>
         generation === model.typeahead.generation && model.typeahead.query !== ''
@@ -456,7 +515,7 @@ export const update = (config: Config) => {
       Picked: ({ path }) => (model.open ? choose(model, path) : { model }),
       Entered: ({ path }) => (model.open ? enter(model, path) : { model }),
       // Focus went on by itself, so none is given back.
-      Left: () => closed(model, false),
+      Left: () => closing(model, false),
       Cleared: () =>
         Option.isNone(model.value)
           ? { model }
@@ -465,6 +524,7 @@ export const update = (config: Config) => {
               // The clear button goes with the value, and would take focus with it.
               commands: [FocusTrigger({ id: model.id })],
             },
+      Set: ({ path }) => setTo(model, path),
       Placed: ({ cramped }) =>
         cramped === model.cramped
           ? { model }
@@ -507,10 +567,12 @@ export interface CascadeSelectView<ParentMessage> {
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
   /** What is chosen, the trigger's and the panel's accessible name. */
   readonly label: string
-  /** Shown while nothing is chosen; default `Select…`. */
+  /** Shown while nothing is chosen; default `words.placeholder`. */
   readonly placeholder?: string | undefined
   /** Between the labels of the chosen path on the trigger; default ` / `. */
   readonly separator?: string | undefined
+  /** The trigger's text for the chosen path's labels, such as a long path collapsed to its ends; default the labels joined by `separator`. */
+  readonly triggerText?: ((labels: ReadonlyArray<string>) => string) | undefined
   /**
    * One column per level (default), or one level at a time with a way back.
    * Columns drill in by themselves when the window is too narrow for them.
@@ -520,12 +582,14 @@ export interface CascadeSelectView<ParentMessage> {
   readonly expandOn?: 'click' | 'hover' | undefined
   /** A name per level, such as `['Country', 'Region', 'City']`, heading each column. */
   readonly levels?: ReadonlyArray<string> | undefined
-  /** Draws a button that clears the value while there is one. */
-  readonly clearable?: boolean | undefined
-  /** Default `Clear`. */
-  readonly clearLabel?: string | undefined
-  /** Drilled in, the back row's words before the level above's option; default `Back to`. */
-  readonly backLabel?: string | undefined
+  /**
+   * A button that clears the value while there is one, named by `words.clear`:
+   * `true` draws a cross, `{ content }` a mark of your own.
+   */
+  readonly clear?: true | { readonly content: Html } | undefined
+  /** A row's content: its `icon`, `description` and `trailing` are drawn in their Slots, `content` in place of the label, which still names it. The node's `disabled` is the row's. */
+  readonly option?: ((node: Node) => RowContent) | undefined
+  readonly words?: Partial<CascadeSelectWords> | undefined
   /** Submits the value with a form under this name, its ids joined by `/`. */
   readonly name?: string | undefined
   readonly disabled?: boolean | undefined
@@ -587,6 +651,8 @@ export const view = <ParentMessage>(
     throw new Error('CascadeSelect: a label is required, its accessible name')
   const { model, onMessage, config } = options
   const { id } = model
+  const said = wordsOf(words, options.words)
+  const inline = config.inline === true
   const send = (message: Message) => onMessage(message)
   const panelKeys = Behaviors.Keys.behavior(CascadeSelectSlots)<undefined, ParentMessage>({
     slot: 'panel',
@@ -650,8 +716,11 @@ export const view = <ParentMessage>(
         ),
         [
           Option.match(shown, {
-            onNone: () => options.placeholder ?? 'Select…',
-            onSome: labels => labels.join(options.separator ?? ' / '),
+            onNone: () => options.placeholder ?? said.placeholder,
+            onSome: labels =>
+              options.triggerText === undefined
+                ? labels.join(options.separator ?? ' / ')
+                : options.triggerText(labels),
           }),
         ],
       ),
@@ -665,6 +734,8 @@ export const view = <ParentMessage>(
     const onPath = path[depth] === node.id
     const isActive = onPath && depth === path.length - 1
     const branch = hasChildren(node)
+    const parts: RowContent =
+      options.option === undefined ? { label: node.label } : options.option(node)
     const chosen = value.length === depth + 1 && value.every((step, at) => step === rowPath[at])
     // Columns show the children of every branch on the path, the active one's included.
     const expanded = branch && onPath && !drill
@@ -695,7 +766,18 @@ export const view = <ParentMessage>(
           : [h.AriaDisabled(true)]),
       ]),
       [
-        h.span(builders.itemText.attrs(), [node.label]),
+        ...(parts.icon === undefined
+          ? []
+          : [h.span(builders.itemIcon.attrs([h.AriaHidden(true)]), [parts.icon])]),
+        h.span(builders.itemText.attrs(), [
+          h.span(builders.itemLabel.attrs(), [parts.content ?? node.label]),
+          ...(parts.description === undefined
+            ? []
+            : [h.span(builders.itemDescription.attrs(), [parts.description])]),
+        ]),
+        ...(parts.trailing === undefined
+          ? []
+          : [h.span(builders.itemTrailing.attrs(), [parts.trailing])]),
         ...(branch ? [h.span(builders.branch.attrs([h.AriaHidden(true)]), [])] : []),
       ],
     )
@@ -728,7 +810,9 @@ export const view = <ParentMessage>(
                   h.OnClick(send(Message.Highlighted({ path: path.slice(0, depth) }))),
                 ]),
                 [
-                  `${options.backLabel ?? 'Back to'} ${Option.match(parent, { onNone: () => '', onSome: node => node.label })}`,
+                  fill(said.back, {
+                    label: Option.match(parent, { onNone: () => '', onSome: node => node.label }),
+                  }),
                 ],
               ),
             ]
@@ -746,53 +830,62 @@ export const view = <ParentMessage>(
       [Math.max(0, path.length - 1)]
     : levels.map((_, depth) => depth)
 
-  const popup = model.open
-    ? [
-        h.div(
-          builders.layer.attrs([
-            ...layerBox(h),
-            h.OnMount(
-              topLayer(
-                Mount.mapMessage(
-                  PlaceCascade({
-                    buttonId: triggerId(id),
-                    anchor: {
-                      placement: 'bottom-start',
-                      gap: 4,
-                      padding: 8,
-                      ...options.anchor,
-                      portal: false,
-                    },
-                    levels: depthOf(config.nodes),
-                  }),
-                  send,
+  const treeAttributes = [
+    h.Id(panelId(id)),
+    h.Role('tree'),
+    h.AriaLabel(options.label),
+    h.DataAttribute('layout', drill ? 'drill' : 'columns'),
+    ...Option.match(activeId, {
+      onNone: () => [],
+      onSome: active => [h.AriaActiveDescendant(active)],
+    }),
+  ]
+  const levelsDrawn = shownLevels.map(depth => column(levels[depth] ?? [], depth))
+
+  // An inline panel is the tree in place, always open and the tab order's own; the
+  // popup is the same tree in the top layer, placed under the trigger.
+  const popup = inline
+    ? [h.div(builders.panel.attrs([...treeAttributes, h.Tabindex(0)]), levelsDrawn)]
+    : model.open
+      ? [
+          h.div(
+            builders.layer.attrs([
+              ...layerBox(h),
+              h.OnMount(
+                topLayer(
+                  Mount.mapMessage(
+                    PlaceCascade({
+                      buttonId: triggerId(id),
+                      anchor: {
+                        placement: 'bottom-start',
+                        gap: 4,
+                        padding: 8,
+                        ...options.anchor,
+                        portal: false,
+                      },
+                      levels: depthOf(config.nodes),
+                    }),
+                    send,
+                  ),
                 ),
               ),
-            ),
-          ]),
-          [
-            h.div(builders.backdrop.attrs([h.Style({ position: 'fixed', inset: '0' })]), []),
-            h.div(
-              builders.panel.attrs([
-                h.Id(panelId(id)),
-                h.Role('tree'),
-                h.AriaLabel(options.label),
-                h.Tabindex(-1),
-                // The anchor writes `top` and `left`, which place only a positioned box.
-                h.Style({ position: 'absolute' }),
-                h.DataAttribute('layout', drill ? 'drill' : 'columns'),
-                ...Option.match(activeId, {
-                  onNone: () => [],
-                  onSome: active => [h.AriaActiveDescendant(active)],
-                }),
-                h.OnFocusLeave(send(Message.Left())),
-              ]),
-              shownLevels.map(depth => column(levels[depth] ?? [], depth)),
-            ),
-          ],
-        ),
-      ]
-    : []
+            ]),
+            [
+              h.div(builders.backdrop.attrs([h.Style({ position: 'fixed', inset: '0' })]), []),
+              h.div(
+                builders.panel.attrs([
+                  ...treeAttributes,
+                  h.Tabindex(-1),
+                  // The anchor writes `top` and `left`, which place only a positioned box.
+                  h.Style({ position: 'absolute' }),
+                  h.OnFocusLeave(send(Message.Left())),
+                ]),
+                levelsDrawn,
+              ),
+            ],
+          ),
+        ]
+      : []
 
   return h.div(
     builders.root.attrs([
@@ -800,16 +893,18 @@ export const view = <ParentMessage>(
       ...(options.direction === undefined ? [] : [h.Dir(options.direction)]),
     ]),
     [
-      trigger,
-      ...(options.clearable === true && Option.isSome(model.value) && !disabled
+      ...(inline ? [] : [trigger]),
+      ...(options.clear !== undefined && Option.isSome(model.value) && !disabled
         ? [
             h.button(
               builders.clear.attrs([
                 h.Type('button'),
-                h.AriaLabel(options.clearLabel ?? 'Clear'),
+                h.AriaLabel(said.clear),
                 h.OnClick(send(Message.Cleared())),
+                // With no content of its own, the button is marked for the recipe to draw its cross.
+                ...(options.clear === true ? [h.DataAttribute('glyph', 'cross')] : []),
               ]),
-              [],
+              options.clear === true ? [] : [options.clear.content],
             ),
           ]
         : []),
@@ -834,3 +929,42 @@ export const view = <ParentMessage>(
     ],
   )
 }
+
+/**
+ * What a CascadeSelect is given once: its look and each option that holds no
+ * Message, no drawing and nothing of one select's value or options.
+ */
+export type CascadeSelectPreset = Pick<
+  CascadeSelectView<never>,
+  | 'placeholder'
+  | 'separator'
+  | 'triggerText'
+  | 'layout'
+  | 'expandOn'
+  | 'levels'
+  | 'direction'
+  | 'anchor'
+  | 'words'
+  | 'style'
+> & {
+  /** The clear button with its default mark; a mark of the application's own is drawn at the call. */
+  readonly clear?: true
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own CascadeSelect: `base` for every use, `presets` chosen
+ * at a use with `preset`, and the call over both. `mixins` concatenate in that
+ * order and `words` merge word by word; any other option given at the call
+ * replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<CascadeSelectPreset, Names>,
+): {
+  readonly view: <ParentMessage>(
+    options: CascadeSelectView<ParentMessage> & PresetOption<Names>,
+    h: HtmlBuilder<ParentMessage>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

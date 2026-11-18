@@ -3,10 +3,8 @@
 Lets an agent use a Foldkit application through the transitions it already
 has. It adds two boundaries and nothing else:
 
-```text
-Model         -> context projection   what an agent may see
-Message union -> Agent.expose         what an agent may do
-```
+- The Model becomes a context projection: what an agent may see.
+- The Message union becomes `Agent.expose`: what an agent may do.
 
 A capability **is** a Message, so an agent cannot do anything the application
 cannot, and there is no second implementation of a feature to keep in step. The

@@ -10,6 +10,7 @@ import type { HtmlBuilder } from 'foldkit/html'
 import { expect, test } from 'vitest'
 import * as Chart from '../src/chart.js'
 
+const kinds = { bar: Chart.bars, area: Chart.area }
 const served = (kind: 'bar' | 'area') =>
   Effect.runPromise(
     renderToString(
@@ -21,7 +22,7 @@ const served = (kind: 'bar' | 'area') =>
             {
               id: 'sales',
               label: 'Sales',
-              kind,
+              kind: kinds[kind],
               categories: ['Jan', 'Feb'],
               series: [
                 { name: 'Desktop', values: [186, 305] },

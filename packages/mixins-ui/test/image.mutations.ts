@@ -11,7 +11,7 @@ export default [
     name: 'a blurry image goes unremarked',
     edits: [
       {
-        file: '../src/image.ts',
+        file: '../src/image/audit.ts',
         find: 'if (image.naturalWidth < drawn * BLURRY_BELOW)',
         replace: 'if (false)',
       },
@@ -22,7 +22,7 @@ export default [
     name: 'a wasteful image goes unremarked',
     edits: [
       {
-        file: '../src/image.ts',
+        file: '../src/image/audit.ts',
         find: 'if (image.naturalWidth > drawn * WASTED_ABOVE)',
         replace: 'if (false)',
       },
@@ -32,7 +32,11 @@ export default [
   {
     name: 'a second priority image goes unremarked',
     edits: [
-      { file: '../src/image.ts', find: 'if (prioritized.size > 1) {', replace: 'if (false) {' },
+      {
+        file: '../src/image/audit.ts',
+        find: 'if (prioritized.size > 1) {',
+        replace: 'if (false) {',
+      },
     ],
     tests: browser,
   },
@@ -152,7 +156,7 @@ export default [
     name: 'an image complete at mount is marked loading first',
     edits: [
       {
-        file: '../src/image.ts',
+        file: '../src/image/watchLoad.ts',
         find: 'if (element instanceof HTMLImageElement && element.complete) settle()\n          else mark(',
         replace: 'mark(',
       },
@@ -162,7 +166,11 @@ export default [
   {
     name: 'a failed file is never marked',
     edits: [
-      { file: '../src/image.ts', find: "element.addEventListener('error', failed)", replace: '' },
+      {
+        file: '../src/image/watchLoad.ts',
+        find: "element.addEventListener('error', failed)",
+        replace: '',
+      },
     ],
     tests: browser,
   },
@@ -170,7 +178,7 @@ export default [
     name: 'a complete image with no pixels is marked loaded',
     edits: [
       {
-        file: '../src/image.ts',
+        file: '../src/image/watchLoad.ts',
         find: "element.naturalWidth > 0 ? 'loaded' : 'failed'",
         replace: "true ? 'loaded' : 'failed'",
       },
@@ -260,5 +268,16 @@ export default [
       },
     ],
     tests: ['packages/mixins-ui/test/image.test.ts'],
+  },
+  {
+    name: 'a configured image drops its layers',
+    edits: [
+      {
+        file: '../src/image.ts',
+        find: 'const merged = layered(config, options)',
+        replace: 'const merged = { ...options }',
+      },
+    ],
+    tests: unit,
   },
 ]

@@ -1,39 +1,21 @@
-import type { NamedStyle } from 'foldkit-mixins'
 import { NumberFieldSlots, Recipes } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
-import * as Fields from '../fields.js'
+import basic from '../../examples/number-field/basic.js'
+import locale from '../../examples/number-field/locale.js'
+import states from '../../examples/number-field/states.js'
+import words from '../../examples/number-field/words.js'
 import { about } from '../catalogue.js'
 import { fromRecipe } from '../define.js'
-import { fields } from '../previewShared.js'
-import type { Live } from '../showcase.js'
-
-const numberBasic = <Message>(style: NamedStyle<typeof NumberFieldSlots>, live: Live<Message>) =>
-  Snippet.numberField(
-    style,
-    live.widgets.servings,
-    value => live.onWidget(Widgets.Message.ChangedServings({ value })),
-    live.h,
-  )
 
 export const showcase = fromRecipe(
   about('number-field'),
   NumberFieldSlots,
   Recipes.NumberField,
-  numberBasic,
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Basic', draw: numberBasic },
-    {
-      name: 'locale',
-      title: 'Empty, and in a locale',
-      draw: (style, live) =>
-        Snippet.numberFieldLocale(
-          style,
-          live.widgets.fields.price,
-          value => fields(live, Fields.Message.ChangedPrice({ value })),
-          live.h,
-        ),
-    },
+    { name: 'basic', example: basic },
+    { name: 'locale', example: locale },
+    { name: 'states', example: states },
+    { name: 'words', example: words },
   ],
 )

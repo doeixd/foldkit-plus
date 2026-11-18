@@ -291,5 +291,21 @@ export const make = <A, I>(payloadSchema: Schema.Codec<A, I>) => {
     return (viewInputs.toView ?? defaultToView(h))(render)
   })
 
-  return { ...bound, view }
+  /**
+   * What the entry `entryId` holds, replaced: a toast that shows progress is
+   * drawn again with each figure. Its place, animation and dismissal timing
+   * are as they were; upstream has no operation for it. The same Model when no
+   * entry has that id.
+   */
+  const revise = (model: ToastModel, entryId: string, payload: A): ToastModel =>
+    model.entries.some(entry => entry.id === entryId)
+      ? {
+          ...model,
+          entries: model.entries.map(entry =>
+            entry.id === entryId ? { ...entry, payload } : entry,
+          ),
+        }
+      : model
+
+  return { ...bound, view, revise }
 }

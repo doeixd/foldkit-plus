@@ -86,7 +86,7 @@ const NoticesView = (
           value: model.query,
           placeholder: 'Search notifications',
           onInput: value => Message.NoticesSearched({ value }),
-          onClear: Message.NoticesCleared(),
+          clear: { onClear: Message.NoticesCleared() },
           style: SearchStyle,
         },
         h,

@@ -194,10 +194,16 @@ const tabs = section(
 
 const badge = classesOf(
   { badge: {} },
-  Recipes.Badge({
-    attribute: 'data-state',
-    tones: { ok: 'success', warn: 'warning', info: 'info', bad: 'error' },
-  }),
+  Recipes.Badge.extend({
+    base: {
+      badge: Recipes.badgeTones('data-state', {
+        ok: 'success',
+        warn: 'warning',
+        info: 'info',
+        bad: 'danger',
+      }),
+    },
+  })(),
 )['badge']
 const badges = section(
   'Recipes.Badge',

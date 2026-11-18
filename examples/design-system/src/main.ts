@@ -508,132 +508,138 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
           h,
         ),
         style: AppShellStyle,
+        main: [
+          h.style([], [rootOverride]),
+          h.div(slots.root.attrs(), [
+            h.header(slots.header.attrs(), [
+              h.p(slots.eyebrow.attrs(), ['Foldkit Plus · Design system']),
+              h.h1(slots.title.attrs(), ['Components in a shadcn skin']),
+              h.p(slots.lede.attrs(), [
+                'Every control below draws through a shipped foldkit-mixins-ui recipe over the shipped tokens. The shadcn look is two decisions: near-zero surface saturation with a larger radius, and one recipe selection per intent.',
+              ]),
+            ]),
+            h.section(slots.section.attrs([h.Id('theme')]), [
+              h.h2(slots.sectionTitle.attrs(), ['Theme']),
+              h.p(slots.sectionText.attrs(), [
+                'A theme is a handful of knob values. Pick one, or move a knob over it, and every control on the page follows: spacing, corners, accent, shadow, text size and motion all derive from the same numbers.',
+              ]),
+              h.div(studioSlots.studio.attrs(), [
+                studioPanel(
+                  model,
+                  {
+                    theme: name => Message.ThemePicked({ name }),
+                    scheme: scheme => Message.SchemeSelected({ scheme }),
+                    dir: (dir: Direction) => Message.DirectionSelected({ dir }),
+                    tweak: (tweak, value) => Message.TweakChanged({ tweak, value }),
+                    reset: Message.TweaksReset(),
+                  },
+                  h,
+                ),
+                Specimen(model, h),
+              ]),
+            ]),
+            h.section(slots.section.attrs([h.Id('colors')]), [
+              h.h2(slots.sectionTitle.attrs(), ['Colors']),
+              h.p(slots.sectionText.attrs(), [
+                'Token families, as var(--fk-group-name) references. The hue slider rewrites one knob and every family follows.',
+              ]),
+              h.div(slots.swatchGrid.attrs(), [
+                ...['bedrock', 'base', 'subtle', 'muted', 'default', 'overt'].map(name =>
+                  fillSwatch(slots, h, 'surface', name),
+                ),
+              ]),
+              h.div(slots.swatchGrid.attrs(), [
+                ...['subtle', 'default', 'overt', 'focus'].map(name =>
+                  fillSwatch(slots, h, 'outline', name),
+                ),
+                ...['overt', 'default', 'muted', 'subtle', 'link'].map(name =>
+                  textSwatch(slots, h, name),
+                ),
+              ]),
+              ...['accent', 'secondary', 'tertiary', 'success', 'warning', 'error', 'info'].map(
+                family =>
+                  h.div(slots.swatchGrid.attrs(), [
+                    ...['subtle', 'default', 'hover', 'outline', 'ink'].map(name =>
+                      fillSwatch(slots, h, family, name),
+                    ),
+                  ]),
+              ),
+              h.p(slots.controlLabel.attrs(), [
+                'Contrast of the derived palette, measured as painted (WCAG 2: AA is 4.5, large text 3)',
+              ]),
+              ContrastTable(model, h),
+            ]),
+            IslandSlot(slots, h, 'buttons', 'Buttons'),
+            IslandSlot(slots, h, 'form', 'Form'),
+            IslandSlot(slots, h, 'choice', 'Choice'),
+            IslandSlot(slots, h, 'feedback', 'Feedback'),
+            IslandSlot(slots, h, 'overlays', 'Menu and overlays'),
+            IslandSlot(slots, h, 'navigation', 'Navigation'),
+            IslandSlot(slots, h, 'calendar', 'Date'),
+            h.section(slots.section.attrs([h.Id('display')]), [
+              h.h2(slots.sectionTitle.attrs(), ['Display']),
+              h.p(slots.sectionText.attrs(), [
+                'Status at a glance, each in one view call: who is here, which keys to press, rules between things, placeholders while content loads, and a spinner that announces itself.',
+              ]),
+              h.div(slots.row.attrs(), [
+                Avatar.view(
+                  { name: 'Ada Lovelace', src: avatarTile, style: AvatarSmStyle },
+                  neverH,
+                ),
+                Avatar.view(
+                  { name: 'Grace Hopper', src: avatarTile, style: AvatarMdStyle },
+                  neverH,
+                ),
+                Avatar.view({ name: 'Alan Turing', src: avatarTile, style: AvatarLgStyle }, neverH),
+              ]),
+              h.p(slots.sectionText.attrs(), [
+                'Press ',
+                Kbd.view({ key: '⌘', style: KbdStyle }, neverH),
+                Kbd.view({ key: 'K', style: KbdStyle }, neverH),
+                ' to search.',
+              ]),
+              h.p(slots.sectionText.attrs(), ['Shipped']),
+              Separator.view({ style: SeparatorStyle }, neverH),
+              h.p(slots.sectionText.attrs(), ['Archived']),
+              h.div(slots.row.attrs(), [
+                h.span([], ['Draft']),
+                Separator.view({ orientation: 'vertical', style: SeparatorStyle }, neverH),
+                h.span([], ['Live']),
+              ]),
+              Skeleton.view({ label: 'Loading title', style: SkeletonStyle }, neverH),
+              Skeleton.view({ label: 'Loading body', style: SkeletonStyle }, neverH),
+              Skeleton.view({ label: 'Loading avatar', style: SkeletonCircleStyle }, neverH),
+              h.div(slots.row.attrs(), [
+                Spinner.view({ label: 'Loading projects', style: SpinnerStyle }, neverH),
+                h.span([], ['Loading projects']),
+              ]),
+            ]),
+            IslandSlot(slots, h, 'collections', 'Collections'),
+            IslandSlot(slots, h, 'utilities', 'Utilities'),
+            h.section(slots.section.attrs([h.Id('tokens')]), [
+              h.h2(slots.sectionTitle.attrs(), ['Tokens']),
+              h.p(slots.sectionText.attrs(), [
+                'The whole skin, as application code. No forked CSS: knobs plus selections. The scales below are read from the theme, not typed here: each bar is sized by its own token, so a knob moves it.',
+              ]),
+              h.p(slots.controlLabel.attrs(), ['Space (density multiplies it)']),
+              TokenTable('space', h),
+              h.p(slots.controlLabel.attrs(), ['Radius (radius factor multiplies it)']),
+              TokenTable('radius', h),
+              h.div(slots.code.attrs(), [tokensCode]),
+            ]),
+            h.section(slots.section.attrs([h.Id('cascade')]), [
+              h.h2(slots.sectionTitle.attrs(), ['Cascade']),
+              h.p(slots.sectionText.attrs(), [
+                'Each box sets background from one more place than the last. Components, variants and app are layers, so the later layer wins whatever the order in the source; Style.inline sits outside every layer and wins over all of them, which is why only values no theme may touch belong there.',
+              ]),
+              CascadeDemo(h),
+            ]),
+            h.p(slots.footer.attrs(), [
+              'Recipes, tokens, and the full specimen page live in foldkit-mixins-ui. This demo is local state plus selections.',
+            ]),
+          ]),
+        ],
       },
-      [
-        h.style([], [rootOverride]),
-        h.div(slots.root.attrs(), [
-          h.header(slots.header.attrs(), [
-            h.p(slots.eyebrow.attrs(), ['Foldkit Plus · Design system']),
-            h.h1(slots.title.attrs(), ['Components in a shadcn skin']),
-            h.p(slots.lede.attrs(), [
-              'Every control below draws through a shipped foldkit-mixins-ui recipe over the shipped tokens. The shadcn look is two decisions: near-zero surface saturation with a larger radius, and one recipe selection per intent.',
-            ]),
-          ]),
-          h.section(slots.section.attrs([h.Id('theme')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Theme']),
-            h.p(slots.sectionText.attrs(), [
-              'A theme is a handful of knob values. Pick one, or move a knob over it, and every control on the page follows: spacing, corners, accent, shadow, text size and motion all derive from the same numbers.',
-            ]),
-            h.div(studioSlots.studio.attrs(), [
-              studioPanel(
-                model,
-                {
-                  theme: name => Message.ThemePicked({ name }),
-                  scheme: scheme => Message.SchemeSelected({ scheme }),
-                  dir: (dir: Direction) => Message.DirectionSelected({ dir }),
-                  tweak: (tweak, value) => Message.TweakChanged({ tweak, value }),
-                  reset: Message.TweaksReset(),
-                },
-                h,
-              ),
-              Specimen(model, h),
-            ]),
-          ]),
-          h.section(slots.section.attrs([h.Id('colors')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Colors']),
-            h.p(slots.sectionText.attrs(), [
-              'Token families, as var(--fk-group-name) references. The hue slider rewrites one knob and every family follows.',
-            ]),
-            h.div(slots.swatchGrid.attrs(), [
-              ...['bedrock', 'base', 'subtle', 'muted', 'default', 'overt'].map(name =>
-                fillSwatch(slots, h, 'surface', name),
-              ),
-            ]),
-            h.div(slots.swatchGrid.attrs(), [
-              ...['subtle', 'default', 'overt', 'focus'].map(name =>
-                fillSwatch(slots, h, 'outline', name),
-              ),
-              ...['overt', 'default', 'muted', 'subtle', 'link'].map(name =>
-                textSwatch(slots, h, name),
-              ),
-            ]),
-            ...['accent', 'secondary', 'tertiary', 'success', 'warning', 'error', 'info'].map(
-              family =>
-                h.div(slots.swatchGrid.attrs(), [
-                  ...['subtle', 'default', 'hover', 'outline', 'ink'].map(name =>
-                    fillSwatch(slots, h, family, name),
-                  ),
-                ]),
-            ),
-            h.p(slots.controlLabel.attrs(), [
-              'Contrast of the derived palette, measured as painted (WCAG 2: AA is 4.5, large text 3)',
-            ]),
-            ContrastTable(model, h),
-          ]),
-          IslandSlot(slots, h, 'buttons', 'Buttons'),
-          IslandSlot(slots, h, 'form', 'Form'),
-          IslandSlot(slots, h, 'choice', 'Choice'),
-          IslandSlot(slots, h, 'feedback', 'Feedback'),
-          IslandSlot(slots, h, 'overlays', 'Menu and overlays'),
-          IslandSlot(slots, h, 'navigation', 'Navigation'),
-          IslandSlot(slots, h, 'calendar', 'Date'),
-          h.section(slots.section.attrs([h.Id('display')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Display']),
-            h.p(slots.sectionText.attrs(), [
-              'Status at a glance, each in one view call: who is here, which keys to press, rules between things, placeholders while content loads, and a spinner that announces itself.',
-            ]),
-            h.div(slots.row.attrs(), [
-              Avatar.view({ name: 'Ada Lovelace', src: avatarTile, style: AvatarSmStyle }, neverH),
-              Avatar.view({ name: 'Grace Hopper', src: avatarTile, style: AvatarMdStyle }, neverH),
-              Avatar.view({ name: 'Alan Turing', src: avatarTile, style: AvatarLgStyle }, neverH),
-            ]),
-            h.p(slots.sectionText.attrs(), [
-              'Press ',
-              Kbd.view({ key: '⌘', style: KbdStyle }, neverH),
-              Kbd.view({ key: 'K', style: KbdStyle }, neverH),
-              ' to search.',
-            ]),
-            h.p(slots.sectionText.attrs(), ['Shipped']),
-            Separator.view({ style: SeparatorStyle }, neverH),
-            h.p(slots.sectionText.attrs(), ['Archived']),
-            h.div(slots.row.attrs(), [
-              h.span([], ['Draft']),
-              Separator.view({ orientation: 'vertical', style: SeparatorStyle }, neverH),
-              h.span([], ['Live']),
-            ]),
-            Skeleton.view({ label: 'Loading title', style: SkeletonStyle }, neverH),
-            Skeleton.view({ label: 'Loading body', style: SkeletonStyle }, neverH),
-            Skeleton.view({ label: 'Loading avatar', style: SkeletonCircleStyle }, neverH),
-            h.div(slots.row.attrs(), [
-              Spinner.view({ label: 'Loading projects', style: SpinnerStyle }, neverH),
-              h.span([], ['Loading projects']),
-            ]),
-          ]),
-          IslandSlot(slots, h, 'collections', 'Collections'),
-          IslandSlot(slots, h, 'utilities', 'Utilities'),
-          h.section(slots.section.attrs([h.Id('tokens')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Tokens']),
-            h.p(slots.sectionText.attrs(), [
-              'The whole skin, as application code. No forked CSS: knobs plus selections. The scales below are read from the theme, not typed here: each bar is sized by its own token, so a knob moves it.',
-            ]),
-            h.p(slots.controlLabel.attrs(), ['Space (density multiplies it)']),
-            TokenTable('space', h),
-            h.p(slots.controlLabel.attrs(), ['Radius (radius factor multiplies it)']),
-            TokenTable('radius', h),
-            h.div(slots.code.attrs(), [tokensCode]),
-          ]),
-          h.section(slots.section.attrs([h.Id('cascade')]), [
-            h.h2(slots.sectionTitle.attrs(), ['Cascade']),
-            h.p(slots.sectionText.attrs(), [
-              'Each box sets background from one more place than the last. Components, variants and app are layers, so the later layer wins whatever the order in the source; Style.inline sits outside every layer and wins over all of them, which is why only values no theme may touch belong there.',
-            ]),
-            CascadeDemo(h),
-          ]),
-          h.p(slots.footer.attrs(), [
-            'Recipes, tokens, and the full specimen page live in foldkit-mixins-ui. This demo is local state plus selections.',
-          ]),
-        ]),
-      ],
       h,
     ),
   }

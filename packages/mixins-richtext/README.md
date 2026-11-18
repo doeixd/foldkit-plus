@@ -6,11 +6,12 @@ every element the way it does any other view.
 
 ## Who owns what
 
-```text
-foldkit-richtext-dom     the editor: its host element, the editable subtree, every edit
-your application         every piece of state the chrome shows, and where it is drawn
-foldkit-mixins-richtext  nothing: each view is a function of what it is given  (this package)
-```
+- `foldkit-richtext-dom` owns the editor: its host element, the editable subtree and
+  every edit.
+- Your application owns every piece of state the chrome shows, and where it is
+  drawn.
+- `foldkit-mixins-richtext` (this package) owns nothing: each view is a function of
+  what it is given.
 
 The editor renders its host and nothing else; the chrome beside
 it is the application's. `foldkit-richtext-dom/toolbar` ships plain versions of some of it,
@@ -53,7 +54,7 @@ const Message = defineMessageUnion({
   DraftedSource: { draft: Schema.String },
   MovedInSource: { caret: Schema.Number },
   LeftSource: {},
-  ToggledMenu: { menu: Schema.Literals(['style', 'insert', 'link']), open: Schema.Boolean },
+  ToggledMenu: { menu: Schema.Literals(['style', 'insert', 'link', 'more']), open: Schema.Boolean },
   FocusedControl: { id: Schema.String },
   ToggledFind: {},
   PickedFile: {},
@@ -280,14 +281,28 @@ formattingToolbar<Message>()(
 
 ### Narrow screens
 
-Wrap an item as `{ low: item }` to say it gives way: with `compact: true` it is not drawn, so it is
-neither a tab stop nor an arrow-key target, and a separator a hidden group leaves at an end or
-beside another is dropped. If the control the tab stop names is the one that goes, the stop falls to
-the nearest control still drawn (the next one, else the one before). The bar knows no width: the
-application keeps `compact` in its Model. `foldkit-primitives/media`'s `MediaQuery.with({ query:
-'(max-width: 40rem)' })` is that signal, a Bundle holding `matches` that a `matchMedia` Subscription
-keeps current, so pass `compact: model.narrow.matches`. What is left out is still offered by the
-slash menu.
+Wrap an item as `{ low: item }` to say it gives way: with `compact: true` it is not drawn in the
+bar, and a separator a hidden group leaves at an end or beside another is dropped. The bar ends
+with a **More** button instead, whose menu lists the low controls in order with their names. Each
+row sends the control's own Message; a toggle (Code, Strikethrough, an application control with
+`pressed`) is a `menuitemcheckbox` that says whether it is on, and a control that does not apply
+(undo with nothing to undo) is an `aria-disabled` row that sends nothing. The button is part of the
+bar's one tab stop and its arrow keys; ArrowDown opens the menu and a second enters it, and Escape
+returns to the button. The application keeps the open menu as it does for the others (`menu:
+'more'`, `toggled('more', open)`), and a press of a row goes through `wrap`, where it closes the
+menu. A low control that opens a popup of its own (`style`, `insert`, `link`, an application
+control with a `popup`) has no form in that menu, so a compact bar leaves it out: do not mark one
+`low` unless the narrow screen can do without it. `words.more` names the button and its menu. If
+the control the tab stop names is the one that goes, the stop falls to the nearest control still
+drawn (the next one, else the one before).
+
+The bar knows no width: the application keeps `compact` in its Model. A window's media query is one
+signal (`foldkit-primitives/media`'s `MediaQuery.with({ query: '(max-width: 40rem)' })`, a Bundle
+holding `matches` that a `matchMedia` Subscription keeps current: pass `compact:
+model.narrow.matches`). Where the bar sits in a column narrower than the window (a panel beside
+it), measure the bar's own width instead: a `Resize` mount from `foldkit-primitives/observers` on
+the element around it, kept in the Model as a number, and `compact` is that number under what the
+bar needs (the CMS example does this).
 
 ```ts
 formattingToolbar<Message>()(
@@ -301,6 +316,7 @@ formattingToolbar<Message>()(
     onFocus: id => FocusedControl({ id }),
     items: ['undo', 'redo', 'separator', { mark: 'Bold' }, { low: { mark: 'Code' } }, { low: 'quote' }],
     compact: true,
+    // The Code and Quote controls are in the More menu, which `menu: 'more'` opens.
   },
   h,
 )

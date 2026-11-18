@@ -27,7 +27,7 @@ const themeOf = (hover?: 'accent') =>
     }),
   )
 const alertOf = (emphasis: 'subtle' | 'bold') =>
-  Style.forSlots(AlertSlots)(Recipes.Alert({ tone: 'error', emphasis }))
+  Style.forSlots(AlertSlots)(Recipes.Alert({ tone: 'danger', emphasis }))
 const ghost = Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'ghost' }))
 
 afterEach(() => {

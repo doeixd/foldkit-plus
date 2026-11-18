@@ -73,14 +73,18 @@ export const Skeleton = Style.recipeFor(SkeletonSlots)({
         bar: variant(
           // A floor, since a container that sizes to its content (a centered
           // column, a flex item) gives `100%` nothing and the bar vanished.
-          Style.nest(lone, { inlineSize: '100%', minInlineSize: '4rem', blockSize: '1rem' }),
+          Style.nest(lone, {
+            inlineSize: 'var(--fk-skeleton-inline, 100%)',
+            minInlineSize: '4rem',
+            blockSize: 'var(--fk-skeleton-block, 1rem)',
+          }),
         ),
       },
       circle: {
         bar: variant(
           Style.nest(lone, {
-            inlineSize: '2.5rem',
-            blockSize: '2.5rem',
+            inlineSize: 'var(--fk-skeleton-inline, 2.5rem)',
+            blockSize: 'var(--fk-skeleton-block, 2.5rem)',
             borderRadius: ref.radius.full,
           }),
         ),

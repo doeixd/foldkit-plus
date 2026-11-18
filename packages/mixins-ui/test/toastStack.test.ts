@@ -29,6 +29,9 @@ describe('Toast.update', () => {
     const second = Toast.show(shown.model, { title: 'Sent' })
     expect(second.model.entries.map(each => each.title)).toEqual(['Sent', 'Saved'])
     expect(second.id).not.toBe(shown.id)
+    // The id a caller learns before it shows, since a Bundle's helper returns none.
+    expect(Toast.nextId(empty)).toBe(shown.id)
+    expect(Toast.nextId(shown.model)).toBe(second.id)
     expect(names(shown)).toContain('StartToastClock')
     expect(entry(running).countdown._tag).toBe('Running')
   })
@@ -68,7 +71,7 @@ describe('Toast.update', () => {
       Toast.Message.StoppedClock({ id: shown.id, version: stale, elapsed: 5 }),
       Toast.Message.Held({ by: 'focus', on: false }),
       Toast.Message.Dismissed({ id: 'nobody' }),
-      Toast.Message.PressedAction({ id: shown.id }),
+      Toast.Message.PressedAction({ id: shown.id, index: 0 }),
     ]) {
       expect(Toast.update(running, message).model).toBe(running)
     }
@@ -96,9 +99,12 @@ describe('Toast.update', () => {
   it('an action leaves and sends Acted with its value', () => {
     const withAction = Toast.show(empty, {
       title: 'Archived',
-      action: { label: 'Undo', value: 'undo' },
+      actions: [{ label: 'Undo', value: 'undo' }],
     })
-    const acted = Toast.update(withAction.model, Toast.Message.PressedAction({ id: withAction.id }))
+    const acted = Toast.update(
+      withAction.model,
+      Toast.Message.PressedAction({ id: withAction.id, index: 0 }),
+    )
     expect(acted.outMessage).toEqual(Toast.OutMessage.Acted({ id: withAction.id, value: 'undo' }))
     expect(entry(acted.model, withAction.id).animation.transitionState).toBe('LeaveStart')
   })
@@ -106,9 +112,9 @@ describe('Toast.update', () => {
   it('an action pressed again while the toast leaves acts once, and changes nothing', () => {
     const withAction = Toast.show(empty, {
       title: 'Archived',
-      action: { label: 'Undo', value: 'undo' },
+      actions: [{ label: 'Undo', value: 'undo' }],
     })
-    const press = Toast.Message.PressedAction({ id: withAction.id })
+    const press = Toast.Message.PressedAction({ id: withAction.id, index: 0 })
     const acted = Toast.update(withAction.model, press)
     const again = Toast.update(acted.model, press)
     expect(again.outMessage).toBeUndefined()

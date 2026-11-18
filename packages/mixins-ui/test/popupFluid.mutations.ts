@@ -19,7 +19,7 @@ export default [
   },
   {
     name: 'the keys do not move the highlight',
-    edits: [{ file: '../src/listbox.ts', find: "follows: '[data-active]',", replace: '' }],
+    edits: [{ file: '../src/listbox/fluid.ts', find: "follows: '[data-active]',", replace: '' }],
     tests,
   },
   {
@@ -72,7 +72,7 @@ export default [
       'upstream marks the row under the pointer data-active as it does the keys, and follows lights that row; nearness reads only in gaps, which menu rows have none of',
     edits: [
       {
-        file: '../src/menu.ts',
+        file: '../src/menu/fluid.ts',
         find: 'item: \'[role^="menuitem"]\',',
         replace: 'item: \'[role="none"]\',',
       },

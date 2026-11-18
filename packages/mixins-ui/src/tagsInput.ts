@@ -18,7 +18,9 @@ import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A field of tags, Zag's tags input: the tags as a list of chips, each with
@@ -274,10 +276,25 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
 export type Route<Message> = Behaviors.Keys.Route<Model, Message>
 
 export interface TagsInputWords {
-  /** A chip's remove button's accessible name; default `Remove <tag>`. */
-  readonly remove?: ((tag: string) => string) | undefined
-  /** What the remove button draws; default `×`. */
-  readonly mark?: string | undefined
+  /** A chip's remove button's accessible name. */
+  readonly remove: string
+  /** What the remove button draws; the default is drawn as the recipe's cross. */
+  readonly mark: string
+  /** The `message` slot's text for a draft of a tag already held. */
+  readonly repeat: string
+  /** The `message` slot's text for a draft of nothing. */
+  readonly empty: string
+  /** The `message` slot's text for a draft past `max`. */
+  readonly full: string
+}
+
+/** The defaults, in English: text with `{blanks}`, as the other widgets' words. */
+export const words: TagsInputWords = {
+  remove: 'Remove {tag}',
+  mark: '×',
+  repeat: '{tag} is already added',
+  empty: 'Type a tag to add',
+  full: 'At most {max} tags',
 }
 
 export interface TagsInputView<Message> {
@@ -303,21 +320,42 @@ export interface TagsInputView<Message> {
    * Backspace in an empty field: a route on one of those is a diagnostic naming both.
    */
   readonly routes?: ReadonlyArray<Route<NoInfer<Message>>> | undefined
-  /** The remove button's words. */
-  readonly words?: TagsInputWords | undefined
-  /** What the `message` slot says of a refusal; default English sentences. */
-  readonly refusalText?: ((refusal: Refusal) => string) | undefined
+  /** The remove button's and the refusals' words. */
+  readonly words?: Partial<TagsInputWords> | undefined
   /** A style of `TagsInputSlots`, for the field's look. */
   readonly style?: NamedStyle<typeof TagsInputSlots> | undefined
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
 }
 
-const refusalText = (refusal: Refusal): string =>
+/** What a TagsInput is given once: its look and each option that holds no Message. */
+export type TagsInputPreset = Pick<
+  TagsInputView<never>,
+  'style' | 'placeholder' | 'addOnBlur' | 'direction' | 'words'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own TagsInput: `base` for every use, `presets` chosen at
+ * a use with `preset`, and the call over both. `mixins` concatenate in that
+ * order and `words` merge word by word; any other option given at the call
+ * replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<TagsInputPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: TagsInputView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})
+
+const refusalText = (refusal: Refusal, text: TagsInputWords): string =>
   Refusal.match(refusal, {
-    Repeat: ({ tag }) => `${tag} is already added`,
-    Empty: () => 'Type a tag to add',
-    Full: ({ max }) => `At most ${max} tags`,
+    Repeat: ({ tag }) => fill(text.repeat, { tag }),
+    Empty: () => text.empty,
+    Full: ({ max }) => fill(text.full, { max }),
   })
 
 /**
@@ -492,7 +530,8 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
     { input: model, h },
   )
   const labelId = `${model.id}-label`
-  const said = Option.map(model.refusal, options.refusalText ?? refusalText)
+  const text = wordsOf(words, options.words)
+  const said = Option.map(model.refusal, refusal => refusalText(refusal, text))
   // The shake's name alternates with each refusal, so a second one in a row replays it.
   const refused = Option.isSome(model.refusal)
     ? [h.DataAttribute('refused', model.refusals % 2 === 0 ? 'even' : 'odd')]
@@ -514,12 +553,13 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
                       h.Id(chipId(model.id, tag)),
                       h.Type('button'),
                       h.Tabindex(tag === stop ? 0 : -1),
-                      h.AriaLabel(options.words?.remove?.(tag) ?? `Remove ${tag}`),
+                      h.AriaLabel(fill(text.remove, { tag })),
+                      ...(text.mark === words.mark ? [h.DataAttribute('glyph', 'cross')] : []),
                       ...(disabled
                         ? [h.Disabled(true)]
                         : [h.OnClick(lift(Message.Removed({ tag }))), chipKeys({ input: tag, h })]),
                     ]),
-                    [options.words?.mark ?? '×'],
+                    [text.mark],
                   ),
                 ]),
               ),

@@ -109,9 +109,18 @@ const defined = new Set([
   // Written on a textarea by its view, from `rows` and `maxRows`.
   'textarea-rows',
   'textarea-max-rows',
+  // Optional overrides of a collapsing part's times, set by an application; read with the motion tier as the fallback.
+  'collapse-duration',
+  'collapse-close-duration',
   // Written by the views: an avatar's hue from its name, a table row skeleton's column count.
   'avatar-hue',
   'skeleton-columns',
+  // Written on a list slider's `between` thumbs by its view, the only inputs the rule reading them matches.
+  'slider-from',
+  'slider-to',
+  // A lone bar's `inline` and `block` lengths, written only when given; every read has a fallback.
+  'skeleton-inline',
+  'skeleton-block',
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `card-hover-${part}`),
   ...['x', 'y', 'w', 'h', 'shown', 'moving'].map(part => `table-hover-${part}`),
   // Written on the tablist by `Tabs.fluid`'s Measure and FluidHover.
@@ -500,6 +509,9 @@ describe('Recipes', () => {
     ['Resizable', 'accent-default', 'the handle shows its accent line under the pointer'],
     ['Menu', 'error-default', 'a danger row hovers in its own tone'],
     ['Button', 'text-overt', 'an ink button deepens its own fill'],
+    ['Toast', 'var(--fk-text-default) 82%', 'an ink action softens its own fill'],
+    ['Toast', 'var(--fk-surface-base) 82%', 'an inverted toast’s action softens its own fill'],
+    ['Toast', 'currentColor 15%', 'an inverted toast’s close button films the card’s own ink'],
     ['*', 'currentColor calc(var(--fk-knob-state-hover) *', 'a scrollbar thumb takes the text'],
   ]
   const stateRead =
@@ -631,10 +643,10 @@ describe('Recipes', () => {
     ).toBe(true)
     expect(layered.some(block => /^@layer app\{.*background:red/.test(block))).toBe(true)
 
-    // Both classes land on the element (or the icon's, for the recipe's icon
-    // rule) and nothing is inline, so the cascade decides.
+    // Both classes land on the element (or a part's, for the recipe's rules for the
+    // icon and the rest) and nothing is inline, so the cascade decides.
     let resolved: SlotAttributes<TestMessage> = []
-    let icon: SlotAttributes<TestMessage> = []
+    let every: ReadonlyArray<SlotAttributes<TestMessage>> = []
     buttonView<TestMessage>(
       {
         onClick: message('Clicked'),
@@ -644,13 +656,13 @@ describe('Recipes', () => {
             h,
           })
           resolved = slots.button
-          icon = slots.icon
+          every = Object.values(slots)
           return h.button(resolved, [])
         },
       },
       h,
     )
-    const classes = [resolved, icon].flatMap(
+    const classes = every.flatMap(
       attributes => attributeOf(attributes, 'Class')?.value.split(' ') ?? [],
     )
     for (const rule of [...Danger.rules, ...Override.rules]) {
@@ -992,36 +1004,66 @@ describe('Recipes', () => {
     const BadgeSlots = Slots.define({
       badge: Slot.make({ capability: Capability.Container }),
     })
-    const tones = { Published: 'success', Changed: 'warning', New: 'info' } as const
-    const css = (attribute = 'data-state'): string =>
-      Style.forSlots(BadgeSlots)({ badge: Recipes.Badge({ attribute, tones }).badge }).css
-
-    it('compiles the pill, its appearances, and one rule per mapped value', () => {
-      expect(css()).toContain('border-radius:var(--fk-radius-full)')
-      expect(css()).toContain('[data-state="Published"]')
-      expect(css()).toContain('[data-state="Changed"]')
-      expect(css()).toContain('[data-state="New"]')
-      // The dot lives in the `dot` appearance alone, in the tone's fill.
-      expect(css()).not.toContain('::before')
-      const dotted = Style.forSlots(BadgeSlots)({
-        badge: Recipes.Badge({ attribute: 'data-state', tones, appearance: 'dot' }).badge,
+    const css = (selection?: Parameters<typeof Recipes.Badge>[0]): string =>
+      Style.forSlots(BadgeSlots)({ badge: Recipes.Badge(selection).badge }).css
+    const mapped = (attribute: string): string =>
+      Style.forSlots(BadgeSlots)({
+        badge: Recipes.Badge.extend({
+          base: {
+            badge: Recipes.badgeTones(attribute, {
+              Published: 'success',
+              Changed: 'warning',
+              New: 'info',
+            }),
+          },
+        })().badge,
       }).css
+
+    it('compiles the pill, one rule per tone of the vocabulary, and the dot only in its appearance', () => {
+      expect(css()).toContain('border-radius:var(--fk-radius-full)')
+      for (const tone of ['accent', 'neutral', 'info', 'success', 'warning', 'danger']) {
+        expect(css()).toContain(`[data-tone="${tone}"]`)
+      }
+      expect(css()).not.toContain('::before')
+      const dotted = css({ appearance: 'dot' })
       expect(dotted).toContain('::before')
       expect(dotted).toContain('background:var(--_fk-badge-fill)')
     })
 
-    it('tones a value with its family wash and ink', () => {
+    it('tones a value with its family wash and ink, danger from the error family', () => {
       expect(css()).toContain('--_fk-badge-tint:var(--fk-success-subtle)')
       expect(css()).toContain('--_fk-badge-ink:var(--fk-success-ink)')
       expect(css()).toContain('--_fk-badge-ink:var(--fk-warning-ink)')
+      expect(css()).toMatch(/data-tone="danger"\][^}]*--_fk-badge-ink:var\(--fk-error-ink\)/)
       expect(css()).toContain('background:var(--_fk-badge-tint)')
       expect(css()).toContain('color:var(--_fk-badge-ink)')
     })
 
-    it('leaves an unmapped value on the base and takes the attribute', () => {
-      expect(css()).not.toContain('[data-state="Archived"]')
-      expect(css('data-cms-state')).toContain('[data-cms-state="Published"]')
-      expect(css('data-cms-state')).not.toContain('[data-state="Published"]')
+    it('steps its text and room by size, and not at all unselected', () => {
+      expect(css({ size: 'sm' })).toContain('var(--fk-type-micro-size)')
+      expect(css({ size: 'lg' })).toContain('var(--fk-type-body-size)')
+      expect(css()).not.toContain('var(--fk-type-body-size)')
+    })
+
+    it('maps the values of an attribute of its own through badgeTones, leaving the rest on the base', () => {
+      expect(mapped('data-state')).toContain('[data-state="Published"]')
+      expect(mapped('data-state')).toContain('[data-state="New"]')
+      expect(mapped('data-state')).not.toContain('[data-state="Archived"]')
+      expect(mapped('data-cms-state')).toContain('[data-cms-state="Published"]')
+      expect(mapped('data-cms-state')).not.toContain('[data-state="Published"]')
+    })
+
+    it('adds a value to an axis with add, and refuses one it has', () => {
+      const Wide = Recipes.Badge.add({
+        size: { xl: { badge: Style.self({ fontSize: '2rem' }) } },
+      })
+      expect(Style.forSlots(BadgeSlots)({ badge: Wide({ size: 'xl' }).badge }).css).toContain(
+        'font-size:2rem',
+      )
+      expect(() =>
+        // @ts-expect-error `lg` is already a size.
+        Recipes.Badge.add({ size: { lg: { badge: Style.self({}) } } }),
+      ).toThrow()
     })
 
     it('references only defined tokens', () => {
@@ -1031,16 +1073,16 @@ describe('Recipes', () => {
     })
 
     it('emits every rule inside a layer, base in components and tones in variants', () => {
-      for (const block of blocks(css())) {
+      for (const block of blocks(mapped('data-state'))) {
         expect(block).toMatch(/^@layer (components|variants)\{/)
       }
-      const layered = blocks(css())
+      const layered = blocks(mapped('data-state'))
       expect(layered.some(block => /^@layer components\{/.test(block))).toBe(true)
       expect(layered.some(block => /^@layer variants\{.*data-state/.test(block))).toBe(true)
     })
 
     it('writes no inline declarations', () => {
-      const piece = Recipes.Badge({ attribute: 'data-state', tones }).badge
+      const piece = Recipes.Badge().badge
       expect(piece.style).toEqual({})
       expect(piece.conditions ?? []).toEqual([])
       expect(piece.items ?? []).toEqual([])

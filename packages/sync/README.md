@@ -36,7 +36,7 @@ CRDT; every peer accepting writes without a server is a different design.
 ## The model in one equation
 
 ```text
-what the user sees = committed snapshot + pending local edits, replayed
+visible = committed snapshot + pending edits, replayed
 ```
 
 The server has committed `A B C`; this device has typed `D E` since:

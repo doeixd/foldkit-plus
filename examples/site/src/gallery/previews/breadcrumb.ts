@@ -1,44 +1,29 @@
 import { BreadcrumbSlots, Recipes } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import basic from '../../examples/breadcrumb/basic.js'
+import collapsed from '../../examples/breadcrumb/collapsed.js'
+import feature from '../../examples/breadcrumb/feature.js'
+import icons from '../../examples/breadcrumb/icons.js'
+import menu from '../../examples/breadcrumb/menu.js'
+import separator from '../../examples/breadcrumb/separator.js'
+import trailing from '../../examples/breadcrumb/trailing.js'
+import words from '../../examples/breadcrumb/words.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
 export const showcase = fromRecipe(
   about('breadcrumb'),
   BreadcrumbSlots,
   Recipes.Breadcrumb,
-  style => Snippet.breadcrumb(style, inert),
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Basic', draw: style => Snippet.breadcrumb(style, inert) },
-    { name: 'icons', title: 'Icons', draw: style => Snippet.breadcrumbIcons(style, inert) },
-    {
-      name: 'custom',
-      title: 'A separator of your own',
-      draw: style => Snippet.breadcrumbCustom(style, inert),
-    },
-    {
-      name: 'collapsed',
-      title: 'Collapsed',
-      draw: (style, live) =>
-        Snippet.breadcrumbCollapsed(
-          style,
-          live.widgets.trailExpanded,
-          live.onWidget(Widgets.Message.ExpandedTrail()),
-          live.h,
-        ),
-    },
-    {
-      name: 'menu',
-      title: 'The hidden steps in a menu',
-      draw: (style, live) =>
-        Snippet.breadcrumbMenu(
-          style,
-          live.widgets.trailMenu,
-          message => live.onWidget(Widgets.Message.GotTrailMenu({ message })),
-          live.h,
-        ),
-    },
+    { name: 'basic', example: basic },
+    { name: 'icons', example: icons },
+    { name: 'separator', example: separator },
+    { name: 'trailing', example: trailing },
+    { name: 'collapsed', example: collapsed },
+    { name: 'menu', example: menu },
+    { name: 'words', example: words },
+    { name: 'feature', example: feature },
   ],
 )

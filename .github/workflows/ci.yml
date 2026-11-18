@@ -11,6 +11,48 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Whether anything but prose changed, for the jobs a document cannot break. A
+  # job-level `if` rather than `paths-ignore`: a check that never runs blocks a
+  # merge, a skipped one does not. Always true on main and for a pull request
+  # that touches anything beyond Markdown, `docs/` and the licence. Not `skills/`
+  # (it is shipped, and the `foldkit-plus` package tests read it).
+  #
+  # What a prose change still runs, because it reads the prose: `lint`, `typecheck`
+  # (`docs:check` compiles the snippets in READMEs and `docs/`), `unit` (the guide
+  # tests, `foldkit-plus`'s docs and skill tests, the README fixtures) and
+  # `prerender` (the site builds its guides from them). Everything else is
+  # skipped: browser tests, builds, e2e, perf, postgres, demo, pack and scaffolds.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.files.outputs.code }}
+    steps:
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          code=true
+          if [ "$EVENT" = pull_request ]; then
+            files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)')
+            # An empty list is a failed read, not an empty change.
+            if [ -n "$files" ]; then
+              code=false
+              while IFS= read -r file; do
+                case "$file" in
+                  skills/*) code=true ;;
+                  *.md | docs/* | LICENSE) ;;
+                  *) code=true ;;
+                esac
+              done <<< "$files"
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -70,8 +112,53 @@ jobs:
       # so it takes seconds rather than a job of its own.
       - run: pnpm docs:check
 
-  # Sharded: alone it took over ten minutes, the slowest job by four.
-  test:
+  # Sharded by project and by file count: alone it took over ten minutes, and
+  # four shards of both projects together left the one that drew the site's
+  # prerender at 13.5 minutes against 5 for the others (that test has a job of
+  # its own now, `prerender`).
+  unit:
+    name: unit (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # A few unit files launch Chromium themselves (`branded.test.ts`,
+      # plus's `playwright.test.ts`), so these shards need the binary too.
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # `foldkit-domains` is upstream's copy, happy-dom like the rest of these.
+      - run: pnpm test --project unit --project foldkit-domains --shard=${{ matrix.shard }}/3
+
+  # What jsdom cannot check: layout, focus, the caret, in headless Chromium. The
+  # `browser-touch` project is a touch screen from the start and so a page of
+  # its own, but it is eleven files and rides in the shards. Four shards: at
+  # three, two of them lost their page mid-run ("Browser connection was closed
+  # while running tests", 2026-11-18), which four shards of everything never did.
+  browser:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    name: browser (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -99,15 +186,37 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
-      # The browser tests (`*.browser.test.ts`) run in headless Chromium.
       - run: pnpm exec playwright install --with-deps chromium
 
-      - run: pnpm test --shard=${{ matrix.shard }}/4
+      - run: pnpm test --project browser --project browser-touch --shard=${{ matrix.shard }}/4
+
+  # The site's prerender test builds every page, which took 10 minutes beside
+  # other tests; it is in `buildTests`, so the shards leave it out.
+  prerender:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      FOLDKIT_BUILDS: '1'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec vitest run --project unit examples/site/test/prerender.test.ts
 
   # The tests that make a production build of a page or a package
   # (`buildTests` in vitest.shared.ts). In the shards they starved the runner
   # of memory until it lost contact with GitHub; here two at a time.
   builds:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -135,6 +244,8 @@ jobs:
   # suite's first test fails if the database is not in one. The ledger's race
   # runs here too: PGlite runs one transaction at a time.
   postgres-locale:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -172,12 +283,28 @@ jobs:
           FOLDKIT_LOCALE_PG: postgres://postgres:ci@localhost:5432/postgres
 
   # The examples with a server, end to end: each test starts the server and
-  # Vite, and drives a real Chromium.
+  # Vite, and drives a real Chromium. One job took 36 minutes with the files one
+  # at a time, so the files are split: the site's adoption check, which builds
+  # production and takes 8.6 minutes alone, gets a job of its own (the config
+  # leaves it out of the others on CI), and Vitest's `--shard` splits the rest.
+  # Within a job the files still run one at a time, since each starts servers.
   e2e:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    name: e2e (${{ matrix.name }})
     runs-on: ubuntu-latest
-    # The files run one at a time and took 29.5 minutes on 2026-11-17 (the site's adoption
-    # check alone builds production and takes 8), so 30 cancelled the job before its verdict.
-    timeout-minutes: 50
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: adoption, args: examples/site/e2e/adoption.e2e.ts, adoption: '1' }
+          - { name: 1/4, args: --shard=1/4, adoption: '' }
+          - { name: 2/4, args: --shard=2/4, adoption: '' }
+          - { name: 3/4, args: --shard=3/4, adoption: '' }
+          - { name: 4/4, args: --shard=4/4, adoption: '' }
+    env:
+      FOLDKIT_ADOPTION: ${{ matrix.adoption }}
     steps:
       - uses: actions/checkout@v7
 
@@ -199,7 +326,7 @@ jobs:
 
       - run: pnpm exec playwright install --with-deps chromium
 
-      - run: pnpm e2e
+      - run: pnpm e2e ${{ matrix.args }}
 
   # Every performance budget, on one quiet Linux runner: CPU readings step in
   # 15.6 ms on Windows and drift on a loaded shard, so the budget tests run
@@ -209,6 +336,8 @@ jobs:
   # grew several times over. Each test writes its reading to PERF_REPORT; the
   # table lands in the job's summary, and a miss fails the job.
   perf:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -258,6 +387,8 @@ jobs:
         if: ${{ !cancelled() }}
 
   demo:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -281,6 +412,8 @@ jobs:
           FOLDKIT_BUILD_ID: ci
 
   pack:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -300,10 +433,43 @@ jobs:
       # release does; `demo` builds the examples.
       - run: pnpm pack:check
 
+  # The packages' tarballs, made once for the scaffolds below: each used to run
+  # `build:packages` and `pack` itself, 85 seconds three times over. `pack` stays
+  # self-contained, since building and packing as a release does is its point.
+  tarballs:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build:packages && pnpm -r --filter "./packages/*" exec pnpm pack --pack-destination "$GITHUB_WORKSPACE/tarballs"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tarballs
+          path: tarballs
+          retention-days: 1
+          if-no-files-found: error
+
   # The scaffolds `pack` does not make, each in a job of its own, since a
   # scaffold's install takes a minute: setup's printed scaffold command, its
   # install step, then the scaffold's own typecheck and lint, from the tarballs.
+  # The script reads the tarballs, the examples' sources and the manifests, never
+  # the workspace's `node_modules`, so these jobs install nothing of it.
   scaffold:
+    needs: [changes, tarballs]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -321,10 +487,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: tarballs
+          path: tarballs
 
-      - run: pnpm build:packages && pnpm -r --filter "./packages/*" exec pnpm pack
-
-      - run: node scripts/published-setup.mjs --rendering ${{ matrix.rendering }} --manager ${{ matrix.manager }}
+      - run: node scripts/published-setup.mjs --rendering ${{ matrix.rendering }} --manager ${{ matrix.manager }} "$GITHUB_WORKSPACE/tarballs"

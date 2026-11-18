@@ -1,4 +1,4 @@
-Checked against `foldkit-mixins` 0.26.0, `foldkit-mixins-ui` 0.27.0, `foldkit-primitives` 0.21.0 and `foldkit-bundle` 0.13.0.
+Checked against `foldkit-mixins` 0.26.0, `foldkit-mixins-ui` 0.27.0, `foldkit-primitives` 0.21.0 and `foldkit-bundle` 0.14.0.
 
 # Authoring components, widgets, recipes and primitives
 
@@ -61,7 +61,7 @@ Package detail: [mixins.md](mixins.md), [primitives.md](primitives.md), [bundle.
 - [ ] `XSlots` (full anatomy, `protected` structural attributes) and `XPattern` with obligations.
 - [ ] `patterns.ts` `entry(name, pattern, slots, tier, roles, floor, support)`; `support` via `drawn(...)`/`native(...)` for each obligation.
 - [ ] `view<Message>(options, h)` through `SlotView.buildersFor(XSlots, [style.mixin, keys.mixin, ...mixins], { input, h })`.
-- [ ] Options: `id`, `label`, value, Messages typed `NoInfer<Message>`, `disabled`, `words`, `direction`, `routes`, `style?: NamedStyle<typeof XSlots>`, `mixins?: MixinList<Message>`, `name` for forms.
+- [ ] Options: `id`, `label`, value, Messages typed `NoInfer<Message>`, `disabled`, `words`, `direction`, `routes`, `style?: NamedStyle<typeof XSlots>`, `mixins?: MixinList<Message>`, `name` for forms. A `NamedStyle` carries its contract's slot names: a style passes where the contract asked for has every slot the style's own has, so two contracts sharing a slot name no longer accept each other's styles.
 - [ ] No Mount that sends no Message on by default (opt-in option or a Command like `SearchField.Focus`).
 - [ ] `update` refuses what a control says it refuses (a disabled `Button.view` still submits).
 - [ ] `recipes/x.ts` with `component`/`variant`/`ref` from `recipes/design.ts`, exported in `recipes/index.ts`.
@@ -238,7 +238,7 @@ const search = (text: string, h: HtmlBuilder<Search>) =>
       label: 'Search',
       value: text,
       onInput: text => Search.Typed({ text }),
-      onClear: Search.Cleared(),
+      clear: { onClear: Search.Cleared() },
       style: RoundSearch,
       routes: [
         Keys.route('Open', {

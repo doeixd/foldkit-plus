@@ -7,7 +7,10 @@ const unit = ['packages/mixins-ui/test/card.test.ts']
 const browser = ['packages/mixins-ui/test/card.browser.test.ts']
 const elevation = ['packages/mixins-ui/test/cardElevation.browser.test.ts']
 const group = ['packages/mixins-ui/test/cardGroup.browser.test.ts']
+const looks = ['packages/mixins-ui/test/cardLooks.browser.test.ts']
 const view = '../src/card.ts'
+const press = '../src/press.ts'
+const fluid = '../src/card/fluid.ts'
 const recipe = '../src/recipes/card.ts'
 
 export default [
@@ -27,7 +30,7 @@ export default [
     name: 'a disabled overlay button is natively disabled',
     edits: [
       {
-        file: view,
+        file: press,
         find: '...(state.disabled ? [h.AriaDisabled(true)] : [h.OnClick(press.onClick)]),',
         replace: '...(state.disabled ? [h.Disabled(true)] : [h.OnClick(press.onClick)]),',
       },
@@ -41,7 +44,7 @@ export default [
   },
   {
     name: 'a chosen link card says current is true',
-    edits: [{ file: view, find: "h.AriaCurrent('page')", replace: "h.AriaCurrent('true')" }],
+    edits: [{ file: press, find: "h.AriaCurrent('page')", replace: "h.AriaCurrent('true')" }],
     tests: unit,
   },
   {
@@ -137,7 +140,7 @@ export default [
     name: 'a disabled card still sends its Message',
     edits: [
       {
-        file: view,
+        file: press,
         find: '...(state.disabled ? [h.AriaDisabled(true)] : [h.OnClick(press.onClick)]),',
         replace: '...[h.OnClick(press.onClick)],',
       },
@@ -148,7 +151,7 @@ export default [
     name: 'a disabled link still goes somewhere',
     edits: [
       {
-        file: view,
+        file: press,
         find: '...(state.disabled\n          ? [h.AriaDisabled(true)]\n          : [',
         replace: '...(false\n          ? [h.AriaDisabled(true)]\n          : [',
       },
@@ -181,7 +184,7 @@ export default [
     name: 'an external link opens in this tab',
     edits: [
       {
-        file: view,
+        file: press,
         find: "...(external ? [h.Target('_blank'), h.Rel('noopener noreferrer')] : []),",
         replace: '',
       },
@@ -190,12 +193,18 @@ export default [
   },
   {
     name: 'a chosen button is not pressed',
-    edits: [{ file: view, find: '[h.AriaPressed(flag(state.selected))]', replace: '[]' }],
+    edits: [{ file: press, find: '[h.AriaPressed(flag(state.selected))]', replace: '[]' }],
     tests: unit,
   },
   {
     name: 'a group does not say whether it draws its highlight',
-    edits: [{ file: view, find: "h.DataAttribute('card-fluid', flag(fluid)),", replace: '' }],
+    edits: [
+      {
+        file: view,
+        find: "h.DataAttribute('card-fluid', flag(highlight !== undefined)),",
+        replace: '',
+      },
+    ],
     tests: unit,
   },
   {
@@ -307,7 +316,7 @@ export default [
   },
   {
     name: 'a grid reads nearness down only',
-    edits: [{ file: view, find: "axis: columns > 1 ? 'xy' : 'y',", replace: "axis: 'y'," }],
+    edits: [{ file: fluid, find: "axis: columns > 1 ? 'xy' : 'y',", replace: "axis: 'y'," }],
     tests: unit,
   },
   {
@@ -322,8 +331,8 @@ export default [
     edits: [
       {
         file: view,
-        find: '      ...(fluid ? [h.div(builders.highlight.attrs([h.AriaHidden(true)]), [])] : []),\n',
-        replace: '',
+        find: '        : [h.div(builders.highlight.attrs([h.AriaHidden(true)]), [])]),',
+        replace: '        : []),',
       },
     ],
     tests: [...unit, ...browser],
@@ -477,5 +486,131 @@ export default [
       },
     ],
     tests: browser,
+  },
+  {
+    name: 'the dismiss button is a circle again',
+    edits: [
+      {
+        file: recipe,
+        find: 'borderRadius: dismissCorner,',
+        replace: 'borderRadius: ref.radius.full,',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the dismiss button takes the card corner whole, not less its inset',
+    edits: [
+      {
+        file: recipe,
+        find: "const dismissCorner = `max(${ref.radius.sm}, ${nested('var(--fk-outer-radius, 0px)', dismissInset)})`",
+        replace: "const dismissCorner = 'var(--fk-outer-radius, 0px)'",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a dismiss button ignores its words',
+    edits: [
+      {
+        file: view,
+        find: 'h.AriaLabel(name === undefined ? text.dismissAlone : fill(text.dismiss, { name })),',
+        replace: "h.AriaLabel(name === undefined ? 'Dismiss' : 'Dismiss ' + name),",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a group does not wrap its cards',
+    edits: [{ file: view, find: '[around(view({', replace: '[(view({' }],
+    tests: unit,
+  },
+  {
+    name: 'a group always draws its highlight',
+    edits: [
+      {
+        file: view,
+        find: "h.DataAttribute('card-fluid', flag(highlight !== undefined)),",
+        replace: "h.DataAttribute('card-fluid', 'true'),",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a preset’s fluid does not reach its group',
+    edits: [
+      {
+        file: view,
+        find: '...(preset.fluid === undefined ? {} : { fluid: preset.fluid }),',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'divide: header draws no rule',
+    edits: [
+      {
+        file: recipe,
+        find: '      header: {\n        header: variant(Style.self({ borderBlockEnd: rule, paddingBlockEnd: gap, ...bleed })),\n      },',
+        replace: '      header: {},',
+      },
+    ],
+    tests: looks,
+  },
+  {
+    name: 'a rule does not bleed to the card’s edges',
+    edits: [
+      {
+        file: recipe,
+        find: 'const bleed = { marginInline: `calc(-1 * ${pad})`, paddingInline: pad }',
+        replace: 'const bleed = {}',
+      },
+    ],
+    tests: looks,
+  },
+  {
+    name: 'divide: sections draws no footer rule',
+    edits: [
+      {
+        file: recipe,
+        find: '        footer: variant(Style.self({ borderBlockStart: rule, paddingBlockStart: gap, ...bleed })),\n',
+        replace: '',
+      },
+    ],
+    tests: looks,
+  },
+  {
+    name: 'lift: zoom never scales the picture',
+    edits: [
+      {
+        file: recipe,
+        find: 'scale: `calc(1 + 0.06 * ${ref.knob.travel})`,',
+        replace: "scale: '1',",
+      },
+    ],
+    tests: looks,
+  },
+  {
+    name: 'an overlay card’s picture is not taken out of the flow',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.self({ position: 'absolute', inset: '0', margin: '0', zIndex: '-1' }),",
+        replace: "Style.self({ position: 'relative', margin: '0', zIndex: '-1' }),",
+      },
+    ],
+    tests: looks,
+  },
+  {
+    name: 'an overlay card draws no fade',
+    edits: [
+      {
+        file: recipe,
+        find: 'background: `linear-gradient(to top,',
+        replace: 'background: `radial-gradient(to top,',
+      },
+    ],
+    tests: looks,
   },
 ]

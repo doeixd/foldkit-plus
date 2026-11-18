@@ -10,9 +10,9 @@ export default [
     name: 'two examples share a name',
     edits: [
       {
-        file: '../src/gallery/previews/alert.ts',
-        find: "      name: 'banner',",
-        replace: "      name: 'inline',",
+        file: '../src/gallery/previews/avatar.ts',
+        find: "{ name: 'picture', example: picture }",
+        replace: "{ name: 'pictures', example: picture }",
       },
     ],
     tests,
@@ -21,9 +21,9 @@ export default [
     name: 'an example names no region',
     edits: [
       {
-        file: '../src/gallery/previews/badge.ts',
-        find: "{ name: 'dot',",
-        replace: "{ name: 'dotted',",
+        file: '../src/gallery/previews/checkbox-group.ts',
+        find: "name: 'alerts', title: 'Alerts'",
+        replace: "name: 'alertss', title: 'Alerts'",
       },
     ],
     tests,
@@ -33,8 +33,8 @@ export default [
     edits: [
       {
         file: '../src/snippets/components.ts',
-        find: '// #region alert-inline',
-        replace: '// #region alert-inlines',
+        find: '// #region checkbox-group-alerts',
+        replace: '// #region checkbox-group-alertss',
       },
     ],
     tests,

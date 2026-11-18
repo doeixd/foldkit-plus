@@ -31,7 +31,7 @@ const drawn = (value: string, extra: Partial<SearchField.SearchFieldView<TestMes
       label: 'Search products',
       value,
       onInput: () => message('Other'),
-      onClear: message('Clicked'),
+      clear: { onClear: message('Clicked') },
       style,
       ...extra,
     },
@@ -49,7 +49,7 @@ const bound = (
       label: 'Search products',
       value,
       onInput: text => Searched.Typed({ text }),
-      onClear: Searched.Cleared(),
+      clear: { onClear: Searched.Cleared() },
       ...extra,
     },
     h,
@@ -163,6 +163,49 @@ describe('SearchField.view', () => {
     expect(input?.data?.on?.['input']).toBeUndefined()
     expect(input?.data?.on?.['keydown']).toBeUndefined()
     expect(Inert.byTag(tree, 'button')).toHaveLength(0)
+  })
+
+  it('has no clear button and leaves Escape alone when it is given no clear', () => {
+    const tree = SearchField.view(
+      { id: 'find', label: 'Search products', value: 'lamp', onInput: () => message('Other') },
+      h,
+    )
+    expect(Inert.byTag(tree, 'button')).toHaveLength(0)
+    sends(
+      (h: HtmlBuilder<Searched>) =>
+        SearchField.view(
+          {
+            id: 'find',
+            label: 'Search products',
+            value: 'lamp',
+            onInput: text => Searched.Typed({ text }),
+          },
+          h,
+        ),
+      Scene.keydown(Scene.label('Search products'), 'Escape'),
+      Scene.expectIgnored(),
+    )
+  })
+
+  it("draws the application's content in the clear button, start and end beside the input", () => {
+    const tree = drawn('lamp', {
+      clear: { onClear: message('Clicked'), content: h.span([], ['Reset']) },
+      start: h.span([], ['Find:']),
+      end: h.span([], ['12 results']),
+    })
+    const [clear] = Inert.byTag(tree, 'button')
+    expect(Inert.text(clear!)).toBe('Reset')
+    expect(Inert.value(clear, 'data-content')).toBeDefined()
+    expect(Inert.text(tree)).toContain('Find:')
+    expect(Inert.text(tree)).toContain('12 results')
+    expect(Inert.value(Inert.byTag(drawn('lamp'), 'button')[0], 'data-content')).toBeUndefined()
+  })
+
+  it('says it is busy only when told', () => {
+    const [idle] = Inert.byTag(drawn('lamp'), 'input')
+    expect(Inert.value(idle, 'aria-busy')).toBeUndefined()
+    const [busy] = Inert.byTag(drawn('lamp', { busy: true }), 'input')
+    expect(Inert.value(busy, 'aria-busy')).toBe('true')
   })
 
   it('is styled in its own slots', () => {

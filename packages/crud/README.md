@@ -91,18 +91,14 @@ authorizes.
 
 ## The mental model
 
-```text
-your Model says what is on screen
-   ──▶ each piece's `active`: what it requires of Remote
-   ──▶ Data.wiring ──▶ Remote fetches and retains it
+Your Model says what is on screen, and each piece's `active` says what that
+requires of Remote; `Data.wiring` gathers them, and Remote fetches and retains
+what they require. Remote's store is read back by each piece as a page, a value or
+a status, and your view draws it. When the user acts, a Message reaches a piece's
+helper or the editor's `onOut`, which calls `Data.mutate`; Remote settles it, and
+the status moves.
 
-Remote's store ──▶ each piece reads it: a page, a value, a status ──▶ your view
-
-the user acts ──▶ a Message ──▶ a piece's helper, or the editor's onOut
-   ──▶ Data.mutate ──▶ Remote settles it ──▶ the status moves
-
-busy = the editor's request id is pending in Remote's ledger
-```
+`busy` is true while the editor's request id is pending in Remote's ledger.
 
 The rule to remember: **a piece loads only what its `active` requires, and only
 if that `active` is wired.** A piece that is not wired never loads, and nothing

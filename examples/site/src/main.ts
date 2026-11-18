@@ -5,7 +5,7 @@
  * make. Only these pages load it.
  */
 import { Effect, Match, Option, Schema, Stream } from 'effect'
-import { Command, Dom, Subscription, Update } from 'foldkit'
+import { Command, Subscription, Update } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
@@ -17,7 +17,6 @@ import { Listbox as UiListbox, Tabs as UiTabs, Tooltip as UiTooltip } from '@fol
 import { Drawer } from 'foldkit-mixins-ui'
 
 import { aboutOf } from './gallery/catalogue.js'
-import { showcaseOf } from './gallery/showcases.js'
 import {
   Canvas,
   CanvasTabs,
@@ -33,6 +32,8 @@ import {
   initialTabs,
   pickedTheme,
 } from './gallery/studio.js'
+import * as Examples from './gallery/examplesState.js'
+import * as PrimitiveBundles from './gallery/primitiveBundles.js'
 import * as Widgets from './gallery/widgets.js'
 import * as WidgetsUpdate from './gallery/widgetsUpdate.js'
 import {
@@ -55,7 +56,7 @@ import {
   withValue,
 } from './gallery/theme.js'
 import { addressOf, queryOf } from './gallery/themeUrl.js'
-import { COPY_ATTRIBUTE, CREATE, type Library } from './library.js'
+import { CREATE, type Library } from './library.js'
 import { Body } from './view/layout.js'
 import { Page } from './page.js'
 import * as Shell from './shell.js'
@@ -66,6 +67,8 @@ const decodePack = Schema.decodeUnknownOption(Pack)
 
 export const Model = Schema.Struct({
   ...Shell.fields,
+  /** The primitives the Primitives gallery runs. */
+  ...PrimitiveBundles.fields,
   /** Whether a link to the theme was copied since the knobs last moved. */
   linkCopied: Schema.Boolean,
   /** Whether `/create` has read its address, before which it writes none. */
@@ -74,11 +77,14 @@ export const Model = Schema.Struct({
   selection: Schema.Record(Schema.String, Schema.String),
   /** What the previews' own controls hold. */
   switched: Schema.Boolean,
-  /** The card chosen in the card group's preview, by key. */
-  chosenCard: Schema.String,
-  cardDismissed: Schema.Boolean,
+  /** What the Primitives gallery's search box holds. */
+  primitiveQuery: Schema.String,
+  /** What the Primitives gallery's `Resize` example last reported. */
+  observed: Schema.Struct({ width: Schema.Number, height: Schema.Number }),
   /** The previews with state of their own: tabs, a dialog, a slider and the rest. */
   widgets: Widgets.Model,
+  /** The state of each example that is a module of its own, by key. */
+  examples: Examples.Model,
   /** The theme `/create` makes, as the values of the standard knobs. */
   theme: ThemeValues,
   /** Not the theme's: the preview's, to show the components right to left. */
@@ -105,15 +111,19 @@ export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
   ...Shell.cases,
+  ...PrimitiveBundles.cases,
   PressedCopyLink: {},
   CopiedLink: {},
   FoundThemeAddress: { query: Schema.String },
   PickedVariant: { axis: Schema.String, value: Schema.String },
   ToggledSwitch: { on: Schema.Boolean },
-  ChoseCard: { key: Schema.String },
-  DismissedCard: {},
-  RestoredCard: {},
+  /** The text the Primitives gallery's search box holds. */
+  FilteredPrimitives: { query: Schema.String },
+  /** What the `Resize` and `Autofocus` Mounts of the Primitives gallery send. */
+  Resized: { width: Schema.Number, height: Schema.Number },
+  Focused: {},
   GotWidget: { message: Widgets.Message },
+  GotExample: Examples.fields,
   ChoseValues: { values: ThemeValues },
   ChoseTheme: { name: Schema.String },
   /** A control moved: a knob's value, or a schemed knob's `dark` one. */
@@ -138,6 +148,10 @@ const Parent = Bundle.parent({ Model, Message })
 const placements = Parent.assemble(
   Parent.at(Shell.Dark),
   Parent.at(Shell.Ticks, { args: { intervalMs: 1000 } }),
+  Parent.at(PrimitiveBundles.Connection),
+  Parent.at(PrimitiveBundles.Window),
+  Parent.at(PrimitiveBundles.Fade, { args: { from: 0, to: 100, ms: 1500 } }),
+  Parent.at(PrimitiveBundles.Note, { args: { initial: '' } }),
 )
 
 // COMMAND
@@ -359,6 +373,8 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
     ChosePageScheme: message => asShell(model, message),
     FoundPageScheme: message => asShell(model, message),
     AppliedPageScheme: message => asShell(model, message),
+    SpiedSection: message => asShell(model, message),
+    MarkedSection: message => asShell(model, message),
     PressedCopyLink: () => ({
       model,
       commands: [CopyLink({ query: queryOf(addressIn(model)) })],
@@ -383,21 +399,28 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
       Object.hasOwn(model.selection, axis) && model.selection[axis] === value
         ? { model }
         : { model: modifyFields(model, { selection: picked => ({ ...picked, [axis]: value }) }) },
+    FilteredPrimitives: ({ query }) =>
+      query === model.primitiveQuery
+        ? { model }
+        : { model: modifyFields(model, { primitiveQuery: () => query }) },
     ToggledSwitch: ({ on }) =>
       on === model.switched ? { model } : { model: modifyFields(model, { switched: () => on }) },
-    ChoseCard: ({ key }) =>
-      key === model.chosenCard
-        ? { model }
-        : { model: modifyFields(model, { chosenCard: () => key }) },
-    DismissedCard: () =>
-      model.cardDismissed
-        ? { model }
-        : { model: modifyFields(model, { cardDismissed: () => true }) },
-    RestoredCard: () =>
-      model.cardDismissed
-        ? { model: modifyFields(model, { cardDismissed: () => false }) }
-        : { model },
     GotWidget: ({ message }) => foldWidget(model, message),
+    GotExample: message => {
+      const step = Examples.update(model.examples, message, Message.GotExample)
+      return {
+        model:
+          step.model === model.examples
+            ? model
+            : modifyFields(model, { examples: () => step.model }),
+        ...(step.commands === undefined ? {} : { commands: step.commands }),
+      }
+    },
+    Resized: ({ width, height }) =>
+      model.observed.width === width && model.observed.height === height
+        ? { model }
+        : { model: modifyFields(model, { observed: () => ({ width, height }) }) },
+    Focused: () => ({ model }),
     ChoseValues: ({ values }) => withTheme(model, values),
     // A preset by its name, and in its own scheme when it is known in one; a
     // name of none is ignored.
@@ -530,6 +553,7 @@ export const subscriptions = placements.subscriptions(
       ),
       codeCopy: Shell.codeCopy,
     })),
+    Shell.sectionSpy,
     Subscription.lift(WidgetsUpdate.subscriptions)<Model, Message>({
       read: model => Option.some(model.widgets),
       toParentMessage: message => Message.GotWidget({ message }),
@@ -538,6 +562,11 @@ export const subscriptions = placements.subscriptions(
         palette: model => model.page._tag === 'Component' && model.page.slug === 'command',
       },
     }),
+    Examples.subscriptions<Model, Message>({
+      read: model => model.examples,
+      onPage: (model, slug) => model.page._tag === 'Component' && model.page.slug === slug,
+      toParent: Message.GotExample,
+    }),
   ),
 )
 
@@ -545,6 +574,8 @@ export const subscriptions = placements.subscriptions(
 
 const descriptionOf = (page: Page): string =>
   Page.match(page, {
+    Primitives: () =>
+      'Primitives from foldkit-primitives, by family: what each owns, how it is imported, and a live example of it.',
     Components: () =>
       'Components drawn by the recipes foldkit-mixins-ui ships: pick a variant, read the code, theme them all.',
     Component: ({ slug }) =>
@@ -563,6 +594,7 @@ const descriptionOf = (page: Page): string =>
 const titleOf = (page: Page): string =>
   Page.match(page, {
     Components: () => 'Components · Foldkit Plus',
+    Primitives: () => 'Primitives · Foldkit Plus',
     Component: ({ slug }) =>
       Option.match(aboutOf(slug), {
         onNone: () => 'Components · Foldkit Plus',
@@ -591,9 +623,10 @@ export const initial: Model = placements.initial({
   addressRead: false,
   selection: {},
   switched: false,
-  chosenCard: 'team',
-  cardDismissed: false,
+  primitiveQuery: '',
+  observed: { width: 0, height: 0 },
   widgets: Widgets.initial,
+  examples: Examples.initial,
   theme: defaultTheme,
   direction: 'ltr',
   section: 'theme',
@@ -606,6 +639,7 @@ export const initial: Model = placements.initial({
   scheme: 'system',
   pack: shippedPack,
   pageScheme: 'system',
+  spied: Option.none(),
 }).model
 
 /** The page at `path`, as the library knows it; the browser never runs this. */
@@ -631,15 +665,21 @@ const planOf = (withMeta: boolean) =>
       App.model.copied,
       App.model.selection,
       App.model.switched,
-      App.model.chosenCard,
-      App.model.cardDismissed,
+      App.model.primitiveQuery,
+      App.model.observed,
       App.model.widgets,
+      App.model.examples,
       App.model.theme,
       App.model.direction,
       App.model.scheme,
       App.model.pageScheme,
+      App.model.spied,
       App.model.dark,
       App.model.ticks,
+      App.model.online,
+      App.model.windowSize,
+      App.model.fade,
+      App.model.note,
     ],
     // The server cannot know a reader's scheme; the head script applied it.
     // Nor the theme a link carries, which every page's previews are drawn in.

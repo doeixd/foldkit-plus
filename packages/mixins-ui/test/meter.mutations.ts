@@ -4,6 +4,7 @@
  * test fails for every one.
  */
 const unit = 'packages/mixins-ui/test/meter.test.ts'
+const browser = 'packages/mixins-ui/test/meter.browser.test.ts'
 
 export default [
   {
@@ -70,5 +71,91 @@ export default [
       },
     ],
     tests: [unit],
+  },
+  {
+    name: 'a large meter as thin as the middle one',
+    edits: [
+      {
+        file: '../src/recipes/meter.ts',
+        find: "lg: sized('0.75rem'),",
+        replace: "lg: sized('0.5rem'),",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a meter with no size picked is the large one',
+    edits: [
+      {
+        file: '../src/recipes/meter.ts',
+        find: "defaults: { size: 'md' },",
+        replace: "defaults: { size: 'lg' },",
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'an upright meter does not say so',
+    edits: [
+      {
+        file: '../src/meter.ts',
+        find: "...(upright ? [h.DataAttribute('orientation', 'vertical')] : []),",
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an upright fill is not given its share',
+    edits: [
+      {
+        file: '../src/meter.ts',
+        find: "...(upright ? { '--fk-meter-share': percentOf(value, options) } : {}),",
+        replace: '',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'a segment count of one is accepted',
+    edits: [{ file: '../src/meter.ts', find: 'segments < 2))', replace: 'segments < 1))' }],
+    tests: [unit],
+  },
+  {
+    name: 'a segmented meter does not carry its count',
+    edits: [
+      {
+        file: '../src/meter.ts',
+        find: "...(segments === undefined ? {} : { '--fk-meter-segments': String(segments) }),",
+        replace: '',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an upright fill takes the inline width upstream writes',
+    edits: [{ file: '../src/recipes/meter.ts', find: "minInlineSize: '100%',", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'an upright fill floats to the track start',
+    edits: [{ file: '../src/recipes/meter.ts', find: "justifyContent: 'flex-end',", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'an upright track is cut across, not along',
+    edits: [{ file: '../src/recipes/meter.ts', find: "cut('to top')", replace: "cut('to right')" }],
+    tests: [browser],
+  },
+  {
+    name: 'an upright track is as thick as the size says along its length',
+    edits: [
+      {
+        file: '../src/recipes/meter.ts',
+        find: 'inlineSize: thick,',
+        replace: 'inlineSize: "1rem",',
+      },
+    ],
+    tests: [browser],
   },
 ]

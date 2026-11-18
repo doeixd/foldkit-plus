@@ -8,11 +8,6 @@ const unit = ['examples/widgets/test/window-list.test.ts']
 
 export default [
   {
-    name: 'an unchanged list makes a new Model',
-    edits: [{ file: app, find: 'next.model === model.list ? model : ', replace: '' }],
-    tests: unit,
-  },
-  {
     name: 'two names are the same',
     edits: [
       {
@@ -20,13 +15,6 @@ export default [
         find: 'Math.floor(index / WORDS.length) + 1',
         replace: 'Math.floor(index / (WORDS.length * 2)) + 1',
       },
-    ],
-    tests: unit,
-  },
-  {
-    name: 'the list is given no way to ask for a reveal',
-    edits: [
-      { file: app, find: 'commands: inList(next.commands ?? []),', replace: 'commands: [],' },
     ],
     tests: unit,
   },
@@ -42,7 +30,7 @@ export default [
   },
   {
     name: 'the row revealed is the one after the number typed',
-    edits: [{ file: app, find: 'model.list, number - 1,', replace: 'model.list, number,' }],
+    edits: [{ file: app, find: 'reveal(number - 1,', replace: 'reveal(number,' }],
     tests: unit,
   },
   {

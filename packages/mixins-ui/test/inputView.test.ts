@@ -12,6 +12,7 @@ import * as Runtime from 'foldkit/runtime'
 import { Scene } from 'foldkit/test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Input, InputSlots, type InputView } from '../src/index.js'
+import type { InputCommon } from '../src/input.js'
 import { sends } from './fixture.js'
 
 afterEach(() => {
@@ -123,7 +124,7 @@ describe('Input.view', () => {
 })
 
 describe('Input.view form attributes', () => {
-  const drawn = (extra: Partial<InputView<Message>>) =>
+  const drawn = (extra: Partial<InputCommon<Message>>) =>
     Input.view(
       {
         id: 'email',
@@ -133,7 +134,7 @@ describe('Input.view form attributes', () => {
       },
       SlotView.inertBuilder<Message>(),
     )
-  const field = (extra: Partial<InputView<Message>>) => Inert.byTag(drawn(extra), 'input')[0]
+  const field = (extra: Partial<InputCommon<Message>>) => Inert.byTag(drawn(extra), 'input')[0]
 
   it.each([
     ['name', { name: 'email' }, 'name', 'email'],

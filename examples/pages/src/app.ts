@@ -79,6 +79,8 @@ export const Menu = defineTaggedUnion({
   Style: { place: Schema.Literals(['toolbar', 'floating']) },
   /** The toolbar's insert menu. */
   Insert: {},
+  /** A compact toolbar's More menu: the tools that left the bar. */
+  More: {},
   /** The link editor over the selection. */
   Link: {},
 })
@@ -734,6 +736,7 @@ export const update = (model: Model, message: Message): Return =>
         Block: () => ({ model: shown }),
         Style: () => ({ model: shown }),
         Insert: () => ({ model: shown }),
+        More: () => ({ model: shown }),
         Link: () => {
           const href = Option.match(pageInEditor(model), {
             onNone: () => '',

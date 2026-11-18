@@ -96,6 +96,7 @@ export type {
   Declared,
   DeclaredPieces,
   DeclaredSlots,
+  MergeAxes,
   NamedStyle,
   RecipePieces,
   SlotPiece,

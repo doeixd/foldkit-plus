@@ -78,6 +78,7 @@ import {
   type MergePolicy,
 } from './store.js'
 import { windowKey } from './plan.js'
+import { runtimeJson } from './runtimeJson.js'
 import { isRefPage, targetsOf, type RefPageValue } from './relation.js'
 import {
   budgeted,
@@ -403,16 +404,22 @@ export const initialRemoteModel: RemoteModel = {
   kept: noKept,
 }
 
-/** The entity store and the mutation ledger are runtime values, not wire shapes. */
-const runtimeSchema = Schema.Unknown
+/**
+ * The entity store and the mutation ledger are runtime values, not wire shapes: they hold Sets and
+ * undefined, which `runtimeJson` writes as tagged JSON so that a Model can be encoded at all.
+ */
+const runtimeSchema = runtimeJson
 
 /**
  * A runtime field added after Models were already encoded (stored, resumed,
  * recorded by devtools): one encoded before it decodes with it empty, rather
  * than refusing the whole Model.
  */
-const addedRecord = Schema.Unknown.pipe(Schema.withDecodingDefaultKey(Effect.succeed({})))
-const addedKept = Schema.Unknown.pipe(Schema.withDecodingDefaultKey(Effect.succeed(noKept)))
+const addedRecord = runtimeSchema.pipe(Schema.withDecodingDefaultKey(Effect.succeed({})))
+// The default is the encoded form: it decodes to `noKept`.
+const addedKept = runtimeSchema.pipe(
+  Schema.withDecodingDefaultKey(Effect.sync(() => Schema.encodeSync(runtimeJson)(noKept))),
+)
 
 export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
   // The runtime fields decode as `unknown`; their types come from `RemoteModel`.

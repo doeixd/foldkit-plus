@@ -121,7 +121,7 @@ export default [
     name: 'the clear button ignores the touch floor',
     edits: [
       {
-        file: '../src/recipes/combobox.ts',
+        file: '../src/recipes/listbox.ts',
         find: "const clearSize = 'max(1.5em, var(--fk-touch-floor, 0px))'",
         replace: "const clearSize = '1.5em'",
       },

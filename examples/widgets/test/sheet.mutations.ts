@@ -13,33 +13,11 @@ export default [
     edits: [
       {
         file: app,
-        find: 'Opened: () => folded(model, Sheet.open(model.sheet)),',
-        replace: 'Opened: () => ({ model }),',
+        find: 'App.placements.update(model => App.children.sheet.helpers.open()(model))',
+        replace: 'App.placements.update(model => ({ model }))',
       },
     ],
     tests: [...unit, ...browser],
-  },
-  {
-    name: 'the Sheet Messages are dropped',
-    edits: [
-      {
-        file: app,
-        find: 'GotSheet: ({ message }) => folded(model, Sheet.update(model.sheet, message)),',
-        replace: 'GotSheet: () => ({ model }),',
-      },
-    ],
-    tests: [...unit, ...browser],
-  },
-  {
-    name: 'a Sheet step that changes nothing rewrites the Model',
-    edits: [
-      {
-        file: app,
-        find: 'model: next.model === model.sheet ? model : modifyFields(model, { sheet: () => next.model }),',
-        replace: 'model: modifyFields(model, { sheet: () => next.model }),',
-      },
-    ],
-    tests: unit,
   },
   {
     name: 'the percent reads the lowest point whatever the sheet rests at',

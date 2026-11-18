@@ -31,14 +31,10 @@ promise exactly-once execution at an external provider; see
 
 ## The model
 
-```text
-sequence:   1      2      3      4
-log:       op A   op B   op C   op D
-                          ^
-                          cursor 3
-
-snapshot at cursor 3 = reduce(reduce(reduce(empty, A), B), C)
-```
+A document's log is a gap-free sequence of operations: op A at sequence 1, op B
+at 2, op C at 3, op D at 4. A cursor names a position in it. The snapshot at
+cursor 3 is the operations up to 3 reduced from empty,
+`reduce(reduce(reduce(empty, A), B), C)`.
 
 | Name | Meaning |
 | --- | --- |
@@ -160,15 +156,10 @@ it open for the server's lifetime. `file` is a path, `:memory:` for tests, or a
 
 What the two packages each own:
 
-```text
-Foldkit application        Model · Message · update
-        |
-   foldkit-sync            what is shared, what is durable, how it replays
-        |  journalContract()
-   foldkit-durable         what committed, in what order, what state follows
-        |
-      SQLite
-```
+- Your Foldkit application owns the Model, Messages and `update`.
+- `foldkit-sync` owns what is shared, what is durable, and how it replays.
+- `foldkit-durable`, reached through `journalContract()`, owns what committed, in
+  what order, and what state follows. SQLite is below it.
 
 The journal does not speak Sync's exchange. Your server's handler does, with
 `append` for each pending operation, `read` for what follows the cursor, and

@@ -24,8 +24,9 @@ const config: Config = {
     { title: 'Save', description: 'Keep your work.', target: 'save', placement: 'top' },
   ],
 }
-const update = Tour.update(config)
-const started = () => Tour.start(init({ id: 'tour' }), config)
+// The steps are the Model's: neither `update` nor `start` is told them.
+const update = Tour.update()
+const started = () => Tour.start(init({ id: 'tour', steps: config.steps }))
 const at = (step: number) =>
   Array.from({ length: step }).reduce<Tour.Model>(
     model => update(model, Message.Next()).model,
@@ -41,7 +42,7 @@ describe('Tour.update', () => {
     expect(model.step).toBe(0)
     expect(commands?.[0]?.args).toEqual({ id: 'tour', target: Option.some('nav') })
     // Started again, it begins over.
-    expect(Tour.start(at(2), config).model.step).toBe(0)
+    expect(Tour.start(at(2)).model.step).toBe(0)
   })
 
   it('moves on and back, never before the first', () => {
@@ -113,10 +114,7 @@ const scene = (
       update,
       // In a box: ended, the tour draws nothing, and a Scene needs a view.
       view: (current, h) =>
-        h.div(
-          [],
-          [Tour.view({ model: current, config, onMessage: message => message, ...view }, h)],
-        ),
+        h.div([], [Tour.view({ model: current, onMessage: message => message, ...view }, h)]),
     },
     Scene.given(model),
     ...steps,
@@ -311,5 +309,78 @@ describe('Tour.view', () => {
     expect(
       Tour.view({ model: init({ id: 'tour' }), config, onMessage: () => message('Other') }, h),
     ).toBeNull()
+  })
+
+  it('fills the words, the place counted from 1', () => {
+    scene(
+      started().model,
+      { words: { progress: 'Step {step} of {count}', skip: 'Not now' } },
+      drawn(),
+      Scene.expect(dialog).toContainText('Step 1 of 3'),
+      Scene.expect(Scene.role('button', { name: 'Not now' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Next' })).toExist(),
+    )
+  })
+
+  it("draws a step's content in place of its words, still describing it", () => {
+    scene(
+      started().model,
+      { content: (step, index) => h.strong([], [`${index}: ${step.title}`]) },
+      drawn(),
+      Scene.expect(Scene.selector('#tour-description strong')).toContainText('0: Navigation'),
+      Scene.expect(dialog).not.toContainText('Every page is here.'),
+    )
+  })
+
+  it('moves on at a press on the target with advanceOnClick, only while the target can be used', () => {
+    scene(
+      started().model,
+      { advanceOnClick: Tour.advanceOnClick },
+      Scene.Mount.expectExact(TrackBox, Tour.PlaceStep, Tour.advanceOnClick),
+      Scene.Mount.resolveAll(
+        [TrackBox, Message.Spotlit({ target: 'nav', found: true })],
+        [Tour.PlaceStep, Message.Placed()],
+        [Tour.advanceOnClick, Message.Next()],
+      ),
+      shown(),
+      // The next step stands in the middle, with no target to listen on.
+      Scene.Mount.expectEnded(Tour.PlaceStep, Tour.advanceOnClick),
+      Scene.expect(dialog).toContainText('2 of 3'),
+    )
+    scene(
+      started().model,
+      { advanceOnClick: Tour.advanceOnClick, interactive: false },
+      Scene.Mount.expectExact(TrackBox, Tour.PlaceStep),
+      drawn(),
+    )
+  })
+})
+
+describe('Tour steps held in the Model', () => {
+  it('update(config) and the view read the steps they are given over the Model’s', () => {
+    const own = Tour.update({ steps: [config.steps[0]!] })
+    const done = own(started().model, Message.Next())
+    expect(done.outMessage).toEqual(Tour.Ended.make({ completed: true }))
+    expect(update(started().model, Message.Next()).model.step).toBe(1)
+  })
+
+  it('starts with no steps and draws nothing', () => {
+    const empty = Tour.start(init({ id: 'tour' }))
+    expect(empty.commands?.[0]?.args).toEqual({ id: 'tour', target: Option.none() })
+    expect(Tour.view({ model: empty.model, onMessage: () => message('Other') }, h)).toBeNull()
+  })
+})
+
+describe('Tour.configure', () => {
+  it('lays base, preset and call, words merging', () => {
+    const Own = Tour.configure({
+      base: { words: { skip: 'Leave' } },
+      presets: { quiet: { words: { next: 'On' } } },
+    })
+    const drawn = JSON.stringify(
+      Own.view({ preset: 'quiet', model: started().model, onMessage: () => message('Other') }, h),
+    )
+    expect(drawn).toContain('Leave')
+    expect(drawn).toContain('"On"')
   })
 })

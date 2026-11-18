@@ -24,20 +24,13 @@ Bundle the parent places like any other.
 
 ## Mental model
 
-```text
-Schema.Struct (the operation's input)
-        +
-Entity.input (what each key means)
-        |
-        v
-   Form.make ──► controls: key · control · label · required      (draw these)
-        |
-        v
-     Bundle
-   Model: one fieldValidation Field per key, holding the draft
-   Changed ──► validate the draft against the key's schema
-   Submitted ──► every key valid, input decoded ──► out Message { value }
-```
+`Form.make` takes the operation's input `Schema.Struct` and `Entity.input`, which
+says what each key means. It gives you two things. The first is the controls, each
+with a key, a control, a label and whether it is required: these are what you draw.
+The second is a Bundle whose Model holds one `fieldValidation` Field per key, with
+the draft. A `Changed` Message validates the draft against the key's schema. A
+`Submitted` Message checks that every key is valid, decodes the input, and sends the
+out Message `{ value }`.
 
 A **draft** is what the control holds, which is not the value it submits. A
 number being typed is text (`"4."` is a fine thing to have typed), an unchosen

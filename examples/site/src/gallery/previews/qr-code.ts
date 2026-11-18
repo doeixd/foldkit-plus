@@ -1,34 +1,21 @@
-import type { NamedStyle } from 'foldkit-mixins'
-import { Recipes, QrCodeSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import { QrCodeSlots, Recipes } from 'foldkit-mixins-ui'
+import basic from '../../examples/qr-code/basic.js'
+import download from '../../examples/qr-code/download.js'
+import level from '../../examples/qr-code/level.js'
+import logo from '../../examples/qr-code/logo.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
-
-const qrBasic = (style: NamedStyle<typeof QrCodeSlots>) => Snippet.qrCode(style, inert)
+import { fromRecipe } from '../define.js'
 
 export const showcase = fromRecipe(
   about('qr-code'),
   QrCodeSlots,
   Recipes.QrCode,
-  qrBasic,
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Basic', draw: qrBasic },
-    {
-      name: 'logo',
-      title: 'A logo over the centre',
-      draw: style => Snippet.qrCodeLogo(style, inert),
-    },
-    {
-      name: 'download',
-      title: 'Saved as a PNG or an SVG',
-      draw: (style, live) =>
-        Snippet.qrCodeDownload(
-          style,
-          format => live.onWidget(Widgets.Message.PressedQrDownload({ format })),
-          live.h,
-        ),
-    },
+    { name: 'basic', example: basic },
+    { name: 'logo', example: logo },
+    { name: 'level', example: level },
+    { name: 'download', example: download },
   ],
 )

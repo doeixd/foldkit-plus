@@ -20,11 +20,14 @@ const runDemo = (): ReadonlyArray<string> => {
     lines.push(`${label}: ${said(model)}`)
   }
   step('opened', Message.Opened())
-  step('handle key raised it', Message.GotSheet({ message: Sheet.Message.SnappedTo({ at: 1 }) }))
-  step('End', Message.GotSheet({ message: Sheet.Message.SnappedTo({ at: 2 }) }))
+  step(
+    'handle key raised it',
+    Message.GotSheetMessage({ message: Sheet.Message.SnappedTo({ at: 1 }) }),
+  )
+  step('End', Message.GotSheetMessage({ message: Sheet.Message.SnappedTo({ at: 2 }) }))
   step(
     'Escape',
-    Message.GotSheet({
+    Message.GotSheetMessage({
       message: Sheet.Message.GotDialog({ message: UiDialog.Message.RequestedClose() }),
     }),
   )

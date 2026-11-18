@@ -480,11 +480,11 @@ export const standard = {
     strength: Knob.percent({
       title: 'Shadow',
       variable: 'shadow-strength',
-      default: 0,
+      default: 70,
       min: 0,
       max: 100,
       step: 1,
-      description: 'How strong shadows are. 0 removes them.',
+      description: 'How strong shadows are. 0 removes them; 100 is the full scale.',
     }),
     hue: Knob.angle({
       title: 'Shadow hue',

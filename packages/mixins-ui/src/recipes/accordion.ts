@@ -21,12 +21,18 @@
  * - `indicatorPosition`: `end` (the default) or `start` of the row.
  * - `active`: what an open section tints, Fluid's highlight: `none` (the
  *   default), `trigger` its row, `item` the row and its panel together.
+ *
+ * A panel shuts over the time it opens in, so switching sections moves both
+ * together: `--fk-collapse-duration` sets both (default `moderate`) and
+ * `--fk-collapse-close-duration` the shutting alone (see `collapseOpens`).
  */
 import { Style } from 'foldkit-mixins'
 import { ladder, role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { AccordionSlots } from '../accordion.js'
 import {
+  collapseOpens,
+  collapseShuts,
   component,
   disabled,
   focusRing,
@@ -42,7 +48,7 @@ import {
 
 const open = '[data-state="open"]'
 
-/** A row's travel and fade, opening on `tier`'s enter and shutting on its exit. */
+/** A row's travel and fade over one duration and easing. */
 const timing = (duration: string, ease: string) => ({
   transitionDuration: `${travelled(duration)}, ${duration}`,
   transitionTimingFunction: `${ease}, ${ease}`,
@@ -102,11 +108,21 @@ export const Accordion = Style.recipeFor(AccordionSlots)({
       focusRing,
       disabled,
     ),
+    // A glyph's size, still: what it shows is the application's.
+    leading: component(
+      Style.self({
+        display: 'inline-grid',
+        placeItems: 'center',
+        flex: 'none',
+        color: ref.text.muted,
+      }),
+    ),
     label: component(
-      Style.self({ display: 'block' }),
+      Style.self({ display: 'block', flex: '1 1 auto', minInlineSize: '0' }),
       Style.nest(`:where(${open}) > &`, { fontWeight: ref.weight.semibold }),
       Utilities.steady('semibold'),
     ),
+    trailing: component(Style.self({ display: 'inline-flex', alignItems: 'center', flex: 'none' })),
     chevron: component(
       turningChevron(open, '0.45em'),
       // Relative for the plus indicator's bars.
@@ -133,12 +149,12 @@ export const Accordion = Style.recipeFor(AccordionSlots)({
         overflow: 'hidden',
         transitionProperty: 'grid-template-rows, opacity',
         opacity: '0',
-        ...timing(ref.motion['fast-exit'], ref.motion['ease-exit']),
+        ...timing(collapseShuts, ref.motion.ease),
       }),
       Style.pseudo(open, {
         gridTemplateRows: '1fr',
         opacity: '1',
-        ...timing(ref.motion.fast, ref.motion.ease),
+        ...timing(collapseOpens, ref.motion.ease),
       }),
     ),
     // A grid item is never smaller than its padding, so the row is this, with none.
@@ -225,7 +241,9 @@ export const Accordion = Style.recipeFor(AccordionSlots)({
     indicatorPosition: {
       end: {},
       start: {
-        trigger: variant(Style.self({ flexDirection: 'row-reverse', justifyContent: 'flex-end' })),
+        // By order, so a leading mark and a trailing badge keep their places beside the title.
+        chevron: variant(Style.self({ order: '-1' })),
+        icon: variant(Style.self({ order: '-1' })),
       },
     },
     active: {

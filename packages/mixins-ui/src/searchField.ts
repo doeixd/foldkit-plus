@@ -15,15 +15,17 @@ import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import { AdornmentSlots, GROUP_MARK, type Adornments } from './adornments.js'
 import { onInputOf, type OnInput } from './field.js'
 import type { MixinList } from './resolve.js'
 
 /**
  * A text field for searching: a native `type="search"` input (role
- * `searchbox`) and a button that clears it, drawn only while there is text.
- * The view holds no state: the application owns the text, `onInput` reports
- * typing and `onClear` is what the button and Escape send. Escape clears only
- * a field with text, so on an empty one it reaches an enclosing dialog.
+ * `searchbox`) in one box with a magnifier at its start (or your own `start`)
+ * and a button that clears it, drawn only while there is text. The view holds
+ * no state: the application owns the text, `onInput` reports typing and
+ * `clear.onClear` is what the button and Escape send. Escape clears only a
+ * field with text, so on an empty one it reaches an enclosing dialog.
  *
  * Pressing the button removes it, and the focus it held with it. Answer
  * `onClear` with `Focus`, which puts focus back on the input; a Mount could do
@@ -32,6 +34,7 @@ import type { MixinList } from './resolve.js'
  */
 export const SearchFieldSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
+  ...AdornmentSlots,
   input: Slot.make({
     capability: Capability.TextInput,
     events: [Event.Input, Event.KeyDown],
@@ -83,7 +86,7 @@ export interface SearchFieldWords {
   readonly clear?: string | undefined
 }
 
-export interface SearchFieldView<Message> {
+export interface SearchFieldView<Message> extends Adornments {
   /** Prefixes the ids the field draws, unique on the page. */
   readonly id: string
   /** The input's accessible name: a search field wears no visible label. */
@@ -91,8 +94,16 @@ export interface SearchFieldView<Message> {
   readonly value: string
   /** What typing sends; a resumable builder's `OnInput` attribute names it in the server's markup. */
   readonly onInput: OnInput<NoInfer<Message>>
-  /** Sent by the clear button and by Escape on a field with text; answer it with `Focus`. */
-  readonly onClear: NoInfer<Message>
+  /**
+   * The clear button and Escape's clearing: with none, the field has neither.
+   * `onClear` is sent by both on a field with text; answer it with `Focus`.
+   * `content` is drawn in the button in place of the cross.
+   */
+  readonly clear?:
+    | { readonly onClear: NoInfer<Message>; readonly content?: Html | undefined }
+    | undefined
+  /** A search is running: `aria-busy` on the input and `data-busy` on the field. Compose a spinner into `end`. */
+  readonly busy?: boolean | undefined
   readonly placeholder?: string | undefined
   readonly invalid?: boolean | undefined
   /** A disabled field takes no text or keys and draws no clear button. */
@@ -134,11 +145,14 @@ export const conflict = <Message>(
 
 export const view = <Message>(options: SearchFieldView<Message>, h: HtmlBuilder<Message>): Html => {
   const disabled = options.disabled === true
+  const { clear } = options
   const keys = Behaviors.Keys.behavior(SearchFieldSlots)<string, Message>({
     slot: 'input',
     name: 'SearchFieldKeys',
     routes: [
-      ...ownRoutes<Message>(words => (words === '' ? Option.none() : Option.some(options.onClear))),
+      ...(clear === undefined
+        ? []
+        : ownRoutes<Message>(words => (words === '' ? Option.none() : Option.some(clear.onClear)))),
       ...(options.routes ?? []),
     ],
   })
@@ -151,33 +165,40 @@ export const view = <Message>(options: SearchFieldView<Message>, h: HtmlBuilder<
     ],
     { input: options.value, h },
   )
-  return h.div(builders.root.attrs(), [
-    h.input(
-      builders.input.attrs([
-        h.Id(inputId(options.id)),
-        h.Type('search'),
-        h.Value(options.value),
-        h.AriaLabel(options.label),
-        // Its own spelling checks and completions would draw over a query box.
-        h.Autocomplete('off'),
-        h.Spellcheck(false),
-        ...(options.placeholder === undefined ? [] : [h.Placeholder(options.placeholder)]),
-        ...(options.invalid === true ? [h.AriaInvalid(true)] : []),
-        ...(disabled ? [h.Disabled(true)] : [onInputOf(h, options.onInput)]),
-      ]),
-    ),
-    ...(options.value === '' || disabled
-      ? []
-      : [
-          h.button(
-            builders.clear.attrs([
-              h.Id(`${options.id}-clear`),
-              h.Type('button'),
-              h.AriaLabel(options.words?.clear ?? 'Clear search'),
-              h.OnClick(options.onClear),
-            ]),
-            [],
-          ),
+  return h.div(builders.root.attrs(options.busy === true ? [h.DataAttribute('busy', '')] : []), [
+    h.div(builders.group.attrs([h.DataAttribute(GROUP_MARK, '')]), [
+      // Always drawn: empty, the recipe puts a magnifier in it.
+      h.span(builders.start.attrs(), options.start === undefined ? [] : [options.start]),
+      h.input(
+        builders.input.attrs([
+          h.Id(inputId(options.id)),
+          h.Type('search'),
+          h.Value(options.value),
+          h.AriaLabel(options.label),
+          // Its own spelling checks and completions would draw over a query box.
+          h.Autocomplete('off'),
+          h.Spellcheck(false),
+          ...(options.placeholder === undefined ? [] : [h.Placeholder(options.placeholder)]),
+          ...(options.invalid === true ? [h.AriaInvalid(true)] : []),
+          ...(options.busy === true ? [h.AriaBusy(true)] : []),
+          ...(disabled ? [h.Disabled(true)] : [onInputOf(h, options.onInput)]),
         ]),
+      ),
+      ...(options.end === undefined ? [] : [h.span(builders.end.attrs(), [options.end])]),
+      ...(clear === undefined || options.value === '' || disabled
+        ? []
+        : [
+            h.button(
+              builders.clear.attrs([
+                h.Id(`${options.id}-clear`),
+                h.Type('button'),
+                h.AriaLabel(options.words?.clear ?? 'Clear search'),
+                h.OnClick(clear.onClear),
+                ...(clear.content === undefined ? [] : [h.DataAttribute('content', '')]),
+              ]),
+              clear.content === undefined ? [] : [clear.content],
+            ),
+          ]),
+    ]),
   ])
 }

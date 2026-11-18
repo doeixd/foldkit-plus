@@ -59,8 +59,6 @@ const expectExpanded = (expanded: boolean) =>
   Scene.expect(Scene.selector(input)).toHaveAttr('aria-expanded', String(expanded))
 const expectActive = (index: number) =>
   Scene.expect(Scene.selector(input)).toHaveAttr('aria-activedescendant', `${id}-item-${index}`)
-const expectNoActive = () =>
-  Scene.expect(Scene.selector(`${input}[aria-activedescendant]`)).toBeAbsent()
 /** The anchor and backdrop Mounts appear with the panel; a step that opens the panel resolves them. */
 const anchored = () =>
   Scene.Mount.resolveAll(

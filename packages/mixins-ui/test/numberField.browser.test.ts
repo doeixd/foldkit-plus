@@ -148,10 +148,78 @@ test("a locale's own marks are drawn and read back", async () => {
   try {
     await vi.waitFor(() => expect(shown()).toBe('3.5'))
     expect(input().value).toBe('3,5')
-    await userEvent.fill(input(), '2,0')
+    // In German a dot groups thousands: '1.0' is ten, where a plain reading is one.
+    await userEvent.fill(input(), '1.0')
     input().blur()
-    await vi.waitFor(() => expect(shown()).toBe('2'))
-    expect(input().value).toBe('2')
+    await vi.waitFor(() => expect(shown()).toBe('10'))
+    expect(input().value).toBe('10')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('the steppers stand at the sides, after the number, or not at all; an invalid field shows the error edge', async () => {
+  const styles = {
+    split: style,
+    end: Style.forSlots(NumberFieldSlots)(Recipes.NumberField({ steppers: 'end' })),
+    none: Style.forSlots(NumberFieldSlots)(Recipes.NumberField({ steppers: 'none' })),
+  }
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(Layers.standard.declare, Layers.standard.in('theme', Theme.root(theme))) +
+    Object.values(styles)
+      .map(each => each.css)
+      .join('')
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'number-field'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: { value: Option.some(3) } }),
+      update: (model: Model) => ({ model }),
+      view: (_: Model, h: HtmlBuilder<Message>) =>
+        h.div(
+          [],
+          [
+            ...(['split', 'end', 'none'] as const).map(name =>
+              NumberField.view(
+                {
+                  id: name,
+                  label: name,
+                  value: Option.some(3),
+                  onChange: Changed,
+                  invalid: name === 'split',
+                  style: styles[name],
+                },
+                h,
+              ),
+            ),
+            NumberField.view(
+              { id: 'valid', label: 'valid', value: Option.some(3), onChange: Changed, style },
+              h,
+            ),
+          ],
+        ),
+    }),
+  )
+  try {
+    await vi.waitFor(() => expect(document.getElementById('valid-input')).not.toBeNull())
+    const field = (id: string) => document.getElementById(`${id}-input`) as HTMLInputElement
+    const buttons = (id: string) => [...field(id).parentElement!.querySelectorAll('button')]
+    const x = (element: Element) => element.getBoundingClientRect().left
+    const [splitDown, splitUp] = buttons('split')
+    expect(x(splitDown!)).toBeLessThan(x(field('split')))
+    expect(x(splitUp!)).toBeGreaterThan(x(field('split')))
+    for (const stepper of buttons('end')) expect(x(stepper)).toBeGreaterThan(x(field('end')))
+    for (const stepper of buttons('none')) {
+      expect(stepper.getBoundingClientRect().width).toBe(0)
+    }
+    const edgeOf = (id: string) => getComputedStyle(field(id).parentElement!).borderTopColor
+    expect(edgeOf('split')).not.toBe(edgeOf('valid'))
   } finally {
     handle.dispose()
   }

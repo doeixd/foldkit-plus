@@ -49,29 +49,20 @@
  * rows against. Opened from the keyboard, with no press before it, the mark
  * stands where the menu is drawn.
  */
+import type { AnchorConfig } from '@foldkit/ui/anchor'
 import * as UiMenu from '@foldkit/ui/menu'
 import { Effect, Match, Option, Schema } from 'effect'
-import {
-  Attr,
-  Behavior,
-  Capability,
-  Event,
-  Slot,
-  Slots,
-  type NamedStyle,
-  type SlotAttributes,
-  type SlotBuilders,
-} from 'foldkit-mixins'
+import { type NamedStyle, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
 import * as Command from 'foldkit/command'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
-import { FluidHover, ScrollBars } from 'foldkit-primitives/dom'
 import { readingKey } from './direction.js'
 import * as Kbd from './kbd.js'
 import type { KbdSlots } from './kbd.js'
 import { scrollBarOf } from './popupScroll.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 import {
   create,
@@ -81,66 +72,11 @@ import {
   type MenuRenderInfo,
 } from './menuView.js'
 import { drawMenu } from './popupView.js'
+import { MenuSlots } from './menu/slots.js'
 
-/**
- * Menu is a nested Submodel: one `button`/`backdrop`/`items` group plus an
- * `item` per entry (and `group`/`heading`/`separator` where the caller
- * groups), so the resolver runs once per bundle and each base attribute
- * passes through by identity.
- *
- * The button owns `click` (and `pointerdown`/`keydown` while enabled); an
- * item owns `click` while interactive. A Behavior adding its own handler to
- * one of those is a conflict, not a second silent owner. Disabled buttons
- * and items publish no click, so the contract still lists it as allowed.
- */
-export const MenuSlots = Slots.define({
-  wrapper: Slot.make({ capability: Capability.Container }),
-  button: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click, Event.PointerDown, Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaExpanded, Attr.Disabled, Attr.AriaDisabled],
-  }),
-  backdrop: Slot.make({ capability: Capability.Container, events: [Event.Click] }),
-  items: Slot.make({
-    capability: Capability.Container,
-    events: [Event.KeyDown, Event.PointerUp, Event.Blur],
-    attributes: [Attr.Role],
-  }),
-  scroll: Slot.make({ capability: Capability.Container }),
-  item: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.Role, Attr.Disabled, Attr.AriaDisabled],
-  }),
-  group: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  heading: Slot.make({ capability: Capability.Container }),
-  separator: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  rows: Slot.make({ capability: Capability.Container }),
-  highlight: Slot.make({ capability: Capability.Container }),
-  scrollBar: Slot.make({ capability: Capability.Container }),
-  scrollThumb: Slot.make({ capability: Capability.Container }),
-  /** A row's words, which `view` draws. */
-  label: Slot.make({ capability: Capability.Container }),
-  /**
-   * A row's content, laid out as the row's own (`display: contents`); a
-   * submenu row's says whether its submenu shows (`data-open`).
-   */
-  sub: Slot.make({ capability: Capability.Container }),
-  /** The mark that a row opens a submenu. */
-  chevron: Slot.make({ capability: Capability.Container }),
-  /**
-   * A checkbox or radio row's mark, before its words, with `data-kind` and
-   * `data-checked`; every row of a menu holding one draws one, empty, so
-   * the words line up.
-   */
-  check: Slot.make({ capability: Capability.Container }),
-  /** The keys that run a row elsewhere, at its end, drawn as `Kbd.combo`. */
-  shortcut: Slot.make({ capability: Capability.Container }),
-  /** A row's picture, before its words. */
-  icon: Slot.make({ capability: Capability.Container }),
-  /** A row's quiet note at its end, before its shortcut: a count, a plan, a state. */
-  hint: Slot.make({ capability: Capability.Container }),
-})
+export { MenuSlots } from './menu/slots.js'
+export { fluid } from './menu/fluid.js'
+export { overlayBars } from './menu/overlayBars.js'
 
 export type ResolvedMenuItem<Message> = Omit<MenuItemRender, 'attributes'> & {
   readonly attributes: SlotAttributes<Message>
@@ -263,49 +199,6 @@ export const toView =
   (render: MenuRenderInfo): Html =>
     draw(resolve(render, mixins, context))
 
-/**
- * What moves the open panel's `highlight`: on its rows, one highlight
- * follows the pointer to the nearest row (`--fk-popup-hover-*`),
- * and to the row the keys mark (`data-active`) while the pointer is away.
- * Pass them beside the style; until they run, each row marks itself.
- */
-export const fluid = [
-  Behavior.forSlots(MenuSlots)<unknown, never>(
-    {
-      rows: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () =>
-          FluidHover({
-            name: 'popup-hover',
-            item: '[role^="menuitem"]',
-            axis: 'y',
-            gapClick: true,
-            follows: '[data-active]',
-          }),
-      }),
-    },
-    { name: 'MenuHover' },
-  ).mixin,
-] as const
-
-/**
- * What draws the open panel's `scrollBar` over its `scroll` (`ScrollBars`),
- * in place of the browser's bar, on a pointer that can hover. Pass it beside
- * the style when the menu scrolls (`itemsScrollAttributes`); without a
- * `scroll` there is no bar.
- */
-export const overlayBars = [
-  Behavior.forSlots(MenuSlots)<unknown, never>(
-    {
-      scroll: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => ScrollBars({}),
-      }),
-    },
-    { name: 'MenuScrollBars' },
-  ).mixin,
-] as const
-
 /** What any row may carry beside its words. */
 interface RowParts<Value extends string> {
   /**
@@ -314,8 +207,13 @@ interface RowParts<Value extends string> {
    * submenu items; two rows may share a label.
    */
   readonly value: Value
-  /** What is drawn, and what typeahead matches. */
+  /** What names the row and what typeahead matches; drawn too, unless `content` is. */
   readonly label: string
+  /**
+   * Drawn in place of the label's text: a name and an email, an avatar and a
+   * title. `label` stays the accessible name and the typeahead key.
+   */
+  readonly content?: Html | undefined
   /** Drawn before the label, hidden from assistive technology. */
   readonly icon?: Html | undefined
   /** A quiet note at the row's end, before its shortcut. */
@@ -539,7 +437,7 @@ export const withRows = <Message, Value extends string>(
           ]
         : []),
       ...iconPart(row, builders, h),
-      h.span(builders.label.attrs(), [row.label]),
+      h.span(builders.label.attrs(), [row.content ?? row.label]),
       ...hintPart(row, builders, h),
       ...(row.shortcut === undefined
         ? []
@@ -727,9 +625,13 @@ export interface InitOptions {
 }
 
 /** A shut menu, and a shut submenu for each row with `items`. */
-export const init = <Value extends string>(
+export const init = <
+  Value extends string,
+  // The structure alone is read: which rows open a submenu, and under what value.
+  Structure extends { readonly value: Value; readonly items?: ReadonlyArray<unknown> | undefined },
+>(
   id: string,
-  rows: ReadonlyArray<Row<Value>>,
+  rows: ReadonlyArray<Structure>,
   options: InitOptions = {},
 ): Model => {
   const isAnimated = options.isAnimated ?? false
@@ -1136,6 +1038,15 @@ export interface MenuViewOptions<ParentMessage, Value extends string = string> {
   readonly submenuMixins?: MixinList<ParentMessage> | undefined
   /** A style of `KbdSlots` for the rows' shortcuts (`Recipes.Kbd`); without one they are the keys' words. */
   readonly kbd?: NamedStyle<typeof KbdSlots> | undefined
+  /**
+   * Where the panel opens, over the default `{ placement: 'bottom-start', gap: 4 }`
+   * (no gap at a point): `{ placement: 'top-end' }`, `{ gap: 12 }`.
+   */
+  readonly anchor?: AnchorConfig | undefined
+  /** Drawn in the panel above the rows, in the `header` slot: not a row, so no key stops on it. */
+  readonly header?: Html | undefined
+  /** Drawn in the panel below the rows, in the `footer` slot. */
+  readonly footer?: Html | undefined
 }
 
 /** A submenu's button: over its row, so the submenu's anchor places it beside the row. */
@@ -1238,7 +1149,7 @@ export const view = <ParentMessage, Value extends string = string>(
                     // The words line up with a checkbox or radio row's.
                     ...(marked ? [h.span(builders.check.attrs([h.AriaHidden(true)]), [])] : []),
                     ...iconPart(row, builders, h),
-                    h.span(builders.label.attrs([h.Id(labelId)]), [row.label]),
+                    h.span(builders.label.attrs([h.Id(labelId)]), [row.content ?? row.label]),
                     ...hintPart(row, builders, h),
                     h.span(builders.chevron.attrs([h.AriaHidden(true)]), []),
                     drawSubmenu(sub, row, labelId),
@@ -1259,7 +1170,13 @@ export const view = <ParentMessage, Value extends string = string>(
     model: model.menu,
     view: Menus.view,
     viewInputs: {
-      anchor: { placement: 'bottom-start', gap: atPoint ? 0 : 4, padding: 8, portal: false },
+      anchor: {
+        placement: 'bottom-start',
+        gap: atPoint ? 0 : 4,
+        padding: 8,
+        portal: false,
+        ...options.anchor,
+      },
       ...rowInputs(rows, options.isRowDisabled, h),
       buttonContent: options.buttonContent,
       toView: toView(options.mixins, { h }, given => {
@@ -1301,6 +1218,14 @@ export const view = <ParentMessage, Value extends string = string>(
                     ],
                   },
             groups: withSubmenus(resolved.groups),
+            header:
+              options.header === undefined
+                ? undefined
+                : h.div(builders.header.attrs(), [options.header]),
+            footer:
+              options.footer === undefined
+                ? undefined
+                : h.div(builders.footer.attrs(), [options.footer]),
           },
           h,
         )
@@ -1315,3 +1240,30 @@ export const view = <ParentMessage, Value extends string = string>(
       ),
   })
 }
+
+/** What a Menu is given once: where it opens, its keys' look, and its mixins. The Model, rows and Messages are each use's. */
+export type MenuPreset = Pick<
+  MenuViewOptions<never>,
+  'opensAt' | 'direction' | 'submenuMixins' | 'kbd' | 'anchor'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own Menu: `base` for every use, `presets` chosen at a use
+ * with `preset`, and the call over both. `mixins` here and at the call
+ * concatenate, so a use may draw with the base's alone.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<MenuPreset, Names>,
+): {
+  readonly view: <Outer, Value extends string = string>(
+    options: Omit<MenuViewOptions<Outer, Value>, 'mixins'> & {
+      readonly mixins?: MixinList<Outer> | undefined
+    } & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => {
+    const merged = layered(config, options)
+    return view({ ...merged, mixins: merged.mixins ?? [] }, h)
+  },
+})

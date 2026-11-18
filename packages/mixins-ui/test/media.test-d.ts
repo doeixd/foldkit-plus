@@ -22,7 +22,23 @@ Image.view({ asset: hashed, provider: Provider.cdnCgi(), layout, alt }, h)
 // @ts-expect-error: `Provider.hosted` needs the facts' content hash.
 Image.view({ asset: unhashed, provider: hosted, layout, alt }, h)
 
-Avatar.view({ name: 'Ada', src: { asset: hashed, provider: hosted, width: 40 } }, h)
-// @ts-expect-error: the same for an avatar's picture.
-Avatar.view({ name: 'Ada', src: { asset: unhashed, provider: hosted, width: 40 } }, h)
-Avatar.group({ people: [{ name: 'Ada', src: { asset: hashed, provider: hosted, width: 40 } }] }, h)
+Avatar.view(
+  { name: 'Ada', picture: Avatar.picture({ asset: hashed, provider: hosted, width: 40 }) },
+  h,
+)
+Avatar.view(
+  {
+    name: 'Ada',
+    // @ts-expect-error: the same for an avatar's picture.
+    picture: Avatar.picture({ asset: unhashed, provider: hosted, width: 40 }),
+  },
+  h,
+)
+Avatar.group(
+  {
+    people: [
+      { name: 'Ada', picture: Avatar.picture({ asset: hashed, provider: hosted, width: 40 }) },
+    ],
+  },
+  h,
+)

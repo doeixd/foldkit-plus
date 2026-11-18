@@ -16,7 +16,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // `Data.can` (canOf: 1.1 kB minified) are that capability's own. Read-only pages carry
 // none of it (domains-plus is back at its 194.5 kB budget). The ceiling is 218.5 kB
 // plus about 2%.
-const CEILING = 223_000
+// +1,000 on 2026-11-18: 223,088 measured, 88 over. The page draws Input, Textarea and Select, and the
+// Input recipe gained the grouped start and end sides and the ghost and underline variants
+// (`recipes/field.ts`), with `adornments` beside `input`; no module the page does not draw is in its
+// first chunk. Ceiling raised to the reading plus about 0.4%, rounded up.
+const CEILING = 224_000
 
 clientBudget({
   name: 'cloudflare',

@@ -2,7 +2,10 @@ import { Match } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { FOCUS_MARK } from 'foldkit-primitives/dom'
+import { layered, type PresetOption, type Presets } from './configure.js'
+import type { Tone } from './recipes/design.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * An alert publishes its regions as slots; it owns no state. Shown or
@@ -27,8 +30,19 @@ export const AlertSlots = Slots.define({
   }),
 })
 
-/** A feedback family the alert can take. */
-export type AlertTone = 'info' | 'success' | 'warning' | 'error'
+/** A tone the alert's recipe draws: the vocabulary every recipe with a `tone` axis shares. */
+export type AlertTone = Tone
+
+/**
+ * The fixed text an alert draws: the dismiss button's name (`{name}` is the
+ * title inline and the label as a banner) and its mark.
+ */
+export interface AlertWords {
+  readonly dismiss: string
+  readonly dismissMark: string
+}
+
+export const words: AlertWords = { dismiss: 'Dismiss {name}', dismissMark: '✕' }
 
 /** An action: a link to follow, or a button that sends a Message. */
 export type AlertAction<Message> =
@@ -48,8 +62,8 @@ interface AlertContent<Message> {
    * holding the alerts, which the application owns: the button marks itself that part.
    */
   readonly recoveryPart?: string | undefined
-  /** The dismiss button's name; default `Dismiss <title>` inline, `Dismiss <label>` as a banner. */
-  readonly dismissLabel?: string | undefined
+  /** The dismiss button's name and mark. */
+  readonly words?: Partial<AlertWords> | undefined
   /** A style of `AlertSlots`, for the alert's look. */
   readonly style?: NamedStyle<typeof AlertSlots> | undefined
   /** Mixins beside the style. */
@@ -91,6 +105,7 @@ export const view = <Message = never>(
     { input: undefined, h },
   )
   const onDismiss = options.onDismiss
+  const text = wordsOf(words, options.words)
   const marks = [
     h.DataAttribute('layout', options.layout),
     // Whether the root holds a dismiss button, for a recipe that keeps room for it.
@@ -135,7 +150,7 @@ export const view = <Message = never>(
           h.button(
             builders.dismiss.attrs([
               h.Type('button'),
-              h.AriaLabel(options.dismissLabel ?? `Dismiss ${region.name}`),
+              h.AriaLabel(fill(text.dismiss, { name: region.name })),
               h.OnClick(onDismiss),
               // The mark `FocusRecovery.behavior` writes on a part slot (`FOCUS_MARK.part`): the
               // alert is drawn inside a list the application owns, so it has no such slot.
@@ -144,8 +159,28 @@ export const view = <Message = never>(
                 : [h.DataAttribute(FOCUS_MARK.part, options.recoveryPart)]),
             ]),
             // Named by its label, so the glyph is never read.
-            ['✕'],
+            [text.dismissMark],
           ),
         ]),
   ])
 }
+
+/** What an Alert is given once: its look and words. The layout and the content are each use's. */
+export type AlertPreset = Pick<AlertView<never>, 'style' | 'words'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Alert: `base` for every use, `presets` chosen at a
+ * use with `preset` (a warning, a failure), and the call over both.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<AlertPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: AlertView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

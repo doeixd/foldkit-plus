@@ -8,9 +8,7 @@ const tests = ['packages/mixins-ui/test/pagination.test.ts']
 export default [
   {
     name: 'the stops ignore the words given',
-    edits: [
-      { file: '../src/pagination.ts', find: "options.words?.next ?? 'Next'", replace: "'Next'" },
-    ],
+    edits: [{ file: '../src/pagination.ts', find: 'text.next', replace: "'Next'" }],
     tests,
   },
   {
@@ -18,8 +16,57 @@ export default [
     edits: [
       {
         file: '../src/pagination.ts',
-        find: '(options.words?.stopLabel ?? pageOf)(text)',
-        replace: 'pageOf(text)',
+        find: 'fill(text.stop, { word })',
+        replace: 'word',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the landmark ignores its word',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: 'h.AriaLabel(text.label)',
+        replace: "h.AriaLabel('Pagination')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the gap ignores its word',
+    edits: [{ file: '../src/pagination.ts', find: '[text.ellipsis])', replace: "['…'])" }],
+    tests,
+  },
+  {
+    name: 'the count after the current stop ignores its word',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: 'fill(text.ofCount, { count })',
+        replace: '` / ${count}`',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the page-size select ignores its label',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: '      text.perPage,\n',
+        replace: "      'Rows per page',\n",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the summary ignores its words',
+    edits: [
+      {
+        file: '../src/pagination.ts',
+        find: 'summaryOf(current, range, text.summary)',
+        replace: 'summaryOf(current, range)',
       },
     ],
     tests,
@@ -161,8 +208,9 @@ export default [
     edits: [
       {
         file: '../src/pagination.ts',
-        find: "stop(count, 'last', options.words?.last ?? 'Last', current === count)",
-        replace: "stop(1, 'last', options.words?.last ?? 'Last', current === count)",
+        find: "stop(count, 'last', text.last, current === count, options.icons?.last)",
+        replace:
+          "stop(1, 'last', options.words?.last ?? 'Last', current === count, options.icons?.last)",
       },
     ],
     tests,
@@ -205,8 +253,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/pagination.ts',
-        find: "defaults: { compact: 'narrow' },",
-        replace: "defaults: { compact: 'never' },",
+        find: "defaults: { compact: 'narrow', shape: 'square', treatment: 'ghost' },",
+        replace: "defaults: { compact: 'never', shape: 'square', treatment: 'ghost' },",
       },
     ],
     tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
@@ -251,6 +299,33 @@ export default [
         file: '../src/pagination.ts',
         find: 'choose.onPerPage(Number(value))',
         replace: 'choose.onPerPage(choose.sizes[0] ?? Number(value))',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
+  },
+  {
+    name: 'an icon is ignored',
+    edits: [{ file: '../src/pagination.ts', find: '[icon ?? word]', replace: '[word]' }],
+    tests: ['packages/mixins-ui/test/pagination.test.ts'],
+  },
+  {
+    name: 'the round shape draws no pill',
+    edits: [
+      {
+        file: '../src/recipes/pagination.ts',
+        find: 'Style.self({ borderRadius: ref.radius.full })',
+        replace: 'Style.self({ borderRadius: controlCorner })',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
+  },
+  {
+    name: 'the outline treatment draws no outline',
+    edits: [
+      {
+        file: '../src/recipes/pagination.ts',
+        find: 'Style.self({ borderColor: ref.outline.default })',
+        replace: 'Style.self({ borderColor: "transparent" })',
       },
     ],
     tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],

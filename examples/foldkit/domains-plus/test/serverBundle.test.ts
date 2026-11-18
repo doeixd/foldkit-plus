@@ -51,7 +51,20 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // (three `popup.plain-*` tokens and the panel's private properties, 73212841e), which the
 // Worker's rendered page carries: 286 of it by a build without the default-look changes,
 // 7 more with them.
-const CEILING = 3_282_500
+// +500 on 2026-11-17: CI measured 3,282,566 once a tint and a raised surface were written in
+// OKLab (f6661ddf9), which Chrome 157 needs to keep their hue: 273 bytes more than the reading
+// above, in the palette text the rendered page carries. Ceiling raised to the reading, rounded up.
+// +4,000 on 2026-11-17: CI passed at b606a2c61 under this ceiling (its job prints no size on a pass); a local
+// build of HEAD reads 3,286,786. At b1ae69ada CI read 3,283,600 where a local build read 3,286,845, so CI's HEAD is
+// about 3,286,5xx. HEAD reads 3,286,636 on CI by the offset of a local build of b1ae69ada (3,286,845
+// here against CI's 3,283,600), 4,300 over the last green main's 3,282,3xx. Built in separate trees: +1,272
+// from `recipe.add` on every recipe and the default look's theme text, and +3,037 from #593, whose
+// `runtimeJson` codec is Remote's Model schema and so is in the Worker too. No module the Worker did not
+// carry was added. Ceiling raised to that, rounded up.
+// -20,000 on 2026-11-18: that ceiling was an estimate, and the Worker now reads 3,266,801 in a local
+// build (CI, by the offset above, about 3,263,5xx), the factory families' work (#589) having taken
+// more out than it added. Ceiling: the local reading, rounded up.
+const CEILING = 3_267_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

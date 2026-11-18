@@ -36,8 +36,8 @@ export default [
     edits: [
       {
         file: source,
-        find: '...(options.accept === undefined ? [] : [h.Accept(options.accept)]),',
-        replace: '',
+        find: "[h.Accept(options.accept.join(','))]",
+        replace: '[]',
       },
     ],
     tests: [unit, ssr],

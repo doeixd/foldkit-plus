@@ -6,6 +6,8 @@ const unit = ['packages/mixins-ui/test/accordion.test.ts']
 const browser = ['packages/mixins-ui/test/accordion.browser.test.ts']
 const view = '../src/accordion.ts'
 const recipe = '../src/recipes/accordion.ts'
+const toggled = '../src/accordion/toggled.ts'
+const state = '../src/accordion/state.ts'
 
 export default [
   {
@@ -20,10 +22,32 @@ export default [
     tests: browser,
   },
   {
+    name: 'a panel shuts on the exit tier, quicker than it opens',
+    edits: [
+      {
+        file: recipe,
+        find: '...timing(collapseShuts, ref.motion.ease),',
+        replace: "...timing(ref.motion['fast-exit'], ref.motion['ease-exit']),",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the shutting duration property is not read',
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: 'export const collapseShuts = `var(--fk-collapse-close-duration, ${collapseOpens})`',
+        replace: 'export const collapseShuts = collapseOpens',
+      },
+    ],
+    tests: browser,
+  },
+  {
     name: 'a single accordion keeps the others open',
     edits: [
       {
-        file: view,
+        file: toggled,
         find: '  if (!isOpen) return [id]',
         replace: '  if (!isOpen) return [...open, id]',
       },
@@ -32,7 +56,7 @@ export default [
   },
   {
     name: 'a single accordion cannot shut its last section',
-    edits: [{ file: view, find: 'options.collapsible === false ? open : []', replace: 'open' }],
+    edits: [{ file: toggled, find: 'options.collapsible === false ? open : []', replace: 'open' }],
     tests: unit,
   },
   {
@@ -154,8 +178,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "Style.self({ flexDirection: 'row-reverse', justifyContent: 'flex-end' })",
-        replace: 'Style.self({})',
+        find: "chevron: variant(Style.self({ order: '-1' })),",
+        replace: 'chevron: variant(Style.self({})),',
       },
     ],
     tests: browser,
@@ -181,5 +205,45 @@ export default [
       },
     ],
     tests: unit,
+  },
+  {
+    name: 'an item’s icon is not drawn',
+    edits: [
+      {
+        file: view,
+        find: '...(item.icon === undefined ? [] : [h.span(builders.leading.attrs(), [item.icon])]),',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'an item’s trailing content is not drawn',
+    edits: [
+      {
+        file: view,
+        find: ': [h.span(builders.trailing.attrs(), [item.trailing])]),',
+        replace: ': []),',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a press that changes nothing returns a new Model',
+    edits: [
+      {
+        file: state,
+        find: 'return { model: open === model.open ? model : { open } }',
+        replace: 'return { model: { open } }',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the args are not given to a press',
+    edits: [
+      { file: state, find: 'toggled(model.open, id, args)', replace: 'toggled(model.open, id)' },
+    ],
+    tests: [...unit, 'packages/mixins-ui/test/layoutBundles.test.ts'],
   },
 ]

@@ -153,3 +153,21 @@ describe('Progress buffer and segments', () => {
     expect(Inert.style(root)['--fk-progress']).toBe('0.25')
   })
 })
+
+describe('Progress tone danger', () => {
+  const css = (tone: Parameters<typeof Recipes.Progress>[0]) =>
+    Style.forSlots(ProgressSlots)(Recipes.Progress(tone)).css
+
+  it('is a tone of the recipe and of a stacked part, where the failed state used to be named error', () => {
+    const [root] = Inert.byRole(
+      bar({ value: [{ label: 'Failed', value: 20, tone: 'danger' }] }),
+      'progressbar',
+    )
+    const part = Inert.all(root!).find(node => Inert.value(node, 'data-tone') !== undefined)
+    expect(Inert.value(part!, 'data-tone')).toBe('danger')
+    // The part is toned by the stylesheet's `data-tone` rule, and the bar by the axis.
+    expect(css({})).toContain('data-tone="danger"')
+    expect(css({})).not.toContain('data-tone="error"')
+    expect(css({ tone: 'danger' })).not.toBe(css({ tone: 'accent' }))
+  })
+})

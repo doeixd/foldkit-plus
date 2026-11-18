@@ -175,8 +175,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "component(Style.nest(dimmed, { opacity: ref.knob['state-disabled'] })),",
-        replace: 'Style.empty,',
+        find: "gap: ladder('gap') }),\n        Style.nest(dimmed, { opacity: ref.knob['state-disabled'] }),",
+        replace: "gap: ladder('gap') }),",
       },
     ],
     tests: browser,

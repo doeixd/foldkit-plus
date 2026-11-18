@@ -10,6 +10,8 @@ coverage/
 *.tgz
 PLAN.md
 .tsbuild/
+# scripts/cached.mjs: the passes of the repo-wide checks.
+.cache/
 # Vite's Pages output. The worker script it copies lives in pages/static.
 examples/cloudflare/pages/public/
 # Vitest browser mode: screenshots and traces of failed browser tests.

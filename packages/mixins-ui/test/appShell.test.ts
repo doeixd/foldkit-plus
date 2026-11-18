@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { A11y, Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
+import * as AppShell from '../src/appShell.js'
 import { AppShellSlots, view } from '../src/appShell.js'
 import { Patterns, Recipes } from '../src/index.js'
 
@@ -36,8 +37,8 @@ describe('AppShell view', () => {
         mainId: 'content',
         words: { skip: 'Skip ahead' },
         style,
+        main: [h.h1([], ['Posts'])],
       },
-      [h.h1([], ['Posts'])],
       h,
     )
     const [skip] = Inert.byTag(page, 'a')
@@ -70,8 +71,7 @@ describe('AppShell view', () => {
   it('leaves out what it is not given, and has no side column without one', () => {
     // Empty lists draw nothing either, so no region is left standing empty.
     const page = view(
-      { title: 'Notes', status: [], actions: [], footer: [], style },
-      [h.p([], ['Hello'])],
+      { title: 'Notes', status: [], actions: [], footer: [], style, main: [h.p([], ['Hello'])] },
       h,
     )
     expect(Inert.children(page).map(node => node.sel)).toEqual(['a', 'header', 'main'])
@@ -81,5 +81,38 @@ describe('AppShell view', () => {
     expect(Inert.value(page, 'data-side')).toBeUndefined()
     expect(Inert.value(Inert.byTag(page, 'a')[0]!, 'href')).toBe('#main')
     expect(Inert.text(Inert.byTag(page, 'a')[0]!)).toBe('Skip to content')
+  })
+})
+
+describe('AppShell aside and configure', () => {
+  it('draws an aside after the main region, named, and marks the root for the layout', () => {
+    const page = view(
+      {
+        title: 'Docs',
+        style,
+        main: [h.p([], ['Guide'])],
+        aside: [h.p([], ['On this page'])],
+        asideLabel: 'On this page',
+      },
+      h,
+    )
+    expect(Inert.children(page).map(node => node.sel)).toEqual(['a', 'header', 'main', 'aside'])
+    const [aside] = Inert.byTag(page, 'aside')
+    expect(Inert.value(aside!, 'aria-label')).toBe('On this page')
+    expect(Inert.value(page, 'data-aside')).toBe('')
+    const plain = view({ title: 'Docs', style, main: [], aside: [] }, h)
+    expect(Inert.byTag(plain, 'aside')).toHaveLength(0)
+    expect(Inert.value(plain, 'data-aside')).toBeUndefined()
+  })
+
+  it('lays base, preset and call, words merging key by key', () => {
+    const Frame = AppShell.configure({
+      base: { mainId: 'content', words: { skip: 'Skip ahead' } },
+      presets: { docs: { mainId: 'article' } },
+    })
+    const page = Frame.view({ preset: 'docs', title: 'Docs', main: [] }, h)
+    const [skip] = Inert.byTag(page, 'a')
+    expect(Inert.value(skip!, 'href')).toBe('#article')
+    expect(Inert.text(skip!)).toBe('Skip ahead')
   })
 })

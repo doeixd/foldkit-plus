@@ -63,7 +63,7 @@ describe('Theme.tokens', () => {
       motion: '0.5',
       travel: '1',
       step: '0',
-      'shadow-strength': '0%',
+      'shadow-strength': '70%',
       'text-scale': '1.025',
       'heading-scale': '1.2',
       leading: '1.05',
@@ -373,7 +373,7 @@ describe('the palette', () => {
       match[2] ?? '',
     ])
 
-  it('has the twenty-five groups', () => {
+  it('has the twenty-six groups', () => {
     expect(Object.keys(brand)).toEqual([
       'knob',
       'hue',
@@ -386,6 +386,7 @@ describe('the palette', () => {
       'tertiary',
       'shadow',
       'state',
+      'selection',
       'popup',
       'success',
       'warning',

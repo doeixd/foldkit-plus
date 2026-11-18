@@ -165,6 +165,24 @@ export const TreeView = Style.recipeFor(TreeViewSlots)({
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
+        // The label takes the room, so a trailing mark and an action sit at the row's end.
+        flexGrow: '1',
+      }),
+    ),
+    trailing: component(
+      Style.self({
+        display: 'inline-flex',
+        alignItems: 'center',
+        flexShrink: '0',
+        color: ref.text.muted,
+      }),
+    ),
+    action: component(
+      Style.self({
+        display: 'inline-flex',
+        alignItems: 'center',
+        flexShrink: '0',
+        marginInlineStart: 'auto',
       }),
     ),
     // The item's second grid row, clipped here while it opens.

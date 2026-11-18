@@ -12,8 +12,17 @@ import { Option } from 'effect'
 import { compilerOptionsOf, extract, packageSource } from '../api/extract.js'
 import { allSubsites, type Subsite } from '../catalog.js'
 import { README, topicsFor } from '../gallery/related.js'
+import { exampleFile } from '../gallery/showcase.js'
 import { showcaseOf, showcases } from '../gallery/showcases.js'
-import { COMPONENTS, CREATE, type Draw, type Library, type Region } from '../library.js'
+import { examples as primitiveExamples } from '../snippets/primitives.js'
+import {
+  COMPONENTS,
+  CREATE,
+  PRIMITIVES_GALLERY,
+  type Draw,
+  type Library,
+  type Region,
+} from '../library.js'
 import { Page, type Example } from '../page.js'
 import type { RootContent } from 'mdast'
 
@@ -21,7 +30,7 @@ import { packageName } from '../demos.js'
 import { apiPages, apiTargets, type ApiPage, type Mention } from './api.js'
 import { links, type Links, type Target } from './links.js'
 import { highlighter, type Highlight } from './highlight.js'
-import { guidePages, GITHUB, slugger, type Anchor, type GuidePage } from './guides.js'
+import { guidePages, GITHUB, headingOf, slugger, type Anchor, type GuidePage } from './guides.js'
 import { blocks, codeBlock } from './render.js'
 
 type Ih = HtmlBuilder<never>
@@ -34,6 +43,8 @@ interface DocPage {
   readonly group: string
   readonly label: string
   readonly title: string
+  /** The page's own heading, where it differs from the title: a package's name without its family's prefix. */
+  readonly heading?: string
   readonly description: string
   readonly anchors: ReadonlyArray<Anchor>
   /** The file to edit it in, from the repository root. */
@@ -49,6 +60,7 @@ interface DocPage {
 }
 
 const fromGuide = (highlight: Highlight, linkOf: Links['linkOf'], page: GuidePage): DocPage => ({
+  ...headingOf(page),
   path: page.path,
   subsite: page.subsite,
   group: page.source.label,
@@ -264,7 +276,10 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
   const article =
     (current: DocPage) =>
     (ih: Ih): Region => [
-      ih.header([], [ih.p([ih.Class('crumb')], [current.crumb]), ih.h1([], [current.title])]),
+      ih.header(
+        [],
+        [ih.p([ih.Class('crumb')], [current.crumb]), ih.h1([], [current.heading ?? current.title])],
+      ),
       ...current.body(ih),
     ]
 
@@ -305,11 +320,33 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     if (code === undefined) throw new Error(`src/snippets/components.ts has no region ${slug}`)
     return ih => [codeBlock(ih, highlight, { code, lang: 'ts', copy: true })]
   }
-  // Every showcase's snippet regions read now, so a missing region fails the build, not one page.
+  // An example module is shown whole, imports and state included: it is the file a reader copies.
+  const modules = new Map<string, string>()
+  const module = (slug: string, name: string): Draw => {
+    const file = exampleFile(slug, name)
+    const code = modules.get(file) ?? readFileSync(join(repository, file), 'utf8').trimEnd()
+    modules.set(file, code)
+    return ih => [codeBlock(ih, highlight, { code, lang: 'ts', copy: true })]
+  }
+  // Every showcase's code read now, so a missing region or module fails the build, not one page.
   for (const showcase of showcases) {
     if (showcase.examples.length === 0) usage(showcase.slug)
-    else for (const example of showcase.examples) usage(`${showcase.slug}-${example.name}`)
+    else
+      for (const example of showcase.examples)
+        if (example.code === 'module') module(showcase.slug, example.name)
+        else usage(`${showcase.slug}-${example.name}`)
   }
+
+  const primitiveRegions = regionsOf(
+    readFileSync(join(repository, 'examples/site/src/snippets/primitives.ts'), 'utf8'),
+  )
+  const primitive = (id: string): Draw => {
+    const code = primitiveRegions.get(id)
+    if (code === undefined) throw new Error(`src/snippets/primitives.ts has no region ${id}`)
+    return ih => [codeBlock(ih, highlight, { code, lang: 'ts', copy: true })]
+  }
+  // Every example's region read now, so a missing one fails the build, not one page.
+  for (const example of primitiveExamples) primitive(example.id)
 
   // The README's own resolver: a heading it no longer has leads to the README's first page, not nowhere.
   const readmeLink = guides.linksFrom(README)
@@ -333,13 +370,22 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     ]
 
   return {
-    paths: [HOME, DEMOS, COMPONENTS, ...componentPaths, CREATE, ...byPath.keys()],
+    paths: [
+      HOME,
+      DEMOS,
+      COMPONENTS,
+      ...componentPaths,
+      CREATE,
+      PRIMITIVES_GALLERY,
+      ...byPath.keys(),
+    ],
     pageAt: path => {
       const normal = normalize(path)
       if (normal === HOME) return Page.Home()
       if (normal === DEMOS) return Page.Demos()
       if (normal === COMPONENTS) return Page.Components()
       if (normal === CREATE) return Page.Create()
+      if (normal === PRIMITIVES_GALLERY) return Page.Primitives()
       if (normal.startsWith(`${COMPONENTS}/`)) {
         const slug = normal.slice(COMPONENTS.length + 1)
         return Option.isSome(showcaseOf(slug)) ? Page.Component({ slug }) : Page.Missing()
@@ -355,6 +401,8 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     outline: path => outline(pageOf(path)),
     example,
     usage,
+    module,
+    primitive,
     related,
   }
 }

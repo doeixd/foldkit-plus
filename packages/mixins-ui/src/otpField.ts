@@ -47,6 +47,12 @@ export interface OtpFieldView<Message> {
   readonly readOnly?: boolean | undefined
   /** The code is refused: the input is `aria-invalid`, and each cell carries `data-invalid`. */
   readonly invalid?: boolean | undefined
+  /**
+   * Hide the code: the input is a password field and each filled cell shows a dot
+   * (`mask` of `true`), or the mark given. The value the application holds is the
+   * real one.
+   */
+  readonly mask?: boolean | string | undefined
   /** A style of `OtpFieldSlots`, for the field's look. */
   readonly style?: NamedStyle<typeof OtpFieldSlots> | undefined
   /** Mixins beside the style. */
@@ -73,6 +79,8 @@ export const view = <Message>(options: OtpFieldView<Message>, h: HtmlBuilder<Mes
     throw new Error(`OtpField: groups ${runs.join('+')} do not add up to its length, ${length}`)
   }
   const value = kept(options.value, length, pattern)
+  const mark = options.mask === true ? '•' : options.mask === false ? undefined : options.mask
+  const shown = (char: string) => mark ?? char
   const cell = (index: number) =>
     h.div(
       builders.cell.attrs([
@@ -81,7 +89,7 @@ export const view = <Message>(options: OtpFieldView<Message>, h: HtmlBuilder<Mes
         ...(options.invalid === true ? [h.DataAttribute('invalid', '')] : []),
         ...(index === Math.min(value.length, length - 1) ? [h.DataAttribute('next', '')] : []),
       ]),
-      [value[index] ?? ''],
+      [index < value.length ? shown(value[index]!) : ''],
     )
   const starts = runs.map((_, run) => runs.slice(0, run).reduce((sum, each) => sum + each, 0))
   return h.div(builders.root.attrs(), [
@@ -91,7 +99,7 @@ export const view = <Message>(options: OtpFieldView<Message>, h: HtmlBuilder<Mes
         ...(options.name === undefined ? [] : [h.Name(options.name)]),
         ...(options.readOnly === true ? [h.Readonly(true)] : []),
         ...(options.invalid === true ? [h.AriaInvalid(true)] : []),
-        h.Type('text'),
+        h.Type(mark === undefined ? 'text' : 'password'),
         h.InputMode(pattern === 'digits' ? 'numeric' : 'text'),
         h.Autocomplete('one-time-code'),
         h.Maxlength(length),

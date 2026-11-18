@@ -3,14 +3,14 @@
  * toasts. Each list is the application's: it holds the rows and removes one
  * when its dismiss button is pressed, and `FocusRecovery` (in `view.ts`)
  * decides where the focus on that button goes, so `update` sends no focus
- * Command. The toast stack keeps its own Model, which `Toast.update` folds.
+ * Command. The toast stack is `Bundles.Toast` placed under `toast`: its Model
+ * and its Messages are the placement's, and `ShowedToast` raises one through
+ * the placement's `helpers.show`.
  */
-import { Schema } from 'effect'
-import * as Command from 'foldkit/command'
-import { defineMessageUnion } from 'foldkit/message'
+import { Match, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { modifyFields } from 'foldkit/struct'
-import type { Return } from 'foldkit/update'
-import { Toast } from 'foldkit-mixins-ui'
+import { Bundles } from 'foldkit-mixins-ui'
 
 export const ISLAND = 'focus-kept'
 
@@ -18,27 +18,6 @@ export const TOAST_ID = `${ISLAND}-toasts`
 
 export const Notice = Schema.Struct({ id: Schema.String, title: Schema.String })
 export type Notice = typeof Notice.Type
-
-export const Model = Schema.Struct({
-  alerts: Schema.Array(Notice),
-  cards: Schema.Array(Notice),
-  /** How many of each have been made, so an id is never used twice. */
-  alertsMade: Schema.Number,
-  cardsMade: Schema.Number,
-  toast: Toast.Model,
-  toastsShown: Schema.Number,
-})
-export type Model = typeof Model.Type
-
-export const Message = defineMessageUnion({
-  DismissedAlert: { id: Schema.String },
-  DismissedCard: { id: Schema.String },
-  AddedAlert: {},
-  AddedCard: {},
-  ShowedToast: {},
-  GotToast: { message: Toast.Message },
-})
-export type Message = typeof Message.Type
 
 const ALERTS: ReadonlyArray<Notice> = [
   { id: 'alert-1', title: 'Disk almost full' },
@@ -52,38 +31,47 @@ const CARDS: ReadonlyArray<Notice> = [
   { id: 'card-3', title: 'Invoice 1044' },
 ]
 
-/** A toast leaves after eight seconds unless something holds the stack. */
-export const initial: Model = {
+export const App = Bundle.compose({
+  alerts: Schema.Array(Notice),
+  cards: Schema.Array(Notice),
+  /** How many of each have been made, so an id is never used twice. */
+  alertsMade: Schema.Number,
+  cardsMade: Schema.Number,
+  toastsShown: Schema.Number,
+}).pipe(
+  Bundle.withMessages({
+    DismissedAlert: { id: Schema.String },
+    DismissedCard: { id: Schema.String },
+    AddedAlert: {},
+    AddedCard: {},
+    ShowedToast: {},
+  }),
+  // A toast leaves after eight seconds unless something holds the stack.
+  Bundle.withChild('toast', Bundles.Toast, {
+    args: { id: TOAST_ID, duration: 8000 },
+    onOut: Bundle.ignore,
+  }),
+)
+export const Model = App.Model
+export type Model = typeof Model.Type
+export const Message = App.Message
+export type Message = typeof Message.Type
+
+export const initial: Model = App.placements.initial({
   alerts: ALERTS,
   cards: CARDS,
   alertsMade: ALERTS.length,
   cardsMade: CARDS.length,
-  toast: Toast.init(TOAST_ID, { duration: 8000 }),
   toastsShown: 0,
-}
+}).model
 
 const without = (notices: ReadonlyArray<Notice>, id: string): ReadonlyArray<Notice> => {
   const kept = notices.filter(notice => notice.id !== id)
   return kept.length === notices.length ? notices : kept
 }
 
-const toastStep = (
-  model: Model,
-  next: ReturnType<typeof Toast.update>,
-  counted: boolean,
-): Return<Model, Message> => ({
-  model:
-    next.model === model.toast && !counted
-      ? model
-      : modifyFields(model, {
-          toast: () => next.model,
-          toastsShown: shown => (counted ? shown + 1 : shown),
-        }),
-  commands: Command.mapMessages(next.commands ?? [], message => Message.GotToast({ message })),
-})
-
-export const update = (model: Model, message: Message): Return<Model, Message> =>
-  Message.match(message, {
+export const update = App.placements.update((model, message) =>
+  Match.valueTags(message, {
     DismissedAlert: ({ id }) => {
       const alerts = without(model.alerts, id)
       return {
@@ -112,14 +100,15 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
         cardsMade: made => made + 1,
       }),
     }),
-    ShowedToast: () =>
-      toastStep(
-        model,
-        Toast.show(model.toast, {
-          title: `Saved draft ${model.toastsShown + 1}`,
-          description: 'Nothing moved your place.',
-        }),
-        true,
-      ),
-    GotToast: ({ message }) => toastStep(model, Toast.update(model.toast, message), false),
-  })
+    ShowedToast: () => {
+      const shown = App.children.toast.helpers.show({
+        title: `Saved draft ${model.toastsShown + 1}`,
+        description: 'Nothing moved your place.',
+      })(model)
+      return {
+        ...shown,
+        model: modifyFields(shown.model, { toastsShown: count => count + 1 }),
+      }
+    },
+  }),
+)

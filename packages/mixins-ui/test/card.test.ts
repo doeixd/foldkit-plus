@@ -5,18 +5,22 @@
  * What pressing and hovering do in a real page is `card.browser.test.ts`.
  */
 import { describe, expect, it } from 'vitest'
+import { FLUID_PRESS_ATTRIBUTE } from 'foldkit-primitives/dom'
 import { Capability, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import {
   CARD_HOVER,
   CardGroupSlots,
+  fluid,
   CardSlots,
   group as drawGroup,
   view as drawCard,
   type CardGroupView,
   type CardView,
+  configure,
 } from '../src/card.js'
 import { Recipes } from '../src/index.js'
+import { PRESS_MARK } from '../src/press.js'
 import { h, message, type TestMessage } from './fixture.js'
 
 // Slots are found by the mark a style writes, so every card is drawn styled, as an app draws it.
@@ -163,10 +167,12 @@ describe('Card view', () => {
     const always = dismissOf(
       view({
         title: 'Tip',
-        dismiss: { onDismiss: message('Other'), label: 'Hide tip', always: true },
+        dismiss: { onDismiss: message('Other'), always: true },
+        words: { dismiss: 'Hide {name}', dismissMark: 'x' },
       }),
     )
-    expect(Inert.value(always, 'aria-label')).toBe('Hide tip')
+    expect(Inert.value(always, 'aria-label')).toBe('Hide Tip')
+    expect(Inert.text(always)).toContain('x')
     expect(Inert.value(always, 'data-reveal')).toBe('always')
   })
 })
@@ -181,8 +187,8 @@ describe('CardGroup view', () => {
   })
 
   it('says on the root whether its highlight is drawn', () => {
-    expect(Inert.value(group({ cards }), 'data-card-fluid')).toBe('true')
-    expect(Inert.value(group({ cards, fluidHover: false }), 'data-card-fluid')).toBe('false')
+    expect(Inert.value(group({ cards, fluid }), 'data-card-fluid')).toBe('true')
+    expect(Inert.value(group({ cards }), 'data-card-fluid')).toBe('false')
   })
 
   it('marks a disabled card with data-disabled, which the highlight reads', () => {
@@ -196,7 +202,7 @@ describe('CardGroup view', () => {
       [1, 'y'],
       [3, 'xy'],
     ] as const) {
-      const drawn = group({ cards, columns })
+      const drawn = group({ cards, columns, fluid })
       expect(drawn?.data?.foldkitMount).toEqual({
         name: 'FluidHover',
         args: { name: CARD_HOVER, item: '[data-card-item]', axis, gapClick: true, gapReach: 16 },
@@ -210,7 +216,7 @@ describe('CardGroup view', () => {
   })
 
   it('draws no highlight and attaches nothing without fluid hover', () => {
-    const drawn = group({ cards, fluidHover: false })
+    const drawn = group({ cards })
     expect(drawn?.data?.foldkitMount).toBeUndefined()
     expect(highlightOf(drawn)).toHaveLength(0)
   })
@@ -244,7 +250,7 @@ describe('Card recipe', () => {
 
   it('stands an outlined card on its level of the surface ladder, and a plain one on nothing', () => {
     expect(css({})).toMatch(
-      /@layer variants\{[^@]*background:light-dark\(oklch\(from var\(--fk-surface-base\)/,
+      /@layer variants\{[^@]*background:light-dark\(oklab\(from var\(--fk-surface-base\)/,
     )
     expect(css({ surface: 'plain' })).not.toContain('background:light-dark(')
     expect(css({ surface: 'plain' })).toContain('background:transparent')
@@ -284,5 +290,79 @@ describe('CardGroup recipe', () => {
       'calc(calc(var(--fk-motion-fast) * var(--fk-card-hover-moving)) * var(--fk-knob-travel))',
     )
     expect(css({})).toContain('var(--fk-motion-settle)')
+  })
+})
+
+describe('Card words', () => {
+  it('say what a dismiss button and a new-tab link are called, and a card without a title names its button plainly', () => {
+    const named = dismissOf(
+      view({
+        title: 'Tip',
+        dismiss: { onDismiss: message('Other') },
+        words: { dismiss: '{name} entfernen' },
+      }),
+    )
+    expect(Inert.value(named, 'aria-label')).toBe('Tip entfernen')
+    const anonymous = dismissOf(
+      view({ dismiss: { onDismiss: message('Other') }, words: { dismissAlone: 'Schliessen' } }),
+    )
+    expect(Inert.value(anonymous, 'aria-label')).toBe('Schliessen')
+    const external = overlayOf(
+      view({
+        title: 'Docs',
+        press: { href: 'https://example.com', external: true },
+        words: { newTab: 'Öffnet im neuen Tab' },
+      }),
+    )
+    expect(Inert.value(external, 'aria-description')).toBe('Öffnet im neuen Tab')
+  })
+})
+
+describe('CardGroup wrap', () => {
+  it('draws around each card, inside its list item, and hands over the card it wraps', () => {
+    const cards = ['a', 'b'].map(key => ({ key, title: key.toUpperCase() }))
+    const drawn = group({
+      cards,
+      wrap: (card, source) => h.a([h.Href(`/${source.key}`)], [card]),
+    })
+    const links = itemsOf(drawn).map(item => Inert.children(item)[0])
+    expect(links.map(link => Inert.value(link, 'href'))).toEqual(['/a', '/b'])
+    expect(links.map(link => Inert.text(link!))).toEqual(['A', 'B'])
+  })
+})
+
+describe('Card.configure', () => {
+  const App = configure({
+    base: { style: cardStyle, groupStyle, fluid },
+    presets: { quiet: { words: { dismissMark: 'x' } } },
+  })
+
+  it('binds the style and words, and the call wins', () => {
+    const base = App.view({ title: 'Tip', dismiss: { onDismiss: message('Other') } }, h)
+    expect(Inert.text(base)).toContain('✕')
+    const quiet = App.view(
+      { title: 'Tip', dismiss: { onDismiss: message('Other') }, preset: 'quiet' },
+      h,
+    )
+    expect(Inert.text(quiet)).toContain('x')
+    expect(Inert.classes(base)).toEqual(Inert.classes(view({ title: 'Tip' })))
+  })
+
+  it('gives a group its cards’ style, its own style and the highlight', () => {
+    const cards = [{ key: 'a', title: 'A' }]
+    const bound = App.group({ cards }, h)
+    const by = drawGroup({ cards, style: groupStyle, cardStyle, fluid }, h)
+    expect(Inert.classes(bound)).toEqual(Inert.classes(by))
+    expect(bound?.data?.foldkitMount).toEqual(by?.data?.foldkitMount)
+    expect(highlightOf(bound)).toHaveLength(1)
+    const [item] = itemsOf(bound)
+    expect(Inert.classes(Inert.children(item)[0])).toEqual(Inert.classes(view({ title: 'A' })))
+    expect(Inert.classes(bound)).not.toEqual(Inert.classes(drawGroup({ cards }, h)))
+  })
+})
+
+describe('the press mark', () => {
+  it('is the name FluidHover reads', () => {
+    expect(PRESS_MARK).toBe(FLUID_PRESS_ATTRIBUTE)
   })
 })

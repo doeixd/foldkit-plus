@@ -11,7 +11,7 @@ import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
 import { InputCopy, InputCopySlots, Patterns, Recipes } from '../src/index.js'
-import { h, message } from './fixture.js'
+import { h, message, type TestMessage } from './fixture.js'
 
 const style = Style.forSlots(InputCopySlots)(Recipes.InputCopy({}))
 const drawn = (copied: boolean) =>
@@ -162,7 +162,7 @@ describe('a refused copy', () => {
           value: 'sk-123',
           copied: false,
           failed,
-          ...(failedLabel === undefined ? {} : { failedLabel }),
+          ...(failedLabel === undefined ? {} : { words: { failed: failedLabel } }),
           onCopy: message('Clicked'),
           style,
         },
@@ -177,5 +177,43 @@ describe('a refused copy', () => {
       'Could not copy',
     )
     expect(Inert.text(Inert.byRole(view(false), 'status')[0])).toBe('')
+  })
+})
+
+describe('InputCopy.view words, adornments and a button of your own', () => {
+  const drawn = (extra: Partial<InputCopy.InputCopyView<TestMessage>>, copied = false) =>
+    InputCopy.view(
+      {
+        id: 'key',
+        label: 'API key',
+        value: 'sk-123',
+        copied,
+        onCopy: message('Clicked'),
+        style,
+        ...extra,
+      },
+      h,
+    )
+
+  it('says the button in the words given: copy and copied', () => {
+    const words = { copy: 'Copier', copied: 'Copié' }
+    expect(Inert.text(Inert.byTag(drawn({ words }), 'button')[0])).toBe('Copier')
+    const done = drawn({ words }, true)
+    expect(Inert.text(Inert.byTag(done, 'button')[0])).toBe('Copié')
+    expect(Inert.text(Inert.byRole(done, 'status')[0])).toBe('Copié')
+  })
+
+  it('draws start and end inside the group', () => {
+    const text = Inert.text(drawn({ start: h.span([], ['key:']), end: h.span([], ['72h']) }))
+    expect(text).toContain('key:')
+    expect(text).toContain('72h')
+    expect(Inert.text(drawn({}))).not.toContain('key:')
+  })
+
+  it('draws copyContent in the button and keeps the words for a screen reader', () => {
+    const [button] = Inert.byTag(drawn({ copyContent: h.span([], ['⧉']) }), 'button')
+    expect(Inert.text(button)).toContain('⧉')
+    expect(Inert.text(button)).toContain('Copy')
+    expect(Inert.byTag(button, 'span')).toHaveLength(2)
   })
 })

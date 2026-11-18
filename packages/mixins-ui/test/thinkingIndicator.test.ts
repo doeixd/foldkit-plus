@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { ThinkingIndicatorSlots, view } from '../src/thinkingIndicator.js'
+import { ThinkingIndicatorSlots, configure, view } from '../src/thinkingIndicator.js'
 import { ThinkingIndicator } from '../src/recipes/thinkingIndicator.js'
 import { Patterns } from '../src/index.js'
 
@@ -75,5 +75,18 @@ describe('ThinkingIndicator recipe', () => {
 
   it('sweeps the other way right to left', () => {
     expect(css({})).toMatch(/:dir\(rtl\)\{animation-direction:reverse/)
+  })
+})
+
+describe('ThinkingIndicator configure', () => {
+  const Own = configure({
+    base: { label: 'Denkt nach', style },
+    presets: { quiet: { label: 'Moment' } },
+  })
+
+  it('draws with the base, the preset over it and the call over both', () => {
+    expect(Inert.text(Own.view({}, h))).toBe('Denkt nach')
+    expect(Inert.text(Own.view({ preset: 'quiet' }, h))).toBe('Moment')
+    expect(Inert.text(Own.view({ preset: 'quiet', label: 'Mine' }, h))).toBe('Mine')
   })
 })

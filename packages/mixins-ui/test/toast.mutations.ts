@@ -8,6 +8,8 @@ const gate = ['packages/mixins-ui/test/patterns.test.ts']
 const unit = ['packages/mixins-ui/test/toastStack.test.ts']
 const browser = ['packages/mixins-ui/test/toast.browser.test.ts']
 const file = '../src/toast.ts'
+const slots = '../src/toast/slots.ts'
+const keepFocus = '../src/toast/keepFocus.ts'
 const recipe = '../src/recipes/toast.ts'
 
 export default [
@@ -37,7 +39,7 @@ export default [
     name: 'the container slot forgets its role',
     edits: [
       {
-        file: '../src/toast.ts',
+        file: slots,
         find: 'container: Slot.make({\n    capability: Capability.Container,\n    attributes: [Attr.Role],\n  }),',
         replace: 'container: Slot.make({\n    capability: Capability.Container,\n  }),',
       },
@@ -48,7 +50,7 @@ export default [
     name: 'the entry slot forgets its role',
     edits: [
       {
-        file: '../src/toast.ts',
+        file: slots,
         find: 'entry: Slot.make({\n    capability: Capability.Container,\n    attributes: [Attr.Role],\n  }),',
         replace: 'entry: Slot.make({\n    capability: Capability.Container,\n  }),',
       },
@@ -214,22 +216,23 @@ export default [
     edits: [
       {
         file,
-        find: 'Option.filter(entryOf(model, id), entry => !isLeaving(entry)),\n            entry => Option.map(entry.action',
-        replace: 'entryOf(model, id),\n            entry => Option.map(entry.action',
+        find: 'Option.filter(entryOf(model, id), entry => !isLeaving(entry)),\n            entry =>\n              Option.map(Option.fromNullishOr(entry.actions[index])',
+        replace:
+          'entryOf(model, id),\n            entry =>\n              Option.map(Option.fromNullishOr(entry.actions[index])',
       },
     ],
     tests: unit,
   },
   {
     name: 'the close buttons are not focus recovery parts',
-    edits: [{ file, find: "close: ['next', 'previous'],", replace: 'close: [],' }],
+    edits: [{ file: keepFocus, find: "close: ['next', 'previous'],", replace: 'close: [],' }],
     tests: browser,
   },
   {
     name: 'an action with no neighbour does not fall back to a close button',
     edits: [
       {
-        file,
+        file: keepFocus,
         find: "action: ['next', 'previous', { part: 'close' }],",
         replace: "action: ['next', 'previous'],",
       },

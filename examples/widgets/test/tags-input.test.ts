@@ -9,7 +9,7 @@ import { FORM, Message, RECEIPT, ReadSubmission, initial, update } from '../src/
 import { island } from '../src/tags-input/island.js'
 import { TagsForm } from '../src/tags-input/view.js'
 
-const got = (message: TagsInput.Message) => Message.GotTopics({ message })
+const got = (message: TagsInput.Message) => Message.GotTopicsMessage({ message })
 const typed = (text: string) => got(TagsInput.Message.Typed({ text, drawn: 0 }))
 
 // A Command carries its Effect, which `toEqual` cannot compare: read what it was asked.

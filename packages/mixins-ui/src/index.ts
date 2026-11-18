@@ -10,9 +10,11 @@ export * as AspectRatio from './aspectRatio.js'
 export * as Anchor from './anchor.js'
 export * as Avatar from './avatar.js'
 export * as Figure from './figure.js'
+export * as Frame from './frame.js'
 export * as Image from './image.js'
 export * as Badge from './badge.js'
 export * as Breadcrumb from './breadcrumb.js'
+export * as BreadcrumbMenu from './breadcrumb/menu.js'
 export * as Button from './button.js'
 export * as ButtonGroup from './buttonGroup.js'
 export * as Pagination from './pagination.js'
@@ -31,6 +33,9 @@ export * as PasswordInput from './passwordInput.js'
 export * as SearchField from './searchField.js'
 export * as Toolbar from './toolbar.js'
 export * as FileInput from './fileInput.js'
+export * as FileUpload from './fileUpload.js'
+export * as FileUploadProgress from './fileUpload/progress.js'
+export * as FileUploadSort from './fileUpload/sort.js'
 export * as Rating from './rating.js'
 export * as Steps from './steps.js'
 export * as VirtualList from './virtualList.js'
@@ -51,6 +56,7 @@ export * as DatePickerView from './datePickerView.js'
 export * as Dialog from './dialog.js'
 export * as Disclosure from './disclosure.js'
 export * as Empty from './empty.js'
+export * as Field from './fieldShell.js'
 export * as Fieldset from './fieldset.js'
 export * as FileDrop from './fileDrop.js'
 export * as HoverIntent from './hoverIntent.js'
@@ -68,6 +74,11 @@ export * as Patterns from './patterns.js'
 export * as Popover from './popover.js'
 export * as RadioGroup from './radioGroup.js'
 export * as Recipes from './recipes/index.js'
+export * as Bundles from './bundles/index.js'
+export { ChoiceChange } from './choice.js'
+export type { Choice, SingleChoice } from './choice.js'
+export type { PresetOption, Presets } from './configure.js'
+export type { RowContent } from './rowContent.js'
 export * as Select from './select.js'
 export * as Separator from './separator.js'
 export * as Sheet from './sheet.js'
@@ -105,14 +116,37 @@ export * as Tour from './tour.js'
 
 export { AlertSlots } from './alert.js'
 export { AppShellSlots } from './appShell.js'
-export type { AlertAction, AlertView, BannerAlert, InlineAlert } from './alert.js'
+export type {
+  AlertAction,
+  AlertPreset,
+  AlertTone,
+  AlertView,
+  AlertWords,
+  BannerAlert,
+  InlineAlert,
+} from './alert.js'
 export { AspectRatioSlots } from './aspectRatio.js'
+export type { AspectRatioPreset, AspectRatioView } from './aspectRatio.js'
 export { AvatarGroupSlots, AvatarSlots } from './avatar.js'
-export type { AvatarGroupView, AvatarPicture, AvatarSize, AvatarStatus } from './avatar.js'
+export type {
+  AvatarBadge,
+  AvatarBadgePlace,
+  AvatarGroupView,
+  AvatarPerson,
+  AvatarPicture,
+  AvatarPreset,
+  AvatarSize,
+  AvatarSource,
+  AvatarStatus,
+  AvatarView,
+  AvatarWords,
+} from './avatar.js'
 export { FigureSlots } from './figure.js'
-export type { FigureView } from './figure.js'
+export type { FigurePreset, FigureView } from './figure.js'
+export { FrameSlots } from './frame.js'
+export type { FramePreset, FrameView } from './frame.js'
 export { ImageSlots } from './image.js'
-export type { ImageView } from './image.js'
+export type { ImagePreset, ImageView } from './image.js'
 export { BadgeSlots } from './badge.js'
 export { BreadcrumbSlots } from './breadcrumb.js'
 export { ButtonSlots } from './button.js'
@@ -122,6 +156,16 @@ export { CalendarSlots } from './calendar.js'
 export { AccordionSlots } from './accordion.js'
 export type { AccordionItem, AccordionView } from './accordion.js'
 export { CardGroupSlots, CardSlots } from './card.js'
+export type {
+  CardDismiss,
+  CardGroupFluid,
+  CardGroupView,
+  CardOfGroup,
+  CardPreset,
+  CardView,
+  CardWords,
+} from './card.js'
+export type { Press } from './press.js'
 export { MenubarSlots } from './menubar.js'
 export { MeterSlots } from './meter.js'
 export { NavSlots } from './nav.js'
@@ -129,12 +173,14 @@ export { CarouselSlots } from './carousel.js'
 export type { CarouselView } from './carousel.js'
 export { TreeViewSlots } from './treeView.js'
 export type { TreeNode, TreeViewView } from './treeView.js'
+export type { TreeStructureNode } from './bundles/treeView.js'
 export { ColorPickerSlots } from './colorPicker.js'
 export type {
-  ColorPickerLabels,
+  ColorPickerDefaults,
   ColorPickerPopover,
   ColorPickerPreset,
   ColorPickerView,
+  ColorPickerWords,
 } from './colorPicker.js'
 export { InputCopySlots } from './inputCopy.js'
 export type { InputCopyView } from './inputCopy.js'
@@ -153,6 +199,13 @@ export type {
 } from './toolbar.js'
 export { FileInputSlots } from './fileInput.js'
 export type { FileInputView, FileInputWords } from './fileInput.js'
+export { FileUploadSlots } from './fileUpload.js'
+export type {
+  FileUploadItem,
+  FileUploadParts,
+  FileUploadView,
+  FileUploadWords,
+} from './fileUpload.js'
 export type { Requirement as PasswordRequirement } from './passwordInput.js'
 export { RatingSlots } from './rating.js'
 export type { RatingDisplay, RatingInput, RatingView } from './rating.js'
@@ -162,7 +215,7 @@ export { VirtualListSlots } from './virtualList.js'
 export { WindowListSlots } from './windowList.js'
 export type { WindowListView } from './windowList.js'
 export { PickerSlots } from './picker.js'
-export type { PickerOption, PickerView } from './picker.js'
+export type { PickerView } from './picker.js'
 export { ProgressSlots } from './progress.js'
 export type { ProgressSection, ProgressTone, ProgressView } from './progress.js'
 export type { ResolvedNav } from './nav.js'
@@ -179,9 +232,16 @@ export type {
   SidebarLink,
   SidebarRow,
   SidebarView,
+  SidebarWords,
 } from './sidebar.js'
 export type { NavEntry, NavLink, NavPanel, NavPanelGroup, NavPanelLink, NavView } from './nav.js'
-export type { BreadcrumbCollapse, BreadcrumbExpand, BreadcrumbMenu } from './breadcrumb.js'
+export type {
+  BreadcrumbCollapse,
+  BreadcrumbExpand,
+  BreadcrumbWords,
+  CollapseDraw,
+  CollapseFeature,
+} from './breadcrumb.js'
 export type { TabsClose, TabsContext } from './tabs.js'
 export type { ResizableView } from './resizable.js'
 export type { Mark as SliderMark } from './slider.js'
@@ -197,22 +257,29 @@ export type {
   CommandPage,
   CommandRoute,
   CommandView,
+  CommandWords,
 } from './command.js'
 export type { CheckboxGroupOption, CheckboxGroupView } from './checkboxGroup.js'
 export { CheckboxSlots } from './checkbox.js'
+export type { CheckboxPreset, CheckboxView } from './checkbox.js'
+export type { RadioGroupPreset, RadioGroupRow, RadioGroupView } from './radioGroup.js'
+export type { SelectOption, SelectPreset, SelectView } from './select.js'
+export type { SwitchPreset, SwitchView } from './switch.js'
 export { CodeBlockSlots } from './codeBlock.js'
 export { ComboboxSlots } from './combobox.js'
 export { DatePickerSlots } from './datePicker.js'
 export { DialogSlots } from './dialog.js'
 export { DisclosureSlots } from './disclosure.js'
 export { EmptySlots } from './empty.js'
+export type { EmptyPreset, EmptyView } from './empty.js'
 export { FieldsetSlots } from './fieldset.js'
+export { FieldSlots } from './fieldShell.js'
 export { FileDropSlots } from './fileDrop.js'
 export { HoverIntentSlots } from './hoverIntent.js'
 export { IconSlots } from './icon.js'
 export { InputSlots } from './input.js'
 export { ItemGroupSlots, ItemSlots } from './item.js'
-export type { ItemGroupView } from './item.js'
+export type { ItemGroupView, ItemOfGroup, ItemPreset, ItemView, ItemWords } from './item.js'
 export { KbdSlots } from './kbd.js'
 export { LabelSlots } from './label.js'
 export { ListboxSlots } from './listbox.js'
@@ -225,7 +292,12 @@ export { DrawerSlots } from './drawer.js'
 export { SegmentedSlots } from './segmented.js'
 export type { SegmentedOption, SegmentedView } from './segmented.js'
 export { SkeletonSlots } from './skeleton.js'
-export type { SkeletonLinesView, SkeletonTableRowView } from './skeleton.js'
+export type {
+  SkeletonLinesView,
+  SkeletonPreset,
+  SkeletonTableRowView,
+  SkeletonView,
+} from './skeleton.js'
 export { SliderSlots } from './slider.js'
 export type { SliderView } from './slider.js'
 export { SpinnerSlots } from './spinner.js'
@@ -237,6 +309,7 @@ export { TextareaSlots } from './textarea.js'
 export { ToastSlots } from './toast.js'
 export { TooltipSlots } from './tooltip.js'
 export { TypographySlots } from './typography.js'
+export type { TypographyLevel, TypographySays, TypographyView } from './typography.js'
 export { ScrollAreaSlots } from './scrollArea.js'
 export { ChatMessageGroupSlots, ChatMessageSlots } from './chatMessage.js'
 export type {
@@ -244,38 +317,67 @@ export type {
   ChatMessageFrom,
   ChatMessageGroupView,
   ChatMessageItem,
+  ChatMessagePreset,
+  ChatMessageReaction,
   ChatMessageStatus,
   ChatMessageTime,
   ChatMessageView,
+  ChatMessageWords,
 } from './chatMessage.js'
 export { MessageScrollerSlots } from './messageScroller.js'
-export type { MessageScrollerView } from './messageScroller.js'
+export type {
+  MessageScrollerPreset,
+  MessageScrollerView,
+  MessageScrollerWords,
+} from './messageScroller.js'
 export { ThinkingIndicatorSlots } from './thinkingIndicator.js'
-export type { ThinkingIndicatorView } from './thinkingIndicator.js'
+export type { ThinkingIndicatorPreset, ThinkingIndicatorView } from './thinkingIndicator.js'
 export { ThinkingStepsSlots } from './thinkingSteps.js'
-export type { StateWords, StepState, ThinkingStep, ThinkingStepsView } from './thinkingSteps.js'
+export type {
+  StepState,
+  ThinkingStep,
+  ThinkingStepsPreset,
+  ThinkingStepsView,
+  ThinkingStepsWords,
+} from './thinkingSteps.js'
 export { QuestionnaireSlots } from './questionnaire.js'
 export type { QuestionnaireView } from './questionnaire.js'
 export { AngleSliderSlots } from './angleSlider.js'
 export type { AngleMark, AngleSliderLayout, AngleSliderView } from './angleSlider.js'
 export { TimerSlots } from './timer.js'
-export type { TimePart, TimerLabels, TimerView } from './timer.js'
+export type { TimePart, TimerPreset, TimerView, TimerWords } from './timer.js'
 export { MarqueeSlots } from './marquee.js'
-export type { MarqueeSide, MarqueeView } from './marquee.js'
+export type { MarqueeSide, MarqueeView, MarqueeWords } from './marquee.js'
 export { ImageCropperSlots } from './imageCropper.js'
-export type { ImageCropperLabels, ImageCropperView } from './imageCropper.js'
+export type {
+  ImageCropperView,
+  ImageCropperWords,
+  ImageCropperZoom,
+  ImageCropperZoomInput,
+} from './imageCropper.js'
 export { SignaturePadSlots } from './signaturePad.js'
-export type { SignaturePadLabels, SignaturePadView } from './signaturePad.js'
+export type { SignaturePadView, SignaturePadWords } from './signaturePad.js'
 export { QrCodeSlots } from './qrCode.js'
-export type { QrCodeView } from './qrCode.js'
+export type { QrCodeView, QrCodeWords } from './qrCode.js'
 export { ChartSlots } from './chart.js'
-export type { CartesianChart, ChartColor, ChartView, DonutChart } from './chart.js'
+export type {
+  AreaData,
+  BarsData,
+  CartesianData,
+  ChartColor,
+  ChartFrame,
+  ChartKind,
+  ChartOptions,
+  ChartView,
+  DonutData,
+  PathsData,
+} from './chart.js'
 export { CascadeSelectSlots } from './cascadeSelect.js'
-export type { CascadeSelectView } from './cascadeSelect.js'
+export type { Config as CascadeSelectConfig, CascadeSelectView } from './cascadeSelect.js'
 export { FloatingPanelSlots } from './floatingPanel.js'
-export type { FloatingPanelView } from './floatingPanel.js'
+export type { FloatingPanelPreset, FloatingPanelView, FloatingPanelWords } from './floatingPanel.js'
 export { TourSlots } from './tour.js'
-export type { TourView } from './tour.js'
+export type { TourPreset, TourView, TourWords } from './tour.js'
 
 export { resolveFor as resolve } from './resolve.js'
 export type { FieldParts } from './field.js'
@@ -309,6 +411,7 @@ export type { ResolvedFieldset } from './fieldset.js'
 export type { ResolvedFileDrop } from './fileDrop.js'
 export type { HoverIntentContext, ResolvedHoverIntent } from './hoverIntent.js'
 export type { InputField, InputView, ResolvedInput } from './input.js'
+export type { Adornments } from './adornments.js'
 export type {
   ResolvedListbox,
   ResolvedListboxGroup,
@@ -345,7 +448,13 @@ export type { ResolvedSelect } from './select.js'
 export type { ResolvedSwitch } from './switch.js'
 export type { ResolvedTab, ResolvedTabs } from './tabs.js'
 export type { ResolvedTextarea, TextareaField, TextareaParts, TextareaView } from './textarea.js'
-export type { ResolvedToast, ResolvedToastEntry } from './toast.js'
+export type {
+  ResolvedToast,
+  ResolvedToastEntry,
+  ToastInput,
+  ToastPreset,
+  ToastWords,
+} from './toast.js'
 export type { ToastEntryRender, ToastRenderInfo } from './toastView.js'
 export type { ResolvedTooltip, TooltipContext } from './tooltip.js'
 export type {

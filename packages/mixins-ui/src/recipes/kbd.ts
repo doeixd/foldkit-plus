@@ -41,6 +41,8 @@ export const Kbd = Style.recipeFor(KbdSlots)({
         color: ref.text.default,
         whiteSpace: 'nowrap',
       }),
+      // A key given as a drawing (an arrow) stands at the cap height of the letters.
+      Style.nest('& svg', { blockSize: '1em', inlineSize: '1em', verticalAlign: 'middle' }),
     ),
   },
 })

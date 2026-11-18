@@ -21,7 +21,7 @@ const field = {
   label: 'Search',
   value: '',
   onInput: () => message('Other'),
-  onClear: message('Clicked'),
+  clear: { onClear: message('Clicked') },
 } as const
 
 export const plain = SearchField.view(field, h)
@@ -57,7 +57,7 @@ export const foreignClear = SearchField.view(
   {
     ...field,
     // @ts-expect-error onClear cannot be a Message the view does not send
-    onClear: Foreign.SentElsewhere(),
+    clear: { onClear: Foreign.SentElsewhere() },
   },
   h,
 )

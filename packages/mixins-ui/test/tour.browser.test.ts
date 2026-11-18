@@ -171,6 +171,24 @@ test('presses reach the target through the cutout, and the dim takes the rest', 
   }
 })
 
+test('with advanceOnClick, a press on the target moves on, and a press beside it does not', async () => {
+  const mounted = mount({ advanceOnClick: Tour.advanceOnClick })
+  try {
+    await started()
+    await vi.waitFor(() => expect(spotlight()).not.toBeNull())
+    // Beside the target: the help button is under the dim, so the press lands on the page.
+    document.body.click()
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    expect(panel()!.textContent).toContain('1 of 3')
+    await userEvent.click(byId('nav'))
+    await vi.waitFor(() => expect(panel()?.textContent).toContain('2 of 3'))
+    // The target was used as well.
+    expect(byId('nav').textContent).toBe('Navigation 1')
+  } finally {
+    mounted.dispose()
+  }
+})
+
 test('a target not to be used is covered too', async () => {
   const mounted = mount({ interactive: false })
   try {

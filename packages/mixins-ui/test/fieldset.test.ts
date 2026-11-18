@@ -115,3 +115,41 @@ describe('Fieldset recipe', () => {
     expect(Inert.missingTokens(drawn, Style.stylesheet(Theme.root(theme)))).toEqual([])
   })
 })
+
+describe('Fieldset.view', () => {
+  const drawn = (extra: Partial<Fieldset.FieldsetView<TestMessage>> = {}) =>
+    Fieldset.view(
+      {
+        id: 'shipping',
+        legend: 'Shipping address',
+        content: [h.input([h.Id('street')])],
+        ...extra,
+      },
+      h,
+    )
+
+  it('draws the legend over the content, in a native fieldset the legend names', () => {
+    const tree = drawn()
+    const [fieldset] = Inert.byTag(tree, 'fieldset')
+    expect(Inert.value(fieldset, 'id')).toBe('shipping')
+    expect(Inert.text(Inert.byTag(tree, 'legend')[0])).toBe('Shipping address')
+    expect(Inert.value(Inert.byTag(tree, 'legend')[0], 'id')).toBe('shipping-legend')
+    expect(Inert.byTag(tree, 'input')).toHaveLength(1)
+    expect(Inert.byTag(tree, 'p')).toHaveLength(0)
+  })
+
+  it('draws a description under the legend and links it', () => {
+    const tree = drawn({ description: 'Where the order is sent.' })
+    expect(Inert.text(Inert.byTag(tree, 'p')[0])).toBe('Where the order is sent.')
+    expect(Inert.value(Inert.byTag(tree, 'fieldset')[0], 'aria-describedby')).toBe(
+      'shipping-description',
+    )
+  })
+
+  it('disables the group only when told', () => {
+    expect(Inert.value(Inert.byTag(drawn({ disabled: true }), 'fieldset')[0], 'disabled')).toBe(
+      true,
+    )
+    expect(Inert.value(Inert.byTag(drawn(), 'fieldset')[0], 'disabled')).toBeUndefined()
+  })
+})

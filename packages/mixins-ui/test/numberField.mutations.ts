@@ -70,7 +70,73 @@ export default [
   },
   {
     name: 'a stepper at its bound still steps',
-    edits: [{ file: view, find: '...(disabled || at', replace: '...(disabled' }],
+    edits: [
+      { file: view, find: '...(disabled || readOnly || at', replace: '...(disabled || readOnly' },
+    ],
     tests: unit,
+  },
+  {
+    name: 'a read-only field still has live steppers',
+    edits: [{ file: view, find: '...(disabled || readOnly || at', replace: '...(disabled || at' }],
+    tests: unit,
+  },
+  {
+    name: 'an invalid field is not marked',
+    edits: [
+      {
+        file: view,
+        find: '...(options.invalid === true ? [h.AriaInvalid(true)] : []),',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the stepper words are ignored',
+    edits: [{ file: view, find: 'text.decrease, atMin', replace: "'Decrease', atMin" }],
+    tests: unit,
+  },
+  {
+    name: 'the end drawing is dropped',
+    edits: [{ file: view, find: '...sides.end,', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'a read-only field still takes keys',
+    edits: [{ file: view, find: ': readOnly', replace: ': false' }],
+    tests: unit,
+  },
+  {
+    name: 'the steppers after the number stay at the sides',
+    edits: [
+      {
+        file: '../src/recipes/numberField.ts',
+        find: "decrement: variant(Style.self({ order: '3' })),",
+        replace: "decrement: variant(Style.self({ order: '0' })),",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a field with no steppers draws them',
+    edits: [
+      {
+        file: '../src/recipes/numberField.ts',
+        find: "decrement: variant(Style.self({ display: 'none' })),",
+        replace: "decrement: variant(Style.self({ display: 'grid' })),",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'an invalid field keeps its own edge',
+    edits: [
+      {
+        file: '../src/recipes/numberField.ts',
+        find: '{ borderColor: ref.error.outline }),',
+        replace: '{ borderColor: ref.outline.default }),',
+      },
+    ],
+    tests: browser,
   },
 ]

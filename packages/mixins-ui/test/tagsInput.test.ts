@@ -397,8 +397,38 @@ describe('TagsInput.view', () => {
     })
   })
 
+  it('says each refusal in the application’s words, filling the blanks, and in English otherwise', () => {
+    const said = (
+      draft: string,
+      tags: ReadonlyArray<string>,
+      words?: Partial<TagsInput.TagsInputWords>,
+      max?: number,
+    ) => {
+      const model = update(
+        { ...init({ id: 'topics', tags, ...(max === undefined ? {} : { max }) }), draft },
+        Message.Committed(),
+      ).model
+      const [status] = Inert.byRole(
+        TagsInput.view({ model, onMessage: () => message('Clicked'), label: 'Topics', words }, h),
+        'status',
+      )
+      return Inert.text(status)
+    }
+    const french = { repeat: '{tag} y est déjà', empty: 'Écrivez un mot', full: 'Au plus {max}' }
+    expect([
+      said('a$&', ['a$&'], french),
+      said(' ', [], french),
+      said('c', ['a', 'b'], french, 2),
+    ]).toEqual(['a$& y est déjà', 'Écrivez un mot', 'Au plus 2'])
+    expect([said('a', ['a']), said(' ', []), said('c', ['a', 'b'], undefined, 2)]).toEqual([
+      'a is already added',
+      'Type a tag to add',
+      'At most 2 tags',
+    ])
+  })
+
   it('words the remove button as the application asks, and says `Remove` and × otherwise', () => {
-    const buttons = (words?: TagsInput.TagsInputWords) =>
+    const buttons = (words?: Partial<TagsInput.TagsInputWords>) =>
       Inert.byTag(
         TagsInput.view(
           {
@@ -412,7 +442,7 @@ describe('TagsInput.view', () => {
         'button',
       ).map(button => [Inert.value(button, 'aria-label'), Inert.text(button)])
     expect(buttons()).toEqual([['Remove a$&b', '×']])
-    expect(buttons({ remove: tag => `Retirer ${tag}`, mark: '✕' })).toEqual([['Retirer a$&b', '✕']])
+    expect(buttons({ remove: 'Retirer {tag}', mark: '✕' })).toEqual([['Retirer a$&b', '✕']])
     expect(buttons({ mark: '✕' })).toEqual([['Remove a$&b', '✕']])
   })
 

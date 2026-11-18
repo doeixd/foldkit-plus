@@ -9,11 +9,10 @@ A placement changes one slice of the parent Model through the parent's
 Remote store. `Module.validate` already reports two owners of one path; this
 package gives placements a contract so the check includes them.
 
-```text
-Search.at(link to model.search)  ->  contract bundle:Search@search  owns search
-TodoSync                         ->  contract sync:Todos            owns todos
-Module.validate                  ->  no overlap, every path and Message declared
-```
+A placement becomes a contract that owns a path: `Search.at(link to model.search)`
+becomes `bundle:Search@search`, which owns `search`, and `TodoSync` becomes
+`sync:Todos`, which owns `todos`. `Module.validate` then checks that no two
+contracts overlap and that every path and Message is declared.
 
 ## Install
 

@@ -131,7 +131,7 @@ not ad-hoc CSS.
 ## Status (2026-11-15)
 
 - Anatomy: every adapted or drawn widget publishes a slot contract, and the
-  catalog holds 72 patterns. A contract with no accessibility structure its
+  catalog holds 73 patterns. A contract with no accessibility structure its
   slots could require (a badge, a separator) is named in the completeness
   test with its reason. No adapter hides slots yet; `hidden` waits for the
   first one.

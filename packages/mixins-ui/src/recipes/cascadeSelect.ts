@@ -35,6 +35,7 @@ import {
   unfilledHover,
   variant,
 } from './design.js'
+import { clearButton, optionParts } from './listbox.js'
 import { backdrop, heading, item, panel, triggerWidth, unlit } from './popup.js'
 
 /** A line in the panel's own ink, as the popups' separator draws it. */
@@ -99,36 +100,8 @@ export const CascadeSelect = Style.recipeFor(CascadeSelectSlots)({
       triggerChevron(':where([aria-expanded="true"]) &', '0.45em'),
       Style.self({ color: ref.text.muted }),
     ),
-    // A cross of two bars in a round ghost button.
-    clear: component(
-      Style.self({
-        position: 'relative',
-        flex: 'none',
-        inlineSize: ladder('icon'),
-        blockSize: ladder('icon'),
-        padding: '0',
-        border: '0',
-        borderRadius: ref.radius.full,
-        background: 'transparent',
-        color: ref.text.muted,
-        cursor: 'pointer',
-        ...transition('background-color, color'),
-      }),
-      Style.nest('&::before, &::after', {
-        content: '""',
-        position: 'absolute',
-        insetInlineStart: '50%',
-        insetBlockStart: '50%',
-        inlineSize: '0.6em',
-        blockSize: ref.border.thick,
-        background: 'currentColor',
-        translate: '-50% -50%',
-        rotate: '45deg',
-      }),
-      Style.nest('&::after', { rotate: '-45deg' }),
-      hover({ background: unfilledHover, color: ref.text.default }),
-      focusRing,
-    ),
+    // The quiet button of the Listbox's and the Combobox's, with the cross drawn while the view marks it.
+    clear: clearButton,
     input: component(Style.self({ display: 'none' })),
     layer: component(Style.self({})),
     backdrop,
@@ -184,15 +157,13 @@ export const CascadeSelect = Style.recipeFor(CascadeSelectSlots)({
       }),
       Style.pseudo('[data-on-path]', { fontWeight: ref.weight.medium }),
     ),
-    itemText: component(
-      Style.self({
-        flex: '1',
-        minInlineSize: '0',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      }),
+    itemIcon: optionParts.itemIcon,
+    itemText: component(Style.self({ display: 'grid', flex: '1', minInlineSize: '0' })),
+    itemLabel: component(
+      Style.self({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
     ),
+    itemDescription: optionParts.itemDescription,
+    itemTrailing: optionParts.itemTrailing,
     branch: component(
       chevron('-45deg'),
       Style.self({ marginInlineEnd: '0.2em', opacity: '0.6' }),

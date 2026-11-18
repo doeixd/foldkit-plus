@@ -151,4 +151,28 @@ export default [
     ],
     tests: ['packages/mixins-ui/test/spinner.browser.test.ts'],
   },
+  {
+    name: 'danger inks in the warning family',
+    edits: [
+      {
+        file: recipe,
+        find: "danger: { wheel: variant(Style.self({ '--_fk-spinner-ink': ref.error.default })) },",
+        replace:
+          "danger: { wheel: variant(Style.self({ '--_fk-spinner-ink': ref.warning.default })) },",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'success inks in the info family',
+    edits: [
+      {
+        file: recipe,
+        find: "success: { wheel: variant(Style.self({ '--_fk-spinner-ink': ref.success.default })) },",
+        replace:
+          "success: { wheel: variant(Style.self({ '--_fk-spinner-ink': ref.info.default })) },",
+      },
+    ],
+    tests: unit,
+  },
 ]

@@ -55,3 +55,10 @@ export const Message = defineMessageUnion({
   DroppedNonFiles: {},
 })
 export type Message = typeof Message.Type
+
+/** What `Bundles.FileDrop` reports, upstream's two OutMessages over the same `File` codec. */
+export const OutMessage = defineMessageUnion({
+  ReceivedFiles: { files: Schema.NonEmptyArray(Schema.instanceOf(File)) },
+  RejectedNonFiles: {},
+})
+export type OutMessage = typeof OutMessage.Type

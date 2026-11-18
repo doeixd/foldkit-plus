@@ -138,7 +138,7 @@ export default [
     edits: [
       {
         file: '../src/passwordInput.ts',
-        find: '`, ${requirement.met ? states.met : states.unmet}`',
+        find: '`, ${requirement.met ? text.met : text.unmet}`',
         replace: "''",
       },
     ],
@@ -187,5 +187,87 @@ export default [
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'the toggle words are ignored',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: 'h.AriaLabel(text.toggle),',
+        replace: "h.AriaLabel('Show password'),",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the Caps Lock words are ignored',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: 'capsOn ? [text.capsLock] : []',
+        replace: "capsOn ? ['Caps Lock is on'] : []",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the end drawing is dropped',
+    edits: [{ file: '../src/passwordInput.ts', find: '...sides.end,', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'the label aside is dropped',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: "h.div(attrs('header'), [label, h.span(attrs('labelAside'), [options.labelAside])])",
+        replace: 'label',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the toggle does not flip',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: 'visible: visible => !visible',
+        replace: 'visible: visible => visible',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'an unchanged Caps Lock reading makes a new Model',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: 'on === model.capsLock',
+        replace: 'false',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a key that says nothing of Caps Lock changes it',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: 'onNone: () => ({ model }),',
+        replace: 'onNone: () => ({ model: modifyFields(model, { capsLock: () => false }) }),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a Password starts shown',
+    edits: [
+      {
+        file: '../src/passwordInput.ts',
+        find: 'visible: options.visible ?? false,',
+        replace: 'visible: options.visible ?? true,',
+      },
+    ],
+    tests: [unit],
   },
 ]

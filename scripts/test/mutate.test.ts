@@ -91,6 +91,31 @@ test('checks every anchor and test without running one, and names each problem',
   expect(clean.output).toMatch(/1 specs, 1 mutations: every anchor and test found/)
 }, 60_000)
 
+test('--only is repeatable, runs just those, and refuses a name that is not there', () => {
+  const spec = [
+    { name: 'flip,sign', edits: [edit('a + b', 'a - b')], tests },
+    { name: 'breakit', edits: [edit('a + b', 'a +')], tests },
+    { name: 'flipagain', edits: [edit('a + b', 'a * b')], tests },
+  ]
+  const two = mutate('only', spec, {}, ['--only', 'flip,sign', '--only', 'flipagain'])
+  expect(two.status).toBe(0)
+  expect(two.output).toMatch(/ok {3}flip,sign: killed/)
+  expect(two.output).toMatch(/ok {3}flipagain: killed/)
+  expect(two.output).not.toMatch(/breakit/)
+  expect(two.output).toMatch(/2 of 2 as expected/)
+
+  const one = mutate('only-one', spec, {}, ['--only', 'breakit'])
+  expect(one.status).toBe(1)
+  expect(one.output).toMatch(/FAIL breakit: invalid/)
+  expect(one.output).toMatch(/0 of 1 as expected/)
+  expect(one.output).not.toMatch(/flip/)
+
+  const gone = mutate('only-gone', spec, {}, ['--only', 'flipagain', '--only', 'nope'])
+  expect(gone.status).toBe(2)
+  expect(gone.output).toMatch(/no mutation named nope/)
+  expect(gone.output).not.toMatch(/as expected/)
+}, 300_000)
+
 test('refuses to judge mutations against tests already red', () => {
   const { status, output } = mutate(
     'red',

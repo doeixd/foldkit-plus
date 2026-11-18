@@ -38,7 +38,7 @@ export const DangerStyle = forSlots(ButtonSlots)(
   Recipes.Button({ tone: 'danger', variant: 'outline' }),
   { name: 'Danger' },
 )
-export const NoticeStyle = forSlots(AlertSlots)(Recipes.Alert({ tone: 'error' }), {
+export const NoticeStyle = forSlots(AlertSlots)(Recipes.Alert({ tone: 'danger' }), {
   name: 'Notice',
 })
 export const FieldStyle = forSlots(FieldSlots)(Field({}), { name: 'Field' })

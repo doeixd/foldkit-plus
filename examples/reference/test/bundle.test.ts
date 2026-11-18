@@ -27,7 +27,15 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +700 on 2026-11-15: 249,983 against a ceiling of 249,800. The page on origin/main could not be
 // measured here, so the growth is not attributed to one change; the branch's component growth
 // (input, toggle, field, radioGroup, dialog) is what the other pages' measurements showed.
-const CEILING = 250_500
+// +350 on 2026-11-17 (250,819, against a ceiling of 250,500; the lazy chunk is not counted): the causes measured in chirp, whose page
+// holds the same code, each commit built in its own tree: `recipe.add` on every recipe and the
+// default look's theme text (+145 there) and #593's `runtimeJson`, Remote's Model schema (+447).
+// Nothing from mixins-ui's bundles, choice, configure, calendar, combobox or fileUpload modules is in
+// the page; `foldkit-bundle` was already. Ceiling raised to the reading, rounded up.
+// +150 on 2026-11-18 (250,896): themed text selection (90ab7073e), the `selection` tokens and the
+// rule reading them; with `defaults.ts`, `theme/oklch.ts` and the three recipes that read the
+// tokens swapped back in one tree the page passes its old ceiling. Ceiling: the reading, rounded up.
+const CEILING = 251_000
 
 clientBudget({
   name: 'reference',

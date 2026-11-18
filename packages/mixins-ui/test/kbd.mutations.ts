@@ -102,4 +102,26 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a key given as a drawing is drawn as text',
+    edits: [
+      {
+        file: '../src/kbd.ts',
+        find: '[options.key])',
+        replace: '[String(options.key)])',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a drawing in a key is as large as the viewBox',
+    edits: [
+      {
+        file: '../src/recipes/kbd.ts',
+        find: "Style.nest('& svg', { blockSize: '1em', inlineSize: '1em', verticalAlign: 'middle' }),",
+        replace: '',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/kbdGlyph.browser.test.ts'],
+  },
 ]

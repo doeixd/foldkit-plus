@@ -110,7 +110,7 @@ export default [
     name: 'the fluid pill measures only a pressed button',
     edits: [
       {
-        file,
+        file: '../src/segmented/fluid.ts',
         find: 'const pressed = \':is([aria-pressed="true"], [aria-checked="true"])\'',
         replace: 'const pressed = \'[aria-pressed="true"]\'',
       },

@@ -5,6 +5,7 @@
 const unit = ['packages/mixins-ui/test/drawer.test.ts']
 const browser = ['packages/mixins-ui/test/drawer.browser.test.ts']
 const file = '../src/drawer.ts'
+const keepFocus = '../src/drawer/keepFocus.ts'
 const recipe = '../src/recipes/drawer.ts'
 
 export default [
@@ -175,7 +176,9 @@ export default [
   },
   {
     name: 'focus stays in a body that collapses',
-    edits: [{ file, find: 'handle?.focus({ preventScroll: true })', replace: 'void handle' }],
+    edits: [
+      { file: keepFocus, find: 'handle?.focus({ preventScroll: true })', replace: 'void handle' },
+    ],
     tests: browser,
   },
   {

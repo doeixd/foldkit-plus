@@ -10,7 +10,10 @@
  * levels above what holds it (`Theme.raise`), so on a dark page it is
  * lighter, with a shadow of two layers (a tight contact one and a soft
  * ambient one) that deepens with the level. `lift: 'hover'` raises a
- * pressable card under the pointer, which reduced motion stills. A pressable
+ * pressable card under the pointer, which reduced motion stills; `zoom`
+ * grows the picture inside its frame instead. `divide` draws a hairline under
+ * the header (or under it and over the footer), edge to edge, and `orientation:
+ * 'overlay'` makes the image the card's ground, the text over its foot. A pressable
  * card tints on hover, unless a group's highlight is its hover; a selected one
  * keeps a fill, in each surface, and a heavier title.
  *
@@ -20,7 +23,7 @@
  * over the card it is on, which is that card's hover, whatever its surface.
  */
 import { Style } from 'foldkit-mixins'
-import { nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
+import { nested, nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import { CardGroupSlots, CardSlots } from '../card.js'
 import {
@@ -40,6 +43,9 @@ const pressableHover = '&[data-pressable="true"]:not([data-disabled="true"]):is(
 /** A card's own hover, unless a group's highlight is its hover. */
 const ownHover = `${pressableHover}:not([data-card-fluid="true"] [data-card-item] > *)`
 const selected = '&[data-selected="true"]'
+/** The dismiss button's inset from the card's edges. */
+const dismissInset = `calc(${pad} / 2)`
+const dismissCorner = `max(${ref.radius.sm}, ${nested('var(--fk-outer-radius, 0px)', dismissInset)})`
 /** The room the dismiss button takes in the corner, less the card's own padding, and a hair. */
 const clearOfDismiss = `calc(1.5rem - ${pad} / 2 + ${ref.space['2xs']})`
 
@@ -73,6 +79,10 @@ const level = (
 /** The padding, and the gap between regions that goes with it. */
 const padding = (space: string, between: string) =>
   variant(Style.self({ '--_fk-card-pad': space, '--_fk-card-gap': between }))
+
+/** A hairline between a card's regions, as wide as the card: it takes the padding back to bleed to the edges. */
+const rule = `${ref.border.thin} solid ${ref.outline.subtle}`
+const bleed = { marginInline: `calc(-1 * ${pad})`, paddingInline: pad }
 
 export const Card = Style.recipeFor(CardSlots)({
   base: {
@@ -193,8 +203,8 @@ export const Card = Style.recipeFor(CardSlots)({
     dismiss: component(
       Style.self({
         position: 'absolute',
-        insetBlockStart: `calc(${pad} / 2)`,
-        insetInlineEnd: `calc(${pad} / 2)`,
+        insetBlockStart: dismissInset,
+        insetInlineEnd: dismissInset,
         zIndex: '2',
         display: 'grid',
         placeItems: 'center',
@@ -202,7 +212,10 @@ export const Card = Style.recipeFor(CardSlots)({
         blockSize: '1.5rem',
         padding: '0',
         border: '0',
-        borderRadius: ref.radius.full,
+        // A rounded square whose corner is concentric with the card's: the card's corner less the
+        // button's inset from its edge, so the gap between the two curves is even; never sharper
+        // than `sm`.
+        borderRadius: dismissCorner,
         background: 'transparent',
         color: ref.text.muted,
         ...role('caption'),
@@ -231,6 +244,29 @@ export const Card = Style.recipeFor(CardSlots)({
         ),
         // At the start, not stretched across the card: a tile or an avatar keeps its own width.
         media: variant(Style.self({ alignSelf: 'flex-start' })),
+      },
+      // The image fills the card and the text lies over its foot, on a fade to the card's own
+      // surface, so the text keeps the contrast it has on the page in either scheme.
+      overlay: {
+        root: variant(
+          Style.self({
+            display: 'grid',
+            alignContent: 'end',
+            minBlockSize: '16rem',
+            isolation: 'isolate',
+          }),
+        ),
+        image: variant(
+          Style.self({ position: 'absolute', inset: '0', margin: '0', zIndex: '-1' }),
+          Style.nest('& > :is(img, video, svg, picture)', { blockSize: '100%' }),
+          Style.nest('&::after', {
+            content: '""',
+            position: 'absolute',
+            inset: '0',
+            background: `linear-gradient(to top, ${raisedSurface()} 0%, color-mix(in oklab, ${raisedSurface()} 80%, transparent) 40%, transparent 85%)`,
+          }),
+        ),
+        media: variant(Style.self({ position: 'relative' })),
       },
       inline: {
         root: variant(
@@ -309,7 +345,11 @@ export const Card = Style.recipeFor(CardSlots)({
       // Chosen, it keeps a film twice its hover's.
       plain: {
         root: variant(
-          Style.self({ background: 'transparent', borderRadius: ref.radius.md }),
+          Style.self({
+            background: 'transparent',
+            borderRadius: ref.radius.md,
+            ...nests(ref.radius.md, pad),
+          }),
           Style.nest(ownHover, { background: film('transparent', '0.5') }),
           Style.nest(selected, { background: film('transparent', '1') }),
         ),
@@ -328,8 +368,32 @@ export const Card = Style.recipeFor(CardSlots)({
       '2': { root: level(2, [ref.shadow.sm, ref.shadow.lg, ref.shadow.md, ref.shadow.xl]) },
       '3': { root: level(3, [ref.shadow.md, ref.shadow.xl, ref.shadow.lg, ref.shadow['2xl']]) },
     },
+    // A hairline under the header, or under the header and over the footer, edge to edge.
+    divide: {
+      none: {},
+      header: {
+        header: variant(Style.self({ borderBlockEnd: rule, paddingBlockEnd: gap, ...bleed })),
+      },
+      sections: {
+        header: variant(Style.self({ borderBlockEnd: rule, paddingBlockEnd: gap, ...bleed })),
+        footer: variant(Style.self({ borderBlockStart: rule, paddingBlockStart: gap, ...bleed })),
+      },
+    },
     lift: {
       none: {},
+      // The picture grows inside its frame under the pointer, by a scale times `travel`.
+      zoom: {
+        image: variant(
+          Style.nest('& > :is(img, video, svg, picture)', {
+            transitionProperty: 'scale',
+            transitionDuration: travelled(ref.motion.moderate),
+            transitionTimingFunction: ref.motion.settle,
+          }),
+          Style.nest(':where(:hover, :focus-within) > & > :is(img, video, svg, picture)', {
+            scale: `calc(1 + 0.06 * ${ref.knob.travel})`,
+          }),
+        ),
+      },
       // The rise is a distance times `travel`, so reduced motion keeps the shadow alone.
       hover: {
         root: variant(
@@ -349,6 +413,7 @@ export const Card = Style.recipeFor(CardSlots)({
     surface: 'outlined',
     padding: 'comfortable',
     elevation: '1',
+    divide: 'none',
     lift: 'none',
   },
 })

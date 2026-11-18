@@ -71,6 +71,7 @@ for (const [slug, topic] of [
     'card',
     'tags-input',
     'file-input',
+    'file-upload',
     'search-field',
     'dialog',
     'sheet',
@@ -93,6 +94,7 @@ for (const [slug, topic] of [
     'segmented',
     'tags-input',
     'file-input',
+    'file-upload',
     'date-picker',
   ]),
   ...topicsOf(RTL, [

@@ -20,7 +20,8 @@ const { t, slots, stylesheet } = AppStyle.make({
   theme: Theme.make({
     accent: { hue: 270, chroma: { light: 0, dark: 0 }, lightness: { light: 14, dark: 96 } },
     // A white page, and a near-black one, as plain as the content.
-    surface: { lightness: { light: 100, dark: 14 } },
+    // Contrast 30 (the shipped 70): a card, a field and a code block sit a quiet step off the page.
+    surface: { lightness: { light: 100, dark: 14 }, contrast: 30 },
     type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif' },
   }),
   tokens: Theme.define({
@@ -32,8 +33,109 @@ const { t, slots, stylesheet } = AppStyle.make({
 
 export { stylesheet }
 
+/** Faces with `─ │ ┌ ┐ └ ┘ ├ ┤ → ← ↑ ↓` at the width of a letter, the platform's own first. */
+const DIAGRAM_FONT =
+  'Consolas, "Cascadia Mono", ui-monospace, "SF Mono", Menlo, "DejaVu Sans Mono", "Liberation Mono", monospace'
+
+/** Seven tenths of the way from the page to `subtle`: the muted step is a mid grey that dims the syntax colors. */
+const codeSurface = `color-mix(in oklab, ${t.surface.subtle} 70%, ${t.surface.base})`
+
+/**
+ * A code block that is wider than its box scrolls inside it, and says so: the
+ * fade at a cut edge comes from `background-attachment: local` masks over a
+ * shadow that stays put, so it shows only while there is more to scroll to.
+ */
+const scrollFade = {
+  scrollbarWidth: 'thin',
+  background: [
+    `linear-gradient(to right, ${codeSurface}, transparent) 0 0 / 1.5rem 100% no-repeat local`,
+    `linear-gradient(to left, ${codeSurface}, transparent) 100% 0 / 1.5rem 100% no-repeat local`,
+    `linear-gradient(to right, ${t.outline.default}, transparent) 0 0 / 0.5rem 100% no-repeat scroll`,
+    `linear-gradient(to left, ${t.outline.default}, transparent) 100% 0 / 0.5rem 100% no-repeat scroll`,
+  ].join(', '),
+} as const
+
+/** The block is scrollable, so a keyboard reaches it: its ring sits inside, where the box does not clip it. */
+const scrollFocus = Style.nest('&:focus-visible', {
+  outline: `2px solid ${t.accent.default}`,
+  outlineOffset: '-2px',
+})
+
+/** The room the copy button takes at a line's end: its width, and the block's own padding. */
+const COPY_ROOM = `calc(${t.space.md} + 4.5rem)`
+
+/**
+ * No header band: a site's block names no file, so the band would hold the
+ * Copy button and nothing else. The button floats over the code's top
+ * inline-end corner, quiet until the block is hovered or the button focused
+ * (still a tab stop at rest, and always shown on a touch screen), and the
+ * first line ends in room for it, so scrolled to its end it is clear of the
+ * button. Every site block takes these slots, so one source styles them all.
+ */
+const floatedCopy = {
+  header: Style.compose(
+    Style.self({
+      position: 'absolute',
+      insetBlockStart: t.space.xs,
+      insetInlineEnd: t.space.xs,
+      zIndex: '1',
+      padding: '0',
+      border: '0',
+      transition: `opacity ${t.motion.fast}`,
+    }),
+    Style.nest(':where(:not(:hover, :focus-within)) > &', { opacity: '0' }),
+    Style.at(
+      '@media (hover: none)',
+      Style.nest(':where(:not(:hover, :focus-within)) > &', { opacity: '1' }),
+    ),
+  ),
+  // The language is not a title: the label would sit under the button.
+  title: Style.self({ display: 'none' }),
+  line: Style.nest('&:first-child', { paddingInlineEnd: COPY_ROOM }),
+}
+
 /** The site's code: the shipped recipe, colored from the theme's `syntax` group. */
-export const CodeStyle = Style.forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
+export const CodeStyle = Style.forSlots(CodeBlockSlots)(
+  Recipes.CodeBlock.extend({
+    base: {
+      // The example frames' surface (`codeBox`) in place of the recipe's muted one.
+      root: Style.self({ background: codeSurface }),
+      body: Style.compose(Style.self(scrollFade), scrollFocus),
+      ...floatedCopy,
+    },
+  })({}),
+)
+
+/**
+ * A fence in `text` (or with no language): a diagram or a plain listing. Its
+ * lines stay whole and the box scrolls. Box-drawing and arrow glyphs are
+ * missing from the site's mono face, so one face that has them all draws the
+ * block (a fallback per glyph would be another width and the columns would
+ * drift); the leading is tight so the strokes of adjacent rows meet, ligatures
+ * are off so `->` keeps its two columns, and the size does not follow the
+ * viewport.
+ */
+export const DiagramStyle = Style.forSlots(CodeBlockSlots)(
+  Recipes.CodeBlock.extend({
+    base: {
+      root: Style.self({ background: codeSurface }),
+      body: Style.compose(
+        Style.self({
+          ...scrollFade,
+          fontFamily: DIAGRAM_FONT,
+          fontSize: '0.8125rem',
+          lineHeight: '1.3',
+          fontVariantLigatures: 'none',
+          whiteSpace: 'pre',
+          tabSize: '4',
+        }),
+        scrollFocus,
+      ),
+      ...floatedCopy,
+      line: Style.compose(Style.self({ lineHeight: 'inherit' }), floatedCopy.line),
+    },
+  })({}),
+)
 
 /**
  * Below this width `/create` stacks its preview and docks its knobs to the
@@ -92,7 +194,7 @@ const navList = Style.compose(
 )
 
 const codeBox = {
-  background: t.surface.muted,
+  background: codeSurface,
   border: rule,
   borderRadius: t.radius.md,
 }
@@ -456,6 +558,38 @@ export const SiteStyle = slots(
       borderBlockStart: rule,
     },
     liveValue: { ...mono, color: t.text.subtle, overflowWrap: 'anywhere' },
+    // A bar as full as `--filled` says: the tween example's value, drawn.
+    liveBar: {
+      blockSize: '0.5rem',
+      marginBlockEnd: t.space.sm,
+      borderRadius: t.radius.sm,
+      background: `linear-gradient(to right, ${t.text.overt} var(--filled, 0%), ${t.surface.muted} var(--filled, 0%))`,
+    },
+    // A box the reader can resize, for the `Resize` example to measure.
+    liveBox: {
+      boxSizing: 'border-box',
+      minInlineSize: '10rem',
+      maxInlineSize: '100%',
+      minBlockSize: '4rem',
+      padding: t.space.sm,
+      resize: 'both',
+      overflow: 'auto',
+      border: rule,
+      borderRadius: t.radius.sm,
+      background: t.surface.base,
+    },
+    liveField: Style.slot({ capability: Capability.Focusable }, [
+      {
+        font: 'inherit',
+        padding: `${t.space['2xs']} ${t.space.xs}`,
+        marginInlineEnd: t.space.xs,
+        border: rule,
+        borderRadius: t.radius.sm,
+        background: t.surface.base,
+        color: t.text.default,
+      },
+      focus,
+    ]),
     liveButton: Style.slot({ capability: Capability.Interactive }, [
       {
         marginInlineStart: t.space.xs,
@@ -581,14 +715,17 @@ export const SiteStyle = slots(
     // The packages, shelf by shelf, a card each.
     // Each shelf opens with a rule across and a heading of its own, so the
     // four read as parts of the list rather than as labels on their cards.
-    shelf: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: t.space.md,
-      marginBlockStart: t.space.xl,
-      paddingBlockStart: t.space.lg,
-      borderBlockStart: rule,
-    },
+    shelf: [
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.md,
+        marginBlockStart: t.space.xl,
+        paddingBlockStart: t.space.lg,
+        borderBlockStart: rule,
+      },
+      Style.nest('&[hidden]', { display: 'none' }),
+    ],
     shelfHead: { display: 'flex', flexDirection: 'column', gap: '0.25rem' },
     shelfTitle: {
       margin: '0',
@@ -597,7 +734,94 @@ export const SiteStyle = slots(
       fontWeight: t.weight.semibold,
       color: t.text.overt,
     },
-    shelfAbout: { margin: '0', fontSize: '0.9375rem', color: t.text.muted },
+    shelfAbout: [
+      { margin: '0', fontSize: '0.9375rem', color: t.text.muted },
+      Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
+    ],
+    // A family's primitives, one row each under a hairline: the name, what it
+    // is for, the form it takes. The subpath is the family's, said once above.
+    primitives: {
+      margin: '0',
+      padding: '0',
+      listStyle: 'none',
+      borderBlockStart: rule,
+    },
+    primitive: Style.slot({ capability: Capability.Focusable }, [
+      {
+        display: 'grid',
+        gridTemplateColumns: 'minmax(9rem, 14rem) minmax(0, 1fr) auto',
+        alignItems: 'baseline',
+        gap: `${t.space['2xs']} ${t.space.md}`,
+        paddingBlock: t.space.sm,
+        borderBlockEnd: rule,
+        color: 'inherit',
+        textDecoration: 'none',
+      },
+      Style.pseudo(':hover', { background: t.surface.subtle }),
+      focus,
+      // A phone: the name and the form on one line, what it is for under them.
+      Style.media(PHONE, { gridTemplateColumns: 'minmax(0, 1fr) auto' }),
+      Style.at(
+        `@media ${PHONE}`,
+        Style.nest('> :nth-child(2)', { gridColumn: '1 / -1', gridRow: '2' }),
+      ),
+    ]),
+    primitiveName: {
+      fontFamily: t.font.mono,
+      fontSize: '0.8125rem',
+      fontWeight: t.weight.medium,
+      color: t.text.overt,
+    },
+    primitiveAbout: [
+      { fontSize: '0.875rem', lineHeight: '1.5', color: t.text.muted },
+      Style.nest('code', { fontFamily: t.font.mono, fontSize: '0.85em', color: t.text.default }),
+    ],
+    primitiveForm: { ...mono, color: t.text.subtle, fontSize: '0.6875rem', whiteSpace: 'nowrap' },
+    search: [
+      {
+        font: 'inherit',
+        fontSize: '0.875rem',
+        boxSizing: 'border-box',
+        inlineSize: '100%',
+        maxInlineSize: '24rem',
+        padding: `${t.space.xs} ${t.space.sm}`,
+        border: rule,
+        borderRadius: t.radius.md,
+        background: t.surface.base,
+        color: t.text.overt,
+      },
+      Style.pseudo(':focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '2px',
+      }),
+    ],
+    // A family's examples: a small label, then each as a title, a line, the
+    // running example on a framed stage, and its source whole beneath.
+    examples: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space.lg,
+      marginBlockStart: t.space.md,
+    },
+    examplesLabel: { ...mono, margin: '0', color: t.text.subtle },
+    example: { display: 'flex', flexDirection: 'column', gap: t.space.sm, minWidth: '0' },
+    demo: [
+      {
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.xs,
+        padding: t.space.lg,
+        border: rule,
+        borderRadius: t.radius.lg,
+        background: t.surface.base,
+        color: t.text.default,
+        minWidth: '0',
+        overflowWrap: 'anywhere',
+      },
+      Style.nest('p', { margin: '0' }),
+    ],
+    none: { margin: '0', color: t.text.muted, fontSize: '0.9375rem' },
     cards: {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fill, minmax(14.5rem, 1fr))',
@@ -922,6 +1146,11 @@ export const SiteStyle = slots(
       }),
       Style.nest('a', { color: t.text.muted, textDecoration: 'none', lineHeight: '1.4' }),
       Style.nest('a:hover', { color: t.text.overt }),
+      // The section the reader is in, marked by the scrollspy (`spy.ts`).
+      Style.nest('a[aria-current="location"]', {
+        color: t.text.overt,
+        fontWeight: t.weight.medium,
+      }),
       Style.nest('.depth-3', { paddingInlineStart: t.space.sm }),
       Style.nest('p', { margin: `${t.space.md} 0 0`, color: t.text.subtle }),
       Style.media(NO_OUTLINE, { display: 'none' }),
@@ -1015,6 +1244,8 @@ export const SiteStyle = slots(
     },
     // A legend takes no flex gap: its room above the choices is its own padding.
     axisName: { ...mono, padding: `0 0 ${t.space.xs}`, color: t.text.subtle },
+    // An axis that changes nothing under the other picks: dimmed, with the reason below.
+    axisHint: { ...mono, margin: '0', color: t.text.subtle },
     choices: {
       display: 'inline-flex',
       flexWrap: 'wrap',
@@ -1034,12 +1265,14 @@ export const SiteStyle = slots(
         color: t.text.muted,
         cursor: 'pointer',
       },
-      Style.pseudo(':hover', { color: t.text.overt }),
+      Style.pseudo(':hover:not(:disabled)', { color: t.text.overt }),
       Style.nest('&[aria-pressed="true"]', {
         background: t.surface.muted,
         color: t.text.overt,
         fontWeight: t.weight.medium,
       }),
+      // Inside a disabled fieldset: the value stays shown, but reads as not live.
+      Style.pseudo(':disabled', { opacity: '0.45', cursor: 'not-allowed' }),
       focus,
     ]),
     selection: { ...mono, margin: '0', color: t.text.muted, overflowWrap: 'anywhere' },

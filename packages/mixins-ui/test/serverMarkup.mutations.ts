@@ -104,7 +104,7 @@ export default [
     edits: [
       {
         file: '../src/steps.ts',
-        find: "...(state === 'current' ? [h.AriaCurrent('step')] : []),",
+        find: "...(index === options.current ? [h.AriaCurrent('step')] : []),",
         replace: '',
       },
     ],
@@ -115,8 +115,8 @@ export default [
     edits: [
       {
         file: '../src/breadcrumb.ts',
-        find: "builders.current.attrs([h.AriaCurrent('page')])",
-        replace: 'builders.current.attrs([])',
+        find: "builders.current.attrs([h.AriaCurrent('page'), ...name])",
+        replace: 'builders.current.attrs([...name])',
       },
     ],
     tests: page,
@@ -136,7 +136,7 @@ export default [
     name: 'a selected card is not pressed',
     edits: [
       {
-        file: '../src/card.ts',
+        file: '../src/press.ts',
         find: '...(state.selected === undefined ? [] : [h.AriaPressed(flag(state.selected))]),',
         replace: '',
       },

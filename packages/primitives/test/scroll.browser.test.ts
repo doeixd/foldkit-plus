@@ -91,6 +91,32 @@ it('lets the reader scroll away while it would hold the place', async () => {
   expect(window.scrollY).toBe(100)
 })
 
+it('writes where the entry was as the page is left, for a reload to read', () => {
+  readTo(350)
+  // A reload runs `beforeunload`; Foldkit's runtime is gone by `pagehide`, so this is the write that counts.
+  window.dispatchEvent(new Event('beforeunload'))
+  const stored: ReadonlyArray<readonly [string, number]> = JSON.parse(
+    sessionStorage.getItem('foldkit:scroll') ?? '[]',
+  )
+  const here = window.navigation.currentEntry?.key
+  expect(stored.find(([key]) => key === here)?.[1]).toBe(350)
+})
+
+it('lets go once the page stands still at the offset, not after a fixed time', async () => {
+  readTo(700)
+  window.history.pushState({}, '', '?opened=4')
+  await expect.poll(() => window.scrollY).toBe(0)
+  const back = traversed()
+  window.history.back()
+  await back
+  await expect.poll(() => window.scrollY).toBe(700)
+  await new Promise(resolve => setTimeout(resolve, 200))
+  // Not a reader's act, so a hold still running (it ran for two seconds) would put it back at once.
+  window.scrollTo({ top: 120, behavior: 'instant' })
+  await new Promise(resolve => setTimeout(resolve, 200))
+  expect(window.scrollY).toBe(120)
+})
+
 it('gives the window back when the holding fiber ends', async () => {
   const fiber = held
   if (fiber === null) throw new Error('scroll keeping never attached')
@@ -104,4 +130,34 @@ it('gives the window back when the holding fiber ends', async () => {
   window.history.pushState({}, '', '?released=2')
   await new Promise(resolve => setTimeout(resolve, 300))
   expect(window.scrollY).toBe(400)
+})
+
+it('keeps a scrolling element the same way, where the window does not scroll', async () => {
+  const box = document.createElement('div')
+  box.style.cssText =
+    'height: 200px; overflow: auto; position: fixed; inset: 0 auto auto 0; width: 200px;'
+  const inner = document.createElement('div')
+  inner.style.height = '3000px'
+  box.appendChild(inner)
+  document.body.appendChild(box)
+  const fiber = Effect.runFork(
+    Stream.runDrain(keepScroll({ scroller: () => box, storageKey: 'foldkit:scroll-box' })),
+  )
+  await new Promise(resolve => setTimeout(resolve, 100))
+  try {
+    box.scrollTo({ top: 600, behavior: 'instant' })
+    box.click()
+    window.history.pushState({}, '', '?box=1')
+    await expect.poll(() => box.scrollTop).toBe(0)
+    box.scrollTo({ top: 50, behavior: 'instant' })
+    box.click()
+    const back = traversed()
+    window.history.back()
+    await back
+    await expect.poll(() => box.scrollTop).toBe(600)
+    box.dispatchEvent(new Event('wheel'))
+  } finally {
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    box.remove()
+  }
 })

@@ -374,3 +374,91 @@ describe('PasswordInput.view form attributes', () => {
     expect(Inert.value(plain, 'required')).toBeUndefined()
   })
 })
+
+describe('PasswordInput words, adornments and its own state', () => {
+  const names = (words: Record<string, string>) => {
+    const [toggle] = Inert.byTag(drawn(false, { words } as Extra), 'button')
+    return Inert.value(toggle, 'aria-label')
+  }
+
+  it('names the toggle in the words given, and keeps the default otherwise', () => {
+    expect(names({})).toBe('Show password')
+    expect(names({ toggle: 'Afficher' })).toBe('Afficher')
+  })
+
+  it('says the requirement states and the Caps Lock hint in the words given', () => {
+    const page = PasswordInput.view(
+      {
+        id: 'new',
+        label: 'Password',
+        value: 'a',
+        onInput: () => message('Other'),
+        visible: false,
+        onToggle: message('Clicked'),
+        requirements: [
+          { label: 'A digit', met: true },
+          { label: 'A symbol', met: false },
+        ],
+        capsLock: { on: true, onKey: () => message('Other') },
+        words: { met: 'ok', unmet: 'missing', capsLock: 'Majuscules' },
+        style,
+      },
+      h,
+    )
+    const text = Inert.text(page)
+    expect(text).toContain(', ok')
+    expect(text).toContain(', missing')
+    expect(text).toContain('Majuscules')
+  })
+
+  it('draws start and end inside the group, and labelAside beside the label', () => {
+    const page = PasswordInput.view(
+      {
+        id: 'a',
+        label: 'Password',
+        value: '',
+        onInput: () => message('Other'),
+        visible: false,
+        onToggle: message('Clicked'),
+        start: h.span([], ['key']),
+        end: h.span([], ['12']),
+        labelAside: h.span([], ['Forgot?']),
+        style,
+      },
+      h,
+    )
+    const text = Inert.text(page)
+    for (const part of ['key', '12', 'Forgot?']) expect(text).toContain(part)
+    expect(Inert.text(drawn(false))).not.toContain('Forgot?')
+  })
+
+  it('folds its toggle and Caps Lock reading, keeping the Model when nothing changes', () => {
+    const start = PasswordInput.init()
+    expect(start).toEqual({ visible: false, capsLock: false })
+    expect(PasswordInput.init({ visible: true }).visible).toBe(true)
+    const shown = PasswordInput.update(start, PasswordInput.Message.Toggled()).model
+    expect(shown.visible).toBe(true)
+    const caps = PasswordInput.update(
+      shown,
+      PasswordInput.Message.ReadCapsLock({ reading: Option.some(true) }),
+    ).model
+    expect(caps.capsLock).toBe(true)
+    expect(
+      PasswordInput.update(caps, PasswordInput.Message.ReadCapsLock({ reading: Option.some(true) }))
+        .model,
+    ).toBe(caps)
+    expect(
+      PasswordInput.update(caps, PasswordInput.Message.ReadCapsLock({ reading: Option.none() }))
+        .model,
+    ).toBe(caps)
+  })
+
+  it('hands the view its flag, toggle and Caps Lock reading for a placed Model', () => {
+    const model = { visible: true, capsLock: false }
+    const wired = PasswordInput.controls(model, inner => inner._tag)
+    expect(wired.visible).toBe(true)
+    expect(wired.onToggle).toBe('Toggled')
+    expect(wired.capsLock.on).toBe(false)
+    expect(wired.capsLock.onKey(Option.some(true))).toBe('ReadCapsLock')
+  })
+})

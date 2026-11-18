@@ -27,6 +27,7 @@ export const Item = Style.recipeFor(ItemSlots)({
       Style.self({
         position: 'relative',
         display: 'flex',
+        flexWrap: 'wrap',
         alignItems: 'center',
         gap: ref.space.sm,
         minWidth: '0',
@@ -42,6 +43,13 @@ export const Item = Style.recipeFor(ItemSlots)({
         backgroundImage: `linear-gradient(${film('1')}, ${film('1')})`,
       }),
       Style.nest('&[data-disabled="true"]', { opacity: ref.knob['state-disabled'] }),
+    ),
+    // Bands across the row, above the overlay so what they hold stays pressable.
+    header: component(
+      Style.self({ position: 'relative', zIndex: '1', flex: '0 0 100%', minWidth: '0' }),
+    ),
+    footer: component(
+      Style.self({ position: 'relative', zIndex: '1', flex: '0 0 100%', minWidth: '0' }),
     ),
     media: component(
       Style.self({
@@ -118,6 +126,10 @@ export const Item = Style.recipeFor(ItemSlots)({
       compact: {
         root: variant(Style.self({ padding: `${ref.space['2xs']} ${ref.space.xs}` })),
         media: variant(Style.self({ inlineSize: '1.75rem', blockSize: '1.75rem' })),
+      },
+      roomy: {
+        root: variant(Style.self({ padding: ref.space.md })),
+        media: variant(Style.self({ inlineSize: '3rem', blockSize: '3rem' })),
       },
     },
     media: {

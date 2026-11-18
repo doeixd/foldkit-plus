@@ -59,12 +59,13 @@ const mount = (
   options: Toast.InitOptions,
   script: Readonly<Record<string, Message>>,
   mixins: MixinList<Message> = [],
+  look = style,
 ) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
     Style.stylesheet(L.declare, L.in('reset', Defaults.reset), L.in('theme', Theme.root(theme))) +
-    style.css
+    look.css
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'toasts-browser'
@@ -103,7 +104,7 @@ const mount = (
             ...Object.entries(script).map(([name, message]) =>
               h.button([h.Id(name), h.Type('button'), h.OnClick(message)], [name]),
             ),
-            Toast.view({ model: model.toasts, onMessage: got, style, mixins }, h),
+            Toast.view({ model: model.toasts, onMessage: got, style: look, mixins }, h),
           ],
         ),
     }),
@@ -270,7 +271,7 @@ test('the pointer holds the countdown, and letting go goes on from what was left
 test('a finger holds the countdown without spreading the stack, and a tap’s focus spreads nothing', async () => {
   const { handle, send } = mount(
     { duration: 600 },
-    { s0: show('Saved', { action: { label: 'Undo', value: 'undo' } }) },
+    { s0: show('Saved', { actions: [{ label: 'Undo', value: 'undo' }] }) },
   )
   try {
     await away()
@@ -303,7 +304,7 @@ test('a finger holds the countdown without spreading the stack, and a tap’s fo
 test('focus in the stack holds it, and so does a hidden page', async () => {
   const { handle, send } = mount(
     { duration: 400 },
-    { s0: show('Saved', { action: { label: 'Undo', value: 'undo' } }), s1: show('Again') },
+    { s0: show('Saved', { actions: [{ label: 'Undo', value: 'undo' }] }), s1: show('Again') },
   )
   try {
     await away()
@@ -385,7 +386,7 @@ test('Escape inside a toast and its close button dismiss it; its action sends Ac
     {
       s0: show('One'),
       s1: show('Two'),
-      s2: show('Three', { action: { label: 'Undo', value: 'undo' } }),
+      s2: show('Three', { actions: [{ label: 'Undo', value: 'undo' }] }),
     },
   )
   try {
@@ -446,7 +447,7 @@ test('dismissing the toast that holds focus moves focus to a neighbour, and the 
 test('an action pressed with no other action to go to hands focus to a close button', async () => {
   const { handle, send } = mount(
     { duration: 60_000 },
-    { s0: show('One'), s1: show('Two', { action: { label: 'Undo', value: 'undo' } }) },
+    { s0: show('One'), s1: show('Two', { actions: [{ label: 'Undo', value: 'undo' }] }) },
     Toast.keepFocus,
   )
   try {
@@ -602,6 +603,83 @@ test("an application's one child fills the card, leaving no strip at the end", a
           payload.getBoundingClientRect().right,
       ),
     ).toBeLessThan(1)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('several actions and a cancel: an action says its own value, the cancel only dismisses, and every button has a hover', async () => {
+  const { handle, send } = mount(
+    { duration: 60_000 },
+    {
+      a: show('Archived', {
+        actions: [
+          { label: 'Undo', value: 'undo' },
+          { label: 'Open', value: 'open' },
+        ],
+        cancel: 'Later',
+      }),
+      b: show('Archived again', { cancel: 'Later' }),
+    },
+  )
+  try {
+    await away()
+    await send('a')
+    const buttons = await vi.waitFor(() => {
+      const found = [...(card(0)?.querySelectorAll<HTMLElement>('button') ?? [])]
+      expect(found.map(button => button.textContent)).toEqual(['Undo', 'Open', 'Later', ''])
+      return found
+    })
+    const [undo, open, later, close] = buttons
+    // Three buttons take a row of their own under the words, the close button at the corner.
+    expect(undo!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      close!.getBoundingClientRect().bottom,
+    )
+    expect(later!.getBoundingClientRect().right).toBeLessThanOrEqual(
+      close!.getBoundingClientRect().right + 1,
+    )
+    // Each button reads its own fill under the pointer: a hover that changes nothing is a dead button.
+    for (const button of [undo!, open!, later!]) {
+      await userEvent.hover(document.getElementById('acted')!)
+      const resting = getComputedStyle(button).backgroundColor
+      await userEvent.hover(button)
+      await vi.waitFor(() => expect(getComputedStyle(button).backgroundColor).not.toBe(resting))
+    }
+    await userEvent.click(open!)
+    await vi.waitFor(() => expect(document.getElementById('acted')!.textContent).toBe('open'))
+    await vi.waitFor(() => expect(card(0)).toBeNull(), { timeout: 4000 })
+    // A cancel dismisses and says nothing.
+    await send('b')
+    const cancel = await vi.waitFor(() => {
+      const found = card(1)?.querySelector<HTMLElement>('button')
+      expect(found?.textContent).toBe('Later')
+      return found!
+    })
+    await userEvent.click(cancel)
+    await vi.waitFor(() => expect(card(1)).toBeNull(), { timeout: 4000 })
+    expect(document.getElementById('acted')!.textContent).toBe('open')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('an inverted toast is the text’s ink with the page’s on it, in either scheme', async () => {
+  const inverted = Style.forSlots(ToastSlots)(Recipes.Toast({ tone: 'invert' }))
+  const { handle, send } = mount({ duration: 60_000 }, { s0: show('Saved') }, [], inverted)
+  try {
+    await away()
+    await send('s0')
+    const entry = await vi.waitFor(() => {
+      const found = card(0)
+      expect(found).toBeTruthy()
+      return found!
+    })
+    const plain = document.createElement('div')
+    plain.style.color = 'var(--fk-text-default)'
+    plain.style.background = 'var(--fk-text-default)'
+    document.body.append(plain)
+    expect(getComputedStyle(entry).backgroundColor).toBe(getComputedStyle(plain).backgroundColor)
+    expect(getComputedStyle(entry).color).not.toBe(getComputedStyle(entry).backgroundColor)
   } finally {
     handle.dispose()
   }

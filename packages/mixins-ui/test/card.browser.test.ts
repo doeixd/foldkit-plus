@@ -14,6 +14,11 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Card, CardGroupSlots, CardSlots, Recipes } from '../src/index.js'
 import { unitKnobs } from './fixture.js'
+import type { CardGroupView } from '../src/card.js'
+
+// A highlight is a value the page passes: these tests draw groups the way a page that wants one does.
+const cardGroup = <M>(options: CardGroupView<M>, h: HtmlBuilder<M>) =>
+  Card.group({ fluid: Card.fluid, ...options }, h)
 
 const Message = defineMessageUnion({
   Pressed: { key: Schema.String },
@@ -74,7 +79,7 @@ const view = (_: Model, h: HtmlBuilder<Message>) =>
         },
         h,
       ),
-      Card.group(
+      cardGroup(
         {
           cards: ['a', 'b', 'c'].map(key => ({
             key,
@@ -161,6 +166,28 @@ test('the dismiss button shows on hover and dismisses alone', async () => {
     await vi.waitFor(() => expect(getComputedStyle(dismiss).opacity).toBe('1'))
     await userEvent.click(dismiss)
     await vi.waitFor(() => expect(log()).toEqual(['Dismissed:solo']))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('the dismiss button is a rounded square whose corner is concentric with the card’s', async () => {
+  const { handle } = mount()
+  // Rounder than the unit knobs' 8px card, whose corner is no wider than the inset: the button would be at its floor.
+  const rounder = document.createElement('style')
+  rounder.dataset['test'] = ''
+  rounder.textContent = ':root{--fk-knob-radius-factor:2}'
+  document.head.append(rounder)
+  try {
+    await vi.waitFor(() => expect(byName('Dismiss Solo')).toBeTruthy())
+    const dismiss = byName('Dismiss Solo')
+    const card = byName('Solo').parentElement!
+    const radius = (element: HTMLElement) =>
+      parseFloat(getComputedStyle(element).borderTopRightRadius)
+    const inset = card.getBoundingClientRect().right - dismiss.getBoundingClientRect().right
+    expect(dismiss.getBoundingClientRect().width).toBeGreaterThan(2 * radius(dismiss))
+    // The card's corner less the distance in from its edge, to within its 1px border.
+    expect(Math.abs(radius(card) - inset - radius(dismiss))).toBeLessThanOrEqual(1.01)
   } finally {
     handle.dispose()
   }

@@ -221,8 +221,7 @@ describe('Rating cleared', () => {
 
 describe('Rating in words', () => {
   const words = ['Poor', 'Fair', 'Good', 'Great', 'Superb']
-  const worded = (value: Option.Option<number>) =>
-    drawn(value, { showValue: true, starLabel: rated => words[rated - 1] ?? String(rated) })
+  const worded = (value: Option.Option<number>) => drawn(value, { showValue: true, labels: words })
 
   it('names each star by its word, and shows the word of the rating, said once', () => {
     const shown = worded(Option.some(4))
@@ -237,6 +236,83 @@ describe('Rating in words', () => {
 
   it('shows no word before anyone rates', () => {
     expect(Inert.text(worded(Option.none()))).toBe('Your stay')
+  })
+})
+
+describe('Rating words', () => {
+  const read = (shown: ReturnType<typeof drawn>) =>
+    Inert.byTag(shown, 'input').map(radio => Inert.value(radio, 'aria-label'))
+
+  it('says one star and several as the words say them, with the number filled in', () => {
+    expect(
+      read(drawn(Option.none(), { words: { one: '{value} heart', other: '{value} hearts' } })),
+    ).toEqual(['1 heart', '2 hearts', '3 hearts', '4 hearts', '5 hearts'])
+  })
+
+  it('a labelled star keeps its label and the rest fall back to the words', () => {
+    expect(read(drawn(Option.none(), { max: 3, labels: ['Poor'] }))).toEqual([
+      'Poor',
+      '2 stars',
+      '3 stars',
+    ])
+  })
+
+  it('names a read-only rating by the words, with what is rated and out of how many', () => {
+    const named = (
+      value: Option.Option<number>,
+      more: Partial<Rating.RatingDisplay<TestMessage>> = {},
+    ) =>
+      Inert.value(
+        Inert.all(
+          Rating.view({ id: 'stay', label: 'Your stay', value, readOnly: true, style, ...more }, h),
+        ).find(node => Inert.value(node, 'role') === 'img'),
+        'aria-label',
+      )
+    expect(named(Option.some(4.5))).toBe('Your stay: 4.5 stars of 5')
+    expect(named(Option.none())).toBe('Your stay: not rated')
+    expect(
+      named(Option.some(2), {
+        words: { rated: '{stars} sur {max} pour {label}', other: '{value} étoiles' },
+      }),
+    ).toBe('2 étoiles sur 5 pour Your stay')
+  })
+})
+
+describe('Rating configure', () => {
+  const App = Rating.configure({
+    base: { max: 3, words: { other: '{value} hearts' } },
+    presets: { plain: { words: { one: '{value} heart' } } },
+  })
+  const read = (preset?: 'plain') =>
+    Inert.byTag(
+      App.view(
+        {
+          id: 'stay',
+          label: 'Your stay',
+          value: Option.none(),
+          onChange: () => message('Clicked'),
+          style,
+          ...(preset === undefined ? {} : { preset }),
+        },
+        h,
+      ),
+      'input',
+    ).map(radio => Inert.value(radio, 'aria-label'))
+
+  it('starts from the base, and a preset’s words merge over it word by word', () => {
+    expect(read()).toEqual(['1 star', '2 hearts', '3 hearts'])
+    expect(read('plain')).toEqual(['1 heart', '2 hearts', '3 hearts'])
+  })
+})
+
+describe('Rating tones', () => {
+  it('danger draws the error colour, and the old name is gone', () => {
+    const css = (selection: Parameters<typeof Recipes.Rating>[0]) =>
+      Style.forSlots(RatingSlots)(Recipes.Rating(selection)).css
+    expect(css({ tone: 'danger' })).toContain('error')
+    expect(css({ tone: 'danger' })).not.toBe(css({ tone: 'warning' }))
+    // @ts-expect-error `error` was renamed `danger`.
+    css({ tone: 'error' })
   })
 })
 

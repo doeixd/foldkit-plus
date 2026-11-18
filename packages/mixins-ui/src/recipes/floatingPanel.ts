@@ -12,7 +12,7 @@
  */
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
 import { ladder, raise, raisedSurface, role } from 'foldkit-mixins/theme'
-import { FloatingPanelSlots } from '../floatingPanel.js'
+import { FloatingPanelSlots } from '../floatingPanel/slots.js'
 import {
   component,
   focusRing,

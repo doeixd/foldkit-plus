@@ -270,24 +270,20 @@ One owner per datum:
 | Client-authored state that must survive offline and converge | `foldkit-sync` |
 | Local state represented in the URL or another store | the Model, observed by `foldkit-mirror` |
 
-```text
-Remote                              Sync
-  server owns the fact                client owns the edit
-  cache is disposable                 intent must survive offline/restart
-  refetch is recovery                 replay + reconciliation is recovery
-  outbox: send it later               converge
-```
+With Remote, the server owns the fact, the cache is disposable, refetching is the
+recovery, and a write that must be sent later waits in the outbox. With Sync, the
+client owns the edit, its intent must survive offline and a restart, and replay and
+reconciliation are the recovery, so that devices converge.
 
 A Surface may project all of these owners at once. Observation does not transfer
 ownership.
 
 ## The mental model
 
-```text
-Surface Projection → requirements → active Subscription → RemoteClient I/O
-        ↑                                                    |
-        └──────── read Model ← Data.reduce ← Remote Message ──┘
-```
+The loop runs one way round. A Surface's Projection declares requirements; an
+active Subscription asks `RemoteClient` for what the cache lacks; the answer
+returns as a Remote Message; `Data.reduce` writes it into the Model; and the
+next read of the Model sees it.
 
 A Projection reads the current cache and carries requirements such as
 `Project:p1.name` and `User:u7.name`. An active Subscription compares those

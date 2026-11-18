@@ -50,14 +50,29 @@ export const chipList: StyleValue = component(
   }),
 )
 
+/** The chip's room above, below and after its remove button: even, so the button is the end cap's own circle. */
+const chipInset = '0.1rem'
+const chipLine = role('caption').lineHeight
+/** The button's room at the end: its own width, its inset and the gap to the label. */
+const buttonRoom = `calc(${chipLine} + ${chipInset} + 0.2rem)`
+
+// The pill is as tall as the button with its inset. Where `text-box` trims, the label's line is
+// cut to the capitals' height and the padding is what is left of that height, moved by a quarter of
+// the gap between the capitals' and the x-height's (`1cap - 1ex`): the label is centred half way
+// between the middle of its capitals and of its x-height band, where mixed lowercase reads centred,
+// by the face's own metrics. A line box centres its ascent and descent, which sit low or high by the
+// face. Without `text-box` the base rule stands: the line box, centred, at the same height. The
+// button is out of the flow, since a block container is what `text-box` trims.
+const trimmedPadding = `calc((${chipLine} + 2 * ${chipInset} - 1cap) / 2)`
+const opticalShift = 'calc((1cap - 1ex) / 4)'
 export const chip: StyleValue = component(
   Style.self({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.2rem',
-    paddingBlock: '0.1rem',
+    position: 'relative',
+    display: 'block',
+    boxSizing: 'border-box',
+    paddingBlock: chipInset,
     paddingInlineStart: '0.6rem',
-    paddingInlineEnd: '0.2rem',
+    paddingInlineEnd: buttonRoom,
     borderRadius: ref.radius.full,
     // A step off the field the other way from `muted`, which is a recessed
     // step: lighter in a dark scheme, darker in a light one.
@@ -67,14 +82,40 @@ export const chip: StyleValue = component(
     fontWeight: ref.weight.medium,
     whiteSpace: 'nowrap',
   }),
+  Style.supports('(text-box: trim-both cap alphabetic)', {
+    textBox: 'trim-both cap alphabetic',
+    paddingBlockStart: `calc(${trimmedPadding} - ${opticalShift})`,
+    paddingBlockEnd: `calc(${trimmedPadding} + ${opticalShift})`,
+  }),
 )
+
+/**
+ * One stroke of the sign, centred in the button by its own middle, so no face's glyph metrics move it.
+ * The button is positioned and sets `--_fk-chip-sign`, the stroke's colour.
+ */
+export const stroke = (turn: string) => ({
+  content: '""',
+  position: 'absolute',
+  insetInlineStart: '50%',
+  insetBlockStart: '50%',
+  inlineSize: `calc(${role('caption').lineHeight} * 0.5)`,
+  blockSize: `calc(${ref.border.glyph} * 0.75)`,
+  borderRadius: ref.radius.full,
+  background: 'var(--_fk-chip-sign)',
+  translate: '-50% -50%',
+  rotate: turn,
+})
 
 export const chipRemove: StyleValue = component(
   Style.self({
-    display: 'grid',
-    placeItems: 'center',
-    inlineSize: '1.25em',
-    blockSize: '1.25em',
+    '--_fk-chip-sign': ref.text.muted,
+    // The chip's own line tall, at the end of the pill with the same inset above, below and after.
+    position: 'absolute',
+    insetBlock: '0',
+    insetInlineEnd: chipInset,
+    marginBlock: 'auto',
+    inlineSize: role('caption').lineHeight,
+    blockSize: role('caption').lineHeight,
     padding: '0',
     border: '0',
     borderRadius: ref.radius.full,
@@ -85,7 +126,12 @@ export const chipRemove: StyleValue = component(
     cursor: 'pointer',
     ...transition('background-color, color'),
   }),
-  hover({ background: unfilledHover, color: ref.text.overt }),
+  // The default sign is drawn, since the multiplication sign sits above or below the middle of its
+  // line by the face; its text stays for a copy and a search. A mark the application words is text.
+  Style.nest('&[data-glyph="cross"]', { fontSize: '0' }),
+  Style.nest('&[data-glyph="cross"]::before', stroke('45deg')),
+  Style.nest('&[data-glyph="cross"]::after', stroke('-45deg')),
+  hover({ '--_fk-chip-sign': ref.text.overt, background: unfilledHover, color: ref.text.overt }),
   focusRing,
   disabled,
 )

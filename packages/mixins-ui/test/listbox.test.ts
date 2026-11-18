@@ -243,8 +243,8 @@ describe('Listbox.parts', () => {
       [
         part.option({ label: 'Apple', description: 'Crisp', icon: h.span([], []) }),
         part.option({ label: 'Pear' }),
-        part.trigger(Option.none(), 'Pick a fruit'),
-        part.trigger(Option.some({ label: 'Apple', icon: h.span([], []) }), 'Pick a fruit'),
+        part.trigger([], 'Pick a fruit'),
+        part.trigger([{ label: 'Apple', icon: h.span([], []) }], 'Pick a fruit'),
       ],
     )
   }
@@ -255,7 +255,7 @@ describe('Listbox.parts', () => {
       const part = ListboxAdapter.parts([style.mixin], { h })
       return which === 'option'
         ? part.option({ label: 'Apple', description: 'Crisp' })
-        : part.trigger(Option.some({ label: 'Apple' }), 'Pick a fruit')
+        : part.trigger([{ label: 'Apple' }], 'Pick a fruit')
     },
   )
 

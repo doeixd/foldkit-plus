@@ -8,9 +8,8 @@ and discarded, like a search match. `foldkit-richtext` owns the contract (`CodeT
 and the producer (`codeDecorations`); this package owns grammars — a tokenizer is a pure
 function from a block's text to token ranges.
 
-```text
-CodeBlock { language, text } ── tokenizer ──> tokens ── codeDecorations ──> DecorationSet ──> renderer
-```
+A `CodeBlock { language, text }` goes through a tokenizer to tokens, `codeDecorations`
+makes a `DecorationSet` of them, and the renderer draws it.
 
 ## Install
 

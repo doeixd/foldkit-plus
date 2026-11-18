@@ -25,37 +25,20 @@
  * with the finger while one drags it. Undocked, it is the column it sits in,
  * and its open state waits for the next narrow screen.
  */
-import { Effect, Match, Option, Schema, Stream } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
-import {
-  Attr,
-  Capability,
-  Event,
-  Slot,
-  Slots,
-  SlotView,
-  Behavior,
-  type NamedStyle,
-  type SlotAttributes,
-} from 'foldkit-mixins'
+import { SlotView, type NamedStyle, type SlotAttributes } from 'foldkit-mixins'
 import { Swipe } from 'foldkit-primitives/dom'
+import { DrawerSlots } from './drawer/slots.js'
 import type { MixinList } from './resolve.js'
-import { PRESS_SLOP, SwipeFrom, swipeOf, type SwipeConfig } from './sheet.js'
+import { PRESS_SLOP, SwipeFrom, swipeOf, type SwipeConfig } from './swipe.js'
 
-export const DrawerSlots = Slots.define({
-  panel: Slot.make({ capability: Capability.Container }),
-  handle: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaExpanded],
-  }),
-  body: Slot.make({ capability: Capability.Container }),
-  /** More of the panel to drag it by, such as a row of tabs: vertical swipes drag, sideways ones scroll. */
-  grip: Slot.make({ capability: Capability.Container }),
-})
+// `keepFocus` is a file of its own, so a page that never reads it keeps its Mount.
+export { keepFocus } from './drawer/keepFocus.js'
+export { DrawerSlots } from './drawer/slots.js'
 
 /** Where a drag began: the handle, whose click it ends with, or a grip, which has none. */
 export const Origin = Schema.Literals(['handle', 'grip'])
@@ -266,43 +249,3 @@ export const view = <Outer>(options: DrawerView<Outer>, h: HtmlBuilder<Outer>): 
     grip: builders.grip.attrs([h.Style({ touchAction: 'pan-x' }), h.OnMount(swipe('grip'))]),
   })
 }
-
-/**
- * The handle takes focus when the panel goes down with focus in its body,
- * which would otherwise drop it to the page as the body is hidden. Pass it
- * beside the style. Not a default: its Mount sends no Message, which a Scene
- * test of every page drawing a Drawer could not resolve. A drag of the grip
- * is how a finger collapses it with focus still in the body.
- */
-const HandleKeepsFocus = Mount.defineStream('DrawerKeepFocus', {
-  messages: [Schema.Never],
-  execute: ({ element }) =>
-    Stream.callback<never>(() =>
-      Effect.acquireRelease(
-        Effect.sync(() => {
-          const observer = new MutationObserver(() => {
-            if (element.getAttribute('data-open') !== 'false') return
-            const active = element.ownerDocument.activeElement
-            const handle = element.querySelector<HTMLElement>('button[aria-expanded]')
-            if (active !== null && active !== handle && element.contains(active))
-              handle?.focus({ preventScroll: true })
-          })
-          observer.observe(element, { attributes: true, attributeFilter: ['data-open'] })
-          return observer
-        }),
-        observer => Effect.sync(() => observer.disconnect()),
-      ),
-    ),
-})
-
-export const keepFocus = [
-  Behavior.forSlots(DrawerSlots)<unknown, never>(
-    {
-      panel: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => HandleKeepsFocus(),
-      }),
-    },
-    { name: 'DrawerKeepFocus' },
-  ).mixin,
-] as const

@@ -60,6 +60,11 @@ export const ScrollArea = Style.recipeFor(ScrollAreaSlots)({
         viewport: variant(Style.self({ overflow: 'auto' })),
       },
     },
+    // `stable` keeps the room a bar takes, so content does not shift as it appears.
+    gutter: {
+      auto: {},
+      stable: { viewport: variant(Style.self({ scrollbarGutter: 'stable' })) },
+    },
   },
-  defaults: { orientation: 'vertical' },
+  defaults: { orientation: 'vertical', gutter: 'auto' },
 })

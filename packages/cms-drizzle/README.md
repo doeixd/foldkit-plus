@@ -34,10 +34,8 @@ boundary is not a filter this package adds somewhere; it is a
 [`visible`](../remote-drizzle/README.md#which-rows-a-principal-may-see) rule on
 each binding, which every one of those paths applies.
 
-```text
-an author's principal ──> entries, drafts, revisions, every content row
-a visitor's principal ──> published content rows, and nothing else
-```
+An author's principal sees entries, drafts, revisions and every content row. A
+visitor's principal sees published content rows and nothing else.
 
 ## Install
 

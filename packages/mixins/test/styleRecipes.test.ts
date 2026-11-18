@@ -149,6 +149,57 @@ describe('recipeFor', () => {
     expect(Style.recipe({ base: Style.class('plain') })({}).classes).toEqual(['plain'])
   })
 
+  describe('add', () => {
+    it('gives an axis a value it lacks, beside the ones it has', () => {
+      const Branded = Card.add({ tone: { brand: { root: Style.class('tone-brand') } } })
+      expect(Branded({ tone: 'brand' }).root.classes).toEqual(['card', 'tone-brand'])
+      expect(Branded({ tone: 'danger', size: 'lg' }).root.classes).toEqual([
+        'card',
+        'tone-danger',
+        'loud',
+      ])
+      expect(Branded().root.classes).toEqual(['card', 'tone-neutral'])
+      expect(Branded().root.style).toEqual({ padding: '4px' })
+    })
+
+    it('leaves the recipe it was called on as it was', () => {
+      Card.add({ tone: { brand: { root: Style.class('tone-brand') } } })
+      expect(Object.keys(Card.def.variants.tone)).toEqual(['neutral', 'danger'])
+    })
+
+    it('gives a recipe an axis it lacks, with no default until extend sets one', () => {
+      const Lifted = Card.add({ lift: { raised: { root: Style.class('raised') } } })
+      expect(Lifted().root.classes).toEqual(['card', 'tone-neutral'])
+      expect(Lifted({ lift: 'raised' }).root.classes).toEqual(['card', 'tone-neutral', 'raised'])
+      const Default = Lifted.extend({
+        variants: { lift: { raised: { title: Style.class('raised-title') } } },
+        defaults: { lift: 'raised' },
+      })
+      expect(Default().root.classes).toEqual(['card', 'tone-neutral', 'raised'])
+      expect(Default().title.classes).toEqual(['title', 'raised-title'])
+      expect(Default({ lift: null }).root.classes).toEqual(['card', 'tone-neutral'])
+      expect(
+        Lifted.add({ lift: { sunken: { root: Style.class('sunken') } } })({ lift: 'sunken' }).root
+          .classes,
+      ).toEqual(['card', 'tone-neutral', 'sunken'])
+    })
+
+    it('refuses a value the axis has, and a slot the contract lacks', () => {
+      expect(
+        codeOf(() => Card.add({ tone: { danger: { root: Style.class('again') } } } as never)),
+      ).toBe('mixins:recipe-value-exists')
+      expect(
+        codeOf(() => Card.add({ tone: { brand: { footer: Style.class('x') } } } as never)),
+      ).toBe('mixins:unknown-slot')
+    })
+
+    it('takes an axis named as an Object member, and writes nothing onto Object', () => {
+      const Odd = Card.add({ constructor: { fkProbe: { root: Style.class('odd') } } })
+      expect(Odd({ constructor: 'fkProbe' }).root.classes).toEqual(['card', 'tone-neutral', 'odd'])
+      expect('fkProbe' in Object).toBe(false)
+    })
+  })
+
   it('feeds forSlots', () => {
     const Named = Style.forSlots(CardSlots)(Card({ tone: 'danger' }))
     const b = SlotView.buildersFor(CardSlots, [Named.mixin], { input: {}, h })

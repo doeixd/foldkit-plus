@@ -87,7 +87,7 @@ const mount = (options: {
           content: part.option({ label: fruit, description: `${fruit} from the orchard` }),
         }),
         buttonContent: part.trigger(
-          Option.map(options.chosen, label => ({ label })),
+          Option.toArray(Option.map(options.chosen, label => ({ label }))),
           'Pick a fruit',
         ),
         toView: Listbox.toView([style.mixin], { h }),

@@ -35,7 +35,7 @@ export const OfflineButtonStyle = demoStyle.forSlots(ButtonSlots)(
   { name: 'OfflineButtonStyle' },
 )
 /** What the server refused. */
-export const RefusedStyle = demoStyle.forSlots(AlertSlots)(Recipes.Alert({ tone: 'error' }), {
+export const RefusedStyle = demoStyle.forSlots(AlertSlots)(Recipes.Alert({ tone: 'danger' }), {
   name: 'RefusedStyle',
 })
 /** What another device's edit replaced, or what an undo left alone. */
@@ -159,7 +159,9 @@ export const PaneSwitchStyle = demoStyle.forSlots(SegmentedSlots)(Recipes.Segmen
 })
 /** Where a device's edits stand: settled, or waiting on the device. */
 export const DeviceBadgeStyle = demoStyle.forSlots(BadgeSlots)(
-  Recipes.Badge({ attribute: 'data-tone', tones: { synced: 'success', waiting: 'warning' } }),
+  Recipes.Badge.extend({
+    base: { badge: Recipes.badgeTones('data-tone', { synced: 'success', waiting: 'warning' }) },
+  })(),
   { name: 'DeviceBadgeStyle' },
 )
 

@@ -10,7 +10,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { ladder, raise, raisedSurface, role } from 'foldkit-mixins/theme'
-import { TourSlots } from '../tour.js'
+import { TourSlots } from '../tour/slots.js'
 import {
   component,
   focusRing,

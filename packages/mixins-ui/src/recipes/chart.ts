@@ -12,7 +12,7 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
-import { ChartSlots } from '../chart.js'
+import { ChartSlots } from '../chart/slots.js'
 import { component, focusRing, ref, transition, variant } from './design.js'
 
 const ink = 'var(--_fk-chart-ink)'
@@ -38,6 +38,9 @@ export const Chart = Style.recipeFor(ChartSlots)({
         display: 'grid',
         gap: ref.space.sm,
         margin: '0',
+        // A size container has no width of its own, so it takes its container's: centred in a
+        // shrink-wrapping box it would otherwise collapse to nothing.
+        inlineSize: '100%',
         minInlineSize: '0',
         color: ref.text.default,
         containerType: 'inline-size',

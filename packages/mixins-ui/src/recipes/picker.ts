@@ -9,7 +9,7 @@
  * `listbox` and `sheet`.
  */
 import { Style } from 'foldkit-mixins'
-import { ladder, Theme } from 'foldkit-mixins/theme'
+import { ladder, role, Theme } from 'foldkit-mixins/theme'
 import { PickerSlots } from '../picker.js'
 import { component, focusRing, pressedHover, ref, steps, unfilledHover, variant } from './design.js'
 import { trigger, triggerLooks } from './listbox.js'
@@ -20,9 +20,9 @@ const below = (name: 'sm' | 'md' | 'lg') => `@media not all and ${Theme.tokens.b
 
 const sheetBelow = (name: 'sm' | 'md' | 'lg') => ({
   dropdown: variant(Style.at(below(name), Style.self({ display: 'none' }))),
-  opener: variant(
+  phone: variant(
     Style.self({ display: 'none' }),
-    Style.at(below(name), Style.self({ display: 'flex' })),
+    Style.at(below(name), Style.self({ display: 'block' })),
   ),
 })
 
@@ -41,6 +41,18 @@ export const Picker = Style.recipeFor(PickerSlots)({
         '--_fk-row-highlight': unfilledHover,
         '--_fk-row-press': pressedHover,
         '--_fk-row-highlight-ink': ref.text.default,
+      }),
+    ),
+    group: component(Style.self({ display: 'grid', gap: ref.space['3xs'] })),
+    // A group's heading in the Sheet: the page's muted text on the Sheet's own surface.
+    heading: component(
+      Style.self({
+        paddingBlock: ref.space['2xs'],
+        paddingInline: ladder('row-pad'),
+        color: ref.text.muted,
+        ...role('caption'),
+        fontWeight: ref.weight.semibold,
+        textTransform: 'uppercase',
       }),
     ),
     option: component(

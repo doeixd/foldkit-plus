@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 import { allSubsites, type Subsite } from '../src/catalog.js'
-import { GITHUB, guidePages, slugger } from '../src/content/guides.js'
+import { GITHUB, guidePages, headingOf, slugger } from '../src/content/guides.js'
 import { textOf } from '../src/content/text.js'
 
 const long = (words: string) => `${words} `.repeat(120).trim()
@@ -50,6 +50,34 @@ const fixture = () => {
     'packages/beta/README.md',
     ['# `foldkit-beta`', '', 'Beta serves.', '', '## Serving it', '', long('Serve.')].join('\n'),
   )
+  write(
+    'packages/gamma/README.md',
+    [
+      '# `foldkit-gamma`',
+      '',
+      'Gamma does one thing.',
+      '',
+      '## What it owns',
+      '',
+      long('Owns.'),
+      '',
+      '## The mental model',
+      '',
+      long('A loop.'),
+      '',
+      '## Install',
+      '',
+      'One line.',
+      '',
+      '## Sixty seconds: one call',
+      '',
+      long('Call.'),
+      '',
+      '## Core concepts',
+      '',
+      long('Concepts.'),
+    ].join('\n'),
+  )
   mkdirSync(join(root, 'examples/alpha'), { recursive: true })
   writeFileSync(join(root, 'examples/alpha/main.ts'), '')
   const subsite: Subsite = {
@@ -58,10 +86,11 @@ const fixture = () => {
     tagline: '',
     owner: '',
     shelf: 'Foundations',
-    packages: ['alpha', 'beta'],
+    packages: ['alpha', 'beta', 'gamma'],
     sources: [
       { id: 'alpha', label: 'foldkit-alpha', file: 'packages/alpha/README.md' },
       { id: 'beta', label: 'foldkit-beta', file: 'packages/beta/README.md' },
+      { id: 'gamma', label: 'foldkit-gamma', file: 'packages/gamma/README.md' },
     ],
   }
   return guidePages(root, [subsite]).pages
@@ -78,6 +107,28 @@ describe('slugger', () => {
   })
 })
 
+describe('headingOf', () => {
+  it("drops the family's prefix from a package's first page, and from no other", () => {
+    const pages = fixture()
+    const at = (path: string) => headingOf(pages.find(page => page.path === path)!)
+    expect(at('/alpha')).toEqual({ heading: 'alpha' })
+    expect(at('/alpha/guides/the-mental-model')).toEqual({})
+    expect(at('/alpha/guides/beta')).toEqual({ heading: 'beta' })
+    expect(at('/alpha/guides/beta/serving-it')).toEqual({})
+  })
+
+  it('keeps foldkit-plus whole, and a document that is no package README', () => {
+    const readme = (name: string, file: string) => ({
+      first: true,
+      title: name,
+      source: { id: 'x', label: name, file },
+    })
+    expect(headingOf(readme('foldkit-plus', 'packages/plus/README.md'))).toEqual({})
+    expect(headingOf(readme('foldkit-remote', 'docs/remote.md'))).toEqual({})
+    expect(headingOf(readme('Remote', 'packages/remote/README.md'))).toEqual({})
+  })
+})
+
 describe('guidePages', () => {
   it('cuts each file at its second-level headings, joining a short section to the page before it', () => {
     expect(fixture().map(page => [page.path, page.label, page.title])).toEqual([
@@ -86,7 +137,21 @@ describe('guidePages', () => {
       ['/alpha/guides/the-mental-model-1', 'The mental model', 'The mental model'],
       ['/alpha/guides/beta', 'Overview', 'foldkit-beta'],
       ['/alpha/guides/beta/serving-it', 'Serving it', 'Serving it'],
+      ['/alpha/guides/gamma', 'Overview', 'foldkit-gamma'],
+      ['/alpha/guides/gamma/core-concepts', 'Core concepts', 'Core concepts'],
     ])
+  })
+
+  it("takes a package's opening, ownership, mental model, install and example into its first page", () => {
+    const gamma = fixture().find(page => page.path === '/alpha/guides/gamma')!
+    expect(gamma.anchors.map(anchor => anchor.text)).toEqual([
+      'What it owns',
+      'The mental model',
+      'Install',
+      'Sixty seconds: one call',
+    ])
+    // A heading moved onto the first page is an anchor there, not a page of its own.
+    expect(gamma.href('#the-mental-model')).toBe('/alpha/guides/gamma#the-mental-model')
   })
 
   it('keeps a joined section under its heading, and lists the headings a page holds', () => {

@@ -23,7 +23,7 @@ import * as Popover from '@foldkit/ui/popover'
 import { type Html, type HtmlBuilder } from 'foldkit/html'
 import { defineView } from 'foldkit/submodel'
 import type { SlotAttributes } from 'foldkit-mixins'
-import { Selection, selectedDate } from './calendar.js'
+import { Selection, selectedDate } from './calendar/selection.js'
 import { idSelector } from './datePickerUtils.js'
 
 /**

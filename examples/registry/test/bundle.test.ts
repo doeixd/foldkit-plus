@@ -55,7 +55,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // Loading "How this page works" as a chunk of its own was tried and measured worse (259,576
 // against 258,080 in that tree): its chunk is 1.5 kB and the split cost more than it saved.
 // Ceiling: the measure plus about 450 bytes.
-const CEILING = 261_000
+// +350 on 2026-11-17 (261,332, against a ceiling of 261,000; CI read 257,640 on 2026-11-15): the causes measured in chirp, whose page
+// holds the same code, each commit built in its own tree: `recipe.add` on every recipe and the
+// default look's theme text (+145 there) and #593's `runtimeJson`, Remote's Model schema (+447).
+// Nothing from mixins-ui's bundles, choice, configure, calendar, combobox or fileUpload modules is in
+// the page; `foldkit-bundle` was already. Ceiling raised to the reading, rounded up.
+const CEILING = 261_350
 
 clientBudget({
   name: 'registry',

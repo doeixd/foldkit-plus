@@ -276,9 +276,16 @@ const pagesEditor = Subscription.lift(Pages.EditorSlot.subscriptions)({
 })
 
 export const subscriptions = {
-  // The window's scroll across the studio's navigations, kept while it runs.
+  // The window's scroll (a phone's) across the studio's navigations, kept while it runs.
   ...Subscription.make<Model, Message>()(() => ({
     scroll: Subscription.persistentEntry(keepScroll()),
+    // The centre column's, where the window does not scroll.
+    columnScroll: Subscription.persistentEntry(
+      keepScroll({
+        scroller: () => document.getElementById('studio-main'),
+        storageKey: 'foldkit:cms-shell-scroll',
+      }),
+    ),
     // Where the reader may go next, read ahead (`PointedAtLink`).
     pointing: Subscription.persistentEntry(
       Stream.map(pointedLinks(), url => Message.PointedAtLink({ url })),

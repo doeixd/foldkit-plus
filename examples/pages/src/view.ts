@@ -336,18 +336,56 @@ const openMenu = (
 ): {
   readonly style: 'toolbar' | 'floating' | undefined
   readonly insert: boolean
+  readonly more: boolean
   readonly link: boolean
   /** The block whose handle menu is open. */
   readonly block: RichText.NodeId | undefined
 } =>
   Option.match(model.menu, {
-    onNone: () => ({ style: undefined, insert: false, link: false, block: undefined }),
+    onNone: () => ({
+      style: undefined,
+      insert: false,
+      more: false,
+      link: false,
+      block: undefined,
+    }),
     onSome: menu =>
       Menu.match(menu, {
-        Style: ({ place }) => ({ style: place, insert: false, link: false, block: undefined }),
-        Insert: () => ({ style: undefined, insert: true, link: false, block: undefined }),
-        Link: () => ({ style: undefined, insert: false, link: true, block: undefined }),
-        Block: ({ node }) => ({ style: undefined, insert: false, link: false, block: node }),
+        Style: ({ place }) => ({
+          style: place,
+          insert: false,
+          more: false,
+          link: false,
+          block: undefined,
+        }),
+        Insert: () => ({
+          style: undefined,
+          insert: true,
+          more: false,
+          link: false,
+          block: undefined,
+        }),
+        More: () => ({
+          style: undefined,
+          insert: false,
+          more: true,
+          link: false,
+          block: undefined,
+        }),
+        Link: () => ({
+          style: undefined,
+          insert: false,
+          more: false,
+          link: true,
+          block: undefined,
+        }),
+        Block: ({ node }) => ({
+          style: undefined,
+          insert: false,
+          more: false,
+          link: false,
+          block: node,
+        }),
       }),
   })
 
@@ -366,7 +404,15 @@ const formatting = (
   const menus = openMenu(model)
   const has = (steps: Model['undo']) => steps.some(step => step.page === open.id)
   const menu: FormattingMenu | undefined =
-    menus.style === place ? 'style' : menus.link ? 'link' : menus.insert ? 'insert' : undefined
+    menus.style === place
+      ? 'style'
+      : menus.link
+        ? 'link'
+        : menus.insert
+          ? 'insert'
+          : menus.more && place === 'toolbar'
+            ? 'more'
+            : undefined
   const onToolbar = place === 'toolbar'
   return (onToolbar ? Bar : SelectionBar)(
     {
@@ -395,14 +441,20 @@ const formatting = (
 }
 
 const menuOf = (which: FormattingMenu, place: 'toolbar' | 'floating'): Menu =>
-  which === 'style' ? Menu.Style({ place }) : which === 'insert' ? Menu.Insert() : Menu.Link()
+  which === 'style'
+    ? Menu.Style({ place })
+    : which === 'insert'
+      ? Menu.Insert()
+      : which === 'more'
+        ? Menu.More()
+        : Menu.Link()
 
 /** The bar, with a marker that closes an open menu on a press outside the bar or on Escape. */
 const toolbar = (model: Model, open: PageState, view: EditorView, slots: Slots, h: H): Html => {
   const menus = openMenu(model)
   return h.div(slots.barRegion.attrs(), [
     formatting(model, open, view, 'toolbar', h),
-    ...(menus.style === 'toolbar' || menus.insert ? [dismiss(slots, h)] : []),
+    ...(menus.style === 'toolbar' || menus.insert || menus.more ? [dismiss(slots, h)] : []),
   ])
 }
 
@@ -413,7 +465,7 @@ const canvas = (model: Model, open: PageState, view: EditorView, slots: Slots, h
   const menuText = menuTextOf(view)
   const slash = slashMenu(slashEntries, menuText, model.menuIndex)
   const floating =
-    RichText.coversText(view.selection) && !menus.insert && menus.block === undefined
+    RichText.coversText(view.selection) && !menus.insert && !menus.more && menus.block === undefined
       ? [
           h.div(
             slots.floating.attrs([h.OnMount(selectionAnchor({ hostId, gap: 8 }))]),

@@ -10,7 +10,7 @@ import { SSR } from 'foldkit-ssr/client'
 
 import { onGitHub } from '../demos.js'
 import { showcases } from '../gallery/showcases.js'
-import { selectionCode, valueOf, type Live, type Showcase } from '../gallery/showcase.js'
+import { idleHint, selectionCode, valueOf, type Live, type Showcase } from '../gallery/showcase.js'
 import {
   defaults,
   packStyleOf,
@@ -28,14 +28,11 @@ import type { H, Slots } from './layout.js'
 export const liveOf = (model: Model, h: H): Live<Message> => ({
   switched: model.switched,
   onSwitch: on => Message.ToggledSwitch({ on }),
-  chosen: model.chosenCard,
-  onChoose: key => Message.ChoseCard({ key }),
-  dismissed: model.cardDismissed,
-  onDismiss: Message.DismissedCard(),
-  onRestore: Message.RestoredCard(),
   direction: model.direction,
   widgets: model.widgets,
   onWidget: message => Message.GotWidget({ message }),
+  examples: model.examples,
+  onExample: (key, message) => Message.GotExample({ key, message }),
   ready: model.addressRead,
   h,
 })
@@ -101,23 +98,31 @@ export const choices = <A extends string>(
   values: ReadonlyArray<{ readonly value: A; readonly label: string }>,
   current: A,
   toMessage: (value: A) => Message,
+  idle?: string,
 ): Html =>
-  h.fieldset(slots.axis.attrs(), [
-    h.legend(slots.axisName.attrs(), [name]),
-    h.div(
-      slots.choices.attrs(),
-      values.map(({ value, label }) =>
-        h.button(
-          slots.choice.attrs([
-            h.Type('button'),
-            h.AriaPressed(String(value === current)),
-            h.OnClick(toMessage(value)),
-          ]),
-          [label],
+  // A disabled fieldset disables every button in it, and each keeps its pressed mark.
+  h.fieldset(
+    slots.axis.attrs([
+      ...(idle === undefined ? [] : [h.Disabled(true), h.DataAttribute('idle', 'true')]),
+    ]),
+    [
+      h.legend(slots.axisName.attrs(), [name]),
+      h.div(
+        slots.choices.attrs(),
+        values.map(({ value, label }) =>
+          h.button(
+            slots.choice.attrs([
+              h.Type('button'),
+              h.AriaPressed(String(value === current)),
+              h.OnClick(toMessage(value)),
+            ]),
+            [label],
+          ),
         ),
       ),
-    ),
-  ])
+      ...(idle === undefined ? [] : [h.p(slots.axisHint.attrs(), [idle])]),
+    ],
+  )
 
 const schemes: ReadonlyArray<{ readonly value: Scheme; readonly label: string }> = [
   { value: 'system', label: 'System' },
@@ -207,116 +212,153 @@ export const componentsPage = (model: Model, slots: Slots, h: H): ReadonlyArray<
   ]
 }
 
+/**
+ * Under an example module's code: what of it an application keeps. The
+ * `example({ … })` around it is this site's harness.
+ */
+const kept = (stateful: boolean, slots: Slots, h: H): Html =>
+  h.p(
+    slots.rowText.attrs(),
+    (stateful
+      ? 'In your application: `recipe` goes to `forSlots`, `state` to `Bundle.withChild`, and the body of `view` is the call. `example` is this site’s harness.'
+      : 'In your application: `recipe` goes to `forSlots`, and the body of `view` is the call. `example` is this site’s harness.'
+    )
+      .split('`')
+      .map((part, at) => (at % 2 === 1 ? h.code([], [part]) : part)),
+  )
+
 export const componentPage = (
   model: Model,
   showcase: Showcase,
   library: Library,
   slots: Slots,
   h: H,
-): ReadonlyArray<Html> => [
-  h.section(slots.hero.attrs(), [
-    h.p(slots.eyebrow.attrs(), [h.a(slots.titleLink.attrs([h.Href(COMPONENTS)]), ['Components'])]),
-    h.h1(slots.heroTitle.attrs(), [showcase.title]),
-    h.p(slots.lede.attrs(), [showcase.summary]),
-    themeNotice(model, slots, h),
-  ]),
-  h.div(slots.stage.attrs(), [
-    h.div(slots.toolbar.attrs(), [
-      ...showcase.axes.map(axis =>
-        choices(
-          slots,
-          h,
-          axis.name,
-          axis.values.map(value => ({ value, label: value })),
-          valueOf(axis, model.selection),
-          value => Message.PickedVariant({ axis: axis.name, value }),
-        ),
-      ),
-      schemeChoice(model, slots, h),
-      directionChoice(model, slots, h),
-    ]),
-    ...(showcase.examples.length === 0
-      ? [
-          preview(model, 'page', slots, h, [showcase.preview(model.selection, liveOf(model, h))]),
-          h.p(slots.selection.attrs(), [selectionCode(showcase, model.selection)]),
-        ]
-      : showcase.examples.flatMap(example => [
-          h.section(slots.section.attrs([h.AriaLabelledBy(example.name)]), [
-            h.h2(slots.sectionTitle.attrs([h.Id(example.name)]), [
-              example.title,
-              ' ',
-              h.a(slots.titleLink.attrs([h.Href(`#${example.name}`)]), ['#']),
-            ]),
-            preview(model, 'page', slots, h, [example.render(model.selection, liveOf(model, h))]),
-            h.div(slots.themeCode.attrs(), [
-              SSR.static(
-                `usage-${showcase.slug}-${example.name}`,
-                library.usage(`${showcase.slug}-${example.name}`),
-              ),
-            ]),
-          ]),
-        ])),
-  ]),
-  h.section(slots.section.attrs([h.AriaLabelledBy('usage')]), [
-    h.h2(slots.sectionTitle.attrs([h.Id('usage')]), ['Usage']),
-    h.p(slots.rowText.attrs(), [
-      showcase.examples.length === 0
-        ? 'The function that drew the preview, over the theme module '
-        : 'Each example above names the function that drew it, over the theme module ',
-      h.a([h.Href(CREATE)], ['Create a theme']),
-      ' writes. The preview passes it the style picked above instead of its default.',
-    ]),
-    ...(showcase.examples.length === 0
-      ? [
-          h.div(slots.themeCode.attrs(), [
-            SSR.static(`usage-${showcase.slug}`, library.usage(showcase.slug)),
-          ]),
-        ]
-      : []),
-    h.p(slots.rowActions.attrs(), [
-      h.a(
-        slots.source.attrs([
-          h.Href(onGitHub(`packages/mixins-ui/src/recipes/${showcase.file}.ts`)),
-        ]),
-        ['The recipe ↗'],
-      ),
-      h.a(slots.source.attrs([h.Href(onGitHub('examples/site/src/snippets/components.ts'))]), [
-        'This code ↗',
+): ReadonlyArray<Html> => {
+  const whole = showcase.examples.some(example => example.code === 'module')
+  return [
+    h.section(slots.hero.attrs(), [
+      h.p(slots.eyebrow.attrs(), [
+        h.a(slots.titleLink.attrs([h.Href(COMPONENTS)]), ['Components']),
       ]),
+      h.h1(slots.heroTitle.attrs(), [showcase.title]),
+      h.p(slots.lede.attrs(), [showcase.summary]),
+      themeNotice(model, slots, h),
     ]),
-  ]),
-  ...Option.match(Option.fromNullishOr(notesFor(showcase.slug)), {
-    onNone: () => [],
-    onSome: ({ heading, lines }) => [
-      h.section(slots.section.attrs([h.AriaLabelledBy('accessibility')]), [
-        h.h2(slots.sectionTitle.attrs([h.Id('accessibility')]), ['Keyboard and accessibility']),
-        h.div(slots.rowText.attrs(), [
-          h.ul(
-            [],
-            lines.map(line =>
-              h.li(
-                [],
-                line.split('`').map((part, at) => (at % 2 === 1 ? h.code([], [part]) : part)),
+    h.div(slots.stage.attrs(), [
+      h.div(slots.toolbar.attrs(), [
+        ...showcase.axes.map(axis =>
+          choices(
+            slots,
+            h,
+            axis.name,
+            axis.values.map(value => ({ value, label: value })),
+            valueOf(axis, model.selection),
+            value => Message.PickedVariant({ axis: axis.name, value }),
+            idleHint(showcase.axes, axis, model.selection),
+          ),
+        ),
+        schemeChoice(model, slots, h),
+        directionChoice(model, slots, h),
+      ]),
+      ...(showcase.examples.length === 0
+        ? [
+            preview(model, 'page', slots, h, [showcase.preview(model.selection, liveOf(model, h))]),
+            h.p(slots.selection.attrs(), [selectionCode(showcase, model.selection)]),
+          ]
+        : showcase.examples.flatMap(example => [
+            h.section(slots.section.attrs([h.AriaLabelledBy(example.name)]), [
+              h.h2(slots.sectionTitle.attrs([h.Id(example.name)]), [
+                example.title,
+                ' ',
+                h.a(slots.titleLink.attrs([h.Href(`#${example.name}`)]), ['#']),
+              ]),
+              preview(model, 'page', slots, h, [example.render(model.selection, liveOf(model, h))]),
+              h.div(slots.themeCode.attrs(), [
+                SSR.static(
+                  `usage-${showcase.slug}-${example.name}`,
+                  example.code === 'module'
+                    ? library.module(showcase.slug, example.name)
+                    : library.usage(`${showcase.slug}-${example.name}`),
+                ),
+              ]),
+              ...(example.code === 'module' ? [kept(example.stateful, slots, h)] : []),
+            ]),
+          ])),
+    ]),
+    h.section(slots.section.attrs([h.AriaLabelledBy('usage')]), [
+      h.h2(slots.sectionTitle.attrs([h.Id('usage')]), ['Usage']),
+      h.p(slots.rowText.attrs(), [
+        showcase.examples.length === 0
+          ? 'The function that drew the preview, over the theme module '
+          : whole
+            ? 'Each example above is a module of its own, shown whole and run as shown, over the theme module '
+            : 'Each example above names the function that drew it, over the theme module ',
+        h.a([h.Href(CREATE)], ['Create a theme']),
+        whole
+          ? ' writes. The page hands it the style picked above.'
+          : ' writes. The preview passes it the style picked above instead of its default.',
+      ]),
+      ...(showcase.examples.length === 0
+        ? [
+            h.div(slots.themeCode.attrs(), [
+              SSR.static(`usage-${showcase.slug}`, library.usage(showcase.slug)),
+            ]),
+          ]
+        : []),
+      h.p(slots.rowActions.attrs(), [
+        h.a(
+          slots.source.attrs([
+            h.Href(onGitHub(`packages/mixins-ui/src/recipes/${showcase.file}.ts`)),
+          ]),
+          ['The recipe ↗'],
+        ),
+        h.a(
+          slots.source.attrs([
+            h.Href(
+              onGitHub(
+                whole
+                  ? `examples/site/src/examples/${showcase.slug}`
+                  : 'examples/site/src/snippets/components.ts',
               ),
             ),
-          ),
-        ]),
-        h.p(slots.rowActions.attrs(), [
-          h.a(slots.source.attrs([h.Href(onGitHub(`${README}#${anchorOf(heading)}`))]), [
-            `${heading} in the README ↗`,
           ]),
-        ]),
+          ['This code ↗'],
+        ),
       ]),
-    ],
-  }),
-  ...(topicsFor(showcase.slug).length === 0
-    ? []
-    : [
-        h.section(slots.section.attrs([h.AriaLabelledBy('related')]), [
-          h.h2(slots.sectionTitle.attrs([h.Id('related')]), ['Related']),
+    ]),
+    ...Option.match(Option.fromNullishOr(notesFor(showcase.slug)), {
+      onNone: () => [],
+      onSome: ({ heading, lines }) => [
+        h.section(slots.section.attrs([h.AriaLabelledBy('accessibility')]), [
+          h.h2(slots.sectionTitle.attrs([h.Id('accessibility')]), ['Keyboard and accessibility']),
           h.div(slots.rowText.attrs(), [
-            SSR.static(`related-${showcase.slug}`, library.related(showcase.slug)),
+            h.ul(
+              [],
+              lines.map(line =>
+                h.li(
+                  [],
+                  line.split('`').map((part, at) => (at % 2 === 1 ? h.code([], [part]) : part)),
+                ),
+              ),
+            ),
+          ]),
+          h.p(slots.rowActions.attrs(), [
+            h.a(slots.source.attrs([h.Href(onGitHub(`${README}#${anchorOf(heading)}`))]), [
+              `${heading} in the README ↗`,
+            ]),
           ]),
         ]),
-      ]),
-]
+      ],
+    }),
+    ...(topicsFor(showcase.slug).length === 0
+      ? []
+      : [
+          h.section(slots.section.attrs([h.AriaLabelledBy('related')]), [
+            h.h2(slots.sectionTitle.attrs([h.Id('related')]), ['Related']),
+            h.div(slots.rowText.attrs(), [
+              SSR.static(`related-${showcase.slug}`, library.related(showcase.slug)),
+            ]),
+          ]),
+        ]),
+  ]
+}

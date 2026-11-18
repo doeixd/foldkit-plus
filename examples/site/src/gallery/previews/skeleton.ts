@@ -1,23 +1,23 @@
 import { Recipes, SkeletonSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
+import basic from '../../examples/skeleton/basic.js'
+import lines from '../../examples/skeleton/lines.js'
+import shapes from '../../examples/skeleton/shapes.js'
+import shimmer from '../../examples/skeleton/shimmer.js'
+import sized from '../../examples/skeleton/sized.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
 export const showcase = fromRecipe(
   about('skeleton'),
   SkeletonSlots,
   Recipes.Skeleton,
-  style => Snippet.skeleton(style, inert),
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Basic', draw: style => Snippet.skeleton(style, inert) },
-    { name: 'lines', title: 'Lines', draw: style => Snippet.skeletonLines(style, inert) },
-    { name: 'shapes', title: 'Shapes', draw: style => Snippet.skeletonShapes(style, inert) },
-    {
-      name: 'shimmer',
-      title: 'Shimmer',
-      draw: style => Snippet.skeletonShimmer(style, inert),
-      pins: { animation: 'shimmer' },
-    },
+    { name: 'basic', example: basic },
+    { name: 'lines', example: lines },
+    { name: 'shapes', example: shapes },
+    { name: 'shimmer', example: shimmer },
+    { name: 'sized', example: sized },
   ],
 )

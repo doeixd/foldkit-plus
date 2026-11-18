@@ -1,6 +1,6 @@
 # foldkit-bundle
 
-Checked against `foldkit-bundle` 0.13.0 and `foldkit-bundle-surface` 0.10.0.
+Checked against `foldkit-bundle` 0.14.0 and `foldkit-bundle-surface` 0.10.0.
 
 Packages a Foldkit **Submodel once** (Model, Message, init, update,
 Subscriptions, Managed Resources, view, helpers) and places it in a parent.
@@ -298,7 +298,10 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   `Option` field.
 - **@foldkit/ui components:** `Bundle.fromParts('Tabs', { Model: Tabs.Model,
   Message: Tabs.Message, init: (config: Tabs.InitConfig) => Tabs.init(config),
-  parts: Tabs.create<Value>() })`.
+  parts: Tabs.create<Value>() })`. `foldkit-mixins-ui` ships its stateful
+  widgets ready to place as `Bundles.X` (`Bundles.TagsInput`,
+  `Bundles.Combobox` so far; see `mixins.md`): headless, with `init`'s
+  options as the args.
 - **Module ownership:** `const Page = BundleSurface.parent(App)` from
   `foldkit-bundle-surface`, then
   `Module.validate(Page.module(placements, [otherContracts]))`.

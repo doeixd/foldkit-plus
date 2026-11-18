@@ -314,3 +314,42 @@ describe('Command routes', () => {
     ).toThrow(/"Next" and "MyDown"/)
   })
 })
+
+describe('Command.configure', () => {
+  const App = Command.configure({
+    base: { placeholder: 'Type a command', words: { empty: 'Nothing here' }, style },
+    presets: { files: { placeholder: 'Find a file', words: { empty: 'No files' } } },
+  })
+  const asked = (more: {
+    readonly preset?: 'files'
+    readonly query?: string
+    readonly placeholder?: string
+  }) =>
+    App.view(
+      {
+        id: 'palette',
+        label: 'Search commands',
+        groups,
+        query: more.query ?? '',
+        onQuery: () => message('Other'),
+        active: Option.none(),
+        onActive: () => message('Other'),
+        onRun: () => message('Clicked'),
+        ...(more.preset === undefined ? {} : { preset: more.preset }),
+        ...(more.placeholder === undefined ? {} : { placeholder: more.placeholder }),
+      },
+      h,
+    )
+
+  it('draws the base wording, the preset’s over it and the call’s over both', () => {
+    const placeholder = (drawing: ReturnType<typeof asked>) =>
+      Inert.value(Inert.byTag(drawing, 'input')[0], 'placeholder')
+    expect(placeholder(asked({}))).toBe('Type a command')
+    expect(placeholder(asked({ preset: 'files' }))).toBe('Find a file')
+    expect(placeholder(asked({ preset: 'files', placeholder: 'Jump to…' }))).toBe('Jump to…')
+  })
+
+  it('says the preset’s empty word where nothing matches', () => {
+    expect(Inert.text(asked({ preset: 'files', query: 'zzz' }))).toContain('No files')
+  })
+})

@@ -21,6 +21,7 @@ import {
   ComboboxView,
   Nav,
   Pagination,
+  ChoiceChange,
   Picker,
   Rating,
   Segmented,
@@ -54,10 +55,8 @@ const pointsAt = (page: Document, from: string, name: string): Element => {
 
 const holds = (result: Conformance.Result) => expect(Conformance.failures(result)).toEqual([])
 
-const sorts = [
-  { value: 'relevance', label: 'Most relevant' },
-  { value: 'price', label: 'Lowest price' },
-]
+const sorts = Picker.one(['relevance', 'price'])
+const sortLabels = { relevance: 'Most relevant', price: 'Lowest price' }
 
 describe('navigation', () => {
   test('a nested, checkable tree names its rows, levels, checks and open state', async () => {
@@ -364,9 +363,10 @@ describe('choosing', () => {
             model,
             label: 'Sort',
             placeholder: 'Choose',
-            value: Option.some('price'),
+            value: sorts.picked(Option.none(), ChoiceChange.Selected({ value: 'price' })),
             onMessage: message => message,
-            options: sorts,
+            choice: sorts,
+            option: item => ({ label: sortLabels[item] }),
           },
           h,
         ),

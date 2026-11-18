@@ -176,11 +176,22 @@ export default [
     edits: [
       {
         file,
-        find: '[h.div(builders.loading.attrs(), [options.loading])]',
+        find: '[h.div(builders.loading.attrs(), [said.loading])]',
         replace: '[]',
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'the words given are not read',
+    edits: [
+      {
+        file,
+        find: 'const said = wordsOf(defaultWords, options.words)',
+        replace: 'const said = defaultWords',
+      },
+    ],
+    tests: [unit],
   },
   {
     name: 'a hint draws no words',
@@ -270,5 +281,10 @@ export default [
       },
     ],
     tests: [unit, browser],
+  },
+  {
+    name: 'a Command preset is ignored',
+    edits: [{ file, find: 'view(layered(config, options), h)', replace: 'view(options, h)' }],
+    tests: [unit],
   },
 ]

@@ -16,6 +16,8 @@ export const COPY_ATTRIBUTE = 'data-copy-code'
 /** The component gallery and the theme creator; each component's page is under the gallery's. */
 export const COMPONENTS = '/components'
 export const CREATE = '/create'
+/** The primitives gallery: each of the package's subpaths as a family of cards and live examples. */
+export const PRIMITIVES_GALLERY = '/primitives/gallery'
 
 /** What a static region holds. */
 export type Region = ReadonlyArray<Html | string>
@@ -37,6 +39,10 @@ export interface Library {
   readonly example: (example: Example | 'app' | 'remote') => Draw
   /** A component's code, as `src/snippets/components.ts` draws it, coloured. */
   readonly usage: (slug: string) => Draw
+  /** An example module's whole text (`src/examples/<slug>/<name>.ts`), coloured. */
+  readonly module: (slug: string, name: string) => Draw
+  /** A primitive example's source, as `snippets/primitives.ts` writes it, coloured. */
+  readonly primitive: (id: string) => Draw
   /** The guides a component page links for the mechanisms that apply to it. */
   readonly related: (slug: string) => Draw
 }
@@ -61,5 +67,7 @@ export const browserLibrary: Library = {
   outline: () => unavailable('outline'),
   example: () => unavailable('example'),
   usage: () => unavailable('usage'),
+  module: () => unavailable('example module'),
+  primitive: () => unavailable('primitive example'),
   related: () => unavailable('related topics'),
 }

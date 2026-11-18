@@ -1,104 +1,14 @@
 import { Option } from 'effect'
-import {
-  Attr,
-  Behavior,
-  Behaviors,
-  Capability,
-  Event,
-  Slot,
-  Slots,
-  SlotView,
-  type NamedStyle,
-} from 'foldkit-mixins'
+import { Behaviors, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
-import { FluidHover, Measure } from 'foldkit-primitives/dom'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
-import { FollowDirection } from './direction.js'
 import { flipped } from './choices.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { SegmentedSlots } from './segmented/slots.js'
 
-/**
- * A segmented control: one `group` of `option`s. A single choice, the
- * default, is the APG's radio group: `role="radiogroup"` of `role="radio"`
- * options with `aria-checked`, one tab stop (the chosen option, else the first
- * enabled), and the arrows, Home and End moving the choice and focus together.
- * With `multiple` it is shadcn's and Zag's toggle group: a `role="group"` of
- * buttons with `aria-pressed`, any number on, each filling itself (draw it
- * without `fluid`, whose pill marks one), every one a tab stop.
- * `indicator` and `highlight`, drawn first in the group, are the chosen
- * option's sliding pill and the hover that follows the pointer, which `fluid`
- * moves. `hiddenInput` carries the form value when the group has a `name`.
- */
-export const SegmentedSlots = Slots.define({
-  group: Slot.make({
-    capability: Capability.Container,
-    events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel, Attr.AriaDisabled],
-  }),
-  option: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.Role, Attr.AriaPressed, Attr.AriaChecked, Attr.Disabled, Attr.AriaDisabled],
-  }),
-  /** An option's words, a box of their own so they can be trimmed apart from the option's steady copy. */
-  label: Slot.make({ capability: Capability.Container }),
-  /** A mark before an option's words, hidden from assistive technology. */
-  icon: Slot.make({ capability: Capability.Container }),
-  /** An option's mark and words in a row, drawn only for an option with an icon. */
-  content: Slot.make({ capability: Capability.Container }),
-  indicator: Slot.make({ capability: Capability.Container }),
-  highlight: Slot.make({ capability: Capability.Container }),
-  /** One per chosen value, drawn when the group has a `name`, so a form submits them. */
-  hiddenInput: Slot.make({ capability: Capability.Base, attributes: [Attr.Value] }),
-})
-
-// A chosen option is `aria-checked` in a single choice and `aria-pressed` in a multiple one.
-const pressed = ':is([aria-pressed="true"], [aria-checked="true"])'
-
-/**
- * What moves the `indicator` and `highlight`, on the group: the pressed
- * option is measured (`--fk-segmented-chosen-*`) and one highlight follows
- * the pointer to the nearest option (`--fk-segmented-hover-*`), born at the
- * pressed one. Pass them beside the style; until they run, the pressed option
- * fills itself.
- */
-export const fluid = [
-  Behavior.forSlots(SegmentedSlots)<unknown, never>(
-    {
-      group: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => Measure({ targets: { 'segmented-chosen': pressed } }),
-      }),
-    },
-    { name: 'SegmentedChosen' },
-  ).mixin,
-  Behavior.forSlots(SegmentedSlots)<unknown, never>(
-    {
-      group: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () =>
-          FluidHover({
-            name: 'segmented-hover',
-            item: ':is([aria-pressed], [aria-checked])',
-            axis: 'x',
-            gapClick: true,
-            from: pressed,
-          }),
-      }),
-    },
-    { name: 'SegmentedHover' },
-  ).mixin,
-  // Measured again when the direction flips, which resizes nothing.
-  Behavior.forSlots(SegmentedSlots)<unknown, never>(
-    {
-      group: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => FollowDirection(),
-      }),
-    },
-    { name: 'SegmentedDirection' },
-  ).mixin,
-] as const
+export { fluid } from './segmented/fluid.js'
+export { SegmentedSlots } from './segmented/slots.js'
 
 /** One option of a segmented control: what it stands for, and its words. */
 export interface SegmentedOption<Value extends string> {
@@ -122,6 +32,8 @@ interface SegmentedCommon<Value extends string, Message> {
   readonly label: string
   /** Submits the chosen values under this name, one hidden input each, in the options' order. */
   readonly name?: string | undefined
+  /** `vertical` stacks the options, which the recipe lays out; the arrow keys are as in a row. Default `horizontal`. */
+  readonly orientation?: 'horizontal' | 'vertical' | undefined
   /** Every option is off and the group says so (`aria-disabled`); no key or press is taken. */
   readonly disabled?: boolean | undefined
   /** A style of `SegmentedSlots`, for the control's look. */
@@ -249,6 +161,7 @@ export const view = <Value extends string, Message>(
     builders.group.attrs([
       h.Role(multiple ? 'group' : 'radiogroup'),
       h.AriaLabel(options.label),
+      h.DataAttribute('orientation', options.orientation ?? 'horizontal'),
       ...(off ? [h.AriaDisabled(true)] : []),
     ]),
     [
@@ -293,3 +206,28 @@ export const view = <Value extends string, Message>(
     ],
   )
 }
+
+/** What a Segmented is given once: its look and the options that hold no Message and nothing of one use's choice. */
+export type SegmentedPreset = Pick<
+  SegmentedSingle<string, never>,
+  'orientation' | 'direction' | 'style'
+> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Segmented: `base` for every use, `presets` chosen at
+ * a use with `preset`, and the call over both. `mixins` concatenate in that
+ * order (`Segmented.fluid` goes in `base`); any other option given at the
+ * call replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<SegmentedPreset, Names>,
+): {
+  readonly view: <const Value extends string, Outer>(
+    options: SegmentedView<Value, Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

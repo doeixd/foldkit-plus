@@ -12,7 +12,15 @@ import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { TableSlots, defineColumns, nextSort, view, type TableView } from '../src/table.js'
+import {
+  TableSlots,
+  checkboxes,
+  configure,
+  defineColumns,
+  nextSort,
+  view,
+  type TableView,
+} from '../src/table.js'
 // From the modules, not the index: the test reads nothing else.
 import { CheckboxSlots } from '../src/checkbox.js'
 import { Table } from '../src/recipes/table.js'
@@ -57,7 +65,7 @@ const selection = (chosen: ReadonlyArray<string>) => ({
   onToggle: (row: Product, selected: boolean) => Pressed.Chose({ name: row.name, selected }),
   onToggleAll: (selected: boolean) => Pressed.ChoseAll({ selected }),
   rowLabel: (row: Product) => `Select ${row.name}`,
-  checkbox,
+  control: checkboxes(checkbox),
 })
 
 const expansion = (open: ReadonlyArray<string>) => ({
@@ -195,7 +203,7 @@ describe('Table cells', () => {
     expect(Inert.text(head)).toBe('Details')
     expect(Inert.value(head, 'scope')).toBe('col')
     expect(Inert.byTag(Inert.byTag(table, 'thead')[0], 'td')).toHaveLength(0)
-    const named = drawn({ expansion: { ...expansion([]), headerLabel: 'Mehr' } })
+    const named = drawn({ expansion: expansion([]), words: { details: 'Mehr' } })
     expect(Inert.text(Inert.byTag(Inert.byTag(named, 'thead')[0], 'th')[0])).toBe('Mehr')
   })
 })
@@ -327,5 +335,91 @@ describe('defineColumns', () => {
     expect(named).toHaveLength(1)
     expect(Inert.byTag(table, 'button')).toHaveLength(1)
     expect(Inert.text(table)).toContain(rows[0]?.name)
+  })
+})
+
+describe('Table footer', () => {
+  const totals = [
+    { header: 'Product', value: (row: Product) => row.name, footer: 'Total' },
+    { header: 'Price', numeric: true, value: (row: Product) => row.price, footer: '25.50' },
+  ]
+
+  it('draws one totals row after the body, numeric cells marked', () => {
+    const table = drawn({ columns: totals })
+    const [foot] = Inert.byTag(table, 'tfoot')
+    const cells = Inert.byTag(foot!, 'td')
+    expect(cells.map(cell => Inert.text(cell))).toEqual(['Total', '25.50'])
+    expect(Inert.value(cells[1], 'data-numeric')).toBe('')
+    expect(Inert.value(cells[0], 'data-numeric')).toBeUndefined()
+  })
+
+  it('is not drawn when no column has a footer', () => {
+    expect(Inert.byTag(drawn(), 'tfoot')).toHaveLength(0)
+  })
+
+  it('leaves the control columns blank so the totals line up with their columns', () => {
+    const table = drawn({
+      columns: totals,
+      selection: selection([]),
+      expansion: expansion([]),
+    })
+    const [foot] = Inert.byTag(table, 'tfoot')
+    const cells = Inert.byTag(foot!, 'td').map(cell => Inert.text(cell))
+    expect(cells).toEqual(['', '', 'Total', '25.50'])
+  })
+})
+
+describe('Table words and header', () => {
+  it('names the boxes and the open buttons from words, and a row from its own label', () => {
+    const table = drawn({
+      selection: { ...selection([]), rowLabel: undefined },
+      expansion: { ...expansion([]), label: undefined },
+      words: { selectRow: 'Wählen', selectAll: 'Alle wählen', showDetails: 'Öffnen' },
+    })
+    const names = Inert.byTag(table, 'span').map(span => Inert.text(span))
+    expect(names).toContain('Alle wählen')
+    expect(names.filter(name => name === 'Wählen')).toHaveLength(3)
+    const buttons = Inert.byTag(table, 'button').filter(
+      button => Inert.value(button, 'aria-expanded') !== undefined,
+    )
+    expect(buttons.map(button => Inert.value(button, 'aria-label'))).toEqual([
+      'Öffnen',
+      'Öffnen',
+      'Öffnen',
+    ])
+  })
+
+  it('draws markup in a heading', () => {
+    const table = drawn({
+      columns: [{ header: h.em([], ['Price']), value: (row: Product) => row.price }],
+    })
+    expect(Inert.byTag(Inert.byTag(table, 'th')[0]!, 'em')).toHaveLength(1)
+  })
+})
+
+describe('Table.configure', () => {
+  it('binds the style and words, and the call wins over both', () => {
+    const configured = configure({
+      base: { style, words: { selectAll: 'Everything' } },
+      presets: { german: { words: { selectAll: 'Alle' } } },
+    })
+    const draw = (options: {
+      readonly preset?: 'german'
+      readonly words?: { selectAll: string }
+    }) =>
+      configured.view(
+        {
+          columns,
+          rows,
+          selection: selection([]),
+          ...options,
+        },
+        h,
+      )
+    const named = (table: ReturnType<typeof draw>) =>
+      Inert.byTag(table, 'span').map(span => Inert.text(span))
+    expect(named(draw({}))).toContain('Everything')
+    expect(named(draw({ preset: 'german' }))).toContain('Alle')
+    expect(named(draw({ preset: 'german', words: { selectAll: 'Tout' } }))).toContain('Tout')
   })
 })

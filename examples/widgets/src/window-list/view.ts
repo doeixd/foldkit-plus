@@ -66,7 +66,7 @@ export const WindowListIsland = (model: Model, h: HtmlBuilder<Message>): Html =>
         itemToKey,
         // Focusable, so a name pressed or tabbed to stays drawn while the page scrolls away from it.
         itemToView: name => h.span(slots.name.attrs([h.Tabindex(-1)]), [name]),
-        onMessage: message => Message.GotList({ message }),
+        onMessage: message => Message.GotListMessage({ message }),
         label: 'Names',
         findable: name => name,
         style: rows,
@@ -85,7 +85,7 @@ export const runDemo = (): ReadonlyArray<string> => {
   const lines = [`start: ${drawn()}`]
   model = update(
     model,
-    Message.GotList({ message: WindowList.Message.Placed({ top: 20_000, height: 800 }) }),
+    Message.GotListMessage({ message: WindowList.Message.Placed({ top: 20_000, height: 800 }) }),
   ).model
   lines.push(`scrolled 20000px down: ${drawn()}`)
   for (const text of ['700', '1200']) {

@@ -10,10 +10,9 @@ the application's `update`; it performs no I/O and holds no editor store. DOM
 editing lives in [`foldkit-richtext-dom`](../richtext-dom); Form/CMS integration
 and Sync replication are not implemented yet.
 
-```text
-EditorState + Transaction → next EditorState + ChangeSet + positionMap
-                         ↘ diagnostic, with no partial result
-```
+A command applies a Transaction to an `EditorState` and gives the next
+`EditorState`, a `ChangeSet` and a `positionMap`. A transaction that cannot be
+applied gives a diagnostic and no partial result.
 
 ## A small edit
 

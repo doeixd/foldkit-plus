@@ -1,9 +1,11 @@
 import { Option } from 'effect'
-import { Layout, Picture, type ImageAsset, type Provider } from 'foldkit-media'
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
-import { imgAttributes } from './imageAttributes.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
+
+export { picture } from './avatar/picture.js'
 
 /**
  * An avatar publishes its regions as slots; it owns no state, messages, or
@@ -13,13 +15,14 @@ import type { MixinList } from './resolve.js'
  * hears the name once, not the initials. It carries the name's hue as
  * `--fk-avatar-hue` (0 to 359, the same for the same name everywhere), for a
  * style that colours the initials by who they are. The status dot carries
- * `data-status`.
+ * `data-status`; a badge carries `data-place`, its corner.
  */
 export const AvatarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   fallback: Slot.make({ capability: Capability.Container }),
   image: Slot.make({ capability: Capability.Container }),
   status: Slot.make({ capability: Capability.Container }),
+  badge: Slot.make({ capability: Capability.Container }),
 })
 
 /** An avatar's sizes, in rem: the recipe's `size` axis draws them, and `widthOf` reads them. */
@@ -36,42 +39,76 @@ export const widthOf = (size: AvatarSize): number => sizes[size] * 16
 /** Whether someone is there, shown as a dot at the avatar's lower end. */
 export type AvatarStatus = 'online' | 'away' | 'busy' | 'offline'
 
-const statusWords: Readonly<Record<AvatarStatus, string>> = {
+/**
+ * The words an avatar and its group draw: each status as read aloud, and the
+ * group's count of those left out (`{count}` is filled).
+ */
+export interface AvatarWords {
+  readonly online: string
+  readonly away: string
+  readonly busy: string
+  readonly offline: string
+  readonly more: string
+}
+
+export const words: AvatarWords = {
   online: 'Online',
   away: 'Away',
   busy: 'Busy',
   offline: 'Offline',
+  more: '{count} more',
 }
 
 /**
- * A picture `foldkit-media` writes the candidates of: the avatar's facts, the
- * provider of its variants, and how wide the avatar is drawn in CSS pixels,
- * so a 24px avatar fetches a 48px variant, not the original.
+ * A picture the application passes in place of a URL: it writes the `img`'s
+ * attributes, or none when it has no URL (the initials then stand alone).
+ * `Avatar.picture({ asset, provider, width })` makes one from `foldkit-media`;
+ * it lives in a file of its own, so a page that passes `src` as text ships no
+ * picture code. Implement it to draw pictures any other way.
  */
-export interface AvatarPicture<Asset extends ImageAsset = ImageAsset> {
-  readonly asset: Asset
-  readonly provider: Provider.Provider<NoInfer<Asset>>
-  readonly width: number
+export interface AvatarPicture {
+  readonly attributes: <Message>(
+    h: HtmlBuilder<Message>,
+  ) => Option.Option<ReadonlyArray<Attribute<Message>>>
 }
+
+/** Where the picture comes from: a URL, or an `AvatarPicture`; never both. */
+export type AvatarSource =
+  | { readonly src?: string | undefined; readonly picture?: undefined }
+  | { readonly picture: AvatarPicture; readonly src?: undefined }
+
+/** The corner of the avatar a badge sits on; the status dot takes the bottom end. */
+export type AvatarBadgePlace = 'top-start' | 'top-end' | 'bottom-start' | 'bottom-end'
+
+/**
+ * A small mark on a corner: an icon, a count, a Badge. `label` is read
+ * with the name, since the avatar is one image and its badges are not
+ * announced on their own.
+ */
+export interface AvatarBadge {
+  readonly content: Html
+  readonly place: AvatarBadgePlace
+  readonly label?: string | undefined
+}
+
+/** What an avatar shows of one person, apart from how it is styled. */
+export type AvatarPerson = {
+  /** Who the avatar shows: its accessible name, its initials and its hue. */
+  readonly name: string
+  /** What the disc says in place of initials taken from the name (a group's `+3`). */
+  readonly initials?: string | undefined
+  readonly status?: AvatarStatus | undefined
+  readonly badges?: ReadonlyArray<AvatarBadge> | undefined
+} & AvatarSource
 
 /**
  * An avatar in one call: who it pictures, the picture if there is one, a
  * style for its slots, and mixins beside the style. No upstream component
- * stands behind it.
+ * stands behind it. Without a picture the initials stand alone.
  */
-export interface AvatarView<Message = never, Asset extends ImageAsset = ImageAsset> {
-  /** Who the avatar shows: its accessible name, its initials and its hue. */
-  readonly name: string
-  /**
-   * The picture: a URL, or an `AvatarPicture` drawn with its candidates.
-   * Without one, or with a provider that has no URL for it, the initials stand alone.
-   */
-  readonly src?: string | AvatarPicture<Asset> | undefined
-  /** What the disc says in place of initials taken from the name (a group's `+3`). */
-  readonly initials?: string | undefined
-  readonly status?: AvatarStatus | undefined
-  /** The status as read aloud; the English word when omitted. */
-  readonly statusLabel?: string | undefined
+export type AvatarView<Message = never> = AvatarPerson & {
+  /** The status and the group's count as read aloud; English when omitted. */
+  readonly words?: Partial<AvatarWords> | undefined
   /** A style of `AvatarSlots`, for the avatar's look. */
   readonly style?: NamedStyle<typeof AvatarSlots> | undefined
   /** Mixins beside the style. */
@@ -100,26 +137,24 @@ const hueOf = (name: string): number => {
 }
 
 // At most one attribute list: none without a picture, or when the provider has none for it.
-const pictureAttributes = <Message, Asset extends ImageAsset>(
-  src: string | AvatarPicture<Asset> | undefined,
+const pictureAttributes = <Message>(
+  options: AvatarSource,
   h: HtmlBuilder<Message>,
 ): ReadonlyArray<ReadonlyArray<Attribute<Message>>> => {
-  if (src === undefined) return []
-  if (typeof src === 'string') return [[h.Src(src)]]
-  return Option.match(
-    Picture.derive({
-      asset: src.asset,
-      provider: src.provider,
-      layout: Layout.Fixed({ width: src.width }),
-    }),
-    { onNone: () => [], onSome: ({ img }) => [imgAttributes(img, h)] },
-  )
+  if (options.picture !== undefined) {
+    return Option.match(options.picture.attributes(h), {
+      onNone: () => [],
+      onSome: attributes => [attributes],
+    })
+  }
+  return options.src === undefined ? [] : [[h.Src(options.src)]]
 }
 
-const draw = <Message, Asset extends ImageAsset>(
-  options: AvatarView<Message, Asset>,
+const draw = <Message>(
+  options: AvatarView<Message>,
   h: HtmlBuilder<Message>,
   rest: ReadonlyArray<Attribute<Message>>,
+  face?: Html,
 ): Html => {
   const builders = SlotView.buildersFor(
     AvatarSlots,
@@ -127,31 +162,42 @@ const draw = <Message, Asset extends ImageAsset>(
     { input: undefined, h },
   )
   const status =
-    options.status === undefined ? undefined : (options.statusLabel ?? statusWords[options.status])
+    options.status === undefined ? undefined : wordsOf(words, options.words)[options.status]
+  const badges = options.badges ?? []
+  const reading = [
+    options.name,
+    ...(status === undefined ? [] : [status]),
+    ...badges.flatMap(badge => (badge.label === undefined ? [] : [badge.label])),
+  ].join(', ')
   return h.div(
     builders.root.attrs([
       h.Role('img'),
-      h.AriaLabel(status === undefined ? options.name : `${options.name}, ${status}`),
+      h.AriaLabel(reading),
       h.Style({ '--fk-avatar-hue': String(hueOf(options.name)) }),
       ...rest,
     ]),
     [
       h.div(builders.fallback.attrs([h.AriaHidden(true)]), [
-        options.initials ?? initialsOf(options.name),
+        face ?? options.initials ?? initialsOf(options.name),
       ]),
       // Unnamed: the root says who it is, and a picture that fails shows the initials, not its alt text.
-      ...pictureAttributes(options.src, h).map(attributes =>
+      ...pictureAttributes(options, h).map(attributes =>
         h.img(builders.image.attrs([...attributes, h.Alt('')])),
       ),
       ...(options.status === undefined
         ? []
         : [h.span(builders.status.attrs([h.DataAttribute('status', options.status)]), [])]),
+      ...badges.map(badge =>
+        h.span(builders.badge.attrs([h.DataAttribute('place', badge.place), h.AriaHidden(true)]), [
+          badge.content,
+        ]),
+      ),
     ],
   )
 }
 
-export const view = <Message = never, Asset extends ImageAsset = ImageAsset>(
-  options: AvatarView<Message, Asset>,
+export const view = <Message = never>(
+  options: AvatarView<Message>,
   h: HtmlBuilder<Message>,
 ): Html => draw(options, h, [])
 
@@ -166,14 +212,18 @@ export const AvatarGroupSlots = Slots.define({
 })
 
 /** Avatars overlapping in a row, at most `max` of them and a `+N` for the rest. */
-export interface AvatarGroupView<Message = never, Asset extends ImageAsset = ImageAsset> {
-  readonly people: ReadonlyArray<Omit<AvatarView<Message, Asset>, 'style' | 'mixins'>>
+export interface AvatarGroupView<Message = never> {
+  readonly people: ReadonlyArray<AvatarPerson>
   /** How many to draw before the `+N`; every one when omitted. */
   readonly max?: number | undefined
   /** The group's accessible name, such as "Editors". */
   readonly label?: string | undefined
-  /** How the `+N` is read: `N more` when omitted. */
-  readonly moreLabel?: ((count: number) => string) | undefined
+  /** The statuses and the `+N`'s reading (`words.more`), for every avatar in the group. */
+  readonly words?: Partial<AvatarWords> | undefined
+  /** What the `+N` disc holds in place of the text (an icon, say); `count` is how many are left out. */
+  readonly rest?: ((count: number) => Html) | undefined
+  /** Draws around each avatar, such as a Tooltip or a link; the `+N` is not wrapped. */
+  readonly wrap?: ((avatar: Html, person: AvatarPerson) => Html) | undefined
   /** A style of `AvatarGroupSlots`, for the overlap. */
   readonly style?: NamedStyle<typeof AvatarGroupSlots> | undefined
   /** A style of `AvatarSlots` for every avatar in it, the `+N` included. */
@@ -182,8 +232,8 @@ export interface AvatarGroupView<Message = never, Asset extends ImageAsset = Ima
   readonly mixins?: MixinList<Message> | undefined
 }
 
-export const group = <Message = never, Asset extends ImageAsset = ImageAsset>(
-  options: AvatarGroupView<Message, Asset>,
+export const group = <Message = never>(
+  options: AvatarGroupView<Message>,
   h: HtmlBuilder<Message>,
 ): Html => {
   const builders = SlotView.buildersFor(
@@ -198,26 +248,79 @@ export const group = <Message = never, Asset extends ImageAsset = ImageAsset>(
   const shown = options.people.slice(0, max)
   const rest = options.people.length - shown.length
   const avatarStyle = options.avatarStyle
+  const around = options.wrap ?? ((avatar: Html) => avatar)
   return h.div(
     builders.root.attrs([
       h.Role('group'),
       ...(options.label === undefined ? [] : [h.AriaLabel(options.label)]),
     ]),
     [
-      ...shown.map(person => view({ ...person, style: avatarStyle }, h)),
+      ...shown.map(person =>
+        around(view({ ...person, words: options.words, style: avatarStyle }, h), person),
+      ),
       ...(rest > 0
         ? [
             draw(
               {
-                name: (options.moreLabel ?? (count => `${count} more`))(rest),
+                name: fill(wordsOf(words, options.words).more, { count: rest }),
                 initials: `+${rest}`,
                 style: avatarStyle,
               },
               h,
               [h.DataAttribute('rest', String(rest))],
+              options.rest?.(rest),
             ),
           ]
         : []),
     ],
   )
+}
+
+/** What an Avatar is given once: its look, its words, and the look of a group around it. */
+export type AvatarPreset = Pick<AvatarView<never>, 'style' | 'words'> & {
+  readonly groupStyle?: NamedStyle<typeof AvatarGroupSlots> | undefined
+  readonly mixins?: MixinList<never>
+}
+
+// A preset's `style` is the avatar's, so a group's avatars wear it; the group's own is `groupStyle`.
+const forGroup = (preset: AvatarPreset): Partial<AvatarGroupView<never>> => ({
+  ...(preset.groupStyle === undefined ? {} : { style: preset.groupStyle }),
+  ...(preset.style === undefined ? {} : { avatarStyle: preset.style }),
+  ...(preset.words === undefined ? {} : { words: preset.words }),
+})
+
+/**
+ * The application's own Avatar: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both. A preset's `style` and `words`
+ * reach a group's avatars too; its `groupStyle` is the group's own.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<AvatarPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: AvatarView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+  readonly group: <Outer>(
+    options: AvatarGroupView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => {
+  const groups: Presets<Partial<AvatarGroupView<never>>, Names> = {
+    ...(config.base === undefined ? {} : { base: forGroup(config.base) }),
+    ...(config.presets === undefined
+      ? {}
+      : {
+          presets: Object.fromEntries(
+            Object.entries<AvatarPreset>(config.presets).map(([name, preset]) => [
+              name,
+              forGroup(preset),
+            ]),
+          ) as Record<Names, Partial<AvatarGroupView<never>>>,
+        }),
+  }
+  return {
+    view: (options, h) => view(layered(config, options), h),
+    group: (options, h) => group(layered(groups, options), h),
+  }
 }

@@ -7,6 +7,8 @@ const unit = 'packages/mixins-ui/test/chart.test.ts'
 const browser = 'packages/mixins-ui/test/chart.browser.test.ts'
 const source = '../src/chart.ts'
 const scale = '../src/chart/scale.ts'
+const cartesian = '../src/chart/cartesian.ts'
+const kind = '../src/chart/kind.ts'
 const recipe = '../src/recipes/chart.ts'
 
 const one = (name: string, file: string, find: string, replace: string, tests: string) => ({
@@ -68,7 +70,7 @@ export default [
   one(
     'a whole ring as one arc',
     scale,
-    'if (value === total) return segment(0, 0.5) + segment(0.5, 1)',
+    'if (value === total) return segment(0, 0.5, hole) + segment(0.5, 1, hole)',
     'if (value === -1) return ""',
     unit,
   ),
@@ -107,15 +109,21 @@ export default [
     'model.point',
     unit,
   ),
-  one('a pointer lit point said aloud', source, '      model.keyed\n', '      true\n', unit),
+  one(
+    'a pointer lit point said aloud',
+    source,
+    'return model.keyed && lit',
+    'return true && lit',
+    unit,
+  ),
   one(
     'the tooltip always opens toward the end',
-    source,
+    cartesian,
     "middle > 50 ? 'start' : 'end'",
     "middle > 50 ? 'end' : 'end'",
     unit,
   ),
-  one('the first series on no color', source, '(at % COLORS) + 1', 'at % COLORS', unit),
+  one('the first series on no color', kind, '(at % COLORS) + 1', 'at % COLORS', unit),
   one(
     'a sixth series drawn',
     source,
@@ -126,8 +134,8 @@ export default [
   one(
     'a legend for a single series',
     source,
-    "options.kind === 'donut' || entries.length > 1",
-    "options.kind === 'donut' || entries.length > 0",
+    'kind.alwaysLegend === true || entries.length > 1',
+    'kind.alwaysLegend === true || entries.length > 0',
     unit,
   ),
   one('the up arrow does nothing', source, "case 'ArrowUp':", "case 'Up':", unit),
@@ -187,4 +195,62 @@ export default [
     '',
     browser,
   ),
+  one(
+    'stacked bars drawn side by side',
+    '../src/chart/bars.ts',
+    'const edges = data.stack === true ?',
+    'const edges = false ?',
+    unit,
+  ),
+  one(
+    'a stacked axis that stops at the tallest bar',
+    '../src/chart/bars.ts',
+    'data.stack === true ? stackedSpanOf(data) : spanOf(data)',
+    'spanOf(data)',
+    unit,
+  ),
+  one(
+    'a stacked area that falls to zero',
+    '../src/chart/paths.ts',
+    'edges?.[place]?.map(([from]) => from)',
+    'undefined',
+    unit,
+  ),
+  one(
+    'a step curve drawn straight',
+    scale,
+    "return curve === 'step' ? `H${x}V${ys[at]}`",
+    "return curve === 'never' ? `H${x}V${ys[at]}`",
+    unit,
+  ),
+  one(
+    'a stepped area closed along a straight edge',
+    scale,
+    "path += curve === 'step' ?",
+    "path += curve === 'never' ?",
+    unit,
+  ),
+  one(
+    'markers always on only the lit point',
+    '../src/chart/paths.ts',
+    "data.markers === 'always'",
+    "data.markers === 'never'",
+    unit,
+  ),
+  one('a pie drawn with a ring hole', scale, 'hole === 0\n', 'hole === -1\n', unit),
+  one(
+    'a pie with a total in it',
+    '../src/chart/donut.ts',
+    '...(hole === 0',
+    '...(hole === -1',
+    unit,
+  ),
+  one(
+    'a hole past the ring accepted',
+    '../src/chart/donut.ts',
+    'if (!(hole >= 0 && hole < 1))',
+    'if (false)',
+    unit,
+  ),
+  one('a kind that draws nothing', source, '...kind.draw(options, frame),', '...[],', unit),
 ]

@@ -6,6 +6,7 @@
 const unit = ['packages/mixins-ui/test/avatar.test.ts']
 const browser = ['packages/mixins-ui/test/avatar.browser.test.ts']
 const view = '../src/avatar.ts'
+const picture = '../src/avatar/picture.ts'
 const recipe = '../src/recipes/avatar.ts'
 
 export default [
@@ -23,17 +24,42 @@ export default [
     name: 'a derived picture is drawn as its URL alone',
     edits: [
       {
-        file: view,
-        find: 'onSome: ({ img }) => [imgAttributes(img, h)] },',
-        replace: 'onSome: ({ img }) => [[h.Src(img.src)]] },',
+        file: picture,
+        find: '({ img }) => imgAttributes(img, h),',
+        replace: '({ img }) => [h.Src(img.src)],',
       },
     ],
     tests: unit,
   },
   {
     name: 'a picture the provider lacks draws an empty img',
+    edits: [{ file: view, find: 'onNone: () => [],', replace: 'onNone: () => [[]],' }],
+    tests: unit,
+  },
+  {
+    name: 'the count ignores words',
     edits: [
-      { file: view, find: '{ onNone: () => [], onSome', replace: '{ onNone: () => [[]], onSome' },
+      {
+        file: view,
+        find: 'fill(wordsOf(words, options.words).more, { count: rest })',
+        replace: 'fill(words.more, { count: rest })',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the group does not wrap its avatars',
+    edits: [{ file: view, find: 'around(view({', replace: '(view({' }],
+    tests: unit,
+  },
+  {
+    name: 'a preset’s style does not reach a group’s avatars',
+    edits: [
+      {
+        file: view,
+        find: '...(preset.style === undefined ? {} : { avatarStyle: preset.style }),',
+        replace: '',
+      },
     ],
     tests: unit,
   },
@@ -57,8 +83,8 @@ export default [
     edits: [
       {
         file: view,
-        find: 'h.AriaLabel(status === undefined ? options.name : `${options.name}, ${status}`),',
-        replace: 'h.AriaLabel(options.name),',
+        find: '...(status === undefined ? [] : [status]),',
+        replace: '',
       },
     ],
     tests: unit,
@@ -162,6 +188,60 @@ export default [
           "        inlineSize: '100%',\n        blockSize: '100%',\n        borderRadius: '50%',\n        objectFit",
       },
     ],
+    tests: browser,
+  },
+  {
+    name: 'a badge is announced on its own',
+    edits: [
+      {
+        file: view,
+        find: "h.DataAttribute('place', badge.place), h.AriaHidden(true)",
+        replace: "h.DataAttribute('place', badge.place)",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a badge’s label is left out of the name',
+    edits: [
+      {
+        file: view,
+        find: '...badges.flatMap(badge => (badge.label === undefined ? [] : [badge.label])),',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the count’s disc ignores `rest`',
+    edits: [{ file: view, find: 'options.rest?.(rest),', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'the top end badge sits at the bottom',
+    edits: [
+      {
+        file: recipe,
+        find: "'&[data-place=\"top-end\"]', { insetBlockStart: '0', insetInlineEnd: '0' }",
+        replace: "'&[data-place=\"top-end\"]', { insetBlockEnd: '0', insetInlineEnd: '0' }",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a badge takes no room of its own',
+    edits: [
+      {
+        file: recipe,
+        find: "minInlineSize: '28%',\n        minBlockSize: '28%',",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a lifted group never raises',
+    edits: [{ file: recipe, find: "'& > *:hover', {", replace: "'& > *:active', {" }],
     tests: browser,
   },
 ]

@@ -1,26 +1,12 @@
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { Option } from 'effect'
+import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { CodeBlockSlots } from './codeBlock/slots.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
-/**
- * A code block publishes its regions as slots, down to each line and each
- * highlighted token; it owns no state. Highlighting is the caller's: pass the
- * tokens a tokenizer found (`foldkit-richtext-code`, `foldkit-richtext-code-shiki`)
- * and each is drawn with its `kind` as `data-kind`, which the recipe colors
- * from the theme's `syntax` group.
- */
-export const CodeBlockSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
-  header: Slot.make({ capability: Capability.Container }),
-  title: Slot.make({ capability: Capability.Container }),
-  copy: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
-  /** Always drawn, so it is in place before it speaks: says `copiedLabel` once copied. */
-  status: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  body: Slot.make({ capability: Capability.Container }),
-  code: Slot.make({ capability: Capability.Container }),
-  line: Slot.make({ capability: Capability.Container }),
-  token: Slot.make({ capability: Capability.Container }),
-})
+export { follow } from './codeBlock/follow.js'
+export { CodeBlockSlots } from './codeBlock/slots.js'
 
 /**
  * A highlighted run of the code, as offsets into it: the shape
@@ -30,6 +16,28 @@ export interface CodeToken {
   readonly from: number
   readonly to: number
   readonly kind: string
+}
+
+/**
+ * The kinds the recipe colours: a diff's `added` and `removed`, a
+ * `highlight`, a diagnostic's `error` and `warning`, `dim` for the lines a
+ * walkthrough is not about, and `selected`, which also presses the line's
+ * gutter button under `onLineSelect`. A kind of your own is a recipe `add`.
+ */
+export type CodeMarkKind =
+  | 'added'
+  | 'removed'
+  | 'highlight'
+  | 'error'
+  | 'warning'
+  | 'dim'
+  | 'selected'
+
+/** A whole line marked by what it is: `data-mark` on the line. */
+export interface CodeMark {
+  /** The line's number as drawn, counted from `startLine`. */
+  readonly line: number
+  readonly kind: CodeMarkKind | (string & {})
 }
 
 /** The copy button: what pressing it causes, and whether that has happened. */
@@ -42,10 +50,31 @@ export interface CodeBlockCopy<Message> {
   readonly onCopy?: ((code: string) => Message) | undefined
   /** Draws the button as done: `data-copied="true"` and the `copied` words. */
   readonly copied?: boolean | undefined
-  /** The button's words. Default: `'Copy'`. */
-  readonly label?: string | undefined
-  /** The words once copied. Default: `'Copied'`. */
-  readonly copiedLabel?: string | undefined
+}
+
+/** The block's words: the copy button's, a gutter button's name, and the expand button's. */
+export interface CodeBlockWords {
+  readonly copy: string
+  readonly copied: string
+  /** A line's gutter button under `onLineSelect`; `{line}` is its number. */
+  readonly selectLine: string
+  /** The button under a `collapsed` block; `{count}` is how many lines the code has. */
+  readonly expand: string
+}
+
+/** The words a code block starts from; `words` overrides them one at a time. */
+export const words: CodeBlockWords = {
+  copy: 'Copy',
+  copied: 'Copied',
+  selectLine: 'Line {line}',
+  expand: 'Show all {count} lines',
+}
+
+/** Draws the first `lines` lines and a button that asks for the rest. */
+export interface CodeBlockCollapsed<Message> {
+  readonly lines: number
+  /** Sent by the button; the application then draws the block without `collapsed`. */
+  readonly onExpand: Message
 }
 
 /**
@@ -63,10 +92,25 @@ export interface CodeBlockView<Message> {
   readonly title?: string | undefined
   /** Numbers each line: `data-line-numbers="true"` on the root. */
   readonly lineNumbers?: boolean | undefined
+  /** The first line's number, for an excerpt; every `line` the block hands out counts from it. Default 1. */
+  readonly startLine?: number | undefined
+  /** A line's gutter text in place of its number, as a patch's `+` and `-` or two columns of numbers. */
+  readonly gutter?: ((line: number) => string) | undefined
+  /** Lines marked by what they are; at most one mark a line. */
+  readonly marks?: ReadonlyArray<CodeMark> | undefined
+  /** Wraps long lines in place of scrolling sideways: `data-wrap="true"` on the root. */
+  readonly wrap?: boolean | undefined
+  readonly collapsed?: CodeBlockCollapsed<Message> | undefined
+  /** Makes each line's gutter a button that sends this with the line's number. */
+  readonly onLineSelect?: ((line: number) => Message) | undefined
+  /** Html at a line's end (a badge, a button), or none. Its text joins the block's text. */
+  readonly lineAction?: ((line: number) => Option.Option<Html>) | undefined
   readonly copy?: CodeBlockCopy<Message> | undefined
+  /** The block's words, over `CodeBlock.words`. */
+  readonly words?: Partial<CodeBlockWords> | undefined
   /** A style of `CodeBlockSlots`, for the block's look. */
   readonly style?: NamedStyle<typeof CodeBlockSlots> | undefined
-  /** Mixins beside the style. */
+  /** Mixins beside the style; `CodeBlock.follow` keeps a growing block at its end. */
   readonly mixins?: MixinList<Message> | undefined
 }
 
@@ -113,14 +157,45 @@ export const linesOf = (
   return lines
 }
 
+/**
+ * Each mark's kind by its line. A mark outside the lines, or a second on one
+ * line, throws: the caller counted the lines differently, and drawing it
+ * would mark the wrong one.
+ */
+const marksOf = (
+  marks: ReadonlyArray<CodeMark>,
+  first: number,
+  count: number,
+): ReadonlyMap<number, string> => {
+  const byLine = new Map<number, string>()
+  for (const mark of marks) {
+    if (!Number.isInteger(mark.line) || mark.line < first || mark.line >= first + count)
+      throw new RangeError(
+        `a ${mark.kind} mark on line ${mark.line} is outside lines ${first} to ${first + count - 1}`,
+      )
+    if (byLine.has(mark.line))
+      throw new RangeError(
+        `line ${mark.line} is marked twice (${byLine.get(mark.line)}, ${mark.kind})`,
+      )
+    byLine.set(mark.line, mark.kind)
+  }
+  return byLine
+}
+
 export const view = <Message>(options: CodeBlockView<Message>, h: HtmlBuilder<Message>): Html => {
   const builders = SlotView.buildersFor(
     CodeBlockSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
     { input: undefined, h },
   )
+  const { collapsed, gutter, onLineSelect, lineAction } = options
+  const first = options.startLine ?? 1
+  if (!Number.isInteger(first)) throw new RangeError(`startLine ${first} is not a whole number`)
+  if (collapsed !== undefined && !(Number.isInteger(collapsed.lines) && collapsed.lines >= 1))
+    throw new RangeError(`collapsed.lines ${collapsed.lines} is not a whole number of at least 1`)
   const heading = options.title ?? options.language
   const copy = options.copy
+  const text = wordsOf(words, options.words)
   const header =
     heading === undefined && copy === undefined
       ? []
@@ -136,43 +211,93 @@ export const view = <Message>(options: CodeBlockView<Message>, h: HtmlBuilder<Me
                       h.DataAttribute('copied', String(copy.copied === true)),
                       ...(copy.onCopy === undefined ? [] : [h.OnClick(copy.onCopy(options.code))]),
                     ]),
-                    [
-                      copy.copied === true
-                        ? (copy.copiedLabel ?? 'Copied')
-                        : (copy.label ?? 'Copy'),
-                    ],
+                    [copy.copied === true ? text.copied : text.copy],
                   ),
                   // The button's own words change, which a screen reader does not announce.
                   h.span(
                     builders.status.attrs([h.Role('status')]),
-                    copy.copied === true ? [copy.copiedLabel ?? 'Copied'] : [],
+                    copy.copied === true ? [text.copied] : [],
                   ),
                 ]),
           ]),
         ]
+  const all = linesOf(options.code, options.tokens ?? [])
+  const marks = marksOf(options.marks ?? [], first, all.length)
+  const shown = collapsed === undefined ? all : all.slice(0, collapsed.lines)
+  const hidden = shown.length < all.length
+  const numberOf = (line: number) => (gutter === undefined ? String(line) : gutter(line))
+  const numbered =
+    gutter !== undefined || options.lineNumbers === true || onLineSelect !== undefined
+  // Every gutter as wide as the widest, so the code starts in one column.
+  const gutterWidth = numbered
+    ? Math.max(2, ...shown.map((_, index) => numberOf(first + index).length))
+    : 0
+  const gutterOf = (line: number) => {
+    const number = h.DataAttribute('number', numberOf(line))
+    return onLineSelect === undefined
+      ? h.span(builders.gutter.attrs([h.AriaHidden(true), number]), [])
+      : h.button(
+          builders.gutter.attrs([
+            h.Type('button'),
+            number,
+            h.AriaLabel(fill(text.selectLine, { line })),
+            h.AriaPressed(String(marks.get(line) === 'selected')),
+            h.OnClick(onLineSelect(line)),
+          ]),
+          [],
+        )
+  }
   // Lines are inline and joined by the line breaks themselves, so the text of
-  // the block is the code exactly, for a copy that reads it from the page.
-  const lines = linesOf(options.code, options.tokens ?? []).flatMap((runs, index) => [
-    ...(index === 0 ? [] : ['\n']),
-    h.span(
-      builders.line.attrs(),
-      runs.map(run =>
-        run.kind === undefined
-          ? run.text
-          : h.span(builders.token.attrs([h.DataAttribute('kind', run.kind)]), [run.text]),
-      ),
-    ),
-  ])
+  // the block is the code exactly (bar what `lineAction` adds), for a copy
+  // that reads it from the page; the gutter draws its text from an attribute.
+  const lines = shown.flatMap((runs, index) => {
+    const line = first + index
+    const mark = marks.get(line)
+    const action = lineAction === undefined ? Option.none() : lineAction(line)
+    return [
+      ...(index === 0 ? [] : ['\n']),
+      h.span(builders.line.attrs(mark === undefined ? [] : [h.DataAttribute('mark', mark)]), [
+        ...(numbered ? [gutterOf(line)] : []),
+        ...runs.map(run =>
+          run.kind === undefined
+            ? run.text
+            : h.span(builders.token.attrs([h.DataAttribute('kind', run.kind)]), [run.text]),
+        ),
+        ...Option.match(action, {
+          onNone: () => [],
+          onSome: drawn => [h.span(builders.lineAction.attrs(), [drawn])],
+        }),
+      ]),
+    ]
+  })
   return h.figure(
     builders.root.attrs([
       ...(options.language === undefined ? [] : [h.DataAttribute('language', options.language)]),
       h.DataAttribute('line-numbers', String(options.lineNumbers === true)),
+      ...(options.wrap === true ? [h.DataAttribute('wrap', 'true')] : []),
+      ...(hidden ? [h.DataAttribute('collapsed', 'true')] : []),
+      ...(numbered ? [h.Style({ '--fk-code-gutter': `${gutterWidth}ch` })] : []),
     ]),
     [
       ...header,
       h.pre(builders.body.attrs(), [
-        h.code(builders.code.attrs(), [...lines, ...(options.code.endsWith('\n') ? ['\n'] : [])]),
+        h.code(builders.code.attrs(), [
+          ...lines,
+          ...(!hidden && options.code.endsWith('\n') ? ['\n'] : []),
+        ]),
       ]),
+      ...(collapsed !== undefined && hidden
+        ? [
+            h.button(
+              builders.expand.attrs([
+                h.Type('button'),
+                h.AriaExpanded(false),
+                h.OnClick(collapsed.onExpand),
+              ]),
+              [fill(text.expand, { count: all.length })],
+            ),
+          ]
+        : []),
     ],
   )
 }

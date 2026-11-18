@@ -15,6 +15,7 @@ import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import { Move } from 'foldkit-primitives/dom'
 import { Resize } from 'foldkit-primitives/observers'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
 import * as Splitter from './splitter.js'
 
@@ -44,7 +45,18 @@ export const ResizableSlots = Slots.define({
   second: Slot.make({ capability: Capability.Container }),
 })
 
+/** `Bounds` as stored: what `init` was given, kept in the Model so `update` and the view read the one copy. */
+const StoredBounds = Schema.Struct({
+  min: Schema.optionalKey(Schema.Number),
+  max: Schema.optionalKey(Schema.Number),
+  step: Schema.optionalKey(Schema.Number),
+  collapsible: Schema.optionalKey(Schema.Literals(['first', 'second'])),
+  collapsedTo: Schema.optionalKey(Schema.Number),
+})
+
 export const Model = Schema.Struct({
+  /** The bounds `init` was given; `update` and the view use them unless a call passes its own. */
+  bounds: StoredBounds,
   /** The first panel's share of the group, 0 to 1. */
   share: Schema.Number,
   /** Where a drag began, while one runs. */
@@ -80,7 +92,18 @@ export interface Bounds {
   readonly collapsedTo?: number | undefined
 }
 
-export const init = (share = 0.5): Model => ({
+/** `bounds` without the options left `undefined`, the shape the Model stores. */
+const given = (bounds: Bounds): Model['bounds'] => ({
+  ...(bounds.min === undefined ? {} : { min: bounds.min }),
+  ...(bounds.max === undefined ? {} : { max: bounds.max }),
+  ...(bounds.step === undefined ? {} : { step: bounds.step }),
+  ...(bounds.collapsible === undefined ? {} : { collapsible: bounds.collapsible }),
+  ...(bounds.collapsedTo === undefined ? {} : { collapsedTo: bounds.collapsedTo }),
+})
+
+/** The first panel's share to start at, and the bounds it keeps; `update` and the view read the bounds from the Model. */
+export const init = (share = 0.5, bounds: Bounds = {}): Model => ({
+  bounds: given(bounds),
   share,
   from: Option.none(),
   size: 0,
@@ -101,7 +124,7 @@ const clamped = (share: number, bounds: Bounds) =>
   Math.round(Math.min(bounds.max ?? 0.9, Math.max(bounds.min ?? 0.1, share)) * 1000) / 1000
 
 /** The split after `message`; the same Model when nothing changes. */
-export const update = (model: Model, message: Message, bounds: Bounds = {}): Model =>
+export const update = (model: Model, message: Message, bounds: Bounds = model.bounds): Model =>
   Message.match(message, {
     Measured: ({ size }) =>
       size === model.size ? model : modifyFields(model, { size: () => size }),
@@ -161,22 +184,21 @@ const firstId = (id: string) => `${id}-first`
 export const view = <Outer>(options: ResizableView<Outer>, h: HtmlBuilder<Outer>): Html => {
   const lift = options.onMessage
   const vertical = options.orientation === 'vertical'
-  const { collapsible } = options
+  // Each bound is the call's, else the one the Model was started with.
+  const bounds: Bounds = { ...options.model.bounds, ...given(options) }
+  const { collapsible } = bounds
   const collapsed = Option.isSome(options.model.restore) && collapsible !== undefined
   const toggled = lift(Message.Toggled())
   const marked = (panel: 'first' | 'second') =>
     collapsed && collapsible === panel ? [h.DataAttribute('collapsed', '')] : []
   // A collapsed panel is a place the handle may stand, below the bounds a drag keeps.
-  const least = Math.min(
-    options.min ?? 0.1,
-    collapsible === 'first' ? (options.collapsedTo ?? 0) : 1,
-  )
+  const least = Math.min(bounds.min ?? 0.1, collapsible === 'first' ? (bounds.collapsedTo ?? 0) : 1)
   const most = Math.max(
-    options.max ?? 0.9,
-    collapsible === 'second' ? 1 - (options.collapsedTo ?? 0) : 0,
+    bounds.max ?? 0.9,
+    collapsible === 'second' ? 1 - (bounds.collapsedTo ?? 0) : 0,
   )
   const across = options.direction === 'rtl' ? -1 : 1
-  const step = options.step ?? 0.05
+  const step = bounds.step ?? 0.05
   const percent = Math.round(options.model.share * 100)
   const measured = Mount.mapMessage(Resize(), fact =>
     lift(Message.Measured({ size: vertical ? fact.height : fact.width })),
@@ -198,13 +220,13 @@ export const view = <Outer>(options: ResizableView<Outer>, h: HtmlBuilder<Outer>
       ? collapsed
         ? Option.none()
         : Option.some(toggled)
-      : Option.some(set(options.min ?? 0.1))
+      : Option.some(set(bounds.min ?? 0.1))
   const largest =
     collapsible === 'second'
       ? collapsed
         ? Option.none()
         : Option.some(toggled)
-      : Option.some(set(options.max ?? 0.9))
+      : Option.some(set(bounds.max ?? 0.9))
   const keys = Behaviors.Keys.behavior(ResizableSlots)<unknown, Outer>({
     slot: 'handle',
     name: 'ResizableKeys',
@@ -267,3 +289,25 @@ export const view = <Outer>(options: ResizableView<Outer>, h: HtmlBuilder<Outer>
     ],
   )
 }
+
+/** What a Resizable is given once: its look and the options that hold no Message. */
+export type ResizablePreset = Pick<ResizableView<never>, 'orientation' | 'direction' | 'style'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Resizable: `base` for every use, `presets` chosen at
+ * a use with `preset`, and the call over both. `mixins` concatenate in that
+ * order; any other option given at the call replaces the preset's. The bounds
+ * are the Model's (`init`), not a preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<ResizablePreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: ResizableView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

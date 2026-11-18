@@ -50,8 +50,11 @@ export const body: StyleValue = global(
   // Scrollbars in the theme's line color, which keeps the page's hue, not the
   // browser's grey; inherited, so one rule reaches every scrolling panel.
   `:where(:root){scrollbar-color:${v('outline-overt', 'auto')} transparent;accent-color:${v('accent-default', 'auto')}}` +
-    // Selected text in the accent's tint rather than the browser's own blue.
-    `:where(::selection){background:color-mix(in oklab, ${v('accent-default', 'Highlight')} 28%, transparent)}` +
+    // Selected text in the theme's `selection` colors (the accent's tint) rather than the
+    // browser's blue. `:where(*)::selection`, as `:where(::selection)` is invalid (a
+    // pseudo-element cannot sit in `:where`) and matched nothing. A highlight inherits from
+    // its parent's highlight, so a rule on `*` reaches every element's own.
+    `:where(*)::selection{background:${v('selection-background', `color-mix(in oklab, ${v('accent-default', 'Highlight')} 28%, transparent)`)};color:${v('selection-ink', 'currentColor')}}` +
     `:where(body){font-family:${v('font-body', 'system-ui, sans-serif')};font-size:${v('size-md', '1rem')};line-height:${v('leading-normal', '1.5')};font-weight:${v('weight-normal', '400')};color:${v('text-default', 'CanvasText')};background:${v('surface-base', 'Canvas')};-webkit-font-smoothing:antialiased}`,
 )
 

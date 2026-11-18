@@ -8,7 +8,7 @@ const trace = (): ReadonlyArray<string> => {
   const lines: Array<string> = []
   let model = initial
   const send = (label: string, message: TagsInput.Message) => {
-    model = update(model, Message.GotTopics({ message })).model
+    model = update(model, Message.GotTopicsMessage({ message })).model
     lines.push(
       `${label}: tags=[${model.topics.tags.join(', ')}] draft=${JSON.stringify(model.topics.draft)}`,
     )

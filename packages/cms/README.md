@@ -36,10 +36,8 @@ draft's value; a visitor's read cannot reach unfinished work, because it never
 touches drafts; a revision is the same value, kept; and a half-filled form that
 does not validate can be saved, which a row with a `not null` title cannot hold.
 
-```text
-   Entry ── Draft ── publish ──> your own mutation ──> content row ──> a visitor's read
-     └── Revision  <── appended ──┘
-```
+An Entry has a Draft. Publishing runs your own mutation, which writes the content
+row a visitor's read returns, and appends a Revision to the Entry.
 
 An **Entry** is a piece of content from its first keystroke to its archive. It
 exists before the row does, and after the row is hidden.

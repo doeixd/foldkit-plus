@@ -34,4 +34,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a configured figure drops its layers',
+    edits: [
+      {
+        file: '../src/figure.ts',
+        find: 'view: (options, h) => view(layered(config, options), h),',
+        replace: 'view: (options, h) => view(options, h),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a caption before the content is not moved',
+    edits: [
+      {
+        file: '../src/recipes/figure.ts',
+        find: "before: { caption: variant(Style.self({ order: '-1' })) },",
+        replace: 'before: {},',
+      },
+    ],
+    tests,
+  },
 ]

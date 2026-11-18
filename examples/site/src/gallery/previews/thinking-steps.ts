@@ -1,51 +1,25 @@
-import type { NamedStyle } from 'foldkit-mixins'
 import { Recipes, ThinkingStepsSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import basic from '../../examples/thinking-steps/basic.js'
+import configure from '../../examples/thinking-steps/configure.js'
+import flat from '../../examples/thinking-steps/flat.js'
+import running from '../../examples/thinking-steps/running.js'
+import sources from '../../examples/thinking-steps/sources.js'
+import tools from '../../examples/thinking-steps/tools.js'
 import { about } from '../catalogue.js'
 import { fromRecipe } from '../define.js'
-import type { Live } from '../showcase.js'
-
-const thoughtSteps = <Message>(style: NamedStyle<typeof ThinkingStepsSlots>, live: Live<Message>) =>
-  Snippet.thinkingSteps(
-    style,
-    live.widgets.thought,
-    open => live.onWidget(Widgets.Message.ToggledThought({ open })),
-    live.h,
-  )
 
 export const showcase = fromRecipe(
   about('thinking-steps'),
   ThinkingStepsSlots,
   Recipes.ThinkingSteps,
-  thoughtSteps,
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Done', draw: thoughtSteps },
-    {
-      name: 'running',
-      title: 'Running',
-      draw: (style, live) =>
-        Snippet.thinkingStepsRunning(
-          style,
-          live.widgets.thinking,
-          open => live.onWidget(Widgets.Message.ToggledThinking({ open })),
-          live.h,
-        ),
-    },
-    {
-      name: 'tools',
-      title: 'Tool calls',
-      pins: { variant: 'card' },
-      draw: (style, live) =>
-        Snippet.thinkingStepsTools(
-          style,
-          live.widgets.toolsOpen,
-          open => live.onWidget(Widgets.Message.ToggledTools({ open })),
-          live.widgets.toolSteps,
-          id => live.onWidget(Widgets.Message.ToggledToolStep({ id })),
-          live.h,
-        ),
-    },
+    { name: 'basic', example: basic },
+    { name: 'running', example: running },
+    { name: 'tools', example: tools },
+    { name: 'sources', example: sources },
+    { name: 'flat', example: flat },
+    { name: 'configure', example: configure },
   ],
 )

@@ -244,7 +244,7 @@ describe('Timer.view', () => {
       ['reset', 'Reset', undefined],
     ])
     const paused = acted(acted(countdown, 'start', 0), 'pause', 10)
-    expect(pressesOf({ model: paused, labels: { resume: 'Go on' } })[0]).toEqual([
+    expect(pressesOf({ model: paused, words: { resume: 'Go on' } })[0]).toEqual([
       'resume',
       'Go on',
       undefined,

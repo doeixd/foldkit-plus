@@ -1,15 +1,5 @@
 import { Effect, Match, Option, Schema } from 'effect'
-import {
-  Attr,
-  Behavior,
-  Capability,
-  Event,
-  Slot,
-  Slots,
-  SlotView,
-  type NamedStyle,
-} from 'foldkit-mixins'
-import { FluidHover } from 'foldkit-primitives/dom'
+import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import { RovingTabindex, TreeNavigation, Typeahead } from 'foldkit-primitives/interaction'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
@@ -18,8 +8,11 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { flipped } from './choices.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { readingKey } from './direction.js'
 import type { MixinList } from './resolve.js'
+import { fluid } from './treeView/fluid.js'
+import { TreeViewSlots } from './treeView/slots.js'
 
 /**
  * A tree view, the APG's and Zag's: nested rows that open and shut, one tab
@@ -49,61 +42,8 @@ import type { MixinList } from './resolve.js'
  * `highlight`, drawn first in the root, is the hover that follows the pointer
  * from row to row, which `fluid` moves.
  */
-export const TreeViewSlots = Slots.define({
-  root: Slot.make({
-    capability: Capability.Container,
-    events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel],
-  }),
-  item: Slot.make({
-    capability: Capability.Focusable,
-    events: [Event.Focus],
-    attributes: [
-      Attr.Role,
-      Attr.AriaExpanded,
-      Attr.AriaSelected,
-      Attr.AriaChecked,
-      Attr.AriaDisabled,
-    ],
-  }),
-  row: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
-  chevron: Slot.make({ capability: Capability.Container }),
-  /** The row's box in a `checkable` tree; pressing it checks the row and chooses nothing. */
-  checkbox: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
-  icon: Slot.make({ capability: Capability.Container }),
-  label: Slot.make({ capability: Capability.Container }),
-  group: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  highlight: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-})
-
-// A row showing: its item neither disabled nor in a shut group, whose rows stay drawn.
-const shownRow = '[role="treeitem"]:not([aria-disabled="true"], [inert] *) > :first-child'
-
-/**
- * What moves the `highlight`: on the root, one highlight follows the pointer
- * to the nearest showing row, and to the row the keys focus, at its own
- * indentation. Pass it beside the style; until it runs, each row marks its
- * own hover and the drawn highlight shows nothing.
- */
-export const fluid = [
-  Behavior.forSlots(TreeViewSlots)<unknown, never>(
-    {
-      root: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () =>
-          FluidHover({
-            name: 'tree-hover',
-            item: shownRow,
-            axis: 'y',
-            gapClick: true,
-            // The focused `treeitem` holds its row and the rows beneath it.
-            focused: ':scope:not([aria-disabled="true"]) > :first-child',
-          }),
-      }),
-    },
-    { name: 'TreeViewHover' },
-  ).mixin,
-] as const
+export { TreeViewSlots }
+export { fluid }
 
 /** A row of the tree, and the rows it holds. */
 export interface TreeNode {
@@ -115,6 +55,12 @@ export interface TreeNode {
   readonly icon?: Html | undefined
   /** Drawn in place of `icon` while the row is open: an open folder. */
   readonly openIcon?: Html | undefined
+  /** Drawn in place of the label's text: a name and a role, an avatar. `label` still names the row and is what typing matches. */
+  readonly content?: Html | undefined
+  /** Drawn after the label: a badge, a count. */
+  readonly trailing?: Html | undefined
+  /** Drawn at the row's end: a menu button, a delete. Its control stops its own press, or the row is chosen too. */
+  readonly action?: Html | undefined
 }
 
 export const Model = Schema.Struct({
@@ -128,6 +74,8 @@ export const Model = Schema.Struct({
   selected: Schema.Option(Schema.String),
   /** The checked rows that hold no rows; a row holding rows reads its state from them. */
   checked: Schema.Array(Schema.String),
+  /** Each row has a box: set once in `init`, read by `update` and the view, so neither is told again. */
+  checkable: Schema.Boolean,
   /** The letters typed so far, which a pause clears: typeahead matches the whole word, not the last key. */
   typeahead: Typeahead.Model,
 })
@@ -154,12 +102,14 @@ export const init = (options: {
   readonly id: string
   readonly open?: ReadonlyArray<string>
   readonly checked?: ReadonlyArray<string>
+  readonly checkable?: boolean
 }): Model => ({
   id: options.id,
   current: Option.none(),
   open: options.open ?? [],
   selected: Option.none(),
   checked: options.checked ?? [],
+  checkable: options.checkable ?? false,
   typeahead: { query: '', generation: 0 },
 })
 
@@ -356,7 +306,7 @@ export const update = (
   return (model: Model, message: Message): Return =>
     Message.match<Return>(message, {
       Pressed: ({ key }) => {
-        if (key === ' ' && options.checkable === true) {
+        if (key === ' ' && (options.checkable ?? model.checkable)) {
           return Option.match(Option.flatMap(model.current, enabled), {
             onNone: () => ({ model }),
             onSome: row => check(model, row),
@@ -468,7 +418,7 @@ export interface TreeViewView<ParentMessage> {
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
   /** Default `'ltr'`; under `'rtl'` ArrowLeft and ArrowRight swap. */
   readonly direction?: 'ltr' | 'rtl' | undefined
-  /** Gives each row a box; pass the same to `update`. */
+  /** Overrides the Model's `checkable` for this draw; pass the same to `update`. Better set once in `init`. */
   readonly checkable?: boolean | undefined
   /** A style of `TreeViewSlots`, for the tree's look. */
   readonly style?: NamedStyle<typeof TreeViewSlots> | undefined
@@ -487,7 +437,8 @@ export const view = <ParentMessage>(
   )
   const { model, onMessage } = options
   const open = new Set(model.open)
-  const checks = options.checkable === true ? checksOf(options.nodes, model.checked) : undefined
+  const checks =
+    (options.checkable ?? model.checkable) ? checksOf(options.nodes, model.checked) : undefined
   const stop = TreeNavigation.tabStop(
     TreeNavigation.shown(flatOf(options.nodes).rows, navigationOf(model), args),
     Option.getOrNull(model.current),
@@ -539,7 +490,11 @@ export const view = <ParentMessage>(
                 onSome: icon => [h.span(builders.icon.attrs([h.AriaHidden(true)]), [icon])],
               },
             ),
-            h.span(builders.label.attrs(), [node.label]),
+            h.span(builders.label.attrs(), [node.content ?? node.label]),
+            ...(node.trailing === undefined
+              ? []
+              : [h.span(builders.trailing.attrs(), [node.trailing])]),
+            ...(node.action === undefined ? [] : [h.span(builders.action.attrs(), [node.action])]),
           ]),
           ...(branch
             ? [
@@ -575,3 +530,25 @@ export const view = <ParentMessage>(
     ],
   )
 }
+
+/** What a TreeView is given once: its look and the options that hold no Message. */
+export type TreeViewPreset = Pick<TreeViewView<never>, 'direction' | 'style'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own TreeView: `base` for every use, `presets` chosen at
+ * a use with `preset`, and the call over both. `mixins` concatenate in that
+ * order (`TreeView.fluid` goes in `base`); any other option given at the call
+ * replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<TreeViewPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: TreeViewView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

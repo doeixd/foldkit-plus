@@ -16,6 +16,8 @@ import {
   whenOption as when,
 } from './menuUtils.js'
 import { inheritRegion, topLayer } from './anchor.js'
+import { words, type ComboboxWords } from './combobox/words.js'
+import { fill, wordsOf } from './words.js'
 
 export type ComboboxItemRender = Readonly<{
   key: string
@@ -73,21 +75,23 @@ export type ExtraInputs = Readonly<{
    * a loading line while the application fetches them. A polite status.
    */
   empty?: Html | undefined
-  /** The clear button's content; the button shows while the field has text. */
+  /**
+   * The clear button's content; the button shows while the field has text.
+   * `null` draws the button with no content and marks it `data-glyph="cross"`,
+   * for the recipe to draw the sign.
+   */
   clearContent?: Html | undefined
-  /** The clear button's name; default `Clear`. */
+  /** The clear button's name; default `words.clear`. */
   clearLabel?: string | undefined
   /**
-   * Draws each chosen value as a chip in the field, its remove button
-   * sending `SelectedItem` for it, which a multiple combobox toggles off.
+   * Draws each chosen value as a chip in the field, labelled by
+   * `itemToDisplayText`, its remove button (named by `words.remove`) sending
+   * `SelectedItem` for it, which a multiple combobox toggles off. An object
+   * with nothing in it: a function here could not cross `h.submodel`.
    */
-  chips?:
-    | {
-        readonly label?: ((value: string) => string) | undefined
-        /** Default `Remove <label>`. */
-        readonly removeLabel?: ((label: string) => string) | undefined
-      }
-    | undefined
+  chips?: Readonly<Record<string, never>> | undefined
+  /** The clear button's and the chips' fixed text. */
+  words?: Partial<ComboboxWords> | undefined
 }>
 
 export type NormalizedInputs<Item extends string> = BaseViewInputsCommon<Item> &
@@ -153,6 +157,7 @@ export const computeRender = (
     clearLabel,
     chips,
   } = viewInputs
+  const text = wordsOf(words, viewInputs.words)
 
   const resolveInputLabel = () => {
     if (Predicate.isNotUndefined(ariaLabel)) {
@@ -456,14 +461,15 @@ export const computeRender = (
   const chipRenders: ReadonlyArray<ComboboxChipRender> =
     chips === undefined
       ? []
-      : Array.map(selectedValues, value => {
-          const label = chips.label?.(value) ?? value
+      : Array.map(selectedValues, (value, index) => {
+          // The label a row of this value shows, whether or not the row is offered now.
+          const label = itemToDisplayText(value, index)
           return {
             key: `${id}-chip-${value}`,
             label,
             remove: childAttributes([
               h.Type('button'),
-              h.AriaLabel(chips.removeLabel?.(label) ?? `Remove ${label}`),
+              h.AriaLabel(fill(text.remove, { label })),
               ...(isDisabled || isReadOnly
                 ? [h.Disabled(true)]
                 : [
@@ -483,13 +489,24 @@ export const computeRender = (
           attributes: childAttributes([
             h.Type('button'),
             h.Tabindex(-1),
-            h.AriaLabel(clearLabel ?? 'Clear'),
+            h.AriaLabel(clearLabel ?? text.clear),
+            ...(clearContent === null ? [h.DataAttribute('glyph', 'cross')] : []),
             h.OnClick(Message.UpdatedInputValue({ value: '' })),
             // The field keeps the focus, as with the toggle.
             h.OnMount(UpstreamCombobox.AttachComboboxPreventBlur()),
           ]),
           content: clearContent,
         }
+
+  // A closed field submits its value too, as upstream's does.
+  const hiddenInputs: ReadonlyArray<Html> = formName
+    ? Array.match(selectedValues, {
+        onEmpty: () => [h.input([h.Type('hidden'), h.Name(formName)])],
+        onNonEmpty: Array.map(selectedValue =>
+          h.input([h.Type('hidden'), h.Name(formName), h.Value(selectedValue)]),
+        ),
+      })
+    : []
 
   if (!isVisible) {
     return {
@@ -503,7 +520,7 @@ export const computeRender = (
       items: undefined,
       scroll: undefined,
       groups: [],
-      hiddenInputs: [],
+      hiddenInputs,
       chips: chipRenders,
       clearButton,
       empty: undefined,
@@ -684,15 +701,6 @@ export const computeRender = (
           items: itemRenders,
         },
       ]
-
-  const hiddenInputs: ReadonlyArray<Html> = formName
-    ? Array.match(selectedValues, {
-        onEmpty: () => [h.input([h.Type('hidden'), h.Name(formName)])],
-        onNonEmpty: Array.map(selectedValue =>
-          h.input([h.Type('hidden'), h.Name(formName), h.Value(selectedValue)]),
-        ),
-      })
-    : []
 
   // Anchored as the list is, which is not drawn beside it: one Mount per element.
   const emptyPanel =

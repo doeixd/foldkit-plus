@@ -69,25 +69,141 @@ const cases: ReadonlyArray<readonly [name: string, page: string]> = [
   ['sync', `import { indexedDb } from 'pkg'\nexport const used = indexedDb`],
 ]
 
+const keepsNoMore = async (name: string, page: string) => {
+  const packageDir = join(packages, name)
+  const root = scratchIn(name, 'published-')
+  made.push(root)
+  const imported = await buildPublished(name, root)
+  const source = await keptFrom(
+    root,
+    page,
+    join(packageDir, 'src', 'index.ts'),
+    join(packageDir, 'src'),
+  )
+  const published = await keptFrom(root, page, imported, join(root, 'dist'))
+  expect(source).toBeGreaterThan(0)
+  expect(published).toBeLessThanOrEqual(Math.max(source * 1.05, source + 30))
+}
+
 test.each(cases)(
   'a page keeps no more of the published %s than of its source',
-  async (name, page) => {
-    const packageDir = join(packages, name)
-    const root = scratchIn(name, 'published-')
-    made.push(root)
-    const imported = await buildPublished(name, root)
-    const source = await keptFrom(
-      root,
-      page,
-      join(packageDir, 'src', 'index.ts'),
-      join(packageDir, 'src'),
-    )
-    const published = await keptFrom(root, page, imported, join(root, 'dist'))
-    expect(source).toBeGreaterThan(0)
-    expect(published).toBeLessThanOrEqual(Math.max(source * 1.05, source + 30))
-  },
+  keepsNoMore,
   120_000,
 )
+
+/**
+ * `foldkit-mixins-ui`'s two namespaces of one file per member (#589): a page
+ * reading one recipe or one Bundle keeps that member's files, built as from
+ * source. It holds only while `tsdown.config.ts` writes one output per source
+ * file with relative imports external; linked, `export * as` is an object of
+ * getters and either page keeps every member.
+ */
+test.each([
+  ['Recipes.Avatar', `import { Recipes } from 'pkg'\nexport const used = Recipes.Avatar`],
+  ['Bundles.TagsInput', `import { Bundles } from 'pkg'\nexport const used = Bundles.TagsInput`],
+] as const)(
+  'a page reading %s keeps no more of the published mixins-ui than of its source',
+  (_, page) => keepsNoMore('mixins-ui', page),
+  240_000,
+)
+
+test('a page reading one Bundle keeps no other Bundle and no recipe, built or source', async () => {
+  const root = scratchIn('mixins-ui', 'published-')
+  made.push(root)
+  const page = `import { Bundles } from 'pkg'\nexport const used = Bundles.TagsInput`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('mixins-ui', root))
+  const source = await kept(join(packages, 'mixins-ui', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/bundles\/tagsInput\.js$/.test(id))).toBe(true)
+  expect(source.some(id => /\/src\/bundles\/tagsInput\.ts$/.test(id))).toBe(true)
+  expect(
+    [...built, ...source].filter(id =>
+      /\/(bundles\/combobox|recipes\/[a-zA-Z]+)\.(js|ts)$/.test(id),
+    ),
+  ).toEqual([])
+}, 240_000)
+
+/**
+ * The Calendar's adapter re-exports its state and its options-level view,
+ * each a file of its own (#589). A page that draws a calendar itself, through
+ * `toView`, keeps neither, so not the module-level Schema over upstream's
+ * Model that the state holds, nor the `configure` merge; the DatePicker's
+ * adapter is held to the same. `pnpm mutate` cannot
+ * edit what tsdown reads from the disk, so it was broken by hand: a
+ * `console.log(Model)` at the top level of `src/calendar.ts` turned it red.
+ */
+test('a page drawing a calendar or a date picker through its adapter keeps no state or view of either, built or source', async () => {
+  const root = scratchIn('mixins-ui', 'published-')
+  made.push(root)
+  const published = await buildPublished('mixins-ui', root)
+  // One build serves both pages: a second would be another copy of the package on disk.
+  for (const [name, leaf] of [
+    ['Calendar', 'calendar/selection'],
+    ['DatePicker', 'datePickerView'],
+  ] as const) {
+    const page = [`import { ${name} } from 'pkg'`, `export const used = ${name}.toView`].join('\n')
+    const kept = async (entry: string) =>
+      (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+    const built = await kept(published)
+    const source = await kept(join(packages, 'mixins-ui', 'src', 'index.ts'))
+    expect(built.some(id => id.endsWith(`/dist/${leaf}.js`))).toBe(true)
+    expect(source.some(id => id.endsWith(`/src/${leaf}.ts`))).toBe(true)
+    expect(
+      [...built, ...source].filter(id =>
+        /\/((calendar|datePicker)\/(state|view)|bundles\/[a-zA-Z]+|configure)\.(js|ts)$/.test(id),
+      ),
+    ).toEqual([])
+  }
+}, 240_000)
+
+/**
+ * The Combobox's `fluid` and `overlayBars` mixins, and its options-level
+ * view, are files of their own re-exported by the adapter (#589). Each was a
+ * module-level value in `combobox.ts`, which kept `FluidHover`, `Measure` and
+ * `ScrollBars` in every page drawing a combobox. Broken by hand as the
+ * Calendar's was: a `console.log(fluid)` in `src/combobox.ts` turned it red.
+ */
+test('a page drawing a combobox through its adapter keeps no fluid, overlayBars or view module, built or source', async () => {
+  const root = scratchIn('mixins-ui', 'published-')
+  made.push(root)
+  const page = `import { Combobox } from 'pkg'\nexport const used = Combobox.toView`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('mixins-ui', root))
+  const source = await kept(join(packages, 'mixins-ui', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/combobox\/slots\.js$/.test(id))).toBe(true)
+  expect(source.some(id => /\/src\/combobox\/slots\.ts$/.test(id))).toBe(true)
+  expect(
+    [...built, ...source].filter(id =>
+      /\/(combobox\/(fluid|overlayBars|view|filters)|configure)\.(js|ts)$/.test(id),
+    ),
+  ).toEqual([])
+}, 240_000)
+
+/**
+ * The Listbox's `fluid` and `overlayBars` mixins and its options-level view
+ * are files of their own re-exported by the adapter (#589), as the Combobox's
+ * are: each was a module-level value in `listbox.ts`, which kept
+ * `FluidHover`, `Measure` and `ScrollBars` in every page drawing a listbox.
+ * Broken by hand: a `console.log(fluid)` in `src/listbox.ts` turned it red.
+ */
+test('a page drawing a listbox through its adapter keeps no fluid, overlayBars or view module, built or source', async () => {
+  const root = scratchIn('mixins-ui', 'published-')
+  made.push(root)
+  const page = `import { Listbox } from 'pkg'\nexport const used = Listbox.toView`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('mixins-ui', root))
+  const source = await kept(join(packages, 'mixins-ui', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/listbox\/slots\.js$/.test(id))).toBe(true)
+  expect(source.some(id => /\/src\/listbox\/slots\.ts$/.test(id))).toBe(true)
+  expect(
+    [...built, ...source].filter(id =>
+      /\/(listbox\/(fluid|overlayBars|view)|configure)\.(js|ts)$/.test(id),
+    ),
+  ).toEqual([])
+}, 240_000)
 
 /**
  * The size check above catches Evidence linked into the entry; this one, a

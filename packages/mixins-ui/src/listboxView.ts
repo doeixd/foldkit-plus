@@ -23,7 +23,6 @@ import {
   type ListboxHeadingRender,
   type ListboxItemRender,
   type ListboxRenderInfo,
-  type NormalizedInputs,
   type SharedBehavior,
   type SharedViewInputs,
 } from './listboxShared.js'

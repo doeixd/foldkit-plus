@@ -12,6 +12,7 @@ import { A11y, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import {
   ThinkingStepsSlots,
+  configure,
   elapsed,
   shown,
   stateOf,
@@ -61,6 +62,8 @@ describe('ThinkingSteps.stateOf', () => {
     ['running before any step', [], 'running'],
     ['failed once one failed and none runs', ['done', 'failed', 'pending'], 'failed'],
     ['done once every step is', ['done', 'done'], 'done'],
+    ['done once the rest are skipped', ['done', 'skipped'], 'done'],
+    ['running while a step waits beside a skipped one', ['skipped', 'pending'], 'running'],
   ] as const)('%s', (_, states, state) => {
     expect(stateOf(states.map((each, n) => step(String(n), each)))).toBe(state)
   })
@@ -105,6 +108,18 @@ describe('ThinkingSteps summary', () => {
       'Stopped after 2s',
     ],
     ['the application’s words', trace, { summary: 'Reasoned' }, 'Reasoned'],
+    [
+      'the words’ own language',
+      trace,
+      { words: { thoughtFor: '{time} Nachdenken' } },
+      '4s Nachdenken',
+    ],
+    [
+      'the stopped words, with a time',
+      [step('a', 'failed', { duration: 1000 })],
+      { words: { stoppedAfter: 'Halt nach {time}' } },
+      'Halt nach 1s',
+    ],
   ] as const)('says %s', (_, steps, options, words) => {
     expect(Inert.text(trigger(view({ steps, ...options })))).toBe(words)
   })
@@ -147,11 +162,11 @@ describe('ThinkingSteps view', () => {
   it('says each step’s state and duration in words, its marker hidden', () => {
     const drawn = view({
       steps: [step('a', 'failed', { duration: 300 })],
-      stateWords: { pending: 'waits', running: 'runs', done: 'did', failed: 'broke' },
+      words: { failed: 'broke' },
     })
     const [item] = Inert.byTag(drawn, 'li')
     expect(Inert.text(item)).toBe('Step a broke 0.3s')
-    const [marker] = Inert.children(Inert.children(item)[0])
+    const [marker] = Inert.children(Inert.children(Inert.children(item)[0])[0])
     expect(Inert.value(marker, 'aria-hidden')).toBe('true')
   })
 
@@ -184,12 +199,87 @@ describe('ThinkingSteps view', () => {
     )
   })
 
+  it('says a skipped step in words, the marker marked skipped', () => {
+    const drawn = view({ steps: [step('a', 'skipped')], words: { skipped: 'left out' } })
+    const [item] = Inert.byTag(drawn, 'li')
+    expect(Inert.text(item)).toBe('Step a left out')
+    expect(Inert.value(item, 'data-state')).toBe('skipped')
+  })
+
+  it('draws a step’s trailing beside its button, never inside it', () => {
+    const drawn = view({
+      onToggleStep: () => message('Other'),
+      steps: [step('a', 'failed', { detail: 'Why.', trailing: h.span([], ['Retry']) })],
+    })
+    const [, head] = Inert.byTag(drawn, 'button')
+    expect(Inert.text(head)).not.toContain('Retry')
+    const [item] = Inert.byTag(drawn, 'li')
+    expect(Inert.text(Inert.children(Inert.children(item)[0])[1])).toBe('Retry')
+  })
+
+  it('makes a step’s title a link, and the step no toggle, its detail always shown', () => {
+    const drawn = view({
+      onToggleStep: () => message('Other'),
+      steps: [step('src', 'done', { href: '/sources/1', detail: 'Quoted.' })],
+    })
+    const [link] = Inert.byTag(drawn, 'a')
+    expect(Inert.value(link, 'href')).toBe('/sources/1')
+    expect(Inert.text(link)).toBe('Step src')
+    expect(Inert.byTag(drawn, 'button')).toHaveLength(1)
+    expect(Inert.value(byId(drawn, 'trace-src-body'), 'inert')).toBeUndefined()
+  })
+
+  it('draws the steps alone with trigger none, the list named and never shut', () => {
+    const drawn = view({ trigger: 'none', open: Option.some(false), words: { steps: 'Findings' } })
+    expect(Inert.byTag(drawn, 'button')).toEqual([])
+    expect(byId(drawn, 'trace-panel')).toBeUndefined()
+    const [list] = Inert.byTag(drawn, 'ol')
+    expect(Inert.value(list, 'aria-label')).toBe('Findings')
+    expect(Inert.value(drawn, 'data-open')).toBe('true')
+  })
+
   it('draws every element in a Slot', () => {
     const Drawn = SlotView.forMessages<TestMessage>().define(
       ThinkingStepsSlots,
       (_: undefined, __, builder) => view({ onToggleStep: () => message('Other') }, builder),
     )
     expect(Inert.unslotted(Inert.draw(Drawn, undefined), { inside: ['detail'] })).toEqual([])
+  })
+})
+
+describe('ThinkingSteps configure', () => {
+  const Own = configure({
+    base: { words: { thinking: 'Denkt…' } },
+    presets: { flat: { trigger: 'none', words: { steps: 'Schritte' } } },
+  })
+  const draw = (options: Partial<ThinkingStepsView<TestMessage>> & { readonly preset?: 'flat' }) =>
+    Inert.draw(
+      SlotView.forMessages<TestMessage>().define(ThinkingStepsSlots, (_: undefined, __, builder) =>
+        Own.view(
+          {
+            id: 'trace',
+            open: Option.none(),
+            onToggle: () => message('Other'),
+            steps: [step('a', 'pending')],
+            ...options,
+          },
+          builder,
+        ),
+      ),
+      undefined,
+    )
+
+  it('draws with the base’s words, the preset over it, and the call over both', () => {
+    expect(Inert.text(Inert.byTag(draw({}), 'button')[0])).toBe('Denkt…')
+    const flat = draw({ preset: 'flat' })
+    expect(Inert.byTag(flat, 'button')).toEqual([])
+    expect(Inert.value(Inert.byTag(flat, 'ol')[0], 'aria-label')).toBe('Schritte')
+    expect(
+      Inert.value(
+        Inert.byTag(draw({ preset: 'flat', words: { steps: 'Mine' } }), 'ol')[0],
+        'aria-label',
+      ),
+    ).toBe('Mine')
   })
 })
 

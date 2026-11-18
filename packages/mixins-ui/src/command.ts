@@ -1,86 +1,28 @@
 import { Option, Stream } from 'effect'
 import {
-  Attr,
   Behavior,
   Behaviors,
   Capability,
-  Event,
-  Slot,
-  Slots,
   SlotView,
   type Diagnostic,
   type NamedStyle,
 } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { KeepInView, ScrollBars } from 'foldkit-primitives/dom'
+import { KeepInView } from 'foldkit-primitives/dom'
 import { keyboardEvents, matchHotkey } from 'foldkit-primitives/events'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import * as Kbd from './kbd.js'
 import type { KbdSlots } from './kbd.js'
 import { keyShortcuts } from './menu.js'
 import type { MixinList } from './resolve.js'
 
-/**
- * A command menu, shadcn's Command and Fluid Functionalism's CommandMenu: a
- * search field that keeps focus while the keys move through the rows and
- * points at the highlighted one through `aria-activedescendant`, over a list
- * of grouped rows. (A press on a row runs it; foldkit has no default-preventing
- * mousedown to keep the field focused through the press, so a menu that stays
- * open after a pressed row refocuses its field in the Command `onRun` starts.) ↑ and ↓
- * wrap through the enabled rows, Enter runs the highlighted one, a press
- * runs the one pressed, and the pointer moves the highlight. Rows never
- * re-sort as the query grows, so nothing moves under the pointer; whenever
- * the highlighted row is filtered away, the first enabled row takes it, so
- * Enter always has a target. The query, the highlighted value and the page
- * are the application's; `filtered` is what the view shows for a query.
- *
- * Nested pages are the application's too: a row that `opensPage` steps in
- * when run (the application pushes the page and clears the query), and
- * Backspace in an empty field sends `page.onBack`. In a dialog, `hotkey`
- * opens it on ⌘K or Ctrl+K, and the Dialog component draws it: the field,
- * the first thing in the panel that takes focus, has it when it opens.
- */
-export const CommandSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
-  /** The row of the field, after the page's crumbs. */
-  search: Slot.make({ capability: Capability.Container }),
-  /** The trail of pages stepped into, before the field, and each page's name. */
-  crumbs: Slot.make({ capability: Capability.Container }),
-  crumb: Slot.make({ capability: Capability.Container }),
-  input: Slot.make({
-    capability: Capability.Focusable,
-    events: [Event.Input, Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaExpanded],
-  }),
-  list: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  group: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  heading: Slot.make({ capability: Capability.Container }),
-  item: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.Role, Attr.AriaSelected, Attr.AriaDisabled],
-  }),
-  /** A row's picture, before its words, hidden from assistive technology. */
-  icon: Slot.make({ capability: Capability.Container }),
-  /** A row's words: its `label` and, below it, its `description`. */
-  text: Slot.make({ capability: Capability.Container }),
-  label: Slot.make({ capability: Capability.Container }),
-  description: Slot.make({ capability: Capability.Container }),
-  /** The keys that run a row elsewhere, at its end, drawn as `Kbd.combo`. */
-  shortcut: Slot.make({ capability: Capability.Container }),
-  /** The mark that a row opens a page. */
-  chevron: Slot.make({ capability: Capability.Container }),
-  /** What the list says while it is loading or when nothing matches: a polite live region. */
-  status: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
-  empty: Slot.make({ capability: Capability.Container }),
-  loading: Slot.make({ capability: Capability.Container }),
-  /** The box around the list that holds its overlay `bar`, which `overlayBars` drives, and the bar's `thumb`. */
-  frame: Slot.make({ capability: Capability.Container }),
-  bar: Slot.make({ capability: Capability.Container }),
-  thumb: Slot.make({ capability: Capability.Container }),
-  /** The strip under the list naming the keys, and each `hint` in it. */
-  footer: Slot.make({ capability: Capability.Container }),
-  hint: Slot.make({ capability: Capability.Container }),
-})
+import { CommandSlots } from './command/slots.js'
+import { words as defaultWords, type CommandWords } from './command/words.js'
+import { wordsOf } from './words.js'
+
+export { CommandSlots } from './command/slots.js'
+export { overlayBars } from './command/overlayBars.js'
+export { words, type CommandWords } from './command/words.js'
 
 /** Keys pressed together, as drawn: `['⌘', 'N']`. */
 export type Keys = readonly [string, ...ReadonlyArray<string>]
@@ -151,13 +93,13 @@ export interface CommandView<Value extends string, Message> {
   readonly onActive: (value: Value) => NoInfer<Message>
   /** The Message that runs a row. */
   readonly onRun: (value: Value) => NoInfer<Message>
-  /** What the list says when nothing matches. Default "No results." */
-  readonly empty?: string | undefined
   /**
-   * Given, the list is loading what the query asks for: it says this, and is
-   * `aria-busy`. The rows it holds still show, as cmdk's do.
+   * The list is loading what the query asks for: it says `words.loading`, and
+   * is `aria-busy`. The rows it holds still show, as cmdk's do.
    */
-  readonly loading?: string | undefined
+  readonly loading?: boolean | undefined
+  /** The fixed text: `empty` when nothing matches, `loading` while loading. */
+  readonly words?: Partial<CommandWords> | undefined
   /** The page the menu is on, when the application has stepped into one. */
   readonly page?: CommandPage<Message> | undefined
   /**
@@ -250,6 +192,8 @@ export const view = <Value extends string, Message>(
   const rowId = (value: Value) => `${options.id}-${value}`
   const listId = `${options.id}-list`
   const crumbsId = `${options.id}-page`
+  const loading = options.loading === true
+  const said = wordsOf(defaultWords, options.words)
   // What the field and the highlight hold since this drawing: a key handler reads the view it
   // was drawn with, so a character typed, or a row moved to, before the next frame would be
   // lost to the next key (Backspace deciding on an empty field, two ArrowDowns moving one row).
@@ -352,7 +296,7 @@ export const view = <Value extends string, Message>(
       h.Id(listId),
       h.Role('listbox'),
       h.AriaLabel(options.label),
-      ...(options.loading === undefined ? [] : [h.AriaBusy(true)]),
+      ...(loading ? [h.AriaBusy(true)] : []),
     ]),
     groups.map((group, index) =>
       h.keyed('div')(
@@ -373,10 +317,8 @@ export const view = <Value extends string, Message>(
   // Outside the listbox, whose children are its options, and always drawn,
   // so a region already in the page announces what is put in it.
   const status = h.div(builders.status.attrs([h.Role('status')]), [
-    ...(options.loading === undefined ? [] : [h.div(builders.loading.attrs(), [options.loading])]),
-    ...(groups.length === 0 && options.loading === undefined
-      ? [h.div(builders.empty.attrs(), [options.empty ?? 'No results.'])]
-      : []),
+    ...(loading ? [h.div(builders.loading.attrs(), [said.loading])] : []),
+    ...(groups.length === 0 && !loading ? [h.div(builders.empty.attrs(), [said.empty])] : []),
   ])
   // The list stands in a frame beside its bar, whether or not `overlayBars`
   // runs: a bar no Mount marks scrollable is not drawn by the style. Hidden
@@ -457,24 +399,6 @@ export const hotkey = <Message>(message: Message): Stream.Stream<Message> => {
   )
 }
 
-/**
- * What draws the bar over the `list` (`ScrollBars`), in place of the
- * browser's, on a pointer that can hover; pass it beside the style. Not a
- * default: its Mount sends no Message, yet a Scene test of every page that
- * drew one would have to resolve it.
- */
-export const overlayBars = [
-  Behavior.forSlots(CommandSlots)<unknown, never>(
-    {
-      list: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => ScrollBars({}),
-      }),
-    },
-    { name: 'CommandScrollBars' },
-  ).mixin,
-] as const
-
 const followsActive = Behavior.slot({
   requires: { capability: Capability.Container },
   mount: () => KeepInView({ selector: '[role="option"][aria-selected="true"]' }),
@@ -491,3 +415,24 @@ export const keepActiveInView = [
     { name: 'CommandKeepActiveInView' },
   ).mixin,
 ] as const
+
+/** What a Command is given once: its wording, hints, look and mixins. The query, rows and Messages are each use's. */
+export type CommandPreset = Pick<
+  CommandView<string, never>,
+  'placeholder' | 'words' | 'hints' | 'style' | 'kbd'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own Command: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<CommandPreset, Names>,
+): {
+  readonly view: <Value extends string, Outer>(
+    options: CommandView<Value, Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

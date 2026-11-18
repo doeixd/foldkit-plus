@@ -11,19 +11,17 @@ import { describe, expect, it } from 'vitest'
 import { showcaseOf, showcases } from '../src/gallery/showcases.js'
 import { selectionCode, valueOf, type Live, type Selection } from '../src/gallery/showcase.js'
 import { pagesWithTopics, topicsFor } from '../src/gallery/related.js'
+import * as Examples from '../src/gallery/examplesState.js'
 import * as Widgets from '../src/gallery/widgets.js'
 
 const live: Live<string> = {
   switched: false,
   onSwitch: () => 'switched',
-  chosen: 'team',
-  onChoose: key => `chose ${key}`,
-  dismissed: false,
-  onDismiss: 'dismissed',
-  onRestore: 'restored',
   direction: 'ltr',
   widgets: Widgets.initial,
   onWidget: message => message._tag,
+  examples: Examples.initial,
+  onExample: key => key,
   ready: true,
   h: SlotView.inertBuilder<string>(),
 }
@@ -41,10 +39,10 @@ describe('the showcases', () => {
       { name: 'tone', values: ['accent', 'neutral', 'danger'], initial: 'accent' },
       {
         name: 'variant',
-        values: ['solid', 'outline', 'ghost', 'primary', 'icon'],
+        values: ['solid', 'outline', 'ghost', 'primary', 'link', 'icon'],
         initial: 'solid',
       },
-      { name: 'size', values: ['sm', 'md', 'lg'], initial: 'md' },
+      { name: 'size', values: ['xs', 'sm', 'md', 'lg'], initial: 'md' },
     ])
   })
 
@@ -69,7 +67,9 @@ describe('the showcases', () => {
 
   it('keep the values an example pins, whatever is picked', () => {
     const steps = Option.getOrThrow(showcaseOf('steps'))
-    const [basic, , vertical] = steps.examples
+    const named = (name: string) => steps.examples.find(example => example.name === name)
+    const basic = named('basic')
+    const vertical = named('vertical')
     const pick = (orientation: string) => ({ orientation })
     expect(markup(vertical!.render(pick('horizontal'), live))).toBe(
       markup(vertical!.render(pick('vertical'), live)),

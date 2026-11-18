@@ -7,8 +7,10 @@ import * as Mount from 'foldkit/mount'
 import * as Render from 'foldkit/render'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
 import { view as scrollArea, type ScrollAreaSlots } from './scrollArea.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A message scroller: a conversation's messages in a `ScrollArea` that
@@ -33,6 +35,10 @@ import { view as scrollArea, type ScrollAreaSlots } from './scrollArea.js'
  * The log is the APG's `role="log"`, named by `label`: a reader hears what
  * is added to it, and a `ChatMessage` still streaming is `aria-busy`, so an
  * answer is read once whole. The scroller fills the height of what holds it.
+ *
+ * It opens at the end, as a chat does, or at the start with `opens: 'start'`,
+ * as a document or a transcript does: the jump button then shows until the
+ * reader reaches the end, and what arrives meanwhile is counted.
  */
 export const MessageScrollerSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
@@ -53,6 +59,8 @@ export const Model = Schema.Struct({
   following: Schema.Boolean,
   /** Messages appended since the reader left the end. */
   unseen: Schema.Number,
+  /** Where it first stands: `end` follows what arrives, `start` waits at the top. */
+  opens: Schema.Literals(['start', 'end']),
 })
 export type Model = typeof Model.Type
 
@@ -69,10 +77,19 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-export const init = (options: { readonly id: string }): Model => ({
+/** What `init` and `Bundles.MessageScroller` are given. */
+export interface Args {
+  /** Prefixes every id the scroller draws, unique on the page. */
+  readonly id: string
+  /** Where it first stands; default `end`. */
+  readonly opens?: 'start' | 'end' | undefined
+}
+
+export const init = (options: Args): Model => ({
   id: options.id,
-  following: true,
+  following: options.opens !== 'start',
   unseen: 0,
+  opens: options.opens ?? 'end',
 })
 
 /** The id of the log of the scroller `id`, which `ScrollToEnd` looks up. */
@@ -142,7 +159,8 @@ export const ScrollToEnd = Command.define('MessageScroller.ScrollToEnd', {
  */
 export const FollowEnd = Mount.defineStream('MessageScroller.FollowEnd', {
   messages: [Message.LeftEnd, Message.ReachedEnd],
-  execute: ({ element }) =>
+  args: { opens: Schema.Literals(['start', 'end']) },
+  execute: ({ element, opens }) =>
     Stream.callback<Extract<Message, { readonly _tag: 'LeftEnd' | 'ReachedEnd' }>>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
@@ -151,7 +169,7 @@ export const FollowEnd = Mount.defineStream('MessageScroller.FollowEnd', {
             Queue.offerUnsafe(queue, Message.ReachedEnd())
             return () => {}
           }
-          let following = true
+          let following = opens === 'end'
           let lastTop = 0
           let held: { readonly node: HTMLElement; readonly at: number } | undefined
           const toEnd = () => scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'instant' })
@@ -265,9 +283,13 @@ export const FollowEnd = Mount.defineStream('MessageScroller.FollowEnd', {
           scroller.addEventListener('keydown', leaving)
           observer.observe(element)
           observer.observe(scroller)
-          toEnd()
+          if (opens === 'end') toEnd()
           remember()
-          Queue.offerUnsafe(queue, Message.ReachedEnd())
+          // Opened at the start with nothing to scroll, the end is in view already.
+          if (opens === 'end' || distance() <= NEAR) {
+            following = true
+            Queue.offerUnsafe(queue, Message.ReachedEnd())
+          }
           return () => {
             observer.disconnect()
             scroller.removeEventListener('scroll', scrolled)
@@ -300,6 +322,21 @@ export const update = (model: Model, message: Message): Return =>
     CompletedScrollToEnd: () => ({ model }),
   })
 
+/** The text a scroller draws that is not the conversation's. */
+export interface MessageScrollerWords {
+  /** The jump button's name. */
+  readonly jump: string
+  /** What arrived while the reader was away; `{count}`, one message or many. */
+  readonly one: string
+  readonly other: string
+}
+
+export const words: MessageScrollerWords = {
+  jump: 'Jump to latest',
+  one: '{count} new message',
+  other: '{count} new messages',
+}
+
 export interface MessageScrollerView<ParentMessage> {
   readonly model: Model
   /** Names the log: `Conversation with Ada`. */
@@ -307,10 +344,8 @@ export interface MessageScrollerView<ParentMessage> {
   /** The messages, such as a `ChatMessage.group`, top to bottom. */
   readonly content: ReadonlyArray<Html>
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
-  /** The jump button's name; default `Jump to latest`. */
-  readonly jumpLabel?: string | undefined
-  /** How the count is read; default `1 new message`, `3 new messages`. */
-  readonly unseenLabel?: ((count: number) => string) | undefined
+  /** The jump button's name and how the count is read. */
+  readonly words?: Partial<MessageScrollerWords> | undefined
   /** A style of `MessageScrollerSlots`, for the look. */
   readonly style?: NamedStyle<typeof MessageScrollerSlots> | undefined
   /** Mixins beside the style. */
@@ -320,8 +355,6 @@ export interface MessageScrollerView<ParentMessage> {
   /** Mixins beside the area's style, such as `ScrollArea.overlayBars`. */
   readonly areaMixins?: MixinList<ParentMessage> | undefined
 }
-
-const unseenWords = (count: number) => (count === 1 ? '1 new message' : `${count} new messages`)
 
 export const view = <ParentMessage>(
   options: MessageScrollerView<ParentMessage>,
@@ -333,14 +366,17 @@ export const view = <ParentMessage>(
     { input: undefined, h },
   )
   const { model, onMessage } = options
-  const jumpLabel = options.jumpLabel ?? 'Jump to latest'
-  const unseen = model.unseen > 0 ? [(options.unseenLabel ?? unseenWords)(model.unseen)] : []
+  const text = wordsOf(words, options.words)
+  const unseen =
+    model.unseen > 0
+      ? [fill(model.unseen === 1 ? text.one : text.other, { count: model.unseen })]
+      : []
   const log = h.div(
     builders.log.attrs([
       h.Id(logId(model.id)),
       h.Role('log'),
       h.AriaLabel(options.label),
-      h.OnMount(Mount.mapMessage(FollowEnd(), onMessage)),
+      h.OnMount(Mount.mapMessage(FollowEnd({ opens: model.opens }), onMessage)),
     ]),
     options.content,
   )
@@ -353,7 +389,7 @@ export const view = <ParentMessage>(
             builders.jump.attrs([
               h.Id(jumpId(model.id)),
               h.Type('button'),
-              h.AriaLabel([jumpLabel, ...unseen].join(', ')),
+              h.AriaLabel([text.jump, ...unseen].join(', ')),
               h.AriaControls(logId(model.id)),
               h.DataAttribute('unseen', String(model.unseen)),
               h.OnClick(onMessage(Message.Jumped())),
@@ -365,3 +401,25 @@ export const view = <ParentMessage>(
         ]),
   ])
 }
+
+/** What a scroller is given once: its look, words and area. The conversation is each use's. */
+export type MessageScrollerPreset = Pick<
+  MessageScrollerView<never>,
+  'style' | 'words' | 'areaStyle'
+> & { readonly mixins?: MixinList<never>; readonly areaMixins?: MixinList<never> }
+
+/**
+ * The application's own scroller: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both. Where it opens is the Bundle's
+ * arg; the Model is the application's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<MessageScrollerPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: MessageScrollerView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

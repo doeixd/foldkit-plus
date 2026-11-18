@@ -16,6 +16,7 @@ import {
   Message,
   MessageScrollerSlots,
   ScrollToEnd,
+  configure,
   init,
   update,
   view,
@@ -96,10 +97,25 @@ describe('MessageScroller view', () => {
     expect(Inert.text(button)).toBe('3')
     const one = fold(away, Message.Appended({ count: 1 }))
     const [single] = Inert.byTag(
-      view({ ...options(one), jumpLabel: 'Latest', unseenLabel: count => `${count} neu` }, h),
+      view({ ...options(one), words: { jump: 'Latest', one: '{count} neu' } }, h),
       'button',
     )
     expect(Inert.value(single, 'aria-label')).toBe('Latest, 1 neu')
+    const [many] = Inert.byTag(
+      view({ ...options(counted), words: { other: '{count} neue' } }, h),
+      'button',
+    )
+    expect(Inert.value(many, 'aria-label')).toBe('Jump to latest, 3 neue')
+  })
+
+  it('opens at the end unless told to open at the start', () => {
+    expect(start).toMatchObject({ following: true, opens: 'end' })
+    const top = init({ id: 'chat', opens: 'start' })
+    expect(top).toMatchObject({ following: false, opens: 'start', unseen: 0 })
+    // Waiting at the top, what arrives is counted and the jump button shows.
+    const counted = fold(top, Message.Appended({ count: 2 }))
+    expect(counted.unseen).toBe(2)
+    expect(Inert.byTag(view(options(top), h), 'button')).toHaveLength(1)
   })
 
   it('sends Jumped when the button is pressed', () => {
@@ -127,5 +143,35 @@ describe('MessageScroller view', () => {
     const tree = view(options(fold(away, Message.Appended({ count: 2 }))), h)
     expect(Inert.css([tree]).length).toBeGreaterThan(0)
     expect(Inert.missingTokens(tree, Style.stylesheet(Theme.root(theme)))).toEqual([])
+  })
+})
+
+describe('MessageScroller configure', () => {
+  const Own = configure({
+    base: { words: { jump: 'Nach unten' }, style },
+    presets: { counted: { words: { other: '{count} neue' } } },
+  })
+
+  it('draws the base’s words, the preset’s over them and the call’s over both', () => {
+    const counted = fold(away, Message.Appended({ count: 3 }))
+    const { style: _style, words: _words, ...bare } = options(counted)
+    const label = (preset: 'counted' | undefined, jump?: string) =>
+      Inert.value(
+        Inert.byTag(
+          Own.view(
+            {
+              ...bare,
+              ...(preset === undefined ? {} : { preset }),
+              ...(jump === undefined ? {} : { words: { jump } }),
+            },
+            h,
+          ),
+          'button',
+        )[0],
+        'aria-label',
+      )
+    expect(label(undefined)).toBe('Nach unten, 3 new messages')
+    expect(label('counted')).toBe('Nach unten, 3 neue')
+    expect(label('counted', 'Hinab')).toBe('Hinab, 3 neue')
   })
 })

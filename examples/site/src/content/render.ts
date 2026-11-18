@@ -11,7 +11,7 @@ import { Behavior } from 'foldkit-mixins'
 import { CodeBlock, CodeBlockSlots } from 'foldkit-mixins-ui'
 
 import { COPY_ATTRIBUTE } from '../library.js'
-import { CodeStyle } from '../style.js'
+import { CodeStyle, DiagramStyle } from '../style.js'
 import { diagram } from './diagram.js'
 import { textOf } from './text.js'
 import type { Highlight } from './highlight.js'
@@ -33,6 +33,17 @@ const CopyHook = Behavior.forSlots(CodeBlockSlots)<undefined, never>({
   copy: { attributes: ({ h }) => [h.Attribute(COPY_ATTRIBUTE, '')] },
 })
 
+/** A block that scrolls sideways is reached by Tab, and named for a screen reader. */
+const scrollable = (name: string) =>
+  Behavior.forSlots(CodeBlockSlots)<undefined, never>({
+    body: { attributes: ({ h }) => [h.Tabindex(0), h.Role('region'), h.AriaLabel(name)] },
+  }).mixin
+
+/** Characters a line may hold before it can outrun a phone's code box. */
+const NARROWEST = 36
+
+const Scrollable = { code: scrollable('Code'), diagram: scrollable('Diagram') }
+
 export interface Code {
   readonly code: string
   readonly lang?: string | null | undefined
@@ -43,18 +54,30 @@ export interface Code {
 }
 
 /** A code block, its tokens colored by kind, drawn with the shipped `CodeBlock`. */
-export const codeBlock = (ih: Ih, highlight: Highlight, { code, lang, label, copy }: Code): Html =>
-  CodeBlock.view(
+export const codeBlock = (
+  ih: Ih,
+  highlight: Highlight,
+  { code, lang, label, copy }: Code,
+): Html => {
+  const diagram = lang === null || lang === undefined || lang === 'text'
+  return CodeBlock.view(
     {
       code,
       tokens: highlight(code, lang),
       ...(label === undefined ? {} : { language: label }),
       ...(copy ? { copy: {} } : {}),
-      style: CodeStyle,
-      mixins: [CopyHook.mixin],
+      style: diagram ? DiagramStyle : CodeStyle,
+      mixins: [
+        CopyHook.mixin,
+        // A short block never scrolls on a phone, and no tab stop is spent on it.
+        ...(code.split('\n').some(line => line.length > NARROWEST)
+          ? [diagram ? Scrollable.diagram : Scrollable.code]
+          : []),
+      ],
     },
     ih,
   )
+}
 
 const external = (url: string) => /^https?:/.test(url)
 

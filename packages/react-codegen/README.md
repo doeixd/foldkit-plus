@@ -5,12 +5,8 @@ syntax tree, so the output keeps your variable names, control flow, helpers,
 and imports. When a construct has no faithful React translation, it refuses
 with a located diagnostic instead of guessing.
 
-```text
-view(model, h: HtmlBuilder<Message>): Html
-        │  foldkit-react-codegen
-        ▼
-view(model, dispatch: (message: Message) => void): ReactNode
-```
+It turns `view(model, h: HtmlBuilder<Message>): Html` into
+`view(model, dispatch: (message: Message) => void): ReactNode`.
 
 ## When to use it
 

@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { AspectRatioSlots, view } from '../src/aspectRatio.js'
+import { AspectRatioSlots, configure, view } from '../src/aspectRatio.js'
 import { Recipes } from '../src/index.js'
 
 const h = SlotView.inertBuilder<never>()
@@ -33,5 +33,21 @@ describe('AspectRatio recipe', () => {
     expect(css({})).toContain('aspect-ratio:1')
     expect(css({ ratio: 'video' })).toContain('aspect-ratio:16 / 9')
     expect(css({ ratio: 'portrait' })).toContain('aspect-ratio:3 / 4')
+  })
+})
+
+describe('AspectRatio.configure', () => {
+  const wide = Style.forSlots(AspectRatioSlots)(Recipes.AspectRatio({ ratio: 'video' }))
+  const tall = Style.forSlots(AspectRatioSlots)(Recipes.AspectRatio({ ratio: 'portrait' }))
+  const App = configure({ base: { style: wide }, presets: { tall: { style: tall } } })
+
+  it('binds the ratio once and a preset or the call changes it', () => {
+    const classes = (drawn: ReturnType<typeof view>) => Inert.classes(drawn)
+    expect(classes(App.view({}, h))).toEqual(classes(view({ style: wide }, h)))
+    expect(classes(App.view({ preset: 'tall' }, h))).toEqual(classes(view({ style: tall }, h)))
+    expect(classes(App.view({ preset: 'tall', style: wide }, h))).toEqual(
+      classes(view({ style: wide }, h)),
+    )
+    expect(classes(view({ style: wide }, h))).not.toEqual(classes(view({ style: tall }, h)))
   })
 })

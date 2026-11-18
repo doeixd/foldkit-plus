@@ -19,7 +19,8 @@ export const KbdSlots = Slots.define({
  * beside the style. No upstream component stands behind it.
  */
 export interface KbdView<Message = never> {
-  readonly key: string
+  /** The key's text, or a drawing for one that is a glyph (an arrow, a modifier's icon). */
+  readonly key: string | Html
   /** A style of `KbdSlots`, for the key's look. */
   readonly style?: NamedStyle<typeof KbdSlots> | undefined
   /** Mixins beside the style. */
@@ -45,7 +46,7 @@ export const view = <Message = never>(options: KbdView<Message>, h: HtmlBuilder<
 
 /** A key combination: the keys pressed together, in order. */
 export interface KbdCombo<Message = never> {
-  readonly keys: ReadonlyArray<string>
+  readonly keys: ReadonlyArray<string | Html>
   /**
    * Words between the keys, such as `+` for "Ctrl + K". Omit it for keys
    * that read as one, as `⌘K` does. It is read aloud with the keys.

@@ -319,7 +319,7 @@ const picker = (
         itemToConfig: (value: string) => ({
           content: part.option({ label: labelOf.get(value) ?? value }),
         }),
-        buttonContent: part.trigger(Option.some({ label: labelOf.get(current) ?? current }), name),
+        buttonContent: part.trigger([{ label: labelOf.get(current) ?? current }], name),
         toView: Listbox.toView([PickerStyle.mixin, ...Listbox.fluid], { h }),
       },
       toParentMessage: message => Message.GotPicker({ picker: which, message }),

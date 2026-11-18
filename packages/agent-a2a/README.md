@@ -7,25 +7,10 @@ your Foldkit application already exposes. This package derives an A2A Agent Card
 from the protocol-neutral contract and turns A2A tasks into invocations of the
 bound `AgentRuntime`.
 
-```text
-Foldkit application
-       |
-       v
-AssistantAgent              protocol-neutral contract
-       |
-       | AgentBuilder.bind(...)
-       v
-AgentRuntime                live Model + dispatch + policy
-       |
-       v
-foldkit-agent-a2a           adapter
-       |
-       +---- Agent Card
-       |
-       +---- tasks / message/send
-       v
-other agent
-```
+The application's `AssistantAgent` is the protocol-neutral contract.
+`AgentBuilder.bind(...)` binds it to an `AgentRuntime`, which holds the live Model,
+dispatch and policy. `foldkit-agent-a2a` is the adapter on top: it serves the Agent
+Card and takes tasks and `message/send` from other agents.
 
 A2A describes the contract; it does not redefine it. Availability,
 authorization, input validation, cancellation, and completion remain in

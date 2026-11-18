@@ -1,68 +1,33 @@
 import { ButtonGroupSlots, Recipes } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import basic from '../../examples/button-group/basic.js'
+import icons from '../../examples/button-group/icons.js'
+import input from '../../examples/button-group/input.js'
+import pagination from '../../examples/button-group/pagination.js'
+import separated from '../../examples/button-group/separated.js'
+import sizes from '../../examples/button-group/sizes.js'
+import split from '../../examples/button-group/split.js'
+import text from '../../examples/button-group/text.js'
+import toolbar from '../../examples/button-group/toolbar.js'
+import vertical from '../../examples/button-group/vertical.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
 export const showcase = fromRecipe(
   about('button-group'),
   ButtonGroupSlots,
   Recipes.ButtonGroup,
-  style => Snippet.buttonGroup(style, inert),
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Basic', draw: style => Snippet.buttonGroup(style, inert) },
-    { name: 'icons', title: 'Icons', draw: style => Snippet.buttonGroupIcons(style, inert) },
-    {
-      name: 'toolbar',
-      title: 'Toolbar',
-      draw: style => Snippet.buttonGroupToolbar(style, inert),
-    },
-    {
-      name: 'split',
-      title: 'Split button',
-      draw: (style, live) =>
-        Snippet.buttonGroupSplit(
-          style,
-          live.widgets.saveMenu,
-          message => live.onWidget(Widgets.Message.GotSaveMenu({ message })),
-          live.h,
-        ),
-    },
-    {
-      name: 'separated',
-      title: 'Separated',
-      draw: style => Snippet.buttonGroupSeparated(style, inert),
-    },
-    {
-      name: 'input',
-      title: 'Input',
-      draw: style => Snippet.buttonGroupInput(style, inert),
-      pins: { width: 'fill' },
-    },
-    {
-      name: 'text',
-      title: 'Text',
-      draw: style => Snippet.buttonGroupText(style, inert),
-      pins: { width: 'fill' },
-    },
-    {
-      name: 'vertical',
-      title: 'Vertical',
-      draw: style => Snippet.buttonGroupVertical(style, inert),
-    },
-    { name: 'sizes', title: 'Sizes', draw: () => Snippet.buttonGroupSizes(inert) },
-    {
-      name: 'pagination',
-      title: 'Pagination',
-      draw: (style, live) =>
-        Snippet.buttonGroupPagination(
-          style,
-          live.widgets.pages.group,
-          12,
-          page => live.onWidget(Widgets.Message.ChosePage({ example: 'group', page })),
-          live.h,
-        ),
-    },
+    { name: 'basic', example: basic },
+    { name: 'icons', example: icons },
+    { name: 'toolbar', example: toolbar },
+    { name: 'split', example: split },
+    { name: 'separated', example: separated },
+    { name: 'input', example: input },
+    { name: 'text', example: text },
+    { name: 'vertical', example: vertical },
+    { name: 'sizes', example: sizes },
+    { name: 'pagination', example: pagination },
   ],
 )

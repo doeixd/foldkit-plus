@@ -12,11 +12,11 @@ const runDemo = (): ReadonlyArray<string> => {
     lines.push(`${label}: tour step=${model.tour.step} open=${model.tour.open}; ${said(model)}`)
   }
   step('started the tour', Message.StartedTour())
-  step('Next', Message.GotTour({ message: Tour.Message.Next() }))
-  step('Skip', Message.GotTour({ message: Tour.Message.Skipped() }))
+  step('Next', Message.GotTourMessage({ message: Tour.Message.Next() }))
+  step('Skip', Message.GotTourMessage({ message: Tour.Message.Skipped() }))
   model = update(model, Message.OpenedNotes()).model
   lines.push(`opened the notes: open=${model.panel.open}`)
-  model = update(model, Message.GotPanel({ message: FloatingPanel.Message.Closed() })).model
+  model = update(model, Message.GotPanelMessage({ message: FloatingPanel.Message.Closed() })).model
   lines.push(`closed the notes: open=${model.panel.open}`)
   return lines
 }

@@ -13,6 +13,7 @@ import {
 } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -123,6 +124,37 @@ export interface ToolbarView<Message> {
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
 }
+
+/**
+ * `onFocus` for a toolbar whose tab stop is `Bundles.Toolbar`: the `Focused`
+ * Message of the stop, wrapped as the application wraps that child's Messages.
+ */
+export const focused =
+  <Message>(wrap: (message: RovingTabindex.Message) => Message) =>
+  (id: string): Message =>
+    wrap(RovingTabindex.Message.Focused({ id }))
+
+/** What a Toolbar is given once: its look and each option that holds no Message, state or drawing. */
+export type ToolbarPreset = Pick<
+  ToolbarView<never>,
+  'orientation' | 'direction' | 'loop' | 'style'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own Toolbar: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both. `mixins` concatenate in that
+ * order; a style given at the call replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<ToolbarPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: ToolbarView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})
 
 /** The id the control `id` of the toolbar `toolbarId` draws, for a Command that focuses it. */
 export const controlId = (toolbarId: string, id: string): string => `${toolbarId}-${id}`

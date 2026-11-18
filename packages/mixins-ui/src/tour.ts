@@ -1,36 +1,35 @@
-import { AnchorConfig, anchorSetup, type Placement } from '@foldkit/ui/anchor'
+import { AnchorConfig, anchorSetup, Placement } from '@foldkit/ui/anchor'
 import { Effect, Option, Schema } from 'effect'
-import {
-  Attr,
-  Behavior,
-  Behaviors,
-  Capability,
-  Event,
-  Slot,
-  Slots,
-  SlotView,
-  type Diagnostic,
-  type NamedStyle,
-} from 'foldkit-mixins'
-import { FocusReturn, TRACK_TARGET_ATTRIBUTE, TrackBox } from 'foldkit-primitives/dom'
+import { Behaviors, SlotView, type Diagnostic, type NamedStyle } from 'foldkit-mixins'
+import { TRACK_TARGET_ATTRIBUTE, TrackBox } from 'foldkit-primitives/dom'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import * as Render from 'foldkit/render'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import { layerBox, topLayer } from './anchor.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { readingKey } from './direction.js'
 import type { MixinList } from './resolve.js'
+import type { AdvanceOnClick } from './tour/advanceOnClick.js'
+import { focusReturn } from './tour/focusReturn.js'
+import { Message } from './tour/message.js'
+import { TourSlots } from './tour/slots.js'
+import { fill, wordsOf } from './words.js'
 
-/**
+export { advanceOnClick } from './tour/advanceOnClick.js'
+export { focusReturn }
+export { Message }
+export { TourSlots }
+
+/*
  * A tour, Zag's and Shepherd's: a walk through steps, each a small dialog
  * placed beside the element it explains, with the page dimmed around a
  * cutout over that element. A step without a target, or whose target is not
- * on the page, shows in the middle of the viewport instead. The current
- * step is this Model, which the application keeps and folds with
- * `update({ steps })`.
+ * on the page, shows in the middle of the viewport instead. The steps and
+ * the current one are this Model, which the application keeps and folds with
+ * `update()`.
  *
  * ```text
  * start -> step 0 -> ShowStep: the target scrolled into view, the step focused
@@ -53,43 +52,24 @@ import type { MixinList } from './resolve.js'
  * text, focused as it shows. Focus is not held in it: a step may ask the
  * reader to use its target, which Tab reaches.
  */
-export const TourSlots = Slots.define({
-  /** The box in the top layer holding the dim, the cutout and the step. */
-  layer: Slot.make({ capability: Capability.Container }),
-  /** Over the page around the cutout, taking presses outside it. */
-  blocker: Slot.make({ capability: Capability.Container, events: [Event.Click] }),
-  /** The ring over the target, whose shadow dims the rest of the page. */
-  spotlight: Slot.make({ capability: Capability.Container }),
-  panel: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.KeyDown],
-    attributes: [Attr.Role],
-  }),
-  arrow: Slot.make({ capability: Capability.Container }),
-  /** The step's place, `2 of 5`. */
-  progress: Slot.make({ capability: Capability.Container }),
-  title: Slot.make({ capability: Capability.Container }),
-  description: Slot.make({ capability: Capability.Container }),
-  actions: Slot.make({ capability: Capability.Container }),
-  back: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
-  next: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
-  skip: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
-})
 
 /** A step of the tour. */
-export interface Step {
-  readonly title: string
-  readonly description: string
+export const Step = Schema.Struct({
+  title: Schema.String,
+  description: Schema.String,
   /** The id of the element it explains; none for a step in the middle of the viewport. */
-  readonly target?: string | undefined
+  target: Schema.optionalKey(Schema.String),
   /** Where the step stands against its target; default below it. */
-  readonly placement?: Placement | undefined
-}
+  placement: Schema.optionalKey(Placement),
+})
+export type Step = typeof Step.Type
 
 export const Model = Schema.Struct({
   /** Prefixes every id the tour draws, unique on the page. */
   id: Schema.String,
   open: Schema.Boolean,
+  /** The steps `init` was given; `update` and the view read them unless passed their own. */
+  steps: Schema.Array(Step),
   /** The current step's place in the steps, from 0. */
   step: Schema.Number,
   /** The step whose target was not on the page, drawn in the middle instead. */
@@ -97,33 +77,24 @@ export const Model = Schema.Struct({
 })
 export type Model = typeof Model.Type
 
-export const Message = defineMessageUnion({
-  Next: {},
-  Back: {},
-  Skipped: {},
-  /** A key on the step, as a left-to-right reader presses it. */
-  Pressed: { key: Schema.String },
-  /** The cutout looked for its target: `target` is its id, `found` whether it is on the page. */
-  Spotlit: { target: Schema.String, found: Schema.Boolean },
-  Placed: {},
-  CompletedShowStep: {},
-})
-export type Message = typeof Message.Type
-
 /** Told to the application as the tour ends: by its last Next (`completed`), or skipped. */
 export const Ended = Schema.TaggedStruct('Ended', { completed: Schema.Boolean })
 export type Ended = typeof Ended.Type
 
 export type Return = ReturnWithOutMessage<Model, Message, Ended>
 
-/** The steps `update` and the view agree on. */
+/** Steps given to one call in place of the Model's. */
 export interface Config {
   readonly steps: ReadonlyArray<Step>
 }
 
-export const init = (options: { readonly id: string }): Model => ({
+export const init = (options: {
+  readonly id: string
+  readonly steps?: ReadonlyArray<Step> | undefined
+}): Model => ({
   id: options.id,
   open: false,
+  steps: options.steps ?? [],
   step: 0,
   missing: Option.none(),
 })
@@ -164,48 +135,51 @@ const targetOf = (steps: ReadonlyArray<Step>, step: number): Option.Option<strin
   Option.fromNullishOr(steps[step]?.target)
 
 /** Starts the tour at its first step; one already running starts over. */
-export const start = (model: Model, config: Config): Return => ({
+export const start = (model: Model, config?: Config): Return => ({
   model: modifyFields(model, {
     open: () => true,
     step: () => 0,
     missing: () => Option.none(),
   }),
-  commands: [ShowStep({ id: model.id, target: targetOf(config.steps, 0) })],
+  commands: [ShowStep({ id: model.id, target: targetOf((config ?? model).steps, 0) })],
 })
 
-/** The tour's `update` for `config`; the same Model when nothing changes. */
-export const update = (config: Config) => {
-  const { steps } = config
-  const last = steps.length - 1
+/**
+ * The tour's `update`, over the steps `config` gives where given and the
+ * Model's otherwise; the same Model when nothing changes.
+ */
+export const update =
+  (config?: Config) =>
+  (model: Model, message: Message): Return => {
+    const { steps } = config ?? model
+    const last = steps.length - 1
 
-  const ended = (model: Model, completed: boolean): Return =>
-    model.open
-      ? {
-          model: modifyFields(model, { open: () => false, missing: () => Option.none() }),
-          outMessage: Ended.make({ completed }),
-        }
-      : { model }
+    const ended = (completed: boolean): Return =>
+      model.open
+        ? {
+            model: modifyFields(model, { open: () => false, missing: () => Option.none() }),
+            outMessage: Ended.make({ completed }),
+          }
+        : { model }
 
-  const went = (model: Model, step: number): Return =>
-    !model.open || step < 0 || step > last || step === model.step
-      ? { model }
-      : {
-          model: modifyFields(model, { step: () => step, missing: () => Option.none() }),
-          commands: [ShowStep({ id: model.id, target: targetOf(steps, step) })],
-        }
+    const went = (step: number): Return =>
+      !model.open || step < 0 || step > last || step === model.step
+        ? { model }
+        : {
+            model: modifyFields(model, { step: () => step, missing: () => Option.none() }),
+            commands: [ShowStep({ id: model.id, target: targetOf(steps, step) })],
+          }
 
-  const next = (model: Model): Return =>
-    model.step >= last ? ended(model, true) : went(model, model.step + 1)
+    const next = (): Return => (model.step >= last ? ended(true) : went(model.step + 1))
 
-  return (model: Model, message: Message): Return =>
-    Message.match<Return>(message, {
-      Next: () => next(model),
-      Back: () => went(model, model.step - 1),
-      Skipped: () => ended(model, false),
+    return Message.match<Return>(message, {
+      Next: next,
+      Back: () => went(model.step - 1),
+      Skipped: () => ended(false),
       Pressed: ({ key }) => {
-        if (key === 'ArrowRight') return next(model)
-        if (key === 'ArrowLeft') return went(model, model.step - 1)
-        if (key === 'Escape') return ended(model, false)
+        if (key === 'ArrowRight') return next()
+        if (key === 'ArrowLeft') return went(model.step - 1)
+        if (key === 'Escape') return ended(false)
         return { model }
       },
       // Only the current step's answer counts: a search for the last one may answer late.
@@ -223,7 +197,7 @@ export const update = (config: Config) => {
       Placed: () => ({ model }),
       CompletedShowStep: () => ({ model }),
     })
-}
+  }
 
 /** Places the step against its target, focusing it once placed. */
 export const PlaceStep = Mount.define('Tour.PlaceStep', {
@@ -248,31 +222,38 @@ export const PlaceStep = Mount.define('Tour.PlaceStep', {
     }),
 })
 
-/**
- * Gives focus back when the tour ends: to what had it before the tour, then
- * by `FocusReturn`'s rules (an element with the opener's id, the opener's
- * `FocusRecovery` steps, the layer below, the page's first tabbable element).
- * Focus the reader moved elsewhere is left alone. The one way focus returns:
- * the tour keeps no opener of its own. Pass it among the mixins; opt in, as it
- * sends no Message.
- */
-export const focusReturn = [
-  Behavior.forSlots(TourSlots)<unknown, never>(
-    {
-      layer: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => FocusReturn(),
-      }),
-    },
-    { name: 'TourFocusReturn' },
-  ).mixin,
-] as const
+/** The fixed text a tour draws; `progress` with `{step}` (from 1) and `{count}`. */
+export interface TourWords {
+  readonly back: string
+  readonly next: string
+  /** Next's name on the last step. */
+  readonly done: string
+  readonly skip: string
+  readonly progress: string
+}
+
+export const words: TourWords = {
+  back: 'Back',
+  next: 'Next',
+  done: 'Done',
+  skip: 'Skip tour',
+  progress: '{step} of {count}',
+}
 
 export interface TourView<ParentMessage> {
   readonly model: Model
-  /** The steps; the same as `update`'s. */
-  readonly config: Config
+  /** Steps in place of the Model's, for this drawing; the same as `update`'s. */
+  readonly config?: Config | undefined
   readonly onMessage: (message: Message) => NoInfer<ParentMessage>
+  /**
+   * What a step says, drawn in place of its `description` text: rich content
+   * such as a list, an image or a shortcut. It still describes the step's
+   * dialog. The steps stay data in the Model, so content that is Html comes
+   * from here.
+   */
+  readonly content?: ((step: Step, index: number) => Html) | undefined
+  /** `Tour.advanceOnClick`: a press on the step's target moves the tour on. */
+  readonly advanceOnClick?: AdvanceOnClick | undefined
   /** Pixels the cutout reaches past its target; default 8. */
   readonly padding?: number | undefined
   /** Whether the target can be used through the cutout; default true. */
@@ -281,17 +262,8 @@ export interface TourView<ParentMessage> {
   readonly dismissOnOutside?: boolean | undefined
   /** Whether Escape skips the tour; default true. */
   readonly closeOnEscape?: boolean | undefined
-  /** How the step's place is told; default `"2 of 5"`. */
-  readonly progressLabel?: ((step: number, count: number) => string) | undefined
-  /** The buttons' words; defaults `Back`, `Next`, `Done` on the last step, and `Skip tour`. */
-  readonly labels?:
-    | {
-        readonly back?: string
-        readonly next?: string
-        readonly done?: string
-        readonly skip?: string
-      }
-    | undefined
+  /** The buttons' words and the step's place; defaults `Tour.words`. */
+  readonly words?: Partial<TourWords> | undefined
   /** Default `'ltr'`; under `'rtl'` ArrowLeft goes on to the next step. */
   readonly direction?: 'ltr' | 'rtl' | undefined
   /**
@@ -304,14 +276,12 @@ export interface TourView<ParentMessage> {
   readonly routes?: ReadonlyArray<Route<NoInfer<ParentMessage>>> | undefined
   /** A style of `TourSlots`, for the look. */
   readonly style?: NamedStyle<typeof TourSlots> | undefined
-  /** Mixins beside the style. */
+  /** Mixins beside the style: `Tour.focusReturn`. */
   readonly mixins?: MixinList<ParentMessage> | undefined
 }
 
 /** The arrows that move between steps, as a left-to-right reader presses them. */
 const STEP_KEYS = ['ArrowRight', 'ArrowLeft'] as const
-
-const ofCount = (step: number, count: number) => `${step + 1} of ${count}`
 
 /** A key the application answers on a step. */
 export type Route<ParentMessage> = Behaviors.Keys.Route<undefined, ParentMessage>
@@ -356,8 +326,9 @@ export const view = <ParentMessage>(
   options: TourView<ParentMessage>,
   h: HtmlBuilder<ParentMessage>,
 ): Html => {
-  const { model, onMessage, config } = options
-  const step = config.steps[model.step]
+  const { model, onMessage } = options
+  const { steps } = options.config ?? model
+  const step = steps[model.step]
   if (!model.open || step === undefined) return h.empty
   const send = (message: Message) => onMessage(message)
   const keys = Behaviors.Keys.behavior(TourSlots)<undefined, ParentMessage>({
@@ -378,12 +349,13 @@ export const view = <ParentMessage>(
     { input: undefined, h },
   )
   const { id } = model
-  const count = config.steps.length
-  const labels = options.labels ?? {}
+  const count = steps.length
+  const said = wordsOf(words, options.words)
   const padding = options.padding ?? 8
   // A step whose target is not on the page shows in the middle, as one without a target.
   const target = Option.isSome(model.missing) ? Option.none() : Option.fromNullishOr(step.target)
   const anchored = Option.isSome(target)
+  const usable = anchored && options.interactive !== false
   const isLast = model.step === count - 1
   const hole = (side: 'x' | 'y', size: 'w' | 'h', far: boolean) =>
     `calc(var(--fk-tour-${side}, 0px) ${far ? `+ var(--fk-tour-${size}, 0px) + ${padding}px` : `- ${padding}px`})`
@@ -394,8 +366,8 @@ export const view = <ParentMessage>(
     hole('y', 'h', true),
   ]
 
-  const action = (builder: typeof builders.next, words: string, message: Message) =>
-    h.button(builder.attrs([h.Type('button'), h.OnClick(send(message))]), [words])
+  const action = (builder: typeof builders.next, word: string, message: Message) =>
+    h.button(builder.attrs([h.Type('button'), h.OnClick(send(message))]), [word])
 
   const panel = h.div(
     builders.panel.attrs([
@@ -445,18 +417,18 @@ export const view = <ParentMessage>(
         builders.progress.attrs([
           h.Style({ '--fk-tour-progress': String((model.step + 1) / count) }),
         ]),
-        [(options.progressLabel ?? ofCount)(model.step, count)],
+        [fill(said.progress, { step: model.step + 1, count })],
       ),
       h.h2(builders.title.attrs([h.Id(titleId(id))]), [step.title]),
-      h.p(builders.description.attrs([h.Id(descriptionId(id))]), [step.description]),
+      options.content === undefined
+        ? h.p(builders.description.attrs([h.Id(descriptionId(id))]), [step.description])
+        : h.div(builders.description.attrs([h.Id(descriptionId(id))]), [
+            options.content(step, model.step),
+          ]),
       h.div(builders.actions.attrs(), [
-        action(builders.skip, labels.skip ?? 'Skip tour', Message.Skipped()),
-        ...(model.step > 0 ? [action(builders.back, labels.back ?? 'Back', Message.Back())] : []),
-        action(
-          builders.next,
-          isLast ? (labels.done ?? 'Done') : (labels.next ?? 'Next'),
-          Message.Next(),
-        ),
+        action(builders.skip, said.skip, Message.Skipped()),
+        ...(model.step > 0 ? [action(builders.back, said.back, Message.Back())] : []),
+        action(builders.next, isLast ? said.done : said.next, Message.Next()),
       ]),
     ],
   )
@@ -485,13 +457,17 @@ export const view = <ParentMessage>(
             position: 'fixed',
             inset: '0',
             // A hole over the target, where presses reach it, unless it is not to be used.
-            ...(anchored && options.interactive !== false
+            ...(usable
               ? {
                   clipPath: `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${left} ${top}, ${right} ${top}, ${right} ${bottom}, ${left} ${bottom}, ${left} ${top})`,
                 }
               : {}),
           }),
           ...(options.dismissOnOutside === true ? [h.OnClick(send(Message.Skipped()))] : []),
+          // A press on the target reaches it through the hole, so it is heard on the page.
+          ...(usable && options.advanceOnClick !== undefined
+            ? [h.OnMount(Mount.mapMessage(options.advanceOnClick(), send))]
+            : []),
         ]),
         [],
       ),
@@ -517,3 +493,35 @@ export const view = <ParentMessage>(
     ],
   )
 }
+
+/** What a Tour is given once: its look, words and the options that hold no Message. */
+export type TourPreset = Pick<
+  TourView<never>,
+  | 'padding'
+  | 'interactive'
+  | 'dismissOnOutside'
+  | 'closeOnEscape'
+  | 'advanceOnClick'
+  | 'direction'
+  | 'words'
+  | 'style'
+> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own Tour: `base` for every use, `presets` chosen at a use
+ * with `preset`, and the call over both. `words` merge key by key and `mixins`
+ * concatenate in that order (`Tour.focusReturn` goes in `base`); any other
+ * option given at the call replaces the preset's. The steps are the Model's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<TourPreset, Names>,
+): {
+  readonly view: <ParentMessage>(
+    options: TourView<ParentMessage> & PresetOption<Names>,
+    h: HtmlBuilder<ParentMessage>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

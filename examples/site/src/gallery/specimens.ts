@@ -48,32 +48,13 @@ import type { H, Slots } from '../view/layout.js'
 
 type TypographyLevel = Typography.TypographyLevel
 
-const levels: ReadonlyArray<TypographyLevel> = [
-  'display',
-  'title',
-  'subtitle',
-  'body',
-  'caption',
-  'micro',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'lead',
-  'small',
-  'muted',
-  'quote',
-  'code',
-]
-/** One style per level, made once: a level is a selection of the recipe. */
-const typeStyles = new Map<TypographyLevel, NamedStyle<typeof TypographySlots>>(
-  levels.map(level => [level, forSlots(TypographySlots)(Recipes.Typography({ level }))]),
+/** One style for every level: the view writes the level, and the recipe reads it. */
+const typeStyle: NamedStyle<typeof TypographySlots> = forSlots(TypographySlots)(
+  Recipes.Typography({}),
 )
 
-const typeStyleOf = (level: TypographyLevel) => typeStyles.get(level)!
-
 const set = (h: H, level: TypographyLevel, text: string): Html =>
-  Typography.view({ level, text, style: typeStyleOf(level) }, h)
+  Typography.view({ level, text, style: typeStyle }, h)
 
 /** A specimen's caption: which token or level a sample shows. */
 const named = (slots: Slots, h: H, name: string, sample: Html) =>
@@ -125,10 +106,10 @@ export const typography = (slots: Slots, h: H): Html =>
 
 /** A level's attributes, for a paragraph that holds more than words (inline code). */
 const typeStyleAttrs = (h: H, level: TypographyLevel) =>
-  SlotView.buildersFor(TypographySlots, [typeStyleOf(level).mixin], {
+  SlotView.buildersFor(TypographySlots, [typeStyle.mixin], {
     input: undefined,
     h,
-  }).text.attrs([])
+  }).text.attrs([h.DataAttribute('level', level)])
 
 /** A swatch of one token: what fills it, its name, and the property it is. */
 const swatch = (
@@ -382,7 +363,7 @@ export const settings = (slots: Slots, h: H): Html =>
         {
           title: 'Plan',
           description: 'Renews on November 1.',
-          action: Badge.view({ text: 'Pro', tone: 'live', style: BadgeStyle }, h),
+          action: Badge.view({ text: 'Pro', tone: 'accent', style: BadgeStyle }, h),
           content: h.div(slots.appForm.attrs(), [
             set(h, 'display', '$48'),
             set(h, 'caption', 'per month, for 12 seats'),
@@ -479,7 +460,7 @@ export const dashboard = (slots: Slots, h: H, live: Live<Message>): Html =>
               ...charted(live, 'area'),
               id: 'dash-revenue',
               label: 'Revenue',
-              kind: 'area',
+              kind: Chart.area,
               categories: MONTHS,
               series: [
                 { name: 'Revenue', values: [32, 38, 35, 44, 49, 47, 56, 61, 58, 66, 72, 81] },
@@ -496,7 +477,7 @@ export const dashboard = (slots: Slots, h: H, live: Live<Message>): Html =>
             ...charted(live, 'bar'),
             id: 'dash-regions',
             label: 'Orders',
-            kind: 'bar',
+            kind: Chart.bars,
             categories: ['Europe', 'Americas', 'Asia', 'Africa', 'Oceania'],
             series: [
               { name: 'Online', values: [412, 538, 371, 96, 128] },
@@ -512,7 +493,7 @@ export const dashboard = (slots: Slots, h: H, live: Live<Message>): Html =>
             ...charted(live, 'donut'),
             id: 'dash-channels',
             label: 'Sign-ups',
-            kind: 'donut',
+            kind: Chart.donut,
             slices: [
               { name: 'Search', value: 380 },
               { name: 'Social', value: 210 },

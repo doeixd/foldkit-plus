@@ -14,6 +14,11 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Card, CardGroupSlots, CardSlots, Recipes } from '../src/index.js'
+import type { CardGroupView } from '../src/card.js'
+
+// A highlight is a value the page passes: these tests draw groups the way a page that wants one does.
+const cardGroup = <M>(options: CardGroupView<M>, h: HtmlBuilder<M>) =>
+  Card.group({ fluid: Card.fluid, ...options }, h)
 
 const Message = defineMessageUnion({ Pressed: { key: Schema.String } })
 type Message = typeof Message.Type
@@ -74,7 +79,7 @@ test('a grid lays its most columns where they fit, fewer where they would be nar
     box(
       '900px',
       h,
-      Card.group(
+      cardGroup(
         { label: 'Wide', columns: 3, cards: cards('w', 6), style: divided, cardStyle: outlined },
         h,
       ),
@@ -82,7 +87,7 @@ test('a grid lays its most columns where they fit, fewer where they would be nar
     box(
       '300px',
       h,
-      Card.group(
+      cardGroup(
         { label: 'Narrow', columns: 3, cards: cards('n', 3), style: divided, cardStyle: outlined },
         h,
       ),
@@ -90,7 +95,7 @@ test('a grid lays its most columns where they fit, fewer where they would be nar
     box(
       '300px',
       h,
-      Card.group(
+      cardGroup(
         { label: 'Fixed', columns: 3, cards: cards('f', 3), style: fixed, cardStyle: outlined },
         h,
       ),
@@ -99,7 +104,7 @@ test('a grid lays its most columns where they fit, fewer where they would be nar
     h.div(
       [h.Style({ display: 'flex', justifyContent: 'center', inlineSize: '900px' })],
       [
-        Card.group(
+        cardGroup(
           {
             label: 'Centred',
             columns: 2,
@@ -137,7 +142,7 @@ test('a divided grid draws its lines between cards, never along its own edges, h
     box(
       '600px',
       h,
-      Card.group(
+      cardGroup(
         { label: 'Two', columns: 2, cards: cards('t', 3), style: divided, cardStyle: plain },
         h,
       ),
@@ -145,7 +150,7 @@ test('a divided grid draws its lines between cards, never along its own edges, h
     box(
       '300px',
       h,
-      Card.group(
+      cardGroup(
         { label: 'Wrapped', columns: 2, cards: cards('r', 2), style: divided, cardStyle: plain },
         h,
       ),
@@ -176,7 +181,7 @@ test('the highlight lies over a separated card, its size, and the card draws no 
     box(
       '600px',
       h,
-      Card.group(
+      cardGroup(
         {
           label: 'Apart',
           columns: 2,
@@ -238,11 +243,11 @@ test("a plain card tints on hover by itself, and leaves it to a group's highligh
       { title: 'Alone', press: { onClick: Message.Pressed({ key: 'alone' }) }, style: plain },
       h,
     ),
-    Card.group(
-      { label: 'Still', fluidHover: false, cards: cards('o', 1), style: divided, cardStyle: plain },
+    cardGroup(
+      { label: 'Still', fluid: undefined, cards: cards('o', 1), style: divided, cardStyle: plain },
       h,
     ),
-    Card.group({ label: 'Fluid', cards: cards('g', 1), style: divided, cardStyle: plain }, h),
+    cardGroup({ label: 'Fluid', cards: cards('g', 1), style: divided, cardStyle: plain }, h),
     // Somewhere to rest the pointer, away from every card.
     h.div([h.Id('rest'), h.Style({ blockSize: '40px' })], []),
   ])

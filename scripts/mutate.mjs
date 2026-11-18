@@ -16,7 +16,8 @@
  * module that no longer loads, a different collection), and not applied
  * when no module it edits was loaded. Anything but killed fails the run,
  * except a mutation that says why it survives (`survives: 'reason'`).
- * `--only <name>` runs one mutation. `--check` runs nothing: it checks every
+ * `--only <name>` runs one mutation; repeat the flag for several (one
+ * Vitest start each, baselines shared; names contain commas, so no list). `--check` runs nothing: it checks every
  * spec's anchors and tests (or those of the specs named) and lists every
  * problem, which CI does, since the mutations themselves are too slow to.
  */
@@ -88,14 +89,29 @@ const load = async path => {
   return { mutations: checked, problems }
 }
 
-/** Every spec in the repository, as git knows them. */
+/**
+ * Every spec in the repository: those git tracks and those it has not been
+ * told of yet. Tracked files alone left a spec unchecked until its first
+ * commit, which is when its anchors are newest and least read.
+ */
 const everySpec = () => {
-  const listed = spawnSync('git', ['ls-files', '*.mutations.ts', '*.mutations.mjs'], {
-    cwd: root,
-    encoding: 'utf8',
-  })
+  const listed = spawnSync(
+    'git',
+    [
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '*.mutations.ts',
+      '*.mutations.mjs',
+    ],
+    { cwd: root, encoding: 'utf8' },
+  )
   if (listed.status !== 0) fail(`git ls-files failed:\n${listed.stderr}`)
-  return listed.stdout.split('\n').filter(Boolean)
+  // A tracked spec deleted and not yet committed is listed still.
+  return [...new Set(listed.stdout.split('\n').filter(Boolean))].filter(path =>
+    existsSync(resolve(root, path)),
+  )
 }
 
 /**
@@ -149,7 +165,9 @@ const reasonOf = ({ mutation, outcome, failed }) => {
 }
 
 const args = process.argv.slice(2)
-const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : undefined
+// Repeatable, never a comma list: mutation names contain commas.
+const only = args.flatMap((arg, index) => (arg === '--only' ? [args[index + 1]] : []))
+if (only.some(name => name === undefined || name.startsWith('--'))) fail('--only needs a mutation name')
 const checkOnly = args.includes('--check')
 const named = args.filter((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--only')
 
@@ -173,8 +191,10 @@ if (named.length === 0) fail('name a spec: pnpm mutate <path/to/area.mutations.t
 const loaded = await Promise.all(named.map(load))
 const [problem] = loaded.flatMap(spec => spec.problems)
 if (problem !== undefined) fail(problem)
-const mutations = loaded.flatMap(spec => spec.mutations).filter(m => only === undefined || m.name === only)
-if (mutations.length === 0) fail(`no mutation named ${only}`)
+const everyMutation = loaded.flatMap(spec => spec.mutations)
+const missing = only.filter(name => !everyMutation.some(m => m.name === name))
+if (missing.length > 0) fail(`no mutation named ${missing.join(', ')}`)
+const mutations = everyMutation.filter(m => only.length === 0 || only.includes(m.name))
 
 // A mutation killed by a test that was already red proves nothing.
 const baselines = new Map()
