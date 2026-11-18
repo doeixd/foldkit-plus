@@ -1,5 +1,9 @@
 import type { NamedStyle } from 'foldkit-mixins'
 import { MenuSlots, Recipes } from 'foldkit-mixins-ui'
+import account from '../../examples/menu/account.js'
+import configure from '../../examples/menu/configure.js'
+import content from '../../examples/menu/content.js'
+import placement from '../../examples/menu/placement.js'
 import * as Snippet from '../../snippets/components.js'
 import * as Widgets from '../widgets.js'
 import { about } from '../catalogue.js'
@@ -35,4 +39,8 @@ export const showcase = fromRecipe(about('menu'), MenuSlots, Recipes.Menu, menuA
         live.h,
       ),
   },
+  { name: 'account', example: account },
+  { name: 'content', example: content },
+  { name: 'placement', example: placement },
+  { name: 'configure', example: configure },
 ])

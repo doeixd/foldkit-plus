@@ -49,6 +49,7 @@
  * rows against. Opened from the keyboard, with no press before it, the mark
  * stands where the menu is drawn.
  */
+import type { AnchorConfig } from '@foldkit/ui/anchor'
 import * as UiMenu from '@foldkit/ui/menu'
 import { Effect, Match, Option, Schema } from 'effect'
 import { type NamedStyle, type SlotAttributes, type SlotBuilders } from 'foldkit-mixins'
@@ -61,6 +62,7 @@ import { readingKey } from './direction.js'
 import * as Kbd from './kbd.js'
 import type { KbdSlots } from './kbd.js'
 import { scrollBarOf } from './popupScroll.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { buildersOf, type MixinList, type ResolveContext } from './resolve.js'
 import {
   create,
@@ -205,8 +207,13 @@ interface RowParts<Value extends string> {
    * submenu items; two rows may share a label.
    */
   readonly value: Value
-  /** What is drawn, and what typeahead matches. */
+  /** What names the row and what typeahead matches; drawn too, unless `content` is. */
   readonly label: string
+  /**
+   * Drawn in place of the label's text: a name and an email, an avatar and a
+   * title. `label` stays the accessible name and the typeahead key.
+   */
+  readonly content?: Html | undefined
   /** Drawn before the label, hidden from assistive technology. */
   readonly icon?: Html | undefined
   /** A quiet note at the row's end, before its shortcut. */
@@ -430,7 +437,7 @@ export const withRows = <Message, Value extends string>(
           ]
         : []),
       ...iconPart(row, builders, h),
-      h.span(builders.label.attrs(), [row.label]),
+      h.span(builders.label.attrs(), [row.content ?? row.label]),
       ...hintPart(row, builders, h),
       ...(row.shortcut === undefined
         ? []
@@ -618,9 +625,13 @@ export interface InitOptions {
 }
 
 /** A shut menu, and a shut submenu for each row with `items`. */
-export const init = <Value extends string>(
+export const init = <
+  Value extends string,
+  // The structure alone is read: which rows open a submenu, and under what value.
+  Structure extends { readonly value: Value; readonly items?: ReadonlyArray<unknown> | undefined },
+>(
   id: string,
-  rows: ReadonlyArray<Row<Value>>,
+  rows: ReadonlyArray<Structure>,
   options: InitOptions = {},
 ): Model => {
   const isAnimated = options.isAnimated ?? false
@@ -1027,6 +1038,15 @@ export interface MenuViewOptions<ParentMessage, Value extends string = string> {
   readonly submenuMixins?: MixinList<ParentMessage> | undefined
   /** A style of `KbdSlots` for the rows' shortcuts (`Recipes.Kbd`); without one they are the keys' words. */
   readonly kbd?: NamedStyle<typeof KbdSlots> | undefined
+  /**
+   * Where the panel opens, over the default `{ placement: 'bottom-start', gap: 4 }`
+   * (no gap at a point): `{ placement: 'top-end' }`, `{ gap: 12 }`.
+   */
+  readonly anchor?: AnchorConfig | undefined
+  /** Drawn in the panel above the rows, in the `header` slot: not a row, so no key stops on it. */
+  readonly header?: Html | undefined
+  /** Drawn in the panel below the rows, in the `footer` slot. */
+  readonly footer?: Html | undefined
 }
 
 /** A submenu's button: over its row, so the submenu's anchor places it beside the row. */
@@ -1129,7 +1149,7 @@ export const view = <ParentMessage, Value extends string = string>(
                     // The words line up with a checkbox or radio row's.
                     ...(marked ? [h.span(builders.check.attrs([h.AriaHidden(true)]), [])] : []),
                     ...iconPart(row, builders, h),
-                    h.span(builders.label.attrs([h.Id(labelId)]), [row.label]),
+                    h.span(builders.label.attrs([h.Id(labelId)]), [row.content ?? row.label]),
                     ...hintPart(row, builders, h),
                     h.span(builders.chevron.attrs([h.AriaHidden(true)]), []),
                     drawSubmenu(sub, row, labelId),
@@ -1150,7 +1170,13 @@ export const view = <ParentMessage, Value extends string = string>(
     model: model.menu,
     view: Menus.view,
     viewInputs: {
-      anchor: { placement: 'bottom-start', gap: atPoint ? 0 : 4, padding: 8, portal: false },
+      anchor: {
+        placement: 'bottom-start',
+        gap: atPoint ? 0 : 4,
+        padding: 8,
+        portal: false,
+        ...options.anchor,
+      },
       ...rowInputs(rows, options.isRowDisabled, h),
       buttonContent: options.buttonContent,
       toView: toView(options.mixins, { h }, given => {
@@ -1192,6 +1218,14 @@ export const view = <ParentMessage, Value extends string = string>(
                     ],
                   },
             groups: withSubmenus(resolved.groups),
+            header:
+              options.header === undefined
+                ? undefined
+                : h.div(builders.header.attrs(), [options.header]),
+            footer:
+              options.footer === undefined
+                ? undefined
+                : h.div(builders.footer.attrs(), [options.footer]),
           },
           h,
         )
@@ -1206,3 +1240,30 @@ export const view = <ParentMessage, Value extends string = string>(
       ),
   })
 }
+
+/** What a Menu is given once: where it opens, its keys' look, and its mixins. The Model, rows and Messages are each use's. */
+export type MenuPreset = Pick<
+  MenuViewOptions<never>,
+  'opensAt' | 'direction' | 'submenuMixins' | 'kbd' | 'anchor'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own Menu: `base` for every use, `presets` chosen at a use
+ * with `preset`, and the call over both. `mixins` here and at the call
+ * concatenate, so a use may draw with the base's alone.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<MenuPreset, Names>,
+): {
+  readonly view: <Outer, Value extends string = string>(
+    options: Omit<MenuViewOptions<Outer, Value>, 'mixins'> & {
+      readonly mixins?: MixinList<Outer> | undefined
+    } & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => {
+    const merged = layered(config, options)
+    return view({ ...merged, mixins: merged.mixins ?? [] }, h)
+  },
+})

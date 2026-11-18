@@ -25,6 +25,10 @@ export const MenuSlots = Slots.define({
     attributes: [Attr.Role],
   }),
   scroll: Slot.make({ capability: Capability.Container }),
+  /** The `header` option's Html, in the panel above the rows: an account, a title. Not a row, so keys pass over it. */
+  header: Slot.make({ capability: Capability.Container }),
+  /** The `footer` option's Html, in the panel below the rows. */
+  footer: Slot.make({ capability: Capability.Container }),
   item: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],

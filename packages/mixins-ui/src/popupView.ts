@@ -26,6 +26,9 @@ interface PopupPanel<Message> {
   readonly backdrop: Part<Message> | undefined
   readonly items: Part<Message> | undefined
   readonly scroll: SlotAttributes<Message> | undefined
+  /** Drawn in the panel before the rows and after them: a Menu's `header` and `footer`. */
+  readonly header?: Html | undefined
+  readonly footer?: Html | undefined
   readonly groups: ReadonlyArray<PopupGroup<Message>>
   /** The adapters' own; a fork's upstream markup has none of these. */
   readonly rows?: SlotAttributes<Message> | undefined
@@ -76,18 +79,18 @@ const drawPanel = <Message>(panel: PopupPanel<Message>, h: HtmlBuilder<Message>)
     ...(panel.items === undefined
       ? []
       : [
-          h.keyed('div')(
-            panel.items.key,
-            panel.items.attributes,
-            panel.scroll === undefined
+          h.keyed('div')(panel.items.key, panel.items.attributes, [
+            ...(panel.header === undefined ? [] : [panel.header]),
+            ...(panel.scroll === undefined
               ? groups
               : [
                   h.div(panel.scroll, groups),
                   ...(panel.scrollBar === undefined
                     ? []
                     : [h.div(panel.scrollBar, [h.div(panel.scrollThumb ?? [], [])])]),
-                ],
-          ),
+                ]),
+            ...(panel.footer === undefined ? [] : [panel.footer]),
+          ]),
         ]),
   ]
 }
