@@ -6,9 +6,6 @@ const tests = ['examples/site/test/widgets.test.ts']
 const widgets = '../src/gallery/widgetsUpdate.ts'
 
 export default [
-    ],
-    tests,
-  },
   {
     name: 'the slider moves without the volume',
     edits: [

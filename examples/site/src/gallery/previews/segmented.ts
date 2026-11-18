@@ -1,3 +1,5 @@
+import verticalSegmented from '../../examples/segmented/vertical.js'
+import configureSegmented from '../../examples/segmented/configure.js'
 import type { NamedStyle } from 'foldkit-mixins'
 import { Recipes, SegmentedSlots } from 'foldkit-mixins-ui'
 import * as Snippet from '../../snippets/components.js'
@@ -73,5 +75,7 @@ export const showcase = fromRecipe(
       pins: { width: 'fill' },
     },
     { name: 'underline', title: 'Underline', draw: segmentedBasic, pins: { tray: 'underline' } },
+    { name: 'vertical', example: verticalSegmented },
+    { name: 'configure', example: configureSegmented },
   ],
 )

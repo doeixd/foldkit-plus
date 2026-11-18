@@ -1,3 +1,4 @@
+import listSlider from '../../examples/slider/list.js'
 import type { NamedStyle } from 'foldkit-mixins'
 import { Recipes, SliderSlots } from 'foldkit-mixins-ui'
 import * as Snippet from '../../snippets/components.js'
@@ -64,5 +65,6 @@ export const showcase = fromRecipe(
           live.h,
         ),
     },
+    { name: 'list', example: listSlider },
   ],
 )

@@ -1,3 +1,5 @@
+import bundleAngleSlider from '../../examples/angle-slider/bundle.js'
+import configureAngleSlider from '../../examples/angle-slider/configure.js'
 import type { NamedStyle } from 'foldkit-mixins'
 import { Recipes, AngleSliderSlots } from 'foldkit-mixins-ui'
 import * as Snippet from '../../snippets/components.js'
@@ -33,5 +35,7 @@ export const showcase = fromRecipe(
           live.h,
         ),
     },
+    { name: 'bundle', example: bundleAngleSlider },
+    { name: 'configure', example: configureAngleSlider },
   ],
 )

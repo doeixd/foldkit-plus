@@ -243,9 +243,6 @@ export default [
     ],
     tests: unit,
   },
-    ],
-    tests: pages,
-  },
   {
     name: 'the component pages offer no direction',
     edits: [
