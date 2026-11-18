@@ -45,6 +45,7 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
 
 ### Added
 
+- `foldkit-mixins-ui`: `Recipes.Spinner`'s `tone` gains `info`, `success`, `warning` and `danger`, the status tones of `Recipes.Tone` (`danger` is the palette's error family) (#589).
 - `foldkit-mixins-ui`: `Label.view` takes `required` and `optional` (a marker after the text: a star the screen reader skips, or `(optional)` that is read; a field is one or the other, and the types refuse both), `disabled` and `invalid` (`data-disabled`, `data-invalid`, for the recipe's dimmed and error looks; they mark the label only), `trailing` (a drawing beside the label, in a row with it, so an interactive one is not part of what names the control) and `words` (`Label.words`: `required`, `optional`) (#589). `LabelSlots` gains `marker`, `trailing` and `root`.
 - `foldkit-mixins-ui`: `Kbd.view`'s `key` and `Kbd.combo`'s `keys` may be a drawing (`string | Html`), for an arrow or a modifier's glyph; the recipe sizes an `svg` in a key to the letters' height (#589).
 - `foldkit-mixins-ui`: `Bundles.Toolbar` places a Toolbar's tab stop (the control focused last, which Tab comes back to), with `current` as its arg, and `Toolbar.focused(wrap)` builds the `onFocus` that answers it (#589). `Toolbar.configure({ base, presets })` returns `view` with `orientation`, `direction`, `loop`, `style` and `mixins` given once, as `Button.configure` does. `foldkit-primitives` exports `RovingTabindex.update`.

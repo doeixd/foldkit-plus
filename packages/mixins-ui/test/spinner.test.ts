@@ -62,4 +62,13 @@ describe('Spinner recipe', () => {
       expect(css({ kind }), kind).toMatch(/prefers-reduced-motion: reduce\)\{[^}]*\{animation:none/)
     }
   })
+
+  it.each([
+    ['info', 'info'],
+    ['success', 'success'],
+    ['warning', 'warning'],
+    ['danger', 'error'],
+  ] as const)('inks the %s tone in its status family', (tone, family) => {
+    expect(css({ tone })).toContain(`--_fk-spinner-ink:var(--fk-${family}-default)`)
+  })
 })

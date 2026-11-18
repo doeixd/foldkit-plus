@@ -972,44 +972,7 @@ export const separatorDashed = (
 }
 // #endregion
 
-// #region spinner-basic
 export const SpinnerStyle = forSlots(SpinnerSlots)(Recipes.Spinner({}))
-
-export const spinner = (style: NamedStyle<typeof SpinnerSlots>, h: HtmlBuilder<never>): Html =>
-  Spinner.view({ label: 'Saving', style }, h)
-// #endregion
-
-// #region spinner-kinds
-export const SpinnerKinds = (['ring', 'dots', 'bars', 'pulse', 'orbit'] as const).map(kind =>
-  forSlots(SpinnerSlots)(Recipes.Spinner({ kind })),
-)
-
-// Five ways to say "still working", each still under reduced motion.
-export const spinnerKinds = (h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ display: 'flex', alignItems: 'center', gap: '1.5rem' })],
-    SpinnerKinds.map(style => Spinner.view({ label: 'Loading', style }, h)),
-  )
-// #endregion
-
-// #region spinner-label
-// The label shown beside the wheel is the status's words.
-export const spinnerLabel = (style: NamedStyle<typeof SpinnerSlots>, h: HtmlBuilder<never>): Html =>
-  Spinner.view({ label: 'Saving your changes', showLabel: true, style }, h)
-// #endregion
-
-// #region spinner-sizes
-export const SpinnerSizes = (['sm', 'md', 'lg'] as const).map(size =>
-  forSlots(SpinnerSlots)(Recipes.Spinner({ size, tone: 'current' })),
-)
-
-// Three sizes in the ink of the text around them, as inside a button or a badge.
-export const spinnerSizes = (h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ display: 'flex', alignItems: 'center', gap: '1rem' })],
-    SpinnerSizes.map(style => Spinner.view({ label: 'Loading', style }, h)),
-  )
-// #endregion
 
 // #region table-basic
 export const TableStyle = forSlots(TableSlots)(Recipes.Table({}))
