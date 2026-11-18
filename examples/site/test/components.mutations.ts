@@ -259,8 +259,8 @@ export default [
     edits: [
       {
         file: '../src/view/components.ts',
-        find: '      schemeChoice(model, slots, h),\n      directionChoice(model, slots, h),',
-        replace: '      schemeChoice(model, slots, h),',
+        find: '        schemeChoice(model, slots, h),\n        directionChoice(model, slots, h),',
+        replace: '        schemeChoice(model, slots, h),',
       },
     ],
     tests: pages,

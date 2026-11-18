@@ -212,18 +212,6 @@ describe('the pagination previews', () => {
   })
 })
 
-describe('the toggle buttons preview', () => {
-  it('turns a format on, and off again', () => {
-    const on = send(Widgets.Message.ToggledFormat({ format: 'italic' }))
-    expect(on.widgets.formats).toEqual(['bold', 'italic'])
-    const off = update(
-      on,
-      Message.GotWidget({ message: Widgets.Message.ToggledFormat({ format: 'bold' }) }),
-    ).model
-    expect(off.widgets.formats).toEqual(['italic'])
-  })
-})
-
 describe('the breadcrumb preview', () => {
   it('unfolds its trail once, and stays unfolded', () => {
     const expanded = send(Widgets.Message.ExpandedTrail())

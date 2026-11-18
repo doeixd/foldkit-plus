@@ -40,6 +40,7 @@ const READ = [
   '/components',
   '/primitives/gallery',
   '/components/button',
+  '/components/tags-input',
   '/components/radio-group',
   '/components/file-drop',
   '/components/alert',
@@ -351,7 +352,10 @@ describe('the generated site', () => {
     expect(code?.textContent).toContain(
       "Button.view({ label: 'Save changes', icon: outline(h, 'M3 8.5l3 3 7-7'), style }, h)",
     )
-    expect(code?.querySelector('[data-kind="syntax-keyword"]')?.textContent).toBe('export')
+    // The example's whole module is shown, from its imports.
+    expect(code?.querySelector('[data-kind="syntax-keyword"]')?.textContent).toBe('import')
+    expect(code?.textContent).toContain("from 'foldkit-mixins-ui'")
+    expect(button.querySelector('main section > p code')?.textContent).toBe('recipe')
   })
 
   test('a showcase with examples shows each with its preview, code and link', () => {
@@ -423,7 +427,18 @@ describe('the generated site', () => {
             "Button.view({ label: 'Save changes', icon: outline(h, 'M3 8.5l3 3 7-7'), style }, h)",
           ],
           ['icon', 'Icon only', "label: 'Reply'"],
-          ['toggle', 'Toggle', 'pressed: pressed.includes(format)'],
+          ['toggle', 'Toggle', 'pressed: model.on.includes(format)'],
+          ['configure', 'Configure once', 'const AppButton = Button.configure({'],
+          ['add', 'A look of your own', 'Recipes.Button.add({'],
+        ],
+      ],
+      [
+        'tags-input',
+        [
+          ['basic', 'Basic', "state: Bundles.TagsInput.with({ id: 'topics'"],
+          ['max', 'A maximum', 'max: 3'],
+          ['refusals', 'Refusals', 'refusalText: refusal =>'],
+          ['configure', 'Configure once', 'const Tags = TagsInput.configure({'],
         ],
       ],
       [

@@ -33,6 +33,7 @@ import {
   initialTabs,
   pickedTheme,
 } from './gallery/studio.js'
+import * as Examples from './gallery/examplesState.js'
 import * as PrimitiveBundles from './gallery/primitiveBundles.js'
 import * as Widgets from './gallery/widgets.js'
 import * as WidgetsUpdate from './gallery/widgetsUpdate.js'
@@ -84,6 +85,8 @@ export const Model = Schema.Struct({
   observed: Schema.Struct({ width: Schema.Number, height: Schema.Number }),
   /** The previews with state of their own: tabs, a dialog, a slider and the rest. */
   widgets: Widgets.Model,
+  /** The state of each example that is a module of its own, by key. */
+  examples: Examples.Model,
   /** The theme `/create` makes, as the values of the standard knobs. */
   theme: ThemeValues,
   /** Not the theme's: the preview's, to show the components right to left. */
@@ -123,6 +126,7 @@ export const Message = defineMessageUnion({
   Resized: { width: Schema.Number, height: Schema.Number },
   Focused: {},
   GotWidget: { message: Widgets.Message },
+  GotExample: Examples.fields,
   ChoseValues: { values: ThemeValues },
   ChoseTheme: { name: Schema.String },
   /** A control moved: a knob's value, or a schemed knob's `dark` one. */
@@ -411,6 +415,16 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         ? { model: modifyFields(model, { cardDismissed: () => false }) }
         : { model },
     GotWidget: ({ message }) => foldWidget(model, message),
+    GotExample: message => {
+      const step = Examples.update(model.examples, message, Message.GotExample)
+      return {
+        model:
+          step.model === model.examples
+            ? model
+            : modifyFields(model, { examples: () => step.model }),
+        ...(step.commands === undefined ? {} : { commands: step.commands }),
+      }
+    },
     Resized: ({ width, height }) =>
       model.observed.width === width && model.observed.height === height
         ? { model }
@@ -556,6 +570,11 @@ export const subscriptions = placements.subscriptions(
         palette: model => model.page._tag === 'Component' && model.page.slug === 'command',
       },
     }),
+    Examples.subscriptions<Model, Message>({
+      read: model => model.examples,
+      onPage: (model, slug) => model.page._tag === 'Component' && model.page.slug === slug,
+      toParent: Message.GotExample,
+    }),
   ),
 )
 
@@ -616,6 +635,7 @@ export const initial: Model = placements.initial({
   cardDismissed: false,
   observed: { width: 0, height: 0 },
   widgets: Widgets.initial,
+  examples: Examples.initial,
   theme: defaultTheme,
   direction: 'ltr',
   section: 'theme',
@@ -657,6 +677,7 @@ const planOf = (withMeta: boolean) =>
       App.model.cardDismissed,
       App.model.observed,
       App.model.widgets,
+      App.model.examples,
       App.model.theme,
       App.model.direction,
       App.model.scheme,

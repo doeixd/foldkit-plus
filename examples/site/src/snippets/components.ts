@@ -86,8 +86,6 @@ import {
   ColorPickerSlots,
   InputCopy,
   InputCopySlots,
-  TagsInput,
-  TagsInputSlots,
   PasswordInput,
   PasswordInputSlots,
   type PasswordRequirement,
@@ -226,81 +224,11 @@ import {
 } from 'foldkit-mixins-ui'
 
 import { icons } from '../view/iconData.js'
+import { outline } from './icon.js'
 import { forSlots, slots } from './theme.js'
 
-// #region button-basic
+// The Button page's examples are modules of their own (`src/examples/button`).
 export const ButtonStyle = forSlots(ButtonSlots)(Recipes.Button({}))
-
-// An `icon` stands before the label; the `icon` variant shows it alone,
-// the label staying its name.
-export const button = (style: NamedStyle<typeof ButtonSlots>, h: HtmlBuilder<never>): Html =>
-  Button.view({ label: 'Save changes', icon: outline(h, 'M3 8.5l3 3 7-7'), style }, h)
-// #endregion
-
-// #region button-icon
-// Pinned: `Recipes.Button({ tone: 'neutral', variant: 'icon' })`. A row of
-// actions with no words in sight: each label is the button's name.
-export const iconButtons = (style: NamedStyle<typeof ButtonSlots>, h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Role('group'), h.AriaLabel('Message'), h.Style({ display: 'flex', gap: '0.25rem' })],
-    [
-      Button.view(
-        { label: 'Reply', icon: outline(h, 'M6.5 4L2.5 8l4 4M3 8h6.5a4 4 0 0 1 4 4'), style },
-        h,
-      ),
-      Button.view(
-        { label: 'Copy', icon: outline(h, 'M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3'), style },
-        h,
-      ),
-      Button.view(
-        {
-          label: 'Delete',
-          icon: outline(h, 'M2.5 4.5h11M6 4.5v-2h4v2M4 4.5l.75 9h6.5l.75-9'),
-          style,
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
-
-// #region button-toggle
-// Toggle buttons: `pressed` draws `aria-pressed` and the recipe's pressed
-// look. Which are on is the Model's; each press sends the format.
-export const Format = Schema.Literals(['bold', 'italic', 'underline'])
-export type Format = typeof Format.Type
-
-const formatLabels: Record<Format, string> = {
-  bold: 'Bold',
-  italic: 'Italic',
-  underline: 'Underline',
-}
-
-export const toggleButtons = <Message>(
-  style: NamedStyle<typeof ButtonSlots>,
-  pressed: ReadonlyArray<Format>,
-  onToggle: (format: Format) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [
-      h.Role('group'),
-      h.AriaLabel('Text style'),
-      h.Style({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }),
-    ],
-    Format.literals.map(format =>
-      Button.view(
-        {
-          label: formatLabels[format],
-          pressed: pressed.includes(format),
-          onClick: onToggle(format),
-          style,
-        },
-        h,
-      ),
-    ),
-  )
-// #endregion
 
 // #region button-group-basic
 export const ButtonGroupStyle = forSlots(ButtonGroupSlots)(Recipes.ButtonGroup({}))
@@ -2162,22 +2090,6 @@ export const tableSticky = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder
     [Table.view<Invoice>({ columns: invoiceColumns, rows: manyInvoices, style }, h)],
   )
 // #endregion
-
-/** A line icon in the text's colour, from one path on a 16-unit square. */
-const outline = <Message>(h: HtmlBuilder<Message>, d: string): Html =>
-  h.svg(
-    [
-      h.ViewBox('0 0 16 16'),
-      h.Attribute('width', '1em'),
-      h.Attribute('height', '1em'),
-      h.Attribute('fill', 'none'),
-      h.Attribute('stroke', 'currentColor'),
-      h.Attribute('stroke-width', '1.5'),
-      h.Attribute('stroke-linecap', 'round'),
-      h.Attribute('stroke-linejoin', 'round'),
-    ],
-    [h.path([h.Attribute('d', d)], [])],
-  )
 
 // #region breadcrumb-basic
 export const BreadcrumbStyle = forSlots(BreadcrumbSlots)(Recipes.Breadcrumb({}))
@@ -6976,66 +6888,6 @@ export const passwordInputNew = <Message>(
     h,
   )
 }
-// #endregion
-
-// #region tags-input-basic
-export const TagsInputStyle = forSlots(TagsInputSlots)(Recipes.TagsInput({}))
-
-export const tagsInput = <Message>(
-  style: NamedStyle<typeof TagsInputSlots>,
-  model: TagsInput.Model,
-  onMessage: (message: TagsInput.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  TagsInput.view(
-    {
-      model,
-      onMessage,
-      label: 'Topics',
-      placeholder: 'Add a topic',
-      // One hidden input per tag under this name, so a form submits the list.
-      // Backspace in an empty field and the arrows move between the chips.
-      name: 'topics',
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region tags-input-max
-// At most three: a fourth is refused, said under the field, and the field shakes once.
-export const tagsInputMax = <Message>(
-  style: NamedStyle<typeof TagsInputSlots>,
-  model: TagsInput.Model,
-  onMessage: (message: TagsInput.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html => TagsInput.view({ model, onMessage, label: 'Labels, up to three', style }, h)
-// #endregion
-
-// #region tags-input-refusals
-// Type a tag the field holds already: the refusal is said in your words.
-export const tagsInputRefusals = <Message>(
-  style: NamedStyle<typeof TagsInputSlots>,
-  model: TagsInput.Model,
-  onMessage: (message: TagsInput.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  TagsInput.view(
-    {
-      model,
-      onMessage,
-      label: 'Topics',
-      placeholder: 'Type effect again',
-      refusalText: refusal =>
-        TagsInput.Refusal.match(refusal, {
-          Repeat: ({ tag }) => `“${tag}” is on the list already.`,
-          Empty: () => 'Type a topic first.',
-          Full: ({ max }) => `That makes more than ${max}.`,
-        }),
-      style,
-    },
-    h,
-  )
 // #endregion
 
 // #region input-copy

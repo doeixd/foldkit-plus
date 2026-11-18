@@ -30,7 +30,13 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // motion and net primitives its live examples run), +3.1 kB shared by the pages: `recipe.add`, the
 // FileUpload and Calendar recipes and the default look's theme text. The shell grew 0.6 kB (the style
 // runtime). Ceiling raised to the reading with the Combobox's options and rows (about 0.4 kB), rounded up.
-const CEILINGS = { shell: 188_000, gallery: 399_000 }
+// Later that day the example harness (#589) took the gallery from 398,242 to 399,746, both built
+// from one tree with the site's sources swapped: +0.74 kB the harness itself (`define.ts`,
+// `examplesState.ts`, `example.ts`, the line under a module's code and the Model field), +0.15 kB
+// `configure` (first read here), and +0.6 kB net for the Button and Tags input pages as modules,
+// which gained four examples (two `configure`, `recipe.add`, the layout Slots) and lost 0.56 kB of
+// regions and hand-written folds.
+const CEILINGS = { shell: 188_000, gallery: 400_500 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
 const PREVIEWS = ['preview-tabs', 'preview-trip-first']

@@ -245,13 +245,7 @@ export default [
     'today: undefined,\n',
     browser,
   ),
-  one(
-    'the panel holds no aside',
-    view,
-    'aside: options.aside,\n',
-    'aside: undefined,\n',
-    browser,
-  ),
+  one('the panel holds no aside', view, 'aside: options.aside,\n', 'aside: undefined,\n', browser),
   one(
     'the panel holds no footer',
     view,

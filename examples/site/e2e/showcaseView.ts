@@ -6,6 +6,7 @@
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 
 import { showcaseOf } from '../src/gallery/showcases.js'
+import * as Examples from '../src/gallery/examplesState.js'
 import * as Widgets from '../src/gallery/widgets.js'
 import { Option } from 'effect'
 
@@ -34,6 +35,8 @@ export const previewOf =
             direction: 'ltr',
             widgets: Widgets.initial,
             onWidget: () => msg,
+            examples: Examples.initial,
+            onExample: () => msg,
             // The first draw: the page has not been taken over.
             ready: false,
             h,

@@ -134,11 +134,6 @@ export default [
     ],
     ['the trail never unfolds', '{ trailExpanded: () => true }', '{ trailExpanded: () => false }'],
     [
-      'a pressed format cannot be released',
-      'formats.includes(format) ? formats.filter(on => on !== format) : [...formats, format]',
-      '[...formats, format]',
-    ],
-    [
       'every pagination example moves together',
       '[example]: page }',
       'numbered: page, simple: page, ends: page, range: page, siblings: page, compact: page }',

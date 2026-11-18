@@ -3,6 +3,7 @@
  * controls, and the showcase itself. Nothing here draws.
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { RunningState } from './example.js'
 import * as Widgets from './widgets.js'
 
 /**
@@ -39,6 +40,9 @@ export interface Live<Message> {
   readonly direction: 'ltr' | 'rtl'
   readonly widgets: Widgets.Model
   readonly onWidget: (message: Widgets.Message) => Message
+  /** The state of every example that is a module of its own, by key (`examplesState.ts`). */
+  readonly examples: Readonly<Record<string, unknown>>
+  readonly onExample: (key: string, message: unknown) => Message
   /** Whether the browser's code has taken the page over: what a server could not draw waits for it. */
   readonly ready: boolean
   readonly h: HtmlBuilder<Message>
@@ -60,14 +64,30 @@ export interface Showcase {
    * showcase is migrated, while the page shows one preview and one snippet.
    */
   readonly examples: ReadonlyArray<ShowcaseExample>
+  /** The state of each example that declared one, for the gallery's Model. */
+  readonly states: ReadonlyArray<{ readonly key: string; readonly state: RunningState }>
 }
 
 /** One named example of a showcase, drawn with the picked style. */
 export interface ShowcaseExample {
   readonly name: string
   readonly title: string
+  /**
+   * Where its shown code is: a `// #region` of `snippets/components.ts`, or
+   * the whole of its own module, `src/examples/<slug>/<name>.ts`.
+   */
+  readonly code: 'region' | 'module'
+  /** Whether it declared state, which the line under its code then names. */
+  readonly stateful: boolean
   readonly render: <Message>(selection: Selection, live: Live<Message>) => Html
 }
+
+/** The key an example's state is kept under. */
+export const exampleKey = (slug: string, name: string): string => `${slug}/${name}`
+
+/** An example module's file, from the repository root. */
+export const exampleFile = (slug: string, name: string): string =>
+  `examples/site/src/examples/${slug}/${name}.ts`
 
 /** The value `axis` takes under `selection`: what was picked, if the recipe has it. */
 export const valueOf = (axis: Axis, selection: Selection): string => {
@@ -99,4 +119,4 @@ export const selectionCode = (showcase: Showcase, selection: Selection): string 
 }
 
 /** What the catalogue says of a showcase, before its recipe and drawings load. */
-export type About = Omit<Showcase, 'axes' | 'preview' | 'examples'>
+export type About = Omit<Showcase, 'axes' | 'preview' | 'examples' | 'states'>

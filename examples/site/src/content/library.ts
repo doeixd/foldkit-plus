@@ -12,6 +12,7 @@ import { Option } from 'effect'
 import { compilerOptionsOf, extract, packageSource } from '../api/extract.js'
 import { allSubsites, type Subsite } from '../catalog.js'
 import { README, topicsFor } from '../gallery/related.js'
+import { exampleFile } from '../gallery/showcase.js'
 import { showcaseOf, showcases } from '../gallery/showcases.js'
 import { examples as primitiveExamples } from '../snippets/primitives.js'
 import {
@@ -319,10 +320,21 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     if (code === undefined) throw new Error(`src/snippets/components.ts has no region ${slug}`)
     return ih => [codeBlock(ih, highlight, { code, lang: 'ts', copy: true })]
   }
-  // Every showcase's snippet regions read now, so a missing region fails the build, not one page.
+  // An example module is shown whole, imports and state included: it is the file a reader copies.
+  const modules = new Map<string, string>()
+  const module = (slug: string, name: string): Draw => {
+    const file = exampleFile(slug, name)
+    const code = modules.get(file) ?? readFileSync(join(repository, file), 'utf8').trimEnd()
+    modules.set(file, code)
+    return ih => [codeBlock(ih, highlight, { code, lang: 'ts', copy: true })]
+  }
+  // Every showcase's code read now, so a missing region or module fails the build, not one page.
   for (const showcase of showcases) {
     if (showcase.examples.length === 0) usage(showcase.slug)
-    else for (const example of showcase.examples) usage(`${showcase.slug}-${example.name}`)
+    else
+      for (const example of showcase.examples)
+        if (example.code === 'module') module(showcase.slug, example.name)
+        else usage(`${showcase.slug}-${example.name}`)
   }
 
   const primitiveRegions = regionsOf(
@@ -389,6 +401,7 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     outline: path => outline(pageOf(path)),
     example,
     usage,
+    module,
     primitive,
     related,
   }

@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { showcaseOf, showcases } from '../src/gallery/showcases.js'
 import { selectionCode, valueOf, type Live, type Selection } from '../src/gallery/showcase.js'
 import { pagesWithTopics, topicsFor } from '../src/gallery/related.js'
+import * as Examples from '../src/gallery/examplesState.js'
 import * as Widgets from '../src/gallery/widgets.js'
 
 const live: Live<string> = {
@@ -24,6 +25,8 @@ const live: Live<string> = {
   direction: 'ltr',
   widgets: Widgets.initial,
   onWidget: message => message._tag,
+  examples: Examples.initial,
+  onExample: key => key,
   ready: true,
   h: SlotView.inertBuilder<string>(),
 }

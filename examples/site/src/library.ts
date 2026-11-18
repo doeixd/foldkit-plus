@@ -39,6 +39,8 @@ export interface Library {
   readonly example: (example: Example | 'app' | 'remote') => Draw
   /** A component's code, as `src/snippets/components.ts` draws it, coloured. */
   readonly usage: (slug: string) => Draw
+  /** An example module's whole text (`src/examples/<slug>/<name>.ts`), coloured. */
+  readonly module: (slug: string, name: string) => Draw
   /** A primitive example's source, as `snippets/primitives.ts` writes it, coloured. */
   readonly primitive: (id: string) => Draw
   /** The guides a component page links for the mechanisms that apply to it. */
@@ -65,6 +67,7 @@ export const browserLibrary: Library = {
   outline: () => unavailable('outline'),
   example: () => unavailable('example'),
   usage: () => unavailable('usage'),
+  module: () => unavailable('example module'),
   primitive: () => unavailable('primitive example'),
   related: () => unavailable('related topics'),
 }

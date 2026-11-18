@@ -74,6 +74,7 @@ const PAGES = [
   '/entity/api/entity/query',
   '/components',
   '/components/button',
+  '/components/tags-input',
   '/components/otp-field',
   '/components/disclosure',
   '/components/code-block',

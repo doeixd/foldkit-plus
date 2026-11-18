@@ -28,7 +28,6 @@ import {
   Resizable,
   InputCopy,
   Sidebar,
-  TagsInput,
   Calendar as DateSelection,
   ColorPicker,
   TreeView,
@@ -650,16 +649,6 @@ const foldDropdownCalendar = Update.foldChild({
   }),
 })
 
-const foldTagsMax = Update.foldChild({
-  ...own('tagsMax', Message.GotTagsMax),
-  update: TagsInput.update,
-})
-
-const foldTagsRefusals = Update.foldChild({
-  ...own('tagsRefusals', Message.GotTagsRefusals),
-  update: TagsInput.update,
-})
-
 const foldInputCopy = Update.foldChild({
   ...own('inputCopy', Message.GotInputCopy),
   update: InputCopy.update,
@@ -752,11 +741,6 @@ const foldToast = Update.foldChildAt({
     Toast.OutMessage.match<Step>({
       Acted: () => model => showToast(model, example, { type: 'info', title: 'Thread restored' }),
     }),
-})
-
-const foldTags = Update.foldChild({
-  ...own('tags', Message.GotTags),
-  update: TagsInput.update,
 })
 
 const foldTripCalendar = Update.foldChild({
@@ -1116,8 +1100,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     ToggledCityLoading: () => ({
       model: modifyFields(model, { cityLoading: () => !model.cityLoading }),
     }),
-    GotTagsMax: ({ message }) => foldTagsMax(model, message),
-    GotTagsRefusals: ({ message }) => foldTagsRefusals(model, message),
     TypedNewPassword: ({ value }) =>
       value === model.newPassword
         ? { model }
@@ -1132,7 +1114,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ? { model }
         : { model: modifyFields(model, { capsLock: () => on }) }
     },
-    GotTags: ({ message }) => foldTags(model, message),
     TypedPassword: ({ value }) =>
       value === model.password
         ? { model }
@@ -1396,12 +1377,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       model.trailExpanded
         ? { model }
         : { model: modifyFields(model, { trailExpanded: () => true }) },
-    ToggledFormat: ({ format }) => ({
-      model: modifyFields(model, {
-        formats: formats =>
-          formats.includes(format) ? formats.filter(on => on !== format) : [...formats, format],
-      }),
-    }),
     ChosePage: ({ example, page }) =>
       page === model.pages[example]
         ? { model }

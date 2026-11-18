@@ -23,7 +23,6 @@ import {
   Resizable,
   InputCopy,
   Sidebar,
-  TagsInput,
   Calendar as DateSelection,
   ColorPicker,
   TreeView,
@@ -60,7 +59,6 @@ import {
   type TwoMonthsState,
   Fruit,
   FILE_MENU,
-  Format,
   Frequency,
   MENUBAR,
   PAGE_MENU,
@@ -249,8 +247,6 @@ export const Model = Schema.Struct({
   teamPlan: Schema.Boolean,
   /** Whether the long breadcrumb trail was unfolded. */
   trailExpanded: Schema.Boolean,
-  /** The toggle buttons' formats that are on. */
-  formats: Schema.Array(Format),
   /** The page each pagination example shows, and the rows a page holds in the range one. */
   pages: Schema.Record(PaginationExample, Schema.Number),
   perPage: Schema.Number,
@@ -311,8 +307,6 @@ export const Model = Schema.Struct({
   tripDates: DateSelection.Selection,
   /** Whether the API key shows as copied, until its reset. */
   inputCopy: InputCopy.Model,
-  /** The tags input's tags and draft. */
-  tags: TagsInput.Model,
   /** The password field's text, and whether it shows. */
   password: Schema.String,
   passwordShown: Schema.Boolean,
@@ -326,8 +320,6 @@ export const Model = Schema.Struct({
   /** Whether the empty combobox's cities are still loading, and the cities added in the creatable one. */
   cityLoading: Schema.Boolean,
   createdCities: Schema.Array(Schema.String),
-  tagsMax: TagsInput.Model,
-  tagsRefusals: TagsInput.Model,
   /** The new password field's text, whether it shows, and whether Caps Lock was on. */
   newPassword: Schema.String,
   newPasswordShown: Schema.Boolean,
@@ -457,7 +449,6 @@ export const Message = defineMessageUnion({
   ToggledToppings: { checked: Schema.Boolean },
   ToggledTeamPlan: { checked: Schema.Boolean },
   ExpandedTrail: {},
-  ToggledFormat: { format: Format },
   ChosePage: { example: PaginationExample, page: Schema.Number },
   ChosePerPage: { perPage: Schema.Number },
   ToggledAlert: { example: AlertsExample, value: Schema.String },
@@ -500,7 +491,6 @@ export const Message = defineMessageUnion({
   ClosedSheet: { example: SheetExample },
   PressedCopy: { text: Schema.String },
   GotCopy: { message: ClipboardMessage },
-  GotTags: { message: TagsInput.Message },
   TypedPassword: { value: Schema.String },
   ToggledPassword: {},
   RatedStay: { value: Schema.Number },
@@ -545,8 +535,6 @@ export const Message = defineMessageUnion({
   GotCityBox: { example: CityExample, message: UiCombobox.Message },
   GotCityTags: { message: UiCombobox.Message },
   ToggledCityLoading: {},
-  GotTagsMax: { message: TagsInput.Message },
-  GotTagsRefusals: { message: TagsInput.Message },
   TypedNewPassword: { value: Schema.String },
   ToggledNewPassword: {},
   ReadCapsLock: { reading: Schema.Option(Schema.Boolean) },
@@ -694,7 +682,6 @@ export const initial: Model = {
   toppings: 'some',
   teamPlan: false,
   trailExpanded: false,
-  formats: ['bold'],
   pages: {
     numbered: 4,
     simple: 2,
@@ -769,7 +756,6 @@ export const initial: Model = {
   trip: UiCalendar.init({ id: 'preview-trip', today }),
   tripDates: DateSelection.empty('Range'),
   inputCopy: InputCopy.init({ resetAfter: 2000 }),
-  tags: TagsInput.init({ id: 'preview-tags', tags: ['effect', 'foldkit'] }),
   password: '',
   passwordShown: false,
   stay: Option.none(),
@@ -799,8 +785,6 @@ export const initial: Model = {
   },
   cityLoading: false,
   createdCities: [],
-  tagsMax: TagsInput.init({ id: 'preview-tags-max', tags: ['urgent', 'design'], max: 3 }),
-  tagsRefusals: TagsInput.init({ id: 'preview-tags-refusals', tags: ['effect', 'foldkit'] }),
   newPassword: '',
   newPasswordShown: false,
   capsLock: false,
