@@ -24,7 +24,9 @@ export default example({
       Message.match(message, {
         Typed: ({ text }) => ({ model: { query: text, active: 0 } }),
         Next: () => ({
-          model: modifyFields(model, { active: at => (at + 1) % matches(model.query).length }),
+          model: modifyFields(model, {
+            active: at => (at + 1) % Math.max(1, matches(model.query).length),
+          }),
         }),
       }),
   },

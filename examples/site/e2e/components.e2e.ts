@@ -141,6 +141,10 @@ test('the keys of your own move the highlight in the results', async () => {
     const field = page.getByRole('searchbox', { name: 'Find a dish' })
     const highlighted = () => page.locator('li[aria-current="true"]').first().textContent()
     await field.fill('apple')
+    // Apple pie is highlighted before any typing too, so wait for the drawing
+    // that holds the text: three results, and a key route that sees it.
+    const results = page.locator('ul:has(> li[aria-current="true"])').first().locator('li')
+    await expect.poll(() => results.count()).toBe(3)
     await expect.poll(highlighted).toBe('Apple pie')
     // ArrowDown is the example's own route: each press moves on, and the last wraps to the first.
     await field.press('ArrowDown')
