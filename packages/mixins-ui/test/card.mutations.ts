@@ -7,6 +7,7 @@ const unit = ['packages/mixins-ui/test/card.test.ts']
 const browser = ['packages/mixins-ui/test/card.browser.test.ts']
 const elevation = ['packages/mixins-ui/test/cardElevation.browser.test.ts']
 const group = ['packages/mixins-ui/test/cardGroup.browser.test.ts']
+const looks = ['packages/mixins-ui/test/cardLooks.browser.test.ts']
 const view = '../src/card.ts'
 const press = '../src/press.ts'
 const fluid = '../src/card/fluid.ts'
@@ -545,5 +546,71 @@ export default [
       },
     ],
     tests: unit,
+  },
+  {
+    name: 'divide: header draws no rule',
+    edits: [
+      {
+        file: recipe,
+        find: '      header: {\n        header: variant(Style.self({ borderBlockEnd: rule, paddingBlockEnd: gap, ...bleed })),\n      },',
+        replace: '      header: {},',
+      },
+    ],
+    tests: looks,
+  },
+  {
+    name: 'a rule does not bleed to the card’s edges',
+    edits: [
+      {
+        file: recipe,
+        find: 'const bleed = { marginInline: `calc(-1 * ${pad})`, paddingInline: pad }',
+        replace: 'const bleed = {}',
+      },
+    ],
+    tests: looks,
+  },
+  {
+    name: 'divide: sections draws no footer rule',
+    edits: [
+      {
+        file: recipe,
+        find: '        footer: variant(Style.self({ borderBlockStart: rule, paddingBlockStart: gap, ...bleed })),\n',
+        replace: '',
+      },
+    ],
+    tests: looks,
+  },
+  {
+    name: 'lift: zoom never scales the picture',
+    edits: [
+      {
+        file: recipe,
+        find: 'scale: `calc(1 + 0.06 * ${ref.knob.travel})`,',
+        replace: "scale: '1',",
+      },
+    ],
+    tests: looks,
+  },
+  {
+    name: 'an overlay card’s picture is not taken out of the flow',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.self({ position: 'absolute', inset: '0', margin: '0', zIndex: '-1' }),",
+        replace: "Style.self({ position: 'relative', margin: '0', zIndex: '-1' }),",
+      },
+    ],
+    tests: looks,
+  },
+  {
+    name: 'an overlay card draws no fade',
+    edits: [
+      {
+        file: recipe,
+        find: 'background: `linear-gradient(to top,',
+        replace: 'background: `radial-gradient(to top,',
+      },
+    ],
+    tests: looks,
   },
 ]

@@ -83,8 +83,8 @@ export default [
     edits: [
       {
         file: view,
-        find: 'h.AriaLabel(status === undefined ? options.name : `${options.name}, ${status}`),',
-        replace: 'h.AriaLabel(options.name),',
+        find: '...(status === undefined ? [] : [status]),',
+        replace: '',
       },
     ],
     tests: unit,
@@ -188,6 +188,60 @@ export default [
           "        inlineSize: '100%',\n        blockSize: '100%',\n        borderRadius: '50%',\n        objectFit",
       },
     ],
+    tests: browser,
+  },
+  {
+    name: 'a badge is announced on its own',
+    edits: [
+      {
+        file: view,
+        find: "h.DataAttribute('place', badge.place), h.AriaHidden(true)",
+        replace: "h.DataAttribute('place', badge.place)",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a badge’s label is left out of the name',
+    edits: [
+      {
+        file: view,
+        find: '...badges.flatMap(badge => (badge.label === undefined ? [] : [badge.label])),',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the count’s disc ignores `rest`',
+    edits: [{ file: view, find: 'options.rest?.(rest),', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'the top end badge sits at the bottom',
+    edits: [
+      {
+        file: recipe,
+        find: "'&[data-place=\"top-end\"]', { insetBlockStart: '0', insetInlineEnd: '0' }",
+        replace: "'&[data-place=\"top-end\"]', { insetBlockEnd: '0', insetInlineEnd: '0' }",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a badge takes no room of its own',
+    edits: [
+      {
+        file: recipe,
+        find: "minInlineSize: '28%',\n        minBlockSize: '28%',",
+        replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a lifted group never raises',
+    edits: [{ file: recipe, find: "'& > *:hover', {", replace: "'& > *:active', {" }],
     tests: browser,
   },
 ]

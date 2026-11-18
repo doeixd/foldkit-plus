@@ -280,7 +280,7 @@ export default [
     name: 'the decorative image is described anyway',
     edits: [
       {
-        file: '../src/snippets/components.ts',
+        file: '../src/examples/image/basic.ts',
         find: 'alt: Image.decorative,',
         replace: "alt: 'Dunes under a pale sun',",
       },

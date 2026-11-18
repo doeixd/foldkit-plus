@@ -128,6 +128,8 @@ export { AspectRatioSlots } from './aspectRatio.js'
 export type { AspectRatioPreset, AspectRatioView } from './aspectRatio.js'
 export { AvatarGroupSlots, AvatarSlots } from './avatar.js'
 export type {
+  AvatarBadge,
+  AvatarBadgePlace,
   AvatarGroupView,
   AvatarPerson,
   AvatarPicture,

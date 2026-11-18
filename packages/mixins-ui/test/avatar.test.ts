@@ -30,8 +30,8 @@ describe('Avatar initials', () => {
 })
 
 describe('AvatarSlots', () => {
-  it('publishes four containers and nothing stateful', () => {
-    expect(Object.keys(AvatarSlots)).toEqual(['root', 'fallback', 'image', 'status'])
+  it('publishes five containers and nothing stateful', () => {
+    expect(Object.keys(AvatarSlots)).toEqual(['root', 'fallback', 'image', 'status', 'badge'])
     for (const slot of Object.values(AvatarSlots)) {
       expect(slot.capability).toBe(Capability.Container)
     }
@@ -67,6 +67,26 @@ describe('Avatar view', () => {
       h,
     )
     expect(Inert.value(spoken, 'aria-label')).toBe('Alan Turing, Occupé')
+  })
+
+  it('draws a badge on its corner, hidden, and reads its label with the name', () => {
+    const face = view(
+      {
+        name: 'Alan Turing',
+        status: 'away',
+        badges: [
+          { content: h.span([], ['3']), place: 'top-end', label: '3 unread' },
+          { content: h.span([], ['*']), place: 'bottom-start' },
+        ],
+        style,
+      },
+      h,
+    )
+    expect(Inert.value(face, 'aria-label')).toBe('Alan Turing, Away, 3 unread')
+    const placed = Inert.all(face).filter(node => Inert.value(node, 'data-place') !== undefined)
+    expect(placed.map(node => Inert.value(node, 'data-place'))).toEqual(['top-end', 'bottom-start'])
+    expect(placed.map(node => Inert.value(node, 'aria-hidden'))).toEqual(['true', 'true'])
+    expect(Inert.text(placed[0]!)).toBe('3')
   })
 
   it('gives a name one hue, and different names different ones', () => {
@@ -110,6 +130,21 @@ describe('Avatar group', () => {
     expect(Inert.text(avatars[3]!)).toBe('+2')
     expect(Inert.value(avatars[3], 'data-rest')).toBe('2')
     expect(Inert.value(avatars[0], 'data-rest')).toBeUndefined()
+  })
+
+  it('draws what `rest` gives in the count’s disc, and still names it', () => {
+    const counted = group(
+      {
+        people: people.map(name => ({ name })),
+        max: 3,
+        rest: count => h.span([], [`and ${count} more`]),
+      },
+      h,
+    )
+    const disc = Inert.children(counted)[3]!
+    expect(Inert.text(disc)).toBe('and 2 more')
+    expect(Inert.value(disc, 'aria-label')).toBe('2 more')
+    expect(Inert.value(disc, 'data-rest')).toBe('2')
   })
 
   it('draws everyone with no `max`, and no count', () => {

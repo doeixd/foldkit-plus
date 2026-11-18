@@ -17,7 +17,7 @@
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { AvatarGroupSlots, AvatarSlots, sizes } from '../avatar.js'
-import { component, imageEdge, ref, variant } from './design.js'
+import { component, imageEdge, ref, travelled, variant } from './design.js'
 
 /** A band of `color` around the avatar, outside its box, so stacking and sizing do not move. */
 const ring = (color: string) =>
@@ -64,6 +64,28 @@ export const Avatar = Style.recipeFor(AvatarSlots)({
         objectFit: 'cover',
         ...imageEdge,
       }),
+    ),
+    // A mark on a corner, ringed in the page like the status dot; it takes the
+    // content's own size, at least a quarter of the avatar.
+    badge: component(
+      Style.self({
+        position: 'absolute',
+        display: 'grid',
+        placeItems: 'center',
+        minInlineSize: '28%',
+        minBlockSize: '28%',
+        padding: '0',
+        borderRadius: ref.radius.full,
+        background: ref.surface.base,
+        color: ref.text.default,
+        fontSize: '0.625em',
+        lineHeight: '1',
+        boxShadow: `0 0 0 ${ref.border.thick} ${ref.surface.base}`,
+      }),
+      Style.nest('&[data-place="top-start"]', { insetBlockStart: '0', insetInlineStart: '0' }),
+      Style.nest('&[data-place="top-end"]', { insetBlockStart: '0', insetInlineEnd: '0' }),
+      Style.nest('&[data-place="bottom-start"]', { insetBlockEnd: '0', insetInlineStart: '0' }),
+      Style.nest('&[data-place="bottom-end"]', { insetBlockEnd: '0', insetInlineEnd: '0' }),
     ),
     status: component(
       Style.self({
@@ -189,6 +211,23 @@ export const AvatarGroup = Style.recipeFor(AvatarGroupSlots)({
       },
       none: { root: variant(Style.self({ gap: ref.space['2xs'] })) },
     },
+    // The avatar under the pointer comes forward and rises, by a distance times `travel`.
+    lift: {
+      none: {},
+      hover: {
+        root: variant(
+          Style.nest('& > *', {
+            transitionProperty: 'translate',
+            transitionDuration: travelled(ref.motion.fast),
+            transitionTimingFunction: ref.motion.settle,
+          }),
+          Style.nest('& > *:hover', {
+            translate: `0 calc(-1 * ${ref.space['3xs']} * ${ref.knob.travel})`,
+            zIndex: '1',
+          }),
+        ),
+      },
+    },
   },
-  defaults: { overlap: 'tight' },
+  defaults: { overlap: 'tight', lift: 'none' },
 })

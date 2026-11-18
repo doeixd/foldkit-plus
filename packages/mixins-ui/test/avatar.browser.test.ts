@@ -11,6 +11,7 @@ import * as Runtime from 'foldkit/runtime'
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { Avatar, AvatarGroupSlots, AvatarSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -20,6 +21,8 @@ const Model = Schema.Struct({})
 const named = Style.forSlots(AvatarSlots)(Recipes.Avatar({ color: 'name' }))
 const square = Style.forSlots(AvatarSlots)(Recipes.Avatar({ shape: 'square', size: 'lg' }))
 const group = Style.forSlots(AvatarGroupSlots)(Recipes.AvatarGroup({}))
+const large = Style.forSlots(AvatarSlots)(Recipes.Avatar({ size: 'xl' }))
+const lifted = Style.forSlots(AvatarGroupSlots)(Recipes.AvatarGroup({ lift: 'hover' }))
 const pixel = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4"><rect width="4" height="4" fill="teal"/></svg>')}`
 
 afterEach(() => {
@@ -47,6 +50,26 @@ const view = (_: unknown, h: HtmlBuilder<never>): Html =>
         h,
       ),
       Avatar.view({ name: 'Edsger Dijkstra', src: pixel, status: 'online', style: square }, h),
+      Avatar.view(
+        {
+          name: 'Margaret Hamilton',
+          badges: (['top-start', 'top-end', 'bottom-start', 'bottom-end'] as const).map(place => ({
+            content: h.span([], ['*']),
+            place,
+          })),
+          style: large,
+        },
+        h,
+      ),
+      Avatar.group(
+        {
+          label: 'Reviewers',
+          people: [{ name: 'Radia Perlman' }, { name: 'Frances Allen' }],
+          style: lifted,
+          avatarStyle: named,
+        },
+        h,
+      ),
     ],
   )
 
@@ -55,7 +78,7 @@ const mount = (scheme: 'light' | 'dark') => {
   sheet.dataset['test'] = ''
   sheet.textContent =
     Style.stylesheet(L.declare, L.in('theme', Theme.root(theme, { colorScheme: scheme }))) +
-    [named, square, group].map(style => style.css).join('')
+    [named, square, group, large, lifted].map(style => style.css).join('')
   document.head.append(sheet)
   document.body.style.background = 'var(--fk-surface-base)'
   const container = document.createElement('div')
@@ -185,3 +208,43 @@ test.each(['xs', 'sm', 'md', 'lg', 'xl'] as const)(
     }
   },
 )
+
+test('a badge sits on the corner it names, inside the avatar’s box', async () => {
+  const handle = mount('light')
+  try {
+    await drawn()
+    const root = avatar('Margaret Hamilton')
+    const outer = root.getBoundingClientRect()
+    const corner = (place: string) =>
+      root.querySelector(`[data-place="${place}"]`)!.getBoundingClientRect()
+    expect(Math.abs(corner('top-start').left - outer.left)).toBeLessThan(0.5)
+    expect(Math.abs(corner('top-start').top - outer.top)).toBeLessThan(0.5)
+    expect(Math.abs(corner('top-end').right - outer.right)).toBeLessThan(0.5)
+    expect(Math.abs(corner('top-end').top - outer.top)).toBeLessThan(0.5)
+    expect(Math.abs(corner('bottom-start').left - outer.left)).toBeLessThan(0.5)
+    expect(Math.abs(corner('bottom-start').bottom - outer.bottom)).toBeLessThan(0.5)
+    expect(Math.abs(corner('bottom-end').right - outer.right)).toBeLessThan(0.5)
+    expect(Math.abs(corner('bottom-end').bottom - outer.bottom)).toBeLessThan(0.5)
+    // A quarter of the avatar at least, so an empty mark is still seen.
+    expect(corner('top-end').width).toBeGreaterThan(outer.width * 0.25)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a lifted group raises the avatar under the pointer and no other', async () => {
+  const handle = mount('light')
+  try {
+    await drawn()
+    const [first, second] = ['Radia Perlman', 'Frances Allen'].map(name => avatar(name))
+    await userEvent.hover(document.body, { position: { x: 1, y: 1 } })
+    expect(getComputedStyle(first!).translate).toBe('none')
+    await userEvent.hover(first!)
+    await vi.waitFor(() =>
+      expect(parseFloat(getComputedStyle(first!).translate.split(' ')[1]!)).toBeLessThan(0),
+    )
+    expect(getComputedStyle(second!).translate).toBe('none')
+  } finally {
+    handle.dispose()
+  }
+})

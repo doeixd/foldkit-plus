@@ -15,13 +15,14 @@ export { picture } from './avatar/picture.js'
  * hears the name once, not the initials. It carries the name's hue as
  * `--fk-avatar-hue` (0 to 359, the same for the same name everywhere), for a
  * style that colours the initials by who they are. The status dot carries
- * `data-status`.
+ * `data-status`; a badge carries `data-place`, its corner.
  */
 export const AvatarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   fallback: Slot.make({ capability: Capability.Container }),
   image: Slot.make({ capability: Capability.Container }),
   status: Slot.make({ capability: Capability.Container }),
+  badge: Slot.make({ capability: Capability.Container }),
 })
 
 /** An avatar's sizes, in rem: the recipe's `size` axis draws them, and `widthOf` reads them. */
@@ -76,6 +77,20 @@ export type AvatarSource =
   | { readonly src?: string | undefined; readonly picture?: undefined }
   | { readonly picture: AvatarPicture; readonly src?: undefined }
 
+/** The corner of the avatar a badge sits on; the status dot takes the bottom end. */
+export type AvatarBadgePlace = 'top-start' | 'top-end' | 'bottom-start' | 'bottom-end'
+
+/**
+ * A small mark on a corner: an icon, a count, a Badge. `label` is read
+ * with the name, since the avatar is one image and its badges are not
+ * announced on their own.
+ */
+export interface AvatarBadge {
+  readonly content: Html
+  readonly place: AvatarBadgePlace
+  readonly label?: string | undefined
+}
+
 /** What an avatar shows of one person, apart from how it is styled. */
 export type AvatarPerson = {
   /** Who the avatar shows: its accessible name, its initials and its hue. */
@@ -83,6 +98,7 @@ export type AvatarPerson = {
   /** What the disc says in place of initials taken from the name (a group's `+3`). */
   readonly initials?: string | undefined
   readonly status?: AvatarStatus | undefined
+  readonly badges?: ReadonlyArray<AvatarBadge> | undefined
 } & AvatarSource
 
 /**
@@ -138,6 +154,7 @@ const draw = <Message>(
   options: AvatarView<Message>,
   h: HtmlBuilder<Message>,
   rest: ReadonlyArray<Attribute<Message>>,
+  face?: Html,
 ): Html => {
   const builders = SlotView.buildersFor(
     AvatarSlots,
@@ -146,16 +163,22 @@ const draw = <Message>(
   )
   const status =
     options.status === undefined ? undefined : wordsOf(words, options.words)[options.status]
+  const badges = options.badges ?? []
+  const reading = [
+    options.name,
+    ...(status === undefined ? [] : [status]),
+    ...badges.flatMap(badge => (badge.label === undefined ? [] : [badge.label])),
+  ].join(', ')
   return h.div(
     builders.root.attrs([
       h.Role('img'),
-      h.AriaLabel(status === undefined ? options.name : `${options.name}, ${status}`),
+      h.AriaLabel(reading),
       h.Style({ '--fk-avatar-hue': String(hueOf(options.name)) }),
       ...rest,
     ]),
     [
       h.div(builders.fallback.attrs([h.AriaHidden(true)]), [
-        options.initials ?? initialsOf(options.name),
+        face ?? options.initials ?? initialsOf(options.name),
       ]),
       // Unnamed: the root says who it is, and a picture that fails shows the initials, not its alt text.
       ...pictureAttributes(options, h).map(attributes =>
@@ -164,6 +187,11 @@ const draw = <Message>(
       ...(options.status === undefined
         ? []
         : [h.span(builders.status.attrs([h.DataAttribute('status', options.status)]), [])]),
+      ...badges.map(badge =>
+        h.span(builders.badge.attrs([h.DataAttribute('place', badge.place), h.AriaHidden(true)]), [
+          badge.content,
+        ]),
+      ),
     ],
   )
 }
@@ -192,6 +220,8 @@ export interface AvatarGroupView<Message = never> {
   readonly label?: string | undefined
   /** The statuses and the `+N`'s reading (`words.more`), for every avatar in the group. */
   readonly words?: Partial<AvatarWords> | undefined
+  /** What the `+N` disc holds in place of the text (an icon, say); `count` is how many are left out. */
+  readonly rest?: ((count: number) => Html) | undefined
   /** Draws around each avatar, such as a Tooltip or a link; the `+N` is not wrapped. */
   readonly wrap?: ((avatar: Html, person: AvatarPerson) => Html) | undefined
   /** A style of `AvatarGroupSlots`, for the overlap. */
@@ -238,6 +268,7 @@ export const group = <Message = never>(
               },
               h,
               [h.DataAttribute('rest', String(rest))],
+              options.rest?.(rest),
             ),
           ]
         : []),
