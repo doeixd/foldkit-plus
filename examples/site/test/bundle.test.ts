@@ -54,7 +54,14 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // Ceiling raised to the reading plus about 0.3%, rounded up: 428,656 in a tree that also held the
 // selection-popup, dialog, accordion and table families' uncommitted work (422,177 an hour earlier
 // without it), so the next family to land re-measures and raises it by what it added.
-const CEILINGS = { shell: 188_000, gallery: 430_000 }
+// Later on 2026-11-18, with the layout, data-and-media and chat families (F9 to F11) in, it reads
+// 443,558, +14.9 kB. By the gallery's modules (the gallery chunk marked as an entry and attributed
+// by `reportFor`): the 130 example modules of those families' pages come to about 15.4 kB
+// (layout 7.8, data and media 5.6, chat 2.0), less the regions they replaced; their recipes,
+// Bundles and preview lists are 18.8 kB of the total (not compared with a build before them). The gallery Model's fields
+// for converted pages (`widgets.ts`, `widgetsUpdate.ts`, 3.6 kB) are still loaded until phase 5
+// deletes them. Ceiling: the reading plus about 0.3%, rounded up.
+const CEILINGS = { shell: 188_000, gallery: 445_000 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
 const PREVIEWS = ['preview-drop', 'preview-trip']
