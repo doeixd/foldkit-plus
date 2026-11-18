@@ -42,6 +42,7 @@ const READ = [
   '/components/button',
   '/components/tags-input',
   '/components/combobox',
+  '/components/calendar',
   '/components/radio-group',
   '/components/file-drop',
   '/components/alert',
@@ -472,6 +473,18 @@ describe('the generated site', () => {
         [
           ['single', 'A day', 'datePicker'],
           ['range', 'A range', 'DatePicker.update(range)'],
+          ['bundle', 'Placed as a Bundle', "state: Bundles.DatePicker.with({ id: 'due'"],
+          ['presets', 'A range with presets', 'Calendar.lastDays(today, 30)'],
+        ],
+      ],
+      [
+        'calendar',
+        [
+          ['basic', 'A day', "state: Bundles.Calendar.with({ id: 'delivery'"],
+          ['range', 'A range over two months, with presets', 'months: 2'],
+          ['presets', 'Presets of your own', 'const weekendOf ='],
+          ['appointment', 'Composed: a day and a time', 'aside: stack('],
+          ['prices', 'A price on each day', 'calendarPrices'],
         ],
       ],
       [

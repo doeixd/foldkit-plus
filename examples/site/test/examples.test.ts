@@ -72,9 +72,14 @@ describe('showcase examples', () => {
 
   it('keep a module example short enough to read whole, with no cast', () => {
     for (const [path, source] of Object.entries(sources)) {
+      const lines = source.split('\n')
+      // An import may rename (`Calendar as Dates`); `as const` on a list is no cast.
+      const afterImports = lines
+        .slice(lines.findLastIndex(line => /^import |^\} from /.test(line)) + 1)
+        .join('\n')
       const body = source.slice(source.indexOf('export default example({'))
       expect(body.split('\n').length, path).toBeLessThanOrEqual(45)
-      expect(source, path).not.toMatch(/\bas (unknown|never|any)\b|\bas [A-Z]/)
+      expect(afterImports, path).not.toMatch(/\bas (unknown|never|any)\b|[)\]}\w] as [A-Z{[(]/)
     }
   })
 })
