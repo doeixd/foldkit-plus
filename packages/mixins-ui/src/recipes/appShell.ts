@@ -172,6 +172,7 @@ export const AppShell = Style.recipeFor(AppShellSlots)({
         overflowY: 'auto',
         padding: ref.space.lg,
         paddingInlineStart: ref.space.md,
+        borderInlineStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
       }),
       Style.at(
         phone,
@@ -180,6 +181,7 @@ export const AppShell = Style.recipeFor(AppShellSlots)({
           inlineSize: 'auto',
           maxBlockSize: 'none',
           padding: ref.space.md,
+          borderInlineStart: '0',
           borderBlockStart: `${ref.border.thin} solid ${ref.outline.subtle}`,
         }),
       ),

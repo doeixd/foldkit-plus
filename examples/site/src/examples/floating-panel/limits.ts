@@ -36,14 +36,21 @@ export default example({
   state: App.placements.runtime({
     Model: App.Model,
     initial: {},
-    update: App.placements.update(model => App.children.panel.helpers.open()(model)),
+    update: App.placements.update(model =>
+      App.children.panel.helpers.openBeside('limits-opener')(model),
+    ),
   }),
   view: ({ style, model, onMessage, h }) =>
     h.div(
       [],
       [
         Button.view(
-          { label: 'Open the panel', onClick: onMessage(App.Message.Opened()), style: Primary },
+          {
+            label: 'Open the panel',
+            onClick: onMessage(App.Message.Opened()),
+            attributes: { button: [h.Id('limits-opener')] },
+            style: Primary,
+          },
           h,
         ),
         FloatingPanel.view(

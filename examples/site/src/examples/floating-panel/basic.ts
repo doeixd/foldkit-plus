@@ -31,14 +31,21 @@ export default example({
   state: App.placements.runtime({
     Model: App.Model,
     initial: {},
-    update: App.placements.update(model => App.children.notes.helpers.open()(model)),
+    update: App.placements.update(model =>
+      App.children.notes.helpers.openBeside('basic-opener')(model),
+    ),
   }),
   view: ({ style, model, onMessage, h }) =>
     h.div(
       [],
       [
         Button.view(
-          { label: 'Open notes', onClick: onMessage(App.Message.Opened()), style: Primary },
+          {
+            label: 'Open notes',
+            onClick: onMessage(App.Message.Opened()),
+            attributes: { button: [h.Id('basic-opener')] },
+            style: Primary,
+          },
           h,
         ),
         FloatingPanel.view(

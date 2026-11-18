@@ -30,14 +30,21 @@ export default example({
   state: App.placements.runtime({
     Model: App.Model,
     initial: {},
-    update: App.placements.update(model => App.children.tip.helpers.open()(model)),
+    update: App.placements.update(model =>
+      App.children.tip.helpers.openBeside('fixed-opener')(model),
+    ),
   }),
   view: ({ style, model, onMessage, h }) =>
     h.div(
       [],
       [
         Button.view(
-          { label: 'Show the tip', onClick: onMessage(App.Message.Opened()), style: Primary },
+          {
+            label: 'Show the tip',
+            onClick: onMessage(App.Message.Opened()),
+            attributes: { button: [h.Id('fixed-opener')] },
+            style: Primary,
+          },
           h,
         ),
         FloatingPanel.view(

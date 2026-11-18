@@ -35,14 +35,21 @@ export default example({
   state: App.placements.runtime({
     Model: App.Model,
     initial: {},
-    update: App.placements.update(model => App.children.panel.helpers.open()(model)),
+    update: App.placements.update(model =>
+      App.children.panel.helpers.openBeside('configure-opener')(model),
+    ),
   }),
   view: ({ style, model, onMessage, h }) =>
     h.div(
       [],
       [
         Button.view(
-          { label: 'Open the tool', onClick: onMessage(App.Message.Opened()), style: Primary },
+          {
+            label: 'Open the tool',
+            onClick: onMessage(App.Message.Opened()),
+            attributes: { button: [h.Id('configure-opener')] },
+            style: Primary,
+          },
           h,
         ),
         AppWindow.view(
