@@ -125,6 +125,7 @@ export const SignaturePad = Style.recipeFor(SignaturePadSlots)({
     ),
     controls: component(Style.self({ display: 'flex', gap: ref.space.xs })),
     undo: component(Style.self(quiet), hover({ background: unfilledHover }), focusRing, disabled),
+    redo: component(Style.self(quiet), hover({ background: unfilledHover }), focusRing, disabled),
     clear: component(Style.self(quiet), hover({ background: unfilledHover }), focusRing, disabled),
     fallback: component(Style.self({ display: 'grid', gap: ref.space['2xs'] })),
     fallbackLabel: component(Style.self({ color: ref.text.muted, ...role('caption') })),

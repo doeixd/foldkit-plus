@@ -11,7 +11,7 @@ export default [
   {
     name: 'a second pointer starts a stroke over the first',
     edits: [
-      { file: source, find: 'if (Option.isSome(model.drawing)) return just(model)', replace: '' },
+      { file: source, find: 'if (Option.isSome(model.drawing) || ', replace: 'if (' },
     ],
     tests: [unit],
   },
@@ -115,7 +115,9 @@ export default [
   },
   {
     name: 'a pen reads as a mouse',
-    edits: [{ file: source, find: "pen: pointerType === 'pen'", replace: 'pen: false' }],
+    edits: [
+      { file: source, find: "const pen = pointerType === 'pen'", replace: 'const pen = false' },
+    ],
     tests: [browser],
   },
   {
@@ -223,6 +225,68 @@ export default [
   {
     name: 'the signature field is submitted under another name',
     edits: [{ file: source, find: 'h.Name(options.name),', replace: "h.Name('other')," }],
+    tests: [unit],
+  },
+  {
+    name: 'undo forgets what it took',
+    edits: [
+      {
+        file: source,
+        find: 'undone: () => [...model.undone, last],',
+        replace: 'undone: () => model.undone,',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'redo puts back the first stroke undone, not the last',
+    edits: [
+      {
+        file: source,
+        find: 'Option.fromUndefinedOr(model.undone.at(-1))',
+        replace: 'Option.fromUndefinedOr(model.undone.at(0))',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a new stroke keeps what undo took',
+    edits: [
+      {
+        file: source,
+        find: '              undone: () => [],\n              drawing: () => Option.none(),\n            }),',
+        replace: '              drawing: () => Option.none(),\n            }),',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a clear keeps what undo took',
+    edits: [
+      {
+        file: source,
+        find: '              strokes: () => [],\n              undone: () => [],',
+        replace: '              strokes: () => [],',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a refused pointer draws',
+    edits: [
+      { file: source, find: ' || !model.pointers.some(kind => kind === pointerType)', replace: '' },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the redo button is never disabled',
+    edits: [
+      {
+        file: source,
+        find: 'Message.Redid(), model.undone.length === 0)',
+        replace: 'Message.Redid(), false)',
+      },
+    ],
     tests: [unit],
   },
 ]

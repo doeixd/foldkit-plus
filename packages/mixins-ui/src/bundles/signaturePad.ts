@@ -1,7 +1,7 @@
 import { Match, Schema } from 'effect'
 import type { ReturnWithOutMessage } from 'foldkit/update'
 import { Bundle } from 'foldkit-bundle'
-import { Message, Model, OutMessage, init, update } from '../signaturePad.js'
+import { Message, Model, OutMessage, PointerKind, init, update } from '../signaturePad.js'
 
 type Step = ReturnWithOutMessage<Model, Message, OutMessage>
 
@@ -44,6 +44,8 @@ export const SignaturePad = Bundle.make('SignaturePad', {
         smoothing: Schema.optionalKey(Schema.Number),
       }),
     ),
+    /** The pointers that may draw; default all three. */
+    pointers: Schema.optionalKey(Schema.Array(PointerKind)),
   }),
   init: args => ({ model: init(args) }),
   update: step,

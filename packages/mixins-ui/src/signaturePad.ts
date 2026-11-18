@@ -50,6 +50,11 @@ export const SignaturePadSlots = Slots.define({
     events: [Event.Click],
     attributes: [Attr.AriaLabel, Attr.Disabled],
   }),
+  redo: Slot.make({
+    capability: Capability.Interactive,
+    events: [Event.Click],
+    attributes: [Attr.AriaLabel, Attr.Disabled],
+  }),
   clear: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
@@ -93,6 +98,10 @@ export const Pen = Schema.Struct({
 })
 export type Pen = typeof Pen.Type
 
+/** What a pointer is, as the browser's `pointerType` names it. */
+export const PointerKind = Schema.Literals(['mouse', 'pen', 'touch'])
+export type PointerKind = typeof PointerKind.Type
+
 export const Model = Schema.Struct({
   /** Prefixes every id the pad draws; unique on the page. */
   id: Schema.String,
@@ -100,6 +109,10 @@ export const Model = Schema.Struct({
   /** The pad's coordinates: its size when first measured. */
   space: Schema.OptionFromNullOr(Size),
   strokes: Schema.Array(Stroke),
+  /** What undo took, last taken last, for redo; a new stroke or a clear empties it. */
+  undone: Schema.Array(Stroke),
+  /** The pointers that may draw; a press of any other starts nothing (a palm on a tablet). */
+  pointers: Schema.Array(PointerKind),
   /** The stroke under way, while a pointer is down. */
   drawing: Schema.OptionFromNullOr(Stroke),
   /** A name typed instead of drawn. */
@@ -110,11 +123,15 @@ export type Model = typeof Model.Type
 export const init = (options: {
   readonly id: string
   readonly pen?: Partial<Pen> | undefined
+  /** The pointers that may draw; default all three. */
+  readonly pointers?: ReadonlyArray<PointerKind> | undefined
 }): Model => ({
   id: options.id,
   pen: { size: 4, thinning: 0.6, smoothing: 0.5, ...options.pen },
   space: Option.none(),
   strokes: [],
+  undone: [],
+  pointers: options.pointers ?? ['mouse', 'pen', 'touch'],
   drawing: Option.none(),
   typed: '',
 })
@@ -130,11 +147,13 @@ export const Message = defineMessageUnion({
   /** The control's size, when it is drawn and when it changes. */
   Measured: Box,
   /** A pointer went down at `x`, `y` of a control `width` by `height`. */
-  Began: { ...Box, point: Raw, pen: Schema.Boolean },
+  Began: { ...Box, point: Raw, pointerType: Schema.String },
   /** It moved through `points`, in the control's pixels. */
   Extended: { ...Box, points: Schema.Array(Raw) },
   Ended: {},
   Undid: {},
+  /** Puts back the stroke undo took last. */
+  Redid: {},
   Cleared: {},
   Typed: { text: Schema.String },
   /** Answer it with `ExportPng`, which `update` returns as its Command. */
@@ -369,9 +388,11 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
           ? model
           : modifyFields(model, { space: () => Option.some({ width, height }) }),
       ),
-    Began: ({ width, height, point, pen }) => {
-      // A second pointer while one draws starts nothing.
-      if (Option.isSome(model.drawing)) return just(model)
+    Began: ({ width, height, point, pointerType }) => {
+      // A second pointer while one draws starts nothing, and nor does one the pad refuses.
+      if (Option.isSome(model.drawing) || !model.pointers.some(kind => kind === pointerType))
+        return just(model)
+      const pen = pointerType === 'pen'
       const box = { width, height }
       const space = spaceOf(model, box)
       return just(
@@ -410,22 +431,40 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
           onSome: drawing =>
             modifyFields(model, {
               strokes: () => [...model.strokes, drawing],
+              undone: () => [],
               drawing: () => Option.none(),
             }),
         }),
       ),
     Undid: () =>
       just(
-        model.strokes.length === 0
-          ? model
-          : modifyFields(model, { strokes: () => model.strokes.slice(0, -1) }),
+        Option.match(Option.fromUndefinedOr(model.strokes.at(-1)), {
+          onNone: () => model,
+          onSome: last =>
+            modifyFields(model, {
+              strokes: () => model.strokes.slice(0, -1),
+              undone: () => [...model.undone, last],
+            }),
+        }),
+      ),
+    Redid: () =>
+      just(
+        Option.match(Option.fromUndefinedOr(model.undone.at(-1)), {
+          onNone: () => model,
+          onSome: last =>
+            modifyFields(model, {
+              strokes: () => [...model.strokes, last],
+              undone: () => model.undone.slice(0, -1),
+            }),
+        }),
       ),
     Cleared: () =>
       just(
-        isEmpty(model) && Option.isNone(model.drawing)
+        isEmpty(model) && Option.isNone(model.drawing) && model.undone.length === 0
           ? model
           : modifyFields(model, {
               strokes: () => [],
+              undone: () => [],
               drawing: () => Option.none(),
               typed: () => '',
             }),
@@ -474,6 +513,7 @@ export interface SignaturePadWords {
   /** On the line while the pad is empty; default `Sign here`. */
   readonly placeholder: string
   readonly undo: string
+  readonly redo: string
   readonly clear: string
   /** The typed field's label; default `Or type your name`. */
   readonly fallback: string
@@ -491,6 +531,7 @@ export interface SignaturePadWords {
 export const words: SignaturePadWords = {
   placeholder: 'Sign here',
   undo: 'Undo',
+  redo: 'Redo',
   clear: 'Clear',
   fallback: 'Or type your name',
   empty: 'empty',
@@ -541,7 +582,7 @@ export const view = <Outer>(options: SignaturePadView<Outer>, h: HtmlBuilder<Out
       : fill(labels.drawn, { count: model.strokes.length })
   const holds = model.strokes.length > 0 ? drawnWords : typedOrEmpty
   const strokes = [...model.strokes, ...Option.toArray(model.drawing)]
-  const button = (slot: 'undo' | 'clear', label: string, message: Message, off: boolean) =>
+  const button = (slot: 'undo' | 'redo' | 'clear', label: string, message: Message, off: boolean) =>
     h.button(
       builders[slot].attrs([
         h.Type('button'),
@@ -577,7 +618,7 @@ export const view = <Outer>(options: SignaturePadView<Outer>, h: HtmlBuilder<Out
                       Match.valueTags(fact, {
                         Resized: ({ width, height }) => Message.Measured({ width, height }),
                         PointerPressed: ({ width, height, point, pointerType }) =>
-                          Message.Began({ width, height, point, pen: pointerType === 'pen' }),
+                          Message.Began({ width, height, point, pointerType }),
                         PointerMoved: ({ width, height, points }) =>
                           Message.Extended({ width, height, points }),
                         PointerReleased: () => Message.Ended(),
@@ -617,6 +658,7 @@ export const view = <Outer>(options: SignaturePadView<Outer>, h: HtmlBuilder<Out
       ),
       h.div(builders.controls.attrs(), [
         button('undo', labels.undo, Message.Undid(), model.strokes.length === 0),
+        button('redo', labels.redo, Message.Redid(), model.undone.length === 0),
         button('clear', labels.clear, Message.Cleared(), isEmpty(model)),
       ]),
       ...(options.name === undefined
