@@ -1,21 +1,21 @@
-import type { NamedStyle } from 'foldkit-mixins'
 import { Recipes, ThinkingIndicatorSlots } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
+import accent from '../../examples/thinking-indicator/accent.js'
+import basic from '../../examples/thinking-indicator/basic.js'
+import configure from '../../examples/thinking-indicator/configure.js'
+import kinds from '../../examples/thinking-indicator/kinds.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
-
-const thinkingBasic = (style: NamedStyle<typeof ThinkingIndicatorSlots>) =>
-  Snippet.thinkingIndicator(style, inert)
+import { fromRecipe } from '../define.js'
 
 export const showcase = fromRecipe(
   about('thinking-indicator'),
   ThinkingIndicatorSlots,
   Recipes.ThinkingIndicator,
-  thinkingBasic,
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Basic', draw: thinkingBasic },
-    { name: 'kinds', title: 'Kinds', draw: () => Snippet.thinkingIndicatorKinds(inert) },
-    { name: 'accent', title: 'Accent', draw: thinkingBasic, pins: { tone: 'accent' } },
+    { name: 'basic', example: basic },
+    { name: 'kinds', example: kinds },
+    { name: 'accent', example: accent },
+    { name: 'configure', example: configure },
   ],
 )

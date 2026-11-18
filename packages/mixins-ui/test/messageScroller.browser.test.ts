@@ -122,7 +122,7 @@ const element = (selector: string): HTMLElement => {
 
 const button = (name: string) => element(`#${name}`)
 
-const mount = (count: number) => {
+const mount = (count: number, opens: 'start' | 'end' = 'end') => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -141,7 +141,7 @@ const mount = (count: number) => {
       container,
       init: () => ({
         model: {
-          scroller: MessageScroller.init({ id: 'chat' }),
+          scroller: MessageScroller.init({ id: 'chat', opens }),
           entries: Array.from({ length: count }, (_, at) =>
             entry(String(at), at % 3 === 0 ? 'user' : 'assistant'),
           ),
@@ -222,6 +222,38 @@ test('it opens at the newest message and follows what arrives and streams in', a
       await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
     }
     expect(jump()).toBeNull()
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('opened at the start, it waits at the top, the jump shows and counts, and the end follows once reached', async () => {
+  const handle = mount(30, 'start')
+  try {
+    await vi.waitFor(() => element('#m-29'))
+    const scroller = viewport()
+    expect(scroller.scrollHeight).toBeGreaterThan(scroller.clientHeight * 3)
+    await vi.waitFor(() => expect(jump()).not.toBeNull())
+    expect(scroller.scrollTop).toBe(0)
+    button('Appended').click()
+    await vi.waitFor(() => element('#m-n30'))
+    await vi.waitFor(() => expect(jump()?.textContent).toBe('1'))
+    expect(scroller.scrollTop).toBe(0)
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'instant' })
+    await vi.waitFor(() => expect(jump()).toBeNull())
+    button('Appended').click()
+    await vi.waitFor(() => element('#m-n31'))
+    await vi.waitFor(() => expect(fromEnd()).toBeLessThan(1))
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('opened at the start with less than a screen, the end is in view and no jump shows', async () => {
+  const handle = mount(2, 'start')
+  try {
+    await vi.waitFor(() => element('#m-1'))
+    await vi.waitFor(() => expect(jump()).toBeNull())
   } finally {
     handle.dispose()
   }

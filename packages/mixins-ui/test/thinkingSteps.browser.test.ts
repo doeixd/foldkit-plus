@@ -150,7 +150,8 @@ const trigger = (id: string) => inside(id, 'button')[0]!
 const controlled = (button: HTMLElement) =>
   document.getElementById(button.getAttribute('aria-controls')!)!
 const height = (element: HTMLElement) => element.getBoundingClientRect().height
-const markers = (id: string) => inside(id, 'li > :first-child > [aria-hidden="true"]')
+const markers = (id: string) =>
+  inside(id, 'li > :first-child > :first-child > [aria-hidden="true"]')
 
 test('open while it runs; a press shuts it, the focus stays, Enter opens it', async () => {
   const handle = mount()
@@ -177,7 +178,7 @@ test('a step’s detail opens and shuts under its row', async () => {
   const handle = mount()
   try {
     await vi.waitFor(() => expect(inside('live', 'li')).toHaveLength(3))
-    const head = inside('live', 'li > button')[0]!
+    const head = inside('live', 'li > div > button')[0]!
     const body = controlled(head)
     expect(height(body)).toBe(0)
     await userEvent.click(head)
@@ -272,6 +273,43 @@ test('a line runs from each marker to the next, but the last’s; none without a
     expect(lineBottom - lineTop).toBeGreaterThan(0)
     expect(getComputedStyle(last!, '::before').content).toBe('none')
     expect(getComputedStyle(inside('bare', 'li')[0]!, '::before').content).toBe('none')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('shutting and opening the trace run over a time: mid-way it is partly open, and shut it is inert', async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(inside('live', 'li')).toHaveLength(3))
+    const panel = controlled(trigger('live'))
+    const full = height(panel)
+    expect(full).toBeGreaterThan(40)
+    // Slowed, so a loaded runner still draws several frames of the move.
+    document.getElementById('live')!.style.setProperty('--fk-knob-travel', '6')
+    const sample = (ms: number) =>
+      new Promise<ReadonlyArray<{ readonly height: number; readonly inert: boolean }>>(resolve => {
+        const frames: Array<{ readonly height: number; readonly inert: boolean }> = []
+        const start = performance.now()
+        const tick = () => {
+          frames.push({ height: height(panel), inert: panel.hasAttribute('inert') })
+          if (performance.now() - start < ms) requestAnimationFrame(tick)
+          else resolve(frames)
+        }
+        tick()
+      })
+    trigger('live').click()
+    const shutting = await sample(1500)
+    const partly = shutting.filter(frame => frame.height > 1 && frame.height < full - 1)
+    expect(partly.length).toBeGreaterThan(2)
+    expect(partly.every(frame => frame.inert)).toBe(true)
+    expect(shutting[shutting.length - 1]!.height).toBe(0)
+    trigger('live').click()
+    const opening = await sample(1500)
+    expect(
+      opening.filter(frame => frame.height > 1 && frame.height < full - 1).length,
+    ).toBeGreaterThan(2)
+    expect(opening[opening.length - 1]!.height).toBeGreaterThan(full - 2)
   } finally {
     handle.dispose()
   }

@@ -87,12 +87,17 @@ export const ThinkingSteps = Style.recipeFor(ThinkingStepsSlots)({
       }),
     ),
     step: component(opensBelow(open), Style.self({ position: 'relative' })),
+    // The head and the step's trailing content, side by side; the one grid row of the step's top.
+    row: component(
+      Style.self({ display: 'flex', alignItems: 'start', gap: ref.space.xs, minInlineSize: '0' }),
+    ),
     head: component(
       Style.self({
         display: 'flex',
         alignItems: 'start',
         gap: ref.space.xs,
-        inlineSize: '100%',
+        flex: '1',
+        minInlineSize: '0',
         padding: '0',
         border: '0',
         background: 'transparent',
@@ -138,9 +143,28 @@ export const ThinkingSteps = Style.recipeFor(ThinkingStepsSlots)({
       Style.nest(`${marked('failed')}::before`, bar('45deg')),
       Style.nest(`${marked('failed')}::after`, bar('-45deg')),
       Style.nest(state('failed'), { color: ref.error.ink }),
+      // A dash: a step the trace chose not to do.
+      Style.nest(`${marked('skipped')}::after`, {
+        content: '""',
+        inlineSize: '50%',
+        blockSize: ref.border.thick,
+        borderRadius: ref.radius.full,
+        background: 'currentColor',
+      }),
     ),
     title: component(Style.self({ flex: '1', minInlineSize: '0' })),
+    link: component(
+      Style.self({
+        color: ref.text.link,
+        textDecorationLine: 'underline',
+        textUnderlineOffset: '0.2em',
+        ...transition('color'),
+      }),
+      Style.pseudo(':hover', { color: ref.text['link-hover'] }),
+      focusRing,
+    ),
     state: component(Utilities.srOnly),
+    trailing: component(Style.self({ flex: 'none', display: 'flex', alignItems: 'center' })),
     duration: component(
       Style.self({
         flex: 'none',

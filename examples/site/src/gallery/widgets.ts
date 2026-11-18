@@ -60,25 +60,11 @@ import {
   viewRows,
   Notices,
   Range,
-  ChatEntry,
-  TRIP_QUESTIONS,
 } from '../snippets/components.js'
 
 /** The chart examples, each lighting a point of its own. */
 export const ChartExample = Schema.Literals(['bar', 'line', 'area', 'donut', 'table', 'colors'])
 export type ChartExample = typeof ChartExample.Type
-
-/** The conversation's first messages; `Send` and `Load older` add to either end. */
-const CHAT: ReadonlyArray<ChatEntry> = [
-  'What is a recipe?',
-  'Pieces of style for each slot of a component, picked by its axes.',
-  'And a slot?',
-  'A named part of the component, which a style or a Mixin reaches.',
-  'Can I change one?',
-  'Extend the recipe, or add a rule in your app layer.',
-  'Which layer wins?',
-  'The app layer, after components and variants.',
-].map((text, at) => ({ id: `chat-${at}`, from: at % 2 === 0 ? 'user' : 'assistant', text }))
 
 /** The Sidebar page's examples beyond its first, each with a sidebar of its own. */
 export const SidebarExample = Schema.Literals([
@@ -196,23 +182,6 @@ export const Model = Schema.Struct({
   brandPopover: UiPopover.Model,
   /** The search fields, the toolbar and the file pickers. */
   fields: Fields.Model,
-  /** The chat previews: the answer liked, the failed message retried, the words streamed. */
-  answerLiked: Schema.Boolean,
-  chatRetried: Schema.Boolean,
-  streamed: Schema.Number,
-  /** The conversation, whether it follows its end, and how many were sent and loaded. */
-  chatScroller: MessageScroller.Model,
-  chatEntries: Schema.Array(ChatEntry),
-  chatSent: Schema.Number,
-  chatLoaded: Schema.Number,
-  /** Thinking Steps' openness: none follows the work. */
-  thought: Schema.Option(Schema.Boolean),
-  thinking: Schema.Option(Schema.Boolean),
-  toolsOpen: Schema.Option(Schema.Boolean),
-  /** The tool calls whose input and output are open. */
-  toolSteps: Schema.Array(Schema.String),
-  tripQuestions: Questionnaire.Model,
-  tripQuestionsPaged: Questionnaire.Model,
   heading: AngleSlider.Model,
   rotation: AngleSlider.Model,
   tea: Timer.Model,
@@ -291,19 +260,6 @@ export const Message = defineMessageUnion({
   FinishedUpload: { id: Schema.String },
   Archived: {},
   GotInputCopy: { message: InputCopy.Message },
-  CopiedAnswer: {},
-  LikedAnswer: {},
-  RetriedChat: {},
-  StreamedWords: {},
-  GotChatScroller: { message: MessageScroller.Message },
-  SentChat: {},
-  LoadedOlderChat: {},
-  ToggledThought: { open: Schema.Boolean },
-  ToggledThinking: { open: Schema.Boolean },
-  ToggledTools: { open: Schema.Boolean },
-  ToggledToolStep: { id: Schema.String },
-  GotTripQuestions: { message: Questionnaire.Message },
-  GotTripQuestionsPaged: { message: Questionnaire.Message },
   GotHeading: { message: AngleSlider.Message },
   GotRotation: { message: AngleSlider.Message },
   GotTea: { message: Timer.Message },
@@ -437,24 +393,6 @@ export const initial: Model = {
   }),
   brandPopover: UiPopover.init({ id: 'preview-brand-popover', contentFocus: true }),
   fields: Fields.init(),
-  answerLiked: false,
-  chatRetried: false,
-  streamed: 6,
-  chatScroller: MessageScroller.init({ id: 'preview-chat' }),
-  chatEntries: CHAT,
-  chatSent: 0,
-  chatLoaded: 0,
-  thought: Option.none(),
-  thinking: Option.none(),
-  // Done, so shut unless the reader opened it: the gallery shows it open.
-  toolsOpen: Option.some(true),
-  toolSteps: ['weather'],
-  tripQuestions: Questionnaire.init({ id: 'preview-trip', questions: TRIP_QUESTIONS }),
-  tripQuestionsPaged: Questionnaire.init({
-    id: 'preview-trip-paged',
-    questions: TRIP_QUESTIONS,
-    layout: 'paged',
-  }),
   heading: AngleSlider.init({ id: 'preview-heading', value: 45 }),
   rotation: AngleSlider.init({ id: 'preview-rotation', value: 90 }),
   tea: Timer.init({ id: 'preview-tea', countdown: true, duration: 3 * 60_000 }),

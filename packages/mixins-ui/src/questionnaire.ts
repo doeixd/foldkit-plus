@@ -14,6 +14,7 @@ import { view as checkboxGroupView, type CheckboxGroupSlots } from './checkboxGr
 import { view as inputView, type InputSlots } from './input.js'
 import { toView as radioToView, type RadioGroupSlots } from './radioGroup.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 import { view as textareaView, type TextareaSlots } from './textarea.js'
 
 /**
@@ -420,24 +421,36 @@ export const update = (model: Model, message: Message): Return => {
   })
 }
 
+/** The text a questionnaire draws that is not a question's. */
+export interface QuestionnaireWords {
+  readonly submit: string
+  readonly next: string
+  readonly back: string
+  /** Said beside a question a submit found unanswered. */
+  readonly missing: string
+  /** Said in the summary for an optional question left blank. */
+  readonly skipped: string
+  /** One at a time, where the reader is; `{page}` counts from 1. */
+  readonly progress: string
+}
+
+export const words: QuestionnaireWords = {
+  submit: 'Submit',
+  next: 'Next',
+  back: 'Back',
+  missing: 'Answer this question',
+  skipped: 'Skipped',
+  progress: 'Question {page} of {total}',
+}
+
 export interface QuestionnaireView<Message> {
   readonly model: Model
   /** Lifts the questionnaire's own Messages into the application's. */
   readonly onMessage: (message: typeof Message.Type) => NoInfer<Message>
   /** A heading over the questions, which names the form. */
   readonly title?: string | undefined
-  /** Default `Submit`. */
-  readonly submitLabel?: string | undefined
-  /** Default `Next`. */
-  readonly nextLabel?: string | undefined
-  /** Default `Back`. */
-  readonly backLabel?: string | undefined
-  /** Said beside a question a submit found unanswered; default `Answer this question`. */
-  readonly missingText?: string | undefined
-  /** Said in the summary for an optional question left blank; default `Skipped`. */
-  readonly skippedText?: string | undefined
-  /** One at a time, where the reader is; default `Question 2 of 3`. */
-  readonly progressText?: ((page: number, total: number) => string) | undefined
+  /** The buttons' names, and what the form says of a missing or skipped answer and of where the reader is. */
+  readonly words?: Partial<QuestionnaireWords> | undefined
   /** A style of `QuestionnaireSlots`, for the questionnaire's own parts. */
   readonly style?: NamedStyle<typeof QuestionnaireSlots> | undefined
   /** Mixins beside the style. */
@@ -473,13 +486,14 @@ export const view = <Outer>(options: QuestionnaireView<Outer>, h: HtmlBuilder<Ou
   )
   const { model } = options
   const lift = options.onMessage
+  const text = wordsOf(words, options.words)
   const titleId = `${model.id}-title`
   const named = options.title === undefined ? [] : [h.AriaLabelledBy(titleId)]
   const title =
     options.title === undefined ? [] : [h.p(builders.title.attrs([h.Id(titleId)]), [options.title])]
 
   if (model.submitted) {
-    const skipped = options.skippedText ?? 'Skipped'
+    const skipped = text.skipped
     return h.div(builders.root.attrs([h.DataAttribute('state', 'answered')]), [
       ...title,
       h.dl(
@@ -507,8 +521,7 @@ export const view = <Outer>(options: QuestionnaireView<Outer>, h: HtmlBuilder<Ou
   }
 
   const missing = new Set(model.missing)
-  const missingText = options.missingText ?? 'Answer this question'
-  const errorOf = (id: string) => h.p(builders.error.attrs([h.Id(id)]), [missingText])
+  const errorOf = (id: string) => h.p(builders.error.attrs([h.Id(id)]), [text.missing])
 
   // A one-line field, its label above it.
   const line = (
@@ -628,7 +641,7 @@ export const view = <Outer>(options: QuestionnaireView<Outer>, h: HtmlBuilder<Ou
             })),
             checked: answer.chosen,
             onToggle: value => lift(Message.Toggled({ question: question.id, value })),
-            error: isMissing ? missingText : undefined,
+            error: isMissing ? text.missing : undefined,
             style: options.checkboxGroup,
           },
           h,
@@ -678,8 +691,6 @@ export const view = <Outer>(options: QuestionnaireView<Outer>, h: HtmlBuilder<Ou
 
   const paged = model.layout === 'paged'
   const total = model.questions.length
-  const progressText =
-    options.progressText ?? ((page: number, of: number) => `Question ${page + 1} of ${of}`)
   return h.form(
     builders.root.attrs([
       h.DataAttribute('state', 'asking'),
@@ -689,7 +700,7 @@ export const view = <Outer>(options: QuestionnaireView<Outer>, h: HtmlBuilder<Ou
     [
       ...title,
       ...(paged && total > 1
-        ? [h.p(builders.progress.attrs(), [progressText(model.page, total)])]
+        ? [h.p(builders.progress.attrs(), [fill(text.progress, { page: model.page + 1, total })])]
         : []),
       ...(paged
         ? model.questions.flatMap((question, place) =>
@@ -701,7 +712,7 @@ export const view = <Outer>(options: QuestionnaireView<Outer>, h: HtmlBuilder<Ou
           ? [
               buttonView(
                 {
-                  label: options.backLabel ?? 'Back',
+                  label: text.back,
                   type: 'button',
                   onClick: lift(Message.Backed()),
                   style: options.button,
@@ -712,10 +723,7 @@ export const view = <Outer>(options: QuestionnaireView<Outer>, h: HtmlBuilder<Ou
           : []),
         buttonView(
           {
-            label:
-              paged && model.page < total - 1
-                ? (options.nextLabel ?? 'Next')
-                : (options.submitLabel ?? 'Submit'),
+            label: paged && model.page < total - 1 ? text.next : text.submit,
             type: 'submit',
             style: options.submitButton,
           },

@@ -50,8 +50,6 @@ import {
   MENUBAR,
   ViewOptions,
   Notices,
-  ANSWER,
-  ChatEntry,
   HEADING_LAYOUT,
   ROTATION_LAYOUT,
   TOUR,
@@ -439,24 +437,6 @@ const notify = Update.foldChild({
   foldOutMessage: noticesOut,
 })
 
-const foldChatScroller = Update.foldChild({
-  ...own('chatScroller', Message.GotChatScroller),
-  update: MessageScroller.update,
-})
-
-// A chat would send the answers as the user's reply; the summary drawn says them here.
-const tripOut = Questionnaire.OutMessage.match<Step>({ Answered: () => same })
-const foldTripQuestions = Update.foldChild({
-  ...own('tripQuestions', Message.GotTripQuestions),
-  update: Questionnaire.update,
-  foldOutMessage: tripOut,
-})
-const foldTripQuestionsPaged = Update.foldChild({
-  ...own('tripQuestionsPaged', Message.GotTripQuestionsPaged),
-  update: Questionnaire.update,
-  foldOutMessage: tripOut,
-})
-
 const foldHeading = Update.foldChild({
   ...own('heading', Message.GotHeading),
   update: AngleSlider.update(HEADING_LAYOUT),
@@ -639,65 +619,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         title: 'Thread archived',
         actions: [{ label: 'Undo', value: 'undo' }],
       }),
-    CopiedAnswer: () => ({
-      model,
-      commands: Command.mapMessages([InputCopy.Copy({ text: ANSWER.join(' ') })], message =>
-        Message.GotCopy({ message }),
-      ),
-    }),
-    LikedAnswer: () => ({ model: modifyFields(model, { answerLiked: liked => !liked }) }),
-    RetriedChat: () =>
-      model.chatRetried ? { model } : { model: modifyFields(model, { chatRetried: () => true }) },
-    // A few words at a time, as a stream lands; once whole, the next press starts over.
-    StreamedWords: () => ({
-      model: modifyFields(model, {
-        streamed: shown => (shown >= ANSWER.length ? 3 : Math.min(shown + 4, ANSWER.length)),
-      }),
-    }),
-    GotChatScroller: ({ message }) => foldChatScroller(model, message),
-    SentChat: () => {
-      const sent = model.chatSent + 1
-      const appended = modifyFields(model, {
-        chatSent: () => sent,
-        chatEntries: entries => [
-          ...entries,
-          { id: `sent-${sent}`, from: 'user', text: `Message ${sent}` },
-          { id: `reply-${sent}`, from: 'assistant', text: `Reply ${sent}` },
-        ],
-      })
-      return foldChatScroller(appended, MessageScroller.Message.Appended({ count: 2 }))
-    },
-    // Older messages land above: the scroller holds its place and counts nothing.
-    LoadedOlderChat: () => {
-      const loaded = model.chatLoaded + 1
-      const older = Array.from({ length: 4 }, (_, at): ChatEntry => ({
-        id: `older-${loaded}-${at}`,
-        from: at % 2 === 0 ? 'user' : 'assistant',
-        text: `An older message, ${loaded}.${at + 1}`,
-      }))
-      return {
-        model: modifyFields(model, {
-          chatLoaded: () => loaded,
-          chatEntries: entries => [...older, ...entries],
-        }),
-      }
-    },
-    ToggledThought: ({ open }) => ({
-      model: modifyFields(model, { thought: () => Option.some(open) }),
-    }),
-    ToggledThinking: ({ open }) => ({
-      model: modifyFields(model, { thinking: () => Option.some(open) }),
-    }),
-    ToggledTools: ({ open }) => ({
-      model: modifyFields(model, { toolsOpen: () => Option.some(open) }),
-    }),
-    ToggledToolStep: ({ id }) => ({
-      model: modifyFields(model, {
-        toolSteps: open => Accordion.toggled(open, id, { multiple: true }),
-      }),
-    }),
-    GotTripQuestions: ({ message }) => foldTripQuestions(model, message),
-    GotTripQuestionsPaged: ({ message }) => foldTripQuestionsPaged(model, message),
     GotHeading: ({ message }) => foldHeading(model, message),
     GotRotation: ({ message }) => foldRotation(model, message),
     GotTea: ({ message }) => foldTea(model, message),

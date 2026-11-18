@@ -225,45 +225,6 @@ describe('the chat and long-tail previews', () => {
       initial,
     ).widgets
 
-  it('count what is sent while the reader has scrolled up, and nothing loaded above', () => {
-    const away = after(
-      Widgets.Message.GotChatScroller({ message: MessageScroller.Message.LeftEnd() }),
-    )
-    const sent = after(
-      Widgets.Message.GotChatScroller({ message: MessageScroller.Message.LeftEnd() }),
-      Widgets.Message.SentChat(),
-      Widgets.Message.LoadedOlderChat(),
-    )
-    expect(away.chatScroller.unseen).toBe(0)
-    expect(sent.chatScroller.unseen).toBe(2)
-    expect(sent.chatEntries).toHaveLength(initial.widgets.chatEntries.length + 6)
-    expect(sent.chatEntries[0]?.id).toBe('older-1-0')
-    expect(sent.chatEntries.at(-1)?.id).toBe('reply-1')
-    expect(new Set(sent.chatEntries.map(entry => entry.id)).size).toBe(sent.chatEntries.length)
-  })
-
-  it('stream the answer to its end, then start over', () => {
-    const whole = after(...Array.from({ length: 7 }, () => Widgets.Message.StreamedWords()))
-    expect(whole.streamed).toBe(Snippet.ANSWER.length)
-    expect(after(Widgets.Message.StreamedWords()).streamed).toBe(10)
-    const again = update(
-      { ...initial, widgets: whole },
-      Message.GotWidget({ message: Widgets.Message.StreamedWords() }),
-    ).model.widgets
-    expect(again.streamed).toBe(3)
-  })
-
-  it('send a failed message again once, and keep the Model on a second retry', () => {
-    const retried = update(
-      initial,
-      Message.GotWidget({ message: Widgets.Message.RetriedChat() }),
-    ).model
-    expect(retried.widgets.chatRetried).toBe(true)
-    expect(
-      update(retried, Message.GotWidget({ message: Widgets.Message.RetriedChat() })).model.widgets,
-    ).toBe(retried.widgets)
-  })
-
   it('light one chart’s point, and keep the Model when it is lit already', () => {
     const point = Widgets.Message.GotChart({
       example: 'line',

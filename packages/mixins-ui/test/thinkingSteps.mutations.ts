@@ -90,7 +90,7 @@ export default [
   },
   {
     name: 'the state is said in English whatever the words',
-    edits: [{ file: view, find: '[words[step.state]]', replace: '[englishStates[step.state]]' }],
+    edits: [{ file: view, find: '[text[step.state]]', replace: '[words[step.state]]' }],
     tests: unit,
   },
   {
@@ -106,7 +106,13 @@ export default [
   },
   {
     name: 'a step’s own list is named by the trigger',
-    edits: [{ file: view, find: '[list(inner, titleId)]', replace: '[list(inner, triggerId)]' }],
+    edits: [
+      {
+        file: view,
+        find: 'list(inner, h.AriaLabelledBy(titleId))',
+        replace: 'list(inner, h.AriaLabelledBy(triggerId))',
+      },
+    ],
     tests: unit,
   },
   {
@@ -278,5 +284,70 @@ export default [
       },
     ],
     tests: browser,
+  },
+  {
+    name: 'a skipped step keeps the trace running',
+    edits: [
+      {
+        file: view,
+        find: " || step.state === 'skipped'",
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a linked step still toggles',
+    edits: [{ file: view, find: ' && step.href === undefined', replace: '' }],
+    tests: unit,
+  },
+  {
+    name: 'a step’s trailing is drawn inside its button',
+    edits: [
+      {
+        file: view,
+        find: 'h.div(builders.row.attrs(), [',
+        replace: 'h.div(builders.row.attrs(), [ ',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'trigger none still draws the button',
+    edits: [
+      {
+        file: view,
+        find: "const plain = options.trigger === 'none'",
+        replace: 'const plain = false',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the trigger’s time is left out of its words',
+    edits: [
+      {
+        file: view,
+        find: 'onSome: ms => fill(withTime, { time: elapsed(ms) }),',
+        replace: 'onSome: () => withTime,',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the list of a trace with no trigger is unnamed',
+    edits: [
+      {
+        file: view,
+        find: 'list(options.steps, h.AriaLabel(text.steps))',
+        replace: 'list(options.steps, h.Id(triggerId))',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a step with a trailing draws none',
+    edits: [{ file: view, find: '...(step.trailing === undefined', replace: '...(true' }],
+    tests: unit,
   },
 ]

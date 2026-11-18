@@ -314,16 +314,29 @@ export type {
   ChatMessageFrom,
   ChatMessageGroupView,
   ChatMessageItem,
+  ChatMessagePreset,
+  ChatMessageReaction,
   ChatMessageStatus,
   ChatMessageTime,
   ChatMessageView,
+  ChatMessageWords,
 } from './chatMessage.js'
 export { MessageScrollerSlots } from './messageScroller.js'
-export type { MessageScrollerView } from './messageScroller.js'
+export type {
+  MessageScrollerPreset,
+  MessageScrollerView,
+  MessageScrollerWords,
+} from './messageScroller.js'
 export { ThinkingIndicatorSlots } from './thinkingIndicator.js'
-export type { ThinkingIndicatorView } from './thinkingIndicator.js'
+export type { ThinkingIndicatorPreset, ThinkingIndicatorView } from './thinkingIndicator.js'
 export { ThinkingStepsSlots } from './thinkingSteps.js'
-export type { StateWords, StepState, ThinkingStep, ThinkingStepsView } from './thinkingSteps.js'
+export type {
+  StepState,
+  ThinkingStep,
+  ThinkingStepsPreset,
+  ThinkingStepsView,
+  ThinkingStepsWords,
+} from './thinkingSteps.js'
 export { QuestionnaireSlots } from './questionnaire.js'
 export type { QuestionnaireView } from './questionnaire.js'
 export { AngleSliderSlots } from './angleSlider.js'
