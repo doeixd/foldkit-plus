@@ -38,6 +38,11 @@ export interface Choice<Item extends string, Value> {
   readonly multiple: boolean
 }
 
+/** A choice of at most one item, which a widget that closes at a pick (the Picker) is given. */
+export type SingleChoice<Item extends string, Value> = Choice<Item, Value> & {
+  readonly multiple: false
+}
+
 /** The item of `items` that `value` names, if any: a reported string becomes an `Item` here. */
 export const itemOf = <Item extends string>(
   items: ReadonlyArray<Item>,

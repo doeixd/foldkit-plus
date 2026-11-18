@@ -9,7 +9,7 @@ import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
-import { Picker } from 'foldkit-mixins-ui'
+import { Picker, type RowContent } from 'foldkit-mixins-ui'
 
 export const ISLAND = 'picker'
 
@@ -23,11 +23,16 @@ export const LABELS: Readonly<Record<Sort, string>> = {
   name: 'Name',
 }
 
-export const OPTIONS: ReadonlyArray<Picker.PickerOption<Sort>> = [
-  { value: 'relevance', label: LABELS.relevance },
-  { value: 'price', label: LABELS.price, description: 'The cheapest first' },
-  { value: 'name', label: LABELS.name, description: 'A to Z' },
-]
+/** How the Picker reads the application's `Option<Sort>`. */
+export const Sorts = Picker.one(SORTS)
+
+const ROWS: Readonly<Record<Sort, RowContent>> = {
+  relevance: { label: LABELS.relevance },
+  price: { label: LABELS.price, description: 'The cheapest first' },
+  name: { label: LABELS.name, description: 'A to Z' },
+}
+
+export const rowOf = (sort: Sort): RowContent => ROWS[sort]
 
 export const Model = Schema.Struct({ picker: Picker.Model, sort: Schema.Option(Sort) })
 export type Model = typeof Model.Type

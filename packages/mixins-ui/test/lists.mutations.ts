@@ -108,7 +108,7 @@ export default [
     name: "a Listbox's bars run nowhere",
     edits: [
       {
-        file: '../src/listbox.ts',
+        file: '../src/listbox/overlayBars.ts',
         find: "        mount: () => ScrollBars({}),\n      }),\n    },\n    { name: 'ListboxScrollBars' },",
         replace:
           "        mount: () => ScrollBars({}),\n      }),\n    },\n    { name: 'ListboxScrollBars' },\n  ).mixin && Behavior.forSlots(ListboxSlots)<unknown, never>(\n    {},\n    { name: 'ListboxScrollBars' },",

@@ -19,7 +19,7 @@ export default [
   },
   {
     name: 'the keys do not move the highlight',
-    edits: [{ file: '../src/listbox.ts', find: "follows: '[data-active]',", replace: '' }],
+    edits: [{ file: '../src/listbox/fluid.ts', find: "follows: '[data-active]',", replace: '' }],
     tests,
   },
   {

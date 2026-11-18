@@ -181,7 +181,7 @@ const picker: Subject<Picker.Route<TestMessage>, undefined> = {
           model: Picker.init({ id: 'sort' }),
           onMessage: () => other,
           label: 'Sort',
-          options: [{ value: 'a', label: 'A' }],
+          choice: Picker.one(['a']),
           value: Option.none(),
           placeholder: 'Sort by',
           routes,

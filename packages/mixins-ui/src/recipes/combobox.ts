@@ -21,7 +21,6 @@ import {
   steps,
   touchText,
   transition,
-  unfilledHover,
 } from './design.js'
 import {
   backdrop,
@@ -38,11 +37,8 @@ import {
   unlit,
 } from './popup.js'
 import { bar, thumb } from './scrollBars.js'
-import { checkAt, optionParts } from './listbox.js'
-import { chip, chipList, chipRemove, stroke } from './tagsInput.js'
-
-/** The clear button's side: small, but never under the touch floor `Defaults.reset` sets for a coarse pointer. */
-const clearSize = 'max(1.5em, var(--fk-touch-floor, 0px))'
+import { checkAt, clearButton, optionParts } from './listbox.js'
+import { chip, chipList, chipRemove } from './tagsInput.js'
 
 export const Combobox = Style.recipeFor(ComboboxSlots)({
   base: {
@@ -119,32 +115,7 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
     chips: component(chipList, Style.self({ paddingInlineStart: ref.space['2xs'] })),
     chip,
     chipRemove,
-    clearButton: component(
-      Style.self({
-        display: 'grid',
-        placeItems: 'center',
-        inlineSize: clearSize,
-        blockSize: clearSize,
-        padding: '0',
-        border: '0',
-        borderRadius: ref.radius.full,
-        background: 'transparent',
-        color: ref.text.muted,
-        font: 'inherit',
-        lineHeight: '1',
-        cursor: 'pointer',
-        ...transition('background-color, color'),
-      }),
-      // With no content of its own the button is marked, and the sign is drawn as a chip's is.
-      Style.nest('&[data-glyph="cross"]', {
-        position: 'relative',
-        '--_fk-chip-sign': 'currentColor',
-      }),
-      Style.nest('&[data-glyph="cross"]::before', stroke('45deg')),
-      Style.nest('&[data-glyph="cross"]::after', stroke('-45deg')),
-      hover({ background: unfilledHover, color: ref.text.overt }),
-      focusRing,
-    ),
+    clearButton,
     // The panel's look, holding one quiet line rather than rows.
     empty: component(
       panel,
@@ -156,14 +127,6 @@ export const Combobox = Style.recipeFor(ComboboxSlots)({
       }),
     ),
     ...optionParts,
-    // After the label, before the check: a code, a count, a badge, in the panel's quieter ink.
-    itemTrailing: component(
-      Style.self({
-        flex: 'none',
-        color: `color-mix(in oklab, ${ref.popup.ink} 62%, transparent)`,
-        ...role('caption'),
-      }),
-    ),
     match: component(
       Style.self({ background: 'transparent', color: 'inherit', fontWeight: ref.weight.semibold }),
     ),

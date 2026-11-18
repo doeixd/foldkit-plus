@@ -182,6 +182,30 @@ test('a page drawing a combobox through its adapter keeps no fluid, overlayBars 
 }, 240_000)
 
 /**
+ * The Listbox's `fluid` and `overlayBars` mixins and its options-level view
+ * are files of their own re-exported by the adapter (#589), as the Combobox's
+ * are: each was a module-level value in `listbox.ts`, which kept
+ * `FluidHover`, `Measure` and `ScrollBars` in every page drawing a listbox.
+ * Broken by hand: a `console.log(fluid)` in `src/listbox.ts` turned it red.
+ */
+test('a page drawing a listbox through its adapter keeps no fluid, overlayBars or view module, built or source', async () => {
+  const root = scratchIn('mixins-ui', 'published-')
+  made.push(root)
+  const page = `import { Listbox } from 'pkg'\nexport const used = Listbox.toView`
+  const kept = async (entry: string) =>
+    (await pageModules(root, page, [{ find: 'pkg', replacement: entry }])).map(({ id }) => id)
+  const built = await kept(await buildPublished('mixins-ui', root))
+  const source = await kept(join(packages, 'mixins-ui', 'src', 'index.ts'))
+  expect(built.some(id => /\/dist\/listbox\/slots\.js$/.test(id))).toBe(true)
+  expect(source.some(id => /\/src\/listbox\/slots\.ts$/.test(id))).toBe(true)
+  expect(
+    [...built, ...source].filter(id =>
+      /\/(listbox\/(fluid|overlayBars|view)|configure)\.(js|ts)$/.test(id),
+    ),
+  ).toEqual([])
+}, 240_000)
+
+/**
  * The size check above catches Evidence linked into the entry; this one, a
  * module of the source that keeps Evidence (an import run for its effect),
  * which both builds would keep alike. `pnpm mutate` cannot edit what tsdown

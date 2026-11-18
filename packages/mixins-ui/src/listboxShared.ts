@@ -397,6 +397,18 @@ export const computeRender = (
     ...attributes,
   ]
 
+  // Drawn closed too, as upstream does: a closed listbox in a form still submits its value.
+  const formAttribute = form ? [h.Attribute('form', form)] : []
+
+  const hiddenInputs: ReadonlyArray<Html> = name
+    ? Array.match(selectedValues, {
+        onEmpty: () => [h.input([h.Type('hidden'), h.Name(name), ...formAttribute])],
+        onNonEmpty: Array.map(selectedValue =>
+          h.input([h.Type('hidden'), h.Name(name), h.Value(selectedValue), ...formAttribute]),
+        ),
+      })
+    : []
+
   if (!isVisible) {
     return {
       id,
@@ -404,7 +416,7 @@ export const computeRender = (
       wrapper,
       button,
       buttonContent,
-      hiddenInputs: [],
+      hiddenInputs,
       backdrop: undefined,
       items: undefined,
       scroll: undefined,
@@ -580,17 +592,6 @@ export const computeRender = (
           items: itemRenders,
         },
       ]
-
-  const formAttribute = form ? [h.Attribute('form', form)] : []
-
-  const hiddenInputs: ReadonlyArray<Html> = name
-    ? Array.match(selectedValues, {
-        onEmpty: () => [h.input([h.Type('hidden'), h.Name(name), ...formAttribute])],
-        onNonEmpty: Array.map(selectedValue =>
-          h.input([h.Type('hidden'), h.Name(name), h.Value(selectedValue), ...formAttribute]),
-        ),
-      })
-    : []
 
   return {
     id,

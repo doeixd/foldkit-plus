@@ -1,10 +1,10 @@
 import { Option } from 'effect'
-import { ChoiceChange, itemOf, type Choice } from '../choice.js'
+import { ChoiceChange, itemOf, type SingleChoice } from '../choice.js'
 
 /** At most one of `items`: the value is an `Option` of an item. */
 export const one = <const Item extends string>(
   items: ReadonlyArray<Item>,
-): Choice<Item, Option.Option<Item>> => ({
+): SingleChoice<Item, Option.Option<Item>> => ({
   items,
   empty: Option.none(),
   picked: (value, change) =>

@@ -8,7 +8,7 @@ const browser = ['packages/mixins-ui/test/comboboxOptions.browser.test.ts']
 const view = '../src/combobox/view.ts'
 const shared = '../src/comboboxShared.ts'
 const listbox = '../src/listbox.ts'
-const recipe = '../src/recipes/combobox.ts'
+const recipe = '../src/recipes/listbox.ts'
 
 const one = (
   name: string,
@@ -177,7 +177,7 @@ export default [
   one(
     'the cross has one stroke',
     recipe,
-    "      Style.nest('&[data-glyph=\"cross\"]::after', stroke('-45deg')),\n",
+    "  Style.nest('&[data-glyph=\"cross\"]::after', stroke('-45deg')),\n",
     '',
     browser,
   ),
@@ -191,8 +191,8 @@ export default [
   one(
     'the cross has no ink',
     recipe,
-    "'--_fk-chip-sign': 'currentColor',",
-    "'--_fk-chip-sign': 'transparent',",
+    "{ '--_fk-chip-sign': 'currentColor' }",
+    "{ '--_fk-chip-sign': 'transparent' }",
     browser,
   ),
 ]

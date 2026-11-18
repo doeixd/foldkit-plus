@@ -1,5 +1,5 @@
 import { Option } from 'effect'
-import { ChoiceChange, itemOf, type Choice } from '../choice.js'
+import { ChoiceChange, itemOf, type SingleChoice } from '../choice.js'
 
 /**
  * The typed text is the value, and `items` are suggestions for it: an
@@ -8,7 +8,7 @@ import { ChoiceChange, itemOf, type Choice } from '../choice.js'
  */
 export const text = <const Item extends string>(
   items: ReadonlyArray<Item>,
-): Choice<Item, string> => ({
+): SingleChoice<Item, string> => ({
   items,
   empty: '',
   picked: (value, change) =>
