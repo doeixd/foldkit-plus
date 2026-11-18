@@ -20,6 +20,8 @@ import config from '../vite.config.js'
 declare global {
   interface Window {
     served?: ReadonlyArray<Element>
+    /** Each served element's parent as served, since a removed element's own is gone. */
+    servedParents?: ReadonlyArray<Element | null>
   }
 }
 
@@ -63,6 +65,7 @@ const recordServed = (page: Page) =>
       if (document.readyState !== 'interactive') return
       const app = document.querySelector('[data-foldkit-app]')
       window.served = app === null ? [] : [app, ...app.querySelectorAll('*')]
+      window.servedParents = window.served.map(element => element.parentElement)
     })
   })
 
@@ -150,15 +153,34 @@ test.each(SETTLED)(
 // Foldkit warns of a mismatch in development only, and a production build rebuilds silently: the
 // build's own server once drew views without the view-identity branding the client carries, so the
 // markers never matched and every element of every page was replaced (`vite.config.ts`).
+// A WindowList scrolls with the page: the server draws the rows a viewport at the top would show,
+// and the running list, placed lower (the gallery's card), drops the rows out of its window. A row
+// it dropped, whose key the list no longer draws while the list itself stayed, is not rebuilt; a
+// row replaced under the same key, or a list replaced whole, still counts.
 test.each(PAGES)(
   'the served page %s is adopted, not rebuilt',
   async path => {
     const { page } = await open(path)
-    const rebuilt = await page.evaluate(
-      () =>
-        (window.served ?? []).filter(element => !element.isConnected && element.tagName !== 'STYLE')
-          .length,
-    )
+    const rebuilt = await page.evaluate(() => {
+      const served = window.served ?? []
+      const parents = window.servedParents ?? []
+      const KEY = 'data-window-list-key'
+      const dropped = (element: Element): boolean => {
+        const row = element.closest(`[${KEY}]`)
+        if (row === null) return false
+        const list = parents[served.indexOf(row)]
+        const key = row.getAttribute(KEY) ?? ''
+        return (
+          list !== null &&
+          list !== undefined &&
+          list.isConnected &&
+          [...list.children].every(child => child.getAttribute(KEY) !== key)
+        )
+      }
+      return served.filter(
+        element => !element.isConnected && element.tagName !== 'STYLE' && !dropped(element),
+      ).length
+    })
     expect(rebuilt).toBe(0)
     await page.close()
   },
@@ -170,14 +192,14 @@ test.each(PAGES)(
 // document itself is counted here: one heading, one rail and the declared previews, after the
 // browser has taken the page over.
 test.each([
-  ['button', 5],
+  ['button', 11],
   ['tags-input', 4],
   ['combobox', 7],
   ['calendar', 9],
   ['date-picker', 3],
   ['file-upload', 10],
-  ['switch', 1],
-  ['otp-field', 2],
+  ['switch', 5],
+  ['otp-field', 4],
 ] as const)(
   'the hydrated component page %s holds one heading, one rail and %i previews',
   async (slug, previews) => {
