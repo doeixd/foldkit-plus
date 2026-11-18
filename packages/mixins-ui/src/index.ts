@@ -372,7 +372,7 @@ export type {
 export { CascadeSelectSlots } from './cascadeSelect.js'
 export type { CascadeSelectView } from './cascadeSelect.js'
 export { FloatingPanelSlots } from './floatingPanel.js'
-export type { FloatingPanelView } from './floatingPanel.js'
+export type { FloatingPanelPreset, FloatingPanelView, FloatingPanelWords } from './floatingPanel.js'
 export { TourSlots } from './tour.js'
 export type { TourView } from './tour.js'
 

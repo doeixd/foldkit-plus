@@ -34,7 +34,6 @@ import {
   SignaturePad,
   QrCode,
   Chart,
-  FloatingPanel,
   Tour,
 } from 'foldkit-mixins-ui'
 import * as UiFileDrop from '@foldkit/ui/fileDrop'
@@ -194,8 +193,6 @@ export const Model = Schema.Struct({
   avatarUrl: Schema.Option(Schema.String),
   signature: SignaturePad.Model,
   charts: Schema.Record(ChartExample, Chart.Model),
-  /** The notes panel and the order the page's panels stack in. */
-  panels: Schema.Struct({ notes: FloatingPanel.Model, order: Schema.Array(Schema.String) }),
   tour: Tour.Model,
 })
 export type Model = typeof Model.Type
@@ -272,8 +269,6 @@ export const Message = defineMessageUnion({
   GotChart: { example: ChartExample, message: Chart.Message },
   PressedQrDownload: { format: QrCode.Format },
   GotQrDownload: { message: QrCode.Message },
-  GotPanel: { message: FloatingPanel.Message },
-  OpenedPanel: {},
   GotTour: { message: Tour.Message },
   StartedTour: {},
 })
@@ -410,13 +405,6 @@ export const initial: Model = {
     donut: Chart.init(),
     table: Chart.init(),
     colors: Chart.init(),
-  },
-  panels: {
-    notes: FloatingPanel.init({
-      id: 'preview-panel',
-      rect: { x: 80, y: 120, width: 320, height: 220 },
-    }),
-    order: ['preview-panel'],
   },
   tour: Tour.init({ id: 'preview-tour' }),
 }

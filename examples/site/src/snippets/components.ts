@@ -114,8 +114,6 @@ import {
   QrCodeSlots,
   Chart,
   ChartSlots,
-  FloatingPanel,
-  FloatingPanelSlots,
   Tour,
   TourSlots,
   FileInput,
@@ -2212,51 +2210,6 @@ export const downloadQr = (format: QrCode.Format) =>
 // #endregion
 
 export const ChartStyle = forSlots(ChartSlots)(Recipes.Chart({}))
-
-// #region floating-panel-basic
-export const FloatingPanelStyle = forSlots(FloatingPanelSlots)(Recipes.FloatingPanel({}))
-
-/** The notes panel and the order the page's panels stack in. */
-export interface Panels {
-  readonly notes: FloatingPanel.Model
-  readonly order: ReadonlyArray<string>
-}
-
-// Folded with `FloatingPanel.update()`; opened with `FloatingPanel.open(model)`,
-// and its `Raised` folded into `order` with `FloatingPanel.raise`. Closing it
-// gives focus back to the button that opened it, by `FloatingPanel.focusReturn`.
-export const floatingPanel = <Message>(
-  style: NamedStyle<typeof FloatingPanelSlots>,
-  panels: Panels,
-  onMessage: (message: FloatingPanel.Message) => Message,
-  opened: Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [],
-    [
-      h.button(
-        SlotView.buildersFor(ButtonSlots, [ButtonStyle.mixin], {
-          input: undefined,
-          h,
-        }).button.attrs([h.Id('preview-panel-opener'), h.Type('button'), h.OnClick(opened)]),
-        ['Open notes'],
-      ),
-      FloatingPanel.view(
-        {
-          model: panels.notes,
-          onMessage,
-          title: 'Notes',
-          content: h.p([], ['Drag the header, resize from an edge, or use the arrows.']),
-          order: panels.order,
-          style,
-          mixins: FloatingPanel.focusReturn,
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
 
 // #region tour-basic
 export const TourStyle = forSlots(TourSlots)(Recipes.Tour({}))

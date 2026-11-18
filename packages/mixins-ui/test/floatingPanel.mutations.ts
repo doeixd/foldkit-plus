@@ -6,6 +6,8 @@
 const file = '../src/floatingPanel.ts'
 const unit = 'packages/mixins-ui/test/floatingPanel.test.ts'
 const browser = 'packages/mixins-ui/test/floatingPanel.browser.test.ts'
+const bundles = 'packages/mixins-ui/test/layoutBundles.test.ts'
+const focus = '../src/floatingPanel/focusReturn.ts'
 
 export default [
   {
@@ -100,7 +102,7 @@ export default [
     edits: [
       {
         file,
-        find: "const rect = moveRect(model.rect, 'move', 0, 0, boundary, limits)",
+        find: "const rect = moveRect(model.rect, 'move', 0, 0, boundary, own)",
         replace: 'const rect = model.rect',
       },
     ],
@@ -111,9 +113,9 @@ export default [
     edits: [
       {
         file,
-        find: 'placed(model, moveRect(from, handle, deltaX, deltaY, model.boundary, limits)),',
+        find: 'placed(model, moveRect(from, handle, deltaX, deltaY, model.boundary, own)),',
         replace:
-          'placed(model, moveRect(model.rect, handle, deltaX, deltaY, model.boundary, limits)),',
+          'placed(model, moveRect(model.rect, handle, deltaX, deltaY, model.boundary, own)),',
       },
     ],
     tests: [unit],
@@ -212,8 +214,8 @@ export default [
     edits: [
       {
         file,
-        find: "h.Role('button'),\n                    h.AriaLabel(labels.move",
-        replace: 'h.AriaLabel(labels.move',
+        find: "h.Role('button'),\n                    h.AriaLabel(fill(said.move, named)",
+        replace: 'h.AriaLabel(fill(said.move, named)',
       },
     ],
     tests: [unit],
@@ -263,7 +265,7 @@ export default [
   },
   {
     name: 'focusReturn gives focus back to nothing',
-    edits: [{ file, find: 'mount: () => FocusReturn(),', replace: 'attributes: () => [],' }],
+    edits: [{ file: focus, find: 'mount: () => FocusReturn(),', replace: 'attributes: () => [],' }],
     tests: [browser],
   },
   {
@@ -276,5 +278,101 @@ export default [
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'update ignores the limits the Model holds',
+    edits: [
+      { file, find: 'const own = limits ?? model.limits', replace: 'const own = limits ?? {}' },
+    ],
+    tests: [unit, bundles],
+  },
+  {
+    name: 'Placed skips the size limits',
+    edits: [
+      {
+        file,
+        find: 'width: within(rect.width, min.width, max.width),',
+        replace: 'width: rect.width,',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'Placed skips the viewport',
+    edits: [
+      {
+        file,
+        find: "return moveRect(sized, 'move', 0, 0, model.boundary, own)",
+        replace: 'return sized',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'rectBeside stands over the anchor, not under it',
+    edits: [
+      {
+        file,
+        find: 'bottom: { x: anchor.x, y: anchor.y + anchor.height + gap },',
+        replace: 'bottom: { x: anchor.x, y: anchor.y + gap },',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a panel draws every control whatever controls says',
+    edits: [{ file, find: "...(controls.includes('close')", replace: '...(true' }],
+    tests: [unit],
+  },
+  {
+    name: 'the panel title is not filled into the drag trigger name',
+    edits: [
+      { file, find: 'h.AriaLabel(fill(said.move, named)),', replace: 'h.AriaLabel(said.move),' },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'Docked docks to an unmeasured viewport',
+    edits: [
+      {
+        file,
+        find: 'rectDocked(edge, model.boundary, thickness)',
+        replace: 'rectDocked(edge, { width: 0, height: 0 }, thickness)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'openBeside opens without reading the opener',
+    edits: [
+      {
+        file,
+        find: 'commands: [beside, ...(opened.commands ?? [])]',
+        replace: 'commands: opened.commands',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the Beside Command forgets the panel size',
+    edits: [
+      {
+        file,
+        find: 'rectBeside(anchor, { width, height }, { side, gap })',
+        replace: 'rectBeside(anchor, { width: 0, height: 0 }, { side, gap })',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the dock helper docks to the start edge whatever it is given',
+    edits: [
+      {
+        file: '../src/bundles/floatingPanel.ts',
+        find: 'Message.Docked({ edge, thickness })',
+        replace: "Message.Docked({ edge: 'right', thickness })",
+      },
+    ],
+    tests: [bundles],
   },
 ]

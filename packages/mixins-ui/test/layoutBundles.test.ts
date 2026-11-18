@@ -6,7 +6,7 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { describe, expect, it } from 'vitest'
-import { Accordion, Bundles, Resizable, TreeView } from '../src/index.js'
+import { Accordion, Bundles, FloatingPanel, Resizable, TreeView } from '../src/index.js'
 
 const App = Bundle.compose({ note: Schema.String }).pipe(
   Bundle.withChild('faq', Bundles.Accordion, { args: { open: ['a'], multiple: true } }),
@@ -81,5 +81,61 @@ describe('Bundles.Resizable', () => {
       Split.Message.GotPanesMessage({ message: Resizable.Message.Set({ share: 2 }) }),
     ).model
     expect(set.panes.share).toBe(0.6)
+  })
+})
+
+describe('Bundles.FloatingPanel', () => {
+  const Windows = Bundle.compose({ order: Schema.Array(Schema.String) }).pipe(
+    Bundle.withChild('notes', Bundles.FloatingPanel, {
+      args: { id: 'notes', rect: { x: 10, y: 10, width: 300, height: 200 }, grid: 50 },
+      onOut: out => model => ({
+        model: { ...model, order: FloatingPanel.raise(model.order, out.id) },
+      }),
+    }),
+  )
+  const step = Windows.placements.update(model => ({ model }))
+  const first = () => Windows.placements.initial({ order: ['chat', 'notes'] }).model
+
+  it('starts from its args, limits included', () => {
+    expect(first().notes).toMatchObject({ id: 'notes', open: false, limits: { grid: 50 } })
+  })
+
+  it('folds against the limits the args hold', () => {
+    const held = step(
+      step(
+        first(),
+        Windows.Message.GotNotesMessage({
+          message: FloatingPanel.Message.GestureStarted({ handle: 'move' }),
+        }),
+      ).model,
+      Windows.Message.GotNotesMessage({
+        message: FloatingPanel.Message.GestureMoved({ deltaX: 30, deltaY: 0 }),
+      }),
+    ).model
+    expect(held.notes.rect.x).toBe(60)
+  })
+
+  it('docks to an edge of the viewport through helpers.dock', () => {
+    const measured = step(
+      first(),
+      Windows.Message.GotNotesMessage({
+        message: FloatingPanel.Message.Measured({ width: 1000, height: 800 }),
+      }),
+    ).model
+    const docked = Windows.children.notes.helpers.dock('left', 250)(measured).model
+    expect(docked.notes.rect).toEqual({ x: 0, y: 0, width: 250, height: 800 })
+  })
+
+  it('reports Raised, which the placement folds into the order', () => {
+    const raised = step(
+      first(),
+      Windows.Message.GotNotesMessage({ message: FloatingPanel.Message.Activated() }),
+    ).model
+    expect(raised.order).toEqual(['chat', 'notes'])
+    const behind = step(
+      Windows.placements.initial({ order: ['notes', 'chat'] }).model,
+      Windows.Message.GotNotesMessage({ message: FloatingPanel.Message.Activated() }),
+    ).model
+    expect(behind.order).toEqual(['chat', 'notes'])
   })
 })

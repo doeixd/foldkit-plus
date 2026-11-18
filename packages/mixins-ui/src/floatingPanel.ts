@@ -1,17 +1,6 @@
 import { Effect, Match, Option, Schema } from 'effect'
-import {
-  Attr,
-  Behavior,
-  Behaviors,
-  Capability,
-  Event,
-  Slot,
-  Slots,
-  SlotView,
-  type Diagnostic,
-  type NamedStyle,
-} from 'foldkit-mixins'
-import { FocusReturn, Move } from 'foldkit-primitives/dom'
+import { Behaviors, SlotView, type Diagnostic, type NamedStyle } from 'foldkit-mixins'
+import { Move } from 'foldkit-primitives/dom'
 import { Bounds } from 'foldkit-primitives/observers'
 import * as Command from 'foldkit/command'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -20,14 +9,21 @@ import * as Mount from 'foldkit/mount'
 import * as Render from 'foldkit/render'
 import { modifyFields } from 'foldkit/struct'
 import type { ReturnWithOutMessage } from 'foldkit/update'
+import { layered, type PresetOption, type Presets } from './configure.js'
+import { focusReturn } from './floatingPanel/focusReturn.js'
+import { FloatingPanelSlots } from './floatingPanel/slots.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
-/**
+export { focusReturn }
+export { FloatingPanelSlots }
+
+/*
  * A floating panel, Zag's: a non-modal window over the page that its header
  * drags, its edges and corners resize, and its controls minimize, maximize,
  * restore and close. Where it is and how big is this Model, which the
- * application keeps and folds with `update(limits)`; the view draws it
- * there, fixed to the viewport.
+ * application keeps and folds with `update`; the view draws it there, fixed to
+ * the viewport.
  *
  * ```text
  * drag trigger, edge: Move -> Gesture* -> update -> rect, kept within the viewport
@@ -52,57 +48,6 @@ import type { MixinList } from './resolve.js'
  * resize it from (`step` a press, five times that with Shift); Escape
  * closes it.
  */
-export const FloatingPanelSlots = Slots.define({
-  /** Around the panel and its measure; drawn as no box. */
-  root: Slot.make({ capability: Capability.Container }),
-  /** A box the viewport's size that `Bounds` measures; never seen. */
-  boundary: Slot.make({ capability: Capability.Container }),
-  panel: Slot.make({
-    capability: Capability.Container,
-    events: [Event.KeyDown, Event.PointerDown, Event.Focus],
-    attributes: [Attr.Role],
-  }),
-  /** The bar along the top: the drag trigger and the controls. */
-  header: Slot.make({ capability: Capability.Container }),
-  /**
-   * The part of the header a drag moves the panel by, and the arrows from
-   * focus: apart from the controls, whose presses a captured drag would take.
-   */
-  dragTrigger: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.KeyDown, Event.PointerDown],
-    attributes: [Attr.AriaLabel],
-  }),
-  title: Slot.make({ capability: Capability.Container }),
-  controls: Slot.make({ capability: Capability.Container }),
-  minimize: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-  }),
-  maximize: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-  }),
-  restore: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-  }),
-  close: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-  }),
-  body: Slot.make({ capability: Capability.Container }),
-  /** An edge or corner a drag resizes from, named by `data-edge`; the bottom-end corner takes the arrows too. */
-  handle: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.KeyDown],
-    attributes: [Attr.AriaLabel],
-  }),
-})
 
 export const Stage = Schema.Literals(['default', 'minimized', 'maximized'])
 export type Stage = typeof Stage.Type
@@ -120,6 +65,20 @@ export const Rect = Schema.Struct({
 })
 export type Rect = typeof Rect.Type
 
+const Size = Schema.Struct({ width: Schema.Number, height: Schema.Number })
+
+/** A side of an opener a panel opens beside, or of the viewport it docks to; physical, as the panel is placed from the top left. */
+const Side = Schema.Literals(['bottom', 'top', 'left', 'right'])
+export type Side = typeof Side.Type
+
+/** `Limits` as stored: what `init` was given, kept in the Model so `update` reads the one copy. */
+const StoredLimits = Schema.Struct({
+  min: Schema.optionalKey(Size),
+  max: Schema.optionalKey(Size),
+  grid: Schema.optionalKey(Schema.Number),
+  overflow: Schema.optionalKey(Schema.Boolean),
+})
+
 export const Model = Schema.Struct({
   /** Prefixes every id the panel draws, and names it in a stack's `order`. */
   id: Schema.String,
@@ -128,9 +87,11 @@ export const Model = Schema.Struct({
   /** Where the panel is in the viewport and its size, in CSS pixels, from the top left. */
   rect: Rect,
   /** The viewport's size, once measured; 0 before. */
-  boundary: Schema.Struct({ width: Schema.Number, height: Schema.Number }),
+  boundary: Size,
   /** While a drag runs: what it moves, and the rect as it began. */
   gesture: Schema.Option(Schema.Struct({ handle: Handle, from: Rect })),
+  /** The limits `init` was given; `update` uses them unless it is passed its own. */
+  limits: StoredLimits,
 })
 export type Model = typeof Model.Type
 
@@ -142,6 +103,10 @@ export const Message = defineMessageUnion({
   GestureEnded: {},
   /** An arrow key moved or resized the panel by this much. */
   Nudged: { handle: Handle, deltaX: Schema.Number, deltaY: Schema.Number },
+  /** The application put the panel at this rect (`rectBeside`), kept within the limits and the viewport. */
+  Placed: { rect: Rect },
+  /** The application docked the panel to an edge of the viewport as measured now, `thickness` across. */
+  Docked: { edge: Side, thickness: Schema.Number },
   StageChosen: { stage: Stage },
   Closed: {},
   /** A press or focus inside the panel. */
@@ -167,17 +132,28 @@ export interface Limits {
   readonly overflow?: boolean | undefined
 }
 
-export const init = (options: {
-  readonly id: string
-  readonly rect: Rect
-  readonly open?: boolean | undefined
-}): Model => ({
+/** `limits` without the options left `undefined`, the shape the Model stores. */
+const given = (limits: Limits): Model['limits'] => ({
+  ...(limits.min === undefined ? {} : { min: limits.min }),
+  ...(limits.max === undefined ? {} : { max: limits.max }),
+  ...(limits.grid === undefined ? {} : { grid: limits.grid }),
+  ...(limits.overflow === undefined ? {} : { overflow: limits.overflow }),
+})
+
+export const init = (
+  options: {
+    readonly id: string
+    readonly rect: Rect
+    readonly open?: boolean | undefined
+  } & Limits,
+): Model => ({
   id: options.id,
   open: options.open ?? false,
   stage: 'default',
   rect: options.rect,
   boundary: { width: 0, height: 0 },
   gesture: Option.none(),
+  limits: given(options),
 })
 
 const panelId = (id: string): string => `${id}-panel`
@@ -206,6 +182,52 @@ export const open = (model: Model): Return =>
         model: modifyFields(model, { open: () => true }),
         commands: [Focus({ elementId: panelId(model.id) })],
       }
+
+/**
+ * Reads the box of the element with `openerId` and places the panel beside it
+ * (`rectBeside`), keeping the panel's own size. The opener is the page's, so
+ * a Command reads it and `Placed` carries the answer into `update`.
+ */
+export const Beside = Command.define('FloatingPanel.Beside', {
+  args: {
+    openerId: Schema.String,
+    side: Side,
+    gap: Schema.Number,
+    width: Schema.Number,
+    height: Schema.Number,
+  },
+  messages: [Message.Placed, Message.CompletedFocus],
+  execute: ({ openerId, side, gap, width, height }) =>
+    Effect.sync(() => {
+      const opener = document.getElementById(openerId)
+      if (opener === null) return Message.CompletedFocus()
+      const box = opener.getBoundingClientRect()
+      const anchor = { x: box.left, y: box.top, width: box.width, height: box.height }
+      return Message.Placed({ rect: rectBeside(anchor, { width, height }, { side, gap }) })
+    }),
+})
+
+/**
+ * Opens the panel beside the element with `openerId` (which must be drawn
+ * when this runs), focuses it and keeps its size; an open panel is moved
+ * beside it. The placement is read after the update, so the panel is drawn at
+ * its old place only if the answer lands after the frame.
+ */
+export const openBeside = (
+  model: Model,
+  openerId: string,
+  options: { readonly side?: Side; readonly gap?: number } = {},
+): Return => {
+  const beside = Beside({
+    openerId,
+    side: options.side ?? 'bottom',
+    gap: options.gap ?? 8,
+    width: model.rect.width,
+    height: model.rect.height,
+  })
+  const opened = open(model)
+  return { ...opened, commands: [beside, ...(opened.commands ?? [])] }
+}
 
 /** Closes the panel, keeping where it was; `focusReturn` gives focus back to what opened it. */
 export const close = (model: Model): Return =>
@@ -278,8 +300,65 @@ export const moveRect = (
   return { x, y, width, height }
 }
 
-/** The panel's `update` within `limits`; the same Model when nothing changes. */
-export const update = (limits: Limits = {}) => {
+/**
+ * Where a panel of `size` goes beside `anchor` (the opener's box, as
+ * `getBoundingClientRect` reads it), `gap` pixels off it (default 8) and
+ * aligned to its start. Pure: hand the result to `Placed`, which keeps it
+ * within the viewport.
+ */
+export const rectBeside = (
+  anchor: Rect,
+  size: { readonly width: number; readonly height: number },
+  options: { readonly side?: Side; readonly gap?: number } = {},
+): Rect => {
+  const gap = options.gap ?? 8
+  const at = {
+    bottom: { x: anchor.x, y: anchor.y + anchor.height + gap },
+    top: { x: anchor.x, y: anchor.y - size.height - gap },
+    left: { x: anchor.x - size.width - gap, y: anchor.y },
+    right: { x: anchor.x + anchor.width + gap, y: anchor.y },
+  } as const
+  return { ...at[options.side ?? 'bottom'], ...size }
+}
+
+/**
+ * The rect of a panel docked to one edge of the viewport: `thickness` wide
+ * (or tall, for the top and bottom) and the whole of the other side. `Docked`
+ * works it out in `update`, against the viewport as measured then; the panel
+ * stays a window and can be dragged away.
+ */
+const rectDocked = (
+  edge: Side,
+  boundary: { readonly width: number; readonly height: number },
+  thickness: number,
+): Rect => {
+  const { width, height } = boundary
+  const at = {
+    left: { x: 0, y: 0, width: thickness, height },
+    right: { x: width - thickness, y: 0, width: thickness, height },
+    top: { x: 0, y: 0, width, height: thickness },
+    bottom: { x: 0, y: height - thickness, width, height: thickness },
+  } as const
+  return at[edge]
+}
+
+/**
+ * The panel's `update`, within `limits` where given and within the ones `init`
+ * stored otherwise; the same Model when nothing changes.
+ */
+export const update = (limits?: Limits) => {
+  /** `rect` with its size within the limits as a resize from the corner would leave it, then its position within the viewport. */
+  const fitted = (model: Model, rect: Rect, own: Limits): Rect => {
+    const min = own.min ?? MIN_SIZE
+    const max = own.max ?? { width: Infinity, height: Infinity }
+    const sized = {
+      ...rect,
+      width: within(rect.width, min.width, max.width),
+      height: within(rect.height, min.height, max.height),
+    }
+    return moveRect(sized, 'move', 0, 0, model.boundary, own)
+  }
+
   const placed = (model: Model, rect: Rect): Return =>
     sameRect(rect, model.rect) ? { model } : { model: modifyFields(model, { rect: () => rect }) }
 
@@ -287,13 +366,14 @@ export const update = (limits: Limits = {}) => {
   const allowed = (model: Model, handle: Handle) =>
     model.stage === 'default' || (model.stage === 'minimized' && handle === 'move')
 
-  return (model: Model, message: Message): Return =>
-    Message.match<Return>(message, {
+  return (model: Model, message: Message): Return => {
+    const own = limits ?? model.limits
+    return Message.match<Return>(message, {
       Measured: ({ width, height }) => {
         if (width === model.boundary.width && height === model.boundary.height) return { model }
         const boundary = { width, height }
         // A smaller viewport brings the panel back inside it.
-        const rect = moveRect(model.rect, 'move', 0, 0, boundary, limits)
+        const rect = moveRect(model.rect, 'move', 0, 0, boundary, own)
         return { model: modifyFields(model, { boundary: () => boundary, rect: () => rect }) }
       },
       GestureStarted: ({ handle }) =>
@@ -308,7 +388,7 @@ export const update = (limits: Limits = {}) => {
         Option.match(model.gesture, {
           onNone: () => ({ model }),
           onSome: ({ handle, from }) =>
-            placed(model, moveRect(from, handle, deltaX, deltaY, model.boundary, limits)),
+            placed(model, moveRect(from, handle, deltaX, deltaY, model.boundary, own)),
         }),
       GestureEnded: () =>
         Option.isNone(model.gesture)
@@ -316,7 +396,13 @@ export const update = (limits: Limits = {}) => {
           : { model: modifyFields(model, { gesture: () => Option.none() }) },
       Nudged: ({ handle, deltaX, deltaY }) =>
         allowed(model, handle)
-          ? placed(model, moveRect(model.rect, handle, deltaX, deltaY, model.boundary, limits))
+          ? placed(model, moveRect(model.rect, handle, deltaX, deltaY, model.boundary, own))
+          : { model },
+      Placed: ({ rect }) =>
+        allowed(model, 'move') ? placed(model, fitted(model, rect, own)) : { model },
+      Docked: ({ edge, thickness }) =>
+        allowed(model, 'move')
+          ? placed(model, fitted(model, rectDocked(edge, model.boundary, thickness), own))
           : { model },
       StageChosen: ({ stage }) =>
         stage === model.stage
@@ -326,6 +412,7 @@ export const update = (limits: Limits = {}) => {
       Activated: () => ({ model, outMessage: Raised.make({ id: model.id }) }),
       CompletedFocus: () => ({ model }),
     })
+  }
 }
 
 /** The arrows' directions, physical: a panel is placed from the top left either way. */
@@ -342,25 +429,29 @@ const EDGES: ReadonlyArray<Edge> = ['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw']
 /** A key the application answers on the panel; a press inside it that nothing else took reaches it. */
 export type Route<ParentMessage> = Behaviors.Keys.Route<undefined, ParentMessage>
 
-/**
- * Gives focus back when the panel closes: to what had it before the panel,
- * then by `FocusReturn`'s rules (an element with the opener's id, the
- * opener's `FocusRecovery` steps, the layer below, the page's first tabbable
- * element). Focus the reader moved elsewhere is left alone. The one way focus
- * returns: the panel keeps no opener of its own. Pass it among the mixins;
- * opt in, as it sends no Message.
- */
-export const focusReturn = [
-  Behavior.forSlots(FloatingPanelSlots)<unknown, never>(
-    {
-      panel: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => FocusReturn(),
-      }),
-    },
-    { name: 'FloatingPanelFocusReturn' },
-  ).mixin,
-] as const
+/** The header's controls a panel can draw; restore appears with whichever stage change was made. */
+export type Control = 'minimize' | 'maximize' | 'close'
+
+/** The fixed text a panel draws, in `words` with `{title}` where the panel's name goes. */
+export interface FloatingPanelWords {
+  readonly minimize: string
+  readonly maximize: string
+  readonly restore: string
+  readonly close: string
+  /** The drag trigger's name. */
+  readonly move: string
+  /** The resizing corner's name. */
+  readonly resize: string
+}
+
+export const words: FloatingPanelWords = {
+  minimize: 'Minimize',
+  maximize: 'Maximize',
+  restore: 'Restore',
+  close: 'Close',
+  move: 'Move {title}',
+  resize: 'Resize {title}',
+}
 
 export interface FloatingPanelView<ParentMessage> {
   readonly model: Model
@@ -377,6 +468,13 @@ export interface FloatingPanelView<ParentMessage> {
   /** Whether Escape closes it; default true. */
   readonly closeOnEscape?: boolean | undefined
   /**
+   * The header's controls, default all three. Always drawn in the order
+   * minimize, maximize, restore, close; restore is drawn whenever the panel
+   * is minimized or maximized, so a panel that can only be maximized can
+   * still come back.
+   */
+  readonly controls?: ReadonlyArray<Control> | undefined
+  /**
    * Keys the application answers on the panel, beside Escape (unless
    * `closeOnEscape` is false). They share one keydown owner with it: a route
    * on the same gesture is a diagnostic naming both. The arrows on the drag
@@ -388,20 +486,11 @@ export interface FloatingPanelView<ParentMessage> {
   readonly step?: number | undefined
   /** Default `'ltr'`; under `'rtl'` the corner the arrows resize from is the bottom left. */
   readonly direction?: 'ltr' | 'rtl' | undefined
-  /** The controls' words, defaults `Minimize`, `Maximize`, `Restore`, `Close`, and the header's and corner's. */
-  readonly labels?:
-    | {
-        readonly minimize?: string
-        readonly maximize?: string
-        readonly restore?: string
-        readonly close?: string
-        readonly move?: string
-        readonly resize?: string
-      }
-    | undefined
+  /** The controls' words, the header's and the corner's; defaults `FloatingPanel.words`. */
+  readonly words?: Partial<FloatingPanelWords> | undefined
   /** A style of `FloatingPanelSlots`, for the look. */
   readonly style?: NamedStyle<typeof FloatingPanelSlots> | undefined
-  /** Mixins beside the style. */
+  /** Mixins beside the style: `FloatingPanel.focusReturn`. */
   readonly mixins?: MixinList<ParentMessage> | undefined
 }
 
@@ -437,6 +526,8 @@ export const conflict = <ParentMessage>(
     Option.some('panel'),
   )
 
+const ALL_CONTROLS: ReadonlyArray<Control> = ['minimize', 'maximize', 'close']
+
 export const view = <ParentMessage>(
   options: FloatingPanelView<ParentMessage>,
   h: HtmlBuilder<ParentMessage>,
@@ -463,7 +554,9 @@ export const view = <ParentMessage>(
     { input: undefined, h },
   )
   const { id, rect, stage } = model
-  const labels = options.labels ?? {}
+  const said = wordsOf(words, options.words)
+  const named = { title: options.title }
+  const controls = options.controls ?? ALL_CONTROLS
   const step = options.step ?? 10
   const resizable = options.resizable !== false && stage === 'default'
   const draggable = options.draggable !== false && stage !== 'maximized'
@@ -514,23 +607,31 @@ export const view = <ParentMessage>(
   const stageControls =
     stage === 'default'
       ? [
-          control(
-            builders.minimize,
-            labels.minimize ?? 'Minimize',
-            Message.StageChosen({ stage: 'minimized' }),
-            'minimize',
-          ),
-          control(
-            builders.maximize,
-            labels.maximize ?? 'Maximize',
-            Message.StageChosen({ stage: 'maximized' }),
-            'maximize',
-          ),
+          ...(controls.includes('minimize')
+            ? [
+                control(
+                  builders.minimize,
+                  said.minimize,
+                  Message.StageChosen({ stage: 'minimized' }),
+                  'minimize',
+                ),
+              ]
+            : []),
+          ...(controls.includes('maximize')
+            ? [
+                control(
+                  builders.maximize,
+                  said.maximize,
+                  Message.StageChosen({ stage: 'maximized' }),
+                  'maximize',
+                ),
+              ]
+            : []),
         ]
       : [
           control(
             builders.restore,
-            labels.restore ?? 'Restore',
+            said.restore,
             Message.StageChosen({ stage: 'default' }),
             'restore',
           ),
@@ -549,7 +650,7 @@ export const view = <ParentMessage>(
               ? [
                   h.Tabindex(0),
                   h.Role('button'),
-                  h.AriaLabel(labels.resize ?? `Resize ${options.title}`),
+                  h.AriaLabel(fill(said.resize, named)),
                   h.AriaKeyshortcuts('ArrowUp ArrowDown ArrowLeft ArrowRight'),
                   arrows({ input: edge, h }),
                 ]
@@ -612,7 +713,7 @@ export const view = <ParentMessage>(
                     h.Tabindex(0),
                     // A name on a bare div is ignored; "Move <title>" holds the visible words.
                     h.Role('button'),
-                    h.AriaLabel(labels.move ?? `Move ${options.title}`),
+                    h.AriaLabel(fill(said.move, named)),
                     h.AriaKeyshortcuts('ArrowUp ArrowDown ArrowLeft ArrowRight'),
                     h.Style({ touchAction: 'none' }),
                     arrows({ input: 'move', h }),
@@ -626,7 +727,9 @@ export const view = <ParentMessage>(
           ),
           h.div(builders.controls.attrs(), [
             ...stageControls,
-            control(builders.close, labels.close ?? 'Close', Message.Closed(), 'close'),
+            ...(controls.includes('close')
+              ? [control(builders.close, said.close, Message.Closed(), 'close')]
+              : []),
           ]),
         ]),
         h.div(builders.body.attrs(stage === 'minimized' ? [h.Hidden(true)] : []), [
@@ -637,3 +740,36 @@ export const view = <ParentMessage>(
     ),
   ])
 }
+
+/** What a FloatingPanel is given once: its look, words and the options that hold no Message. */
+export type FloatingPanelPreset = Pick<
+  FloatingPanelView<never>,
+  | 'resizable'
+  | 'draggable'
+  | 'closeOnEscape'
+  | 'controls'
+  | 'step'
+  | 'direction'
+  | 'words'
+  | 'style'
+> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own FloatingPanel: `base` for every use, `presets` chosen
+ * at a use with `preset`, and the call over both. `words` merge key by key
+ * and `mixins` concatenate in that order (`FloatingPanel.focusReturn` goes in
+ * `base`); any other option given at the call replaces the preset's. The
+ * limits are the Model's (`init`), not a preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<FloatingPanelPreset, Names>,
+): {
+  readonly view: <ParentMessage>(
+    options: FloatingPanelView<ParentMessage> & PresetOption<Names>,
+    h: HtmlBuilder<ParentMessage>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

@@ -37,7 +37,6 @@ import {
   ImageCropper,
   SignaturePad,
   Chart,
-  FloatingPanel,
   Tour,
 } from 'foldkit-mixins-ui'
 import * as UiFileDrop from '@foldkit/ui/fileDrop'
@@ -478,22 +477,6 @@ const startTour = Update.foldChildStep({
   foldOutMessage: tourOut,
 })
 
-const updatePanel = FloatingPanel.update()
-/** The panel's step, its `Raised` lifting it to the top of the order. */
-const panelStep = (model: Model, step: FloatingPanel.Return): Update.Return<Model, Message> => {
-  const order = Option.match(Option.fromNullishOr(step.outMessage), {
-    onNone: () => model.panels.order,
-    onSome: ({ id }) => FloatingPanel.raise(model.panels.order, id),
-  })
-  return {
-    model:
-      step.model === model.panels.notes && order === model.panels.order
-        ? model
-        : modifyFields(model, { panels: () => ({ notes: step.model, order }) }),
-    commands: Command.mapMessages(step.commands ?? [], message => Message.GotPanel({ message })),
-  }
-}
-
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   Message.match(message, {
     GotDrop: ({ message }) => foldDrop(model, message),
@@ -654,8 +637,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     }),
     // A saved file needs no word from the page, and a refused one has nowhere to go here.
     GotQrDownload: () => ({ model }),
-    GotPanel: ({ message }) => panelStep(model, updatePanel(model.panels.notes, message)),
-    OpenedPanel: () => panelStep(model, FloatingPanel.open(model.panels.notes)),
     GotTour: ({ message }) => foldTour(model, message),
     StartedTour: () => startTour(model),
     TurnedLevel: ({ value }) =>

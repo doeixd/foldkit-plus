@@ -5,7 +5,7 @@
  * each stage allows only what it should, and the open panel is a non-modal
  * dialog whose drag trigger and bottom-end corner take the arrows.
  */
-import { Option } from 'effect'
+import { Effect, Option } from 'effect'
 import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { A11y, Behaviors, SlotView } from 'foldkit-mixins'
@@ -409,5 +409,194 @@ describe('FloatingPanel.view', () => {
         h,
       ),
     ).toThrow(/title/)
+  })
+})
+
+describe('limits held in the Model', () => {
+  const limited = (limits: FloatingPanel.Limits) =>
+    update(
+      FloatingPanel.open(init({ id: 'notes', rect, ...limits })).model,
+      Message.Measured(viewport),
+    ).model
+
+  it('stores only the options init was given', () => {
+    expect(init({ id: 'notes', rect, grid: 20, min: undefined }).limits).toEqual({ grid: 20 })
+  })
+
+  it('update() folds against the stored limits, and update(limits) against its own', () => {
+    const snapped = drag(limited({ grid: 50 }), 'move', [20, 0], [30, 0])
+    expect(snapped.rect.x).toBe(150)
+    const own = FloatingPanel.update({ grid: 100 })
+    const moved = own(
+      own(limited({ grid: 50 }), Message.GestureStarted({ handle: 'move' })).model,
+      Message.GestureMoved({ deltaX: 60, deltaY: 0 }),
+    ).model
+    expect(moved.rect.x).toBe(200)
+  })
+
+  it('holds the stored size limits against a resize', () => {
+    const resized = drag(limited({ max: { width: 350, height: 250 } }), 'se', [400, 400])
+    expect(resized.rect).toMatchObject({ width: 350, height: 250 })
+  })
+})
+
+describe('FloatingPanel.Placed', () => {
+  it('puts the panel at a rect kept within the viewport and the limits', () => {
+    const model = shown()
+    const placed = update(
+      model,
+      Message.Placed({ rect: { x: 900, y: 700, width: 300, height: 200 } }),
+    ).model
+    expect(placed.rect).toEqual({ x: 700, y: 600, width: 300, height: 200 })
+    const tiny = update(
+      model,
+      Message.Placed({ rect: { x: 0, y: 0, width: 10, height: 10 } }),
+    ).model
+    expect(tiny.rect).toMatchObject({ width: 160, height: 96 })
+  })
+
+  it('returns the same Model for the rect it already holds, and for a maximized panel', () => {
+    const model = shown()
+    expect(update(model, Message.Placed({ rect })).model).toBe(model)
+    const maximized = shown('maximized')
+    expect(update(maximized, Message.Placed({ rect: { ...rect, x: 5 } })).model).toBe(maximized)
+  })
+})
+
+describe('FloatingPanel.rectBeside and Docked', () => {
+  const anchor = { x: 100, y: 50, width: 80, height: 30 }
+  const size = { width: 200, height: 100 }
+
+  it.each([
+    ['bottom', { x: 100, y: 88 }],
+    ['top', { x: 100, y: -58 }],
+    ['left', { x: -108, y: 50 }],
+    ['right', { x: 188, y: 50 }],
+  ] as const)('stands %s of its anchor, 8 pixels off', (side, at) => {
+    expect(FloatingPanel.rectBeside(anchor, size, { side })).toEqual({ ...at, ...size })
+  })
+
+  it('takes a gap of its own', () => {
+    expect(FloatingPanel.rectBeside(anchor, size, { gap: 0 }).y).toBe(80)
+  })
+
+  it.each([
+    ['left', { x: 0, y: 0, width: 240, height: 800 }],
+    ['right', { x: 760, y: 0, width: 240, height: 800 }],
+    ['top', { x: 0, y: 0, width: 1000, height: 240 }],
+    ['bottom', { x: 0, y: 560, width: 1000, height: 240 }],
+  ] as const)('docks %s with the other side whole', (edge, at) => {
+    expect(update(shown(), Message.Docked({ edge, thickness: 240 })).model.rect).toEqual(at)
+  })
+})
+
+describe('FloatingPanel words and controls', () => {
+  it('draws the controls named, and restore for the stage they reach', () => {
+    scene(
+      shown(),
+      { controls: ['maximize', 'close'] },
+      Scene.expect(Scene.role('button', { name: 'Minimize' })).toBeAbsent(),
+      Scene.expect(Scene.role('button', { name: 'Maximize' })).toExist(),
+      Scene.click(Scene.role('button', { name: 'Maximize' })),
+      ended(9),
+      Scene.expect(Scene.role('button', { name: 'Restore' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Close' })).toExist(),
+    )
+    scene(
+      shown(),
+      { controls: [] },
+      Scene.expect(Scene.role('button', { name: 'Close' })).toBeAbsent(),
+    )
+  })
+
+  it('fills {title} into the move and resize names, and merges words key by key', () => {
+    scene(
+      shown(),
+      { words: { move: 'Drag {title}', close: 'Dismiss' } },
+      Scene.expect(Scene.label('Drag Notes')).toExist(),
+      Scene.expect(Scene.label('Resize Notes')).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Dismiss' })).toExist(),
+      Scene.expect(Scene.role('button', { name: 'Minimize' })).toExist(),
+    )
+  })
+})
+
+describe('FloatingPanel.configure', () => {
+  it('lays base, preset and call, the call winning and words merging', () => {
+    const Own = FloatingPanel.configure({
+      base: { words: { close: 'Dismiss' }, controls: ['close'] },
+      presets: { plain: { words: { move: 'Drag {title}' } } },
+    })
+    const drawn = (options: object) =>
+      JSON.stringify(
+        Own.view(
+          {
+            model: shown(),
+            onMessage: () => message('Other'),
+            title: 'Notes',
+            content: h.p([], []),
+            ...options,
+          },
+          h,
+        ),
+      )
+    const plain = drawn({ preset: 'plain' })
+    expect(plain).toContain('Dismiss')
+    expect(plain).toContain('Drag Notes')
+    expect(plain).not.toContain('Minimize')
+    expect(drawn({ controls: ['minimize'] })).toContain('Minimize')
+  })
+})
+
+describe('FloatingPanel.Docked', () => {
+  it('docks to an edge of the viewport as measured now, within the size limits', () => {
+    const docked = update(shown(), Message.Docked({ edge: 'right', thickness: 240 })).model
+    expect(docked.rect).toEqual({ x: 760, y: 0, width: 240, height: 800 })
+    const limited = update(
+      FloatingPanel.open(init({ id: 'notes', rect, max: { width: 200, height: 500 } })).model,
+      Message.Measured(viewport),
+    ).model
+    expect(
+      update(limited, Message.Docked({ edge: 'left', thickness: 240 })).model.rect,
+    ).toMatchObject({ width: 200, height: 500 })
+  })
+
+  it('returns the same Model for the edge it is on, and for a maximized panel', () => {
+    const docked = update(shown(), Message.Docked({ edge: 'left', thickness: 240 })).model
+    expect(update(docked, Message.Docked({ edge: 'left', thickness: 240 })).model).toBe(docked)
+    const maximized = shown('maximized')
+    expect(update(maximized, Message.Docked({ edge: 'left', thickness: 240 })).model).toBe(
+      maximized,
+    )
+  })
+})
+
+describe('FloatingPanel.openBeside', () => {
+  const closed = () => init({ id: 'notes', rect })
+
+  it('opens the panel and reads the opener, focus last', () => {
+    const result = FloatingPanel.openBeside(closed(), 'opener')
+    expect(result.model.open).toBe(true)
+    expect(names(result)).toEqual(['FloatingPanel.Beside', 'FloatingPanel.Focus'])
+  })
+
+  it('moves an open panel beside the opener without opening it again', () => {
+    const open = shown()
+    const result = FloatingPanel.openBeside(open, 'opener')
+    expect(result.model).toBe(open)
+    expect(names(result)).toEqual(['FloatingPanel.Beside'])
+  })
+
+  it("answers Placed with the opener's box and the panel's own size, or nothing without the opener", async () => {
+    document.body.innerHTML = '<button id="opener"></button>'
+    const opener = document.getElementById('opener')
+    if (opener === null) throw new Error('no opener')
+    opener.getBoundingClientRect = () => new DOMRect(40, 60, 80, 30)
+    const [beside] =
+      FloatingPanel.openBeside(closed(), 'opener', { side: 'right', gap: 4 }).commands ?? []
+    const placed = await Effect.runPromise(beside!.effect)
+    expect(placed).toEqual(Message.Placed({ rect: { x: 124, y: 60, width: 300, height: 200 } }))
+    opener.remove()
+    expect(await Effect.runPromise(beside!.effect)).toEqual(Message.CompletedFocus())
   })
 })

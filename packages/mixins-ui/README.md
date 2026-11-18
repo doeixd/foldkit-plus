@@ -1484,7 +1484,7 @@ by [`focusReturn`](#focus-after-removal); the popups enter and leave as
 | `Tooltip` | Adapter. `Tooltip.toView(mixins, { h, id }, draw)` takes the Tooltip's id (`model.id`), whose trigger the arrow points at; `Tooltip.anchor(config?)` is the placement, above by default. | `arrow`: `shown` (default), `none`. Slots `trigger`, `panel`, `arrow`, `layer`. |
 | `HoverIntent` | Adapter: open and close delays with intent (200ms and 300ms by default), for a hover card or a menu. `anchored: { id, anchor? }` in the context anchors the panel to the trigger in the top layer (`HoverIntent.anchor()` unless given); the trigger takes `HoverIntent.triggerId(id)`, `aria-expanded` and, while open, `aria-describedby` naming the panel, whose id is `HoverIntent.panelId(id)`. `HoverCard` is its recipe. | `HoverCard`: no axis; a trigger read as a link, a raised panel fading in on the fast tier. Slots `trigger`, `panel`, `arrow`. |
 | `Anchor` | A Mount and a Behavior over `@foldkit/ui/anchor`: `Anchor.behavior(Slots)({ floating, config })` positions a floating slot against a button by id; `Anchor.topLayer(mount)` shows an in-place panel in the top layer around it. | |
-| `FloatingPanel` | After Zag's: a non-modal window. A small Model: `FloatingPanel.init({ id, rect, open? })` holds its rect, stage and a drag, folded with `FloatingPanel.update(limits)` (`min`, `max`, `grid`, `overflow`); `FloatingPanel.open(model)` focuses it and `close` closes it. `FloatingPanel.view({ model, onMessage, title, content, order?, draggable?, resizable?, closeOnEscape?, routes?, step?, direction?, labels? }, h)`. See [FloatingPanel](#floatingpanel). | `header`. Slots `root`, `boundary`, `panel`, `header`, `dragTrigger`, `title`, `controls`, `minimize`, `maximize`, `restore`, `close`, `body`, `handle`. |
+| `FloatingPanel` | After Zag's: a non-modal window. A small Model: `FloatingPanel.init({ id, rect, open?, min?, max?, grid?, overflow? })` holds its rect, stage, limits and a drag, folded with `FloatingPanel.update()`, or placed with `Bundles.FloatingPanel`; `FloatingPanel.open(model)` focuses it, `openBeside(model, openerId)` opens it beside an element and `close` closes it. `FloatingPanel.view({ model, onMessage, title, content, order?, draggable?, resizable?, closeOnEscape?, controls?, routes?, step?, direction?, words? }, h)`, and `FloatingPanel.configure`. See [FloatingPanel](#floatingpanel). | `header`. Slots `root`, `boundary`, `panel`, `header`, `dragTrigger`, `title`, `controls`, `minimize`, `maximize`, `restore`, `close`, `body`, `handle`. |
 | `Tour` | Steps anchored beside their targets in the top layer, over a dim with a cutout the target's presses reach. A small Model: `Tour.init({ id })`, started with `Tour.start(model, config)` and folded with `Tour.update(config)` (`config` is `{ steps: [{ title, description, target?, placement? }] }`). `Tour.view({ model, config, onMessage, padding?, interactive?, dismissOnOutside?, closeOnEscape?, routes?, labels?, direction? }, h)`. | No axis. Slots `layer`, `blocker`, `spotlight`, `panel`, `arrow`, `progress`, `title`, `description`, `actions`, `back`, `next`, `skip`. |
 
 ### Menu
@@ -1670,6 +1670,36 @@ routes](#application-key-routes) beside Escape (unless `closeOnEscape` is false)
 the arrows on the drag trigger and the corner are the panel's own, and a press they
 handled still reaches the panel. `FloatingPanel.focusReturn` is opt-in and is the
 one way focus returns.
+
+The limits (`min`, `max`, `grid`, `overflow`) are `init`'s options and live in the
+Model, so `FloatingPanel.update()` reads the one copy; `update(limits)` still
+overrides them for a call. `Bundles.FloatingPanel` places the window with `init`'s
+options as its args and reports `Raised` in `onOut`; its helpers are `open`,
+`close`, `openBeside(openerId, { side?, gap? })` and `dock(edge, thickness)`.
+`openBeside` (also a function of the module) reads the opener's box in a Command
+and answers `Placed`, which puts the panel there within the limits and the
+viewport; `rectBeside(anchor, size, options)` is the pure rule, for a place of your
+own. `Docked { edge, thickness }` lays the panel along an edge of the viewport as
+measured when it lands; it stays a window and drags away. `controls` names the
+header's buttons (default all three; restore appears with whichever stage was
+reached), `words` their names and the drag trigger's and corner's (`Move {title}`,
+`Resize {title}`), and `FloatingPanel.configure({ base, presets })` fixes the look,
+words, controls and mixins once.
+
+```ts
+import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Bundles, FloatingPanel } from 'foldkit-mixins-ui'
+
+const Windows = Bundle.compose({ order: Schema.Array(Schema.String) }).pipe(
+  Bundle.withChild('notes', Bundles.FloatingPanel, {
+    args: { id: 'notes', rect: { x: 80, y: 120, width: 320, height: 220 }, grid: 20 },
+    onOut: out => model => ({
+      model: { ...model, order: FloatingPanel.raise(model.order, out.id) },
+    }),
+  }),
+)
+```
 
 ### Tour
 
