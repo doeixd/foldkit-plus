@@ -355,7 +355,7 @@ right to left (`direction`), exits and reduced motion, the opt-in Mounts
 
 | Widget | What it is | Recipe and Slots |
 | --- | --- | --- |
-| `Button` | Adapter over `@foldkit/ui`'s Button. `Button.view({ label, style, type?, disabled?, pressed?, icon?, shape?, onClick?, attributes?, mixins? }, h)`; `Button.toView` for your own `draw`. `disabled` writes `aria-disabled`, not `disabled`; `pressed` makes it a toggle (`aria-pressed`); an `icon` draws before the label, hidden from assistive technology. | `tone`: `accent` (default), `neutral`, `danger`; `variant`: `solid` (default), `outline`, `ghost`, `primary`, `icon`; `size`: `sm`, `md`, `lg`; `shape: 'square'`. Slots `button`, `icon`. |
+| `Button` | Adapter over `@foldkit/ui`'s Button. `Button.view({ label, style, type?, disabled?, invalid?, busy?, pressed?, icon?, trailing?, description?, mark?, href?, external?, words?, onClick?, attributes?, mixins? }, h)`; `Button.toView` for your own `draw`. `disabled` writes `aria-disabled`, not `disabled`; `pressed` makes it a toggle (`aria-pressed`); an `icon` draws before the label, hidden from assistive technology. A button presses or it is a link: `href` draws an anchor and takes no `type` or `onClick`. | `tone`: `accent` (default), `neutral`, `danger`; `variant`: `solid` (default), `outline`, `ghost`, `primary`, `link`, `icon`; `size`: `xs`, `sm`, `md`, `lg`; `shape: 'square'`. Slots `button`, `icon`, `content`, `description`, `trailing`, `mark`. |
 | `ButtonGroup` | `{ label, items, orientation?, separated? }`. A `role="group"` that joins its items: borders overlap by one and only the outer corners stay round. An item is the caller's button, field or Menu (a wrapper passes the corners to the face it holds), or a string drawn in the `text` box (a count, a field's prefix). `orientation: 'vertical'` stacks them; `separated` draws a rule on every seam, for solid buttons whose fills meet. `Segmented` is the control that selects. | `size` (`sm`, `md`, `lg`, for every item with no size of its own); `width: 'fill'` spans the container, a field taking what the buttons leave. Slots `root`, `separator`, `text`. |
 | `Toolbar` | The APG's toolbar: one tab stop over controls you draw, the arrows along its orientation, Home and End. See [Toolbar](#toolbar). `Toolbar.view({ id, label, items, roving, onFocus, orientation?, direction?, loop?, disabled?, routes? }, h)`. | `size` is Button's ladder step, set on the toolbar. Slots `root`, `group`, `separator`. |
 | `Command` | shadcn's Command and Fluid's CommandMenu: a search field over a list of grouped, filterable rows. `{ id, label, placeholder?, groups, query, onQuery, active, onActive, onRun, empty?, loading?, page?, routes?, hints?, kbd? }`. See [Command](#command). | `frame`: `card` (default) or `bare`, for inside a dialog. Slots `root`, `search`, `crumbs`, `crumb`, `input`, `list`, `group`, `heading`, `item`, `icon`, `text`, `label`, `description`, `shortcut`, `chevron`, `status`, `empty`, `loading`, `frame`, `bar`, `thumb`, `footer`, `hint`. |
@@ -394,6 +394,20 @@ shows the icon alone, the label still the button's name; `shape: 'square'` draws
 any other variant as that square (an outlined icon button in a toolbar). A toggle
 button, shadcn's Toggle, is a Button with `pressed`, and each variant has its on
 look.
+
+`trailing` draws after the label (a chevron, a count, a `Kbd.combo`); it is read as
+drawn, so a decorative one carries its own `aria-hidden`. `description` is a second line
+under the label, and both name the button. `mark` is a Badge or a dot on the button's
+corner, on the end side whatever the writing direction. `invalid` writes `data-invalid` and
+turns the button's colours to the danger tone: not `aria-invalid`, which a button's role
+does not take, so the reason is text the application draws. `busy` writes `aria-busy` and
+`data-busy`, and a press does nothing while it is on (a `type: 'submit'` button stops
+submitting too); it stays focusable. There is no `loading` option that draws a spinner,
+since that would put Spinner in every page that draws a button: compose
+`icon: Spinner.view(...)`. `href` draws an anchor with the button's look; `external` opens
+a new tab and says so (`words.external`, default `'Opens in a new tab'`), and a disabled
+link has no `href`. `Recipes.Button({ variant: 'link' })` is the look of a link in running
+text; `size: 'xs'` is a step below `sm`.
 
 ### Toolbar
 

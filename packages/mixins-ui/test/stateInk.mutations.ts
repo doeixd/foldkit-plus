@@ -44,7 +44,7 @@ export default [
     edits: [
       {
         file: '../src/recipes/design.ts',
-        find: "      '--_fk-state-ink': value.stateInk,",
+        find: "  '--_fk-state-ink': value.stateInk,",
         replace: '',
       },
     ],

@@ -364,18 +364,17 @@ interface ToneProperties {
   readonly stateInk: string
 }
 
-const tone = (value: ToneProperties): StyleValue =>
-  variant(
-    Style.self({
-      '--_fk-tone-fill': value.fill,
-      '--_fk-tone-fill-hover': value.fillHover,
-      '--_fk-tone-fill-active': value.fillActive,
-      '--_fk-tone-on-fill': value.onFill,
-      '--_fk-tone-ink': value.ink,
-      '--_fk-tone-line': value.line,
-      '--_fk-state-ink': value.stateInk,
-    }),
-  )
+const toneDeclarations = (value: ToneProperties): Declarations => ({
+  '--_fk-tone-fill': value.fill,
+  '--_fk-tone-fill-hover': value.fillHover,
+  '--_fk-tone-fill-active': value.fillActive,
+  '--_fk-tone-on-fill': value.onFill,
+  '--_fk-tone-ink': value.ink,
+  '--_fk-tone-line': value.line,
+  '--_fk-state-ink': value.stateInk,
+})
+
+const tone = (value: ToneProperties): StyleValue => variant(Style.self(toneDeclarations(value)))
 
 /**
  * What a painted surface names as the state ink: its paint where the theme
@@ -437,6 +436,16 @@ export const toneVar = (
   name: 'fill' | 'fill-hover' | 'fill-active' | 'on-fill' | 'ink' | 'line',
 ): string => `var(--_fk-tone-${name})`
 
+const danger: ToneProperties = {
+  fill: ref.error.default,
+  fillHover: ref.error.hover,
+  fillActive: ref.error.active,
+  onFill: ref.error['on-fill'],
+  ink: ref.error.ink,
+  line: ref.error.outline,
+  stateInk: surfaceInk(ref.error.default),
+}
+
 export const tones = {
   accent: tone({
     fill: ref.accent.default,
@@ -474,13 +483,8 @@ export const tones = {
     line: ref.text.default,
     stateInk: ref.state.ink,
   }),
-  danger: tone({
-    fill: ref.error.default,
-    fillHover: ref.error.hover,
-    fillActive: ref.error.active,
-    onFill: ref.error['on-fill'],
-    ink: ref.error.ink,
-    line: ref.error.outline,
-    stateInk: surfaceInk(ref.error.default),
-  }),
+  danger: tone(danger),
 } as const
+
+/** The danger tone's custom properties, for a control that turns `danger` while it is invalid. */
+export const dangerDeclarations: Declarations = toneDeclarations(danger)

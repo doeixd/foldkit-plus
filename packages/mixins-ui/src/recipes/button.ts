@@ -7,11 +7,12 @@
  * `shape: 'square'` draws any variant as that square, its icon alone.
  */
 import { Style, type Declarations, type StyleValue } from 'foldkit-mixins'
-import { ladder } from 'foldkit-mixins/theme'
+import { ladder, role } from 'foldkit-mixins/theme'
 import { ButtonSlots } from '../button.js'
 import {
   component,
   controlHeight,
+  dangerDeclarations,
   disabled,
   focusRing,
   hover,
@@ -121,26 +122,35 @@ const primaryActive = `color-mix(in oklab, ${ref.text.overt} 72%, ${ref.surface.
 
 export const Button = Style.recipeFor(ButtonSlots)({
   base: {
-    button: component(
-      Style.self({
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        ...onLadder,
-        border: `${ref.border.thin} solid transparent`,
-        borderRadius: pressCorner,
-        font: 'inherit',
-        fontWeight: ref.weight.medium,
-        // A link drawn as a button (`Anchor`) is not underlined like one in running text.
-        textDecoration: 'none',
-        cursor: 'pointer',
-        ...transition('background-color, border-color, color, scale, box-shadow'),
-      }),
-      // Held, every variant gives a little. The scale is the motion: reduced
-      // motion zeroes `travel`, and the button holds its size.
-      Style.pseudo(held, { scale: `calc(1 - 0.02 * ${ref.knob.travel})` }),
-      focusRing,
-      disabled,
+    button: Style.compose(
+      component(
+        Style.self({
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          ...onLadder,
+          border: `${ref.border.thin} solid transparent`,
+          borderRadius: pressCorner,
+          font: 'inherit',
+          fontWeight: ref.weight.medium,
+          // A link drawn as a button (`Anchor`) is not underlined like one in running text.
+          textDecoration: 'none',
+          cursor: 'pointer',
+          // The corner `mark` is placed against the button.
+          position: 'relative',
+          ...transition('background-color, border-color, color, scale, box-shadow'),
+        }),
+        // Work under way: the pointer says so, and the button stays focusable.
+        Style.pseudo('[data-busy]', { cursor: 'progress' }),
+        // Held, every variant gives a little. The scale is the motion: reduced
+        // motion zeroes `travel`, and the button holds its size.
+        Style.pseudo(held, { scale: `calc(1 - 0.02 * ${ref.knob.travel})` }),
+        focusRing,
+        disabled,
+      ),
+      // Refused: the danger tone's colors over the selected tone's. A variant beats the base,
+      // and this one is more specific than the tone's own rule.
+      variant(Style.pseudo('[data-invalid]', dangerDeclarations)),
     ),
     // On the size ladder, as an Icon is. Its own font size keeps a glyph
     // drawn in `em` (or as text) at that size inside the icon variant, whose
@@ -155,6 +165,43 @@ export const Button = Style.recipeFor(ButtonSlots)({
         blockSize: ladder('icon'),
         fontSize: ladder('icon'),
         lineHeight: '1',
+      }),
+    ),
+    // The label with a second line: it carries the vertical room a lone label gets from the button's height.
+    content: component(
+      Style.self({
+        alignItems: 'flex-start',
+        display: 'flex',
+        flexDirection: 'column',
+        paddingBlock: ref.space['2xs'],
+        textAlign: 'start',
+      }),
+    ),
+    description: component(
+      Style.self({
+        ...role('caption'),
+        fontWeight: ref.weight.normal,
+        // The button's own ink, softened, so it reads on a fill as on a page.
+        opacity: '0.8',
+      }),
+    ),
+    trailing: component(
+      Style.self({
+        alignItems: 'center',
+        display: 'inline-flex',
+        flex: 'none',
+        lineHeight: '1',
+      }),
+    ),
+    // A badge or a dot on the corner, partly out of the box.
+    mark: component(
+      Style.self({
+        display: 'inline-flex',
+        // Logical, so a mirrored page puts it on the other corner.
+        insetBlockStart: '-0.4em',
+        insetInlineEnd: '-0.4em',
+        pointerEvents: 'none',
+        position: 'absolute',
       }),
     ),
   },
@@ -216,6 +263,24 @@ export const Button = Style.recipeFor(ButtonSlots)({
         ),
       },
       /**
+       * A link's look: the tone's ink on no ground, underlined under the pointer, as tall as
+       * its words. Pressed it dims, since it has no fill to deepen.
+       */
+      link: {
+        button: variant(
+          Style.self({
+            background: 'transparent',
+            color: unfilledInk,
+            minBlockSize: '0',
+            paddingInline: '0',
+            textDecorationThickness: '1px',
+            textUnderlineOffset: '0.2em',
+          }),
+          hover({ textDecorationLine: 'underline' }),
+          Style.pseudo(held, { opacity: '0.7' }),
+        ),
+      },
+      /**
        * An icon with no words beside it: a square that centers its glyph. The
        * words stay the accessible name; only the icon shows, so label it with
        * `aria-label` or visually-hidden text.
@@ -230,6 +295,8 @@ export const Button = Style.recipeFor(ButtonSlots)({
       },
     },
     size: {
+      // Beyond the compact step: the ladder extrapolates, so it is smaller than `sm` by as much again.
+      xs: { button: variant(Style.self({ '--fk-knob-step': '1.5' })) },
       sm: { button: steps.sm },
       md: { button: steps.md },
       lg: { button: steps.lg },

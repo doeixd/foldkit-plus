@@ -634,10 +634,10 @@ describe('Recipes', () => {
     ).toBe(true)
     expect(layered.some(block => /^@layer app\{.*background:red/.test(block))).toBe(true)
 
-    // Both classes land on the element (or the icon's, for the recipe's icon
-    // rule) and nothing is inline, so the cascade decides.
+    // Both classes land on the element (or a part's, for the recipe's rules for the
+    // icon and the rest) and nothing is inline, so the cascade decides.
     let resolved: SlotAttributes<TestMessage> = []
-    let icon: SlotAttributes<TestMessage> = []
+    let every: ReadonlyArray<SlotAttributes<TestMessage>> = []
     buttonView<TestMessage>(
       {
         onClick: message('Clicked'),
@@ -647,13 +647,13 @@ describe('Recipes', () => {
             h,
           })
           resolved = slots.button
-          icon = slots.icon
+          every = Object.values(slots)
           return h.button(resolved, [])
         },
       },
       h,
     )
-    const classes = [resolved, icon].flatMap(
+    const classes = every.flatMap(
       attributes => attributeOf(attributes, 'Class')?.value.split(' ') ?? [],
     )
     for (const rule of [...Danger.rules, ...Override.rules]) {

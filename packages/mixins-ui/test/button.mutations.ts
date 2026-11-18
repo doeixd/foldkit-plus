@@ -17,8 +17,8 @@ export default [
     edits: [
       {
         file: '../src/button.ts',
-        find: ': [h.span([...icon',
-        replace: ': [options.label] || [h.span([...icon',
+        find: ': [h.span([...slots.icon, h.AriaHidden(true)], [options.icon])]),',
+        replace: ': []),',
       },
     ],
     tests: [...unit, ...browser],
@@ -28,8 +28,8 @@ export default [
     edits: [
       {
         file: '../src/button.ts',
-        find: '[...icon, h.AriaHidden(true)]',
-        replace: '[...icon]',
+        find: '[...slots.icon, h.AriaHidden(true)]',
+        replace: '[...slots.icon]',
       },
     ],
     tests: unit,
@@ -50,8 +50,8 @@ export default [
     edits: [
       {
         file: '../src/button.ts',
-        find: 'icon: options.attributes?.icon ?? []',
-        replace: 'icon: []',
+        find: 'icon: options.attributes?.icon ?? [],',
+        replace: 'icon: [],',
       },
     ],
     tests: unit,

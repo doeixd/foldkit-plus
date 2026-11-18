@@ -121,12 +121,18 @@ describe('an example module on a page', () => {
   it('says which examples hold state, for the line under their code', () => {
     expect(button.examples.map(each => [each.name, each.code, each.stateful])).toEqual([
       ['basic', 'module', false],
+      ['sizes', 'module', false],
       ['icon', 'module', false],
+      ['trailing', 'module', false],
+      ['description', 'module', false],
+      ['mark', 'module', false],
+      ['link', 'module', false],
+      ['busy', 'module', true],
       ['toggle', 'module', true],
       ['configure', 'module', false],
       ['add', 'module', false],
     ])
-    expect(button.states.map(each => each.key)).toEqual(['button/toggle'])
+    expect(button.states.map(each => each.key)).toEqual(['button/busy', 'button/toggle'])
   })
 })
 
