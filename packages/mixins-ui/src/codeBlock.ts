@@ -1,6 +1,7 @@
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
+import { wordsOf } from './words.js'
 
 /**
  * A code block publishes its regions as slots, down to each line and each
@@ -14,7 +15,7 @@ export const CodeBlockSlots = Slots.define({
   header: Slot.make({ capability: Capability.Container }),
   title: Slot.make({ capability: Capability.Container }),
   copy: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
-  /** Always drawn, so it is in place before it speaks: says `copiedLabel` once copied. */
+  /** Always drawn, so it is in place before it speaks: says `words.copied` once copied. */
   status: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
   body: Slot.make({ capability: Capability.Container }),
   code: Slot.make({ capability: Capability.Container }),
@@ -42,11 +43,16 @@ export interface CodeBlockCopy<Message> {
   readonly onCopy?: ((code: string) => Message) | undefined
   /** Draws the button as done: `data-copied="true"` and the `copied` words. */
   readonly copied?: boolean | undefined
-  /** The button's words. Default: `'Copy'`. */
-  readonly label?: string | undefined
-  /** The words once copied. Default: `'Copied'`. */
-  readonly copiedLabel?: string | undefined
 }
+
+/** The button's words, and the ones it says once copied. */
+export interface CodeBlockWords {
+  readonly copy: string
+  readonly copied: string
+}
+
+/** The words a code block starts from; `words` overrides them one at a time. */
+export const words: CodeBlockWords = { copy: 'Copy', copied: 'Copied' }
 
 /**
  * Code in one call: the text, the tokens that color it, a title (a file
@@ -64,6 +70,8 @@ export interface CodeBlockView<Message> {
   /** Numbers each line: `data-line-numbers="true"` on the root. */
   readonly lineNumbers?: boolean | undefined
   readonly copy?: CodeBlockCopy<Message> | undefined
+  /** The copy button's words, over `CodeBlock.words`. */
+  readonly words?: Partial<CodeBlockWords> | undefined
   /** A style of `CodeBlockSlots`, for the block's look. */
   readonly style?: NamedStyle<typeof CodeBlockSlots> | undefined
   /** Mixins beside the style. */
@@ -121,6 +129,7 @@ export const view = <Message>(options: CodeBlockView<Message>, h: HtmlBuilder<Me
   )
   const heading = options.title ?? options.language
   const copy = options.copy
+  const text = wordsOf(words, options.words)
   const header =
     heading === undefined && copy === undefined
       ? []
@@ -136,16 +145,12 @@ export const view = <Message>(options: CodeBlockView<Message>, h: HtmlBuilder<Me
                       h.DataAttribute('copied', String(copy.copied === true)),
                       ...(copy.onCopy === undefined ? [] : [h.OnClick(copy.onCopy(options.code))]),
                     ]),
-                    [
-                      copy.copied === true
-                        ? (copy.copiedLabel ?? 'Copied')
-                        : (copy.label ?? 'Copy'),
-                    ],
+                    [copy.copied === true ? text.copied : text.copy],
                   ),
                   // The button's own words change, which a screen reader does not announce.
                   h.span(
                     builders.status.attrs([h.Role('status')]),
-                    copy.copied === true ? [copy.copiedLabel ?? 'Copied'] : [],
+                    copy.copied === true ? [text.copied] : [],
                   ),
                 ]),
           ]),

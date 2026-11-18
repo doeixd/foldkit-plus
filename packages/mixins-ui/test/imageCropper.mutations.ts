@@ -211,4 +211,30 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'the words given are ignored',
+    edits: [{ file: source, find: 'wordsOf(words, options.words)', replace: 'words' }],
+    tests: [unit],
+  },
+  {
+    name: 'the crop is read aloud without its numbers filled',
+    edits: [{ file: source, find: 'fill(labels.crop, rect)', replace: 'labels.crop' }],
+    tests: [unit],
+  },
+  {
+    name: 'the zoom control is drawn disabled before the image is placed',
+    edits: [{ file: source, find: 'disabled: disabled || !ready,', replace: 'disabled,' }],
+    tests: [unit],
+  },
+  {
+    name: 'a cropper with no zoom control keeps an empty controls row',
+    edits: [
+      {
+        file: source,
+        find: '...(options.zoom !== undefined || controls.rotate || controls.reset',
+        replace: '...(true',
+      },
+    ],
+    tests: [unit],
+  },
 ]

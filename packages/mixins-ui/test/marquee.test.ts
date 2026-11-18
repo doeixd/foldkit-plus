@@ -115,10 +115,7 @@ describe('Marquee.view', () => {
     const [moving] = Inert.bySlot(drawn(), 'pause')
     expect(Inert.value(moving, 'aria-label')).toBe('Pause')
     const paused = Marquee.update(model, Message.Paused()).model
-    const [held] = Inert.bySlot(
-      drawn({ model: paused, pauseLabels: { pause: 'Hold', play: 'Go' } }),
-      'pause',
-    )
+    const [held] = Inert.bySlot(drawn({ model: paused, words: { play: 'Go' } }), 'pause')
     expect(Inert.value(held, 'aria-label')).toBe('Go')
     expect(Inert.bySlot(drawn({ controls: false }), 'pause')).toEqual([])
   })

@@ -71,4 +71,26 @@ export default [
     ],
     tests: [unit],
   },
+  {
+    name: 'a large meter as thin as the middle one',
+    edits: [
+      {
+        file: '../src/recipes/meter.ts',
+        find: "lg: { track: variant(Style.self({ blockSize: '0.75rem' })) },",
+        replace: "lg: { track: variant(Style.self({ blockSize: '0.5rem' })) },",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a meter with no size picked is the large one',
+    edits: [
+      {
+        file: '../src/recipes/meter.ts',
+        find: "defaults: { size: 'md' },",
+        replace: "defaults: { size: 'lg' },",
+      },
+    ],
+    tests: [unit],
+  },
 ]

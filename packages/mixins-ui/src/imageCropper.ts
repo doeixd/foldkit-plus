@@ -9,13 +9,15 @@ import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
 import type { MixinList } from './resolve.js'
-import * as Slider from './slider.js'
-import type { SliderSlots } from './slider.js'
+import { fill, wordsOf } from './words.js'
+
+export { zoomSlider } from './imageCropper/zoomSlider.js'
 
 /**
  * An image cropper after Zag's: the image fitted in a `viewport`, a crop
  * `selection` over it that a drag moves and eight `handle`s resize, the rest
- * of the image veiled, zoom (a Slider, the wheel, `+` and `-`), quarter
+ * of the image veiled, zoom (the wheel, `+` and `-`, and a control you pass:
+ * `ImageCropper.zoomSlider()`), quarter
  * turns, an aspect-ratio lock and a round crop. `Export` draws the crop on a
  * canvas and answers with it as a data URL.
  *
@@ -831,24 +833,46 @@ const ZoomGestures = Mount.defineStream('ImageCropperZoom', {
 // ---------------------------------------------------------------- the view
 
 /** The words a cropper says; each has an English default. */
-export interface ImageCropperLabels {
+export interface ImageCropperWords {
   /** The selection; default `Crop area`. */
   readonly selection: string
   readonly zoom: string
   readonly rotateLeft: string
   readonly rotateRight: string
   readonly reset: string
-  /** How the selection reads its crop; default `"Left 10, top 20, 300 by 200 pixels"`. */
-  readonly crop: (crop: Rect) => string
+  /** How the selection reads its crop, with `{x}`, `{y}`, `{width}` and `{height}` in pixels. */
+  readonly crop: string
 }
 
-const defaultLabels: ImageCropperLabels = {
+/** The words a cropper starts from; `words` overrides them one at a time. */
+export const words: ImageCropperWords = {
   selection: 'Crop area',
   zoom: 'Zoom',
   rotateLeft: 'Rotate left',
   rotateRight: 'Rotate right',
   reset: 'Reset',
-  crop: ({ x, y, width, height }) => `Left ${x}, top ${y}, ${width} by ${height} pixels`,
+  crop: 'Left {x}, top {y}, {width} by {height} pixels',
+}
+
+/** What a zoom control is given: the zoom as a percent of the fitted image, and the Message for a new one. */
+export interface ImageCropperZoomInput<Message> {
+  readonly id: string
+  readonly label: string
+  readonly value: number
+  readonly min: number
+  readonly max: number
+  readonly format: (value: number) => string
+  readonly onChange: (percent: number) => Message
+  readonly disabled: boolean
+}
+
+/**
+ * Draws the zoom control below the viewport. `ImageCropper.zoomSlider()` is
+ * the one shipped; a page that passes none draws no control (the wheel and
+ * the keys still zoom) and ships no Slider.
+ */
+export interface ImageCropperZoom {
+  readonly draw: <Message>(input: ImageCropperZoomInput<Message>, h: HtmlBuilder<Message>) => Html
 }
 
 export interface ImageCropperView<Message> {
@@ -861,16 +885,14 @@ export interface ImageCropperView<Message> {
   readonly src: string
   /** `anonymous` to export an image of another origin that allows it. */
   readonly crossOrigin?: 'anonymous' | 'use-credentials' | undefined
-  /** Which controls are drawn below the viewport; each default `true`. */
-  readonly controls?:
-    | { readonly zoom?: boolean; readonly rotate?: boolean; readonly reset?: boolean }
-    | undefined
-  readonly labels?: Partial<ImageCropperLabels> | undefined
+  /** Which buttons are drawn below the viewport; each default `true`. */
+  readonly controls?: { readonly rotate?: boolean; readonly reset?: boolean } | undefined
+  /** The zoom control: `ImageCropper.zoomSlider()`. None draws none. */
+  readonly zoom?: ImageCropperZoom | undefined
+  readonly words?: Partial<ImageCropperWords> | undefined
   readonly disabled?: boolean | undefined
   /** A style of `ImageCropperSlots`, for the look. */
   readonly style?: NamedStyle<typeof ImageCropperSlots> | undefined
-  /** The zoom Slider's style. */
-  readonly slider?: NamedStyle<typeof SliderSlots> | undefined
   /** Mixins beside the style. */
   readonly mixins?: MixinList<Message> | undefined
 }
@@ -885,8 +907,8 @@ export const view = <Outer>(options: ImageCropperView<Outer>, h: HtmlBuilder<Out
   )
   const { model, onMessage: lift } = options
   const disabled = options.disabled === true
-  const labels = { ...defaultLabels, ...options.labels }
-  const controls = { zoom: true, rotate: true, reset: true, ...options.controls }
+  const labels = wordsOf(words, options.words)
+  const controls = { rotate: true, reset: true, ...options.controls }
   const labelId = `${model.id}-label`
   const scene = sceneOf(model)
   const ready = Option.isSome(scene)
@@ -1022,7 +1044,7 @@ export const view = <Outer>(options: ImageCropperView<Outer>, h: HtmlBuilder<Out
                         h.AriaValuemin(0),
                         h.AriaValuemax(Math.round(size.width - rect.width)),
                         h.AriaValuenow(rect.x),
-                        h.AriaValuetext(labels.crop(rect)),
+                        h.AriaValuetext(fill(labels.crop, rect)),
                         ...(disabled
                           ? [h.AriaDisabled(true)]
                           : [
@@ -1063,13 +1085,14 @@ export const view = <Outer>(options: ImageCropperView<Outer>, h: HtmlBuilder<Out
           ),
         ],
       ),
-      ...(controls.zoom || controls.rotate || controls.reset
+      ...(options.zoom !== undefined || controls.rotate || controls.reset
         ? [
             h.div(builders.controls.attrs(), [
-              ...(controls.zoom
-                ? [
+              ...(options.zoom === undefined
+                ? []
+                : [
                     h.div(builders.zoom.attrs(), [
-                      Slider.view(
+                      options.zoom.draw(
                         {
                           id: `${model.id}-zoom`,
                           label: labels.zoom,
@@ -1079,13 +1102,11 @@ export const view = <Outer>(options: ImageCropperView<Outer>, h: HtmlBuilder<Out
                           format: value => `${value}%`,
                           onChange: zoom => lift(Message.ChangedZoom({ zoom: zoom / 100 })),
                           disabled: disabled || !ready,
-                          style: options.slider,
                         },
                         h,
                       ),
                     ]),
-                  ]
-                : []),
+                  ]),
               ...(controls.rotate
                 ? [
                     button(

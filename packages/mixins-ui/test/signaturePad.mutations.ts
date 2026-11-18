@@ -183,4 +183,46 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'one stroke is said with the plural',
+    edits: [
+      {
+        file: source,
+        find: 'model.strokes.length === 1\n      ? labels.drawnOne',
+        replace: 'model.strokes.length === 0\n      ? labels.drawnOne',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a typed name is said without it',
+    edits: [{ file: source, find: 'fill(labels.typed, { name })', replace: 'labels.typed' }],
+    tests: [unit],
+  },
+  {
+    name: 'the words given are ignored',
+    edits: [{ file: source, find: 'wordsOf(words, options.words)', replace: 'words' }],
+    tests: [unit],
+  },
+  {
+    name: 'a signature field with no name is still drawn',
+    edits: [{ file: source, find: 'options.name === undefined', replace: 'options.name === null' }],
+    tests: [unit],
+  },
+  {
+    name: 'the signature field submits nothing',
+    edits: [
+      {
+        file: source,
+        find: "h.Value(Option.getOrElse(toSvg(model), () => '')),",
+        replace: "h.Value(''),",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the signature field is submitted under another name',
+    edits: [{ file: source, find: 'h.Name(options.name),', replace: "h.Name('other')," }],
+    tests: [unit],
+  },
 ]

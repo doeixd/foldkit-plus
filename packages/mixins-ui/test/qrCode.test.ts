@@ -246,7 +246,9 @@ describe('QrCode.view', () => {
     expect(Inert.byRole(code, 'img')).toEqual([])
     expect(Inert.text(only(code, 'fallback'))).toBe('Too long for a QR code')
     expect(
-      Inert.text(only(drawn({ value: 'a'.repeat(3000), tooLong: 'Too long' }), 'fallback')),
+      Inert.text(
+        only(drawn({ value: 'a'.repeat(3000), words: { tooLong: 'Too long' } }), 'fallback'),
+      ),
     ).toBe('Too long')
   })
 
@@ -256,5 +258,20 @@ describe('QrCode.view', () => {
     const theme = Theme.standard(Theme.make({ accent: { hue: 260, chroma: 0.15, lightness: 55 } }))
     expect(Inert.css([code]).length).toBeGreaterThan(0)
     expect(Inert.missingTokens(code, Style.stylesheet(Theme.root(theme)))).toEqual([])
+  })
+})
+
+describe('QrCode words', () => {
+  it('names the code by its value, in the words given', () => {
+    const named = (words?: { label: string }) =>
+      Inert.value(only(drawn({ value: 'abc', words }), 'root'), 'aria-label')
+    expect(named()).toBe('QR code: abc')
+    expect(named({ label: 'Code für {value}' })).toBe('Code für abc')
+    expect(
+      Inert.value(
+        only(drawn({ value: 'abc', label: 'Mine', words: { label: 'x' } }), 'root'),
+        'aria-label',
+      ),
+    ).toBe('Mine')
   })
 })

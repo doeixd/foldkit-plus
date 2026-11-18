@@ -3,9 +3,9 @@
  * the markup that carries it beside upstream's named, clamped `meter`.
  */
 import { describe, expect, it } from 'vitest'
-import { A11y } from 'foldkit-mixins'
+import { A11y, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { Meter, MeterSlots, Patterns } from '../src/index.js'
+import { Meter, MeterSlots, Patterns, Recipes } from '../src/index.js'
 import { h } from './fixture.js'
 
 // A battery: low under 20, high over 80, best when full.
@@ -80,5 +80,18 @@ describe('Meter.view', () => {
     expect(Inert.value(meter, 'aria-valuemin')).toBe('40')
     expect(Inert.value(meter, 'aria-valuenow')).toBe('140')
     expect(Inert.value(meter, 'aria-valuetext')).toBe('140 of 200 GB')
+  })
+})
+
+describe('Meter recipe size', () => {
+  const css = (size?: 'sm' | 'md' | 'lg') =>
+    Style.forSlots(MeterSlots)(Recipes.Meter(size === undefined ? {} : { size })).css
+
+  it('thickens or thins the track, the middle being the default', () => {
+    expect(css('lg')).toContain('0.75rem')
+    expect(css('sm')).toContain('0.25rem')
+    expect(css('lg')).not.toContain('0.25rem')
+    expect(css('md')).toBe(css())
+    expect(css()).toContain('0.5rem')
   })
 })

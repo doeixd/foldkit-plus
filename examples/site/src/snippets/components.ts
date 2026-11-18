@@ -3113,7 +3113,14 @@ export const imageCropper = <Message>(
     [h.Style({ inlineSize: 'min(32rem, 100%)' })],
     [
       ImageCropper.view(
-        { model, onMessage, label: 'Crop the photo', src: LANDSCAPE, style, slider: ZoomStyle },
+        {
+          model,
+          onMessage,
+          label: 'Crop the photo',
+          src: LANDSCAPE,
+          style,
+          zoom: ImageCropper.zoomSlider(ZoomStyle),
+        },
         h,
       ),
     ],
@@ -3149,7 +3156,7 @@ export const avatarCropper = <Message>(
           src: LANDSCAPE,
           controls: { rotate: false },
           style,
-          slider: ZoomStyle,
+          zoom: ImageCropper.zoomSlider(ZoomStyle),
         },
         h,
       ),

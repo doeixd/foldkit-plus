@@ -35,7 +35,7 @@ export default [
     edits: [
       {
         file: '../src/codeBlock.ts',
-        find: "copy.copied === true ? [copy.copiedLabel ?? 'Copied'] : []",
+        find: 'copy.copied === true ? [text.copied] : []',
         replace: '[]',
       },
     ],
@@ -74,8 +74,8 @@ export default [
   edit(
     'a copied button that still says Copy',
     '../src/codeBlock.ts',
-    "(copy.copiedLabel ?? 'Copied')",
-    "(copy.label ?? 'Copy')",
+    'copy.copied === true ? text.copied : text.copy',
+    'text.copy',
   ),
   edit(
     'line numbers never asked for',
@@ -88,5 +88,17 @@ export default [
     '../src/recipes/codeBlock.ts',
     "'syntax-comment': { color: ref.syntax.comment,",
     "'syntax-comment': { color: ref.syntax.keyword,",
+  ),
+  edit(
+    'the copied word given is ignored',
+    '../src/codeBlock.ts',
+    'copy.copied === true ? [text.copied] : [],',
+    'copy.copied === true ? [words.copied] : [],',
+  ),
+  edit(
+    'the copy word given is ignored',
+    '../src/codeBlock.ts',
+    'copy.copied === true ? text.copied : text.copy',
+    'copy.copied === true ? text.copied : words.copy,',
   ),
 ]

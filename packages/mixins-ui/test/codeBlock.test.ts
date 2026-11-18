@@ -95,9 +95,19 @@ describe('CodeBlock view', () => {
     expect(Inert.children(body).filter(child => child.sel === 'span')).toHaveLength(1)
   })
 
+  it('names the copy button in the words given, before and after the copy, and keeps the others', () => {
+    const button = (copied?: boolean) =>
+      Inert.text(
+        Inert.byTag(view({ code, copy: { copied }, words: { copy: 'Kopieren' } }, h), 'button')[0],
+      )
+    expect(button()).toBe('Kopieren')
+    expect(button(true)).toBe('Copied')
+    expect(Inert.text(Inert.byTag(view({ code, copy: {} }, h), 'button')[0])).toBe('Copy')
+  })
+
   it('keeps a status region beside the copy button, which says the copied words once copied', () => {
     const status = (copied?: boolean) =>
-      Inert.byRole(view({ code, copy: { copied, copiedLabel: 'Copied!' } }, h), 'status')
+      Inert.byRole(view({ code, copy: { copied }, words: { copied: 'Copied!' } }, h), 'status')
     expect(status()).toHaveLength(1)
     expect(Inert.text(status()[0])).toBe('')
     expect(Inert.text(status(true)[0])).toBe('Copied!')

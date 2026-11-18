@@ -49,6 +49,8 @@ const line = stroke(measured, [at(10, 50), at(60, 50), at(110, 50)])
 interface More {
   readonly model?: SignaturePad.Model
   readonly disabled?: boolean
+  readonly words?: Partial<SignaturePad.SignaturePadWords>
+  readonly name?: string
 }
 
 const Pad = SlotView.forMessages<TestMessage>().define(SignaturePadSlots, (more: More, _, h) =>
@@ -312,5 +314,68 @@ describe('SignaturePad.toSvg', () => {
     expect(read.querySelector('text')?.textContent).toBe('<Ada> & "Co"')
     expect(SignaturePad.toSvg(measured)).toEqual(Option.none())
     expect(SignaturePad.isEmpty(step(measured, Message.Typed({ text: '  ' })))).toBe(true)
+  })
+})
+
+describe('SignaturePad words', () => {
+  const name = (more: More) => Inert.value(Inert.bySlot(drawn(more), 'control')[0], 'aria-label')
+
+  it('says one stroke in a word of its own, and several with their count', () => {
+    expect(name({ model: stroke(measured, [at(10, 90), at(80, 90)]) })).toBe(
+      'Signature: signed, 1 stroke',
+    )
+    expect(
+      name({ model: stroke(stroke(measured, [at(1, 1), at(5, 5)]), [at(2, 2), at(6, 6)]) }),
+    ).toBe('Signature: signed, 2 strokes')
+  })
+
+  it('takes every word given, with its blanks filled, and keeps the rest', () => {
+    const words = {
+      drawn: '{count} Striche',
+      drawnOne: 'ein Strich',
+      empty: 'leer',
+      typed: 'als {name}',
+    }
+    expect(name({ words })).toBe('Signature: leer')
+    expect(name({ words, model: stroke(measured, [at(10, 90), at(80, 90)]) })).toBe(
+      'Signature: ein Strich',
+    )
+    expect(name({ words, model: step(measured, Message.Typed({ text: 'Ada' })) })).toBe(
+      'Signature: als Ada',
+    )
+    expect(Inert.text(Inert.bySlot(drawn({ words }), 'placeholder')[0])).toBe('Sign here')
+  })
+})
+
+describe('SignaturePad name', () => {
+  const field = (more: More) => Inert.bySlot(drawn(more), 'hiddenInput')
+
+  it('draws no field without a name, and submits nothing while the pad is empty', () => {
+    expect(field({})).toEqual([])
+    const [empty] = field({ name: 'signature' })
+    expect([
+      Inert.value(empty, 'type'),
+      Inert.value(empty, 'name'),
+      Inert.value(empty, 'value'),
+    ]).toEqual(['hidden', 'signature', ''])
+  })
+
+  it('submits the strokes as the SVG toSvg writes, and a typed name as text on the line', () => {
+    const svg = SignaturePad.toSvg(line)
+    expect(Option.isSome(svg)).toBe(true)
+    expect(Inert.value(field({ name: 'signature', model: line })[0], 'value')).toBe(
+      Option.getOrThrow(svg),
+    )
+    const typed = step(measured, Message.Typed({ text: 'Ada' }))
+    expect(String(Inert.value(field({ name: 'signature', model: typed })[0], 'value'))).toContain(
+      '>Ada</text>',
+    )
+  })
+
+  it('is left out of the form while the pad is disabled', () => {
+    expect(
+      Inert.value(field({ name: 'signature', model: line, disabled: true })[0], 'disabled'),
+    ).toBe(true)
+    expect(Inert.value(field({ name: 'signature', model: line })[0], 'disabled')).toBeUndefined()
   })
 })

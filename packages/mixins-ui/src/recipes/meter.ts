@@ -6,7 +6,7 @@
 import { Style } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { MeterSlots } from '../meter.js'
-import { component, ref, travelled } from './design.js'
+import { component, ref, travelled, variant } from './design.js'
 
 const level = (name: 'good' | 'fair' | 'poor') => `:where([data-level="${name}"]) &`
 
@@ -37,4 +37,13 @@ export const Meter = Style.recipeFor(MeterSlots)({
       Style.nest(level('poor'), { background: ref.error.default }),
     ),
   },
+  variants: {
+    // The track's thickness; the middle is the base's.
+    size: {
+      sm: { track: variant(Style.self({ blockSize: '0.25rem' })) },
+      md: {},
+      lg: { track: variant(Style.self({ blockSize: '0.75rem' })) },
+    },
+  },
+  defaults: { size: 'md' },
 })

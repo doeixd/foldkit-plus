@@ -99,7 +99,7 @@ const mount = (
                 src,
                 onMessage: message => message,
                 style,
-                slider,
+                zoom: ImageCropper.zoomSlider(slider),
               },
               h,
             ),

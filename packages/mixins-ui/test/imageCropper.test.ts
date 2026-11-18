@@ -350,3 +350,71 @@ describe('ImageCropper.update', () => {
     expect(ImageCropper.crop(ImageCropper.init({ id: 'a' }))).toEqual(Option.none())
   })
 })
+
+describe('ImageCropper.view zoom and words', () => {
+  const zooming = (more: Partial<ImageCropper.ImageCropperView<TestMessage>>) =>
+    Inert.draw(
+      SlotView.forMessages<TestMessage>().define(ImageCropperSlots, (_: undefined, __, h) =>
+        ImageCropper.view(
+          {
+            model: ready,
+            label: 'Profile photo',
+            src: 'photo.jpg',
+            onMessage: () => message('Clicked'),
+            style,
+            ...more,
+          },
+          h,
+        ),
+      ),
+      undefined,
+    )
+
+  it('draws no zoom control unless one is passed, and the buttons stay', () => {
+    const plain = zooming({})
+    expect(Inert.bySlot(plain, 'zoom')).toEqual([])
+    expect(Inert.byRole(plain, 'slider')).toHaveLength(1)
+    expect(Inert.bySlot(plain, 'controls')).toHaveLength(1)
+  })
+
+  it('draws the passed zoom control with the zoom as a percent', () => {
+    const zoomed = zooming({ zoom: ImageCropper.zoomSlider() })
+    expect(Inert.bySlot(zoomed, 'zoom')).toHaveLength(1)
+    const [input] = Inert.byTag(Inert.bySlot(zoomed, 'zoom')[0]!, 'input')
+    expect(Inert.value(input, 'type')).toBe('range')
+    expect(Inert.value(input, 'min')).toBe('100')
+  })
+
+  it('draws the zoom control disabled until the image is placed', () => {
+    const disabledOf = (model: ImageCropper.Model) => {
+      const zoomed = zooming({ zoom: ImageCropper.zoomSlider(), model })
+      return Inert.value(Inert.byTag(Inert.bySlot(zoomed, 'zoom')[0]!, 'input')[0], 'disabled')
+    }
+    expect(disabledOf(ImageCropper.init({ id: 'photo' }))).toBe(true)
+    expect(disabledOf(ready)).toBeUndefined()
+  })
+
+  it('draws the zoom control alone when the buttons are off', () => {
+    const alone = zooming({
+      zoom: ImageCropper.zoomSlider(),
+      controls: { rotate: false, reset: false },
+    })
+    expect(Inert.bySlot(alone, 'controls')).toHaveLength(1)
+    expect(Inert.byTag(alone, 'button')).toEqual([])
+    expect(
+      Inert.bySlot(zooming({ controls: { rotate: false, reset: false } }), 'controls'),
+    ).toEqual([])
+  })
+
+  it('says the crop and the buttons in the words given, one at a time', () => {
+    const cropper = zooming({
+      words: { crop: '{width} × {height} at {x},{y}', rotateLeft: 'Links' },
+    })
+    const [selection] = Inert.bySlot(cropper, 'selection')
+    expect(Inert.value(selection, 'aria-valuetext')).toBe('640 × 480 at 80,60')
+    expect(Inert.value(selection, 'aria-label')).toBe('Crop area')
+    const names = Inert.byTag(cropper, 'button').map(button => Inert.value(button, 'aria-label'))
+    expect(names).toContain('Links')
+    expect(names).toContain('Rotate right')
+  })
+})

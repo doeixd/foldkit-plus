@@ -331,13 +331,18 @@ export type { AngleMark, AngleSliderLayout, AngleSliderView } from './angleSlide
 export { TimerSlots } from './timer.js'
 export type { TimePart, TimerPreset, TimerView, TimerWords } from './timer.js'
 export { MarqueeSlots } from './marquee.js'
-export type { MarqueeSide, MarqueeView } from './marquee.js'
+export type { MarqueeSide, MarqueeView, MarqueeWords } from './marquee.js'
 export { ImageCropperSlots } from './imageCropper.js'
-export type { ImageCropperLabels, ImageCropperView } from './imageCropper.js'
+export type {
+  ImageCropperView,
+  ImageCropperWords,
+  ImageCropperZoom,
+  ImageCropperZoomInput,
+} from './imageCropper.js'
 export { SignaturePadSlots } from './signaturePad.js'
-export type { SignaturePadLabels, SignaturePadView } from './signaturePad.js'
+export type { SignaturePadView, SignaturePadWords } from './signaturePad.js'
 export { QrCodeSlots } from './qrCode.js'
-export type { QrCodeView } from './qrCode.js'
+export type { QrCodeView, QrCodeWords } from './qrCode.js'
 export { ChartSlots } from './chart.js'
 export type {
   AreaData,

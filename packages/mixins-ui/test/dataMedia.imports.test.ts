@@ -38,3 +38,11 @@ test('the table features are the modules that load them', () => {
     from: 'foldkit-primitives/dom',
   })
 })
+
+test('an ImageCropper page loads no Slider unless it passes the zoom control', () => {
+  expect(values('../src/imageCropper.ts', /(^|\/)slider(\.js)?$/)).toEqual([])
+  expect(imports('../src/imageCropper/zoomSlider.ts')).toContainEqual({
+    type: false,
+    from: '../slider.js',
+  })
+})

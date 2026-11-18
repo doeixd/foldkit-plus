@@ -9,6 +9,7 @@ import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A signature pad after Zag's: strokes drawn with a pointer on a `control`
@@ -54,6 +55,8 @@ export const SignaturePadSlots = Slots.define({
     events: [Event.Click],
     attributes: [Attr.AriaLabel, Attr.Disabled],
   }),
+  /** Carries the signature to a form as `name`: the SVG of `toSvg`, empty while there is none. */
+  hiddenInput: Slot.make({ capability: Capability.Base, attributes: [Attr.Value, Attr.Disabled] }),
   fallback: Slot.make({ capability: Capability.Container }),
   fallbackLabel: Slot.make({ capability: Capability.Container }),
   input: Slot.make({
@@ -458,7 +461,7 @@ const ink: Mount.MountAction<PointerFact | Resized> = {
 // ---------------------------------------------------------------- the view
 
 /** The words a pad says; each has an English default. */
-export interface SignaturePadLabels {
+export interface SignaturePadWords {
   /** On the line while the pad is empty; default `Sign here`. */
   readonly placeholder: string
   readonly undo: string
@@ -467,20 +470,24 @@ export interface SignaturePadLabels {
   readonly fallback: string
   /** What the control is called with nothing on it; default `empty`. */
   readonly empty: string
-  /** What it is called with strokes on it; default `"signed, 3 strokes"`. */
-  readonly drawn: (strokes: number) => string
-  /** What it is called with a name typed; default `"signed as Ada Lovelace"`. */
-  readonly typed: (name: string) => string
+  /** What it is called with one stroke on it. */
+  readonly drawnOne: string
+  /** What it is called with strokes on it, with `{count}` strokes; default `signed, 3 strokes`. */
+  readonly drawn: string
+  /** What it is called with a name typed, with `{name}`; default `signed as Ada Lovelace`. */
+  readonly typed: string
 }
 
-const defaultLabels: SignaturePadLabels = {
+/** The words a pad starts from; `words` overrides them one at a time. */
+export const words: SignaturePadWords = {
   placeholder: 'Sign here',
   undo: 'Undo',
   clear: 'Clear',
   fallback: 'Or type your name',
   empty: 'empty',
-  drawn: strokes => `signed, ${strokes === 1 ? '1 stroke' : `${strokes} strokes`}`,
-  typed: name => `signed as ${name}`,
+  drawnOne: 'signed, 1 stroke',
+  drawn: 'signed, {count} strokes',
+  typed: 'signed as {name}',
 }
 
 export interface SignaturePadView<Message> {
@@ -491,7 +498,13 @@ export interface SignaturePadView<Message> {
   readonly label: string
   /** Leaves out the typed field; the pad is then for a pointer alone. */
   readonly fallback?: boolean | undefined
-  readonly labels?: Partial<SignaturePadLabels> | undefined
+  /**
+   * Submits the signature with a form under this name: the SVG document
+   * `toSvg(model)` writes (the strokes, or the typed name on the line), or an
+   * empty value while the pad is empty or has not been measured.
+   */
+  readonly name?: string | undefined
+  readonly words?: Partial<SignaturePadWords> | undefined
   readonly disabled?: boolean | undefined
   /** A style of `SignaturePadSlots`, for the look. */
   readonly style?: NamedStyle<typeof SignaturePadSlots> | undefined
@@ -507,13 +520,17 @@ export const view = <Outer>(options: SignaturePadView<Outer>, h: HtmlBuilder<Out
   )
   const { model, onMessage: lift } = options
   const disabled = options.disabled === true
-  const labels = { ...defaultLabels, ...options.labels }
+  const labels = wordsOf(words, options.words)
   const labelId = `${model.id}-label`
   const inputId = `${model.id}-typed`
   const name = model.typed.trim()
   const drawn = model.strokes.length > 0 || Option.isSome(model.drawing)
-  const typedOrEmpty = name === '' ? labels.empty : labels.typed(name)
-  const holds = model.strokes.length > 0 ? labels.drawn(model.strokes.length) : typedOrEmpty
+  const typedOrEmpty = name === '' ? labels.empty : fill(labels.typed, { name })
+  const drawnWords =
+    model.strokes.length === 1
+      ? labels.drawnOne
+      : fill(labels.drawn, { count: model.strokes.length })
+  const holds = model.strokes.length > 0 ? drawnWords : typedOrEmpty
   const strokes = [...model.strokes, ...Option.toArray(model.drawing)]
   const button = (slot: 'undo' | 'clear', label: string, message: Message, off: boolean) =>
     h.button(
@@ -593,6 +610,18 @@ export const view = <Outer>(options: SignaturePadView<Outer>, h: HtmlBuilder<Out
         button('undo', labels.undo, Message.Undid(), model.strokes.length === 0),
         button('clear', labels.clear, Message.Cleared(), isEmpty(model)),
       ]),
+      ...(options.name === undefined
+        ? []
+        : [
+            h.input(
+              builders.hiddenInput.attrs([
+                h.Type('hidden'),
+                h.Name(options.name),
+                h.Value(Option.getOrElse(toSvg(model), () => '')),
+                ...(disabled ? [h.Disabled(true)] : []),
+              ]),
+            ),
+          ]),
       ...(options.fallback === false
         ? []
         : [
