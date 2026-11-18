@@ -69,6 +69,13 @@ type PublicPieces<Slots, Value> = {
 export type StyleValues<Slots> = PublicPieces<Slots, StyleValue>
 
 export interface NamedStyle<Slots> {
+  /**
+   * Type only, never set: the slot names this style may hold. Every key of
+   * `pieces` is optional, so two contracts sharing one slot name would accept
+   * each other's styles; this makes a style assignable only where the contract
+   * asked for names every slot the style's own contract has.
+   */
+  readonly '~slots'?: keyof PublicPieces<Slots, never>
   readonly name?: string
   /** Each piece as compiled, placed in the `layer` when one was given. */
   readonly pieces: StyleValues<Slots>

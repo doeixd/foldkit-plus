@@ -8,6 +8,7 @@ import {
   Slots,
   Style,
   Theme,
+  type NamedStyle,
   type StylePieces,
   type StyleValue,
 } from '../src/index.js'
@@ -205,3 +206,29 @@ const loose: StylePieces<typeof Pair> = { root: Style.class('r') }
 // @ts-expect-error `loose.root` may be absent.
 const looseRoot: StyleValue = Style.recipeFor(Pair)({ base: loose })().root
 void looseRoot
+
+// A style of one contract is not another's, even when the two share a slot name (#595).
+const Shared = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  day: Slot.make({ capability: Capability.Container }),
+})
+const Sibling = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  trigger: Slot.make({ capability: Capability.Container }),
+})
+const Whole = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  day: Slot.make({ capability: Capability.Container }),
+  extra: Slot.make({ capability: Capability.Container }),
+})
+const sharedStyle = Style.forSlots(Shared)({ root: Style.class('a'), day: Style.class('b') })
+const takesSibling = (style: NamedStyle<typeof Sibling>) => style
+const takesShared = (style: NamedStyle<typeof Shared>) => style
+const takesWhole = (style: NamedStyle<typeof Whole>) => style
+// @ts-expect-error `root` is shared, but `day` is a slot the sibling lacks.
+takesSibling(sharedStyle)
+// A contract's own style, and the style of a contract whose slots it has all of, pass.
+takesShared(sharedStyle)
+takesWhole(sharedStyle)
+// @ts-expect-error a style with a slot the asked-for contract lacks would drop its piece.
+takesShared(Style.forSlots(Whole)({ root: Style.class('a') }))
