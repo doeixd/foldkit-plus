@@ -3,12 +3,10 @@
  * "Copy"; the Model is told which was picked by the value the Menu reports, so
  * `Picked` names `copy-link` where the label alone could not.
  */
-import { Match, Option, Schema } from 'effect'
-import { mapMessages } from 'foldkit/command'
-import { defineMessageUnion } from 'foldkit/message'
+import { Option, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { modifyFields } from 'foldkit/struct'
-import type { Return } from 'foldkit/update'
-import { Menu } from 'foldkit-mixins-ui'
+import { Bundles } from 'foldkit-mixins-ui'
 
 /** A row's words and parts as data; `glyph` is the path of the icon the view draws. */
 export interface RowSpec {
@@ -32,42 +30,22 @@ export const ROWS: ReadonlyArray<RowSpec> = [
 
 export const MENU_ID = 'row-actions'
 
-export const Model = Schema.Struct({
-  menu: Menu.Model,
-  picked: Schema.Option(Schema.String),
-})
+export const App = Bundle.compose({ picked: Schema.Option(Schema.String) }).pipe(
+  Bundle.withChild('menu', Bundles.Menu, {
+    args: { id: MENU_ID, rows: ROWS },
+    onOut:
+      ({ value }) =>
+      model => ({ model: modifyFields(model, { picked: () => Option.some(value) }) }),
+  }),
+)
+export const Model = App.Model
 export type Model = typeof Model.Type
-
-export const Message = defineMessageUnion({
-  GotMenu: { message: Menu.Message },
-})
+export const Message = App.Message
 export type Message = typeof Message.Type
 
-export const initial: Model = {
-  menu: Menu.init(MENU_ID, ROWS),
-  picked: Option.none(),
-}
+export const initial: Model = App.placements.initial({ picked: Option.none() }).model
 
-export const update = (model: Model, message: Message): Return<Model, Message> =>
-  Match.valueTags(message, {
-    GotMenu: ({ message }) => {
-      const next = Menu.update(model.menu, message)
-      const picked = Option.map(Option.fromNullishOr(next.outMessage), ({ value }) => value)
-      const commands = mapMessages(next.commands ?? [], inner =>
-        Message.GotMenu({ message: inner }),
-      )
-      if (next.model === model.menu && Option.isNone(picked) && commands.length === 0) {
-        return { model }
-      }
-      return {
-        model: modifyFields(model, {
-          menu: () => next.model,
-          picked: current => (Option.isSome(picked) ? picked : current),
-        }),
-        commands,
-      }
-    },
-  })
+export const update = App.placements.update()
 
 /** The row the Model's picked value names, found by value since two rows share a label. */
 export const pickedRow = (model: Model): Option.Option<RowSpec> =>

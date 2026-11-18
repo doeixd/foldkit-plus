@@ -8,7 +8,7 @@ import { Message, Model, initial, pickedRow, update } from './app.js'
 import { MenuRows, menuRowsStyles } from './view.js'
 
 const got = (message: UiMenu.Message) =>
-  Message.GotMenu({ message: Menu.Message.GotMenu({ message }) })
+  Message.GotMenuMessage({ message: Menu.Message.GotMenu({ message }) })
 
 const runDemo = (): ReadonlyArray<string> => {
   let model = initial

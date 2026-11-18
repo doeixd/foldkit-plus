@@ -18,8 +18,8 @@ export default [
     edits: [
       {
         file: app,
-        find: 'Option.map(Option.fromNullishOr(next.outMessage), ({ value }) => value)',
-        replace: "Option.map(Option.fromNullishOr(next.outMessage), () => 'rename')",
+        find: 'picked: () => Option.some(value) }',
+        replace: "picked: () => Option.some('rename') }",
       },
     ],
     tests: unit,
@@ -36,33 +36,16 @@ export default [
     tests: unit,
   },
   {
-    name: 'a Menu step that changes nothing makes a new Model',
+    name: 'every Message of the Menu forgets the pick',
     edits: [
       {
         file: app,
-        find: 'next.model === model.menu && Option.isNone(picked) && commands.length === 0',
-        replace: 'false',
+        find: 'export const update = App.placements.update()',
+        replace:
+          'export const update = (model: Model, message: Message) => {\n  const next = App.placements.update()(model, message)\n  return { ...next, model: { ...next.model, picked: Option.none() } }\n}',
       },
     ],
     tests: unit,
-  },
-  {
-    name: 'a later Menu step forgets the pick',
-    edits: [
-      {
-        file: app,
-        find: 'picked: current => (Option.isSome(picked) ? picked : current),',
-        replace: 'picked: () => picked,',
-      },
-    ],
-    tests: unit,
-  },
-  {
-    name: 'the Menu’s Commands are dropped, so focus is not returned',
-    edits: [
-      { file: app, find: '        commands,\n      }', replace: '        commands: [],\n      }' },
-    ],
-    tests: browser,
   },
   {
     name: 'rows are drawn with no icon',
