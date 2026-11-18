@@ -1061,7 +1061,7 @@ export const tableSticky = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder
   )
 // #endregion
 
-/export const RadioGroupStyle = forSlots(RadioGroupSlots)(Recipes.RadioGroup({}))
+export const RadioGroupStyle = forSlots(RadioGroupSlots)(Recipes.RadioGroup({}))
 
 export const Billing = Schema.Literals(['monthly', 'yearly', 'lifetime'])
 export type Billing = typeof Billing.Type
