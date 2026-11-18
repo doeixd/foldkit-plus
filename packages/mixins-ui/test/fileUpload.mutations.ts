@@ -358,6 +358,17 @@ export default [
     tests: [browser],
   },
   {
+    name: 'an empty frame is veiled too',
+    edits: [
+      {
+        file: recipe,
+        find: "Style.pseudo(':has(img)::after', {",
+        replace: "Style.pseudo('::after', {",
+      },
+    ],
+    tests: [examples],
+  },
+  {
     name: 'the picture is not veiled on hover',
     edits: [
       {
@@ -454,11 +465,23 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "Style.pseudo(':hover', { borderColor: ref.outline.overt }),",
-        replace: '',
+        find: "the states set what the base sets).\n          Style.pseudo(':hover', { borderColor: ref.outline.overt }),",
+        replace: 'the states set what the base sets).',
       },
     ],
     tests: [browser],
+  },
+  {
+    name: 'a hover does not firm an empty cover’s outline',
+    edits: [
+      {
+        file: recipe,
+        find: "              borderColor: ref.outline.default,\n              borderRadius: ref.radius.lg,\n              backgroundColor: zoneGround,\n            }),\n            Style.nest('& img', { inlineSize: '100%', blockSize: '100%', objectFit: 'cover' }),\n            Style.pseudo(':hover', { borderColor: ref.outline.overt }),",
+        replace:
+          "              borderColor: ref.outline.default,\n              borderRadius: ref.radius.lg,\n              backgroundColor: zoneGround,\n            }),\n            Style.nest('& img', { inlineSize: '100%', blockSize: '100%', objectFit: 'cover' }),",
+      },
+    ],
+    tests: [examples],
   },
   {
     name: 'an invalid zone loses its error outline when hovered',
@@ -467,6 +490,7 @@ export default [
         file: recipe,
         find: "Style.nest(':where([data-invalid]) > &:hover', { borderColor: ref.error.outline }),",
         replace: '',
+        all: true,
       },
     ],
     tests: [browser],

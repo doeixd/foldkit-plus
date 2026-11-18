@@ -57,7 +57,8 @@ const veil = [
     Style.pseudo(':hover', { '--_fk-upload-veil': '1' }),
     Style.nest('input:focus-visible + &', { '--_fk-upload-veil': '1' }),
     Style.media('(hover: none)', { '--_fk-upload-veil': '1' }),
-    Style.pseudo('::after', {
+    // Only over a picture: an empty frame under a film is a heavy grey slab, and has its own hover.
+    Style.pseudo(':has(img)::after', {
       content: '""',
       position: 'absolute',
       inset: '0',
@@ -397,11 +398,13 @@ export const FileUpload = Style.recipeFor(FileUploadSlots)({
               backgroundColor: zoneGround,
             }),
             Style.nest('& img', { inlineSize: '100%', blockSize: '100%', objectFit: 'cover' }),
+            Style.pseudo(':hover', { borderColor: ref.outline.overt }),
             Style.pseudo('[data-dragging]', {
               borderColor: ref.accent.default,
               backgroundColor: ref.accent.subtle,
             }),
             Style.nest(':where([data-invalid]) > &', { borderColor: ref.error.outline }),
+            Style.nest(':where([data-invalid]) > &:hover', { borderColor: ref.error.outline }),
           ),
           ...veil,
         ],

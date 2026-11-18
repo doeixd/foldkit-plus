@@ -429,6 +429,12 @@ test('10 Cover: the image fills the frame, Remove sits over it, and a ring shows
     range.selectNodeContents(document.getElementById('placeholder')!)
     const words = range.getBoundingClientRect()
     expect(empty.width).toBeGreaterThan(400)
+    // Hovered while empty it is not put under the picture's dark film: a heavy grey slab.
+    const edge = getComputedStyle(picker()).borderColor
+    await userEvent.hover(picker())
+    expect(getComputedStyle(picker(), '::after').content).toBe('none')
+    await vi.waitFor(() => expect(getComputedStyle(picker()).borderColor).not.toBe(edge))
+    await userEvent.hover(document.body, { position: { x: 1, y: 1 } })
     expect(Math.abs(words.left + words.width / 2 - (empty.left + empty.width / 2))).toBeLessThan(2)
     expect(Math.abs(words.top + words.height / 2 - (empty.top + empty.height / 2))).toBeLessThan(2)
     drop(picker(), [png('cover.png')])

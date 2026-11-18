@@ -36,6 +36,9 @@ interface Options {
   readonly narrow?: boolean
 }
 
+const PIXEL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
 const mountUpload = (options: Options = {}) => {
   const style = Style.forSlots(FileUploadSlots)(
     Recipes.FileUpload({ layout: options.layout ?? 'zone', list: options.list ?? 'rows' }),
@@ -348,7 +351,14 @@ test.each(['button', 'zone', 'avatar', 'cover'] as const)(
 test.each(['avatar', 'cover'] as const)(
   'the %s layout veils its picture on hover and on keyboard focus, and not at rest',
   async layout => {
-    const handle = mountUpload({ layout, picture: true, init: { multiple: false } })
+    const handle = mountUpload({
+      layout,
+      picture: true,
+      init: {
+        multiple: false,
+        initial: [{ id: 'a', name: 'a.png', size: 1, type: 'image/png', url: PIXEL }],
+      },
+    })
     try {
       await ready()
       await userEvent.hover(document.body, { position: { x: 2, y: 2 } })
