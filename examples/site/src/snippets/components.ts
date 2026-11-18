@@ -206,8 +206,6 @@ import {
   ImageSlots,
   Label,
   LabelSlots,
-  Typography,
-  TypographySlots,
 } from 'foldkit-mixins-ui'
 
 import { icons } from '../view/iconData.js'
@@ -8192,36 +8190,6 @@ export const label = (style: NamedStyle<typeof LabelSlots>, h: HtmlBuilder<never
         h,
       ),
     ],
-  )
-// #endregion
-
-// #region typography-basic
-const voices = [
-  ['h1', 'Heading one'],
-  ['h2', 'Heading two'],
-  ['h3', 'Heading three'],
-  ['lead', 'A lead paragraph sets the page apart from the body under it.'],
-  ['body', 'Body copy keeps a readable measure, so a long paragraph stays easy to follow.'],
-  ['small', 'Small print for a footnote.'],
-  ['muted', 'Muted, for what is secondary.'],
-  ['quote', 'A quote keeps its blockquote and a rule at its start.'],
-  ['code', 'Recipes.Typography({ level })'],
-] as const
-
-// One style per voice: `level` chooses the look, and the same `level` the
-// element, so a heading stays a heading to a screen reader.
-const VoiceStyles = voices.map(([level]) => ({
-  level,
-  style: forSlots(TypographySlots)(Recipes.Typography({ level })),
-}))
-
-export const typography = (h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.75rem', justifyItems: 'start' })],
-    voices.flatMap(([level, text], index) => {
-      const voice = VoiceStyles[index]
-      return voice === undefined ? [] : [Typography.view({ level, text, style: voice.style }, h)]
-    }),
   )
 // #endregion
 

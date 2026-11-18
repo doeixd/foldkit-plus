@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/typography.ts',
-        find: "    case 'h2':\n      return h.h2(attrs, [options.text])",
-        replace: "    case 'h2':\n      return h.h1(attrs, [options.text])",
+        find: "    case 'h2':\n      return h.h2(attrs, says)",
+        replace: "    case 'h2':\n      return h.h1(attrs, says)",
       },
     ],
     tests,
@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/typography.ts',
-        find: 'text: variant(Style.self({ fontSize: ref.size.sm, color: ref.text.muted })),',
-        replace: 'text: variant(Style.self({ fontSize: ref.size.sm, color: ref.text.overt })),',
+        find: 'muted: { fontSize: ref.size.sm, color: ref.text.muted },',
+        replace: 'muted: { fontSize: ref.size.sm, color: ref.text.overt },',
       },
     ],
     tests,
@@ -35,6 +35,39 @@ export default [
         file: '../src/recipes/typography.ts',
         find: "...role('display', { fluid: true }),",
         replace: "...role('display'),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the view does not write its level',
+    edits: [
+      {
+        file: '../src/typography.ts',
+        find: "builders.text.attrs([h.DataAttribute('level', options.level)])",
+        replace: 'builders.text.attrs([])',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'content is drawn as the text',
+    edits: [
+      {
+        file: '../src/typography.ts',
+        find: 'const says = options.content ?? [options.text]',
+        replace: 'const says = [options.text ?? ""]',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the body is not held to the measure',
+    edits: [
+      {
+        file: '../src/recipes/typography.ts',
+        find: 'body: { maxInlineSize: ref.reading.measure },',
+        replace: 'body: {},',
       },
     ],
     tests,

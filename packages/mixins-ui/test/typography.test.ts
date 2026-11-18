@@ -41,36 +41,63 @@ describe('Typography view', () => {
 })
 
 describe('Typography recipe', () => {
-  const css = (selection: Parameters<typeof Recipes.Typography>[0]): string =>
-    Style.forSlots(TypographySlots)(Recipes.Typography(selection)).css
+  const sheet = Style.forSlots(TypographySlots)(Recipes.Typography({})).css
+  /** The declarations written for the voice a view marks with `data-level`. */
+  const css = (level: TypographyLevel): string => {
+    const open = sheet.indexOf(`[data-level="${level}"]{`)
+    expect(open, `a rule for ${level}`).toBeGreaterThan(-1)
+    return sheet.slice(open, sheet.indexOf('}', open))
+  }
+
+  it('has no level axis: the view’s level is the one fact', () => {
+    // @ts-expect-error: the level is the view's `data-level`, not a recipe axis.
+    Recipes.Typography({ level: 'h1' })
+  })
 
   it('steps headings down the scale, in the theme’s heading font, weight and tracking', () => {
-    expect(css({ level: 'h1' })).toContain('font-size:var(--fk-size-4xl)')
-    expect(css({ level: 'h4' })).toContain('font-size:var(--fk-size-xl)')
+    expect(css('h1')).toContain('font-size:var(--fk-size-4xl)')
+    expect(css('h4')).toContain('font-size:var(--fk-size-xl)')
     for (const level of ['h1', 'display', 'title', 'subtitle'] as const) {
-      expect(css({ level }), level).toContain('font-family:var(--fk-font-heading)')
+      expect(css(level), level).toContain('font-family:var(--fk-font-heading)')
     }
-    expect(css({ level: 'h1' })).toContain('font-weight:var(--fk-weight-heading)')
-    expect(css({ level: 'h1' })).toContain('letter-spacing:var(--fk-tracking-heading)')
+    expect(css('h1')).toContain('font-weight:var(--fk-weight-heading)')
+    expect(css('h1')).toContain('letter-spacing:var(--fk-tracking-heading)')
     // Display a step bolder than the other headings, whatever their weight.
-    expect(css({ level: 'display' })).toContain('font-weight:calc(var(--fk-weight-heading) + 100)')
+    expect(css('display')).toContain('font-weight:calc(var(--fk-weight-heading) + 100)')
   })
 
   it('quiets asides and sets code apart', () => {
-    expect(css({ level: 'muted' })).toContain('color:var(--fk-text-muted)')
-    expect(css({ level: 'code' })).toContain('background:var(--fk-surface-muted)')
+    expect(css('muted')).toContain('color:var(--fk-text-muted)')
+    expect(css('code')).toContain('background:var(--fk-surface-muted)')
   })
 
-  it('caps reading levels at the theme’s measure and aligns them', () => {
+  it('caps reading levels at the theme’s measure, and aligns every level', () => {
     for (const level of ['body', 'lead', 'quote'] as const)
-      expect(css({ level }), level).toContain('max-inline-size:var(--fk-reading-measure)')
-    for (const level of ['h1', 'body', 'caption'] as const)
-      expect(css({ level }), level).toContain('text-align:var(--fk-reading-align)')
+      expect(css(level), level).toContain('max-inline-size:var(--fk-reading-measure)')
+    expect(sheet).toContain('text-align:var(--fk-reading-align)')
   })
 
   it('grows the interface roles with fluid type, and leaves the body role fixed', () => {
     for (const level of ['display', 'title', 'subtitle'] as const)
-      expect(css({ level }), level).toContain('var(--fk-fluid-progress)')
-    expect(css({ level: 'body' })).not.toContain('var(--fk-fluid-progress)')
+      expect(css(level), level).toContain('var(--fk-fluid-progress)')
+    expect(css('body')).not.toContain('var(--fk-fluid-progress)')
+  })
+})
+
+describe('Typography view marks its level for the recipe', () => {
+  it('writes data-level, which the recipe reads, whatever the element', () => {
+    for (const level of ['h1', 'lead', 'quote', 'micro'] as const) {
+      expect(Inert.value(styled(level), 'data-level')).toBe(level)
+    }
+  })
+
+  it('draws content in place of text, links and emphasis included', () => {
+    const style = Style.forSlots(TypographySlots)(Recipes.Typography({}))
+    const voice = view(
+      { level: 'body', content: ['Read the ', h.a([h.Href('/docs')], ['docs']), '.'], style },
+      h,
+    )
+    expect(Inert.text(voice)).toBe('Read the docs.')
+    expect(Inert.byTag(voice, 'a')).toHaveLength(1)
   })
 })

@@ -35,14 +35,19 @@ export type TypographyLevel =
   | 'caption'
   | 'micro'
 
+/** What the voice says: text, or `content` where it holds a link or emphasis; never both. */
+export type TypographySays =
+  | { readonly text: string; readonly content?: undefined }
+  | { readonly content: ReadonlyArray<Html | string>; readonly text?: undefined }
+
 /**
- * One voice of the type scale in one call: its level, its words, a style
- * for its slot, and mixins beside the style. No upstream component stands
- * behind it.
+ * One voice of the type scale in one call: its level, what it says, a style
+ * for its slot, and mixins beside the style. The level picks the element and
+ * is written as `data-level`, which the recipe reads. No upstream component
+ * stands behind it.
  */
-export interface TypographyView<Message = never> {
+export type TypographyView<Message = never> = TypographySays & {
   readonly level: TypographyLevel
-  readonly text: string
   /** A style of `TypographySlots`, for the type's look. */
   readonly style?: NamedStyle<typeof TypographySlots> | undefined
   /** Mixins beside the style. */
@@ -58,23 +63,24 @@ export const view = <Message = never>(
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
     { input: undefined, h },
   )
-  const attrs = builders.text.attrs([])
+  const attrs = builders.text.attrs([h.DataAttribute('level', options.level)])
+  const says = options.content ?? [options.text]
   switch (options.level) {
     case 'h1':
-      return h.h1(attrs, [options.text])
+      return h.h1(attrs, says)
     case 'h2':
-      return h.h2(attrs, [options.text])
+      return h.h2(attrs, says)
     case 'h3':
-      return h.h3(attrs, [options.text])
+      return h.h3(attrs, says)
     case 'h4':
-      return h.h4(attrs, [options.text])
+      return h.h4(attrs, says)
     case 'small':
-      return h.small(attrs, [options.text])
+      return h.small(attrs, says)
     case 'quote':
-      return h.blockquote(attrs, [options.text])
+      return h.blockquote(attrs, says)
     case 'code':
-      return h.code(attrs, [options.text])
+      return h.code(attrs, says)
     default:
-      return h.p(attrs, [options.text])
+      return h.p(attrs, says)
   }
 }
