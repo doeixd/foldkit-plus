@@ -3,6 +3,7 @@ import { Option } from 'effect'
 import { Attr, Capability, Event, Slot, Slots, type NamedStyle } from 'foldkit-mixins'
 import { FieldValidation } from 'foldkit'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
+import { adorn, AdornmentSlots, type Adornments } from './adornments.js'
 import { descriptionOf, onInputOf, statusOf, type FieldParts, type OnInput } from './field.js'
 import { resolveFor, type MixinList, type ResolveContext, type Resolved } from './resolve.js'
 
@@ -14,14 +15,26 @@ export const InputSlots = Slots.define({
   }),
   label: Slot.make({ capability: Capability.Container }),
   description: Slot.make({ capability: Capability.Container, attributes: [Attr.Role] }),
+  /** What the default drawing wraps a field in. */
+  root: Slot.make({ capability: Capability.Container }),
+  /** The row holding the label and `labelAside`. */
+  header: Slot.make({ capability: Capability.Container }),
+  labelAside: Slot.make({ capability: Capability.Container }),
+  ...AdornmentSlots,
 })
 
 /** The input's bundles with the attached Mixins applied. */
 export type ResolvedInput<Message> = Resolved<InputAttributes<Message>, typeof InputSlots, Message>
 
-/** Applies `mixins` to the input's bundles. */
+/** Applies `mixins` to the input's bundles: upstream's, and any of this package's own slots given. */
 export const resolve = <Input, Message>(
-  attributes: InputAttributes<Message>,
+  attributes: InputAttributes<Message> &
+    Partial<
+      Record<
+        'root' | 'header' | 'labelAside' | 'group' | 'start' | 'end',
+        ReadonlyArray<Attribute<Message>>
+      >
+    >,
   mixins: MixinList<Message>,
   context: ResolveContext<Input, Message>,
 ): ResolvedInput<Message> => resolveFor(InputSlots, mixins, context)(attributes)
@@ -36,20 +49,13 @@ export const toView =
   (attributes: InputAttributes<Message>): Html =>
     draw(resolve(attributes, mixins, context))
 
-/**
- * An input in one call: its value and Messages, a style for its slots, and
- * the rest of `@foldkit/ui`'s own config. `draw` places the resolved `input`,
- * `label`, and `description` bundles; this covers the common case, while
- * `toView` stays for one drawn as something else.
- */
-export interface InputView<Message> {
+export interface InputCommon<Message> {
   readonly id: string
   readonly value?: string | undefined
   /** What typing sends; a resumable builder's `OnInput` attribute names it in the server's markup. */
   readonly onInput?: OnInput<Message> | undefined
   readonly disabled?: boolean | undefined
   readonly invalid?: boolean | undefined
-  readonly described?: boolean | undefined
   readonly type?: string | undefined
   readonly placeholder?: string | undefined
   /** The form field the value submits under. */
@@ -88,23 +94,80 @@ export interface InputView<Message> {
   readonly mixins?: MixinList<Message> | undefined
   /** What an input-driven Mixin reads; omit it when no attached Mixin reads one. */
   readonly input?: unknown
-  readonly draw: (resolved: ResolvedInput<Message>, h: HtmlBuilder<Message>) => Html
 }
 
-export const view = <Message>(options: InputView<Message>, h: HtmlBuilder<Message>): Html =>
-  inputView(
+/** The options of an input drawn by the view itself, from a `label`. */
+export type InputDrawn = {
+  /** The visible label, which names the control. */
+  readonly label: string
+  /** Said under the field, and linked to it with `aria-describedby`. */
+  readonly description?: string | undefined
+  /** Beside the label, at its end: a link, a count, a help icon. */
+  readonly labelAside?: Html | undefined
+  readonly draw?: undefined
+  readonly described?: undefined
+} & Adornments
+
+/**
+ * An input in one call: its value and Messages, a style for its slots, and
+ * the rest of `@foldkit/ui`'s own config. Given a `label`, it draws the field
+ * itself: the label (with `labelAside` beside it), the control with `start`
+ * and `end` around it inside one box, and the `description` under it. Given a
+ * `draw`, it places the resolved `input`, `label` and `description` bundles
+ * (and `root`, `header`, `labelAside`, `group`, `start` and `end`) as the
+ * application wants, and `toView` stays for one drawn as something else.
+ */
+export type InputView<Message> = InputCommon<Message> &
+  (
+    | InputDrawn
+    | {
+        readonly draw: (resolved: ResolvedInput<Message>, h: HtmlBuilder<Message>) => Html
+        /** Whether the drawing has a description, which the input is then linked to. */
+        readonly described?: boolean | undefined
+        readonly label?: undefined
+        readonly description?: undefined
+        readonly labelAside?: undefined
+        readonly start?: undefined
+        readonly end?: undefined
+      }
+  )
+
+const drawDefault =
+  <Message>(
+    options: InputDrawn,
+  ): ((resolved: ResolvedInput<Message>, h: HtmlBuilder<Message>) => Html) =>
+  (resolved, h) => {
+    const label = h.label(resolved.label, [options.label])
+    return h.div(resolved.root, [
+      options.labelAside === undefined
+        ? label
+        : h.div(resolved.header, [label, h.span(resolved.labelAside, [options.labelAside])]),
+      adorn(h, resolved, h.input(resolved.input), options),
+      ...(options.description === undefined
+        ? []
+        : [h.p(resolved.description, [options.description])]),
+    ])
+  }
+
+export const view = <Message>(options: InputView<Message>, h: HtmlBuilder<Message>): Html => {
+  const draw = options.draw ?? drawDefault<Message>(options)
+  return inputView(
     {
       id: options.id,
       ...(options.value === undefined ? {} : { value: options.value }),
       ...(options.disabled === undefined ? {} : { isDisabled: options.disabled }),
       ...(options.invalid === undefined ? {} : { isInvalid: options.invalid }),
-      ...(options.described === undefined ? {} : { hasDescription: options.described }),
+      ...(options.draw === undefined
+        ? { hasDescription: options.description !== undefined }
+        : options.described === undefined
+          ? {}
+          : { hasDescription: options.described }),
       ...(options.type === undefined ? {} : { type: options.type }),
       ...(options.placeholder === undefined ? {} : { placeholder: options.placeholder }),
       ...(options.name === undefined ? {} : { name: options.name }),
       ...(options.readOnly === undefined ? {} : { isReadOnly: options.readOnly }),
       toView: attributes =>
-        options.draw(
+        draw(
           resolve(
             {
               ...attributes,
@@ -126,6 +189,12 @@ export const view = <Message>(options: InputView<Message>, h: HtmlBuilder<Messag
               ],
               label: [...attributes.label, ...(options.attributes?.label ?? [])],
               description: [...attributes.description, ...(options.attributes?.description ?? [])],
+              root: options.attributes?.root ?? [],
+              header: options.attributes?.header ?? [],
+              labelAside: options.attributes?.labelAside ?? [],
+              group: options.attributes?.group ?? [],
+              start: options.attributes?.start ?? [],
+              end: options.attributes?.end ?? [],
             },
             [
               ...(options.style === undefined ? [] : [options.style.mixin]),
@@ -138,6 +207,7 @@ export const view = <Message>(options: InputView<Message>, h: HtmlBuilder<Messag
     },
     h,
   )
+}
 
 /**
  * A text field in one call: a field's state drawn through `view` with its

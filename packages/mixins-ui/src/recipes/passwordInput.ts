@@ -26,10 +26,14 @@ import {
   controlHeight,
 } from './design.js'
 
+const { input: inputControl, label, description } = Input({ variant: null })
+
 export const PasswordInput = Style.recipeFor(PasswordInputSlots)({
   base: {
     // Input without its variant axis: the group, not the control, draws the box.
-    ...Input({ variant: null }),
+    input: inputControl,
+    label,
+    description,
     group: InputGroup.group,
     toggle: component(
       Style.self({

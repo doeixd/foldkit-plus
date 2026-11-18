@@ -372,6 +372,7 @@ export type { ResolvedFieldset } from './fieldset.js'
 export type { ResolvedFileDrop } from './fileDrop.js'
 export type { HoverIntentContext, ResolvedHoverIntent } from './hoverIntent.js'
 export type { InputField, InputView, ResolvedInput } from './input.js'
+export type { Adornments } from './adornments.js'
 export type {
   ResolvedListbox,
   ResolvedListboxGroup,

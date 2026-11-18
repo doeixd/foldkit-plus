@@ -19,6 +19,7 @@ import {
   steps,
   touchText,
   transition,
+  unfilledHover,
   variant,
 } from './design.js'
 
@@ -74,14 +75,31 @@ const filled: StyleValue = variant(
 )
 const outlined: StyleValue = variant(Style.self({ background: ref.surface.base }))
 
-export const Input = Style.recipeFor(InputSlots)({
-  base: { input: control, label, description },
-  variants: {
-    size: { sm: { input: steps.sm }, md: { input: steps.md }, lg: { input: steps.lg } },
-    variant: { outline: { input: outlined }, filled: { input: filled } },
-  },
-  defaults: { variant: 'outline' },
-})
+// The edge rules an underline needs on its control and on its group: logical
+// longhands only, since a rule's declarations are sorted and `borderColor`
+// would land after `borderBlockEndColor` and take it back.
+const UNDERLINE_HOVER = `${HOVERED}:not(:focus, :focus-within, [aria-invalid="true"], :has([aria-invalid="true"]))`
+const underlined: StyleValue = variant(
+  Style.self({
+    background: 'transparent',
+    boxShadow: 'none',
+    borderRadius: '0',
+    borderInlineColor: 'transparent',
+    borderBlockStartColor: 'transparent',
+    borderBlockEndColor: ref.outline.default,
+  }),
+  Style.pseudo(UNDERLINE_HOVER, { borderBlockEndColor: ref.outline.overt }),
+  Style.pseudo('[aria-invalid="true"]', { borderBlockEndColor: ref.error.outline }),
+  Style.pseudo(':has([aria-invalid="true"])', { borderBlockEndColor: ref.error.outline }),
+)
+
+// No box at rest; a hover lays the state film on it, as a ghost button's.
+const ghosted: StyleValue = variant(
+  Style.self({ background: 'transparent', borderColor: 'transparent', boxShadow: 'none' }),
+  Style.pseudo(`${HOVERED}:not(:has(:disabled))`, { backgroundColor: unfilledHover }),
+  Style.pseudo('[aria-invalid="true"]', { borderColor: ref.error.outline }),
+  Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
+)
 
 /** `lines` lines of text tall, with the padding and the border around them. */
 const linesTall = (lines: string) =>
@@ -108,6 +126,47 @@ const fieldBox = (layout: Declarations): StyleValue =>
     focusWithin,
     Style.pseudo(':has([aria-invalid="true"])', { borderColor: ref.error.outline }),
   )
+
+/**
+ * What a field with `start` or `end` draws around its control: the group is
+ * the box, the control inside goes borderless, and each side sits muted at
+ * its edge. The marks a control reads to give up its border are `data-field-group`
+ * on the group (`adorn` writes it) and `data-textarea-frame` on a frame.
+ */
+const adornedGroup: StyleValue = Style.compose(
+  fieldBox({ display: 'flex', alignItems: 'center' }),
+  component(
+    Style.pseudo(':has(:disabled)', { opacity: ref.knob['state-disabled'], cursor: 'not-allowed' }),
+  ),
+)
+
+const side = (edge: 'Start' | 'End'): StyleValue =>
+  component(
+    Style.self({
+      display: 'flex',
+      alignItems: 'center',
+      alignSelf: 'stretch',
+      flexShrink: '0',
+      color: ref.text.muted,
+      whiteSpace: 'nowrap',
+      [`paddingInline${edge}`]: ladder('pad'),
+    }),
+    // A glyph beside the text keeps the ladder's size rather than its own.
+    Style.nest('& > svg', { inlineSize: ladder('icon'), blockSize: ladder('icon') }),
+  )
+
+/**
+ * The pieces of an adorned field's `group`, `start` and `end`: the group
+ * carries the border, its hover and the focus ring while the control inside
+ * has focus; each side sits muted at its edge. The control inside goes
+ * borderless through its own recipe (`InputGroup.control`, or Input's own rule
+ * for `data-field-group`).
+ */
+export const Adorned: {
+  readonly group: StyleValue
+  readonly start: StyleValue
+  readonly end: StyleValue
+} = { group: adornedGroup, start: side('Start'), end: side('End') }
 
 /** The box around a textarea and its footer. */
 const frame = Style.compose(
@@ -248,3 +307,59 @@ export const InputGroup: {
     Style.pseudo(':focus-visible', { outline: 'none' }),
   ),
 }
+
+// Inside a group the group is the box: the control gives up its border, fill
+// and hover, in the variants layer and with the group's mark on top, so it
+// beats the look a variant gives it (as a Textarea does in its frame).
+const inGroup = variant(
+  Style.nest(':is([data-field-group]) > &', {
+    flex: '1',
+    minInlineSize: '0',
+    border: '0',
+    background: 'transparent',
+    boxShadow: 'none',
+  }),
+  Style.nest(`:is([data-field-group]) > &${HOVERED}:not(:has(:disabled))`, {
+    backgroundColor: 'transparent',
+  }),
+  Style.nest(':is([data-field-group]) > &:focus-visible', { outline: 'none' }),
+)
+
+/** A label with something beside it (`labelAside`): a link, a count, a help icon. */
+const header = component(
+  Style.self({
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: ref.space.sm,
+  }),
+)
+const labelAside = component(Style.self({ color: ref.text.muted, ...role('caption') }))
+
+export const Input = Style.recipeFor(InputSlots)({
+  base: {
+    input: Style.compose(control, inGroup),
+    label,
+    description,
+    root: component(Style.self({ display: 'block' })),
+    header,
+    labelAside,
+    group: Adorned.group,
+    start: Adorned.start,
+    end: Adorned.end,
+  },
+  variants: {
+    size: {
+      sm: { input: steps.sm, group: steps.sm },
+      md: { input: steps.md, group: steps.md },
+      lg: { input: steps.lg, group: steps.lg },
+    },
+    variant: {
+      outline: { input: outlined, group: outlined },
+      filled: { input: filled, group: filled },
+      ghost: { input: ghosted, group: ghosted },
+      underline: { input: underlined, group: underlined },
+    },
+  },
+  defaults: { variant: 'outline' },
+})
