@@ -8,7 +8,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { Style } from 'foldkit-mixins'
 import { afterEach, expect, test, vi } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 
 import { codeBlock } from '../src/content/render.js'
 import { stylesheet } from '../src/style.js'
@@ -94,8 +94,16 @@ test.each([1440, 390])(
     expect(corner.right).toBeLessThanOrEqual(box.right)
     expect(box.right - corner.right).toBeLessThan(16)
     expect(corner.top - box.top).toBeLessThan(16)
-    // Quiet at rest, shown on hover or focus, and still a tab stop.
-    expect(getComputedStyle(header).opacity).toBe('0')
+    // Quiet at rest, shown on hover or focus, and still a tab stop. The test
+    // files share one pointer, which another may have left over the panel, so
+    // it is parked on a spot of its own and the fade is waited out.
+    const spot = document.createElement('div')
+    spot.id = 'code-surface-spot'
+    spot.style.cssText =
+      'position:fixed;inset-block-end:0;inset-inline-start:0;inline-size:8px;block-size:8px'
+    document.body.appendChild(spot)
+    await userEvent.hover(spot)
+    await vi.waitFor(() => expect(getComputedStyle(header).opacity).toBe('0'))
     button.focus()
     await vi.waitFor(() => expect(getComputedStyle(header).opacity).toBe('1'))
     // Scrolled to the end of the first line, its text stops short of the button.

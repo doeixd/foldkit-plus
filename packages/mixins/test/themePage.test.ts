@@ -373,7 +373,7 @@ describe('the palette', () => {
       match[2] ?? '',
     ])
 
-  it('has the twenty-five groups', () => {
+  it('has the twenty-six groups', () => {
     expect(Object.keys(brand)).toEqual([
       'knob',
       'hue',
@@ -386,6 +386,7 @@ describe('the palette', () => {
       'tertiary',
       'shadow',
       'state',
+      'selection',
       'popup',
       'success',
       'warning',

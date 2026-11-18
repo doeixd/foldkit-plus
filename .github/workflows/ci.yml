@@ -115,8 +115,7 @@ jobs:
   # Sharded by project and by file count: alone it took over ten minutes, and
   # four shards of both projects together left the one that drew the site's
   # prerender at 13.5 minutes against 5 for the others (that test has a job of
-  # its own now, `prerender`). The unit shards need no browser, so they skip
-  # its install.
+  # its own now, `prerender`).
   unit:
     name: unit (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
@@ -137,22 +136,35 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # A few unit files launch Chromium themselves (`branded.test.ts`,
+      # plus's `playwright.test.ts`), so these shards need the binary too.
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - run: pnpm exec playwright install --with-deps chromium
+
       # `foldkit-domains` is upstream's copy, happy-dom like the rest of these.
       - run: pnpm test --project unit --project foldkit-domains --shard=${{ matrix.shard }}/3
 
   # What jsdom cannot check: layout, focus, the caret, in headless Chromium. The
   # `browser-touch` project is a touch screen from the start and so a page of
-  # its own, but it is eleven files and rides in the shards.
+  # its own, but it is eleven files and rides in the shards. Four shards: at
+  # three, two of them lost their page mid-run ("Browser connection was closed
+  # while running tests", 2026-11-18), which four shards of everything never did.
   browser:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    name: browser (${{ matrix.shard }}/3)
+    name: browser (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
 
@@ -176,7 +188,7 @@ jobs:
 
       - run: pnpm exec playwright install --with-deps chromium
 
-      - run: pnpm test --project browser --project browser-touch --shard=${{ matrix.shard }}/3
+      - run: pnpm test --project browser --project browser-touch --shard=${{ matrix.shard }}/4
 
   # The site's prerender test builds every page, which took 10 minutes beside
   # other tests; it is in `buildTests`, so the shards leave it out.

@@ -52,7 +52,9 @@ const colors = Object.entries(palette)
   .filter(([group]) => !['knob', 'hue', 'gamut'].includes(group))
   .flatMap(([group, names]) =>
     Object.keys(names)
+      // Not colors a build could bake: a length, and `currentColor`.
       .filter(name => !(group === 'popup' && name === 'blur'))
+      .filter(name => !(group === 'selection' && name === 'ink'))
       .map(name => `--fk-${group}-${name}`),
   )
 
