@@ -766,6 +766,7 @@ export const cardGroup = <Message>(
 ): Html =>
   Card.group(
     {
+      fluid: Card.fluid,
       label: 'Plans',
       cards: plans.map(plan => ({
         key: plan.key,
@@ -795,6 +796,7 @@ export const cardGroupGrid = <Message>(
 ): Html =>
   Card.group(
     {
+      fluid: Card.fluid,
       label: 'Regions',
       columns: 2,
       cards: ['Frankfurt', 'Virginia', 'Singapore', 'São Paulo'].map(title => ({
