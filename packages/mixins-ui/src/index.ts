@@ -339,7 +339,18 @@ export type { SignaturePadLabels, SignaturePadView } from './signaturePad.js'
 export { QrCodeSlots } from './qrCode.js'
 export type { QrCodeView } from './qrCode.js'
 export { ChartSlots } from './chart.js'
-export type { CartesianChart, ChartColor, ChartView, DonutChart } from './chart.js'
+export type {
+  AreaData,
+  BarsData,
+  CartesianData,
+  ChartColor,
+  ChartFrame,
+  ChartKind,
+  ChartOptions,
+  ChartView,
+  DonutData,
+  PathsData,
+} from './chart.js'
 export { CascadeSelectSlots } from './cascadeSelect.js'
 export type { CascadeSelectView } from './cascadeSelect.js'
 export { FloatingPanelSlots } from './floatingPanel.js'

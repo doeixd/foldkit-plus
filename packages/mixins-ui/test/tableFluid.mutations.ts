@@ -44,8 +44,8 @@ export default [
     edits: [
       {
         file: '../src/table.ts',
-        find: '[h.div(builders.highlight.attrs([h.AriaHidden(true)]), []), table],',
-        replace: '[table],',
+        find: 'h.div(builders.highlight.attrs([h.AriaHidden(true)]), []),\n        table,',
+        replace: 'table,',
       },
     ],
     tests,

@@ -12,7 +12,7 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
-import { ChartSlots } from '../chart.js'
+import { ChartSlots } from '../chart/slots.js'
 import { component, focusRing, ref, transition, variant } from './design.js'
 
 const ink = 'var(--_fk-chart-ink)'

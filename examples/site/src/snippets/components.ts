@@ -3279,7 +3279,7 @@ export const chartBar = <Message>(
         id: 'preview-visitors',
         label: 'Visitors',
         description: 'January to June',
-        kind: 'bar',
+        kind: Chart.bars,
         ...visitors,
         model,
         onMessage,
@@ -3303,7 +3303,7 @@ export const chartLine = <Message>(
       {
         id: 'line-visitors',
         label: 'Visitors',
-        kind: 'line',
+        kind: Chart.line,
         ...visitors,
         model,
         onMessage,
@@ -3331,7 +3331,7 @@ export const chartArea = <Message>(
       {
         id: 'area-signups',
         label: 'Sign-ups',
-        kind: 'area',
+        kind: Chart.area,
         categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         series: [{ name: 'Sign-ups', values: [42, 58, 51, 77, 69, 31, 24] }],
         model,
@@ -3356,7 +3356,7 @@ export const chartDonut = <Message>(
       {
         id: 'donut-browsers',
         label: 'Visitors by browser',
-        kind: 'donut',
+        kind: Chart.donut,
         slices: [
           { name: 'Chrome', value: 275 },
           { name: 'Safari', value: 200 },
@@ -3388,7 +3388,7 @@ export const chartTable = <Message>(
       {
         id: 'table-visitors',
         label: 'Visitors',
-        kind: 'bar',
+        kind: Chart.bars,
         ...visitors,
         categoryLabel: 'Month',
         table: 'shown',
@@ -3415,7 +3415,7 @@ export const chartColors = <Message>(
       {
         id: 'colors-visitors',
         label: 'Mobile visitors',
-        kind: 'bar',
+        kind: Chart.bars,
         categories: visitors.categories,
         series: [{ name: 'Mobile', values: [80, 200, 120, 190, 130, 140], color: 2 }],
         legend: true,

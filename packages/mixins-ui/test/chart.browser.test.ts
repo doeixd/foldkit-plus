@@ -31,6 +31,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
+const kinds = { bar: Chart.bars, line: Chart.line }
 const mount = async (width: number, kind: 'bar' | 'line' | 'donut' = 'bar') => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
@@ -63,7 +64,7 @@ const mount = async (width: number, kind: 'bar' | 'line' | 'donut' = 'bar') => {
                   {
                     id: 'browsers',
                     label: 'Visitors',
-                    kind: 'donut',
+                    kind: Chart.donut,
                     slices: ['Chrome', 'Safari', 'Firefox', 'Edge', 'Other'].map((name, at) => ({
                       name,
                       value: 100 - at * 15,
@@ -78,7 +79,7 @@ const mount = async (width: number, kind: 'bar' | 'line' | 'donut' = 'bar') => {
                   {
                     id: 'sales',
                     label: 'Sales',
-                    kind,
+                    kind: kinds[kind],
                     categories,
                     series,
                     model,

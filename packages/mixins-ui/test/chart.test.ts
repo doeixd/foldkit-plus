@@ -108,14 +108,15 @@ const sales = {
   ],
 }
 const style = Style.forSlots(ChartSlots)(Recipe({}))
-type More = Partial<Chart.CartesianChart<TestMessage>>
+type More = Partial<Chart.ChartOptions<TestMessage>> &
+  Partial<Chart.AreaData> & { readonly kind?: Chart.ChartKind<Chart.AreaData> }
 const message = (): TestMessage => ({ _tag: 'Clicked' })
 const Bars = SlotView.forMessages<TestMessage>().define(ChartSlots, (more: More, _, h) =>
   Chart.view(
     {
       id: 'sales',
       label: 'Sales',
-      kind: 'bar',
+      kind: Chart.bars,
       model: Chart.init(),
       onMessage: message,
       style,
@@ -313,7 +314,7 @@ describe('Chart.view, bars', () => {
   })
 
   it('draws nothing outside its slots, and reads only tokens the theme declares', () => {
-    for (const kind of ['bar', 'line', 'area'] as const) {
+    for (const kind of [Chart.bars, Chart.line, Chart.area]) {
       const chart = drawn({ kind, model: lit(1) })
       expect(Inert.unslotted(chart)).toEqual([])
       const theme = Theme.standard(
@@ -326,14 +327,14 @@ describe('Chart.view, bars', () => {
 
 describe('Chart.view, lines and areas', () => {
   it('draws one line per series through its values, and an area under it for an area', () => {
-    const line = drawn({ kind: 'line' })
+    const line = drawn({ kind: Chart.line })
     expect(Inert.bySlot(line, 'bar')).toEqual([])
     expect(Inert.bySlot(line, 'area')).toEqual([])
     const ticks = Scale.ticksOf(0, 305)
     expect(Inert.bySlot(line, 'line').map(path => Inert.value(path, 'd'))).toEqual(
       sales.series.map(series => Scale.lineOf(ticks, series.values)),
     )
-    const area = drawn({ kind: 'area' })
+    const area = drawn({ kind: Chart.area })
     expect(Inert.bySlot(area, 'area').map(path => Inert.value(path, 'd'))).toEqual(
       sales.series.map(series => Scale.areaOf(ticks, series.values)),
     )
@@ -341,22 +342,22 @@ describe('Chart.view, lines and areas', () => {
   })
 
   it('draws a dot on each line at the lit category', () => {
-    const dots = Inert.bySlot(drawn({ kind: 'line', model: lit(1) }), 'dot')
+    const dots = Inert.bySlot(drawn({ kind: Chart.line, model: lit(1) }), 'dot')
     expect(dots.map(dot => [Inert.value(dot, 'cx'), percent(dot, 'cy')])).toEqual([
       ['25%', Scale.yOf(Scale.ticksOf(0, 305), 305)],
       ['25%', Scale.yOf(Scale.ticksOf(0, 305), 200)],
     ])
-    expect(Inert.bySlot(drawn({ kind: 'line' }), 'dot')).toEqual([])
+    expect(Inert.bySlot(drawn({ kind: Chart.line }), 'dot')).toEqual([])
   })
 })
 
-type DonutMore = Partial<Chart.DonutChart<TestMessage>>
+type DonutMore = Partial<Chart.ChartOptions<TestMessage>> & Partial<Chart.DonutData>
 const Donut = SlotView.forMessages<TestMessage>().define(ChartSlots, (more: DonutMore, _, h) =>
   Chart.view(
     {
       id: 'browsers',
       label: 'Visitors by browser',
-      kind: 'donut',
+      kind: Chart.donut,
       slices: [
         { name: 'Chrome', value: 275 },
         { name: 'Safari', value: 200 },
@@ -470,7 +471,14 @@ describe('Chart.update', () => {
 describe('Chart.view sends', () => {
   const plotOf = (h: HtmlBuilder<Chart.Message>) =>
     Chart.view(
-      { id: 's', label: 'Sales', kind: 'bar', model: Chart.init(), onMessage: m => m, ...sales },
+      {
+        id: 's',
+        label: 'Sales',
+        kind: Chart.bars,
+        model: Chart.init(),
+        onMessage: m => m,
+        ...sales,
+      },
       h,
     )
 
@@ -498,5 +506,143 @@ describe('Chart.view sends', () => {
       Scene.hover(Scene.selector('rect[x="50%"]')),
       Scene.expectOutMessage(Message.Pointed({ point: 3 })),
     )
+  })
+})
+
+describe('Chart.bars stacked', () => {
+  const data = {
+    categories: ['A', 'B'],
+    series: [
+      { name: 'One', values: [100, 40] },
+      { name: 'Two', values: [50, 60] },
+    ],
+  }
+  const rects = (more: More) =>
+    Inert.bySlot(drawn({ ...data, ...more }), 'bar').map(bar => ({
+      y: percent(bar, 'y'),
+      height: percent(bar, 'height'),
+      x: percent(bar, 'x'),
+    }))
+
+  it('puts one bar on another per category, spanning the stack', () => {
+    const ticks = Scale.ticksOf(0, 150)
+    const [oneA, oneB, twoA, twoB] = rects({ kind: Chart.bars, stack: true })
+    expect(oneA!.height).toBeCloseTo(100 - Scale.yOf(ticks, 100))
+    // The second series starts where the first ends: its top is the stack's top.
+    expect(twoA!.y).toBeCloseTo(Scale.yOf(ticks, 150))
+    expect(twoA!.y + twoA!.height).toBeCloseTo(oneA!.y)
+    expect(twoB!.y + twoB!.height).toBeCloseTo(oneB!.y)
+    // One bar per category: both series share its x.
+    expect(twoA!.x).toBe(oneA!.x)
+  })
+
+  it('reaches the axis as far as the stack, and side by side as far as the tallest bar', () => {
+    const top = (more: More) =>
+      Math.max(
+        ...Inert.bySlot(drawn({ ...data, ...more }), 'yTick').map(tick => Number(Inert.text(tick))),
+      )
+    expect(top({ kind: Chart.bars, stack: true })).toBeGreaterThanOrEqual(150)
+    expect(top({ kind: Chart.bars })).toBeLessThan(150)
+  })
+})
+
+describe('Chart.area and Chart.line options', () => {
+  const data = {
+    categories: ['A', 'B', 'C'],
+    series: [
+      { name: 'One', values: [10, 30, 20] },
+      { name: 'Two', values: [5, 5, 10] },
+    ],
+  }
+  const pathsOf = (slot: string, more: More) =>
+    Inert.bySlot(drawn({ ...data, ...more }), slot).map(path => String(Inert.value(path, 'd')))
+
+  it('steps level to the next category and then up or down', () => {
+    const [first] = pathsOf('line', { kind: Chart.line, curve: 'step' })
+    expect(first).toMatch(/^M[\d.]+ [\d.]+H[\d.]+V[\d.]+H[\d.]+V[\d.]+$/)
+    expect(pathsOf('line', { kind: Chart.line })[0]).not.toContain('H')
+  })
+
+  it('stacks an area on the one beneath it, the line on its top edge', () => {
+    const ticks = Scale.ticksOf(0, 35)
+    const [low, high] = pathsOf('area', { kind: Chart.area, stack: true })
+    expect(low).toBe(Scale.areaOf(ticks, [10, 30, 20], 'linear', [0, 0, 0]))
+    expect(high).toBe(Scale.areaOf(ticks, [15, 35, 30], 'linear', [10, 30, 20]))
+    expect(pathsOf('line', { kind: Chart.area, stack: true })[1]).toBe(
+      Scale.lineOf(ticks, [15, 35, 30]),
+    )
+  })
+
+  it('marks every point with markers: always, and only the lit one otherwise', () => {
+    const dots = (more: More) => Inert.bySlot(drawn({ ...data, ...more }), 'dot').length
+    expect(dots({ kind: Chart.line, markers: 'always' })).toBe(6)
+    expect(dots({ kind: Chart.line, markers: 'always', model: lit(1) })).toBe(6)
+    expect(dots({ kind: Chart.line })).toBe(0)
+    expect(dots({ kind: Chart.line, model: lit(1) })).toBe(2)
+  })
+
+  it('draws a stepped area closed along its lower edge', () => {
+    const ticks = Scale.ticksOf(0, 40)
+    expect(Scale.areaOf(ticks, [10, 30], 'step', [0, 5])).toMatch(
+      /H[\d.]+V[\d.]+.*V[\d.]+H[\d.]+Z$/,
+    )
+  })
+})
+
+describe('Chart.donut hole', () => {
+  it('is a pie with a hole of 0: slices meet at the centre and no total is drawn', () => {
+    const pie = Inert.draw(Donut, { hole: 0 })
+    const slices = Inert.bySlot(pie, 'slice').map(slice => String(Inert.value(slice, 'd')))
+    // One arc each, out to the rim: no second arc round an inner edge.
+    expect(slices.every(path => path.includes('L0 0') && path.split('A').length === 2)).toBe(true)
+    expect(Inert.bySlot(pie, 'center')).toEqual([])
+  })
+
+  it('refuses a hole that is not from 0 up to 1', () => {
+    for (const hole of [-0.1, 1, Number.NaN]) {
+      expect(() => Inert.draw(Donut, { hole })).toThrow(/hole/)
+    }
+  })
+})
+
+describe('a kind of your own', () => {
+  const dotsKind: Chart.ChartKind<{ readonly values: ReadonlyArray<number> }> = {
+    name: 'dots',
+    entries: () => [{ name: 'Values', color: '1' }],
+    points: data =>
+      data.values.map((value, at) => ({
+        name: `P${at + 1}`,
+        rows: [{ name: 'Values', value, color: '1' }],
+      })),
+    head: () => ['', 'Value'],
+    draw: (data, { h, builders, plot, pointer }) => [
+      h.div(
+        builders.plot.attrs(plot),
+        data.values.map((_, at) => h.span(builders.dot.attrs([pointer(at)]), [])),
+      ),
+    ],
+  }
+  const Mine = SlotView.forMessages<TestMessage>().define(ChartSlots, (_: undefined, __, h) =>
+    Chart.view(
+      {
+        id: 'mine',
+        label: 'Mine',
+        kind: dotsKind,
+        values: [3, 5],
+        model: lit(1, true),
+        onMessage: message,
+        style,
+      },
+      h,
+    ),
+  )
+
+  it('draws only its plot, and the chart supplies the title, the status line and the table', () => {
+    const chart = Inert.draw(Mine, undefined)
+    expect(Inert.bySlot(chart, 'dot')).toHaveLength(2)
+    expect(Inert.text(Inert.bySlot(chart, 'title')[0])).toBe('Mine')
+    expect(Inert.text(Inert.bySlot(chart, 'status')[0])).toBe('P2: Values 5')
+    expect(Inert.bySlot(chart, 'tableRow')).toHaveLength(3)
+    expect(Inert.value(Inert.bySlot(chart, 'root')[0], 'data-kind')).toBe('dots')
   })
 })

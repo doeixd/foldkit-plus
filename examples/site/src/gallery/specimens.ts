@@ -460,7 +460,7 @@ export const dashboard = (slots: Slots, h: H, live: Live<Message>): Html =>
               ...charted(live, 'area'),
               id: 'dash-revenue',
               label: 'Revenue',
-              kind: 'area',
+              kind: Chart.area,
               categories: MONTHS,
               series: [
                 { name: 'Revenue', values: [32, 38, 35, 44, 49, 47, 56, 61, 58, 66, 72, 81] },
@@ -477,7 +477,7 @@ export const dashboard = (slots: Slots, h: H, live: Live<Message>): Html =>
             ...charted(live, 'bar'),
             id: 'dash-regions',
             label: 'Orders',
-            kind: 'bar',
+            kind: Chart.bars,
             categories: ['Europe', 'Americas', 'Asia', 'Africa', 'Oceania'],
             series: [
               { name: 'Online', values: [412, 538, 371, 96, 128] },
@@ -493,7 +493,7 @@ export const dashboard = (slots: Slots, h: H, live: Live<Message>): Html =>
             ...charted(live, 'donut'),
             id: 'dash-channels',
             label: 'Sign-ups',
-            kind: 'donut',
+            kind: Chart.donut,
             slices: [
               { name: 'Search', value: 380 },
               { name: 'Social', value: 210 },
