@@ -40,11 +40,14 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   // rowContent). Each ceiling is the reading plus about 0.5%, rounded up to 500.
   ['auth', 152_500], // 151,886 bytes
   // counter was 115,953 on origin/main (1bbd87d15), 47 under its ceiling; 115,981 here.
-  ['counter', 116_000], // 115,981 bytes
+  // counter +193 and kanban +171 on 2026-11-18 from themed text selection (90ab7073e), measured in
+  // one tree with `defaults.ts` and `theme/oklch.ts` swapped back (115,942 and 137,346): the
+  // `selection` tokens and the `:where(*)::selection` rule reading them. Ceilings: the reading, rounded up.
+  ['counter', 116_200], // 116,135 bytes
   ['domains', 191_000], // 187,092 bytes
   ['form', 148_000], // 147,400 bytes
   ['job-application', 188_500], // 187,831 bytes
-  ['kanban', 137_500], // 134,653 bytes
+  ['kanban', 137_600], // 137,517 bytes
   // pixel-art +200 on 2026-11-15 (#560 review): 155,275 without the review's focus fixes and 155,637
   // with them in one tree, +362 (its dialogs' FocusReturn: the way back split from the trail, a
   // frame's own trail held weakly, the realm check); ceiling raised to the reading, rounded up.

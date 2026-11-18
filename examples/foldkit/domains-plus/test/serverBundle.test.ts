@@ -61,7 +61,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // from `recipe.add` on every recipe and the default look's theme text, and +3,037 from #593, whose
 // `runtimeJson` codec is Remote's Model schema and so is in the Worker too. No module the Worker did not
 // carry was added. Ceiling raised to that, rounded up.
-const CEILING = 3_287_000
+// -20,000 on 2026-11-18: that ceiling was an estimate, and the Worker now reads 3,266,801 in a local
+// build (CI, by the offset above, about 3,263,5xx), the factory families' work (#589) having taken
+// more out than it added. Ceiling: the local reading, rounded up.
+const CEILING = 3_267_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

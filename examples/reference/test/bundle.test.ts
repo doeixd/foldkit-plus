@@ -32,7 +32,10 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // default look's theme text (+145 there) and #593's `runtimeJson`, Remote's Model schema (+447).
 // Nothing from mixins-ui's bundles, choice, configure, calendar, combobox or fileUpload modules is in
 // the page; `foldkit-bundle` was already. Ceiling raised to the reading, rounded up.
-const CEILING = 250_850
+// +150 on 2026-11-18 (250,896): themed text selection (90ab7073e), the `selection` tokens and the
+// rule reading them; with `defaults.ts`, `theme/oklch.ts` and the three recipes that read the
+// tokens swapped back in one tree the page passes its old ceiling. Ceiling: the reading, rounded up.
+const CEILING = 251_000
 
 clientBudget({
   name: 'reference',

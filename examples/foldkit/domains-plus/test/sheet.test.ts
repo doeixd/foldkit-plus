@@ -15,7 +15,10 @@ import { stylesheet } from '../src/server/sheet.js'
 // 15.2 kB before the prune; the ceiling is that plus about 1%. 10,817 bytes
 // on 2026-11-14: the Listbox trigger and Combobox field draw their invalid
 // edge in every variant, and the disabled ones no longer answer hover.
-const CEILING = 10_950
+// 11,228 on 2026-11-18: +44 from themed text selection (90ab7073e; 11,184 with it swapped back in
+// one tree), and +367 before it from the factory families' recipe changes (#589) to the widgets this
+// page draws, not split recipe by recipe. Ceiling: the reading plus about 1%.
+const CEILING = 11_350
 
 test('the pages link at most the budgeted brotli CSS', () => {
   const shipped = Inert.prune(Style.complete(stylesheet))
