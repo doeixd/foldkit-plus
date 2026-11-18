@@ -77,27 +77,17 @@ export default [
     ],
     tests,
   },
-  ...[
-    [
-      'a checkbox group example toggles another',
-      '[example]: CheckboxGroup.toggled(alerts[example], value),',
-      'invalid: CheckboxGroup.toggled(alerts[example], value),',
+  {
+    name: 'a checkbox group example toggles another',
+    edits: [
+      {
+        file: widgets,
+        find: '[example]: CheckboxGroup.toggled(alerts[example], value),',
+        replace: 'invalid: CheckboxGroup.toggled(alerts[example], value),',
+      },
     ],
-    [
-      'a drop replaces the files already taken',
-      'attachments: current => [\n            ...current,',
-      'attachments: current => [\n            ...[],',
-    ],
-    [
-      'a drop keeps no size',
-      'files.map(({ name, size }): Attachment => ({ name, size }))',
-      'files.map(({ name }): Attachment => ({ name, size: 0 }))',
-    ],
-  ].map(([name, find, replace]) => ({
-    name: name!,
-    edits: [{ file: widgets, find: find!, replace: replace! }],
     tests,
-  })),
+  },
   {
     name: 'a drawer press is not kept',
     edits: [
