@@ -6,7 +6,9 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A dial after Zag's angle slider: a value in degrees, 0 at the top and
@@ -228,8 +230,10 @@ export interface AngleSliderView<Message> extends AngleSliderLayout {
   readonly label: string
   /** The angle as shown; default `90°`. */
   readonly format?: ((value: number) => string) | undefined
-  /** The angle as read aloud; default `90 degrees`. */
+  /** The angle as read aloud; default `words.degrees`. */
   readonly valueText?: ((value: number) => string) | undefined
+  /** The fixed text; see `AngleSliderWords`. */
+  readonly words?: Partial<AngleSliderWords> | undefined
   /** Draws the angle in the dial; default true. */
   readonly showValue?: boolean | undefined
   /** A form field name: a hidden input then holds the angle. */
@@ -244,7 +248,15 @@ export interface AngleSliderView<Message> extends AngleSliderLayout {
   readonly mixins?: MixinList<Message> | undefined
 }
 
-const degrees = (value: number) => `${value} degrees`
+/** The fixed text an AngleSlider says. `{value}` is the angle. */
+export interface AngleSliderWords {
+  /** The angle as read aloud, unless `valueText` gives it. */
+  readonly degrees: string
+}
+
+/** The words an AngleSlider uses when none are given. */
+export const words: AngleSliderWords = { degrees: '{value} degrees' }
+
 const shownDegrees = (value: number) => `${value}°`
 
 /** Where a marker stands against the value, which the recipe fills by. */
@@ -327,7 +339,10 @@ export const view = <Outer>(options: AngleSliderView<Outer>, h: HtmlBuilder<Oute
               h.AriaValuemin(0),
               h.AriaValuemax(lastOf(step)),
               h.AriaValuenow(value),
-              h.AriaValuetext((options.valueText ?? degrees)(value)),
+              h.AriaValuetext(
+                options.valueText?.(value) ??
+                  fill(wordsOf(words, options.words).degrees, { value }),
+              ),
               ...(options.invalid === true ? [h.AriaInvalid(true)] : []),
               ...(disabled
                 ? [h.AriaDisabled(true)]
@@ -371,3 +386,36 @@ export const view = <Outer>(options: AngleSliderView<Outer>, h: HtmlBuilder<Oute
     ],
   )
 }
+
+/** What an AngleSlider is given once: its steps and marks, look and words. The Model, the Message lift and the label are each use's. */
+export type AngleSliderPreset = Pick<
+  AngleSliderView<never>,
+  | 'step'
+  | 'largeStep'
+  | 'marks'
+  | 'restrictToMarks'
+  | 'format'
+  | 'valueText'
+  | 'showValue'
+  | 'words'
+  | 'style'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own AngleSlider: `base` for every use, `presets` chosen
+ * at a use with `preset`, and the call over both. `mixins` concatenate in
+ * that order and `words` merge word by word; any other option given at the
+ * call replaces the preset's. The layout (`step`, `largeStep`, `marks`,
+ * `restrictToMarks`) is also what `update` is built from: keep it in one
+ * value and give it to the Bundle's args as well.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<AngleSliderPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: AngleSliderView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

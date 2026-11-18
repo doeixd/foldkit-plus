@@ -1,8 +1,10 @@
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import { Option } from 'effect'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { settled } from './numberField.js'
 import type { MixinList } from './resolve.js'
+import { fill, wordsOf } from './words.js'
 
 /**
  * A slider: one number, or a `{ low, high }` range of two, chosen on one
@@ -91,12 +93,32 @@ export interface Bounds {
   readonly step?: number | undefined
 }
 
-export interface SliderView<Message, Value extends number | Range> extends Bounds {
+/** The fixed text a Slider says. `{index}` is a thumb's place from one, `{count}` how many there are. */
+export interface SliderWords {
+  /** A range's lower thumb. One thumb is named by the `label`. */
+  readonly low: string
+  /** A range's upper thumb. */
+  readonly high: string
+  /** Each thumb of a list of more than two. */
+  readonly thumb: string
+}
+
+/** The words a Slider uses when none are given. */
+export const words: SliderWords = {
+  low: 'Minimum',
+  high: 'Maximum',
+  thumb: 'Thumb {index} of {count}',
+}
+
+export interface SliderView<
+  Message,
+  Value extends number | Range | ReadonlyArray<number>,
+> extends Bounds {
   /** Prefixes the ids the slider draws, unique on the page. */
   readonly id: string
   /** What the slider chooses, shown and naming it. */
   readonly label: string
-  /** Within the bounds and on the step; a range's `low` at most its `high`. */
+  /** Within the bounds and on the step; a range's `low` at most its `high`, and a list in order. */
   readonly value: Value
   /** The Message for the next value; its type comes from `h`. */
   readonly onChange: (value: Value) => NoInfer<Message>
@@ -110,10 +132,8 @@ export interface SliderView<Message, Value extends number | Range> extends Bound
   readonly description?: string | undefined
   /** How a value reads aloud, as each thumb's `aria-valuetext`, and as shown; default `String`. */
   readonly format?: ((value: number) => string) | undefined
-  /** A range's thumb names; default `Minimum` and `Maximum`. One thumb is named by `label`. */
-  readonly thumbLabels?: Value extends Range
-    ? { readonly low: string; readonly high: string } | undefined
-    : never
+  /** The fixed text; see `SliderWords`. */
+  readonly words?: Partial<SliderWords> | undefined
   /**
    * Values marked on the track, each drawn with `data-filled` when the fill
    * covers it; a `Mark` also writes its label under the track.
@@ -153,6 +173,23 @@ export const moved = (
   return next.low === range.low && next.high === range.high ? range : next
 }
 
+/**
+ * The list after the thumb at `index` moves to `value`: on the step, within
+ * the bounds, and never past a neighbour. The same list when nothing changed.
+ */
+export const movedAt = (
+  values: ReadonlyArray<number>,
+  index: number,
+  value: number,
+  bounds: Bounds = {},
+): ReadonlyArray<number> => {
+  const min = bounds.min ?? 0
+  const max = bounds.max ?? 100
+  const placed = settled(value, { min, max, step: bounds.step })
+  const next = Math.min(Math.max(placed, values[index - 1] ?? min), values[index + 1] ?? max)
+  return values[index] === next ? values : values.map((each, at) => (at === index ? next : each))
+}
+
 const share = (value: number, min: number, max: number): number =>
   max <= min ? 0 : Math.min(1, Math.max(0, (value - min) / (max - min)))
 
@@ -164,12 +201,22 @@ const stepsOf = (min: number, max: number, step: number): ReadonlyArray<number> 
         Number((min + index * step).toFixed(10)),
       )
 
-const isRange = <Message>(
-  options: SliderView<Message, number> | SliderView<Message, Range>,
-): options is SliderView<Message, Range> => typeof options.value !== 'number'
+type AnySlider<Message> =
+  | SliderView<Message, number>
+  | SliderView<Message, Range>
+  | SliderView<Message, ReadonlyArray<number>>
+
+const isRange = <Message>(options: AnySlider<Message>): options is SliderView<Message, Range> =>
+  typeof options.value === 'object' && !Array.isArray(options.value)
+
+const isList = <Message>(
+  options: AnySlider<Message>,
+): options is SliderView<Message, ReadonlyArray<number>> => Array.isArray(options.value)
 
 interface Thumb<Message> {
-  readonly key: 'value' | 'low' | 'high'
+  readonly key: string
+  /** `between` for a list's thumbs, which the recipe lays out from `--fk-slider-from` and `--fk-slider-to`. */
+  readonly kind: 'value' | 'low' | 'high' | 'between'
   readonly value: number
   readonly from: number
   readonly to: number
@@ -194,15 +241,29 @@ const sends = <Message, Value>(
 
 /** One thumb across the whole track, or a range's two, each bounded by the other. */
 const thumbsOf = <Message>(
-  options: SliderView<Message, number> | SliderView<Message, Range>,
+  options: AnySlider<Message>,
   labelId: string,
   h: HtmlBuilder<Message>,
 ): ReadonlyArray<Thumb<Message>> => {
   const bounds = { min: options.min ?? 0, max: options.max ?? 100, step: options.step }
+  const text = wordsOf(words, options.words)
+  if (isList(options)) {
+    const { value: values, onChange, onCommit } = options
+    return values.map((value, index) => ({
+      key: `thumb-${index}`,
+      kind: 'between',
+      value,
+      from: values[index - 1] ?? bounds.min,
+      to: values[index + 1] ?? bounds.max,
+      naming: h.AriaLabel(fill(text.thumb, { index: index + 1, count: values.length })),
+      ...sends(next => movedAt(values, index, next, bounds), onChange, onCommit),
+    }))
+  }
   if (!isRange(options)) {
     return [
       {
         key: 'value',
+        kind: 'value',
         value: options.value,
         from: bounds.min,
         to: bounds.max,
@@ -212,22 +273,23 @@ const thumbsOf = <Message>(
     ]
   }
   const { value: range, onChange, onCommit } = options
-  const names = options.thumbLabels ?? { low: 'Minimum', high: 'Maximum' }
   return [
     {
       key: 'low',
+      kind: 'low',
       value: range.low,
       from: bounds.min,
       to: range.high,
-      naming: h.AriaLabel(names.low),
+      naming: h.AriaLabel(text.low),
       ...sends(value => moved(range, 'low', value, bounds), onChange, onCommit),
     },
     {
       key: 'high',
+      kind: 'high',
       value: range.high,
       from: range.low,
       to: bounds.max,
-      naming: h.AriaLabel(names.high),
+      naming: h.AriaLabel(text.high),
       ...sends(value => moved(range, 'high', value, bounds), onChange, onCommit),
     },
   ]
@@ -236,9 +298,12 @@ const thumbsOf = <Message>(
 export function view<Message>(options: SliderView<Message, number>, h: HtmlBuilder<Message>): Html
 export function view<Message>(options: SliderView<Message, Range>, h: HtmlBuilder<Message>): Html
 export function view<Message>(
-  options: SliderView<Message, number> | SliderView<Message, Range>,
+  options: SliderView<Message, ReadonlyArray<number>>,
   h: HtmlBuilder<Message>,
-): Html {
+): Html
+/** A slider of any of the three kinds, for a caller that does not know which it draws. */
+export function view<Message>(options: AnySlider<Message>, h: HtmlBuilder<Message>): Html
+export function view<Message>(options: AnySlider<Message>, h: HtmlBuilder<Message>): Html {
   const builders = SlotView.buildersFor(
     SliderSlots,
     [...(options.style === undefined ? [] : [options.style.mixin]), ...(options.mixins ?? [])],
@@ -250,13 +315,21 @@ export function view<Message>(
   const disabled = options.disabled === true
   const labelId = `${options.id}-label`
   const descriptionId = `${options.id}-description`
-  const ranged = isRange(options)
+  const ranged = typeof options.value !== 'number'
   const thumbs = thumbsOf(options, labelId, h)
   const vertical = options.orientation === 'vertical'
   const orientation = vertical ? [h.DataAttribute('orientation', 'vertical')] : []
   // One thumb fills from the start of the track; a range from its low thumb.
-  const low = isRange(options) ? options.value.low : min
-  const high = isRange(options) ? options.value.high : options.value
+  const low = isList(options)
+    ? (options.value[0] ?? min)
+    : isRange(options)
+      ? options.value.low
+      : min
+  const high = isList(options)
+    ? (options.value[options.value.length - 1] ?? max)
+    : isRange(options)
+      ? options.value.high
+      : options.value
 
   const thumb = (drawn: Thumb<Message>) =>
     h.input(
@@ -271,7 +344,15 @@ export function view<Message>(
         drawn.naming,
         h.AriaValuetext(format(drawn.value)),
         ...(vertical ? [h.AriaOrientation('vertical')] : []),
-        h.DataAttribute('thumb', drawn.key),
+        h.DataAttribute('thumb', drawn.kind),
+        ...(drawn.kind === 'between'
+          ? [
+              h.Style({
+                '--fk-slider-from': String(share(drawn.from, min, max)),
+                '--fk-slider-to': String(share(drawn.to, min, max)),
+              }),
+            ]
+          : []),
         ...(options.name === undefined ? [] : [h.Name(options.name)]),
         ...(options.description === undefined ? [] : [h.AriaDescribedBy(descriptionId)]),
         ...(disabled
@@ -388,3 +469,31 @@ export function view<Message>(
     ],
   )
 }
+
+/** What a Slider is given once: its bounds, look and words. The value, the Messages and what it chooses are each use's. */
+export type SliderPreset = Pick<
+  SliderView<never, number>,
+  'min' | 'max' | 'step' | 'orientation' | 'showValue' | 'ticks' | 'format' | 'words' | 'style'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own Slider: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both. `mixins` concatenate in that
+ * order and `words` merge word by word; any other option given at the call
+ * replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<SliderPreset, Names>,
+): {
+  readonly view: {
+    <Outer>(options: SliderView<Outer, number> & PresetOption<Names>, h: HtmlBuilder<Outer>): Html
+    <Outer>(options: SliderView<Outer, Range> & PresetOption<Names>, h: HtmlBuilder<Outer>): Html
+    <Outer>(
+      options: SliderView<Outer, ReadonlyArray<number>> & PresetOption<Names>,
+      h: HtmlBuilder<Outer>,
+    ): Html
+  }
+} => ({
+  view: <Outer>(options: AnySlider<Outer> & PresetOption<Names>, h: HtmlBuilder<Outer>): Html =>
+    view(layered(config, options), h),
+})

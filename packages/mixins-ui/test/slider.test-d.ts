@@ -25,7 +25,7 @@ export const price = Slider.view(
     id: 'price',
     label: 'Price',
     value: { low: 10, high: 90 },
-    thumbLabels: { low: 'From', high: 'To' },
+    words: { low: 'From', high: 'To' },
     onChange: value => {
       expectTypeOf(value).toEqualTypeOf<Slider.Range>()
       return message('Clicked')
@@ -43,12 +43,23 @@ const one = { ...base, value: 6, onChange: fromNumber }
 const two = { ...base, value: range, onChange: fromRange }
 
 // Each negative case is one line: TypeScript picks which overload's complaint to report, and where.
-// @ts-expect-error one thumb is named by the label; thumb names are a range's.
-export const labelledNumber = Slider.view({ ...one, thumbLabels: named }, h)
+// @ts-expect-error a list of thumbs is changed to a list, not a number.
+export const listed = Slider.view({ ...base, value: [1, 5, 9], onChange: fromNumber }, h)
 
 // @ts-expect-error a range's Message is built from a range, not a number.
 export const crossed = Slider.view({ ...base, value: range, onChange: fromNumber }, h)
 
 // Without the mistake each compiles, so each refusal above is the mistake's.
 export const unnamedNumber = Slider.view(one, h)
-export const namedRange = Slider.view({ ...two, thumbLabels: named }, h)
+export const namedRange = Slider.view({ ...two, words: named }, h)
+export const threeThumbs = Slider.view(
+  {
+    ...base,
+    value: [1, 5, 9],
+    onChange: values => {
+      expectTypeOf(values).toEqualTypeOf<ReadonlyArray<number>>()
+      return message('Clicked')
+    },
+  },
+  h,
+)

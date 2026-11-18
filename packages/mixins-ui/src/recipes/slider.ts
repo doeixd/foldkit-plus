@@ -252,6 +252,11 @@ export const Slider = Style.recipeFor(SliderSlots)({
         insetInlineStart: `calc(${travel} * ${low})`,
         inlineSize: `calc(${thumbSize} + ${travel} * (1 - ${low}))`,
       }),
+      // A list's thumbs each span from their lower neighbour to their upper (`--fk-slider-from`, `--fk-slider-to`, on the input).
+      Style.pseudo('[data-thumb="between"]', {
+        insetInlineStart: `calc(${travel} * var(--fk-slider-from))`,
+        inlineSize: `calc(${thumbSize} + ${travel} * (var(--fk-slider-to) - var(--fk-slider-from)))`,
+      }),
       Style.nest('[data-raised="low"] > &[data-thumb="low"]', { zIndex: '1' }),
       Style.pseudo('::-webkit-slider-runnable-track', { blockSize: '100%', background: 'none' }),
       Style.pseudo('::-moz-range-track', { background: 'none' }),

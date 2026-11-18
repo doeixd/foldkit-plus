@@ -215,4 +215,15 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a range’s words are not read',
+    edits: [
+      {
+        file: '../src/slider.ts',
+        find: 'const text = wordsOf(words, options.words)',
+        replace: 'const text = words',
+      },
+    ],
+    tests: [unit],
+  },
 ]

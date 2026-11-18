@@ -23,6 +23,7 @@ interface More {
   readonly ticks?: boolean
   readonly showValue?: boolean
   readonly orientation?: 'horizontal' | 'vertical'
+  readonly words?: Partial<Slider.SliderWords>
 }
 
 const shared = {
@@ -95,6 +96,13 @@ describe('Slider.view', () => {
   })
 
   describe('a range', () => {
+    it('is named by the words, and a word not given keeps its default', () => {
+      const names = (more: More) =>
+        thumbs({ low: 40, high: 120 }, more).map(thumb => Inert.value(thumb, 'aria-label'))
+      expect(names({ words: { low: 'From' } })).toEqual(['From', 'Maximum'])
+      expect(names({ words: { high: 'Au plus' } })).toEqual(['Minimum', 'Au plus'])
+    })
+
     it('is a group named by its label, of two named range thumbs that say their values', () => {
       const [group] = Inert.byRole(drawn({ low: 40, high: 120 }), 'group')
       const [label] = Inert.byTag(group, 'span')
@@ -294,5 +302,24 @@ describe('Slider.moved', () => {
     expect(Slider.moved(range, 'low', 40, bounds)).toBe(range)
     expect(Slider.moved(range, 'high', 122, bounds)).toBe(range)
     expect(Slider.moved(range, 'low', 50, bounds)).not.toBe(range)
+  })
+})
+
+describe('Slider.movedAt', () => {
+  const bounds = { min: 0, max: 100, step: 5 }
+  const values = [20, 50, 80]
+  it.each([
+    [0, 70, [50, 50, 80], 'stops at the upper neighbour'],
+    [2, 10, [20, 50, 50], 'stops at the lower neighbour'],
+    [1, 52, [20, 50, 80], 'settles on the step'],
+    [0, -30, [0, 50, 80], 'stays within the bounds'],
+    [2, 130, [20, 50, 100], 'stays within the upper bound'],
+  ] as const)('thumb %i to %i: %j, which %s', (index, value, expected, _) => {
+    expect(Slider.movedAt(values, index, value, bounds)).toEqual(expected)
+  })
+
+  it('is the same list when nothing changed, and a new one when something did', () => {
+    expect(Slider.movedAt(values, 1, 50, bounds)).toBe(values)
+    expect(Slider.movedAt(values, 1, 55, bounds)).not.toBe(values)
   })
 })
