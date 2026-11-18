@@ -295,4 +295,11 @@ export default [
     'view: (options, h) => view(options, h),',
     browser,
   ),
+  one(
+    'the picker’s panel does not fade',
+    '../src/recipes/datePicker.ts',
+    "presence('fast', { scale: '1 0.96', translate: '0 -4px' }),",
+    '',
+    browser,
+  ),
 ]

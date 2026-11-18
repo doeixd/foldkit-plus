@@ -15,7 +15,7 @@ import { Layers, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { cdp, userEvent } from 'vitest/browser'
 import { Calendar, CalendarSlots, DatePicker, DatePickerSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -226,6 +226,21 @@ test('27 and 30 a second widget in the panel: `manual` leaves it open for every 
   await userEvent.keyboard('{Escape}')
   await closed()
   expect(trigger().textContent).toBe('2026-2-11')
+})
+
+test('an animated picker’s panel fades in and out, as the Popover’s does', async () => {
+  await cdp().send('Emulation.setEmulatedMedia', {
+    features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }],
+  })
+  mount({ animated: true })
+  await open()
+  const panel = grid()!.closest<HTMLElement>('[data-placement]')!
+  await userEvent.keyboard('{Escape}')
+  // Leaving: still drawn, its opacity transitioning to nothing.
+  await vi.waitFor(() => expect(panel.hasAttribute('data-leave')).toBe(true))
+  expect(panel.isConnected).toBe(true)
+  expect(getComputedStyle(panel).transitionProperty).toContain('opacity')
+  await closed()
 })
 
 test('a disabled picker does not open, and the calendar’s options and words reach the panel', async () => {
