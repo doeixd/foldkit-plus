@@ -38,7 +38,7 @@ jobs:
         run: |
           code=true
           if [ "$EVENT" = pull_request ]; then
-            files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate               --jq '.[] | .filename, (.previous_filename // empty)')
+            files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)')
             # An empty list is a failed read, not an empty change.
             if [ -n "$files" ]; then
               code=false
@@ -421,11 +421,42 @@ jobs:
       # release does; `demo` builds the examples.
       - run: pnpm pack:check
 
+  # The packages' tarballs, made once for the scaffolds below: each used to run
+  # `build:packages` and `pack` itself, 85 seconds three times over. `pack` stays
+  # self-contained, since building and packing as a release does is its point.
+  tarballs:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build:packages && pnpm -r --filter "./packages/*" exec pnpm pack --pack-destination "$GITHUB_WORKSPACE/tarballs"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tarballs
+          path: tarballs
+          retention-days: 1
+          if-no-files-found: error
+
   # The scaffolds `pack` does not make, each in a job of its own, since a
   # scaffold's install takes a minute: setup's printed scaffold command, its
   # install step, then the scaffold's own typecheck and lint, from the tarballs.
+  # The script reads the tarballs, the examples' sources and the manifests, never
+  # the workspace's `node_modules`, so these jobs install nothing of it.
   scaffold:
-    needs: changes
+    needs: [changes, tarballs]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -444,10 +475,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: tarballs
+          path: tarballs
 
-      - run: pnpm build:packages && pnpm -r --filter "./packages/*" exec pnpm pack
-
-      - run: node scripts/published-setup.mjs --rendering ${{ matrix.rendering }} --manager ${{ matrix.manager }}
+      - run: node scripts/published-setup.mjs --rendering ${{ matrix.rendering }} --manager ${{ matrix.manager }} "$GITHUB_WORKSPACE/tarballs"
