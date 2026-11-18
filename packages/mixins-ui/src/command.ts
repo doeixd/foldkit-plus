@@ -10,6 +10,7 @@ import {
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { KeepInView } from 'foldkit-primitives/dom'
 import { keyboardEvents, matchHotkey } from 'foldkit-primitives/events'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import * as Kbd from './kbd.js'
 import type { KbdSlots } from './kbd.js'
 import { keyShortcuts } from './menu.js'
@@ -411,3 +412,24 @@ export const keepActiveInView = [
     { name: 'CommandKeepActiveInView' },
   ).mixin,
 ] as const
+
+/** What a Command is given once: its wording, hints, look and mixins. The query, rows and Messages are each use's. */
+export type CommandPreset = Pick<
+  CommandView<string, never>,
+  'placeholder' | 'empty' | 'hints' | 'style' | 'kbd'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own Command: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<CommandPreset, Names>,
+): {
+  readonly view: <Value extends string, Outer>(
+    options: CommandView<Value, Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

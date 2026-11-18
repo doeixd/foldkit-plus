@@ -271,4 +271,9 @@ export default [
     ],
     tests: [unit, browser],
   },
+  {
+    name: 'a Command preset is ignored',
+    edits: [{ file, find: 'view(layered(config, options), h)', replace: 'view(options, h)' }],
+    tests: [unit],
+  },
 ]
