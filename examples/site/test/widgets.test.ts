@@ -4,19 +4,14 @@
  * value the preview shows.
  */
 import {
-  Calendar as UiCalendar,
-  Combobox as UiCombobox,
-  DatePicker as UiDatePicker,
   Dialog as UiDialog,
   Listbox as UiListbox,
   Menu as UiMenu,
   RadioGroup as UiRadioGroup,
   Tabs as UiTabs,
 } from '@foldkit/ui'
-import { Effect, Option } from 'effect'
-import { Calendar } from 'foldkit'
+import { Option } from 'effect'
 import {
-  Calendar as DateSelection,
   Chart,
   Drawer,
   ImageCropper,
@@ -105,7 +100,7 @@ describe('the previews with state', () => {
     expect(UiDialog.init({ id: 'x' }).isOpen).toBe(false)
   })
 
-  it('keep the action, frequency and city that were chosen', () => {
+  it('keep the action and frequency that were chosen', () => {
     const acted = send(
       Widgets.Message.GotPageMenu({
         message: Menu.Message.GotMenu({
@@ -119,34 +114,6 @@ describe('the previews with state', () => {
     )
     expect(initial.widgets.frequency).toEqual(Option.some('Daily'))
     expect(backedUp.widgets.frequency).toEqual(Option.some('Weekly'))
-    const found = send(
-      Widgets.Message.GotCombobox({
-        message: UiCombobox.Message.SelectedItem({
-          item: 'Oslo',
-          displayText: 'Oslo',
-          wasSelected: false,
-        }),
-      }),
-    )
-    expect(found.widgets.city).toEqual(Option.some('Oslo'))
-  })
-
-  it('keep the day picked on the calendar, and in the date picker', () => {
-    const day = { year: 2026, month: 10, day: 20 }
-    const picked = send(
-      Widgets.Message.GotCalendar({ message: UiCalendar.Message.ClickedDay({ date: day }) }),
-    )
-    expect(picked.widgets.selection).toEqual(
-      DateSelection.Selection.Single({ date: Option.some(day) }),
-    )
-    const due = send(
-      Widgets.Message.GotDatePicker({
-        message: UiDatePicker.Message.GotCalendarMessage({
-          message: UiCalendar.Message.ClickedDay({ date: day }),
-        }),
-      }),
-    )
-    expect(due.widgets.due).toEqual(Option.some(day))
   })
 
   it('show a notice when the draft is saved', () => {
@@ -233,28 +200,6 @@ describe('the checkbox group previews', () => {
   })
 })
 
-describe('the range picker preview', () => {
-  it('takes a start, then an end, from the days picked', () => {
-    // The picker takes no day before today, so the days are counted from it.
-    const today = Effect.runSync(Calendar.today.local)
-    const [sooner, later] = [Calendar.addDays(today, 2), Calendar.addDays(today, 6)]
-    const pick = (date: typeof today) =>
-      Message.GotWidget({
-        message: Widgets.Message.GotStayPicker({
-          message: UiDatePicker.Message.GotCalendarMessage({
-            message: UiCalendar.Message.ClickedDay({ date }),
-          }),
-        }),
-      })
-    const started = update(initial, pick(later)).model
-    const ended = update(started, pick(sooner)).model
-    expect([started.widgets.stayDates, ended.widgets.stayDates]).toEqual([
-      DateSelection.Selection.Range({ start: Option.some(later), end: Option.none() }),
-      DateSelection.Selection.Range({ start: Option.some(sooner), end: Option.some(later) }),
-    ])
-  })
-})
-
 describe('the form previews', () => {
   it('keep each custom select its own fruit', () => {
     const picked = send(
@@ -265,31 +210,6 @@ describe('the form previews', () => {
     )
     expect(picked.widgets.selects.icons.fruit).toEqual(Option.some('Banana'))
     expect(picked.widgets.selects.custom.fruit).toEqual(initial.widgets.selects.custom.fruit)
-  })
-
-  it('take a chosen city off the multiple combobox when it is chosen again', () => {
-    const choose = (item: string) =>
-      Message.GotWidget({
-        message: Widgets.Message.GotCityTags({
-          message: UiCombobox.Message.SelectedItem({ item, displayText: item, wasSelected: false }),
-        }),
-      })
-    const added = update(initial, choose('Oslo')).model
-    expect(added.widgets.cityTags.cities).toEqual(['Lima', 'Seoul', 'Oslo'])
-    expect(update(added, choose('Lima')).model.widgets.cityTags.cities).toEqual(['Seoul', 'Oslo'])
-  })
-
-  it('add a city typed into the creatable combobox, and not a known one', () => {
-    const choose = (item: string) =>
-      send(
-        Widgets.Message.GotCityBox({
-          example: 'creatable',
-          message: UiCombobox.Message.SelectedItem({ item, displayText: item, wasSelected: false }),
-        }),
-      )
-    expect(choose('Accra').widgets.createdCities).toEqual(['Accra'])
-    expect(choose('Accra').widgets.cityBoxes.creatable.city).toEqual(Option.some('Accra'))
-    expect(choose('Oslo').widgets.createdCities).toEqual([])
   })
 
   it('show the key copied until its reset, and a refused copy as failed', () => {
@@ -433,20 +353,6 @@ describe('the data previews', () => {
       Option.some({ column: 'amount', direction: 'descending' }),
       Option.none(),
     ])
-  })
-})
-
-describe('the date previews', () => {
-  it('keep the second month beside the first, and a preset in the first', () => {
-    const shown = (month: { readonly viewYear: number; readonly viewMonth: number }) =>
-      month.viewYear * 12 + month.viewMonth
-    const { first, second } = initial.widgets.twoMonths
-    expect(shown(second)).toBe(shown(first) + 1)
-    const preset = DateSelection.lastDays(initial.widgets.twoMonths.first.today, 30)
-    const picked = send(Widgets.Message.PickedTripPreset({ selection: preset }))
-    expect(picked.widgets.twoMonths.range).toEqual(preset)
-    const months = picked.widgets.twoMonths
-    expect(shown(months.second)).toBe(shown(months.first) + 1)
   })
 })
 

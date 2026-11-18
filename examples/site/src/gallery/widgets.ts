@@ -9,8 +9,6 @@ import { Calendar, Update } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 import {
   Calendar as UiCalendar,
-  Combobox as UiCombobox,
-  DatePicker as UiDatePicker,
   Dialog as UiDialog,
   HoverIntent as UiHoverIntent,
   Listbox as UiListbox,
@@ -50,13 +48,10 @@ import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
-import * as Calendars from './calendars.js'
 import * as Fields from './fields.js'
 
 import {
   Billing,
-  TODAY,
-  type TwoMonthsState,
   Fruit,
   FILE_MENU,
   Frequency,
@@ -157,12 +152,6 @@ export type SelectExample = typeof SelectExample.Type
 
 const FruitState = Schema.Struct({ listbox: UiListbox.Model, fruit: Schema.Option(Fruit) })
 
-/** The single combobox examples past the first, each with a field and a city of its own. */
-export const CityExample = Schema.Literals(['empty', 'clear', 'groups', 'creatable'])
-export type CityExample = typeof CityExample.Type
-
-const CityState = Schema.Struct({ combobox: UiCombobox.Model, city: Schema.Option(Schema.String) })
-
 /** The popover, tooltip, dialog and sheet examples, each with a Model of its own. */
 export const PopoverExample = Schema.Literals(['below', 'top-start', 'no-arrow', 'clipped'])
 export type PopoverExample = typeof PopoverExample.Type
@@ -225,16 +214,6 @@ export const Model = Schema.Struct({
   saveMenu: Menu.Model,
   listbox: UiListbox.Model,
   frequency: Schema.Option(Frequency),
-  combobox: UiCombobox.Model,
-  city: Schema.Option(Schema.String),
-  calendar: UiCalendar.Model,
-  /** The day picked on the calendar. */
-  selection: DateSelection.Selection,
-  picker: UiDatePicker.Model,
-  due: Schema.Option(Calendar.CalendarDate),
-  /** The range picker, and the nights it holds. */
-  stayPicker: UiDatePicker.Model,
-  stayDates: DateSelection.Selection,
   notices: Notices.Model,
   range: Range,
   /** The accordion's open sections. */
@@ -311,15 +290,6 @@ export const Model = Schema.Struct({
   password: Schema.String,
   passwordShown: Schema.Boolean,
   selects: Schema.Record(SelectExample, FruitState),
-  cityBoxes: Schema.Record(CityExample, CityState),
-  /** The multiple combobox's field, and the cities it holds. */
-  cityTags: Schema.Struct({
-    combobox: UiCombobox.Multi.Model,
-    cities: Schema.Array(Schema.String),
-  }),
-  /** Whether the empty combobox's cities are still loading, and the cities added in the creatable one. */
-  cityLoading: Schema.Boolean,
-  createdCities: Schema.Array(Schema.String),
   /** The new password field's text, whether it shows, and whether Caps Lock was on. */
   newPassword: Schema.String,
   newPasswordShown: Schema.Boolean,
@@ -357,18 +327,6 @@ export const Model = Schema.Struct({
   /** The color picker in a popover, and the popover. */
   brand: ColorPicker.Model,
   brandPopover: UiPopover.Model,
-  /** Two months side by side, their range and the day under the pointer. */
-  twoMonths: Schema.Struct({
-    first: UiCalendar.Model,
-    second: UiCalendar.Model,
-    range: DateSelection.Selection,
-    preview: Schema.Option(Calendar.CalendarDate),
-  }),
-  /** The calendar with selects and week numbers, and its day. */
-  dropdownCalendar: UiCalendar.Model,
-  dropdownDay: DateSelection.Selection,
-  /** The Calendar page's further examples: unavailable days, prices, events and more. */
-  calendars: Calendars.Model,
   /** The search fields, the toolbar and the file pickers. */
   fields: Fields.Model,
   /** The region chosen in the card grid, and the plan chosen in the item list. */
@@ -436,10 +394,6 @@ export const Message = defineMessageUnion({
   GotPageMenu: { message: Menu.Message },
   GotSaveMenu: { message: Menu.Message },
   GotListbox: { message: UiListbox.Message },
-  GotCombobox: { message: UiCombobox.Message },
-  GotCalendar: { message: UiCalendar.Message },
-  GotDatePicker: { message: UiDatePicker.Message },
-  GotStayPicker: { message: UiDatePicker.Message },
   GotNotices: { message: Notices.Message },
   SavedDraft: {},
   ChoseRange: { range: Range },
@@ -500,13 +454,6 @@ export const Message = defineMessageUnion({
   MovedBudget: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotBrand: { message: ColorPicker.Message },
   GotBrandPopover: { message: UiPopover.Message },
-  GotTripFirst: { message: UiCalendar.Message },
-  GotTripSecond: { message: UiCalendar.Message },
-  PreviewedTrip: { date: Schema.Option(Calendar.CalendarDate) },
-  PickedTripPreset: { selection: DateSelection.Selection },
-  GotDropdownCalendar: { message: UiCalendar.Message },
-  ShowedCalendar: { shown: DateSelection.Shown },
-  GotCalendars: { message: Calendars.Message },
   GotFields: { message: Fields.Message },
   SortedInvoices: { column: Schema.String },
   ChoseInvoice: { id: Schema.String, selected: Schema.Boolean },
@@ -532,9 +479,6 @@ export const Message = defineMessageUnion({
   FinishedUpload: { id: Schema.String },
   Archived: {},
   GotSelect: { example: SelectExample, message: UiListbox.Message },
-  GotCityBox: { example: CityExample, message: UiCombobox.Message },
-  GotCityTags: { message: UiCombobox.Message },
-  ToggledCityLoading: {},
   TypedNewPassword: { value: Schema.String },
   ToggledNewPassword: {},
   ReadCapsLock: { reading: Schema.Option(Schema.Boolean) },
@@ -574,28 +518,9 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-function twoMonthsInit(): TwoMonthsState {
-  const first = UiCalendar.init({ id: 'preview-trip-first', today: TODAY })
-  return {
-    first,
-    second: DateSelection.alongside(
-      UiCalendar.init({ id: 'preview-trip-second', today: TODAY }),
-      first,
-      1,
-    ),
-    range: DateSelection.empty('Range'),
-    preview: Option.none(),
-  }
-}
-
 const fruitState = (example: SelectExample, fruit: Option.Option<Fruit>) => ({
   listbox: UiListbox.init({ id: `preview-select-${example}`, isAnimated: true }),
   fruit,
-})
-
-const cityState = (example: CityExample, city: Option.Option<string> = Option.none()) => ({
-  combobox: UiCombobox.init({ id: `preview-city-${example}`, isAnimated: true }),
-  city,
 })
 
 const initialViewOptions: ViewOptions = {
@@ -656,24 +581,6 @@ export const initial: Model = {
   saveMenu: Menu.init('preview-save-menu', SAVE_MENU, { isAnimated: true }),
   listbox: UiListbox.init({ id: 'preview-frequency', isAnimated: true }),
   frequency: Option.some('Daily'),
-  combobox: UiCombobox.init({ id: 'preview-city', isAnimated: true }),
-  city: Option.none(),
-  calendar: UiCalendar.init({ id: 'preview-calendar', today }),
-  selection: DateSelection.empty('Single'),
-  picker: UiDatePicker.init({
-    id: 'preview-due',
-    today,
-    minDate: Calendar.subtractYears(today, 5),
-    maxDate: Calendar.addYears(today, 5),
-  }),
-  due: Option.none(),
-  stayPicker: UiDatePicker.init({
-    id: 'preview-stay',
-    today,
-    minDate: today,
-    maxDate: Calendar.addYears(today, 1),
-  }),
-  stayDates: DateSelection.empty('Range'),
   notices: Notices.init({ id: 'preview-notices' }),
   range: 'week',
   faq: ['billing'],
@@ -773,18 +680,6 @@ export const initial: Model = {
     md: fruitState('md', Option.some('Apple')),
     lg: fruitState('lg', Option.some('Apple')),
   },
-  cityBoxes: {
-    empty: cityState('empty'),
-    clear: cityState('clear', Option.some('Oslo')),
-    groups: cityState('groups'),
-    creatable: cityState('creatable'),
-  },
-  cityTags: {
-    combobox: UiCombobox.Multi.init({ id: 'preview-cities', isAnimated: true }),
-    cities: ['Lima', 'Seoul'],
-  },
-  cityLoading: false,
-  createdCities: [],
   newPassword: '',
   newPasswordShown: false,
   capsLock: false,
@@ -824,10 +719,6 @@ export const initial: Model = {
     format: 'oklch',
   }),
   brandPopover: UiPopover.init({ id: 'preview-brand-popover', contentFocus: true }),
-  twoMonths: twoMonthsInit(),
-  dropdownCalendar: UiCalendar.init({ id: 'preview-calendar-selects', today }),
-  dropdownDay: DateSelection.empty('Single'),
-  calendars: Calendars.init(),
   fields: Fields.init(),
   region: 'Frankfurt',
   plan: 'Team',

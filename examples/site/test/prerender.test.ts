@@ -440,7 +440,8 @@ describe('the generated site', () => {
         [
           ['basic', 'Basic', 'const City = Combobox.one(cities)'],
           ['multiple', 'Several, as chips', 'const Cities = Combobox.many(cities)'],
-          ['empty', 'Empty and loading', 'comboboxEmpty'],
+          ['empty', 'Empty and loading', "label: 'Still loading'"],
+          ['creatable', 'Creatable', 'choice: Combobox.one(known)'],
           ['choice', 'A choice of your own: at most three', 'Choice<Item, ReadonlyArray<Item>>'],
         ],
       ],
@@ -449,7 +450,7 @@ describe('the generated site', () => {
         [
           ['basic', 'Basic', "state: Bundles.TagsInput.with({ id: 'topics'"],
           ['max', 'A maximum', 'max: 3'],
-          ['refusals', 'Refusals', 'refusalText: refusal =>'],
+          ['refusals', 'Refusals', "full: 'That makes more than {max}.'"],
           ['configure', 'Configure once', 'const Tags = TagsInput.configure({'],
         ],
       ],
@@ -472,8 +473,7 @@ describe('the generated site', () => {
       [
         'date-picker',
         [
-          ['single', 'A day', 'datePicker'],
-          ['range', 'A range', 'DatePicker.update(range)'],
+          ['range', 'A range', "id: 'stay'"],
           ['bundle', 'Placed as a Bundle', "state: Bundles.DatePicker.with({ id: 'due'"],
           ['presets', 'A range with presets', 'Calendar.lastDays(today, 30)'],
         ],
@@ -495,7 +495,10 @@ describe('the generated site', () => {
           ['range', 'A range over two months, with presets', 'months: 2'],
           ['presets', 'Presets of your own', 'const weekendOf ='],
           ['appointment', 'Composed: a day and a time', 'aside: stack('],
-          ['prices', 'A price on each day', 'calendarPrices'],
+          ['unavailable', 'Weekends, booked days and bounds', 'disabledDaysOfWeek'],
+          ['several', 'Several days', "Calendar.empty('Multiple')"],
+          ['prices', 'A price on each day', 'const priceOf ='],
+          ['events', 'Events and a Today button', 'const eventsOn ='],
         ],
       ],
       [

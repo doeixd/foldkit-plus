@@ -72,12 +72,12 @@ export default [
     ],
     tests,
   },
-  ...['frequency', 'city', 'due'].map(field => ({
+  ...['frequency'].map(field => ({
     name: `the chosen ${field} is not kept`,
     edits: [
       {
         file: widgets,
-        find: `model => ({ model: modifyFields(model, { ${field}: () => Option.some(${field === 'due' ? 'date' : 'value'}) }) }),`,
+        find: `model => ({ model: modifyFields(model, { ${field}: () => Option.some(value) }) }),`,
         replace: 'model => ({ model }),',
       },
     ],
@@ -90,17 +90,6 @@ export default [
         file: widgets,
         find: 'modifyFields(model, { pageChoice: () => chosenOf(chosen) })',
         replace: 'modifyFields(model, { pageChoice: () => Option.none() })',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a picked day never joins the calendar selection',
-    edits: [
-      {
-        file: widgets,
-        find: 'selection: () => DateSelection.picked(model.selection, date),',
-        replace: 'selection: () => model.selection,',
       },
     ],
     tests,
@@ -147,11 +136,6 @@ export default [
       'a checkbox group example toggles another',
       '[example]: CheckboxGroup.toggled(alerts[example], value),',
       'invalid: CheckboxGroup.toggled(alerts[example], value),',
-    ],
-    [
-      'the range picker forgets its start',
-      'stayDates: () => DateSelection.picked(model.stayDates, date),',
-      "stayDates: () => DateSelection.picked(DateSelection.empty('Range'), date),",
     ],
     [
       'a drop replaces the files already taken',

@@ -10,8 +10,6 @@ import * as Command from 'foldkit/command'
 import { makeModifyFieldsFor, modifyFields } from 'foldkit/struct'
 import {
   Calendar as UiCalendar,
-  Combobox as UiCombobox,
-  DatePicker as UiDatePicker,
   Dialog as UiDialog,
   HoverIntent as UiHoverIntent,
   Listbox as UiListbox,
@@ -22,7 +20,6 @@ import {
 import {
   Accordion,
   CheckboxGroup,
-  DatePicker,
   Dialog,
   Menubar,
   Resizable,
@@ -55,7 +52,6 @@ import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import * as UiVirtualList from '@foldkit/ui/virtualList'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
-import * as Calendars from './calendars.js'
 import * as Fields from './fields.js'
 
 import {
@@ -66,9 +62,6 @@ import {
   THUMBNAILS_LAYOUT,
   PER_VIEW_LAYOUT,
   TREE_ICONS,
-  type TwoMonthsState,
-  CityBox,
-  CityTags,
   Fruit,
   FruitBox,
   Frequency,
@@ -80,7 +73,6 @@ import {
   closeFile,
   Inbox,
   ViewOptions,
-  cities,
   TREE_FILES,
   Notices,
   Section,
@@ -98,7 +90,6 @@ import {
 import {
   Attachment,
   CarouselExample,
-  CityExample,
   DialogExample,
   FilesExample,
   InboxExample,
@@ -376,62 +367,6 @@ const foldSelect = Update.foldChildAt({
     }),
 })
 
-/** Sets one city example's choice. */
-const choseCity = (model: Model, example: CityExample, city: Option.Option<string>): Model =>
-  modifyFields(model, {
-    cityBoxes: boxes => ({ ...boxes, [example]: { ...boxes[example], city } }),
-  })
-
-const foldCityBox = Update.foldChildAt({
-  update: CityBox.update,
-  readAt: (model: Model, example: CityExample) => Option.some(model.cityBoxes[example].combobox),
-  writeAt: (model, example, combobox) =>
-    modifyFields(model, {
-      cityBoxes: boxes => ({ ...boxes, [example]: { ...boxes[example], combobox } }),
-    }),
-  toParentMessage: (example, message) => Message.GotCityBox({ example, message }),
-  foldOutMessage: example =>
-    UiCombobox.OutMessage.match<Step, UiCombobox.OutMessage<string>>({
-      // A city the lists do not hold was typed into the creatable one: it is added.
-      Selected:
-        ({ value }) =>
-        model => {
-          const chosen = choseCity(model, example, Option.some(value))
-          return cities.includes(value) || model.createdCities.includes(value)
-            ? { model: chosen }
-            : {
-                model: modifyFields(chosen, { createdCities: created => [...created, value] }),
-              }
-        },
-      ClearedSelection: () => model => ({ model: choseCity(model, example, Option.none()) }),
-    }),
-})
-
-const foldCityTags = Update.foldChild({
-  read: (model: Model) => Option.some(model.cityTags.combobox),
-  write: (model, combobox) => modifyFields(model, { cityTags: tags => ({ ...tags, combobox }) }),
-  toParentMessage: message => Message.GotCityTags({ message }),
-  update: CityTags.update,
-  foldOutMessage: UiCombobox.OutMessage.match<Step, UiCombobox.OutMessage<string>>({
-    // Choosing a chosen city again takes it back off.
-    Selected:
-      ({ value }) =>
-      model => ({
-        model: modifyFields(model, {
-          cityTags: tags => ({
-            ...tags,
-            cities: tags.cities.includes(value)
-              ? tags.cities.filter(city => city !== value)
-              : [...tags.cities, value],
-          }),
-        }),
-      }),
-    ClearedSelection: () => model => ({
-      model: modifyFields(model, { cityTags: tags => ({ ...tags, cities: [] }) }),
-    }),
-  }),
-})
-
 const foldAccent = Update.foldChild({
   ...own('accent', Message.GotAccent),
   update: ColorPicker.update,
@@ -586,69 +521,6 @@ const foldBrandPopover = Update.foldChild({
   foldOutMessage: UiPopover.OutMessage.match<Step>({ Opened: () => same, Closed: () => same }),
 })
 
-/** The range after a month's OutMessage: a day picked joins it. */
-const pickedFrom = (
-  range: DateSelection.Selection,
-  out: UiCalendar.OutMessage | undefined,
-): DateSelection.Selection =>
-  Option.match(Option.fromNullishOr(out), {
-    onNone: () => range,
-    onSome: UiCalendar.OutMessage.match<DateSelection.Selection>({
-      SelectedDate: ({ date }) => DateSelection.picked(range, date),
-      ChangedViewMonth: () => range,
-    }),
-  })
-
-/**
- * One of the two months stepped by its Message: the other is kept beside it
- * (`Calendar.alongside`), a month after or before.
- */
-const stepMonth = (
-  model: Model,
-  which: 'first' | 'second',
-  message: UiCalendar.Message,
-): Update.Return<Model, Message> => {
-  const months = model.twoMonths
-  const next = UiCalendar.update(months[which], message)
-  const twoMonths: TwoMonthsState =
-    which === 'first'
-      ? {
-          ...months,
-          first: next.model,
-          second: DateSelection.alongside(months.second, next.model, 1),
-          range: pickedFrom(months.range, next.outMessage),
-        }
-      : {
-          ...months,
-          second: next.model,
-          first: DateSelection.alongside(months.first, next.model, -1),
-          range: pickedFrom(months.range, next.outMessage),
-        }
-  return {
-    model: modifyFields(model, { twoMonths: () => twoMonths }),
-    commands: Command.mapMessages(next.commands ?? [], inner =>
-      which === 'first'
-        ? Message.GotTripFirst({ message: inner })
-        : Message.GotTripSecond({ message: inner }),
-    ),
-  }
-}
-
-const foldDropdownCalendar = Update.foldChild({
-  ...own('dropdownCalendar', Message.GotDropdownCalendar),
-  update: UiCalendar.update,
-  foldOutMessage: UiCalendar.OutMessage.match<Step>({
-    SelectedDate:
-      ({ date }) =>
-      model => ({
-        model: modifyFields(model, {
-          dropdownDay: () => DateSelection.picked(model.dropdownDay, date),
-        }),
-      }),
-    ChangedViewMonth: () => same,
-  }),
-})
-
 const foldInputCopy = Update.foldChild({
   ...own('inputCopy', Message.GotInputCopy),
   update: InputCopy.update,
@@ -772,66 +644,6 @@ const foldListbox = Update.foldChild({
       model => ({ model: modifyFields(model, { frequency: () => Option.some(value) }) }),
   }),
 })
-
-const foldCombobox = Update.foldChild({
-  ...own('combobox', Message.GotCombobox),
-  update: CityBox.update,
-  foldOutMessage: UiCombobox.OutMessage.match<Step, UiCombobox.OutMessage<string>>({
-    Selected:
-      ({ value }) =>
-      model => ({ model: modifyFields(model, { city: () => Option.some(value) }) }),
-    ClearedSelection: () => model => ({
-      model: modifyFields(model, { city: () => Option.none() }),
-    }),
-  }),
-})
-
-const foldCalendar = Update.foldChild({
-  ...own('calendar', Message.GotCalendar),
-  update: UiCalendar.update,
-  foldOutMessage: UiCalendar.OutMessage.match<Step>({
-    SelectedDate:
-      ({ date }) =>
-      model => ({
-        model: modifyFields(model, {
-          selection: () => DateSelection.picked(model.selection, date),
-        }),
-      }),
-    ChangedViewMonth: () => same,
-  }),
-})
-
-const foldDatePicker = Update.foldChild({
-  ...own('picker', Message.GotDatePicker),
-  update: UiDatePicker.update,
-  foldOutMessage: UiDatePicker.OutMessage.match<Step>({
-    SelectedDate:
-      ({ date }) =>
-      model => ({ model: modifyFields(model, { due: () => Option.some(date) }) }),
-    ClearedDate: () => model => ({ model: modifyFields(model, { due: () => Option.none() }) }),
-    ChangedViewMonth: () => same,
-  }),
-})
-
-// The range is read when the Message arrives: it decides whether a day closes the panel.
-const foldStayPicker = (model: Model, message: UiDatePicker.Message) =>
-  Update.foldChild({
-    ...own('stayPicker', Message.GotStayPicker),
-    update: DatePicker.update(model.stayDates),
-    foldOutMessage: UiDatePicker.OutMessage.match<Step>({
-      SelectedDate:
-        ({ date }) =>
-        model => ({
-          model: modifyFields(model, {
-            stayDates: () => DateSelection.picked(model.stayDates, date),
-          }),
-        }),
-      ClearedDate: () => model => ({
-        model: modifyFields(model, { stayDates: () => DateSelection.empty('Range') }),
-      }),
-      ChangedViewMonth: () => same,
-    }),
-  })(model, message)
 
 const noticesField = own('notices', Message.GotNotices)
 const noticesOut = Notices.OutMessage.match<Step>({ DismissedToast: () => same })
@@ -1095,11 +907,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         title: 'Thread archived',
         action: { label: 'Undo', value: 'undo' },
       }),
-    GotCityBox: ({ example, message }) => foldCityBox(model, example, message),
-    GotCityTags: ({ message }) => foldCityTags(model, message),
-    ToggledCityLoading: () => ({
-      model: modifyFields(model, { cityLoading: () => !model.cityLoading }),
-    }),
     TypedNewPassword: ({ value }) =>
       value === model.newPassword
         ? { model }
@@ -1293,40 +1100,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         : { model: modifyFields(model, { budget: () => value }) },
     GotBrand: ({ message }) => foldBrand(model, message),
     GotBrandPopover: ({ message }) => foldBrandPopover(model, message),
-    GotTripFirst: ({ message }) => stepMonth(model, 'first', message),
-    GotTripSecond: ({ message }) => stepMonth(model, 'second', message),
-    PreviewedTrip: ({ date }) => ({
-      model: modifyFields(model, { twoMonths: months => ({ ...months, preview: date }) }),
-    }),
-    // A preset shows its first day in the first month, the second beside it.
-    PickedTripPreset: ({ selection }) => {
-      const months = model.twoMonths
-      const first = Option.match(DateSelection.firstDate(selection), {
-        onNone: () => months.first,
-        onSome: date => UiCalendar.focusDate(months.first, date),
-      })
-      return {
-        model: modifyFields(model, {
-          twoMonths: () => ({
-            ...months,
-            range: selection,
-            preview: Option.none(),
-            first,
-            second: DateSelection.alongside(months.second, first, 1),
-          }),
-        }),
-      }
-    },
-    GotDropdownCalendar: ({ message }) => foldDropdownCalendar(model, message),
-    GotCalendars: ({ message }) => {
-      const next = Calendars.update(model.calendars, message)
-      return {
-        model: modifyFields(model, { calendars: () => next.model }),
-        commands: Command.mapMessages(next.commands ?? [], inner =>
-          Message.GotCalendars({ message: inner }),
-        ),
-      }
-    },
     GotFields: ({ message }) => {
       const next = Fields.update(model.fields, message)
       return {
@@ -1337,16 +1110,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ),
       }
     },
-    ShowedCalendar: ({ shown }) => ({
-      model: modifyFields(model, {
-        dropdownCalendar: calendar => DateSelection.show(calendar, shown),
-      }),
-    }),
     GotListbox: ({ message }) => foldListbox(model, message),
-    GotCombobox: ({ message }) => foldCombobox(model, message),
-    GotCalendar: ({ message }) => foldCalendar(model, message),
-    GotDatePicker: ({ message }) => foldDatePicker(model, message),
-    GotStayPicker: ({ message }) => foldStayPicker(model, message),
     GotNotices: ({ message }) => foldNotices(model, message),
     ChoseRange: ({ range }) =>
       range === model.range ? { model } : { model: modifyFields(model, { range: () => range }) },
