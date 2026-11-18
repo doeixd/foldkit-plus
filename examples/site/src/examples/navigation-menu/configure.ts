@@ -30,9 +30,9 @@ export default example({
         label: 'Sections',
         preset: 'sidebar',
         entries: [
-          { label: 'Overview', href: '#overview', current: true },
-          { label: 'Settings', href: '#settings' },
-          { label: 'Members', href: '#members' },
+          { label: 'Overview', href: '#', current: true },
+          { label: 'Settings', href: '#' },
+          { label: 'Members', href: '#' },
         ],
       },
       h,

@@ -11,7 +11,7 @@ export default example({
   recipe: Recipes.Badge,
   view: ({ style, h }) =>
     row(h, [
-      Badge.view({ text: 'Changelog', tone: 'accent', href: '#changelog', style }, h),
+      Badge.view({ text: 'Changelog', tone: 'accent', href: '#', style }, h),
       Badge.view(
         { text: 'Docs', tone: 'info', href: 'https://example.com', external: true, style },
         h,

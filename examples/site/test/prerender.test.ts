@@ -533,7 +533,7 @@ describe('the generated site', () => {
       [
         'pagination',
         [
-          ['numbered', 'Numbered', 'pageCount: 12'],
+          ['basic', 'Numbered', 'pageCount: 12'],
           ['simple', 'Previous and next', 'numbered: false'],
           ['ends', 'First and last', 'ends: true'],
           ['range', 'Rows and page size', 'sizes: [10, 20, 50]'],

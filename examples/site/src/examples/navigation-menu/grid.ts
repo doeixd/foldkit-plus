@@ -27,7 +27,7 @@ export default example({
         label: 'Site',
         mixins: [style.mixin],
         entries: [
-          { label: 'Home', href: '#home', icon: outline(h, 'M2 7l6-5 6 5v7H2zM6 14v-4h4v4') },
+          { label: 'Home', href: '#', icon: outline(h, 'M2 7l6-5 6 5v7H2zM6 14v-4h4v4') },
           {
             id: 'products',
             label: 'Products',
@@ -37,15 +37,9 @@ export default example({
                 links: [
                   {
                     label: 'Mixins',
-                    href: '#mixins',
+                    href: '#',
                     description: 'Slots, styles and behaviours.',
                     icon: outline(h, 'M2 5l6-3 6 3v6l-6 3-6-3zM2 5l6 3 6-3M8 8v6'),
-                  },
-                  {
-                    label: 'Remote',
-                    href: '#remote',
-                    description: 'Server facts, cached.',
-                    icon: outline(h, 'M2 8h12M8 2a8 8 0 0 1 0 12M8 2a8 8 0 0 0 0 12'),
                   },
                 ],
               },
@@ -54,14 +48,14 @@ export default example({
                 links: [
                   {
                     label: 'Sync',
-                    href: '#sync',
+                    href: '#',
                     description: 'Offline edits, in order.',
                     icon: outline(h, 'M3 8a5 5 0 0 1 9-3M13 8a5 5 0 0 1-9 3'),
                   },
                 ],
               },
             ],
-            footer: h.a([h.Href('#products')], ['Learn more about the packages']),
+            footer: h.a([h.Href('#')], ['Learn more about the packages']),
           },
         ],
       },
