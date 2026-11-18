@@ -522,3 +522,29 @@ test('on a phone only the opener shows, and it opens the navigation in a Sheet',
     handle.dispose()
   }
 })
+
+test('a group shuts over time, still partly open at mid-duration', async () => {
+  const handle = mount({ moving: true })
+  try {
+    await vi.waitFor(() => expect(button('Work')).toBeTruthy())
+    const links = () => document.getElementById(button('Work').getAttribute('aria-controls')!)!
+    await vi.waitFor(() => expect(document.getAnimations()).toHaveLength(0))
+    const full = rect(links()).height
+    expect(full).toBeGreaterThan(20)
+    button('Work').click()
+    const heights = await new Promise<ReadonlyArray<number>>(resolve => {
+      const seen: Array<number> = []
+      const start = performance.now()
+      const tick = () => {
+        seen.push(rect(links()).height)
+        if (performance.now() - start < 2500) requestAnimationFrame(tick)
+        else resolve(seen)
+      }
+      tick()
+    })
+    expect(heights.filter(height => height > 1 && height < full - 1).length).toBeGreaterThan(2)
+    expect(heights[heights.length - 1]).toBe(0)
+  } finally {
+    handle.dispose()
+  }
+})

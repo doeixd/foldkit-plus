@@ -23,7 +23,7 @@
  */
 import { Style } from 'foldkit-mixins'
 import { ladder, role, Theme } from 'foldkit-mixins/theme'
-import { SidebarSlots } from '../sidebar.js'
+import { SidebarSlots } from '../sidebar/slots.js'
 import {
   component,
   controlHeight,
@@ -355,6 +355,17 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
       }),
       Style.nest(railed, { display: 'none' }),
       // The action takes its place; a touch screen shows both.
+      Style.at('@media (hover: hover)', Style.nest(`${lifted} &`, { opacity: '0' })),
+    ),
+    trailing: component(
+      Style.self({
+        display: 'inline-flex',
+        alignItems: 'center',
+        flexShrink: '0',
+        color: ref.text.muted,
+        ...transition('opacity'),
+      }),
+      Style.nest(railed, { display: 'none' }),
       Style.at('@media (hover: hover)', Style.nest(`${lifted} &`, { opacity: '0' })),
     ),
     action: component(

@@ -1,13 +1,7 @@
 import * as UiTooltip from '@foldkit/ui/tooltip'
 import { Match, Option, Schema, Stream } from 'effect'
 import {
-  Attr,
-  Behavior,
   Behaviors,
-  Capability,
-  Event,
-  Slot,
-  Slots,
   SlotView,
   type NamedStyle,
   type SlotAttributes,
@@ -19,15 +13,22 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
 import type { Return } from 'foldkit/update'
-import { FluidHover, Measure, Move } from 'foldkit-primitives/dom'
+import { Move } from 'foldkit-primitives/dom'
 import { flipped } from './choices.js'
 import type { ResolvedDialog } from './dialog.js'
 import type { MixinList } from './resolve.js'
+import type { RowContent } from './rowContent.js'
 import * as Sheet from './sheet.js'
+import { fluid } from './sidebar/fluid.js'
+import { SidebarSlots } from './sidebar/slots.js'
 import * as Splitter from './splitter.js'
 import * as Tooltip from './tooltip.js'
+import { fill, wordsOf } from './words.js'
 
-/**
+export { fluid }
+export { SidebarSlots }
+
+/*
  * An application's sidebar, shadcn's and Fluid Functionalism's: a column with
  * a `header`, a navigation landmark of groups and a `footer`. A group is a
  * heading over its rows, or a heading button that shows and hides them, as an
@@ -53,80 +54,22 @@ import * as Tooltip from './tooltip.js'
  * the width it had to come back to. One Model holds both, so a collapse
  * never leaves the dragged width behind.
  */
-export const SidebarSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
-  header: Slot.make({ capability: Capability.Container }),
-  footer: Slot.make({ capability: Capability.Container }),
-  toggle: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaExpanded, Attr.AriaLabel],
-  }),
-  /** The phone's button that opens the navigation in a Sheet. */
-  opener: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
-  nav: Slot.make({ capability: Capability.Container }),
-  section: Slot.make({ capability: Capability.Container }),
-  trigger: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaExpanded],
-  }),
-  /** A group heading button's words. */
-  title: Slot.make({ capability: Capability.Container }),
-  /** A group's heading that shows and hides nothing. */
-  heading: Slot.make({ capability: Capability.Container }),
-  chevron: Slot.make({ capability: Capability.Container }),
-  /** A group's rows, or a branch's (`data-nested`). */
-  links: Slot.make({ capability: Capability.Container }),
-  item: Slot.make({ capability: Capability.Container }),
-  link: Slot.make({ capability: Capability.Interactive }),
-  /** A row that shows and hides the links nested under it. */
-  branch: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaExpanded],
-  }),
-  icon: Slot.make({ capability: Capability.Container }),
-  /** What leads the header or footer (a logo, an avatar): all a rail shows of it. */
-  mark: Slot.make({ capability: Capability.Container }),
-  /** The rest of the header or footer, beside its mark; a rail hides it. */
-  detail: Slot.make({ capability: Capability.Container }),
-  /** A row's words; in an icon rail, kept for its name and hidden. */
-  label: Slot.make({ capability: Capability.Container }),
-  /** A row's count, at its end. */
-  badge: Slot.make({ capability: Capability.Container }),
-  /** A button at a link's or a group heading's end (`data-action` on its item or section). */
-  action: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.Click],
-    attributes: [Attr.AriaLabel],
-  }),
-  /** What holds a rail row's control and its tooltip, laid out as the control alone. */
-  tip: Slot.make({ capability: Capability.Container }),
-  indicator: Slot.make({ capability: Capability.Container }),
-  highlight: Slot.make({ capability: Capability.Container }),
-  /** A resizable column's handle on its inline-end edge, a `separator`. */
-  resize: Slot.make({
-    capability: Capability.Interactive,
-    events: [Event.KeyDown],
-    attributes: [Attr.Role, Attr.AriaLabel],
-  }),
-})
 
-/** What a row may carry beside its words. */
-interface RowParts {
+/**
+ * What a row may carry beside its words, as `RowContent` names them: `icon`
+ * before the words (hidden from assistive technology; what an icon rail
+ * shows), `content` drawn in place of the label's text (the label still names
+ * the row), and `trailing` Html at its end.
+ */
+interface RowParts extends Pick<RowContent, 'label' | 'icon' | 'content' | 'trailing'> {
   /** Names the row in the Model: its Tooltip, and a branch's open state. Unique in the sidebar. */
   readonly id: string
-  readonly label: string
-  /** Drawn before the words, hidden from assistive technology; what an icon rail shows. */
-  readonly icon?: Html | undefined
   /** A count or a short word at the row's end, such as `'12'`. */
   readonly badge?: string | undefined
 }
 
-/** A link nested under a branch. */
-export interface SidebarLeaf {
-  readonly label: string
+/** A link nested under a branch, with the same parts as a row but its id. */
+export interface SidebarLeaf extends Pick<RowContent, 'label' | 'icon' | 'content' | 'trailing'> {
   readonly href: string
   /** Whether it leads to the page shown, `aria-current="page"`. */
   readonly current?: boolean | undefined
@@ -353,43 +296,6 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
     }),
   })
 
-const current = '[aria-current="page"]'
-
-/**
- * What moves the `indicator` and `highlight`, on the navigation: the current
- * link is measured (`--fk-sidebar-chosen-*`), and one highlight follows the
- * pointer to the nearest row (`--fk-sidebar-hover-*`), born at the current
- * one. Pass them beside the style; until they run, the current link fills
- * itself. The phone's Sheet draws its own marker and highlight for them.
- */
-export const fluid = [
-  Behavior.forSlots(SidebarSlots)<unknown, never>(
-    {
-      nav: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => Measure({ targets: { 'sidebar-chosen': current } }),
-      }),
-    },
-    { name: 'SidebarChosen' },
-  ).mixin,
-  Behavior.forSlots(SidebarSlots)<unknown, never>(
-    {
-      nav: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () =>
-          FluidHover({
-            name: 'sidebar-hover',
-            item: ':is(a, [aria-expanded]):not([inert] *)',
-            axis: 'y',
-            gapClick: true,
-            from: current,
-          }),
-      }),
-    },
-    { name: 'SidebarHover' },
-  ).mixin,
-] as const
-
 /**
  * The resize handle's drag, from the Move Mount: the width the column shows
  * at the press, read from the navigation the handle controls, then each
@@ -422,6 +328,25 @@ const Widen = Mount.defineStream('SidebarWiden', {
 /** What an arrow key on the resize handle moves the width by, in CSS pixels. */
 const STEP = 16
 
+/** The fixed text a sidebar draws, with `{label}` where the navigation's name goes. */
+export interface SidebarWords {
+  /** The toggle's name while collapsed. */
+  readonly show: string
+  /** The toggle's name while expanded. */
+  readonly hide: string
+  /** The phone's opener's name. */
+  readonly open: string
+  /** The resize handle's name. */
+  readonly resize: string
+}
+
+export const words: SidebarWords = {
+  show: 'Show {label}',
+  hide: 'Hide {label}',
+  open: 'Open {label}',
+  resize: 'Resize {label}',
+}
+
 export interface SidebarView<Message> {
   readonly model: Model
   readonly onMessage: (message: typeof Message.Type) => NoInfer<Message>
@@ -439,6 +364,8 @@ export interface SidebarView<Message> {
   readonly direction?: 'ltr' | 'rtl' | undefined
   /** Collapsed, off the page (default) or a rail of icons with their names in tooltips. */
   readonly collapse?: 'offcanvas' | 'icons' | undefined
+  /** The toggle's, opener's and handle's names; defaults `Sidebar.words`. */
+  readonly words?: Partial<SidebarWords> | undefined
   /** A style of `SidebarSlots` (`Recipes.Sidebar`). */
   readonly style?: NamedStyle<typeof SidebarSlots> | undefined
   /** Mixins beside the style; `Sidebar.fluid` glides the current link's marker. */
@@ -485,6 +412,8 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
     ],
     { input: undefined, h },
   )
+  const said = wordsOf(words, options.words)
+  const named = { label: options.label }
   const rail = options.collapse === 'icons'
   const railed = rail && model.collapsed
   const navId = `${model.id}-nav`
@@ -535,7 +464,7 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
           h.Type('button'),
           h.AriaExpanded(!model.collapsed),
           h.AriaControls(navId),
-          h.AriaLabel(model.collapsed ? `Show ${options.label}` : `Hide ${options.label}`),
+          h.AriaLabel(fill(model.collapsed ? said.show : said.hide, named)),
           h.OnClick(onMessage(Message.ToggledCollapsed())),
         ]),
         [],
@@ -548,7 +477,7 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
                 h.Type('button'),
                 h.AriaHasPopup('dialog'),
                 h.AriaExpanded(Sheet.isOpen(model.sheet)),
-                h.AriaLabel(`Open ${options.label}`),
+                h.AriaLabel(fill(said.open, named)),
                 h.OnClick(onMessage(Message.OpenedSheet())),
               ]),
               [],
@@ -609,7 +538,7 @@ export const view = <Message>(options: SidebarView<Message>, h: HtmlBuilder<Mess
             builders.resize.attrs([
               h.Role('separator'),
               h.AriaOrientation('vertical'),
-              h.AriaLabel(`Resize ${options.label}`),
+              h.AriaLabel(fill(said.resize, named)),
               h.AriaControls(navId),
               // Collapsed is the handle's least place, below the bounds a drag keeps.
               h.AriaValuemin(0),
@@ -687,12 +616,13 @@ const groupsOf =
     const state = (shown: boolean) => h.DataAttribute('state', shown ? 'open' : 'closed')
     const rail = drawing.railed
     const followed = drawing.followed === undefined ? [] : [h.OnClick(drawing.followed)]
-    const parts = (row: RowParts) => [
+    const parts = (row: Pick<RowParts, 'label' | 'icon' | 'content' | 'trailing' | 'badge'>) => [
       ...(row.icon === undefined
         ? []
         : [h.span(builders.icon.attrs([h.AriaHidden(true)]), [row.icon])]),
-      h.span(builders.label.attrs(), [row.label]),
+      h.span(builders.label.attrs(), [row.content ?? row.label]),
       ...(row.badge === undefined ? [] : [h.span(builders.badge.attrs(), [row.badge])]),
+      ...(row.trailing === undefined ? [] : [h.span(builders.trailing.attrs(), [row.trailing])]),
     ]
     const linkOf = (
       leaf: SidebarLeaf,
@@ -758,11 +688,7 @@ const groupsOf =
             state(shown && !rail),
             ...(shown && !rail ? [] : [h.Attribute('inert', '')]),
           ]),
-          row.items.map(leaf =>
-            h.li(builders.item.attrs(), [
-              linkOf(leaf, [], [h.span(builders.label.attrs(), [leaf.label])]),
-            ]),
-          ),
+          row.items.map(leaf => h.li(builders.item.attrs(), [linkOf(leaf, [], parts(leaf))])),
         ),
       ])
     }

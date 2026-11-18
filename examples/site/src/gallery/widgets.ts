@@ -16,7 +16,6 @@ import {
 import {
   Menubar,
   InputCopy,
-  Sidebar,
   Calendar as DateSelection,
   ColorPicker,
   Menu,
@@ -43,14 +42,6 @@ import {
   FILE_MENU,
   MENUBAR,
   PAGE_MENU,
-  ACCOUNT,
-  appSidebar,
-  floatingSidebar,
-  insetSidebar,
-  sectionsSidebar,
-  sidebarResizableModel,
-  switcherSidebar,
-  TEAMS,
   ViewMode,
   ViewOptions,
   viewRows,
@@ -61,16 +52,6 @@ import {
 /** The chart examples, each lighting a point of its own. */
 export const ChartExample = Schema.Literals(['bar', 'line', 'area', 'donut', 'table', 'colors'])
 export type ChartExample = typeof ChartExample.Type
-
-/** The Sidebar page's examples beyond its first, each with a sidebar of its own. */
-export const SidebarExample = Schema.Literals([
-  'resizable',
-  'floating',
-  'inset',
-  'sections',
-  'switcher',
-])
-export type SidebarExample = typeof SidebarExample.Type
 
 export const NavExample = Schema.Literals(['panels', 'pill', 'vertical'])
 export type NavExample = typeof NavExample.Type
@@ -134,16 +115,6 @@ export const Model = Schema.Struct({
   commandQuery: Schema.String,
   commandActive: Schema.Option(Schema.String),
   commandRan: Schema.Option(Schema.String),
-  /** The sidebar's open groups, whether it is collapsed, its tooltips and phone Sheet. */
-  sidebar: Sidebar.Model,
-  /** Each further example's sidebar. */
-  sidebars: Schema.Record(SidebarExample, Sidebar.Model),
-  /** What a sidebar's action last did. */
-  sidebarActed: Schema.Option(Schema.String),
-  /** The switcher's team, and the menus at its ends. */
-  team: Schema.String,
-  teamMenu: Menu.Model,
-  userMenu: Menu.Model,
   viewMode: ViewMode,
   navs: Schema.Record(NavExample, Nav.Model),
   /** The menu bar's menus, and the command last chosen from it. */
@@ -217,11 +188,6 @@ export const Message = defineMessageUnion({
   TypedCommand: { query: Schema.String },
   HighlightedCommand: { value: Schema.String },
   RanCommand: { value: Schema.String },
-  GotSidebar: { message: Sidebar.Message },
-  GotSidebarOf: { example: SidebarExample, message: Sidebar.Message },
-  ActedInSidebar: { action: Schema.String },
-  GotTeamMenu: { message: Menu.Message },
-  GotUserMenu: { message: Menu.Message },
   ChoseViewMode: { mode: ViewMode },
   GotNav: { example: NavExample, message: Nav.Message },
   GotMenubar: { message: Menubar.Message },
@@ -321,18 +287,6 @@ export const initial: Model = {
   commandQuery: '',
   commandActive: Option.none(),
   commandRan: Option.none(),
-  sidebar: appSidebar,
-  sidebars: {
-    resizable: sidebarResizableModel,
-    floating: floatingSidebar,
-    inset: insetSidebar,
-    sections: sectionsSidebar,
-    switcher: switcherSidebar,
-  },
-  sidebarActed: Option.none(),
-  team: 'Acme Inc',
-  teamMenu: Menu.init('preview-team-menu', TEAMS, { isAnimated: true }),
-  userMenu: Menu.init('preview-user-menu', ACCOUNT, { isAnimated: true }),
   viewMode: 'board',
   navs: {
     panels: Nav.init('preview-site-nav'),

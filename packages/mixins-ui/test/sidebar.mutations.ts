@@ -50,8 +50,8 @@ export default [
     edits: [
       {
         file,
-        find: 'model.collapsed ? `Show ${options.label}` : `Hide ${options.label}`',
-        replace: '`Hide ${options.label}`',
+        find: 'model.collapsed ? said.show : said.hide',
+        replace: 'said.hide',
       },
     ],
     tests: unit,
@@ -132,7 +132,7 @@ export default [
     name: 'the marker measures nothing',
     edits: [
       {
-        file,
+        file: '../src/sidebar/fluid.ts',
         find: "targets: { 'sidebar-chosen': current }",
         replace: "targets: { 'sidebar-chosen': '[data-never]' }",
       },
@@ -306,6 +306,8 @@ export default [
         file: recipe,
         find: "Style.nest(`${lifted} &`, { opacity: '0' })",
         replace: 'Style.self({})',
+        // The trailing Html beside it gives way the same, in a rule of its own.
+        all: true,
       },
     ],
     tests: browser,
@@ -431,6 +433,40 @@ export default [
         file: '../src/recipes/design.ts',
         find: "      gridTemplateRows: 'auto 1fr',",
         replace: "      gridTemplateRows: 'auto 1fr',\n      paddingInlineStart: '0',",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the words given are ignored',
+    edits: [
+      { file, find: 'const said = wordsOf(words, options.words)', replace: 'const said = words' },
+    ],
+    tests: unit,
+  },
+  {
+    name: "a row's content is not drawn",
+    edits: [{ file, find: '[row.content ?? row.label]', replace: '[row.label]' }],
+    tests: unit,
+  },
+  {
+    name: "a row's trailing Html is dropped",
+    edits: [
+      {
+        file,
+        find: '...(row.trailing === undefined ? [] : [h.span(builders.trailing.attrs(), [row.trailing])]),',
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a group shuts at once',
+    edits: [
+      {
+        file: '../src/recipes/design.ts',
+        find: 'transitionDuration: travelled(collapseShuts),',
+        replace: "transitionDuration: '0s',",
       },
     ],
     tests: browser,

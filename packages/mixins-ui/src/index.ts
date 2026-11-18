@@ -231,6 +231,7 @@ export type {
   SidebarLink,
   SidebarRow,
   SidebarView,
+  SidebarWords,
 } from './sidebar.js'
 export type { NavEntry, NavLink, NavPanel, NavPanelGroup, NavPanelLink, NavView } from './nav.js'
 export type {

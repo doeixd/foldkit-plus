@@ -20,7 +20,6 @@ import {
   Dialog,
   Menubar,
   InputCopy,
-  Sidebar,
   Calendar as DateSelection,
   ColorPicker,
   Menu,
@@ -60,7 +59,6 @@ import {
   NavExample,
   PopoverExample,
   SheetExample,
-  SidebarExample,
   ToastExample,
   TooltipExample,
   type Step,
@@ -254,36 +252,6 @@ const foldMenubar = Update.foldChild({
 const foldAccent = Update.foldChild({
   ...own('accent', Message.GotAccent),
   update: ColorPicker.update,
-})
-
-const foldSidebar = Update.foldChild({
-  ...own('sidebar', Message.GotSidebar),
-  update: Sidebar.update,
-})
-
-const foldSidebarOf = Update.foldChildAt({
-  update: Sidebar.update,
-  readAt: (model: Model, example: SidebarExample) => Option.some(model.sidebars[example]),
-  writeAt: (model, example, sidebar) =>
-    modifyFields(model, { sidebars: sidebars => ({ ...sidebars, [example]: sidebar }) }),
-  toParentMessage: (example, message) => Message.GotSidebarOf({ example, message }),
-})
-
-const foldTeamMenu = Update.foldChild({
-  ...own('teamMenu', Message.GotTeamMenu),
-  update: Menu.update,
-  foldOutMessage: Menu.OutMessage.match<Step>({
-    Selected:
-      ({ value }) =>
-      model => ({ model: modifyFields(model, { team: () => value }) }),
-  }),
-})
-
-// The account's rows lead nowhere in the gallery: choosing one only closes the menu.
-const foldUserMenu = Update.foldChild({
-  ...own('userMenu', Message.GotUserMenu),
-  update: Menu.update,
-  foldOutMessage: Menu.OutMessage.match<Step>({ Selected: () => same }),
 })
 
 const foldNav = Update.foldChildAt({
@@ -492,13 +460,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     HighlightedCommand: ({ value }) => ({
       model: modifyFields(model, { commandActive: () => Option.some(value) }),
     }),
-    GotSidebar: ({ message }) => foldSidebar(model, message),
-    GotSidebarOf: ({ example, message }) => foldSidebarOf(model, example, message),
-    ActedInSidebar: ({ action }) => ({
-      model: modifyFields(model, { sidebarActed: () => Option.some(action) }),
-    }),
-    GotTeamMenu: ({ message }) => foldTeamMenu(model, message),
-    GotUserMenu: ({ message }) => foldUserMenu(model, message),
     ChoseViewMode: ({ mode }) =>
       mode === model.viewMode
         ? { model }
