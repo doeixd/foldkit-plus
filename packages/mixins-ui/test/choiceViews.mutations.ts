@@ -127,4 +127,15 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'a card’s aside sits under the stretched label',
+    edits: [
+      {
+        file: '../src/recipes/toggle.ts',
+        find: "aside: variant(Style.self({ position: 'relative' })),",
+        replace: 'aside: variant(Style.self({})),',
+      },
+    ],
+    tests: [browser],
+  },
 ]

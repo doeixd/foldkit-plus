@@ -1,7 +1,9 @@
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { flipped } from './choices.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import type { RowContent } from './rowContent.js'
 
 /**
  * A group of checkboxes for one question, as Zag's checkbox group: a
@@ -23,6 +25,7 @@ export const CheckboxGroupSlots = Slots.define({
     attributes: [
       Attr.Role,
       Attr.AriaChecked,
+      Attr.AriaLabel,
       Attr.AriaControls,
       Attr.AriaDisabled,
       Attr.AriaInvalid,
@@ -30,7 +33,11 @@ export const CheckboxGroupSlots = Slots.define({
     ],
   }),
   label: Slot.make({ capability: Capability.Container }),
+  /** An option's mark before its words, inside the label so a press on it chooses the option. */
+  icon: Slot.make({ capability: Capability.Container }),
   description: Slot.make({ capability: Capability.Container }),
+  /** An option's badge, count or time after its words. */
+  trailing: Slot.make({ capability: Capability.Container }),
   /** The rows, apart from the legend and the error, so a row can sit beside its neighbours. */
   options: Slot.make({ capability: Capability.Container }),
   error: Slot.make({ capability: Capability.Container }),
@@ -38,11 +45,9 @@ export const CheckboxGroupSlots = Slots.define({
   hiddenInput: Slot.make({ capability: Capability.Base, attributes: [Attr.Value] }),
 })
 
-export interface CheckboxGroupOption<Value extends string> {
+/** One checkbox of the group: the row's words and marks, and the value it stands for. */
+export interface CheckboxGroupOption<Value extends string> extends RowContent {
   readonly value: Value
-  readonly label: string
-  readonly description?: string | undefined
-  readonly disabled?: boolean | undefined
 }
 
 /** A first row that checks every option or none, as shadcn's and Base UI's parent checkbox does. */
@@ -186,6 +191,8 @@ export const view = <Value extends string, Message>(
                 h.Id(checkboxId),
                 h.Role('checkbox'),
                 h.AriaChecked(on),
+                // Words of the application's own drawing may not read as a name: `label` is the name.
+                ...(option.content === undefined ? [] : [h.AriaLabel(option.label)]),
                 ...(invalid ? [h.AriaInvalid(true)] : []),
                 ...(option.description === undefined ? [] : [h.AriaDescribedBy(descriptionId)]),
                 ...(disabled
@@ -194,10 +201,22 @@ export const view = <Value extends string, Message>(
               ]),
               [],
             ),
-            h.label(builders.label.attrs([h.For(checkboxId)]), [option.label]),
+            h.label(builders.label.attrs([h.For(checkboxId)]), [
+              ...(option.icon === undefined ? [] : [h.span(builders.icon.attrs(), [option.icon])]),
+              option.content ?? option.label,
+            ]),
+            ...(option.trailing === undefined
+              ? []
+              : [h.span(builders.trailing.attrs(), [option.trailing])]),
             ...(option.description === undefined
               ? []
-              : [h.p(builders.description.attrs([h.Id(descriptionId)]), [option.description])]),
+              : [
+                  // Text is a paragraph; a drawing of the application's may hold blocks, which a `p` cannot.
+                  (typeof option.description === 'string' ? h.p : h.div)(
+                    builders.description.attrs([h.Id(descriptionId)]),
+                    [option.description],
+                  ),
+                ]),
           ],
         )
       }),
@@ -222,3 +241,24 @@ export const view = <Value extends string, Message>(
     ...(invalid ? [h.p(builders.error.attrs([h.Id(errorId)]), [error])] : []),
   ])
 }
+
+/** What a CheckboxGroup is given once: its look. The options, the checked values and the Messages are each use's. */
+export type CheckboxGroupPreset = Pick<CheckboxGroupView<string, never>, 'style'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/**
+ * The application's own CheckboxGroup: `base` for every use, `presets` chosen
+ * at a use with `preset`, and the call over both. `mixins` concatenate in
+ * that order; any other option given at the call replaces the preset's.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<CheckboxGroupPreset, Names>,
+): {
+  readonly view: <const Value extends string, Outer>(
+    options: CheckboxGroupView<Value, Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

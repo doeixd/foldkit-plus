@@ -91,7 +91,7 @@ const card = {
       borderRadius: 'inherit',
     }),
   ),
-  aside: variant(Style.self({ position: 'relative', zIndex: '1' })),
+  aside: variant(Style.self({ position: 'relative' })),
 }
 
 const looks = { plain: { root: variant(Style.self({})) }, card }
