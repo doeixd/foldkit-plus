@@ -110,9 +110,9 @@ describe('Alert.view', () => {
         label: 'Cookies',
         title: 'We use cookies.',
         onDismiss,
-        dismissLabel: 'Accept and close',
+        words: { dismiss: 'Accept and close {name}' },
       }),
-    ).toBe('Accept and close')
+    ).toBe('Accept and close Cookies')
   })
 
   it('sends the action from the action and the dismissal from the dismiss button, neither submitting a form', () => {
@@ -150,16 +150,55 @@ describe('Alert.view', () => {
   })
 })
 
+describe('Alert words and configure', () => {
+  const style = Style.forSlots(AlertSlots)(Recipes.Alert({}))
+  const onDismiss = message('Clicked')
+  const markOf = (drawn: ReturnType<typeof Alert.view>) =>
+    Inert.text(Inert.byTag(drawn, 'button')[0]!)
+
+  it('reads the dismiss mark and name from words', () => {
+    const drawn = Alert.view(
+      { layout: 'inline', title: 'Saved', onDismiss, words: { dismissMark: 'x' }, style },
+      h,
+    )
+    expect(markOf(drawn)).toBe('x')
+  })
+
+  it('binds a style and words once, and a preset or the call wins', () => {
+    const App = Alert.configure({
+      base: { style, words: { dismiss: 'Close {name}' } },
+      presets: { quiet: { words: { dismiss: 'Hush {name}' } } },
+    })
+    const nameOf = (drawn: ReturnType<typeof Alert.view>) =>
+      Inert.value(Inert.byTag(drawn, 'button')[0], 'aria-label')
+    expect(nameOf(App.view({ layout: 'inline', title: 'Saved', onDismiss }, h))).toBe('Close Saved')
+    expect(
+      nameOf(App.view({ layout: 'inline', title: 'Saved', onDismiss, preset: 'quiet' }, h)),
+    ).toBe('Hush Saved')
+    expect(Inert.classes(App.view({ layout: 'inline', title: 'Saved' }, h))).toEqual(
+      Inert.classes(Alert.view({ layout: 'inline', title: 'Saved', style }, h)),
+    )
+  })
+})
+
 describe('Alert recipe', () => {
   const css = (selection: Parameters<typeof Recipes.Alert>[0]): string =>
     Style.forSlots(AlertSlots)(Recipes.Alert(selection)).css
 
   it('reads every tone from its family, info by default', () => {
     expect(css({})).toContain('--_fk-alert-subtle:var(--fk-info-subtle)')
-    expect(css({ tone: 'error' })).toContain('--_fk-alert-subtle:var(--fk-error-subtle)')
-    expect(css({ tone: 'error' })).toContain('--_fk-alert-ink:var(--fk-error-ink)')
+    expect(css({ tone: 'danger' })).toContain('--_fk-alert-subtle:var(--fk-error-subtle)')
+    expect(css({ tone: 'danger' })).toContain('--_fk-alert-ink:var(--fk-error-ink)')
     expect(css({ tone: 'success' })).toContain('--_fk-alert-subtle:var(--fk-success-subtle)')
     expect(css({ tone: 'warning' })).toContain('--_fk-alert-fill:var(--fk-warning-default)')
+  })
+
+  it('has the whole tone vocabulary, the neutral one quiet and inverting when bold', () => {
+    expect(css({ tone: 'neutral' })).toContain('--_fk-alert-subtle:var(--fk-surface-muted)')
+    expect(css({ tone: 'neutral' })).toContain('--_fk-alert-fill:var(--fk-text-overt)')
+    expect(css({ tone: 'accent' })).toContain('--_fk-alert-subtle:var(--fk-accent-subtle)')
+    // @ts-expect-error: `error` is a state; the tone is `danger`.
+    css({ tone: 'error' })
   })
 
   it('tints by default and fills when bold', () => {

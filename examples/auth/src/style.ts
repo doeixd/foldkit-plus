@@ -39,7 +39,7 @@ export const QuietButtonStyle = demoStyle.forSlots(ButtonSlots)(
   Recipes.Button({ tone: 'neutral', variant: 'outline' }),
   { name: 'QuietButtonStyle' },
 )
-export const NoticeStyle = demoStyle.forSlots(AlertSlots)(Recipes.Alert({ tone: 'error' }), {
+export const NoticeStyle = demoStyle.forSlots(AlertSlots)(Recipes.Alert({ tone: 'danger' }), {
   name: 'NoticeStyle',
 })
 /** One style for every badge: its tone comes from the word it carries. */

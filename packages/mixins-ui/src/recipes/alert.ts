@@ -14,7 +14,7 @@
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { ladder, nests, role } from 'foldkit-mixins/theme'
-import { AlertSlots, type AlertTone } from '../alert.js'
+import { AlertSlots } from '../alert.js'
 import {
   component,
   focusRing,
@@ -26,16 +26,28 @@ import {
   controlHeight,
 } from './design.js'
 
-const toned = (tone: AlertTone): StyleValue =>
+// `danger` is the palette's `error` family, which stays named so where it is a state.
+const toned = (family: 'accent' | 'info' | 'success' | 'warning' | 'error'): StyleValue =>
   variant(
     Style.self({
-      '--_fk-alert-subtle': ref[tone].subtle,
-      '--_fk-alert-ink': ref[tone].ink,
-      '--_fk-alert-fill': ref[tone].default,
-      '--_fk-alert-on-fill': ref[tone]['on-fill'],
-      '--_fk-alert-line': ref[tone].outline,
+      '--_fk-alert-subtle': ref[family].subtle,
+      '--_fk-alert-ink': ref[family].ink,
+      '--_fk-alert-fill': ref[family].default,
+      '--_fk-alert-on-fill': ref[family]['on-fill'],
+      '--_fk-alert-line': ref[family].outline,
     }),
   )
+
+// As quiet as the page's muted text; bold, it inverts the page.
+const neutral: StyleValue = variant(
+  Style.self({
+    '--_fk-alert-subtle': ref.surface.muted,
+    '--_fk-alert-ink': ref.text.default,
+    '--_fk-alert-fill': ref.text.overt,
+    '--_fk-alert-on-fill': ref.surface.base,
+    '--_fk-alert-line': ref.outline.default,
+  }),
+)
 
 // What the actions and the dismiss button share: no chrome of their own, the band's text.
 const quiet: ReadonlyArray<StyleValue> = [
@@ -173,7 +185,9 @@ export const Alert = Style.recipeFor(AlertSlots)({
       info: { root: toned('info') },
       success: { root: toned('success') },
       warning: { root: toned('warning') },
-      error: { root: toned('error') },
+      danger: { root: toned('error') },
+      neutral: { root: neutral },
+      accent: { root: toned('accent') },
     },
     emphasis: {
       subtle: {

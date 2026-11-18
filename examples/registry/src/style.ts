@@ -35,7 +35,7 @@ export const OfflineButtonStyle = demoStyle.forSlots(ButtonSlots)(
   { name: 'OfflineButtonStyle' },
 )
 /** What the server refused. */
-export const RefusedStyle = demoStyle.forSlots(AlertSlots)(Recipes.Alert({ tone: 'error' }), {
+export const RefusedStyle = demoStyle.forSlots(AlertSlots)(Recipes.Alert({ tone: 'danger' }), {
   name: 'RefusedStyle',
 })
 /** What another device's edit replaced, or what an undo left alone. */
