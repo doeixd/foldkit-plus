@@ -61,6 +61,39 @@ const scrollFocus = Style.nest('&:focus-visible', {
   outlineOffset: '-2px',
 })
 
+/** The room the copy button takes at a line's end: its width, and the block's own padding. */
+const COPY_ROOM = `calc(${t.space.md} + 4.5rem)`
+
+/**
+ * No header band: a site's block names no file, so the band would hold the
+ * Copy button and nothing else. The button floats over the code's top
+ * inline-end corner, quiet until the block is hovered or the button focused
+ * (still a tab stop at rest, and always shown on a touch screen), and the
+ * first line ends in room for it, so scrolled to its end it is clear of the
+ * button. Every site block takes these slots, so one source styles them all.
+ */
+const floatedCopy = {
+  header: Style.compose(
+    Style.self({
+      position: 'absolute',
+      insetBlockStart: t.space.xs,
+      insetInlineEnd: t.space.xs,
+      zIndex: '1',
+      padding: '0',
+      border: '0',
+      transition: `opacity ${t.motion.fast}`,
+    }),
+    Style.nest(':where(:not(:hover, :focus-within)) > &', { opacity: '0' }),
+    Style.at(
+      '@media (hover: none)',
+      Style.nest(':where(:not(:hover, :focus-within)) > &', { opacity: '1' }),
+    ),
+  ),
+  // The language is not a title: the label would sit under the button.
+  title: Style.self({ display: 'none' }),
+  line: Style.nest('&:first-child', { paddingInlineEnd: COPY_ROOM }),
+}
+
 /** The site's code: the shipped recipe, colored from the theme's `syntax` group. */
 export const CodeStyle = Style.forSlots(CodeBlockSlots)(
   Recipes.CodeBlock.extend({
@@ -68,6 +101,7 @@ export const CodeStyle = Style.forSlots(CodeBlockSlots)(
       // The example frames' surface (`codeBox`) in place of the recipe's muted one.
       root: Style.self({ background: codeSurface }),
       body: Style.compose(Style.self(scrollFade), scrollFocus),
+      ...floatedCopy,
     },
   })({}),
 )
@@ -97,7 +131,8 @@ export const DiagramStyle = Style.forSlots(CodeBlockSlots)(
         }),
         scrollFocus,
       ),
-      line: Style.self({ lineHeight: 'inherit' }),
+      ...floatedCopy,
+      line: Style.compose(Style.self({ lineHeight: 'inherit' }), floatedCopy.line),
     },
   })({}),
 )

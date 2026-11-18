@@ -16,6 +16,39 @@ export default [
     tests: ['examples/site/test/codeSurface.browser.test.ts'],
   },
   {
+    name: 'the first line has no room kept for the Copy button',
+    edits: [
+      {
+        file,
+        find: "line: Style.nest('&:first-child', { paddingInlineEnd: COPY_ROOM }),",
+        replace: "line: Style.nest('&:first-child', { paddingInlineEnd: '0' }),",
+      },
+    ],
+    tests: ['examples/site/test/codeSurface.browser.test.ts'],
+  },
+  {
+    name: 'the header band is back above the code',
+    edits: [
+      {
+        file,
+        find: "      position: 'absolute',\n      insetBlockStart: t.space.xs,",
+        replace: "      position: 'static',\n      insetBlockStart: t.space.xs,",
+      },
+    ],
+    tests: ['examples/site/test/codeSurface.browser.test.ts'],
+  },
+  {
+    name: 'the Copy button shows at rest',
+    edits: [
+      {
+        file,
+        find: "Style.nest(':where(:not(:hover, :focus-within)) > &', { opacity: '0' }),",
+        replace: '',
+      },
+    ],
+    tests: ['examples/site/test/codeSurface.browser.test.ts'],
+  },
+  {
     name: 'a code block is filled with the muted step',
     edits: [
       {

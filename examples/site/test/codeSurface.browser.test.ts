@@ -8,6 +8,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { Style } from 'foldkit-mixins'
 import { afterEach, expect, test, vi } from 'vitest'
+import { page } from 'vitest/browser'
 
 import { codeBlock } from '../src/content/render.js'
 import { stylesheet } from '../src/style.js'
@@ -17,7 +18,7 @@ afterEach(() => {
   document.body.removeAttribute('style')
 })
 
-const mount = async (lang: 'ts' | 'text') => {
+const mount = async (lang: 'ts' | 'text', code = 'const a = 1', label?: string) => {
   Style.install(stylesheet)
   document.body.style.margin = '0'
   document.body.style.background = 'var(--fk-surface-base)'
@@ -25,7 +26,7 @@ const mount = async (lang: 'ts' | 'text') => {
   container.id = 'code-surface-page'
   document.body.appendChild(container)
   const view = (_: unknown, h: HtmlBuilder<never>): Html =>
-    h.div([], [codeBlock(h, () => [], { code: 'const a = 1', lang, copy: true })])
+    h.div([], [codeBlock(h, () => [], { code, lang, label, copy: true })])
   Runtime.embed(
     Runtime.makeElement({
       Model: Schema.Struct({}),
@@ -71,5 +72,38 @@ test.each(['ts', 'text'] as const)(
     const box = lightnessOf(fillOf(pre))
     expect(page).toBeGreaterThan(0.95)
     expect(Math.abs(page - box)).toBeLessThan(0.025)
+  },
+)
+
+const LONG_FIRST_LINE = `const ${'a'.repeat(120)} = 1\nconst b = 2`
+
+test.each([1440, 390])(
+  'at %i an untitled panel has no header band, and its Copy button floats clear of the first line',
+  async width => {
+    await page.viewport(width, 800)
+    const pre = await mount('ts', LONG_FIRST_LINE, 'ts')
+    const root = pre.closest('figure')!
+    const button = root.querySelector('button')!
+    const header = button.parentElement!
+    expect(getComputedStyle(header).position).toBe('absolute')
+    expect(getComputedStyle(header).borderBottomWidth).toBe('0px')
+    const box = root.getBoundingClientRect()
+    // The code starts at the top of the panel, with no band above it.
+    expect(pre.getBoundingClientRect().top - box.top).toBeLessThan(4)
+    const corner = button.getBoundingClientRect()
+    expect(corner.right).toBeLessThanOrEqual(box.right)
+    expect(box.right - corner.right).toBeLessThan(16)
+    expect(corner.top - box.top).toBeLessThan(16)
+    // Quiet at rest, shown on hover or focus, and still a tab stop.
+    expect(getComputedStyle(header).opacity).toBe('0')
+    button.focus()
+    await vi.waitFor(() => expect(getComputedStyle(header).opacity).toBe('1'))
+    // Scrolled to the end of the first line, its text stops short of the button.
+    pre.scrollLeft = pre.scrollWidth
+    const first = pre.querySelector('code')!.firstElementChild!
+    const text = document.createRange()
+    text.selectNodeContents(first)
+    const ends = Array.from(text.getClientRects()).map(rect => rect.right)
+    expect(Math.max(...ends)).toBeLessThanOrEqual(button.getBoundingClientRect().left)
   },
 )
