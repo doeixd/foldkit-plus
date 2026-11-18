@@ -12,15 +12,12 @@ import {
   Popover as UiPopover,
 } from '@foldkit/ui'
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import type * as UiVirtualList from '@foldkit/ui/virtualList'
 import type { AnchorConfig } from '@foldkit/ui/anchor'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import {
-  AppShell,
-  AppShellSlots,
   Drawer,
   DrawerSlots,
   HoverIntent,
@@ -47,8 +44,6 @@ import {
   NavSlots,
   ColorPicker,
   ColorPickerSlots,
-  VirtualList,
-  VirtualListSlots,
   ScrollArea,
   ScrollAreaSlots,
   Sidebar,
@@ -103,8 +98,6 @@ import {
   TimerSlots,
   Chart,
   ChartSlots,
-  Tour,
-  TourSlots,
 } from 'foldkit-mixins-ui'
 
 import { outline } from './icon.js'
@@ -1004,26 +997,6 @@ export const checkboxGroupInvalid = <Message>(
   )
 // #endregion
 
-// #region app-shell-basic
-// The page's frame, with no state and no Message: a skip link, the header (the banner) with its
-// status and actions, the main region and the footer. `side` takes a `Sidebar`'s view for a column.
-export const appShell = <Message>(
-  style: NamedStyle<typeof AppShellSlots>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  AppShell.view(
-    {
-      title: 'Acme',
-      status: [Badge.view({ text: 'Live', tone: 'live', style: BadgeStyle }, h)],
-      actions: [Button.view({ label: 'Sign out', style: ButtonStyle }, h)],
-      footer: [h.span([], ['Acme, 2026'])],
-      style,
-    },
-    [h.h2([], ['Orders']), h.p([], ['Nothing is waiting for you.'])],
-    h,
-  )
-// #endregion
-
 // #region sidebar-icons
 export const SidebarStyle = forSlots(SidebarSlots)(Recipes.Sidebar({}))
 export const SidebarSheetStyle = forSlots(DialogSlots)(Recipes.Sheet({}))
@@ -1626,40 +1599,6 @@ export const menubar = <Message>(
   )
 // #endregion
 
-// #region virtual-list
-export const VirtualListStyle = forSlots(VirtualListSlots)(Recipes.VirtualList({}))
-
-/** Ten thousand files, made once: only the rows in view are drawn. */
-export const FILES: ReadonlyArray<string> = Array.from(
-  { length: 10_000 },
-  (_, index) => `report-${String(index + 1).padStart(5, '0')}.pdf`,
-)
-
-/** The list's Model is upstream's, kept by the application and folded with its `update`. */
-export const virtualList = <Message>(
-  style: NamedStyle<typeof VirtualListSlots>,
-  model: UiVirtualList.Model,
-  onMessage: (message: UiVirtualList.Message) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  h.div(
-    [h.Style({ inlineSize: 'min(24rem, 100%)' })],
-    [
-      VirtualList.view(
-        {
-          model,
-          items: FILES,
-          itemToKey: file => file,
-          itemToView: file => h.span([], [file]),
-          onMessage,
-          style,
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
-
 // #region navigation-menu-links
 export const NavStyle = forSlots(NavSlots)(Recipes.Nav({}))
 
@@ -1934,50 +1873,3 @@ export const angleSliderMarks = <Message>(
 // #endregion
 
 export const ChartStyle = forSlots(ChartSlots)(Recipes.Chart({}))
-
-// #region tour-basic
-export const TourStyle = forSlots(TourSlots)(Recipes.Tour({}))
-
-/** Folded with `Tour.update(TOUR)`; started with `Tour.start(model, TOUR)`. */
-export const TOUR: Tour.Config = {
-  steps: [
-    { title: 'Search', description: 'Find any page by its name.', target: 'preview-tour-search' },
-    { title: 'Save', description: 'Keep your work as you go.', target: 'preview-tour-save' },
-    { title: 'That is all', description: 'Start the tour again from its button.' },
-  ],
-}
-
-// Each step beside its target, the page dimmed around it; the arrows move on
-// and back, Escape skips, and `Tour.focusReturn` gives focus back to the button that started it.
-export const tour = <Message>(
-  style: NamedStyle<typeof TourSlots>,
-  model: Tour.Model,
-  onMessage: (message: Tour.Message) => Message,
-  started: Message,
-  h: HtmlBuilder<Message>,
-): Html => {
-  // The targets need ids, so they are drawn from the Button's and Input's slots.
-  const { button } = SlotView.buildersFor(ButtonSlots, [ButtonStyle.mixin], { input: undefined, h })
-  const { input } = SlotView.buildersFor(InputSlots, [InputStyle.mixin], { input: undefined, h })
-  return h.div(
-    [h.Style({ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' })],
-    [
-      h.button(button.attrs([h.Id('preview-tour-start'), h.Type('button'), h.OnClick(started)]), [
-        'Start the tour',
-      ]),
-      h.input(
-        input.attrs([
-          h.Id('preview-tour-search'),
-          h.Type('search'),
-          h.AriaLabel('Search'),
-          h.Placeholder('Search'),
-          h.Style({ inlineSize: '12rem' }),
-        ]),
-      ),
-      h.button(button.attrs([h.Id('preview-tour-save'), h.Type('button')]), ['Save']),
-      Tour.view({ model, config: TOUR, onMessage, style, mixins: Tour.focusReturn }, h),
-    ],
-  )
-}
-// #endregion
-

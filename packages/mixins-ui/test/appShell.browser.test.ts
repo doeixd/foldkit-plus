@@ -24,7 +24,7 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const mount = async (sided: boolean) => {
+const mount = async (sided: boolean, aside = false) => {
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -35,7 +35,7 @@ const mount = async (sided: boolean) => {
     ) + style.css
   document.head.append(sheet)
   const container = document.createElement('div')
-  container.id = `shell-${sided}`
+  container.id = `shell-${sided}-${aside}`
   document.body.appendChild(container)
   const view = (_: unknown, h: HtmlBuilder<never>): Html =>
     AppShell.view(
@@ -46,10 +46,16 @@ const mount = async (sided: boolean) => {
         ...(sided
           ? { side: h.nav([h.Style({ inlineSize: '15rem' })], [h.a([h.Href('#a')], ['Posts'])]) }
           : {}),
+        ...(aside ? { aside: [h.p([], ['On this page'])], asideLabel: 'On this page' } : {}),
         style,
+        // Positioned, as a card or a popover's anchor is, so it would paint over a header without a layer.
+        main: [
+          h.p(
+            [h.Style({ blockSize: '3000px', margin: '0', position: 'relative' })],
+            ['A long page'],
+          ),
+        ],
       },
-      // Positioned, as a card or a popover's anchor is, so it would paint over a header without a layer.
-      [h.p([h.Style({ blockSize: '3000px', margin: '0', position: 'relative' })], ['A long page'])],
       h,
     )
   Runtime.embed(
@@ -146,4 +152,22 @@ test('the skip link is out of sight until focused, and takes focus to the main r
   expect(document.elementFromPoint(shown.left + 4, shown.top + shown.height / 2)).toBe(skip)
   await userEvent.keyboard('{Enter}')
   await vi.waitFor(() => expect(document.activeElement).toBe(document.querySelector('main')))
+})
+
+test('an aside stands at the main region’s end on a desktop, pinned under the header, and below it on a phone', async () => {
+  await page.viewport(1280, 800)
+  await mount(true, true)
+  const [header, main, aside] = [box('header'), box('main'), box('aside')]
+  expect(aside.left).toBeCloseTo(main.right, 0)
+  expect(aside.right).toBeCloseTo(1280, 0)
+  // The header's bottom border may stand a pixel under the 3.5rem the aside sticks at.
+  expect(Math.abs(aside.top - header.bottom)).toBeLessThanOrEqual(1.5)
+  window.scrollTo(0, 1500)
+  await vi.waitFor(() =>
+    expect(Math.abs(box('aside').top - box('header').bottom)).toBeLessThanOrEqual(1.5),
+  )
+  window.scrollTo(0, 0)
+  await page.viewport(390, 800)
+  await vi.waitFor(() => expect(box('aside').top).toBeGreaterThanOrEqual(box('main').bottom - 1))
+  expect(box('aside').width).toBeCloseTo(390, 0)
 })

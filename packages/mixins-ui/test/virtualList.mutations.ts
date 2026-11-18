@@ -90,4 +90,26 @@ export default [
     ],
     tests: [unit],
   },
+  {
+    name: 'NearEnd is reported on every scroll inside the band',
+    edits: [
+      {
+        file: '../src/bundles/virtualList.ts',
+        find: 'before >= nearEndPx && after < nearEndPx',
+        replace: 'after < nearEndPx',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/layoutBundles.test.ts'],
+  },
+  {
+    name: 'NearEnd is never reported',
+    edits: [
+      {
+        file: '../src/bundles/virtualList.ts',
+        find: 'before >= nearEndPx && after < nearEndPx',
+        replace: 'false',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/layoutBundles.test.ts'],
+  },
 ]

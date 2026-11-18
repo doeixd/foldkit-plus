@@ -308,82 +308,85 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
     Answered: ({ ids }) => Option.some(agreement(read, ids)),
   })
   return AppShell.view(
-    { title: 'Expression language', style: ShellStyle },
-    [
-      h.div(slots.content.attrs(), [
-        h.header(slots.intro.attrs(), [
-          h.p(slots.eyebrow.attrs(), ['foldkit-entity']),
-          h.h1(slots.heading.attrs(), ['One expression, four answers']),
-          h.p(slots.lede.attrs(), [
-            'Choose a declared body and see it asked of SQLite (running in this page), of evaluate, and of Judge, over the same four posts. Try ByAuthorName, which evaluate refuses and a Judge holding part of the rows cannot always tell, then Discussed, and switch who is asking. ',
-            h.a(slots.link.attrs([h.Href(GUIDE)]), ['Read the Expressions guide']),
-            '.',
+    {
+      title: 'Expression language',
+      style: ShellStyle,
+      main: [
+        h.div(slots.content.attrs(), [
+          h.header(slots.intro.attrs(), [
+            h.p(slots.eyebrow.attrs(), ['foldkit-entity']),
+            h.h1(slots.heading.attrs(), ['One expression, four answers']),
+            h.p(slots.lede.attrs(), [
+              'Choose a declared body and see it asked of SQLite (running in this page), of evaluate, and of Judge, over the same four posts. Try ByAuthorName, which evaluate refuses and a Judge holding part of the rows cannot always tell, then Discussed, and switch who is asking. ',
+              h.a(slots.link.attrs([h.Href(GUIDE)]), ['Read the Expressions guide']),
+              '.',
+            ]),
           ]),
-        ]),
-        h.section(slots.controls.attrs([h.AriaLabel('Question')]), [
-          h.div(slots.control.attrs([h.Key('body')]), [
-            h.label(slots.label.attrs([h.For('body')]), ['Body']),
-            h.select(
-              slots.select.attrs([
-                h.Id('body'),
-                h.Value(model.body),
-                h.OnChange(body => Message.ChoseBody({ body })),
+          h.section(slots.controls.attrs([h.AriaLabel('Question')]), [
+            h.div(slots.control.attrs([h.Key('body')]), [
+              h.label(slots.label.attrs([h.For('body')]), ['Body']),
+              h.select(
+                slots.select.attrs([
+                  h.Id('body'),
+                  h.Value(model.body),
+                  h.OnChange(body => Message.ChoseBody({ body })),
+                ]),
+                bodyNames.map(name =>
+                  h.option([h.Value(name), h.Selected(name === model.body)], [name]),
+                ),
+              ),
+              h.p(slots.what.attrs(), [
+                Option.fromUndefinedOr(questions.find(({ name }) => name === model.body)).pipe(
+                  Option.match({ onNone: () => '', onSome: question => question.what }),
+                ),
               ]),
-              bodyNames.map(name =>
-                h.option([h.Value(name), h.Selected(name === model.body)], [name]),
+            ]),
+            ...inputControls(model, read, slots, h),
+            h.div(slots.control.attrs([h.Key('viewer')]), [
+              Segmented.view(
+                {
+                  id: 'viewer',
+                  label: 'Asked by',
+                  options: viewers.map(id => ({
+                    value: id,
+                    label: id === 'visitor' ? 'A visitor' : authorName(id),
+                  })),
+                  pressed: [model.viewer],
+                  onPress: viewer => Message.ChoseViewer({ viewer }),
+                  style: ViewerStyle,
+                },
+                h,
               ),
-            ),
-            h.p(slots.what.attrs(), [
-              Option.fromUndefinedOr(questions.find(({ name }) => name === model.body)).pipe(
-                Option.match({ onNone: () => '', onSome: question => question.what }),
-              ),
+              h.p(slots.what.attrs(), [
+                'Only a body that reads the viewer (Discussed) changes with it.',
+              ]),
             ]),
           ]),
-          ...inputControls(model, read, slots, h),
-          h.div(slots.control.attrs([h.Key('viewer')]), [
-            Segmented.view(
-              {
-                id: 'viewer',
-                label: 'Asked by',
-                options: viewers.map(id => ({
-                  value: id,
-                  label: id === 'visitor' ? 'A visitor' : authorName(id),
-                })),
-                pressed: [model.viewer],
-                onPress: viewer => Message.ChoseViewer({ viewer }),
-                style: ViewerStyle,
-              },
-              h,
-            ),
-            h.p(slots.what.attrs(), [
-              'Only a body that reads the viewer (Discussed) changes with it.',
-            ]),
+          h.p(slots.status.attrs([h.Role('status')]), [summary(model)]),
+          reader(
+            'The expression',
+            'printed by the package, as the guide writes it',
+            Option.none(),
+            [
+              h.pre(slots.code.attrs([h.AriaLabel('The expression')]), [
+                h.code([], [read.expression]),
+              ]),
+              h.p(slots.note.attrs(), [
+                `Given ${JSON.stringify(read.question.input)}, asked by ${Option.match(read.question.viewer, { onNone: () => 'a visitor', onSome: ref => `${ref.entity} ${ref.id}` })}. It reads ${read.reads}.`,
+              ]),
+            ],
+            slots,
+            h,
+          ),
+          h.div(slots.readers.attrs(), [
+            sqliteCard(model, slots, h),
+            evaluateCard(read, versus, slots, h),
+            judgeAllCard(read, versus, slots, h),
+            partCard(read, versus, slots, h),
           ]),
         ]),
-        h.p(slots.status.attrs([h.Role('status')]), [summary(model)]),
-        reader(
-          'The expression',
-          'printed by the package, as the guide writes it',
-          Option.none(),
-          [
-            h.pre(slots.code.attrs([h.AriaLabel('The expression')]), [
-              h.code([], [read.expression]),
-            ]),
-            h.p(slots.note.attrs(), [
-              `Given ${JSON.stringify(read.question.input)}, asked by ${Option.match(read.question.viewer, { onNone: () => 'a visitor', onSome: ref => `${ref.entity} ${ref.id}` })}. It reads ${read.reads}.`,
-            ]),
-          ],
-          slots,
-          h,
-        ),
-        h.div(slots.readers.attrs(), [
-          sqliteCard(model, slots, h),
-          evaluateCard(read, versus, slots, h),
-          judgeAllCard(read, versus, slots, h),
-          partCard(read, versus, slots, h),
-        ]),
-      ]),
-    ],
+      ],
+    },
     h,
   )
 }

@@ -232,8 +232,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>, manifest: ModuleMani
           h,
         ),
       ],
+      main: [content],
     },
-    [content],
     h,
   )
   return { title: 'Product registry', body }

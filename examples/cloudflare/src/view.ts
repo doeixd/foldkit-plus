@@ -132,20 +132,23 @@ const actor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
 export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
   const slots = SlotView.buildersFor(Page.slots, [Page.style.mixin], { input: undefined, h })
   return AppShell.view(
-    { title: 'Todos', style: ShellStyle },
-    [
-      h.div(slots.content.attrs(), [
-        h.h1(slots.heading.attrs(), ['Todos']),
-        h.p(slots.lede.attrs(), [
-          'An edit shows at once. A slow save says Saving… without moving the list. Another tab sees it on the live stream.',
+    {
+      title: 'Todos',
+      style: ShellStyle,
+      main: [
+        h.div(slots.content.attrs(), [
+          h.h1(slots.heading.attrs(), ['Todos']),
+          h.p(slots.lede.attrs(), [
+            'An edit shows at once. A slow save says Saving… without moving the list. Another tab sees it on the live stream.',
+          ]),
+          actor(model, slots, h),
+          status(model, slots, h),
+          AddForm.view(model, h, { words: { submit: 'Add' } }),
+          rows(model, slots, h),
+          ...editor(model, h),
         ]),
-        actor(model, slots, h),
-        status(model, slots, h),
-        AddForm.view(model, h, { words: { submit: 'Add' } }),
-        rows(model, slots, h),
-        ...editor(model, h),
-      ]),
-    ],
+      ],
+    },
     h,
   )
 }

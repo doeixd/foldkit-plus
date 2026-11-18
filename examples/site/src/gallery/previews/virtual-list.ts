@@ -1,6 +1,7 @@
-import { VirtualListSlots, Recipes } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import { Recipes, VirtualListSlots } from 'foldkit-mixins-ui'
+import basic from '../../examples/virtual-list/basic.js'
+import heights from '../../examples/virtual-list/heights.js'
+import infinite from '../../examples/virtual-list/infinite.js'
 import { about } from '../catalogue.js'
 import { fromRecipe } from '../define.js'
 
@@ -8,11 +9,11 @@ export const showcase = fromRecipe(
   about('virtual-list'),
   VirtualListSlots,
   Recipes.VirtualList,
-  (style, live) =>
-    Snippet.virtualList(
-      style,
-      live.widgets.virtualList,
-      message => live.onWidget(Widgets.Message.GotVirtualList({ message })),
-      live.h,
-    ),
+  basic,
+  undefined,
+  [
+    { name: 'basic', example: basic },
+    { name: 'heights', example: heights },
+    { name: 'infinite', example: infinite },
+  ],
 )

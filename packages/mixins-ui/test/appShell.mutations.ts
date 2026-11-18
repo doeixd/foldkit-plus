@@ -143,4 +143,42 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'the aside is not marked on the root',
+    edits: [
+      {
+        file: view,
+        find: "aside.length === 0 ? [] : [h.DataAttribute('aside', '')]",
+        replace: '[]',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'the aside is not named',
+    edits: [
+      {
+        file: view,
+        find: 'options.asideLabel === undefined ? [] : [h.AriaLabel(options.asideLabel)]',
+        replace: '[]',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the aside scrolls away under the header',
+    edits: [{ file: recipe, find: "insetBlockStart: '3.5rem',", replace: '' }],
+    tests: [browser],
+  },
+  {
+    name: 'on a phone the aside keeps its column',
+    edits: [
+      {
+        file: recipe,
+        find: `gridTemplateAreas: '"side header" "main main" "aside aside" "footer footer"',`,
+        replace: `gridTemplateAreas: '"side header" "main aside" "footer footer"',`,
+      },
+    ],
+    tests: [browser],
+  },
 ]

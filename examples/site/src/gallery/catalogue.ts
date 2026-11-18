@@ -297,6 +297,14 @@ export const catalogue: ReadonlyArray<About> = [
     contract: 'VirtualListSlots',
   },
   {
+    slug: 'window-list',
+    title: 'Window list',
+    summary: 'A list of thousands that scrolls with the page, drawing only the rows in view.',
+    recipe: 'WindowList',
+    file: 'windowList',
+    contract: 'WindowListSlots',
+  },
+  {
     slug: 'steps',
     title: 'Steps',
     summary:

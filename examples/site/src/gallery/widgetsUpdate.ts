@@ -37,11 +37,9 @@ import {
   ImageCropper,
   SignaturePad,
   Chart,
-  Tour,
 } from 'foldkit-mixins-ui'
 import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import * as UiVirtualList from '@foldkit/ui/virtualList'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
 import * as Fields from './fields.js'
 
@@ -51,7 +49,6 @@ import {
   Notices,
   HEADING_LAYOUT,
   ROTATION_LAYOUT,
-  TOUR,
 } from '../snippets/components.js'
 
 /** The chart examples, each lighting a point of its own. */
@@ -252,11 +249,6 @@ const foldMenubar = Update.foldChild({
         }),
       }),
   }),
-})
-
-const foldVirtualList = Update.foldChild({
-  ...own('virtualList', Message.GotVirtualList),
-  update: UiVirtualList.update,
 })
 
 const foldAccent = Update.foldChild({
@@ -462,19 +454,6 @@ const foldSignature = Update.foldChild({
   ...own('signature', Message.GotSignature),
   update: SignaturePad.update,
 })
-const tourField = own('tour', Message.GotTour)
-// An application would remember the tour was seen; the gallery starts it again on a press.
-const tourOut = (_ended: Tour.Ended): Step => same
-const foldTour = Update.foldChild({
-  ...tourField,
-  update: Tour.update(TOUR),
-  foldOutMessage: tourOut,
-})
-const startTour = Update.foldChildStep({
-  ...tourField,
-  update: (tour: Tour.Model) => Tour.start(tour, TOUR),
-  foldOutMessage: tourOut,
-})
 
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   Message.match(message, {
@@ -530,7 +509,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     }),
     GotPageMenu: ({ message }) => (dismisses(message) ? { model } : foldPageMenu(model, message)),
     GotMenubar: ({ message }) => foldMenubar(model, message),
-    GotVirtualList: ({ message }) => foldVirtualList(model, message),
     MovedPriceRange: ({ value }) =>
       value.low === model.priceRange.low && value.high === model.priceRange.high
         ? { model }
@@ -628,8 +606,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
         ? { model }
         : { model: modifyFields(model, { charts: all => ({ ...all, [example]: chart }) }) }
     },
-    GotTour: ({ message }) => foldTour(model, message),
-    StartedTour: () => startTour(model),
     TurnedLevel: ({ value }) =>
       value === model.level ? { model } : { model: modifyFields(model, { level: () => value }) },
     MovedBudget: ({ value }) =>

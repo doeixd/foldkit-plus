@@ -21,7 +21,7 @@ export default [
     name: "a VirtualList's bars take its root for the scroller",
     edits: [
       {
-        file: '../src/virtualList.ts',
+        file: '../src/virtualList/overlayBars.ts',
         find: "mount: () => ScrollBars({ scroller: ':scope > ul' }),",
         replace: 'mount: () => ScrollBars({}),',
       },

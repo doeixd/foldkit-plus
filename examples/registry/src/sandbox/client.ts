@@ -99,72 +99,75 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html => {
     [],
     [
       AppShell.view(
-        { title: 'Product registry', style: ShellStyle },
-        [
-          h.div(slots.content.attrs(), [
-            h.header(slots.intro.attrs(), [
-              h.p(slots.eyebrow.attrs(), ['Remote, Sync and Durable']),
-              h.h1(slots.heading.attrs(), ['Two devices, one registry']),
-              h.p(slots.lede.attrs(), [
-                '10,000 products on a server that runs in this browser. Each device keeps its own replica, so its edits wait while it is offline and reach the other when it is back.',
+        {
+          title: 'Product registry',
+          style: ShellStyle,
+          main: [
+            h.div(slots.content.attrs(), [
+              h.header(slots.intro.attrs(), [
+                h.p(slots.eyebrow.attrs(), ['Remote, Sync and Durable']),
+                h.h1(slots.heading.attrs(), ['Two devices, one registry']),
+                h.p(slots.lede.attrs(), [
+                  '10,000 products on a server that runs in this browser. Each device keeps its own replica, so its edits wait while it is offline and reach the other when it is back.',
+                ]),
+                h.ol(
+                  slots.steps.attrs([h.AriaLabel('Try a conflict')]),
+                  [
+                    'Press Go offline in Device B, then edit the same price in both devices. Each shows its own value; B’s cell is marked Not yet sent.',
+                    'Press Go online in B. Its edit reaches the server after A’s, and the server’s order decides: B’s price wins in both devices.',
+                    'This page marks A’s cell Replaced, and a notice in A says what it held. Nothing is merged: one write wins, by the order the server committed them, not by who typed last.',
+                  ].map(text => h.li([h.Key(text)], [text])),
+                ),
               ]),
-              h.ol(
-                slots.steps.attrs([h.AriaLabel('Try a conflict')]),
-                [
-                  'Press Go offline in Device B, then edit the same price in both devices. Each shows its own value; B’s cell is marked Not yet sent.',
-                  'Press Go online in B. Its edit reaches the server after A’s, and the server’s order decides: B’s price wins in both devices.',
-                  'This page marks A’s cell Replaced, and a notice in A says what it held. Nothing is merged: one write wins, by the order the server committed them, not by who typed last.',
-                ].map(text => h.li([h.Key(text)], [text])),
+              h.div(slots.switch.attrs(), [
+                Segmented.view(
+                  {
+                    id: 'device',
+                    label: 'Device shown',
+                    options: devices.map(({ id, name }) => ({ value: id, label: name })),
+                    pressed: [model.chosen],
+                    onPress: device => Message.ChoseDevice({ device }),
+                    style: PaneSwitchStyle,
+                  },
+                  h,
+                ),
+              ]),
+              h.div(
+                slots.devices.attrs(),
+                devices.map(({ id, name }) => {
+                  const { text, tone } = statusOf(
+                    Option.fromUndefinedOr(model.statuses.find(({ device }) => device === id)),
+                  )
+                  // A region per device, named for it, holding its frame: its page of its own.
+                  return h.section(
+                    [
+                      h.Key(id),
+                      h.AriaLabel(name),
+                      h.DataAttribute('chosen', String(id === model.chosen)),
+                    ],
+                    [
+                      Card.view(
+                        {
+                          title: name,
+                          action: h.span(
+                            [h.Role('status')],
+                            [Badge.view({ text, tone, style: DeviceBadgeStyle }, h)],
+                          ),
+                          content: h.iframe(
+                            slots.frame.attrs([h.Src(`?pane=${id}`), h.Title(name)]),
+                            [],
+                          ),
+                          style: DeviceCardStyle,
+                        },
+                        h,
+                      ),
+                    ],
+                  )
+                }),
               ),
             ]),
-            h.div(slots.switch.attrs(), [
-              Segmented.view(
-                {
-                  id: 'device',
-                  label: 'Device shown',
-                  options: devices.map(({ id, name }) => ({ value: id, label: name })),
-                  pressed: [model.chosen],
-                  onPress: device => Message.ChoseDevice({ device }),
-                  style: PaneSwitchStyle,
-                },
-                h,
-              ),
-            ]),
-            h.div(
-              slots.devices.attrs(),
-              devices.map(({ id, name }) => {
-                const { text, tone } = statusOf(
-                  Option.fromUndefinedOr(model.statuses.find(({ device }) => device === id)),
-                )
-                // A region per device, named for it, holding its frame: its page of its own.
-                return h.section(
-                  [
-                    h.Key(id),
-                    h.AriaLabel(name),
-                    h.DataAttribute('chosen', String(id === model.chosen)),
-                  ],
-                  [
-                    Card.view(
-                      {
-                        title: name,
-                        action: h.span(
-                          [h.Role('status')],
-                          [Badge.view({ text, tone, style: DeviceBadgeStyle }, h)],
-                        ),
-                        content: h.iframe(
-                          slots.frame.attrs([h.Src(`?pane=${id}`), h.Title(name)]),
-                          [],
-                        ),
-                        style: DeviceCardStyle,
-                      },
-                      h,
-                    ),
-                  ],
-                )
-              }),
-            ),
-          ]),
-        ],
+          ],
+        },
         h,
       ),
       Guide({ demo: registryDemo, corner: 'top-end', compact: true, inset: '0.75rem' }, h),

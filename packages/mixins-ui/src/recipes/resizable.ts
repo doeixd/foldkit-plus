@@ -82,6 +82,7 @@ export const Resizable = Style.recipeFor(ResizableSlots)({
             display: 'block',
             position: 'absolute',
             top: '50%',
+            // physical: centred, and `translate` is physical, so the offset it undoes is too.
             left: '50%',
             translate: '-50% -50%',
             zIndex: '1',

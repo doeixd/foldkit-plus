@@ -195,35 +195,38 @@ export const view = (model: Model, base: HtmlBuilder<Message>): Document => {
   return {
     title: Site.titleOf(AppSite, model.route) ?? 'Not found',
     body: AppShell.view(
-      { title: 'Notes', style: ShellStyle },
-      [
-        h.div(slots.content.attrs(), [
-          h.h1(slots.heading.attrs(), ['Notes, by who is signed in']),
-          h.nav(slots.links.attrs([h.AriaLabel('Pages')]), [
-            h.a(slots.link.attrs([h.Href(homeHref)]), ['Home']),
-            h.a(slots.link.attrs([h.Href(notesHref)]), ['Your notes']),
-            h.a(slots.link.attrs([h.Href(accountHref)]), ['Account']),
+      {
+        title: 'Notes',
+        style: ShellStyle,
+        main: [
+          h.div(slots.content.attrs(), [
+            h.h1(slots.heading.attrs(), ['Notes, by who is signed in']),
+            h.nav(slots.links.attrs([h.AriaLabel('Pages')]), [
+              h.a(slots.link.attrs([h.Href(homeHref)]), ['Home']),
+              h.a(slots.link.attrs([h.Href(notesHref)]), ['Your notes']),
+              h.a(slots.link.attrs([h.Href(accountHref)]), ['Account']),
+            ]),
+            ...Option.match(model.notice, {
+              onNone: () => [],
+              onSome: notice => [
+                Alert.view(
+                  { layout: 'inline', title: notice, assertive: true, style: NoticeStyle },
+                  h,
+                ),
+              ],
+            }),
+            Card.view(
+              {
+                title: 'Your account',
+                content: h.div(slots.form.attrs(), session(model, slots, h)),
+                style: CardStyle,
+              },
+              h,
+            ),
+            ...page(model, slots, h),
           ]),
-          ...Option.match(model.notice, {
-            onNone: () => [],
-            onSome: notice => [
-              Alert.view(
-                { layout: 'inline', title: notice, assertive: true, style: NoticeStyle },
-                h,
-              ),
-            ],
-          }),
-          Card.view(
-            {
-              title: 'Your account',
-              content: h.div(slots.form.attrs(), session(model, slots, h)),
-              style: CardStyle,
-            },
-            h,
-          ),
-          ...page(model, slots, h),
-        ]),
-      ],
+        ],
+      },
       h,
     ),
   }

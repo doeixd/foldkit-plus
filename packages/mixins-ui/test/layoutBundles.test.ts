@@ -6,7 +6,8 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { describe, expect, it } from 'vitest'
-import { Accordion, Bundles, FloatingPanel, Resizable, TreeView } from '../src/index.js'
+import * as UiVirtualList from '@foldkit/ui/virtualList'
+import { Accordion, Bundles, FloatingPanel, Resizable, Tour, TreeView } from '../src/index.js'
 
 const App = Bundle.compose({ note: Schema.String }).pipe(
   Bundle.withChild('faq', Bundles.Accordion, { args: { open: ['a'], multiple: true } }),
@@ -137,5 +138,67 @@ describe('Bundles.FloatingPanel', () => {
       Windows.Message.GotNotesMessage({ message: FloatingPanel.Message.Activated() }),
     ).model
     expect(behind.order).toEqual(['chat', 'notes'])
+  })
+})
+
+describe('Bundles.Tour', () => {
+  const Guide = Bundle.compose({ finished: Schema.Boolean }).pipe(
+    Bundle.withChild('tour', Bundles.Tour, {
+      args: { id: 'guide', steps: [{ title: 'One', description: 'The only step.' }] },
+      onOut: out => model => ({ model: { ...model, finished: out.completed } }),
+    }),
+  )
+  const step = Guide.placements.update(model => ({ model }))
+
+  it('holds its steps, which update reads, and reports Ended', () => {
+    const begun = Guide.children.tour.helpers.start()(
+      Guide.placements.initial({ finished: false }).model,
+    ).model
+    expect(begun.tour.steps).toHaveLength(1)
+    const done = step(begun, Guide.Message.GotTourMessage({ message: Tour.Message.Next() })).model
+    expect(done.tour.open).toBe(false)
+    expect(done.finished).toBe(true)
+  })
+})
+
+describe('Bundles.VirtualList', () => {
+  const Feed = Bundle.compose({ asked: Schema.Number }).pipe(
+    Bundle.withChild('rows', Bundles.VirtualList, {
+      args: { id: 'rows', rowHeightPx: 30, nearEndPx: 100 },
+      onOut: () => model => ({ model: { ...model, asked: model.asked + 1 } }),
+    }),
+  )
+  const step = Feed.placements.update(model => ({ model }))
+  const scrolled = (scrollTop: number) =>
+    Feed.Message.GotRowsMessage({
+      message: UiVirtualList.Message.ObservedContainerScroll({
+        scrollTop,
+        scrollHeight: 1000,
+        containerHeight: 300,
+        anchor: { _tag: 'None' },
+      }),
+    })
+
+  it('reports NearEnd once as a scroll crosses into the band, not while it stays there', () => {
+    const start = Feed.placements.initial({ asked: 0 }).model
+    const far = step(start, scrolled(500)).model
+    expect(far.asked).toBe(0)
+    const near = step(far, scrolled(650)).model
+    expect(near.asked).toBe(1)
+    expect(step(near, scrolled(680)).model.asked).toBe(1)
+  })
+})
+
+describe('Bundles.WindowList', () => {
+  const Page = Bundle.compose({}).pipe(
+    Bundle.withChild('list', Bundles.WindowList, { args: { id: 'list', estimatedHeight: 40 } }),
+  )
+
+  it('starts from its args and reveals a row by a Command', () => {
+    const start = Page.placements.initial({}).model
+    expect(start.list).toMatchObject({ id: 'list', estimatedHeight: 40 })
+    const revealed = Page.children.list.helpers.reveal(12)(start)
+    expect(revealed.model).toBe(start)
+    expect(revealed.commands?.map(command => command.name)).toEqual(['WindowList.Reveal'])
   })
 })

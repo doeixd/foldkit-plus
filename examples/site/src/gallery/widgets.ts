@@ -33,11 +33,9 @@ import {
   ImageCropper,
   SignaturePad,
   Chart,
-  Tour,
 } from 'foldkit-mixins-ui'
 import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import * as UiVirtualList from '@foldkit/ui/virtualList'
 import { ClipboardMessage } from 'foldkit-primitives/dom'
 import * as Fields from './fields.js'
 
@@ -152,7 +150,6 @@ export const Model = Schema.Struct({
   menubar: Menubar.Model,
   menubarChoice: Schema.Option(Schema.String),
   /** The virtual list's scroll and measurements. */
-  virtualList: UiVirtualList.Model,
   /** The range slider's price range. */
   priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
   /** The color picker's accent, its format and its draft. */
@@ -192,7 +189,6 @@ export const Model = Schema.Struct({
   avatarUrl: Schema.Option(Schema.String),
   signature: SignaturePad.Model,
   charts: Schema.Record(ChartExample, Chart.Model),
-  tour: Tour.Model,
 })
 export type Model = typeof Model.Type
 
@@ -229,7 +225,6 @@ export const Message = defineMessageUnion({
   ChoseViewMode: { mode: ViewMode },
   GotNav: { example: NavExample, message: Nav.Message },
   GotMenubar: { message: Menubar.Message },
-  GotVirtualList: { message: UiVirtualList.Message },
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
   GotAccent: { message: ColorPicker.Message },
   GotTripCalendar: { message: UiCalendar.Message },
@@ -266,8 +261,6 @@ export const Message = defineMessageUnion({
   GotAvatarCrop: { message: ImageCropper.Message },
   GotSignature: { message: SignaturePad.Message },
   GotChart: { example: ChartExample, message: Chart.Message },
-  GotTour: { message: Tour.Message },
-  StartedTour: {},
 })
 export type Message = typeof Message.Type
 
@@ -351,7 +344,6 @@ export const initial: Model = {
     { isAnimated: true },
   ),
   menubarChoice: Option.none(),
-  virtualList: UiVirtualList.init({ id: 'preview-virtual-list', rowHeightPx: 36 }),
   priceRange: { low: 100, high: 350 },
   accent: ColorPicker.init({ id: 'preview-accent', color: ColorPicker.color('#3b82f6') }),
   trip: UiCalendar.init({ id: 'preview-trip', today }),
@@ -403,7 +395,6 @@ export const initial: Model = {
     table: Chart.init(),
     colors: Chart.init(),
   },
-  tour: Tour.init({ id: 'preview-tour' }),
 }
 
 /** A step of the update, shared with the update file. */

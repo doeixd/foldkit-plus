@@ -374,7 +374,7 @@ export type { CascadeSelectView } from './cascadeSelect.js'
 export { FloatingPanelSlots } from './floatingPanel.js'
 export type { FloatingPanelPreset, FloatingPanelView, FloatingPanelWords } from './floatingPanel.js'
 export { TourSlots } from './tour.js'
-export type { TourView } from './tour.js'
+export type { TourPreset, TourView, TourWords } from './tour.js'
 
 export { resolveFor as resolve } from './resolve.js'
 export type { FieldParts } from './field.js'
