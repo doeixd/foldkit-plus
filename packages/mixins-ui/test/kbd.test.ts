@@ -46,3 +46,20 @@ describe('Kbd.combo', () => {
     expect(() => combo({ keys: [] }, h)).toThrow(/at least one key/)
   })
 })
+
+describe('a key that is a drawing', () => {
+  it('holds the drawing in its kbd, in place of text', () => {
+    const arrow = h.span([], ['→'])
+    const key = view({ key: arrow }, h)
+    const [kbd] = Inert.byTag(key, 'kbd')
+    expect(Inert.children(kbd)).toEqual([arrow])
+  })
+
+  it('holds a drawing among the keys of a combination, in order', () => {
+    const arrow = h.span([], ['→'])
+    const keys = combo({ keys: ['Shift', arrow], joiner: '+' }, h)
+    const [, shift, drawn] = Inert.byTag(keys, 'kbd')
+    expect(Inert.text(shift)).toBe('Shift')
+    expect(Inert.children(drawn)).toEqual([arrow])
+  })
+})

@@ -45,6 +45,7 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
 
 ### Added
 
+- `foldkit-mixins-ui`: `Kbd.view`'s `key` and `Kbd.combo`'s `keys` may be a drawing (`string | Html`), for an arrow or a modifier's glyph; the recipe sizes an `svg` in a key to the letters' height (#589).
 - `foldkit-mixins-ui`: `Bundles.Toolbar` places a Toolbar's tab stop (the control focused last, which Tab comes back to), with `current` as its arg, and `Toolbar.focused(wrap)` builds the `onFocus` that answers it (#589). `Toolbar.configure({ base, presets })` returns `view` with `orientation`, `direction`, `loop`, `style` and `mixins` given once, as `Button.configure` does. `foldkit-primitives` exports `RovingTabindex.update`.
 - `foldkit-mixins-ui`: `Frame` is a new stateless widget: a tray holding panels, with a `title`, `description` and `action` above and a `footer` below, each panel a bordered surface of its own (Alerts, Items, accordion items inside). `Recipes.Frame` has `variant` (`muted`, `outline`, `plain`), `padding`, `spacing` and `radius`; `Frame.configure` binds a look (#589).
 - `foldkit-mixins-ui`: `Avatar`, `Card`, `Item`, `Alert`, `Empty`, `Figure`, `AspectRatio`, `Skeleton`, `Image` and `Frame` each export `configure({ base, presets })`, as `Button` does. `Avatar`, `Card` and `Item` return `{ view, group }`; `Skeleton` returns its five drawings; a preset's `style` reaches a group's members, its `groupStyle` is the group's own (#589).

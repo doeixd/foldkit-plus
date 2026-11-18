@@ -847,31 +847,7 @@ const portrait = (hue: number): string =>
 /** The avatar the specimens draw: the avatar page's examples are modules (`src/examples/avatar`). */
 export const AvatarStyle = forSlots(AvatarSlots)(Recipes.Avatar({}))
 
-// #region kbd-key
 export const KbdStyle = forSlots(KbdSlots)(Recipes.Kbd({}))
-
-export const kbdKey = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
-  h.p([], ['Press ', Kbd.view({ key: 'Enter', style }, h), ' to send.'])
-// #endregion
-
-// #region kbd-combo
-// Keys pressed together are one `kbd` holding a `kbd` per key.
-export const kbdCombo = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
-  h.p([], ['Search with ', Kbd.combo({ keys: ['⌘', 'K'], style }, h), '.'])
-// #endregion
-
-// #region kbd-joined
-// A joiner between keys whose names run together without one.
-export const kbdJoined = (style: NamedStyle<typeof KbdSlots>, h: HtmlBuilder<never>): Html =>
-  h.p(
-    [],
-    [
-      'Open the command palette with ',
-      Kbd.combo({ keys: ['Ctrl', 'Shift', 'P'], joiner: '+', style }, h),
-      '.',
-    ],
-  )
-// #endregion
 
 // #region separator-basic
 export const SeparatorStyle = forSlots(SeparatorSlots)(Recipes.Separator({}))
