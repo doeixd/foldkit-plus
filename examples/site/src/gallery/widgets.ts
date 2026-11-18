@@ -15,25 +15,16 @@ import {
 } from '@foldkit/ui'
 import {
   Menubar,
-  InputCopy,
   Calendar as DateSelection,
-  ColorPicker,
   Menu,
   Nav,
   Sheet,
   Drawer,
   Toast,
-  FileDrop,
   AngleSlider,
-  Timer,
-  Marquee,
-  ImageCropper,
-  SignaturePad,
   Chart,
 } from 'foldkit-mixins-ui'
-import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import { ClipboardMessage } from 'foldkit-primitives/dom'
 import * as Fields from './fields.js'
 
 import {
@@ -81,14 +72,7 @@ const shownMenu = (menu: Menu.Model): Menu.Model => ({
   menu: { ...menu.menu, isOpen: true, animation: { ...menu.menu.animation, isShowing: true } },
 })
 
-/** A file the drop zone took. */
-export const Attachment = Schema.Struct({ name: Schema.String, size: Schema.Number })
-export type Attachment = typeof Attachment.Type
-
 export const Model = Schema.Struct({
-  /** The drop zone's, and what it has taken: names and sizes, never the files. */
-  drop: UiFileDrop.Model,
-  attachments: Schema.Array(Attachment),
   /** The slider's volume. */
   volume: Schema.Number,
   dialog: UiDialog.Model,
@@ -121,13 +105,9 @@ export const Model = Schema.Struct({
   /** The virtual list's scroll and measurements. */
   /** The range slider's price range. */
   priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
-  /** The color picker's accent, its format and its draft. */
-  accent: ColorPicker.Model,
   /** The trip calendar, and the range picked on it. */
   trip: UiCalendar.Model,
   tripDates: DateSelection.Selection,
-  /** Whether the API key shows as copied, until its reset. */
-  inputCopy: InputCopy.Model,
   /** The View menu, and what its rows set. */
   viewMenu: Menu.Model,
   viewOptions: ViewOptions,
@@ -141,28 +121,15 @@ export const Model = Schema.Struct({
   /** The vertical slider's level and the marked one's budget. */
   level: Schema.Number,
   budget: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
-  /** The color picker in a popover, and the popover. */
-  brand: ColorPicker.Model,
-  brandPopover: UiPopover.Model,
   /** The search fields, the toolbar and the file pickers. */
   fields: Fields.Model,
   heading: AngleSlider.Model,
   rotation: AngleSlider.Model,
-  tea: Timer.Model,
-  lap: Timer.Model,
-  customers: Marquee.Model,
-  news: Marquee.Model,
-  photo: ImageCropper.Model,
-  avatarCrop: ImageCropper.Model,
-  /** The avatar cropper's last export, shown beside it. */
-  avatarUrl: Schema.Option(Schema.String),
-  signature: SignaturePad.Model,
   charts: Schema.Record(ChartExample, Chart.Model),
 })
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
-  GotDrop: { message: FileDrop.Message },
   TurnedVolume: { value: Schema.Number },
   GotDialog: { message: UiDialog.Message },
   OpenedDialog: {},
@@ -190,17 +157,13 @@ export const Message = defineMessageUnion({
   GotNav: { example: NavExample, message: Nav.Message },
   GotMenubar: { message: Menubar.Message },
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
-  GotAccent: { message: ColorPicker.Message },
   GotTripCalendar: { message: UiCalendar.Message },
   GotSheet: { example: SheetExample, message: Sheet.Message },
   GotDrawer: { message: Drawer.Message },
   OpenedSheet: { example: SheetExample },
   ClosedSheet: { example: SheetExample },
-  GotCopy: { message: ClipboardMessage },
   TurnedLevel: { value: Schema.Number },
   MovedBudget: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
-  GotBrand: { message: ColorPicker.Message },
-  GotBrandPopover: { message: UiPopover.Message },
   GotFields: { message: Fields.Message },
   GotViewMenu: { message: Menu.Message },
   OpenedPalette: {},
@@ -214,16 +177,8 @@ export const Message = defineMessageUnion({
   StartedUpload: {},
   FinishedUpload: { id: Schema.String },
   Archived: {},
-  GotInputCopy: { message: InputCopy.Message },
   GotHeading: { message: AngleSlider.Message },
   GotRotation: { message: AngleSlider.Message },
-  GotTea: { message: Timer.Message },
-  GotLap: { message: Timer.Message },
-  GotCustomers: { message: Marquee.Message },
-  GotNews: { message: Marquee.Message },
-  GotPhoto: { message: ImageCropper.Message },
-  GotAvatarCrop: { message: ImageCropper.Message },
-  GotSignature: { message: SignaturePad.Message },
   GotChart: { example: ChartExample, message: Chart.Message },
 })
 export type Message = typeof Message.Type
@@ -239,8 +194,6 @@ const initialViewOptions: ViewOptions = {
 const today = Effect.runSync(Calendar.today.local)
 
 export const initial: Model = {
-  drop: UiFileDrop.init({ id: 'preview-drop' }),
-  attachments: [],
   volume: 60,
   dialog: UiDialog.init({ id: 'preview-dialog', isAnimated: true }),
   alertDialog: UiDialog.init({ id: 'preview-alert-dialog', isAnimated: true }),
@@ -297,10 +250,8 @@ export const initial: Model = {
   ),
   menubarChoice: Option.none(),
   priceRange: { low: 100, high: 350 },
-  accent: ColorPicker.init({ id: 'preview-accent', color: ColorPicker.color('#3b82f6') }),
   trip: UiCalendar.init({ id: 'preview-trip', today }),
   tripDates: DateSelection.empty('Range'),
-  inputCopy: InputCopy.init({ resetAfter: 2000 }),
   viewMenu: Menu.init('preview-view-menu', viewRows(initialViewOptions), { isAnimated: true }),
   viewOptions: initialViewOptions,
   palette: UiDialog.init({ id: 'preview-palette-dialog', isAnimated: true }),
@@ -322,23 +273,9 @@ export const initial: Model = {
   },
   level: 40,
   budget: { low: 100, high: 350 },
-  brand: ColorPicker.init({
-    id: 'preview-brand',
-    color: ColorPicker.color('#14b8a6'),
-    format: 'oklch',
-  }),
-  brandPopover: UiPopover.init({ id: 'preview-brand-popover', contentFocus: true }),
   fields: Fields.init(),
   heading: AngleSlider.init({ id: 'preview-heading', value: 45 }),
   rotation: AngleSlider.init({ id: 'preview-rotation', value: 90 }),
-  tea: Timer.init({ id: 'preview-tea', countdown: true, duration: 3 * 60_000 }),
-  lap: Timer.init({ id: 'preview-lap', interval: 10 }),
-  customers: Marquee.init({ id: 'preview-customers' }),
-  news: Marquee.init({ id: 'preview-news' }),
-  photo: ImageCropper.init({ id: 'preview-photo' }),
-  avatarCrop: ImageCropper.init({ id: 'preview-avatar-crop', shape: 'round', aspect: 1 }),
-  avatarUrl: Option.none(),
-  signature: SignaturePad.init({ id: 'preview-signature' }),
   charts: {
     bar: Chart.init(),
     line: Chart.init(),

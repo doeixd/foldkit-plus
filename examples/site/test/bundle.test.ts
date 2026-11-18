@@ -64,7 +64,7 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 const CEILINGS = { shell: 188_000, gallery: 445_000 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
-const PREVIEWS = ['preview-drop', 'preview-trip']
+const PREVIEWS = ['preview-heading', 'preview-trip']
 
 interface Manifest {
   readonly [key: string]: {

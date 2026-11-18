@@ -5,8 +5,7 @@
  */
 import { Dialog as UiDialog, Menu as UiMenu } from '@foldkit/ui'
 import { Option } from 'effect'
-import { Chart, Drawer, ImageCropper, InputCopy, Menu, Sheet, FileDrop } from 'foldkit-mixins-ui'
-import { ClipboardMessage } from 'foldkit-primitives/dom'
+import { Chart, Drawer, Menu, Sheet } from 'foldkit-mixins-ui'
 import { describe, expect, it } from 'vitest'
 
 import * as Widgets from '../src/gallery/widgets.js'
@@ -15,31 +14,6 @@ import { Message, initial, update } from '../src/main.js'
 const send = (message: Widgets.Message) => update(initial, Message.GotWidget({ message })).model
 
 describe('the previews with state', () => {
-  it('list the files the drop zone took, by name and size', () => {
-    const dropped = send(
-      Widgets.Message.GotDrop({
-        message: FileDrop.Message.DroppedFiles({
-          files: [new File(['abc'], 'a.txt'), new File(['de'], 'b.png')],
-        }),
-      }),
-    )
-    expect(dropped.widgets.attachments).toEqual([
-      { name: 'a.txt', size: 3 },
-      { name: 'b.png', size: 2 },
-    ])
-    const more = update(
-      dropped,
-      Message.GotWidget({
-        message: Widgets.Message.GotDrop({
-          message: FileDrop.Message.DroppedFiles({ files: [new File([''], 'c.md')] }),
-        }),
-      }),
-    ).model
-    expect(more.widgets.attachments.map(file => file.name)).toEqual(['a.txt', 'b.png', 'c.md'])
-    const refused = send(Widgets.Message.GotDrop({ message: FileDrop.Message.DroppedNonFiles() }))
-    expect(refused.widgets.attachments).toEqual([])
-  })
-
   it('keep the volume and the price range the sliders moved to', () => {
     const turned = send(Widgets.Message.TurnedVolume({ value: 65 }))
     expect(initial.widgets.volume).toBe(60)
@@ -111,27 +85,6 @@ describe('the checkbox group previews', () => {
       ...initial.widgets.alerts,
       described: ['mentions', 'replies', 'digest'],
     })
-  })
-})
-
-describe('the form previews', () => {
-  it('show the key copied until its reset, and a refused copy as failed', () => {
-    const copied = send(Widgets.Message.GotCopy({ message: ClipboardMessage.Copied() }))
-    expect(copied.widgets.inputCopy.copied).toBe(true)
-    const reset = update(
-      copied,
-      Message.GotWidget({
-        message: Widgets.Message.GotInputCopy({
-          message: InputCopy.Message.ElapsedReset({ copy: copied.widgets.inputCopy.copies }),
-        }),
-      }),
-    ).model
-    expect(reset.widgets.inputCopy.copied).toBe(false)
-    const refused = send(
-      Widgets.Message.GotCopy({ message: ClipboardMessage.CopyFailed({ message: 'denied' }) }),
-    )
-    expect(refused.widgets.inputCopy.copied).toBe(false)
-    expect(refused.widgets.inputCopy.failed).toBe(true)
   })
 })
 
@@ -208,13 +161,7 @@ describe('the overlay previews', () => {
   })
 })
 
-describe('the chat and long-tail previews', () => {
-  const after = (...messages: ReadonlyArray<Widgets.Message>) =>
-    messages.reduce(
-      (model, message) => update(model, Message.GotWidget({ message })).model,
-      initial,
-    ).widgets
-
+describe('the chart previews', () => {
   it('light one chart’s point, and keep the Model when it is lit already', () => {
     const point = Widgets.Message.GotChart({
       example: 'line',
@@ -224,19 +171,6 @@ describe('the chat and long-tail previews', () => {
     expect(lit.widgets.charts.line.point).toEqual(Option.some(2))
     expect(lit.widgets.charts.bar.point).toEqual(Option.none())
     expect(update(lit, Message.GotWidget({ message: point })).model.widgets).toBe(lit.widgets)
-  })
-
-  it('keep the avatar crop’s export to show beside it', () => {
-    const exported = after(
-      Widgets.Message.GotAvatarCrop({
-        message: ImageCropper.Message.Exported({
-          url: 'data:image/png;base64,AA',
-          width: 1,
-          height: 1,
-        }),
-      }),
-    )
-    expect(exported.avatarUrl).toEqual(Option.some('data:image/png;base64,AA'))
   })
 })
 

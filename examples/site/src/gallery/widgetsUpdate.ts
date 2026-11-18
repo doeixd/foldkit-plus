@@ -18,9 +18,7 @@ import {
   CheckboxGroup,
   Dialog,
   Menubar,
-  InputCopy,
   Calendar as DateSelection,
-  ColorPicker,
   Menu,
   Nav,
   Sheet,
@@ -28,15 +26,9 @@ import {
   Command as CommandMenu,
   Toast,
   AngleSlider,
-  Timer,
-  Marquee,
-  ImageCropper,
-  SignaturePad,
   Chart,
 } from 'foldkit-mixins-ui'
-import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import * as UiTooltip from '@foldkit/ui/tooltip'
-import { ClipboardMessage } from 'foldkit-primitives/dom'
 import * as Fields from './fields.js'
 
 import {
@@ -49,7 +41,6 @@ import {
 
 /** The chart examples, each lighting a point of its own. */
 import {
-  Attachment,
   DialogExample,
   Message,
   Model,
@@ -94,24 +85,6 @@ const own = <K extends keyof Model, ChildMessage>(
 })
 
 const same: Step = model => ({ model })
-
-const foldDrop = Update.foldChild({
-  ...own('drop', Message.GotDrop),
-  update: UiFileDrop.update,
-  foldOutMessage: UiFileDrop.OutMessage.match<Step>({
-    ReceivedFiles:
-      ({ files }) =>
-      model => ({
-        model: modifyFields(model, {
-          attachments: current => [
-            ...current,
-            ...files.map(({ name, size }): Attachment => ({ name, size })),
-          ],
-        }),
-      }),
-    RejectedNonFiles: () => same,
-  }),
-})
 
 const dialogOut = UiDialog.OutMessage.match<Step>({ Opened: () => same, Closed: () => same })
 const dialogField = own('dialog', Message.GotDialog)
@@ -246,33 +219,12 @@ const foldMenubar = Update.foldChild({
   }),
 })
 
-const foldAccent = Update.foldChild({
-  ...own('accent', Message.GotAccent),
-  update: ColorPicker.update,
-})
-
 const foldNav = Update.foldChildAt({
   update: Nav.update,
   readAt: (model: Model, example: NavExample) => Option.some(model.navs[example]),
   writeAt: (model, example, nav) =>
     modifyFields(model, { navs: navs => ({ ...navs, [example]: nav }) }),
   toParentMessage: (example, message) => Message.GotNav({ example, message }),
-})
-
-const foldBrand = Update.foldChild({
-  ...own('brand', Message.GotBrand),
-  update: ColorPicker.update,
-})
-
-const foldBrandPopover = Update.foldChild({
-  ...own('brandPopover', Message.GotBrandPopover),
-  update: UiPopover.update,
-  foldOutMessage: UiPopover.OutMessage.match<Step>({ Opened: () => same, Closed: () => same }),
-})
-
-const foldInputCopy = Update.foldChild({
-  ...own('inputCopy', Message.GotInputCopy),
-  update: InputCopy.update,
 })
 
 /** The View menu's answer to a chosen row: a check flips, a radio picks, any other is chosen. */
@@ -400,29 +352,9 @@ const foldRotation = Update.foldChild({
   ...own('rotation', Message.GotRotation),
   update: AngleSlider.update(ROTATION_LAYOUT),
 })
-const foldTea = Update.foldChild({ ...own('tea', Message.GotTea), update: Timer.update })
-const foldLap = Update.foldChild({ ...own('lap', Message.GotLap), update: Timer.update })
-const foldCustomers = Update.foldChild({
-  ...own('customers', Message.GotCustomers),
-  update: Marquee.update,
-})
-const foldNews = Update.foldChild({ ...own('news', Message.GotNews), update: Marquee.update })
-const foldPhoto = Update.foldChild({
-  ...own('photo', Message.GotPhoto),
-  update: ImageCropper.update,
-})
-const foldAvatarCrop = Update.foldChild({
-  ...own('avatarCrop', Message.GotAvatarCrop),
-  update: ImageCropper.update,
-})
-const foldSignature = Update.foldChild({
-  ...own('signature', Message.GotSignature),
-  update: SignaturePad.update,
-})
 
 export const update = (model: Model, message: Message): Update.Return<Model, Message> =>
   Message.match(message, {
-    GotDrop: ({ message }) => foldDrop(model, message),
     TurnedVolume: ({ value }) =>
       value === model.volume ? { model } : { model: modifyFields(model, { volume: () => value }) },
     GotDialog: ({ message }) => foldDialog(model, message),
@@ -471,14 +403,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       value.low === model.priceRange.low && value.high === model.priceRange.high
         ? { model }
         : { model: modifyFields(model, { priceRange: () => value }) },
-    GotAccent: ({ message }) => foldAccent(model, message),
     GotTripCalendar: ({ message }) => foldTripCalendar(model, message),
-    GotCopy: ({ message }) =>
-      ClipboardMessage.match(message, {
-        Copied: () => foldInputCopy(model, InputCopy.Message.Copied()),
-        CopyFailed: () => foldInputCopy(model, InputCopy.Message.Failed()),
-      }),
-    GotInputCopy: ({ message }) => foldInputCopy(model, message),
     GotViewMenu: ({ message }) => foldViewMenu(model, message),
     OpenedPalette: () => openPalette(model),
     GotPalette: ({ message }) => foldPalette(model, message),
@@ -539,24 +464,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       }),
     GotHeading: ({ message }) => foldHeading(model, message),
     GotRotation: ({ message }) => foldRotation(model, message),
-    GotTea: ({ message }) => foldTea(model, message),
-    GotLap: ({ message }) => foldLap(model, message),
-    GotCustomers: ({ message }) => foldCustomers(model, message),
-    GotNews: ({ message }) => foldNews(model, message),
-    GotPhoto: ({ message }) => foldPhoto(model, message),
-    // The export comes back as the cropper's own Message, which the page keeps to show.
-    GotAvatarCrop: ({ message }) => {
-      const folded = foldAvatarCrop(model, message)
-      return Match.value(message).pipe(
-        Match.withReturnType<Update.Return<Model, Message>>(),
-        Match.tag('Exported', ({ url }) => ({
-          ...folded,
-          model: modifyFields(folded.model, { avatarUrl: () => Option.some(url) }),
-        })),
-        Match.orElse(() => folded),
-      )
-    },
-    GotSignature: ({ message }) => foldSignature(model, message),
     GotChart: ({ example, message }) => {
       const chart = Chart.update(model.charts[example], message).model
       // The same Model when the chart's is: a pointer over the lit band changes nothing.
@@ -570,8 +477,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       value.low === model.budget.low && value.high === model.budget.high
         ? { model }
         : { model: modifyFields(model, { budget: () => value }) },
-    GotBrand: ({ message }) => foldBrand(model, message),
-    GotBrandPopover: ({ message }) => foldBrandPopover(model, message),
     GotFields: ({ message }) => {
       const next = Fields.update(model.fields, message)
       return {
