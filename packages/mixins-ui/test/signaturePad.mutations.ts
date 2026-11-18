@@ -10,9 +10,7 @@ const source = '../src/signaturePad.ts'
 export default [
   {
     name: 'a second pointer starts a stroke over the first',
-    edits: [
-      { file: source, find: 'if (Option.isSome(model.drawing) || ', replace: 'if (' },
-    ],
+    edits: [{ file: source, find: 'if (Option.isSome(model.drawing) || ', replace: 'if (' }],
     tests: [unit],
   },
   {
