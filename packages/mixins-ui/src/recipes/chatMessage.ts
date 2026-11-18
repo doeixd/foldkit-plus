@@ -247,6 +247,8 @@ export const ChatMessage = Style.recipeFor(ChatMessageSlots)({
           Style.nest('[data-from="user"] &', {
             background: ref.accent.default,
             color: ref.accent['on-fill'],
+            // The default selection tint is this fill itself.
+            '--fk-selection-background': ref.selection['fill-background'],
           }),
         ),
       },

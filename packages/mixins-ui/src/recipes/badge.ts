@@ -163,7 +163,16 @@ export const Badge = Style.recipeFor(BadgeSlots)({
           }),
         ),
       },
-      solid: { badge: variant(Style.self({ background: fill, color: onFill })) },
+      solid: {
+        badge: variant(
+          Style.self({
+            background: fill,
+            color: onFill,
+            // On the accent's own fill the default selection tint is the fill itself.
+            '--fk-selection-background': ref.selection['fill-background'],
+          }),
+        ),
+      },
     },
     size: {
       sm: {

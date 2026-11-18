@@ -46,8 +46,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/badge.ts',
-        find: 'solid: { badge: variant(Style.self({ background: fill, color: onFill })) },',
-        replace: 'solid: { badge: variant(Style.self({ background: tint, color: ink })) },',
+        find: 'background: fill,\n            color: onFill,',
+        replace: 'background: tint,\n            color: ink,',
       },
     ],
     tests: browser,

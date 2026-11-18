@@ -211,6 +211,8 @@ export const Alert = Style.recipeFor(AlertSlots)({
             // On the bold band they hover in its fill, a deeper band, and
             // not in its pale text, which read as a grey film.
             '--_fk-state-ink': surfaceInk('var(--_fk-alert-fill)'),
+            // On the accent's own fill the default selection tint is the fill itself.
+            '--fk-selection-background': ref.selection['fill-background'],
           }),
         ),
       },
