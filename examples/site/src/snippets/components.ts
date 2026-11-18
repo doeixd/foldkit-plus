@@ -82,8 +82,6 @@ import {
   type PasswordRequirement,
   Rating,
   RatingSlots,
-  Steps,
-  StepsSlots,
   VirtualList,
   VirtualListSlots,
   Progress,
@@ -116,8 +114,6 @@ import {
   ListboxView,
   Menu,
   MenuSlots,
-  Pagination,
-  PaginationSlots,
   Popover,
   PopoverSlots,
   RadioGroup,
@@ -1529,128 +1525,6 @@ export const tableSticky = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder
     [h.Style({ maxBlockSize: '16rem', overflow: 'auto' })],
     [Table.view<Invoice>({ columns: invoiceColumns, rows: manyInvoices, style }, h)],
   )
-// #endregion
-
-// #region pagination-numbered
-export const PaginationStyle = forSlots(PaginationSlots)(Recipes.Pagination({}))
-
-export const pagination = <Message>(
-  style: NamedStyle<typeof PaginationSlots>,
-  page: number,
-  onPage: (page: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html => Pagination.view({ page, pageCount: 12, onPage, style }, h)
-// #endregion
-
-// #region pagination-simple
-// Previous and next alone, for a feed with no page worth naming.
-export const paginationSimple = <Message>(
-  style: NamedStyle<typeof PaginationSlots>,
-  page: number,
-  onPage: (page: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html => Pagination.view({ page, pageCount: 12, onPage, numbered: false, style }, h)
-// #endregion
-
-// #region pagination-ends
-// First and last beside previous and next.
-export const paginationEnds = <Message>(
-  style: NamedStyle<typeof PaginationSlots>,
-  page: number,
-  onPage: (page: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html => Pagination.view({ page, pageCount: 20, onPage, ends: true, style }, h)
-// #endregion
-
-// #region pagination-range
-// Which rows the page shows, and a choice of how many a page holds.
-export const ROWS = 97
-
-export const paginationRange = <Message>(
-  style: NamedStyle<typeof PaginationSlots>,
-  rows: { readonly page: number; readonly perPage: number },
-  onPage: (page: number) => Message,
-  onPerPage: (perPage: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Pagination.view(
-    {
-      page: rows.page,
-      pageCount: Math.ceil(ROWS / rows.perPage),
-      onPage,
-      range: {
-        total: ROWS,
-        perPage: rows.perPage,
-        choose: { sizes: [10, 20, 50], onPerPage },
-      },
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region pagination-siblings
-// Two stops either side of the current page, and two at each end.
-export const paginationSiblings = <Message>(
-  style: NamedStyle<typeof PaginationSlots>,
-  page: number,
-  onPage: (page: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html => Pagination.view({ page, pageCount: 40, onPage, siblings: 2, boundaries: 2, style }, h)
-// #endregion
-
-// #region pagination-compact
-// The current page and the count alone, at every width: "5 / 12". The
-// default, `compact: 'narrow'`, does this only on a narrow window.
-export const PaginationCompactStyle = forSlots(PaginationSlots)(
-  Recipes.Pagination({ compact: 'always' }),
-)
-
-export const paginationCompact = <Message>(
-  style: NamedStyle<typeof PaginationSlots>,
-  page: number,
-  onPage: (page: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html => Pagination.view({ page, pageCount: 12, onPage, style }, h)
-// #endregion
-
-// #region pagination-words
-// Every stop's words, and the name each is given, in your language.
-export const paginationWords = <Message>(
-  style: NamedStyle<typeof PaginationSlots>,
-  page: number,
-  onPage: (page: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Pagination.view(
-    {
-      page,
-      pageCount: 8,
-      onPage,
-      ends: true,
-      words: {
-        label: 'Seitennavigation',
-        first: 'Erste',
-        previous: 'Zurück',
-        next: 'Weiter',
-        last: 'Letzte',
-        stop: '{word} Seite',
-      },
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region pagination-one-page
-// With one page there are no stops to draw: the control draws nothing, unless
-// a `range` has a summary to say, as here.
-export const paginationOnePage = <Message>(
-  style: NamedStyle<typeof PaginationSlots>,
-  onPage: (page: number) => Message,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Pagination.view({ page: 1, pageCount: 1, onPage, range: { total: 7, perPage: 10 }, style }, h)
 // #endregion
 
 // #region item-basic
@@ -4996,128 +4870,6 @@ export const virtualList = <Message>(
         h,
       ),
     ],
-  )
-// #endregion
-
-// #region steps-basic
-export const StepsStyle = forSlots(StepsSlots)(Recipes.Steps({}))
-
-export const steps = <Message>(
-  style: NamedStyle<typeof StepsSlots>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Steps.view(
-    {
-      label: 'Checkout',
-      steps: [
-        { title: 'Account', description: 'Your details' },
-        { title: 'Plan', description: 'Pick a tier' },
-        { title: 'Payment', description: 'Card or invoice' },
-        { title: 'Review' },
-      ],
-      current: 2,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region steps-icons
-// A step's icon stands in its marker for the number, until the step is done.
-export const stepsIcons = <Message>(
-  style: NamedStyle<typeof StepsSlots>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Steps.view(
-    {
-      label: 'Shipping',
-      steps: [
-        { title: 'Ordered', icon: outline(h, 'M3 4h10l-1 8H4zM6 4a2 2 0 0 1 4 0') },
-        { title: 'Packed', icon: outline(h, 'M2 5l6-3 6 3v6l-6 3-6-3zM2 5l6 3 6-3M8 8v6') },
-        { title: 'Shipped', icon: outline(h, 'M1 4h8v7H1zM9 7h3l3 3v1H9M4 13h1M11 13h1') },
-        { title: 'Delivered', icon: outline(h, 'M2 7l6-5 6 5v7H2zM6 14v-4h4v4') },
-      ],
-      current: 2,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region steps-vertical
-// Vertical, each step's content under it beside the line to the next. A
-// horizontal stepper has no room under its steps and draws no content.
-export const VerticalStepsStyle = forSlots(StepsSlots)(Recipes.Steps({ orientation: 'vertical' }))
-
-export const stepsVertical = <Message>(
-  style: NamedStyle<typeof StepsSlots>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Steps.view(
-    {
-      label: 'Set up the workspace',
-      steps: [
-        {
-          title: 'Create the workspace',
-          content: h.p([], ['Named Northwind, at northwind.example.com.']),
-        },
-        {
-          title: 'Invite the team',
-          description: 'Three of ten seats',
-          content: h.div(
-            [h.Style({ display: 'grid', gap: '0.5rem', justifyItems: 'start' })],
-            [
-              h.p([], ['Ada and Grace have joined. Alan has not answered yet.']),
-              Button.view({ label: 'Send a reminder', style: ButtonStyle }, h),
-            ],
-          ),
-        },
-        { title: 'Connect a domain', content: h.p([], ['Point a CNAME at the workspace.']) },
-      ],
-      current: 1,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region steps-progress
-export const ProgressStepsStyle = forSlots(StepsSlots)(Recipes.Steps({ connector: 'progress' }))
-
-// The connector is the Progress bar's track, filling after each step done and,
-// after the current one, by how far it has gone.
-export const stepsProgress = <Message>(
-  style: NamedStyle<typeof StepsSlots>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Steps.view(
-    {
-      label: 'Upload',
-      steps: [{ title: 'Choose' }, { title: 'Upload' }, { title: 'Process' }, { title: 'Done' }],
-      current: 1,
-      progress: 0.6,
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region steps-dots
-export const DotStepsStyle = forSlots(StepsSlots)(Recipes.Steps({ marker: 'dot' }))
-
-// Dots for a light stepper; `size` sets a numbered marker on the Avatar's sizes.
-export const stepsDots = <Message>(
-  style: NamedStyle<typeof StepsSlots>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Steps.view(
-    {
-      label: 'Onboarding',
-      steps: [{ title: 'Profile' }, { title: 'Team' }, { title: 'Billing' }, { title: 'Launch' }],
-      current: 2,
-      style,
-    },
-    h,
   )
 // #endregion
 

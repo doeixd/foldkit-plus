@@ -39,6 +39,8 @@ const mount = (
     readonly progress?: number
     readonly steps?: (h: HtmlBuilder<never>) => ReadonlyArray<Steps.Step>
     readonly avatar?: 'xs' | 'sm' | 'md' | 'lg'
+    // The palette too, for a test of colours.
+    readonly palette?: boolean
   } = {},
 ) => {
   const style = Style.forSlots(StepsSlots)(Recipes.Steps({ orientation, ...more.selection }))
@@ -48,7 +50,10 @@ const mount = (
   sheet.textContent =
     Style.stylesheet(
       Layers.standard.declare,
-      Layers.standard.in('theme', Theme.root(Theme.tokens)),
+      Layers.standard.in(
+        'theme',
+        Theme.root(more.palette === true ? Theme.standard(Theme.make({})) : Theme.tokens),
+      ),
     ) +
     style.css +
     avatar.css
@@ -410,5 +415,52 @@ test('a check keeps its stroke when the borders thicken', async () => {
     handle.dispose()
     document.documentElement.style.removeProperty('--fk-border-thick')
     document.documentElement.style.removeProperty('--fk-accent-on-fill')
+  }
+})
+
+const shownText = () =>
+  all('li [data-state][aria-hidden] + span').filter(text => text.getBoundingClientRect().width > 1)
+
+test.each([
+  ['hidden', []],
+  ['current', ['Workspace settings']],
+] as const)('labels %s shows %j of the words at any width', async (labels, expected) => {
+  const handle = mount('horizontal', '40rem', { selection: { labels } })
+  try {
+    await vi.waitFor(() => expect(markers()).toHaveLength(4))
+    expect(shownText().map(text => text.firstElementChild!.textContent)).toEqual(expected)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a loading marker is dashed in the accent and an errored one danger-toned, over their steps', async () => {
+  const handle = mount('horizontal', '40rem', {
+    palette: true,
+    steps: () => [{ title: 'A' }, { title: 'B', state: 'loading' }, { title: 'C', state: 'error' }],
+  })
+  try {
+    await vi.waitFor(() => expect(markers()).toHaveLength(3))
+    const [, loading, failed] = markers().map(marker => getComputedStyle(marker))
+    expect(loading!.borderTopStyle).toBe('dashed')
+    expect(failed!.borderTopStyle).toBe('solid')
+    expect(failed!.color).not.toBe(loading!.color)
+    expect(failed!.backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a trailing value sits at the row’s end, beside its words', async () => {
+  const handle = mount('vertical', '24rem', {
+    steps: h => [{ title: 'Boarding', trailing: h.span([], ['09:30']) }, { title: 'Landing' }],
+  })
+  try {
+    await vi.waitFor(() => expect(markers()).toHaveLength(2))
+    const time = all('li span').find(span => span.textContent === '09:30')!
+    const item = all('li')[0]!.getBoundingClientRect()
+    expect(Math.abs(time.getBoundingClientRect().right - item.right)).toBeLessThan(2)
+  } finally {
+    handle.dispose()
   }
 })

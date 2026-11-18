@@ -104,7 +104,7 @@ export default [
     edits: [
       {
         file: '../src/steps.ts',
-        find: "...(state === 'current' ? [h.AriaCurrent('step')] : []),",
+        find: "...(index === options.current ? [h.AriaCurrent('step')] : []),",
         replace: '',
       },
     ],

@@ -162,23 +162,6 @@ describe('the checkbox previews', () => {
   })
 })
 
-describe('the pagination previews', () => {
-  it('each move their own page', () => {
-    const moved = send(Widgets.Message.ChosePage({ example: 'ends', page: 3 })).widgets.pages
-    expect(moved).toEqual({ ...initial.widgets.pages, ends: 3 })
-  })
-
-  it('keep the first row shown in view when a page holds more rows', () => {
-    // Page 3 of tens starts at row 21, which is on page 2 of twenties.
-    const third = send(Widgets.Message.ChosePage({ example: 'range', page: 3 }))
-    const larger = update(
-      third,
-      Message.GotWidget({ message: Widgets.Message.ChosePerPage({ perPage: 20 }) }),
-    ).model.widgets
-    expect([larger.perPage, larger.pages.range]).toEqual([20, 2])
-  })
-})
-
 describe('the checkbox group previews', () => {
   it('each check their own alerts', () => {
     const toggled = send(Widgets.Message.ToggledAlert({ example: 'described', value: 'digest' }))

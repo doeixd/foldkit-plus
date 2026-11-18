@@ -1122,23 +1122,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       checked === model.teamPlan
         ? { model }
         : { model: modifyFields(model, { teamPlan: () => checked }) },
-    ChosePage: ({ example, page }) =>
-      page === model.pages[example]
-        ? { model }
-        : { model: modifyFields(model, { pages: pages => ({ ...pages, [example]: page }) }) },
-    // The page that keeps the first row shown in view, at the new size.
-    ChosePerPage: ({ perPage }) =>
-      perPage === model.perPage
-        ? { model }
-        : {
-            model: modifyFields(model, {
-              perPage: () => perPage,
-              pages: pages => ({
-                ...pages,
-                range: Math.floor(((pages.range - 1) * model.perPage) / perPage) + 1,
-              }),
-            }),
-          },
     ToggledAlert: ({ example, value }) => ({
       model: modifyFields(model, {
         alerts: alerts => ({

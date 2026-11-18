@@ -1,6 +1,7 @@
 import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { MixinList } from './resolve.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import { fill, wordsOf } from './words.js'
 
 /**
@@ -112,6 +113,17 @@ export const words: PaginationWords = {
   summary: '{from}–{to} of {total}',
 }
 
+/**
+ * Drawings for the four stops, shown in place of their words, which stay
+ * each button's accessible name.
+ */
+export interface PaginationIcons {
+  readonly first?: Html | undefined
+  readonly previous?: Html | undefined
+  readonly next?: Html | undefined
+  readonly last?: Html | undefined
+}
+
 /** The rows a page may show, for a select of them; its value is the range's `perPage`. */
 export interface PaginationPerPage<Message> {
   /** The sizes to choose from, such as `[10, 20, 50]`. */
@@ -143,6 +155,8 @@ export interface PaginationView<Message> extends PaginationWindow {
   readonly words?: Partial<PaginationWords> | undefined
   /** Draws the numbered stops; `false` leaves previous and next alone. Default true. */
   readonly numbered?: boolean | undefined
+  /** A drawing for each of first, previous, next and last, in place of its word. */
+  readonly icons?: PaginationIcons | undefined
   /** Draws first and last beside previous and next. Default false. */
   readonly ends?: boolean | undefined
   /** Says which rows the page shows, before the stops: `"1–10 of 97"`. */
@@ -182,6 +196,7 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
     slot: 'first' | 'prev' | 'next' | 'last',
     word: string,
     atEnd: boolean,
+    icon: Html | undefined,
   ) =>
     h.button(
       builders[slot].attrs([
@@ -189,7 +204,7 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
         h.AriaLabel(fill(text.stop, { word })),
         ...(atEnd ? [h.AriaDisabled(true)] : [h.OnClick(options.onPage(page))]),
       ]),
-      [word],
+      [icon ?? word],
     )
   const ends = options.ends === true
   const range = options.range
@@ -214,8 +229,8 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
   const stops = lone
     ? []
     : [
-        ...(ends ? [stop(1, 'first', text.first, current === 1)] : []),
-        stop(current - 1, 'prev', text.previous, current === 1),
+        ...(ends ? [stop(1, 'first', text.first, current === 1, options.icons?.first)] : []),
+        stop(current - 1, 'prev', text.previous, current === 1, options.icons?.previous),
         ...(options.numbered === false
           ? []
           : itemsOf(current, count, options).map((item, index) =>
@@ -237,8 +252,8 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
                       : [String(item)],
                   ),
             )),
-        stop(current + 1, 'next', text.next, current === count),
-        ...(ends ? [stop(count, 'last', text.last, current === count)] : []),
+        stop(current + 1, 'next', text.next, current === count, options.icons?.next),
+        ...(ends ? [stop(count, 'last', text.last, current === count, options.icons?.last)] : []),
       ]
   return h.nav(builders.root.attrs([h.AriaLabel(text.label), h.Role('navigation')]), [
     ...(range === undefined
@@ -252,3 +267,24 @@ export const view = <Message>(options: PaginationView<Message>, h: HtmlBuilder<M
     ...stops,
   ])
 }
+
+/** What a Pagination is given once: its look, words, windows and stops. The page and its Messages are each use's. */
+export type PaginationPreset = Pick<
+  PaginationView<never>,
+  'style' | 'words' | 'numbered' | 'ends' | 'icons' | 'siblings' | 'boundaries'
+> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own Pagination: `base` for every use, `presets` chosen at
+ * a use with `preset`, and the call over both.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<PaginationPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: PaginationView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

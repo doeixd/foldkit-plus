@@ -94,18 +94,6 @@ const CHAT: ReadonlyArray<ChatEntry> = [
   'The app layer, after components and variants.',
 ].map((text, at) => ({ id: `chat-${at}`, from: at % 2 === 0 ? 'user' : 'assistant', text }))
 
-/** The pagination examples, each on a page of its own. */
-export const PaginationExample = Schema.Literals([
-  'numbered',
-  'simple',
-  'ends',
-  'range',
-  'siblings',
-  'compact',
-  'words',
-])
-export type PaginationExample = typeof PaginationExample.Type
-
 /** The tab examples each with tabs of their own, and the navigation menus. */
 export const InboxExample = Schema.Literals(['icons', 'vertical'])
 export type InboxExample = typeof InboxExample.Type
@@ -219,9 +207,6 @@ export const Model = Schema.Struct({
   terms: Schema.Boolean,
   toppings: Toppings,
   teamPlan: Schema.Boolean,
-  /** The page each pagination example shows, and the rows a page holds in the range one. */
-  pages: Schema.Record(PaginationExample, Schema.Number),
-  perPage: Schema.Number,
   /** Each checkbox group example's checked alerts. */
   alerts: Schema.Record(AlertsExample, Schema.Array(Schema.String)),
   /** The number field's servings. */
@@ -392,8 +377,6 @@ export const Message = defineMessageUnion({
   ToggledTerms: { checked: Schema.Boolean },
   ToggledToppings: { checked: Schema.Boolean },
   ToggledTeamPlan: { checked: Schema.Boolean },
-  ChosePage: { example: PaginationExample, page: Schema.Number },
-  ChosePerPage: { perPage: Schema.Number },
   ToggledAlert: { example: AlertsExample, value: Schema.String },
   SetAlerts: { example: AlertsExample, values: Schema.Array(Schema.String) },
   ChangedServings: { value: Schema.Number },
@@ -575,16 +558,6 @@ export const initial: Model = {
   terms: false,
   toppings: 'some',
   teamPlan: false,
-  pages: {
-    numbered: 4,
-    simple: 2,
-    ends: 9,
-    range: 2,
-    siblings: 18,
-    compact: 5,
-    words: 3,
-  },
-  perPage: 10,
   alerts: {
     alerts: ['mentions', 'replies'],
     described: ['mentions', 'replies'],

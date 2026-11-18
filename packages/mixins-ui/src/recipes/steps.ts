@@ -41,6 +41,19 @@ import {
 const complete = '[data-state="complete"]'
 const current = '[data-state="current"]'
 const upcoming = '[data-state="upcoming"]'
+const loading = '[data-state="loading"]'
+const failed = '[data-state="error"]'
+
+// A label shown to a screen reader only.
+const unseen = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+}
 
 const markerSize = 'var(--_fk-steps-marker)'
 // The Progress bar's track.
@@ -128,6 +141,17 @@ export const Steps = Style.recipeFor(StepsSlots)({
         color: ref.accent.ink,
       }),
       // The number stays for the box's size; the check is drawn over it.
+      // Under way, but not the step the list is on: a dashed ring in the accent.
+      Style.pseudo(loading, {
+        borderColor: ref.accent.default,
+        borderStyle: 'dashed',
+        color: ref.accent.ink,
+      }),
+      Style.pseudo(failed, {
+        borderColor: ref.error.default,
+        background: ref.error.subtle,
+        color: ref.error.ink,
+      }),
       Style.pseudo(complete, {
         borderColor: ref.accent.default,
         background: ref.accent.default,
@@ -159,6 +183,16 @@ export const Steps = Style.recipeFor(StepsSlots)({
       }),
       Style.pseudo(upcoming, { color: ref.text.muted }),
       Style.pseudo(current, { color: ref.text.overt, fontWeight: ref.weight.medium }),
+      Style.pseudo(loading, { color: ref.text.overt, fontWeight: ref.weight.medium }),
+      Style.pseudo(failed, { color: ref.error.ink }),
+    ),
+    trailing: component(
+      Style.self({
+        marginInlineStart: 'auto',
+        flexShrink: '0',
+        ...role('caption'),
+        color: ref.text.muted,
+      }),
     ),
     state: component(Utilities.srOnly),
     description: component(Style.self({ ...role('caption'), color: ref.text.muted })),
@@ -363,8 +397,27 @@ export const Steps = Style.recipeFor(StepsSlots)({
         ),
       },
     },
+    // Where the words stand: `current` keeps the one under way beside its
+    // marker and leaves the rest to a screen reader; `hidden` leaves them all.
+    labels: {
+      current: {
+        text: variant(
+          Style.nest(':where([data-state]:not([aria-current="step"])) > * > &', unseen),
+        ),
+      },
+      hidden: { text: variant(Style.self(unseen)) },
+    },
     connector: {
       line: {},
+      // Rounded bars, thicker than the line.
+      segments: {
+        connector: variant(
+          Style.self({
+            borderRadius: ref.radius.full,
+            '--_fk-steps-line': '0.25rem',
+          }),
+        ),
+      },
       progress: {
         connector: variant(
           Style.self({

@@ -8,9 +8,7 @@ const tests = ['packages/mixins-ui/test/pagination.test.ts']
 export default [
   {
     name: 'the stops ignore the words given',
-    edits: [
-      { file: '../src/pagination.ts', find: "text.next", replace: "'Next'" },
-    ],
+    edits: [{ file: '../src/pagination.ts', find: 'text.next', replace: "'Next'" }],
     tests,
   },
   {
@@ -210,8 +208,9 @@ export default [
     edits: [
       {
         file: '../src/pagination.ts',
-        find: "stop(count, 'last', text.last, current === count)",
-        replace: "stop(1, 'last', options.words?.last ?? 'Last', current === count)",
+        find: "stop(count, 'last', text.last, current === count, options.icons?.last)",
+        replace:
+          "stop(1, 'last', options.words?.last ?? 'Last', current === count, options.icons?.last)",
       },
     ],
     tests,
@@ -254,8 +253,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/pagination.ts',
-        find: "defaults: { compact: 'narrow' },",
-        replace: "defaults: { compact: 'never' },",
+        find: "defaults: { compact: 'narrow', shape: 'square', treatment: 'ghost' },",
+        replace: "defaults: { compact: 'never', shape: 'square', treatment: 'ghost' },",
       },
     ],
     tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
@@ -300,6 +299,33 @@ export default [
         file: '../src/pagination.ts',
         find: 'choose.onPerPage(Number(value))',
         replace: 'choose.onPerPage(choose.sizes[0] ?? Number(value))',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
+  },
+  {
+    name: 'an icon is ignored',
+    edits: [{ file: '../src/pagination.ts', find: '[icon ?? word]', replace: '[word]' }],
+    tests: ['packages/mixins-ui/test/pagination.test.ts'],
+  },
+  {
+    name: 'the round shape draws no pill',
+    edits: [
+      {
+        file: '../src/recipes/pagination.ts',
+        find: 'Style.self({ borderRadius: ref.radius.full })',
+        replace: 'Style.self({ borderRadius: controlCorner })',
+      },
+    ],
+    tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],
+  },
+  {
+    name: 'the outline treatment draws no outline',
+    edits: [
+      {
+        file: '../src/recipes/pagination.ts',
+        find: 'Style.self({ borderColor: ref.outline.default })',
+        replace: 'Style.self({ borderColor: "transparent" })',
       },
     ],
     tests: ['packages/mixins-ui/test/pagination.browser.test.ts'],

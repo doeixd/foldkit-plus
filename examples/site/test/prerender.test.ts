@@ -511,8 +511,8 @@ describe('the generated site', () => {
           ['simple', 'Previous and next', 'numbered: false'],
           ['ends', 'First and last', 'ends: true'],
           ['range', 'Rows and page size', 'sizes: [10, 20, 50]'],
-          ['siblings', 'Siblings and boundaries', 'siblings: 2, boundaries: 2'],
-          ['compact', 'Compact', "Recipes.Pagination({ compact: 'always' })"],
+          ['siblings', 'Siblings and boundaries', 'siblings: 2,'],
+          ['compact', 'Compact', "pins: { compact: 'always' }"],
         ],
       ],
       [
@@ -520,7 +520,7 @@ describe('the generated site', () => {
         [
           ['basic', 'Basic', 'steps'],
           ['icons', 'Icons', 'icon: outline(h'],
-          ['vertical', 'Vertical, with content', "Recipes.Steps({ orientation: 'vertical' })"],
+          ['vertical', 'Vertical, with content', "pins: { orientation: 'vertical' }"],
         ],
       ],
     ] as const) {

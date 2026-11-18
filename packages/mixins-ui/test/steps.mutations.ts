@@ -45,7 +45,7 @@ export default [
     edits: [
       {
         file: '../src/steps.ts',
-        find: "...(state === 'current' ? [h.AriaCurrent('step')] : [])",
+        find: "...(index === options.current ? [h.AriaCurrent('step')] : [])",
         replace: '',
       },
     ],
@@ -351,6 +351,61 @@ export default [
         replace: 'cornerSides(ref.border.thick,',
       },
     ],
+    tests: [browser],
+  },
+  {
+    name: 'a step’s own state is ignored',
+    edits: [
+      {
+        file: '../src/steps.ts',
+        find: 'step.state ?? stateOf(index, options.current)',
+        replace: 'stateOf(index, options.current)',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'aria-current follows the drawn state, not the position',
+    edits: [
+      {
+        file: '../src/steps.ts',
+        find: "index === options.current ? [h.AriaCurrent('step')]",
+        replace: "state === 'current' ? [h.AriaCurrent('step')]",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a trailing value is dropped',
+    edits: [{ file: '../src/steps.ts', find: 'step.trailing === undefined', replace: 'true' }],
+    tests: [unit, browser],
+  },
+  {
+    name: 'a configured word is overridden by the default',
+    edits: [
+      {
+        file: '../src/configure.ts',
+        find: 'const words = Object.assign(Object.create(null), ...layers.map(wordsOf)) as Layer',
+        replace:
+          'const words = Object.assign(Object.create(null), ...layers.map(wordsOf).reverse()) as Layer',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'labels hidden leaves the words drawn',
+    edits: [
+      {
+        file: '../src/recipes/steps.ts',
+        find: 'hidden: { text: variant(Style.self(unseen)) },',
+        replace: 'hidden: {},',
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'a loading marker is solid',
+    edits: [{ file: '../src/recipes/steps.ts', find: "borderStyle: 'dashed',", replace: '' }],
     tests: [browser],
   },
 ]

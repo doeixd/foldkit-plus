@@ -11,7 +11,7 @@ import * as Runtime from 'foldkit/runtime'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { PaginationSlots, itemsOf, summaryOf, view } from '../src/pagination.js'
+import { PaginationSlots, configure, itemsOf, summaryOf, view } from '../src/pagination.js'
 import { Recipes } from '../src/index.js'
 
 const h = SlotView.inertBuilder<Message>()
@@ -327,6 +327,48 @@ describe('Pagination view', () => {
   })
 })
 
+describe('Pagination icons and configure', () => {
+  const go = (page: number) => Message.Go({ page })
+  const labels = (html: ReturnType<typeof view>) =>
+    Inert.byTag(html, 'button').map(button => [
+      Inert.value(button, 'aria-label'),
+      Inert.text(button),
+    ])
+
+  it('draws an icon in place of a stop’s word, the word staying its name', () => {
+    const drawn = view(
+      {
+        page: 3,
+        pageCount: 6,
+        onPage: go,
+        ends: true,
+        numbered: false,
+        icons: { first: h.span([], ['«']), next: h.span([], ['›']) },
+      },
+      h,
+    )
+    expect(labels(drawn)).toEqual([
+      ['First page', '«'],
+      ['Previous page', 'Previous'],
+      ['Next page', '›'],
+      ['Last page', 'Last'],
+    ])
+  })
+
+  it('configures the look, ends and words once, the call over both', () => {
+    const App = configure({
+      base: { ends: true, numbered: false, words: { first: 'Début' } },
+      presets: { plain: { ends: false } },
+    })
+    const names = (preset?: 'plain') =>
+      labels(App.view({ page: 2, pageCount: 5, onPage: go, ...(preset ? { preset } : {}) }, h)).map(
+        ([name]) => name,
+      )
+    expect(names()).toEqual(['Début page', 'Previous page', 'Next page', 'Last page'])
+    expect(names('plain')).toEqual(['Previous page', 'Next page'])
+  })
+})
+
 describe('Pagination recipe', () => {
   const css = (selection: Parameters<typeof Recipes.Pagination>[0]) =>
     Style.forSlots(PaginationSlots)(Recipes.Pagination(selection)).css
@@ -335,6 +377,13 @@ describe('Pagination recipe', () => {
     const sheet = css({})
     expect(sheet).toMatch(/\[aria-current="page"\]\{[^}]*background:var\(--fk-accent-subtle\)/)
     expect(sheet).toContain('display:inline-flex')
+  })
+
+  it('rounds the stops into pills for shape round, and outlines them for treatment outline', () => {
+    expect(css({ shape: 'round' })).toMatch(/border-radius:var\(--fk-radius-full\)/)
+    expect(css({})).not.toMatch(/border-radius:var\(--fk-radius-full\)/)
+    expect(css({ treatment: 'outline' })).toMatch(/border-color:var\(--fk-outline-default\)/)
+    expect(css({})).not.toMatch(/\.style-[a-z0-9]+\{border-color:var\(--fk-outline-default\)/)
   })
 })
 
