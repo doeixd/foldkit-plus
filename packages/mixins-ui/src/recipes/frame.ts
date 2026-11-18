@@ -3,7 +3,8 @@
  * page (a muted fill the panels sit on, a line around it, or no tray at all,
  * the panels alone); `spacing` is the tray's padding and the gap between its
  * panels; `radius` is how round the tray is, and its panels follow, one step
- * in so the corners stay concentric. A panel is a surface of its own with a
+ * in so the corners stay concentric; `padding` is the room inside a panel, none
+ * where what it holds draws its own. A panel is a surface of its own with a
  * hairline, so what it holds (an Alert, an Accordion item, a row) needs no
  * border of its own.
  */
@@ -77,11 +78,16 @@ export const Frame = Style.recipeFor(FrameSlots)({
   },
   variants: {
     variant: {
-      muted: { root: variant(Style.self({ background: ref.surface.muted })) },
+      muted: { root: variant(Style.self({ background: ref.surface.subtle })) },
       outline: {
         root: variant(Style.self({ border: `${ref.border.thin} solid ${ref.outline.subtle}` })),
       },
       plain: { root: variant(Style.self({ padding: '0' })) },
+    },
+    // The room inside a panel: none where what it holds (an Alert, an Item) draws its own.
+    padding: {
+      comfortable: { panel: variant(Style.self({ padding: ref.space.sm })) },
+      none: {},
     },
     spacing: {
       compact: { root: spacing(ref.space.xs) },
@@ -94,5 +100,5 @@ export const Frame = Style.recipeFor(FrameSlots)({
       none: { root: rounded('0px') },
     },
   },
-  defaults: { variant: 'muted', spacing: 'comfortable', radius: 'lg' },
+  defaults: { variant: 'muted', padding: 'comfortable', spacing: 'comfortable', radius: 'lg' },
 })

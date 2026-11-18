@@ -77,11 +77,11 @@ describe('Frame recipe', () => {
     Style.forSlots(FrameSlots)(Recipes.Frame(selection)).css
 
   it('stands the tray off the page by its variant', () => {
-    expect(css({})).toContain('background:var(--fk-surface-muted)')
+    expect(css({})).toContain('background:var(--fk-surface-subtle)')
     // The panels' own hairline is in every sheet; the outline variant adds the tray's.
     const lines = (sheet: string) => sheet.split('border:var(--fk-border-thin) solid').length - 1
     expect(lines(css({ variant: 'outline' }))).toBe(lines(css({})) + 1)
-    expect(css({ variant: 'outline' })).not.toContain('background:var(--fk-surface-muted)')
+    expect(css({ variant: 'outline' })).not.toContain('background:var(--fk-surface-subtle)')
     expect(css({ variant: 'plain' })).toContain('padding:0')
   })
 
@@ -91,6 +91,11 @@ describe('Frame recipe', () => {
     expect(css({})).toContain(
       'border-radius:max(var(--fk-radius-sm), calc(var(--_fk-frame-radius) - var(--_fk-frame-pad)))',
     )
+  })
+
+  it('pads a panel unless told its content draws its own room', () => {
+    expect(css({})).toContain('padding:var(--fk-space-sm)')
+    expect(css({ padding: 'none' })).not.toContain('padding:var(--fk-space-sm)')
   })
 
   it('gives each panel a hairline of its own', () => {

@@ -711,6 +711,15 @@ export const catalogue: ReadonlyArray<About> = [
     contract: 'FigureSlots',
   },
   {
+    slug: 'frame',
+    title: 'Frame',
+    summary:
+      'A tray that holds several panels, with a heading, an action and a note: alerts, rows, a list of items.',
+    recipe: 'Frame',
+    file: 'frame',
+    contract: 'FrameSlots',
+  },
+  {
     slug: 'image',
     title: 'Image',
     summary:
