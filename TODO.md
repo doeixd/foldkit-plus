@@ -430,7 +430,7 @@ or publish after a failed refresh is now based on the kept value, 4d22c234).
    U-WP1b's first, and `tree-navigation.ts` then U-WP3b's, then U-WP5's. `packages/agent/src/expose.ts` and `runtime.ts`
    are shared with laws WP9: whichever starts second builds on the first.
    Nothing in item 6 touches `packages/remote`, `entity`, `sync` or `guard`.
-7. **Primitives we lack, compared with solid-primitives.** Fifteen missing
+7. **Primitives we lack, compared with solid-primitives** (#596). Fifteen missing
    and four not yet classified; none started.
    [primitives-gaps-PLAN.md](./docs/design/primitives-gaps-PLAN.md)
    - First: the leave guard (`foldkit-primitives/events`), the audio and

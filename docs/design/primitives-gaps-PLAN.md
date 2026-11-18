@@ -1,4 +1,4 @@
-# Primitives we lack, compared with solid-primitives
+# Primitives we lack, compared with solid-primitives (#596)
 
 On 2026-11-18 every package of [solid-primitives](https://primitives.solidjs.community/) was compared with `foldkit-primitives`, its neighbouring packages, and what Foldkit and Effect provide. Most of it we have or cover; about twenty-five packages are Solid's signal, store, props or JSX internals, which the Model, Messages and Effect replace. This note lists what is missing and the shape each would take here.
 
