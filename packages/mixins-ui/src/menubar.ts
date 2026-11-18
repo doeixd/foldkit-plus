@@ -1,3 +1,4 @@
+import type { AnchorConfig } from '@foldkit/ui/anchor'
 import * as UiMenu from '@foldkit/ui/menu'
 import { Effect, Option, Schema } from 'effect'
 import {
@@ -27,7 +28,9 @@ import {
 import type { KbdSlots } from './kbd.js'
 import { create, type MenuBundle } from './menuView.js'
 import { drawMenu } from './popupView.js'
-import type { MixinList } from './resolve.js'
+import { layered, type PresetOption, type Presets } from './configure.js'
+import { buildersOf, type MixinList } from './resolve.js'
+import { MenuSlots } from './menu/slots.js'
 
 /**
  * A menu bar, shadcn's and the APG's: a row of `@foldkit/ui` Menus, so each
@@ -245,6 +248,10 @@ export interface MenubarMenu<Value extends string = string> {
   readonly rows: ReadonlyArray<LeafRow<Value>>
   /** Asked of each row's `value`. */
   readonly isRowDisabled?: ((value: Value) => boolean) | undefined
+  /** Drawn in the menu's panel above its rows, in the `header` slot: not a row. */
+  readonly header?: Html | undefined
+  /** Drawn in the menu's panel below its rows, in the `footer` slot. */
+  readonly footer?: Html | undefined
 }
 
 /** A key the bar answers beside its own; it is pressed on the bar or a trigger or row inside it. */
@@ -275,6 +282,8 @@ export interface MenubarView<ParentMessage, Value extends string = string> {
   readonly menuMixins?: MixinList<ParentMessage> | undefined
   /** A style of `KbdSlots` for the rows' shortcuts (`Recipes.Kbd`); without one they are the keys' words. */
   readonly kbd?: NamedStyle<typeof KbdSlots> | undefined
+  /** Where each menu opens, over the default `{ placement: 'bottom-start', gap: 4 }`. */
+  readonly anchor?: AnchorConfig | undefined
 }
 
 /** The bar's own keys: the arrows, Home and End, which `'rtl'` swaps. */
@@ -309,6 +318,7 @@ export const view = <ParentMessage, Value extends string = string>(
 ): Html => {
   const { model, onMessage } = options
   const menuMixins = options.menuMixins ?? []
+  const panelBuilders = buildersOf(MenuSlots, menuMixins, { h })
   const keys = Behaviors.Keys.behavior(MenubarSlots)<unknown, ParentMessage>({
     slot: 'bar',
     name: 'MenubarKeys',
@@ -344,7 +354,13 @@ export const view = <ParentMessage, Value extends string = string>(
               model: menu,
               view: Menus.view,
               viewInputs: {
-                anchor: { placement: 'bottom-start', gap: 4, padding: 8, portal: false },
+                anchor: {
+                  placement: 'bottom-start',
+                  gap: 4,
+                  padding: 8,
+                  portal: false,
+                  ...options.anchor,
+                },
                 ...rowInputs(shown.rows, shown.isRowDisabled, h),
                 buttonContent: h.span([], [shown.label]),
                 // The bar's tab stop, and a trigger as the APG's menubar names it.
@@ -362,6 +378,14 @@ export const view = <ParentMessage, Value extends string = string>(
                         h.Role('menuitem'),
                         h.Tabindex(index === model.stop ? 0 : -1),
                       ],
+                      header:
+                        shown.header === undefined
+                          ? undefined
+                          : h.div(panelBuilders.header.attrs(), [shown.header]),
+                      footer:
+                        shown.footer === undefined
+                          ? undefined
+                          : h.div(panelBuilders.footer.attrs(), [shown.footer]),
                     },
                     h,
                   ),
@@ -381,3 +405,24 @@ export const view = <ParentMessage, Value extends string = string>(
     }),
   )
 }
+
+/** What a Menubar is given once: its look and keys' look, and where its menus open. The Model, menus and Messages are each use's. */
+export type MenubarPreset = Pick<
+  MenubarView<never>,
+  'direction' | 'style' | 'menuMixins' | 'kbd' | 'anchor'
+>
+
+/**
+ * The application's own Menubar: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<MenubarPreset, Names>,
+): {
+  readonly view: <Outer, Value extends string = string>(
+    options: MenubarView<Outer, Value> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

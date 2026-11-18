@@ -3828,7 +3828,7 @@ export const sidebarSwitcher = <Message>(
 }
 // #endregion
 
-// #region menubar
+// #region menubar-basic
 // A row's `shortcut` is drawn at its end and named in `aria-keyshortcuts`; the bar
 // binds nothing, so the application listens for the keys.
 export const MenubarStyle = forSlots(MenubarSlots)(Recipes.Menubar({}))
