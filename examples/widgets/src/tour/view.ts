@@ -16,7 +16,7 @@ import {
   Tour,
   TourSlots,
 } from 'foldkit-mixins-ui'
-import { Message, SAVE_ID, SEARCH_ID, config, type Model } from './app.js'
+import { Message, SAVE_ID, SEARCH_ID, type Model } from './app.js'
 import { tourIslandStyle } from './style.js'
 
 export const TourIslandSlots = Slots.define({
@@ -73,8 +73,7 @@ export const TourIsland = (model: Model, h: HtmlBuilder<Message>): Html => {
     Tour.view(
       {
         model: model.tour,
-        config,
-        onMessage: message => Message.GotTour({ message }),
+        onMessage: message => Message.GotTourMessage({ message }),
         style: tourStyle,
         mixins: Tour.focusReturn,
       },
@@ -83,7 +82,7 @@ export const TourIsland = (model: Model, h: HtmlBuilder<Message>): Html => {
     FloatingPanel.view(
       {
         model: model.panel,
-        onMessage: message => Message.GotPanel({ message }),
+        onMessage: message => Message.GotPanelMessage({ message }),
         title: 'Notes',
         content: h.p(slots.notes.attrs(), ['Drag the title bar, or focus it and use the arrows.']),
         style: panelStyle,

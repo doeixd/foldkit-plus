@@ -20,15 +20,19 @@ export default [
     tests: [...unit, ...browser],
   },
   {
-    name: 'a Tour step that changes nothing rewrites the Model',
+    name: 'a later ending does not replace the first',
     edits: [
-      { file: app, find: 'step.model === model.tour && Option.isNone(ended)', replace: 'false' },
+      {
+        file: app,
+        find: 'ending: () => Option.some<Ending>(completed ? ',
+        replace: 'ending: ending => Option.orElse(ending, () => Option.some<Ending>(completed ? ',
+      },
+      {
+        file: app,
+        find: "'finished' : 'skipped'),",
+        replace: "'finished' : 'skipped')),",
+      },
     ],
-    tests: unit,
-  },
-  {
-    name: 'starting the tour again forgets how it last ended',
-    edits: [{ file: app, find: 'Option.orElse(ended, () => ending)', replace: 'ended' }],
     tests: unit,
   },
   {
@@ -36,7 +40,7 @@ export default [
     edits: [
       {
         file: app,
-        find: 'OpenedNotes: () => panelStep(model, FloatingPanel.open(model.panel)),',
+        find: 'OpenedNotes: () => panel.helpers.open()(model),',
         replace: 'OpenedNotes: () => ({ model }),',
       },
     ],

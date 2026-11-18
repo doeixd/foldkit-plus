@@ -1,84 +1,62 @@
 /**
- * A tour and a floating panel, each opened by a button of the page's. Neither
- * Model keeps its opener: the views carry `focusReturn`, which takes what had
- * focus before the overlay took it and gives it back when the overlay ends.
- * The application keeps how the tour last ended, from the Tour's `Ended`.
+ * A tour and a floating panel, each opened by a button of the page's. Both are
+ * `foldkit-mixins-ui` Bundles placed in this application. Neither Model keeps
+ * its opener: the views carry `focusReturn`, which takes what had focus before
+ * the overlay took it and gives it back when the overlay ends. The application
+ * keeps how the tour last ended, from the Tour's `Ended`, which it answers
+ * where the Tour is placed.
  */
-import { Option, Schema } from 'effect'
-import * as Command from 'foldkit/command'
-import { defineMessageUnion } from 'foldkit/message'
+import { Match, Option, Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
 import { modifyFields } from 'foldkit/struct'
-import type { Return } from 'foldkit/update'
-import { FloatingPanel, Tour } from 'foldkit-mixins-ui'
+import { Bundles } from 'foldkit-mixins-ui'
+import type { Tour } from 'foldkit-mixins-ui'
 
 export const ISLAND = 'tour'
 
 export const SEARCH_ID = `${ISLAND}-search`
 export const SAVE_ID = `${ISLAND}-save`
 
-export const config: Tour.Config = {
-  steps: [
-    { title: 'Search', description: 'Find a page by its name.', target: SEARCH_ID },
-    { title: 'Save', description: 'Keep what you changed.', target: SAVE_ID, placement: 'top' },
-  ],
-}
-
-const updateTour = Tour.update(config)
-const updatePanel = FloatingPanel.update()
+const steps: Tour.Config['steps'] = [
+  { title: 'Search', description: 'Find a page by its name.', target: SEARCH_ID },
+  { title: 'Save', description: 'Keep what you changed.', target: SAVE_ID, placement: 'top' },
+]
 
 export const Ending = Schema.Literals(['finished', 'skipped'])
 export type Ending = typeof Ending.Type
 
-export const Model = Schema.Struct({
-  tour: Tour.Model,
-  panel: FloatingPanel.Model,
+export const App = Bundle.compose({
   /** How the tour last ended; none before it has. */
   ending: Schema.Option(Ending),
-})
+}).pipe(
+  Bundle.withMessages({ StartedTour: {}, OpenedNotes: {} }),
+  Bundle.withChild('tour', Bundles.Tour, {
+    args: { id: `${ISLAND}-tour`, steps },
+    onOut:
+      ({ completed }) =>
+      model => ({
+        model: modifyFields(model, {
+          ending: () => Option.some<Ending>(completed ? 'finished' : 'skipped'),
+        }),
+      }),
+  }),
+  Bundle.withChild('panel', Bundles.FloatingPanel, {
+    args: { id: `${ISLAND}-notes`, rect: { x: 24, y: 96, width: 300, height: 180 } },
+    onOut: Bundle.ignore,
+  }),
+)
+export const Model = App.Model
 export type Model = typeof Model.Type
-
-export const Message = defineMessageUnion({
-  StartedTour: {},
-  OpenedNotes: {},
-  GotTour: { message: Tour.Message },
-  GotPanel: { message: FloatingPanel.Message },
-})
+export const Message = App.Message
 export type Message = typeof Message.Type
 
-export const initial: Model = {
-  tour: Tour.init({ id: `${ISLAND}-tour` }),
-  panel: FloatingPanel.init({
-    id: `${ISLAND}-notes`,
-    rect: { x: 24, y: 96, width: 300, height: 180 },
+export const initial: Model = App.placements.initial({ ending: Option.none() }).model
+
+const { tour, panel } = App.children
+
+export const update = App.placements.update((model, message) =>
+  Match.valueTags(message, {
+    StartedTour: () => tour.helpers.start()(model),
+    OpenedNotes: () => panel.helpers.open()(model),
   }),
-  ending: Option.none(),
-}
-
-const tourStep = (model: Model, step: Tour.Return): Return<Model, Message> => {
-  const ended = Option.fromNullishOr(step.outMessage).pipe(
-    Option.map(({ completed }): Ending => (completed ? 'finished' : 'skipped')),
-  )
-  return {
-    model:
-      step.model === model.tour && Option.isNone(ended)
-        ? model
-        : modifyFields(model, {
-            tour: () => step.model,
-            ending: ending => Option.orElse(ended, () => ending),
-          }),
-    commands: Command.mapMessages(step.commands ?? [], message => Message.GotTour({ message })),
-  }
-}
-
-const panelStep = (model: Model, step: FloatingPanel.Return): Return<Model, Message> => ({
-  model: step.model === model.panel ? model : modifyFields(model, { panel: () => step.model }),
-  commands: Command.mapMessages(step.commands ?? [], message => Message.GotPanel({ message })),
-})
-
-export const update = (model: Model, message: Message): Return<Model, Message> =>
-  Message.match(message, {
-    StartedTour: () => tourStep(model, Tour.start(model.tour, config)),
-    OpenedNotes: () => panelStep(model, FloatingPanel.open(model.panel)),
-    GotTour: ({ message }) => tourStep(model, updateTour(model.tour, message)),
-    GotPanel: ({ message }) => panelStep(model, updatePanel(model.panel, message)),
-  })
+)
