@@ -36,7 +36,14 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // `configure` (first read here), and +0.6 kB net for the Button and Tags input pages as modules,
 // which gained four examples (two `configure`, `recipe.add`, the layout Slots) and lost 0.56 kB of
 // regions and hand-written folds.
-const CEILINGS = { shell: 188_000, gallery: 400_500 }
+// With the Combobox, Calendar and DatePicker modules and the new File upload page it reads
+// 410,525, by the gallery chunk's modules against the same baseline build: +5.4 kB the FileUpload
+// widget and its recipe (a page the site did not have), +2.9 kB the options-level views and
+// states the modules draw through (`calendar/state`, `view` and `layout`, `datePicker/state` and
+// `view`, `combobox/view`, the Bundles and `Bundle.compose`), +2.9 kB the thirty-one example
+// modules, +0.9 kB the harness and `configure`, less 1.7 kB of regions no page draws any more.
+// The adapter-rung regions of those three pages are still loaded beside the modules.
+const CEILINGS = { shell: 188_000, gallery: 411_500 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
 const PREVIEWS = ['preview-tabs', 'preview-trip-first']

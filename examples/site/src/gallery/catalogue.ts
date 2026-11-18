@@ -677,6 +677,15 @@ export const catalogue: ReadonlyArray<About> = [
     contract: 'FileInputSlots',
   },
   {
+    slug: 'file-upload',
+    title: 'File upload',
+    summary:
+      'A field of files, each with a status: picked, dropped or pasted, checked against limits, previewed, and sent by a transport you pass in.',
+    recipe: 'FileUpload',
+    file: 'fileUpload',
+    contract: 'FileUploadSlots',
+  },
+  {
     slug: 'picker',
     title: 'Picker',
     summary:

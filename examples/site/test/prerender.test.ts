@@ -43,6 +43,7 @@ const READ = [
   '/components/tags-input',
   '/components/combobox',
   '/components/calendar',
+  '/components/file-upload',
   '/components/radio-group',
   '/components/file-drop',
   '/components/alert',
@@ -478,6 +479,16 @@ describe('the generated site', () => {
         ],
       ],
       [
+        'file-upload',
+        [
+          ['basic', 'Basic', "state: Bundles.FileUpload.with({ id: 'logo'"],
+          ['drop', 'Drag and drop', "words: { prompt: 'Drop files here or' }"],
+          ['table', 'Composed: the files as a table', 'const drawn = FileUpload.parts('],
+          ['cover', 'Cover', 'send: job => simulated(job).pipe(Stream.map(lift))'],
+          ['configure', 'Configure once', 'const Upload = FileUpload.configure({'],
+        ],
+      ],
+      [
         'calendar',
         [
           ['basic', 'A day', "state: Bundles.Calendar.with({ id: 'delivery'"],
@@ -528,6 +539,25 @@ describe('the generated site', () => {
         )
       }
     }
+  })
+
+  test('every drop zone on the file upload page says what to do, in a list or a grid', () => {
+    const upload = page('/components/file-upload')
+    const said = (name: string) =>
+      upload
+        .getElementById(name)
+        ?.closest('section')
+        ?.querySelector('[data-size="page"] label[for]')
+        ?.textContent?.replace(/\s+/g, ' ')
+    expect(['drop', 'gallery', 'progress', 'table', 'images', 'card'].map(said)).toEqual([
+      'Drop files here or browse',
+      'Drop images here or browse',
+      'Drop files here or browse',
+      'Drop files here or browse',
+      'Drop images here or browse',
+      'Drop files here or browse',
+    ])
+    expect(said('basic')).toBe('Choose an image')
   })
 
   test('each badge example shows its appearance on words of its own', () => {

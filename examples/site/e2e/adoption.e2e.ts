@@ -78,6 +78,7 @@ const PAGES = [
   '/components/combobox',
   '/components/calendar',
   '/components/date-picker',
+  '/components/file-upload',
   '/components/otp-field',
   '/components/disclosure',
   '/components/code-block',
