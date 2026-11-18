@@ -45,7 +45,8 @@ const lastRow: Command.CommandRoute<string, Message> = Keys.route('Last row', {
 
 const lastMenu: Menubar.Route<Message> = Keys.route('Last menu', {
   on: [Keys.chord('PageDown')],
-  handle: () => Option.some(Message.GotBar({ message: Menubar.Message.Pressed({ key: 'End' }) })),
+  handle: () =>
+    Option.some(Message.GotBarMessage({ message: Menubar.Message.Pressed({ key: 'End' }) })),
 })
 
 /** ArrowDown is the Command's own "Next"; a second route on it is refused. */
@@ -111,7 +112,7 @@ const barOf = (
         label: menu.label,
         rows: menu.rows.map(row => ({ value: row, label: row })),
       })),
-      onMessage: message => Message.GotBar({ message }),
+      onMessage: message => Message.GotBarMessage({ message }),
       routes,
       style: BarStyle,
       menuMixins: [BarMenuStyle.mixin],

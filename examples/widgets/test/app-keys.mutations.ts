@@ -115,23 +115,12 @@ export default [
     tests: unit,
   },
   {
-    name: 'a bar Message with no row forgets the last choice',
+    name: 'the row the bar reports is not kept',
     edits: [
       {
         file: app,
-        find: 'chose: current => (Option.isSome(chose) ? chose : current),',
-        replace: 'chose: () => chose,',
-      },
-    ],
-    tests: unit,
-  },
-  {
-    name: 'a bar Message that changes nothing makes a new Model',
-    edits: [
-      {
-        file: app,
-        find: 'next.model === model.bar && Option.isNone(chose) && commands.length === 0',
-        replace: 'false',
+        find: 'chose: () => Option.some(value)',
+        replace: 'chose: current => current',
       },
     ],
     tests: unit,

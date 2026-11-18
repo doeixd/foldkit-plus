@@ -16,7 +16,7 @@ describe('update', () => {
     ['a clear of an empty field', Message.ClearedQuery()],
     [
       'a bar Message that changes nothing',
-      Message.GotBar({ message: Menubar.Message.CompletedFocusTrigger() }),
+      Message.GotBarMessage({ message: Menubar.Message.CompletedFocusTrigger() }),
     ],
   ])('returns the Model it was given for %s', (_, message) => {
     expect(update(initial, message).model).toBe(initial)
@@ -37,19 +37,19 @@ describe('update', () => {
   it('moves the bar tab stop on its own Message, and keeps a row the bar reports chosen', () => {
     const last = update(
       initial,
-      Message.GotBar({ message: Menubar.Message.Pressed({ key: 'End' }) }),
+      Message.GotBarMessage({ message: Menubar.Message.Pressed({ key: 'End' }) }),
     )
     expect(stopOf(last.model)).toBe(MENUS.at(-1)?.label)
     expect(last.commands).toHaveLength(1)
     const chose = update(
       initial,
-      Message.GotBar({ message: Menubar.Message.ChoseCheck({ menu: 0, value: 'Save' }) }),
+      Message.GotBarMessage({ message: Menubar.Message.ChoseCheck({ menu: 0, value: 'Save' }) }),
     ).model
     expect(chose.chose).toEqual(Option.some('Save'))
     // A later Message with no row leaves the last choice standing.
     expect(
-      update(chose, Message.GotBar({ message: Menubar.Message.Pressed({ key: 'End' }) })).model
-        .chose,
+      update(chose, Message.GotBarMessage({ message: Menubar.Message.Pressed({ key: 'End' }) }))
+        .model.chose,
     ).toEqual(Option.some('Save'))
   })
 })

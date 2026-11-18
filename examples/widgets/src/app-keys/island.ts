@@ -17,7 +17,10 @@ const runDemo = (): ReadonlyArray<string> => {
   lines.push(`ran save-file: ${show()}`)
   model = update(model, Message.ClearedQuery()).model
   lines.push(`Escape: ${show()}`)
-  model = update(model, Message.GotBar({ message: Menubar.Message.Pressed({ key: 'End' }) })).model
+  model = update(
+    model,
+    Message.GotBarMessage({ message: Menubar.Message.Pressed({ key: 'End' }) }),
+  ).model
   lines.push(`PageDown on the bar: ${show()}`)
   return lines
 }
