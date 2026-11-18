@@ -22,8 +22,9 @@ export default [
     edits: [
       {
         file: recipe,
-        find: '\n  Style.pseudo(\':has([aria-invalid="true"])\', { borderColor: ref.error.outline }),',
-        replace: '',
+        find: '  filledHover,\n  Style.pseudo(\'[aria-invalid="true"]\', { borderColor: ref.error.outline }),\n  Style.pseudo(\':has([aria-invalid="true"])\', { borderColor: ref.error.outline }),',
+        replace:
+          '  filledHover,\n  Style.pseudo(\'[aria-invalid="true"]\', { borderColor: ref.error.outline }),',
       },
     ],
     tests,
