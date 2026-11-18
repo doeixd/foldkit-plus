@@ -41,6 +41,7 @@
     "typecheck": "tsc -b && tsc -p examples/foldkit/domains",
     "typecheck:force": "tsc -b --force && tsc -p examples/foldkit/domains",
     "typecheck:fast": "node scripts/typecheck-fast.mjs",
+    "check:changed": "node scripts/check-changed.mjs",
     "docs:check": "node scripts/docs-check.mjs",
     "check": "pnpm format:check && pnpm paths:check && pnpm icons:check && pnpm tags:check && pnpm rtl:check && pnpm writes:check && pnpm evidence:check && pnpm mutate:check && pnpm typecheck && pnpm docs:check && pnpm test && pnpm demo && pnpm pack:check",
     "format": "oxfmt --write \"**/*.{ts,json,yaml}\"",
