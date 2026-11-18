@@ -173,6 +173,7 @@ export { CarouselSlots } from './carousel.js'
 export type { CarouselView } from './carousel.js'
 export { TreeViewSlots } from './treeView.js'
 export type { TreeNode, TreeViewView } from './treeView.js'
+export type { TreeStructureNode } from './bundles/treeView.js'
 export { ColorPickerSlots } from './colorPicker.js'
 export type {
   ColorPickerDefaults,
@@ -371,7 +372,7 @@ export type {
   PathsData,
 } from './chart.js'
 export { CascadeSelectSlots } from './cascadeSelect.js'
-export type { CascadeSelectView } from './cascadeSelect.js'
+export type { Config as CascadeSelectConfig, CascadeSelectView } from './cascadeSelect.js'
 export { FloatingPanelSlots } from './floatingPanel.js'
 export type { FloatingPanelPreset, FloatingPanelView, FloatingPanelWords } from './floatingPanel.js'
 export { TourSlots } from './tour.js'
@@ -446,7 +447,13 @@ export type { ResolvedSelect } from './select.js'
 export type { ResolvedSwitch } from './switch.js'
 export type { ResolvedTab, ResolvedTabs } from './tabs.js'
 export type { ResolvedTextarea, TextareaField, TextareaParts, TextareaView } from './textarea.js'
-export type { ResolvedToast, ResolvedToastEntry, ToastPreset, ToastWords } from './toast.js'
+export type {
+  ResolvedToast,
+  ResolvedToastEntry,
+  ToastInput,
+  ToastPreset,
+  ToastWords,
+} from './toast.js'
 export type { ToastEntryRender, ToastRenderInfo } from './toastView.js'
 export type { ResolvedTooltip, TooltipContext } from './tooltip.js'
 export type {

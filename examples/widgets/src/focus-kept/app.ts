@@ -31,7 +31,7 @@ const CARDS: ReadonlyArray<Notice> = [
   { id: 'card-3', title: 'Invoice 1044' },
 ]
 
-const App = Bundle.compose({
+export const App = Bundle.compose({
   alerts: Schema.Array(Notice),
   cards: Schema.Array(Notice),
   /** How many of each have been made, so an id is never used twice. */

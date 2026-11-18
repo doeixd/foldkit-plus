@@ -2,19 +2,23 @@ import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Message, Model, init, update, type TreeNode } from '../treeView.js'
 
-interface StructureNode {
+/**
+ * A row of `Bundles.TreeView`'s `nodes` arg: its structure, what keys,
+ * typeahead and checks read. Its icons and content stay the view's, so a
+ * `TreeNode` fits.
+ */
+export interface TreeStructureNode {
   readonly id: string
   readonly label: string
-  readonly children?: ReadonlyArray<StructureNode> | undefined
+  readonly children?: ReadonlyArray<TreeStructureNode> | undefined
   readonly disabled?: boolean | undefined
 }
 
-/** A row's structure: what keys, typeahead and checks read. Its icons and content stay the view's, so a `TreeNode` fits. */
-const StructureNode: Schema.Codec<StructureNode> = Schema.Struct({
+const StructureNode: Schema.Codec<TreeStructureNode> = Schema.Struct({
   id: Schema.String,
   label: Schema.String,
   children: Schema.optional(
-    Schema.Array(Schema.suspend((): Schema.Codec<StructureNode> => StructureNode)),
+    Schema.Array(Schema.suspend((): Schema.Codec<TreeStructureNode> => StructureNode)),
   ),
   disabled: Schema.optional(Schema.Boolean),
 })

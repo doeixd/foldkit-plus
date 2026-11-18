@@ -1217,6 +1217,7 @@ Deprecated, not yet removed: `SurfaceView.inspect`, `editsJournal`'s
 
 ### Fixed
 
+- `foldkit-mixins-ui`: every type a Bundle's args or helpers name is exported by name: `ToastInput` (what `Toast.show` and `Toast.settle` take), `CascadeSelectConfig` and `TreeStructureNode` (a row of `Bundles.TreeView`'s `nodes`). An application exporting a placed `Bundles.Toast`, `CascadeSelect` or `TreeView` failed declaration emit with TS2883 ("cannot be named without a reference to 'ToastInput'") (#589).
 - `foldkit-mixins-ui`: a closed Combobox submits its value. The fork drew the hidden inputs under `formName` only while the list was open, where upstream draws them always, so a form posted with the list closed carried no value for the field.
 - `foldkit-mixins-ui`: a closed Listbox submits its value (#589). The fork drew the hidden inputs under `name` only while the list was open, where upstream draws them always, so a form posted with the list closed carried no value for the field.
 - `foldkit-primitives`: `keepScroll` restores the scroll on a reload (#594). It wrote the offsets at `pagehide`, after Foldkit had disposed the runtime holding it, so a reload always started at the top. It writes at `beforeunload` too, with `visibilitychange` and `pagehide` as fallbacks. A restore's hold now ends when the page's height has stood still for two frames at the offset (`patience`, default 10 s, is the ceiling; it was a fixed 2 s).
