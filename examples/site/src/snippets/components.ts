@@ -104,6 +104,7 @@ import {
   SpinnerSlots,
   Table,
   TableSlots,
+  TextareaSlots,
   Toast,
   ToastSlots,
   ToastView,
@@ -168,6 +169,7 @@ export const AlertStyle = forSlots(AlertSlots)(Recipes.Alert({}))
 export const CardStyle = forSlots(CardSlots)(Recipes.Card({}))
 
 export const InputStyle = forSlots(InputSlots)(Recipes.Input({}))
+export const TextareaStyle = forSlots(TextareaSlots)(Recipes.Textarea({}))
 
 // #region select-basic
 export const SelectStyle = forSlots(SelectSlots)(Recipes.Select({}))
