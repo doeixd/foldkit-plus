@@ -1,10 +1,22 @@
-import * as UiCheckbox from '@foldkit/ui/checkbox'
 import { Option } from 'effect'
-import { Attr, Capability, Event, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import {
+  Attr,
+  Capability,
+  Event,
+  Slot,
+  Slots,
+  SlotView,
+  type NamedStyle,
+  type SlotAttributes,
+} from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { FluidHover, fluidHovered } from 'foldkit-primitives/dom'
-import * as Checkbox from './checkbox.js'
+import type { FluidHover } from 'foldkit-primitives/dom'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { wordsOf } from './words.js'
+
+export { fluid, TABLE_HOVER } from './table/fluid.js'
+export { checkboxes } from './table/checkboxes.js'
 
 /**
  * A presentational table: its regions are slots, and it owns no state. What
@@ -27,6 +39,10 @@ export const TableSlots = Slots.define({
   caption: Slot.make({ capability: Capability.Container }),
   head: Slot.make({ capability: Capability.Container }),
   headerRow: Slot.make({ capability: Capability.Container }),
+  /** The totals row, drawn after the body while a column has a `footer`. */
+  foot: Slot.make({ capability: Capability.Container }),
+  footerRow: Slot.make({ capability: Capability.Container }),
+  footerCell: Slot.make({ capability: Capability.Container }),
   /** A column heading; a sortable one carries `aria-sort` while it sorts the rows. */
   headerCell: Slot.make({ capability: Capability.Container, attributes: [Attr.AriaSort] }),
   /** The button a sortable heading is drawn as. */
@@ -57,7 +73,10 @@ export const TableSlots = Slots.define({
 
 /** One column: its heading, and each row's cell for it. `Key` is the type of its `sortKey`. */
 export interface TableColumn<Row, Key extends string = string> {
-  readonly header: string
+  /** The heading: text, or markup for an icon beside it. */
+  readonly header: string | Html
+  /** Drawn under the column in a totals row: a sum, a count, a note. */
+  readonly footer?: string | Html | undefined
   /** Right-align values that read as numbers. */
   readonly numeric?: boolean | undefined
   /** The cell's content: text, or markup for a link, a badge or an avatar. */
@@ -101,12 +120,63 @@ export interface TableSelection<Row, Message> {
   readonly onToggle: (row: Row, selected: boolean) => Message
   /** Sent by the heading's box: `true` to choose every row, `false` for none. */
   readonly onToggleAll: (selected: boolean) => Message
-  /** A row's checkbox's name; default `"Select row"`. */
+  /** A row's checkbox's name, from the row; default `words.selectRow`. */
   readonly rowLabel?: ((row: Row) => string) | undefined
-  /** The heading's checkbox's name; default `"Select all rows"`. */
-  readonly allLabel?: string | undefined
-  /** A style of `CheckboxSlots`, for the boxes' look. */
-  readonly checkbox?: NamedStyle<typeof Checkbox.CheckboxSlots> | undefined
+  /** How a box is drawn: `Table.checkboxes()`. A page that selects nothing never imports Checkbox. */
+  readonly control: TableSelectionControl
+}
+
+/** What a selection control is given to draw: one box, in the cell the table places it in. */
+export interface TableSelectionInput<Message> {
+  readonly id: string
+  /** The box's accessible name. */
+  readonly label: string
+  readonly checked: boolean
+  readonly indeterminate: boolean
+  readonly onToggle: (checked: boolean) => Message
+  /** `th` in the heading row, `td` in a row. */
+  readonly cell: 'th' | 'td'
+  /** The `controlCell` and `checkboxLabel` slots' attributes, for the cell and the name a screen reader reads. */
+  readonly cellAttributes: (extra?: SlotAttributes<Message>) => SlotAttributes<Message>
+  readonly labelAttributes: (extra?: SlotAttributes<Message>) => SlotAttributes<Message>
+}
+
+/**
+ * Draws a row's selection box; `Table.checkboxes()` is the one shipped, and
+ * one of your own (a radio, a switch) is an object with this `draw`.
+ */
+export interface TableSelectionControl {
+  readonly draw: <Message>(input: TableSelectionInput<Message>, h: HtmlBuilder<Message>) => Html
+}
+
+/**
+ * One highlight behind the body rows, following the pointer: `Table.fluid`.
+ * `resting` is what the frame's custom properties hold until the Mount first
+ * writes them, and `mount` is that Mount, which sends no Message.
+ */
+export interface TableFluid {
+  readonly resting: Readonly<Record<string, string>>
+  readonly mount: () => ReturnType<typeof FluidHover>
+}
+
+/** The text a table draws that is not a use's content. */
+export interface TableWords {
+  /** A row's selection box's name, where `selection.rowLabel` gives none. */
+  readonly selectRow: string
+  /** The heading box's name. */
+  readonly selectAll: string
+  /** The expansion column's heading, read by a screen reader alone. */
+  readonly details: string
+  /** An open button's name, where `expansion.label` gives none. */
+  readonly showDetails: string
+}
+
+/** The words a table starts from; `words` overrides them one at a time. */
+export const words: TableWords = {
+  selectRow: 'Select row',
+  selectAll: 'Select all rows',
+  details: 'Details',
+  showDetails: 'Show details',
 }
 
 /** Rows that open on a press to show a detail below them. */
@@ -116,17 +186,14 @@ export interface TableExpansion<Row, Message> {
   readonly isExpanded: (row: Row) => boolean
   readonly onToggle: (row: Row, expanded: boolean) => Message
   readonly detail: (row: Row) => Html
-  /** The heading of the open buttons' column, for a screen reader alone; default `"Details"`. */
-  readonly headerLabel?: string | undefined
-  /** The open button's name; default `"Show details"`. */
+  /** The open button's name, from the row; default `words.showDetails`. */
   readonly label?: ((row: Row) => string) | undefined
 }
 
 /**
  * A plain table in one call: columns with per-row values, the rows, an
  * optional caption, a style for its slots, and mixins beside the style. No
- * upstream component stands behind it, except the checkboxes, which are
- * `@foldkit/ui`'s.
+ * upstream component stands behind it.
  */
 export interface TableView<Row, Message = never, Key extends string = string> {
   readonly columns: ReadonlyArray<TableColumn<Row, Key>>
@@ -152,30 +219,14 @@ export interface TableView<Row, Message = never, Key extends string = string> {
   readonly mixins?: MixinList<Message> | undefined
   /**
    * One highlight behind the body rows, following the pointer, and the lit
-   * row marked `data-fluid-lit`. Off by default: its Mount sends no
-   * Message, which a Scene test would have to resolve.
+   * row marked `data-fluid-lit`: `Table.fluid`. Without it the table draws
+   * none and ships none of it; its Mount sends no Message, which a Scene test
+   * would have to resolve.
    */
-  readonly fluid?: boolean | undefined
+  readonly fluid?: TableFluid | undefined
+  /** The table's text, over `Table.words`. */
+  readonly words?: Partial<TableWords> | undefined
 }
-
-/** The name of the rows' highlight: its place is `--fk-table-hover-x`, `-y`, `-w`, `-h`. */
-export const TABLE_HOVER = 'table-hover'
-
-const hover = fluidHovered(TABLE_HOVER)
-
-// Where the highlight rests until FluidHover first writes, so a page drawn
-// without it reads defined values; the same each render, so none undoes a write.
-const resting = {
-  [hover.x]: '0px',
-  [hover.y]: '0px',
-  [hover.w]: '0px',
-  [hover.h]: '0px',
-  [hover.shown]: '0',
-  [hover.moving]: '0',
-}
-
-// The detail and empty rows are not rows a reader picks out.
-const dataRow = 'tbody > tr:not([data-detail], [data-empty])'
 
 /**
  * Columns written once and used by name: `Table.defineColumns<Row>()([...])` keeps each `sortKey` as the
@@ -197,6 +248,7 @@ export const view = <Row, Message = never, Key extends string = string>(
     { input: undefined, h },
   )
   const { columns, rows, selection, expansion } = options
+  const text = wordsOf(words, options.words)
   const numeric = (column: TableColumn<Row, Key>) =>
     column.numeric === true ? [h.DataAttribute('numeric', '')] : []
   const keyOf = (row: Row, index: number) => options.rowKey?.(row) ?? String(index)
@@ -204,27 +256,17 @@ export const view = <Row, Message = never, Key extends string = string>(
     columns.length + (selection === undefined ? 0 : 1) + (expansion === undefined ? 0 : 1)
 
   const checkbox = (
-    id: string,
-    label: string,
-    state: { readonly checked: boolean; readonly indeterminate: boolean },
-    onToggle: (checked: boolean) => Message,
-    cell: 'th' | 'td',
+    selected: NonNullable<typeof selection>,
+    input: Pick<
+      TableSelectionInput<Message>,
+      'id' | 'label' | 'checked' | 'indeterminate' | 'onToggle' | 'cell'
+    >,
   ) =>
-    UiCheckbox.view(
+    selected.control.draw(
       {
-        id,
-        isChecked: state.checked,
-        isIndeterminate: state.indeterminate,
-        onToggle,
-        toView: Checkbox.toView(
-          selection?.checkbox === undefined ? [] : [selection.checkbox.mixin],
-          { h },
-          resolved =>
-            (cell === 'th' ? h.th : h.td)(builders.controlCell.attrs(), [
-              h.button(resolved.checkbox, []),
-              h.span(builders.checkboxLabel.attrs(resolved.label), [label]),
-            ]),
-        ),
+        ...input,
+        cellAttributes: extra => builders.controlCell.attrs(extra),
+        labelAttributes: extra => builders.checkboxLabel.attrs(extra),
       },
       h,
     )
@@ -252,22 +294,20 @@ export const view = <Row, Message = never, Key extends string = string>(
       ? []
       : [
           h.th(builders.controlCell.attrs([h.Scope('col')]), [
-            h.span(builders.checkboxLabel.attrs(), [expansion.headerLabel ?? 'Details']),
+            h.span(builders.checkboxLabel.attrs(), [text.details]),
           ]),
         ]),
     ...(selection === undefined
       ? []
       : [
-          checkbox(
-            `${selection.id}-all`,
-            selection.allLabel ?? 'Select all rows',
-            {
-              checked: rows.length > 0 && chosen === rows.length,
-              indeterminate: chosen > 0 && chosen < rows.length,
-            },
-            selection.onToggleAll,
-            'th',
-          ),
+          checkbox(selection, {
+            id: `${selection.id}-all`,
+            label: text.selectAll,
+            checked: rows.length > 0 && chosen === rows.length,
+            indeterminate: chosen > 0 && chosen < rows.length,
+            onToggle: selection.onToggleAll,
+            cell: 'th',
+          }),
         ]),
     ...columns.map(heading),
   ])
@@ -294,7 +334,7 @@ export const view = <Row, Message = never, Key extends string = string>(
                     h.AriaExpanded(open),
                     // Only while the detail is drawn is there an element to name.
                     ...(open ? [h.AriaControls(detailId)] : []),
-                    h.AriaLabel(expansion.label?.(row) ?? 'Show details'),
+                    h.AriaLabel(expansion.label?.(row) ?? text.showDetails),
                     h.OnClick(expansion.onToggle(row, !open)),
                   ]),
                   [h.span(builders.expandIcon.attrs([h.AriaHidden(true)]), [])],
@@ -304,13 +344,14 @@ export const view = <Row, Message = never, Key extends string = string>(
         ...(selection === undefined
           ? []
           : [
-              checkbox(
-                `${selection.id}-${key}`,
-                selection.rowLabel?.(row) ?? 'Select row',
-                { checked: selected, indeterminate: false },
-                checked => selection.onToggle(row, checked),
-                'td',
-              ),
+              checkbox(selection, {
+                id: `${selection.id}-${key}`,
+                label: selection.rowLabel?.(row) ?? text.selectRow,
+                checked: selected,
+                indeterminate: false,
+                onToggle: checked => selection.onToggle(row, checked),
+                cell: 'td',
+              }),
             ]),
         ...columns.map(column =>
           column.rowHeader === true
@@ -348,14 +389,43 @@ export const view = <Row, Message = never, Key extends string = string>(
       : [h.caption(builders.caption.attrs(), [options.caption])]),
     h.thead(builders.head.attrs(), [headerRow]),
     h.tbody(builders.body.attrs(), body),
+    ...(columns.some(column => column.footer !== undefined)
+      ? [
+          h.tfoot(builders.foot.attrs(), [
+            h.tr(builders.footerRow.attrs(), [
+              ...Array.from({ length: span - columns.length }, (_, place) =>
+                h.td(builders.footerCell.attrs([h.Key(`lead-${place}`)]), []),
+              ),
+              ...columns.map(column =>
+                h.td(builders.footerCell.attrs(numeric(column)), [column.footer ?? '']),
+              ),
+            ]),
+          ]),
+        ]
+      : []),
   ])
-  return options.fluid === true
-    ? h.div(
-        builders.frame.attrs([
-          h.Style(resting),
-          h.OnMount(FluidHover({ name: TABLE_HOVER, item: dataRow, axis: 'y', gapClick: false })),
-        ]),
-        [h.div(builders.highlight.attrs([h.AriaHidden(true)]), []), table],
-      )
+  const { fluid } = options
+  return fluid !== undefined
+    ? h.div(builders.frame.attrs([h.Style(fluid.resting), h.OnMount(fluid.mount())]), [
+        h.div(builders.highlight.attrs([h.AriaHidden(true)]), []),
+        table,
+      ])
     : h.div(builders.frame.attrs(), [table])
 }
+
+/** What a Table is given once: its look, words and highlight; the columns and rows are each use's. */
+export type TablePreset = Pick<TableView<never>, 'style' | 'words' | 'fluid'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/** The application's own Table: `base` for every use, `presets` chosen at a use, and the call over both. */
+export const configure = <const Names extends string = never>(
+  config: Presets<TablePreset, Names>,
+): {
+  readonly view: <Row, Outer = never, Key extends string = string>(
+    options: TableView<Row, Outer, Key> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

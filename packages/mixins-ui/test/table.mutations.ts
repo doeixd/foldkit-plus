@@ -31,7 +31,7 @@ export default [
     edits: [
       {
         file: view,
-        find: "[expansion.headerLabel ?? 'Details']",
+        find: '[text.details]',
         replace: '[]',
       },
     ],
@@ -146,9 +146,9 @@ export default [
     name: "a checkbox's name is not the table's, so it shows",
     edits: [
       {
-        file: view,
-        find: 'h.span(builders.checkboxLabel.attrs(resolved.label), [label]),',
-        replace: 'h.span(resolved.label, [label]),',
+        file: '../src/table/checkboxes.ts',
+        find: 'h.span(input.labelAttributes(resolved.label), [input.label]),',
+        replace: 'h.span(resolved.label, [input.label]),',
       },
     ],
     tests: browser,
@@ -173,7 +173,7 @@ export default [
     name: 'the highlight lights a detail row',
     edits: [
       {
-        file: view,
+        file: '../src/table/fluid.ts',
         find: "const dataRow = 'tbody > tr:not([data-detail], [data-empty])'",
         replace: "const dataRow = 'tbody > tr'",
       },
@@ -265,5 +265,65 @@ export default [
       },
     ],
     tests,
+  },
+  {
+    name: 'a table with no footer column still draws a totals row',
+    edits: [
+      { file: view, find: 'column.footer !== undefined', replace: 'column.footer === undefined' },
+    ],
+    tests,
+  },
+  {
+    name: 'the totals row does not skip the control columns',
+    edits: [{ file: view, find: 'length: span - columns.length', replace: 'length: 0' }],
+    tests,
+  },
+  {
+    name: 'the heading box takes the row box word',
+    edits: [{ file: view, find: 'label: text.selectAll', replace: 'label: text.selectRow' }],
+    tests,
+  },
+  {
+    name: 'words are ignored where the row gives no label',
+    edits: [{ file: view, find: '?? text.selectRow', replace: '?? words.selectRow' }],
+    tests,
+  },
+  {
+    name: 'cell borders draw no line',
+    edits: [
+      {
+        file: recipe,
+        find: 'borderInlineEnd: `${ref.border.thin} solid ${ref.outline.subtle}`,',
+        replace: "borderInlineEnd: '0 solid transparent',",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a hidden header keeps its room',
+    edits: [
+      {
+        file: recipe,
+        find: 'hidden: { head: variant(Utilities.srOnly) },',
+        replace: 'hidden: {},',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the footer row has no line above it',
+    edits: [
+      {
+        file: recipe,
+        find: 'Style.self({ borderBlockStart: `${ref.border.thin} solid ${ref.outline.default}` }),',
+        replace: 'Style.self({}),',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a table without fluid draws the highlight anyway',
+    edits: [{ file: view, find: 'fluid !== undefined', replace: 'fluid === undefined' }],
+    tests: ['packages/mixins-ui/test/tableFluid.browser.test.ts'],
   },
 ]

@@ -242,7 +242,7 @@ export const table = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder<never
       ],
       style,
       // One highlight behind the rows, following the pointer.
-      fluid: true,
+      fluid: Table.fluid,
     },
     h,
   )
@@ -303,7 +303,7 @@ export const tableSortable = <Message>(
       rowKey: row => row.id,
       sort: { by: sort, onSort },
       style,
-      fluid: true,
+      fluid: Table.fluid,
     },
     h,
   )
@@ -329,10 +329,10 @@ export const tableSelection = <Message>(
         onToggle: (row, selected) => onToggle(row.id, selected),
         onToggleAll: all => onToggleAll(all ? invoices.map(row => row.id) : []),
         rowLabel: row => `Select ${row.id}`,
-        checkbox: CheckboxStyle,
+        control: Table.checkboxes(CheckboxStyle),
       },
       style,
-      fluid: true,
+      fluid: Table.fluid,
     },
     h,
   )
@@ -359,7 +359,7 @@ export const tableExpandable = <Message>(
         label: row => `Details of ${row.id}`,
       },
       style,
-      fluid: true,
+      fluid: Table.fluid,
     },
     h,
   )

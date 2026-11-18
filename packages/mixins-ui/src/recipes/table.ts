@@ -49,6 +49,10 @@ const bare = {
   cursor: 'pointer',
 } as const
 
+const cellBox = {
+  borderInlineEnd: `${ref.border.thin} solid ${ref.outline.subtle}`,
+} as const
+
 const chevron = {
   inlineSize: '0.4em',
   blockSize: '0.4em',
@@ -210,6 +214,21 @@ export const Table = Style.recipeFor(TableSlots)({
       }),
     ),
     emptyCell: component(Style.self({ padding: ref.space.md })),
+    // Totals close the table: a heavier line above, the cells set as the rows' are.
+    footerRow: component(
+      Style.self({ borderBlockStart: `${ref.border.thin} solid ${ref.outline.default}` }),
+    ),
+    footerCell: component(
+      Style.self({
+        blockSize: ladder('height'),
+        paddingBlock: '0',
+        paddingInline: ladder('pad'),
+        textAlign: 'start',
+        fontWeight: ref.weight.medium,
+        color: ref.text.overt,
+      }),
+      Style.nest('&[data-numeric]', { textAlign: 'end' }),
+    ),
   },
   variants: {
     rows: {
@@ -237,7 +256,23 @@ export const Table = Style.recipeFor(TableSlots)({
       regular: { root: steps.md },
       comfortable: { root: steps.lg },
     },
+    // Cells boxed by hairlines, for a grid of figures; the rows' own lines stay.
+    borders: {
+      rows: {},
+      cells: {
+        headerCell: variant(Style.self(cellBox)),
+        cell: variant(Style.self(cellBox)),
+        footerCell: variant(Style.self(cellBox)),
+      },
+    },
+    // `fixed` gives every column an equal share, or the widths the application sets, and clips long text.
+    layout: {
+      auto: {},
+      fixed: { root: variant(Style.self({ tableLayout: 'fixed' })) },
+    },
     header: {
+      // Headings kept for a screen reader alone, for a table read down its first column.
+      hidden: { head: variant(Utilities.srOnly) },
       // Wider than the screen, the table scrolls in its frame, not the page. Not under a
       // sticky header, whose headings stick to the nearest scroller: the application's.
       static: {
@@ -257,5 +292,5 @@ export const Table = Style.recipeFor(TableSlots)({
       },
     },
   },
-  defaults: { rows: 'lined', header: 'static' },
+  defaults: { rows: 'lined', header: 'static', borders: 'rows', layout: 'auto' },
 })
