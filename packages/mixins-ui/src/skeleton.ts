@@ -1,5 +1,6 @@
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -25,8 +26,16 @@ interface Common<Message> {
   readonly mixins?: MixinList<Message> | undefined
 }
 
-/** One bar in one call. No upstream component stands behind it. */
-export type SkeletonView<Message = never> = Common<Message>
+/**
+ * One bar in one call. No upstream component stands behind it. `inline` and
+ * `block` are CSS lengths (`'8rem'`, `'60%'`) written as `--fk-skeleton-inline`
+ * and `--fk-skeleton-block`, which the recipe reads for a lone bar; a bar of
+ * a form's input or a list's action has a size of its own.
+ */
+export interface SkeletonView<Message = never> extends Common<Message> {
+  readonly inline?: string | undefined
+  readonly block?: string | undefined
+}
 
 const buildersOf = <Message>(options: Common<Message>, h: HtmlBuilder<Message>) =>
   SlotView.buildersFor(
@@ -49,7 +58,18 @@ export const view = <Message = never>(
   h.div(
     // The recipe sizes a lone bar by this mark: an unnamed one is `aria-hidden`
     // like the bars of a frame, so that attribute cannot tell them apart.
-    buildersOf(options, h).bar.attrs([...announced(options, h), h.DataAttribute('lone', '')]),
+    buildersOf(options, h).bar.attrs([
+      ...announced(options, h),
+      h.DataAttribute('lone', ''),
+      ...(options.inline === undefined && options.block === undefined
+        ? []
+        : [
+            h.Style({
+              ...(options.inline === undefined ? {} : { '--fk-skeleton-inline': options.inline }),
+              ...(options.block === undefined ? {} : { '--fk-skeleton-block': options.block }),
+            }),
+          ]),
+    ]),
     [],
   )
 
@@ -131,3 +151,41 @@ export const tableRow = <Message = never>(
     [h.Style({ '--fk-skeleton-columns': String(options.columns) })],
   )
 }
+
+/** What a Skeleton is given once: its look. Its `label` is each use's. */
+export type SkeletonPreset = Pick<Common<never>, 'style'> & { readonly mixins?: MixinList<never> }
+
+/**
+ * The application's own Skeleton: `base` for every use, `presets` chosen at a
+ * use with `preset`, and the call over both. The helpers share the look.
+ */
+export const configure = <const Names extends string = never>(
+  config: Presets<SkeletonPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: SkeletonView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+  readonly lines: <Outer>(
+    options: SkeletonLinesView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+  readonly avatarRow: <Outer>(
+    options: Common<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+  readonly card: <Outer>(
+    options: Common<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+  readonly tableRow: <Outer>(
+    options: SkeletonTableRowView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+  lines: (options, h) => lines(layered(config, options), h),
+  avatarRow: (options, h) => avatarRow(layered(config, options), h),
+  card: (options, h) => card(layered(config, options), h),
+  tableRow: (options, h) => tableRow(layered(config, options), h),
+})

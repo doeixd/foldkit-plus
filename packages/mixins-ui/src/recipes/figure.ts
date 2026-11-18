@@ -21,6 +21,12 @@ export const Figure = Style.recipeFor(FigureSlots)({
       start: {},
       center: { caption: variant(Style.self({ textAlign: 'center' })) },
     },
+    // Which side the caption stands on; the markup keeps it after the content,
+    // so a screen reader reads it there whatever the page shows.
+    caption: {
+      after: {},
+      before: { caption: variant(Style.self({ order: '-1' })) },
+    },
   },
-  defaults: { align: 'start' },
+  defaults: { align: 'start', caption: 'after' },
 })

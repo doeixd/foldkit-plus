@@ -7,7 +7,15 @@
 import { describe, expect, it } from 'vitest'
 import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
-import { SkeletonSlots, avatarRow, card, lines, tableRow, view } from '../src/skeleton.js'
+import {
+  SkeletonSlots,
+  avatarRow,
+  card,
+  configure,
+  lines,
+  tableRow,
+  view,
+} from '../src/skeleton.js'
 import { Recipes } from '../src/index.js'
 
 const h = SlotView.inertBuilder<never>()
@@ -102,5 +110,34 @@ describe('Skeleton recipe', () => {
     expect(css({ shape: 'circle' })).toMatch(
       /\[data-lone\]\{[^}]*border-radius:var\(--fk-radius-full\)/,
     )
+  })
+})
+
+describe('Skeleton sizes and configure', () => {
+  const style = Style.forSlots(SkeletonSlots)(Recipes.Skeleton({}))
+
+  it('writes a lone bar’s inline and block lengths as properties the recipe reads', () => {
+    const drawn = view({ inline: '8rem', block: '2.5rem', style }, h)
+    expect(Inert.style(drawn)['--fk-skeleton-inline']).toBe('8rem')
+    expect(Inert.style(drawn)['--fk-skeleton-block']).toBe('2.5rem')
+    expect(Inert.style(view({ style }, h))['--fk-skeleton-inline']).toBeUndefined()
+    expect(style.css).toContain('inline-size:var(--fk-skeleton-inline, 100%)')
+    expect(style.css).toContain('block-size:var(--fk-skeleton-block, 1rem)')
+  })
+
+  it('binds one look for the bar and every frame, and the call wins', () => {
+    const circle = Style.forSlots(SkeletonSlots)(Recipes.Skeleton({ shape: 'circle' }))
+    const App = configure({ base: { style: circle } })
+    const classes = (drawn: ReturnType<typeof view>) => Inert.classes(drawn)
+    expect(classes(App.view({}, h))).toEqual(classes(view({ style: circle }, h)))
+    expect(classes(App.lines({ lines: 2 }, h))).toEqual(
+      classes(lines({ lines: 2, style: circle }, h)),
+    )
+    expect(classes(App.card({}, h))).toEqual(classes(card({ style: circle }, h)))
+    expect(classes(App.tableRow({ columns: 3 }, h))).toEqual(
+      classes(tableRow({ columns: 3, style: circle }, h)),
+    )
+    expect(classes(App.avatarRow({ style }, h))).toEqual(classes(avatarRow({ style }, h)))
+    expect(classes(view({ style }, h))).not.toEqual(classes(view({ style: circle }, h)))
   })
 })

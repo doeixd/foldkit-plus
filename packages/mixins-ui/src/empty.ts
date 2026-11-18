@@ -1,5 +1,6 @@
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -54,3 +55,18 @@ export const view = <Message = never>(
     ...(options.action === undefined ? [] : [h.div(builders.action.attrs(), [options.action])]),
   ])
 }
+
+/** What an Empty is given once: its look. */
+export type EmptyPreset = Pick<EmptyView<never>, 'style'> & { readonly mixins?: MixinList<never> }
+
+/** The application's own Empty: `base` for every use, `presets` chosen at a use, and the call over both. */
+export const configure = <const Names extends string = never>(
+  config: Presets<EmptyPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: EmptyView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

@@ -10,6 +10,7 @@ export * as AspectRatio from './aspectRatio.js'
 export * as Anchor from './anchor.js'
 export * as Avatar from './avatar.js'
 export * as Figure from './figure.js'
+export * as Frame from './frame.js'
 export * as Image from './image.js'
 export * as Badge from './badge.js'
 export * as Breadcrumb from './breadcrumb.js'
@@ -114,14 +115,35 @@ export * as Tour from './tour.js'
 
 export { AlertSlots } from './alert.js'
 export { AppShellSlots } from './appShell.js'
-export type { AlertAction, AlertView, BannerAlert, InlineAlert } from './alert.js'
+export type {
+  AlertAction,
+  AlertPreset,
+  AlertTone,
+  AlertView,
+  AlertWords,
+  BannerAlert,
+  InlineAlert,
+} from './alert.js'
 export { AspectRatioSlots } from './aspectRatio.js'
+export type { AspectRatioPreset, AspectRatioView } from './aspectRatio.js'
 export { AvatarGroupSlots, AvatarSlots } from './avatar.js'
-export type { AvatarGroupView, AvatarPicture, AvatarSize, AvatarStatus } from './avatar.js'
+export type {
+  AvatarGroupView,
+  AvatarPerson,
+  AvatarPicture,
+  AvatarPreset,
+  AvatarSize,
+  AvatarSource,
+  AvatarStatus,
+  AvatarView,
+  AvatarWords,
+} from './avatar.js'
 export { FigureSlots } from './figure.js'
-export type { FigureView } from './figure.js'
+export type { FigurePreset, FigureView } from './figure.js'
+export { FrameSlots } from './frame.js'
+export type { FramePreset, FrameView } from './frame.js'
 export { ImageSlots } from './image.js'
-export type { ImageView } from './image.js'
+export type { ImagePreset, ImageView } from './image.js'
 export { BadgeSlots } from './badge.js'
 export { BreadcrumbSlots } from './breadcrumb.js'
 export { ButtonSlots } from './button.js'
@@ -131,6 +153,16 @@ export { CalendarSlots } from './calendar.js'
 export { AccordionSlots } from './accordion.js'
 export type { AccordionItem, AccordionView } from './accordion.js'
 export { CardGroupSlots, CardSlots } from './card.js'
+export type {
+  CardDismiss,
+  CardGroupFluid,
+  CardGroupView,
+  CardOfGroup,
+  CardPreset,
+  CardView,
+  CardWords,
+} from './card.js'
+export type { Press } from './press.js'
 export { MenubarSlots } from './menubar.js'
 export { MeterSlots } from './meter.js'
 export { NavSlots } from './nav.js'
@@ -228,13 +260,14 @@ export { DatePickerSlots } from './datePicker.js'
 export { DialogSlots } from './dialog.js'
 export { DisclosureSlots } from './disclosure.js'
 export { EmptySlots } from './empty.js'
+export type { EmptyPreset, EmptyView } from './empty.js'
 export { FieldsetSlots } from './fieldset.js'
 export { FileDropSlots } from './fileDrop.js'
 export { HoverIntentSlots } from './hoverIntent.js'
 export { IconSlots } from './icon.js'
 export { InputSlots } from './input.js'
 export { ItemGroupSlots, ItemSlots } from './item.js'
-export type { ItemGroupView } from './item.js'
+export type { ItemGroupView, ItemOfGroup, ItemPreset, ItemView, ItemWords } from './item.js'
 export { KbdSlots } from './kbd.js'
 export { LabelSlots } from './label.js'
 export { ListboxSlots } from './listbox.js'
@@ -247,7 +280,12 @@ export { DrawerSlots } from './drawer.js'
 export { SegmentedSlots } from './segmented.js'
 export type { SegmentedOption, SegmentedView } from './segmented.js'
 export { SkeletonSlots } from './skeleton.js'
-export type { SkeletonLinesView, SkeletonTableRowView } from './skeleton.js'
+export type {
+  SkeletonLinesView,
+  SkeletonPreset,
+  SkeletonTableRowView,
+  SkeletonView,
+} from './skeleton.js'
 export { SliderSlots } from './slider.js'
 export type { SliderView } from './slider.js'
 export { SpinnerSlots } from './spinner.js'
@@ -259,6 +297,7 @@ export { TextareaSlots } from './textarea.js'
 export { ToastSlots } from './toast.js'
 export { TooltipSlots } from './tooltip.js'
 export { TypographySlots } from './typography.js'
+export type { TypographyLevel, TypographySays, TypographyView } from './typography.js'
 export { ScrollAreaSlots } from './scrollArea.js'
 export { ChatMessageGroupSlots, ChatMessageSlots } from './chatMessage.js'
 export type {

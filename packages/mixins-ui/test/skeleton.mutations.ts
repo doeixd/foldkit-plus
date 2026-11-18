@@ -30,9 +30,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "Style.nest(lone, { inlineSize: '100%', minInlineSize: '4rem', blockSize: '1rem' }),",
-        replace:
-          "Style.nest(lone, { inlineSize: '4rem', minInlineSize: '4rem', blockSize: '1rem' }),",
+        find: "inlineSize: 'var(--fk-skeleton-inline, 100%)',",
+        replace: "inlineSize: '4rem',",
       },
     ],
     tests: browser,
@@ -47,9 +46,9 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "          Style.nest(lone, {\n            inlineSize: '2.5rem',\n            blockSize: '2.5rem',\n            borderRadius: ref.radius.full,",
+        find: "            blockSize: 'var(--fk-skeleton-block, 2.5rem)',\n            borderRadius: ref.radius.full,",
         replace:
-          "          Style.nest(lone, {\n            inlineSize: '2.5rem',\n            blockSize: '2.5rem',\n            borderRadius: ref.radius.sm,",
+          "            blockSize: 'var(--fk-skeleton-block, 2.5rem)',\n            borderRadius: ref.radius.sm,",
       },
     ],
     tests: unit,
@@ -155,5 +154,38 @@ export default [
       },
     ],
     tests: ['packages/mixins-ui/test/skeleton.browser.test.ts'],
+  },
+  {
+    name: 'a bar ignores its inline length',
+    edits: [
+      {
+        file: view,
+        find: "...(options.inline === undefined ? {} : { '--fk-skeleton-inline': options.inline }),",
+        replace: '',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'the recipe ignores a bar’s block length',
+    edits: [
+      {
+        file: recipe,
+        find: "blockSize: 'var(--fk-skeleton-block, 1rem)',",
+        replace: "blockSize: '1rem',",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a configured skeleton’s frames drop its look',
+    edits: [
+      {
+        file: view,
+        find: 'card: (options, h) => card(layered(config, options), h),',
+        replace: 'card: (options, h) => card(options, h),',
+      },
+    ],
+    tests: unit,
   },
 ]

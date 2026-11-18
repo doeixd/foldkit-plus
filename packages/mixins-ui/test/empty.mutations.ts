@@ -75,4 +75,15 @@ export default [
     ],
     tests: browser,
   },
+  {
+    name: 'a configured empty state drops its layers',
+    edits: [
+      {
+        file: view,
+        find: 'view: (options, h) => view(layered(config, options), h),',
+        replace: 'view: (options, h) => view(options, h),',
+      },
+    ],
+    tests: unit,
+  },
 ]

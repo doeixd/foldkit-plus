@@ -1,5 +1,6 @@
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
 
 /**
@@ -33,3 +34,20 @@ export const view = <Message = never>(
   )
   return h.div(builders.frame.attrs(), options.content === undefined ? [] : [options.content])
 }
+
+/** What an AspectRatio is given once: its look. */
+export type AspectRatioPreset = Pick<AspectRatioView<never>, 'style'> & {
+  readonly mixins?: MixinList<never>
+}
+
+/** The application's own AspectRatio: `base` for every use, `presets` chosen at a use, and the call over both. */
+export const configure = <const Names extends string = never>(
+  config: Presets<AspectRatioPreset, Names>,
+): {
+  readonly view: <Outer>(
+    options: AspectRatioView<Outer> & PresetOption<Names>,
+    h: HtmlBuilder<Outer>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})
