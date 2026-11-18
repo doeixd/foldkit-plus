@@ -405,7 +405,7 @@ const writing = Style.compose(
   Style.at(
     '@media (max-width: 44rem)',
     Style.nest('[contenteditable="true"]', {
-      padding: `${t.space.lg} ${t.space.lg} ${t.space.xl} 2rem`,
+      padding: `${t.space.md} ${t.space.md} ${t.space.xl} 2rem`,
     }),
   ),
 )
@@ -433,20 +433,30 @@ export const Page = demoStyle.slots({
       // The frame's main region pads above it.
       padding: `0 ${t.space.md} ${t.space['2xl']}`,
     }),
+    // A phone's width goes to the page: no margin beside the editor's card.
+    Style.media('(max-width: 40rem)', { paddingInline: '0' }),
   ),
-  lede: Style.self({
-    margin: `0 0 ${t.space.md}`,
-    color: t.text.muted,
-    fontSize: t.size.sm,
-    maxInlineSize: '48rem',
-  }),
-  surface: Style.self({
-    border: `1px solid ${t.outline.subtle}`,
-    borderRadius: t.radius.xl,
-    background: t.surface.base,
-    boxShadow: t.shadow.sm,
-    overflow: 'clip',
-  }),
+  // The guide beside the page says how to try it, so a phone starts on the editor.
+  lede: Style.compose(
+    Style.self({
+      margin: `0 0 ${t.space.md}`,
+      color: t.text.muted,
+      fontSize: t.size.sm,
+      maxInlineSize: '48rem',
+    }),
+    Style.media('(max-width: 40rem)', { display: 'none' }),
+  ),
+  surface: Style.compose(
+    Style.self({
+      border: `1px solid ${t.outline.subtle}`,
+      borderRadius: t.radius.xl,
+      background: t.surface.base,
+      boxShadow: t.shadow.sm,
+      overflow: 'clip',
+    }),
+    // Edge to edge on a phone, as the page is.
+    Style.media('(max-width: 40rem)', { borderInline: '0', borderRadius: '0', boxShadow: 'none' }),
+  ),
   // The formatting bar and the page's own actions, in reach while the document scrolls under them.
   bar: Style.compose(
     row(t.space['2xs']),
