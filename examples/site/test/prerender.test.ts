@@ -486,7 +486,7 @@ describe('the generated site', () => {
       [
         'scroll-area',
         [
-          ['native', "The browser's bars", 'Recipes.ScrollArea.extend'],
+          ['native', 'The browser’s bars', 'Recipes.ScrollArea.extend'],
           ['overlay', 'Overlay bars', 'mixins: ScrollArea.overlayBars'],
         ],
       ],
