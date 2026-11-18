@@ -166,6 +166,34 @@ test.each(PAGES)(
   120_000,
 )
 
+// A page that looks doubled is usually a capture artefact: Chrome's `fullPage` screenshot wraps
+// past 16,384px, so the 18,000px file-upload page showed its top again below its end. The
+// document itself is counted here: one heading, one rail and the declared previews, after the
+// browser has taken the page over.
+test.each([
+  ['button', 5],
+  ['tags-input', 4],
+  ['combobox', 7],
+  ['calendar', 9],
+  ['date-picker', 3],
+  ['file-upload', 10],
+  ['switch', 1],
+  ['otp-field', 2],
+] as const)(
+  'the hydrated component page %s holds one heading, one rail and %i previews',
+  async (slug, previews) => {
+    const { page } = await open(`/components/${slug}`)
+    const counted = await page.evaluate(() => ({
+      headings: document.querySelectorAll('h1').length,
+      rails: document.querySelectorAll('#rail').length,
+      previews: document.querySelectorAll('[data-size="page"]').length,
+    }))
+    expect(counted).toEqual({ headings: 1, rails: 1, previews })
+    await page.close()
+  },
+  120_000,
+)
+
 // A press on a preview before the second application has taken the page over is heard by nothing:
 // the served markup carries no handler. The previews are held inert and busy until the takeover
 // (`view/components.ts`), so a control never looks live and does nothing.

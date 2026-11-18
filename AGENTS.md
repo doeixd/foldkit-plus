@@ -2019,6 +2019,9 @@ of its own named a form field "fits the Catalog". Read words with
   sideways-scroll check of `scrollWidth - innerWidth` read 0 with the fault in
   place. Measure against `document.documentElement.clientWidth`, the layout
   viewport, and break a demo once to see the check fail.
+- **Chrome's `fullPage` screenshot wraps past 16,384px.** The 18,000px file-upload
+  page came out as the whole page twice, its top repeating below its end; the DOM held
+  one heading (`adoption.e2e.ts` counts it). Capture elements or viewports for a taller page.
 - **A Playwright route that waits inside its handler stalls the next one.**
   `route.fallback()` hands the request on only once the handler returns, so
   awaiting `request.response()` inside it hung every held write. Wait for
