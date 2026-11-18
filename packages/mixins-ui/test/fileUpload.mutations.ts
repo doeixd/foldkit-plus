@@ -380,6 +380,11 @@ export default [
     tests: [examples],
   },
   {
+    name: 'a cover’s ring is not centred on the frame',
+    edits: [{ file: recipe, find: "insetInline: '0',", replace: "insetInline: 'auto'," }],
+    tests: [examples],
+  },
+  {
     name: 'the picture is not veiled on hover',
     edits: [
       {

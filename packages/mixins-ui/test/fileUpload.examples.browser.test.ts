@@ -462,6 +462,15 @@ test('10 Cover: the image fills the frame, Remove sits over it, and a ring shows
     await vi.waitFor(() => expect(sends.started).toHaveLength(1))
     await vi.waitFor(() => expect(document.querySelector('img')).not.toBeNull())
     expect(progressBars()).toHaveLength(1)
+    // The ring stands in the middle of the image, not after the frame.
+    const ring = progressBars()[0]!.getBoundingClientRect()
+    const frameBox = picker().getBoundingClientRect()
+    expect(
+      Math.abs(ring.left + ring.width / 2 - (frameBox.left + frameBox.width / 2)),
+    ).toBeLessThan(2)
+    expect(
+      Math.abs(ring.top + ring.height / 2 - (frameBox.top + frameBox.height / 2)),
+    ).toBeLessThan(2)
     const remove = button('Cancel cover.png')
     const box = picker().getBoundingClientRect()
     const at = remove.getBoundingClientRect()

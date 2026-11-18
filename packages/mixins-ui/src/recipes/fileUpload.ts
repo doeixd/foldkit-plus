@@ -408,6 +408,20 @@ export const FileUpload = Style.recipeFor(FileUploadSlots)({
           ),
           ...veil,
         ],
+        // On the picture, not after it on a row of its own: the frame's own shape, so what it
+        // draws is centred in it. A press goes through to the picker.
+        progress: variant(
+          Style.nest(':where([data-picture]) > &', {
+            position: 'absolute',
+            insetBlockStart: '0',
+            insetInline: '0',
+            aspectRatio: '16 / 9',
+            display: 'grid',
+            placeItems: 'center',
+            flex: 'none',
+            pointerEvents: 'none',
+          }),
+        ),
         actions: variant(
           Style.nest(':where([data-picture]) > &', {
             position: 'absolute',
