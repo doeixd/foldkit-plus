@@ -43,7 +43,18 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // `view`, `combobox/view`, the Bundles and `Bundle.compose`), +2.9 kB the thirty-one example
 // modules, +0.9 kB the harness and `configure`, less 1.7 kB of regions no page draws any more.
 // The adapter-rung regions of those three pages are still loaded beside the modules.
-const CEILINGS = { shell: 188_000, gallery: 411_500 }
+// 2026-11-18: the gallery reads 422,177 here and 423,286 on CI, +11.7 kB over the reading above,
+// Not split module by module against the old build (no second tree); what the dump shows is the
+// causes: the example modules of the button, surface, choice-control, menu and text-field pages
+// (`configure.ts` 0.3 to 1.0 kB minified each, about two hundred modules in all, and the
+// `snippets/components.ts` regions still loaded beside them), the recipes' new axis values, and the
+// options-level modules (`calendar/state` 2.2 kB, `combobox/view` 1.6 kB, `bundles/*`, `configure`,
+// `press`, `adornments`, `toggleRow`, `choice/*`, `words`). The component pages draw every widget,
+// so each of those is one a preview draws; the shell (a guide's load, 173.5 kB) holds none of them.
+// Ceiling raised to the reading plus about 0.3%, rounded up: 428,656 in a tree that also held the
+// selection-popup, dialog, accordion and table families' uncommitted work (422,177 an hour earlier
+// without it), so the next family to land re-measures and raises it by what it added.
+const CEILINGS = { shell: 188_000, gallery: 430_000 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
 const PREVIEWS = ['preview-drop', 'preview-trip']

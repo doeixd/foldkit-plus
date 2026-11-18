@@ -31,11 +31,18 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   // member of every recipe) and the shadows' and tints' knob data; api-cache +314 more from #593's
   // `runtimeJson` (Remote's Model schema, 1.7 kB minified). No module was added to either page.
   ['api-cache', 204_500], // 204,404 bytes
-  ['auth', 151_500], // 151,008 bytes
+  // 2026-11-18: auth, form, routing, shopping-cart, weather and websocket-chat each grew past their
+  // ceiling: 151,886, 147,400, 135,620, 122,513, 126,693 and 129,129. The six draw Input, Textarea
+  // or Field, and the Input recipe (`recipes/field.ts`) gained the grouped start and end sides and
+  // the ghost and underline variants, with `adornments`, `input` and `textarea` beside it; counter and
+  // the pages without a text field moved by under 20 bytes. Their first chunks hold no mixins-ui module
+  // the pages do not draw (none of bundles, choice, configure, calendar, combobox, fileUpload or
+  // rowContent). Each ceiling is the reading plus about 0.5%, rounded up to 500.
+  ['auth', 152_500], // 151,886 bytes
   // counter was 115,953 on origin/main (1bbd87d15), 47 under its ceiling; 115,981 here.
   ['counter', 116_000], // 115,981 bytes
   ['domains', 191_000], // 187,092 bytes
-  ['form', 147_000], // 143,904 bytes
+  ['form', 148_000], // 147,400 bytes
   ['job-application', 188_500], // 187,831 bytes
   ['kanban', 137_500], // 134,653 bytes
   // pixel-art +200 on 2026-11-15 (#560 review): 155,275 without the review's focus fixes and 155,637
@@ -44,15 +51,15 @@ const CEILINGS: ReadonlyArray<readonly [port: string, ceiling: number]> = [
   ['pixel-art', 156_000], // 155,771 bytes
   ['query-sync', 140_000], // 137,018 bytes
   ['route-transitions', 117_500], // 114,792 bytes
-  ['routing', 135_500], // 132,800 bytes
-  ['shopping-cart', 122_500], // 119,812 bytes
+  ['routing', 136_500], // 135,620 bytes
+  ['shopping-cart', 123_500], // 122,513 bytes
   ['snake', 117_500], // 114,955 bytes
   ['ssg', 125_500], // 122,802 bytes
   ['ssr', 130_500], // 127,784 bytes
   ['todo', 131_000], // 128,027 bytes
   ['ui-showcase', 202_000], // 201,331 bytes
-  ['weather', 126_500], // 123,962 bytes
-  ['websocket-chat', 128_500], // 125,779 bytes
+  ['weather', 127_500], // 126,693 bytes
+  ['websocket-chat', 130_000], // 129,129 bytes
 ]
 
 // Each build runs in a process of its own: these configs import `foldkit-ssr/vite`.

@@ -29,7 +29,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +500 on 2026-11-17: 154,517 measured. The toolbar, which the start chunk holds, now fills a pressed
 // tool with the accent (`Recipes.Button.extend` and the accent tokens, in `toolbar/view.ts`), and its
 // tools' ghost variant and the buttons' hover fill (`style.ts`) add rules to the sheet.
-const CEILING = 155_000
+// +1,000 on 2026-11-18: 155,277 measured, +760 over the last reading. The start chunk's mixins-ui
+// modules are the toolbar's, the window list's and the Button recipe's (`recipes/button.ts` and
+// `button.ts` gained the states, press and adornment options of the button work, +0.3 kB), and
+// `style.ts` of mixins gained `recipe.add` on every recipe. No module the start chunk does not draw
+// is in it: the sections' own chunks (file upload included, `lazy.ts`) are lazy and not counted.
+const CEILING = 156_000
 
 clientBudget({
   name: 'widgets',

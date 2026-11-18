@@ -24,7 +24,13 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // to one module: the dumps of both builds differed by under 100 bytes in every package the
 // page's first chunk reads, so it is the chunks' brotli moving with the component growth
 // (input, toggle, field) of the other pages.
-const CEILING = 227_000
+// +1,000 on 2026-11-18: 227,397 measured, after the text-field and choice-control work. The Input
+// recipe (`recipes/field.ts`) gained the grouped start and end sides and the ghost and underline
+// variants, and the Textarea the same frame; the page draws both. Its chunks hold no module it does
+// not draw (none of mixins-ui's bundles, choice, configure, calendar, combobox or fileUpload); `press` (0.5 kB
+// minified) comes with the Button and Card it draws. Ceiling raised to the reading plus about
+// 0.3%, rounded up.
+const CEILING = 228_000
 
 clientBudget({
   name: 'auth',

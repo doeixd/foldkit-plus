@@ -38,7 +38,12 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // default look's theme text (+145 there) and #593's `runtimeJson`, Remote's Model schema (+447).
 // Nothing from mixins-ui's bundles, choice, configure, calendar, combobox or fileUpload modules is in
 // the page; `foldkit-bundle` was already. Ceiling raised to the reading, rounded up.
-const CEILING = 220_000
+// +1,000 on 2026-11-18: 220,137 measured, 137 over. The page draws Input, Textarea and Select, and the
+// Input recipe gained the grouped start and end sides and the ghost and underline variants
+// (`recipes/field.ts`), with `adornments` (0.4 kB minified) beside `input`. The first chunk holds no
+// module the page does not draw: `toggleRow` (0.1 kB) is the Checkbox contract's layout Slots, read
+// through `CheckboxSlots`. Ceiling raised to the reading plus about 0.4%, rounded up.
+const CEILING = 221_000
 
 clientBudget({
   name: 'entity',
