@@ -305,3 +305,31 @@ test('under TreeView.fluid the highlight sits on the row the pointer or the keys
     handle.dispose()
   }
 })
+
+test('a group shuts over time, still partly open at mid-duration', async () => {
+  // Slowed, so a loaded runner still draws several frames of it.
+  const { handle } = mount('3')
+  try {
+    await vi.waitFor(() => expect(item('src')).not.toBeNull())
+    const group = () => item('src').querySelector('[role="group"]')!
+    ;(row('src') as HTMLElement).click()
+    await vi.waitFor(() => expect(group().getBoundingClientRect().height).toBeGreaterThan(20))
+    await vi.waitFor(() => expect(document.getAnimations()).toHaveLength(0))
+    const full = group().getBoundingClientRect().height
+    ;(row('src') as HTMLElement).click()
+    const heights = await new Promise<ReadonlyArray<number>>(resolve => {
+      const seen: Array<number> = []
+      const start = performance.now()
+      const tick = () => {
+        seen.push(group().getBoundingClientRect().height)
+        if (performance.now() - start < 1500) requestAnimationFrame(tick)
+        else resolve(seen)
+      }
+      tick()
+    })
+    expect(heights.filter(height => height > 1 && height < full - 1).length).toBeGreaterThan(2)
+    expect(heights[heights.length - 1]).toBe(0)
+  } finally {
+    handle.dispose()
+  }
+})

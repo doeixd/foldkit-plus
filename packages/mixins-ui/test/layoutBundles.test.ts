@@ -6,7 +6,7 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { describe, expect, it } from 'vitest'
-import { Accordion, Bundles } from '../src/index.js'
+import { Accordion, Bundles, TreeView } from '../src/index.js'
 
 const App = Bundle.compose({ note: Schema.String }).pipe(
   Bundle.withChild('faq', Bundles.Accordion, { args: { open: ['a'], multiple: true } }),
@@ -31,5 +31,35 @@ describe('Bundles.Accordion', () => {
       App.Message.GotOneMessage({ message: Accordion.Message.Toggled({ id: 'a' }) }),
     ).model
     expect(shut.one.open).toEqual(['a'])
+  })
+})
+
+describe('Bundles.TreeView', () => {
+  const nodes = [
+    { id: 'src', label: 'src', children: [{ id: 'index', label: 'index.ts' }] },
+    { id: 'readme', label: 'README.md' },
+  ]
+  const Files = Bundle.compose({ note: Schema.String }).pipe(
+    Bundle.withChild('files', Bundles.TreeView, {
+      args: { id: 'files', nodes, checkable: true, open: ['src'] },
+    }),
+  )
+  const step = Files.placements.update(model => ({ model }))
+  const first = () => Files.placements.initial({ note: '' }).model
+
+  it('starts from its args, checkable included', () => {
+    expect(first().files).toMatchObject({ id: 'files', open: ['src'], checkable: true })
+  })
+
+  it('folds against the tree the args hold: Space checks the row the Model has current', () => {
+    const focused = step(
+      first(),
+      Files.Message.GotFilesMessage({ message: TreeView.Message.Focused({ id: 'src' }) }),
+    ).model
+    const checked = step(
+      focused,
+      Files.Message.GotFilesMessage({ message: TreeView.Message.Pressed({ key: ' ' }) }),
+    ).model
+    expect(checked.files.checked).toEqual(['index'])
   })
 })

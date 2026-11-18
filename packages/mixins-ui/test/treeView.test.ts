@@ -539,3 +539,76 @@ describe('TreeView checked values', () => {
     expect(TreeView.checkedAs(CHECKED, model.checked, 'trunk')).toEqual(['components'])
   })
 })
+
+describe('TreeView rows with content', () => {
+  const DECORATED: ReadonlyArray<TreeView.TreeNode> = [
+    {
+      id: 'ada',
+      label: 'Ada Lovelace',
+      content: h.b([], ['Ada']),
+      trailing: h.span([], ['Owner']),
+      action: h.button([], ['…']),
+    },
+    { id: 'plain', label: 'Plain' },
+  ]
+  const Decorated = SlotView.forMessages<TestMessage>().define(
+    TreeViewSlots,
+    (model: TreeView.Model, _, h) =>
+      TreeView.view(
+        { label: 'People', model, nodes: DECORATED, onMessage: () => message('Clicked'), style },
+        h,
+      ),
+  )
+  const tree = Inert.draw(Decorated, init({ id: 'people' }))
+
+  it('draws content in place of the label’s text, and trailing and action after it, each in its Slot', () => {
+    expect(Inert.text(Inert.bySlot(tree, 'label')[0])).toBe('Ada')
+    expect(Inert.text(Inert.bySlot(tree, 'trailing')[0])).toBe('Owner')
+    expect(Inert.text(Inert.bySlot(tree, 'action')[0])).toBe('…')
+    // Only the row that carries them draws them.
+    expect(Inert.bySlot(tree, 'trailing')).toHaveLength(1)
+    expect(Inert.bySlot(tree, 'action')).toHaveLength(1)
+    expect(Inert.unslotted(tree, { inside: ['label', 'trailing', 'action'] })).toEqual([])
+  })
+
+  it('still moves typing by the label’s text', () => {
+    const typed = TreeView.update(DECORATED)(init({ id: 'people' }), Message.Pressed({ key: 'a' }))
+    expect(typed.model.current).toEqual(Option.some('ada'))
+  })
+})
+
+describe('TreeView checkable from the Model', () => {
+  const nodes: ReadonlyArray<TreeView.TreeNode> = [
+    { id: 'a', label: 'A', children: [{ id: 'a1', label: 'A1' }] },
+  ]
+  const on = init({ id: 'tree', checkable: true, open: ['a'] })
+
+  it('lets Space check the current row with no option given to update', () => {
+    const result = TreeView.update(nodes)(
+      { ...on, current: Option.some('a') },
+      Message.Pressed({ key: ' ' }),
+    )
+    expect(result.model.checked).toEqual(['a1'])
+    // A tree not made checkable chooses instead, and checks nothing.
+    const off = TreeView.update(nodes)(
+      { ...init({ id: 'tree' }), current: Option.some('a') },
+      Message.Pressed({ key: ' ' }),
+    )
+    expect(off.model.checked).toEqual([])
+  })
+
+  it('draws a box on each row with no option given to the view', () => {
+    const Boxed = SlotView.forMessages<TestMessage>().define(
+      TreeViewSlots,
+      (model: TreeView.Model, _, h) =>
+        TreeView.view(
+          { label: 'Tree', model, nodes, onMessage: () => message('Clicked'), style },
+          h,
+        ),
+    )
+    expect(Inert.bySlot(Inert.draw(Boxed, on), 'checkbox')).toHaveLength(2)
+    expect(
+      Inert.bySlot(Inert.draw(Boxed, init({ id: 'tree', open: ['a'] })), 'checkbox'),
+    ).toHaveLength(0)
+  })
+})

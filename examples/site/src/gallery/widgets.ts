@@ -20,7 +20,6 @@ import {
   Sidebar,
   Calendar as DateSelection,
   ColorPicker,
-  TreeView,
   Carousel,
   Menu,
   Nav,
@@ -180,13 +179,8 @@ export const Model = Schema.Struct({
   virtualList: UiVirtualList.Model,
   /** Each carousel example's slide and rotation. */
   carousels: Schema.Record(CarouselExample, Carousel.Model),
-  /** The tree with icons and the one with checkboxes. */
-  treeIcons: TreeView.Model,
-  treeChecks: TreeView.Model,
   /** The range slider's price range. */
   priceRange: Schema.Struct({ low: Schema.Number, high: Schema.Number }),
-  /** The file tree's open, current and chosen rows. */
-  treeView: TreeView.Model,
   /** The color picker's accent, its format and its draft. */
   accent: ColorPicker.Model,
   /** The trip calendar, and the range picked on it. */
@@ -296,10 +290,7 @@ export const Message = defineMessageUnion({
   GotMenubar: { message: Menubar.Message },
   GotVirtualList: { message: UiVirtualList.Message },
   GotCarousel: { example: CarouselExample, message: Carousel.Message },
-  GotTreeIcons: { message: TreeView.Message },
-  GotTreeChecks: { message: TreeView.Message },
   MovedPriceRange: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
-  GotTreeView: { message: TreeView.Message },
   GotAccent: { message: ColorPicker.Message },
   GotTripCalendar: { message: UiCalendar.Message },
   GotSheet: { example: SheetExample, message: Sheet.Message },
@@ -452,10 +443,7 @@ export const initial: Model = {
     thumbnails: Carousel.init({ id: 'preview-carousel-thumbs' }),
     perView: Carousel.init({ id: 'preview-carousel-two' }),
   },
-  treeIcons: TreeView.init({ id: 'preview-tree-icons', open: ['src'] }),
-  treeChecks: TreeView.init({ id: 'preview-tree-checks', open: ['src'], checked: ['index'] }),
   priceRange: { low: 100, high: 350 },
-  treeView: TreeView.init({ id: 'preview-tree', open: ['src'] }),
   accent: ColorPicker.init({ id: 'preview-accent', color: ColorPicker.color('#3b82f6') }),
   trip: UiCalendar.init({ id: 'preview-trip', today }),
   tripDates: DateSelection.empty('Range'),

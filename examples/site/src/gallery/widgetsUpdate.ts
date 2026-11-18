@@ -24,7 +24,6 @@ import {
   Sidebar,
   Calendar as DateSelection,
   ColorPicker,
-  TreeView,
   Carousel,
   Menu,
   Nav,
@@ -55,10 +54,8 @@ import {
   AUTOPLAY_LAYOUT,
   THUMBNAILS_LAYOUT,
   PER_VIEW_LAYOUT,
-  TREE_ICONS,
   MENUBAR,
   ViewOptions,
-  TREE_FILES,
   Notices,
   ANSWER,
   ChatEntry,
@@ -298,16 +295,6 @@ const foldCarousel = Update.foldChildAt({
   toParentMessage: (example, message) => Message.GotCarousel({ example, message }),
 })
 
-const foldTreeIcons = Update.foldChild({
-  ...own('treeIcons', Message.GotTreeIcons),
-  update: TreeView.update(TREE_ICONS),
-})
-
-const foldTreeChecks = Update.foldChild({
-  ...own('treeChecks', Message.GotTreeChecks),
-  update: TreeView.update(TREE_ICONS, { checkable: true }),
-})
-
 const foldSidebar = Update.foldChild({
   ...own('sidebar', Message.GotSidebar),
   update: Sidebar.update,
@@ -470,11 +457,6 @@ const foldTripCalendar = Update.foldChild({
   }),
 })
 
-const foldTreeView = Update.foldChild({
-  ...own('treeView', Message.GotTreeView),
-  update: TreeView.update(TREE_FILES),
-})
-
 const noticesField = own('notices', Message.GotNotices)
 const noticesOut = Notices.OutMessage.match<Step>({ DismissedToast: () => same })
 const foldNotices = Update.foldChild({
@@ -626,13 +608,10 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     GotVirtualList: ({ message }) => foldVirtualList(model, message),
     GotCarousel: ({ example, message }) =>
       foldCarousel(model, example, carousel => carouselUpdates[example](carousel, message)),
-    GotTreeIcons: ({ message }) => foldTreeIcons(model, message),
-    GotTreeChecks: ({ message }) => foldTreeChecks(model, message),
     MovedPriceRange: ({ value }) =>
       value.low === model.priceRange.low && value.high === model.priceRange.high
         ? { model }
         : { model: modifyFields(model, { priceRange: () => value }) },
-    GotTreeView: ({ message }) => foldTreeView(model, message),
     GotAccent: ({ message }) => foldAccent(model, message),
     GotTripCalendar: ({ message }) => foldTripCalendar(model, message),
     GotCopy: ({ message }) =>
