@@ -10,6 +10,7 @@ import { Capability, SlotView, Style } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import {
   ImageSlots,
+  configure,
   decorative,
   described,
   preloadsIn,
@@ -185,5 +186,27 @@ describe('Image.preloadsIn', () => {
     expect(preloadsIn({ html })).toBe(
       '<link rel="preload" as="image" imagesrcset="/bare-400.webp 400w" imagesizes="400px" fetchpriority="high">',
     )
+  })
+})
+
+describe('Image.configure', () => {
+  const App = configure({
+    base: { style, layout: Layout.Constrained({ width: 400 }) },
+    presets: { hero: { layout: Layout.FullWidth(), placeholder: 'detail' } },
+  })
+  const given = { asset: assetOf(), provider, alt: described('The finals') }
+  const layoutOf = (drawn: ReturnType<typeof view>) => Inert.value(imgOf(drawn), 'data-layout')
+
+  it('binds the layout once, and a preset or the call wins', () => {
+    expect(layoutOf(App.view(given, h))).toBe('constrained')
+    expect(layoutOf(App.view({ ...given, preset: 'hero' }, h))).toBe('full')
+    expect(
+      layoutOf(App.view({ ...given, preset: 'hero', layout: Layout.Fixed({ width: 80 }) }, h)),
+    ).toBe('fixed')
+    expect(Inert.classes(App.view(given, h))).toEqual(Inert.classes(draw()))
+  })
+
+  it('refuses a use that no layer gave a layout', () => {
+    expect(() => configure({}).view(given, h)).toThrow(/needs a layout/)
   })
 })

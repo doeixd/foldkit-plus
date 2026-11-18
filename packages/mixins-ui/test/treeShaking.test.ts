@@ -109,3 +109,36 @@ export const page = [Card.group, Card.fluid]`,
   expect(highlight(item)).toBe(false)
   expect(highlight(group)).toBe(true)
 }, 120_000)
+
+test('an Image page keeps the load watch and the audit only when it names them', async () => {
+  await buildPackage({
+    ...config,
+    config: false,
+    cwd: packageDir,
+    outDir: join(out, 'dist'),
+    dts: false,
+    logLevel: 'silent',
+  })
+  const [plain, watching, auditing] = await Promise.all([
+    keptBy(
+      'imagePlain',
+      `import { Image } from 'ui'
+export const page = [Image.view]`,
+    ),
+    keptBy(
+      'imageWatch',
+      `import { Image } from 'ui'
+export const page = [Image.view, Image.watchLoad]`,
+    ),
+    keptBy(
+      'imageAudit',
+      `import { Image } from 'ui'
+export const page = [Image.view, Image.audit]`,
+    ),
+  ])
+  const has = (kept: ReadonlyArray<string>, file: string) =>
+    kept.some(id => id.endsWith(`/dist/image/${file}.js`))
+  expect([has(plain, 'watchLoad'), has(plain, 'audit')]).toEqual([false, false])
+  expect([has(watching, 'watchLoad'), has(watching, 'audit')]).toEqual([true, false])
+  expect([has(auditing, 'watchLoad'), has(auditing, 'audit')]).toEqual([false, true])
+}, 120_000)
