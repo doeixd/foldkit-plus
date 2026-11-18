@@ -54,7 +54,7 @@ export default [
     name: 'the overlay bars run on the root',
     edits: [
       {
-        file: '../src/scrollArea.ts',
+        file: '../src/scrollArea/overlayBars.ts',
         find: '      viewport: Behavior.slot({',
         replace: '      root: Behavior.slot({',
       },
@@ -79,6 +79,28 @@ export default [
         file: '../src/recipes/scrollArea.ts',
         find: "Style.self({ overflowBlock: 'auto', overflowInline: 'hidden' }),",
         replace: "Style.self({ overflowBlock: 'auto', overflowInline: 'auto' }),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a stable gutter keeps nothing',
+    edits: [
+      {
+        file: '../src/recipes/scrollArea.ts',
+        find: "stable: { viewport: variant(Style.self({ scrollbarGutter: 'stable' })) },",
+        replace: 'stable: {},',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the preset’s mixins are dropped',
+    edits: [
+      {
+        file: '../src/scrollArea.ts',
+        find: 'view: (options, h) => view(layered(config, options), h),',
+        replace: 'view: (options, h) => view(options, h),',
       },
     ],
     tests,

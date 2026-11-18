@@ -1,25 +1,19 @@
-import { Attr, Behavior, Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
+import { SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { ScrollBars } from 'foldkit-primitives/dom'
+import { layered, type PresetOption, type Presets } from './configure.js'
 import type { MixinList } from './resolve.js'
+import { overlayBars } from './scrollArea/overlayBars.js'
+import { ScrollAreaSlots } from './scrollArea/slots.js'
+
+export { overlayBars }
+export { ScrollAreaSlots }
 
 /**
  * A scroll area owns no state, messages, or bundles. The browser owns
  * scrolling; this owns the box: which axes may scroll and how the bars read.
- * The `viewport` scrolls; the `root` around it holds an overlay `bar` per
- * axis, each with its `thumb`, which `overlayBars` drives. The height that
- * makes it scroll stays the caller's (a mixin beside the style), since only
- * the caller knows the layout it sits in.
+ * The height that makes it scroll stays the caller's (a mixin beside the
+ * style), since only the caller knows the layout it sits in.
  */
-export const ScrollAreaSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
-  viewport: Slot.make({
-    capability: Capability.Container,
-    attributes: [Attr.Role, Attr.AriaLabel],
-  }),
-  bar: Slot.make({ capability: Capability.Container }),
-  thumb: Slot.make({ capability: Capability.Container }),
-})
 
 /**
  * A scroll area in one call: what scrolls inside it, a style for its slots,
@@ -38,7 +32,7 @@ export interface ScrollAreaView<Message = never> {
   readonly label?: string | undefined
   /** A style of `ScrollAreaSlots`, for the area's look. */
   readonly style?: NamedStyle<typeof ScrollAreaSlots> | undefined
-  /** Mixins beside the style. */
+  /** Mixins beside the style: `ScrollArea.overlayBars`, and the height that makes it scroll. */
   readonly mixins?: MixinList<Message> | undefined
 }
 
@@ -71,20 +65,24 @@ export const view = <Message = never>(
   ])
 }
 
+/** What a ScrollArea is given once: its look, and the bars and height that make it scroll. */
+export type ScrollAreaPreset = Pick<ScrollAreaView<never>, 'style'> & {
+  readonly mixins?: MixinList<never>
+}
+
 /**
- * What draws the area's bars over its `viewport` (`ScrollBars`), in place of
- * the browser's, on a pointer that can hover; pass it beside the style. Not a
- * default: its Mount sends no Message, yet a Scene test of every page that
- * drew one would have to resolve it.
+ * The application's own ScrollArea: `base` for every use, `presets` chosen at
+ * a use with `preset`, and the call over both. `mixins` concatenate in that
+ * order (`ScrollArea.overlayBars` goes in `base`); any other option given at
+ * the call replaces the preset's.
  */
-export const overlayBars = [
-  Behavior.forSlots(ScrollAreaSlots)<unknown, never>(
-    {
-      viewport: Behavior.slot({
-        requires: { capability: Capability.Container },
-        mount: () => ScrollBars({}),
-      }),
-    },
-    { name: 'ScrollAreaScrollBars' },
-  ).mixin,
-] as const
+export const configure = <const Names extends string = never>(
+  config: Presets<ScrollAreaPreset, Names>,
+): {
+  readonly view: <Message = never>(
+    options: ScrollAreaView<Message> & PresetOption<Names>,
+    h: HtmlBuilder<Message>,
+  ) => Html
+} => ({
+  view: (options, h) => view(layered(config, options), h),
+})

@@ -2198,49 +2198,6 @@ export const meter = <Message>(
   )
 // #endregion
 
-// #region scroll-area-native
-// The box scrolls instead of the page, in the browser's own thin bars. Its
-// height is the caller's: the recipe extended by one, here.
-export const ScrollAreaStyle = forSlots(ScrollAreaSlots)(
-  Recipes.ScrollArea.extend({ base: { viewport: { maxBlockSize: '12rem' } } })({}),
-)
-
-const releases = (h: HtmlBuilder<never>): Html =>
-  h.ul(
-    [h.Style({ margin: '0', paddingInline: '1rem' })],
-    Array.from({ length: 24 }, (_, index) => h.li([], [`Release 0.${24 - index}.0`])),
-  )
-
-export const scrollArea = (
-  style: NamedStyle<typeof ScrollAreaSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  ScrollArea.view(
-    {
-      content: releases(h),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region scroll-area-overlay
-// Bars drawn over the content in place of the browser's, on a pointer that
-// can hover; a coarse pointer keeps the browser's. Off unless passed.
-export const scrollAreaOverlay = (
-  style: NamedStyle<typeof ScrollAreaSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  ScrollArea.view(
-    {
-      content: releases(h),
-      mixins: ScrollArea.overlayBars,
-      style,
-    },
-    h,
-  )
-// #endregion
-
 // #region virtual-list
 export const VirtualListStyle = forSlots(VirtualListSlots)(Recipes.VirtualList({}))
 
