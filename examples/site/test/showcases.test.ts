@@ -67,7 +67,9 @@ describe('the showcases', () => {
 
   it('keep the values an example pins, whatever is picked', () => {
     const steps = Option.getOrThrow(showcaseOf('steps'))
-    const [basic, , vertical] = steps.examples
+    const named = (name: string) => steps.examples.find(example => example.name === name)
+    const basic = named('basic')
+    const vertical = named('vertical')
     const pick = (orientation: string) => ({ orientation })
     expect(markup(vertical!.render(pick('horizontal'), live))).toBe(
       markup(vertical!.render(pick('vertical'), live)),
