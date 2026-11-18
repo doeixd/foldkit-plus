@@ -30,6 +30,7 @@ export default primitiveExample({
         h.Style({
           touchAction: 'none',
           cursor: 'grab',
+          // physical: the box follows the pointer's x, which is the screen's
           transform: `translateX(${within(model.x + model.dx)}px)`,
         }),
         h.OnMount(Mount.mapMessage(Move.mount(), onMessage)),
