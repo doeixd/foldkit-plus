@@ -16,6 +16,7 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import { allSubsites, subsites } from '../src/catalog.js'
 import { GITHUB } from '../src/content/guides.js'
 import { demos, onGitHub } from '../src/demos.js'
+import { listed } from '../src/gallery/primitiveExamples.js'
 import { families } from '../src/gallery/primitives.js'
 import { showcases } from '../src/gallery/showcases.js'
 import { codeOf, defaults } from '../src/gallery/theme.js'
@@ -321,6 +322,18 @@ describe('the generated site', () => {
     // The README's guide keeps its address, and the gallery's rail leads to it.
     expect(links.has('/primitives')).toBe(true)
     expect(hrefs(gallery, 'nav[aria-label="Primitives"] a')).toContain('/primitives')
+  })
+
+  test('the primitives gallery draws each live example on its family’s shelf with the module that runs', () => {
+    const gallery = page('/primitives/gallery')
+    for (const { id, family, file } of listed) {
+      const block = gallery.querySelector(`section#${family} #${id}`)
+      expect(block, id).not.toBeNull()
+      expect(block?.querySelector('h3')?.textContent, id).not.toBe('')
+      // The module is shown whole, from its imports to the export.
+      const code = block?.querySelector('pre code')?.textContent ?? ''
+      expect(code, file).toContain('export default primitiveExample({')
+    }
   })
 
   test('the rail lists every component by name, in alphabetical order', () => {

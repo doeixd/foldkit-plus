@@ -113,7 +113,7 @@ export const example = <Slots, const Model = undefined, Message = never>(
   render: (style, model, onMessage, h) => spec.view({ style, model: model as Model, onMessage, h }),
 })
 
-const running = <Model, Message>(state: ExampleState<Model, Message>): RunningState => {
+export const running = <Model, Message>(state: ExampleState<Model, Message>): RunningState => {
   const start = state.init()
   // The server draws the page from this Model and the browser starts from
   // the same one: a Command at the start would run in one and not the other.

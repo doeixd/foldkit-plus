@@ -34,6 +34,7 @@ import {
 } from './gallery/studio.js'
 import * as Examples from './gallery/examplesState.js'
 import * as PrimitiveBundles from './gallery/primitiveBundles.js'
+import { PRIMITIVES_SLUG } from './gallery/primitiveExamples.js'
 import * as Widgets from './gallery/widgets.js'
 import * as WidgetsUpdate from './gallery/widgetsUpdate.js'
 import {
@@ -564,7 +565,10 @@ export const subscriptions = placements.subscriptions(
     }),
     Examples.subscriptions<Model, Message>({
       read: model => model.examples,
-      onPage: (model, slug) => model.page._tag === 'Component' && model.page.slug === slug,
+      onPage: (model, slug) =>
+        slug === PRIMITIVES_SLUG
+          ? model.page._tag === 'Primitives'
+          : model.page._tag === 'Component' && model.page.slug === slug,
       toParent: Message.GotExample,
     }),
   ),

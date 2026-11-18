@@ -12,6 +12,7 @@ import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 
 import type { RunningState } from './example.js'
+import { listed, PRIMITIVES_SLUG } from './primitiveExamples.js'
 import { showcases } from './showcases.js'
 
 export interface Running {
@@ -79,8 +80,10 @@ export const over = (running: ReadonlyArray<Running>) => {
   }
 }
 
-export const { Model, initial, update, subscriptions } = over(
-  showcases.flatMap(showcase =>
+export const { Model, initial, update, subscriptions } = over([
+  ...showcases.flatMap(showcase =>
     showcase.states.map(({ key, state }) => ({ slug: showcase.slug, key, state })),
   ),
-)
+  // The Primitives gallery's examples run on its one page.
+  ...listed.map(({ key, example }) => ({ slug: PRIMITIVES_SLUG, key, state: example.state })),
+])

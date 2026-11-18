@@ -14,6 +14,7 @@ import { allSubsites, type Subsite } from '../catalog.js'
 import { README, topicsFor } from '../gallery/related.js'
 import { exampleFile } from '../gallery/showcase.js'
 import { showcaseOf, showcases } from '../gallery/showcases.js'
+import { listed as listedPrimitives } from '../gallery/primitiveExamples.js'
 import { examples as primitiveExamples } from '../snippets/primitives.js'
 import {
   COMPONENTS,
@@ -347,6 +348,13 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
   }
   // Every example's region read now, so a missing one fails the build, not one page.
   for (const example of primitiveExamples) primitive(example.id)
+  // A primitive's example module is shown whole, as a component's is.
+  const primitiveModule = (file: string): Draw => {
+    const code = modules.get(file) ?? readFileSync(join(repository, file), 'utf8').trimEnd()
+    modules.set(file, code)
+    return ih => [codeBlock(ih, highlight, { code, lang: 'ts', copy: true })]
+  }
+  for (const { file } of listedPrimitives) primitiveModule(file)
 
   // The README's own resolver: a heading it no longer has leads to the README's first page, not nowhere.
   const readmeLink = guides.linksFrom(README)
@@ -403,6 +411,7 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     usage,
     module,
     primitive,
+    primitiveModule,
     related,
   }
 }

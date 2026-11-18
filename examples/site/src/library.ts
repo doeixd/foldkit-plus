@@ -43,6 +43,8 @@ export interface Library {
   readonly module: (slug: string, name: string) => Draw
   /** A primitive example's source, as `snippets/primitives.ts` writes it, coloured. */
   readonly primitive: (id: string) => Draw
+  /** A primitive example module's whole text (`src/examples/primitives/<family>/<name>.ts`), coloured. */
+  readonly primitiveModule: (file: string) => Draw
   /** The guides a component page links for the mechanisms that apply to it. */
   readonly related: (slug: string) => Draw
 }
@@ -69,5 +71,6 @@ export const browserLibrary: Library = {
   usage: () => unavailable('usage'),
   module: () => unavailable('example module'),
   primitive: () => unavailable('primitive example'),
+  primitiveModule: () => unavailable('primitive example module'),
   related: () => unavailable('related topics'),
 }
