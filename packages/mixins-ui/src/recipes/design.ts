@@ -73,6 +73,12 @@ export const touchText: StyleValue = Style.media('(pointer: coarse)', {
 /** A row of a list on the ladder: a control's height, so it lines up with the trigger that opened it. */
 export const rowOnLadder: Declarations = { ...onLadder, paddingInline: Theme.ladder('row-pad') }
 
+/** The one vocabulary of the `tone` look: a recipe offers all of it or the members it can draw. */
+export type Tone = 'accent' | 'neutral' | 'info' | 'success' | 'warning' | 'danger'
+
+/** The one ladder of `size` names, `md` the middle: a recipe may ship a subset. */
+export type Size = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+
 /**
  * The steps a `size` axis chooses, set on the recipe's own element so a
  * chosen size beats the region it sits in; a recipe with no size follows the
@@ -341,7 +347,7 @@ export const glide = (tier: 'fast' | 'moderate', moving: string): Declarations =
  * control's hover is a tint of its own text (`unfilledHover`), so it reads on
  * any ground, a colored band included.
  */
-interface Tone {
+interface ToneProperties {
   readonly fill: string
   readonly fillHover: string
   /** The fill while it is pressed: the family's `active`, a step deeper than its hover. */
@@ -358,7 +364,7 @@ interface Tone {
   readonly stateInk: string
 }
 
-const tone = (value: Tone): StyleValue =>
+const tone = (value: ToneProperties): StyleValue =>
   variant(
     Style.self({
       '--_fk-tone-fill': value.fill,

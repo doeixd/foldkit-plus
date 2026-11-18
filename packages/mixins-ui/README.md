@@ -1787,7 +1787,7 @@ with `U.srOnly` from `foldkit-mixins/utilities`.
 | `Card.group` | `{ cards: (CardView & { key })[], columns?, fluidHover?, label?, cardStyle? }`: a keyed list of cards in up to `columns` (default 1), wrapping to fewer where a column would be narrower than the recipe's `minColumn`. With `fluidHover` (default) one highlight follows the pointer through `FluidHover` from `foldkit-primitives/dom`, and a press in a gap presses the highlighted card. | `Recipes.CardGroup`: `layout`: `divided` (default), `separated`; `minColumn`: `none`, `sm`, `md` (default), `lg`; `border`: `none`, `outlined`. The highlight is a film over the card the pointer is on, and is that card's hover. Slots `root`, `list`, `item`, `highlight`. |
 | `Item` | The row primitive: `{ content?, media?, title?, description?, actions?, press?, label?, selected?, disabled? }`; `content` follows the title and description. `Item.group({ items: (ItemView & { key })[], label?, style?, itemStyle? })` is a list of them. Field is for form controls. | `variant`: `plain`, `outline`, `muted`; `density`: `comfortable`, `compact`; `media`: `plain`, `icon`, `image`. Slots `root`, `media`, `content`, `title`, `description`, `actions`, `overlay`. `Recipes.ItemGroup({ layout: 'divided' \| 'separated' })` over `ItemGroupSlots` (`root`, `row`). |
 | `Avatar` | `{ name, src?, initials?, status?, statusLabel? }`. The root is one `role="img"` named by the person (and the status, "Ada Lovelace, Online"); initials show until the picture covers them. `status` is `online`, `away`, `busy`, `offline`. `src` may be an `AvatarPicture` (`{ asset, provider, width }` from `foldkit-media`), drawn with its 1x and 2x candidates at `width` CSS pixels; a provider with no URL for it leaves the initials. `Avatar.widthOf(size)` is a size's width in CSS pixels. `Avatar.group({ people, max?, label?, moreLabel?, style?, avatarStyle? })` overlaps them and counts the rest as one more avatar. | `size`: `xs` to `xl`; `shape`: `circle`, `rounded`, `square`; `color`: `neutral`, `name` (initials in a hue from the name); `ring`: `none`, `page`, `accent`. Slots `root`, `fallback`, `image`, `status`. `Recipes.AvatarGroup({ overlap: 'tight' \| 'loose' \| 'none' })` over `AvatarGroupSlots` (`root`). |
-| `Badge` | `{ text, tone? }` writes `data-tone`. | `Recipes.Badge({ attribute, tones, appearance? })` maps that attribute; values outside the map keep the base. `appearance`: `tinted` (default), `dot`, `outline`, `solid`. Slot `badge`. |
+| `Badge` | `{ text, tone?, icon?, onDismiss?, href?, external?, words? }` writes `data-tone`; `onDismiss` draws a dismiss button, `href` draws a link (never both). | `Recipes.Badge({ appearance?, size? })`: `appearance` `tinted` (default), `dot`, `outline`, `solid`; `size` `sm`, `md`, `lg`. The tone is the word the badge carries (`accent`, `neutral`, `info`, `success`, `warning`, `danger`); `Recipes.badgeTones(attribute, map)` through `extend` maps an attribute of your own. Slots `badge`, `icon`, `dismiss`. |
 | `Typography` | `{ level, text }`. The level chooses the element (`h1`–`h4`, `lead`, `body`, `small`, `muted`, `quote`, `code`, and the interface roles `display`, `title`, `subtitle`, `caption`, `micro` as paragraphs). | `level`, same set; a role is its size and leading on the size ladder. Defaults to `body`. Slot `text`. |
 | `Separator` | `{ orientation?, label?, decorative? }`, horizontal by default. A `label` sits between two drawn rules and is read as text; `decorative` is `role="none"`. One style draws both orientations. A vertical rule stretches across a flex or grid row, short of it by the inset, and elsewhere (running text) stands as tall as the letters. | `line`: `solid`, `dashed`, `dotted`; `thickness`: `thin`, `thick`; `spacing`: `none`, `sm`, `md`, `lg`; `inset`: `none`, `sm`, `md`. Slots `rule`, `root`, `label`. |
 | `Empty` | `{ title, description?, icon?, action? }`. The title takes the `subtitle` role; the icon is `aria-hidden`. | `media`: `icon`, `illustration`; `frame`: `none`, `dashed`, `filled`; `tone`: `neutral`, `danger`; `size`: `compact`, `comfortable`. Slots `root`, `icon`, `title`, `description`, `action`. |
@@ -2675,22 +2675,26 @@ const BrandButton = Recipes.Button.extend({
 })
 ```
 
-`Recipes.Badge` is a function rather than a variant selection: one style serves badges in every
-state, so every tone is present at once and there is no axis to select. It takes the attribute
-carrying the value and the value-to-tone map; values the map leaves out keep the base pill. It
-reads the shipped tokens, keeps the base in `components` with each tone in `variants`, and a
-toned pill is grounded on its tone's `subtle`, which keeps the tone's hue over a tinted page:
+`Recipes.Badge` is a recipe of two axes, `appearance` and `size`. The tone is not an axis: the view
+writes it as `data-tone`, so one style serves badges of every tone, and the six names of the tone
+vocabulary are in the recipe. A badge toned by an attribute the application already writes maps its
+values with `Recipes.badgeTones` through `extend`; a value the map leaves out keeps the base pill.
+`Recipes.Badge.add` gives it a size or an appearance of your own. A toned pill is grounded on its
+tone's `subtle`, which keeps the tone's hue over a tinted page:
 
 ```ts
-const EntryStyle = Style.forSlots(EntrySlots)(
-  {
-    badge: Recipes.Badge({
-      attribute: 'data-state',
-      tones: { Published: 'success', Changed: 'warning' },
-    }).badge,
-  },
-)
+const EntryStyle = Style.forSlots(EntrySlots)({
+  badge: Recipes.Badge.extend({
+    base: {
+      badge: Recipes.badgeTones('data-state', { Published: 'success', Changed: 'warning' }),
+    },
+  })().badge,
+})
 ```
+
+`Badge.view({ text, icon, onDismiss })` draws an icon before the text and a dismiss button named by
+`words.dismiss` (`'Dismiss {text}'`); `{ text, href, external }` draws the pill as a link. A link
+holds no dismiss button, and the types refuse both.
 
 `Recipes.InputGroup` draws a text field with a prefix or suffix, such as an address's `/`, as one
 box: `group` carries the border, its hover and the focus ring (while the control inside has

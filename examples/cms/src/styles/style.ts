@@ -137,13 +137,15 @@ export const navLink = Style.compose(
 )
 
 /** An entry's state as a pill, colored by its tag: which tone each state takes. */
-export const stateTones: Record<StateTag, Recipes.BadgeTone> = {
+export const stateTones: Record<StateTag, Recipes.Tone> = {
   Published: 'success',
   Changed: 'warning',
   New: 'info',
   Unpublished: 'warning',
-  Archived: 'error',
+  Archived: 'danger',
 }
 
 /** An entry's state as a pill: the recipe with the entry's tones, on the attribute the CMS writes. */
-export const stateBadge = Recipes.Badge({ attribute: Cms.stateAttribute, tones: stateTones }).badge
+export const stateBadge = Recipes.Badge.extend({
+  base: { badge: Recipes.badgeTones(Cms.stateAttribute, stateTones) },
+})().badge

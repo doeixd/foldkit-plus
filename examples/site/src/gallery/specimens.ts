@@ -382,7 +382,7 @@ export const settings = (slots: Slots, h: H): Html =>
         {
           title: 'Plan',
           description: 'Renews on November 1.',
-          action: Badge.view({ text: 'Pro', tone: 'live', style: BadgeStyle }, h),
+          action: Badge.view({ text: 'Pro', tone: 'accent', style: BadgeStyle }, h),
           content: h.div(slots.appForm.attrs(), [
             set(h, 'display', '$48'),
             set(h, 'caption', 'per month, for 12 seats'),

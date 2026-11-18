@@ -191,7 +191,7 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
   carries `data-cms-state` and `data-cms-schedule`.
 - Entry views draw on your own slot builders: `Cms.stateBadge(badge, h, state)`
   (in `Cms.stateAttribute`, as the list's badge; style it with
-  `Recipes.Badge({ attribute: Cms.stateAttribute, tones })`),
+  `Recipes.Badge.extend({ base: { badge: Recipes.badgeTones(Cms.stateAttribute, tones) } })()`),
   `Cms.revisionsOf(model, history)`, `Cms.historyCard(slots, h, history, { state,
   restore, authorName, locale, timeZone })` (both required: the runtime's
   own differ between a server and a browser), `Cms.moreCard(slots, h, { state, may, asks,

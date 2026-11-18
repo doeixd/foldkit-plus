@@ -15,9 +15,7 @@ import type { BadgeAppearance } from '../src/recipes/index.js'
 import { unitKnobs } from './fixture.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
-const style = Style.forSlots(BadgeSlots)(
-  Recipes.Badge({ attribute: 'data-tone', tones: { review: 'warning' } }),
-)
+const style = Style.forSlots(BadgeSlots)(Recipes.Badge())
 const Model = Schema.Struct({})
 
 afterEach(() => {
@@ -49,7 +47,7 @@ test('a badge squeezed in a row keeps its words inside it', async () => {
         h.div(
           [h.Style({ display: 'flex', gap: '8px', width: '120px' })],
           ['In review', 'Failed', 'Archived'].map(text =>
-            Badge.view({ text, tone: 'review', style }, h),
+            Badge.view({ text, tone: 'warning', style }, h),
           ),
         ),
     }),
@@ -73,9 +71,7 @@ const appearances = [
   'solid',
 ] as const satisfies ReadonlyArray<BadgeAppearance>
 const styles = appearances.map(appearance =>
-  Style.forSlots(BadgeSlots)(
-    Recipes.Badge({ attribute: 'data-tone', tones: { live: 'success' }, appearance }),
-  ),
+  Style.forSlots(BadgeSlots)(Recipes.Badge({ appearance })),
 )
 
 const mountAppearances = () => {
@@ -104,7 +100,7 @@ const mountAppearances = () => {
             ...appearances.map((appearance, index) =>
               h.div(
                 [h.DataAttribute('appearance', appearance)],
-                [Badge.view({ text: 'Live', tone: 'live', style: styles[index]! }, h)],
+                [Badge.view({ text: 'Live', tone: 'success', style: styles[index]! }, h)],
               ),
             ),
             // What the theme's tokens compute to, to compare the badges with.
@@ -172,7 +168,7 @@ const paddingAt = async (density: number) => {
       init: () => ({ model: {} }),
       update: (model: typeof Model.Type) => ({ model }),
       view: (_: unknown, h: HtmlBuilder<never>) =>
-        h.div([], [Badge.view({ text: 'New', tone: 'review', style }, h)]),
+        h.div([], [Badge.view({ text: 'New', tone: 'warning', style }, h)]),
     }),
   )
   try {
@@ -200,4 +196,89 @@ test('a badge’s padding is the same at density 1 and grows with the density kn
   const [denseBlock, denseInline] = await paddingAt(1.3)
   expect(denseBlock).toBeCloseTo(block! * 1.3, 1)
   expect(denseInline).toBeCloseTo(inline! * 1.3, 1)
+})
+
+const solid = Style.forSlots(BadgeSlots)(Recipes.Badge({ appearance: 'solid' }))
+const sizes = ['sm', 'md', 'lg'] as const
+const sized = sizes.map(size => Style.forSlots(BadgeSlots)(Recipes.Badge({ size })))
+const tonesOfVocabulary = ['accent', 'neutral', 'info', 'success', 'warning', 'danger'] as const
+
+const mountVocabulary = () => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(
+      Layers.standard.declare,
+      Layers.standard.in('reset', Defaults.reset),
+      Layers.standard.in('theme', Theme.root(theme)),
+    ) + [solid, ...sized].map(each => each.css).join('')
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'badge-vocabulary'
+  document.body.appendChild(container)
+  return Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: {} }),
+      update: (model: typeof Model.Type) => ({ model }),
+      view: (_: unknown, h: HtmlBuilder<never>) =>
+        h.div(
+          [],
+          [
+            ...tonesOfVocabulary.map(tone =>
+              h.div(
+                [h.DataAttribute('solid', tone)],
+                [Badge.view({ text: tone, tone, style: solid }, h)],
+              ),
+            ),
+            ...sizes.map((size, index) =>
+              h.div(
+                [h.DataAttribute('size', size)],
+                [Badge.view({ text: 'Size', style: sized[index]! }, h)],
+              ),
+            ),
+            ...['accent-default', 'error-default', 'success-default', 'text-muted'].map(name =>
+              h.span([h.DataAttribute('token', name), h.Style({ color: `var(--fk-${name})` })], []),
+            ),
+          ],
+        ),
+    }),
+  )
+}
+
+test('every tone of the vocabulary fills a solid badge with its family, danger with the error one', async () => {
+  const handle = mountVocabulary()
+  try {
+    await vi.waitFor(() => expect(document.querySelector('[data-token]')).not.toBeNull())
+    const fillOf = (tone: string) =>
+      getComputedStyle(document.querySelector(`[data-solid="${tone}"] > *`)!).backgroundColor
+    expect(fillOf('accent')).toBe(token('accent-default'))
+    expect(fillOf('danger')).toBe(token('error-default'))
+    expect(fillOf('success')).toBe(token('success-default'))
+    expect(fillOf('neutral')).toBe(token('text-muted'))
+    // Each tone has a fill of its own.
+    expect(new Set(tonesOfVocabulary.map(fillOf)).size).toBe(tonesOfVocabulary.length)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('the sizes step the text and the pill grows with it', async () => {
+  const handle = mountVocabulary()
+  try {
+    await vi.waitFor(() => expect(document.querySelector('[data-size]')).not.toBeNull())
+    const [small, medium, large] = sizes.map(size => {
+      const badge = document.querySelector(`[data-size="${size}"] > *`)!
+      return {
+        font: Number.parseFloat(getComputedStyle(badge).fontSize),
+        height: badge.getBoundingClientRect().height,
+      }
+    })
+    expect(small!.font).toBeLessThan(medium!.font)
+    expect(medium!.font).toBeLessThan(large!.font)
+    expect(small!.height).toBeLessThan(large!.height)
+  } finally {
+    handle.dispose()
+  }
 })

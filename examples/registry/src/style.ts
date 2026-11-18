@@ -159,7 +159,9 @@ export const PaneSwitchStyle = demoStyle.forSlots(SegmentedSlots)(Recipes.Segmen
 })
 /** Where a device's edits stand: settled, or waiting on the device. */
 export const DeviceBadgeStyle = demoStyle.forSlots(BadgeSlots)(
-  Recipes.Badge({ attribute: 'data-tone', tones: { synced: 'success', waiting: 'warning' } }),
+  Recipes.Badge.extend({
+    base: { badge: Recipes.badgeTones('data-tone', { synced: 'success', waiting: 'warning' }) },
+  })(),
   { name: 'DeviceBadgeStyle' },
 )
 

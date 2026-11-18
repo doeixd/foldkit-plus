@@ -44,7 +44,9 @@ export const NoticeStyle = demoStyle.forSlots(AlertSlots)(Recipes.Alert({ tone: 
 })
 /** One style for every badge: its tone comes from the word it carries. */
 export const BadgeStyle = demoStyle.forSlots(BadgeSlots)(
-  Recipes.Badge({ attribute: 'data-tone', tones: { member: 'success', admin: 'info' } }),
+  Recipes.Badge.extend({
+    base: { badge: Recipes.badgeTones('data-tone', { member: 'success', admin: 'info' }) },
+  })(),
   { name: 'BadgeStyle' },
 )
 

@@ -11,7 +11,7 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { Avatar, AvatarSlots, Badge, BadgeSlots, Recipes } from '../src/index.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
-const badgeStyle = Style.forSlots(BadgeSlots)(Recipes.Badge({ attribute: 'data-tone', tones: {} }))
+const badgeStyle = Style.forSlots(BadgeSlots)(Recipes.Badge())
 const avatarStyle = Style.forSlots(AvatarSlots)(Recipes.Avatar({}))
 const Model = Schema.Struct({})
 

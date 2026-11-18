@@ -36,10 +36,15 @@ export const ViewerStyle = demoStyle.forSlots(SegmentedSlots)(Recipes.Segmented(
 })
 /** Where a reader stands against SQLite: it agrees, it disagrees, or it did not answer. */
 export const MarkStyle = demoStyle.forSlots(BadgeSlots)(
-  Recipes.Badge({
-    attribute: 'data-tone',
-    tones: { agree: 'success', disagree: 'error', refused: 'warning' },
-  }),
+  Recipes.Badge.extend({
+    base: {
+      badge: Recipes.badgeTones('data-tone', {
+        agree: 'success',
+        disagree: 'danger',
+        refused: 'warning',
+      }),
+    },
+  })(),
   { name: 'LanguageMark' },
 )
 

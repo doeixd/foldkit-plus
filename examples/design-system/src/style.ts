@@ -533,10 +533,16 @@ export const StatusStyle = app.slots(
   {
     row: L.in('layouts', Layout.cluster({ gap: t.space.sm, align: 'center' })),
     badge: [
-      Recipes.Badge({
-        attribute: 'data-state',
-        tones: { ok: 'success', warn: 'warning', info: 'info', bad: 'error' },
-      }).badge,
+      Recipes.Badge.extend({
+        base: {
+          badge: Recipes.badgeTones('data-state', {
+            ok: 'success',
+            warn: 'warning',
+            info: 'info',
+            bad: 'danger',
+          }),
+        },
+      })().badge,
     ],
   },
   { name: 'StatusStyle' },
@@ -823,10 +829,15 @@ export const ContrastStyle = app.slots(
     label: [U.m('0'), U.text('sm'), U.color('text.default')],
     ratio: [U.m('0'), U.text('sm'), U.color('text.muted'), { fontVariantNumeric: 'tabular-nums' }],
     grade: [
-      Recipes.Badge({
-        attribute: 'data-state',
-        tones: { ok: 'success', warn: 'warning', bad: 'error' },
-      }).badge,
+      Recipes.Badge.extend({
+        base: {
+          badge: Recipes.badgeTones('data-state', {
+            ok: 'success',
+            warn: 'warning',
+            bad: 'danger',
+          }),
+        },
+      })().badge,
       { justifySelf: 'start' },
     ],
   },

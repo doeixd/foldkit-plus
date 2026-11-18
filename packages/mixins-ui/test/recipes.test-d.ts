@@ -73,26 +73,29 @@ Recipes.Segmented({ tray: 'plain', size: 'sm' })
 // @ts-expect-error a tray the recipe does not offer.
 Recipes.Segmented({ tray: 'box' })
 
-Recipes.Badge({
-  attribute: 'data-state',
-  tones: { Published: 'success', Changed: 'warning' },
-})
+Recipes.Badge({ appearance: 'solid', size: 'sm' })
 
-// @ts-expect-error a badge tone is one of the four palette families.
-Recipes.Badge({ attribute: 'data-state', tones: { Published: 'brand' } })
+// @ts-expect-error a badge appearance the recipe does not offer.
+Recipes.Badge({ appearance: 'ghost' })
 
-// @ts-expect-error the badge's attribute is required.
-Recipes.Badge({ tones: { Published: 'success' } })
+// @ts-expect-error tone is not an axis: the view writes it as `data-tone`.
+Recipes.Badge({ tone: 'success' })
+
+Recipes.badgeTones('data-state', { Published: 'success', Changed: 'warning' })
+
+// @ts-expect-error a badge tone is one of the vocabulary, and `error` is `danger` there.
+Recipes.badgeTones('data-state', { Published: 'error' })
 
 // The README's Badge section, kept compiling.
 const EntrySlots = Slots.define({
   badge: Slot.make({ capability: Capability.Container }),
 })
 const EntryStyle = Style.forSlots(EntrySlots)({
-  badge: Recipes.Badge({
-    attribute: 'data-state',
-    tones: { Published: 'success', Changed: 'warning' },
-  }).badge,
+  badge: Recipes.Badge.extend({
+    base: {
+      badge: Recipes.badgeTones('data-state', { Published: 'success', Changed: 'warning' }),
+    },
+  })().badge,
 })
 void EntryStyle
 

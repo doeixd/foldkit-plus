@@ -21,9 +21,9 @@ export default [
     name: 'an example names no region',
     edits: [
       {
-        file: '../src/gallery/previews/badge.ts',
-        find: "{ name: 'dot',",
-        replace: "{ name: 'dotted',",
+        file: '../src/gallery/previews/checkbox.ts',
+        find: "name: 'basic',\n      title: 'Basic',",
+        replace: "name: 'basics',\n      title: 'Basic',",
       },
     ],
     tests,

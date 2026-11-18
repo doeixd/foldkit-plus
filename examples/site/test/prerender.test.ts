@@ -371,15 +371,6 @@ describe('the generated site', () => {
         ],
       ],
       [
-        'badge',
-        [
-          ['tinted', 'Tinted', 'badgesTinted'],
-          ['dot', 'Dot', 'badgesDot'],
-          ['outline', 'Outline', 'badgesOutline'],
-          ['solid', 'Solid', 'badgesSolid'],
-        ],
-      ],
-      [
         'checkbox',
         [
           ['basic', 'Basic', 'checkbox'],
