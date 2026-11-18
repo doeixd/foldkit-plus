@@ -208,6 +208,17 @@ export default [
     tests,
   },
   {
+    name: 'a link drawn as the ellipsis is underlined',
+    edits: [
+      {
+        file: '../src/recipes/breadcrumb.ts',
+        find: "        // A fold of your own may draw a link, which the browser underlines.\n        textDecoration: 'none',\n",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
     name: "the ellipsis loses to the Menu style's trigger",
     edits: [
       {

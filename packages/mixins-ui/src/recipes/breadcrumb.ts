@@ -86,6 +86,8 @@ export const Breadcrumb = Style.recipeFor(BreadcrumbSlots)({
         color: ref.text.muted,
         font: 'inherit',
         cursor: 'pointer',
+        // A fold of your own may draw a link, which the browser underlines.
+        textDecoration: 'none',
       }),
       hover({ background: unfilledHover, color: ref.text.overt }),
       focusRing,

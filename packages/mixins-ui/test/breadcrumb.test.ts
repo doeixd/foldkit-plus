@@ -232,6 +232,11 @@ describe('Breadcrumb recipe', () => {
     expect(sheet).toContain('"/"')
   })
 
+  it('draws the ellipsis plain, even as a link a fold of your own draws', () => {
+    // The link's own rule and the ellipsis's.
+    expect(css({}).split('text-decoration:none')).toHaveLength(3)
+  })
+
   it('draws a chevron, turned for right to left, or a dot in place of the slash', () => {
     const chevron = css({ separator: 'chevron' })
     expect(chevron).not.toContain('"/"')
