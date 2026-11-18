@@ -10,9 +10,9 @@ export default [
     name: 'two examples share a name',
     edits: [
       {
-        file: '../src/gallery/previews/alert.ts',
-        find: "      name: 'banner',",
-        replace: "      name: 'inline',",
+        file: '../src/gallery/previews/avatar.ts',
+        find: "{ name: 'picture', example: picture }",
+        replace: "{ name: 'pictures', example: picture }",
       },
     ],
     tests,
@@ -33,8 +33,8 @@ export default [
     edits: [
       {
         file: '../src/snippets/components.ts',
-        find: '// #region alert-inline',
-        replace: '// #region alert-inlines',
+        find: '// #region checkbox-basic',
+        replace: '// #region checkbox-basics',
       },
     ],
     tests,

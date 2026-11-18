@@ -28,11 +28,6 @@ import type { H, Slots } from './layout.js'
 export const liveOf = (model: Model, h: H): Live<Message> => ({
   switched: model.switched,
   onSwitch: on => Message.ToggledSwitch({ on }),
-  chosen: model.chosenCard,
-  onChoose: key => Message.ChoseCard({ key }),
-  dismissed: model.cardDismissed,
-  onDismiss: Message.DismissedCard(),
-  onRestore: Message.RestoredCard(),
   direction: model.direction,
   widgets: model.widgets,
   onWidget: message => Message.GotWidget({ message }),

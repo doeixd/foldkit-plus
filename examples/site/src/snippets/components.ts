@@ -27,7 +27,6 @@ import type * as UiVirtualList from '@foldkit/ui/virtualList'
 import type { AnchorConfig } from '@foldkit/ui/anchor'
 import * as UiFieldset from '@foldkit/ui/fieldset'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { ImageAsset, Layout, Provider } from 'foldkit-media'
 import { Behaviors, SlotView, type NamedStyle } from 'foldkit-mixins'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
 import { Theme } from 'foldkit-mixins/theme'
@@ -43,7 +42,6 @@ import {
   DrawerSlots,
   HoverIntent,
   HoverIntentSlots,
-  Alert,
   AlertSlots,
   Avatar,
   AvatarGroupSlots,
@@ -54,7 +52,6 @@ import {
   ButtonSlots,
   CalendarSlots,
   Card,
-  CardGroupSlots,
   CardSlots,
   CheckboxGroup,
   CheckboxGroupSlots,
@@ -105,7 +102,6 @@ import {
   Input,
   InputSlots,
   Item,
-  ItemGroupSlots,
   ItemSlots,
   Kbd,
   KbdSlots,
@@ -126,8 +122,6 @@ import {
   Separator,
   SeparatorSlots,
   Sheet,
-  Skeleton,
-  SkeletonSlots,
   Slider,
   SliderSlots,
   Spinner,
@@ -186,18 +180,12 @@ import {
   type ToolbarControl,
   FileInput,
   FileInputSlots,
-  AspectRatio,
-  AspectRatioSlots,
   CodeBlock,
   CodeBlockSlots,
   Fieldset,
   FieldsetSlots,
-  Figure,
-  FigureSlots,
   Icon,
   IconSlots,
-  Image,
-  ImageSlots,
   Label,
   LabelSlots,
 } from 'foldkit-mixins-ui'
@@ -215,243 +203,9 @@ const GroupedStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', var
 /** The badge the specimen's plan card carries. */
 export const BadgeStyle = forSlots(BadgeSlots)(Recipes.Badge())
 
-// #region alert-inline
 export const AlertStyle = forSlots(AlertSlots)(Recipes.Alert({}))
 
-// Inline, a status inside the content.
-export const alertInline = (style: NamedStyle<typeof AlertSlots>, h: HtmlBuilder<never>): Html =>
-  Alert.view(
-    {
-      layout: 'inline',
-      title: 'A new version is out',
-      description: 'Reload to pick up the latest fixes. Your drafts are kept.',
-      actions: [{ label: 'Reload', href: '#' }],
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region alert-banner
-// As a banner, a named landmark across the page.
-export const alertBanner = (style: NamedStyle<typeof AlertSlots>, h: HtmlBuilder<never>): Html =>
-  Alert.view(
-    {
-      layout: 'banner',
-      label: 'Announcement',
-      title: 'Version 2 is out, with offline sync.',
-      actions: [{ label: 'Read the notes', href: '#' }],
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region card-basic
 export const CardStyle = forSlots(CardSlots)(Recipes.Card({}))
-
-/** A sparkle in the text's color, for the card's media tile. */
-const sparkle = <Message>(h: HtmlBuilder<Message>): Html =>
-  h.svg(
-    [h.ViewBox('0 0 16 16'), h.Attribute('fill', 'currentColor'), h.AriaHidden(true)],
-    [h.path([h.Attribute('d', 'M8 0l2 6 6 2-6 2-2 6-2-6-6-2 6-2z')], [])],
-  )
-
-/** Whether the card was dismissed, and the Messages that dismiss it and bring it back. */
-export interface Dismissal<Message> {
-  readonly dismissed: boolean
-  readonly onDismiss: Message
-  readonly onRestore: Message
-}
-
-export const card = <Message>(
-  style: NamedStyle<typeof CardSlots>,
-  dismissal: Dismissal<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  dismissal.dismissed
-    ? Button.view(
-        { label: 'Bring the card back', onClick: dismissal.onRestore, style: ButtonStyle },
-        h,
-      )
-    : Card.view(
-        {
-          media: sparkle(h),
-          title: 'Invite your team',
-          description: 'Everyone you invite can edit every page.',
-          action: Badge.view({ text: 'New', tone: 'live', style: BadgeStyle }, h),
-          content: h.p([], ['Three seats left on the Starter plan.']),
-          footer: Button.view({ label: 'Send invites', style: ButtonStyle }, h),
-          dismiss: { onDismiss: dismissal.onDismiss },
-          style,
-        },
-        h,
-      )
-// #endregion
-
-// #region card-stat
-// A number with what it counts and how it moved: the content is the figure.
-export const cardStat = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<never>): Html =>
-  Card.view(
-    {
-      title: 'Monthly revenue',
-      description: 'Up 12% on September',
-      action: Badge.view({ text: '+12%', tone: 'live', style: BadgeStyle }, h),
-      content: h.p([h.Style({ margin: '0', fontSize: '2rem', fontWeight: '600' })], ['$48,210']),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region card-media
-// A picture across the top, bled to the card's edges.
-export const cardMedia = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<never>): Html =>
-  Card.view(
-    {
-      image: h.img([h.Src(portrait(200)), h.Alt('')]),
-      title: 'Lisbon in spring',
-      description: 'Six days of trams, tiles and long lunches.',
-      footer: Button.view({ label: 'Read the guide', style: ButtonStyle }, h),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region card-profile
-export const CardProfileAvatarStyle = forSlots(AvatarSlots)(
-  Recipes.Avatar({ size: 'lg', color: 'name' }),
-)
-
-// A person: their avatar leading in the media's place, a name and a role.
-export const cardProfile = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<never>): Html =>
-  Card.view(
-    {
-      media: Avatar.view(
-        { name: 'Ada Lovelace', status: 'online', style: CardProfileAvatarStyle },
-        h,
-      ),
-      title: 'Ada Lovelace',
-      description: 'Analyst, Engine team',
-      footer: Button.view({ label: 'Message', style: ButtonStyle }, h),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region card-link
-export const CardLinkStyle = forSlots(CardSlots)(Recipes.Card({ lift: 'hover' }))
-
-// A whole card that goes somewhere: one link named by its title, lifting under the pointer.
-export const cardLink = (style: NamedStyle<typeof CardSlots>, h: HtmlBuilder<never>): Html =>
-  Card.view(
-    {
-      media: sparkle(h),
-      title: 'Read the changelog',
-      description: 'Everything that shipped this month.',
-      press: { href: 'https://github.com/doeixd/foldkit-plus/blob/main/CHANGELOG.md' },
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region card-elevation
-export const CardLevels = (['0', '1', '2', '3'] as const).map(elevation =>
-  forSlots(CardSlots)(Recipes.Card({ surface: 'elevated', elevation })),
-)
-
-// Each level one more step above what holds it: lighter on a dark page, a
-// deeper contact and ambient shadow on a light one.
-export const cardElevation = (h: HtmlBuilder<never>): Html =>
-  h.div(
-    [
-      h.Style({
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))',
-        gap: '1.5rem',
-      }),
-    ],
-    CardLevels.map((style, level) =>
-      Card.view({ title: `Level ${level}`, description: `elevation: '${level}'`, style }, h),
-    ),
-  )
-// #endregion
-
-// #region card-group-plans
-export const CardGroupStyle = forSlots(CardGroupSlots)(Recipes.CardGroup({}))
-export const PlanStyle = forSlots(CardSlots)(
-  Recipes.Card({ surface: 'plain', orientation: 'inline' }),
-)
-
-const plans = [
-  { key: 'starter', title: 'Starter', description: 'One editor and three pages.', price: 'Free' },
-  { key: 'team', title: 'Team', description: 'Ten editors and every page.', price: '$12' },
-  { key: 'business', title: 'Business', description: 'Sign-on and audit logs.', price: '$40' },
-  { key: 'enterprise', title: 'Enterprise', description: 'Talk to us first.', price: 'Soon' },
-] as const
-
-/** The plan chosen, by key, and the Message that chooses another. */
-export interface Choice<Message> {
-  readonly chosen: string
-  readonly onChoose: (key: string) => Message
-}
-
-export const cardGroup = <Message>(
-  style: NamedStyle<typeof CardGroupSlots>,
-  choice: Choice<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Card.group(
-    {
-      fluid: Card.fluid,
-      label: 'Plans',
-      cards: plans.map(plan => ({
-        key: plan.key,
-        title: plan.title,
-        description: plan.description,
-        footer: h.span([], [plan.price]),
-        selected: plan.key === choice.chosen,
-        disabled: plan.key === 'enterprise',
-        press: { onClick: choice.onChoose(plan.key) },
-      })),
-      style,
-      cardStyle: PlanStyle,
-    },
-    h,
-  )
-// #endregion
-
-// #region card-group-grid
-export const CardGridStyle = forSlots(CardGroupSlots)(Recipes.CardGroup({ layout: 'separated' }))
-export const CardGridCardStyle = forSlots(CardSlots)(Recipes.Card({}))
-
-// Cards as one choice in a grid: the highlight follows the pointer both ways.
-export const cardGroupGrid = <Message>(
-  style: NamedStyle<typeof CardGroupSlots>,
-  choice: Choice<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Card.group(
-    {
-      fluid: Card.fluid,
-      label: 'Regions',
-      columns: 2,
-      cards: ['Frankfurt', 'Virginia', 'Singapore', 'São Paulo'].map(title => ({
-        key: title,
-        title,
-        description: 'Under 40ms from most of the region',
-        selected: title === choice.chosen,
-        press: { onClick: choice.onChoose(title) },
-      })),
-      style,
-      cardStyle: CardGridCardStyle,
-    },
-    h,
-  )
-// #endregion
 
 // #region input-basic
 export const InputStyle = forSlots(InputSlots)(Recipes.Input({}))
@@ -1229,67 +983,6 @@ export const separatorDashed = (
 }
 // #endregion
 
-// #region skeleton-basic
-export const SkeletonStyle = forSlots(SkeletonSlots)(Recipes.Skeleton({}))
-
-export const skeleton = (style: NamedStyle<typeof SkeletonSlots>, h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.5rem', inlineSize: 'min(20rem, 100%)' })],
-    [
-      Skeleton.view({ label: 'Loading the profile', style }, h),
-      Skeleton.view({ style }, h),
-      Skeleton.view({ style }, h),
-    ],
-  )
-// #endregion
-
-// #region skeleton-lines
-// A paragraph still loading: whole lines, the last one ending early.
-export const skeletonLines = (
-  style: NamedStyle<typeof SkeletonSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  h.div(
-    [h.Style({ inlineSize: 'min(24rem, 100%)' })],
-    [Skeleton.lines({ lines: 4, label: 'Loading the article', style }, h)],
-  )
-// #endregion
-
-// #region skeleton-shapes
-// The shapes content will take: a person, a card, rows of a table.
-export const skeletonShapes = (
-  style: NamedStyle<typeof SkeletonSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '1.5rem', inlineSize: 'min(24rem, 100%)' })],
-    [
-      Skeleton.avatarRow({ label: 'Loading the author', style }, h),
-      Skeleton.card({ label: 'Loading the post', style }, h),
-      h.div(
-        [],
-        [1, 2, 3].map(() => Skeleton.tableRow({ columns: 4, label: 'Loading a row', style }, h)),
-      ),
-    ],
-  )
-// #endregion
-
-// #region skeleton-shimmer
-export const SkeletonShimmerStyle = forSlots(SkeletonSlots)(
-  Recipes.Skeleton({ animation: 'shimmer' }),
-)
-
-// A band of the page sweeping across; still under reduced motion.
-export const skeletonShimmer = (
-  style: NamedStyle<typeof SkeletonSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  h.div(
-    [h.Style({ inlineSize: 'min(24rem, 100%)' })],
-    [Skeleton.avatarRow({ label: 'Loading the author', style }, h)],
-  )
-// #endregion
-
 // #region spinner-basic
 export const SpinnerStyle = forSlots(SpinnerSlots)(Recipes.Spinner({}))
 
@@ -1524,138 +1217,6 @@ export const tableSticky = (style: NamedStyle<typeof TableSlots>, h: HtmlBuilder
   h.div(
     [h.Style({ maxBlockSize: '16rem', overflow: 'auto' })],
     [Table.view<Invoice>({ columns: invoiceColumns, rows: manyInvoices, style }, h)],
-  )
-// #endregion
-
-// #region item-basic
-export const ItemStyle = forSlots(ItemSlots)(Recipes.Item({}))
-
-export const item = (style: NamedStyle<typeof ItemSlots>, h: HtmlBuilder<never>): Html =>
-  Item.view(
-    {
-      // A status mark in the success color, not a bare black dot that read as a list bullet.
-      media: h.span(
-        [
-          h.AriaHidden(true),
-          h.Style({
-            display: 'block',
-            inlineSize: '0.5rem',
-            blockSize: '0.5rem',
-            borderRadius: '50%',
-            background: 'oklch(0.62 0.15 150)',
-          }),
-        ],
-        [],
-      ),
-      title: 'Deploy finished',
-      description: '2 minutes ago',
-      content: h.span([], ['Production is live.']),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region item-settings
-export const SettingsListStyle = forSlots(ItemGroupSlots)(Recipes.ItemGroup({}))
-export const SettingsRowStyle = forSlots(ItemSlots)(Recipes.Item({ media: 'icon' }))
-
-// Settings: a list of rows, each one control that opens its page.
-export const itemSettings = (style: NamedStyle<typeof ItemSlots>, h: HtmlBuilder<never>): Html =>
-  Item.group(
-    {
-      label: 'Settings',
-      items: [
-        // Pages of this site, standing in for an application's settings pages.
-        { key: 'avatar', title: 'Profile', description: 'Name, photo and email' },
-        { key: 'password-input', title: 'Security', description: 'Passkeys and sessions' },
-        { key: 'pagination', title: 'Billing', description: 'Plan and invoices' },
-      ].map(row => ({ ...row, media: sparkle(h), press: { href: `/components/${row.key}` } })),
-      style: SettingsListStyle,
-      itemStyle: style,
-    },
-    h,
-  )
-// #endregion
-
-// #region item-selectable
-// Rows as a choice: the chosen one is pressed and keeps a film of its text.
-export const itemSelectable = <Message>(
-  style: NamedStyle<typeof ItemSlots>,
-  choice: Choice<Message>,
-  h: HtmlBuilder<Message>,
-): Html =>
-  Item.group(
-    {
-      label: 'Plan',
-      items: ['Starter', 'Team', 'Business'].map(title => ({
-        key: title,
-        title,
-        selected: title === choice.chosen,
-        press: { onClick: choice.onChoose(title) },
-      })),
-      itemStyle: style,
-    },
-    h,
-  )
-// #endregion
-
-// #region empty-results
-export const EmptyResultsStyle = forSlots(EmptySlots)(Recipes.Empty({}))
-
-// No results: say what was looked for, and offer the way out.
-export const emptyResults = (style: NamedStyle<typeof EmptySlots>, h: HtmlBuilder<never>): Html =>
-  Empty.view(
-    {
-      icon: sparkle(h),
-      title: 'No results for “invoices 2019”',
-      description: 'Check the spelling, or search every folder.',
-      action: Button.view({ label: 'Search everywhere', style: ButtonStyle }, h),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region empty-first-use
-export const EmptyFirstUseStyle = forSlots(EmptySlots)(Recipes.Empty({ frame: 'dashed' }))
-
-// First use: a dashed frame where the first item will go.
-export const emptyFirstUse = (style: NamedStyle<typeof EmptySlots>, h: HtmlBuilder<never>): Html =>
-  Empty.view(
-    {
-      icon: sparkle(h),
-      title: 'No projects yet',
-      description: 'Projects hold your pages and the people who edit them.',
-      action: h.div(
-        [h.Style({ display: 'flex', gap: '0.5rem' })],
-        [
-          Button.view({ label: 'New project', style: ButtonStyle }, h),
-          Button.view({ label: 'Import', style: ButtonStyle }, h),
-        ],
-      ),
-      style,
-    },
-    h,
-  )
-// #endregion
-
-// #region empty-error
-export const EmptyErrorStyle = forSlots(EmptySlots)(
-  Recipes.Empty({ tone: 'danger', frame: 'filled' }),
-)
-
-// A load that failed: the icon in the error's ink, and a retry.
-export const emptyError = (style: NamedStyle<typeof EmptySlots>, h: HtmlBuilder<never>): Html =>
-  Empty.view(
-    {
-      icon: sparkle(h),
-      title: 'Could not load your projects',
-      description: 'The server did not answer. Your work is safe.',
-      action: Button.view({ label: 'Try again', style: ButtonStyle }, h),
-      style,
-    },
-    h,
   )
 // #endregion
 
@@ -7420,63 +6981,6 @@ export const picker = <Message>(
   )
 // #endregion
 
-// #region aspect-ratio-basic
-export const AspectRatioStyle = forSlots(AspectRatioSlots)(Recipes.AspectRatio({}))
-
-// The frame holds its ratio before its content arrives, so nothing below it
-// moves when the picture does. The content fills it; the ratio is the style's.
-export const aspectRatio = (
-  style: NamedStyle<typeof AspectRatioSlots>,
-  h: HtmlBuilder<never>,
-): Html =>
-  h.div(
-    [h.Style({ inlineSize: 'min(100%, 20rem)' })],
-    [
-      AspectRatio.view(
-        {
-          content: h.div(
-            [
-              h.Style({
-                display: 'grid',
-                placeItems: 'center',
-                blockSize: '100%',
-                background: token.surface.muted,
-              }),
-            ],
-            ['Reserved before it loads'],
-          ),
-          style,
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
-
-// #region figure-basic
-export const FigureStyle = forSlots(FigureSlots)(Recipes.Figure({}))
-
-// A `figure` whose caption names it for assistive technology on its own: the
-// caption needs no ARIA. The content is anything: a picture, a chart, a quote.
-export const figure = (style: NamedStyle<typeof FigureSlots>, h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ inlineSize: 'min(100%, 22rem)' })],
-    [
-      Figure.view(
-        {
-          content: CodeBlock.view(
-            { code: 'const total = items.length', language: 'ts', style: CodeBlockStyle },
-            h,
-          ),
-          caption: 'Listing 1. The count is read, never stored.',
-          style,
-        },
-        h,
-      ),
-    ],
-  )
-// #endregion
-
 // #region label-basic
 export const LabelStyle = forSlots(LabelSlots)(Recipes.Label({}))
 
@@ -7607,60 +7111,4 @@ export const fieldset = (style: NamedStyle<typeof FieldsetSlots>, h: HtmlBuilder
     [group('shipping', false), group('billing', true)],
   )
 }
-// #endregion
-
-// #region image-basic
-export const ImageStyle = forSlots(ImageSlots)(Recipes.Image({ ratio: 'video', radius: 'md' }))
-
-// What the page knows of a file: its size and what stands in for it while it
-// loads. An application gets these from `foldkit-media`'s build step.
-const DUNES = Schema.decodeUnknownSync(ImageAsset)({
-  key: 'dunes.svg',
-  width: 800,
-  height: 500,
-  alpha: false,
-  hash: null,
-  placeholder: { _tag: 'Color', value: '#d9c7a3' },
-})
-
-const dunesUrl = `data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500"><rect width="800" height="500" fill="#e9d8b4"/><path d="M0 360 C200 260 330 420 520 330 S760 300 800 340 V500 H0Z" fill="#c9a870"/><circle cx="610" cy="130" r="52" fill="#f6efe0"/></svg>',
-)}`
-
-// Where its variants live: here one file per width, in a real build the
-// provider that wrote them (`Provider.hosted`, `Provider.cloudflare`).
-const dunes = Provider.fromFiles(
-  [400, 800].map(width => ({ width, format: 'webp' as const, url: dunesUrl })),
-  { sources: [], fallback: 'webp' },
-)
-
-// `alt` is required: words for what the picture shows, or `Image.decorative`
-// for ornament. The frame holds the box (the asset's ratio, or the recipe's
-// crop) before the file arrives, so the page does not move when it does.
-export const image = (style: NamedStyle<typeof ImageSlots>, h: HtmlBuilder<never>): Html =>
-  h.div(
-    [h.Style({ display: 'grid', gap: '0.75rem', inlineSize: 'min(100%, 24rem)' })],
-    [
-      Image.view(
-        {
-          asset: DUNES,
-          provider: dunes,
-          layout: Layout.Constrained({ width: 400 }),
-          alt: 'Dunes under a pale sun',
-          style,
-        },
-        h,
-      ),
-      Image.view(
-        {
-          asset: DUNES,
-          provider: dunes,
-          layout: Layout.Constrained({ width: 200 }),
-          alt: Image.decorative,
-          style,
-        },
-        h,
-      ),
-    ],
-  )
 // #endregion

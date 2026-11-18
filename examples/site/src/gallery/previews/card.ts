@@ -1,35 +1,26 @@
-import type { NamedStyle } from 'foldkit-mixins'
 import { CardSlots, Recipes } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
+import basic from '../../examples/card/basic.js'
+import elevation from '../../examples/card/elevation.js'
+import link from '../../examples/card/link.js'
+import media from '../../examples/card/media.js'
+import profile from '../../examples/card/profile.js'
+import stat from '../../examples/card/stat.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
-import type { Live } from '../showcase.js'
-
-const cardBasic = <Message>(style: NamedStyle<typeof CardSlots>, live: Live<Message>) =>
-  Snippet.card(
-    style,
-    { dismissed: live.dismissed, onDismiss: live.onDismiss, onRestore: live.onRestore },
-    live.h,
-  )
+import { fromRecipe } from '../define.js'
 
 export const showcase = fromRecipe(
   about('card'),
   CardSlots,
   Recipes.Card,
-  cardBasic,
+  basic,
   undefined,
   [
-    { name: 'basic', title: 'Basic', draw: cardBasic },
-    { name: 'stat', title: 'A figure', draw: style => Snippet.cardStat(style, inert) },
-    { name: 'media', title: 'Media', draw: style => Snippet.cardMedia(style, inert) },
-    { name: 'profile', title: 'A person', draw: style => Snippet.cardProfile(style, inert) },
-    {
-      name: 'link',
-      title: 'A link',
-      draw: style => Snippet.cardLink(style, inert),
-      pins: { lift: 'hover' },
-    },
-    { name: 'elevation', title: 'Elevation', draw: () => Snippet.cardElevation(inert) },
+    { name: 'basic', example: basic },
+    { name: 'stat', example: stat },
+    { name: 'media', example: media },
+    { name: 'profile', example: profile },
+    { name: 'link', example: link },
+    { name: 'elevation', example: elevation },
   ],
   {
     // The recipe reads elevation for these two surfaces only; a filled or plain card is flat.

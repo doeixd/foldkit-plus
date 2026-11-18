@@ -27,11 +27,6 @@ export const previewOf =
           {
             switched: false,
             onSwitch: () => msg,
-            chosen: 'team',
-            onChoose: () => msg,
-            dismissed: false,
-            onDismiss: msg,
-            onRestore: msg,
             direction: 'ltr',
             widgets: Widgets.initial,
             onWidget: () => msg,

@@ -917,10 +917,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       Option.contains(model.stay, value)
         ? { model }
         : { model: modifyFields(model, { stay: () => Option.some(value) }) },
-    ChoseRegion: ({ region }) =>
-      region === model.region
-        ? { model }
-        : { model: modifyFields(model, { region: () => region }) },
     TypedNote: ({ example, value }) =>
       model.notes[example] === value
         ? { model }
@@ -1025,8 +1021,6 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
     OpenedPanel: () => panelStep(model, FloatingPanel.open(model.panels.notes)),
     GotTour: ({ message }) => foldTour(model, message),
     StartedTour: () => startTour(model),
-    ChosePlan: ({ plan }) =>
-      plan === model.plan ? { model } : { model: modifyFields(model, { plan: () => plan }) },
     SortedInvoices: ({ column }) => ({
       model: modifyFields(model, { invoiceSort: () => Table.nextSort(model.invoiceSort, column) }),
     }),

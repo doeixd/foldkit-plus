@@ -364,13 +364,6 @@ describe('the generated site', () => {
   test('a showcase with examples shows each with its preview, code and link', () => {
     for (const [slug, examples] of [
       [
-        'alert',
-        [
-          ['inline', 'Inline', 'alertInline'],
-          ['banner', 'Banner', 'alertBanner'],
-        ],
-      ],
-      [
         'checkbox',
         [
           ['basic', 'Basic', 'checkbox'],

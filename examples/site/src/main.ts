@@ -78,9 +78,6 @@ export const Model = Schema.Struct({
   selection: Schema.Record(Schema.String, Schema.String),
   /** What the previews' own controls hold. */
   switched: Schema.Boolean,
-  /** The card chosen in the card group's preview, by key. */
-  chosenCard: Schema.String,
-  cardDismissed: Schema.Boolean,
   /** What the Primitives gallery's `Resize` example last reported. */
   observed: Schema.Struct({ width: Schema.Number, height: Schema.Number }),
   /** The previews with state of their own: tabs, a dialog, a slider and the rest. */
@@ -119,9 +116,6 @@ export const Message = defineMessageUnion({
   FoundThemeAddress: { query: Schema.String },
   PickedVariant: { axis: Schema.String, value: Schema.String },
   ToggledSwitch: { on: Schema.Boolean },
-  ChoseCard: { key: Schema.String },
-  DismissedCard: {},
-  RestoredCard: {},
   /** What the `Resize` and `Autofocus` Mounts of the Primitives gallery send. */
   Resized: { width: Schema.Number, height: Schema.Number },
   Focused: {},
@@ -402,18 +396,6 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
         : { model: modifyFields(model, { selection: picked => ({ ...picked, [axis]: value }) }) },
     ToggledSwitch: ({ on }) =>
       on === model.switched ? { model } : { model: modifyFields(model, { switched: () => on }) },
-    ChoseCard: ({ key }) =>
-      key === model.chosenCard
-        ? { model }
-        : { model: modifyFields(model, { chosenCard: () => key }) },
-    DismissedCard: () =>
-      model.cardDismissed
-        ? { model }
-        : { model: modifyFields(model, { cardDismissed: () => true }) },
-    RestoredCard: () =>
-      model.cardDismissed
-        ? { model: modifyFields(model, { cardDismissed: () => false }) }
-        : { model },
     GotWidget: ({ message }) => foldWidget(model, message),
     GotExample: message => {
       const step = Examples.update(model.examples, message, Message.GotExample)
@@ -631,8 +613,6 @@ export const initial: Model = placements.initial({
   addressRead: false,
   selection: {},
   switched: false,
-  chosenCard: 'team',
-  cardDismissed: false,
   observed: { width: 0, height: 0 },
   widgets: Widgets.initial,
   examples: Examples.initial,
@@ -673,8 +653,6 @@ const planOf = (withMeta: boolean) =>
       App.model.copied,
       App.model.selection,
       App.model.switched,
-      App.model.chosenCard,
-      App.model.cardDismissed,
       App.model.observed,
       App.model.widgets,
       App.model.examples,

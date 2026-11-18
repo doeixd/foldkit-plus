@@ -26,11 +26,6 @@ import { Message, initial, update } from '../src/main.js'
 const liveOf = (examples: Examples.Model): Live<string> => ({
   switched: false,
   onSwitch: () => 'switched',
-  chosen: 'team',
-  onChoose: key => `chose ${key}`,
-  dismissed: false,
-  onDismiss: 'dismissed',
-  onRestore: 'restored',
   direction: 'ltr',
   widgets: Widgets.initial,
   onWidget: message => message._tag,

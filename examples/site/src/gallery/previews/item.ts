@@ -1,35 +1,14 @@
 import { ItemSlots, Recipes } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
-import * as Widgets from '../widgets.js'
+import bands from '../../examples/item/bands.js'
+import basic from '../../examples/item/basic.js'
+import choice from '../../examples/item/choice.js'
+import settings from '../../examples/item/settings.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
-export const showcase = fromRecipe(
-  about('item'),
-  ItemSlots,
-  Recipes.Item,
-  style => Snippet.item(style, inert),
-  undefined,
-  [
-    { name: 'basic', title: 'Basic', draw: style => Snippet.item(style, inert) },
-    {
-      name: 'settings',
-      title: 'Settings',
-      draw: style => Snippet.itemSettings(style, inert),
-      pins: { media: 'icon' },
-    },
-    {
-      name: 'selectable',
-      title: 'A choice',
-      draw: (style, live) =>
-        Snippet.itemSelectable(
-          style,
-          {
-            chosen: live.widgets.plan,
-            onChoose: plan => live.onWidget(Widgets.Message.ChosePlan({ plan })),
-          },
-          live.h,
-        ),
-    },
-  ],
-)
+export const showcase = fromRecipe(about('item'), ItemSlots, Recipes.Item, basic, undefined, [
+  { name: 'basic', example: basic },
+  { name: 'settings', example: settings },
+  { name: 'choice', example: choice },
+  { name: 'bands', example: bands },
+])

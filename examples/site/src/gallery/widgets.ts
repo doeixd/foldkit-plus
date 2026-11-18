@@ -305,9 +305,6 @@ export const Model = Schema.Struct({
   brandPopover: UiPopover.Model,
   /** The search fields, the toolbar and the file pickers. */
   fields: Fields.Model,
-  /** The region chosen in the card grid, and the plan chosen in the item list. */
-  region: Schema.String,
-  plan: Schema.String,
   /** What each textarea example holds. */
   notes: Schema.Record(NotesExample, Schema.String),
   /** The rating's stars, none before any are given. */
@@ -419,7 +416,6 @@ export const Message = defineMessageUnion({
   TypedPassword: { value: Schema.String },
   ToggledPassword: {},
   RatedStay: { value: Schema.Number },
-  ChoseRegion: { region: Schema.String },
   TypedNote: { example: NotesExample, value: Schema.String },
   TurnedLevel: { value: Schema.Number },
   MovedBudget: { value: Schema.Struct({ low: Schema.Number, high: Schema.Number }) },
@@ -454,7 +450,6 @@ export const Message = defineMessageUnion({
   ToggledNewPassword: {},
   ReadCapsLock: { reading: Schema.Option(Schema.Boolean) },
   GotInputCopy: { message: InputCopy.Message },
-  ChosePlan: { plan: Schema.String },
   CopiedAnswer: {},
   LikedAnswer: {},
   RetriedChat: {},
@@ -677,8 +672,6 @@ export const initial: Model = {
   }),
   brandPopover: UiPopover.init({ id: 'preview-brand-popover', contentFocus: true }),
   fields: Fields.init(),
-  region: 'Frankfurt',
-  plan: 'Team',
   notes: { grow: '', count: 'Arriving Thursday, two nights.', reply: '' },
   answerLiked: false,
   chatRetried: false,

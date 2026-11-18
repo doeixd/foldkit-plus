@@ -31,11 +31,6 @@ export type Selection = Readonly<Record<string, string>>
 export interface Live<Message> {
   readonly switched: boolean
   readonly onSwitch: (on: boolean) => Message
-  readonly chosen: string
-  readonly onChoose: (key: string) => Message
-  readonly dismissed: boolean
-  readonly onDismiss: Message
-  readonly onRestore: Message
   /** The reader's direction, for views that place or key off it. */
   readonly direction: 'ltr' | 'rtl'
   readonly widgets: Widgets.Model

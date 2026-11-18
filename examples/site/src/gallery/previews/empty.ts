@@ -1,27 +1,12 @@
 import { EmptySlots, Recipes } from 'foldkit-mixins-ui'
-import * as Snippet from '../../snippets/components.js'
+import error from '../../examples/empty/error.js'
+import firstUse from '../../examples/empty/first-use.js'
+import results from '../../examples/empty/results.js'
 import { about } from '../catalogue.js'
-import { fromRecipe, inert } from '../define.js'
+import { fromRecipe } from '../define.js'
 
-export const showcase = fromRecipe(
-  about('empty'),
-  EmptySlots,
-  Recipes.Empty,
-  style => Snippet.emptyResults(style, inert),
-  undefined,
-  [
-    { name: 'results', title: 'No results', draw: style => Snippet.emptyResults(style, inert) },
-    {
-      name: 'first-use',
-      title: 'First use',
-      draw: style => Snippet.emptyFirstUse(style, inert),
-      pins: { frame: 'dashed' },
-    },
-    {
-      name: 'error',
-      title: 'An error',
-      draw: style => Snippet.emptyError(style, inert),
-      pins: { tone: 'danger', frame: 'filled' },
-    },
-  ],
-)
+export const showcase = fromRecipe(about('empty'), EmptySlots, Recipes.Empty, results, undefined, [
+  { name: 'results', example: results },
+  { name: 'first-use', example: firstUse },
+  { name: 'error', example: error },
+])
