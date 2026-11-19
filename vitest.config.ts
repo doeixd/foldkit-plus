@@ -7,6 +7,8 @@ import {
   buildsElsewhere,
   inBrowser,
   perfTests,
+  playwrightUnitElsewhere,
+  playwrightUnitTests,
   shared,
 } from './vitest.shared.js'
 
@@ -65,6 +67,7 @@ export default defineConfig({
             ...browserTests,
             ...(budgetsElsewhere ? perfTests.unit : []),
             ...(buildsElsewhere ? buildTests : []),
+            ...(playwrightUnitElsewhere ? playwrightUnitTests : []),
             '**/node_modules/**',
           ],
         },

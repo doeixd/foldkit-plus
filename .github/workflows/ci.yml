@@ -11,17 +11,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Whether anything but prose changed, for the jobs a document cannot break. A
-  # job-level `if` rather than `paths-ignore`: a check that never runs blocks a
-  # merge, a skipped one does not. Always true on main and for a pull request
-  # that touches anything beyond Markdown, `docs/` and the licence. Not `skills/`
-  # (it is shipped, and the `foldkit-plus` package tests read it).
-  #
-  # What a prose change still runs, because it reads the prose: `lint`, `typecheck`
-  # (`docs:check` compiles the snippets in READMEs and `docs/`), `unit` (the guide
-  # tests, `foldkit-plus`'s docs and skill tests, the README fixtures) and
-  # `prerender` (the site builds its guides from them). Everything else is
-  # skipped: browser tests, builds, e2e, perf, postgres, demo, pack and scaffolds.
+  # Classifies what a pull request touched so unrelated heavy jobs skip cleanly.
+  # A job-level `if` rather than `paths-ignore`: a check that never runs blocks
+  # a merge, a skipped one does not. Pushes to `main` always run every job.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -90,16 +82,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
-
-      # tsdown needs Promise.withResolvers, so Node 22 is the floor. The version
-      # is pinned in pnpm-workspace.yaml for local runs.
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-workspace
 
       - run: pnpm format:check
 
@@ -121,67 +104,82 @@ jobs:
       # themselves are too slow for CI, and a spec that rots runs nothing.
       - run: pnpm mutate:check
 
+  # Incremental `.tsbuild` cache on PRs (invalidated whenever any tsconfig or
+  # lockfile changes); forced full rebuild on `main`.
   typecheck:
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: ./.github/actions/setup-workspace
 
-      - uses: actions/setup-node@v7
+      - if: github.event_name == 'pull_request'
+        uses: actions/cache@v5
         with:
-          node-version: 22
-          cache: pnpm
+          path: |
+            packages/*/.tsbuild
+            examples/*/.tsbuild
+            examples/foldkit/*/.tsbuild
+          key: ${{ runner.os }}-tsbuild-${{ hashFiles('tsconfig.json', 'packages/*/tsconfig.json', 'examples/*/tsconfig.json', 'examples/foldkit/*/tsconfig.json', 'pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tsbuild-${{ hashFiles('tsconfig.json', 'packages/*/tsconfig.json', 'examples/*/tsconfig.json', 'examples/foldkit/*/tsconfig.json', 'pnpm-lock.yaml') }}-
 
-      - run: pnpm install --frozen-lockfile
+      - if: github.event_name != 'pull_request'
+        run: pnpm typecheck:force
 
-      # Forced, so a warm `.tsbuild` cannot hide a project-graph change.
-      - run: pnpm typecheck:force
+      - if: github.event_name == 'pull_request'
+        run: pnpm typecheck
 
       # The docs' TypeScript blocks, against what the step above just built,
       # so it takes seconds rather than a job of its own.
       - run: pnpm docs:check
 
-  # Sharded by project and by file count: alone it took over ten minutes, and
-  # four shards of both projects together left the one that drew the site's
-  # prerender at 13.5 minutes against 5 for the others (that test has a job of
-  # its own now, `prerender`).
+  # Node/jsdom unit shards: the two unit files that launch Chromium run in
+  # `browser (touch)`, so none of these shards need Playwright or apt-get.
   unit:
-    name: unit (${{ matrix.shard }}/4)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    name: unit (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3]
     steps:
       # The site's link-check tests read a release tag's tree (`githubLinks.test.ts`).
       - uses: actions/checkout@v7
         with:
           fetch-tags: true
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      # A few unit files launch Chromium themselves (`branded.test.ts`,
-      # plus's `playwright.test.ts`), so these shards need the binary too.
-      - uses: ./.github/actions/setup-playwright
+      - uses: ./.github/actions/setup-workspace
 
       # `foldkit-domains` is upstream's copy, happy-dom like the rest of these.
-      - run: pnpm test --project unit --project foldkit-domains --shard=${{ matrix.shard }}/4
+      - run: pnpm test --project unit --project foldkit-domains --shard=${{ matrix.shard }}/3
+
+  # Fast unit check for docs-only PRs: runs only the suites that read docs/blog/skill.
+  unit-docs:
+    needs: changes
+    if: needs.changes.outputs.code != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-tags: true
+
+      - uses: ./.github/actions/setup-workspace
+
+      - run: pnpm exec vitest run --project unit examples/site/test packages/plus/test
 
   # What jsdom cannot check: layout, focus, the caret, in headless Chromium.
   # Each shard runs ONE browser project (never `browser` + `browser-touch`
   # together, which opens two Chromium instances in one runner) and stays under
   # ~60 files so Chromium's renderer never hits its ~75-file memory wall
-  # (`VITEST_BROWSER_CONNECTION_CLOSED`).
+  # (`VITEST_BROWSER_CONNECTION_CLOSED`). The light `touch` shard also runs the
+  # two Node unit files that launch Playwright themselves.
   browser:
     needs: changes
     if: needs.changes.outputs.browser == 'true'
@@ -192,29 +190,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: 1/6, args: --project browser --shard=1/6 }
-          - { name: 2/6, args: --project browser --shard=2/6 }
-          - { name: 3/6, args: --project browser --shard=3/6 }
-          - { name: 4/6, args: --project browser --shard=4/6 }
-          - { name: 5/6, args: --project browser --shard=5/6 }
-          - { name: 6/6, args: --project browser --shard=6/6 }
-          - { name: touch, args: --project browser-touch }
+          - { name: 1/6, args: --project browser --shard=1/6, pw_unit: '' }
+          - { name: 2/6, args: --project browser --shard=2/6, pw_unit: '' }
+          - { name: 3/6, args: --project browser --shard=3/6, pw_unit: '' }
+          - { name: 4/6, args: --project browser --shard=4/6, pw_unit: '' }
+          - { name: 5/6, args: --project browser --shard=5/6, pw_unit: '' }
+          - { name: 6/6, args: --project browser --shard=6/6, pw_unit: '' }
+          - { name: touch, args: --project browser-touch, pw_unit: '1' }
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-workspace
 
       - uses: ./.github/actions/setup-playwright
 
       # Cap workers at 2 per runner so Chromium stays well within memory.
       - run: pnpm test ${{ matrix.args }} --maxWorkers=2
+
+      - if: matrix.pw_unit == '1'
+        env:
+          FOLDKIT_PLAYWRIGHT_UNIT: '1'
+        run: >-
+          pnpm exec vitest run --project unit
+          packages/mixins-data-grid/test/branded.test.ts
+          packages/plus/test/playwright.test.ts
 
   # The site's prerender test builds every page, which took 10 minutes beside
   # other tests; it is in `buildTests`, so the shards leave it out.
@@ -231,43 +230,9 @@ jobs:
         with:
           fetch-tags: true
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-workspace
 
       - run: pnpm exec vitest run --project unit examples/site/test/prerender.test.ts
-
-  # The tests that make a production build of a page or a package
-  # (`buildTests` in vitest.shared.ts). In the shards they starved the runner
-  # of memory until it lost contact with GitHub; here two at a time.
-  builds:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      FOLDKIT_BUILDS: '1'
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - run: >-
-          pnpm exec vitest run --project unit --maxWorkers=2
-          test/bundle.test.ts auth/test/boot.test.ts auth/test/split.test.ts
-          scripts/test/readOnlyPage.test.ts scripts/test/publishedBuild.test.ts
 
   # PGlite's database collates by `C`, so a collation the Drizzle compiler
   # forgets to write passes every other test (expr-operations-DESIGN §17). These
@@ -295,14 +260,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-workspace
 
       - run: >-
           pnpm exec vitest run --project unit
@@ -314,11 +272,9 @@ jobs:
           FOLDKIT_LOCALE_PG: postgres://postgres:ci@localhost:5432/postgres
 
   # The examples with a server, end to end: each test starts the server and
-  # Vite, and drives a real Chromium. One job took 36 minutes with the files one
-  # at a time, so the files are split: the site's adoption check, which builds
-  # production and takes 8.6 minutes alone, gets a job of its own (the config
-  # leaves it out of the others on CI), and Vitest's `--shard` splits the rest.
-  # Within a job the files still run one at a time, since each starts servers.
+  # Vite, and drives a real Chromium. `adoption` builds only the 19 pages it
+  # opens (`FOLDKIT_SITE_ONLY`), and `scripts/e2e-shard.mjs` deals the rest
+  # round-robin across 4 balanced shards instead of alphabetical slices.
   e2e:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -329,40 +285,87 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: adoption, args: examples/site/e2e/adoption.e2e.ts, adoption: '1' }
-          - { name: 1/6, args: --shard=1/6, adoption: '' }
-          - { name: 2/6, args: --shard=2/6, adoption: '' }
-          - { name: 3/6, args: --shard=3/6, adoption: '' }
-          - { name: 4/6, args: --shard=4/6, adoption: '' }
-          - { name: 5/6, args: --shard=5/6, adoption: '' }
-          - { name: 6/6, args: --shard=6/6, adoption: '' }
+          - { name: adoption, cmd: 'pnpm e2e examples/site/e2e/adoption.e2e.ts', adoption: '1' }
+          - { name: 1/4, cmd: 'node scripts/e2e-shard.mjs 1 4', adoption: '' }
+          - { name: 2/4, cmd: 'node scripts/e2e-shard.mjs 2 4', adoption: '' }
+          - { name: 3/4, cmd: 'node scripts/e2e-shard.mjs 3 4', adoption: '' }
+          - { name: 4/4, cmd: 'node scripts/e2e-shard.mjs 4 4', adoption: '' }
     env:
       FOLDKIT_ADOPTION: ${{ matrix.adoption }}
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-workspace
 
       - uses: ./.github/actions/setup-playwright
 
-      - run: pnpm e2e ${{ matrix.args }}
+      - run: ${{ matrix.cmd }}
 
-  # Every performance budget, on one quiet Linux runner: CPU readings step in
-  # 15.6 ms on Windows and drift on a loaded shard, so the budget tests run
-  # here and nowhere else on CI (`perfTests` in vitest.shared.ts). Files run
-  # one at a time so one's build does not tax another's CPU. The CPU limits
-  # stay generous because shared runners are noisy: they catch a route that
-  # grew several times over. Each test writes its reading to PERF_REPORT; the
-  # table lands in the job's summary, and a miss fails the job.
-  perf:
+  # Build, canonicalize, type-check published entry points, and pack every
+  # package ONCE. Downstream wave-2 jobs (`pack`, `scaffold`, `demo`, `builds`,
+  # `perf`) download these artifacts instead of rebuilding 43 packages each,
+  # keeping wave-1 concurrency at <= 20 runners (zero queueing on GitHub Free).
+  tarballs:
     needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-workspace
+
+      - name: Build, canonicalize, verify types, and pack packages
+        run: |
+          set -euo pipefail
+          pnpm build:packages
+          node -e "import('node:fs').then(async ({ readdirSync, existsSync }) => { const { canonicalizeDist } = await import('./scripts/bundle-report.mjs'); for (const d of readdirSync('packages')) { const dist = 'packages/' + d + '/dist'; if (existsSync(dist)) canonicalizeDist(dist); } })"
+          node scripts/published-types.mjs
+          pnpm -r --filter "./packages/*" exec pnpm pack --pack-destination "$GITHUB_WORKSPACE/tarballs"
+          tar -cf packages-dist.tar packages/*/dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tarballs
+          path: tarballs
+          retention-days: 1
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-dist
+          path: packages-dist.tar
+          retention-days: 1
+          if-no-files-found: error
+
+  # The tests that make a production build of a page or a package
+  # (`buildTests` in vitest.shared.ts), reusing prebuilt canonicalized `dist`.
+  builds:
+    needs: [changes, tarballs]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FOLDKIT_BUILDS: '1'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-workspace
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages-dist
+
+      - run: tar -xmf packages-dist.tar && rm -f packages-dist.tar
+
+      - run: >-
+          pnpm exec vitest run --project unit --maxWorkers=2
+          test/bundle.test.ts auth/test/boot.test.ts auth/test/split.test.ts
+          scripts/test/readOnlyPage.test.ts scripts/test/publishedBuild.test.ts
+
+  # Every performance budget, on one quiet Linux runner, reusing prebuilt `dist`.
+  perf:
+    needs: [changes, tarballs]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -372,17 +375,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: ./.github/actions/setup-workspace
 
-      - uses: actions/setup-node@v7
+      - uses: actions/download-artifact@v8
         with:
-          node-version: 22
-          cache: pnpm
+          name: packages-dist
 
-      - run: pnpm install --frozen-lockfile
+      - run: tar -xmf packages-dist.tar && rm -f packages-dist.tar
 
-      # The layout-shift budget drives Chromium; the bundle budgets build
-      # against the packages' `dist` themselves (`scripts/bundle-report.mjs`).
+      # The layout-shift budget drives Chromium.
       - uses: ./.github/actions/setup-playwright
 
       - run: >-
@@ -405,58 +406,27 @@ jobs:
           exit $status
         if: ${{ !cancelled() }}
 
+  # Builds every example (except `examples/site`, covered by `prerender` and
+  # `e2e (adoption)`) against the prebuilt `packages/*/dist` and runs all demos.
   demo:
-    needs: changes
+    needs: [changes, tarballs]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: ./.github/actions/setup-workspace
 
-      - uses: actions/setup-node@v7
+      - uses: actions/download-artifact@v8
         with:
-          node-version: 22
-          cache: pnpm
+          name: packages-dist
 
-      - run: pnpm install --frozen-lockfile
+      - run: tar -xmf packages-dist.tar && rm -f packages-dist.tar
 
-      # Builds every package and example except `examples/site` (which prerenders
-      # 4,400+ pages and is already verified by `prerender` and `e2e (adoption)`),
-      # then runs every example's headless `tsx` demo against the built `dist`.
-      - run: node scripts/declarations.mjs && pnpm -r --filter "!foldkit-example-site" build && pnpm demo:run
+      - run: pnpm -r --filter "./examples/**" --filter "!foldkit-example-site" build && pnpm demo:run
         env:
           FOLDKIT_BUILD_ID: ci
-
-  # Build, type-check published entry points, and pack every package ONCE; both
-  # `pack` and the `scaffold` matrix download these tarballs instead of running
-  # `build:packages` and `pnpm pack` twice.
-  tarballs:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm build:packages && node scripts/published-types.mjs && pnpm -r --filter "./packages/*" exec pnpm pack --pack-destination "$GITHUB_WORKSPACE/tarballs"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: tarballs
-          path: tarballs
-          retention-days: 1
-          if-no-files-found: error
 
   # Default published setup (ssr + npm, plus adapters and standalone/workspace
   # pnpm stand-ins) against the packed tarballs above.
@@ -468,11 +438,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/setup-workspace
         with:
-          node-version: 22
+          install: 'false'
+          cache: 'false'
 
       - uses: actions/download-artifact@v8
         with:
@@ -481,11 +450,7 @@ jobs:
 
       - run: node scripts/published-setup.mjs "$GITHUB_WORKSPACE/tarballs"
 
-  # The scaffolds `pack` does not make, each in a job of its own, since a
-  # scaffold's install takes a minute: setup's printed scaffold command, its
-  # install step, then the scaffold's own typecheck and lint, from the tarballs.
-  # The script reads the tarballs, the examples' sources and the manifests, never
-  # the workspace's `node_modules`, so these jobs install nothing of it.
+  # The remaining rendering/manager scaffolds against the packed tarballs above.
   scaffold:
     needs: [changes, tarballs]
     if: needs.changes.outputs.code == 'true'
@@ -501,11 +466,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v7
+      - uses: ./.github/actions/setup-workspace
         with:
-          node-version: 22
+          install: 'false'
+          cache: 'false'
 
       - uses: actions/download-artifact@v8
         with:
