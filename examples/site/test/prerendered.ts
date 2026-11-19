@@ -31,6 +31,8 @@ export interface Share {
   /** The pages asked for whole, as their HTML. */
   readonly read: ReadonlyArray<readonly [path: string, html: string]>
   readonly sitemap: string
+  /** The files the build writes beside the pages (the blog's feed), by address. */
+  readonly emitted: ReadonlyArray<string>
 }
 
 type Node = DefaultTreeAdapterTypes.ChildNode
@@ -94,5 +96,6 @@ export const share = async (options: {
       .filter(page => options.read.includes(page.path))
       .map(page => [page.path, page.html] as const),
     sitemap: built.sitemap ?? '',
+    emitted: ((await site.emit?.(built.pages)) ?? []).map(file => `/${file.file}`),
   }
 }

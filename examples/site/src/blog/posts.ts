@@ -91,6 +91,7 @@ const readPost = (repository: string, name: string): Post => {
   const idFor = slugger()
   const ids = new Map<Heading, string>()
   for (const node of root.children) if (node.type === 'heading') ids.set(node, idFor(textOf(node)))
+  const idOf = (heading: Heading) => ids.get(heading) ?? ''
   const nodes = root.children.filter(node => node !== leading)
   return {
     slug,
@@ -106,11 +107,9 @@ const readPost = (repository: string, name: string): Post => {
     image: imageOf(repository, file, data.image ?? DEFAULT_CARD.path),
     nodes,
     sections: nodes.flatMap(node =>
-      node.type === 'heading' && node.depth === 2
-        ? [{ id: ids.get(node) ?? '', text: textOf(node) }]
-        : [],
+      node.type === 'heading' && node.depth === 2 ? [{ id: idOf(node), text: textOf(node) }] : [],
     ),
-    idOf: heading => ids.get(heading) ?? '',
+    idOf,
     minutes: minutesToRead(nodes),
   }
 }

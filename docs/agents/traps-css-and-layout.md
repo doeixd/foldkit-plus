@@ -18,3 +18,5 @@ Read before styling or laying out a component, a theme knob, an animation or an 
   A carousel drawn at its third slide landed on its second. Use `scrollTo` or `scrollIntoView` to pass snaps.
 - **A cutout drawn by a wrapper drifts from the avatar's shape.**
   Chirp's profile portrait sat in a span with a 9999px radius and page-coloured border around an Avatar the theme rounds to a square (radius factor 0.45): a circle showed behind a rounded square. Draw the band on the avatar itself (the Avatar recipe's `ring: 'page'`, a shadow, which follows its own corner).
+- **A `ch` is the width of a zero, not of a character.**
+  The blog set its measure at `65ch`, "about 65 characters", and Geist at 18px drew 84 characters a line (a zero is 0.66em there; a letter averages 0.47em). Read the characters a line holds from the rendered text (a `Range` over each character, grouped by its top) and size the measure from that: `48ch` gives 68. A test asserts the `ch` bound, which holds in any font; the characters per line move with the face.

@@ -12,3 +12,5 @@ Read before touching server rendering, hydration, Resume or the loader entry, he
   A view's `canonical` reached no generated page until the template had an empty `<link rel="canonical">` (and `og:url` a `<meta property="og:url">`) to fill.
 - **Caching a `Rendered` page saves little: wrap `renderDocument` in `SSR.keptDocuments`.**
   `renderDocument` runs `injectIntoTemplate`, which parses the page with parse5 every request; a kept domains-plus search still cost 50 ms of 140 until wrapped (0.8 ms). Measure the whole `handleRequest`, not `renderPage`; two renders of one page differ by a read's stamped time (`updatedAt` in the resumed Model), so leave times out of comparisons.
+- **A page's own styles stay out of the browser's bundle when only the build imports them.**
+  The blog's Slots draw into one static region, and their Styles are imported only by `content/library.ts`, so `Style.usedDrawn` writes their CSS into the page's head and the shell the browser loads holds none of it. Import such a Style from a view the client also draws and every page pays for it; measure with `scripts/bundle-report.mjs` (`bundle.test.ts`).

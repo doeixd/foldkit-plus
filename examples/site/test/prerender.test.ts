@@ -80,6 +80,7 @@ let paths: ReadonlyArray<string>
 let links: ReadonlyMap<string, Links>
 let read: ReadonlyMap<string, Document>
 let sitemap = ''
+let emitted: ReadonlySet<string> = new Set()
 
 /** One share of the pages, rendered in a thread of its own (`prerender.worker.mjs`). */
 const render = (index: number, count: number): Promise<Share> =>
@@ -113,6 +114,7 @@ beforeAll(async () => {
   links = new Map(shares.flatMap(share => share.links))
   // Each share's sitemap lists its own pages.
   sitemap = shares.map(share => share.sitemap).join('\n')
+  emitted = new Set(shares.flatMap(share => share.emitted))
   const parser = new DOMParser()
   read = new Map(
     shares.flatMap(share =>
@@ -138,6 +140,20 @@ describe('the generated site', () => {
       expect(links.has(path), path).toBe(true)
     expect(sitemap).toContain('<loc>https://foldkit-plus.pages.dev/remote</loc>')
     expect(page('/404.html').querySelector('h1')?.textContent).toContain('Not found')
+  })
+
+  test('the blog is in the sitemap with each post’s last change, the navigation and the head lead to it', () => {
+    expect(sitemap).toContain(
+      '<loc>https://foldkit-plus.pages.dev/blog/foldkit-plus-0-41-0</loc><lastmod>2026-11-18</lastmod>',
+    )
+    expect(sitemap).toContain('<loc>https://foldkit-plus.pages.dev/blog</loc><lastmod>')
+    for (const path of ['/blog', '/blog/foldkit-plus-0-41-0', '/blog/foldkit-plus-0-7-0'])
+      expect(links.has(path), path).toBe(true)
+    expect(hrefs(page('/'), '#rail nav[aria-label="Site"] a')).toContain('/blog')
+    expect(hrefs(page('/'), '#status a')).toContain('/blog')
+    expect(hrefs(page('/').head, 'link[rel="alternate"][type="application/atom+xml"]')).toEqual([
+      '/blog/feed.xml',
+    ])
   })
 
   test('the link check reads every page the build writes', () => {
@@ -905,8 +921,9 @@ describe('the generated site', () => {
         if (href.startsWith('/') || href.startsWith('#')) {
           const [target = '', anchor] = href.split('#')
           const to = target === '' ? at : links.get(target)
-          if (to === undefined) broken.push(`${path} -> ${href}`)
-          else if (anchor !== undefined && anchor !== '' && !to.ids.has(anchor))
+          if (to === undefined) {
+            if (!emitted.has(target)) broken.push(`${path} -> ${href}`)
+          } else if (anchor !== undefined && anchor !== '' && !to.ids.has(anchor))
             broken.push(`${path} -> ${href} (no #${anchor})`)
         } else if (href.startsWith(`${GITHUB}/blob/`) || href.startsWith(`${GITHUB}/tree/`)) {
           const file = href.slice(`${GITHUB}/blob/main/`.length).split('#')[0]!

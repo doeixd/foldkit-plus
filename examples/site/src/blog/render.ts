@@ -19,13 +19,7 @@ type Ih = HtmlBuilder<never>
 /** The first blocks of a post are likely in view when it opens: their images are not deferred. */
 const ABOVE_THE_FOLD = 3
 
-const figure = (
-  ih: Ih,
-  repository: string,
-  post: Post,
-  image: Image,
-  eager: boolean,
-): Html => {
+const figure = (ih: Ih, repository: string, post: Post, image: Image, eager: boolean): Html => {
   if (!image.url.startsWith('/'))
     throw new Error(
       `${post.file}: image ${image.url} is not a file under ${PUBLIC}, so its size is unknown`,
@@ -58,8 +52,8 @@ export const bodyOf = (
   post: Post,
 ): ReadonlyArray<Html | string> =>
   post.nodes.map((node: RootContent, at) => {
-    const [only] = node.type === 'paragraph' ? node.children : []
-    return only?.type === 'image' && node.type === 'paragraph' && node.children.length === 1
+    const [only] = node.type === 'paragraph' && node.children.length === 1 ? node.children : []
+    return only?.type === 'image'
       ? figure(ih, repository, post, only, at < ABOVE_THE_FOLD)
       : block(ih, context, node)
   })

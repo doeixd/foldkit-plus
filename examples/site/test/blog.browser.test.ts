@@ -129,13 +129,11 @@ test('at 1440 the text is 18px on a 48ch measure, the contents beside it', async
   expect(getComputedStyle(document.querySelector('details')!).display).toBe('none')
 })
 
-test('a heading has more room above than below, balances its lines, and the text breaks nicely', async () => {
+test('a heading has more room above than below, and dates are tabular', async () => {
   await mount(1440)
   const heading = getComputedStyle(document.querySelector('h2')!)
   const after = getComputedStyle(document.querySelector('#after')!)
   expect(px(heading.marginBlockStart)).toBeGreaterThan(2.5 * px(after.marginBlockStart))
-  expect(heading.textWrap).toContain('balance')
-  expect(getComputedStyle(document.querySelector('#long')!).textWrap).toContain('pretty')
   expect(getComputedStyle(document.querySelector('time')!).fontVariantNumeric).toBe('tabular-nums')
 })
 

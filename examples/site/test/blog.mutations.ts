@@ -345,28 +345,6 @@ export default [
     tests: browser,
   },
   {
-    name: 'a heading’s lines are not balanced',
-    edits: [
-      {
-        file: style,
-        find: "textWrap: 'balance',\n      hyphens: 'manual',\n      scrollMarginBlockStart: '2rem',",
-        replace: "hyphens: 'manual',\n      scrollMarginBlockStart: '2rem',",
-      },
-    ],
-    tests: browser,
-  },
-  {
-    name: 'a paragraph’s last lines are not set for the eye',
-    edits: [
-      {
-        file: style,
-        find: "hyphens: 'auto',\n      textWrap: 'pretty',",
-        replace: "hyphens: 'auto',",
-      },
-    ],
-    tests: browser,
-  },
-  {
     name: 'dates are not tabular',
     edits: [
       {

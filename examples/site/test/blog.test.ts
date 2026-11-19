@@ -5,6 +5,8 @@
  * and the sitemap. The pages are rendered over a library of the blog alone
  * (`blogSite.ts`); the whole site's prerender is `prerender.test.ts`.
  */
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
 import { imageSize } from '../src/blog/imageSize.js'
@@ -300,6 +302,9 @@ describe('the index', () => {
     expect(attribute(doc, 'meta[property="og:url"]')).toBe(`${ORIGIN}/blog`)
     expect(attribute(doc, 'meta[property="og:image"]')).toBe(`${ORIGIN}${DEFAULT_CARD.path}`)
     expect(doc.querySelectorAll('meta[property^="article:"]')).toHaveLength(0)
+    expect(
+      doc.querySelector('#rail nav[aria-label="Site"] [aria-current="page"]')?.textContent,
+    ).toBe('Blog')
     expect(doc.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(0)
   })
 
@@ -544,6 +549,12 @@ describe('the feed and the sitemap', () => {
         ?.getAttribute('href'),
     ).toBe(`${ORIGIN}/blog/feed.xml`)
     expect(feed.getElementsByTagName('updated')[0]!.textContent).toBe('2026-04-01T00:00:00Z')
+  })
+
+  test('the host is told to serve the feed as Atom, at the address it is written to', async () => {
+    const { emitted } = await rendered()
+    const headers = readFileSync(join(import.meta.dirname, '../public/_headers'), 'utf8')
+    expect(headers).toContain(`/${emitted[0]!.file}\n  Content-Type: application/atom+xml`)
   })
 
   test('the sitemap lists the index and each post with the day it last changed, and robots blocks none', async () => {

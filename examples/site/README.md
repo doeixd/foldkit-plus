@@ -107,6 +107,59 @@ pnpm --filter foldkit-example-site readme   # rewrites the list between <!-- dem
 `test/demos.test.ts` fails when the README's list and the data differ, and when
 a demo names an example, a file or a package that does not exist.
 
+## Writing a post
+
+The blog is at `/blog`, its Atom feed at `/blog/feed.xml`. A post is a Markdown
+file in [`docs/blog/`](../../docs/blog), named `<yyyy-mm-dd>-<slug>.md`, that
+starts with front matter:
+
+```text
+---
+title: Foldkit Plus 0.41.0: configure an example, do not copy it
+description: One or two sentences: the page's meta description and the index's summary.
+date: 2026-11-18
+author: Patrick Glenn
+updated: 2026-11-20
+image: /blog/og/my-card.png
+tags: [release, mixins-ui]
+---
+
+# Foldkit Plus 0.41.0: configure an example, do not copy it
+
+The text, from here.
+```
+
+`title`, `description`, `date`, `author` and `tags` are required; `updated` and
+`image` are not. The keys are read strictly: an unknown key, a missing one, a
+date that is not on the calendar, a `date` that differs from the file's name or
+an `updated` before it fails the build with the file's name. Values are plain
+text on one line (`tags` as `[a, b]`; no other YAML), and a `tags` entry is
+lowercase words and hyphens. The address is `/blog/<slug>`, the slug being the
+file's name after its date with each `.` made a `-`.
+
+- The first `#` heading in the file is optional, for a reader of the file on
+  GitHub; when it is there it must be the title, and the page draws the title
+  as its own `h1`. A `##` heading is a section of the table of contents.
+- `image` is the social card: a PNG under `public/`, written as the site serves
+  it. A post without one shares [`/blog/og/default.png`](public/blog/og/default.png),
+  made by `node scripts/social.mjs` from `assets/blog-card.svg`. The card's
+  pixels are read from the file for `og:image:width` and `og:image:height`;
+  1200 by 630 is what link previews want.
+- A paragraph that holds only an image is a `<figure>`: its size is read from the
+  file (a PNG or JPEG under `public/`, written `/blog/x.png`), so the page does
+  not move as it loads; its title, `![alt](/blog/x.png "A caption")`, is the
+  caption. Every image after the first few blocks loads lazily.
+- A relative link leads where the guides' links do (a page of the site, or the
+  file on GitHub). A TypeScript block of a post is compiled by `scripts/docs-check.mjs`
+  like every other document's; mark a fragment `ts sketch`.
+- The feed carries each post's summary and a link, not its text: a reader would
+  see its code blocks and tables without the site's styles.
+
+To preview, run `pnpm --filter foldkit-example-site dev` and open `/blog`. The
+library reads the posts once, so a post you add or edit shows after the dev
+server restarts. `test/blog.test.ts` renders the blog on its own, in seconds,
+over a repository it makes.
+
 ## Run it
 
 ```bash
@@ -140,6 +193,11 @@ renamed heading or a moved file fails the test rather than a reader.
   file behind each of a package's `exports`, when the library is built. An
   entry point is a page listing its exports by kind, and each export a page
   of its own with its declaration, doc comment and members.
+- `src/blog/`: the blog, build-time only except `meta.ts`: the front matter
+  (`frontMatter.ts`), the posts (`posts.ts`), their pages and typography
+  (`view.ts`, `style.ts`, drawn into one static region so the browser's bundle
+  holds none of it), the head each page's plan writes (`meta.ts`) and the feed
+  (`feed.ts`).
 - `src/snippets/`: the home page's examples, real modules the typecheck
   compiles.
 - `src/style.ts`: the Slots and their Styles.

@@ -13,7 +13,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
-
+- Docs: the website has a blog, at `/blog` with an Atom feed at `/blog/feed.xml`. A post is Markdown with strict front matter in `docs/blog/<yyyy-mm-dd>-<slug>.md` (`examples/site/README.md`, "Writing a post"), set as an article with a table of contents beside it or folded above it, and its head carries Open Graph, Twitter and a `BlogPosting`. The 0.41.0 release post moved there from `docs/release-0.41.0.md` and the 0.7.0 post from `docs/blog/0.7.0.md`, and `scripts/docs-check.mjs` compiles the folder's TypeScript blocks.
 - `foldkit-mixins-ui`: a `CodeBlock` with `collapsed` keeps every line in the page and clips it by style to the first `lines`, under the fade, so a find, a copy of the page's text and an anchor reach the whole code (it drew only the first lines). `collapsed: { lines, expanded?, onToggle? }` replaces `{ lines, onExpand }`: the application flips `expanded` from `onToggle`, and an expanded block's button offers `words.collapse` (new, `Show less`). `onToggle` may be left out for a server-rendered static region whose script toggles the block: the button then carries the words it shows after a press as `data-toggled-label`. The root writes `data-collapsed="true"` or `"false"` and `--fk-code-clamp`, only when the code has more than `lines` lines.
 - `foldkit-mixins-ui`: a VirtualList's box is filled with `surface.subtle` (it was `surface.default`, a mid grey against a white card), the step a CodeBlock takes.
 

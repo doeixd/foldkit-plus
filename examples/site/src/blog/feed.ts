@@ -20,7 +20,10 @@ const instant = (day: string): string => `${day}T00:00:00Z`
 /** The feed of `posts` (newest first, as `loadPosts` returns them) under `origin`. */
 export const feedOf = (posts: ReadonlyArray<Post>, origin: string): string => {
   const at = (path: string) => new URL(path, origin).href
-  const updated = posts.map(post => post.modified).sort().at(-1)
+  const updated = posts
+    .map(post => post.modified)
+    .sort()
+    .at(-1)
   if (updated === undefined) throw new Error('the blog has no posts, so no feed')
   return [
     '<?xml version="1.0" encoding="utf-8"?>',
