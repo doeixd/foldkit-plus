@@ -35,6 +35,7 @@ import {
 } from './expr.js'
 import { extend, invariantsOfIdentity, variantBases } from './descriptor.js'
 import type { AnyEntity, EntityField, EntityIdentity, EntityInput, InputMember } from './index.js'
+import type { AnyRefinement, RefinementOf } from './refine.js'
 import { storesNull, variantsOf } from './variants.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
@@ -127,8 +128,11 @@ export interface DeclaredInvariant<E extends AnyEntity> {
   readonly entity: string
 }
 
-const fail = (entity: AnyEntity, message: string): never => {
-  throw new Error(`[foldkit-entity] Entity.invariant on ${entity.name}: ${message}`)
+/** Which step declared a rule: an invariant may read `before`, a transition must. */
+type Step = 'invariant' | 'transition'
+
+const fail = (entity: AnyEntity, message: string, step: Step = 'invariant'): never => {
+  throw new Error(`[foldkit-entity] Entity.${step} on ${entity.name}: ${message}`)
 }
 
 /** How an invariant is declared: what `build` returns over the rows, and what a failure says. */
@@ -140,6 +144,35 @@ type Build<E extends AnyEntity> = (rows: {
 interface Options<E extends AnyEntity> {
   readonly message: string
   readonly path?: ReadonlyArray<(keyof E['fields'] & string) | LinkKeys<E>>
+  /**
+   * The state (`Entity.refine`) the rule binds: it holds of a row the write
+   * leaves in that state, and of no other, as `Expr.implies(state.after, rule)`.
+   */
+  readonly in?: RefinementOf<E> | undefined
+}
+
+/** The rule `build` says, bound to the row after being in `state` when one is given. */
+const boundTo = (
+  entity: AnyEntity,
+  id: string,
+  predicate: Predicate,
+  state: AnyRefinement | undefined,
+  step: Step,
+): Predicate => {
+  if (state === undefined) return predicate
+  if (state.entity.identity !== entity.identity)
+    fail(
+      entity,
+      `"${id}" is in ${state.entity.name}.${state.name}, a state of another Entity`,
+      step,
+    )
+  if (!state.local)
+    fail(
+      entity,
+      `"${id}" is in ${entity.name}.${state.name}, which reaches another row, and a rule is judged over its own row`,
+      step,
+    )
+  return Expr.implies(state.after, predicate)
 }
 
 /** The invariant `build` declares over `entity`'s rows, refused where it could judge nothing. */
@@ -148,6 +181,7 @@ const declareOn = <E extends AnyEntity>(
   id: string,
   build: Build<E>,
   options: Options<E>,
+  step: Step = 'invariant',
 ): Invariant => {
   const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
   // A `one` relation reads as the id it points at.
@@ -161,24 +195,39 @@ const declareOn = <E extends AnyEntity>(
   const before = Object.fromEntries(
     nexts.map(([key, next]) => [key, next.field]),
   ) as unknown as BeforeRow<E>
-  const predicate = build({ before, after }) as Predicate
+  const said = build({ before, after }) as Predicate
   // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
-  const body = Query.from(entity).pipe(Query.where(predicate))
-  const dependencies = Query.dependencies(body)
+  const dependencies = Query.dependencies(Query.from(entity).pipe(Query.where(said)))
   if (dependencies.inputs.length > 0) {
-    fail(entity, `"${id}" reads the input ${dependencies.inputs.join(', ')}; it judges stored rows`)
+    fail(
+      entity,
+      `"${id}" reads the input ${dependencies.inputs.join(', ')}; it judges stored rows`,
+      step,
+    )
   }
   const beforeReads = dependencies.predicate.map(field => field.key)
-  const afterReads = dependencies.next.map(field => field.key)
   // Reading the row before alone, it says which rows a write may start from: a write's `when`.
   // Judged as an invariant, a create would skip it and a repair would be refused by it.
-  if (afterReads.length === 0) {
-    fail(entity, `"${id}" reads no field of \`after\`; what a write may start from is its \`when\``)
+  if (dependencies.next.length === 0) {
+    fail(
+      entity,
+      `"${id}" reads no field of \`after\`; what a write may start from is its \`when\``,
+      step,
+    )
   }
+  if (step === 'transition' && beforeReads.length === 0) {
+    fail(
+      entity,
+      `"${id}" reads no field of \`before\`, so it is a rule of one row; declare it with Entity.invariant`,
+      step,
+    )
+  }
+  const predicate = boundTo(entity, id, said, options.in, step)
+  const afterReads = dependenciesOf(predicate).next.map(field => field.key)
   const path = options.path ?? [...new Set([...afterReads, ...beforeReads])]
   for (const key of path) {
     if (!Object.hasOwn(fields, key) && !links.some(link => link.key === key))
-      fail(entity, `"${id}"'s path names "${key}", neither a field nor a one relation`)
+      fail(entity, `"${id}"'s path names "${key}", neither a field nor a one relation`, step)
   }
   return Object.freeze({
     id,
@@ -201,26 +250,53 @@ const declareOn = <E extends AnyEntity>(
  * Refused where it is declared: an id declared twice, a predicate over another
  * Entity, one reading an input or nothing of `after` (that is a `when`), a path
  * naming no field.
+ *
+ * `in: Open` (an `Entity.refine` state of the Entity, over its own row) says
+ * the state once: the rule binds only a row the write leaves in it, as
+ * `Expr.implies(Open.after, rule)` would.
  */
 export const invariant = <E extends AnyEntity>(
+  id: string,
+  build: Build<E>,
+  options: Options<E>,
+): DeclaredInvariant<E> => declaring('invariant', id, build, options)
+
+/**
+ * Declares what every change of a row must hold, over the row before and the
+ * row after: `Entity.transition('staysClosed', ({ before, after }) =>
+ * Expr.implies(Expr.eq(before.status, 'closed'), Expr.eq(after.status,
+ * 'closed')), { message })`. The same rule `Entity.invariant` stores, judged on
+ * updates only (`Entity.readsBefore` says so of either), refused where it is
+ * declared when it reads nothing of `before`: a rule of one row is an invariant.
+ */
+export const transition = <E extends AnyEntity>(
+  id: string,
+  build: Build<E>,
+  options: Options<E>,
+): DeclaredInvariant<E> => declaring('transition', id, build, options)
+
+const declaring = <E extends AnyEntity>(
+  step: Step,
   id: string,
   build: Build<E>,
   options: Options<E>,
 ): DeclaredInvariant<E> => {
   let attached: { readonly identity: EntityIdentity<string>; readonly name: string } | undefined
   const declared = (entity: E): E => {
-    if (id.length === 0) fail(entity, 'an invariant needs an id')
+    if (id.length === 0) fail(entity, 'a rule needs an id', step)
     if (attached !== undefined) {
       if (attached.identity !== entity.identity)
         fail(
           entity,
           `"${id}" is declared on ${attached.name} already: declare it again for this Entity`,
+          step,
         )
       // Applied again to its Entity, as a module evaluated twice or two pipes over one base do.
       return entity
     }
-    if (invariantsOf(entity).some(held => held.id === id)) fail(entity, `"${id}" is declared twice`)
-    extend(entity, { invariants: [declareOn(entity, id, build, options)] })
+    if (invariantsOf(entity).some(held => held.id === id))
+      fail(entity, `"${id}" is declared twice`, step)
+    extend(entity, { invariants: [declareOn(entity, id, build, options, step)] })
     attached = { identity: entity.identity, name: entity.name }
     return entity
   }
@@ -231,7 +307,7 @@ export const invariant = <E extends AnyEntity>(
       get: () => {
         if (attached === undefined) {
           throw new Error(
-            `[foldkit-entity] Entity.invariant "${id}" names no Entity until it is attached to one`,
+            `[foldkit-entity] Entity.${step} "${id}" names no Entity until it is attached to one`,
           )
         }
         return attached.name

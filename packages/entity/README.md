@@ -726,6 +726,9 @@ one of the same kind is flattened into its parent, and one operand is that
 operand. An interpreter that runs per request decides an operand that reads no
 field before it writes anything: `whenGiven` compiles to `true`, which filters
 nothing, when its input is null, and to the predicate alone when it is given.
+`Expr.implies(a, b)` is `Expr.or(Expr.not(a), b)`, the same nodes: `b` binds
+only the rows `a` holds of (`Expr.implies(Expr.eq(Product.fields.status,
+'active'), Expr.gt(Product.fields.cents, 0))`).
 
 **Comparisons** order two values: `Expr.lt`, `lte`, `gt` and `gte`.
 
@@ -750,6 +753,25 @@ throws where the comparison is built. A value is
 compared in its encoded form, which is why a date stored as an ISO string is
 text here. A null on either side is unknown, as in SQL. There is no `between`;
 it is the `and` above.
+
+**Sums and differences** are numbers too: `Expr.add(a, b)` and `Expr.sub(a, b)`,
+over number fields, inputs, literals and each other, on either side.
+
+```ts
+const price = { discount: Expr.input('discount', Schema.Number) }
+Expr.gte(Expr.sub(Product.fields.cents, price.discount), 100)
+Expr.show(Expr.sub(Product.fields.cents, price.discount)) // '(Product.cents - $discount)'
+```
+
+They are the kernel's primitive operators `number.add` and `number.subtract`,
+in `Operators.kernel` and every binding's SQL kernel: `+` and `-` in memory, in
+SQLite and in Postgres, and conformance cases hold the three to one answer. A
+null on either side gives null; a text operand is a type error where it is
+passed. A comparison, an order term, an invariant, a write's `when` and its
+`compute` read one as any number, and a sum of integers computes an integer
+field. Past what a double holds the readers part: memory and SQLite give an
+infinity, and Postgres refuses the statement as out of range (two integer
+columns add as integers there).
 
 ### Reading across relations: `Expr.path` and `Expr.exists`
 
@@ -1267,7 +1289,10 @@ Entity.judge(Inventory, { after: { id: 'i1', quantity: 3, reserved: 5 } })
 ```
 
 One that reads the row before too (`before`) relates the two, each of which may
-be valid on its own: an order that shipped stays shipped.
+be valid on its own: an order that shipped stays shipped. Declare it with
+`Entity.transition`, which stores the same rule `Entity.invariant` would and
+refuses, where it is declared, one that reads nothing of `before`, so its name
+says what kind it is:
 
 ```ts
 const OrderFields = Entity.define(
@@ -1275,10 +1300,10 @@ const OrderFields = Entity.define(
   Schema.Struct({ id: Schema.String, status: Schema.Literals(['placed', 'shipped']) }),
 )
 const Order = OrderFields.pipe(
-  Entity.invariant(
+  Entity.transition(
     'shippedStaysShipped',
     ({ before, after }) =>
-      Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status, 'shipped')),
+      Expr.implies(Expr.eq(before.status, 'shipped'), Expr.eq(after.status, 'shipped')),
     { message: 'A shipped order stays shipped', path: ['status'] },
   ),
 )
@@ -1288,7 +1313,7 @@ Entity.judge(Order, { before: shipped, after: { ...shipped, status: 'placed' } }
 // { _tag: 'Invalid', failures: [{ id: 'shippedStaysShipped', … }] }
 ```
 
-What an invariant reads decides when it is judged; nothing else is declared:
+What a rule reads decides when it is judged; nothing else is stored:
 
 ```text
 reads after only   -> state invariant:      every create and update; a CHECK constraint
@@ -1296,7 +1321,31 @@ reads before too   -> transition invariant: every update, the only write with a 
 ```
 
 `Entity.readsBefore(invariant)` says which one is, for each of
-`Entity.invariants(entity)`.
+`Entity.invariants(entity)`, whichever step declared it.
+
+A rule that binds only rows in one state names the state (`Entity.refine`) as
+`in`, and says it once: the rule is `Expr.implies(state.after, rule)`, judged
+over the row the write leaves. States refine the Entity, so declare them before
+the rules that name them:
+
+```ts
+const Account = Entity.define(
+  'Account',
+  Schema.Struct({ id: Schema.String, status: Schema.Literals(['open', 'closed']), balance: Schema.Number }),
+)
+const Open = Entity.refine(Account, 'Open', { status: 'open' })
+Account.pipe(
+  Entity.invariant('neverOverdrawn', ({ after }) => Expr.gte(after.balance, 0), {
+    message: 'An open account is never overdrawn',
+    in: Open,
+  }),
+)
+
+Entity.judge(Account, { after: { id: 'a1', status: 'closed', balance: -5 } })._tag // 'Valid'
+```
+
+A state of another Entity, or one that reaches another row (it has no row
+after a write to judge), is refused where the rule is declared.
 
 `before` and `after` hold each field as the store does, encoded, and are typed
 so: a date stored as ISO text is compared with ISO text
@@ -1692,7 +1741,8 @@ Query.show(PublicStories)
 
 Without `definedAs`, an operator is **primitive**: it means what each
 interpreter's implementation does, and every implementation is held to the
-same statement of it. The kernel ships one, `Text.startsWith`; an application
+same statement of it. The kernel ships three, `Text.startsWith`, `Expr.add` and
+`Expr.sub`; an application
 declares its own and implements it, here for the in-memory interpreter:
 
 ```ts standalone
@@ -1909,8 +1959,9 @@ server on different deploys see which side is behind.
 | `Entity.derived({ key: Derived.make(schema, { predict?, forbids? }) })` | Pipe step adding readable, externally supplied members; `predict` and `forbids` say what a client foresees of one. |
 | `Derived.count(Other.relations.pointer)` | A derived member counting the rows whose `one` relation points at this one. |
 | `Derived.exists(Other.relations.pointer, { viewer: Other.relations.by })` | The id of a row pointing at this one and at whoever reads it, or none. |
-| `Entity.invariant(id, ({ before, after }) => predicate, { message, path })` | Pipe step: what every stored row must hold, judged over the row a write leaves. |
+| `Entity.invariant(id, ({ before, after }) => predicate, { message, path, in? })` | Pipe step: what every stored row must hold, judged over the row a write leaves; `in: State` binds it to rows in that state. |
 | `Entity.judge(entity, { after, before? })` / `Entity.check(entity)` | Judge rows against the invariants (`Valid`, `Invalid`, `Undecided`); the state invariants as a Schema check. |
+| `Entity.transition(id, ({ before, after }) => predicate, { message, path, in? })` | Pipe step: the rule `Entity.invariant` stores, refused where it is declared when it reads nothing of `before`. |
 | `Entity.invariants(entity)` / `Entity.readsBefore(invariant)` | The invariants an Entity holds; whether one reads the row before (a transition invariant). |
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
@@ -1924,6 +1975,8 @@ server on different deploys see which side is behind.
 | `Expr.in(field, among)` | Whether a value is one of a list (written out, or an input), each compared as `eq` compares; SQL's `in`, an empty list matching nothing. |
 | `Expr.and(a, b, …)` / `Expr.or(a, b, …)` | Every operand holds / at least one does, as SQL's three-valued `and` and `or`. At least one operand; a nested one of the same kind is flattened in. |
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
+| `Expr.implies(condition, then)` | `then` holds wherever `condition` does: `Expr.or(Expr.not(condition), then)`, the same nodes. |
+| `Expr.add(a, b)` / `Expr.sub(a, b)` | A sum, a difference of two numbers: the kernel's primitive operators `number.add` and `number.subtract`, run by every reader; null if either side is null. |
 | `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
 | `Expr.is(entity or relation, tag, fields => predicate?)` | The row, or the row a `one` relation reaches, is of a case of a variant Entity, and holds what is asked of that case's fields, typed as the case holds them. False on another case. |
 | `Expr.path(relation, end)` | What the row a `one` relation points at holds: a field, a further path, or an exists; null where no row is reached. At most `maxPathLength` (4) relations. |

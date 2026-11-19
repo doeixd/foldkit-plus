@@ -7,6 +7,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- `foldkit-entity`: `Expr.implies(condition, then)` is `Expr.or(Expr.not(condition), then)`, the same nodes, so every reader runs it already: "while open, the balance is not negative" is `Expr.implies(Expr.eq(after.status, 'open'), Expr.gte(after.balance, 0))`.
+- `foldkit-entity`: `Expr.add(a, b)` and `Expr.sub(a, b)`, a sum and a difference of numbers, are the kernel's primitive operators `number.add` and `number.subtract`: in `Operators.kernel` and `foldkit-remote-drizzle`'s `DrizzleOperators.kernel` (`+` and `-` on SQLite and Postgres), held to one answer by new conformance cases, printed infix by `Expr.show`, and declared commutative (`add`) and monotonic over finite numbers. A null on either side gives null; a text operand is a type error at the argument. A comparison, an order term, an invariant, a write's `when` and its `compute` read one as any number, and a sum or difference of integers computes a `Schema.Int` field. Past what a double holds the readers part: memory and SQLite give an infinity, and Postgres refuses the statement.
+- `foldkit-entity`: `Entity.invariant(id, build, { message, in: State })` binds a rule to the rows a write leaves in an `Entity.refine` state, as `Expr.implies(State.after, rule)`; a state of another Entity, or one reaching another row, is refused where the rule is declared.
+- `foldkit-entity`: `Entity.transition(id, ({ before, after }) => …, { message, path?, in? })` stores the rule `Entity.invariant` would, and refuses one that reads nothing of `before`, so a declaration says which kind it is; `Entity.readsBefore` still tells the two apart in the stored rules.
+
 ## 0.42.0
 
 One thing to change when you upgrade. `foldkit-mixins-ui`'s `CodeBlock`

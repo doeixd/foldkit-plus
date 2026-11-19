@@ -300,11 +300,12 @@ export const reservedWithinStock = Entity.invariant<typeof ProductFields>(
   ({ after }) => Expr.lte(after.reserved, after.stock),
   { message: 'Reserved stock cannot exceed the stock', path: ['reserved'] },
 )
-// A transition invariant: reads `before` too, so it judges updates only.
-export const publishedStaysPublished = Entity.invariant<typeof ProductFields>(
+// A transition: reads `before` too, so it judges updates only. `Entity.transition` refuses one
+// that reads nothing of `before`; the rule it stores is an invariant's.
+export const publishedStaysPublished = Entity.transition<typeof ProductFields>(
   'publishedStaysPublished',
   ({ before, after }) =>
-    Expr.or(Expr.not(Expr.eq(before.status, 'published')), Expr.eq(after.status, 'published')),
+    Expr.implies(Expr.eq(before.status, 'published'), Expr.eq(after.status, 'published')),
   { message: 'A published product does not go back to draft', path: ['status'] },
 )
 export const Product = ProductFields.pipe(reservedWithinStock, publishedStaysPublished)
@@ -349,7 +350,10 @@ const Restock = Write.update(
 - **An invariant's lifecycle is what it reads.** `after` only: a state invariant, judged on every create
   and update, and a `CHECK` constraint (`checkConstraints`, `entityChecks`). `before` too: a transition invariant, judged
   on updates only. `Entity.readsBefore` of one of `Entity.invariants(entity)` tells which. One reading nothing of `after` is refused
-  where it is declared: which rows a write may start from is its `when`.
+  where it is declared: which rows a write may start from is its `when`. `Entity.transition` is the same
+  step, refusing one that reads nothing of `before`.
+- **In a state.** `in: Open` (an `Entity.refine` state of the Entity, over its own row; declare it before
+  the rule) binds a rule to rows the write leaves in that state: `Expr.implies(Open.after, rule)`.
 - **Over `one` relations too.** `before` and `after` hold each `one` relation as the id it points at,
   so "you cannot follow yourself" stays on the Entity: pipe
   `Entity.invariant('notSelf', ({ after }) => Expr.not(Expr.eq(after.follower, after.followee)), â€¦)`
@@ -490,7 +494,10 @@ why). Before writing one:
   orders by one.
 - `Expr.viewer` and `Expr.now` come from the run's context; a run without one
   is refused (`ContextMissingError`), a visitor's viewer is null.
-- A derived member is not an operand, and there is no arithmetic or aggregate.
+- A derived member is not an operand, and there is no aggregate. Arithmetic is
+  `Expr.add(a, b)` and `Expr.sub(a, b)` over numbers (the kernel's primitive
+  `number.add` and `number.subtract`, `+` and `-` in every reader; null if
+  either side is null; a text operand is a type error).
 
 The guide, with one body run by all three:
 https://github.com/doeixd/foldkit-plus/blob/main/docs/expressions.md
@@ -527,7 +534,8 @@ matches nothing, a null list is unknown, as a null compared is) exist too, and t
 unknown, so a null matches neither a comparison nor its `not`. A `Query`'s list
 of predicates is already the conjunction; `and` is for one inside an `or`.
 `Expr.whenGiven(input.status, status => Expr.eq(fields.status, status))` is a
-filter that applies only when a nullable input is given. The operator set grows
+filter that applies only when a nullable input is given; `Expr.implies(a, b)` is
+`Expr.or(Expr.not(a), b)`, the same nodes, for a rule that binds only some rows. The operator set grows
 from real queries, not from what SQL can express. `Expr.lt` / `lte` / `gt` /
 `gte(left, right, { collation? })` compare numbers, and text only under
 `Collation.binary` or `asciiFold` (declared on the field or passed) and against
@@ -554,7 +562,8 @@ In memory, `Operators.memory(Operators.implement(op, (a, b, { collation }) => â€
 is a table passed to `evaluate(body, input, rows, { operators })`, `Entity.judge`,
 `judgeInput` (`{ operators }`) and `Entity.check(entity, { operators })` (which throws where it is made
 for an operator the table lacks); `Operators.kernel` is the
-default and holds `Text.startsWith(text, prefix, { collation? })`. A strict operator
+default and holds `Text.startsWith(text, prefix, { collation? })`, `Expr.add` and
+`Expr.sub` (as does every binding's SQL kernel). A strict operator
 (the default) never sees a null; `nulls: 'handled'` with
 `Operators.implementHandlingNulls` does. `collation: 'operands'` makes a text result
 carry its operands' collation; `'required'` refuses text with none. A body calling an

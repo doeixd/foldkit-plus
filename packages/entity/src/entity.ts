@@ -1004,5 +1004,6 @@ export {
   judgedBy,
   readsBefore,
   rowFrom,
+  transition,
   type JudgeInputOptions,
 } from './invariant.js'
