@@ -1,47 +1,18 @@
 # foldkit-richtext-dom
 
-The browser half of a [`foldkit-richtext`](../richtext) editor: it owns the
-`contenteditable` subtree, and gives an application an editor it places like any other
-Foldkit Bundle.
+Rebuilding a `contenteditable` element on every keystroke through a virtual DOM fights the browser's typing, selection, IME composition, and clipboard handling. You want your application state to stay the single source of truth while only the changed DOM nodes update in place.
 
-A rich-text editor cannot let a virtual DOM own its `contenteditable` subtree: the browser
-mutates that subtree directly for typing, selection, IME, and the clipboard, and rebuilding
-it on every keystroke fights that native behavior. This package owns the subtree instead. It
-renders a semantic `Document` into real DOM once, patches only the nodes a `ChangeSet` names,
-and turns the browser events it understands into Messages.
-
-## Who owns what
-
-- `foldkit-richtext` owns the semantics: Document, commands, transactions and
-  validation.
-- `foldkit-richtext-dom` (this package) owns the contenteditable subtree and its
-  events.
-- Your application owns the document in its Model, and everything around the editor.
-- `foldkit-mixins-richtext` draws that everything as styleable views: toolbars, menus
-  and the handle.
-
-The document is never read back from the DOM. It lives in the application's Model, and the
-DOM is consulted only to map a browser selection to a position. Only `Document`, `ChangeSet`,
-and `Selection` values, commands, and Messages cross the boundary.
-
-## The loop
-
-A browser event becomes a Message, and `update` runs the command, so the Model holds
-the new document. A patch Command then patches the DOM to match.
-
-An edit is a transition like any other: `update` decides, the Model commits, and rendering
-follows through a Command that patches what the `ChangeSet` names. Nothing edits the DOM
-first and reports later; an event the adapter cannot honor is prevented, not let through.
+`foldkit-richtext-dom` bridges [`foldkit-richtext`](../richtext) documents and the browser DOM. It mounts a real `contenteditable` subtree once, converts user input into Foldkit Messages (events sent to your `update` function), and patches only the nodes named by each edit's `ChangeSet`. Your application owns the document in its Model (your app's state) and draws any surrounding toolbars or menus. See the editor running in [the rich-text playground](https://foldkit-richtext-demo.pages.dev/).
 
 ## Install
-
-This package is **early**: 0.x, and its API may change between minor versions.
 
 ```bash
 pnpm add foldkit-richtext-dom foldkit-richtext foldkit-bundle foldkit effect
 ```
 
-## Sixty seconds: an editor on a page
+## A first editor on a page
+
+Place an editor Bundle (a self-contained unit of state, `update`, and `view`) on a page, decode an initial document, and embed the runtime:
 
 ```ts
 import { Bundle } from 'foldkit-bundle'
@@ -49,7 +20,6 @@ import * as RichText from 'foldkit-richtext'
 import * as Runtime from 'foldkit/runtime'
 import { editorAt, Model, type ParentMessage } from 'foldkit-richtext-dom/editor-bundle'
 
-// One editor, placed at the host id its view renders, with what it draws and allows.
 const body = editorAt('body', {
   rendering: RichText.standardRendering,
   vocabulary: {
@@ -59,12 +29,9 @@ const body = editorAt('body', {
   placeholder: 'Write something…',
 })
 const app = Bundle.assemble<Model, ParentMessage>()([body])
-
 const document = RichText.decodeDocument({
   version: 1,
-  children: [
-    { type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 't', text: 'Hello', marks: [] }] },
-  ],
+  children: [{ type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 't', text: 'Hello', marks: [] }] }],
 })
 
 Runtime.embed(
@@ -78,230 +45,101 @@ Runtime.embed(
 )
 ```
 
-What each part does, and does not do:
+When embedded, `body.view` renders `<foldkit-richtext id="body">` showing `"Hello"` inside a paragraph. Typing or pressing shortcuts dispatches Messages to `update`, which validates the edit against `vocabulary`, stores the new `document` in `model.document`, and returns a Command that patches only the changed DOM nodes.
 
-- **`editorAt(hostId, placement)`** records, under `hostId`, how this editor renders, which
-  marks and kinds its edits may use, and what a blank document shows. It performs no I/O and
-  renders nothing yet. The placement is recorded rather than passed as an arg because it holds
-  functions and schemas, which a Bundle's schema-decoded args cannot carry.
-- **`Model`** is `{ document, editor }`: the document, and the editor's interaction state
-  beside it (selection, stored marks, undo history, the slash menu's highlight). The document
-  is the parent's; the editor reads it through its Link and never keeps a copy.
-- **`body.view`** renders one element, `<foldkit-richtext id="body">`, and mounts the
-  interpreter into it once. Everything inside belongs to this package.
-- **An edit** arrives as a Message, `update` runs the command against the vocabulary, the new
-  document lands in `model.document` in the same transition, and a patch Command then updates
-  the DOM. An edit the vocabulary forbids is refused and changes nothing.
+Three boundaries keep state predictable:
 
-## Configuring a placement
+- **Your application** owns `model.document` and all chrome around the editor (toolbars, menus, handles).
+- **`foldkit-richtext-dom`** owns the `<foldkit-richtext>` subtree, converting browser events into Messages and syncing DOM selections back to positions.
+- **`foldkit-richtext`** owns the pure document codec, commands, and validation.
 
-`editorAt(hostId, placement)` takes, each optional:
+`editorAt(hostId, placement)` registers rendering and vocabulary rules under `hostId` without performing I/O or rendering yet. `Model` holds `{ document, editor }` where `editor` tracks selection, stored marks, undo history, and the slash menu index. Because the document is never read back from the DOM, unsupported browser edits are prevented before they mutate the tree.
 
-- **`rendering`**: how marks and node kinds become elements; the default renders the
-  core's own names. A mark renders *inside* its run element, so the run stays outermost and a
-  selection still maps.
-- **`vocabulary`**: `{ marks, nodes }` registries. The editor refuses an edit a declaration
-  forbids, rather than only letting `validate` report it later.
-- **`inputRules`**: rules applied to what is typed, so a marker turns into a block change as it
-  is completed, such as `foldkit-richtext-markdown`'s `markdownInputRules`. A rule the
-  vocabulary refuses does not cost the keystroke: the text is inserted on its own.
-- **`decorate`**: `document => DecorationSet`, drawn over the document on the mount and every
-  patch, code highlighting for one. It sees the document only. A highlight derived
-  from application state, such as a search query or other people's carets, goes through
-  the `overlay(hostId, decorations)` Command instead. It draws them after the placement's
-  own and leaves the caret where it is. Its positions name the document shown, so set it
-  again when that changes; placing the host id again starts it with none.
-  `focus(hostId, selection)` is the Command that sends the reader into the text from a control
-  outside it (a table of contents, a find bar closing on its match): the editor takes the focus
-  with that selection, scrolled to the middle of the window when it is out of view. The browser
-  reports the selection back as `Selected`.
-- **`keymap`**: chords beside the built-in ones, checked first, as `{ chord, command }`
-  (`Mod-u` toggling an application's `Underline`, say). `Mod` is Ctrl or Cmd.
-- **`slashEntries`**: what its slash menu offers, which Enter in a query resolves against: an
-  application's own catalogue (an image, a table, a callout), beside or instead of the
-  editor's `slashEntries`. The application's menu view draws the same list.
-- An empty line holds a `<br data-richtext-filler>` after its run. A browser can neither draw a
-  caret in an empty text node nor move one there with the arrow keys, so without it a new line
-  made with Enter had no height and could not be reached. The caret on an empty line stands
-  before it; it holds no text or position, server markup draws it too, and an import drops it.
-- **`label` / `labelledBy`**: the editor's accessible name. The editable root is a
-  `role="textbox"`, which a screen reader announces as an unnamed field unless it has one.
-  `label` is written as `aria-label` on it, `labelledBy` (the id of the element that names it)
-  as `aria-labelledby`, and passing both is a type error. Server markup carries them. With
-  neither, an editor drawn inside a `role="group"` that is itself labelled (the group
-  `foldkit-mixins-form` draws around a control, named by the key's label) takes that group's
-  label, and a click on the label focuses the editor, which the label's own `for` cannot do
-  since it names the group. That is discovered in the browser, so server markup has no name from
-  the group until hydration: give a `labelledBy` where the page must be named before then. An
-  editor given no name and not in a labelled group has none: this package keeps no diagnostics
-  channel (the accessibility obligations are `foldkit-mixins`'), so nothing warns.
+## Configuring an editor placement
 
-- **`placeholder`**: what a blank document shows (`RichText.isBlank`). It is put on the block as
-  `data-placeholder`, and the root, a `role="textbox"`, carries it as `aria-placeholder`.
-  Drawing it is the stylesheet's, so the text never enters the content:
+`editorAt(hostId, placement)` accepts the following optional settings:
 
-  ```css
-  [data-placeholder]::before {
-    content: attr(data-placeholder);
-    float: left;
-    height: 0;
-    pointer-events: none;
-    color: GrayText;
-  }
-  ```
+- **`rendering`**: Maps marks and node kinds to DOM elements; defaults to `foldkit-richtext`'s built-in names. Marks render *inside* their text run element so run boundaries remain intact for selection mapping.
+- **`vocabulary`**: `{ marks, nodes }` registries that refuse disallowed edits immediately in `update` rather than waiting for `validate`.
+- **`inputRules`**: Rules run on typed characters, such as `markdownInputRules` from [`foldkit-richtext-markdown`](../richtext-markdown). When a vocabulary refuses a rule's transformation, the typed text still inserts normally.
+- **`decorate`**: Pure `(document) => DecorationSet` callback evaluated on mount and on every patch—for example, syntax highlighting. Highlights derived from application state (search matches, remote cursors) go through the `overlay(hostId, decorations)` Command instead, which renders after `decorate` and preserves the caret. Use `focus(hostId, selection)` to move focus into the editor from external controls and scroll the target into view.
+- **`keymap`**: Custom `{ chord, command }` bindings (where `Mod` is Ctrl or Cmd) checked before the built-in chords.
+- **`slashEntries`**: Custom slash-menu items resolved on Enter and shared with your menu view.
+- **`label` / `labelledBy`**: Accessible name written as `aria-label` or `aria-labelledby` on the `role="textbox"` root. Passing both is a type error. Without either, an editor inside a labelled `role="group"` (such as a `foldkit-mixins-form` field) adopts the group's label after hydration.
+- **`placeholder`**: Text shown via `data-placeholder` and `aria-placeholder` when `RichText.isBlank(document)` is true. Style `[data-placeholder]::before` in CSS so placeholder text stays out of the document content.
+- **`lineHint`**: Hint text set on `data-hint` for the empty paragraph holding a collapsed caret (for example, `"Type / for blocks"`), styled with `[contenteditable]:focus [data-hint]::before`.
+- **`serverRendered`**: Boolean thunk indicating server-rendered markup is already present to adopt on mount.
 
-- **`lineHint`**: what the empty paragraph a collapsed caret is in shows, such as "Type / for
-  blocks", put on it as `data-hint` and moved as the caret moves. A blank document's block shows
-  the placeholder instead. Draw it like the placeholder, under `:focus` so it shows only while
-  the editor is being written in: `[contenteditable]:focus [data-hint]::before`.
-- **`serverRendered`**: whether a render is the server's; see "On a server-rendered page".
+Empty lines automatically render a `<br data-richtext-filler>` after their run so the browser can place and display a caret on blank lines; importers strip it and it holds no position.
 
-Each has a record at `foldkit-richtext-dom/host` (`placeRendering`/`renderingFor`,
-`placeVocabulary`/`vocabularyFor`, and so on) that `editorAt` writes. It is kept for the host
-id, not for one mount, so a host that unmounts and mounts again renders the same way. One host
-id is one editor on the page: the patch Command finds its host by id.
+Each placement option is stored per `hostId` in `foldkit-richtext-dom/host` (`placeRendering`/`renderingFor`, `placeVocabulary`/`vocabularyFor`, and siblings), surviving unmount and remount under the same `hostId`.
 
-The assembled parent's `update` handles every editor Message. Build them with `edited` and the
-helpers beside it: `typed`, `pressed`, `toggled`, `applied`, `cleared`, `retyped`, `wrapped`,
-`converted`, `lifted`, `moved`, `selected`, `undone`, `redone`, and `patched`.
+### When the document changes outside an edit
 
-### When the document changes from outside
+`body.view` keys its host element by the `Document` object identity produced by editor transitions. When your parent `update` replaces `model.document` via an external event (loading a record, resetting a form, restoring a revision), the host mounts fresh. Always commit the exact `Document` instance returned by an edit rather than cloning it, or every keystroke will remount the editor and drop the caret.
 
-A document the parent puts in the Model any other way than an edit (an entry opened, a
-revision restored, a form's `fill` or `Reset`) gets a fresh host. The host's Mount reads its
-document once, so the view keys the host by the document it shows: each committed edit hands
-its key on to the next document, and a document that did not come from an edit here has none
-yet. The first document a host id shows is drawn without a key, as the server draws it.
+When a replacement continues the live document—such as incoming collaborative edits—return `patchTo(hostId, previous, next)` in the same transition. Pass the previous and next `Document` objects along with the mapped `next.selection` so untouched DOM nodes keep their elements and the caret moves to the right spot.
 
-So commit the document an edit returns as it is. A parent that puts its own copy in the Model
-after each edit (normalized, say) gets a fresh host, and a lost caret, on every keystroke.
+## Embed the editor as a form control
 
-When the new document continues the old one (another replica's change arriving, or the
-document a collaborative edit projects to), return `patchTo(hostId, previous, next)` from the
-same transition that puts it in the Model. It hands the host's key on from `previous` to
-`next.document`, which have to be the very objects the view rendered and will render, and
-patches the editor from the latest state it holds (what it has drawn, or a state waiting for an
-IME to finish) to `next`, so the host and every run the change
-did not touch keep their elements. `next.selection` becomes the browser selection, so pass
-the caret carried across the change (`Replicated.resolve` of an anchored one), or the caret
-is lost. A replacement that changes nothing drawn, as an exchange that only confirms edits
-already shown does, leaves the DOM and its selection alone. `replaceChangeSet(previous, next)` is the patch, in a transaction's terms: the runs
-whose text or marks differ and the blocks holding them, blocks whose runs moved in or out or
-changed order, blocks whose own fields changed, the
-nodes that came and went, and whether any block moved. An `Edited` OutMessage also carries
-the `transactions` the edit applied, which is what `RichText.Replicated.translate` reads.
+`foldkit-richtext-dom/input` integrates the editor into a [`foldkit-form`](../form) field backed by a `RichText.Document` or a custom serialized format:
 
-## As a form control
-
-`foldkit-richtext-dom/input` puts the editor in a `foldkit-form` form: a key whose value is a
-`RichText.Document`, or whatever a codec converts it to. It is the one entry that imports `foldkit-form`, an optional peer.
-
-<!-- docs-check
+```ts
 import { Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
+import { Form } from 'foldkit-form'
 import * as RichText from 'foldkit-richtext'
+import { richTextInput } from 'foldkit-richtext-dom/input'
+
 const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, body: RichText.Document }))
 const PostInput = Entity.input(Post, Schema.Struct({ body: Post.fields.body.schema }))
--->
-```ts
-import { Form } from 'foldkit-form'
-import { richTextInput } from 'foldkit-richtext-dom/input'
 
 const PostForm = Form.make('PostForm', PostInput, {
   inputs: { body: richTextInput('post-body', { placeholder: 'Write the post…' }) },
 })
 ```
 
-Here there is no parent to hold the document: a form key has nothing to report an edit to,
-and `Input.bundle` refuses a Bundle with an OutMessage. So `EditorInput` is the same editor
-holding its document in its own Model, with each committed edit and undo folded back in. The
-form owns that Model as the key's draft; the document is the key's value, validated,
-submitted, and reported by `authoredChanged` like any other.
+Because a form field owns its draft state without a parent `OutMessage`, `EditorInput` stores its `Document` inside its own `Model` and reports changes to the form like any other input. New records start with one empty paragraph, and blank documents report as empty so required validation catches them. One `hostId` identifies one editor, so repeated form rows cannot each host a `richTextInput` yet.
 
-- **Placement:** `richTextInput(hostId, placement, { codec }?)` places what `editorAt` places, under that
-  host id. Since one host id is one editor, a key repeated in a form's rows cannot be a
-  rich-text control yet.
-- **Nothing entered:** a new record starts on one empty paragraph, which is where a caret can
-  go. A blank document reads as no value, so a required key refuses it.
-- **Filling:** `fill` shows a given document with a history of its own and no selection, since
-  the caret was in runs the given document does not have.
-- **Another stored type:** a field stored as text, Markdown say, cannot hold a `Document`
-  without every reader of its Entity decoding one. Pass a codec and the key holds what it
-  converts to, while the editor still holds a document. A blank document is no value before the
-  codec runs, so `value` is never called with one; a codec whose stored type has a value for
-  nothing (an empty text) gives it as `blank`, and a required key then accepts a blank document.
-- **Failure:** `fill` takes stored data, and a codec whose `fill` throws makes the form's
-  `fill` throw, as any control that cannot show a value does: nothing catches it, so parse
-  defensively where the stored text may be bad. An empty text parses to a document with no
-  block, where the editor has nowhere to put a caret: a codec that stores `''` for blank fills
-  an empty text with `EditorInput.init({ hostId }).model.document`, the editor's own blank.
-  `value` runs on each read of the key, so keep it cheap.
+To store Markdown or another text format in the Entity while editing rich text, provide a `codec` with `value` and `fill`:
 
-<!-- docs-check
-import { Schema } from 'effect'
-import { Entity } from 'foldkit-entity'
+```ts
+import { parse, print } from 'foldkit-richtext-markdown'
+
 const Note = Entity.define('Note', Schema.Struct({ id: Schema.String, body: Schema.String }))
 const NoteInput = Entity.input(Note, Schema.Struct({ body: Note.fields.body.schema }))
--->
-```ts
-import { Form } from 'foldkit-form'
-import { parse, print } from 'foldkit-richtext-markdown'
-import { richTextInput } from 'foldkit-richtext-dom/input'
 
 const NoteForm = Form.make('NoteForm', NoteInput, {
   inputs: {
-    body: richTextInput(
-      'note-body',
-      {},
-      {
-        codec: {
-          value: document => print(document).markdown,
-          fill: text => {
-            let next = 0
-            // The editor mints ids starting with `e`, so these never meet them.
-            return parse(text, { mint: () => `m${next++}` }).document
-          },
+    body: richTextInput('note-body', {}, {
+      codec: {
+        value: document => print(document).markdown,
+        fill: text => {
+          let next = 0
+          return parse(text, { mint: () => `m${next++}` }).document
         },
       },
-    ),
+    }),
   },
 })
 ```
 
-`foldkit-richtext-markdown` is the application's to import: this entry does not depend on it.
-- **Resuming:** `settled`, for a stored draft shown again, keeps the caret, the stored marks,
-  and the history, clears only the slash menu's highlight and dismissal, and takes this placement's host id
-  in case the draft was stored under another.
+`fill` runs when populating stored data; avoid throwing on malformed input, and return `EditorInput.init({ hostId }).model.document` when filling empty text (`''`) so the editor always starts with one paragraph. Calling `settled` on a restored draft preserves caret, stored marks, and undo history while updating the `hostId`.
 
-## Chrome around the editor
+## Position toolbars, block handles, and menus
 
-The editor renders its host and nothing else. A toolbar, a menu, a handle: each is the
-application's chrome, drawn beside the host from the Model, sending the editor's Messages.
-This package ships the plain versions below; `foldkit-mixins-richtext` draws the same chrome
-as slot views an application restyles.
+The editor renders only its host element. `foldkit-richtext-dom/toolbar` provides plain views and Mount positioning helpers for surrounding chrome, while [`foldkit-mixins-richtext`](../mixins-richtext) provides fully restyleable Slot versions.
 
-### The marks toolbar
+### Marks and floating toolbars
 
-`marksToolbar({ state, toMessage, marks? })` returns a view, `(h) => Html`, of one button per
-mark, dispatching the Message a chord would. `state` is what the editor projects (`document`,
-`selection`, `storedMarks`), and `marks` defaults to the three the package ships. A mark is
-active when the caret carries it, or, with no stored format, when every run the selection
-covers does. `markActive(state, mark)` is that rule alone, for a renderer drawing its own
-buttons.
-
-### The floating toolbar
-
-The same buttons, in an element `selectionAnchor` places over the selection:
+`marksToolbar({ state, toMessage, marks? })` renders buttons for the standard marks (or a custom list) using `markActive(state, mark)` to reflect caret/selection state. Pair it with `selectionAnchor` to float over a text range (assuming `model` holds `{ document, editor }` and `h` is Foldkit's `HtmlBuilder`):
 
 <!-- docs-check standalone
 import type { HtmlBuilder } from 'foldkit/html'
 import type * as RichText from 'foldkit-richtext'
 import { Message } from 'foldkit-richtext-dom/editor'
 import type { ToolbarState } from 'foldkit-richtext-dom/toolbar'
-declare const model: {
-  readonly editor: Omit<ToolbarState, 'document'>
-  readonly document: RichText.Document
-}
+declare const model: { readonly editor: Omit<ToolbarState, 'document'>; readonly document: RichText.Document }
 declare const h: HtmlBuilder<Message>
 declare const edited: (message: Message) => Message
 -->
@@ -322,140 +160,52 @@ RichText.coversText(model.editor.selection)
   : h.empty
 ```
 
-Whether it is drawn is the view's, from the Model: `RichText.coversText` is a range that is not
-a caret. The Mount only moves it. It places the element `gap` pixels above the page's
-selection, centred and kept inside the window's width, or below when there is no room above,
-and again on `selectionchange`, any scroll, and resize; a selection outside the host is
-ignored. It writes `position: fixed`, `top`, `left`, and `data-placement` (`top` or `bottom`)
-on the element, so a style there must leave those alone. With `caret: true` it follows a caret
-too, opening under it (above when there is no room below), which is where a slash menu goes; a
-caret in an empty run is read from the element it is in.
+`selectionAnchor` writes `position: fixed`, `top`, `left`, and `data-placement` (`top` or `bottom`) whenever the selection, scroll, or viewport changes. Pass `caret: true` to anchor below a collapsed caret (for example, for a slash menu).
 
-### The block handle: anchor and drag
+### Anchor and drag blocks
 
-`blockAnchor({ hostId, node, gap })` places an element `gap` pixels left of block `node`, level
-with its top edge and never past the window's left edge; with `side: 'above'` it goes `gap`
-pixels above the block, at its left edge, or just inside its top when there is no room above,
-which is where a block's toolbar (a table's) goes; with `side: 'inside-end'` it goes inside the
-block's top right corner, for a toolbar that should cover nothing around the block (a code
-block's, over its own header). It places it again when the editor's subtree changes (a patch can
-move a block without the page scrolling), on scroll, on resize, and when the element's own size
-changes, and it finds a host drawn after it, or drawn again in the same parent.
+- **`blockAnchor({ hostId, node, gap, side? })`** positions an element beside block `node` (defaulting to the left edge, or `'above'` / `'inside-end'` for block toolbars), updating on DOM patches, scrolls, resizes, and element size changes.
+- **`blockDrag({ hostId, node })`** makes the mounted element drag block `node` to any target allowed by `RichText.moveTargets`. It marks `[data-richtext-drop]` at the drop edge, sets `data-richtext-dragging` on the dragged block, auto-scrolls within 48 px of the viewport edge, cancels cleanly on Escape or cancelled pointers, and dispatches `MovedBlock` on release.
 
-`blockDrag({ hostId, node })` drags block `node` by the element it is mounted on, to any block
-`RichText.moveTargets` allows under the placed vocabulary, so an item can go into another list
-but not to the top level:
+Because Mounts read arguments once on insertion, key anchored elements by `h.Key(node)` whenever `node` can change.
 
-- The pointer picks the nearest edge of those blocks: before one at its top, after one at its
-  bottom. Where a container's edge meets its first or last block's, the block's is picked while
-  the pointer is inside it, and the container's once the pointer is past it.
-- A line, `[data-richtext-drop]`, is fixed at that edge, outside the editable subtree, for a
-  stylesheet to draw: it has no size or color of its own, so a page that styles nothing shows
-  no feedback at all. Once the pointer moves, the dragged block carries
-  `data-richtext-dragging` until the drag ends, and the page's root element
-  `data-richtext-drag`, for a `grabbing` cursor wherever the pointer goes. The place is read again on a scroll and on
-  release, where the blocks are then, and release sends `MovedBlock` there.
-- Held within 48 pixels of the window's top or bottom, the pointer scrolls the page a frame at
-  a time, faster the nearer the edge (`edgeScroll`), so a block can be dragged past what the
-  window shows.
-- Escape, a cancelled pointer, a move with the button up (a release the page never heard, over
-  a frame say), or a place where the block already is ends it with nothing sent.
-- Only the pointer that pressed steers or ends it. The page is listened to only during a drag,
-  in the capture phase, so a handler that stops a release does not hide it, and the element
-  gets `touch-action: none` while mounted, or a touch would pan the page instead.
+### Slash menu helpers
 
-Both are Mounts, and a Mount reads its args once, when its element is inserted. Key the element
-by the block (`h.Key(node)`) when the block it stands for can change.
-
-### The slash menu
-
-The editor owns the slash menu's vocabulary, because an entry is one of its own Messages and
-the Bundle resolves Enter by handling the chosen entry as that Message:
+`foldkit-richtext-dom/editor` exports `slashEntries`, `slashQuery`, and `slashMenu` so your menu view and the Bundle's Enter handler agree on matches and order:
 
 ```ts
 import { slashEntries, slashMenu, slashQuery } from 'foldkit-richtext-dom/editor'
 
-slashQuery('see /head') // 'head': opens at a block's start or after whitespace
+slashQuery('see /head') // 'head'
 slashMenu(slashEntries, 'see /head', 0)?.highlighted?.label // 'Heading 1'
 ```
 
-- **`slashEntries`** leads with the text blocks a caret can become (`Paragraph`,
-  `Heading 1`–`3`), then the standard containers (`Quote`, `Bulleted list`, `Numbered list`,
-  `Code block`, whose id is `code-block` because `code` is the Code mark's), then the marks.
-  Each has a stable `id`, a `label`, the words a query may also match, and its Message, and
-  for a menu to draw, a `description`, the `group` it is listed under (Text, Lists, Blocks,
-  Formatting), and an `icon` by name.
-- **`slashMenu(entries, textBefore, index)`** is the one value a view and `update` share:
-  whether a query is open, what matches, and what Enter would send. A stale index falls back to
-  the first match. The text a query is read from is the document's, so typing a slash opens
-  the menu and leaving the query closes it, with no switch to keep in step.
-- **`EditorState.menuIndex`** is the one thing a menu owns. The application moves it (with
-  `slashMove` from `foldkit-mixins-richtext`), and on `Entered` the Bundle treats the
-  highlighted entry as the Message a click would send. Choosing an entry also removes the
-  query typed for it, as one action: one transition and one undo step.
-- **`Message.DismissedSlash`** is Escape over the menu. `EditorState.slashDismissed` keeps the
-  slash of the query it closed, so the menu stays shut while that query is typed on and Enter
-  splits the line, and it ends when the query does: a slash typed later opens a menu again.
-  `menuTextOf(view)` from `foldkit-richtext-dom/editor-bundle` is the text a menu reads, empty
-  while dismissed, and the Bundle's Enter reads it too, so a view built on it agrees with Enter.
+`menuTextOf(view)` from `foldkit-richtext-dom/editor-bundle` reads the active query text while respecting `Message.DismissedSlash` (Escape), keeping the menu closed until a new `/` query begins.
 
-`matchingEntries` decides the order. With no query it lists every entry with each group's
-entries together, in the order the group first appears; with one, the best matches first (a
-label the query starts, then a word of a label, then a keyword, then any containing it). The
-keys move through that order and a menu draws it, so they cannot disagree. It, `slashQuery`, and
-`slashMenu` work over any entries carrying a `message`, so an application's own catalogue reuses
-them.
+## Render a read-only document
 
-## Showing a document: the read-only renderer
+`foldkit-richtext-dom/view` renders a `Document` or slice blocks as static Foldkit `Html` via `inertHtml`, without mounting any editable runtime:
 
-`foldkit-richtext-dom/view` renders a document as ordinary Foldkit `Html` through `inertHtml`:
-it dispatches nothing and owns no DOM, so it serves a visitor's page, a preview, or an email as
-it is.
-
-<!-- docs-check standalone
-import * as RichText from 'foldkit-richtext'
-declare const document: RichText.Document
-declare const slice: { readonly blocks: ReadonlyArray<RichText.Block> }
-declare const renderer: RichText.Rendering
-declare const decorations: RichText.DecorationSet
--->
 ```ts
+import * as RichText from 'foldkit-richtext'
 import { renderBlocks, renderDocument } from 'foldkit-richtext-dom/view'
 
-const html = renderDocument(document) // a div of block elements
-renderBlocks(slice.blocks) // one element per block
-renderDocument(document, renderer) // a declared Link as a real <a href>
-renderDocument(document, renderer, decorations) // a decoration overlaid on the runs it covers
+const doc = RichText.decodeDocument({
+  version: 1,
+  children: [{ type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 't', text: 'Read only', marks: [] }] }],
+})
+
+const html = renderDocument(doc)
+renderBlocks(doc.children)
+renderDocument(doc, RichText.standardRendering)
+renderDocument(doc, RichText.standardRendering, [])
 ```
 
-It takes the same `rendering(...)` registry as the HTML serializer and the editor, so a
-declared mark or kind becomes the same element everywhere, custom elements included. Without
-one, blocks become `p`/`h1`–`h6`, marks nest as `strong`/`em`/`code` in the serializer's order,
-an undeclared mark rides on a `span` with `data-marks`, and an unknown block renders as an
-inert `div data-unknown="Type"` placeholder. A tag Foldkit cannot build is reported, never
-swapped for another element.
+Pass the same `Rendering` registry used by the editor and HTML serializer so custom marks and blocks render identically. Decorations map via `RichText.decorationsIn` to `<span data-decoration="...">`, with safe lowercase string fields in `decoration.data` emitted as `data-decoration-<key>` attributes.
 
-A decoration set is projected with `RichText.decorationsIn`: each covered piece of
-a run becomes a `span[data-decoration=<kind>]` with the run's marks inside it, which is also how
-the editor draws one, so one stylesheet serves both. Each string field of the decoration's
-`data` whose name is lowercase letters, digits, and hyphens is drawn as
-`data-decoration-<name>` on that span (`data: { name: 'Ada' }` is `data-decoration-name="Ada"`,
-for a stylesheet's `attr()`); any other field is not drawn. A decoration that starts or ends in
-an empty run, such as another person's caret on an empty line, is drawn as an empty span in it,
-where the core's `decorationsIn` has no text to cover. `renderBlocks` takes no set, since a
-slice's positions cannot be resolved without its document. Text holding a NUL, which markup
-cannot carry, is written as the U+FFFD a parser would make of it.
+## Hydrate server-rendered editor markup
 
-`h.DataAttribute` prefixes `data-` itself, so it takes the bare name
-(`DataAttribute('unknown', …)` is `data-unknown`).
-
-## On a server-rendered page
-
-The editor's host is a custom element, `<foldkit-richtext>`, drawn `display: block` by an
-inline style (so a stylesheet's `display` needs `!important` to override it). Hydration leaves
-a custom element's contents alone, so markup the server sent there survives until the editor
-mounts, and the editor adopts it rather than drawing the document again. The server sends it
-when the placement says the render is the server's:
+`<foldkit-richtext>` renders `display: block` inline, and Foldkit hydration preserves custom-element children until the editor mounts. Pass `serverRendered: SSR.serving` (from [`foldkit-ssr`](../ssr)) to `editorAt` so the server emits `renderEditable(...)` HTML and the browser adopts the existing DOM nodes on mount without replacing them:
 
 ```ts
 import * as RichText from 'foldkit-richtext'
@@ -465,237 +215,74 @@ import { SSR } from 'foldkit-ssr'
 editorAt('body', { rendering: RichText.standardRendering, serverRendered: SSR.serving })
 ```
 
-While `serverRendered()` is true, the host holds `renderEditable` of the document, with the
-placement's rendering and decorations: exactly what `mount` would build. Without the option the
-host is empty until the editor mounts. The browser's Model must hold the same document the
-server rendered, or the markup is not what `mount` would build and is replaced.
+Ensure the browser's initial Model holds the exact `Document` rendered on the server; otherwise `mountInto` replaces the mismatched subtree cleanly.
 
-## The editor's Messages
+## Handle editor Messages
 
-`foldkit-richtext-dom/editor` holds the vocabulary an editor's `update` handles. `Message`'s
-cases (each built as `Message.Typed({ text })` and so on, not exported one by one):
+`foldkit-richtext-dom/editor` defines the `Message` union handled by the editor Bundle:
 
-```text
-Typed, Backspace, DeletedForward, Entered, ToggledMark, AppliedMark, ClearedMark,
-RetypedBlock, WrappedBlock, ConvertedBlock, LiftedBlock, MovedBlock, InsertedBlock,
-DeletedBlock, InsertedRow, InsertedColumn, DeletedRow, DeletedColumn, Indented, Outdented,
-ReplacedText, InsertedFootnote, RenamedFootnote, ActivatedAdornment, DismissedSlash,
-ChangedProps, Selected, Pasted, Undone, Redone, Patched
-```
+- **Typing and marks:** `Typed`, `Backspace`, `DeletedForward`, `Entered`, `ToggledMark`, `AppliedMark`, `ClearedMark`, `Pasted`, `Selected`
+- **Blocks and tables:** `RetypedBlock`, `WrappedBlock`, `ConvertedBlock`, `LiftedBlock`, `MovedBlock`, `InsertedBlock`, `DeletedBlock`, `ChangedProps`, `InsertedRow`, `InsertedColumn`, `DeletedRow`, `DeletedColumn`, `Indented`, `Outdented`
+- **Search, footnotes, and chrome:** `ReplacedText`, `InsertedFootnote`, `RenamedFootnote`, `ActivatedAdornment`, `DismissedSlash`
+- **History and patching:** `Undone`, `Redone`, `Patched`
 
-The adapter reports what the browser did as commands, a caret, and history chords, and
-`toMessage` turns each into a Message. Its chords are Mod+B, Mod+I and Mod+E for Bold, Italic
-and Code, Mod+Shift+S for Strikethrough (Mod+S alone is left to the browser), and Mod+Z,
-Mod+Shift+Z and Mod+Y for undo and redo; a placement's `keymap` adds its own, checked first. It refuses what the vocabulary cannot carry rather than
-dropping a detail: an insertion carrying marks, or a mark value with props, comes back
-`undefined`. The rest are the application's to send, because no browser event means them:
+Built-in keyboard chords dispatch `Mod+B` (`Bold`), `Mod+I` (`Italic`), `Mod+E` (`Code`), `Mod+Shift+S` (`Strikethrough`), and `Mod+Z` / `Mod+Shift+Z` / `Mod+Y` (undo/redo), while `Tab` / `Shift+Tab` emit `Indented` / `Outdented` only where `RichText.takesTab` applies (code blocks, lists, and table cells). Controls inside an element carrying `data-editor-controls` (`CONTROLS_ATTRIBUTE` from `foldkit-richtext-dom/toolbar`) preserve text focus on pointer presses unless the target is an input field.
 
-- `RetypedBlock`, `WrappedBlock` (`{ containers }`), `ConvertedBlock` (`{ to }`), and
-  `LiftedBlock` for the core's block commands;
-- `MovedBlock` (`{ node, to }`, `to` a `RichText.Beside`), which a block handle sends and which
-  needs no selection;
-- `InsertedBlock` (`{ block, to? }`) and `DeletedBlock` (`{ node }`) for `InsertBlock` and
-  `DeleteBlock`: an insert menu's image or table, a handle's Duplicate and Delete;
-- `ChangedProps` (`{ node, props }`) for `SetProps`. The adapter sends it too, for a click on a
-  block's adornment that toggles a prop (a task's checkbox, from `ElementRendering.adornments`);
-- `InsertedRow` and `InsertedColumn` (`{ where }`), `DeletedRow` and `DeletedColumn` for the
-  table commands, which act on the caret's cell: what a table toolbar sends;
-- `Indented` and `Outdented` for `Indent` and `Outdent`. The adapter sends them for Tab and
-  Shift+Tab, but only where `RichText.takesTab` says Tab means something (code, a table cell,
-  under the placement's vocabulary); anywhere else Tab is left to move focus;
-- `ReplacedText` (`{ query, replacement, caseSensitive?, at? }`) for `Replace`: one match, or
-  every match, as one undo step, which a find bar sends;
-- `InsertedFootnote` (`{ text? }`) and `RenamedFootnote` (`{ from, to }`) for `InsertFootnote` and
-  `RenameFootnote`, which need `FootnoteRef` in the placement's vocabulary;
-- `ActivatedAdornment` (`{ node, action }`): an adornment with an `action` was clicked, a code
-  block's Copy, say. It is no edit, and the editor changes nothing; the application acts on it;
-- `AppliedMark` (`{ mark }`, a name or a `{ name, props }` value) and `ClearedMark` (`{ mark }`)
-  for `SetMark` and `ClearMark`: what a link editor sends, which at a caret changes or removes
-  the whole link the caret is in.
+## Embed the low-level interpreter directly
 
-`Patched` is the patch Command's own completion, because a Foldkit Command must return a
-Message.
+To host the editable subtree outside the Bundle, call `mount` and `attach` (or `mountInto` / `releaseMount` from `foldkit-richtext-dom/host`):
 
-## Lower level: the interpreter
-
-Everything above is built from these. Reach for them to embed the editable subtree without
-the Bundle, or to write another host.
-
-```ts sketch
+```ts
 import { mount } from 'foldkit-richtext-dom'
 import { attach } from 'foldkit-richtext-dom/events'
 import * as RichText from 'foldkit-richtext'
 
-let dom = mount(ownerDocument, content) // render once
-host.append(dom.root) // the host element is yours
+function mountRawEditor(
+  host: HTMLElement,
+  content: RichText.Document,
+  onCommand: (command: RichText.Command) => void,
+) {
+  let dom = mount(host.ownerDocument, content)
+  host.append(dom.root)
 
-// Events become intent; your update decides and commits.
-const attachment = attach(dom, {
-  onIntent: command => dispatch({ type: 'Edited', command }),
-})
-
-// In the resulting transition, after RichText.run returns a new state:
-attachment.sync(next, result.changeSet)
-dom = attachment.current()
+  const attachment = attach(dom, { onIntent: onCommand })
+  return {
+    sync: (next: RichText.EditorState, changeSet: RichText.ChangeSet) => {
+      attachment.sync(next, changeSet)
+      dom = attachment.current()
+    },
+    detach: () => attachment.detach(),
+  }
+}
 ```
 
-This is the shape, not a copyable module: `ownerDocument`, `content`, `host`, `dispatch`,
-`next`, and `result` come from the surrounding application, and `next` is the `EditorState`
-that transition committed.
+- **`mount` / `adopt` / `patch` / `repair`**: Build, reuse server-rendered, incrementally update, or recover the DOM subtree indexed by `data-block` and `data-run`.
+- **`attach`**: Intercepts `beforeinput`, `keydown`, composition, copy, cut, and paste so the browser cannot mutate content directly, queues state patches during IME composition, paints `span[data-decoration="selection"]` when focus moves to external controls, and scrolls the caret into view honoring `scroll-padding`.
+- **`positionToRange` / `rangeToPosition`**: Translate between semantic `Position` values and DOM `Range` objects.
+- **`parseHtml(html, { kit, mint })`** (`foldkit-richtext-dom/html`): Sanitizes pasted HTML through a strict whitelist and `safeUrl` check.
 
-- **`mount(ownerDocument, content, renderer?, decorations?)`** builds the subtree and the
-  identity index it is patched through: `data-block` on a block, `data-run` on a run. It
-  listens to nothing and runs nothing. A mark renders as an element inside its run element, so
-  the text node stays deepest and a selection still maps; a mark no entry renders stays on
-  `data-marks`. A node entry renders a node block as its element, nested blocks inside, and a
-  kind no entry renders keeps a `div`. The registry is kept on the `EditorDom`, so every later
-  patch renders the same way. Decorations are drawn as the read-only renderer draws them, and
-  the position mapping reads across the text nodes they split.
-- **`attach(dom, { onIntent, onSelection?, keymap? })`** listens for `beforeinput`, `keydown`,
-  composition, copy, cut, and paste, and reports each one it understands as intent. Everything
-  it understands it prevents, so the browser never mutates the DOM behind the document; an
-  event it cannot honor yet is prevented with no intent rather than allowed to drift.
-  `onSelection` reports a caret or range inside the editor that the application did not just
-  commit, and nothing while an IME owns the caret. A selection elsewhere on the page is not
-  reported, so the editor keeps its own caret (or selected block) while another field has
-  focus. A keystroke, a composition start, a cut, or a paste reads the live selection first and
-  reports it before its intent, because `selectionchange` is asynchronous and a click just
-  before would otherwise be missed. `keymap` adds or overrides chord bindings, checked
-  before the built-in ones. A press on an atom (an image, a divider) selects it as a node
-  selection; the browser is given the range around its element, which reads back as that
-  selection, and the block carries `data-selected`, the only sign of it a stylesheet can
-  reach. An arrow that leaves a block for an atom beside it (Right at its end, Down from its
-  last line) selects the atom rather than stepping over it, and from a selected atom an arrow
-  goes to the text beside it. A press on an adornment (a task's checkbox, a code block's Copy)
-  keeps the caret where it was, so writing goes on there. A third press selects its block's
-  text, where the browser's selection runs on to the next block and typing over it would join
-  that block too. In code (a kind declared `lineBreaks`), the first Mod+A selects the code and
-  a second the document. A press in the space below
-  the last block puts the caret at the end of a last paragraph or heading, and after anything
-  else (a table, code, an image) opens a paragraph there, which no caret could reach.
-  `attachment.sync(state, changeSet)` patches and restores the
-  selection in one call, but only while the browser's selection is inside the editor: a sync
-  never takes the caret from another editor or an input.
-  The editor owns the browser's selection only while the focus is not on something outside it,
-  such as a toolbar button or another field. While it is, a redraw puts no selection back
-  (setting one in the text would take the focus), and what the browser then says of its selection
-  is not reported, so the application's selection is what it was when the focus left, plus what
-  its own commands did. When the focus moves outside, and in every state drawn while it is
-  there, a range selection is drawn as a decoration of kind `selection`
-  (`SELECTION_DECORATION`): `span[data-decoration="selection"]` over the selected text, for a
-  stylesheet to paint as selected (`background: Highlight; color: HighlightText`). A caret and
-  a selected block draw none. When the focus comes back to the text by a key or by `focus`, the
-  decoration goes and the browser's selection is the application's again; a press in the text
-  places its own caret.
-  A press inside an element marked `data-editor-controls` (`CONTROLS_ATTRIBUTE`; both names are
-  exported from `foldkit-richtext-dom/toolbar`) does not take the focus from the text at all: while
-  the editor owns the selection it prevents the press's default, and the click still happens. A
-  field in such an element (`input`, `select`, `textarea`, anything `contenteditable`) takes the
-  focus as usual, and so does a marked control pressed while the focus is elsewhere.
-  While an IME is composing, the latest
-  state waits and is drawn when composition ends, so another person's edit never rewrites the
-  text under the IME.
-  The caret is kept in view: after an edit, an undo or redo, or a caret the editor itself moved
-  (a held arrow key, select-all in code, an arrow onto an atom), the focus end of the
-  selection is scrolled into view by the least amount (`scrollIntoView({ block: 'nearest' })`,
-  but for the caret's own line, so the bottom of a tall block does not bring its top up),
-  in every scrolling box around the editor and in the window, instantly. A sticky toolbar
-  or header stays clear when the page names it: `html { scroll-padding-top: 3rem }` (and the
-  scrolling box's own `scroll-padding`). Another person's edit, a decoration refresh, a
-  focus held by a control beside the editor, and a pointer selection (the browser's own
-  autoscroll) scroll nothing; `focus(hostId, selection)` scrolls as described above.
-  `detach()` removes the listeners.
-- **`patch(dom, content, changeSet, decorations?)`** removes what the change set removed,
-  re-renders what it marked dirty, and places inserted or moved elements in document order.
-  `decorations` is the next render's whole set, so a run whose share of it changed is redrawn,
-  and a patch without one clears what was drawn. An element that is no longer what its block
-  renders as (a heading re-leveled to `h3`, say) is re-rendered rather than kept.
-- **`repair(dom, content)`** is recovery, not domain state: it drops what the subtree
-  holds that the document does not, re-renders blocks whose rendering drifted, and returns the
-  same `EditorDom` when nothing was wrong. Call it after a cancelled IME.
-- **`positionToRange` and `rangeToPosition`** translate between a semantic `Position` and a DOM
-  `Range`. A DOM caret carries no affinity, so mapping back derives it (`after` at a run's end,
-  `before` elsewhere) rather than pretending to round-trip it.
+## Current behavior and limits
 
-### Mounting into a view's element
+- **Intent reporting only:** `attach` reports user intent and waits for the caller to run commands and pass back the new state and `ChangeSet`.
+- **Container re-rendering:** When a container's list of child items changes, the container re-renders in place rather than diffing each child item individually.
+- **Single host per ID:** Each `hostId` identifies one editor on a page, so repeating rows inside a single form cannot yet host separate `richTextInput` editors.
 
-A Foldkit view owns the host element; the interpreter owns what goes inside it. `mountInto`
-renders into the host and records the attachment there, so a patch Command that has only the
-element can find it:
+## Subpath exports
 
-<!-- docs-check standalone
-import type * as RichText from 'foldkit-richtext'
-declare const host: HTMLElement
-declare const content: RichText.Document
-declare const onIntent: (command: RichText.Command) => void
-declare const onSelection: (selection: RichText.Selection | null) => void
-declare const renderer: RichText.Rendering
-declare const state: RichText.EditorState
-declare const changeSet: RichText.ChangeSet
--->
-```ts
-import { attachmentIn, mountInto, releaseMount } from 'foldkit-richtext-dom/host'
+| Subpath | Main exports |
+| --- | --- |
+| `foldkit-richtext-dom` | `mount`, `adopt`, `patch`, `repair`, position mapping |
+| `foldkit-richtext-dom/editor-bundle` | `Editor`, `editorAt`, `application`, `update`, Message helpers |
+| `foldkit-richtext-dom/input` | `richTextInput`, `EditorInput` form control |
+| `foldkit-richtext-dom/toolbar` | `marksToolbar`, `selectionAnchor`, `blockAnchor`, `blockDrag` |
+| `foldkit-richtext-dom/editor` | `Message`, `toMessage`, `attachEditor`, `events`, slash menu |
+| `foldkit-richtext-dom/view` | `renderDocument`, `renderBlocks`, `renderEditable` |
+| `foldkit-richtext-dom/host` | `mountInto`, `attachmentIn`, `releaseMount`, placement records |
+| `foldkit-richtext-dom/events` | `attach`, `intentFor`, selection read and restore |
+| `foldkit-richtext-dom/html` | `parseHtml` |
 
-// The mount: once, when the host element enters the DOM. The registry is optional.
-const attachment = mountInto(host, content, { onIntent, onSelection }, renderer)
+## Next
 
-// The patch Command: after the transition committed, given the host element.
-attachmentIn(host)?.sync(state, changeSet)
-
-// Unmount.
-releaseMount(host)
-```
-
-If the host already holds exactly the subtree `mount` would build (server markup the browser
-parsed, say), `mountInto` keeps those elements and indexes them. `adopt(existing, content,
-rendering?, decorations?)` is that check alone. It compares the trees ignoring empty text
-nodes, which markup cannot carry, and gives an empty run back the text node a caret needs.
-Anything else in the host is replaced, so it ends with one subtree either way.
-`renderEditable(document, renderer?, decorations?)` is the same subtree as `Html`, which is
-what a server sends.
-
-`attachEditor(host, content, emit, { rendering?, decorate?, placeholder?, lineHint? })` attaches the
-translation to Messages to a host element; `events({ content })` wraps it as the Mount the
-editor's view uses; `patchEditor(hostId, state, changeSet)` is what the patch Command runs,
-reporting whether it patched. A missing host is an editor that went away while the transition
-was in flight, not an error.
-
-### Pasting HTML
-
-`parseHtml(html, { kit, mint })` at `foldkit-richtext-dom/html` is the clipboard fallback: a
-whitelist walk over a `DOMParser` tree that mints fresh identities. It maps the standard
-vocabulary's elements (`blockquote`, `pre` with its language from `data-language` or a
-`language-…` class, `hr`, `img`, `table`/`tr`/`td`/`th` with a row of `th`s as the header,
-`s`/`del`, `a`) and reads a fixed few attributes, each URL through `safeUrl`. That refuses a
-scheme outside http/https/mailto/tel *after* removing control characters, so
-`java\tscript:` cannot walk past it. A `style`, an `onclick`, or a `javascript:` URL cannot
-survive as anything executable, and an element it cannot map keeps its text and reports a
-diagnostic.
-
-## What it does not do
-
-- It does not run commands or hold domain state. A caller runs the command and hands the result
-  here; `attach` reports intent and stops.
-- It does not patch a container's items one by one: a container whose item list changed is
-  re-rendered where it stood, so its surviving items are rebuilt rather than kept. Correct, and
-  a follow-up for identity preservation.
-- One host id is one editor on the page, so repeated rows of a form cannot each hold one yet.
-
-## Reference
-
-```text
-foldkit-richtext-dom                the interpreter: mount, adopt, patch, repair, position mapping
-foldkit-richtext-dom/editor-bundle  Editor, editorAt, application, update, the Message helpers
-foldkit-richtext-dom/input          richTextInput, EditorInput: the editor as a foldkit-form key
-foldkit-richtext-dom/toolbar        marksToolbar, markActive, selectionAnchor, blockAnchor, blockDrag
-foldkit-richtext-dom/editor         Message, toMessage, attachEditor, events, patchEditor, slash menu
-foldkit-richtext-dom/view           renderDocument, renderBlocks, renderEditable
-foldkit-richtext-dom/host           mountInto, attachmentIn, releaseMount, the place*/…For records
-foldkit-richtext-dom/events         attach, intentFor, selection read and restore
-foldkit-richtext-dom/html           parseHtml
-```
-
-```bash
-pnpm --filter foldkit-richtext-dom typecheck
-pnpm vitest run packages/richtext-dom/test
-```
+- Style toolbars, menus, block handles, and source mode: [`foldkit-mixins-richtext`](../mixins-richtext)
+- Understand document nodes, commands, and Kits: [`foldkit-richtext`](../richtext)
+- Convert documents to Markdown and input rules: [`foldkit-richtext-markdown`](../richtext-markdown)

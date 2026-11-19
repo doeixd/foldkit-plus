@@ -1,31 +1,8 @@
 # foldkit-richtext-code-shiki
 
-[Shiki](https://shiki.style)'s grammars as tokenizers for a
-[`foldkit-richtext`](../richtext) `CodeBlock`.
+Built-in lexers cover simple formats like JSON, while languages such as TypeScript, CSS, or Python need full TextMate grammars. Rather than storing theme-specific colors inside your documents, you can keep plain text in the document and highlight it at render time using a synchronous [Shiki](https://shiki.style) highlighter.
 
-A code block's document holds its `language` and plain text; what a highlighter finds there is
-a set of decorations, derived for a render and discarded (`RichText.codeDecorations`). This
-package turns a Shiki highlighter the application already made into those tokenizers — one per
-language it loaded — so TypeScript, CSS, Python, or anything else Shiki has a grammar for
-highlights the way `foldkit-richtext-code`'s JSON grammar does.
-
-## What it owns
-
-The mapping from Shiki to the tokenizer contract, and nothing else. The application owns the
-highlighter: which grammars and theme it loads, and when. The document stays
-`foldkit-richtext`'s, and drawing stays the renderer's (`span[data-decoration=<kind>]`).
-
-Shiki's colours are not used. Its TextMate scopes are read into the same `syntax-*` kinds the
-JSON grammar names, so one stylesheet colours every language:
-
-```text
-syntax-comment  syntax-property  syntax-string  syntax-number  syntax-keyword
-syntax-operator syntax-function  syntax-type    syntax-punctuation
-```
-
-A scope matches by whole segments (`string` and `string.quoted`, never `stringy`), and the
-first kind that matches wins: a JSON key sits inside `string` and is a property, and a string's
-quotes are part of the string. Whitespace and plain identifiers are not decorated.
+`foldkit-richtext-code-shiki` adapts any synchronous Shiki highlighter you configure at startup into tokenizers for [`foldkit-richtext`](../richtext) code blocks. It maps Shiki's TextMate scopes onto the same `syntax-*` decoration kinds used by [`foldkit-richtext-code`](../richtext-code), so one stylesheet paints every language. See it running in [the rich-text playground](https://foldkit-richtext-demo.pages.dev/).
 
 ## Install
 
@@ -33,10 +10,11 @@ quotes are part of the string. Whitespace and plain identifiers are not decorate
 pnpm add foldkit-richtext-code-shiki shiki
 ```
 
-## Highlight TypeScript
+## A first highlighter: TypeScript
+
+Create a synchronous Shiki highlighter with the languages you want to support and convert it into a language-to-tokenizer map:
 
 ```ts
-import * as RichText from 'foldkit-richtext'
 import { shikiTokenizers } from 'foldkit-richtext-code-shiki'
 import { createHighlighterCoreSync } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
@@ -50,33 +28,47 @@ const highlighter = createHighlighterCoreSync({
 })
 
 const tokenizers = shikiTokenizers(highlighter)
+```
+
+`shikiTokenizers(highlighter)` returns a `Map` with an entry for every loaded language and alias (`typescript`, `ts`, `cts`, `mts`). Pass that map to `RichText.codeDecorations` when rendering a read-only view or placing an editor:
+
+```ts
+import * as RichText from 'foldkit-richtext'
 
 const decorate = (document: RichText.Document) => RichText.codeDecorations(document, tokenizers)
 ```
 
-`shikiTokenizers` gives a `Map` from every name the highlighter loaded (`typescript`, `ts`,
-`cts`, `mts`) to its tokenizer, which is what `codeDecorations` takes. `decorate` is what an
-editor placement names, `editorAt(hostId, { decorate })` in `foldkit-richtext-dom`, and what a
-read-only render passes to `renderDocument`.
+Your application owns the highlighter—which grammars and themes it loads, and when. Because a tokenizer runs synchronously during render, build the highlighter at startup with `createHighlighterCoreSync` and Shiki's JavaScript regex engine before placing the editor. If you call `shikiTokenizer(highlighter, language)` for a single language, it throws right away if that language or any theme is missing (Shiki requires a theme to tokenize even though its inline colors are discarded).
 
-The highlighter must be synchronous, which is why the example builds it with
-`createHighlighterCoreSync` and Shiki's JavaScript regex engine: a tokenizer is called on
-every render. Loading grammars is startup work that belongs to the application, before it
-places an editor. `shikiTokenizer(highlighter, language)` makes one tokenizer, and it throws
-when it is made if the highlighter has not loaded that language or any theme. Shiki needs a
-theme to tokenize at all, even though its colours are discarded.
+## How Shiki scopes map to decorations
 
-## Cost
+Shiki's inline colors are ignored. Instead, each token's TextMate scopes are matched by whole segments (so `string` and `string.quoted` match, never `stringy`) against nine `syntax-*` kinds, with the first match winning:
 
-Each tokenizer remembers the last 64 texts it read, so an editor that retokenizes every code
-block on every patch pays for a block only when its text changes. Reading scopes
-(`includeExplanation`) is Shiki's slow path, so a very large block still costs a full parse on
-each edit to it. Shiki's per-line time limit is turned off: with explanations on, a line cut
-short by it made Shiki throw, so a slow line now costs time rather than a failed render.
+| Kind | Typical scopes |
+| --- | --- |
+| `syntax-comment` | Comments and doc blocks |
+| `syntax-property` | Object keys and property names |
+| `syntax-string` | Quoted strings and string delimiters |
+| `syntax-number` | Numeric literals |
+| `syntax-keyword` | Language keywords and modifiers |
+| `syntax-operator` | Arithmetic, logical, and assignment operators |
+| `syntax-function` | Function and method names |
+| `syntax-type` | Type annotations and class names |
+| `syntax-punctuation` | Brackets, braces, and separators |
+
+Whitespace and plain identifiers receive no decoration. Style each kind in CSS with `[data-decoration="syntax-keyword"]` and its siblings.
+
+## Caching and performance
+
+Each tokenizer caches the last 64 block strings it tokenized, so an editor that runs `decorate` on every patch only re-parses the code block whose text changed. Reading TextMate scopes (`includeExplanation`) is Shiki's slower path, so a very large code block still pays a full parse per edit. The adapter disables Shiki's per-line timeout so a complex line takes longer rather than throwing during render.
 
 ## Limits
 
-- **No asynchronous loading.** A grammar loaded after an editor is placed is not picked up;
-  build the tokenizers again and place them again.
-- **The kinds are fixed.** A scope outside the table above is not decorated, and there is no
-  hook to map it; say what it should be and the table grows.
+- **No asynchronous grammar loading.** Grammars loaded after you build `tokenizers` are not picked up automatically; rebuild `tokenizers` and update the placement when new grammars finish loading.
+- **Fixed decoration kinds.** Scopes outside the nine `syntax-*` kinds above receive no decoration.
+
+## Next
+
+- Lightweight JSON highlighting with zero grammar setup: [`foldkit-richtext-code`](../richtext-code)
+- Mount an editor and pass `decorate`: [`foldkit-richtext-dom`](../richtext-dom)
+- Add a language selector and copy button: [`foldkit-mixins-richtext`](../mixins-richtext#the-table-and-code-toolbars)

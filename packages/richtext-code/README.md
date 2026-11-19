@@ -1,15 +1,8 @@
 # foldkit-richtext-code
 
-Grammars for highlighting a [`foldkit-richtext`](../richtext) `CodeBlock`.
+Storing syntax tokens inside a saved document mixes presentation with content, bloats storage, and breaks when a grammar changes. A cleaner split keeps only the language name and plain text in the document, then computes token highlights on render and discards them.
 
-A code block's document holds its `language` and its plain text, never tokens. What a
-highlighter finds in that text is presentation: a set of decorations, derived for a render
-and discarded, like a search match. `foldkit-richtext` owns the contract (`CodeTokenizer`)
-and the producer (`codeDecorations`); this package owns grammars — a tokenizer is a pure
-function from a block's text to token ranges.
-
-A `CodeBlock { language, text }` goes through a tokenizer to tokens, `codeDecorations`
-makes a `DecorationSet` of them, and the renderer draws it.
+`foldkit-richtext-code` provides pure tokenizers—starting with JSON—that read a [`foldkit-richtext`](../richtext) code block's text and produce token ranges. Pass them to `RichText.codeDecorations` to turn those ranges into decorations that any renderer or editor paints with CSS. See code blocks highlighted live in [the rich-text playground](https://foldkit-richtext-demo.pages.dev/).
 
 ## Install
 
@@ -17,15 +10,9 @@ makes a `DecorationSet` of them, and the renderer draws it.
 pnpm add foldkit-richtext-code
 ```
 
-## What it owns
+## A first example: highlight JSON
 
-Grammars, and nothing else: no state, no document change, no loading. The document is
-`foldkit-richtext`'s, drawing the result is the renderer's (`foldkit-richtext-dom`'s read-only
-view draws a decoration as `span[data-decoration=<kind>]`), and a grammar that must load
-before it can run — Shiki — is a separate adapter's, because it needs a Command rather than a
-pure call.
-
-## Highlight JSON
+Build a document with a JSON code block, then derive its syntax decorations using `jsonTokenizer`:
 
 ```ts
 import * as RichText from 'foldkit-richtext'
@@ -47,18 +34,23 @@ const document = RichText.decodeDocument({
 const tokens = RichText.codeDecorations(document, new Map([['json', jsonTokenizer]]))
 ```
 
-`codeDecorations` reads the document; it changes nothing and loads nothing. The `Map` says
-which tokenizer serves which `language` prop, so registering `jsonTokenizer` under `jsonc`
-as well is one more entry. Pass `tokens` to a renderer beside the document, and compute them
-again when the document changes.
+`codeDecorations` reads each `CodeBlock` in `document`, finds the matching language in the `Map`, and returns a `DecorationSet` (an array of ephemeral ranges) without changing the document. Registering `jsonTokenizer` under `jsonc` as well takes one extra entry in the `Map`.
 
-The kinds are `syntax-property` (an object key), `syntax-string`, `syntax-number`,
-`syntax-keyword` (`true`, `false`, `null`), and `syntax-punctuation`, which a stylesheet
-reaches as `[data-decoration="syntax-number"]` and so on.
+The tokenizer emits five decoration kinds, which `foldkit-richtext-dom` renders as `<span data-decoration="...">`:
 
-## In the editor
+| Kind | Matches |
+| --- | --- |
+| `syntax-property` | Object keys |
+| `syntax-string` | Quoted string values |
+| `syntax-number` | Numeric literals |
+| `syntax-keyword` | `true`, `false`, and `null` |
+| `syntax-punctuation` | Braces, brackets, colons, and commas |
 
-`foldkit-richtext-dom`'s editor draws decorations its placement derives from the document:
+Style them in CSS with selectors such as `[data-decoration="syntax-number"]`.
+
+## Highlight code inside the editor
+
+Pass a `decorate` function when placing an editor with [`foldkit-richtext-dom`](../richtext-dom):
 
 ```ts
 import * as RichText from 'foldkit-richtext'
@@ -72,22 +64,19 @@ const body = editorAt('article-body', {
 })
 ```
 
-The editor calls `decorate` at its mount and on every patch, and draws the result as the
-read-only view does, so one stylesheet serves both.
+The editor runs `decorate` when it mounts and on every patch, painting the same `data-decoration` spans as the read-only view so one stylesheet covers both.
 
-## Invalid text
+## Handle incomplete JSON while typing
 
-A code block being typed is rarely valid JSON, so the tokenizer is total: it never throws,
-every token lies inside the text in order, a string still being typed ends at the line break
-or the end of the text, and a character JSON has no token for gets none. What it can read is
-highlighted and the rest stays plain. It is a lexer, not a validator: it does not check that
-the tokens form a JSON value.
+A code block being edited is often invalid JSON. `jsonTokenizer` is total and never throws: every token stays inside the text in order, an unclosed string ends at the line break or end of text, and unrecognized characters stay plain. It acts as a lexer rather than a validator, so valid-looking tokens highlight immediately while syntax errors wait for you to finish typing.
 
 ## Limits
 
-- **JSON only.** TypeScript, JavaScript, and the rest come from
-  [`foldkit-richtext-code-shiki`](../richtext-code-shiki), which reads Shiki's grammars into
-  the same kinds, rather than a hand-written lexer that would be half right.
-- **Highlighting runs on every patch.** An editor placed with a `decorate` (below)
-  retokenizes every code block each time it patches. That is cheap for JSON; caching by block
-  is the Shiki adapter's job.
+- **JSON only.** Other languages such as TypeScript, CSS, and Python belong to [`foldkit-richtext-code-shiki`](../richtext-code-shiki), which maps Shiki grammars onto the same `syntax-*` decoration kinds.
+- **Re-runs on every patch.** An editor with `decorate` retokenizes code blocks on each patch. That is fast for JSON; block-level caching lives in the Shiki adapter.
+
+## Next
+
+- Highlight TypeScript, Python, and other languages: [`foldkit-richtext-code-shiki`](../richtext-code-shiki)
+- Mount the editor and style its decorations: [`foldkit-richtext-dom`](../richtext-dom)
+- Add a language picker and copy toolbar: [`foldkit-mixins-richtext`](../mixins-richtext#the-table-and-code-toolbars)
