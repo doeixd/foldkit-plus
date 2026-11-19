@@ -7,6 +7,28 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.43.0
+
+Nothing needs changing unless your code reads the output of the checker, which
+reads the rules and writes you declared on your entities and says which write
+can break which rule (`Laws.check`). If it matches on a report's findings,
+verdicts or evidence, add the new cases (`Unmeetable`, `Bounded`, and the `by`
+values `vacuous` and `bounds`); if a test pins `Laws.show`'s text, update it.
+A report that was green can now show a pair: a write that relinks the relation
+a rule reads through is judged, where it was skipped.
+
+What is new. The checker decides rules over numbers (a deposit never
+overdraws an account), shows the row that breaks a refused rule, and says what
+is left unproved. You can bind a rule to a state
+(`Entity.invariant`'s `in`), name a rule over a change (`Entity.transition`),
+take an amount away with `decrement`, and let a write's `when` read the row.
+
+Versions: 43 packages are a new minor: `foldkit-entity`, `foldkit-metadata`,
+`foldkit-remote`, `foldkit-remote-drizzle` and `foldkit-surface` changed their
+published files, and every other package that depends on one of them follows.
+`foldkit-bundle`, `foldkit-durable`, `foldkit-host`, `foldkit-react` and
+`foldkit-react-codegen` keep their versions.
+
 ### Added
 
 - `foldkit-entity`: `Expr.implies(condition, then)` is `Expr.or(Expr.not(condition), then)`, the same nodes, so every reader runs it already: "while open, the balance is not negative" is `Expr.implies(Expr.eq(after.status, 'open'), Expr.gte(after.balance, 0))`.
@@ -25,12 +47,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
-- `foldkit-entity`: `Laws.show` prints a refused pair as `refused: <the rule's message>` with its witness under it (before, input, after) in place of `refused: from {…} it leaves {…}`, a refused arrow's witness under it, and a last line of totals. `LawVerdict.Kept` gains `over` and the `by` values `vacuous` and `bounds`; `Undecided` gains `obligation`; `Refused` gains `witness` and `hint`; a `Finding` match must handle `Unmeetable`.
+- `foldkit-entity`: **Breaking:** `Laws.show` prints a refused pair as `refused: <the rule's message>` with its witness under it (before, input, after) in place of `refused: from {…} it leaves {…}`, a refused arrow's witness under it, and a last line of totals: update a test that pins its text, and read `report.totals` or the pairs where you parsed the last line.
+- `foldkit-entity`: **Breaking:** `LawVerdict.Kept` gains `over` and the `by` values `vacuous` and `bounds`; `Undecided` gains `obligation` (an `Option`), and `Refused` gains `witness` and `hint` (an `Option`). A match over `by` must handle the two new values, and a `Refused` or `Undecided` built by hand (a test fixture) must carry the new fields; reading a verdict is unchanged. `Finding` gains `Unmeetable` (`{ entity, write }`): a match over every finding must add an arm for it. `LawReport` gains `totals`.
+- `foldkit-metadata`: **Breaking:** `Evidence` gains the `Bounded` variant, so a match over every kind of evidence (`Evidence.$match`) must add an arm; `Evidence.Bounded` is issued only by `Laws.check`.
+- `foldkit-entity`: **Breaking:** `WriteIncrement` (the entries of `write.increments`) gains `direction: 'increment' | 'decrement'`, which code that builds one by hand must give. A decrement appears in `Write.bind`'s `increments` as its amount negated, so code that reads that map and assumed every amount adds up must read the sign too.
 - `foldkit-remote`: `Scenario.fromReport` makes no scenario of a refused pair with no enumerated steps (one found among the numbers), as it made none of the undecided pair it was before.
+- Docs: the 0.41 release post is cut to its argument, with part two on one bank account in the forms of this release and the checker's real report (its notes say which forms are new in 0.42 and 0.43), and `docs/agents/writing-docs.md` is the one guide for writing every document, replacing the README standard.
 
 ### Fixed
 
-- `foldkit-entity`: `Laws.check` kept by disjointness, and issued an `Enumerated` record for, a write relinking the relation a rule reads another row through (`Expr.path(Claim.relations.customer, Customer.fields.name)`), since a pair's `reads` held its own row's fields alone. A pair now reads the relation each path or exists leaves its row by, so such a write is judged, and `Laws.facts` draws that read.
+- `foldkit-entity`: `Laws.check` kept by disjointness, and issued an `Enumerated` record for, a write relinking the relation a rule reads another row through (`Expr.path(Claim.relations.customer, Customer.fields.name)`), since a pair's `reads` held its own row's fields alone. A pair now reads the relation each path or exists leaves its row by, so such a write is judged, and `Laws.facts` draws that read. A report that was green may now show that pair `refused` or `undecided`: it names a real gap, so declare the rule's guard on the write or accept the finding, and drop an `Enumerated` record you kept for it.
 
 ## 0.42.0
 

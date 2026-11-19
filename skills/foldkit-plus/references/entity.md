@@ -1,6 +1,6 @@
 # foldkit-entity
 
-Checked against `foldkit-entity` 0.19.0.
+Checked against `foldkit-entity` 0.20.0.
 
 A domain entity declared once as a typed value: intrinsic fields, relations to
 other entities, and derived members. It **describes only**. It fetches, stores,
