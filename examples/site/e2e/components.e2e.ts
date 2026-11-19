@@ -18,8 +18,11 @@ import { onFreePort } from '../../../scripts/free-port.mjs'
 let vite: ViteDevServer
 let browser: Browser
 let url: string
+let previousNoApi: string | undefined
 
 beforeAll(async () => {
+  previousNoApi = process.env['FOLDKIT_SITE_NO_API']
+  process.env['FOLDKIT_SITE_NO_API'] = '1'
   const serving = await config({ command: 'serve', mode: 'development', isPreview: false })
   vite = await createServer(
     mergeConfig(serving, {
@@ -31,7 +34,7 @@ beforeAll(async () => {
   )
   await onFreePort(() => vite.listen())
   url = vite.resolvedUrls!.local[0]!.replace(/\/$/, '')
-  browser = await chromium.launch()
+  browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] })
   // The first load pre-bundles the workspace: pay for it here, not in a test.
   const warm = await browser.newPage()
   await warm.goto(`${url}/components/search-field`, { timeout: 400_000 })
@@ -40,6 +43,8 @@ beforeAll(async () => {
 }, 500_000)
 
 afterAll(async () => {
+  if (previousNoApi === undefined) delete process.env['FOLDKIT_SITE_NO_API']
+  else process.env['FOLDKIT_SITE_NO_API'] = previousNoApi
   await browser?.close()
   await vite?.close()
 })
@@ -60,29 +65,46 @@ const open = async (page: Page, path: string) => {
 
 // Every catalog page: a page added to the gallery is audited without a line here.
 const PAGES = showcases.map(showcase => showcase.slug)
+const PHONE_CONCURRENCY = 4
 
-test.each(PAGES)(
-  '/components/%s fits a phone',
-  async slug => {
-    const context = await browser.newContext({
-      viewport: { width: 390, height: 844 },
-      hasTouch: true,
-      isMobile: true,
-    })
-    try {
-      const page = await context.newPage()
-      const errors: Array<string> = []
-      page.on('pageerror', error => errors.push(String(error)))
-      await open(page, `/components/${slug}`)
-      // Measured against the layout viewport: a phone zooms out to fit an overflowing page.
-      const audit = await auditPhone(page)
-      expect({ errors, overflow: audit.overflow }).toEqual({ errors: [], overflow: 0 })
-    } finally {
-      await context.close()
-    }
-  },
-  180_000,
-)
+test('every component page fits a phone with no page error', async () => {
+  const queue = [...PAGES]
+  const failures: Array<{
+    readonly slug: string
+    readonly errors: ReadonlyArray<string>
+    readonly overflow: number
+  }> = []
+  await Promise.all(
+    Array.from({ length: Math.min(PHONE_CONCURRENCY, queue.length) }, async () => {
+      const context = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+        isMobile: true,
+      })
+      try {
+        const page = await context.newPage()
+        while (queue.length > 0) {
+          const slug = queue.shift()!
+          const errors: Array<string> = []
+          const onError = (error: Error) => errors.push(String(error))
+          page.on('pageerror', onError)
+          try {
+            await open(page, `/components/${slug}`)
+            // Measured against the layout viewport: a phone zooms out to fit an overflowing page.
+            const audit = await auditPhone(page)
+            if (errors.length > 0 || audit.overflow !== 0)
+              failures.push({ slug, errors, overflow: audit.overflow })
+          } finally {
+            page.off('pageerror', onError)
+          }
+        }
+      } finally {
+        await context.close()
+      }
+    }),
+  )
+  expect(failures).toEqual([])
+}, 300_000)
 
 test('the toolbar has one tab stop and the arrows move along it, skipping the disabled link', async () => {
   const context = await browser.newContext()

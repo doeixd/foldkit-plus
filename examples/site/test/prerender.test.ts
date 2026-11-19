@@ -5,6 +5,7 @@
  * sidebar, its API pages, and every link on every page leading somewhere that
  * exists.
  */
+import { Schema } from 'effect'
 import { schemeScript } from 'foldkit-mixins/theme'
 import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
 import { availableParallelism, freemem } from 'node:os'
@@ -12,9 +13,11 @@ import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { beforeAll, describe, expect, test } from 'vitest'
 
+import { ApiPackage } from '../src/api/model.js'
 import { loadPosts } from '../src/blog/posts.js'
 import { allSubsites, subsites } from '../src/catalog.js'
 import { GITHUB } from '../src/content/guides.js'
+import { extractSitePackages } from '../src/content/library.js'
 import { demos, onGitHub } from '../src/demos.js'
 import { listed } from '../src/gallery/primitiveExamples.js'
 import { families } from '../src/gallery/primitives.js'
@@ -84,10 +87,10 @@ let sitemap = ''
 let emitted: ReadonlySet<string> = new Set()
 
 /** One share of the pages, rendered in a thread of its own (`prerender.worker.mjs`). */
-const render = (index: number, count: number): Promise<Share> =>
+const render = (index: number, count: number, packages: unknown): Promise<Share> =>
   new Promise((resolve, reject) => {
     const worker = new Worker(join(import.meta.dirname, 'prerender.worker.mjs'), {
-      workerData: { index, count, read: READ },
+      workerData: { index, count, read: READ, packages },
     })
     worker.once('message', resolve)
     worker.once('error', reject)
@@ -95,15 +98,17 @@ const render = (index: number, count: number): Promise<Share> =>
   })
 
 beforeAll(async () => {
-  // Rendering every page took over eight minutes in one thread. Each share builds the library
-  // again (about a minute, most of it reading the packages' types), so a share per core would
-  // spend more memory than it saves time; each one holds about 1.5 GiB at its peak.
+  // Extract every package's public API with TypeScript ONCE here instead of
+  // repeating the full TS compilation inside every worker thread.
+  const packages = Schema.encodeSync(Schema.Array(ApiPackage))(
+    await extractSitePackages(repository),
+  )
   const count = Math.max(
     1,
-    Math.min(4, availableParallelism(), Math.floor(freemem() / (2 * 2 ** 30))),
+    Math.min(4, availableParallelism(), Math.floor(freemem() / (1 * 2 ** 30))),
   )
   const shares = await Promise.all(
-    Array.from({ length: count }, (_, index) => render(index, count)),
+    Array.from({ length: count }, (_, index) => render(index, count, packages)),
   )
   paths = shares[0]!.paths
   // Each share reads the site for itself, and one that read another (a guide edited meanwhile)

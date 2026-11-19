@@ -25,7 +25,7 @@ const launch: Readonly<Record<string, { readonly mode?: string; readonly path?: 
 let browser: Browser
 
 beforeAll(async () => {
-  browser = await chromium.launch()
+  browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] })
 })
 
 afterAll(async () => {

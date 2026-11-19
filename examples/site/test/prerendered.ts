@@ -5,13 +5,16 @@
  * builds its documents with, for what the link check needs of it; the pages
  * the tests read whole are returned as they were written.
  */
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { generateStaticSite } from 'foldkit-ssr/vite'
 import { parse, type DefaultTreeAdapterTypes } from 'parse5'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { site } from '../src/site.js'
+import { ApiPackage } from '../src/api/model.js'
+import { makeLibrary, type ServerLibrary } from '../src/content/library.js'
+import { REPOSITORY } from '../src/content/load.js'
+import { site, siteOf } from '../src/site.js'
 
 /**
  * What the link check needs of a page: the ids it carries and where it links,
@@ -73,17 +76,27 @@ const linksOf = (html: string): Links => {
   return { ids, hrefs, unnamed }
 }
 
+const ApiPackages = Schema.Array(ApiPackage)
+
 export const share = async (options: {
   readonly index: number
   readonly count: number
   readonly read: ReadonlyArray<string>
+  /** Pre-extracted API packages encoded via `ApiPackages`, avoiding 4x TS compilation. */
+  readonly packages?: unknown
 }): Promise<Share> => {
+  let target = site
+  if (options.packages !== undefined) {
+    const decoded = Schema.decodeUnknownSync(ApiPackages)(options.packages)
+    let loading: Promise<ServerLibrary> | undefined
+    target = siteOf(() => (loading ??= makeLibrary(REPOSITORY, decoded)))
+  }
   const template = readFileSync(join(import.meta.dirname, '../index.html'), 'utf8')
-  const specs = typeof site.paths === 'function' ? await site.paths() : site.paths
+  const specs = typeof target.paths === 'function' ? await target.paths() : target.paths
   const paths = specs.map(spec => (typeof spec === 'string' ? spec : spec.path))
   const built = await Effect.runPromise(
     generateStaticSite({
-      ...site,
+      ...target,
       paths: specs.filter((_, at) => at % options.count === options.index),
       buildId: 'test-build',
       template,
@@ -96,6 +109,6 @@ export const share = async (options: {
       .filter(page => options.read.includes(page.path))
       .map(page => [page.path, page.html] as const),
     sitemap: built.sitemap ?? '',
-    emitted: ((await site.emit?.(built.pages)) ?? []).map(file => `/${file.file}`),
+    emitted: ((await target.emit?.(built.pages)) ?? []).map(file => `/${file.file}`),
   }
 }
