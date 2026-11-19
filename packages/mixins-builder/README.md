@@ -1,41 +1,18 @@
 # foldkit-mixins-builder
 
-> **Status:** experimental, `0.1.0`, on npm from the 0.16.0 release.
+A headless page-builder state machine tracks undo, selection, and forms, but
+authors still need a working editor on screen: a block palette, an accessible
+layer tree, drag-and-drop drop indicators, inline text editing on the canvas,
+and a responsive viewport preview. Wiring those keyboard handlers, ARIA roles,
+and pointer drag listeners by hand takes hundreds of lines of DOM code.
 
-Draws a [`foldkit-builder`](../builder/README.md) page Builder as accessible
-HTML, with every element published as a [`foldkit-mixins`](../mixins/README.md)
-Slot. The Builder owns the page being edited and the editor's state; this
-package decides which elements show it and wires the keyboard and pointer to
-the Builder's own Messages; your Style and Behavior attachments decide how it
-looks.
+`foldkit-mixins-builder` renders a [`foldkit-builder`](../builder/README.md) as
+accessible HTML with every element exposed as a
+[`foldkit-mixins`](../mixins/README.md) Slot. It connects tree keyboard
+navigation, pointer drag-and-drop, inline text editing, and block settings
+forms straight to the Builder's Messages while keeping all styling in your theme.
 
-## What it owns
-
-| Fact | Owner |
-| --- | --- |
-| The Document, undo, the selection, the viewport, the layers' focus | `foldkit-builder` |
-| How a Block looks on the page | the site's `Renderer` (`foldkit-composition/foldkit`) |
-| Which element draws each part of the editor, and its accessibility wiring | `foldkit-mixins-builder` |
-| Classes, inline style, extra attributes and events | your `Style` / `Behavior` attachments |
-
-It holds no state and adds no Messages. Every event it installs dispatches one
-of the Builder's own, so a Builder drawn this way and a Builder driven by a
-test or an agent go through the same `update`.
-
-## Mental model
-
-1. `Builder.make(...)` makes the Builder: Model, `update` and a plain view.
-2. `BuilderView.define(builder)` makes the editor, a SlotView over `BuilderSlots`,
-   with its keyboard and pointer Behaviors; attach your styles with
-   `.pipe(Style.attach(...))`.
-3. `BuilderView.submodel(view)` makes a Submodel view, drawn with
-   `BuilderView.inputs({ data })`.
-4. `builder.bundle.pipe(Bundle.withView(...))` places it on its own, or
-   `builder.inputWith(...)` makes it a form key whose value is the page.
-
-The page on the canvas is drawn by the site's Renderer, the same one the public
-page uses, in edit mode: each node is wrapped in an element carrying its id, so
-a click or hover on the page names the node under it.
+Try the editor live in the [live CMS demo](https://foldkit-cms-demo.pages.dev/).
 
 ## Install
 
@@ -43,112 +20,116 @@ a click or hover on the page names the node under it.
 pnpm add effect foldkit foldkit-bundle foldkit-builder foldkit-composition foldkit-form foldkit-mixins foldkit-mixins-builder
 ```
 
-## Start without customization
+## A first styled page editor
 
-Given `PageBuilder`, a `Builder.make` result from the
-[Builder's example](../builder/README.md#sixty-seconds):
+This defines a `Heading` Block, creates a `PageBuilder`, and turns it into an
+accessible editor view ready to attach styles or place in your app:
 
-<!-- docs-check standalone
+```ts
 import { Schema } from 'effect'
 import { Builder } from 'foldkit-builder'
-import { Block, Catalog, Content, Composition, Region } from 'foldkit-composition'
+import { Block, Catalog, Content } from 'foldkit-composition'
 import { Renderer } from 'foldkit-composition/foldkit'
-import { Entity } from 'foldkit-entity'
-const Section = Block.define('Section', {
-  Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
-  regions: { body: Region.many({ accepts: [Content.Flow] }) },
-  provides: [Content.Section],
-})
+import { BuilderView } from 'foldkit-mixins-builder'
+
 const Heading = Block.define('Heading', {
   Props: Schema.Struct({ text: Schema.String }),
   provides: [Content.Flow],
 })
-const Site = Catalog.make({ blocks: [Section, Heading], roots: [Content.Section] })
+const Site = Catalog.make({ blocks: [Heading], roots: [Content.Flow] })
 const SiteRenderer = Renderer.make(Site, {
-  Section: ({ regions, h }) => h.section([], [...regions.body]),
-  Heading: ({ props, h }) => h.h2([], [props.text]),
+  Heading: ({ field, h }) => h.h2([], [field('text')]),
 })
 const PageBuilder = Builder.make('PageBuilder', {
   catalog: Site,
   renderer: SiteRenderer,
-  starters: { Section: { tone: 'plain' }, Heading: { text: 'New heading' } },
+  starters: { Heading: { text: 'New heading' } },
 })
-const Page = Entity.define(
-  'Page',
-  Schema.Struct({ id: Schema.String, title: Schema.String, document: Composition.Document }),
-)
-const PageInput = Entity.input(
-  Page,
-  Schema.Struct({
-    title: Page.fields.title.schema,
-    document: Composition.Document.check(Composition.valid(Site)),
-  }),
-)
--->
-```ts
-import { Bundle } from 'foldkit-bundle'
-import { BuilderView } from 'foldkit-mixins-builder'
 
 const PageEditing = BuilderView.define(PageBuilder)
-const Drawn = PageBuilder.bundle.pipe(Bundle.withView(BuilderView.submodel(PageEditing)))
+const DrawnControl = PageBuilder.inputWith(BuilderView.submodel(PageEditing))
 ```
 
-Place `Drawn` as you would any Bundle. Its view draws:
+`PageEditing` renders the full editor (`palette`, `layers`, `inspector`,
+`toolbar`, `canvas`, and `live` region) with keyboard navigation and drag
+behaviors wired to `PageBuilder`, and `DrawnControl` plugs straight into a
+`foldkit-form` field:
 
-- a **palette**: one button per Block with starting props, named
-  "Add <label>" and grouped, each titled with where it would go ("Adds it
-  inside the Section") or disabled, saying why, where the selection leaves no
-  place for it (by `aria-disabled`, as every button of the editor is, so a
-  button stays focusable when its own press leaves it nothing to do; style
-  `[aria-disabled="true"]`, not `:disabled`); the Catalog's patterns follow
-  in a group of their own,
-  "Patterns", each placed where its root's Block would go;
-- the **layers**: a `role="tree"` of the page's nodes, one `treeitem` row each,
-  with a roving tab stop on the selected row; a row shows its Block's label and
-  the node's first text in brief, and one that holds others has a toggle that
-  opens and closes it; pointing at a row marks its node on the page, as
-  pointing at the page does;
-- an **inspector**: the selected node's Block, what it is for, and its
-  **actions** (move up, down, out and in; duplicate; delete; each titled with
-  its shortcut), then its settings under Content, Style, Visibility and
-  Interactions; with nothing selected, how to begin and the shortcuts;
-- **undo** and **redo**, a **breadcrumb** of where the selection is (the
-  page, then each node holding it; a press selects that one), a **viewport**
-  picker, and the reason the last edit was refused, as a `role="alert"`;
-- the **canvas**: the page in edit mode, in a frame as wide as the viewport,
-  saying how to begin (the `empty` Slot) while the page holds nothing;
-- a **live region** the Builder's announcements are read from.
+- **Palette**: one `aria-disabled`-capable button per Block with starter props
+  (grouped by `Block.words`, followed by Catalog patterns), titled with where
+  it inserts ("Adds it inside the Section") or why it is unavailable. Style
+  `[aria-disabled="true"]` rather than `:disabled` so buttons stay focusable.
+- **Layers**: a `role="tree"` of `treeitem` rows with a roving tab stop, Block
+  label, truncated text preview, expand/collapse toggle, and hover sync with
+  the canvas.
+- **Inspector**: the selected node's Block label, description, shortcut-titled
+  actions, and settings under Content, Style, Visibility, and Interactions (or
+  a getting-started summary and shortcut list when unselected).
+- **Toolbar and stage**: undo/redo buttons, selection breadcrumb, viewport
+  width picker, `role="alert"` refusal banner, edit-mode canvas frame (with
+  `empty` slot when blank), and a `live` announcement region.
+
+## Where editor state, markup, and styles live
+
+| Fact | Owner |
+| --- | --- |
+| Document, undo, selection, viewport, layers focus | `foldkit-builder` |
+| How each Block renders on the page | your `Renderer` (`foldkit-composition/foldkit`) |
+| Editor HTML elements and ARIA wiring | `foldkit-mixins-builder` |
+| Classes, inline styles, extra attributes, and events | your `Style` and `Behavior` attachments |
+
+Every interactive element dispatches the Builder's own Messages, keeping state
+in the Builder's Model so browser interactions, tests, and agents go through
+the same `update`.
+
+## How the Builder, Mixins Slots, and Renderer connect
+
+1. `Builder.make(...)` creates the Builder's Model, `update`, and plain view.
+2. `BuilderView.define(builder)` builds the accessible SlotView over
+   `BuilderSlots` with keyboard and pointer behaviors attached; attach theme
+   styles with `.pipe(Style.attach(...))`.
+3. `BuilderView.submodel(view)` adapts it into a Submodel view driven by
+   `BuilderView.inputs({ data })`.
+4. Place it standalone with `builder.bundle.pipe(Bundle.withView(...))` or as a
+   form field with `builder.inputWith(...)`.
+
+The canvas draws the page with your site's own `Renderer` in edit mode,
+wrapping each node with its id so clicks, hovers, and drops target the node
+under the pointer.
 
 ## The keyboard and the pointer
 
-Five Behaviors are attached, each from `foldkit-primitives`:
+Five Behaviors from `foldkit-primitives` wire keyboard and pointer interactions:
 
-| Where | Behavior | What it does |
+| Where | Behavior | What it handles |
 | --- | --- | --- |
-| `tree`, `row` | `TreeNavigation` | Up, Down, Home and End move focus between rows; Right opens a row, then moves to its first child; Left closes it, then moves to its parent. Focus moving selects the row's node. |
-| `layers`, `canvas` | the Builder's `keyPressed`, judged in `update` by its commands | Alt with an arrow moves the selected node; Mod+D duplicates; Delete removes; Mod+Z, Mod+Shift+Z and Mod+Y undo and redo; Escape deselects. |
-| `canvas` | `Targets` | The pointer over a node marks it hovered; a press selects it and does not follow a link. |
-| `canvas` | `EditableText` | A double-click on text the page draws as a field, or Enter on its node, edits it where it is: typing sets the prop, Enter or leaving commits, Escape puts it back. A press in it selects text rather than dragging the node. |
-| `layers`, `canvas` | `KeepInView` | Whatever became selected (a click, a shortcut, an insert, the address) is scrolled into view, its row in the layers and its element on the page. |
-| `tree`, `canvas` | `PointerDrag` | A row or a node pressed and moved 4px (a finger's: held still 400ms) is dragged; over another, the drop lands before it, inside it or after it by which third of it the pointer is in; releasing moves it where the pointer let go, and Escape or a cancelled pointer drops nothing. Held near the edge of the layers or the canvas, the drag scrolls it. |
-| `nodeHandle` | `GripPlace` | Marks the handle `data-grip-place="inside"` where there is no room above the selected node for the grip: its top edge is within the grip's height of the top of what can be reached, the lowest of the scrolling ancestors' tops and the window's, each moved down by its `scroll-padding-top` (where an application says its sticky bar ends). `nodeGrip` then sits in the node's top corner. |
-| `nodeHandle` | `PointerDrag`, onto the canvas and the layers | The selected node's grip drags it as a row or a node is dragged. A tap or a click on the grip opens `nodeMenu` instead: the node's commands (move, indent, duplicate, delete) as buttons, a `popover` the platform opens and closes, so a finger has every move a key has. The menu takes the pointer the handle refuses, and a closed one stays hidden whatever `display` a look gives `nodeMenu` (an important rule in `components`): give it `display` for when it is open. |
-| `dragPreview` | `DragPreview` | What a drag carries, in the top layer above every panel, `aria-hidden` and taking no pointer, following the pointer by the custom properties `PointerDrag` writes on the root (`--fk-drag-x`, `--fk-drag-y`), so a move redraws nothing; a finger's sits above it, centred on it. Drawn by the `Carried` part. |
-| `palette` | `PointerDrag`, onto the canvas and the layers | A Block's tile dragged onto the page, or onto a layer row, lands the same way (a row by its thirds, as a node is) and adds a new node of it there; a press without a drag adds it where its title says. A pattern's tile is pressed, not dragged. |
+| `tree`, `row` | `TreeNavigation` | Arrow, Home, and End focus movement; Right/Left expand or collapse rows |
+| `layers`, `canvas` | `keyPressed` | Alt+Arrow moves; Mod+D duplicates; Delete removes; Mod+Z/Y undo/redo; Escape clears |
+| `canvas` | `Targets` | Hover marking and click-to-select without following links |
+| `canvas` | `EditableText` | Double-click or Enter edits text fields inline; Enter commits; Escape cancels |
+| `layers`, `canvas` | `KeepInView` | Scrolls newly selected rows and canvas nodes into view |
+| `tree`, `canvas` | `PointerDrag` | 4px drag (400ms hold on touch) moves nodes before, inside, or after targets |
+| `nodeHandle` | `GripPlace` | Switches handle to `data-grip-place="inside"` when top space is tight |
+| `nodeHandle` | `PointerDrag` | Grip drags the selected node; tap or click opens `nodeMenu` popover |
+| `dragPreview` | `DragPreview` | Renders floating drag preview following `--fk-drag-x` / `--fk-drag-y` |
+| `palette` | `PointerDrag` | Drags Block tiles onto canvas or layer rows; clicks insert at selection |
 
-The shortcuts are on the layers panel and the canvas, not the whole editor,
-so Delete in a text box edits the text. The canvas is focusable, so a press on
-the page leaves focus where the shortcuts are. The node's action buttons, the
-toolbar's and the list of shortcuts are all drawn from the Builder's commands
-(`PageBuilder.commands`), so a command given another key or left out there
-changes each of them, and a button sends what its key does. Keys are written
-for the author's platform, given as a view input
-(`BuilderView.inputs({ platform: 'mac' })` writes ⌘D, else Ctrl+D). A drag is the pointer's way to do what Alt with an arrow does;
-it adds no roles or keys to the tree, and a drop is announced like a key's
-move.
+Key interaction details:
 
-A structural edit is announced, such as "Moved Heading, 2 of 3 in Section
-body". The Builder owns the words; this package draws the region.
+- **Shortcuts scope**: keyboard shortcuts attach to `layers` and `canvas`,
+  keeping `Delete` inside inspector inputs for text editing. All action
+  buttons, toolbar items, and shortcut hints read `PageBuilder.commands` and
+  format keys for `BuilderView.inputs({ platform: 'mac' })`.
+- **Grip and touch menu**: `GripPlace` checks scrolling ancestors'
+  `scroll-padding-top` so sticky headers never cover `nodeGrip`. Clicking
+  `nodeGrip` opens the `nodeMenu` popover (keep `nodeMenu` hidden when closed
+  and set `display` only for open state).
+- **Drag preview and drops**: `DragPreview` renders in the top layer with
+  `aria-hidden` and CSS custom properties `--fk-drag-x` and `--fk-drag-y` so
+  pointer moves avoid re-rendering. Dropping on a palette tile's target inserts
+  a new Block (catalog patterns insert on press).
+- **Announcements**: structural edits announce changes (such as "Moved Heading,
+  2 of 3 in Section body") inside the `live` region using the Builder's words.
 
 ## Styling
 
@@ -169,28 +150,21 @@ const Styled = BuilderView.define(PageBuilder).pipe(
 )
 ```
 
-`define` draws the panels in four regions, so a layout places four things,
-and a new panel lands in its region without moving the rest:
+`BuilderView.define` places the editor inside `root` (the `builder` CSS
+container) with four structural slots:
 
-```text
-root                 the container `builder`
-├── panelTabs        a narrow editor's tabs (see below)
-├── regions
-│   ├── start        palette, layers
-│   ├── bar          toolbar, crumbs, viewports, preview
-│   ├── stage        alert, canvas
-│   └── end          inspector
-└── live
-```
+- `panelTabs`: compact toggle buttons shown below the narrow breakpoint.
+- `regions`: holds four named areas—`start` (`palette`, `layers`), `bar`
+  (`toolbar`, `crumbs`, `viewports`, `preview`), `stage` (`alert`, `canvas`),
+  and `end` (`inspector`).
+- `live`: polite/assertive announcement region.
 
 `root` is a container (`container: builder / inline-size`, the Builder's
-default Style), so the regions may be laid out by the editor's own width,
-`@container builder (max-width: 64rem)`, rather than the window's: an editor
-in a narrow column stacks in a wide window. The example lays `regions` out as
-a grid of `start`, `bar` over `stage`, and `end`. A layout of your own
-(`assemble`) draws none of these. An inline-size container takes no width from
-what it holds, so give the editor one: as a flex item that does not grow, an
-`auto` grid column, `inline-block` or `fit-content`, it is 0 wide.
+default Style), so `@container builder (max-width: 64rem)` lays out panels by
+the editor's own width rather than the viewport width. Give `root` an explicit
+width (flex grow, grid track, or `100%`) because inline-size containers take zero
+intrinsic width from their children. Custom layouts using `assemble` build
+their own structure from parts.
 
 A node's props are drawn by its Block's settings form, a `foldkit-mixins-form`
 view the Builder makes. Give its Styles to `define` (or `parts`), and they are
@@ -320,27 +294,33 @@ const Narrow = BuilderView.define(PageBuilder).pipe(
 
 ## As a form key
 
-`builder.inputWith(view)` is the Builder's form control, `builder.input`, drawn
-by another view. The form draws a Bundle-backed control with the Bundle's own
-view, so no renderer is needed. With `PageInput` from the
-[Builder's example](../builder/README.md#sixty-seconds):
+`builder.inputWith(view)` wraps the Builder's form control (`builder.input`)
+with your custom `BuilderView` so the form draws it through that Bundle view.
+Continuing with `PageBuilder` and `PageEditing` (see
+[the Builder guide](../builder/README.md#a-first-page-builder)):
 
 ```ts
+import { Composition } from 'foldkit-composition'
+import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 
+const Page = Entity.define('Page', Schema.Struct({ id: Schema.String, document: Composition.Document }))
+const PageInput = Entity.input(
+  Page,
+  Schema.Struct({ document: Composition.Document.check(Composition.valid(Site)) }),
+)
 const PageForm = Form.make('PageForm', PageInput, {
   inputs: { document: PageBuilder.inputWith(BuilderView.submodel(PageEditing)) },
 })
 ```
 
-The CMS example (`examples/cms`) places its page form this way.
+The CMS example places its page form this way.
 
 ## The canvas and the page's data
 
-A Query or Surface Block draws from its node's read, which is the
-application's, not the Builder's. The page's parent reads them, as it must to
-preview or publish the page, and gives them to the canvas as the Builder's view
-inputs; the Builder keeps no copy:
+A Query or Surface Block draws from its node's read, which belongs to your
+application rather than the Builder. The page's parent reads those inputs (for
+preview and publishing) and passes them to the canvas as view inputs:
 
 <!-- docs-check
 import type { HtmlBuilder } from 'foldkit/html'
@@ -540,22 +520,27 @@ the page for that context: a node hidden there is still drawn, marked
 
 ## Limits
 
-- Rich text on the canvas is not edited in place: its Block's props are shown
-  in the inspector.
-- A drag moves one node, the selected one; there is no multiple selection.
+- Rich text on the canvas is edited in the inspector rather than inline.
+- A drag moves one selected node at a time.
 - Two Builders on one page need different names: the inspector's form is placed
-  under the Builder's name, and one drawn twice is a crash that says so. Its
-  fields' ids are `<Block>Settings-<prop>`, so two Builders over one Catalog
+  under the Builder's name, and one drawn twice crashes naming the duplicate.
+  Its fields' ids are `<Block>Settings-<prop>`, so two Builders over one Catalog
   showing the same Block also share ids.
-- The grip is drawn over the selected node, above its top edge: a page whose
-  first node touches the top of the canvas needs room there for it. Its menu
-  places itself beside the grip with CSS anchor positioning; a browser without
-  it opens the menu in the middle of the window. A finger drags only after a
-  hold, as `PointerDrag` does everywhere: the grip is for holding, the menu for
-  tapping.
-- The viewport frame sets a width: `--fk-frame-width` on the frame, read by
-  the Builder's one default rule (in `components`, so any application style
-  overrides it). It does not load the page in an iframe, so the page's media
-  queries see the editor's width. The frame is the page's container
-  (`PAGE_CONTAINER`), so a look written with container queries or `cqi` units
-  follows the frame: see `Theme.inContainer`.
+- The grip sits above the selected node's top edge, so a page whose first node
+  touches the top of the canvas needs top padding for it. Its menu uses CSS
+  anchor positioning and falls back to the window center in unsupported
+  browsers. Touch users hold the grip to drag or tap it to open the menu.
+- The viewport frame sets `--fk-frame-width` on the frame, read by the
+  Builder's default rule (in `components`, so any application style overrides
+  it). Because the frame renders inline rather than in an iframe, media queries
+  see the editor's width; write responsive block rules with container queries or
+  `cqi` units against `PAGE_CONTAINER` (`Theme.inContainer`).
+
+## Next
+
+- Inspect Builder Messages, undo grouping, and URL selection syncing:
+  [`foldkit-builder`](../builder/README.md).
+- Define Blocks, Regions, Conditions, Actions, and Appearance tokens:
+  [`foldkit-composition`](../composition/README.md).
+- Run the full page editor inside a CMS workflow:
+  [the CMS example](../../examples/cms/README.md).

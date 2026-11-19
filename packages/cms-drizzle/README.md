@@ -1,41 +1,20 @@
 # foldkit-cms-drizzle
 
-The server half of [`foldkit-cms`](../cms/README.md), over
-[`foldkit-remote-drizzle`](../remote-drizzle/README.md). It keeps an author's
-unpublished work in three tables beside your own, and it is where the **audience
-boundary** is enforced, by a [`foldkit-guard`](../guard/README.md) guard set:
-who is not an author is refused entries, drafts and revisions outright, and sees
-of your content only what its Read rules show, such as what is published.
+Storing drafts inside your published database table forces every query in your
+app to remember `WHERE published_at IS NOT NULL`. Miss that filter once on a
+relation, reference lookup, or search endpoint, and visitors see unfinished
+drafts or unpublished rows.
 
-Supports SQLite and Postgres. A Postgres app calls `postgres()` from
-`foldkit-remote-drizzle/pg` once before binding its tables. The conflict check
-requires `returning`, so this
-adapter does not support MySQL. The [CMS example](../../examples/cms/README.md)
-includes the server, in-app preview, and a browser mode over an in-memory database.
+`foldkit-cms-drizzle` stores entries, working drafts, and revision history in
+three separate Drizzle tables (`cms_entries`, `cms_drafts`, `cms_revisions`)
+beside your content tables, and enforces visitor visibility on every table
+binding through [`foldkit-guard`](../guard/README.md). Authors read drafts and
+unpublished rows; visitors see only rows permitted by your content Entity's read
+rules, whether fetched by id, relation, reference, or query. It supports SQLite
+and Postgres (both provide `RETURNING` for atomic conflict checks).
 
-## What it owns
-
-| Fact | Owner |
-| --- | --- |
-| Published content | your tables, bound with `bind` as any are |
-| Unpublished work | `cms_entries`, `cms_drafts`, `cms_revisions` |
-| Which rows of those a principal may see | this package: none, unless they are an author |
-| Which rows of your content a visitor may see | your content Entity's Read rules, compiled into its binding's `visible` |
-| Who is an author, and who may make a transition | your guard set's principal guards, as `authors` and `transitions`; `allow` for a rule about the entry |
-| What publishing a post *does* | your own `create` and `update` handlers |
-| That a publish is whole | this package, inside the `transaction` you name |
-| The time | your `now`, which defaults to the server's clock |
-
-## Mental model
-
-A table is read four ways: by id, as the children of a relation, as the target
-of a ref, and through a query. A rule on one of them leaves three open. So the
-boundary is not a filter this package adds somewhere; it is a
-[`visible`](../remote-drizzle/README.md#which-rows-a-principal-may-see) rule on
-each binding, which every one of those paths applies.
-
-An author's principal sees entries, drafts, revisions and every content row. A
-visitor's principal sees published content rows and nothing else.
+See the server and editor running together in the
+[live CMS demo](https://foldkit-cms-demo.pages.dev/).
 
 ## Install
 
@@ -43,59 +22,118 @@ visitor's principal sees published content rows and nothing else.
 pnpm add effect drizzle-orm foldkit-cms foldkit-cms-drizzle foldkit-guard foldkit-remote-drizzle foldkit-remote-server
 ```
 
-## Example
+## A first guarded blog server
 
-The following is **wiring pseudocode**: `Blog`, `Posts`, `posts`, `User`,
-and the insert/update handlers belong to your application (a compiled version
-is [`test/readme.test-d.ts`](test/readme.test-d.ts)). Use
-[the runnable server](../../examples/cms/src/server/server.ts) for complete handlers,
-a database layer, and transaction setup. `sqliteTables()` describes tables;
-include them in your migrations before running the server.
+Given your `User` principal schema, `Blog.Post` entity, `Posts` content type
+from [`foldkit-cms`](../cms/README.md), Drizzle `posts` table, `bind` helper,
+and `createPost`/`updatePost` handlers (shown whole in
+[the runnable server](../../examples/cms/src/server/server.ts) and compiled in
+[`test/readme.test-d.ts`](test/readme.test-d.ts)), this creates the CMS tables,
+attaches visitor visibility, and builds the server handlers:
 
-```text
+<!-- docs-check
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Effect, Option as EffectOption, Schema } from 'effect'
+import { Cms } from 'foldkit-cms'
+import { Entity } from 'foldkit-entity'
+import { Form } from 'foldkit-form'
+import { Mutation } from 'foldkit-remote'
+import { type DrizzleDatabase, bind } from 'foldkit-remote-drizzle'
+import { RemoteServer } from 'foldkit-remote-server'
+
+const User = Schema.Struct({ id: Schema.String, role: Schema.Literals(['author', 'editor', 'reader']) })
+type Principal = EffectOption.Option<typeof User.Type>
+const posts = sqliteTable('posts', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  publishedAt: text('published_at'),
+})
+const Blog = {
+  Post: Entity.define(
+    'Post',
+    Schema.Struct({ id: Schema.String, title: Schema.String, publishedAt: Schema.NullOr(Schema.String) }),
+  ).pipe(Cms.roles({ label: 'title', published: 'publishedAt' })),
+}
+const PostInput = Schema.Struct({ title: Schema.String })
+const Posts = Cms.content('posts', {
+  entity: Blog.Post,
+  form: Form.make('PostForm', Entity.input(Blog.Post, PostInput)),
+  publish: {
+    create: Mutation.make('CreatePost', { Input: PostInput, Output: { id: Schema.String } }),
+    update: Mutation.make('UpdatePost', { Input: { ...PostInput.fields, id: Schema.String }, Output: {} }),
+  },
+  words: { one: 'Post', many: 'Posts' },
+})
+const createPost = RemoteServer.mutation<Principal, DrizzleDatabase>(Posts.publish.create, () =>
+  Effect.succeed({ output: { id: 'p1' } }),
+)
+const updatePost = RemoteServer.mutation<Principal, DrizzleDatabase>(Posts.publish.update, () =>
+  Effect.succeed({ output: {} }),
+)
+-->
+
+```ts
+import { Option } from 'effect'
 import { CmsServer, Transaction, sqliteTables } from 'foldkit-cms-drizzle'
+import { Expr } from 'foldkit-entity'
 import { Guards } from 'foldkit-guard'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 
-const cmsTables = sqliteTables() // or pgTables(); add them to your schema and migrations
-
-// Who is an author, who may publish, and what a visitor sees: a guard set.
 const G = Guards.declare('Cms', User, guard => ({
   isAuthor: guard.principal(),
-  isEditor: guard.principal(),
   isPublished: guard.row(Blog.Post, () => Expr.isNotNull(Blog.Post.fields.publishedAt)),
 }), { key: user => user.id, unguarded: 'allow' })
+
 const Policy = G.implement({
   isAuthor: principal => Option.exists(principal, user => user.role !== 'reader'),
-  isEditor: principal => Option.exists(principal, user => user.role === 'editor'),
 })
-// A visitor sees what is published; an author sees every row.
 const Post = Blog.Post.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))
-
 const Db = bind({ ...Blog, Post }, {
   Post: { table: posts, visible: GuardDrizzle.visible(Policy, [Post]).Post },
 })
 
-// Your own handlers of the two mutations the content type publishes through.
-const CreatePost = RemoteServer.mutation(Posts.publish.create, ({ input }) => /* insert */)
-const UpdatePost = RemoteServer.mutation(Posts.publish.update, ({ input }) => /* update */)
-
 const cms = CmsServer.make({
-  tables: cmsTables,
-  content: [{ type: Posts, entity: Post, binding: Db.Post, create: CreatePost, update: UpdatePost }],
-  transaction: Transaction.statements, // one connection; Transaction.drizzle for Postgres
+  tables: sqliteTables(), // or pgTables(); include in your migrations
+  content: [{ type: Posts, entity: Post, binding: Db.Post, create: createPost, update: updatePost }],
+  transaction: Transaction.statements, // one connection; use Transaction.drizzle for Postgres
   policy: Policy,
   authors: [G.isAuthor],
-  // An author writes; only an editor puts it in front of visitors.
-  transitions: { publish: [G.isEditor], schedule: [G.isEditor], unpublish: [G.isEditor] },
-})
-
-RemoteServer.make({
-  entities: [...cms.sources, source(Db.Author)],
-  queries: [...cms.queries],
-  mutations: [...cms.mutations],
 })
 ```
+
+`cms` gives you `cms.sources`, `cms.queries`, and `cms.mutations` to spread into
+`RemoteServer.make`, plus `cms.due` for scheduled releases and `cms.import` for
+seeding existing content. Visitors reading `Post` through any query or relation
+see only rows where `publishedAt` is non-null, while authors see all rows and
+working drafts.
+
+## Where published rows and drafts live
+
+| Fact | Owner |
+| --- | --- |
+| Published content | your tables, bound with `bind` as usual |
+| Unpublished work | `cms_entries`, `cms_drafts`, `cms_revisions` |
+| Access to CMS tables | this package: refused unless the caller is an author |
+| Visitor visibility on content rows | your content Entity's Read rules in `visible` |
+| Who is an author and may transition | your guard set (`authors`, `transitions`); `allow` per entry |
+| What publishing a post *does* | your own `create` and `update` handlers |
+| Atomic publish commits | this package, inside the `transaction` you supply |
+| The current clock | your `now` option, defaulting to the server clock |
+
+## How visitor visibility reaches every query
+
+A table can be read four ways: by id, as children of a relation, as the target
+of a reference, and through a query. Guarding only one endpoint leaves the other
+three open. Instead, the audience boundary is attached as a
+[`visible`](../remote-drizzle/README.md#which-rows-a-principal-may-see) rule on
+the Drizzle table binding itself, so every read path applies it automatically.
+
+An author's principal sees entries, drafts, revisions, and every content row. A
+visitor's principal sees only published content rows. Pass `transitions` to
+`CmsServer.make` (for example, `{ publish: [isEditor], schedule: [isEditor],
+unpublish: [isEditor] }`) to restrict who may publish or unpublish.
+
+## Server setup notes
 
 - **Register `cms.sources`, not `source(Db.Post)`.** They are the content types'
   sources and the CMS's own, each behind the boundary.
@@ -262,7 +300,7 @@ published now is not promised for later. `CmsUnschedule` takes the promise back.
 
 Nothing else happens until you call `due`:
 
-<!-- docs-check
+<!-- docs-check standalone
 import type { Effect } from 'effect'
 interface Principal {
   readonly name: string
@@ -285,70 +323,65 @@ export default {
 }
 ```
 
-- **The package owns no timer.** Hosts keep time differently, and a library that
-  starts its own runs twice behind a load balancer.
+- **Triggered by your host.** Call `cms.due` from a Cloudflare cron trigger,
+  queue consumer, or interval so clustered hosts never fire duplicate jobs.
 - `due(now, { as })` publishes every draft whose time has come, each in its own
   transaction, **as whoever scheduled it**: a draft keeps the name your `nameOf`
   gave, and `as` says who that is now. Someone who has since lost the right
   publishes nothing.
 - **A publish that fails stays scheduled, with the reason.** The entry reads
-  overdue with that error, because that is true. It is not tried again until the
-  draft changes: a fault the author must fix is not hammered every minute. The
-  entry keeps a reason written for a reader as it is (a denial, a declared
-  refusal, `RemoteServer.tell`); any other failure, a driver's or a handler's
-  own, reads `Internal error, incident 3f9c2a7be01d4c55` on the entry, and its
-  cause is reported as a `ServerDefect` under that incident, with `during:
-  'publish due <entry>'`, through the `Diagnostics.Reporter` `due` runs with.
-  Through 0.11.0 the draft kept the failure's own message, a driver's failed
-  statement included: a `cms_drafts.schedule_error` written then still holds
-  it, and authors still read it. Overwrite such values once when upgrading
-  (`update cms_drafts set schedule_error = 'Internal error' where
-  schedule_error is not null`); a non-null value keeps the draft from being
-  tried again until it changes, as before.
+  overdue with that error, and stays paused until the draft changes so a fault
+  is not hammered every minute. The entry keeps a reader-facing reason as it is
+  (a denial, a declared refusal, `RemoteServer.tell`); any driver or handler
+  failure reads `Internal error, incident <id>` on the entry and reports its
+  cause as a `ServerDefect` (`during: 'publish due <entry>'`) through the
+  `Diagnostics.Reporter` `due` runs with.
 - **What was promised is changed only by someone who could have promised it.**
   Since a scheduled draft is published as whoever scheduled it, saving over it,
   restoring over it or discarding it is refused to an author your `transitions`
   or `allow` would not let `schedule`. Otherwise someone who may not publish would publish through
   someone who may.
-- One failure does not stop the rest. `due` answers with each entry and its
-  error, or `null`. That error is the failure in its own words, a driver's
-  included: it is the host's to log, and is not what the entry shows authors.
-- An archived entry keeps its promise, and keeps it waiting.
+- One failure leaves the remaining entries running. `due` answers with each
+  entry and its error (or `null`) in the failure's own words for host logging.
+- An archived entry keeps its promise waiting until restored.
 
 ## Restoring
 
-`CmsRestore` makes a revision's value the working copy. **It publishes nothing**:
-what comes back is a draft like any other, to look at, change, and publish, which
-makes the next revision. It replaces what the draft held, and takes back a
-promise made of that. The saved Model goes with it, so an editor fills its form
-from the values, key by key, and a revision older than the form still opens.
-Only what has been published has a past to restore.
+`CmsRestore` copies a past revision's value into a working draft to review,
+edit, and publish as the next revision. It replaces any current draft, clears
+any pending schedule, and keeps the form values key by key so older revisions
+still open cleanly.
 
 ## Archiving
 
 `CmsArchive` puts an entry away: off the worklist, and, for a type with a
 `published` role, off show. `CmsUnarchive` brings it back as unpublished work;
-publishing shows it again. Put away, an entry offers nothing else.
+publishing shows it again.
 
 ## The worklist, and an entry's state
 
-`cms.queries` is `Cms.Entries`: the entries of one content type, searched by
-label (as typed: `%` and `_` are characters, not wildcards), the archived ones or the rest. It lists entries, not content rows, so
-something never published is in it.
+`cms.queries` includes `Cms.Entries`: the entries of one content type, searched
+by label (literal characters: `%` and `_` are matched directly, not as
+wildcards), filtered by archived status. It lists entries rather than published
+rows, so unpublished drafts appear in the worklist.
 
-An entry's `state` is not a column. This server derives it, with `Cms.state`,
-from whether the entry has a draft and whether a visitor can see its row, using
-your `now`. An overdue scheduled publish reads overdue, with its reason.
+An entry's `state` is derived on the server with `Cms.state` from whether the
+entry has a draft, whether a visitor can see its row, and your `now` clock. An
+overdue scheduled publish reads overdue with its reason.
 
-## API
+## Main exports
 
 | Call | Meaning |
 | --- | --- |
-| `sqliteTables()`, `pgTables()` | The three tables, per dialect. `sqliteSchema` is their `create table` statements. |
-| `Transaction.statements`, `Transaction.drizzle` | How a publish is made whole, by driver. |
-| `CmsServer.make({ tables, content, transaction, policy, authors, transitions?, allow?, now?, nameOf?, maxDraftSize? })` | `sources`, `queries`, `mutations`, `due`, `import`, and `bindings`. Each `content` entry is `{ type, entity, binding, create, update }`. |
-| `cms.due(now, { as })` | Publishes what has come due; an Effect of `{ entry, error }` each, `error` in the failure's own words, for the host. |
-| `cms.import({ type, values, as, at?, entry? })` | Content that is published already (a seed, or what another CMS held), written by the publish path; an Effect of `{ entry, targetId }`. |
+| `sqliteTables()`, `pgTables()` | Three CMS Drizzle tables per dialect (`sqliteSchema` for SQL DDL). |
+| `Transaction.statements`, `Transaction.drizzle` | Transaction wrapper for SQLite single connections or async drivers. |
+| `CmsServer.make(options)` | Builds `sources`, `queries`, `mutations`, `due`, `import`, and `bindings`. |
+| `cms.due(now, { as })` | Publishes due drafts; returns an Effect of `{ entry, error }` per item. |
+| `cms.import({ type, values, as, at?, entry? })` | Seeds published content through the publish path in one transaction. |
+
+`CmsServer.make` takes `{ tables, content, transaction, policy, authors,
+transitions?, allow?, now?, nameOf?, maxDraftSize? }`, where each `content`
+entry is `{ type, entity, binding, create, update }`.
 
 ## Limits
 
@@ -367,3 +400,12 @@ your `now`. An overdue scheduled publish reads overdue, with its reason.
 - Conflicts are refused, not merged.
 - A client that holds an entry's `revisions` list refetches it after a publish;
   the new revision arrives as a patch, not as a place in that list.
+
+## Next
+
+- Define content roles, forms, and the client editor:
+  [`foldkit-cms`](../cms/README.md).
+- Configure row and principal guards for Drizzle bindings:
+  [`foldkit-guard`](../guard/README.md).
+- Run the complete SQLite server and browser editor:
+  [the CMS example](../../examples/cms/README.md).

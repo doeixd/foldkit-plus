@@ -1,52 +1,18 @@
 # foldkit-cms
 
-What a CMS adds to a domain that is already declared. The domain is a
-[`foldkit-entity`](../entity/README.md) Entity, editing it is a
-[`foldkit-form`](../form/README.md) form, and the screens are
-[`foldkit-crud`](../crud/README.md)'s. None of that is CMS-specific. Three things
-are: **audience** (a visitor sees what is published, an author sees everything),
-**time** (drafts, revisions, a schedule), and **address** (a slug).
+When an author edits a live blog post or marketing page, their half-written
+changes cannot overwrite the public table: visitors would see broken copy, and an
+unfinished title would fail database constraints. You need working drafts beside
+your published rows, revision history, scheduled releases, and unique URL slugs,
+while keeping unpublished work invisible to visitors.
 
-The client contract and editor live here. The
-[server adapter](../cms-drizzle/README.md) persists drafts and enforces the
-audience boundary. [The CMS example](../../examples/cms/README.md) runs both
-as a transcript or in a browser.
+`foldkit-cms` keeps drafts as unsent form inputs beside your existing content
+rows and runs your own create or update mutations when an author publishes.
+Visitors keep reading your existing tables; editors autosave drafts, preview
+edits in place, schedule releases, and restore earlier revisions.
 
-## What it owns
-
-| Fact | Owner |
-| --- | --- |
-| Published content | your tables, read as any Entity is |
-| What an author has entered and not published | a draft, kept **beside** the row, never in it |
-| Which state a piece of content is in | nobody stores it: `Cms.state` derives it |
-| Which transitions that state offers | `Cms.offers`, before anyone asks who is asking |
-| Who may make a transition | your `allow`, asked by the server |
-| The draft being typed | `foldkit-form`, in your Model, inside the editor's slice |
-| How far the saves have got | `Cms.editor`, in that slice |
-| The draft's `updatedAt`, the entry's `revision` | Remote's store: read, never copied |
-
-It reads no database.
-
-## Mental model
-
-**A draft is an unsent form.** The content row holds what is published. A draft
-is what an author has entered and not sent: the input of the operation that
-would publish it, saved. So publishing is your own mutation, run with the
-draft's value; a visitor's read cannot reach unfinished work, because it never
-touches drafts; a revision is the same value, kept; and a half-filled form that
-does not validate can be saved, which a row with a `not null` title cannot hold.
-
-An Entry has a Draft. Publishing runs your own mutation, which writes the content
-row a visitor's read returns, and appends a Revision to the Entry.
-
-An **Entry** is a piece of content from its first keystroke to its archive. It
-exists before the row does, and after the row is hidden.
-
-## Run the local example
-
-From a checkout, run `pnpm install`, `pnpm build`, then
-`pnpm --filter foldkit-example-cms demo`. This is the reproducible path for the
-workspace version; use the package install below for a published version.
+See the editor, in-app preview, and server rules running in the
+[live CMS demo](https://foldkit-cms-demo.pages.dev/).
 
 ## Install
 
@@ -54,73 +20,89 @@ workspace version; use the package install below for a published version.
 pnpm add effect foldkit foldkit-entity foldkit-form foldkit-crud foldkit-remote foldkit-cms
 ```
 
-## Example
+## A first content type
 
-This integration extends an existing Entity, form, and pair of Remote mutations.
-`Blog.Post`, `PostForm`, `CreatePostMutation`, and `UpdatePostMutation` come from
-your domain module; [the example domain](../../examples/cms/src/content/domain.ts) shows
-those definitions together. Start with [Form](../form/README.md) if you have not
-yet defined the operation's input.
+This declares a blog post type with title, slug, and publish timestamp roles,
+then derives the entry's current state and allowed actions from a draft beside a
+live row:
 
-<!-- docs-check standalone
+```ts
 import { Schema } from 'effect'
+import { Cms } from 'foldkit-cms'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation } from 'foldkit-remote'
 
-const PostId = Schema.String.pipe(Schema.brand('PostId'))
-const Blog = {
-  Post: Entity.define(
-    'Post',
-    Schema.Struct({
-      id: PostId,
-      title: Schema.String,
-      slug: Schema.String,
-      publishedAt: Schema.NullOr(Schema.String),
-    }),
-  ),
-}
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({
+    id: Schema.String,
+    title: Schema.String,
+    slug: Schema.String,
+    publishedAt: Schema.NullOr(Schema.String),
+  }),
+).pipe(Cms.roles({ label: 'title', slug: 'slug', published: 'publishedAt' }))
+
 const PostInput = Schema.Struct({ title: Schema.String, slug: Schema.String })
-const PostForm = Form.make('PostForm', Entity.input(Blog.Post, PostInput))
-const CreatePostMutation = Mutation.make('CreatePost', { Input: PostInput, Output: { id: PostId } })
-const UpdatePostMutation = Mutation.make('UpdatePost', {
-  Input: { ...PostInput.fields, id: PostId },
-  Output: {},
-})
--->
-
-```ts
-import { Cms } from 'foldkit-cms'
-
-// Which members play a CMS part is a fact about the Entity: metadata, by a pipe step.
-const Post = Blog.Post.pipe(
-  Cms.roles({ label: 'title', slug: 'slug', published: 'publishedAt' }),
-)
-
-// How a type of content is authored is a fact about the application.
 const Posts = Cms.content('posts', {
   entity: Post,
-  form: PostForm, // an ordinary form: Form.make('PostForm', Entity.input(Post, PostInput))
-  publish: { create: CreatePostMutation, update: UpdatePostMutation },
+  form: Form.make('PostForm', Entity.input(Post, PostInput)),
+  publish: {
+    create: Mutation.make('CreatePost', { Input: PostInput, Output: { id: Schema.String } }),
+    update: Mutation.make('UpdatePost', { Input: { ...PostInput.fields, id: Schema.String }, Output: {} }),
+  },
   words: { one: 'Post', many: 'Posts' },
-  // Optional: how a value would look in the store, for in-app preview.
-  preview: (value, id) => [{ entity: 'Post', id, values: value }],
 })
+
+const facts = { archivedAt: null, row: 'visible' as const, draft: { scheduledFor: null, scheduleError: null } }
+const state = Cms.state(facts, new Date())
+const actions = Cms.offers(facts, new Date(), Posts)
 ```
 
-- `Post` is the same Entity as `Blog.Post`; only its metadata changed. Register
-  and bind the annotated one.
-- A role names a member that can play it. `slug` on a number, or `published` on a
-  field that admits no `null`, is a type error and throws.
-- `publish.create`'s input is the form's value and its output names the row;
-  `publish.update`'s input is that value and the row's id. A mutation of another
-  shape is a type error. They are your own mutations: what publishing a post
-  *does* stays your code.
-- **A capability is declared, never implied.** No `slug` role, no slug handling.
-  No `published` role, no unpublish, and every row is visible.
+Because a live row exists alongside an unscheduled draft, `state` is
+`{ _tag: 'Changed', schedule: null }` and `actions` is
+`['save', 'discard', 'publish', 'schedule', 'unpublish', 'restore', 'archive']`.
 
-`Cms.rolesOf(Post)` reads the roles back as Fields. Anything may: the server's
-audience policy, a `bySlug` query, a sitemap this package knows nothing of.
+- `Post` is a `foldkit-entity` Entity annotated with `Cms.roles`, naming which
+  fields hold the title, URL slug, and publish timestamp. A role on an
+  incompatible field (such as `slug` on a number, or `published` on a non-null
+  field) is a type error and throws.
+- `Posts` binds that Entity to a `foldkit-form` Form and your own
+  `foldkit-remote` `create` and `update` mutations, so what publishing writes
+  stays your code.
+- Capabilities follow declared roles: omitting `slug` skips slug handling, and
+  omitting `published` keeps every row visible without an unpublish action.
+- `Cms.rolesOf(Post)` reads those roles back as Fields for public queries,
+  audience policies, or your own sitemap query.
+
+## Where content, drafts, and state live
+
+| Fact | Owner |
+| --- | --- |
+| Published content | your tables, read as any Entity is |
+| Unfinished author edits | a draft, kept **beside** the row, never in it |
+| Entry lifecycle state | derived by `Cms.state`, never stored |
+| Allowed transitions for a state | `Cms.offers`, checked before user permissions |
+| Who may make a transition | your `allow` rule, checked on the server |
+| The draft being typed | `foldkit-form`, inside the editor's Model slice |
+| Save progress and conflicts | `Cms.editor`, in that slice |
+| Draft `updatedAt` and entry `revision` | Remote's store, read directly |
+
+Persistence and visitor filtering live in the
+[server adapter](../cms-drizzle/README.md).
+
+## How drafts sit beside live rows
+
+**A draft is an unsent form.** Your content row holds only what is published,
+while a draft stores the unsent input of the operation that will publish it.
+Publishing runs your own mutation with the draft's value; visitors read only
+content rows and never touch drafts; a revision saves a published value; and a
+half-filled form can autosave even when a `not null` column would reject it.
+
+An **Entry** tracks a piece of content from its first keystroke to its archive.
+It exists before the first published row and remains after a row is unpublished.
+Publishing runs your mutation to update the live row and appends a **Revision**
+to the Entry.
 
 ## The lifecycle
 
@@ -275,10 +257,11 @@ PostEditor.storedEntry(model) // Option: the entry the server knows, none until 
 
 ## Kinds, and how they are drawn
 
-An entry's address and its publish time are
-[`foldkit-form-recipes`](../form-recipes/README.md)' `slug` and `dateTime`; the CMS
-adds two displays, made with `Display.kind` exactly as you make your own. There is
-no CMS view package: a kind and its renderer are all a view needs.
+An entry's address and its publish time use
+[`foldkit-form-recipes`](../form-recipes/README.md)' `slug` and `dateTime`
+controls; the CMS adds two display kinds (`Cms.Display.State` and
+`Cms.Display.Moment`) made with `Display.kind`. Render them alongside your form
+renderers—a kind and its renderer are all a view needs.
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -318,34 +301,32 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
 FormView.define(PostForm, { renderers: renderers() })
 ```
 
-Beside a list's own renderers (`EntryTable` is a `Crud.list` over `Cms.Entries`):
-
-```ts sketch
-EntryTable({ page, renderers: Cms.displayRenderers() }, h)
-```
+Beside a `Crud.list` over `Cms.Entries`, pass `Cms.displayRenderers()` to
+`EntryTable({ page, renderers: Cms.displayRenderers() }, h)`.
 
 A slug follows its title until the author writes it, and a form filled with a
-published slug does not follow: an address must not move because its title did.
+published slug stays fixed so an existing URL never moves when a title changes.
 
-| Kind | What it is |
+| Kind | What it renders |
 | --- | --- |
-| `Cms.Display.State` | An entry's state as words: `Changed, scheduled`, `New, overdue`. `of({ words })` takes yours, text with blanks as every words object is: each state, `scheduled`, `overdue`, and `withSchedule` (`'{state}, {schedule}'`). Its renderer is a `span` with `data-cms-state` and `data-cms-schedule` to style. |
-| `Cms.Display.Moment` | A time. `of({ now })` reads relative to that clock (`3 days ago`), and you decide how often it moves; without one it is the date and time. Its renderer is a `time`. |
+| `Cms.Display.State` | `span` with `data-cms-state` and `data-cms-schedule` for the entry state |
+| `Cms.Display.Moment` | `time` element, relative to `now` or formatted as a date and time |
 
-`Cms.Entities` already say how they are shown: an entry's `state` is a `State`,
-and its times are `Moment`s, so a `Crud.list` over `Cms.Entries` needs only the
-renderers.
+Pass custom labels to `Cms.Display.State.of({ words })` for each state,
+`scheduled`, `overdue`, and `withSchedule` (`'{state}, {schedule}'`). Pass
+`Cms.Display.Moment.of({ now })` to format relative times like `3 days ago`
+against your chosen clock.
+
+`Cms.Entities` already declare these kinds on their `state` and timestamp
+fields, so a `Crud.list` over `Cms.Entries` needs only `Cms.displayRenderers()`.
 
 Entry-level views live beside the kinds: `Cms.stateBadge` for the state
-(written in `Cms.stateAttribute`, `data-cms-state`, as a list's state cell
-is, so one tone rule styles both),
+(written in `Cms.stateAttribute`, `data-cms-state`, matching list cells),
 `Cms.revisionsOf` for the open entry's published revisions, `Cms.historyCard`
-for the timeline, `Cms.moreCard` for the rest of what can happen to it. They
-draw on your own slot builders, so you keep your slots and styles; who
-published, the archive button's icon, and the locale and time zone the
-History writes its dates in are yours to name. Both are required: the
-runtime's own differ between a server and a browser, which would then write
-different text for one revision:
+for the timeline, and `Cms.moreCard` for the remaining actions. They draw on your
+own slot builders so you keep your slots and styles; you supply `authorName`,
+the archive icon, and an explicit `locale` and `timeZone` so server and browser
+renders match:
 
 <!-- docs-check standalone
 import { Option, Schema } from 'effect'
@@ -416,43 +397,49 @@ An entry's id is `EntryId`, branded, so an entry is not opened with a post's id.
 The client names something new (`Cms.newEntryId()`), and the first save of an id
 nobody has makes the entry, so an editor need not wait to learn what it edits.
 
-## API
+## Main exports
 
 | Call | Meaning |
 | --- | --- |
 | `Cms.roles({ label?, slug?, published? })` | Pipe step: the members of an Entity that play a CMS part. |
-| `Cms.rolesOf(entity)` | Those roles, as Fields; `undefined` for a part nobody named. |
-| `Cms.published(entity)` | Whether a row is published, as a predicate: the operator `cms.published` over the `published` role's field, for a public query and a visitor's Read rule alike. Throws with no `published` role. |
-| `Cms.content(name, { entity, form, publish, words, preview? })` | A type of content: its Entity, form, publish operations, and name. |
-| `Cms.editor(name, { content, rest?, version?, untitled? })` | The authoring editor: `bundle`, `Message`, and `at({ data, model })`. |
-| `Cms.newEntryId()` | An id for something new. |
-| `Cms.editorView(view)` | A form's Submodel view as its editor's, for `Bundle.withView`. |
-| `Cms.Display.{State, Moment}` | The display kinds: `.of(data)`, `.is(x)`. |
-| `Cms.displayRenderers()` | Their renderers, to spread beside the mixins' own. |
-| `Cms.state(facts, now)` | The state of an entry, with its schedule. |
-| `Cms.offers(facts, now, content)` | The transitions it offers now. |
-| `Cms.Entities`, `Cms.Operations`, `Cms.operations` | The CMS's own Entities and mutations. |
-| `Cms.Entries` | The worklist query: one content type's entries, by label, archived or not. |
-| `Cms.bySlug(content)` | The query `<name>BySlug`: the content at an address, a connection of one or none. Takes what a reader needs (`ContentReader`: `name`, `entity`, `roles`; a `Content` is one), so a public site need not import the form that authors it. Throws with no `slug` role. |
-| `Cms.refusal` | What a server refuses `SaveDraft` and `Publish` with: `field(key, reason)` for one key of the form, `conflict` for work saved or published since. Both operations declare it as their `Refusal`. |
+| `Cms.rolesOf(entity)` | Those roles as Fields; `undefined` for an unnamed part. |
+| `Cms.published(entity)` | Published-row predicate for queries and Read rules (needs `published` role). |
+| `Cms.content(name, { entity, form, publish, words, preview? })` | Declares a content type: Entity, form, publish mutations, and words. |
+| `Cms.editor(name, { content, rest?, version?, untitled? })` | Authoring editor Bundle: `bundle`, `Message`, and `at({ data, model })`. |
+| `Cms.newEntryId()` | Generates an `EntryId` for a new entry. |
+| `Cms.editorView(view)` | Adapts a form's Submodel view for `Bundle.withView`. |
+| `Cms.Display.{State, Moment}` | Display kinds for entry state and timestamps (`.of(data)`, `.is(x)`). |
+| `Cms.displayRenderers()` | Renderers for `Cms.Display`, to spread beside your own. |
+| `Cms.state(facts, now)` | Derives an entry's state and schedule from facts and a clock. |
+| `Cms.offers(facts, now, content)` | Lists the transitions currently offered for an entry. |
+| `Cms.Entities`, `Cms.Operations`, `Cms.operations` | Built-in Entities and Remote mutations for CMS operations. |
+| `Cms.Entries` | Worklist query: one content type's entries, by label or archived state. |
+| `Cms.bySlug(content)` | Query `<name>BySlug` returning one or none at a slug (needs `slug` role). |
+| `Cms.refusal` | Server refusal constructors (`field(key, reason)`, `conflict`). |
 
-## End-to-end example
-
-[`examples/cms`](../../examples/cms) takes a post from its first keystroke to being
-taken off show, from a writer's, an editor's and a visitor's chair, over SQLite,
-with its transcript pinned by a test.
+`Cms.bySlug(content)` accepts any `ContentReader` (`{ name, entity, roles }`,
+which every `Content` satisfies), so a public site can query by slug without
+importing the authoring form.
 
 ## Limits
 
 - A revision list is a `Crud.list` you declare over `Cms.Entities.Revision`.
-- Preview is for the author, in their own session. A link someone else can open
-  is an audience, and is not built yet.
-- The editor has no view of its own: render the form with `foldkit-mixins-form`,
-  and the status and buttons yourself.
-- An address is checked while typing by `Cms.addressFree('posts')`, added with
-  the `Form.checks` step. It is advice, not the rule: two authors can both be
-  told an address is free and both publish, and the server refuses the second on
-  the same key. Put a unique index on the column.
+- Preview is for the author, in their own session; shareable preview links
+  for external reviewers are not built yet.
+- Form layout and status controls come from `foldkit-mixins-form` and your own
+  view slots.
+- `Cms.addressFree('posts')` (added via `Form.checks`) advises authors while
+  typing; put a unique index on the database column to enforce uniqueness on
+  concurrent publishes.
 - One working draft per entry, not one per author.
-- Media, rich text, localization, and review states beyond "who may publish" are
-  not built yet.
+- Media, rich text, localization, and multi-step review workflows beyond who
+  may publish are not built yet.
+
+## Next
+
+- Store drafts in Drizzle and enforce visitor visibility on the server:
+  [`foldkit-cms-drizzle`](../cms-drizzle/README.md).
+- Run a complete post lifecycle over SQLite and in the browser:
+  [the CMS example](../../examples/cms/README.md).
+- Build and validate the forms that back each draft:
+  [`foldkit-form`](../form/README.md).

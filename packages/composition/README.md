@@ -1,44 +1,18 @@
 # foldkit-composition
 
-What a page is, as data. A **Catalog** of Blocks says what may exist; a
-**Document** says what does: which Blocks, with which props, in which Regions.
-The Document is stored like any other field, checked against a Catalog, and
-changed by the application's own transitions. This package performs no I/O,
-holds no state and draws nothing.
+When marketing or editorial teams need to reorder sections, swap a hero callout,
+or assemble a landing page without waiting on a code deploy, teams usually end
+up choosing between hardcoded JSX components or storing raw HTML in the
+database. Raw HTML breaks layout guarantees and opens XSS holes, while hardcoded
+components stall every content tweak on an engineering release.
 
-> **Status:** experimental, `0.1.0`, on npm from the 0.16.0 release. It holds the
-> vocabulary, the stored Document, its validation, editing Operations,
-> migrations, drawing a page with Foldkit, on the server too, and appearance.
-> The editor is [`foldkit-builder`](../builder/README.md), drawn by
-> [`foldkit-mixins-builder`](../mixins-builder/README.md).
+`foldkit-composition` represents each page as a plain JSON **Document** made
+from typed **Blocks** you define in code. Your code declares each Block's prop
+schema and the child **Regions** it exposes; the database stores only Block
+names, ids, and props, validated against your **Catalog** before publishing.
 
-## What it owns
-
-| Fact | Owner |
-| --- | --- |
-| Which Blocks exist, their props, Regions and Content | `foldkit-composition`, in code |
-| Which Blocks a page has, and where | the Document, stored as data |
-| Whether a Document fits a Catalog | `Composition.validate`, which reads and never repairs |
-| The draft being edited, saving, revisions, publishing | the application: a `foldkit-form` key, `foldkit-cms` |
-| How a Block looks and behaves | a view, drawn from the Block by a renderer |
-
-Code decides what *may* exist; data records what *does*. A Document refers to
-code only by name, so it outlives the code: a Block removed from a deployment
-leaves a node that still loads, still round-trips and is reported, never
-dropped.
-
-## Mental model
-
-Code, deployed: a **Block** is a name, a props Schema, its Regions and the Content
-it is, and a **Catalog** is the Blocks one context allows and which of them may be a
-root. Data, stored: a **Document** is `roots: [id, ...]` and
-`nodes: { id: { block, props, regions } }`. `Composition.validate(catalog, document)`
-checks one against the other and returns `[]` or diagnostics.
-
-A **Region** is a stored position inside a Block where other Blocks go, such as
-a Hero's `actions`. It accepts Blocks by **Content**, what a Block *is*
-(`Section`, `Flow`, `Interactive`), not by name, so a Region written today
-accepts a Block written next year.
+See pages of Blocks edited and rendered live in the
+[live CMS demo](https://foldkit-cms-demo.pages.dev/).
 
 ## Install
 
@@ -46,11 +20,10 @@ accepts a Block written next year.
 pnpm add foldkit-composition
 ```
 
-```ts
-import { Block, Catalog, Composition, Content, Region } from 'foldkit-composition'
-```
+## A first page of Blocks
 
-## Sixty seconds
+This defines a `Heading` and a `Section` Block, combines them into a `Catalog`,
+decodes a JSON page `Document`, and validates it:
 
 ```ts
 import { Schema } from 'effect'
@@ -60,13 +33,11 @@ const Heading = Block.define('Heading', {
   Props: Schema.Struct({ text: Schema.String, level: Schema.Literals([1, 2, 3]) }),
   provides: [Content.Flow],
 })
-
 const Section = Block.define('Section', {
   Props: Schema.Struct({ tone: Schema.Literals(['plain', 'accent']) }),
   regions: { body: Region.many({ accepts: [Content.Flow] }) },
   provides: [Content.Section],
 })
-
 const Site = Catalog.make({ blocks: [Heading, Section], roots: [Content.Section] })
 
 const page = Schema.decodeUnknownSync(Composition.Document)({
@@ -78,26 +49,60 @@ const page = Schema.decodeUnknownSync(Composition.Document)({
   },
 })
 
-Composition.validate(Site, page) // []
-Composition.describe(Site, page)
-// Section intro {"tone":"plain"}
-//   body:
-//     Heading title {"level":1,"text":"Hello"}
+const findings = Composition.validate(Site, page)
+const outline = Composition.describe(Site, page)
 ```
 
-- `Block.define` and `Catalog.make` describe; nothing runs. A Catalog with two
-  Blocks of one name, a Region that accepts nothing, or a Block that provides
-  nothing throws when it is made.
-- `Composition.Document` is a Schema: the Document is plain JSON, stored in a
-  column or a field like any other value.
-- `validate` returns what is wrong, each finding with a code, the node, a path
-  and a sentence. It never changes the Document.
+`findings` is `[]` (every node fits the Catalog), and `outline` returns the
+readable tree:
+
+```text
+Section intro {"tone":"plain"}
+  body:
+    Heading title {"level":1,"text":"Hello"}
+```
+
+- `Block.define` and `Catalog.make` describe your vocabulary. A Catalog with
+  duplicate Block names, an empty Region acceptance list, or a Block that
+  provides no Content throws when defined.
+- `Composition.Document` is an Effect Schema for plain JSON, ready for a
+  database column or form field.
+- `Composition.validate` returns a finding for each issue—code, node id, path,
+  and message—while leaving `page` untouched.
+
+## Where blocks, pages, and edits live
+
+| Fact | Owner |
+| --- | --- |
+| Which Blocks exist, their props, Regions and Content | `foldkit-composition`, in code |
+| Which Blocks a page has, and where | the Document, stored as data |
+| Whether a Document fits a Catalog | `Composition.validate`, reporting every finding |
+| The draft being edited, saving, revisions, publishing | the application (`foldkit-form`, `foldkit-cms`) |
+| How a Block looks and behaves | a view, drawn from the Block by a renderer |
+
+Code decides what *may* exist; data records what *does*. A Document refers to
+Blocks only by name, so stored pages outlive deployments: removing a Block from
+code leaves a node that still loads, round-trips, and reports an unknown-block
+finding without dropping data.
+
+## How Blocks, Regions, and Documents fit together
+
+In code, a **Block** pairs a name, a prop Schema, its child Regions, and the
+**Content** roles it provides (such as `Section`, `Flow`, or `Interactive`). A
+**Catalog** lists the Blocks available in one context and which Content roles may
+appear as page roots.
+
+In storage, a **Document** holds `roots: [id, ...]` and
+`nodes: { id: { block, props, regions } }`. A **Region** is a named slot inside
+a Block (such as a Hero's `actions`) that accepts children by Content role rather
+than Block name, so Regions written today automatically accept new Blocks added
+later.
 
 ## The Document, and its two schemas
 
-A Document is normalized: `roots` and each Region hold ids, and `nodes` holds
-each node once, under its id. A node does not store its own id, so an id and
-its key cannot disagree, and a node is in exactly one place.
+A Document is normalized: `roots` and each Region hold node ids, and `nodes`
+stores each node once under its id. Because the node omits its own id field, a
+node's key and identity stay in sync and each node occupies a single place.
 
 There are two schemas, on purpose:
 
@@ -108,9 +113,9 @@ Composition.Document.check(Composition.valid(Site))  // strict: what may be publ
 
 The tolerant codec accepts any well-formed Document, whatever Block names it
 uses and with props as JSON. So a stored page always reads, an old revision
-always restores, and content the deployment no longer knows survives. The strict
-check runs `validate` and fails with every finding at its path. Store the first
-in the Entity, and ask the second of the operation that publishes:
+always restores, and content the deployment lacks survives. The strict check
+runs `validate` and fails with every finding at its path. Store the first in
+the Entity, and ask the second of the operation that publishes:
 
 ```ts
 import { Entity } from 'foldkit-entity'
@@ -137,25 +142,25 @@ input.
 
 | Code | Meaning |
 | --- | --- |
-| `composition:missing-node` | a root or Region names an id with no node |
-| `composition:orphan` | a node that no root or Region reaches |
+| `composition:missing-node` | a root or Region names an id missing from `nodes` |
+| `composition:orphan` | a node unreachable from any root or Region |
 | `composition:second-parent` | a node placed twice |
 | `composition:cycle` | a node that contains itself |
-| `composition:unknown-block` | a Block name the Catalog does not have; the node is kept and what it holds is still checked |
-| `composition:invalid-props` | props the Block's schema refuses, including a key it does not name |
-| `composition:unknown-region` | a Region the Block does not have |
+| `composition:unknown-block` | a Block missing from the Catalog (kept and still checked) |
+| `composition:invalid-props` | props the Block's schema refuses, including extra keys |
+| `composition:unknown-region` | a Region missing from the Block |
 | `composition:region-cardinality` | too few or too many children for the Region |
-| `composition:region-rejects` | a child whose Content the Region does not accept |
-| `composition:root-rejects` | a root whose Content the Catalog's roots do not accept |
-| `composition:invalid-appearance` | an appearance that is not a record, an axis the Block lacks, or a value off the axis's list |
-| `composition:unknown-token` | a token axis naming a token the theme does not have |
+| `composition:region-rejects` | a child whose Content the Region rejects |
+| `composition:root-rejects` | a root whose Content the Catalog's roots reject |
+| `composition:invalid-appearance` | non-record appearance, unknown axis, or invalid axis value |
+| `composition:unknown-token` | a token axis naming a token missing from the theme |
 | `composition:invalid-condition` | a `when` that is not a list of conditions |
-| `composition:unknown-context` | a condition over a key the Catalog's `context` does not declare, or a value that key cannot have |
-| `composition:invalid-action` | an event the Block does not have, a reference that is not `{ action, input }`, or input the action's Schema refuses |
-| `composition:unknown-action` | an action the Catalog does not offer |
+| `composition:unknown-context` | a condition key or value unsupported by the Catalog's `context` |
+| `composition:invalid-action` | unknown event, malformed `{ action, input }`, or invalid input |
+| `composition:unknown-action` | an action missing from the Catalog |
 
-Props are decoded strictly, so a prop an old version left behind is found
-rather than silently kept.
+Props are decoded strictly, so an obsolete prop left by an older schema is
+surfaced rather than silently kept.
 
 ## Conditions
 
@@ -410,11 +415,9 @@ Agent.expose(Message, {
 
 ## Editing: Operations
 
-A Document changes by Operations, the way a Model changes by Messages:
-
-```text
-Document + Operation → Document, or a refusal with no partial result
-```
+`Composition.apply(catalog, document, op)` applies an Operation to a Document
+and returns `Result.succeed({ document, changed, removed })`, or `Result.fail`
+with an error code and message leaving the Document unchanged:
 
 <!-- docs-check standalone
 import { Schema, Option } from 'effect'
@@ -474,15 +477,14 @@ const result = Composition.apply(
 - **Positions** are `root(index)` or `region(parent, name, index)`. An index
   counts after the node being moved is taken out, so moving the first of three
   to index 2 puts it last.
-- **`apply` checks what the Operation causes:** a Region that would not accept
-  the node or has no room, a Region left below its bound, a node put inside
-  itself, a taken id, props the Block refuses. It does not refuse an edit for
-  something already wrong elsewhere, so an author keeps working beside a Block
-  the deployment no longer knows. A prop of such a Block cannot be set, since
-  nothing can check it.
-- **`apply` never mints an id.** Every id an Operation creates is in it, so a
-  replay creates the same nodes. `Composition.newIds(count)` is an Effect that
-  makes random ones, to run in a Command.
+- **`apply` checks what the Operation causes:** a Region that rejects the node
+  or lacks room, a Region left below its bound, a node placed inside itself, a
+  taken id, or invalid props. Existing errors elsewhere on the page (such as an
+  unknown Block left by an older deployment) are preserved so authors can keep
+  editing around them.
+- **Operations supply their own ids.** Every id an Operation creates is passed
+  in explicitly so replays produce identical nodes. Call
+  `Composition.newIds(count)` in a Command to generate random ids.
 - **`Applied`** says which nodes were added or changed, a parent whose Region
   changed included, and which were removed, so a view can redraw only those.
 - Operations are data: `Composition.Operation` is their Schema, for a log, an
@@ -630,16 +632,16 @@ const SiteRenderer = Renderer.make(Site, {
 Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
 ```
 
-- **Every Block needs a view.** A Catalog Block without one is a type error, and
-  `Renderer.make` throws naming it.
-- **Nothing stored makes it throw.** A node whose Block the Catalog lacks, whose
-  props do not decode, that is missing or reached twice, or whose view throws
-  is a placeholder: nothing for a visitor, a labelled box in edit mode.
+- **Every Block needs a view.** Missing a Block view in `Renderer.make` is a type
+  error and throws at runtime naming the missing Block.
+- **Stored mismatches render placeholders instead of throwing.** A node whose
+  Block is missing from the Catalog, whose props fail to decode, that is missing
+  or reached twice, or whose view throws renders nothing for a visitor and a
+  labelled box in edit mode.
 - **The builder is a parameter,** so one Renderer draws in the browser, in a
-  test with `inertHtml`, and on the server. A Renderer made with
-  `Renderer.make` sends nothing, so it takes any application's builder, the
-  view's own `h`; one made with `Renderer.forMessages<Message>()` takes a
-  builder of those Messages only.
+  test with `inertHtml`, and on the server. `Renderer.make` takes any
+  application's `h` builder without dispatching Messages;
+  `Renderer.forMessages<Message>()` binds to builders of `Message`.
 - **Edit mode** (`{ mode: 'edit' }`) wraps each node in a `display: contents`
   element carrying `data-composition-node`, so an editor's canvas draws the
   page a visitor sees. The wrapper also carries the editor's marks, from the
@@ -681,17 +683,14 @@ Renderer.render(SiteRenderer, page, h) // ReadonlyArray<Html>, one per root
   none: an editor's canvas draws a page without running its actions.
   `Renderer.forMessages<Message>()` requires every Message the Catalog's
   actions make to be one of `Message`.
-- **A node is drawn again only when what it reads changed.** Inside a
-  runtime-driven render, each node's drawing is memoized with Foldkit's
-  `createKeyedLazy` on its node object, its drawn children, its read, whether
-  it shows, its marks, and the field being edited in it. `apply` shares every node it does not change, so an
-  edit redraws the node it touched and the nodes holding it, and a change
-  elsewhere in the Model redraws none. Each node is keyed by its id (the edit
-  wrapper, or in view mode the Block's own root, unless it set a key), so a
-  moved node moves with its drawing. Drawn outside a runtime (a test with
-  `inertHtml`, a server's first pass), nothing is memoized.
-- It adds no reconciler and no component runtime. It needs `foldkit`
-  installed; the core does not.
+- **A node redraws only when its inputs change.** Inside a runtime-driven render,
+  each node's drawing is memoized with Foldkit's `createKeyedLazy` on its node
+  object, drawn children, data read, visibility, marks, and active inline field.
+  `apply` structurally shares unchanged nodes, so an edit redraws only the
+  touched node and its ancestors. Outside a runtime (`inertHtml` tests, first
+  SSR pass), rendering runs unmemoized straight to Foldkit `Html`.
+- Rendering requires `foldkit` installed as a peer; the core `foldkit-composition`
+  entry works without `foldkit`.
 
 ### URLs
 
@@ -858,10 +857,10 @@ const SiteRenderer = Renderer.make(Site, {
   ```
 
   A layout writes its parameters as custom properties, so every Columns on a
-  page shares one rule, and an author choosing `{ ratio: '2:1', gap: 'lg' }`
-  adds no CSS.
+  page shares one rule, and choosing `{ ratio: '2:1', gap: 'lg' }` requires zero
+  extra CSS rules.
 
-It needs `foldkit-mixins` installed; the core does not.
+This subpath requires `foldkit-mixins`; the core package works standalone.
 
 ### Blocks with state of their own
 
@@ -959,10 +958,10 @@ const draw = (model: typeof PageModel.Type, h: HtmlBuilder<typeof PageMessage.Ty
 
 ### Blocks that read data: `foldkit-composition/remote`
 
-A Query Block names a [`foldkit-remote`](../remote/README.md) query and says how
-its props become the query's input. An author chooses a count or a category;
-an author never writes a query, and the Document never holds one. From the CMS
-example's `site.ts`:
+A Query Block names a [`foldkit-remote`](../remote/README.md) query and maps its
+props to the query's input. Authors pick options like a count or a category;
+your code owns the query itself, and the Document stores only the chosen props.
+From the CMS example's `site.ts`:
 
 <!-- docs-check standalone
 import { Schema, Option } from 'effect'
@@ -1035,7 +1034,8 @@ const SiteRenderer = Renderer.make(Site, {
 - The Block's type depends on the query, not on `Data`, so a Catalog stays
   independent of the Model that the Builder's form is part of.
 
-It needs `foldkit-remote` and `foldkit-surface` installed; the core does not.
+This subpath requires `foldkit-remote` and `foldkit-surface`; the core package
+works standalone.
 
 ### Blocks that show a feature: `foldkit-composition/surface`
 
@@ -1132,26 +1132,17 @@ to no instance. Rendering still reads through `reads` and `data`.
 
 ### Serving a published page
 
-Most of a composed page is content no Message changes, which is what
-`foldkit-ssr`'s static regions are for:
-
-```ts sketch
-view: (model, h) => ({
-  title: 'Home',
-  body: h.main([], [SSR.static('page', ih => Renderer.render(SiteRenderer, model.page, ih))]),
-})
-```
-
-The server draws the page once; the browser adopts its markup and never runs
-the Renderer. With the page left out of the resume plan's state, the Document
-is not sent to the browser at all, only the markup.
+Most of a composed page is static content, so you can render it once on the
+server with `foldkit-ssr`'s `SSR.static('page', ih => Renderer.render(SiteRenderer, model.page, ih))`.
+The browser adopts the server markup directly, and leaving `page` out of the
+resume plan sends only HTML without shipping the JSON Document.
 
 ## Migrations and unknown Blocks
 
-A Block that a deployment no longer has does not make its pages unreadable. Its
-nodes load, round-trip, render as a placeholder once a renderer exists, and can
-be reordered where they are or removed. `validate` reports them, so the strict
-check refuses to publish until they are dealt with. Migrations deal with them:
+Pages containing a Block removed from your Catalog remain readable: their nodes
+load, round-trip, render as placeholders, and can be reordered or deleted.
+`validate` reports unknown blocks so the strict publish schema blocks publishing
+until migrations update or remove them:
 
 <!-- docs-check standalone
 import { Schema, Option } from 'effect'
@@ -1198,48 +1189,53 @@ const { document, applied, unused } = Composition.migrate(stored, [
 ```
 
 - **The list is the chain.** A later migration sees what an earlier one made.
-- **A migration rewrites a node, never its id,** and the Document's structure is
+- **A migration rewrites a node in place under its existing id,** and the Document's structure is
   checked after each one that changed something: a Region pointing at nothing, a
   node placed twice, a cycle or a stranded node throws, naming the migration.
-  What was already wrong before it ran is not held against it.
+  What was already wrong before it ran is preserved.
 - **The result is still content.** A rewritten node must decode as a Node.
 - **Declining is allowed.** Returning `undefined` keeps the node.
-  `promoteUnknown` declines for a node whose props do not decode as the target
-  Block's, so it stays as it was rather than half converted.
-- **They run where you choose,** such as on load, before a publish, or as an
-  explicit upgrade, never on every read.
+  `promoteUnknown` declines when a node's props fail to decode under the target
+  Block, keeping it intact rather than half-converted.
+- **Run migrations at explicit boundaries,** such as on load, before a publish,
+  or in a backfill script.
 
-A Block the Catalog does not know can be reordered within the Region or the
-roots it is in, and removed. It cannot be moved elsewhere, and its props cannot
-be set, since nothing could check either.
+An unknown Block can still be reordered within its current Region or roots, and
+removed; moving it across Regions or editing its props waits until a migration
+promotes it.
 
 ## Performance
 
-`pnpm bench` measures a page of 1,000 nodes (`bench/operations.bench.ts`). On
-the machine the design's budgets were checked on, as means:
+Measured across a 1,000-node page in the package benchmark suite:
 
-```text
-apply one setProp                  0.40 ms    budget 1 ms
-apply one move between sections    0.39 ms    budget 1 ms
-validate the whole page            1.14 ms    budget 10 ms
-index a page not seen before       0.09 ms    budget 5 ms
-```
+| Operation | Measured mean | Budget |
+| --- | --- | --- |
+| `apply` one `setProp` | 0.40 ms | 1 ms |
+| `apply` one `move` between sections | 0.39 ms | 1 ms |
+| `validate` the whole page | 1.14 ms | 10 ms |
+| `index` a page | 0.09 ms | 5 ms |
 
-`apply` shares every node it does not change, and copies the record of nodes
-once per Operation, which is most of its cost at this size.
+`apply` shares every unchanged node and copies the `nodes` record once per
+Operation, which accounts for most of its cost at this size.
 
 ## Relationship to rich text
 
-A page and a rich-text document are two documents on purpose: rich text
-addresses edits by text position, a page by node and Region. They meet in one
-direction, with rich text held as a Block's prop. This package follows
-[`foldkit-richtext`](../richtext/README.md)'s rules where they apply: props are
-JSON when stored and checked by the vocabulary, content a deployment does not
-know is kept, and the vocabulary is a module-level value, never Model state.
+A page and a rich-text document serve different granularity: rich text edits by
+character position, while a page edits by Block and Region. You can embed rich
+text inside a Block prop with `foldkit-composition/richtext`, keeping the
+vocabulary at module scope and stored props as JSON.
 
 ## Limits
 
+- A condition is one of four operations over one context key; `or` and `not`
+  combinators are omitted, matching `Expr`.
+- Only a token choice is responsive; a variant keeps one value across viewports.
 
-- A condition is one of four operations over one context key; there is no
-  `or` and no `not`, as in `Expr`.
-- Only a token choice is responsive; a variant is one value for every viewport.
+## Next
+
+- Build an interactive page editor with undo, selection, and clipboard:
+  [`foldkit-builder`](../builder/README.md).
+- Render the full page editor UI with accessible keyboard and drag support:
+  [`foldkit-mixins-builder`](../mixins-builder/README.md).
+- Add drafts, revisions, and scheduled publishing to pages:
+  [`foldkit-cms`](../cms/README.md).

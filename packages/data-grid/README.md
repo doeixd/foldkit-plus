@@ -1,53 +1,32 @@
 # foldkit-data-grid
 
-The model under a Foldkit data grid: which cells exist, in what order, and
-where a move or a range lands. It is pure geometry over rows the application
-supplies, so focus, selection, virtualization and the clipboard all ask one
-value instead of reading positions from the DOM.
+Rendering 100,000 rows into the DOM freezes the browser, and tracking focus,
+cell ranges, pinned columns, and scroll offsets by measuring DOM nodes breaks
+whenever rows sort or virtualize out of view. Plain list tables work until
+users need spreadsheet keyboard movement, inline cell editing, column
+resizing, or copy-paste across thousands of rows.
 
-> **Status:** experimental, `0.1.0`, on npm from the 0.15.0 release. The gaps are
-> under [Limits](#limits). This package draws nothing;
-> [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md) draws it.
-> [`examples/data-grid`](../../examples/data-grid/README.md) is a 100,000-row
-> product registry built on both, and
-> [`examples/registry`](../../examples/registry/README.md) the same with a
-> server: read through Remote, edited through Sync.
+`foldkit-data-grid` computes the grid's geometry, keyboard movement, selection,
+editing, and virtualized row/column windows as pure projections over rows you
+supply. Cells are addressed by stable row keys and column ids rather than array
+indexes, so sorting, filtering, and scrolling 100,000 rows all read one model
+without touching the DOM. For the accessible HTML rendering layer, pair it with
+[`foldkit-mixins-data-grid`](../mixins-data-grid/README.md).
 
-## Who owns what
+See 100,000 virtualized rows with keyboard movement, pinning, and editing in
+the [live data grid demo](https://foldkit-grid-demo.pages.dev/).
 
-**The grid owns interaction state and geometry; the application owns the
-records and domain mutations.**
+## Install
 
-| Fact | Owner |
-| --- | --- |
-| the records, their loading and caching | the application, Remote, or a local store |
-| row order: a sort, a filter, a search | the application's Model or query input |
-| column order, visibility and pinning | the grid, as a `ColumnLayout` |
-| which cells exist and where they stand | `GridProjection`, derived from the three above |
+```sh
+pnpm add effect foldkit foldkit-data-grid
+```
 
-The grid never sorts, filters or fetches. A sorted result is the order the
-application hands it. A column can draw a filter control
-([Filtering from a column](#filtering-from-a-column)), but the value it sets is
-the application's, and so is applying it.
+## A first grid of rows
 
-Use this package for an interactive grid: keyboard movement between cells,
-ranges, editing. A readable, sortable list of records is
-[`foldkit-crud`](../crud/README.md)'s `Crud.list` with
-[`foldkit-mixins-crud`](../mixins-crud/README.md)'s table, which stays the
-simple path.
-
-## Mental model
-
-A `RowModel` (rows by index, each with a stable key) is crossed with typed
-`Columns` (by stable id) and a `ColumnLayout` (start, center or end, and hidden).
-That gives a `GridProjection`: the visible cells in display order. Moves, ranges and
-positions are computed over it, and every answer is an `Option`.
-
-A cell is named by identity, `{ row: key, column: id }`, never by position. A
-re-sort moves a row to another index, and the address still names the same
-cell; the projection says where it stands now.
-
-## Sixty seconds
+This defines two columns (`sku` pinned to the start, `price` in the center),
+projects two product rows into display order, and computes a cell move and a
+selection box:
 
 ```ts
 import { ColumnLayout, Columns, GridProjection, RowModel } from 'foldkit-data-grid'
@@ -57,12 +36,10 @@ interface Product {
   readonly sku: string
   readonly price: number
 }
-
 const columns = Columns.define<Product>()({
   sku: { header: 'SKU', value: product => product.sku, pinned: 'start' },
   price: { header: 'Price', value: product => product.price },
 })
-
 const products: ReadonlyArray<Product> = [
   { id: 'p1', sku: 'A-1', price: 9 },
   { id: 'p2', sku: 'B-2', price: 2 },
@@ -75,33 +52,48 @@ const grid = GridProjection.make({
   layout: ColumnLayout.initial(columns),
 })
 
-grid.columns // ['sku', 'price']
-grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
-// Option.some({ row: 'p2', column: 'price' })
-grid.box({ row: 'p2', column: 'price' }, { row: 'p1', column: 'sku' })
-// Option.some({ rows: { start: 0, end: 2 }, columns: ['sku', 'price'] })
+const moved = grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
+const span = grid.box({ row: 'p2', column: 'price' }, { row: 'p1', column: 'sku' })
 ```
 
-What each call does:
+`grid.columns` is `['sku', 'price']`, `moved` is
+`Option.some({ row: 'p2', column: 'price' })`, and `span` is
+`Option.some({ rows: { start: 0, end: 2 }, columns: ['sku', 'price'] })`.
 
-- **`Columns.define<Product>()({...})`** declares columns. Each key is a
-  column's stable id, typed as a literal, and each `value` keeps its own type.
-  It is called twice so the row type is given and the ids are inferred. It
-  throws for an id that is a number, which JavaScript would enumerate first,
-  and for `__proto__`.
-- **`RowModel.fromArray(rows, key)`** reads an in-memory array. It indexes the
-  keys once per array and key function, so keep both stable across renders,
-  and it throws when two rows share a key. A paged or cursor source implements
-  the `RowModel` interface itself.
-- **`RowModel.map(rows, input, make)`** transforms each row as it is read,
-  for local state laid over rows a server sent. `make` turns `input` (the
-  edits, say) into the per-row function once per `rows` and `input`, and the
-  result is the same model while both are, so the grid's projection is kept.
-  Keys, count and order are `rows`' own.
-- **`ColumnLayout.initial(columns)`** is the layout the columns declare. A
-  layout is plain data, column ids only, so it can be saved.
-- **`GridProjection.make(...)`** combines the three. It performs no I/O and
-  holds no state; rebuild it when any input changes.
+- **`Columns.define<Product>()({...})`** declares typed columns by stable id.
+  The curried call supplies the row type while inferring literal column ids,
+  and throws on numeric keys or `__proto__`.
+- **`RowModel.fromArray(rows, key)`** wraps an in-memory array and indexes row
+  keys once per `(rows, key)` pair (throwing on duplicate keys). Paged or
+  cursor sources implement the `RowModel` interface directly; use
+  `RowModel.map(rows, input, make)` to layer local edits over server rows.
+- **`ColumnLayout.initial(columns)`** captures column order, pinning, and
+  visibility as plain serializable data of column ids.
+- **`GridProjection.make(...)`** combines rows, columns, and layout into one
+  pure display projection; rebuild it whenever any input changes.
+
+## How rows, columns, and geometry stay separate
+
+**The grid owns interaction state and geometry; your application owns the
+records, sort order, and domain mutations.**
+
+| Fact | Owner |
+| --- | --- |
+| the records, their loading and caching | your application, Remote, or a local store |
+| row order: a sort, a filter, a search | your application's Model or query input |
+| column order, visibility and pinning | the grid, as a `ColumnLayout` |
+| which cells exist and where they stand | `GridProjection`, derived from the three above |
+
+Sorting, filtering, and data fetching stay in your application: the grid renders
+rows in the order you pass them. A `RowModel` (rows by index, each with a
+stable key) crosses with `Columns` (by stable id) and `ColumnLayout` (start,
+center, end, or hidden) to build `GridProjection`. Because cells are named by
+`{ row: key, column: id }` rather than array index, a re-sort moves a row to a
+new visual index while keeping the cell's identity intact.
+
+For a simple readable, sortable table without spreadsheet cell movement or
+ranges, use [`foldkit-crud`](../crud/README.md)'s `Crud.list` with
+[`foldkit-mixins-crud`](../mixins-crud/README.md).
 
 ## Movement and ranges
 
@@ -212,8 +204,8 @@ const shown = VirtualGrid.window({
   next window is drawn from the new offsets without waiting for the scroll
   event.
 
-`packages/data-grid/bench` measures this at 100,000 rows; see
-[the benchmarks](../../docs/benchmarks.md#foldkit-data-grid-100000-rows).
+See [the 100,000-row benchmarks](../../docs/benchmarks.md#foldkit-data-grid-100000-rows)
+for timings at 100,000 rows.
 
 ## One grid's state
 
@@ -669,15 +661,10 @@ twice keeps its first place.
 ## Filtering from a column
 
 A column with `filter` draws a filter form on its header
-(`foldkit-mixins-data-grid`). The grid holds only the form while it is open;
-the filter value is the application's, as a sort or a search is, and the
-grid reports each change for the application to store and apply.
-
-```text
-header form (grid) -> Out.Filtered({ change }) -> application Model (filters)
-                                                   -> held rows: Grid.keeps
-                                                   -> Remote: the query's input
-```
+(`foldkit-mixins-data-grid`). The grid keeps only the open form's draft, sending
+each valid change as `Out.Filtered({ change })` for your application Model to
+store and apply—either over local rows with `Grid.keeps` or inside a Remote
+query's input:
 
 ```ts
 import { Schema } from 'effect'
@@ -795,10 +782,19 @@ The form's update:
 
 ## Limits
 
-- Not built: a drag across regions to pin a column (the view's column
-  menu pins), and more than one cell range.
-- Every row is one height.
-- Filters: one condition per column, all columns joined by "and"; no
-  operators beyond the five (`Contains`, `Range`, `OneOf`, `Is`, `Between`);
-  options are a choice's literals, not read from the data. A hidden column
-  still filters, and its header cannot say so.
+- Column pinning uses the column menu rather than cross-region header dragging,
+  and cell selection supports one rectangular range at a time.
+- Every row shares one fixed height.
+- Filters support one condition per column combined with logical AND across five
+  operators (`Contains`, `Range`, `OneOf`, `Is`, `Between`); choice options read
+  literal schemas rather than scanning row data, and hidden columns retain
+  active filters without a visible header indicator.
+
+## Next
+
+- Render the virtualized WAI-ARIA grid UI with keyboard, pointer, and styling
+  Slots: [`foldkit-mixins-data-grid`](../mixins-data-grid/README.md).
+- Explore a 100,000-row product registry built with both packages:
+  [`examples/data-grid`](../../examples/data-grid/README.md).
+- Sync grid edits across clients through Remote and Sync:
+  [`examples/registry`](../../examples/registry/README.md).

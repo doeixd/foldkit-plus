@@ -1,123 +1,93 @@
 # foldkit-mixins-data-grid
 
-Draws a [`foldkit-data-grid`](../data-grid/README.md) grid as an accessible,
-virtualized WAI-ARIA `grid`. Only the rows and columns the viewport shows
-reach the DOM; every drawn cell still says its place among all of them, the
-keyboard moves focus, and every element is a Slot to style.
+Drawing 100,000 rows straight into HTML crashes the browser layout, and
+building a virtualized table by hand still leaves you wiring WAI-ARIA grid
+roles, `aria-activedescendant` focus across scrolled windows, sticky pinned
+columns, resize handles, and inline cell editors.
 
-> **Status:** experimental, `0.1.0`, on npm from the 0.15.0 release. The grid
-> drawn, its header, selection, editing, status and clipboard.
-> [`examples/data-grid`](../../examples/data-grid/README.md) draws 100,000
-> rows with it.
+`foldkit-mixins-data-grid` renders a [`foldkit-data-grid`](../data-grid/README.md)
+model as an accessible, virtualized WAI-ARIA `grid`. Only the rows and columns
+inside the scroll viewport reach the DOM, while logical row counts, keyboard
+movement, selection, clipboard shortcuts, and styling Slots work out of the box.
 
-## Who owns what
+See 100,000 virtualized rows rendered with it in the
+[live data grid demo](https://foldkit-grid-demo.pages.dev/).
 
-This package draws and holds nothing. The grid's state is the `DataGrid`
-Bundle from `foldkit-data-grid`, placed in the application's Model; the rows
-are the application's. The view reads both and sends the grid's own Messages
-through the placement's wrapper.
+## Install
 
-| Fact | Owner |
-| --- | --- |
-| the rows, their order | the application |
-| the focused cell, the scroll offsets and size | `DataGrid`, in the Model |
-| which cells to draw, and their ARIA | this view, worked out each render |
+```sh
+pnpm add effect foldkit foldkit-data-grid foldkit-mixins foldkit-mixins-data-grid
+```
 
-## Sixty seconds
+## A first virtualized grid
+
+This defines a two-column `DataGrid`, attaches the default `GridStyle`, and
+renders the virtualized `grid` view:
 
 ```ts
-import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
-import { defineMessageUnion } from 'foldkit/message'
-import { Bundle } from 'foldkit-bundle'
 import { Columns, DataGrid, RowModel } from 'foldkit-data-grid'
 import { Style } from 'foldkit-mixins'
 import { DataGridView, GridStyle } from 'foldkit-mixins-data-grid'
 
-interface Item {
-  readonly id: string
-  readonly name: string
-}
-const items: ReadonlyArray<Item> = [
-  { id: 'a', name: 'Anchor' },
-  { id: 'b', name: 'Bolt' },
-]
-const itemKey = (item: Item) => item.id
-
+interface Item { readonly id: string; readonly name: string }
 const columns = Columns.define<Item>()({
   id: { header: 'Id', value: item => item.id, pinned: 'start', width: 96 },
   name: { header: 'Name', value: item => item.name, width: 240 },
 })
 const Grid = DataGrid.make({ id: 'items', columns })
+const ItemsGrid = DataGridView<typeof Grid.Message.Type>().define(Grid).pipe(Style.attach(GridStyle))
+const rows = RowModel.fromArray([{ id: 'a', name: 'Anchor' }, { id: 'b', name: 'Bolt' }], i => i.id)
+const wrap = (message: typeof Grid.Message.Type) => message
 
-// The grid's state is one field of the application's Model.
-const Placement = Bundle.declare(Grid.bundle, 'grid')
-const Model = Schema.Struct({ ...Placement.fields })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Placement.cases })
-type Message = typeof Message.Type
-const application = Bundle.assemble<Model, Message>()([
-  // A grid reports edits as an OutMessage; this one edits nothing, so it ignores them.
-  Bundle.parent({ Model, Message }).at(Placement, { onOut: Bundle.ignore }),
-])
-
-const ItemsGrid = DataGridView<Message>().define(Grid).pipe(Style.attach(GridStyle))
-const rows = RowModel.fromArray(items, itemKey)
-const wrap = (message: typeof Grid.Message.Type): Message => Placement.wrapper.make(message)
-
-const view = (model: Model, h: HtmlBuilder<Message>) =>
-  ItemsGrid(
-    {
-      state: model.grid,
-      rows,
-      wrap,
-      label: 'Items',
-      rowHeight: 32,
-      headerHeight: 36,
-    },
-    h,
-  )
+const view = (state: typeof Grid.Model.Type, h: HtmlBuilder<typeof Grid.Message.Type>) =>
+  ItemsGrid({ state, rows, wrap, label: 'Items', rowHeight: 32, headerHeight: 36 }, h)
 ```
 
-`application.initial(...)` and `application.update()` run the grid's state
-like any other placement; `view` draws it. Give the grid a height with a
-Style on `root` (`height: '24rem'`, say): it is the scroll container.
+Passing `Grid.bundle.init(undefined).model` to `view` renders a `role="grid"`
+scroll container (`aria-rowcount="3"`, `aria-colcount="2"`) with a sticky `Id`
+header and body rows sized to fit the viewport. Give `root` a height via `Style`
+(such as `height: '24rem'`) so the grid container scrolls.
 
-- **`DataGridView<Message>().define(Grid)`** is a SlotView for that grid. Its
-  row and column types come from the grid, so a cell renderer and the focused
-  cell are checked against them.
-- **`state`** is the placed `DataGrid` Model. The view reads the focused cell,
-  the viewport and the column state from it, and works out the window with
-  `VirtualGrid.window`.
-- **`rows`** is the application's rows, in its order; the view draws them
-  through the column state (`Grid.project`) and never sorts. Keep the rows
-  model between renders, or the projection is rebuilt every time.
-- **`wrap`** lifts the grid's Messages into the application's: keys send
-  `Moved` (with the scroll that reveals the cell), a pressed cell sends
-  `Focused`, and the scroll container sends `Measured`.
-- **A body row is drawn again only when what it is drawn from changed**: its
-  row, its index, whether it is selected, the focus, range, fill or edit it
-  holds, the columns' layout, and `wrap`, `cell` and `marks` by identity
-  (`foldkit-mixins`' per-item memo). A move of the focus redraws two rows; a
-  scroll, the rows it brings in. Define those three functions once, as `wrap`
-  is above: one made inline is new every render, and every row is drawn
-  every time (correct, not cached).
-- **`GridStyle`** is the default look, in the `components` layer.
+- **`DataGridView<Message>().define(Grid)`** creates a SlotView typed to `Grid`'s
+  row and column types so custom cell renderers and focused addresses are
+  type-checked.
+- **`state`** is the `DataGrid` Model holding the focused cell, viewport
+  geometry, and column layout used to compute `VirtualGrid.window`.
+- **`rows`** is your `RowModel` in display order; keep the `RowModel` reference
+  stable between renders so the projection stays cached.
+- **`wrap`** lifts grid Messages into your application Message union when
+  placed with `foldkit-bundle`.
+- **Per-row memoization** skips redrawing unchanged rows when focus moves or
+  the grid scrolls, as long as `wrap`, `cell`, and `marks` keep stable function
+  identities across renders.
+- **`GridStyle`** provides the default styling in the `components` layer.
+
+## Where rows, grid state, and view markup live
+
+| Fact | Owner |
+| --- | --- |
+| the rows, their order | your application |
+| the focused cell, the scroll offsets and size | `DataGrid`, in your Model |
+| which cells to draw, and their ARIA | this view, derived each render |
+
+Your application owns the rows and places the `DataGrid` Bundle in its Model;
+this view reads both and dispatches grid Messages through `wrap`.
 
 ## What it draws
 
-```text
-root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedescendant
-  header   role="rowgroup", sticky at the top
-    headerRow  role="row" aria-rowindex="1"
-      headerCell  role="columnheader" aria-colindex
-        resizeHandle  role="separator", its width as aria-valuenow
-  body     role="rowgroup", the full height of every row
-    row        role="row" aria-rowindex (2 for the first data row)
-      cell       role="gridcell" aria-colindex, id for the active descendant
-    placeholder  a row counted but not loaded yet
-  status   "No rows." when there are none
-```
+| Slot | Role and key attributes |
+| --- | --- |
+| `root` | `role="grid"`, `tabindex="0"`, `aria-rowcount`, `aria-colcount`, `aria-activedescendant` |
+| `header` | `role="rowgroup"`, sticky at top of the scroll container |
+| `headerRow` | `role="row"`, `aria-rowindex="1"` |
+| `headerCell` | `role="columnheader"`, `aria-colindex` |
+| `resizeHandle` | `role="separator"`, column width as `aria-valuenow` |
+| `body` | `role="rowgroup"`, full virtual height of all rows |
+| `row` | `role="row"`, logical `aria-rowindex` (`2` for first data row) |
+| `cell` | `role="gridcell"`, `aria-colindex`, cell DOM id |
+| `placeholder` | placeholder row while counted rows are still loading |
+| `status` | status banner (shows `"No rows."` when empty) |
 
 - **Counts and indexes are logical.** `aria-rowcount` is every row plus the
   header, or `-1` when the count is unknown; `aria-rowindex` and
@@ -312,21 +282,18 @@ Cells are `border-box`, so padding stays inside the width the window assumed.
 
 The grid starts three Mounts as it is drawn: the root's measure of its
 scroll container, and one pointer listener each on the header row and the
-body. Each sends a Message when it starts (`Measured`, and `MountStarted`,
-which changes nothing), so Scene can resolve them with the Messages the
-runtime sends, and `resolveMounts` names them. For the grid of the first
-example:
+body. Each sends a Message when it starts (`Measured`, and `MountStarted`), so
+Scene can resolve them with `resolveMounts`. For the grid of the first example:
 
 ```ts
 import { Scene } from 'foldkit/test'
 
 Scene.scene(
-  { update: application.update(), view },
-  Scene.given(application.initial({}).model),
+  { update: (model, message) => Grid.bundle.update(model, message, undefined), view },
+  Scene.given(Grid.bundle.init(undefined).model),
   Scene.Mount.resolveAll(
-    ...DataGridView<Message>().resolveMounts(Grid, {
-      wrap: message => Placement.wrapper.make(message),
-      // What a browser's layout would report for the scroll container.
+    ...DataGridView<typeof Grid.Message.Type>().resolveMounts(Grid, {
+      wrap,
       viewport: { top: 0, left: 0, width: 400, height: 300 },
     }),
   ),
@@ -334,9 +301,8 @@ Scene.scene(
 )
 ```
 
-`wrap` is the one the view is given. Scene runs no Mount, so what the
-pointer does (a click on a cell, a drag) is tested on the runtime; the keys
-are tested in Scene.
+`wrap` is the one the view is given. Scene skips DOM Mounts, so pointer clicks
+and drags are tested on a live runtime while keyboard flows run in Scene.
 
 An open editor, choice list or column menu holds focus with a Mount of its
 own, which sends `MountStarted` too, so a Scene test opens one, resolves what
@@ -346,14 +312,14 @@ closes. `opened` is `'editor'` (a cell's field, a native select included),
 With the Name column editable (`edit: {}` in its spec):
 
 ```ts
-const editor = DataGridView<Message>().resolveOpened(Grid, { wrap, opened: 'editor' })
+const editor = DataGridView<typeof Grid.Message.Type>().resolveOpened(Grid, { wrap, opened: 'editor' })
 const field = Scene.role('textbox', { name: 'Name' })
 
 Scene.scene(
-  { update: application.update(), view },
-  Scene.given(application.initial({}).model),
+  { update: (model, message) => Grid.bundle.update(model, message, undefined), view },
+  Scene.given(Grid.bundle.init(undefined).model),
   Scene.Mount.resolveAll(
-    ...DataGridView<Message>().resolveMounts(Grid, {
+    ...DataGridView<typeof Grid.Message.Type>().resolveMounts(Grid, {
       wrap,
       viewport: { top: 0, left: 0, width: 400, height: 300 },
     }),
@@ -388,5 +354,13 @@ Scene.scene(
   `draft` returns a string. Committing decodes that text through the schema.
 - A copy's text is drawn with the grid, built once per range and rows, so
   copying a very large range costs its size each time the range changes.
-- Cells say their value as text unless `cell` draws them; the Display
-  vocabulary of `foldkit-crud` arrives with the CRUD adapter in Phase 7.
+- Cells render their value as text unless `cell` draws custom markup.
+
+## Next
+
+- Configure columns, virtualization math, editing, and filters:
+  [`foldkit-data-grid`](../data-grid/README.md).
+- Explore a 100,000-row product registry using both packages:
+  [`examples/data-grid`](../../examples/data-grid/README.md).
+- Style Slots and attach Behaviors across your app:
+  [`foldkit-mixins`](../mixins/README.md).
