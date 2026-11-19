@@ -154,7 +154,7 @@ describe('the generated site', () => {
         `<loc>https://foldkit-plus.pages.dev${post.path}</loc><lastmod>${post.modified}</lastmod>`,
       )
     expect(sitemap).toContain('<loc>https://foldkit-plus.pages.dev/blog</loc><lastmod>')
-    for (const path of ['/blog', '/blog/foldkit-plus-0-41-0', '/blog/foldkit-plus-0-7-0'])
+    for (const path of ['/blog', ...loadPosts(repository).map(post => post.path)])
       expect(links.has(path), path).toBe(true)
     expect(hrefs(page('/'), '#rail nav[aria-label="Site"] a')).toContain('/blog')
     expect(hrefs(page('/'), '#status a')).toContain('/blog')

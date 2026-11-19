@@ -6,6 +6,9 @@
 # Each page names its canonical address, the one without the slash.
 /*/ /:splat 200
 
+# A post renamed with its release keeps its old address.
+/blog/foldkit-plus-0-41-0 /blog/foldkit-plus-0-43-0 301
+
 # A package's first page holds what its README said before its example (what it
 # is, the mental model, install) and the example itself; the pages these
 # sections were are now anchors on it. `test/redirects.test.ts` holds each

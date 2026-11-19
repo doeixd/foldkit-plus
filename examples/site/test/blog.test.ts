@@ -120,8 +120,8 @@ describe('posts', () => {
   test('the real posts load, newest first, each with a social card of the size the meta says', () => {
     const posts = loadPosts(REPOSITORY)
     const paths = posts.map(post => post.path)
-    expect(paths).toContain('/blog/foldkit-plus-0-41-0')
-    expect(paths.indexOf('/blog/foldkit-plus-0-41-0')).toBeLessThan(
+    expect(paths).toContain('/blog/foldkit-plus-0-43-0')
+    expect(paths.indexOf('/blog/foldkit-plus-0-43-0')).toBeLessThan(
       paths.indexOf('/blog/foldkit-plus-0-7-0'),
     )
     expect(posts.map(post => post.date)).toEqual([...posts.map(post => post.date)].sort().reverse())
