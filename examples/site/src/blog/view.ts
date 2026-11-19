@@ -72,7 +72,7 @@ export const PostView = SlotView.forMessages<never>()
             ...Option.toArray(post.updated).map(day =>
               h.span([], ['Updated ', h.time([h.Datetime(day)], [formatDay(day)])]),
             ),
-            h.span([h.Rel('author')], [post.author]),
+            h.span([], [post.author]),
             h.span([], [minutes(post)]),
           ]),
           ...(post.tags.length === 0

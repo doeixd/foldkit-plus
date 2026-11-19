@@ -1,6 +1,6 @@
 /**
  * The blog's typography. A post is one reading column: its text a measure of
- * `--blog-measure`, about 69 characters of this face (a `ch` is the width of a
+ * `--blog-measure`, about 68 characters of this face (a `ch` is the width of a
  * zero, wider than the average letter), its code, tables and images the
  * column's whole width, which is wider. The Markdown is drawn into a static region, so the
  * body is styled by element, as the guides' article is. These styles reach
@@ -71,7 +71,7 @@ export const BlogStyle = slots({
   // The column and, at width, the table of contents beside it.
   page: [
     {
-      '--blog-measure': '54ch',
+      '--blog-measure': '48ch',
       display: 'grid',
       gridTemplateColumns: 'minmax(0, 46rem)',
       justifyContent: 'center',
@@ -287,7 +287,7 @@ export const BlogStyle = slots({
       ),
     ),
     Style.at(`@media ${NARROW}`, Style.nest('> :is(h2, h3, h4)', { scrollMarginBlockStart: BAR })),
-    // The measure: text lines are about 65 characters; code, tables and images are the column's.
+    // The measure: text lines are about 68 characters (48ch); code, tables and images are the column's.
     Style.nest('> :is(p, ul, ol, blockquote, dl)', {
       maxInlineSize: 'var(--blog-measure)',
       hyphens: 'auto',

@@ -15,17 +15,20 @@ afterEach(() => {
 
 const IDS = ['one', 'two', 'three']
 
-const mount = () => {
+/** `lists` copies of the links: a blog post draws its contents beside the column and folded above it. */
+const mount = (lists = 1) => {
   document.body.style.margin = '0'
-  const aside = document.createElement('aside')
-  aside.setAttribute('aria-label', 'On this page')
-  for (const id of IDS) {
-    const link = document.createElement('a')
-    link.href = `#${id}`
-    link.textContent = id
-    aside.append(link)
+  for (let copy = 0; copy < lists; copy++) {
+    const aside = document.createElement('aside')
+    aside.setAttribute('aria-label', 'On this page')
+    for (const id of IDS) {
+      const link = document.createElement('a')
+      link.href = `#${id}`
+      link.textContent = id
+      aside.append(link)
+    }
+    document.body.append(aside)
   }
-  document.body.append(aside)
   // Room above the first heading, where no section has begun.
   const lead = document.createElement('div')
   lead.style.blockSize = '600px'
@@ -74,4 +77,19 @@ test('the stream reads none, then each section as the page scrolls, and stops wi
   window.scrollTo(0, 0)
   await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))
   expect(seen.length).toBe(count)
+})
+
+test('a contents drawn twice names each section once, and marks both copies', async () => {
+  await page.viewport(800, 600)
+  mount(2)
+  const seen: Array<Option.Option<string>> = []
+  const fiber = Effect.runFork(
+    Stream.runForEach(sections, section => Effect.sync(() => seen.push(section))),
+  )
+  await vi.waitFor(() => expect(seen).toEqual([Option.none()]))
+  window.scrollTo(0, 1750)
+  await vi.waitFor(() => expect(seen.at(-1)).toEqual(Option.some('two')))
+  markSection(Option.some('two'))
+  expect(marked()).toEqual(['two', 'two'])
+  await Effect.runPromise(Fiber.interrupt(fiber))
 })

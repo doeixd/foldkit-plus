@@ -56,8 +56,12 @@ export const makeBlog = (
   { href, codeLink }: Links,
 ): Blog => {
   const posts = loadPosts(repository)
-  const latest = posts.map(post => post.modified).sort().at(-1)
-  if (latest === undefined) throw new Error(`${POSTS_DIRECTORY} holds no posts, so the blog is empty`)
+  const latest = posts
+    .map(post => post.modified)
+    .sort()
+    .at(-1)
+  if (latest === undefined)
+    throw new Error(`${POSTS_DIRECTORY} holds no posts, so the blog is empty`)
   const byPath = new Map(posts.map(post => [post.path, post]))
   const region =
     (path: string): Draw =>
@@ -94,10 +98,7 @@ export const makeBlog = (
     }
   return {
     paths: [BLOG, ...posts.map(post => post.path)],
-    modified: new Map([
-      [BLOG, latest],
-      ...posts.map(post => [post.path, post.modified] as const),
-    ]),
+    modified: new Map([[BLOG, latest], ...posts.map(post => [post.path, post.modified] as const)]),
     pageAt: path =>
       path === BLOG
         ? Option.some(Page.Blog())
