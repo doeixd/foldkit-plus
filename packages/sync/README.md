@@ -1,75 +1,37 @@
 # `foldkit-sync`
 
-Local-first replication for part of a Foldkit application.
+When a user checks off a todo or edits a note while offline or on a flaky connection, waiting for the server makes the UI stall—while building your own local queue, optimistic cache, retry loop, and reconciliation reducer beside [Foldkit](https://foldkit.dev/)'s `update` splits your state machine in two.
 
-You name a slice of the Model that several devices share, and the existing
-Messages that change it. From then on an edit applies at once, is saved in a
-local outbox, reaches the server when the network allows, and lands in the same
-order on every device. Nothing about the application changes shape: `Model`,
-`Message`, and `update` stay the one state machine. Sync wraps them; it never
-adds a second reducer.
+`foldkit-sync` lets you pick which fields of your Foldkit `Model` are shared across devices and which existing `Message`s change them. Each edit runs through your `update` immediately, persists to a local IndexedDB outbox, syncs to the server journal when connected, and replays cleanly on top of commits from other devices—keeping `Model`, `Message`, and `update` as your single state machine.
 
-> **A durable Message is one of your existing Messages, recorded.** It still
-> runs through your `update`. Sync adds the outbox, the optimistic view, the
-> exchange with the server, and the rebase when the server's answer arrives.
+See offline sync running live in the [registry demo](https://foldkit-registry-demo.pages.dev/) and the [collaborative pages demo](https://foldkit-pages-demo.pages.dev/), or read [Replicated state](../../docs/replication.md) for client and server end to end (`foldkit-durable` provides the matching SQLite server journal).
 
-It is the client half of [replicated Foldkit state](../../docs/replication.md).
-[`foldkit-durable`](../durable) is the server half, an ordered journal on
-SQLite. Either works without the other.
+## Choose between Sync, Remote, and Durable
 
-## Is this the right package?
-
-| The state | Owner | Use |
+| State | Owner | Package |
 | --- | --- | --- |
-| A route, a selection, a transient error | the local Model | plain Foldkit |
-| Facts the server owns and the client may refetch | the server | [`foldkit-remote`](../remote) |
-| Edits the user makes that must survive offline and converge | the durable log | **`foldkit-sync`** |
-| The authoritative order and snapshot on the server | the server journal | [`foldkit-durable`](../durable) |
+| A route, selection, or transient error | local `Model` | plain Foldkit |
+| Facts the server owns and clients cache | server | [`foldkit-remote`](../remote/README.md) |
+| User edits that survive offline and converge | durable log | **`foldkit-sync`** |
+| Authoritative commit order on the server | server journal | [`foldkit-durable`](../durable/README.md) |
 
-The Remote and Sync line is the one worth memorizing. Remote caches a fact the
-server owns, so refetching is recovery. Sync records an edit the user authored,
-so the outbox is user data and replay is recovery.
+Use `foldkit-remote` when refetching recovers server state, and `foldkit-sync` when client-authored edits live in the outbox and replay is recovery. `foldkit-sync` orders every document through one authoritative server log (for peer-to-peer merging without a server, use a CRDT instead).
 
-Sync assumes one server order per document. It is not peer-to-peer and not a
-CRDT; every peer accepting writes without a server is a different design.
+## How optimistic edits rebase onto server commits
 
-## The model in one equation
+Your visible state is always the **server's committed snapshot** with your **pending local edits replayed** on top.
 
-```text
-visible = committed snapshot + pending edits, replayed
-```
+Suppose the server has committed `A`, `B`, `C`, and your tab edits `D`, `E` offline; you immediately see `replay(A, B, C, D, E)`. If another device commits `X` before `D` reaches the server, your next sync receives `X` and replays your pending edits on top: `replay(A, B, C, X, D, E)`. That rebase also handles rejections: drop the rejected edit from pending and replay the rest.
 
-The server has committed `A B C`; this device has typed `D E` since:
-
-```text
-server:    A  B  C
-pending:            D  E
-visible:   replay(A, B, C, D, E)
-```
-
-Another device gets `X` in before `D` reaches the server. After the next
-exchange:
-
-```text
-server:    A  B  C  X
-pending:               D  E
-visible:   replay(A, B, C, X, D, E)
-```
-
-`D` and `E` never waited. The base moved underneath them and they were replayed
-on top. That one move, **rebase**, is also how a rejection rolls back: drop the
-rejected edit from `pending` and replay the rest.
-
-An edit passes three milestones, and each means something different:
+Each edit passes three observable milestones:
 
 | Milestone | Where | What it proves |
 | --- | --- | --- |
-| **visible** | the Model, at once | nothing yet: the user saw it |
-| **saved** | the local outbox | a reload or a dropped connection cannot lose it |
-| **committed** | the server journal | every other device will see it in this order |
+| **visible** | `Model`, at once | Shown on screen right away |
+| **saved** | local outbox | Reloads and dropped connections keep it |
+| **committed** | server journal | Every device sees it in this order |
 
-A UI that says "saved" should read the second, and one that says "shared"
-the third. Both are observable; see [what to show the user](#what-to-show-the-user).
+Show "saved" from local persistence and "shared" from commit status; see [what to show the user](#what-to-show-the-user).
 
 ## Install
 
@@ -77,21 +39,15 @@ the third. Both are observable; see [what to show the user](#what-to-show-the-us
 pnpm add foldkit-sync
 ```
 
-`foldkit` and `effect` are peer dependencies; `foldkit-surface` comes with the
-package. The browser storage is IndexedDB. The server needs
-[`foldkit-durable`](../durable) or your own implementation of
-[the exchange](#the-exchange).
+`foldkit` and `effect` are peer dependencies; `foldkit-surface` comes with the package. Browser storage uses IndexedDB, and the server uses [`foldkit-durable`](../durable/README.md) or a custom implementation of [the exchange](#the-exchange).
 
-## Sixty seconds: say what is shared
+## A first synced todo list
 
-Start from an ordinary application. The example keeps a todo list and a
-selection; only the list is shared.
+This declares a Foldkit todo app whose `todos` list syncs via `CreatedTodo` while `selectedTodoId` and `lastError` stay local to this tab:
 
 ```ts
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { modifyFields } from 'foldkit/struct'
-import type * as Update from 'foldkit/update'
 import { MessageSet, Projection, Surface } from 'foldkit-surface'
 import { DocumentId, forApplication } from 'foldkit-sync'
 
@@ -100,69 +56,46 @@ const Model = Schema.Struct({
   selectedTodoId: Schema.Option(Schema.String),
   lastError: Schema.Option(Schema.String),
 })
-type Model = typeof Model.Type
-
 const Message = defineMessageUnion({
   CreatedTodo: { id: Schema.String, title: Schema.String },
-  RenamedTodo: { id: Schema.String, title: Schema.String },
   SelectedTodo: { id: Schema.String },
 })
-type Message = typeof Message.Type
-
-const initial: Model = { todos: [], selectedTodoId: Option.none(), lastError: Option.none() }
-
-type Return = Update.Return<Model, Message>
-
-const update = (model: Model, message: Message): Return =>
-  Message.match<Return>(message, {
-    CreatedTodo: ({ id, title }) => ({
-      model: modifyFields(model, { todos: () => [...model.todos, { id, title }] }),
-    }),
-    RenamedTodo: ({ id, title }) => ({
-      model: modifyFields(model, {
-        todos: () => model.todos.map(todo => (todo.id === id ? { ...todo, title } : todo)),
-      }),
-    }),
-    SelectedTodo: ({ id }) => ({
-      model: modifyFields(model, { selectedTodoId: () => Option.some(id) }),
-    }),
-  })
-
-const App = Surface.application({ Model, Message, initial, update })
-
+const initial: typeof Model.Type = { todos: [], selectedTodoId: Option.none(), lastError: Option.none() }
+const App = Surface.application({
+  Model, Message, initial,
+  update: (model, message) => Message.match(message, {
+    CreatedTodo: ({ id, title }) => ({ model: { ...model, todos: [...model.todos, { id, title }] } }),
+    SelectedTodo: ({ id }) => ({ model: { ...model, selectedTodoId: Option.some(id) } }),
+  }),
+})
 const TodoSync = forApplication(App).make({
   documentId: DocumentId.make('todos'),
   shared: Projection.pick(App.model.todos),
-  durable: MessageSet.make(App, [Message.CreatedTodo, Message.RenamedTodo]),
+  durable: MessageSet.make(App, [Message.CreatedTodo]),
 })
+
+TodoSync.durable(Message.CreatedTodo({ id: 't1', title: 'Milk' })) // true
+TodoSync.journalContract().empty() // { todos: [] }
 ```
 
-Read the declaration as a table:
+What `TodoSync` defines:
 
-```text
-todos            shared     replicated, persisted, journaled
-selectedTodoId   local      this device only
-lastError        local
+| Member | Scope | Behavior |
+| --- | --- | --- |
+| `todos` | shared | Replicated, persisted, journaled |
+| `selectedTodoId`, `lastError` | local | Kept in this tab only |
+| `CreatedTodo` | durable | Queued in outbox, committed by server |
+| `SelectedTodo` | local | Runs through `update` locally |
 
-CreatedTodo      durable    recorded in the outbox, committed by the server
-RenamedTodo      durable
-SelectedTodo     local      runs through update and goes nowhere
-```
-
-From that, `make` derives the shared codec, the initial shared value, the
-operation envelope, replay (your `update` on the shared slice), and the
-server's [journal contract](#the-server). You write none of them.
-
-`TodoSync` is a value. It has opened no storage, connected to nothing, and
-rendered nothing. The next section does that.
+From that single declaration, `make` derives the shared codecs, empty snapshot (`{ todos: [] }`), wire envelope, deterministic replay via your `update`, and the server's [journal contract](#the-server). `TodoSync` is a pure declaration; opening IndexedDB and mounting the app happen next.
 
 ## Run it in the browser
 
-Three steps: open storage and a replica, mount the application over it, start
-the exchange loop.
+Three steps connect `TodoSync` in the browser: open tab storage and a replica, mount the application over it, and start the exchange loop.
 
 ```ts
 import { Effect, Scope } from 'effect'
+import { modifyFields } from 'foldkit/struct'
 import { Sync } from 'foldkit-sync'
 
 const container = document.getElementById('app')!
@@ -194,39 +127,17 @@ Effect.runFork(
 mounted.dispatch(Message.CreatedTodo({ id: crypto.randomUUID(), title: 'Milk' }))
 ```
 
-What each call does, and does not do:
+What each call does:
 
-- **`Sync.tabStorage('todos')`** opens this tab's IndexedDB store. Its key
-  lives in `sessionStorage`, so a reload reopens the store, unsent edits
-  included; a duplicated tab, which copies that key, opens a store of its own.
-- **`openReplica(storage)`** reads back the committed snapshot, cursor, and
-  outbox saved last time, or starts empty. It does no network I/O. The
-  replica's id is the store's: read back, or minted for an empty store.
-  Operation ids are `replicaId:count`, so an id names one store, never a
-  person: a person's second browser under the same id would send ids the
-  journal already has. `{ replicaId }` names one for a test or a server.
-- **`Sync.mount(App, TodoSync, …)`** runs the ordinary Foldkit runtime with
-  your `view` and `update`. A durable Message applies through `update` at once,
-  then a Command persists it; if the persist fails, the edit is reverted and
-  `onPersistenceFailure` says so in the Model. A local Message is untouched.
-- **`replica.start`** is the exchange loop: once now, then after every submit
-  and every notice from the server. A failed exchange is retried on a backoff
-  from 0.5 s to 30 s, or at once on the next edit. The loop never fails; it
-  reports through `status`.
-- **`mounted.dispatch`** sends a Message the way a view does. The container
-  must have an `id`, or `mount` throws.
+- **`Sync.tabStorage('todos')`** opens this tab's IndexedDB store using a key in `sessionStorage`, so reloads reopen the same store (including unsent edits) while duplicated tabs get separate stores.
+- **`openReplica(storage)`** reads the saved committed snapshot, cursor, and outbox locally (deferring network sync until `replica.start` runs). Its minted `replicaId` identifies one store—never a person—so operation ids (`replicaId:count`) never collide across browsers; pass `{ replicaId }` in tests or servers.
+- **`Sync.mount(App, TodoSync, …)`** runs Foldkit with your `view` and `update`. Durable `Message`s update the `Model` immediately and persist via a Command (reverting and calling `onPersistenceFailure` if persistence fails), while local `Message`s run directly.
+- **`replica.start`** runs the exchange loop on startup, after each submit, and on server commit notices, retrying failed exchanges with backoff from 0.5 s to 30 s (or immediately on the next edit) and reporting issues via `status`.
+- **`mounted.dispatch`** dispatches a `Message` into the mounted app (`container` requires an `id` attribute).
 
-Reload the page: the todos come back from the outbox and the committed
-snapshot, the selection does not. That is the shared/local line, visible.
+Reload the page: `todos` restores from the outbox and committed snapshot while `selectedTodoId` resets to `Option.none()`.
 
-`mounted` also exposes `model()`, `subscribe`, `observe`, `committed`,
-`settled()`, and `dispose()`, which waits for in-flight persists and leaves the
-replica open. `settled()` resolves once the Model has caught up with the
-replica: every dispatched Message applied, no persist unanswered, and every
-replica status applied. It waits for no frame and no I/O, so a test pairs it
-with `Frames.track` from `foldkit-mixins/testing`: `await
-frames.settle(mounted)`.
-Close the replica with its own scope.
+`mounted` also exposes `model()`, `subscribe`, `observe`, `committed`, `settled()`, and `dispose()` (which awaits in-flight persists while leaving the replica open; close the replica via `scope`). Pair `settled()` with `Frames.track` from `foldkit-mixins/testing` (`await frames.settle(mounted)`) in tests.
 
 ## The server
 
@@ -427,14 +338,10 @@ local field is still at its `initial` value. `replica.submit` has no Model and
 cannot make it; a replica used without `mount` is not checked.
 
 The consequence is a pattern you will use everywhere: **an intent mints, a fact
-records**.
-
-```text
-RequestedTodo { title }          local: its update returns a Command
-      |                          that reads the clock and mints an id
-      v
-CreatedTodo { id, title, at }    durable: pure over the shared slice
-```
+records**. Keep a local intent Message (such as `RequestedTodo { title }`) whose
+`update` returns a Command that reads the clock or mints an id, then dispatches
+the pure, durable fact Message (`CreatedTodo { id, title, at }`) over the shared
+slice.
 
 Put every nondeterministic input (ids, timestamps, the result of a provider
 call) *inside* the fact. `update` for the fact only applies it.
@@ -653,9 +560,7 @@ const CappedBoard = AppSync.make({
 })
 ```
 
-```text
-operation -> validate -> authorize -> reduce -> laws(before, after) -> written
-```
+Commit pipeline: `operation` → `validate` → `authorize` → `reduce` → `laws(before, after)` → written.
 
 - **Where it is judged.** The contract's `journalContract()` carries a
   `judge` built from the laws, which the journal runs inside the commit after
@@ -911,10 +816,7 @@ const running = Effect.gen(function* () {
 })
 ```
 
-```text
-commit -> react: read after the stored cursor -> run (answer recorded)
-       -> append the answer as the server -> store the cursor
-```
+On each commit, `react` reads operations after the stored cursor, runs the reaction handler (recording its answer), appends any returned messages as the server, and advances the cursor.
 
 - **At least once, never exactly once.** The provider and the journal share
   no transaction: a crash or a timeout between the call and the ledger's
@@ -1153,8 +1055,8 @@ See [`examples/todo-app`](../../examples/todo-app) for both.
 When an exchange or a failed persist replaces the shared slice outside
 `update`, `onReinstall(next, previous, { reset })` returns the transition
 instead. Use it to keep a selection that points into the slice, or to return a
-Command that patches a DOM the change has to reach. Omitted, the Model is
-simply `next`. It is not called for a status that changed nothing the Model
+Command that patches a DOM the change has to reach. Omitted, the Model stays
+`next`. It is not called for a status that changed nothing the Model
 shows. `reset` is true when the server's history is a new one (a new
 `status.epoch`: the server was reset), so whatever the application derived
 from the old one, such as reads keyed by commit sequence, is to be read again.
@@ -1171,13 +1073,9 @@ When rows are too many to replicate but edits to them must survive offline,
 let the journal own the edits and the table be its read model, each row
 carrying the highest sequence it has applied (`revision`). `foldkit-sync/entity`
 keeps such edits one per cell, and `foldkit-sync/remote` shows them over the
-rows Remote reads:
-
-```text
-cell shown = Remote's row, with each edit over it the row has not reached:
-             one pending, one committed after the row's revision, or one the
-             journal absorbed while the cached row is still below it
-```
+rows Remote reads: each shown cell starts from Remote's row and overlays any
+pending edit, any edit committed past the row's `revision`, or any edit the
+journal absorbed while the cached row is still below it.
 
 `EditableEntity.make(Product, { members: ['description', 'cents'] })` gives
 the schemas (`Change` on the wire, `Edit` in the slice, the Message fields
@@ -1185,7 +1083,7 @@ the schemas (`Change` on the wire, `Edit` in the slice, the Message fields
 (`stamped`) and `onReinstall`: `merge`, `absorb`, `replaced` (a cell of this
 tab's that another's later commit took), `cellsOf` (what a refusal undid) and
 `changeAt` (what a row holds in a member, as the change that sets it: an
-undo's value). It owns no state and does no I/O.
+undo's value) as pure schemas and functions without storing state.
 
 `RemoteEdits.make(Data, ProductEdits)` is the bridge to a Remote domain over
 the same Entity. Its `reconcile(model, edits, replica)` brings Remote's
@@ -1333,11 +1231,13 @@ Effect's log: the console in a browser, `wrangler tail` on a Worker.
 
 | `_tag` | `level` | When |
 | --- | --- | --- |
-| `ExchangeFailed` | `warning` | An exchange failed; it is in `status.lastError` and retried on a backoff. Carries the `error`. |
-| `ExchangeDefect` | `error` | On the server: an exchange `Sync.transport.serve` answered threw something not written for the replica (a journal's failure, a driver's words). The replica was answered `Exchange failed` and the `incident` this carries, with `thrown`. |
-| `HistoryRebuilt` | `warning` | The server answered from another epoch, so the committed state was rebuilt from it (the outbox is kept). |
-| `HostDefect` | `error` | A document host broke on its side, at a `stage`: `Upgrade` (the socket pair), `Resolve` (the `layer` or resolver), `Journal`, `Exchange` (`opens` or `settle` threw) answer a 500 with an `incident`, which the report carries too; `Revalidate` closes the socket with 1011; `Notice` (`opens` failed before a commit notice) sends none; `Changes` (the journal's stream of commits broke) sends no more. Carries the `cause`, which the replica is never told. |
-| `ListenerFailed` | `error` | A listener the application gave threw: a presence subscriber, a listener on the socket transport's shared `socket`, or `journalChanges`' listener (`Notice`, called again on the next commit). The others still ran. |
+| `ExchangeFailed` | `warning` | An exchange failed; recorded in `status.lastError` and retried on backoff. |
+| `ExchangeDefect` | `error` | `Sync.transport.serve` threw an unexpected error; client receives an `incident` id. |
+| `HistoryRebuilt` | `warning` | Server returned a new `epoch`, rebuilding committed state while keeping the outbox. |
+| `HostDefect` | `error` | A document host failed at a `stage` (`cause` stays server-side; client sees `incident`). |
+| `ListenerFailed` | `error` | A user callback threw (presence subscriber, socket listener, or `journalChanges`). |
+
+`HostDefect` reports the failing stage: `Upgrade`, `Resolve`, `Journal`, and `Exchange` return HTTP 500 with the `incident` id; `Revalidate` closes the socket with `1011`; `Notice` skips sending a commit notice; and `Changes` stops the commit stream. For `ListenerFailed`, remaining listeners continue running.
 
 A replica reports to the reporter in the Effect context it runs in:
 `Layer.succeed(Diagnostics.Reporter, report)` in the runtime's resources. A
@@ -1400,20 +1300,22 @@ The rest of the surface: `committed` (the base alone), `pending`, `cursor`,
 One request, one answer. A custom server implements this; a custom transport
 carries it.
 
-```text
-request    cursor
-           pending operations, as written (messageVersion past 1)
-           epoch, once the replica has heard one
+**Request fields:**
 
-answer     operations     committed after the cursor, contiguous
-           acknowledged   ids the server accepted without repeating them
-           rejected       ids the server refused
-           refusals?      [{ opId, refusal }]: why, for some of rejected, one each; an encoded SyncRefusal
-           reasons?       [{ opId, reason }]: deprecated words, at most 500 characters each
-           checkpoint?    { cursor, model } when the history is gone
-           more?          true when another page follows
-           epoch?         the server's history
-```
+- `cursor`: last committed sequence the replica holds.
+- `pending`: pending operations as written (`messageVersion` past 1).
+- `epoch?`: the server history epoch, once heard.
+
+**Answer fields:**
+
+- `operations`: contiguous operations committed after `cursor`.
+- `acknowledged`: ids the server accepted without repeating them.
+- `rejected`: ids the server refused.
+- `refusals?`: `[{ opId, refusal }]` encoded `SyncRefusal` reasons for rejected ids.
+- `reasons?`: `[{ opId, reason }]` deprecated strings (at most 500 chars each).
+- `checkpoint?`: `{ cursor, model }` when older history was compacted.
+- `more?`: `true` when another page follows.
+- `epoch?`: the server's current history epoch.
 
 An acknowledged operation leaves the outbox once its committed copy has
 arrived or the last page has been read. A rejected one leaves at once.
@@ -1532,56 +1434,27 @@ agreement with whatever applies the Message elsewhere.
 `Module.validate` can report two owners of one field. It routes nothing and
 runs nothing; Sync owns its runtime through `mount`.
 
-## What Sync owns, and does not
+## Ownership and responsibilities
 
-Owns the replication contract (shared slice, durable and server-only sets,
-replay, codecs, `journalContract`), the replica (outbox, base, cursor,
-optimistic view, status), reconciliation, the transport seam, the server's own
-appends and reactions (`serverJournal`), and the optional presence and LWW
-helpers.
+`foldkit-sync` owns the replication contract (shared slice, durable and server-only Message sets, replay, codecs, `journalContract`), the replica (outbox, base, cursor, optimistic projection, status), reconciliation, transports, server-side appends and reactions (`serverJournal`), and the optional presence and LWW helpers.
 
-A reaction's cursor and parked runs are stored by `foldkit-durable`, beside
-the effect ledger that records each run; Sync decides when a run happens and
-what it appends. Whether an external call happened is the provider's to know.
+A reaction's cursor and parked runs live in `foldkit-durable` beside its effect ledger, while Sync schedules runs and appends their results; the external provider owns whether a call executed. Sync applies durable Message migrations whenever reading operations, while your application defines the version history itself.
 
-Sync applies a durable Message's history wherever it reads an operation; the
-application owns the history itself (which Schemas it shipped and how each
-becomes the next).
-
-Does not own the rest of the Model, server-derived caches (`foldkit-remote`),
-the authoritative order and storage (`foldkit-durable` or your server),
-peer-to-peer merging, or migration of the shared slice's own Schema.
+Local Model fields belong to your Foldkit app, server-derived read caches belong to [`foldkit-remote`](../remote/README.md), authoritative commit ordering and SQLite storage belong to [`foldkit-durable`](../durable/README.md), and shared-slice Schema migrations stay yours.
 
 ## Limits
 
-- IndexedDB is the only built-in storage; `Storage` is three members to
-  implement.
-- One server order per document; no CRDT and no collaborative text algorithm.
-- Binding the socket transport to a platform WebSocket server is glue the
-  examples show with `ws`; on workers, `foldkit-sync/do` defines the object
-  and `Sync.transport.workerSocket` wraps its accepted pair.
+- IndexedDB is the only built-in browser storage; custom `Storage` requires implementing three methods (`load`, `save`, `close`).
+- One server order per document; use a CRDT if you need peer-to-peer collaborative text merging.
+- Binding the socket transport to a platform WebSocket server uses thin glue (`ws` in Node, or `foldkit-sync/do` and `Sync.transport.workerSocket` on Cloudflare Workers).
 
 ## Older spellings
 
-`Sync` groups the exports and wraps nothing; every name is also exported on its
-own with the same signature: `defineSync` is `Sync.define`, `syncMetrics` is
-`Sync.metrics`, `layerSocket`/`layerLoopback`/`layerFromPromise`/`toPromise`/
-`serveSocket`/`nativeSocket`/`workerSocket` are `Sync.transport.*`, `createPresence`/
-`createPresenceHub`/`servePresence`/`socketPresenceChannel`/
-`loopbackPresenceChannel` are `Sync.presence.*`, and `lwwRegister`/`openLwwClock`
-are `Sync.lww.*`. `documentId('todos')` and `DocumentId.make('todos')` make the
-same branded value, as do the other id constructors.
+`Sync` groups the exports and wraps nothing; every name is also exported on its own with the same signature: `defineSync` is `Sync.define`, `syncMetrics` is `Sync.metrics`, `layerSocket`/`layerLoopback`/`layerFromPromise`/`toPromise`/`serveSocket`/`nativeSocket`/`workerSocket` are `Sync.transport.*`, `createPresence`/`createPresenceHub`/`servePresence`/`socketPresenceChannel`/`loopbackPresenceChannel` are `Sync.presence.*`, and `lwwRegister`/`openLwwClock` are `Sync.lww.*`. `documentId('todos')` and `DocumentId.make('todos')` make the same branded value, as do the other id constructors.
 
-## See also
+## Next
 
-- [Replicated state](../../docs/replication.md): both halves end to end, with
-  the server's exchange handler.
-- [Errors and failures](../../docs/errors.md): how a rejected edit or a failed
-  exchange sits beside Remote's, a form's and the server's failures.
-- [`foldkit-durable`](../durable): the journal and what it guarantees.
-- [Runtime binding](../../docs/sync-runtime-binding.md): what `Sync.mount` does
-  inside the Foldkit runtime, for the curious.
-- [`examples/todo-app`](../../examples/todo-app): a whole application over
-  `Sync.mount`, with fragments, authorization, mirrors, and an agent.
-- [`examples/sync`](../../examples/sync): the replica, the journal, the socket,
-  and a test for every failure above.
+- Walk through client and server replication end to end: [Replicated state](../../docs/replication.md).
+- Inspect the server journal and crash-recovery guarantees: [`foldkit-durable`](../durable/README.md).
+- Compare sync rejections alongside Remote and form errors: [Errors and failures](../../docs/errors.md).
+- Run a complete app with fragments, authorization, mirrors, and an agent: [`examples/todo-app`](../../examples/todo-app).

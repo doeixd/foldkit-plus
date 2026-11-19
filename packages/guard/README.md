@@ -1,72 +1,74 @@
 # foldkit-guard
 
-Who may do what, declared once on a Foldkit Plus domain, and enforced on every
-path a row is read or written by.
+In most applications, permission checks live scattered across route handlers,
+SQL `WHERE` clauses, form field locks, and UI buttons. Adding a role or an
+endpoint means hunting down every check by hand, and a single missed `WHERE`
+clause leaks another customer's rows.
 
-## What it is
+`foldkit-guard` lets you declare who may read and change each row once on your
+data model, in the shared domain code both client and server import. You split
+rules into server-only checks on the signed-in user (*principal guards*) and
+data rules over each row (*row guards*, written as expressions). On the server,
+those rules compile into SQL filters and check every write; on the client, a
+`may` hint tells your UI which actions to enable.
 
-Authorization in an application is usually several callbacks, one per seam,
-each with its own idea of who is asking. A guard set says it once, in the
-shared domain code the client imports too, and keeps the rule's logic on the
-server:
+Read [How Guard works](../../docs/guard.md) for an end-to-end walkthrough, or
+see it running in [`examples/auth`](../../examples/auth) and
+[`examples/chirp`](../../examples/chirp) (live at
+[foldkit-chirp-demo.pages.dev](https://foldkit-chirp-demo.pages.dev/)).
 
-- a **principal guard** is declared by name; its body is supplied only on the
-  server, so it never ships to the browser;
-- a **row guard** is an `Expr` over one Entity's fields, with the principal's
-  fields as inputs. It is data, so the SQL compiler and `evaluate` run it, and
-  the client may hold it without learning anything a query does not. The
-  language is the one queries and invariants are written in; see the
-  [Expressions guide](../../docs/expressions.md).
+## How rules are split and who owns what
 
-## What it owns, and what it does not
+A guard set splits every rule into two parts so shared domain code stays safe
+in the browser:
+
+- A **principal guard** is declared by name in shared code, while its body
+  lives only on the server (`G.implement`), keeping server-only role or
+  membership lookups out of the client bundle.
+- A **row guard** is an `Expr` over one Entity's fields and the principal's
+  fields. Because it is pure data, the SQL compiler and in-memory evaluator both
+  run it; see the [Expressions guide](../../docs/expressions.md).
 
 | Fact | Owner |
 | --- | --- |
-| Who is asking | your authentication, which provides it as `G.Principal` |
-| Who may do what | the guard set: declared once, in the shared domain code |
-| A principal guard's body | `G.implement`, on the server only |
-| Which rows a read returns | each binding's `visible`, compiled from the rules |
-| Enforcement | each seam of `foldkit-remote-server`, `-drizzle` and `foldkit-sync`, through this package's subpaths |
-| What a client shows as allowed | the server's `may` answer, foreseen by the client for a row it writes |
+| Who is asking | Your authentication layer, provided as `G.Principal` |
+| Who may do what | The guard set, declared once in shared domain code |
+| Principal guard bodies | `G.implement`, on the server only |
+| Which rows a read returns | Each binding's `visible`, compiled from the rules |
+| Server enforcement | Subpaths for `foldkit-remote-server`, `-drizzle`, and `foldkit-sync` |
+| Client button and lock hints | The server's `may` answer, foreseen locally for pending writes |
 
-It does not authenticate, and it does not trust the client: a hint the client
-reads (`may`) is the server's answer, or the client's reading of the shared
-rules for a row it just wrote, and the server checks every write again when
-it is made.
+Authentication stays outside this package: your auth layer resolves `G.Principal`
+per request, and the server checks every write against the rules even when the
+client already holds a `may` hint.
 
-Use a guard for a rule about **who**: one that depends on the principal, or on
-the principal and the row, and that must hold on every seam at once. A rule
-about **what** a row may hold, whoever writes it, is an invariant
-(`Entity.invariant`): an owner cannot skip one, and the two are refused apart
-(`Forbidden` against `Invalid`).
+Use a guard for rules about **who** may read or change a row. Rules about
+**what** a row may hold regardless of who writes it belong in
+`Entity.invariant`, which fails with `Invalid` rather than `Forbidden`.
 [One domain declaration](../../docs/entity.md) shows both on one Entity, and
-[Auth and Guard](../../docs/auth-and-guard.md) follows a sign-in through to a
-guarded row; this README is the reference for each seam.
+[Auth and Guard](../../docs/auth-and-guard.md) traces sign-in through to a
+guarded row.
 
-## Mental model
+## How a rule is enforced across your app
 
-The rules are declared on both sides and decided on the server:
+Shared domain code declares the rules with `Guards.declare` and attaches them to
+Entities with `Guards.attach`. On the server, `G.implement` supplies the
+principal guard bodies to produce a `Policy`. Every seam enforces that same
+`Policy`:
 
-- Shared by client and server: `Guards.declare` names the guards and their `Expr`s,
-  and `Guards.attach` puts the rules on an Entity.
-- Server only: `G.implement` gives the principal guards their bodies, which make the
-  `Policy`.
+- **Reads:** `GuardDrizzle.visible` and `GuardServer.memory` filter rows;
+  `GuardServer.filter` filters members, relations, and `may`.
+- **Writes:** `GuardServer.writer` and `GuardServer.mutation` check rules before
+  writing and filter the returned row.
+- **Sync:** `GuardSync.authorize`, `admit`, and `opens` guard replicated edits
+  through the journal.
+- **Agents:** `GuardAgent` gates capabilities and `may` hints.
+- **Startup:** `GuardServer.validate` verifies every guarded Source and write at
+  boot.
 
-Every seam reads the same rules, decided by the same Policy:
-
-- **Reads:** `GuardDrizzle.visible` and `GuardServer.memory` decide which rows;
-  `GuardServer.filter` decides members, relations and `may`.
-- **Writes:** `GuardServer.writer` and `GuardServer.mutation` check before and read
-  back after.
-- **Sync:** `GuardSync.authorize`, `admit` and `opens` guard edits through the
-  journal.
-- **Agents:** `GuardAgent` guards reads and `may`.
-- **Startup:** `GuardServer.validate` checks that every guarded Source is guarded.
-
-A rule is decided in two steps: each principal guard by its body, once per
-request, then what is left, row guards, as a condition over the row that SQL
-or an evaluator runs. That split is why row guards are data and principal
-guards are names.
+When deciding a rule, the server evaluates each principal guard once per
+request, leaving a boolean condition over row fields that SQL or the in-memory
+evaluator runs.
 
 ## Install
 
@@ -74,13 +76,17 @@ guards are names.
 pnpm add effect foldkit-entity foldkit-guard
 ```
 
-`foldkit-guard` is the shared declaration. Its subpaths bring their packages
-as optional peers: `foldkit-guard/server` needs `foldkit-remote` and
-`foldkit-remote-server`, `/drizzle` also `foldkit-remote-drizzle` and
-`drizzle-orm`, `/sync` `foldkit-sync` and `foldkit-remote-server`,
-`/agent` `foldkit-remote`, and `/media` `foldkit-media`.
+`foldkit-guard` holds the shared declarations. Its subpaths integrate with
+optional peer packages: `foldkit-guard/server` (`foldkit-remote`,
+`foldkit-remote-server`), `/drizzle` (`foldkit-remote-drizzle`, `drizzle-orm`),
+`/sync` (`foldkit-sync`, `foldkit-remote-server`), `/agent` (`foldkit-remote`),
+and `/media` (`foldkit-media`).
 
-## Sixty seconds
+## A first guard set
+
+This declares a `Todo` entity with three guards (`isAdmin`, `isOwner`,
+`inProject`), implements the server-only check, and evaluates a read for Ada
+(the owner) and Bo (someone else):
 
 ```ts
 import { Effect, Option, Schema } from 'effect'
@@ -92,72 +98,53 @@ const User = Schema.Struct({
   role: Schema.Literals(['admin', 'member']),
   projectIds: Schema.Array(Schema.String),
 })
-
 const TodoFields = Entity.define(
   'Todo',
-  Schema.Struct({
-    id: Schema.String,
-    ownerId: Schema.String,
-    projectId: Schema.String,
-    title: Schema.String,
-  }),
+  Schema.Struct({ id: Schema.String, ownerId: Schema.String, projectId: Schema.String, title: Schema.String }),
 )
 
-// Shared: names and predicates, which are data.
-const G = Guards.declare(
-  'Todos',
-  User,
-  guard => ({
-    isAdmin: guard.principal(),
-    isOwner: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),
-    inProject: guard.row(TodoFields, p => Expr.in(TodoFields.fields.projectId, p.projectIds)),
-  }),
-  { key: user => user.id, unguarded: 'deny' },
-)
+const G = Guards.declare('Todos', User, guard => ({
+  isAdmin: guard.principal(),
+  isOwner: guard.row(TodoFields, p => Expr.eq(TodoFields.fields.ownerId, p.id)),
+  inProject: guard.row(TodoFields, p => Expr.in(TodoFields.fields.projectId, p.projectIds)),
+}), { key: user => user.id, unguarded: 'deny' })
 
-// Server: the body of every principal guard, and nothing else. A row guard
-// calling a primitive operator runs it by the table given as a second argument,
-// `G.implement(bodies, { operators })`; `Operators.kernel` when not given.
 const Policy = G.implement({
   isAdmin: principal => Option.exists(principal, user => user.role === 'admin'),
 })
 
-Effect.runSync(
-  Policy.decide(G.isOwner, {
-    principal: Option.some({ id: 'ada', role: 'member', projectIds: [] }),
-    interaction: 'Read',
-    row: { id: 't1', ownerId: 'ada', projectId: 'p1', title: 'Write the README' },
-  }),
-) // true
+const sampleTodo = { id: 't1', ownerId: 'ada', projectId: 'p1', title: 'Write the README' }
+const decide = (id: string) =>
+  Effect.runSync(Policy.decide(G.isOwner, { principal: Option.some({ id, role: 'member', projectIds: [] }), interaction: 'Read', row: sampleTodo }))
+
+decide('ada') // true
+decide('bo') // false
 ```
 
-What each call does, and does not:
+Ada owns `t1`, so `decide('ada')` returns `true`; Bo's ID differs from
+`ownerId`, so `decide('bo')` returns `false`.
 
-- `Guards.declare` reads nothing and stores nothing. It builds each row
-  guard's predicate once, with placeholders (`p.id` is the input
-  `principal.id`), and checks it is a rule over its own Entity: a predicate
-  reading another Entity's field, relation or case is a type error where it
-  is written, and refused at runtime for a predicate typed plain `Predicate`.
-  Branching on a placeholder (`p.role === 'admin'`) is a type error: there is
-  no value yet.
-- `G.implement` is the only place a body exists. A missing or extra key is a
-  type error, and refused at runtime for a caller the types do not reach.
-- `Policy.decide` is an `Effect` of a `Decision`: `true`, `false`, or
-  `{ allowed: false, reason }` for a refusal the caller may read. A visitor
-  is `Option.none()`, and passes no row guard that reads a principal's
-  fields; one over the row alone (`isPublished`) holds for a visitor too.
-- `G.Principal` is the server's Context key for who is asking, an
-  `Option` of the principal; `G.key(user)` names the person, for what is
-  theirs whatever their claims, such as a cache snapshot (see
+- `Guards.declare` builds each row guard's predicate once using placeholders
+  (`p.id` stands for `principal.id`) and rejects predicates over another Entity
+  or direct JavaScript branching on placeholders at compile time.
+- `G.implement` supplies the body for every principal guard (missing or extra
+  keys fail typechecking and runtime validation). Pass `{ operators }` as a
+  second argument when row guards call custom primitive operators (defaults to
+  `Operators.kernel`).
+- `Policy.decide` returns an `Effect` yielding `true`, `false`, or
+  `{ allowed: false, reason }`. Anonymous visitors pass `Option.none()` and
+  fail row guards that read principal fields, while passing row-only predicates
+  such as `isPublished`.
+- `G.Principal` is the server `Context` key holding `Option<Principal>`;
+  `G.key(user)` returns the stable user identifier for cache scoping (see
   [Who is asking](#who-is-asking)).
 
 ## Attaching guards to an Entity
 
-A guard set names rules; attaching says where each one applies, per surface
-(the row, a member, a relation) and per interaction. Here a todo also has a
-relation, `project`, which a client follows to its `Project`; it is stored as
-the same `projectId` the row guard reads, and `Project` has no guards, so
-anyone may read one:
+A guard set names rules; `Guards.attach` places them on each surface (row,
+member, relation) and interaction. Here a todo links to a `Project` via
+`project` (stored as `projectId`), and `Project` has no guards so anyone can
+read it:
 
 ```ts
 import { Relation } from 'foldkit-entity'
@@ -186,7 +173,7 @@ const Todo = Related.Todo.pipe(
     },
     members: { ownerId: { Update: [G.isAdmin] } },
   }),
-  Guards.may, // the server's answer to what a reader may do: see What the client may do
+  Guards.may, // adds the derived `may` hint member: see What the client may do
 )
 
 Guards.matrix([Todo])
@@ -199,80 +186,62 @@ Guards.matrix([Todo])
 // Todo.ownerId.Update: isAdmin → forbidden
 ```
 
-- A surface's list is a disjunction: "owner, or project member, or admin".
-  `Guards.all(a, b)` is a conjunction as one guard. `always: [...]` is ANDed
-  after every surface's list and cannot be out-voted: a tenant boundary or
-  "signed in" belongs there.
-- `Write` is shorthand for Create, Update and Delete. Beside it, a slot of its
-  own (`Delete`) adds its rules to Write's, and its refusal replaces Write's,
-  whichever is written first. A member's `Update` governs setting it on
-  creation too, unless the member names a `Create`.
-- An interaction the application names (`Interaction.make('Archive')`) is
-  the row's, under `interactions`, keyed by `[Archive.key]`, so a misspelling
-  is a type error. Only a Read inherits.
-- Each surface refuses its own way by default: a row Read answers not found,
-  so existence does not leak; a member or relation Read omits the value; a
-  write is forbidden. `Guards.on(guards, Guards.redact(value))` shows a hidden
-  member as `value` instead, typed by the member's schema;
-  `Guards.on(guards, Guards.explain(reason))` gives a refused write a sentence.
-- `Guards.inherit('project')` makes a row's Read its `one` relation's Read.
-- Every key is checked against the Entity: a member it lacks, a row guard over
-  another Entity, a guard of another set, or a misspelled interaction is a type
-  error where it is written.
-- Attaching is metadata: the result is the same Entity (`Entity.same`), and
-  attaching twice appends to each surface's list, and a refusal the later
-  one names replaces the earlier.
-  The rules travel on the descriptor `Guards.attach` returns, not on the one
-  it was given, so give the returned one to everything that enforces them:
-  `GuardServer.writer`, `filter`, `memory` and `mutation`,
-  `GuardDrizzle.visible`, and `GuardSync.document`. Each throws where it is
-  built when given a descriptor without the rules of an Entity another
-  descriptor of which carries them (`Todo carries guards on another
-  descriptor of it; pass the one Guards.attach returned`), since it would
-  otherwise serve the Entity unguarded. A rule is still declared over the
-  bare descriptor (`guard.row(TodoFields, …)`), and the client's hints
-  (`may`, placement) read whatever descriptor they are given.
-- `Guards.guardFields(Todo, 'Read')` names the members of the row itself that
-  a row interaction's guards read (and the relation an inherited Read
-  follows), so a change to one is known to change who may. What a rule reads
-  of another row, and the relation its path leaves by, are not among them.
-- A surface with no guards on a guarded Entity falls to the set's
-  `unguarded`, which `declare` requires so the choice is written down:
-  `'deny'` refuses it (the matrix prints `closed`), `'allow'` lets everyone
-  (`open`).
+### Combining rules and interactions
+
+- Lists on a surface act as a disjunction ("owner, or project member, or
+  admin"). Use `Guards.all(a, b)` for conjunctions, and `always: [...]` for
+  rules ANDed across every surface (such as tenant isolation or requiring a
+  signed-in user).
+- `Write` expands to `Create`, `Update`, and `Delete`; adding a specific slot
+  such as `Delete` alongside `Write` appends its rules and replaces `Write`'s
+  refusal. A member's `Update` rule also governs `Create` unless `Create` is
+  listed separately.
+- Custom interactions (`Interaction.make('Archive')`) live under `interactions`
+  keyed by `[Archive.key]`, catching typos at compile time.
+- `Guards.inherit('project')` delegates a row's `Read` to its `one` relation's
+  `Read` rule.
+- Surfaces left unguarded on a guarded Entity fall back to `unguarded` from
+  `Guards.declare` (`'deny'` prints `closed`, `'allow'` prints `open`).
+
+### Refusals, descriptors, and guard fields
+
+- Default refusals vary by surface: row reads return not found (hiding
+  existence), member and relation reads omit the value, and writes return
+  `Forbidden`. Use `Guards.on(guards, Guards.redact(value))` to replace a
+  hidden member with a typed fallback, or `Guards.on(guards, Guards.explain(reason))`
+  to attach a message to a refused write.
+- Unknown member keys, guards from another Entity or set, and misspelled
+  interactions are type errors.
+- `Guards.attach` returns a new descriptor carrying the rules (`Entity.same` is
+  still `true`); pass that returned descriptor to every enforcement API
+  (`GuardServer.writer`, `filter`, `memory`, `mutation`, `GuardDrizzle.visible`,
+  and `GuardSync.document`), which throw if given an unguarded descriptor of a
+  guarded Entity.
+- `Guards.guardFields(Todo, 'Read')` lists the row's own fields read by its
+  `Read` rules (plus inherited relations) so live updates know when to refetch.
 
 ### What a row guard may read
 
-A row guard is an `Expr` over its Entity's row and the principal's fields.
-Beyond the row's own fields:
+A row guard is an `Expr` over its Entity's row and the principal's fields:
 
-- A row guard may compare a `one` relation itself, the id it points at
-  (`guard.row(Like, p => Expr.eq(Like.relations.user, p.id))`), so no field
-  repeats the link. SQL reads the relation's column; a rule judged over a
-  row a Source read, whose link is a ref key (`'User:ada'`), reads the id.
-- A set that names the Entity its principals are rows of (`{ viewer: User }`,
-  each by `key`) lets a rule read who asks:
-  `guard.row(Like, () => Expr.eq(Like.relations.user, Expr.viewer(User)))`.
-  `Policy.viewer(principal)` is that row's ref, the server's one viewer:
-  `RemoteServer.make({ viewer: Policy.viewer })`. A rule over `Expr.viewer`
-  in a set without one, or over `Expr.now`, is refused where it is declared.
-- A rule per case of a variant Entity (`Entity.defineVariants`) is a row
-  guard over `Expr.is`: `guard.row(Domain, p => Expr.is(Domain, 'Available',
-  ({ price }) => Expr.lte(price, p.budget)))`. It is false on a row of another
-  case, so the row's other rules decide it, and it reads `_tag` and the
-  case's fields as columns of the stored row, in SQL and in memory alike.
-- A row's `Read`, `Update` and `Delete` rules may reach another row
-  (`Expr.path`, `Expr.exists`, a path from the viewer: `Expr.eq(Note.fields.orgId,
-  orgOfViewer)`). A Read rule compiles to SQL; an Update or Delete rule is
-  judged in the write's own statement ([Rules that read another
-  row](#rules-that-read-another-row)). Every other surface is judged over one
-  row, so `Guards.attach` refuses such a rule there.
+- Compare a `one` relation directly to the linked ID
+  (`guard.row(Like, p => Expr.eq(Like.relations.user, p.id))`) without storing a
+  duplicate field.
+- Pass `{ viewer: User }` to `Guards.declare` so rules can reference
+  `Expr.viewer(User)`, matched against `Policy.viewer(principal)`
+  (`RemoteServer.make({ viewer: Policy.viewer })`).
+- Scope rules per variant case (`Entity.defineVariants`) with `Expr.is`:
+  `guard.row(Domain, p => Expr.is(Domain, 'Available', ({ price }) => Expr.lte(price, p.budget)))`.
+- Reach across relations in row `Read`, `Update`, and `Delete` rules using
+  `Expr.path`, `Expr.exists`, or a viewer path
+  (`Expr.eq(Note.fields.orgId, orgOfViewer)`). `Read` rules compile to SQL;
+  `Update` and `Delete` rules run inside the write statement
+  ([Rules that read another row](#rules-that-read-another-row)).
 
 ## Serving reads
 
-`foldkit-guard/server` turns the rules into `foldkit-remote-server`'s seams.
-It is a subpath, so the shared declaration the browser imports never brings
-the server along.
+`foldkit-guard/server` connects your rules to `foldkit-remote-server` while
+keeping server code out of browser bundles:
 
 ```ts
 import { GuardServer } from 'foldkit-guard/server'
@@ -293,28 +262,22 @@ const backend = RemoteServer.memory({
 })
 ```
 
-- A row its Read rules refuse is absent: from a read by id (the client reads
-  it as not found), from every query, and from relations, where a `one` ref
-  reads `null`. An inherited Read looks the related row up and decides it by
-  its own rules; a loop of them reads as refused.
-- A member its own Read rule refuses is withheld (settled, so the client
-  reads it as unavailable) or shows its `redact` value. The fields the rule
-  reads are read too, so it can be decided.
-- A relation's Read rule is decided over its parent row, as a member's is:
-  where it refuses, the relation is withheld. The rows it leads to are still
-  narrowed by their own Read rules.
-- An Entity not listed has no guards to apply and is read by everyone.
-- A Source of your own cannot be shown to apply the row's Read rules:
-  `GuardServer.validate` refuses one, as it refuses a `RemoteServer.entity`
-  without `GuardServer.memory`'s or `GuardDrizzle.visible`'s rule. Serve a
-  guarded Entity through one of those.
+- Rows refused by `Read` are absent from by-ID lookups, queries, and relations
+  (`one` refs become `null`). Inherited `Read` rules evaluate the related row's
+  rules (cycles evaluate as refused).
+- Members or relations refused by `Read` are withheld (`Unavailable`) or
+  replaced with their `redact` value, while the fields those rules inspect are
+  still fetched to decide them.
+- Unlisted Entities remain public; custom Sources must use `GuardServer.memory`
+  or `GuardDrizzle.visible` + `GuardServer.filter` to pass
+  `GuardServer.validate`.
 
-Over Drizzle, `foldkit-guard/drizzle` compiles the row's Read rules into each
-binding's `visible`, which the binding applies on every path its table is
-read by (by id, as a relation's target and children, counted, through a
-query). Here `todos` and `projects` are your Drizzle tables for `Todo` and
-`Project`; a fixture with a guarded `Project` too, run over SQLite, is
-[`test/drizzle.test.ts`](test/drizzle.test.ts):
+### Filtering Drizzle queries
+
+Over Drizzle, `foldkit-guard/drizzle` compiles row `Read` rules into each
+binding's `visible` filter so every query, by-ID read, relation, and count
+applies them in SQL (here `todos` and `projects` are your Drizzle tables; see
+[`test/drizzle.test.ts`](test/drizzle.test.ts) for a full SQLite fixture):
 
 <!-- docs-check
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
@@ -340,7 +303,7 @@ const Db = bind(
     Todo: {
       table: todos,
       relations: { project: { field: todos.projectId } },
-      derived: { may: { supplied: true } }, // not a column: `GuardServer.filter` answers it
+      derived: { may: { supplied: true } }, // computed by `GuardServer.filter`
       visible: visible.Todo,
     },
     Project: { table: projects },
@@ -349,29 +312,24 @@ const Db = bind(
 const TodoSource = source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })
 ```
 
-- Each principal guard is decided first; what is left is SQL. An inherited
-  Read is `project_id in (select id from projects where …)`, the related
-  table's own rule inside.
-- It is checked when built, before any request: an inherited Read whose
-  Entity is not listed or has no Read rule, or a loop of them, throws. An
-  inherited relation must be stored as a foreign key on this table; one that
-  is not fails its first read, which is when the binding is first known.
-- The principal reaches a binding untyped, so it is checked: one that is not
-  an `Option` of the set's schema is a defect, never read as a visitor.
-- A rule calling a primitive operator is checked when built against, and
-  compiled by, the SQL table passed here
-  (`GuardDrizzle.visible(Policy, [Todo], { operators })`, the kernel when not
-  given), whatever table `bind` is given, since `visible` is built before
-  `bind`. Pass the bindings' table, so a rule and a query compile one
-  operator alike.
-- `visible` is the row's Read. Member and relation Reads are the Source's
-  `filter`, as `TodoSource` has it.
+- Principal guards run first in memory; remaining row conditions compile to SQL.
+  Inherited `Read` rules become `project_id in (select id from projects where …)`
+  subqueries.
+- `GuardDrizzle.visible` validates at build time that inherited targets are
+  listed with `Read` rules and free of cycles; inherited relations must store a
+  foreign key on the child table.
+- Passing a principal value outside `Option<Principal>` throws a defect rather
+  than treating it as a visitor.
+- Pass `{ operators }` to `GuardDrizzle.visible(Policy, [Todo], { operators })`
+  when rules use custom primitive operators so they match your `bind` table.
+- `visible` enforces row `Read` rules; `GuardServer.filter` enforces member
+  reads, relation reads, and `may`.
 
-A body may need a service, a membership lookup say, and name it in its
-Effect. The read seams (`GuardDrizzle.visible`, `GuardServer.memory`,
-`GuardSync`) take a Policy that needs nothing more, since a read rule runs
-inside a read whose requirements are the Source's. Provide the services once,
-at startup; what changes with each request belongs in the principal:
+### Providing services to principal guards
+
+Read seams (`GuardDrizzle.visible`, `GuardServer.memory`, `GuardSync`) require a
+`Policy` with all Effect services already provided at startup, keeping request
+context in the principal:
 
 ```ts
 import { Context } from 'effect'
@@ -388,31 +346,26 @@ const Checked = G.implement({
     ),
 })
 const ReadPolicy = Checked.provide(Context.make(Memberships, { admins: ['ada'] }))
-GuardDrizzle.visible(ReadPolicy, [Todo]) // a type error with `Checked`
+GuardDrizzle.visible(ReadPolicy, [Todo]) // passing `Checked` directly is a type error
 ```
 
-A seam built from `ReadPolicy` counts as built from `Checked`, so
-`GuardServer.validate(Checked, …)` accepts it: `validate` checks that a seam
-runs the declared rules, not which services they were given. The write seams take the
-Policy as it is and require its services where the write runs.
+`GuardServer.validate(Checked, …)` treats `ReadPolicy` as equivalent to
+`Checked`, while write seams accept `Checked` directly and resolve its services
+per write.
 
-### Guarded reads are never kept at the edge
+### Guarded reads are omitted from edge caches
 
-`foldkit-remote-server`'s `serveFetch` keeps a read only when it can prove
-the answer is the same for whoever asks (its `cache`, #428). Every read seam
-above becomes a rule on the Source (`visible`, `filter` or `readable`), a
-function of the principal the server cannot read, so a read of a guarded
-Entity is never kept, and a page that made one is never kept either
-(`foldkit-ssr`'s `cache`). This holds for a rule over the row alone
-(`published = true`) too: the server cannot tell it from one over the
-principal. To cache such rows, serve them from an Entity no guard reads
-restrict.
+`foldkit-remote-server`'s `serveFetch` caches reads at the edge only when one
+response applies to every caller. Because guarded Entities attach principal-aware
+`visible` or `filter` rules, responses for guarded Entities (including row-only
+rules) and SSR pages reading them bypass edge caching (`no-store`). Serve truly
+public cached data from an unguarded Entity.
 
 ## Serving writes
 
-A declared write (`Mutation.write`) is served by `RemoteServer.write` with no
-handler (the [declared writes guide](../../docs/declared-writes.md) shows the
-whole path, client to statement). Wrap its writer, and the write rules are checked before it lands:
+A declared write (`Mutation.write`) runs through `RemoteServer.write` (see the
+[declared writes guide](../../docs/declared-writes.md)). Wrap its writer with
+`GuardServer.writer` to enforce write rules before any row changes:
 
 ```ts
 import { Write } from 'foldkit-entity'
@@ -428,175 +381,87 @@ const EditTodo = Mutation.write(
 RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
 ```
 
-- An update or a delete reads the row first, as its writer may see it. An
-  update of a row they may not see is refused; a delete of one changes
-  nothing and answers it gone, as for a row already deleted.
-- The row's rule for the command must hold over the row, and an update's
-  over the row as it would be after it too: a write cannot move a row out of
-  its writer's reach.
-- Each member the write sets needs its own `Create` or `Update` rule to
-  hold, and each relation it points elsewhere its `Unlink` and `Link`. An
-  update's member and `Link` rules hold over the row before and over the
-  row after with that one change undone: every other member's new value
-  and link, and this member's old value (or the relation pointing where it
-  did). So each change must be allowed given everything else the write does:
-  a write cannot set together what each change alone would be refused, and a
-  rule that reads its own member ("change `status` only while it is
-  `draft`") still allows the change it exists for. An increment or a
-  computed assignment to a member is that member's change; a value computed
-  from a member reads the row before, as the statement does. `Unlink` holds
-  over the row before alone. What
-  a relation was linked to is read as stored (the writer's `linked`), since a
-  link to a row hidden from its writer reads to them as none; a writer that
-  cannot say treats every link it sees as none as one that may be there, so
-  changing it needs `Unlink` too.
-- A create is checked over the values it proposes. A guard that reads a field
-  it leaves unset does not hold, whatever it asks (`isNull` and `isNotNull`
-  alike): the create never said what the field holds.
-- A refusal is `Forbidden`, with the sentence `Guards.explain` gave; the
-  write never runs. A visitor is refused as `Unauthenticated` instead, with
-  the same sentence: no one is signed in, so the remedy is a sign-in, and a
-  client tells a session that ended (its cookie gone) from a person refused.
-  Remote's outbox keeps a durable write so answered until the sign-in.
-- The answer is read back under the binding's `visible` and the Entity's
-  member Read rules: the row as its writer may now see it, with no more
-  fields than the write set, and a row the write hid from them in `deleted`,
-  so the client takes it out of its lists instead of placing it.
-- A delete that cascades (`Relation.one(Post, { onDelete: 'cascade' })`)
-  takes no row its deleter may not delete. Each row it takes is held to its
-  own `Delete` rule, for the same person, in the statement that deletes the
-  row named, before anything is removed (on D1, in the same batch): one
-  refused, and the whole delete is `Forbidden`, nothing removed, saying
-  "It would delete a Like you may not delete" with the like's `explain`.
-  The refusal names the Entity, never which row or whose. The rules come
-  from each child's guarded Entity, given as `children`:
-  `GuardServer.writer(Post, Policy, writer(Db.Post), { children: [Like] })`;
-  one missing, or one given that no cascade judges, is refused where the
-  writer is made. A relation declared `authorizedBy: 'parent'` lets whoever
-  may delete the post take those rows unjudged, which is a choice the domain
-  states: a post's author removing everyone's likes of it.
-- A delete that clears links (`Relation.one(Folder, { optional: true,
-  onDelete: 'setNull' })`) unlinks no row its deleter may not unlink. Each
-  row it would clear is held to what an update unlinking it would be: its
-  `Update` rule and the relation's `Unlink` rule, judged in the statement
-  that deletes. One refused, and nothing changes: "It would clear the link
-  of a Doc you may not change", with its `explain`, naming no row. The
-  Entity goes in `children` as a cascade's does.
+### How writes and cascades are checked
+
+- **Reads before writing:** updates and deletes load the row under the writer's
+  visibility. Hidden rows fail updates as `Forbidden` and answer deletes as
+  already deleted.
+- **Row rules:** `Create` checks proposed values (fields left unset fail any
+  guard reading them). `Update` checks the row both before and after the write so
+  writers can move rows only within their own visibility. `Delete` checks the
+  existing row.
+- **Member and link rules:** each set or incremented member requires its `Create`
+  or `Update` rule, and changed relations require `Unlink` on the old target and
+  `Link` on the new one. Updates evaluate each member/link rule against the new
+  row with that one change reverted, preventing multi-field bypasses while
+  letting transition rules like "update `status` only while `draft`" pass.
+- **Refusals and readback:** signed-in failures return `Forbidden` (with
+  `Guards.explain` text); visitors (`Option.none()`) return `Unauthenticated` so
+  clients prompt for sign-in and outbox writes retry cleanly. Accepted writes
+  return only fields and relations the writer may read, reporting rows that left
+  the writer's visibility in `deleted`.
+- **Cascades and link clearing:** for `onDelete: 'cascade'` and `onDelete: 'setNull'`
+  relations, pass `{ children: [Like] }` to `GuardServer.writer`. Cascades check
+  every child's `Delete` rule (unless `authorizedBy: 'parent'`) and `setNull`
+  checks each child's `Update` and `Unlink` rules in the same statement/batch,
+  refusing the whole delete on any failure without leaking child IDs.
 
 ### A revision closes the gap between the check and the write
 
-Reading the row and writing it are two statements, so another write can land
-between the check and the write. Name a revision, a field stored as a number
-that the writer moves on by one with every write it lands, and the guard closes
-that window for every write that moves it: for an Entity with
-a `revision` field, `GuardServer.writer(Todo, Policy, writer(Db.Todo), {
-revision: 'revision' })`. Every update and delete then lands only on the
-revision its rules were decided over (the writer's `expect`, one compare and
-set statement). If the row moved after the check, it is decided again over
-the row as it now is, up to three times, then fails; nothing is written over a
-version no rule saw. That failure, like every failure on the guard's own side
-(a write that reads a member its writer may not, a Read rule that cannot be
-compiled for who asks, a value it cannot work out), is not a refusal: the
-caller reads `Internal error` and an incident, and the server's `ServerDefect`
-report says which ("changed while it was written"), so nothing a Read rule
-hides is named to the caller. A rule's `explain`, `Forbidden`, `Conflict` and
-the other declared refusals are written for the reader and arrive as they
-are. An input that
-`expect`s a revision the row is not at is a `Conflict`, decided before any
-rule, and not retried. An input may expect only the revision the writer pins:
-one expecting another field is refused, at startup by `GuardServer.validate`
-and at run time, since the pin would leave that field where it was. A writer
-with no `revision` keeps the window, and `GuardServer.validate` reports each
-write through one that a change can come between, as an `UnpinnedWrites`
-[diagnostic](#diagnostics): an update, or a delete of
-an Entity the server also updates. An insert has no row before it, so an
-Entity that is only inserted and deleted needs no revision.
+Because loading a row and writing it are separate statements, another write can
+land in between. Add a numeric `revision` field and pass `{ revision: 'revision' }`
+to `GuardServer.writer` so every update and delete pins the revision it checked:
+
+```ts sketch
+GuardServer.writer(Todo, Policy, writer(Db.Todo), { revision: 'revision' })
+```
+
+If another write moves the row first, the guard reloads and re-evaluates up to
+three times before failing with an `Internal error` (`ServerDefect` logged as
+`"changed while it was written"`). Client inputs with stale `expect` revisions
+fail immediately with `Conflict`. `GuardServer.validate` emits an
+`UnpinnedWrites` diagnostic for updates or deletes on Entities without a
+`revision` pin.
 
 ### Preconditions, increments and invariants
 
-A declared write's `when` (`foldkit-entity`) is the writer's to check, in the
-statement that writes; the guarded writer passes it through and speaks first.
-The order is: a row hidden from the writer (`Forbidden`), then a stale input
-revision (`Conflict`, which says nothing its reader could not read), then a
-rule that does not hold (`Forbidden`), then the precondition (`Unmet`). So
-`Unmet` reaches only someone the rules let write the row. A precondition, or an expected revision, over a member with a Read rule
-would still answer for that member (Unmet or written, Conflict or not), so the
-guarded writer refuses such a write before any rule, whether or not
-`GuardServer.validate` ran; `validate` refuses it at startup too, as it refuses
-a query body that filters by such a member. A pinned write that is unmet is not
-decided again: the row did not move, it does not hold.
-
-A declared write's `increment` is the writer's to add, in the statement that
-writes. The guard requires each incremented member's Update rule, as for a
-member it sets, and holds the row's rules over the sum the writer will store, so
-a rule `stock >= 0` refuses a sale past zero. The row the guard summed over must
-be the row the writer writes: the input's expected revision keeps it so, or the
-writer's `revision` pin. An increment with neither is refused. A computed
-assignment is the same: its member's Update rule holds, the guard reads what it
-computes from, and judges the row `Write.apply` works out by the writer's own
-table (`EntityWriter.operators`, the binding's for the Drizzle writer), which is
-the row the writer writes; one it cannot work out is refused, never judged as
-it was, with a fixed message, and the operator's own refusal is reported as
-`ComputeRefused`. With a `revision` the guarded writer `pins`, so under a ledger a
-real-number increment or a computed assignment needs no `expect` of its own (no
-writer lands one without either); `validate`
-refuses one computed from a member with a Read rule, which its answer would
-disclose.
-
-An Entity's invariants (`Entity.invariant`) are the writer's to judge, over the
-row its statement writes; the guarded writer passes them through and speaks
-first. They are not rules, and are never one of a command's alternatives:
-`Update: [isOwner, isManager]` says who may, and an invariant says what every
-row must hold whoever writes it, so being allowed does not make a row valid and
-a valid row does not make anyone allowed. `Invalid` reaches only someone the
-rules let write the row. An invariant that reads the row before (a transition
-invariant) is the same: the writer's, after the rules. An invariant that reads a member with
-a Read rule is enforced all the same, but its refusal names no invariant and no path ("The row
-would be invalid"), since naming it would say what that member holds.
+- **Preconditions (`when`):** the writer checks `when` after guards pass, in the
+  order: hidden row (`Forbidden`), stale expected revision (`Conflict`), failed
+  guard (`Forbidden`), unmet precondition (`Unmet`). `GuardServer.validate` and
+  the writer reject preconditions or `expect` over fields with `Read` rules to
+  prevent oracle leaks.
+- **Increments and computed assignments:** increments require the member's
+  `Update` rule and check row rules over the resulting sum; computed
+  assignments run through `Write.apply` with your `operators` table (emitting
+  `ComputeRefused` on operator errors) and reject reads from `Read`-guarded
+  members. Both require either `expect` or a writer `revision` pin.
+- **Invariants (`Entity.invariant`):** invariants run after guards pass and fail
+  with `Invalid`. Invariants reading a `Read`-guarded member still run, reporting
+  a generic `"The row would be invalid"` message without naming hidden values.
 
 ### Retries
 
-Over a writer with a ledger (`foldkit-remote-drizzle`'s `writer(binding, {
-ledger })`), a retry of an operation that landed is answered from the ledger,
-before any rule: it was decided when it landed, and deciding it again over a row
-that has moved since could refuse a write that happened. A new operation is
-decided as any write is. A durable write that Remote's outbox sends again,
-after a reload or a send nothing answered, is such a retry when its first send
-landed; when it did not, it is a new write, decided as whoever the request
-carrying it authenticates.
+When a writer uses a ledger (`writer(binding, { ledger })`), retries of an
+already-applied operation replay from the ledger immediately, while failed or
+first-time requests evaluate against the current principal and row.
 
 ### The writer's binding
 
-The binding must have a `visible` rule, which is how the writer reads a row
-as its writer may see it; the writer refuses one without. That the rule is
-`GuardDrizzle.visible`'s is what `GuardServer.validate` checks of the
-Entity's Source, so give the writer that Source's binding.
+Give `GuardServer.writer` the same binding (`Db.Todo`) used by the Entity's
+Source so its `visible` filter matches `GuardDrizzle.visible`.
 
 ### Fields the server sets
 
-A client should not choose whose a new row is. The Entity says which fields
-the write's context sets (`Entity.sets` in `foldkit-entity`), and
-`RemoteServer.write` sets them before the guarded writer checks the create or
-the update, so a rule over them holds of the creator: with
-`Entity.sets({ ownerId: Expr.viewer(UserRow) }, { on: 'create' })` added to the
-`Todo` above (`UserRow` the Entity a principal is a row of), a todo is its
-creator's, and `RemoteServer.make({ viewer })` says who that is. A member rule
-over such a member judges the server's value like any other: declare none there.
-
-No input may set `ownerId`, which is refused where the write is declared. A
-visitor is no one to set, and is refused (`Unauthenticated`) even where the
-rules would let anyone create. A create of an id already taken is refused as
-`Refusal.taken`, with one answer whatever the row there holds, so it tells
-nothing the asker may not read. Only
-the writer's ledger recognises a retry, by its operation and who asked, and
-answers it with its row, first time kept; the same id from another account is
-refused.
+Use `Entity.sets` (`Expr.viewer`, `Expr.now`) in `foldkit-entity` for fields
+such as `ownerId` so `RemoteServer.write` populates them before guards run.
+Inputs attempting to set those fields fail declaration checks, and visitors
+fail with `Unauthenticated`. Duplicate creates return `Refusal.taken` uniformly,
+while ledger retries replay the original row to the same creator.
 
 ### Handlers
 
-A handler writes what its code writes, so it is guarded where it is defined:
-`GuardServer.mutation` is `RemoteServer.mutation` with the row's rule for one
-interaction checked before the handler runs.
+Custom mutation handlers (`RemoteServer.mutation`) use `GuardServer.mutation` to
+check one interaction rule before executing:
 
 ```ts
 const ArchiveTodo = Mutation.make('ArchiveTodo', { Input: { id: Schema.String }, Output: {} })
@@ -608,117 +473,65 @@ GuardServer.mutation(
 )
 ```
 
-- The row `id` names is read through `source`, which must apply the
-  Entity's Read rules (it is refused where it is defined otherwise); a row
-  the writer may not see is refused, and the rule must hold over the rest.
-- With no `id` (a create), the rule must hold of who is asking alone. An
-  `id` that answers an `Option` serves create and edit in one mutation (one
-  `Crud.editor` for both): `Option.none()` is a create, checked against the
-  row's `Create` rule.
-- What the handler writes is its own to check: members it sets, relations it
-  points. `fields` reads more of the row for it.
-- Each row of the Entity its answer carries is read back through `source`,
-  its `authorize` and `filter` applied, as a declared write's is: the answer
-  shows the writer only what they may now see of the fields it named, and a
-  row the handler hid from them answers as deleted.
+- `id` loads the target row through `source` (rejecting hidden rows); omitting
+  `id` checks principal/create rules, and returning an `Option` handles both
+  create (`Option.none()`) and edit (`Option.some(id)`).
+- Pass `fields` to select extra columns for your handler; returned Entity rows
+  pass back through `source`'s `authorize` and `filter`, marking newly hidden
+  rows as deleted.
 
 ### Rules that read another row
 
-A row's `Read`, `Update` and `Delete` rules may reach another row: a path
-(`Expr.path`), an exists (`Expr.exists`), or a path from the viewer. A Read
-rule compiles to SQL, which reads the rows it reaches as stored: the rule is
-the server's decision, as a principal guard's body is.
+`Read`, `Update`, and `Delete` row guards can traverse relations (`Expr.path`,
+`Expr.exists`, or viewer paths). `Read` rules compile into SQL subqueries, while
+`Update` and `Delete` rules pass remaining cross-row conditions to
+`remote-drizzle`'s `writer` via `requires` (`update … where … and <rule>`) so
+they evaluate atomically at write time on SQLite and Postgres (Postgres apps
+call `postgres()` from `foldkit-remote-drizzle/pg` at startup).
 
-An Update or Delete rule is judged in the write's own statement (`update …
-where … and <rule>`), so it reads the other row as the write lands, not as it
-was read a moment before. `GuardServer.writer` judges what the row alone
-decides in memory and hands the rest to its writer as `requires`, which
-remote-drizzle's `writer` holds the row to, refusing with `Forbidden` (and the
-`explain`) where it fails, on SQLite and Postgres. A Postgres app calls
-`postgres()` from `foldkit-remote-drizzle/pg` once before binding its tables.
-
-- Such a rule is judged over the row as stored, so a write that would change
-  what it reads of its own row (its fields, the relation its path leaves by)
-  is refused: a member of one team cannot move a note into a team they hold
-  no seat on. Where the row written is the viewer's own, a path from the
-  viewer leaves it too: a member whose rule reads their team's organisation
-  cannot move their own team.
-- `may` leaves such an interaction unanswered, since one row cannot decide it.
-  `May.answer(may, 'Update')` reads it as none, apart from a yes and a no.
-  `May.locks`, `GuardAgent` and the client's own check of a write (`forbids`)
-  act only on a no, so the editor stays editable and the server's refusal is
-  shown when it comes. `May.can` and `May.canSet` are true only on a yes:
-  hide a control with `May.refused`, not `!May.can`.
-- `GuardServer.writer` over a writer without `requires` throws where it is
-  made, rather than letting the rule go unchecked.
-- Only the declared writer judges such a rule. `GuardServer.mutation` (for
-  the interaction it checks), `GuardSync.document` (for `Update`) and
-  `GuardServer.memory` (for `Read`) judge one row in memory, so each throws
-  where it is made for an Entity whose rule there reads another row, naming
-  the rule. Serve such an Entity's updates and deletes as declared writes,
-  and its reads through `GuardDrizzle.visible`.
-- Every other surface (`Create`, `Write`, a member, a relation, a named
-  interaction, `always`) is judged over one row in memory, so `Guards.attach`
-  refuses such a rule there and names the surfaces that may hold one.
+- Cross-row `Update`/`Delete` rules read the stored row, blocking writes that
+  would move a row out of reach (such as moving a note to another team).
+- `may` leaves cross-row interactions undecided (`May.answer` returns `Option.none()`).
+  Keep forms editable and hide controls with `May.refused` rather than
+  `!May.can`, letting the server render the final decision.
+- `GuardServer.writer` throws if given a writer without `requires` support;
+  single-row seams (`GuardServer.mutation`, `GuardSync.document`,
+  `GuardServer.memory`) reject cross-row rules on those surfaces by name.
 
 ## Checking a server at startup
 
-A Source written by hand over a guarded Entity serves every row, and nothing
-at request time can tell. `GuardServer.validate` looks before any request:
+Hand-written Sources or unguarded queries bypass row filtering silently unless
+checked at startup. Call `GuardServer.validate` once when booting your server:
 
 ```ts
 GuardServer.validate(Policy, { entities: [Todo], domain: Data, server: backend.server })
 ```
 
-It throws, naming each:
+It throws with a descriptive list if any of the following hold:
 
-- for an Entity of `entities` whose Source lacks the rule `GuardDrizzle.visible`
-  or `GuardServer.memory` built for it, or the `GuardServer.filter` built for
-  it;
-- for a query listing such an Entity without the rule, and a query the server
-  serves that the domain does not declare, whose Entity no one can name;
-- for a query whose body filters or orders by a member with a Read rule. A
-  row comes back without that member, but the query still answers for it: a
-  `cost < $max` halved twenty times reads the cost the row hid. This holds
-  whoever asks, since one body serves every principal. Where some readers
-  must filter by it, give the value an Entity of its own with a row Read
-  rule: a row a reader may not see is not in their list at all. A member of
-  another row the body reaches counts too (each relation a path, a path from
-  the viewer or an exists follows, the field it ends at, an exists' filter):
-  SQL reads a reached row under its `visible` rule, never its members';
-- for a declared write of such an Entity that does not land through the
-  `GuardServer.writer` built for it, and for one whose interaction (`Create`
-  for an insert, `Update`, `Delete`) has no rule under `unguarded: 'allow'`,
-  which would let anyone make it: give it a rule, or `[Guards.anyone]` to say
-  that anyone may;
-- for a live Source over such an Entity that does not read through the Source
-  checked here: `pollLive` over that Source names it (`LiveSource.reads`) and
-  passes; a hand-written stream, or a `pollLive` over another Source, is
-  refused. A live hub is not a live Source and is not checked: give it the
-  server's own Sources (`backend.server.entities.values()`), as below;
-- for an Entity carrying another set's guards;
-- for a rule calling a primitive operator the Policy's table does not run
-  (`G.implement(bodies, { operators })`), which would fail when first asked;
-- for a field its Source declares `shared` (sent to every live subscriber as
-  written) when a Read rule could tell readers apart: the rows', `always`, the
-  field's own, or, for a relation, its target rows', a target not among
-  `entities` included; and for `may` declared `shared`, which is each
-  reader's own whoever may read the row.
+- A guarded Entity's Source lacks the `GuardDrizzle.visible`/`GuardServer.memory`
+  rule or `GuardServer.filter` built for that `Policy`, or a query uses a
+  Source or undeclared Entity without them.
+- A query body filters or orders by a `Read`-guarded member (or reached member),
+  preventing existence or value oracles across shared query definitions. Move
+  secret values to a separate row-guarded Entity when filtering is needed.
+- A declared write bypasses `GuardServer.writer`, or leaves `Create`/`Update`/`Delete`
+  unguarded under `unguarded: 'allow'` (use `[Guards.anyone]` for explicit
+  public writes).
+- A live Source skips the guarded Source (`pollLive` passes via `LiveSource.reads`),
+  an Entity carries another set's guards, or a rule uses an operator missing from
+  `Policy`'s table.
+- A Source marks a field `shared` when row, `always`, field, or target `Read`
+  rules depend on the reader, or marks `may` as `shared`.
 
-A rule built from another `Policy`, for another Entity, or for this one before
-its guards were attached does not count. Every guarded Entity's Source needs both its rule and its
-filter, even one with no member rules yet, so a rule attached later is
-applied rather than served past. `GuardServer.memory` gives both; over
-Drizzle, each Source takes its `filter`, and each binding its `visible`.
-
-A handler (`RemoteServer.mutation`) writes what its code writes, which no
-check at startup can read.
+`ReadPolicy` (services already provided) satisfies `validate` for `Checked`.
+Custom `RemoteServer.mutation` handlers write arbitrary code and stay outside
+startup inspection.
 
 ## Who is asking
 
-Authentication decides who is asking; guards only read it. Give the handlers
-`G.Principal` instead of a principal, and each call reads it, so one handler
-set answers every request, and whatever authenticates a request provides it:
+Pass `G.Principal` to `RemoteServer.handlers` and provide the resolved
+principal per request:
 
 <!-- docs-check
 declare const body: unknown
@@ -731,10 +544,8 @@ const handlers = RemoteServer.handlers(backend.server, G.Principal)
 RemoteServer.answer(handlers, body).pipe(Effect.provideService(G.Principal, principal))
 ```
 
-A live hub shares a re-read between subscribers with one principal. Two
-requests by one person each decode a principal of their own, so give the hub
-`Policy.keyOf`, which names a principal by every field, as JSON keeps it (a
-set, a bigint, a date included; a visitor too), and they share one:
+For live hubs, pass `Policy.keyOf` so subscribers with identical principals share
+refetches while claim changes (such as updated `projectIds`) get distinct keys:
 
 ```ts
 const hub = Effect.gen(function* () {
@@ -744,22 +555,15 @@ const hub = Effect.gen(function* () {
 })
 ```
 
-Two principals with one key are read as the first of them, so a key that
-named only the person (`G.key`) would read a request made after their
-projects changed as an older request's claims; `Policy.keyOf` changes with
-any field. On the client, a cache snapshot is scoped by the person
-(`RemotePersistence`'s `scope: G.key(user)`), and a sign-in or sign-out is
-`Remote.forget` (`forget` on a domain made with `Remote.make`), since every
-fact the cache holds was read as someone.
+On the client, scope persisted caches with `G.key(user)` (`RemotePersistence`'s
+`scope`) and call `Remote.forget` on sign-in or sign-out so cached rows from an
+earlier user clear immediately.
 
 ## What the client may do
 
-The client has no principal guard's body and none of the principal's fields,
-and it is not where a write is checked. To grey out a button for the reason
-the server would refuse it, it reads the server's answer: `Guards.may` adds a
-derived member, `may`, which `GuardServer.filter` answers from the row as its
-reader sees it. `Todo` above is piped through it after its guards, and over
-Drizzle its binding marks it `supplied`, since it is not a column.
+Because browser bundles exclude principal guard bodies and user claims, views
+read server-computed `may` hints attached via `Guards.may` and populated by
+`GuardServer.filter` (marked `derived: { may: { supplied: true } }` in Drizzle):
 
 <!-- docs-check
 import type { Selected } from 'foldkit-entity'
@@ -775,93 +579,42 @@ May.canSet(row.may, Todo, 'ownerId') // the row's Update, and ownerId's own
 May.canLink(row.may, Todo, 'project', 'Link')
 ```
 
-- It answers the row's `Update`, `Delete` and each named interaction, each
-  member with its own `Update` rule, and each relation with a `Link` or
-  `Unlink` rule, all held over the row as a write's check would hold them
-  over it as it is.
-- A member or relation without its own rule follows the row's `Update`; an
-  interaction the answer does not name reads `false`.
-- `May.reason(row.may, 'Delete')` is the sentence an `explain` gave a
-  refusal, `Option.none()` where the interaction is allowed or was refused
-  without one: as for a write, only an `explain` says why.
-- It is a hint, read when the row was: a live patch of the fields its rules
-  read does not answer it again, so it is stale until the row is read again.
-  The write is checked when it is made, whatever `may` said.
-- A Source without the filter does not answer it: the client reads it as
-  unavailable.
-- `foldkit-crud`'s editor locks the keys `may` refuses (the row's `Update`,
-  or the key's own rule, said no) with `locks: May.locks(Todo)`, for
-  `foldkit-mixins-form`'s `locked`; a key whose answer was not said stays
-  editable.
+- `may` covers `Update`, `Delete`, custom interactions, member `Update` rules,
+  and relation `Link`/`Unlink` rules over the loaded row (members/relations
+  without rules inherit `Update`).
+- `May.reason(row.may, 'Delete')` returns `Option<string>` from `Guards.explain`.
+- `foldkit-crud` passes `locks: May.locks(Todo)` to lock disallowed fields in
+  `foldkit-mixins-form` while keeping undecided fields editable.
 
-For a row the client writes, which the server has not answered yet, Remote
-foresees `may` from the same rules (`Derived.make`'s `predict`): a row guard
-over the row, its links and `Expr.viewer` is judged over what the store holds;
-a principal guard, a rule over the principal's fields, and one over a row or
-field the store lacks are unknown. Every rule is an `or` of `and`s with no
-negation, so it is decided where it comes out the same with every unknown part
-taken to hold and taken not to. `may` is foreseen only when every part of it
-is, so a new post's Edit shows at once where its author's rule allows it, and
-nothing is shown where an admin's body would decide.
-
-A held `may` also refuses a write where it is made (`Derived.make`'s
-`forbids`): `Data.mutate` of an update whose row's `may.row.Update` is `false`,
-or whose written member or relinked relation reads `false`, or of a delete
-whose `Delete` does, is refused at once with `Forbidden` and the `explain` as
-`reason`, as the server would refuse it. So is a delete that would take a
-held row whose own `may` refuses `Delete` (under `authorizedBy: 'child'`), in
-the server's words; a row taken whose `may` the page does not hold is shown
-gone, and the server's refusal brings it back. Each is judged over the row before the
-write, which is where the server's writer judges it first. It spares a round
-trip and decides nothing for the server, which judges the write again when it
-arrives. `Law.check` (`foldkit-remote/testing`) runs one write through both and
-compares a refusal made here with the server's, by its `refusal`, or by its
-`_tag` where the mutation declares none.
+For optimistic writes, Remote foresees `may` locally (`Derived.make`'s
+`predict`) over row-only and viewer expressions when principal parts agree, and
+blocks writes immediately (`forbids`) when a held `may` already refuses `Update`,
+a written member/relation, `Delete`, or a held cascade child—saving a round trip
+while still checking on the server. `Law.check` (`foldkit-remote/testing`) tests
+that client and server refusals agree.
 
 ### What `may` tells a reader, and what it does not
 
-`may` is a UI hint; enforcement is on the server only. Every write is checked
-when it is made, by the rules, whatever the client holds or sends: the server
-never reads a `may` from a request, and a `may` that says yes (stale after a
-change of role, foreseen, or edited in the page's cache) changes nothing it
-decides. These hold, each tested against the real handlers (the audit is
-#284):
+`may` is strictly a UI hint: the server ignores any `may` on a request and
+re-evaluates every write against the live rules and row.
 
-- **No existence oracle.** A row its reader may not see is not read, `may`
-  included: the answer is the one for an id that does not exist. A write to
-  it is refused as a write to a missing row is (`Forbidden`, or for a delete,
-  answered gone).
-- **Its shape is the shared declaration's.** `may` names the same
-  interactions, members and relations for every reader and row: those the
-  Entity's attachment rules, which the browser bundle carries already. Only
-  the booleans are the reader's, and they say what the reader may do, never
-  why another may. There is no option to leave a member out, since its name
-  is public in the declaration anyway; a fact the reader should not learn
-  belongs in a principal guard's body, which never leaves the server.
-- **A reason is the declaration's sentence.** `reasons` holds only an
-  `explain`'s text, for an interaction refused to this reader; a plain refusal
-  says nothing. The text is a constant of shared code, so it ships in the
-  bundle whether or not it is sent: write it for the reader, never naming
-  another person, an id, or how the rule decides. No type or lint rule checks
-  wording, so this one is review's.
-- **One reader's answer is no one else's.** `GuardServer.validate` refuses a
-  Source that shares `may` with every live subscriber, and `serveFetch`
-  answers every request `cache-control: no-store`. Pages that render a
-  reader's rows into HTML (`foldkit-ssr`) send their own `private, no-store`
-  through the entry's `headers`, and a client changing principal calls
-  `Remote.forget`.
-- **A foreseen `may` is never sent.** What the client foresees for a row it
-  wrote is shown until the server's answer replaces it; a write's input is its
-  Mutation's, and `may` is not in it.
+- **Hidden rows stay hidden:** rows refused by `Read` return as missing rather
+  than exposing `may` or `Forbidden`.
+- **Fixed declaration shape:** `may` keys come from the shared Entity
+  declaration; keep sensitive logic inside server-only principal guard bodies.
+- **Public refusal text:** `Guards.explain` strings ship in the shared bundle,
+  so write user-facing messages free of IDs or internal rule details.
+- **Per-reader isolation:** `GuardServer.validate` blocks `shared: true` on
+  `may`, `serveFetch` sends `no-store`, SSR pages send `private, no-store`, and
+  `Remote.forget` clears cached hints on principal changes.
+- **Client predictions stay local:** foreseen `may` values update the local UI
+  until the server response arrives and stay out of mutation payloads.
 
 ## Who the client is: `Me`
 
-"Show the Admin link", "show a sign-in page rather than a 404" and "who am
-I signed in as" are questions about the visitor, not about a row.
-`Guards.me` declares them as one Entity with one row, `me`: everyone reads
-their own and no one writes it. It holds `signedIn`, `key` (the principal's
-`key`, `Option.none()` for a visitor) and `may` for the interactions named
-here; `GuardServer.me` serves it, deciding `may` with the Policy.
+Use `Guards.me` to expose the current visitor's sign-in state and global
+capabilities (such as `"Show the Admin link"`) as a single-row Entity `me`,
+served by `GuardServer.me`:
 
 ```ts
 const OpenAdmin = Interaction.make('OpenAdmin')
@@ -875,68 +628,50 @@ export const Me = Guards.me(G, {
 const MeSource = GuardServer.me(Me, Policy)
 ```
 
-- The client reads `Me` through Remote like any row (`Entity.select(Me,
-  { signedIn: true, key: true, may: true })`), so it is `Loading`, `Ready`
-  or stale as data is, survives SSR, and `Remote.forget` on any change of
-  principal (a sign-in as much as a sign-out) drops it. `May.can(me.may, OpenAdmin.key)` is the server's answer; no rule runs
-  on the client.
-- Its Read is `Guards.anyone`, whatever the set leaves `unguarded`, and its
-  writes are nobody's, as the matrix prints them. `Guards.anyone` serves any
-  surface that is public under a set that denies the rest: a Read of it
-  restricts no one, so a Sync document over its rows needs no readers and
-  `validate` lets a Source share them.
-- `may` is read with the row, as any `may` is: a principal whose role
-  changes sees it when `Me` is read again.
-- `key` is the set's `key` of the principal, shown to that principal: make it
-  an id, never a session token or anything secret. `Me` is answered per
-  request, shares nothing with live subscribers, and goes out under
-  `serveFetch`'s `no-store`.
+- Select `{ signedIn: true, key: true, may: true }` through Remote like any row,
+  and call `Remote.forget` on sign-in or sign-out so `Me` updates.
+- `Me` uses `Guards.anyone` for `Read` and denies all writes; `key` exposes
+  `G.key(user)` to that user, so keep it to a public ID rather than a token.
 
 ## When a rule refuses
 
 | Cause | Server | Client |
 | --- | --- | --- |
-| A row's Read refused | not returned, not settled | not found; a tombstone |
-| A member's Read refused (`omit`) | the field settled, unread | that field `Unavailable` |
-| A member's Read refused (`redact`) | the replacement value | `Ready` with it, by design indistinguishable |
-| A relation's Read refused | withheld, as a member's | unavailable |
-| A write refused | `Forbidden`, a 403 over JSON | `Data.mutation` is `Failed` with `_tag: 'Forbidden'`, `reason` from an `explain` |
-| A visitor's write refused | `Unauthenticated`, a 401 over JSON | `Failed` with `_tag: 'Unauthenticated'`; a durable write waits for a sign-in |
-| A write moved a row out of its writer's sight | answered in `deleted` | tombstoned; it leaves every list |
-| A delete of a row its writer cannot see | nothing deleted; answered gone | tombstoned |
-| A Sync edit refused | rejected by its id, with a `Forbidden` refusal carrying its reason | the replica drops it; `status.rejected` holds the refusal |
-| An agent's capability refused | — | `AgentAuthorizationError` before dispatch, its message an `explain`'s; not offered while `available` says no |
-| A Source left unguarded | `GuardServer.validate` throws at startup | — |
+| Row `Read` refused | Omitted | Missing / tombstoned |
+| Member `Read` refused (`omit`) | Field withheld | Field is `Unavailable` |
+| Member `Read` refused (`redact`) | Replacement value | `Ready` with replacement |
+| Relation `Read` refused | Withheld | `Unavailable` |
+| Write refused | `Forbidden` (403 JSON) | `Failed` (`_tag: 'Forbidden'`) |
+| Visitor write refused | `Unauthenticated` (401 JSON) | `Failed` (`_tag: 'Unauthenticated'`) |
+| Write hid row from writer | Listed in `deleted` | Tombstoned; leaves lists |
+| Delete of hidden row | Answered as deleted | Tombstoned |
+| Sync edit refused | Rejected with `Forbidden` | Dropped; `status.rejected` set |
+| Agent capability refused | — | `AgentAuthorizationError` or hidden |
+| Source left unguarded | `GuardServer.validate` throws | — |
 
-A refusal says why only through `Guards.explain`: a plain one is `forbidden`,
-so a probing caller learns only "no", and a row a principal may not read is
-not found rather than forbidden, so its existence does not leak.
+Refusals only include text when `Guards.explain` is set, keeping plain refusals
+opaque and hidden rows indistinguishable from missing IDs.
 
 ## Diagnostics
 
-Two things a guarded server goes past without failing are reported through
-`foldkit-surface`'s `Diagnostics` channel (re-exported by `foldkit-remote`),
-by default Effect's log:
+Recoverable server anomalies emit typed diagnostics through `foldkit-surface`'s
+`Diagnostics` channel (defaulting to Effect logging):
 
 | `_tag` | `level` | When |
 | --- | --- | --- |
-| `ComputeRefused` | `error` | An operator refused to work out a value a guarded write computes (text holding NUL, an implementation that throws). The write was refused with a fixed message; this carries the operator's `error`. |
-| `UnpinnedWrites` | `warning` | `GuardServer.validate` found `mutations` writing through a writer with no `revision` that a change can come between. |
+| `ComputeRefused` | `error` | A computed write operator threw or refused input (e.g. NUL bytes) |
+| `UnpinnedWrites` | `warning` | `GuardServer.validate` found writes on a writer without `revision` |
 
-`ComputeRefused` is reported inside the write, so the reporter the server
-runs with applies (`serveFetch`'s `diagnostics`, or
-`Layer.succeed(Diagnostics.Reporter, report)` in its layer).
-`GuardServer.validate` runs before any Effect of the server's, so it takes
-the reporter as an option, `diagnostics`, beside `entities`, `domain` and
-`server`. In a test, pass `Diagnostics.collect().report` and assert on
-`reported`.
+`ComputeRefused` uses the server's reporter (`serveFetch`'s `diagnostics` or
+`Diagnostics.Reporter` layer); `GuardServer.validate` accepts `diagnostics` as
+an option. Use `Diagnostics.collect()` in tests.
 
 ## Sync
 
-A `foldkit-sync/entity` cell edit is a write to a member of a row, through the
-journal instead of a mutation, so it answers to the same rules.
-`foldkit-guard/sync` checks it in two halves, by where each can run, and
-keeps a document's edits from reaching anyone the rows would hide them from:
+`foldkit-guard/sync` checks `foldkit-sync/entity` cell edits in two stages:
+principal guards synchronously under the journal lock (`authorize`), and row/row
+field rules against the database before admitting operations (`admit`), plus
+connection gating (`opens`):
 
 <!-- docs-check
 import type { CellChange } from 'foldkit-guard/sync'
@@ -975,41 +710,20 @@ journalExchange({
 })
 ```
 
-`sync` and `journal` are the document's Sync contract and journal
-(`foldkit-sync/journal`), here with the principal as `G.Principal` holds it;
-`changesOf` reads an operation's cell edits, and `db` is the database
-`TodoSource` reads. A document's readers are principal guards, so of
-`Todo`'s Read rule only `isAdmin` can be one: the rows anyone else reads
-differ from person to person, and a document is one audience.
-
-- **Under the lock**, `authorize` refuses what the principal guards settle:
-  the row's `Update`, and each changed member's, with an `explain`'s
-  sentence. It reads no row, and its bodies must not suspend.
-- **Before the journal**, `admit` reads each row an edit names through the
-  Entity's guarded Source: a row the principal cannot see is refused, and
-  the row's `Update` must hold over it as it is and as it would be after all
-  of the operation's edits to it. Each changed member's rule must hold over
-  it as it is, and as the edits would leave it with that member's own edit
-  undone, as for a writer. An
-  edit to a member outside the document, or a value its member cannot
-  encode, is refused.
-- **A document is one audience.** Every replica that opens it receives every
-  edit, so `document` refuses where it is declared an edited member that is
-  not a field or has a Read rule of its own, a reader the rows' Read rule
-  does not name among its top-level guards (one inside `Guards.all` is not
-  enough: all of it must hold), rows with a Read rule and no readers named,
-  and `always` rules over the row. `opens` lets any
-  reader (anyone, when it names none) who passes the Entity's `always`.
-- Presence on the same socket is stamped by the server with the connection's
-  peer id, and joins only who may open the document:
-  `Sync.presence.serve(socket, hub, { peerId, opens: GuardSync.opens(Policy, Edits, principal) })`.
-  What a presence value carries is the application's.
+- `authorize` evaluates principal guards synchronously for row `Update` and
+  changed member rules.
+- `admit` loads each target row through the guarded `source` and checks row and
+  member `Update` rules before and after all edits in the operation.
+- `GuardSync.document` requires one shared audience (`readers` must match
+  top-level principal guards in the Entity's `Read` rule; edited fields must
+  lack per-member `Read` rules and `always` rules).
+- Presence sockets gate connections with `Sync.presence.serve(socket, hub, { peerId, opens: GuardSync.opens(Policy, Edits, principal) })`.
 
 ## Agents
 
-An agent should not be offered, or attempt, what the server would refuse.
-`foldkit-guard/agent` reads `may` from the row the Model holds, for a
-`foldkit-agent` capability's `authorize` and `available`:
+`foldkit-guard/agent` reads `may` from Remote's client Model for
+`foldkit-agent` capability `authorize` and `available` checks so agents only
+see and invoke actions the user can perform:
 
 <!-- docs-check
 import { defineMessageUnion } from 'foldkit/message'
@@ -1037,28 +751,16 @@ TodoAgent.expose(Message, {
 })
 ```
 
-`App` and `Message` are the client application's: its Model holds Remote's
-store at `remote` and the selected todo's id at `selected`, and `Message`
-has a `RequestedArchive` with the todo's `id`.
-
-- `Row` selects `may`. A row not read yet, or whose read failed, refuses:
-  there is no answer to go on. One being read again answers as it last did.
-  A row whose `may` does not say (a rule reading another row) is allowed and
-  offered: the server decides.
-  A refusal its rule explained is the agent's error message.
-- `available` is for a capability over a row the Model alone names (the one
-  selected): a visitor is then not offered it at all.
-- `withPrincipal(G.Principal)` makes the agent's principal the server's
-  type.
-- It is the agent's gate, not the check: the Message's mutation is checked on
-  the server, under the same principal.
+- `Row` selects `may`. Missing or failed reads refuse dispatch; rules reading
+  another row stay offered and defer to the server check.
+- `withPrincipal(G.Principal)` aligns the agent's principal type with the server,
+  which still enforces every write independently.
 
 ## Uploads
 
-`foldkit-media`'s upload routes ask one question of an `UploadPolicy`
-before reading a byte: may this request upload (`Upload`), or have an image
-named by URL described (`DescribeUrl`)? `foldkit-guard/media` answers it with
-principal guards, for who your resolver says is asking:
+`foldkit-guard/media` supplies `foldkit-media`'s `UploadPolicy` using your
+principal guards and session resolver (`AuthServer.resolver` from
+`foldkit-auth/server`) before reading upload bytes:
 
 <!-- docs-check
 import type { Inspector } from 'foldkit-media'
@@ -1081,32 +783,19 @@ const uploads = uploadLayer().pipe(
 )
 ```
 
-`resolve` is the resolver your Remote server is given:
-`(request: Request) => Effect<Option<User>, E, R>`, which
-`AuthServer.resolver` from `foldkit-auth/server` is. `inspector` is
-`foldkit-media`'s `Inspector` for where you run (`inspectorSharp()`,
-`inspectorImages(env.IMAGES)`).
-
-- Only principal guards: no row exists before an upload, so a row guard is a
-  type error. A route admits when any one of its guards allows, and a route
-  given no guards admits nobody.
-- The resolver gets the request's URL, method and headers and never its
-  body, so the route still reads no byte before the policy answers.
-- A resolver that fails (an untrusted origin, a session that ended) is a
-  `401`; a principal the guards refuse is a `403`. Either says only its kind:
-  an `explain` sentence stays on the server.
-- `Policy` must need no service; give it what its bodies need with
-  `Policy.provide`, as the other seams take it.
-- Beside a deployment's secret for scripts:
-  `uploadPolicyAny(uploadPolicyBearer(secret), GuardMedia.uploadPolicy(…))`.
+- Only principal guards apply (row guards are rejected at compile time). Omitted
+  routes deny all callers.
+- `resolve` inspects URL, method, and headers before reading the body, returning
+  `401` on resolver failure and `403` when guards refuse (keeping `explain`
+  messages on the server).
+- Provide all services on `Policy` via `Policy.provide` ahead of time, and
+  combine with `uploadPolicyAny(uploadPolicyBearer(secret), GuardMedia.uploadPolicy(…))`
+  when scripts upload via bearer token.
 
 ## Lower level: asking the Policy yourself
 
-The seams above are built from a few questions the `Policy` answers, which a
-Source or an interpreter of your own asks directly. Which rows may a
-principal read: every principal guard is decided by its body (once, however
-many rules name it), and what is left is a `Condition` over the row, which an
-interpreter runs:
+Custom Sources and interpreters can query `Policy` directly via `readable`,
+`readMembers`, `writable`, `writeMembers`, and `linkable`:
 
 ```ts
 import { Condition } from 'foldkit-guard'
@@ -1120,58 +809,37 @@ Condition.holds(readable, t1, Policy.inputOf(ada), () => false, Policy.operators
 // true
 ```
 
-- `Condition.always` and `Condition.never` are a read settled without
-  looking at rows: an admin, or a visitor whose rules all read the principal.
-- `Condition.holds` is how an interpreter that has the rows runs it; a
-  database compiles it instead. Its last argument answers an inherited Read,
-  which only the caller can look up.
-- `Policy.readMembers(Todo, principal, members)` decides each member's own
-  Read rule, with the refusal it shows (`Omit` or `Redact`).
-- Writes are decided alike, each principal guard's body told the interaction:
-  `Policy.writable(Todo, principal, 'Update')` is the row's rule for it,
-  `{ condition, deny }` (`Forbidden`, or `Explain` with its sentence);
-  `Policy.writeMembers(Todo, principal, members, 'Update')` each member's;
-  `Policy.linkable(Todo, principal, 'project', 'Link')` a relation's, when it
-  has one.
+- `Condition.always` and `Condition.never` short-circuit row scans when
+  principal guards alone decide access.
+- `Condition.holds` evaluates a condition over an in-memory row; its fourth
+  argument resolves inherited `Read` relations.
 
 ## Limits
 
-- **`may` is as stale as its row.** It is the server's answer for the row as
-  it was read, or the client's reading of the rules for a row it wrote; a
-  live patch of a field its rules read does not answer it again.
-- **A handler's own writes are its own to check.** `GuardServer.mutation`
-  checks the row's rule for its interaction; members it sets and relations
-  it points are not known to it, and no startup check can read them.
-- **Under a Read rule over fields, a new row is fetched into a list, not
-  placed.** `Guards.attach` records the row's own members that its Read rules
-  read, and the client, which runs none of them, refetches a list when a row
-  it does not hold changes one of them, as a create does: only the server can
-  say whether the rule lets it in. What a Read rule reads through a path or
-  an exists is not recorded, neither the relation it leaves the row by nor
-  the row it reaches: a change there leaves such a list as stale as its last
-  read.
-- **A Sync document is one audience.** Per-member or per-row secrecy within
-  one is not something a replicated log offers: `GuardSync.document` refuses
-  it where it is declared.
-- **A `revision` pins one row, against the writes that move it.** A write
-  rule reads the principal and the row, so pinning the row's revision makes
-  the check and the write one. Only the declared writes that pin or `expect`
-  it move it on: a handler (`RemoteServer.mutation`), raw SQL or a migration
-  that changes the row without moving it is not seen, unless the table carries
-  `foldkit-remote-drizzle`'s `revisionTrigger`, which has the database move it
-  on every update that does not. Sync's `applyEdits` keeps one revision for two
-  changes in one operation, so a table Sync writes takes no trigger, and the
-  pin does not see that second change. A writer given no `revision` does not
-  see a change landing between its check and its write.
-- **Sync's `admit` reads the table, which lags the journal.** An edit lands
-  in the table when its exchange settles, so an edit admitted before another
-  lands is judged against the row as it was: a concurrent change of owner
-  can let its old owner's edit through. Where that matters, keep the fields
-  a row rule reads out of the document and change them through a guarded
-  Remote write.
-- **Sync's `authorize` is synchronous.** Its principal guards' bodies must not
-  suspend; row guards run in `admit`, which may.
-- **A row guard over a field the client sets on create** reads as matching
-  nothing while the create leaves it unset; declare a field that should be the
-  creator's with `Entity.sets` (see [Serving writes](#serving-writes)), and the
-  server sets it before the rules are judged.
+- **`may` reflects the last read row:** live patches to guarded fields require
+  a refetch to refresh `may`.
+- **Custom handlers check their own fields:** `GuardServer.mutation` checks the
+  row rule for its interaction; field-level and link-level rules inside custom
+  handler bodies stay the handler's responsibility.
+- **Cross-row `Read` rules skip live list placement:** `Guards.attach` tracks
+  own-row `Read` fields for list refetches, while changes on reached rows stay
+  at the list's last read until refetched.
+- **Sync documents share one audience:** per-member or per-row secrecy inside a
+  replicated Sync document is refused by `GuardSync.document`.
+- **Revisions pin declared writes:** raw SQL or migrations outside declared
+  writes advance revisions only if the database installs `revisionTrigger` from
+  `foldkit-remote-drizzle` (omitted on Sync-managed tables).
+- **Sync `admit` lags the journal slightly:** `admit` reads the current table
+  when admitted, so concurrent ownership changes belong in guarded Remote writes
+  outside the Sync document.
+- **Sync `authorize` runs synchronously:** keep principal guard bodies
+  synchronous when used with Sync.
+- **Server-owned creator fields:** declare fields like `ownerId` with
+  `Entity.sets` so `RemoteServer.write` populates them before guards evaluate.
+
+## Next
+
+- Walk through sign-in and permissions end to end: [How Guard works](../../docs/guard.md)
+- Connect authentication to guards: [Auth and Guard](../../docs/auth-and-guard.md)
+- Declare updates and deletes with row guards: [Declared writes](../../docs/declared-writes.md)
+- Run a complete guarded application: [`examples/auth`](../../examples/auth)

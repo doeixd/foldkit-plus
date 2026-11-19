@@ -1,33 +1,10 @@
 # `foldkit-mixins-surface`
 
-Connects a [`foldkit-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/surface)
-feature boundary to a [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins)
-`SlotView` without repeating that boundary in the view layer.
+When using [`foldkit-surface`](../surface) alongside [`foldkit-mixins`](../mixins), you can end up declaring the same feature boundary twice: once on the Surface (which Model fields a feature reads and which Messages it emits) and again on the `SlotView` (its input type and Message union). If those declarations drift, a Behavior attachment might read an omitted Model field or emit an unexposed Message.
 
-The two packages answer different questions:
+`foldkit-mixins-surface` connects them with `SurfaceView.define` and `SurfaceView.over`. A Surface's projected value becomes the `SlotView`'s input type, and its exposed Message subset becomes the `SlotView`'s Message universe—enforced at compile time with no extra runtime state.
 
-Surface answers what a feature may observe and which Messages it may emit.
-SlotView answers where a view may be customized with Style and Behavior.
-
-`SurfaceView.define` joins them. The SlotView's input becomes exactly the
-Surface's projected value, and its Message universe becomes exactly the
-Surface's exposed subset. A Behavior cannot quietly read a root-Model field the
-Surface omitted or emit a Message the feature did not expose; both mistakes are
-type errors where the view is defined.
-
-The bridge creates no state, no renderer, and no second runtime. The result is
-an ordinary `SlotView` with the Surface's boundary reflected in its types.
-
-## Use it when
-
-You already render a Surface and want to style or decorate that feature through
-typed Mixins extension points. If you are not using `foldkit-surface`, use
-`SlotView.define` / `SlotView.forMessages` from `foldkit-mixins` directly — this
-package adds nothing else.
-
-For the Mixins mental model itself (Slot, Style, Behavior, SlotView), read
-[Inside-out view composition](https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md)
-first.
+If you do not use `foldkit-surface`, use `SlotView.define` or `SlotView.forMessages` from `foldkit-mixins` directly. For background on Slots, Styles, and Behaviors, read [Inside-out view composition](../../docs/mixins.md).
 
 ## Install
 
@@ -35,173 +12,95 @@ first.
 pnpm add foldkit-mixins foldkit-surface foldkit-mixins-surface
 ```
 
-`foldkit`, `effect`, `foldkit-mixins`, and `foldkit-surface` are peer
-dependencies.
+`foldkit`, `effect`, `foldkit-mixins`, and `foldkit-surface` are peer dependencies.
 
-## Usage
+## A first surface-bound `SlotView`
+
+Define a `Surface` and `Slots`, bind them with `SurfaceView.define`, and pass the result to `Surface.view`:
 
 ```ts
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Behavior, Capability, Event, Slot, Slots, Style } from 'foldkit-mixins'
+import { Capability, Event, Slot, Slots, Style } from 'foldkit-mixins'
 import { SurfaceView } from 'foldkit-mixins-surface'
 import { Surface } from 'foldkit-surface'
 
 const Model = Schema.Struct({
-  todos: Schema.Array(Schema.Struct({ id: Schema.String, title: Schema.String })),
-  selectedId: Schema.Option(Schema.String),
+  todos: Schema.Array(Schema.String),
+  selected: Schema.Option(Schema.String),
   secret: Schema.String,
 })
-
 const Message = defineMessageUnion({
-  SelectedTodo: { id: Schema.String },
-  ArchivedTodo: { id: Schema.String },
+  Selected: { id: Schema.String },
+  Archived: { id: Schema.String },
   ClearedSecret: {},
 })
-
 const App = Surface.application({ Model, Message })
-
-// Projects two of the three fields, exposes two of the three Messages.
 const TodoList = App.surface('TodoList', {
-  model: ({ model }) => ({ todos: model.todos, selectedId: model.selectedId }),
-  messages: [Message.SelectedTodo, Message.ArchivedTodo],
+  model: ({ model }) => ({ todos: model.todos, selected: model.selected }),
+  messages: [Message.Selected, Message.Archived],
 })
-
 const TodoSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   archive: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
 })
 
-const TodoStyle = Style.forSlots(TodoSlots)({ root: Style.class('todo-list') })
-
-/** What the Surface projects — the input every attachment sees. */
-type ProjectedTodos = {
-  readonly todos: ReadonlyArray<{ readonly id: string; readonly title: string }>
-  readonly selectedId: Option.Option<string>
-}
-
-// `input` is the projection, so `input.secret` does not type-check; `h` builds
-// only `SelectedTodo` and `ArchivedTodo`.
-const TodoBehavior = Behavior.forSlots(TodoSlots)<
-  ProjectedTodos,
-  typeof Message.SelectedTodo.Type | typeof Message.ArchivedTodo.Type
->({
-  archive: Behavior.slot({
-    requires: { events: [Event.Click] },
-    attributes: ({ input, h }) =>
-      Option.match(input.selectedId, {
-        onNone: () => [],
-        onSome: id => [h.OnClick(Message.ArchivedTodo({ id }))],
-      }),
-  }),
-})
-
 const TodoListView = SurfaceView.define(TodoList, TodoSlots, (model, slots, h) =>
   h.section(slots.root.attrs(), [
-    h.ul([], model.todos.map(todo => h.li([], [todo.title]))),
-    h.button(
-      slots.archive.attrs([h.Disabled(Option.isNone(model.selectedId))]),
-      ['Archive selected'],
-    ),
+    h.button(slots.archive.attrs([h.Disabled(Option.isNone(model.selected))]), ['Archive']),
   ]),
-).pipe(Style.attach(TodoStyle), Behavior.attach(TodoBehavior))
+).pipe(Style.attach(Style.forSlots(TodoSlots)({ root: Style.class('todo-list') })))
 
-// `toRenderer` adapts a SlotView to what `Surface.view`/`Surface.rootView` take.
 const renderer = Surface.view(TodoList, SurfaceView.toRenderer(TodoListView))
 ```
 
-`slots.archive.attrs(...)` is where the attached click behavior reaches a
-real element. Declaring a slot or attaching a Behavior alone renders nothing.
-With no selection the button is disabled; with a selection its click emits
-`ArchivedTodo`, and the application's reducer performs the transition.
+Inside `SurfaceView.define`, `model` is inferred as `{ readonly todos: readonly string[]; readonly selected: Option.Option<string> }` (excluding `secret`), and `h` accepts only `Selected` and `Archived` Messages (rejecting `ClearedSecret`). `SurfaceView.toRenderer` adapts the `SlotView` for `Surface.view` or `Surface.rootView`.
 
-The useful part is what the render callback does **not** repeat: no type
-annotation on `model` or `h`, no second Message union, and no root-Model input
-type. `SurfaceView.define` gets those from the Surface.
+## Attach typed Behaviors without repeating types
 
-A Behavior's `Input` parameter still has to be exactly the projected type — a
-`SlotView` is invariant in it, so a narrower "just the fields I happen to read"
-type is rejected by `Behavior.attach`.
-
-`SurfaceView.over(surface, slots)` reads both types from the Surface once, so a
-Behavior needs neither written out. It is `SlotView.over` from `foldkit-mixins`
-with the projection as the input and the exposed subset as the Messages, and its
-`define` names the view after the Surface:
+`Behavior.forSlots` requires the exact projected input type because `SlotView` is invariant in its input. Use `SurfaceView.over(surface, slots)` to bind both the projection type and Message subset once so Styles and Behaviors need no manual type parameters:
 
 ```ts
+import { Behavior } from 'foldkit-mixins'
+
 const Todos = SurfaceView.over(TodoList, TodoSlots)
 
 const Archives = Todos.behavior({
   archive: {
+    requires: { events: [Event.Click] },
     attributes: ({ input, h }) =>
-      Option.match(input.selectedId, {
+      Option.match(input.selected, {
         onNone: () => [],
-        onSome: id => [h.OnClick(Message.ArchivedTodo({ id }))],
+        onSome: id => [h.OnClick(Message.Archived({ id }))],
       }),
   },
 })
-const BoundTodoListView = Todos.define((model, slots, h) =>
+
+const BoundTodoListView = Todos.define((_model, slots, h) =>
   h.section(slots.root.attrs(), [h.button(slots.archive.attrs(), ['Archive selected'])]),
 ).pipe(Behavior.attach(Archives))
 ```
 
-`toRenderer` is the single boundary adaptation. `Surface.view` hands a renderer
-a `ViewBuilder` with its `MessageUniverse` phantom removed; the SlotView is sound
-there because `SurfaceView.define` already restricted what it can construct to
-the Surface's Message subset.
+Inside `Todos.behavior`, `input.secret` is a type error and `h` restricts Messages to `Selected` and `Archived`. Apply `slots.archive.attrs(...)` to the element where Behavior attributes should attach.
 
-## What the bridge buys you
+## Render statically for tests and demos
 
-Without this package, Surface and SlotView are both type-safe independently, but
-you can accidentally describe the same feature boundary twice:
-
-A Surface's projection and Message subset, and a SlotView's input and Message
-universe, are two descriptions of one boundary.
-
-With `SurfaceView.define`, there is one declaration:
-
-The Surface's projected value and Message subset flow into the SlotView, and Style
-and Behavior attach to that.
-
-That is the whole package.
-
-## Rendering without a runtime
-
-`SurfaceView.render(view, surface, params, root)` projects `root` through the
-Surface and renders the view with `SlotView.inertBuilder`. It returns the
-`Html`, but nothing mounts and handlers are built without ever being
-dispatched. It is for tests, demos, and static output, not a replacement for
-`Surface.view` in a running app.
+`SurfaceView.render(view, surface, params, root)` projects `root` through the Surface and renders static `Html` using `SlotView.inertBuilder` without mounting a runtime or dispatching events:
 
 ```ts
 const html = SurfaceView.render(TodoListView, TodoList, undefined, {
-  todos: [{ id: 't1', title: 'Write docs' }],
-  selectedId: Option.some('t1'),
+  todos: ['Write docs'],
+  selected: Option.some('t1'),
   secret: 'not projected',
 })
 ```
 
-## Introspection
+## Inspect a `SurfaceView`
 
-`SurfaceView.describe(surface, params, view)` is `SlotView.describe(view)` (the slots, and each
-attachment in order with what it requires and contributes per slot, plus `findings`) merged with
-`Surface.inspect`: what the Surface observes, its projection `metadata`, and what it may emit, with
-emitted Messages as tags. `mixins` stays as the attachments' names. `SurfaceView.toMarkdown`
-renders it deterministically for docs or a CI drift check. `SurfaceView.inspect(view)` is
-deprecated for one release in favour of `SlotView.describe`; it still returns `{ name, slots,
-mixins }`.
+`SurfaceView.describe(surface, params, view)` merges `SlotView.describe(view)` (slots, attachments, requirements, contributions, and `findings`) with `Surface.inspect` (observed fields, projection metadata, and emitted Message tags). `SurfaceView.toMarkdown` formats that inspection output as Markdown for snapshots or documentation checks. Each helper (`define`, `over`, `toRenderer`, `render`, `describe`, `toMarkdown`) is also available as a direct named export.
 
-Each of `define`, `toRenderer`, `render`, `inspect`, `describe`, and `toMarkdown` is also a
-direct named export if you prefer that to the `SurfaceView` namespace.
+## Next
 
-## Status
-
-The API is still settling in the `0.x` series. This is deliberately a small
-bridge rather than a second view system; changes should keep it that way.
-
-## See also
-
-- [Inside-out view composition](https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md) — the Mixins mental model and before/after examples.
-- [`foldkit-mixins`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins) — SlotView, Style, Behavior, and the resolver.
-- [`foldkit-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/surface) — the projection/capability boundary this package preserves.
-- [`examples/mixins`](https://github.com/doeixd/foldkit-plus/tree/main/examples/mixins) — Surface → SlotView end to end.
+- Learn Slots, Styles, and Behaviors: [`foldkit-mixins`](../mixins)
+- Define Surfaces and Modules: [`foldkit-surface`](../surface)
+- See a full Surface-to-SlotView example: [`examples/mixins`](../../examples/mixins)

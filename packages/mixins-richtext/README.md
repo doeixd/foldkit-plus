@@ -1,42 +1,62 @@
 # foldkit-mixins-richtext
 
-The rich-text editor's chrome (toolbars, menus, a block handle, a status line, a Markdown
-source mode) drawn as [Mixins](../mixins) slot views, so an application restyles or extends
-every element the way it does any other view.
+A rich-text editor draws only its editable text box. Everything around it—formatting toolbars, slash command menus, drag handles, table controls, find-and-replace bars, and Markdown source mode—must still be wired to your application state and styled to match your design system without forking the views.
 
-## Who owns what
+`foldkit-mixins-richtext` provides those chrome views as styleable [Mixins](../mixins) components for [`foldkit-richtext-dom`](../richtext-dom). Each view exposes named *Slots* (typed parts such as `root`, `button`, or `input` that accept styles and behaviors from outside), reads state you pass in, and dispatches Messages back to your `update`. See the full toolbar, slash menu, block handle, and find bar running in [the rich-text playground](https://foldkit-richtext-demo.pages.dev/).
 
-- `foldkit-richtext-dom` owns the editor: its host element, the editable subtree and
-  every edit.
-- Your application owns every piece of state the chrome shows, and where it is
-  drawn.
-- `foldkit-mixins-richtext` (this package) owns nothing: each view is a function of
-  what it is given.
+## Install
 
-The editor renders its host and nothing else; the chrome beside
-it is the application's. `foldkit-richtext-dom/toolbar` ships plain versions of some of it,
-such as `marksToolbar`. This package draws the same chrome as slot views. It cannot wrap the
-plain ones, because a slot's contributions resolve at the element the view creates, so a slot
-view owns its elements; the two share the rules, such as `markActive`.
+```bash
+pnpm add foldkit-mixins-richtext foldkit-mixins foldkit-richtext foldkit-richtext-dom
+```
 
-## The contract every view keeps
+## A first mark toolbar
 
-- **It holds no state.** Whether a palette is open, what is typed in a field, which entry is
-  highlighted: each is the application's, passed in and changed through a Message.
-- **What it shows is a read of the document.** A pressed mark (`markActive`), the caret's
-  block style (`RichText.textBlockAt`), the link around the caret (`RichText.linkAt`), and the
-  slash menu (`RichText.textBefore`) are computed from the document and selection it is given.
-- **Messages go out through what the caller passes.** An editor Message goes through `wrap` (or
-  `toggled`), because the caller usually dispatches a wrapper such as the editor Bundle's
-  `edited`; an application Message through a named callback, such as `changed` or `closed`.
-- **Every element is a slot.** Each view names its slots and their capabilities in a table
-  below; `Style` and Behaviors reach them the way they reach any Mixins view.
+Style the mark buttons via `MarkToolbarSlots` and render a toolbar that dispatches `ToggledMark` Messages:
 
-In the snippets, `model`, `h`, `Message`, and `edited` are the application's, as in
-`foldkit-richtext-dom`'s editor; a name such as `DraftedLink` is one of its own Message
-constructors, and `EditorMessage` is the editor's own Message.
+```ts
+import type { HtmlBuilder } from 'foldkit/html'
+import { Style } from 'foldkit-mixins'
+import { MarkToolbarSlots, markToolbar } from 'foldkit-mixins-richtext'
+import * as RichText from 'foldkit-richtext'
+import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 
-<!-- docs-check
+const Toolbar = markToolbar<EditorMessage>().pipe(
+  Style.attach(Style.forSlots(MarkToolbarSlots)({ button: Style.class('mark-button') })),
+)
+
+const document = RichText.decodeDocument({
+  version: 1,
+  children: [{ type: 'Paragraph', id: 'p', children: [{ type: 'Text', id: 't', text: 'Hello', marks: ['Bold'] }] }],
+})
+
+const renderToolbar = (h: HtmlBuilder<EditorMessage>) =>
+  Toolbar(
+    {
+      state: { document, selection: null, storedMarks: null },
+      toggled: mark => EditorMessage.ToggledMark({ mark }),
+    },
+    h,
+  )
+```
+
+`Toolbar` renders a `<div role="toolbar">` containing one `<button class="mark-button">` per mark (`Bold`, `Italic`, `Code` by default). Each button reads `markActive(state, mark)` from the document and selection you pass in, carries its mark name as its slot item ID so Behaviors can target it, and emits `ToggledMark` through `toggled` when clicked.
+
+Every view in this package keeps the same boundary:
+
+- **Your application owns chrome state:** Open menus, draft link URLs, palette queries, and tab stops stay in your Model.
+- **Document state is read, never stored:** Active buttons, block styles, links, and slash queries derive directly from `document` and `selection`.
+- **Every element is a Slot:** You attach classes, tokens, and Behaviors from outside without touching the view's click or ARIA logic.
+
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `root` | Container | Toolbar wrapper |
+| `toolbar` | Collection | Row of mark buttons |
+| `button` | Interactive | One button per mark |
+
+Place `Toolbar` inside a `selectionAnchor` element from `foldkit-richtext-dom/toolbar` to float it above the current text selection.
+
+<!-- docs-check standalone
 import { Schema } from 'effect'
 import type { HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -84,61 +104,16 @@ declare const model: {
 }
 declare const h: HtmlBuilder<Message>
 declare const document: RichText.Document
-declare const selection: RichText.Selection | null
-declare const storedMarks: ReadonlyArray<string> | null
 declare const modifiers: KeyboardModifiers
 declare const code: RichText.Block
 const ArticleKit = RichText.kit({ nodes: [RichText.block('Paragraph')], marks: [RichText.Bold] })
 -->
 
-## Install
+## Pick a block style
 
-The `foldkit-richtext` family is **early**: 0.x, and its API may change between minor versions.
+In the sections below, `model` holds your `document`, `editor`, and chrome state, `h` is Foldkit's `HtmlBuilder`, and `edited` wraps editor Messages into your parent `Message`.
 
-```bash
-pnpm add foldkit-mixins-richtext foldkit-mixins foldkit-richtext foldkit-richtext-dom
-```
-
-## Sixty seconds: the mark toolbar
-
-```ts
-import { Style } from 'foldkit-mixins'
-import { MarkToolbarSlots, markToolbar } from 'foldkit-mixins-richtext'
-
-const Toolbar = markToolbar<Message>().pipe(
-  Style.attach(Style.forSlots(MarkToolbarSlots)({ button: Style.class('mark-button') })),
-)
-
-// In a view:
-Toolbar(
-  {
-    state: { document, selection, storedMarks },
-    toggled: mark => edited(EditorMessage.ToggledMark({ mark })),
-  },
-  h,
-)
-```
-
-`state` is what the editor projects; `toggled` turns a mark into the caller's Message; `marks`
-defaults to the three `foldkit-richtext` ships. The `Style.attach` line is the point of the
-package: the buttons are a slot, and the application styled them without the view knowing.
-Each button renders with its mark as the slot item's `id`, so a Behavior can single one out.
-The view owns each button's click and pressed state, so neither is in a slot's contract, and a
-mixin cannot take them over.
-
-| Slot | Capability | Renders |
-| --- | --- | --- |
-| `root` | Container | the toolbar's wrapper |
-| `toolbar` | Collection | the row of buttons |
-| `button` | Interactive | one mark's button, per mark |
-
-A floating toolbar is this one inside an element carrying `foldkit-richtext-dom/toolbar`'s
-`selectionAnchor`, as that package's README shows.
-
-## The block style picker
-
-A button per text style the caret's block can take: Paragraph, Heading 1, 2, and 3, under the
-slash menu's labels.
+`blockStyles` renders a toolbar of buttons for Paragraph and Heading 1–3 using the slash menu labels:
 
 ```ts
 import { blockStyles } from 'foldkit-mixins-richtext'
@@ -149,41 +124,29 @@ blockStyles<Message>()(
 )
 ```
 
-A click sends that style's `RetypedBlock` through `wrap`. At a heading level it does not list,
-none is pressed. In a code block none is pressed either, and a button retypes the block out of
-it, which the editor does given a vocabulary that says the kind holds text. With a node
-selection or none, every button is disabled, because a retype there is refused. Lists and
-quotes are not styles here: leaving one is a lift, not a retype.
+Clicking a button sends `RetypedBlock` through `wrap`. Inside a code block, buttons show unpressed and retype the block to a paragraph or heading when your vocabulary allows it; with a node selection or no selection, all buttons are disabled. Lists and quotes lift out rather than retyping, so they stay unpressed here.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `root` | Container | the picker's wrapper |
-| `toolbar` | Collection | the row, `role="toolbar"` |
-| `button` | Interactive | one style, `data-style` (the entry's id) and `aria-pressed` |
+| `root` | Container | Picker wrapper |
+| `toolbar` | Collection | Row with `role="toolbar"` |
+| `button` | Interactive | Style button with `data-style` and `aria-pressed` |
 
-`blockStyleMenu<Message>()` offers the same styles in the space of one button, for a toolbar
-with other things to hold. Its input adds `open` and `toggled`, since whether a menu is open is
-the caller's. The trigger shows the current style's icon and label ("Text style" where none
-applies) and opens a `role="menu"` of every style, each a `menuitemradio`, the current one
-checked. A choice sends its `RetypedBlock` through `wrap`, which is where the caller closes the
-menu. The trigger is disabled without a text selection, and the menu draws nothing then.
+`blockStyleMenu<Message>()` fits the same options into a dropdown trigger (`open` and `toggled` come from your Model), showing the active style's icon and label (or `"Text style"`) and opening a `role="menu"` list of `menuitemradio` items.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `root` | Container | the wrapper, to anchor the menu to |
-| `trigger` | Interactive | the button naming the style, `aria-haspopup="menu"`, `aria-expanded` |
-| `menu` | Collection | the open menu |
-| `item` | Interactive | one style, `data-style`, `aria-checked` |
-| `icon` | Container | a style's icon |
-| `label` | Container | a style's label |
-| `check` | Container | the check beside the current style |
+| `root` | Container | Wrapper anchoring the menu |
+| `trigger` | Interactive | Trigger with `aria-haspopup="menu"` and `aria-expanded` |
+| `menu` | Collection | Open menu |
+| `item` | Interactive | Style row with `data-style` and `aria-checked` |
+| `icon` | Container | Style icon |
+| `label` | Container | Style label |
+| `check` | Container | Checkmark beside the active style |
 
-## The formatting toolbar
+## Build a full formatting toolbar
 
-The standard bar: undo and redo, the text style menu, marks, link, lists, quote and an insert
-menu, in one `role="toolbar"` with one tab stop. What is pressed or unavailable is a read of the
-document and selection, as everywhere here. Two things are the caller's, because only the caller
-knows them: which menu is open, and where the tab stop is.
+`formattingToolbar` combines undo/redo, the text style menu, marks, link trigger, lists, quote, and an insert menu into a single APG `role="toolbar"` with roving tabindex:
 
 ```ts
 import { formattingToolbar } from 'foldkit-mixins-richtext'
@@ -204,56 +167,18 @@ formattingToolbar<Message>()(
 )
 ```
 
-`id` prefixes the ids of the controls, which the arrow keys move focus by, and is unique on the
-page. `toggled` is what a menu's trigger sends, to open or close that menu; `menu` is the one
-the application says is open. A choice in the style or insert menu goes through `wrap`, which is
-where the caller closes the menu. `link` is a trigger only: the popup is `linkEditor`, which the
-caller places when `menu` is `'link'`. `roving` and `onFocus` are the tab stop, the same slice
-`foldkit-mixins-ui`'s Toolbar asks for: store the id `onFocus` sends and give it back, so that Tab
-returns to the control last used. The first control holds the stop until one has had focus.
+Pass a unique `id` to prefix button IDs for arrow navigation. Store the ID emitted by `onFocus` and pass it back in `roving.current` so `Tab` returns to the last focused control. Choosing an item in the style or insert menu emits through `wrap`, where your `update` closes the menu; clicking `link` triggers `toggled('link', ...)` so you can open `linkEditor`.
 
-Choose controls with `items`, in order. Each is `'undo'`, `'redo'`, `'style'`, `'link'`,
-`'bulleted-list'`, `'numbered-list'`, `'checklist'`, `'quote'`, `'insert'`, `'separator'`, or
-`{ mark: 'Underline' }` for a mark of the document's vocabulary, or `{ control }` for one of the
-application's own (below); the default is
-`standardFormattingItems`, which lists the marks `foldkit-richtext` ships. A control left out is
-not drawn, so it is not a tab stop: an application that drops the less used ones on a phone
-passes a shorter list there. `inserts` is the insert menu's entries in one list the caller
-orders: `InsertEntry.Editor({ entry })` for an entry of the slash menu's catalogue (sent through
-`wrap`, so the two menus never disagree) and `InsertEntry.App({ id, label, description?, icon?,
-message })` for the application's own, whose Message is sent as it is. The default is the editor's
-blocks. `history` says whether undo and redo apply:
-the editor cannot know what the application undoes, so a page that undoes only its own steps
-passes `{ undo: false, redo: true }`. `words` overrides the toolbar's name and its controls'.
-`shortcuts` adds `foldkit-primitives` patterns (`'mod+u'`) by control id (`mark-Underline`) beside
-the ones the editor itself binds (undo, redo, Bold, Italic, Code, Strikethrough), and each shows as
-the title and `aria-keyshortcuts`.
+Customize the controls with `items` (defaulting to `standardFormattingItems`), using `'undo'`, `'redo'`, `'style'`, `'link'`, `'bulleted-list'`, `'numbered-list'`, `'checklist'`, `'quote'`, `'insert'`, `'separator'`, `{ mark: 'Underline' }`, or `{ control }`. Pass `inserts` (`InsertEntry.Editor` or `InsertEntry.App`) to populate the insert menu, `history: { undo, redo }` when your app controls undo state, `words` for custom labels, and `shortcuts` (`foldkit-primitives` patterns such as `'mod+u'`) for `aria-keyshortcuts` and tooltips.
 
-The keys are the APG toolbar's: ArrowLeft and ArrowRight (mirrored with `direction: 'rtl'`), Home
-and End move between controls and wrap, and Tab leaves. ArrowDown on a closed menu's trigger opens
-it; a second ArrowDown, once its items are drawn, enters the menu, where the arrows, Home and End
-walk the items and Escape closes it and returns to the trigger. A control that is on is
-`aria-pressed` (a mark the selection carries, a link around the caret); a menu's trigger is
-`aria-expanded`, and the style trigger names the current style. An unavailable control (a mark or
-a wrap without a selection, the style menu without a text selection, link where the selection
-covers no text, undo or redo as `history` says) is `aria-disabled`, stays focusable so the arrows
-still reach it, and sends nothing. It is never natively `disabled`, which would take it out of
-the tab order. The package ships no styles: the application styles the slots, and a bar that
-should fit a phone wraps (`flex-wrap`) or scrolls in its own `root`.
+ArrowLeft/ArrowRight (mirrored for `direction: 'rtl'`), Home, and End navigate controls; ArrowDown opens menus; unavailable actions use `aria-disabled` so arrow keys can still reach them.
 
-### The application's own controls and entries
+### Add custom application controls
 
-An item `{ control: { id, label, icon?, shortcut?, pressed?, disabled?, message, popup? } }` joins
-the same tab stop and arrow order, where `items` puts it; its element and `data-item` are
-`app-<id>`. A press sends `message`. While `disabled` it is `aria-disabled`, stays focusable and
-sends nothing, but the view cannot make a Message unsendable from elsewhere: the application's
-`update` must refuse it in that state too. `popup: { kind, open }` makes it a trigger for something
-the application draws, as `link` is: `aria-haspopup` says which kind, a `menu` is `aria-expanded`
-while `open`, and `message` toggles it. ArrowDown on a closed menu's trigger, and Escape on an open
-popup's, send `message`.
+Add `{ control: { id, label, icon?, shortcut?, pressed?, disabled?, message, popup? } }` anywhere in `items` and `InsertEntry.App` entries in `inserts`:
 
 ```ts
-import { formattingToolbar, InsertEntry } from 'foldkit-mixins-richtext'
+import { InsertEntry } from 'foldkit-mixins-richtext'
 
 formattingToolbar<Message>()(
   {
@@ -279,30 +204,11 @@ formattingToolbar<Message>()(
 )
 ```
 
-### Narrow screens
+Also refuse disallowed actions in `update` when `disabled` is true, since the view only marks the button `aria-disabled`.
 
-Wrap an item as `{ low: item }` to say it gives way: with `compact: true` it is not drawn in the
-bar, and a separator a hidden group leaves at an end or beside another is dropped. The bar ends
-with a **More** button instead, whose menu lists the low controls in order with their names. Each
-row sends the control's own Message; a toggle (Code, Strikethrough, an application control with
-`pressed`) is a `menuitemcheckbox` that says whether it is on, and a control that does not apply
-(undo with nothing to undo) is an `aria-disabled` row that sends nothing. The button is part of the
-bar's one tab stop and its arrow keys; ArrowDown opens the menu and a second enters it, and Escape
-returns to the button. The application keeps the open menu as it does for the others (`menu:
-'more'`, `toggled('more', open)`), and a press of a row goes through `wrap`, where it closes the
-menu. A low control that opens a popup of its own (`style`, `insert`, `link`, an application
-control with a `popup`) has no form in that menu, so a compact bar leaves it out: do not mark one
-`low` unless the narrow screen can do without it. `words.more` names the button and its menu. If
-the control the tab stop names is the one that goes, the stop falls to the nearest control still
-drawn (the next one, else the one before).
+### Collapse low-priority controls on narrow screens
 
-The bar knows no width: the application keeps `compact` in its Model. A window's media query is one
-signal (`foldkit-primitives/media`'s `MediaQuery.with({ query: '(max-width: 40rem)' })`, a Bundle
-holding `matches` that a `matchMedia` Subscription keeps current: pass `compact:
-model.narrow.matches`). Where the bar sits in a column narrower than the window (a panel beside
-it), measure the bar's own width instead: a `Resize` mount from `foldkit-primitives/observers` on
-the element around it, kept in the Model as a number, and `compact` is that number under what the
-bar needs (the CMS example does this).
+Wrap secondary items in `{ low: item }` and set `compact: true` (driven by a `MediaQuery` or `Resize` observer in your Model) to collapse them into a trailing **More** menu (`menu: 'more'`):
 
 ```ts
 formattingToolbar<Message>()(
@@ -316,70 +222,37 @@ formattingToolbar<Message>()(
     onFocus: id => FocusedControl({ id }),
     items: ['undo', 'redo', 'separator', { mark: 'Bold' }, { low: { mark: 'Code' } }, { low: 'quote' }],
     compact: true,
-    // The Code and Quote controls are in the More menu, which `menu: 'more'` opens.
   },
   h,
 )
 ```
 
-### Where the focus goes
+Keep popup triggers (`style`, `insert`, `link`, or controls with `popup`) out of `{ low }` unless narrow screens can omit them, since the **More** menu only lists direct actions and toggles.
 
-**A pointer press leaves the focus in the text.** The bar's root carries `data-editor-controls`
-(`CONTROLS_ATTRIBUTE` from `foldkit-richtext-dom/toolbar`), and while the focus is in the text the
-editor holds back the focus change of a press inside such an element. The click still happens. So
-after pressing Bold the same text is still selected in the browser, pressing Italic marks it too,
-and typing replaces it. A menu opened by a press is chosen from by a press, and its entry lands on
-the selection or caret that is still in the text. No control took the focus, so the tab stop does
-not move. A press made while a bar control or another field has the focus moves the focus to the
-pressed control, as any button does.
+### Keep focus predictable across pointer and keyboard
 
-**A control reached by key holds the focus.** After Tab or Shift+Tab to the bar and the arrows, a
-command (Enter or Space on Bold, a list wrap, undo) leaves the focus on its button, so the next
-control is an arrow away. Every command reads the selection the editor keeps in the Model, which
-the focus leaving does not change, so two commands in a row act on the same text. The browser
-cannot show a selection in the text while a button has the focus, so the editor draws it as a
-decoration, `span[data-decoration="selection"]`, which the application's stylesheet paints as
-selected text. Typing then is not typing in the text: a letter reaches the button, and Space
-presses it again.
-
-To go back to the text, press Escape on a control. It sends `returned`, usually
-a Message whose `update` runs `foldkit-richtext-dom/editor-bundle`'s `focus(hostId, selection)`;
-without `returned` Escape does nothing there. It closes an open popup first, and then returns.
-Tab into the text returns too. Either way the decoration goes and the selection is the browser's
-again, so typing replaces it. To come back to the bar, Tab or Shift+Tab reaches the control last
-focused.
-
-`markToolbar`, `blockStyles`, `blockStyleMenu`, `tableToolbar`, `codeToolbar`, `slashMenuView` and
-`linkEditor` mark their roots the same way. A field in a marked element (the link editor's
-address) takes the focus as usual. Mark your own chrome that acts on the selection, such as a
-block menu, with `h.Attribute(CONTROLS_ATTRIBUTE, '')`.
+Toolbar roots carry `data-editor-controls`, so pointer clicks keep focus inside the editor text and leave the browser selection intact while still triggering the button. Keyboard navigation (`Tab` into the bar, then arrow keys) holds focus on the bar while the editor draws `span[data-decoration="selection"]` to keep the text range visible; pressing `Escape` dispatches `returned` so your `update` can return focus via `focus(hostId, selection)`. Mark your own custom editor chrome with `h.Attribute(CONTROLS_ATTRIBUTE, '')` from `foldkit-richtext-dom/toolbar`.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `root` | Container | the bar, `role="toolbar"`, `data-editor-controls`; owns `keydown` |
-| `button` | Interactive | one control, `data-item` its id, `aria-pressed` or `aria-expanded` |
-| `separator` | Container | a rule between sets |
-| `anchor` | Container | a menu's trigger and its open panel, to anchor the panel to |
-| `label` | Container | a trigger's text |
-| `menu` | Collection | the open panel, `role="menu"` |
-| `item` | Interactive | one entry, `data-style` or `data-insert` its id |
-| `itemLabel`, `itemDescription` | Container | an entry's label and description |
+| `root` | Container | `role="toolbar"` root owning `keydown` |
+| `button` | Interactive | Control with `data-item`, `aria-pressed` or `aria-expanded` |
+| `separator` | Container | Divider between groups |
+| `anchor` | Container | Trigger and panel wrapper for anchoring |
+| `label` | Container | Trigger text |
+| `menu` | Collection | Open `role="menu"` panel |
+| `item` | Interactive | Entry with `data-style` or `data-insert` |
+| `itemLabel`, `itemDescription` | Container | Entry label and description |
 
-## The link editor
+## Edit and remove links
 
-An address field with two buttons: link the selection (or change the link around the caret),
-and remove that link. The address being typed is the application's; what it sends is the
-editor's `AppliedMark` or `ClearedMark` through `wrap`, so the editor applies either as one
-transition and one undo step.
+`linkEditor` provides an address input with Apply/Update and Remove buttons, returning `AppliedMark` or `ClearedMark` through `wrap`:
 
 ```ts
-import * as RichText from 'foldkit-richtext'
 import { linkEditor } from 'foldkit-mixins-richtext'
 
-// Opening the editor: start the draft from the link the selection is in, if any.
 const linkDraft = RichText.linkAt(model.document, model.editor.selection)?.href ?? ''
 
-// In a view:
 linkEditor<Message>()(
   {
     document: model.document,
@@ -392,104 +265,59 @@ linkEditor<Message>()(
 )
 ```
 
-What it sends is `RichText.safeUrl(draft)`, so the address is cleaned and a `javascript:` or
-`data:` one is never sent. Applying needs such an address and something to link: a range of
-text, or a caret inside a link. Otherwise the apply button is disabled and Enter in the field
-falls through. The remove button is drawn only inside a link. Where the editor appears, and
-when it opens or closes, is the application's; give it `closed` and Escape in the field sends
-it. Focusing the field as the editor opens, so a link can be pasted at once, is a Command the
-application runs (`Dom.focus('[data-link="address"]')`).
-
-The view decides what its button sends from the draft it was drawn with, which is a frame behind
-keys typed fast: Enter straight after the last character would apply the draft before it. Give
-it `submitted`, and Enter sends that instead, for `update` to apply
-`linkEdit(document, selection, draft)` to the draft the Model holds; `linkEdit` is the same
-decision the button makes, as an `Option` of the editor's Message.
+URLs are sanitized with `RichText.safeUrl` before emitting, and Apply stays disabled unless a valid URL and either a text range or a link around the caret exist. Pass `closed` to catch `Escape`, and pass `submitted` so fast Enter presses compute `linkEdit(document, selection, model.linkDraft)` from the latest Model draft rather than the last rendered props.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `root` | Container | the editor's wrapper, `role="group"` |
-| `input` | TextInput | the address field, `data-link="address"`, "Paste or type a link" |
-| `apply` | Interactive | the apply button, `data-link="apply"`, labelled Apply or Update |
-| `remove` | Interactive | the remove button, `data-link="remove"`, inside a link only |
+| `root` | Container | `role="group"` wrapper |
+| `input` | TextInput | Address input with `data-link="address"` |
+| `apply` | Interactive | Apply/Update button with `data-link="apply"` |
+| `remove` | Interactive | Remove button with `data-link="remove"` inside links |
 
-## The slash menu
+## Render the slash menu
 
-What opens a menu, what it offers, and what Enter sends are the editor's
-(`foldkit-richtext-dom`'s README explains `slashQuery`, `slashEntries`, and `slashMenu`), and
-they are re-exported here so the chrome and the editor share one vocabulary. This package adds
-the two things the editor cannot: the keys that move the highlight, and the view.
+`slashMenuView` renders the filtered slash menu entries while `slashMove` updates `menuIndex` on arrow, Home, and End keys:
 
 ```ts
 import { slashEntries, slashMenuView, slashMove } from 'foldkit-mixins-richtext'
 import { menuTextOf } from 'foldkit-richtext-dom/editor-bundle'
 
-// The catalogue as the caller's Messages.
 const entries = slashEntries(message => edited(message))
-
-// Where ArrowDown moves the highlight: the primitive's rule, shared with any other list.
 const next = slashMove(entries, 'see /head', model.editor.menuIndex, 'ArrowDown', modifiers)
 
-// The view, placed only while `slashMenu` says a query is open.
 slashMenuView<Message>()(
   { entries, textBefore: menuTextOf({ document, ...model.editor }), index: model.editor.menuIndex },
   h,
 )
 ```
 
-`slashMove` returns the index a key moves the highlight to, or `undefined` for a key that moves
-nothing, and it starts from what the menu highlights now rather than a remembered index, so a
-query that narrowed past the old one does not move from a position no one can see. The keys
-are the application's to handle, because only it knows the caret: ArrowUp/Down and Home/End in
-`OnKeyDownPreventDefault` while a query is open, writing the index to `editor.menuIndex`, and
-Escape, sending the editor's `DismissedSlash`. Enter is not: the editor's `update` resolves it
-against that index, unless Escape closed the menu. Reading the menu's text through
-`menuTextOf` (from `foldkit-richtext-dom/editor-bundle`) is what keeps a view shut while Enter
-splits.
-
-Each item carries `data-entry` (its id), `role="menuitem"`, `aria-current="true"` on the
-highlighted one, and its entry's Message on click, and draws the entry's icon (when the set
-below has it), label and description. Under `/` alone the entries sit under their groups'
-headings; a query lists the best matches first, without headings, and one that matches nothing
-says "No matches". Outside a query the view draws nothing.
+Handle ArrowUp/ArrowDown and Home/End with `OnKeyDownPreventDefault` while a query is open, and send `DismissedSlash` on Escape. Reading `menuTextOf` ensures `slashMenuView` stays hidden after Escape until a new `/` query begins.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `root` | Container | the menu's wrapper |
-| `list` | Collection | the list of matches |
-| `heading` | Container | a group's name, before its first entry |
-| `item` | Interactive | one entry, per match |
-| `icon` | Container | the entry's icon |
-| `label` | Container | the entry's label |
-| `description` | Container | the line under the label |
-| `empty` | Container | "No matches" |
+| `root` | Container | Menu wrapper |
+| `list` | Collection | Match list |
+| `heading` | Container | Group heading before its first item |
+| `item` | Interactive | Menu row with `data-entry` and `aria-current="true"` |
+| `icon` | Container | Entry icon |
+| `label` | Container | Entry label |
+| `description` | Container | Entry description |
+| `empty` | Container | `"No matches"` fallback |
 
-## Icons
+## Render editor icons
 
-`richTextIcon(h, name, { size })` draws one of the chrome's icons as inline SVG, stroked in the
-text's color and hidden from assistive technology, so the control it sits in names it.
-`richTextIconUrl(name)` is the same drawing as a CSS `url(…)` for a stylesheet to mask, where a
-rendering's adornment cannot hold an element. The set covers the editor's slash entries (by
-their `icon`), the marks, the blocks an application inserts (table, image, video, audio, file,
-callout, toggle, divider, footnote), and the actions around them (undo, redo, search, replace,
-match-case, download, copy, trash, plus, more, grip, close, check, chevrons, back, contents,
-reset). `isRichTextIcon(name)` says whether a name has a drawing. The drawings are Lucide's,
-under its ISC license, whose notice is in `src/icons.ts`.
+`richTextIcon(h, name, { size })` draws inline Lucide SVG icons hidden from assistive technology (`aria-hidden`), and `richTextIconUrl(name)` produces a CSS `url(...)` data URI for masked CSS adornments. `isRichTextIcon(name)` checks whether an icon name exists across slash entries, marks, blocks, and toolbar actions.
 
-## The block handle
+## Move and reorder blocks with a handle
 
-The moves one block can make as a whole: dragged by its grip, or up and down. Which block it
-stands for is the caller's, usually one of `RichText.blocksAt(document, selection)`: the
-outermost to move a whole list, an item to reorder a list.
+Anchor `blockHandle` beside the active block using `blockAnchor` from `foldkit-richtext-dom/toolbar`:
 
 ```ts
-import * as RichText from 'foldkit-richtext'
 import { blockAnchor } from 'foldkit-richtext-dom/toolbar'
 import { blockHandle } from 'foldkit-mixins-richtext'
 
 const [outermost] = RichText.blocksAt(model.document, model.editor.selection)
 
-// Drawn beside its block, in an element `blockAnchor` places and the block keys.
 outermost === undefined
   ? h.empty
   : h.div(
@@ -503,31 +331,20 @@ outermost === undefined
     )
 ```
 
-- **The grip** drags the block anywhere the vocabulary lets it stand (`blockDrag`). It is out of
-  the tab order, since a drag has no keyboard form.
-- **Up and down** send `MovedBlock` to put the block before its previous sibling or after its
-  next. They move it only within its container, so moving it into another one has no keyboard
-  path yet. Each is disabled at its end of the container, and both when the block is not in
-  the document.
-- **The key matters.** A Mount reads its args once, when its element is inserted, so without
-  it the handle would stay beside, and drag, the first block the caret visited.
+Key the wrapper with `h.Key(outermost.id)` so `blockAnchor` and `blockDrag` rebind whenever the target block changes. The grip drags blocks anywhere allowed by the vocabulary, while the up and down buttons reorder siblings within the current container.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `root` | Container | the handle, `role="group"` |
-| `grip` | Interactive | what it is dragged by, `data-handle="grip"` |
-| `up` | Interactive | `data-handle="up"` |
-| `down` | Interactive | `data-handle="down"` |
+| `root` | Container | `role="group"` handle wrapper |
+| `grip` | Interactive | Drag grip with `data-handle="grip"` |
+| `up` | Interactive | Move-up button with `data-handle="up"` |
+| `down` | Interactive | Move-down button with `data-handle="down"` |
 
-## The table and code toolbars
+## Add table and code block toolbars
 
-Toolbars for a block, drawn above it in an element `blockAnchor({ side: 'above' })` places. The
-table toolbar edits the table around the caret's cell; the code toolbar picks a code block's
-language and copies it.
+`tableToolbar` edits rows, columns, and header flags around the caret's cell, while `codeToolbar` changes a code block's language and dispatches a copy Message:
 
 ```ts
-import * as RichText from 'foldkit-richtext'
-import { blockAnchor } from 'foldkit-richtext-dom/toolbar'
 import { codeToolbar, tableToolbar } from 'foldkit-mixins-richtext'
 
 const table = RichText.tableAt(model.document, model.editor.selection)
@@ -559,83 +376,34 @@ codeToolbar<Message>()(
 )
 ```
 
-- **The table toolbar** sends the editor's `InsertedRow` and `InsertedColumn` (`before`,
-  `after`), `DeletedRow`, `DeletedColumn`, `DeletedBlock` for the whole table, and `ChangedProps`
-  on the first row's `header`, which its button shows pressed. Every button is disabled outside a
-  table (`RichText.tableAt` finds none), so it can be drawn always or only there. The editor
-  takes Tab and Shift+Tab in a cell to move between cells, and Tab in the last adds a row.
-- **The code toolbar** shows the block's `language` in a picker and sets it with
-  `ChangedProps`, so it is saved and undone with the text; a language the list does not name is
-  offered as itself. Copy sends the caller's Message, since the clipboard is a Command: copy
-  `RichText.toText([block])`.
+| Slot | Capability | Renders |
+| --- | --- | --- |
+| `TableToolbarSlots.root` | Container | Table toolbar wrapper |
+| `TableToolbarSlots.toolbar` | Collection | `role="toolbar"` button row |
+| `TableToolbarSlots.button` | Interactive | Action button with `data-table` |
+| `CodeToolbarSlots.root` | Container | `role="toolbar"` wrapper |
+| `CodeToolbarSlots.language` | Interactive | Language `<select>` |
+| `CodeToolbarSlots.copy` | Interactive | Copy button with `data-code="copy"` |
+
+## Find and replace text
+
+`findReplace<Message>()` renders the search and replacement inputs, match counter (`2 of 5` or `No matches`), and navigation/replace buttons. Keep `query`, `replacement`, `current`, and `caseSensitive` in your Model, advance `current` with `stepMatch(current, count, step)` in `update`, and overlay highlights using `overlay(hostId, RichText.searchDecorations(...))`.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `TableToolbarSlots.root` | Container | the wrapper |
-| `TableToolbarSlots.toolbar` | Collection | `role="toolbar"` |
-| `TableToolbarSlots.button` | Interactive | one per change, `data-table` (`row-above`, …) |
-| `CodeToolbarSlots.root` | Container | `role="toolbar"` |
-| `CodeToolbarSlots.language` | Interactive | the `select` |
-| `CodeToolbarSlots.copy` | Interactive | `data-code="copy"` |
+| `root` | Container | `role="search"` wrapper |
+| `field` | TextInput | Inputs with `data-find="query"` or `"replacement"` |
+| `count` | Container | Live match count (`aria-live`) |
+| `button` | Interactive | Controls keyed by `data-find` (`previous`, `next`, `case`, `replace`, `replace-all`, `close`) |
 
-## Find and replace
+## Outline, footnotes, and command palette
 
-`findReplace<Message>()` is the find bar. The query, the replacement, which match is current
-and whether case counts are the caller's Model; the matches are `RichText.findMatches` of the
-document, and replacing is the editor's `ReplacedText`, an edit with its undo step.
-
-- Enter in the find field goes to the next match and Shift+Enter to the previous, wrapping at
-  either end. The bar sends `stepped(1)` or `stepped(-1)`, and the caller's `update` moves its
-  current match with `stepMatch(current, count, step)`: two keys can arrive before the bar is
-  drawn again, so the step is applied to the Model, not to the index the bar last showed. Escape in either
-  field sends `closed`.
-- The count reads `2 of 5`, or `No matches`; Replace and Replace all are disabled without one.
-- To show the matches, overlay `RichText.searchDecorations(document, query, { current })` on the
-  editor (`overlay(hostId, decorations)`), and set it again when the document changes.
-
-| Slot | Capability | Renders |
-| --- | --- | --- |
-| `root` | Container | `role="search"` |
-| `field` | TextInput | the find and replacement fields, `data-find="query"` and `"replacement"` |
-| `count` | Container | the count, `aria-live` |
-| `button` | Interactive | `data-find`: `previous`, `next`, `case`, `replace`, `replace-all`, `close`; the first three and `close` draw an icon, named by `aria-label` and `title` |
-
-## The table of contents
-
-`tableOfContents<Message>()` draws `RichText.outlineOf(document)` as a `nav` of buttons, the
-section the selection is in (`RichText.sectionAt`) marked `aria-current="location"`. Choosing an
-entry sends `chosen(node)`; going there is the caller's, usually the editor's `focus(hostId,
-selection)` Command with a caret at the heading's start. Nothing is drawn without headings.
-
-| Slot | Capability | Renders |
-| --- | --- | --- |
-| `root` | Container | the `nav`, labelled Contents |
-| `list` | Container | the `ul` |
-| `entry` | Interactive | a heading's button, its depth as `--fk-toc-level` (1 for the shallowest level used) |
-
-## The footnote preview
-
-`footnotePreview<Message>()` is drawn while the caret is in a footnote reference
-(`RichText.footnoteAt`), and is empty everywhere else, so a caller can anchor it at the selection
-and draw it always. It shows the note's text ("No note yet" when there is none), Go to note, which
-sends `opened(definition)` (the caller usually gives the editor the focus there with `focus`), and
-the label as a field that sends the editor's `RenamedFootnote` when it changes.
-
-| Slot | Capability | Renders |
-| --- | --- | --- |
-| `root` | Container | `role="group"`, labelled with the footnote |
-| `label` | TextInput | the label field |
-| `text` | Container | the note's text |
-| `button` | Interactive | Go to note, disabled with no definition |
-
-## The command palette
-
-The slash menu's catalogue, searched from a field of its own instead of typed into the
-document. Whether it is open, its query, and its highlighted index are the application's, as
-`{ query, index } | null` in its Model.
+- **`tableOfContents<Message>()`**: Renders `RichText.outlineOf(document)` as a `nav` list, marking `RichText.sectionAt` with `aria-current="location"` and calling `chosen(node)` on click (returns empty when no headings exist). Slots: `root` (`nav`), `list` (`ul`), `entry` (button with `--fk-toc-level`).
+- **`footnotePreview<Message>()`**: Renders when the caret is inside a `FootnoteRef` (`RichText.footnoteAt`), showing the note text, a label field emitting `RenamedFootnote`, and a Go to note button sending `opened(definition)`. Slots: `root` (`role="group"`), `label` (`TextInput`), `text` (`Container`), `button` (`Interactive`).
+- **`commandPalette<Message>()`**: Searches `slashEntries` from a standalone `role="combobox"` dialog driven by `{ query, index } | null` in your Model:
 
 ```ts
-import { commandPalette, slashEntries } from 'foldkit-mixins-richtext'
+import { commandPalette } from 'foldkit-mixins-richtext'
 
 const commands = slashEntries(event => Message.ChoseCommand({ event }))
 
@@ -654,26 +422,18 @@ model.palette === null
     )
 ```
 
-Typing sends `changed(query, 0)`; ArrowUp and ArrowDown send `changed(query, next)`, wrapping;
-Home and End stay the field's. Enter and a click send the entry's own Message, which is why the
-entries are wrapped: the application's `ChoseCommand` closes the palette and hands `event` to
-the editor. Enter with nothing matching sends nothing, and Escape sends `closed`. The field is
-a `combobox` whose `aria-activedescendant` names the highlighted option, so `id` must be unique
-on the page. Opening the palette on a chord and moving focus into it are the application's.
-
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `root` | Container | the palette, `role="dialog"` |
-| `input` | TextInput | the search field, `role="combobox"` |
-| `list` | Collection | the matches, `role="listbox"` |
-| `option` | Interactive | one entry, `data-entry` and `aria-selected` |
+| `root` | Container | `role="dialog"` palette |
+| `input` | TextInput | `role="combobox"` search input |
+| `list` | Collection | `role="listbox"` matches |
+| `option` | Interactive | Option row with `data-entry` and `aria-selected` |
 
-## The status line
+## Show word counts and validation diagnostics
 
-How long the document is, and what the application found wrong with it. It sends nothing.
+`editorStatus<Message>()` displays cached word and character counts (`RichText.count`) alongside any `diagnostics` you pass from `RichText.validate`:
 
 ```ts
-import * as RichText from 'foldkit-richtext'
 import { editorStatus } from 'foldkit-mixins-richtext'
 
 editorStatus<Message>()(
@@ -682,23 +442,16 @@ editorStatus<Message>()(
 )
 ```
 
-The counts are `RichText.count`: words and characters as `Intl.Segmenter` splits them, kept per
-document value so a caret move does not count again. The problems are whatever `diagnostics`
-holds, one item each; the view does not validate, because which Kit a document answers to is
-the application's. Leave `diagnostics` out and none is shown.
-
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `root` | Container | the status line's wrapper |
-| `counts` | Base | `2 words · 11 characters`, `data-status="counts"` |
-| `problems` | Collection | the list, `data-status="problems"` |
-| `problem` | Base | one diagnostic, `data-code`, and `data-node` when it has one |
+| `root` | Container | Status bar wrapper |
+| `counts` | Base | Counts summary with `data-status="counts"` |
+| `problems` | Collection | Diagnostics list with `data-status="problems"` |
+| `problem` | Base | Diagnostic item with `data-code` and `data-node` |
 
-## The Markdown source editor
+## Switch to Markdown source mode
 
-Source mode is `SourceSession | null` in the application's Model: `foldkit-richtext-markdown`'s
-`openSource` sets it, and `closeSource` ends it. While it is set, draw this instead of the rich
-editor:
+Pair `sourceEditor<Message>()` (and optionally `sourcePreview<Message>()` for split view) with `openSource` and `closeSource` from [`foldkit-richtext-markdown`](../richtext-markdown) while `model.source` is non-null:
 
 ```ts
 import { sourceEditor } from 'foldkit-mixins-richtext'
@@ -717,50 +470,23 @@ model.source === null
     )
 ```
 
-- **The text area** holds the draft and sends `drafted` as it changes. When drawn it takes focus
-  with its caret at `session.caret`, where `openSource(document, { selection })` put the rich
-  editor's caret, then sends `moved` as the caret moves. The application keeps that in
-  `session.caret`, so `closeSource(...).selection` is the caret back in the rich editor. The
-  caret is placed when the text area appears, not on every render, since a Mount reads its args
-  once.
-- **The warnings** under it name what switching back would lose or refuse, read from
-  `closeSource`, so there are none until the draft is edited. They are computed once per draft.
-- **`done`** is the way back. The application's `update` decides whether to commit
-  `closeSource(...).document` at once or to ask first when there are warnings.
-
-Split mode is the same session drawn twice: `sourcePreview<Message>()({ session, document,
-rendering? })` beside the editor renders the document switching back would commit, through the
-read-only renderer, so it dispatches nothing. It shares the editor's parse of the draft, and
-while the draft is unedited it shows the document the application holds now.
+The textarea sets initial focus and caret position from `session.caret` on mount, emits `drafted` and `moved` as the user types or moves, lists any conversion warnings computed from `closeSource`, and emits `done` when leaving source mode so `update` can inspect warnings before committing `closed.document`.
 
 | Slot | Capability | Renders |
 | --- | --- | --- |
-| `root` | Container | the editor's wrapper |
-| `text` | TextInput | the Markdown, `data-source="text"` |
-| `warnings` | Collection | the list, `data-source="warnings"` |
-| `warning` | Base | one loss, with `data-code` and `data-detail` for a Style to key on |
-| `done` | Interactive | the way back, `data-source="done"` |
+| `root` | Container | Source editor wrapper |
+| `text` | TextInput | Markdown textarea with `data-source="text"` |
+| `warnings` | Collection | Warnings list with `data-source="warnings"` |
+| `warning` | Base | Warning item with `data-code` and `data-detail` |
+| `done` | Interactive | Exit button with `data-source="done"` |
 
-## What it does not draw
+## What lives elsewhere
 
-- **The placeholder** is the editor's own, placed with `editorAt`, because it is drawn inside
-  the editable subtree this package stays out of.
-- **Positioning** is `foldkit-richtext-dom/toolbar`'s: `selectionAnchor` for a floating
-  toolbar, `blockAnchor` and `blockDrag` for the handle.
+- **Editor placeholder and line hints:** Configured on `editorAt` in [`foldkit-richtext-dom`](../richtext-dom#configuring-an-editor-placement) because they live inside the `contenteditable` tree.
+- **Floating and block positioning:** `selectionAnchor`, `blockAnchor`, and `blockDrag` live in [`foldkit-richtext-dom/toolbar`](../richtext-dom#position-toolbars-block-handles-and-menus).
 
-## Checks
+## Next
 
-```bash
-pnpm --filter foldkit-mixins-richtext typecheck
-pnpm vitest run packages/mixins-richtext/test
-```
-
-`smoke/` checks the *built* richtext packages the way a consumer meets them: through each
-package's `exports` map, from `dist`. Everything inside this workspace resolves them from
-source, so nothing else catches a wrong `exports` path, a missing file, or a wrong `types`
-condition. Build first, then:
-
-```bash
-pnpm build
-pnpm --filter foldkit-mixins-richtext smoke
-```
+- Mount the editable host and configure placements: [`foldkit-richtext-dom`](../richtext-dom)
+- Style Slots with theme tokens and Behaviors: [`foldkit-mixins`](../mixins)
+- Parse and print Markdown for source mode: [`foldkit-richtext-markdown`](../richtext-markdown)

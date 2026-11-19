@@ -174,8 +174,32 @@ export default [
     edits: [
       {
         file: '../src/domain.ts',
-        find: 'body: Schema.String.check(Schema.isMaxCodePoints(280)),',
-        replace: 'body: Schema.String,',
+        find: 'Schema.isMaxCodePoints(280),',
+        replace: '',
+      },
+    ],
+    tests: server,
+  },
+  {
+    // The server's blank rule, which no CHECK can say exactly.
+    name: 'a chirp may say nothing',
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: 'text.trim().length > 0',
+        replace: 'true',
+      },
+    ],
+    tests: [...server, ...page],
+  },
+  {
+    // The shortest length, which the table's CHECK holds.
+    name: 'a chirp may be empty',
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: 'Schema.isMinCodePoints(1),',
+        replace: '',
       },
     ],
     tests: server,

@@ -1,20 +1,8 @@
 # `foldkit-agent-a2a`
 
-Serves a [`foldkit-agent`](../agent) runtime as an A2A agent.
+Letting another AI agent discover and delegate tasks to your Foldkit app over the Agent-to-Agent (A2A) protocol usually requires hand-authoring an Agent Card JSON document and writing a separate JSON-RPC task handler that can drift from your permissions. You want one source of truth for both discovery metadata and runtime execution.
 
-Use it when **another agent** should discover and call the same capabilities
-your Foldkit application already exposes. This package derives an A2A Agent Card
-from the protocol-neutral contract and turns A2A tasks into invocations of the
-bound `AgentRuntime`.
-
-The application's `AssistantAgent` is the protocol-neutral contract.
-`AgentBuilder.bind(...)` binds it to an `AgentRuntime`, which holds the live Model,
-dispatch and policy. `foldkit-agent-a2a` is the adapter on top: it serves the Agent
-Card and takes tasks and `message/send` from other agents.
-
-A2A describes the contract; it does not redefine it. Availability,
-authorization, input validation, cancellation, and completion remain in
-`foldkit-agent`.
+`foldkit-agent-a2a` generates an A2A Agent Card from your [`foldkit-agent`](../agent) contract and maps A2A `message/send`, `tasks/get`, and `tasks/cancel` requests directly to your bound `AgentRuntime`. Availability, authorization, input decoding, cancellation, and completion stay inside your contract. See agent contracts in action in [the live Todo agent demo](https://foldkit-todo-demo.pages.dev/).
 
 ## Install
 
@@ -24,32 +12,21 @@ pnpm add foldkit-agent foldkit-agent-a2a
 
 `foldkit`, `effect`, and `foldkit-agent` are peer dependencies.
 
-## Sixty seconds: card + task handler
+## A first Agent Card and task handler
 
-Start with the [Agent contract and host guide](../agent/README.md#usage).
-The integration below assumes `AssistantAgent` is your declared contract and
-`AgentBuilder` is its application-specialized builder. `agentRuntime` is the
-result of binding that contract to your live host and verified principal.
+Build an `AssistantAgent` contract (see the [Agent contract guide](../agent/README.md#a-first-agent-contract)), generate its static Agent Card, and handle an A2A `message/send` call:
 
-
-Generate the static Agent Card from the contract:
-
-<!-- docs-check
-import { Agent } from 'foldkit-agent'
+```ts
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-const Message = defineMessageUnion({
-  RequestedCreateTodo: { title: Schema.String },
-  RequestedDeleteTodo: { id: Schema.String },
-})
-type Message = typeof Message.Type
-interface Model {
-  readonly selectedTodoId: Option.Option<string>
-}
-const AgentBuilder = Agent.forModel<Model>()
-const AssistantAgent = AgentBuilder.make({
-  messages: AgentBuilder.expose(Message, {
-    RequestedCreateTodo: 'Create a todo',
+import { Agent } from 'foldkit-agent'
+import { AgentA2a } from 'foldkit-agent-a2a'
+
+const Model = Schema.Struct({ selectedTodoId: Schema.Option(Schema.String) })
+const Message = defineMessageUnion({ RequestedDeleteTodo: { id: Schema.String } })
+const TodoAgent = Agent.forModel<typeof Model.Type>()
+const AssistantAgent = TodoAgent.make({
+  messages: TodoAgent.expose(Message, {
     RequestedDeleteTodo: {
       name: 'delete_todo',
       description: 'Delete the selected todo',
@@ -57,35 +34,30 @@ const AssistantAgent = AgentBuilder.make({
     },
   }),
 })
-declare const currentModel: () => Model
-declare const sendToRuntime: (message: Message) => void
-const agentRuntime = AgentBuilder.bind({
-  definition: AssistantAgent,
-  host: { model: currentModel, dispatch: sendToRuntime },
-})
--->
-
-```ts
-import { AgentA2a } from 'foldkit-agent-a2a'
 
 const card = AgentA2a.agentCard(AssistantAgent, {
   name: 'Todos',
   description: 'A todo list',
   url: 'https://todos.example/a2a',
-  securitySchemes: {
-    bearer: { type: 'http', scheme: 'bearer' },
-  },
+  securitySchemes: { bearer: { type: 'http', scheme: 'bearer' } },
   security: [{ bearer: [] }],
 })
 ```
 
-Serve it from `AgentA2a.AGENT_CARD_PATH` (`/.well-known/agent-card.json`).
-Generating the card starts no HTTP server. Its security declaration describes
-your endpoint; your HTTP layer must authenticate requests and bind the principal.
+`card` is plain JSON metadata to serve at `AgentA2a.AGENT_CARD_PATH` (`/.well-known/agent-card.json`). Generating the card starts no HTTP server, and your HTTP layer handles authentication and principal binding for incoming requests.
 
-Then serve task calls through the bound runtime:
+Next, bind the contract to a host and handle incoming A2A JSON-RPC calls:
 
 ```ts
+type AppModel = typeof Model.Type
+const { host } = Agent.headless({
+  init: (): { model: AppModel; commands: [] } => ({
+    model: { selectedTodoId: Option.some('todo-1') },
+    commands: [],
+  }),
+  update: (model: AppModel) => ({ model, commands: [] }),
+})
+const agentRuntime = TodoAgent.bind({ definition: AssistantAgent, host })
 const served = AgentA2a.handler({ agent: agentRuntime })
 
 await served.handle({
@@ -97,96 +69,58 @@ await served.handle({
       kind: 'message',
       role: 'user',
       messageId: 'm-1',
-      parts: [
-        {
-          kind: 'data',
-          data: {
-            skill: 'delete_todo',
-            input: { id: 'todo-1' },
-          },
-        },
-      ],
+      parts: [{ kind: 'data', data: { skill: 'delete_todo', input: { id: 'todo-1' } } }],
     },
   },
 })
 ```
 
-Call `served.close()` when the host shuts down. The handler keeps tasks in
-memory; it is not a durable workflow store or a replacement for the application
-journal.
+Each A2A skill maps to one exposed capability and passes through the same runtime checks as MCP, WebMCP, and in-process calls. Call `served.close()` when shutting down; the handler keeps tasks in an in-memory bounded buffer rather than a durable store.
 
-One A2A skill maps to one exposed capability. The request still goes through the
-same runtime checks as WebMCP, MCP, Agent Native, or an in-process caller.
+## Static card metadata vs. dynamic availability
 
-## Static card, dynamic application
+An Agent Card is static discovery metadata, whereas Foldkit capabilities can depend on live Model state or the caller's principal. The generated card marks dynamic capabilities accurately without locking discovery to a single Model snapshot:
 
-An Agent Card is static metadata, while Foldkit capability availability may
-depend on the current Model.
+- Capabilities with `available(model)` are tagged `conditional`.
+- Capabilities with `authorize` are tagged `authorized`.
+- Both checks still run against live state on every `message/send`.
 
-The card therefore describes declared capabilities, not a promise that every
-skill can run in every Model state:
+## Task states and completion outcomes
 
-- a capability with `available(model)` is tagged `conditional`;
-- a capability with `authorize` is tagged `authorized`;
-- both are still checked against the live runtime at invocation time.
-
-This preserves the contract's dynamic authority boundary without making the
-published Agent Card depend on one transient Model snapshot.
-
-## Tasks and completion
-
-A `message/send` produces a task. `tasks/get` reads it later and `tasks/cancel`
-aborts one that is still running. Tasks are kept in a bounded buffer.
-
-The important distinction is **rejected** vs **failed**:
+`message/send` creates a task readable with `tasks/get` and abortable with `tasks/cancel`. The adapter distinguishes **rejected** (declined before running) from **failed** (accepted, then failed during completion):
 
 | Outcome | A2A task state |
 | --- | --- |
-| unknown skill | `rejected` |
-| input fails the capability schema | `rejected` |
-| current principal is unauthorized | `rejected` |
-| capability is unavailable in the current Model | `rejected` |
-| declared failure Message arrives | `failed` |
-| completion times out after dispatch | `failed` |
-| invocation is cancelled | `canceled` |
-| validated dispatch, with no completion contract | `completed` |
-| correlated success Message arrives | `completed` |
+| Unknown skill | `rejected` |
+| Input fails capability schema | `rejected` |
+| Caller unauthorized | `rejected` |
+| Capability unavailable in Model | `rejected` |
+| Declared failure Message arrives | `failed` |
+| Completion times out after dispatch | `failed` |
+| Invocation cancelled | `canceled` |
+| Validated dispatch without completion contract | `completed` |
+| Correlated success Message arrives | `completed` |
 
-`rejected` means the runtime declined to start the requested operation. `failed`
-means the operation was accepted but did not successfully complete. A client can
-make different retry or fallback decisions from that distinction.
+Capabilities without a completion contract finish at validated dispatch; capabilities with one wait until their correlated success/failure Message, timeout, or cancellation settles the task.
 
-A capability without a completion contract is complete at validated dispatch. A
-capability with one stays in flight until its correlated success/failure Message,
-timeout, or cancellation settles the task.
+## Supported A2A features and limits
 
-## What is deliberately not implemented
+The generated Agent Card advertises only what the adapter implements:
 
-The adapter advertises only the A2A features it actually supports:
+- `streaming: false` and `pushNotifications: false` (`message/stream` is refused).
+- Multi-turn `input-required` / `auth-required` flows, file parts, and artifacts are omitted.
 
-- `streaming: false`
-- `pushNotifications: false`
-- `message/stream` is refused
-- multi-turn `input-required` / `auth-required` flows are out of scope
-- file parts and artifacts are out of scope
-
-It is better for the card to describe a smaller truthful surface than to expose
-protocol features the underlying application adapter does not implement.
-
-## Choosing an adapter
-
-All four adapters serve the same `AssistantAgent` contract through a bound
-runtime.
+## Choose an agent adapter
 
 | Where the agent runs | Adapter |
 | --- | --- |
-| In the page, beside the user | [`foldkit-agent-webmcp`](../agent-webmcp) |
-| An external MCP client, over stdio or HTTP | [`foldkit-agent-mcp`](../agent-mcp) |
-| Another agent, over A2A | `foldkit-agent-a2a` |
+| In the page beside the user | [`foldkit-agent-webmcp`](../agent-webmcp) |
+| External MCP client over stdio or HTTP | [`foldkit-agent-mcp`](../agent-mcp) |
+| Another agent over A2A | `foldkit-agent-a2a` |
 | An Agent Native host | [`foldkit-agent-native`](../agent-native) |
 
-## See also
+## Next
 
-- [Agents guide](../../docs/agents.md) — builder → contract → runtime and the authority model.
-- [`foldkit-agent`](../agent) — the protocol-neutral contract and runtime.
-- [`examples/todo`](../../examples/todo) — a focused contract served through adapters.
+- Define capabilities, completion contracts, and audit logs: [`foldkit-agent`](../agent)
+- Serve the same contract over MCP: [`foldkit-agent-mcp`](../agent-mcp)
+- Read the architecture guide: [Agents guide](../../docs/agents.md)

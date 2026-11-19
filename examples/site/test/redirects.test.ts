@@ -42,10 +42,12 @@ describe('the moved guide pages', () => {
       const [path = '', anchor = ''] = to.split('#')
       const page = pages.find(each => each.path === path)
       expect(page, `${from} -> ${to}`).toBeDefined()
-      expect(
-        page!.anchors.some(each => each.id === anchor),
-        `${from} -> ${to}`,
-      ).toBe(true)
+      if (anchor !== '') {
+        expect(
+          page!.anchors.some(each => each.id === anchor),
+          `${from} -> ${to}`,
+        ).toBe(true)
+      }
       expect(paths.has(from), `${from} is still a page`).toBe(false)
     }
   })

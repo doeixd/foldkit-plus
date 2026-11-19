@@ -1,28 +1,8 @@
 # `foldkit-agent`
 
-Lets an agent use a Foldkit application through the transitions it already
-has. It adds two boundaries and nothing else:
+Letting an AI assistant or external service operate a web app usually ends up creating a second API layer with duplicated validation, separate authorization checks, and tool handlers that drift out of step with the UI. You want an assistant to use the exact same state transitions your buttons trigger, while seeing only the fields you choose to share.
 
-- The Model becomes a context projection: what an agent may see.
-- The Message union becomes `Agent.expose`: what an agent may do.
-
-A capability **is** a Message, so an agent cannot do anything the application
-cannot, and there is no second implementation of a feature to keep in step. The
-context is a `foldkit-surface` projection, so the value a view renders is the
-value an agent reads. `update` remains the single source of truth, and the
-protocol adapters are translation only.
-
-What you get for declaring that once: typed input decoded at the boundary,
-capabilities that appear and disappear with the Model, authorization beside the
-Messages it governs, a completion contract so a call resolves on the fact rather
-than on receipt, an audit log of every decision, and four protocol adapters that
-add no authority of their own.
-
-**Use it when** an assistant, a copilot, or another service should drive the
-application the way a person does. **Not for** DOM automation: this dispatches
-Messages, so if the behaviour is not a Message, add one. **Not a guarantee of
-exactly-once effects**: completion says a correlated fact was applied, not that
-an external action can be safely repeated.
+`foldkit-agent` turns your Foldkit `Model` (your application state) and `Message` union (the actions sent to `update`) into a typed, protocol-neutral agent contract. You pick a read-only `Projection` from `foldkit-surface` for what the agent may read, expose selected Message variants with `Agent.expose` for what it may do, and bind the contract to your running app with `Agent.host` or `Agent.headless`. Protocol adapters (`foldkit-agent-mcp`, `foldkit-agent-webmcp`, `foldkit-agent-a2a`, `foldkit-agent-native`) serve that single contract over MCP, browser WebMCP, A2A, and Agent Native. See it running in [the live Todo agent demo](https://foldkit-todo-demo.pages.dev/).
 
 ## Install
 
@@ -30,335 +10,199 @@ an external action can be safely repeated.
 pnpm add foldkit-agent
 ```
 
-`foldkit` and `effect` are peer dependencies. The
-[agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) covers the mental model, and
-[examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) is a worked contract.
+`foldkit` and `effect` are peer dependencies.
 
-A community package, not affiliated with or endorsed by the Foldkit
-maintainers.
+## A first agent contract
 
-## Usage
-
-Start from a normal Foldkit application:
+Declare your `Model` and `Message` union, select which slice of state agents can read with `Projection.pick`, and expose only the Messages an agent is allowed to send:
 
 ```ts
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-
-const Todo = Schema.Struct({
-  id: Schema.String,
-  title: Schema.String,
-  completed: Schema.Boolean,
-})
-
-const Model = Schema.Struct({
-  todos: Schema.Array(Todo),
-  selectedTodoId: Schema.Option(Schema.String),
-})
-
-type Model = typeof Model.Type
-
-const Message = defineMessageUnion({
-  RequestedCreateTodo: { title: Schema.String },
-  RequestedRenameTodo: { id: Schema.String, title: Schema.String },
-  RequestedDeleteTodo: { id: Schema.String },
-  ReceivedTodos: { todos: Schema.Array(Todo) },
-  FailedToLoadTodos: { message: Schema.String },
-})
-type Message = typeof Message.Type
-```
-
-Bind the constructors to your application, then declare the contract:
-
-```ts
 import { Agent } from 'foldkit-agent'
 import { Projection, Surface } from 'foldkit-surface'
-import { Effect, Option } from 'effect'
+
+const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, completed: Schema.Boolean })
+const Model = Schema.Struct({ todos: Schema.Array(Todo), selectedTodoId: Schema.Option(Schema.String) })
+const Message = defineMessageUnion({
+  RequestedCreateTodo: { title: Schema.String },
+  RequestedDeleteTodo: { id: Schema.String },
+  ReceivedTodos: { todos: Schema.Array(Todo) },
+})
 
 const App = Surface.application({ Model, Message })
-
 const TodoAgent = Agent.forApplication(App)
-
 const AppAgent = TodoAgent.make({
-  // This projection is the context returned to the agent.
   context: Projection.pick(App.model.todos, App.model.selectedTodoId),
-
   messages: TodoAgent.expose(Message, {
-    // A variant that needs nothing but a description can be written as one.
     RequestedCreateTodo: 'Create a new todo',
-    RequestedRenameTodo: 'Rename an existing todo',
     RequestedDeleteTodo: {
       name: 'delete_todo',
-      description: 'Delete the selected todo',
-      available: model => Option.isSome(model.selectedTodoId),
+      description: 'Delete a todo',
+      available: model => model.selectedTodoId._tag === 'Some',
     },
   }),
 })
 ```
 
-`ReceivedTodos` and `FailedToLoadTodos` are never reachable by an agent.
-Exposure is opt-in, and there is deliberately no `exposeAll()`.
+`AppAgent` now defines two agent capabilities (`requested_create_todo` and `delete_todo`) with JSON Schemas derived from `Message`, plus a read-only `todos` and `selectedTodoId` context. `ReceivedTodos` stays internal and cannot be invoked by an agent because exposure is opt-in.
 
-The contract is a declaration: it does not run `update` or register tools.
-Bind it to the running application. `Agent.host` takes the config you give
-Foldkit and returns it with a host beside it; start the config as you already
-do (`run`, `hydrate`, `embed`, or `SSR.hydrate`):
+Bind the contract to a live Foldkit runtime using `Agent.host`, then dispatch capabilities through `agentRuntime.messages.dispatch`:
 
 <!-- docs-check
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import type * as Update from 'foldkit/update'
+type Model = typeof Model.Type
+type Message = typeof Message.Type
 declare const init: () => Update.Return<Model, Message>
 declare const update: (model: Model, message: Message) => Update.Return<Model, Message>
 declare const view: (model: Model, h: HtmlBuilder<Message>) => Document
 declare const container: HTMLElement
 -->
 ```ts
+import { Effect } from 'effect'
 import * as Runtime from 'foldkit/runtime'
 
 const { config, host } = Agent.host({ Model, init, update, view, container })
 Runtime.run(Runtime.makeApplication(config))
 
 const agentRuntime = TodoAgent.bind({ definition: AppAgent, host })
-```
 
-The runtime still owns the Model. The host reads the Model it committed and
-sends a Message into the runtime's own queue, so an agent's Message runs
-`update`, its Commands and its Subscriptions exactly as a click's does. See
-[The host](#the-host) for what it guarantees.
-
-Once bound, an in-process invocation uses the same path as a protocol adapter:
-
-```ts
 const result = await Effect.runPromise(
   agentRuntime.messages.dispatch(Message.RequestedCreateTodo, { title: 'Read the guide' }),
 )
 ```
 
-`dispatch` returns an Effect; constructing it performs no dispatch. Running it
-decodes the input, checks policy, and sends the Message. This example has no
-completion contract, so success means dispatch finished, not that a remote
-save completed. Add completion when the application's later result matters.
+Running `dispatch` decodes the payload against `RequestedCreateTodo`'s schema, verifies `available`, sends the Message into the runtime's queue so `update`, Commands, and Subscriptions run just as they do for a user click, and resolves once the transition completes. When an operation finishes asynchronously in a later Message or state change, add a completion contract so `dispatch` waits for the outcome.
 
-The host must accept every Message the contract can construct -- a wider union
-is fine, a narrower one is a type error -- and a contract whose hooks read a
-principal must be given a `principal` provider of the matching type.
+`Agent.bind` requires the host to accept every Message the contract can emit and—when variants declare `authorize`—provide a `principal` callback returning the matching principal type.
 
 ### The host
 
-`bind` takes any `{ model, dispatch, subscribe?, observe?, principal? }`. Three
-things give one:
+`Agent.bind` accepts any `{ model, dispatch, subscribe?, observe?, principal? }` host:
 
-| Where the application runs | Host |
+| Where the app runs | Host |
 | --- | --- |
-| A page, on Foldkit's runtime | `Agent.host(config).host` |
-| A test or a server, with no view | `Agent.headless({ init, update, subscriptions?, resources? }).host` |
-| A local-first replica | what `Sync.mount` returns |
+| Browser page on Foldkit runtime | `Agent.host(config).host` |
+| Tests or server with no view | `Agent.headless({ init, update, subscriptions?, resources? }).host` |
+| Local-first Sync replica | Return value of `Sync.mount` |
 
-Both hosts here behave the same:
+Across all hosts, `model()` reads the last committed `Model`, `dispatch(message)` resolves after `update` applies the Message (rejecting if the runtime stops or crashes first), `subscribe` fires on Model changes, and `observe` fires on every applied Message so completion contracts work.
 
-- `model()` is the Model the runtime committed last. It throws until the
-  runtime is running.
-- `dispatch(message)` returns a Promise that resolves once `update` has applied
-  that Message. It rejects while the runtime is not running, and when it stops
-  or crashes first, saying which. A capability without a completion contract
-  therefore reports success after its transition, not before it.
-- `subscribe` hears every transition that changed the Model; `observe` hears
-  every Message `update` applies, from the page, a Subscription, a Command or
-  an agent, so completion contracts work.
+Authorization belongs in the contract rather than the host: pass the current caller via `host: { ...host, principal: () => principal }`.
 
-A host has no policy: authorization lives in the contract, so pass the host to
-`bind`, never to an agent. Give the principal beside it:
-`host: { ...host, principal: () => principal }`.
+Each `Agent.host(config)` wraps a single runtime; call `Agent.host` separately for each runtime instance rather than reusing one wrapped config across two starts.
 
-`Agent.host` refuses a config it has already hosted, and a second runtime
-started from one hosted config: host each runtime with its own call. Started
-while the first runs, the second fails to boot. Started in the same tick, the
-first to start its Subscriptions is hosted and the other crashes ("a second
-runtime was started from this config"), since a runtime disposed before its
-Subscriptions start, as a remount does, never says it stopped.
+`Agent.headless` runs `init`, `update`, Commands, and Subscriptions with `resources` initialized once for its lifetime and no DOM. Server-side per-session agents typically bind one headless host per authenticated caller with that caller's `RemoteClient`. It omits `managedResources`, `routing`, `ports`, and keyed interruptible Commands (enforced by types and runtime checks). Calling `dispose()` stops the host and releases resources.
 
-`Agent.headless` runs the same `init`, `update`, Commands and Subscriptions,
-with `resources` built once for its life, and no DOM. One per session is the
-server shape: give each the `RemoteClient` for that session's principal, and the
-server's Guards decide its writes as they do a browser's.
-[examples/kitchen-sink](https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink)
-binds its agent to one, over the in-process Remote server. It does not run
-`managedResources`, `routing` or `ports` (each is a type error), and an
-interruptible Command (one with a `key`) crashes it, since Foldkit keeps its
-interrupt registry internal. A crash rejects every pending and later dispatch;
-`dispose()` stops it and releases `resources`.
+### Join a `foldkit-bundle` assembly
 
-### Wiring
+Register the contract in a Bundle assembly via `AppAgent.wiring()` so module introspection sees the contract; it adds no Model fields or Subscriptions of its own.
 
-The contract joins a `foldkit-bundle` assembly contract-only, so the Module
-sees it:
+## Choose the completion boundary
 
-```ts
-const wiring = AppAgent.wiring()
-```
-
-It routes nothing and subscribes to nothing -- an agent adds no state -- and
-`wiring.contract` is the same contract above.
-
-## Choosing the completion boundary
-
-| Capability does | Meaning of a successful call | Required host seam |
+| Capability behavior | What success means | Required host hooks |
 | --- | --- | --- |
-| Immediate transition, no completion declared | Validated dispatch finished | `model`, `dispatch` |
-| Work that later emits a result Message | A matching result was observed | Add `observe`; correlate overlapping calls |
-| Work whose result is a condition on state | The declared condition holds | Add `subscribe` (or a subscribable source) |
+| Synchronous transition | Validated dispatch finished | `model`, `dispatch` |
+| Emits later result Message | Matching result Message seen | Add `observe` + `correlate` |
+| Reaches a state condition | Predicate holds on state | Add `subscribe` (or `source`) |
 
-A timeout or cancellation after dispatch does not roll back the application.
-Read current state before deciding whether to retry an effectful operation.
+Timeouts or cancellations after dispatch stop waiting without rolling back `update`. Read current state before retrying side-effectful calls.
 
-## API
+## Configure capabilities, authorization, and completion
 
-| Function | Purpose |
-| --- | --- |
-| `Surface.application({ Model, Message, initial, update })` | Captures the application once; `App.model` are typed field references. `initial`/`update` are optional (a runnable application is needed only for sync). |
-| `Projection.pick(App.model.todos, ...)` | The information boundary: what an agent may see. |
-| `Projection.compose(...)` | Compose disjoint picks into one context. |
-| `MessageSet.make(App, [constructors])` / `MessageSet.union(...)` | A typed Message subset, and the union of several disjoint subsets. |
-| `Agent.expose(Message, variants)` | The capability boundary: what an agent may do. |
-| `Agent.exposeSubset(subset, variants)` | The same, restricted to a `MessageSet.make` subset. |
-| `Agent.variant(config)` | A mapped variant whose callbacks are inferred from its `input`; returns an `Agent.Variant`. |
-| `Agent.action(action, { available?, authorize?, applies? })` | A `foldkit-surface` Action as a variant: its name, description, input and Message. |
-| `Agent.resource(name, options)` | A named read-only projection of Model state. |
-| `Agent.make({ context, messages, resources })` | The protocol-neutral contract; `context` is a `Projection`, a `Projection.pick`, or a feature Surface. |
-| `Agent.forApplication(App)` / `Agent.forApplication(App).withPrincipal<Principal>()` | The above, with `Model` inferred from a `Surface.application`; `withPrincipal` fixes the `Principal` type, or takes it from the Context key a server reads it from (`withPrincipal(G.Principal)`), so the two are one type. |
-| `Agent.forModel<Model>()` | The same, when only a Model (no application) is available. |
-| `Agent.part(config)` / `Agent.parts(definition, parts)` | Which control on the screen is which capability or context field, for an agent: see [Parts](#parts). |
-| `Agent.bind({ definition, host, parts? })` | Binds the contract to a live Runtime; `parts` adds `runtime.parts`. |
-| `Agent.host(config)` | `{ config, host }`: the application config to start, and the host over the runtime started from it. |
-| `Agent.headless(config)` | `{ host, dispose }`: the application's `init`, `update`, Commands and Subscriptions run with no view. |
-| `Agent.schema/messages/resources/contextSchema` | Introspection, as plain data. |
-| `Agent.toManifest(definition, parts?)` | The contract as `agent.json`, for committing and diffing; with `parts`, they are listed too. |
-| `Agent.toMarkdown(definition)` | The contract as documentation. |
-| `Agent.auditLog(options)` | A bounded record of decisions, refusals included. |
-| `Agent.summarize(result)` | One outcome summary, so the adapters map results to their protocols the same way. |
-| `Agent.newInvocationId()` | The default invocation id generator, for an adapter supplying its own. |
+`Agent.expose` lets you configure each exposed variant inline with `name`, `description`, `available`, `authorize`, `applies`, `input`, `toMessage`, and `completion`:
 
-### Variant configuration
-
-```ts sketch
-RequestedDeleteTodo: {
-  name: 'delete_todo',              // optional; defaults to requested_delete_todo
-  description: 'Delete a todo',     // required
-  available: model => ...,          // optional: does the capability exist in this Model?
-  authorize: ({ principal, input, model, transport }) => ...,  // optional
-  applies: ({ input, model, principal }) => ...,               // optional: does this call fit the Model?
-  input: Schema.Struct({ id: Schema.String }),                 // optional external input
-  toMessage: ({ id }, { invocation }) => ({ id, source: 'Agent' }),
-}
-```
-
-`input` and `toMessage` must be supplied together; supplying `input` alone is a
-type error and a runtime error.
-
-Written inline, `toMessage` and `authorize` are both checked against the
-variant's own input -- the payload for a direct variant, the `input` codec's
-decoded type for a mapped one -- alongside `principal`, `model` and `transport`.
-No annotation is needed.
-
-`authorize` answers `true`, `false`, or `{ allowed: false, reason }`, or an
-`Effect` of one. A refusal with a `reason` is the `AgentAuthorizationError`'s
-message, so the agent learns why; a bare `false` says only that it was not
-authorized.
-
-`applies` judges a call against what the Model holds, the row its input names,
-which `available` cannot since it sees no input. It answers `true`, `false`, or
-`{ applies: false, reason }`; a refusal is `AgentCapabilityUnavailableError`,
-with the reason as its message. It runs after `authorize` and never for a call
-`authorize` refused, so a caller who may not act learns nothing of the row.
-Over a declared write, `foldkit-remote`'s `Data.capability` gives `authorize`
-and `applies` from the write itself ([Agents](../../docs/agents.md#a-capability-over-a-declared-write)).
-
-The one thing `expose` cannot infer inline is `completion`. `success` and
-`failure` are inference sites, so written inline `correlate` receives any
-Message of the union; `Agent.variant` narrows it to the Messages the contract
-actually names:
-
-```ts sketch
-RequestedDeleteTodo: Agent.variant({
-  description: 'Delete a todo',
-  input: Schema.Struct({ id: Schema.String }),
-  toMessage: ({ id }, { invocation }) => ({ id, requestId: invocation.id }),
-  completion: {
-    success: Message.DeletedTodo,
-    // `result` is DeletedTodo here, not any Message.
-    correlate: (request, result) => request.id === result.id,
-  },
-}),
-```
-
-Reach for it when a completion contract's `correlate` should be checked against
-the Messages it names. Otherwise write the variant inline.
-
-Either way, a contract's type keeps a variant's `name`, its `input`, and its
-completion's outcome, and drops the completion's constructors (`Agent.variant`
-returns an `Agent.Variant`), so a project that emits declarations can export a
-contract without importing `foldkit/schema`, where a constructor's type is
-declared.
-
-A capability already declared as a `foldkit-surface` Action, because a page
-Block's button causes it too, is exposed with `Agent.action` under the tag of
-the Message it makes; exposing it under another tag is a type error, and a
-dispatch through it refused:
-
-```ts sketch
-Agent.expose(Message, {
-  AddedToCart: Agent.action(AddToCart, {
-    // Give the principal its type: an Action's extras are not tied to an application.
-    authorize: ({ principal }: { readonly principal: Shopper }) => principal.canBuy,
+<!-- docs-check
+import { Option } from 'effect'
+interface Caller { readonly id: string; readonly canDelete: boolean }
+const AuthorizedAgent = TodoAgent.withPrincipal<Caller>()
+const DetailedMessage = defineMessageUnion({
+  RequestedCreateTodo: { title: Schema.String, requestId: Schema.String },
+  RequestedDeleteTodo: { id: Schema.String, source: Schema.Literal('Agent') },
+  DeletedTodo: { id: Schema.String },
+  FailedDeleteTodo: { id: Schema.String, reason: Schema.String },
+  SubmittedTodo: { requestId: Schema.String },
+})
+-->
+```ts
+const ProtectedAgent = AuthorizedAgent.make({
+  messages: AuthorizedAgent.expose(DetailedMessage, {
+    RequestedDeleteTodo: {
+      name: 'delete_todo',
+      description: 'Delete a todo',
+      available: model => Option.isSome(model.selectedTodoId),
+      authorize: ({ principal }) => principal.canDelete,
+      applies: ({ input, model }) => model.todos.some(t => t.id === input.id),
+      input: Schema.Struct({ id: Schema.String }),
+      toMessage: ({ id }) => ({ id, source: 'Agent' as const }),
+    },
   }),
 })
 ```
 
-Without an explicit `name`, the tag is normalized: `RequestedDeleteTodo` becomes
-`requested_delete_todo`. Every capital starts a word, with no special case for
-runs of them, so a tag with an acronym is better given an explicit name.
+- **`input` and `toMessage`** always go together when the external tool schema differs from the internal Message payload (for example, hiding an internal `source` tag or injecting `invocation.id`). Written inline, `toMessage`, `authorize`, and `applies` infer the decoded `input` type automatically.
+- **`authorize`** returns `true`, `false`, `{ allowed: false, reason }`, or an `Effect` of one. Returning a `reason` sets the `AgentAuthorizationError` message shown to the caller.
+- **`applies`** checks row-level preconditions against the Model after `authorize` succeeds (returning `AgentCapabilityUnavailableError`), preventing unauthorized callers from probing record existence.
+- **`name`** defaults to snake_case from the tag (`RequestedDeleteTodo` → `requested_delete_todo`) and must match `[a-zA-Z0-9_-]{1,128}`.
 
-A capability `name` becomes a protocol-facing tool name, so it must match
-`[a-zA-Z0-9_-]{1,128}`. An invalid name fails at `Agent.expose`, rather than at
-registration where the client would reject it with no reference back to the
-contract.
+### Narrow completion correlation with `Agent.variant`
 
-### Introspection
-
-The contract is data, so it is testable without an LLM:
-
-<!-- docs-check
-declare const expect: (value: unknown) => { toEqual: (expected: unknown) => void }
--->
-```ts
-expect(Agent.messages(AppAgent).map(message => message.name)).toEqual([
-  'create_todo',
-  'rename_todo',
-  'delete_todo',
-])
-```
-
-### Documenting a contract
-
-The contract is data, so its documentation is generated rather than written:
+When declaring a Message-based `completion` contract, wrap the entry in `Agent.variant(...)` so `correlate` narrows `result` to the declared `success` / `failure` Messages instead of the entire `Message` union:
 
 ```ts
-import { writeFileSync } from 'node:fs'
+import { Duration } from 'effect'
 
-writeFileSync('agent.json', JSON.stringify(Agent.toManifest(AppAgent), null, 2))
-writeFileSync('AGENT.md', Agent.toMarkdown(AppAgent))
+const CorrelatedAgent = AuthorizedAgent.make({
+  messages: AuthorizedAgent.expose(DetailedMessage, {
+    RequestedDeleteTodo: Agent.variant({
+      description: 'Delete a todo',
+      input: Schema.Struct({ id: Schema.String }),
+      toMessage: ({ id }) => ({ id, source: 'Agent' as const }),
+      completion: {
+        success: DetailedMessage.DeletedTodo,
+        failure: DetailedMessage.FailedDeleteTodo,
+        correlate: (request, result) => request.id === result.id,
+        timeout: Duration.seconds(10),
+      },
+    }),
+  }),
+})
 ```
 
-Both are reproducible for a given contract and read nothing from the Model, so a
-committed manifest makes a change to what an application exposes show up in
-review rather than only at runtime.
+Use `Agent.variant` whenever `correlate` reads fields on the completion Message. Dispatched by Message constructor, `result.completion` is typed by the contract (`completed` carries the success Message, `failed` carries the failure Message). Give `correlate` whenever two calls can run concurrently—pass `invocation.id` in `toMessage` and match it on the resulting Message when inputs alone cannot distinguish calls.
 
-### Parts
+Waiting defaults to 30 seconds from `host.dispatch`. `AgentCompletionTimeoutError` and `AgentCancelledError` stop waiting without rolling back a Message that already reached `update`.
 
-A capability says what an agent may do, not which control on the screen does
-it. A part names that control in the contract's own terms: a label and an ARIA
-role, a key of the projected context it shows (`field`), and the exposed
-capability it invokes (`invokes`), or that changes its field (`sets`).
+### Complete on state with `Agent.when`
+
+When success means reaching a Model condition regardless of which Message or live sync caused it, complete on a `Projection` instead:
+
+```ts
+const TodoSlice = Projection.of(Model)({ todos: true })
+
+const StateCompletedAgent = TodoAgent.make({
+  messages: TodoAgent.expose(Message, {
+    RequestedCreateTodo: {
+      description: 'Create a todo',
+      completion: Agent.when({
+        projection: TodoSlice,
+        predicate: ({ todos }, _request) => todos.length > 0,
+      }),
+    },
+  }),
+})
+```
+
+`Agent.when` requires a host with `subscribe`, subscribes before dispatch, and checks once immediately after so synchronous updates or already-satisfied conditions resolve right away. For values outside the Model (such as `Sync.mount`'s `committed` state), pass `source: { get, subscribe }` instead of `projection`.
+
+### Reuse `foldkit-surface` Actions
+
+Expose an existing `foldkit-surface` Action under its matching Message tag with `Agent.action(action, { available?, authorize?, applies? })`. Using a mismatched tag fails at compile time and at dispatch.
+
+## Name UI controls with Parts
+
+Parts map exposed capabilities and context fields onto screen controls (`label`, `role`, `field`, `invokes`, `each`, `key`) so in-page adapters or tests can locate them without adding separate authority:
 
 ```ts
 const AppParts = TodoAgent.parts(AppAgent, {
@@ -375,34 +219,7 @@ const AppParts = TodoAgent.parts(AppAgent, {
 })
 
 const partsRuntime = TodoAgent.bind({ definition: AppAgent, host, parts: AppParts })
-
 const found = await Effect.runPromise(partsRuntime.parts.find({ label: 'Delete Milk' }))
-```
-
-A constructor the contract does not expose, or a field its context does not
-project, is a type error, and `parts` throws for it too. `each`, `key`,
-`label` and `input` are given the projected context, never the Model.
-
-`runtime.parts.list` reads one Model snapshot and returns a
-`PartDescriptor` per part, and per item of a repeated one: `id` (the
-declaration's key), `occurrence` (`key(item)`), `label`, `role`,
-`capability` (its `name`, the occurrence's `input`, and whether it
-`requiresAuthorization`) and `value` (the field's, from the encoded context
-`runtime.context` serves). Listing sends no Message.
-
-- A part gives no authority. Acting on one is `messages.dispatch` with its
-  capability's name, through availability, decoding and `authorize`, as
-  before; `input` is a hint the dispatch decodes again.
-- A part whose capability is unavailable in the snapshot is left out.
-- The context a part reads is encoded through its Schema and decoded again,
-  so a property the Schema leaves out never reaches `value`, `each` or
-  `label`.
-- `find({ label })` answers `Found.One`, `Found.None`, or `Found.Ambiguous`
-  with every match: a label is text, and two parts can share one. Tell them
-  apart by `id` and `occurrence`. A repeated part whose `key` gives two items
-  one occurrence is a defect of the listing.
-
-```ts
 const named = Agent.Found.$match(found, {
   One: ({ part }) => part.capability,
   Ambiguous: () => Option.none(),
@@ -410,360 +227,86 @@ const named = Agent.Found.$match(found, {
 })
 ```
 
-In a page, `AppParts.attributes(h, 'create')`, or `attributes(h, 'remove',
-todo.id)` for an occurrence, writes `data-fk-part` and `data-fk-part-key` on
-the control, so an in-page adapter or a test can find it; nothing reads them
-for authority. `foldkit-agent-mcp` serves the list as `app://parts`.
+`AppParts.attributes(h, 'create')` (or `attributes(h, 'remove', todo.id)`) adds `data-fk-part` and `data-fk-part-key` attributes in views. `runtime.parts.list` reads the projected context snapshot (filtering unavailable capabilities) and `foldkit-agent-mcp` serves it at `app://parts`.
 
-### Dispatch
+## How dispatch executes and fails
 
-Every invocation runs the same six steps, in this order:
+Every invocation runs six steps against a single Model snapshot captured at the start of dispatch:
 
-1. **Resolve** the capability, by Message constructor or by protocol name.
-2. **`available(model)`** — does this capability exist in the current Model?
-3. **Decode** the input through the capability's own Effect Schema.
-4. **`authorize`** — may this principal do it?
-5. **`applies`** — does this call fit what the Model holds?
-6. **Construct and dispatch** the Message into the host.
+1. **Resolve** the capability by Message constructor or protocol name (`AgentUnknownCapabilityError`).
+2. **Check `available(model)`** before `authorize` so unavailable tools report as unavailable rather than leaking authorization status (`AgentCapabilityUnavailableError`).
+3. **Decode** input strictly through the capability's Effect Schema, rejecting excess fields (`AgentInvalidInputError`).
+4. **Check `authorize`** (`AgentAuthorizationError`).
+5. **Check `applies`** against the snapshot and decoded input (`AgentCapabilityUnavailableError`).
+6. **Construct and dispatch** the Message into `host.dispatch`.
 
-A refusal at any step before the last sends no Message at all. `available` runs
-before `authorize` deliberately: a capability the Model does not offer reports
-as unavailable rather than leaking whether the caller would have been permitted.
-All of steps 2 to 6 read one Model snapshot, taken when dispatch begins.
+Because `available`, `authorize`, and `toMessage` share one immutable Model snapshot, contextual checks like reading `Option.getOrThrow(model.selectedTodoId)` after checking `Option.isSome(model.selectedTodoId)` stay consistent across async `authorize` calls.
 
-A capability can be named by its Message constructor or by its protocol name.
-Both are checked, and both infer the input:
+All failures are tagged, Schema-backed errors (`AgentUnknownCapabilityError`, `AgentCapabilityUnavailableError`, `AgentInvalidInputError`, `AgentAuthorizationError`, `AgentCancelledError`, `AgentCompletionTimeoutError`, `AgentResourceError`) narrowable with `Effect.catchTag`:
 
 ```ts
-agentRuntime.messages.dispatch(Message.RequestedDeleteTodo, { id: 'todo-1' })
-agentRuntime.messages.dispatch('delete_todo', { id: 'todo-1' })
-
-// Errors, at compile time:
-// @ts-expect-error: wrong payload
-agentRuntime.messages.dispatch(Message.RequestedDeleteTodo, { todoId: 'x' })
-// @ts-expect-error: not exposed
-agentRuntime.messages.dispatch(Message.ReceivedTodos, { todos: [] })
-// @ts-expect-error: no such capability
-agentRuntime.messages.dispatch('delete_todoo', { id: 'todo-1' })
+agentRuntime.messages
+  .dispatch(Message.RequestedCreateTodo, { title: 'x' })
+  .pipe(
+    Effect.catchTag('AgentCapabilityUnavailableError', error =>
+      Effect.succeed(`${error.capability} is not available`),
+    ),
+  )
 ```
 
-The reference form is worth preferring: it survives a rename of the capability,
-and it needs no name at all for a variant that never declared one.
+Dispatch also accepts a third `invocation` argument (`{ id, transport, signal }`) and exposes `dispatchUnknown(name, payload, invocation)` for protocol adapters reading unvalidated wire payloads. Input types reflect the **encoded** side of the Schema so transforming codecs (such as `Schema.NumberFromString`) accept wire strings.
 
-`invocation` is optional. In-app callers can omit it -- the id is generated and
-the transport defaults to `in-app` -- while an adapter passes its own:
+## Record decisions with the audit log
 
-<!-- docs-check
-declare const signal: AbortSignal
--->
+Attach `Agent.auditLog({ capacity, principal, includeInput?, redact? })` when binding to record every accepted, refused, and unknown outcome in a bounded ring buffer:
+
 ```ts
-agentRuntime.messages.dispatch(Message.RequestedDeleteTodo, { id: 'todo-1' }, {
-  id: crypto.randomUUID(),
-  transport: 'webmcp',
-  signal,
-})
-```
-
-An adapter reads a tool name and an unvalidated payload off the wire, so
-neither can be checked at compile time. That path is `dispatchUnknown`:
-
-<!-- docs-check
-declare const nameFromTheWire: string
-declare const payloadFromTheWire: unknown
-declare const invocation: Parameters<typeof agentRuntime.messages.dispatchUnknown>[2]
--->
-```ts
-agentRuntime.messages.dispatchUnknown(nameFromTheWire, payloadFromTheWire, invocation)
-```
-
-Input is typed as the **encoded** side of the capability's schema, because that
-is what dispatch decodes. A payload of `Schema.NumberFromString` is sent as a
-string and reaches `update` as a number.
-
-### Audit
-
-Every decision the contract makes can be recorded, refusals included:
-
-<!-- docs-check
 type User = { readonly id: string }
-declare const currentUser: () => User
--->
-```ts
+const UserAgent = Agent.forApplication(App).withPrincipal<User>()
 const audit = Agent.auditLog({
   capacity: 500,
-  principal: (caller: User) => caller.id, // an id, not the whole identity
+  principal: (caller: User) => caller.id,
 })
 
-// An agent whose principal is the application's `User`.
-const UserAgent = Agent.forApplication(App).withPrincipal<User>()
 const audited = UserAgent.bind({
   definition: UserAgent.make({
     messages: UserAgent.expose(Message, { RequestedCreateTodo: 'Create a new todo' }),
   }),
-  host: { ...host, principal: currentUser },
+  host: { ...host, principal: () => ({ id: 'user-1' }) },
   audit,
 })
-
-audit.entries()
-// [{ at, invocation, transport, capability, tag, principal,
-//    decision: 'refused', outcome: 'AgentAuthorizationError' }]
 ```
 
-What it will not keep:
+By default the log omits raw inputs (opt in with `includeInput: true` and `redact`), requires an explicit `principal` projector, and never stores the Model. A failing `AuditSink` never breaks dispatch.
 
-- **The input, unless you ask.** It is caller-supplied and may carry anything.
-  `includeInput: true` turns it on, and `redact: ['token']` replaces named
-  fields.
-- **The principal, without a projection.** No projection, no principal --
-  identities carry secrets.
-- **The Model.** Never, by any setting.
+## Generate manifests and inspect contracts
 
-The log is a bounded ring buffer, and a sink that throws never fails a dispatch:
-accountability must not become a new way for a capability to break. Pass any
-`AuditSink` to forward entries somewhere durable instead.
+Contracts are inspectable data, testable without an LLM, and exportable as committed snapshots:
 
-This is not Model replay. Re-dispatching a recorded invocation stays an explicit
-human action.
-
-### Completion
-
-Dispatching a Message and completing an operation are not always the same event.
-A capability can say which Messages finish its work:
-
-```ts sketch
-RequestedDeleteTodo: {
-  description: 'Delete a todo',
-  completion: {
-    success: Message.DeletedTodo,
-    failure: Message.FailedDeleteTodo,
-    correlate: (request, result) => request.id === result.id,
-    timeout: Duration.seconds(10),
-  },
-}
-```
-
-`dispatch` then waits, and the result carries
-`completion: { status: 'completed' | 'failed', message }`. Without a contract,
-validated dispatch remains the boundary and the field is absent.
-
-Dispatched by its Message constructor, the outcome is typed by the contract:
-`completed` carries a success Message (`DeletedTodo` above), `failed` a failure
-one, and a contract naming no failure has no `failed` branch. A state contract's
-outcome has no `message`, and a capability without a contract has
-`completion: undefined`. So the fact needs no runtime check:
-
-```ts sketch
-const result = yield* agent.messages.dispatch(Message.RequestedDeleteTodo, { id })
-if (result.completion?.status === 'failed') return result.completion.message.reason
-```
-
-Dispatched by name, or through `dispatchUnknown`, it is any Message.
-
-This needs a host that can see Messages, not only receive them:
-
-```ts sketch
-host: {
-  model: currentModel,
-  dispatch: sendToRuntime,
-  observe: onMessage, // required by a contract that declares completion
-}
-```
-
-A contract declaring completion is refused at `bind` when the host cannot
-observe, rather than silently reporting every call as complete.
-
-Waiting always has a deadline; it defaults to 30 seconds. It runs from the
-moment the host's `dispatch` is called, so a host that never returns is bounded
-by the same budget. `AgentCompletionTimeoutError` means the wait ended, **not**
-that anything was undone -- the Message reached `update`. The same is true of
-cancelling while a completion is pending.
-
-An abort also settles a host `dispatch` that has not returned, with or without a
-completion contract; without one there is no deadline, so only the signal
-bounds it. Either way the error says delivery is unknown, `AgentCancelledError`
-carries `dispatched: false`, and the audit records `decision: 'unknown'`.
-
-Give `correlate` whenever two invocations of a capability can be in flight at
-once. Without it the first matching Message wins, whichever invocation caused it.
-Its third argument is the call, `{ invocation }`. Where the input cannot tell
-two calls apart (two todos titled "Milk"), pass `invocation.id` into the Message
-from `toMessage`, carry it onto the fact the Command produces, and correlate on
-it:
-
-```ts sketch
-toMessage: ({ title }, { invocation }) => ({ title, requestId: invocation.id }),
-completion: {
-  success: Message.SubmittedTodo,
-  correlate: (_, result, { invocation }) => result.requestId === invocation.id,
-},
-```
-
-#### Completing on state
-
-A Message names one implementation path. When what matters is the outcome --
-the project now has the requested name, whether a Command result, a live update,
-a Sync exchange, or another device put it there -- complete on state instead:
-
-```ts sketch
-RequestedRenameProject: {
-  description: 'Rename a project',
-  completion: Agent.when({
-    projection: ProjectName,
-    predicate: (name, request) => name === request.name,
-  }),
-}
-```
-
-`predicate` reads the projection's value and the capability's input. Both are
-inferred when `when` is written inline in `Agent.expose`; inside `Agent.variant`
-annotate `request`, which is checked against the variant's `input`. The projection must read
-this application's Model, and the host needs `subscribe`; `bind` refuses one
-without it. A value outside the Model reads through `source: { get, subscribe }`
-instead, such as `foldkit-sync`'s `mounted.committed`.
-
-Completed means the condition holds, not that this call made it true. Dispatch
-subscribes before sending and checks once more when it starts waiting, so a
-change `update` makes synchronously is not missed, and a state that already
-holds completes at once. Write a predicate only this call can make true; a
-creation, where only the resulting fact says which record is this call's,
-completes on its Message with `correlate`.
-
-The result carries `status: 'completed'` and no `message`. A predicate that
-throws fails that invocation as a defect, never the code that changed the Model,
-and a projected value a notification left unchanged is not evaluated again (a
-`source` is re-evaluated on every notification, since it may mutate in place). `timeout` and
-cancellation behave as they do for a Message contract.
-
-An invocation whose signal is already aborted is refused before the Model is
-read, and one aborted while decoding or `authorize` is pending never constructs
-or dispatches its Message. Both fail with `AgentCancelledError`.
-
-A host failure may occur after delivery, and completion timeouts and
-cancellation after delivery do not undo it: the Message reached `update`.
-
-Checking `available` before `authorize` is one half of a single guarantee: an
-unavailable capability is
-absent from `messages.available`, and dispatching it by name fails with
-`AgentCapabilityUnavailableError`. Availability is stronger than tool
-visibility -- knowing the name is not enough. Splitting it into separate
-discoverability and invocability predicates was considered and rejected:
-whichever predicate gates dispatch still has to run before `authorize`, so a
-split reintroduces the ordering hazard this order exists to prevent. A
-genuinely "hidden but invocable" capability would be a second predicate layered
-on `available`, not a replacement for it, and nothing here needs one yet.
-
-Decoding rejects undeclared fields, matching the `additionalProperties: false`
-the derived JSON Schema advertises. A capability
-with no payload accepts `{}` and nothing else -- not `[]`, not a string, and not
-an object with fields it never declared.
-
-Failures are tagged and `Schema`-backed, so `Effect.catchTag` narrows them and
-an adapter can encode one to JSON and send it across a protocol boundary:
-
-<!-- docs-check
-const dispatch = agentRuntime.messages.dispatch(Message.RequestedCreateTodo, { title: 'x' })
--->
 ```ts
-dispatch.pipe(
-  Effect.catchTag('AgentCapabilityUnavailableError', error =>
-    Effect.succeed(`${error.capability} is not available`),
-  ),
-)
+Agent.messages(AppAgent).map(message => message.name)
+// ['requested_create_todo', 'delete_todo']
+
+const manifestJson = JSON.stringify(Agent.toManifest(AppAgent), null, 2)
+const markdownDocs = Agent.toMarkdown(AppAgent)
 ```
 
-`AgentUnknownCapabilityError`, `AgentCapabilityUnavailableError`,
-`AgentInvalidInputError`, `AgentAuthorizationError`, `AgentCancelledError`, and
-`AgentResourceError`
-for resource reads. Every `message` is written for the calling agent: it names
-the capability and never restates the underlying decode failure, which stays on
-the error's `cause` for the application.
+## Main exports
 
-Dispatch runs inside an `Agent.dispatch` span annotated with the capability,
-transport, and invocation id, so agent-originated transitions show up in
-tracing alongside the rest of the application.
+- **Contract builders:** `Agent.forApplication(App)`, `Agent.forModel<Model>()`, `Agent.make`, `Agent.expose`, `Agent.exposeSubset`, `Agent.variant`, `Agent.action`, `Agent.resource`, `Agent.when`
+- **UI parts:** `Agent.part`, `Agent.parts`, `Agent.Found`
+- **Runtime hosts:** `Agent.host`, `Agent.headless`, `Agent.bind`
+- **Introspection and audit:** `Agent.messages`, `Agent.resources`, `Agent.schema`, `Agent.contextSchema`, `Agent.toManifest`, `Agent.toMarkdown`, `Agent.auditLog`, `Agent.summarize`, `Agent.newInvocationId`
 
-### The Model snapshot
+## Why capabilities are Messages and hosts wrap config
 
-An invocation captures one Model snapshot when dispatch begins. `available`,
-`authorize`, and `toMessage` all observe that snapshot, and a later Model change
-does not retarget an invocation already in flight.
+- **Messages over Model setters:** Exposing Messages keeps every transition inside `update`, preserving replay, validation, and side effects rather than adding a second mutation path.
+- **`Agent.host` wrapping:** Foldkit's `makeApplication` returns a handle without direct `model()` or `dispatch()` accessors, so `Agent.host(config)` instruments `update` and `subscriptions` once before `run`, `hydrate`, `embed`, or `SSR.hydrate`.
+- **`forApplication` / `forModel` inference:** Fixing `Model` upfront lets TypeScript infer `model` inside inline `available`, `authorize`, and `applies` callbacks without type annotations.
 
-`host.model()` is called once per invocation, not once per predicate, and
-`InvocationContext.model` is that snapshot -- the same value `available` was
-checked against. There is no separate field for it.
+## Next
 
-The host must treat returned Models as immutable and replace them on updates.
-The runtime retains the reference; it does not clone the Model. Unknown
-capabilities and already-cancelled invocations never read the Model.
-
-This matters because a contextual capability can read the Model twice:
-
-```ts sketch
-RequestedDeleteTodo: {
-  name: 'delete_selected_todo',
-  description: 'Delete the currently selected todo',
-  available: model => Option.isSome(model.selectedTodoId),
-  input: Schema.Struct({}),
-  toMessage: (_, { model }) => ({ id: Option.getOrThrow(model.selectedTodoId) }),
-}
-```
-
-That is [examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) as written.
-
-The `getOrThrow` is safe only because the Model `toMessage` reads is the one
-`available` approved. Re-reading after an async `authorize` would let the two
-disagree: `available` passing against a new Model while `toMessage` built from
-the old one, or the reverse, so a capability could be dispatched with the
-selection it was never offered for -- or throw on a selection that had just been
-cleared.
-
-Snapshot consistency is not live-state freshness. One invocation sees one Model;
-a later invocation sees the newer one. The Runtime guarantees the first, not the
-second. If the user changes the selection while an invocation is suspended, that
-invocation still targets the selection captured when dispatch began.
-
-Nothing rejects a dispatch because the live Model has advanced since capture.
-Optimistic concurrency -- a version on the snapshot, and an adapter opting into
-failing the stale invocation -- is deliberately not provided, on the same footing
-as the second availability predicate above: it can be added when a real case
-needs it, and adding it early would fix semantics nothing has asked for.
-
-## Why the API looks like this
-
-**Why `bind` and a host, rather than a runtime option.** Foldkit `0.170.0`
-accepts no `agent` option on `makeApplication`, and its runtime handle exposes
-neither the current Model nor a dispatch function. `Agent.host` wraps the config
-instead, before any starter sees it, so one seam serves `run`, `hydrate`,
-`embed` and `SSR.hydrate` alike: its `update` records each commit, and one
-Subscription entry carries dispatched Messages into the runtime's queue.
-`Agent.bind({ definition, host })` then takes any host, which is why
-`Sync.mount` and a hand-written one ([examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo))
-fit as well.
-
-**Why `forApplication` and `forModel`, rather than plain `make`.** TypeScript
-cannot infer `Model` from an `available` callback alone, so `available: model =>
-…` would leave `model` as `any`. `Agent.forApplication(App)` infers it from a
-`Surface.application`, with `App.model` typed; `Agent.forModel<Model>()` fixes
-it when there is no application. `Agent.make` is still there when the Model does
-not matter.
-
-**Effect 4, not 3.** Foldkit `0.170.0` peer-depends on `effect@~4.1.0`, so
-snippets written against Effect 3 need translating: `Schema.OptionFromSelf` is
-`Schema.Option` here.
-
-**Why capabilities expose Messages, never setters.** An agent changes the
-application exactly the way a person does: by causing a Message the
-application already handles, which `update` (normally via `modifyFields`) reduces.
-There is no agent-side Model write, so nothing the agent does can bypass
-transition semantics or diverge from what replay shows.
-
-## See also
-
-- [The agents guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md) — what an agent may see and
-  do, and why a capability is a Message.
-- The adapters that serve this contract: [`foldkit-agent-webmcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-webmcp) in the page,
-  [`foldkit-agent-mcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-mcp) over MCP, [`foldkit-agent-a2a`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-a2a) over A2A, and
-  [`foldkit-agent-native`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-native) as Agent Native actions.
-- [`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) — a worked contract with a hand-written host; [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app)
-  binds one to a local-first application; [`examples/kitchen-sink`](https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink)
-  binds one to `Agent.headless`, its Remote over the in-process server.
+- Serve the contract over stdio or HTTP MCP: [`foldkit-agent-mcp`](../agent-mcp)
+- Publish tools in the browser with WebMCP: [`foldkit-agent-webmcp`](../agent-webmcp)
+- Serve A2A tasks or Agent Native actions: [`foldkit-agent-a2a`](../agent-a2a), [`foldkit-agent-native`](../agent-native)
+- Read the end-to-end architecture guide: [Agents guide](../../docs/agents.md)

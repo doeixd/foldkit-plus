@@ -57,7 +57,7 @@ Four pairs look alike. Each answer is the one fact that differs.
 | The items are | Take | Because |
 | --- | --- | --- |
 | one row or column, no typing to find | `RovingTabindex` | the smallest: one tab stop, arrows, Home and End |
-| one row or column, and typing finds one | `ListNavigation` | `RovingTabindex` plus `Typeahead` in one placement: a container has one `keydown` owner, so the two cannot be placed side by side |
+| one row or column, and typing finds one | `ListNavigation` | combines `RovingTabindex` and `Typeahead` under one `keydown` owner |
 | cells in rows of a fixed `columns` | `GridNavigation` | up and down mean the same column |
 | nested, some of them open | `TreeNavigation` | Left and Right open, close and step out; openness is in the Model |
 | placed anywhere, with no rows or columns | `SpatialNavigation` | the nearest item drawn that way, measured when the key is pressed |
@@ -199,7 +199,7 @@ the Bundle's helper, which runs the same `update` with the placement's args.
 
 | Bundle | Helpers on the placement |
 | --- | --- |
-| `Selection` | `activate(id)` (as a plain click), `select(id)` (replace with one item and anchor), `range(id, order)` (as a Shift click), `replace(ids)`, `clear()` |
+| `Selection` | `activate(id)`, `select(id)`, `range(id, order)`, `replace(ids)`, `clear()` |
 | `TreeNavigation` | `focus(id)`, `open(id)`, `close(id)`, `toggle(id)` (open or shut by the tree's own state) |
 | `RovingTabindex`, `ListNavigation`, `GridNavigation` | `focus(id)` |
 | `Typeahead` | `clear()` |
@@ -594,9 +594,9 @@ showing, and focusable (and this owner's own):
 
 | Step | Finds |
 | --- | --- |
-| `same` | the part with the held slot and key, drawn again (a keyed reorder moves a focused row, and the browser drops focus) |
-| `next`, `previous` | the nearest part of the same slot after or before the held one, in the order last seen while it was focused |
-| `parent` | the part named by `parent: (input, item) => Option<id>` (a tree drawn flat), else the closest part around it |
+| `same` | the same slot and key if redrawn (handles focus dropped on keyed reorder) |
+| `next`, `previous` | the nearest sibling of the same slot in the order last seen while focused |
+| `parent` | the item returned by `parent(input, item)`, or the closest enclosing part |
 | `stop` | this owner's part with `tabindex="0"` |
 | `{ part }` | the first part of that slot |
 | `owner` | the owner element, when it is focusable |
@@ -1602,7 +1602,8 @@ the slots.
 | --- | --- |
 | [Toolbar](../../../examples/widgets/src/toolbar) | `RovingTabindex` |
 | [One-time code field](../../../examples/widgets/src/otp-field) | `RovingTabindex`, a filled cell moving focus with a Command |
-| [Toggle group](../../../examples/widgets/src/toggle-group), [checkbox group](../../../examples/widgets/src/checkbox-group) | `Selection` |
+| [Toggle group](../../../examples/widgets/src/toggle-group) | `Selection` |
+| [Checkbox group](../../../examples/widgets/src/checkbox-group) | `Selection` |
 | [Command menu](../../../examples/widgets/src/command) | `ListNavigation`, `Selection`, `Placing` |
 | [Autocomplete](../../../examples/widgets/src/autocomplete) | `ListNavigation`, `Selection`, `DismissLayer`, `Overlay.nonModal`, `Placing` |
 | [Context menu](../../../examples/widgets/src/context-menu) | `ListNavigation`, `Selection`, `DismissLayer`, `Overlay.nonModal`, `Placing` |

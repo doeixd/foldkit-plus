@@ -112,7 +112,7 @@ const siteNav = <M>(model: FrameModel, label: string, slots: Slots<M>, h: H<M>):
   ])
 
 const note = <M>(slots: Slots<M>, h: H<M>): Html =>
-  h.p(slots.railNote.attrs(), ['Open source, MIT', h.br([]), 'Foldkit 0.168 · Effect 4'])
+  h.p(slots.railNote.attrs(), ['Open source, MIT', h.br([]), 'Foldkit 0.170 · Effect 4'])
 
 const rail = <M>(
   chrome: Chrome<M>,

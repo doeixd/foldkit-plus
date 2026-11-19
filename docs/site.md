@@ -1,29 +1,86 @@
 # Creating a site with `foldkit-site`
 
-`foldkit-site` is the deployed route topology of a Foldkit application:
-which locations exist, how they nest, what each is called, and what it
-activates — as data that compiles down to the primitives the runtime already
-runs. This guide builds a site end to end: nodes, navigation, data fetching
-without waterfalls, prefetching, server rendering, and SEO.
+As a Foldkit app grows past one screen, URLs, page titles, navigation sections,
+breadcrumbs, route prefetching, and server rendering often scatter across
+separate files. Renaming one path forces edits in four places, and a missed
+update turns a link into a 404 or fetches data for the wrong screen.
 
-The package README is the onboarding reference; this guide is the path
-from it to a working application.
+`foldkit-site` puts your route topology in one typed tree built over Foldkit's
+Router. Each node pairs a URL parser and route variant with its title, section,
+history rule, layout, and data `Surface`. This guide walks through building a
+site end to end: routes, navigation, zero-waterfall data fetching, prefetching,
+server rendering, and SEO.
 
-## The one rule
+See a routed app running in
+[`examples/foldkit/routing`](../examples/foldkit/routing), or follow
+[Site, Remote and SSR together](./site-remote-ssr.md) to run data-backed SSR.
 
-```text
-Site        "What location are we at, and what is around it?"
-Surface     "What may this location observe, and which Messages may it cause?"
-Remote      "What server facts do those observations require?"
+## How Site, Surface, and Remote divide the work
+
+Every routed screen answers three questions, each owned by one package:
+
+- **Site (`foldkit-site`):** Where are we in the route tree, what metadata does
+  this location have, and which child locations surround it?
+- **Surface (`foldkit-surface`):** What may this active location observe in the
+  `Model`, and which `Message`s may it send?
+- **Remote (`foldkit-remote`):** Which server reads do those active Surfaces
+  require?
+- **Your app (`Model` and `update`):** Application state, Effects, and state
+  transitions.
+
+Everything below compiles down to Foldkit's Router (URL parsing and
+formatting), `Surface.when` (activation), Bundle placements (stateful pages),
+and Remote or SSR (data and rendering).
+
+## Two nodes and a link
+
+This builds a three-route tree (`Home`, `People`, and `Person`), creates a
+typed target for person `3`, and inspects its URL, ancestor chain, title, and
+navigation section:
+
+```ts
+import { Schema, pipe } from 'effect'
+import { defineRouteUnion, int, literal, mapTo, root, slash } from 'foldkit/route'
+import { Site } from 'foldkit-site'
+
+const AppRoute = defineRouteUnion({
+  Home: {},
+  People: {},
+  Person: { personId: Schema.Number },
+})
+
+const Home = Site.route(pipe(root, mapTo(AppRoute.Home)), AppRoute.Home, { title: () => 'Routing' })
+const People = Site.route(pipe(literal('people'), mapTo(AppRoute.People)), AppRoute.People)
+const Person = Site.route(
+  pipe(literal('people'), slash(int('personId')), mapTo(AppRoute.Person)),
+  AppRoute.Person,
+  { title: ({ personId }) => `Person ${personId} | Routing`, section: 'People' },
+)
+
+const AppSite = Site.make(Home, Site.mount(People, [Person]))
+const target = Site.target(Person, { personId: 3 })
 ```
 
-A Site owns no Model, runs no Effects, dispatches no Messages, and fetches
-nothing. If a feature would need the Site to become another store, async
-runtime, or cache, it does not belong here. Everything below lowers into the
-Foldkit Router (URL semantics), `Surface.when` (activation), Bundle
-placements (stateful pages), and Remote/SSR (data and rendering).
+Evaluating `target` and the tree helpers gives:
 
-## 60 seconds: two nodes and a link
+- `target.route` -> `AppRoute.Person({ personId: 3 })`
+- `target.url` -> `'/people/3'`
+- `Site.chainOf(AppSite, target.route)` -> `[People, Person]`
+- `Site.titleOf(AppSite, target.route)` -> `'Person 3 | Routing'`
+- `Site.sectionOf(AppSite, target.route)` -> `'People'`
+
+`Site.route` wraps an existing Foldkit Router (`literal`, `slash`, `query`,
+`mapTo`) and attaches hierarchy and metadata without re-parsing URLs.
+`Site.make` freezes the topology and rejects duplicate route tags or nodes
+mounted twice so chain inspection stays unambiguous. Every built URL parses back
+to its target's route, and navigation menus read sections, `Site.landing` hrefs,
+and `Site.titleOf` directly from the tree instead of parallel tables.
+
+## Building nodes: options or builder
+
+The options object above handles most routes. To annotate in steps or share an
+annotation bundle across nodes, use the `Site.node` builder (the options
+object builds on the same implementation):
 
 <!-- docs-check standalone define site-routes
 import { Effect, Option, Schema, pipe } from 'effect'
@@ -86,62 +143,14 @@ const PeoplePage = App.surface('PeoplePage', {
 ```ts
 import { Site } from 'foldkit-site'
 
-const Home = Site.route(homeRouter, AppRoute.Home, { title: () => 'Routing' })
-const People = Site.route(peopleRouter, AppRoute.People)
-const Person = Site.route(personRouter, AppRoute.Person, {
-  title: ({ personId }) => `Person ${personId} | Routing`,
-  section: 'People',
-})
-
-const AppSite = Site.make(Home, Site.mount(People, [Person]))
-```
-
-`Site.route` takes an existing full Foldkit Router — `literal`, `slash`,
-`query`, `mapTo`, all of it — and the route case it builds. The router stays
-the whole URL story; the Site adds hierarchy, metadata, and inspection
-without re-parsing anything. `Site.make` freezes the topology and refuses
-two nodes sharing a tag or one node mounted twice, since both would make
-chain inspection ambiguous.
-
-One declaration builds the value and the address together, so a link can
-never point where the parser would not go:
-
-```ts
-const target = Site.target(Person, { personId: 3 })
-target.route // AppRoute.Person({ personId: 3 })
-target.url // '/people/3'
-
-Site.chainOf(AppSite, target.route) // [People, Person]
-Site.titleOf(AppSite, target.route) // 'Person 3 | Routing'
-Site.sectionOf(AppSite, target.route) // 'People'
-```
-
-A built URL parses back to the target's route (there is a test proving the
-round trip). Navigation renders from the tree instead of keeping parallel
-tables: sections in tree order, hrefs from `Site.landing`, titles from
-`Site.titleOf`, the current section by comparing tags.
-
-## Building nodes: options or builder
-
-The options bag above covers the common case. To annotate in steps, or to
-share an annotation bundle across nodes, build incrementally — the options
-are sugar over this builder, one implementation:
-
-<!-- docs-check standalone use site-routes
-import { Site } from 'foldkit-site'
--->
-
-```ts
 const Person = Site.node(personRouter, AppRoute.Person)
   .title(({ personId }) => `Person ${personId} | Routing`)
   .section('People')
   .node
 ```
 
-Methods — not pipeable fragments — because each stage of a pipe is a
-separate generic call and cannot infer the route, while a method already
-knows its node's. Named bundles compose through `.pipe` (or free `pipe`)
-with no annotation:
+Methods infer the route type across steps, and reusable bundles compose through
+`.pipe` (or `pipe`) without type annotations:
 
 ```ts
 import { type NodeBuilder } from 'foldkit-site'
@@ -152,29 +161,25 @@ const inPeopleSection = <R extends { readonly _tag: string }>(b: NodeBuilder<R>)
 const People = Site.node(peopleRouter, AppRoute.People).pipe(inPeopleSection).node
 ```
 
-Read `.node` at any stage: every step freezes, so intermediates are usable
-nodes too (targets, hrefs), never drafts. The full annotation set is
-`title`, `section`, `landing` (the section's nav address, as this node's
-params), `shortcut` (the keys that go to its landing; `Site.shortcuts` binds them), `history` (below),
-`surface` (below), `layout`, and `view` (below).
+Read `.node` at any stage: every step returns a frozen, usable node. The full
+annotation set is `title`, `section`, `landing` (the section's nav target
+params), `shortcut` (keys bound by `Site.shortcuts`), `history`, `surface`,
+`layout`, and `view`.
 
-Two deliberate absences, both load-bearing. The tag always derives from the
-route case — no custom names — because one route case is one node, which is
-what keeps chain inspection unambiguous. And there is no `SitePlan` object,
-no `Site.prefetch`, no `prepare`: preparation stays caller-composed, as the
-data-fetching sections show.
+Node tags always derive from the route case so every route case maps to one
+node. Prefetching and server rendering stay caller-composed rather than wrapped
+in a separate site plan object.
 
 ## History, once
 
-Which moves add a history step and which replace the current one is declared
-once per node. To another node — or from an unknown location, so Back can
-still return to it — is always a step. Within a node, its `history` rule: a
-string, or a function for nodes where some param changes are entries of
-their own and others are views of one entry:
+Declare which moves add a browser history step and which replace the current
+entry once per node. Moving to another node — or from an unknown URL so Back
+returns there — always pushes. Within one node, configure `history` as `'push'`,
+`'replace'`, or a comparison function:
 
 ```ts
 const PersonNode = Site.route(personRouter, AppRoute.Person, {
-  // Another person is another entry (a step); the default within a node is a replace.
+  // Moving to another person pushes; changing sub-view params replaces.
   history: (prev, next) => (prev.personId === next.personId ? 'replace' : 'push'),
 })
 
@@ -186,16 +191,13 @@ Site.historyOf(onePersonTarget, anotherPersonTarget) // 'push'
 Site.historyOf(onePersonTarget, samePersonTarget) // 'replace'
 ```
 
-This unifies the mirror's per-key spelling with the routed code that used to
-spell the same rule by hand. Mirrors keep their per-key spelling for plain
-fields (a search, a tab); routed params that ask an owner for something are
-intents (below), not mirrors — a mirror installs fields but cannot run a
-transition.
+Use `foldkit-mirror` per-key URL mirrors for plain fields like filters or tabs,
+and routed params for transitions handled by `update`.
 
 ## Attaching data: Surfaces
 
-A node names the Surface its route activates, with the route's params made
-into its own:
+A node declares which `Surface` its route activates and maps route params into
+Surface params:
 
 <!-- docs-check standalone use site-routes
 import { Site } from 'foldkit-site'
@@ -210,19 +212,16 @@ const People = Site.route(peopleRouter, AppRoute.People, {
 })
 ```
 
-`Site.sources(site, App.owner, App.model.route)` is each surfaced node as
-its `Surface.when`, keyed by tag, for `Data.wiring`, `Data.subscriptions`,
-`Data.satisfy`, or an SSR plan's `surfaces`. Each entry answers its own tag
-only: on a person page the person Surface is active and the people Surface
-is not. A surface from another application is refused here, not at its
-reads. `Site.sourcesFor(site, owner, place, target.route)` is the same
-entries for the target's chain only — the route-level Sources prefetch and
-SSR read.
+`Site.sources(site, App.owner, App.model.route)` returns a keyed record of
+`Surface.when` sources for `Data.wiring`, `Data.subscriptions`,
+`Data.satisfy`, or an SSR plan's `surfaces` (refusing Surfaces from another
+application). On a `Person` route, only `Person`'s Surface is active.
+`Site.sourcesFor(site, owner, place, target.route)` returns the sources for
+`target.route`'s chain alone for prefetching and SSR.
 
-## The lifecycle wiring: stop hand-writing two branches
+## Link clicks and URL changes
 
-`Site.routing` is the application's link-click and URL-change lifecycle as
-one wiring:
+`Site.routing` wires link clicks and URL changes once for the whole tree:
 
 <!-- docs-check standalone define site-people
 import { Option, Schema, pipe } from 'effect'
@@ -341,23 +340,18 @@ const update = assembly.update((model, message) =>
 )
 ```
 
-A click on a link the tree holds navigates — pushing or replacing per
-`Site.historyOf`, computed from the current route, so entries stay entries.
-Any other link loads, on this origin or not (`Site.routeAt`): another
-application serves it. A URL change sets the route field, or returns the
-same Model when the address parses to the route already shown, so an echo of
-the application's own write never re-renders or clears pending state. The
-wiring claims the click tag and shares the change tag with URL mirrors,
-which read their slices first. `pages` are routed placements (next section),
-informed through their own Messages when their route arrives, and
-`arrived: (model, route) => ({ model, commands })` is what the application
-does after them for a new route (moving focus), never for an echo.
+Clicking a link inside the tree pushes or replaces via `Site.historyOf`; links
+outside the tree (`Site.routeAt`) perform full document loads. On URL changes,
+`Routing` updates the route field (returning the Model unchanged on echoes),
+notifies matched `pages`, and runs `arrived(model, route)` for post-navigation
+effects such as moving focus. `Routing.reduces(message)` keeps click and
+URL-change tags out of `updateOwn` while still letting URL mirrors read their
+slices first.
 
 ## Stateful pages: one placement
 
-`Site.placement` states one routed page once — its link, what starts it,
-and what its route arrival tells it — so the fold and the drawing never
-restate the field, the wrapper, or the slot:
+`Site.placement` binds a `foldkit-bundle` page to its node, parent Model field,
+wrapper Message, init args, and arrival Message:
 
 <!-- docs-check standalone use site-people -->
 
@@ -371,17 +365,15 @@ const PeoplePage = Site.placement(PeopleNode, PeopleBundle, {
 })
 ```
 
-`placed.update` folds the child's Messages and `placed.view` draws it.
-`changed` receives the node's own case value when its route arrives and
-returns the child's Message — or nothing when the arrival needs no answer.
-Bundles with OutMessages, and children that are not Bundles, stay on
+`PeoplePage.placed.update` folds the child's Messages,
+`PeoplePage.placed.view` renders it, and `changed` sends the child Message when
+its route arrives. For Bundles with OutMessages or non-Bundle submodels, use
 `Bundle.at` and `Link.child` directly.
 
 ## Nested rendering without an Outlet
 
-`Site.view(site, route, model, h)` draws the route: the deepest node's view,
-wrapped by every ancestor's layout root-first. Ancestors contribute layouts
-only — never their views:
+`Site.view(site, route, model, h)` draws the deepest node's `view`, wrapped
+root-first by every ancestor's `layout`:
 
 ```ts sketch
 const Section = Site.route(sectionRouter, AppRoute.Section, {
@@ -389,25 +381,19 @@ const Section = Site.route(sectionRouter, AppRoute.Section, {
     render: (child, model, h) => h.div([], [sidebar(model, h), child]),
   },
   view: {
-    render: (model, h) => h.ul([], [...]),
+    render: (model, h) => h.ul([], [/* items */]),
   },
 })
 ```
 
-A layout receives its composed child explicitly: no Outlet, no context
-provider, no hidden route state, no child router. Unknown tags and viewless
-leaves fail loudly instead of guessing. What is deliberately deferred:
-per-node child models, route-local subscriptions/effects, and layout-spanning
-Surfaces — flat routes plus section tags scaled further than assumed, so the
-tree grows those when a real nested layout demands them, not before.
+Each `layout` receives its composed `child` directly without outlets, context
+providers, or nested routers. Ancestors contribute `layout` only, and unknown
+tags or viewless leaves fail loudly.
 
 ## Data fetching: declare, then plan
 
-There are no loaders. A page's Surface declares what it reads; Remote plans
-what the store does not satisfy and fetches it. The application never
-fetches in step with navigation — navigating only changes the route, and the
-reads start and stop as a consequence, through `Data.subscriptions` over the
-site's Sources:
+Routes declare no loader callbacks. A page's Surface declares what it reads,
+and Remote fetches only what the store lacks when `model.route` changes:
 
 <!-- docs-check standalone
 import { Effect, Schema, pipe } from 'effect'
@@ -462,16 +448,14 @@ const OwnerPage = App.surface('OwnerPage', {
 })
 ```
 
-While the route is elsewhere, the Surface is inactive and its requirements
-disappear — including the retention root. This is tested end to end: URL →
-route → Model → Surface → requirements → navigate away → requirements gone.
+When `model.route` leaves `Owner`, `OwnerPage` becomes inactive and its
+retention requirements drop automatically.
 
 ### Preparing a destination: prefetch and preload are one composition
 
-A target's route in a Model, `Site.sourcesFor` for its chain, `Data.satisfy`
-to fill them. This is the whole prefetch story — hover prefetch and
-programmatic preload share it, since the framework owns the topology half
-and the caller owns the one-line preparation:
+To warm a route ahead of navigation (or before SSR rendering), construct a
+hypothetical Model with `target.route`, collect its chain's active sources with
+`Site.sourcesFor`, and call `Data.satisfy`:
 
 <!-- docs-check
 const OwnerNode = Site.node(ownerRouter, AppRoute.Owner).surface({
@@ -491,83 +475,55 @@ const prepare = Effect.gen(function* () {
 })
 ```
 
-Only the destination's query runs, once; the page navigation will then draw
-reads synchronously, already `Ready`. That is the shape for a render with no
-Model yet (SSR, a test). In a running application, the same composition is a
-Command, `Data.preload(there, active)`: its reads land as one `Preloaded`
-Message in the Model as it is by then, rather than as a Model that would undo
-what happened while they were out. Satisfying over every Source would fetch
-no more — off-chain Surfaces resolve to nothing under the target Model either
-way — so the subset is precision and inspection, not a different fetch.
-
-For links, `Site.routing`'s `preload` runs it on intent: `links:
-pointedLinks()` says which same-origin link the reader means to follow (a
-hover or focus resting 50 ms, a finger at once), the routing sends the
-application's `intended` Message, skips an address the tree does not hold and
-the route shown, and hands `read` the Model with the route set. The CMS site
-does this for every link on its own origin (`examples/cms/src/apps/siteApp.ts`).
-A programmatic call before an expected navigation stays the application's.
-No loader cache, no preload lane, no second protocol.
+On the server, `Data.satisfy` prepares the Model before a synchronous render.
+In the browser, `Data.preload(there, active)` runs as a Command and merges
+fetched rows into the current Model via a `Preloaded` Message. Wire
+`Site.routing`'s `preload` option with `pointedLinks()` from
+`foldkit-primitives/dom` to preload same-origin links on hover or focus
+(`examples/cms/src/apps/siteApp.ts`).
 
 ### Why there are no waterfalls
 
-Three facts compose into it:
+Three design choices eliminate route waterfalls:
 
-1. **Requirements are declarative, not scheduled.** What a destination
-   needs is derived from its Surfaces' projections, not executed from its
-   route handlers. Sibling sources plan together and Remote fetches them
-   concurrently and coalesced — route nesting never serializes fetching.
-2. **Dependence costs passes, not waterfalls.** When one read reveals the
-   next (a page naming its cards, a Document naming its Blocks),
-   `Data.satisfy` runs its bounded fixed-point: each pass fetches a level
-   concurrently, and instances the parent reveals are read in a later pass.
-   Only genuine data dependence serializes, and only by level.
-3. **Navigation never awaits data.** The route is set synchronously; reads
-   follow through subscriptions. There is no "run all loaders, then render"
-   gate, so there is nothing to waterfall behind — at the cost the pending-UI
-   convention answers: `Initial` and `Loading` mean unknown, a busy line
-   carries `aria-busy` and appears only once the wait is noticeable
-   (`Utilities.busyReveal`), its space held from the start.
+1. **Declarative requirements:** Sibling Surfaces plan together and Remote
+   batches and deduplicates concurrent reads rather than running sequential
+   route handlers.
+2. **Bounded fixed-point passes:** When a parent read reveals child IDs (like a
+   document revealing its blocks), `Data.satisfy` fetches each dependency level
+   concurrently in one pass.
+3. **Synchronous navigation:** Setting `model.route` transitions immediately
+   without awaiting loaders; `Initial` and `Loading` states render inline with
+   `aria-busy` and reserved layout space (`Utilities.busyReveal`).
 
-A write that moves a list's membership costs one round trip too: the
-request names the first page of each active list its prediction moves
-(archiving out of a full list, a row the client cannot place), and the answer
-carries those pages beside the rows, written in the reduction that releases
-the layer, so the list reads `Ready` throughout (#386; Remote's README,
-"Which lists a write moves"). A list the server does not answer is fetched
-again, as before. `examples/chirp/test/requests.test.ts` counts the requests
-a write costs.
+Mutations that move items between lists name the affected active list pages on
+the write so the server returns updated pages in the same round trip (see
+`foldkit-remote`'s README and `examples/chirp/test/requests.test.ts`).
 
 ## Intents that wait for their owner
 
-Some addresses ask something of a child that has no Model yet: a selection
-for a Builder whose page has not loaded, a preview asked for during the
-editor's load. The ask waits in the Model; a `follow` step applies it once
-the owner is ready, through the owner's own Messages, then lets it go so the
-address follows the owner again:
+When a URL asks for an action on a lazy child whose Model has not loaded yet
+(such as selecting a block while the page loads), hold the pending request in
+the Model and apply it with `followPending` once the child becomes ready:
 
 ```ts sketch
 const follow = followPending(EditorSlot, {
   pending: model => model.linked,
   release: model => ({ ...model, linked: Option.none() }),
   ready: (_child, model) => PageEditor.status(model) !== 'Loading',
-  toMessages: (linked, _child, model) => [/* the ask in the owner's Messages */],
+  toMessages: (linked, _child, model) => [/* owner's Messages */],
   send: (model, message) => Option.some(stepped(model, Message.GotEditorMessage({ message }))),
 })
 ```
 
-Apply the step outside whatever installs a loaded value (so the owner looks
-ready when read), and keep the pending ask where the address Subscription
-can rewrite it while it waits — or a reload during the load loses it. There
-is deliberately no `target.intents` carrier: URL↔intent mapping is
-app-shaped, and a carrier nothing reads would be dead API.
+Apply `follow` outside the installer that loads the child, and keep the pending
+field in URL-synced state so reloads preserve the intent until it runs.
 
 ## Server rendering a route
 
-The server does what prefetch does, then renders. URL → route → target
-Model → `sourcesFor` → `satisfy` → an SSR plan over those Sources with
-Remote's resume part → covered inspection → rendered page carrying the
-destination's data:
+On the server, `SSR.plan` selects the route and active `Site.sources`, pairs
+them with `Remote.resume(Data)`, and renders HTML carrying the data so the
+browser resumes without re-fetching:
 
 <!-- docs-check
 const config = {
@@ -595,79 +551,53 @@ const render = Effect.gen(function* () {
 })
 ```
 
-`SSR.inspect` proves the plan covers what the browser's Surfaces will read;
-the envelope carries exactly what the resolved Surfaces required — a page
-resumes with its data present and asks the server for none of it. Static
-generation is the same preparation under the `staticSite` build plugin, with
-sitemap and robots derived from the generated pages. The browser takeover
-(`when` / `otherwise` / freshness) stays proved in `foldkit-ssr`.
+`SSR.inspect` verifies that the plan covers every active Surface before serving,
+and `staticSite` builds static HTML pages, sitemaps, and `robots.txt` at build
+time.
 
-## SEO today
+## SEO and head metadata
 
-- **Titles** come from the tree: `Site.titleOf(site, route)`, wired into the
-  document the view returns (`{ title: routeTitle(model.route), body: ... }`).
-  One annotation, derived everywhere — nav, breadcrumbs, titles.
-- **Crawlable HTML** comes from SSR or static generation above: fully
-  rendered pages with the data in them, plus sitemap and robots from the
-  static plugin.
-- **Rich head metadata** (per-page descriptions, images, article dates,
-  JSON-LD) is a node's `meta`, a function of its route and the Model, and
-  `indexed: false` marks a node and those below it `noindex`.
-  `Site.metaOf(site, route, model)` merges the chain into SSR's own `Meta`,
-  so it is an SSR plan's `meta` as it stands; there is no second meta
-  system. The template's canonical/`og:url` tags are still filled from the
-  `Document` the view returns.
+- **Titles:** Read `Site.titleOf(site, route)` for your document `{ title, body }`,
+  navigation bars, and breadcrumbs from one source.
+- **Crawlable HTML:** Server rendering and `staticSite` emit populated HTML
+  alongside generated sitemaps and `robots.txt`.
+- **Rich head tags:** Define `meta: ({ route, model }) => Meta` and `indexed: false`
+  on nodes, then pass `Site.metaOf(site, route, model)` to your SSR plan's
+  `meta` option for `description`, Open Graph, `twitter:*`, `noindex`, and
+  JSON-LD tags.
 
 ## Comparison: TanStack Start
 
-The other side, from its docs ([preloading](https://tanstack.com/router/latest/docs/guide/preloading),
-[SEO](https://tanstack.com/start/latest/docs/framework/react/guide/seo),
-[data loading](https://tanstack.com/router/latest/docs/guide/data-loading)):
-
 | Concern | TanStack Start | `foldkit-site` + Plus |
 | --- | --- | --- |
-| Route declaration | File-based routes; route tree by convention, with per-route code splitting | Explicit tree over existing Foldkit Routers; no file convention, no codegen — and no per-route code splitting (a document is the split boundary today) |
-| Data fetching | `loader` per route, run in parallel before render; `beforeLoad` for context; router cache + Query below | No loaders: Surfaces declare reads, Remote plans and coalesces; the store + retention are the cache, policies are per-domain |
-| Waterfalls | Parallel loaders per depth; deferred data for the rest | No loader gate at all; `satisfy` fixed-point per data-dependence level; pending UI by convention |
-| Prefetch | Built in: intent/viewport/render strategies, freshness/retention windows, `preloadRoute` | Same composition as navigation (`sourcesFor` + `satisfy`), trigger app-owned; no windows or lanes — Remote policy + retention decide |
-| Guards | `beforeLoad` redirects; server functions enforce | Route access would be presentation policy only (unbuilt); authority stays at `RemoteServer`/audience — the split is explicit, not layered |
-| Head/SEO | Per-route `head()` meta; SSR + streaming; prerender crawls links | Titles and head metadata (`Site.metaOf`) from the tree; SSR/static HTML + sitemap |
-| Mutations + refresh | Router invalidation reruns loaders | Entity/connection patches apply directly; a list whose membership changed comes back in the write's answer (single flight) |
-| Server boundary | Server functions alongside routes | Separate by design: documents → SSR, semantic data → `RemoteServer`, HTTP → Effect HttpApi — the Site never becomes an HTTP router |
+| Route declaration | File-based routes with per-route code splitting | Explicit tree over Foldkit Routers |
+| Data fetching | Parallel `loader` per route + router cache | Surfaces declare reads; Remote plans and caches |
+| Waterfalls | Parallel loaders; deferred promises for child data | Bounded fixed-point passes; non-blocking UI |
+| Prefetch | Built-in strategies, freshness windows, `preloadRoute` | `sourcesFor` + `Data.satisfy`; Remote sets policy |
+| Guards | `beforeLoad` redirects; server functions enforce | Presentation `access`; server enforces via `Guard` |
+| Head and SEO | Per-route `head()` meta; SSR and crawler | `Site.metaOf` from the tree; SSR + sitemap |
+| Mutations | Router invalidation reruns loaders | Direct patches + single-flight list updates |
+| Server boundary | Server functions alongside routes | Split: SSR for HTML, `RemoteServer` for data |
 
-The deepest difference is not a feature list. TanStack owns the runtime:
-its router schedules, caches, preloads, and renders. Foldkit Plus refuses
-the second runtime: the Site is pure topology, and every behavior above is
-some other package's primitive composed by the caller. That buys one
-transition per feature (UI, agent, and Sync meet at the same `update`) and
-costs the conveniences a runtime provides — per-route code splitting,
-preload lanes, loader caches — which arrive here only as compositions with
-proven demand, never as framework.
+TanStack owns the runtime (scheduling, caching, preloading, and rendering).
+Foldkit Plus keeps `foldkit-site` as pure topology so UI, server sync, and AI
+agents share one `Model` and `update` transition.
 
 ## Limits: when not to build on Site
 
-- A single-screen application has one node; the tree buys nothing.
-- Locales are route params when they arrive; themes are preferences, not
-  routes. Neither is built.
-- A tree is one document: an address it does not hold is a full load, and
-  a generated page of the same application is navigated to, drawn from what
-  the browser holds. That is measured, not assumed: a Navigate Command was
-  1.3 to 4 times faster than the page's full load, and 3 to 6 after a hover
-  (`docs/benchmarks.md`).
-- No layout-spanning Surfaces, no per-node child models or route-local
-  subscriptions — deliberately, until a real nested layout demands them.
-- Status caveat: the in-repo proof is tests plus the routing example
-  (Remote-free). Prefetch/SSR *adoption* in a Remote-backed app is the open
-  slice; the framework halves are proved and waiting.
+- **Single-screen apps:** A single route needs only a Foldkit Router.
+- **Preferences and locales:** Keep themes outside the route tree; model
+  locales as route parameters when needed.
+- **Cross-document links:** Addresses outside the tree trigger full page loads.
+  In repo benchmarks (`docs/benchmarks.md`), in-tree `Navigate` commands ran 1.3
+  to 4 times faster than full loads (and 3 to 6 times faster after hover
+  preload).
+- **Per-node submodels and layout Surfaces:** Use `Site.placement` for routed
+  pages and attach Surfaces to individual route nodes rather than layout
+  wrappers.
 
-## Where to read next
+## Next
 
-- [`foldkit-site` README](../packages/site/README.md) — API reference.
-- [Site and Foldkit's Router](./site-and-router.md) — what the Site adds to
-  the Router, and how it works.
-- [Site, Remote and SSR together](./site-remote-ssr.md) — one application
-  built with all three, every snippet compiled and run.
-- [Routing example](../examples/foldkit/routing) — the third cut on Site
-  placements and routing, the only app consumer so far.
-- [Server-derived state](./remote.md) — Remote's ownership and policies.
-- [Agent contract](./agents.md) — the same Model/Message seam agents use.
+- See the API and routing workflows: [`foldkit-site` README](../packages/site/README.md)
+- Separate URL parsing from tree topology: [Site and Foldkit's Router](./site-and-router.md)
+- Run a complete SSR, Remote, and Site app: [Site, Remote and SSR together](./site-remote-ssr.md)

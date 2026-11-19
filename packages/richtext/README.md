@@ -1,24 +1,18 @@
 # foldkit-richtext
 
-Pure semantic documents and text transactions for Foldkit. Content is versioned
-data with stable node IDs; edits return a new document, mapped selection, and an
-invalidation summary. This package is **early**: 0.x, and its API may change
-between minor versions.
+Storing raw `contenteditable` HTML strings couples saved content to browser quirks, loses node identities across edits, and breaks structured validation or concurrent collaboration. You want a document format that lives in application state as plain versioned data while edits remain deterministic and reversible.
 
-The application Model owns the document and local selection. Call `apply` from
-the application's `update`; it performs no I/O and holds no editor store. DOM
-editing lives in [`foldkit-richtext-dom`](../richtext-dom); Form/CMS integration
-and Sync replication are not implemented yet.
+`foldkit-richtext` models rich text as an immutable tree of blocks and runs with caller-supplied IDs. Each edit takes a state (`{ document, selection }`) and returns the next state, a mapped selection, and a `ChangeSet` naming what changed. Browser editing lives in [`foldkit-richtext-dom`](../richtext-dom). See it running in [the rich-text playground](https://foldkit-richtext-demo.pages.dev/) and [collaborative pages](https://foldkit-pages-demo.pages.dev/).
 
-A command applies a Transaction to an `EditorState` and gives the next
-`EditorState`, a `ChangeSet` and a `positionMap`. A transaction that cannot be
-applied gives a diagnostic and no partial result.
-
-## A small edit
+## Install
 
 ```bash
 pnpm add foldkit-richtext effect
 ```
+
+## A first edit
+
+Build a validated paragraph document and insert text into it with `RichText.apply`:
 
 ```ts
 import * as RichText from 'foldkit-richtext'
@@ -40,17 +34,13 @@ const result = RichText.apply({ document, selection: null }, [
 ])
 
 if (result.ok) {
-  // The parent reducer installs result.state in its Model.
+  // result.state.document holds "Hello!" and result.changeSet marks text-1 dirty.
   const editedDocument = result.state.document
   void editedDocument
 }
 ```
 
-Schema constructors validate the value; IDs are supplied by the caller and must
-be unique across blocks and text runs. `apply` validates state and operations,
-then applies operations in array order. A later invalid operation rejects the
-whole transaction. No partially edited state is returned, and inputs are not
-mutated. `result.error` is a stable diagnostic code, without raw validation internals.
+Your application Model owns the `Document` and local `Selection`, calling `apply` or `run` from `update` as pure state transitions. `apply` validates the input state and runs operations in array order: if any operation fails, the whole transaction returns `{ ok: false, error }` with a stable diagnostic code and leaves the original state untouched. Schema constructors validate structure immediately, and node IDs must be unique across all blocks and text runs in a document.
 
 <!-- docs-check
 import { Schema } from 'effect'
@@ -104,12 +94,7 @@ const edited = RichText.apply(state, [
 Builders accept a `NodeId` or a `Node.make` reference interchangeably and
 validate shape immediately: a bad mark, offset, or `from > to` throws at the
 call site. `Edit.splitBlock` additionally takes the two new identities as
-strings or ids (`NodeId.make` rejects empties). Document-dependent failures —
-missing nodes, block targets, out-of-bounds ranges, unresolvable selections,
-reused split identities — still return `apply` diagnostics (`MissingText`,
-`MissingNode`, `InvalidRange`, `InvalidSelection`, `InvalidInput`), and raw wire
-input still decodes to `InvalidInput`. `Edit` builds values only; it reads no
-document and owns no state.
+strings or ids (`NodeId.make` rejects empties). Document-dependent failures — missing nodes, block targets, out-of-bounds ranges, unresolvable selections, reused split identities — return `apply` diagnostics (`MissingText`, `MissingNode`, `InvalidRange`, `InvalidSelection`, `InvalidInput`), and raw wire input decodes to `InvalidInput`. `Edit` builds pure operation values from its arguments alone.
 
 ## Commands
 
@@ -476,14 +461,14 @@ Normalization runs as a registry of transforms. Each is a pure function of the
 document plus what the transaction touched, and returns the new document with
 the position steps and identity bookkeeping that go with it:
 
-```ts sketch
-const DropEmptyRuns: RichText.Transform = {
-  name: 'dropEmptyRuns',
-  apply: (document, { dirtyNodes }) => ({ document: next, steps, removedNodes, dirtyNodes, textChanged }),
+```ts
+const NoOpTransform: RichText.Transform = {
+  name: 'noOp',
+  apply: (doc, _context) => RichText.unchanged(doc),
 }
 
-RichText.apply(state, transaction, [DropEmptyRuns])
-RichText.apply(state, transaction) // defaultTransforms: mergeAdjacentRuns
+RichText.apply(state, transaction, [NoOpTransform])
+RichText.apply(state, transaction) // uses defaultTransforms: [mergeAdjacentRuns]
 ```
 
 Two rules make a loop over them safe: a transform is **deterministic** and
@@ -509,72 +494,32 @@ normalization.
 
 ## Performance
 
-`pnpm bench` measures the shapes an editor meets (`bench/operations.bench.ts`).
-A transaction accumulates changes per block and copies each affected container
-once, so N edits in one paragraph are O(N) rather than N copies of the same
-array. Measured back to back on the same machine (mean), old per-operation
-copying against the current accumulation:
+Transactions accumulate changes per block and copy each affected container once, so N edits in one paragraph run in O(N) instead of copying the array N times. Back-to-back benchmark means on one machine compare per-operation copying against accumulation:
 
-```text
-                                          before   after
-paste 50k characters into one run          0.021    0.023 ms
-type one character into a 20k-character run 0.024    0.025 ms
-toggle a mark over a 400-run selection     2.07     1.80 ms
-toggle a mark over a 2000-run selection   16.99     9.59 ms
-toggle a mark over 200 runs / 200 blocks   1.47     1.48 ms
-delete a range spanning 100 paragraphs     3.06     3.27 ms
-split a block inside a 400-run paragraph   1.14     1.35 ms
-paste one paragraph into a 200-block document 1.13   1.22 ms
-```
+| Workload | Before | After |
+| --- | --- | --- |
+| Paste 50k characters into one run | 0.021 ms | 0.023 ms |
+| Type one character into a 20k-character run | 0.024 ms | 0.025 ms |
+| Toggle a mark over a 400-run selection | 2.07 ms | 1.80 ms |
+| Toggle a mark over a 2000-run selection | 16.99 ms | 9.59 ms |
+| Toggle a mark over 200 runs / 200 blocks | 1.47 ms | 1.48 ms |
+| Delete a range spanning 100 paragraphs | 3.06 ms | 3.27 ms |
+| Split a block inside a 400-run paragraph | 1.14 ms | 1.35 ms |
+| Paste one paragraph into a 200-block document | 1.13 ms | 1.22 ms |
 
-The large formatting case is the one the change targets: it halves, and it now
-scales linearly (5× the runs costs 5.3× the time, where it used to cost 8.2×).
-Differences under a few percent in the other rows are within this machine's
-run-to-run noise, not a claim either way.
+The large formatting case halves in time and scales linearly (5× the runs costs 5.3× the time instead of 8.2×). Differences under a few percent in the other rows reflect normal run-to-run noise.
 
-`apply` validates its input once per block, not once per call. Blocks and
-documents are immutable and an edit copies only the blocks it touches, so a
-block or document that has passed validation is remembered, and the document's
-index is built once per document. Typing into a 4,000-paragraph document
-spent about 10 ms of each `apply` decoding the whole document; it now validates
-the one block the last edit replaced. The input is still refused exactly as the
-`EditorState` schema refuses it.
+`apply` caches validation per immutable block and builds each document's index once. Typing into a 4,000-paragraph document dropped from ~10 ms of whole-document decoding per edit to validating only the single replaced block, with identical schema enforcement.
 
-The collaborative path (`bench/replicated.bench.ts`) types one character into
-the middle of a document of `n` paragraphs, as `examples/pages` does:
-`RichText.run`, then `Replicated.translate`, `applyOps`, `project` and
-`resolve`. The means below were measured back to back on one machine, before
-and after four changes:
+The collaborative path types one character into the middle of an `n`-paragraph document (`RichText.run`, then `Replicated.translate`, `applyOps`, `project`, and `resolve`). Four optimizations—per-block validation, layered insert indexes in `applyOps`, entry reuse in `project`, and dirty-block shadow building in `translate`—cut latency across sizes (back-to-back means on one machine):
 
-- `apply` validates by block (above).
-- `applyOps` keeps a layered index of which blocks hold each insert, instead of
-  scanning every block to find a character or to check an id is free.
-- `project` reuses a block's projection while its entry is unchanged.
-- `translate` builds its shadow only for the blocks the edit touches.
+| Paragraphs | Before | After |
+| --- | --- | --- |
+| 100 | 1.08 ms | 0.17 ms |
+| 1,000 | 8.70 ms | 1.91 ms |
+| 4,000 | 49.2 ms | 9.61 ms |
 
-```text
-paragraphs   before     after
-100          1.08 ms    0.17 ms
-1,000        8.70 ms    1.91 ms
-4,000       49.2  ms    9.61 ms
-```
-
-What remains grows with the document because each new document gets its own
-indexes: `apply`'s block and run paths, and the node index that `translate` and
-selection checks read. `project` also rebuilds its run table and walks every
-entry to reuse it.
-
-Two costs remain. A structural operation still rebuilds the document index, though
-a contiguous run of joins is now batched: deleting a range across B paragraphs
-emits B joins but `apply` consumes them as one structural edit, so the block array
-is copied once and the index rebuilt once instead of B times. That case measured
-3.06 ms before the batching and 1.77 ms after, on this machine in one session
-(where runs vary by roughly a fifth), and it stays in the benchmark as its check.
-Normalization also walks the whole dirty set — including run identities, which
-cannot match a block — so a transaction that touches every run of a block does
-O(dirty) lookups in the merge pass. Neither is measured as a problem at these
-sizes; the benchmark exists so a claim about them can be checked rather than
-asserted.
+Remaining cost scales with document size because each new document builds its block, run, and node indexes, and `project` walks entries to reuse its run table. Structural deletes across B paragraphs batch contiguous joins into a single structural edit and single index rebuild (measured at 1.77 ms after batching vs. 3.06 ms before). Normalization still scans the dirty set including run IDs, leaving O(dirty) lookups in the merge pass.
 
 ## Migrations
 
@@ -944,19 +889,7 @@ or `apply`.
 
 ## Shared documents
 
-Several replicas can edit one document when the edits are ordered by a server, as
-`foldkit-sync` and `foldkit-durable` order any durable Message. The difficulty is only that
-an edit written as "insert at offset 12 of run `t`" means something else once another
-replica's edit lands first. `RichText.Replicated` gives every character an identity that
-outlives the edits around it, and restates each edit in those terms:
-
-```text
-shared state --project--> Document --command--> result --translate--> ops
-     ^                                                                  |
-     +------------------------------ applyOps --------------------------+
-```
-
-The editor, its commands and its renderers keep working on a plain `Document`. The state
+Several replicas can edit one document when edits are ordered by a server, as `foldkit-sync` and `foldkit-durable` order any durable Message. Because an offset like "character 12 of run `t`" shifts once another replica types earlier in that run, `RichText.Replicated` assigns every character a stable identity and runs a four-step loop: `Replicated.project(shared)` produces a plain `Document` for the editor and renderers; `RichText.run` executes local commands against that projection; `Replicated.translate(shared, result, key)` converts the edit into character-anchored `ops`; and `Replicated.applyOps(shared, ops)` applies ordered ops from every replica to converge on the same shared state. The state
 holds the blocks, every character typed (deleted ones stay, as tombstones, because a later
 op may be anchored on them, until a `Collect` removes them), and the marks on each:
 
@@ -1178,14 +1111,12 @@ naming the exceeded bound. Tighten per document with
 into an application's Model; when decoding them directly, pass
 `{ onExcessProperty: 'error' }` for the same strict policy.
 
-`apply` does not enforce limits: size-check untrusted operation payloads
-(notably inserted text) before applying, and apply byte-size limits before
-decoding untrusted payloads. `Replicated` is the pure core of collaboration;
-`examples/pages` wires it to `foldkit-sync` and `foldkit-durable`. Retain rejected
-source content for recovery; do not replace it with an empty document.
+Because `apply` skips document-level size limits, validate byte-size and text-length caps on untrusted operation payloads before applying them, and apply byte-size limits before decoding untrusted documents. Retain rejected source content for recovery rather than overwriting it with an empty document. `Replicated` pairs with `foldkit-sync` and `foldkit-durable` in [the collaborative pages example](../../examples/pages).
 
-A transaction validates only the top-level blocks it has not seen validated before,
-so a container is checked again whenever anything inside it changes, and indexes its
-text runs. Edits copy the affected arrays and preserve untouched nodes. The
-performance section records the measured cases, the collaborative path included
-(`bench/replicated.bench.ts`).
+Transactions validate only newly replaced top-level blocks (re-validating a container whenever anything inside it changes) and cache run indexes, copying only affected arrays while leaving untouched nodes intact.
+
+## Next
+
+- Mount an editable browser surface and read-only renderer: [`foldkit-richtext-dom`](../richtext-dom)
+- Add styleable toolbars, slash menus, and block handles: [`foldkit-mixins-richtext`](../mixins-richtext)
+- Convert documents to and from Markdown: [`foldkit-richtext-markdown`](../richtext-markdown)

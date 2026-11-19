@@ -1,18 +1,8 @@
 # `foldkit-bundle-surface`
 
-Puts [`foldkit-bundle`](../bundle) placements into a
-[`foldkit-surface`](../surface) Module, so **each placement is an owner of its
-Model path**, checked against every other owner.
+Reusable [`foldkit-bundle`](../bundle) widgets read and update a slice of your parent `Model` through `update`. Without registering those placements in [`foldkit-surface`](../surface), `Module.validate` cannot catch two widgets colliding on the same Model path or overwriting a field already owned by `foldkit-sync` or `foldkit-remote`.
 
-A placement changes one slice of the parent Model through the parent's
-`update`. That makes it an owner in the same sense as a Sync projection or a
-Remote store. `Module.validate` already reports two owners of one path; this
-package gives placements a contract so the check includes them.
-
-A placement becomes a contract that owns a path: `Search.at(link to model.search)`
-becomes `bundle:Search@search`, which owns `search`, and `TodoSync` becomes
-`sync:Todos`, which owns `todos`. `Module.validate` then checks that no two
-contracts overlap and that every path and Message is declared.
+`foldkit-bundle-surface` generates a Surface ownership contract for each Bundle placement (`bundle:Search@search`) so `Module.validate` checks every placement, Sync projection, and Remote store together.
 
 ## Install
 
@@ -20,7 +10,9 @@ contracts overlap and that every path and Message is declared.
 pnpm add foldkit-bundle-surface foldkit-bundle foldkit-surface effect foldkit
 ```
 
-## Sixty seconds
+## A first validated module
+
+Wrap your `Surface.application` with `BundleSurface.parent`, place a Bundle, and pass the placements to `Page.module` before calling `Module.validate`:
 
 ```ts
 import { Schema } from 'effect'
@@ -46,50 +38,29 @@ const AppModule = Page.module(placements, [])
 Module.validate(AppModule) // []
 ```
 
-The Module now records one owner for `search`. Nothing has mounted or run:
-validation inspects declarations. Pass other contracts as the second argument
-to `Page.module`, then check the findings before starting the application.
-Rendering a Surface over `search` only observes that owner.
+`AppModule` now records `bundle:Search@search` as the sole owner of `search`, and `Module.validate(AppModule)` returns `[]` (no conflicts) purely from inspecting declarations. Rendering a Surface over `search` observes that single owner, and `Module.manifest` and `Module.toMarkdown` include every placed Bundle.
 
-- **`BundleSurface.parent(app)`** is `Bundle.parent` built from the application's
-  own Model and Message, with `module` bound to that application.
-- **`Page.module(assembly, items)`** makes one `bundle` contract per placement,
-  brings each wiring's contract as-is, and adds your other contracts. It
-  performs no I/O.
-- **`BundleSurface.contract(app, placement)`** is one contract, for
-  `Module.make` or `Module.add`. It owns the placement's path, names the parent
-  Message tags its Messages travel under, and lists its args as `args`
-  metadata when the bundle has an args Schema or is a `bundle.with` preset.
-- **`BundleSurface.link(fieldRef, wrapper)`** is `Link.make` over a Surface field
-  ref, for a custom placement. Its contract names the ref's application.
-- **`BundleSurface.module(app, assembly, items)`** is `Page.module` without a
-  scope.
+Available helpers:
 
-## What the existing rules catch
+- **`BundleSurface.parent(app)`**: Creates a `Bundle.parent` bound to `app` with `.module(assembly, items)`.
+- **`Page.module(assembly, items)`** / **`BundleSurface.module(app, assembly, items)`**: Converts each placement into a contract, keeps any wiring contracts, and appends your other Module items.
+- **`BundleSurface.contract(app, placement)`**: Builds a single contract for `Module.make` or `Module.add`, recording the owned path, parent Message tags, and `args` metadata when the Bundle declares args.
+- **`BundleSurface.link(fieldRef, wrapper)`**: Builds a `Link` over a `foldkit-surface` field ref for custom placements.
+
+## What `Module.validate` catches
 
 | Mistake | Finding |
 | --- | --- |
-| Two placements on one path, or a placement on a path Sync or Remote owns | `ownership-overlap` |
-| A placement through another application's field ref | `foreign-contract` |
-| A wrapper variant missing from the application's Message | `unknown-message` |
-| A placement's Link path that is not a Model field | `unknown-path` |
+| Two placements or a placement + Sync/Remote on one path | `ownership-overlap` |
+| Placement using another application's field ref | `foreign-contract` |
+| Wrapper Message missing from the parent `Message` union | `unknown-message` |
+| Link path absent from the parent `Model` | `unknown-path` |
 
-`Module.manifest` and `Module.toMarkdown` list each placement as the owner of
-its path.
+## Read a placement with Projections and Mirrors
 
-## Reading a placement: projections and Mirrors
+Because a placement's state lives in the parent `Model`, its slice is already a ref on `App.model` (`App.model.search`, or `ModelRef.focus(App.model.search).select(projection)`). Sub-fields like `App.model.search.query` are addressable when the Model declares the slice as a Struct (such as with `Link.wrapper`), whereas `Bundle.declare` keeps the slice opaque at `App.model.search`.
 
-A placement's state is part of the parent Model, so its slice is already a ref in
-the application's ref tree. Observing one needs no bundle API:
-`App.model.search`, `ModelRef.focus(App.model.search).select(projection)`.
-The tree reaches the slice's own fields (`App.model.search.query`) only where
-the Model declares the slice as a Struct, as a `Link.wrapper` over one does; a
-field from `Bundle.declare` carries the bundle's Model as a codec, and the tree
-stops at the slice.
-
-For an application whose `search` and `filter` slices are Structs, the following
-integration fragment gives each mirror its own keys. Import `Mirror` from
-`foldkit-mirror`; the first example above defines only `search`:
+With Struct-backed slices (`search` and `filter`), you can attach separate `Mirror.url` configs directly to their nested fields:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -106,7 +77,6 @@ const Message = defineMessageUnion({ ...GotSearchMessage.cases, ...GotFilterMess
 const initial: Model = { search: { query: '' }, filter: { query: '' } }
 const App = Surface.application({ Model, Message, initial, update: model => ({ model }) })
 -->
-
 ```ts
 import { Mirror } from 'foldkit-mirror'
 
@@ -122,22 +92,17 @@ const FilterUrl = Mirror.url(App, {
 })
 ```
 
-[`test/mirror.test.ts`](test/mirror.test.ts) writes and reads both.
-
 ## Why placements are not re-rooted Surfaces
 
-A Surface names the Messages a feature may cause by their parent constructors,
-and an agent adapter exposes one capability per constructor. Every Message of a
-placement travels under one wrapper variant, `GotSearchMessage({ message })`,
-so a re-rooted Surface could only offer that single variant, not the child's
-individual Messages. Exposing a placement's Messages one by one needs Surface
-and Agent to understand wrapped variants, which is a change to those packages
-rather than a helper here. Until then, declare a parent Surface over the
-placement's fields and name the wrapper variant in its `messages`.
+A `Surface` lists parent Message constructors, and an agent adapter exposes one capability per constructor. Because every Message from a placement travels wrapped inside one parent variant (such as `GotSearchMessage({ message })`), a re-rooted Surface could only expose that single wrapper rather than individual child Messages. Declare a parent Surface over the placement's fields and list its wrapper variant in `messages` until Surface and Agent support wrapped child variants.
 
 ## Limits
 
-- A Link composed with `Link.andThen` (or `Link.compose`) from a ref-built Link names the
-  application passed to `contract`, not the ref's.
-- Surfaces cannot expose a placement's individual child Messages, for the
-  reason above.
+- A `Link` built via `Link.andThen` or `Link.compose` from a ref-built Link attributes ownership to the application passed to `contract` rather than the ref's application.
+- Surfaces cannot expose a placement's individual child Messages separately from its parent wrapper variant.
+
+## Next
+
+- Build and place reusable widgets: [`foldkit-bundle`](../bundle)
+- Define feature Surfaces and Modules: [`foldkit-surface`](../surface)
+- Compare Bundles and Surfaces: [Surface and Bundle](../../docs/surface-vs-bundles.md)

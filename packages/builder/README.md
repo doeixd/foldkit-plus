@@ -1,16 +1,85 @@
 # foldkit-builder
 
-The page builder's state, as an ordinary [Bundle](../bundle/README.md). It
-edits a [`foldkit-composition`](../composition/README.md) Document by
-Operations, with a selection and undo beside it, and it is designed to be one
-form key's control: the page is the key's value, so the form validates it,
-submits it, and a CMS autosaves it.
+Once pages are stored as a tree of typed blocks, authors need a way to insert,
+reorder, duplicate, copy-paste, undo, and configure those blocks without
+corrupting the document or losing unsaved work. Wiring selection, keyboard
+shortcuts, drag-and-drop targets, inline text edits, and per-block settings
+forms by hand mixes transient UI state with your stored page.
 
-> **Status:** experimental, `0.1.0`, on npm from the 0.16.0 release. The headless Builder and a plain
-> view.
-> The drawn editor is [`foldkit-mixins-builder`](../mixins-builder/README.md).
+`foldkit-builder` gives you the headless state machine for editing a
+[`foldkit-composition`](../composition/README.md) Document. It wraps the page
+in an undo history, tracks selection, clipboard, and drag state, generates a
+[`foldkit-form`](../form/README.md) settings editor per Block, and plugs into
+any form as a single control so validation and autosave work out of the box. For
+the full accessible HTML view, pair it with
+[`foldkit-mixins-builder`](../mixins-builder/README.md).
 
-## What it owns
+Try it running in the [live CMS demo](https://foldkit-cms-demo.pages.dev/).
+
+## Install
+
+```sh
+pnpm add effect foldkit foldkit-composition foldkit-form foldkit-builder
+```
+
+## A first page builder
+
+This defines a `Heading` and `Section` Block, builds `PageBuilder` with starter
+props, and applies an insert edit through its Bundle:
+
+```ts
+import { Schema } from 'effect'
+import { Builder, Message as BuilderMessage } from 'foldkit-builder'
+import { Block, Catalog, Composition, Content, NodeId, Region } from 'foldkit-composition'
+import { Renderer } from 'foldkit-composition/foldkit'
+
+const Heading = Block.define('Heading', { Props: Schema.Struct({ text: Schema.String }), provides: [Content.Flow] })
+const Section = Block.define('Section', {
+  Props: Schema.Struct({}),
+  regions: { body: Region.many({ accepts: [Content.Flow] }) },
+  provides: [Content.Section],
+})
+const Site = Catalog.make({ blocks: [Heading, Section], roots: [Content.Section] })
+const SiteRenderer = Renderer.make(Site, {
+  Heading: ({ field, h }) => h.h2([], [field('text')]),
+  Section: ({ regions, h }) => h.section([], [...regions.body]),
+})
+
+const PageBuilder = Builder.make('PageBuilder', {
+  catalog: Site,
+  renderer: SiteRenderer,
+  starters: { Section: {}, Heading: { text: 'New heading' } },
+})
+const op = Composition.Op.insert({ id: NodeId.make('sec1'), block: 'Section', props: {}, at: Composition.root(0) })
+const start = PageBuilder.bundle.init(undefined).model
+const next = PageBuilder.bundle.update(start, BuilderMessage.Applied({ op }), undefined).model
+```
+
+`PageBuilder.document(next)` now holds the new `Section` node under `roots: ['sec1']`,
+`next.selected` is `Option.some('sec1')`, and pressing undo (`Undid()`) steps
+back to the empty page.
+
+To bind the builder inside a `foldkit-form` field (so forms and `foldkit-cms`
+can validate and autosave the Document), pass `PageBuilder.input` as the field's
+control:
+
+```ts
+import { Entity } from 'foldkit-entity'
+import { Form } from 'foldkit-form'
+
+const Page = Entity.define('Page', Schema.Struct({ id: Schema.String, document: Composition.Document }))
+const PageInput = Entity.input(Page, Schema.Struct({ document: Composition.Document.check(Composition.valid(Site)) }))
+const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuilder.input } })
+```
+
+- `PageForm.control('document').field(model).value` holds the Builder's Model
+  inside the form.
+- Its built-in plain view draws the Block palette, layers tree, selected node
+  text props, undo/redo buttons, and edit-mode canvas; swap in
+  `PageBuilder.inputWith(BuilderView.submodel(view))` to render with
+  [`foldkit-mixins-builder`](../mixins-builder/README.md).
+
+## Where builder state and page data live
 
 | Fact | Owner |
 | --- | --- |
@@ -25,105 +94,48 @@ submits it, and a CMS autosaves it.
 | What the editor last said to assistive technology | the Builder's Model, as a `LiveAnnounce` placement |
 | Saving, revisions, publishing | the form, and `foldkit-cms` around it |
 
-The Catalog and the Renderer are vocabulary, not state. The Builder closes over
-them where it is made; they never enter the Model or a placement's args.
+The Catalog and Renderer define your vocabulary rather than state: `Builder.make`
+closes over them once at module scope, keeping them out of the Model and
+placement arguments.
 
-## Mental model
+## How edits become undoable history
 
-In the view, a click or a key becomes a Builder Message. `Composition.apply` turns
-it into the next Document, and `History.push(page, document)` records it, all as one
-transition. In a form, a Control Message carries the change; a change of Document is
-an edit, and anything else is not.
-
-## Sixty seconds
-
-<!-- docs-check
-import { Schema } from 'effect'
-import { Block, Catalog, Content, Region, Composition } from 'foldkit-composition'
-import { Renderer } from 'foldkit-composition/foldkit'
-import { Entity } from 'foldkit-entity'
-const Heading = Block.define('Heading', {
-  Props: Schema.Struct({ text: Schema.String }),
-  provides: [Content.Flow],
-})
-const Section = Block.define('Section', {
-  Props: Schema.Struct({}),
-  regions: { body: Region.many({ accepts: [Content.Flow] }) },
-  provides: [Content.Section],
-})
-const Site = Catalog.make({ blocks: [Heading, Section], roots: [Content.Section] })
-const SiteRenderer = Renderer.make(Site, {
-  Heading: ({ field, h }) => h.h2([], [field('text')]),
-  Section: ({ regions, h }) => h.section([], [...regions.body]),
-})
-const Page = Entity.define(
-  'Page',
-  Schema.Struct({ id: Schema.String, document: Composition.Document }),
-)
-const PageInput = Entity.input(
-  Page,
-  Schema.Struct({ document: Composition.Document.check(Composition.valid(Site)) }),
-)
--->
-
-```ts
-import { Form } from 'foldkit-form'
-import { Builder } from 'foldkit-builder'
-
-const PageBuilder = Builder.make('PageBuilder', {
-  catalog: Site,
-  renderer: SiteRenderer,
-  // What a new node of each Block starts with. The insert panel offers exactly these.
-  starters: { Section: {}, Heading: { text: 'New heading' } },
-})
-
-const PageForm = Form.make('PageForm', PageInput, {
-  inputs: { document: PageBuilder.input },
-})
-```
-
-- `Builder.make` builds a Bundle (`PageBuilder.bundle`) and the form control that
-  places it as a key (`PageBuilder.input`). Nothing runs until it is placed.
-- In the form, `PageForm.control('document').field(model).value` is the
-  Builder's Model. Its `page` is an undo history whose `present` is the
-  Document; `PageBuilder.document(model)` reads it.
-- Its view is a plain editor: a palette of the Blocks with starting props, the
-  layers with move, duplicate and delete for the selected node, the selected
-  node's text props, undo and redo, and the page drawn in edit mode.
-  `foldkit-mixins-form` draws it with the rest of the form. For the full
-  editor, `PageBuilder.inputWith(BuilderView.submodel(view))` is the same
-  control drawn by [`foldkit-mixins-builder`](../mixins-builder/README.md).
+In the view, a click or key press dispatches a Builder Message. `Composition.apply`
+computes the next Document, and `History.push(page, document)` records it in one
+transition. Inside a form, a Control Message carries only Document changes as
+edits, so selection or hover changes leave the form clean for autosave.
 
 ## Messages
 
 | Message | What it does |
 | --- | --- |
-| `Applied({ op })` | applies an Operation; a button, a key, a drag or an agent sends the same |
-| `InsertAsked({ block, at })` | a new node with the Block's starting props, once an id is minted |
-| `DuplicateAsked({ id, at })` | a copy of a node and what it holds, once ids are minted |
-| `PatternAsked({ pattern, at })` | one of the Catalog's patterns, once ids are minted for its nodes |
-| `CopyAsked({ id })`, `CutAsked({ id })`, `Copied({ said })`, `PasteAsked()`, `ClipboardRead({ text })` | the clipboard: see below |
-| `EditingAsked({ field })`, `FieldTyped({ field, text })`, `EditingCommitted({ field, text })`, `EditingCancelled({ field })` | text edited in place: see below |
-| `Minted({ ids, request })` | the ids a request waited for, answered by a Command |
-| `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | what the inspector and the node actions work on |
-| `RowPressed({ id })`, `RowToggled({ id })` | a layers row pressed (made current, so selected, keeping the panel) and its expander (opened or shut by the tree's state) |
-| `Undid()`, `Redid()` | a step of the page's undo history |
-| `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | the editor's own choices |
-| `DragStarted({ source })`, `DraggedOver({ id, zone })`, `DraggedOverRegion({ id, region })`, `DraggedOff()`, `DraggedOverPage()`, `DragDropped({ aim? })`, `DragCancelled()` | a pointer drag: see below |
-| `PreviewChosen({ key, value })`, `PreviewCleared({ key })` | previews the page with one context key set, or unset |
-| `Inspected({ id, message })` | a Message of the selected node's settings form: see below |
-| `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | the placed tree and announcer's own Messages |
+| `Applied({ op })` | Applies an Operation from a button, key, drag, or agent |
+| `InsertAsked({ block, at })` | Inserts a new node with starter props once an id is minted |
+| `DuplicateAsked({ id, at })` | Duplicates a node and subtree once new ids are minted |
+| `PatternAsked({ pattern, at })` | Inserts a Catalog pattern once ids are minted for its nodes |
+| `CopyAsked`, `CutAsked`, `PasteAsked`, `Copied`, `ClipboardRead` | Copies, cuts, and pastes node subtrees via the clipboard |
+| `EditingAsked`, `FieldTyped`, `EditingCommitted`, `EditingCancelled` | Manages inline text editing on canvas fields |
+| `Minted({ ids, request })` | Delivers Command-minted ids for a pending insert or paste |
+| `Selected({ id })`, `Deselected()`, `Hovered({ id })`, `Unhovered()` | Updates selection and hover state for the inspector |
+| `RowPressed({ id })`, `RowToggled({ id })` | Focuses/selects a layers row or toggles its tree expansion |
+| `Undid()`, `Redid()` | Steps backward or forward in the page undo history |
+| `PanelChosen({ panel })`, `ViewportChosen({ viewport })` | Switches the active side panel or preview viewport width |
+| `DragStarted`, `DraggedOver`, `DraggedOverRegion`, `DraggedOverPage` | Starts a drag and updates the active drop target |
+| `DraggedOff`, `DragDropped`, `DragCancelled` | Clears the hover target, commits the drop, or cancels |
+| `PreviewChosen({ key, value })`, `PreviewCleared({ key })` | Overrides or clears a context key for conditional preview |
+| `Inspected({ id, message })` | Forwards a Message to the selected node's settings form |
+| `Layers.wrapper.make(...)`, `Announcer.wrapper.make(...)` | Forwards Messages for the placed tree and live region |
 
-- **Ids are minted in a Command** (`Composition.newIds`), so `update` stays pure
-  and an Operation always carries the ids it creates. Nothing changes until
-  they arrive.
+- **Ids are minted in a Command** (`Composition.newIds`), keeping `update` pure
+  and ensuring every Operation already carries its created ids before changing
+  the page.
 - **An applied Operation and its undo step change together:** the Builder
   pushes the new Document onto its page history, a `foldkit-primitives/state`
   history. Consecutive edits of one prop of one node share a group, so typing a
   heading undoes as a whole.
 - **A refused edit** leaves the page as it was and says why in `refused`, until
   the next edit goes through.
-- **A new node is selected**, and a removed one is no longer.
+- **A new node is selected**, and a removed one is cleared from selection.
 
 ## The inspector is a form
 
@@ -134,13 +146,11 @@ edits a value as the Document stores it, so a prop drawn as an `Option` is
 chosen as an id or nothing, and checks each value against its whole Schema.
 The node owns its values; a form only holds what its fields show:
 
-```text
-node props ─► fill ─► field drafts ─► Inspected(Changed) ─► the form decodes each key
-   a key the Message changed that decodes, and the node lacks ─► setProp,
-                                              or setAction with the input's other keys
-   an optional key emptied ─► unsetProp, or setAction without it
-   a key that does not decode ─► its error, no edit
-```
+1. **Fill:** Node props populate the form's field drafts when selected.
+2. **Decode:** On `Inspected(Changed)`, each changed key decodes through its
+   field schema—valid new values apply `Op.setProp` (or `Op.setAction`), emptied
+   optional keys apply `Op.unsetProp` (or omit the key), and invalid text keeps
+   its draft and field error without editing the Document.
 
 - **A change that decodes is an edit**, one `setProp` per key the Message
   changed, grouped in history like any other, so typing a word undoes as one.
@@ -234,13 +244,15 @@ Behaviors; `foldkit-mixins-builder` does.
 
 A Block's view that draws a text prop with `field(key)` (see
 [`foldkit-composition`](../composition/README.md#drawing-a-page-foldkit-compositionfoldkit))
-can be edited on the canvas, where it shows:
+can be edited directly on the canvas:
 
-```text
-double-click, or Enter ─► EditingAsked ─► editing: { id, key, initial }   the field freezes at `initial`
-typing ─► FieldTyped ─► setProp, in the session's one undo step
-Enter or leaving it ─► EditingCommitted      Escape ─► EditingCancelled: the step is taken back
-```
+1. **Start:** Double-clicking a field or pressing `Enter` sends `EditingAsked`,
+   storing `{ id, key, initial }` in `editing` and freezing the field's text at
+   `initial`.
+2. **Type:** Each keystroke sends `FieldTyped`, applying `Op.setProp` inside the
+   session's single undo group.
+3. **Finish or cancel:** `Enter` or blurring sends `EditingCommitted`; `Escape`
+   sends `EditingCancelled`, reverting that undo step.
 
 - **Each Message names the field as the canvas marks it**, and the Builder
   checks it: text the Renderer does not draw as a field (`Renderer.fields`),
@@ -503,6 +515,16 @@ Each helper that may have no answer returns an `Option`, as the Model's
 ## Limits
 
 - One node is selected at a time.
-- The plain view is plain, and names its panels in English. The drawn editor
-  is `foldkit-mixins-builder`.
+- The plain view is unstyled and names its panels in English; use
+  [`foldkit-mixins-builder`](../mixins-builder/README.md) for the styled,
+  accessible editor.
 - A starting props value must encode with its Block's Schema.
+
+## Next
+
+- Render the accessible editor UI with slots, drag-and-drop, and inline canvas
+  editing: [`foldkit-mixins-builder`](../mixins-builder/README.md).
+- Define Blocks, Regions, Catalogs, and page validation rules:
+  [`foldkit-composition`](../composition/README.md).
+- Autosave Builder forms as drafts with revision history:
+  [`foldkit-cms`](../cms/README.md).

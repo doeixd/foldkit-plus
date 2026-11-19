@@ -1,14 +1,19 @@
 # Site, Remote and SSR together
 
-Three packages, three questions about the same page:
+A server-rendered page with data usually does its work twice. The server
+fetches and draws the page, then the browser boots, fetches the same data
+again, and redraws. Meanwhile the router, the data layer and the renderer each
+keep their own idea of which page is showing.
 
-```text
-foldkit-site     Where is the reader, and what is around them?
-foldkit-remote   What does that page read from the server, and what does the Model already know?
-foldkit-ssr      How does a page the server drew become the browser's, without doing it all again?
-```
+Three packages split that job by question:
 
-None of them reaches into another. They meet in two places only: the
+- **`foldkit-site`** answers where the reader is and what surrounds the page.
+- **`foldkit-remote`** answers what the page reads from the server, and what
+  the Model already knows.
+- **`foldkit-ssr`** answers how a page the server drew becomes the browser's
+  without doing the work again.
+
+They meet in two places only: the
 application's Model, which holds the route and Remote's store side by side,
 and **one record of Surfaces**, which says what each page reads. Site makes
 that record from the tree, Remote fetches what it asks for, and SSR checks that
@@ -16,23 +21,22 @@ the page it hands over carries all of it.
 
 This guide builds one small application with all three: each owner's projects
 at `/owners/<id>`, rendered on the server with its data, taken over without
-fetching again, built statically, and read ahead on hover. Every snippet is
-code from
-[`packages/site/test/together.test.ts`](../packages/site/test/together.test.ts),
-which compiles and runs it. The CMS example's public site is the same design
-at full size (`examples/cms/src/apps/siteApp.ts`).
+fetching again, built statically, and read ahead on hover. Every snippet
+compiles and runs in the Site package's own tests. The CMS example's public
+site is the same design at full size.
 
 ## Who owns what
 
-| Concern | Owner | What it does not do |
+| Concern | Owner | What it leaves to others |
 | --- | --- | --- |
-| The address and its route value | Foldkit's Router | Know anything beyond one address |
-| The tree of places: titles, sections, history, head metadata, which Surface each place activates | `foldkit-site` | Hold state, fetch, or render |
+| The address and its route value | Foldkit's Router | Anything beyond one address |
+| The tree of places: titles, sections, history, head metadata | `foldkit-site` | State, fetching, rendering |
+| Which Surface each place activates | `foldkit-site` | |
 | The route field, and every change to it | the application's Model, through `update` | |
-| What a page reads | a Surface (`foldkit-surface`) | Fetch: it only declares |
-| Server facts: the store, what is missing, fetching, retention | `foldkit-remote` | Know about routes or pages |
-| The handover from server to browser, and the checks that it is whole | `foldkit-ssr` | Own any state; data crosses through Remote's own part |
-| Joining the pieces into one `update` and one runtime config | `foldkit-bundle` | Decide anything the pieces decide |
+| What a page reads | a Surface (`foldkit-surface`) | Fetching: it only declares |
+| Server facts: the store, what is missing, fetching, retention | `foldkit-remote` | Routes and pages |
+| The server-to-browser handover, and the checks that it is whole | `foldkit-ssr` | State: data crosses in Remote's part |
+| Joining the pieces into one `update` and one runtime config | `foldkit-bundle` | Decisions the pieces make |
 
 **Each fact has one owner, and the others read it.** The Site never reads
 `window.location`; the route is a Model field. Remote never looks at the
@@ -41,13 +45,11 @@ what the page reads crossed with it.
 
 ## The loop, in the browser and on the server
 
-In the browser, one loop runs everything:
-
-```text
-link click ─► Site.routing ─► pushUrl ─► URL change ─► route field set
-                                                            │
-     view ◀── Model ◀── Data.reduce ◀── RemoteClient ◀── active Surfaces' reads
-```
+In the browser, one loop runs everything. A link click reaches
+`Site.routing`, which calls `pushUrl`; the URL change sets the route field.
+The route decides which Surfaces are active, `RemoteClient` fetches what they
+read and the Model lacks, `Data.reduce` folds the answers into the Model, and
+the view draws it.
 
 Setting the route is synchronous. The active pages follow from the route, and
 what is missing from what they read; Remote fetches that and reduces the
@@ -55,11 +57,12 @@ answers into the Model. Navigation never waits for data.
 
 The server runs the same steps once, ahead of time, and hands over the result:
 
-```text
-URL ─► route ─► Data.satisfy (the same Surfaces, fetched until nothing is missing)
-     ─► SSR.render (draws it, checks it) ─► HTML carrying the route and what was read
-     ─► SSR.hydrate in the browser: the same Model, so nothing is fetched again
-```
+1. The URL becomes a route.
+2. `Data.satisfy` fetches for the same Surfaces until nothing is missing.
+3. `SSR.render` draws the page, checks it, and writes HTML carrying the route
+   and what was read.
+4. `SSR.hydrate` in the browser rebuilds the same Model, so nothing is fetched
+   again.
 
 ## Building it
 
@@ -442,11 +445,12 @@ page it renders shows none of the queue, and the browser must still first
 draw the page it was sent. The queue therefore joins after adoption, as a
 Message:
 
-```text
-server:  Data.satisfy → render (no queue)
-browser: SSR.hydrate → prepare: durable.session → adopt the served page
-         → outbox.restore (a Subscription) reads the store → OutboxRead → update → the unsent writes drawn
-```
+On the server, `Data.satisfy` and the render see no queue. In the browser:
+
+1. `SSR.hydrate` runs `prepare`, where `durable.session` mints the session id.
+2. The browser adopts the served page as it was drawn.
+3. `outbox.restore`, a Subscription, reads the store and sends `OutboxRead`.
+4. `update` folds it, and the unsent writes are drawn.
 
 `durable.session` mints the id the page's writes are named by and reads
 nothing, so a write made in the first moments is queued, and the

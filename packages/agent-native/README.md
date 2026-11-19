@@ -1,22 +1,8 @@
 # `foldkit-agent-native`
 
-Compiles a [`foldkit-agent`](../agent) contract into [Agent Native](https://github.com/BuilderIO/agent-native)
-actions.
+Integrating a Foldkit application into an [Agent Native](https://github.com/BuilderIO/agent-native) host shouldn't force you to write every capability twice—once as a Foldkit Message handler and again as a hand-coded Agent Native action that can drift in validation or authorization.
 
-Use it when the host application already uses Agent Native's action registry and
-you want those actions to be the **same capabilities** your Foldkit application
-already exposes. The generated action delegates validation, availability,
-authorization, dispatch, and completion back to a bound `AgentRuntime`; it does
-not reimplement application behavior.
-
-The application's `AssistantAgent` is the protocol-neutral contract.
-`AgentBuilder.bind(...)` binds it to an `AgentRuntime`, which holds the live Model,
-dispatch and policy. `foldkit-agent-native` is the adapter: it gives Agent Native
-an action registry, and each invocation reaches the runtime through
-`resolveRuntime(ctx)`.
-
-Application behavior still ends in the existing Foldkit Message and `update`.
-This package is an adapter, not a second agent architecture.
+`foldkit-agent-native` compiles a [`foldkit-agent`](../agent) contract into Agent Native action descriptors while resolving the authenticated caller's bound `AgentRuntime` on every invocation. Every action call still validates, authorizes, and dispatches through your existing Foldkit `update` loop. See how agent contracts work in [the live Todo agent demo](https://foldkit-todo-demo.pages.dev/).
 
 ## Install
 
@@ -24,257 +10,112 @@ This package is an adapter, not a second agent architecture.
 pnpm add foldkit-agent foldkit-agent-native @agent-native/core
 ```
 
-`foldkit`, `effect`, `foldkit-agent`, and `@agent-native/core` are peer
-dependencies.
+`foldkit`, `effect`, `foldkit-agent`, and `@agent-native/core` are peer dependencies.
 
-## Sixty seconds: generate actions
+## A first action registry
 
-Start with the [Agent contract and host guide](../agent/README.md#usage).
-The integration below assumes `AssistantAgent` is your declared contract and
-`AgentBuilder` is its application-specialized builder. The host-specific
-`runtimeFor(context)` below resolves the caller to that live application.
-
-
-Agent Native needs a static action registry, but the live Model and principal
-belong to the caller. Register the contract once and resolve the bound runtime
-per invocation:
+Declare an agent contract (see the [Agent contract guide](../agent/README.md#a-first-agent-contract)), compile its static actions with `AgentNative.actions`, and resolve the caller's live runtime inside `resolveRuntime`:
 
 <!-- docs-check
-import { Agent } from 'foldkit-agent'
-import { Option, Schema } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
-const Message = defineMessageUnion({ RequestedCreateTodo: { title: Schema.String } })
-type Message = typeof Message.Type
-interface Model {
-  readonly selectedTodoId: Option.Option<string>
-}
 import type { ActionRunContext as HostContext } from 'foldkit-agent-native'
-interface Caller {
-  readonly email: string
-}
-const AgentBuilder = Agent.forModel<Model>()
-const AssistantAgent = AgentBuilder.make({
-  messages: AgentBuilder.expose(Message, { RequestedCreateTodo: 'Create a todo' }),
-})
+interface Caller { readonly email: string }
 declare const hostFor: (context: HostContext) => {
-  readonly model: () => Model
-  readonly dispatch: (message: Message) => void
+  readonly model: () => { readonly todos: ReadonlyArray<string> }
+  readonly dispatch: (message: { readonly _tag: 'RequestedCreateTodo'; readonly title: string }) => void
 }
 declare const principalFor: (context: HostContext) => Caller
 -->
-
 ```ts
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Agent } from 'foldkit-agent'
 import { AgentNative } from 'foldkit-agent-native'
 import { registerPackageActions } from '@agent-native/core/server'
+
+const Message = defineMessageUnion({ RequestedCreateTodo: { title: Schema.String } })
+const TodoAgent = Agent.forModel<{ readonly todos: ReadonlyArray<string> }>()
+const AssistantAgent = TodoAgent.make({
+  messages: TodoAgent.expose(Message, { RequestedCreateTodo: 'Create a todo' }),
+})
 
 registerPackageActions(
   AgentNative.actions({
     definition: AssistantAgent,
-    resolveRuntime: context => runtimeFor(context),
+    resolveRuntime: context =>
+      TodoAgent.bind({
+        definition: AssistantAgent,
+        host: { ...hostFor(context), principal: () => principalFor(context) },
+      }),
   }),
 )
 ```
 
-`runtimeFor(context)` returns an `AgentRuntime` already bound to the correct live
-application and principal:
+Statically, `AgentNative.actions` turns `AssistantAgent` into action records and installs them via `registerPackageActions`. At runtime, each action call invokes `resolveRuntime(context)` to obtain the caller's `AgentRuntime`, checking availability, authorization, and input schema before dispatching the Message to `update`.
 
-```ts
-const runtimeFor = (context: HostContext) =>
-  AgentBuilder.bind({
-    definition: AssistantAgent,
-    // The principal is part of the host, beside `model` and `dispatch`.
-    host: { ...hostFor(context), principal: () => principalFor(context) },
-  })
-```
+## Verify one action before registering everything
 
-That distinction is the heart of this adapter:
+Test a single generated action against a runtime bound to a known caller before wiring the full registry:
 
-Statically, the `AssistantAgent` becomes Agent Native action descriptions. Per
-invocation, a verified host caller and context go to `resolveRuntime(ctx)`, which
-returns the `AgentRuntime`; that checks availability, then authorization, then
-dispatches the Message to `update`.
+1. Invoke the action with valid input and confirm your Message handler runs.
+2. Invoke it with invalid input and confirm the Model stays unchanged.
+3. Switch to an unauthorized principal and confirm the bound runtime refuses the call—static action registration grants no execution permission by itself.
 
-The registry describes capabilities. The bound runtime decides whether a
-particular caller may use one **right now**.
+## How capabilities map to Agent Native actions
 
-## Verify one action before adding the registry
-
-Start with one capability and a runtime bound to a known caller. Invoke the
-generated action with valid input, then with a value its schema rejects.
-The first must reach your existing Message handler; the second must leave the
-Model unchanged. Next switch to a principal your contract refuses. Registration
-is static, so an action's presence never implies that this caller may execute it.
-
-`actions` builds descriptors. `registerPackageActions` installs them in the host.
-`resolveRuntime` runs for an invocation, so resolve the verified caller there
-rather than capturing one user's runtime in a process-wide registry.
-
-## What a capability becomes
-
-One exposed capability becomes one Agent Native action keyed by capability
-name:
-
-| `foldkit-agent` | Agent Native |
+| `foldkit-agent` | Agent Native action |
 | --- | --- |
-| capability name | action name |
-| description | action description |
-| encoded input Schema | action parameter schema |
-| `AgentRuntime` dispatch | `run` |
-| completion contract | returned success/failure outcome |
+| Capability name | Action name |
+| Description | Action description |
+| Encoded input Schema | Parameter schema |
+| `AgentRuntime` dispatch | `run` handler |
+| Completion contract | Returned `ok` outcome |
 
-Each generated entry declares `http: POST`, `requiresAuth: true`, and
-`readOnly: false`. A capability can dispatch a Message, so advertising it as
-read-only could let a planning surface execute real application behavior under
-the wrong assumption.
+Each generated entry sets `http: 'POST'`, `requiresAuth: true`, and `readOnly: false` so planning layers treat Message-dispatching capabilities as state-mutating operations. `AgentNative.actions` returns plain action records in memory; the host controls loading and deployment.
 
-Nothing is written to disk. The adapter returns the action record Agent Native
-expects; the host decides how that registry is loaded and deployed.
+## Resolve caller identity per invocation
 
-## Runtime and identity
+Because the action registry is built once at startup while `Model` and principals vary per request, `resolveRuntime` runs **per invocation** rather than once at registration time.
 
-`resolveRuntime` runs **per invocation**, not once when actions are registered.
-That is necessary because the action description is static while the Model and
-principal are caller-specific.
+Contracts declaring `authorize` require a host `principal` provider of matching type. Map your authenticated Agent Native caller to your application principal inside `resolveRuntime` rather than trusting arbitrary context fields like raw emails. Capabilities whose `available(model)` returns false remain listed in the static registry and are refused by the runtime when invoked.
 
-When a contract declares `authorize`, the runtime must be bound with a principal
-provider of the matching type. This adapter intentionally does not infer
-application identity from arbitrary Agent Native context fields such as an email
-address. Mapping an authenticated host caller to your application principal
-belongs to the host/application boundary.
+## Read `run` return values
 
-Availability is dynamic too. A capability can remain present in the static Agent
-Native registry while being unavailable in the current Model; the bound runtime
-refuses it at call time.
+Application refusals (unavailable, unauthorized, cancelled, invalid input, or failed completion) return structured output (`{ ok: false, message: '...' }`) instead of throwing adapter exceptions. Successful dispatch or completion returns `{ ok: true, ... }`. Check the returned `ok` field rather than assuming framework-level completion means the application accepted the operation. Internal host defects flatten to a generic failure message so internal errors stay private.
 
-## What `run` returns
+## Keep one source of truth
 
-Application refusals are returned as application output, not thrown as adapter
-crashes:
+The dependency flows strictly one way: your Foldkit `Message` + `update` defines the `foldkit-agent` contract, and `foldkit-agent-native` derives Agent Native actions from it. Whenever your contract changes, the generated actions update automatically with zero duplicate validation or permission code. Application-local Agent Native actions can still override package actions under Agent Native's standard registry rules.
 
-```ts sketch
-{ ok: false, message: '…' }
-```
+## How Effect schemas bridge to Agent Native
 
-That includes unavailable, unauthorized, cancelled, invalid-input, and failed
-completion outcomes.
+Agent Native requires both Standard Schema validation and JSON Schema metadata on the same schema object. Calling Effect's `toStandardSchemaV1` and `toStandardJSONSchemaV1` on the same encoded schema preserves object identity so Agent Native sees full parameter metadata while Foldkit runs its single decode step before dispatch. Excess input fields are rejected, and object input schemas are required because Agent Native includes only object schemas in tool lists.
 
-A successful dispatch/completion returns `ok: true`. Agent Native may consider
-the framework-level action invocation itself complete, so consumers should read
-the returned `ok` value rather than assuming framework completion means the
-application accepted or completed the operation.
+## Tested against `@agent-native/core`
 
-Only host/adapter defects are flattened to a generic failure message. Internal
-application errors are not exposed to the caller.
+The adapter test suite exercises the real `@agent-native/core` registry, tool runtime, and schema wrapper (backed by an in-memory database, with no network or LLM calls):
 
-## Why generate actions instead of writing them twice?
-
-The dependency direction stays one-way:
-
-```text
-Foldkit Message + update
-        |
-foldkit-agent capability
-        |
-Agent Native action
-```
-
-Availability, authorization, input validation, and completion remain in the
-contract/runtime. The generated action adds no authority and no second
-implementation of the transition.
-
-If the contract changes, the generated registry changes with it instead of
-leaving a hand-written action beside the application that can drift.
-
-An application-local Agent Native action can still override an inherited/package
-action according to Agent Native's own registry rules.
-
-## Schema bridge
-
-This section is implementation/compatibility detail; it is not required to use
-the adapter.
-
-The adapter exposes the capability's **encoded** input Schema as a Standard
-Schema validator and advertises the corresponding JSON Schema to Agent Native.
-That preserves the same boundary `foldkit-agent` uses for transforming schemas
-such as `NumberFromString`: Agent Native validates the encoded input, then the
-bound runtime performs the application's single decode before dispatch.
-
-Agent Native's current schema integration needs validation and JSON Schema
-metadata on the same schema object. With Effect, the two conversion helpers
-provide different halves:
-
-| Conversion | `validate` | advertised parameters |
-| --- | --- | --- |
-| `toStandardSchemaV1` | yes | empty |
-| `toStandardJSONSchemaV1` | no | full |
-| copied into a fresh object | yes | empty |
-| both called on the same schema object | yes | full |
-
-The adapter therefore calls both helpers on the same Effect schema object so its
-identity—and the metadata associated with it—survives.
-
-Extra input fields are rejected. Only object input schemas are supported because
-that is the shape Agent Native currently includes in its tool list.
-
-## Compatibility proof
-
-The adapter is checked against `@agent-native/core@0.177.1` using the real Agent
-Native registry, tool runtime, and schema wrapper rather than stand-ins.
-
-Run from the repository root:
-
-```bash
-pnpm exec vitest run packages/agent-native/test/framework.test.ts
-```
-
-No LLM credentials or network server are required; the suite uses an in-memory
-PGlite database for Agent Native's internal metadata lookups.
-
-| Framework surface | What the test proves |
+| Framework surface | Verified behavior |
 | --- | --- |
-| Package registry | `registerPackageActions` + `autoDiscoverActions` discovers the generated entry; an app-local action file wins a name collision. |
-| Agent tool runtime | `actionsToEngineTools` advertises the encoded schema; `executeAgentToolCall` changes the Foldkit Model for an authorized caller and refuses another caller. |
-| Schema wrapper | `defineAction` derives parameters, preserves transforming input for the one decode in Foldkit, and rejects excess fields. |
-
-The public adapter types are checked against Agent Native's real `ActionTool`
-type. Agent Native remains a peer/development dependency of this adapter rather
-than a dependency of core `foldkit-agent`.
+| Package registry | `registerPackageActions` discovers entries; local overrides win |
+| Agent tool runtime | Advertises encoded schema; authorizes or refuses by principal |
+| Schema wrapper | `defineAction` derives params and rejects excess fields |
 
 ## Limits
 
-This package integrates the Agent Native **action registry and tool runtime**. It
-does not claim to replace every Agent Native subsystem. HTTP deployment, MCP,
-A2A, CLI, UI queries, authentication sessions, and deep links remain concerns of
-the Agent Native host or Foldkit Plus's dedicated adapters.
+- **Scope:** Covers Agent Native's action registry and tool runtime. HTTP, MCP, A2A, CLI, UI queries, auth sessions, and deep links belong to the Agent Native host or dedicated Foldkit Plus adapters (use [`foldkit-agent-webmcp`](../agent-webmcp) for in-page browser state).
+- **Reserved names:** Agent Native skips `Object.prototype` property names (including `__proto__`) and keeps the first registration of any name; restart the host after contract updates.
 
-Page-local browser state still belongs to WebMCP; this package does not add a
-browser RPC bridge.
-
-The Agent Native registry keeps the first registration of a name and skips names
-inherited from `Object.prototype`, including `__proto__`. Avoid those names and
-restart the host after changing a registered contract. The record produced here
-preserves such keys, but cannot change downstream registry behavior.
-
-Full HTTP/MCP/A2A deployment tests are outside this package's test suite. This
-is the bounded integration originally tracked in
-[issue #22](https://github.com/doeixd/foldkit-plus/issues/22), not a claim that
-every Agent Native subsystem is independently reusable.
-
-## Choosing an adapter
-
-All four adapters serve the same `AssistantAgent` contract. Multiple adapters
-mean multiple protocol interpretations of one definition, not multiple
-capability declarations.
+## Choose an agent adapter
 
 | Where the agent runs | Adapter |
 | --- | --- |
-| In the page, beside the user | [`foldkit-agent-webmcp`](../agent-webmcp) |
-| An external MCP client, over stdio or HTTP | [`foldkit-agent-mcp`](../agent-mcp) |
-| Another agent, over A2A | [`foldkit-agent-a2a`](../agent-a2a) |
+| In the page beside the user | [`foldkit-agent-webmcp`](../agent-webmcp) |
+| External MCP client over stdio or HTTP | [`foldkit-agent-mcp`](../agent-mcp) |
+| Another agent over A2A | [`foldkit-agent-a2a`](../agent-a2a) |
 | An Agent Native host | `foldkit-agent-native` |
 
-## See also
+## Next
 
-- [Agents guide](../../docs/agents.md) — builder → contract → runtime and the authority model.
-- [`foldkit-agent`](../agent) — the protocol-neutral contract and runtime.
-- [`examples/todo`](../../examples/todo) — a focused contract served through adapters.
+- Declare capabilities, completion contracts, and audit logs: [`foldkit-agent`](../agent)
+- Expose tools over MCP or WebMCP: [`foldkit-agent-mcp`](../agent-mcp), [`foldkit-agent-webmcp`](../agent-webmcp)
+- Read the architecture guide: [Agents guide](../../docs/agents.md)

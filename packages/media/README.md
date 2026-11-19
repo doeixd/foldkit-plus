@@ -1,196 +1,251 @@
 # foldkit-media
 
-Responsive images for Foldkit Plus. An image is a URL to write: given an
-image's facts, a provider that knows a host's URL scheme, and how wide the image
-is drawn, `foldkit-media` derives every attribute of its markup (`srcset`,
-`sizes`, a `source` per format, the box it reserves, how eagerly it loads). It
-performs no I/O. Icons are its second half: an icon is data (`IconData`), read
-from an SVG file or an Iconify set at build time and checked there, then drawn
-inline or as a mask ([Icons](#icons)). Its subpaths add the I/O around both:
-a resizing server, its Cloudflare and Node layers, uploads, and Vite plugins.
+A photo from a phone camera is several megabytes. Sent as it is, a phone on a
+slow connection downloads far more than its screen can show, and the page jumps
+when the photo finally arrives. Doing it properly means a smaller copy of the
+file for each screen width, a modern format such as AVIF with a fallback for
+older browsers, the `srcset` and `sizes` attributes that let the browser pick
+the right copy, and the image's width and height written into the page so its
+space is held while it loads.
 
-## What it owns, and what it does not
+`foldkit-media` does that for apps built with
+[Foldkit](https://foldkit.dev/), a TypeScript framework whose views are plain
+functions that return HTML. You import an image from your repository; at build
+time a Vite plugin writes every size and format of it; and one call draws the
+markup. You can see the result on the
+[Image component page](https://foldkit-plus.pages.dev/components/image).
 
-- **It owns** the derivation: which widths are worth offering, what `sizes`
-  says, which URL each variant has.
-- **The original image** belongs to its source: a file in your repository, an
-  upload your CMS stores, a third-party host.
-- **An image's facts** (width, height, alpha, placeholder) are derived from the
-  original once and stored beside it. This package reads them as an
-  `ImageAsset`; `describe` computes them where an original enters, while the
-  view only reads them.
-- **Variants** belong to whoever makes them, a CDN or a resizing server, and
-  are a cache: they can be made again from the original.
-- **An uploaded file** (any file, not an image to resize) belongs to the
-  `FileStore`, with the facts the route recorded; which row holds it, and who
-  may read it, is the application's ([Files](#files)).
-- **Which variant a page shows** is the browser's choice, from `srcset` and
-  `sizes`. Nothing in your Model decides it.
-- **An icon's drawing** belongs to its set (Lucide, an application's SVG
-  folder); this package reads and checks it once, at build, and the theme's
-  `icon` tokens (`foldkit-mixins`) choose which drawing a component shows.
+## Install
 
-## The model
-
-An `ImageAsset` (the facts), a `Provider` (the URL scheme) and a `Layout` (how wide)
-go into `Picture.derive`, which gives the attributes a view writes. It does no I/O.
-
-One `Widths` ladder, carried by the provider, decides which widths exist. A
-`Layout` picks the ones worth offering:
-
-| Layout | Candidates | `sizes` |
-| --- | --- | --- |
-| `Fixed({ width })` | the ladder widths covering 1x and 2x | `${width}px` |
-| `Constrained({ width })` | every width up to the one covering 2x | `(min-width: ${width}px) ${width}px, 100vw` |
-| `FullWidth()` | the whole ladder | `100vw` |
-
-A width above the original's own is described with the original's width, and
-only the first such width is offered: a provider that does not enlarge answers
-all of them with the same pixels.
-
-## Sixty seconds
-
-```ts
-import { Option, Schema } from 'effect'
-import { ImageAsset, Layout, Picture, Provider } from 'foldkit-media'
-
-const hero = Schema.decodeUnknownSync(ImageAsset)({
-  key: 'photos/hero.jpg',
-  width: 2400,
-  height: 1600,
-  alpha: false,
-  hash: null,
-  placeholder: null,
-})
-
-const picture = Picture.derive({
-  asset: hero,
-  provider: Provider.cdnCgi(),
-  layout: Layout.Constrained({ width: 720 }),
-})
-
-Option.map(picture, ({ img }) => img.srcset)
-// "/cdn-cgi/image/width=320,format=auto,fit=scale-down/photos/hero.jpg 320w, …"
+```bash
+pnpm add foldkit-media foldkit-mixins-ui foldkit-mixins foldkit-primitives @foldkit/ui
+pnpm add -D sharp
 ```
 
-- `ImageAsset` is a Schema: decode stored facts with it. Its optional fields
-  (`hash`, `placeholder`) are `null` when stored and `Option` in code.
-- `Provider.cdnCgi()` writes Cloudflare's `/cdn-cgi/image/` URLs: the zone
-  resizes the original itself, and no code of yours runs. It only writes URLs.
-- `Picture.derive` returns `Option.none()` when the provider has no URL for any
-  candidate; otherwise every attribute: `sources`, `img`, and the `ratio`.
+`foldkit-mixins-ui` is the widget package that draws the image; the next three
+names are what it is built on. `sharp` reads and resizes your files during the
+build, so it is only needed where you build.
 
-## Providers
+## A first image: resize at build time
 
-- **`Provider.cdnCgi({ zone?, widths?, quality? })`** — Cloudflare's resizing on
-  a zone that has it on. It picks the format from `Accept`, so it offers no
-  `source`s. A `key` may be a path on the zone or an absolute URL.
-- **`Provider.fromFiles(files, { sources, fallback })`** — variants a build
-  already wrote, as a table of `{ width, format, url }`. Its ladder is the
-  widths it has; a variant it lacks is left out of `srcset`.
-
-- **`Provider.hosted({ baseUrl?, space?, sources?, fallback?, quality? })`** —
-  this package's own server, for originals no CDN can fetch. A variant's URL is
-  `/_image/<sha-256>/w640.avif`: the original is named by its content hash, so
-  it is a `Provider<HashedAsset>`, and facts without `hash` are a type error
-  where the picture is derived. Decode stored facts with the `HashedAsset`
-  Schema (an upload answers one), or narrow with `isHashed`. The format is in the URL, so every
-  cache can key on it.
-
-- **`detect(url, { widths?, sources?, fallback?, quality? })`** from
-  `foldkit-media/unpic` — an image on a host that resizes it (Shopify,
-  Cloudinary, imgix, Contentful, and the rest [unpic](https://unpic.pics)
-  knows), through unpic, an optional peer. It answers `Option<Provider>`: none
-  for a host unpic does not know. By default the `img` asks for `auto` and the
-  host picks the format from `Accept`; a format asked as a `source` is left out
-  on a host that ignores it (Shopify's), and an asset on another host gets no
-  URL. The asset's `key` is the image's URL, and its size comes from
-  `factsOf(url)` (see Facts, below).
-
-  ```ts
-  import { Option } from 'effect'
-  import { detect } from 'foldkit-media/unpic'
-
-  const shopify = detect('https://cdn.shopify.com/s/files/1/0/products/shirt.jpg')
-  Option.isSome(shopify) // true
-  ```
-
-A provider is a plain value (`Provider.Provider`): `widths`, the `sources`
-formats offered before the `img`, the `img`'s own `fallback` encoding, and a
-`url` function answering `Option<string>`.
-
-## Images in the repository
-
-An image the application ships with needs no server and no CDN: the build
-reads it and writes its variants beside the bundle. Add the plugin, and the
-type of a `?image` import (`"types": ["foldkit-media/client"]` in the
-`tsconfig`):
+First, add the plugin to your Vite config. With no options it writes AVIF
+copies and WebP ones for older browsers:
 
 ```ts standalone
 // vite.config.ts
 import { images } from 'foldkit-media/vite'
 import { defineConfig } from 'vite'
 
-export default defineConfig({ plugins: [images({ sources: ['avif'], fallback: 'webp' })] })
+export default defineConfig({ plugins: [images()] })
 ```
 
+Then add `"foldkit-media/client"` to `compilerOptions.types` in your
+`tsconfig.json`, so TypeScript knows what an image import holds.
+
 <!-- docs-check standalone
-import type { HtmlBuilder } from 'foldkit/html'
-declare const h: HtmlBuilder<never>
 import 'foldkit-media/client'
 -->
+
+Now this view draws `hero.jpg`, a 2400 by 1600 photo, in a column 800 pixels
+wide (`h` is the HTML builder Foldkit hands every view):
+
 ```ts
-import hero from './hero.jpg?image'
+import type { HtmlBuilder } from 'foldkit/html'
 import { Layout } from 'foldkit-media'
 import { Image } from 'foldkit-mixins-ui'
 
-Image.view({ ...hero, layout: Layout.Constrained({ width: 800 }), alt: 'The finals' }, h)
+import hero from './hero.jpg?image'
+
+export const banner = (h: HtmlBuilder<never>) =>
+  Image.view(
+    { ...hero, layout: Layout.Constrained({ width: 800 }), alt: 'The team at the finals' },
+    h,
+  )
 ```
 
-The import is `{ asset, provider }`. The build measures the file once
-(`describe`, through sharp, so the application needs `sharp`): its size, its
-alpha, its SHA-256 and a ThumbHash. It writes one file for each ladder width
-below the original's own, and one at its own width, in each format, named by
-content so the host's long cache is honest; `provider` is
-`Provider.fromFiles` over them. Facts and variants are kept in Vite's cache
-directory by the original's hash, so an unchanged image, AVIF included, is
-not encoded again. The development server makes the same variants when a page
-asks for one, under `/@foldkit-media/image/`, and answers any width or format
-it did not offer with a 404.
+The page gets this markup (file names shortened; in a build each is named by
+its content, so a browser can keep it as long as it likes):
 
-Every image costs `widths × formats` files: with the standard ladder and two
-formats, a large photograph is eighteen. A static host counts files
-(Cloudflare Pages allows 20,000 on its free plan), so a site with many images
-offers fewer formats or widths (`images({ widths: Widths.make([…]) })`), or
-keeps its originals on the media server (`Provider.hosted`) instead.
+```html
+<picture>
+  <source type="image/avif"
+          srcset="hero-320.avif 320w, hero-480.avif 480w, … hero-1920.avif 1920w"
+          sizes="auto, (min-width: 800px) 800px, 100vw">
+  <img src="hero-828.webp"
+       srcset="hero-320.webp 320w, hero-480.webp 480w, … hero-1920.webp 1920w"
+       sizes="auto, (min-width: 800px) 800px, 100vw"
+       width="800" height="533" loading="lazy" decoding="async"
+       alt="The team at the finals">
+</picture>
+```
+
+A phone 400 pixels wide with a sharp screen (two device pixels to each CSS
+pixel) downloads the 828-pixel AVIF instead of the 2400-pixel original. The
+browser holds an 800 by 533 box from the first paint, so nothing below the
+photo moves when it arrives.
+
+### What the example did
+
+- **`import hero from './hero.jpg?image'`** asks the plugin for the photo. At
+  build time it measures the file once, writes a copy at each standard width up
+  to the photo's own in each format, and hands your code the photo's size and
+  the list of copies. Unchanged photos keep their cached copies. The
+  development server makes the same variants when a page asks for one, under
+  `/@foldkit-media/image/`, and answers any width or format outside the ladder
+  with a 404.
+- **`Layout.Constrained({ width: 800 })`** says how wide the image is drawn:
+  at most 800 pixels, narrower on a narrow screen. That decides which copies
+  are offered and what `sizes` says. `Layout.Fixed` is for an image that is
+  always one width (an avatar), and `Layout.FullWidth` for one that spans the
+  window.
+- **`alt`** is required. An image either says something, in words, or is
+  decoration, which you write as `alt: Image.decorative`.
+- **`Image.view`** writes the markup above. Give the page's largest image
+  `priority: true` and it loads first instead of lazily.
+
+The markup above has no styling of its own. To give the image the shipped
+look, which paints the photo's average colour in its box until the file
+arrives (and a blurred preview behind a `priority` image), pass a style from
+`Recipes`, which holds the package's ready-made looks:
+
+```ts
+import { Recipes } from 'foldkit-mixins-ui'
+
+const ImageStyle = Recipes.Image.style({})
+
+export const styledBanner = (h: HtmlBuilder<never>) =>
+  Image.view(
+    { ...hero, layout: Layout.Constrained({ width: 800 }), alt: 'The finals', style: ImageStyle },
+    h,
+  )
+```
+
+### When you have thousands of photos
+
+Each copy is a file, so a site with thousands of photos on a static host can
+run into its file limit (Cloudflare Pages allows 20,000 files on its free plan;
+the standard widths and two formats make up to eighteen per photo). Write fewer
+widths (`images({ widths: Widths.make([…]) })`), or keep the photos on a
+resizing server or CDN instead.
+
+## Choosing where images come from
+
+A photo a user uploads, or one on another site, comes from a server or CDN
+rather than your build. `Image.view` draws it the same way: instead of
+`...hero`, you pass the photo's facts (`ImageAsset`, stored when it was
+uploaded) and a *provider*, which writes the URL of each copy.
+
+Under the hood, `Picture.derive` takes those three inputs — an `ImageAsset`, a
+`Provider`, and a `Layout` — and computes every attribute (`sources`, `img`, and
+the `ratio`) in memory as pure data.
+
+| Layout | Candidates | `sizes` |
+| --- | --- | --- |
+| `Fixed({ width })` | Ladder widths covering 1x and 2x | `${width}px` |
+| `Constrained({ width })` | Widths up to the one covering 2x | `(min-width: ${width}px) ${width}px, 100vw` |
+| `FullWidth()` | The whole ladder | `100vw` |
+
+A width above the original's own is described with the original's width, and
+only the first such width is offered so providers that skip upscaling avoid
+duplicate URLs.
+
+- **`Provider.cdnCgi({ zone?, widths?, quality? })`** — Cloudflare's `/cdn-cgi/image/`
+  URLs on a zone with image resizing enabled. It picks the format from `Accept`,
+  so it writes `img` directly. A `key` may be a path on the zone or an absolute URL.
+- **`Provider.fromFiles(files, { sources, fallback })`** — variants a build
+  already wrote, as a table of `{ width, format, url }`. Its ladder is the
+  widths it has; missing variants are omitted from `srcset`.
+- **`Provider.hosted({ baseUrl?, space?, sources?, fallback?, quality? })`** —
+  this package's own server, for originals no CDN can fetch. A variant's URL is
+  `/_image/<sha-256>/w640.avif`: the original is named by its content hash, so
+  it is a `Provider<HashedAsset>`, and facts without `hash` are a type error
+  where the picture is derived. Decode stored facts with the `HashedAsset`
+  Schema (an upload answers one), or narrow with `isHashed`. Because the format
+  is in the URL, every cache keys on it directly.
+- **`detect(url, { widths?, sources?, fallback?, quality? })`** from
+  `foldkit-media/unpic` — an image on a host that resizes it (Shopify,
+  Cloudinary, imgix, Contentful, and the rest [unpic](https://unpic.pics)
+  knows), through unpic, an optional peer. It returns `Option<Provider>`: none
+  for a host unpic lacks a provider for. By default `img` asks for `auto` and
+  the host picks the format from `Accept`; a format requested as a `source` is
+  dropped on a host that ignores it (such as Shopify). The asset's `key` is the
+  image's URL, and its size comes from `factsOf(url)` (see [Reading an image's facts](#reading-an-images-facts)).
+
+  ```ts standalone
+  import { Option, Schema } from 'effect'
+  import { ImageAsset, Layout, Picture, Provider } from 'foldkit-media'
+  import { detect } from 'foldkit-media/unpic'
+
+  const hero = Schema.decodeUnknownSync(ImageAsset)({
+    key: 'photos/hero.jpg',
+    width: 2400,
+    height: 1600,
+    alpha: false,
+    hash: null,
+    placeholder: null,
+  })
+
+  const picture = Picture.derive({
+    asset: hero,
+    provider: Provider.cdnCgi(),
+    layout: Layout.Constrained({ width: 720 }),
+  })
+  Option.map(picture, ({ img }) => img.srcset)
+  // "/cdn-cgi/image/width=320,format=auto,fit=scale-down/photos/hero.jpg 320w, …"
+
+  const shopify = detect('https://cdn.shopify.com/s/files/1/0/products/shirt.jpg')
+  Option.isSome(shopify) // true
+  ```
+
+A provider is a plain value (`Provider.Provider`): `widths`, the `sources`
+formats offered before `img`, `img`'s own `fallback` encoding, and a `url`
+function returning `Option<string>`.
+
+## Ownership of images, variants, and files
+
+- **This package owns** the markup derivation: which widths to offer, what
+  `sizes` says, and each variant URL.
+- **The original image** belongs to its source: a file in your repository, an
+  upload your CMS stores, or a third-party host.
+- **An image's facts** (`width`, `height`, `alpha`, `placeholder`) are computed
+  from the original once via `describe` where an original enters and stored
+  beside it; the view only reads them as an `ImageAsset`.
+- **Variants** belong to whoever builds them (your Vite build, a CDN, or the
+  resizing server) and are a cache that can always be rebuilt from the original.
+- **An uploaded file** (any file, not an image to resize) belongs to `FileStore`
+  with the facts the upload route recorded; your application decides which row
+  holds it and who may read it ([Uploads for any file](#files)).
+- **Which variant loads** is the browser's choice from `srcset` and `sizes`;
+  your Model stays free of media queries and chosen widths.
+- **An icon's drawing** belongs to its SVG set (Lucide or your SVG folder); the
+  build reads and checks it once, and `foldkit-mixins` theme `icon` tokens pick
+  which drawing a component renders.
 
 ## Preloading the largest image
 
-A page's largest image is found sooner from a preload in the head. Foldkit adds
-no head tags, so `Picture.preload(picture)` returns the `<link rel="preload">`
-for your SSR `head` function to include, from the same `Picture.derive` the view
-draws with `priority: true`:
+A page's largest image is discovered sooner from a preload tag in `<head>`.
+`Picture.preload(picture)` returns the `<link rel="preload">` element for your
+SSR `head` function from the same `Picture.derive` the view draws with
+`priority: true`:
 
-<!-- docs-check standalone
+```ts standalone
 import { Option } from 'effect'
 import { Picture } from 'foldkit-media'
-declare const picture: Option.Option<Picture.Picture>
--->
-```ts
-const preloadTag = Option.map(picture, Picture.preload)
+
+export const preloadTag = (picture: Option.Option<Picture.Picture>) =>
+  Option.map(picture, Picture.preload)
 ```
 
 It names the first `source`'s candidates with its `type`, so a browser that
-cannot show that format skips the preload rather than fetch a file it will not
-use. With `foldkit-mixins-ui`, `Image.preloadsIn` is a `Head` that reads the
-same from the rendered page, so a page marks `priority` where it draws the
-image and nothing more.
+skips that format also skips the preload. With `foldkit-mixins-ui`,
+`Image.preloadsIn` is a `Head` that reads the same from the rendered page, so a
+page only marks `priority` where it draws the image.
 
 ## Open Graph
 
-`Picture.ogImage(asset, provider, origin)` is the absolute URL of a variant at
-least 1200 wide for `og:image`: JPEG where the provider makes it, else WebP or
-PNG, never AVIF, which not every link-preview fetcher reads.
+`Picture.ogImage(asset, provider, origin)` returns the absolute URL of a
+variant at least 1200 wide for `og:image`: JPEG where the provider makes it, else
+WebP or PNG, avoiding AVIF for broader link-preview compatibility.
 
 ## Placeholders
 
@@ -199,150 +254,134 @@ An `ImageAsset`'s `placeholder` is painted behind the image until it loads;
 
 - `Placeholder.cases.Color.make({ value })` paints one CSS color.
 - `ThumbHash` paints a blurred likeness decoded to a PNG data URL, a few
-  kilobytes of HTML per image, so the page paints it with no request; or the
-  same hash's average color, a few bytes. `Picture.derive` paints the
-  likeness for the `priority` image and the color for the rest, so a grid of
-  thumbnails stays small; `placeholder: 'detail' | 'average'` overrides it.
+  kilobytes of HTML per image, so the page paints it with no extra request; or
+  the same hash's average color in a few bytes. `Picture.derive` paints the
+  likeness for `priority` images and the color for the rest, keeping thumbnail
+  grids small; `placeholder: 'detail' | 'average'` overrides it.
 - `LowRes` paints the provider's smallest width of the image: no stored data,
   one small request.
 
-An image with `alpha: true` gets no placeholder, since it would show through the
-transparent pixels once the image loads.
+Images with `alpha: true` omit placeholders so background color fails to bleed
+through transparent pixels after load.
 
 ## Focal point
 
 An asset's `focus` (`{ x, y }`, 0 to 1 from the top left) is where a crop
-keeps the subject; `picture.focus` writes it as `object-position` does
-(`"25% 80%"`). It is the one fact an editor sets rather than one derived from
-the original, and a stored asset without it reads as none.
+keeps the subject; `picture.focus` formats it as `object-position`
+(`"25% 80%"`). Editors set it on the asset; an unset focus reads as `Option.none()`.
 
 ## Loading
 
 `priority: true` marks the page's largest image: `loading="eager"` and
 `fetchpriority="high"`. Every other image is `loading="lazy"` and
-`decoding="async"`, and its `sizes` begins with `auto, `, which lets a browser
-that supports it use the laid-out width.
+`decoding="async"`, and its `sizes` begins with `auto, `, letting supporting
+browsers use the laid-out width.
 
-## Facts
+## Reading an image's facts
 
 An `ImageAsset`'s facts are derived from its original once, where it enters,
-and stored beside it. `describe` is in the core; each inspector is the
-subpath of where it runs (`/sharp`, `/browser`, `/cloudflare`), and `factsOf`
-is `foldkit-media/server`'s:
+and stored beside it. `describe` lives in the core package; each inspector lives
+in the subpath for its runtime (`/sharp`, `/browser`, `/cloudflare`), and
+`factsOf` lives in `foldkit-media/server`:
 
 - `describe(key, bytes)` reads them through the `Inspector`: size, alpha, the
-  SHA-256, and a ThumbHash where the inspector makes a thumbnail.
-- `inspectorSharp({ maxPixels? })` (Node) reads all of them; alpha is whether
-  any pixel is transparent, so an opaque PNG still gets a placeholder.
+  SHA-256 hash, and a ThumbHash when the inspector generates thumbnails.
+- `inspectorSharp({ maxPixels? })` (Node) reads all of them; alpha is true only
+  when a pixel is transparent, so opaque PNGs still receive placeholders.
 - `inspectorBrowser({ maxPixels? })` (`foldkit-media/browser`) reads them in
   the browser or a web worker, with its own decoder: an editor describes a
-  file a reader dropped, ThumbHash and hash included, before anything is
-  uploaded, and stores its facts beside the image (a rich-text `Image`'s
-  `asset`). What the browser cannot decode is refused.
-- `inspectorImages(binding)` (Cloudflare) reads the size from `info`, which
-  costs no transformation. It makes no thumbnail, since the binding's raw
-  pixels are not offered offline, and takes every format but JPEG to be
-  transparent; both cost a placeholder, never show a wrong one.
-- `factsOf(url, { allow, maxBytes?, cache?, fetch? })` describes an image a
-  page names only by URL (a rich-text image), so it gets its box like any
-  other. Only `https` on a host in `allow` (matched exactly), at its default
-  port, is read, each redirect is checked again, and the body is limited as
-  it streams. Given a
-  `KeyValueStore` as `cache`, the facts are kept by URL and the original is
-  asked for again with its `ETag`, so an unchanged one is not read twice.
+  dropped file (including ThumbHash and hash) before upload and stores its facts
+  beside the image (such as a rich-text `Image`'s `asset`). Unrecognized formats
+  fail decoding.
+- `inspectorImages(binding)` (Cloudflare) reads the size from `info` without
+  billing a transformation. It skips thumbnails and marks non-JPEG images as
+  having alpha so placeholders remain accurate.
+- `factsOf(url, { allow, maxBytes?, cache?, fetch? })` describes an image named
+  only by URL (such as a rich-text image), giving it dimensions like any other.
+  It accepts only `https` URLs on exact hosts in `allow` at the default port,
+  re-checking redirects and bounding streamed bytes. Given a `KeyValueStore` as
+  `cache`, facts are cached by URL and revalidated with `ETag`.
 
-## The variant space
+## Variant spaces and revisions
 
 A server makes only what its `Variant.space({ widths?, formats?, qualities?, revision? })`
-allows: the width ladder, a set of formats (AVIF and WebP by default) and a set
-of qualities (none by default: no URL names one, and the encoder uses its own).
-A request outside it is refused before any work, so an original has at most
-`space.size` variants, whoever asks: 16 for `Variant.standard`. The server
-reads its space from the provider the pages use, so the two cannot differ:
-define `const media = Provider.hosted({ space })` once and give the same value
-to `serveFetch`'s `images.provider` (or `layer({ provider })`). The provider
-refuses, when defined, a format or quality its space does not make.
+allows: the width ladder, a set of formats (AVIF and WebP by default), and a set
+of qualities (omitted by default, leaving encoding quality to the encoder).
+Requests outside the space return 404 before any transform runs, bounding an
+original to at most `space.size` variants (16 for `Variant.standard`). Share one
+provider across pages and server so both agree: define
+`const media = Provider.hosted({ space })` once and pass it to `serveFetch`'s
+`images.provider` (or `layer({ provider })`).
 
-A variant's URL names the variant (the original's hash, a width, a format, a
-quality), and what it answers is kept for a year under it. Nothing checks that
-two makings of one variant give the same bytes, and an upgraded encoder may
-not: the server cannot tell. So a change to what a variant is (the encoder's
-settings, how it resizes) is a new `revision` of the space, which the
-application bumps, never new bytes behind an old URL. `Variant.space({ revision: 1 })`
-writes `w640.r1.avif`; revision 0, the default, writes no revision, so every
-URL written before revisions keeps its spelling. A server of revision 2 still
-answers what earlier ones wrote: an earlier revision's variant while its store
-keeps it, and else a `302` to the current revision's URL, kept briefly, since
-a rollback, or a server of the earlier revision still in the rollout, answers
-the old URL again. A later revision it answers as it would a width it does not
-make, briefly, since the next release in a rollout may.
+A variant's URL names its parameters (hash, width, format, quality), and its
+response is cached for a year as immutable. Because encoder upgrades can change
+output bytes, changes to how variants are built belong in a new `revision` on
+the space rather than behind existing URLs. `Variant.space({ revision: 1 })`
+writes `w640.r1.avif`; revision 0 (the default) omits the revision segment so
+existing URLs keep their spelling. A server at revision 2 still answers earlier
+revisions: serving stored earlier variants while present, or redirecting (`302`)
+to the current revision with a short cache header for rolling deploys. Requests
+for a future revision return 404 with the same short cache header.
 
-## The server
+## Running the resizing server
 
-`foldkit-media/server` answers the route `Provider.hosted` writes, for
-originals no CDN can fetch. `MediaApi` is its Effect `HttpApi`, one route;
-the handler decodes the path with the space's Schema, the one the provider
-encodes with. A URL outside the grammar (a leading zero, a malformed hash) is
-a 400; one well formed but outside this space (a width off the ladder) is a
-404. Only a variant is kept long: every refusal is kept a minute at the edge
-and not at all by a browser, since another release, the next one in a
-rollout, or the same one configured otherwise, may answer it.
+`foldkit-media/server` serves the `/_image/` route that `Provider.hosted`
+writes, for originals no CDN can fetch. `MediaApi` defines the Effect `HttpApi`
+endpoint; the handler decodes each path with the space's Schema. URLs outside
+the grammar (leading zeros, malformed hashes) return 400; well-formed URLs
+outside the configured space return 404. Variants cache for a year; error
+responses cache for one minute at the edge and are marked `no-store` for
+browsers so rolling deploys recover quickly.
 
-The route checks no permission: anyone holding a variant's URL can read it. A content
-hash cannot be guessed, but every page that shows the image hands it out, so
-an original that must stay private does not belong on this server.
+Variant URLs carry unguessable SHA-256 hashes, though every page rendering an
+image publishes its hash; keep sensitive files out of public variant routes.
 
-It needs three services, each a Layer you choose per host:
+The server needs three Effect services, each a Layer you choose per host:
 
 | Service | Job | Kind |
 | --- | --- | --- |
-| `Originals` | an original's bytes by content hash | authoritative; the server never writes it |
-| `Transformer` | resize and encode, never above the original's width | does the work |
-| `Variants` | variants already made, by the encoded request | a cache: clearing it costs time, not data |
+| `Originals` | Original bytes by content hash | Authoritative; read-only |
+| `Transformer` | Resize and encode without enlarging | Stateless compute |
+| `Variants` | Cached variants by encoded request | Rebuildable cache |
 
-A request is served from `Variants` when it can; otherwise the original is
-read, transformed, kept, and served. A failure is its own response, never the
-original in the variant's place, naming its kind (`{ "error": "NotFound" }`)
-and nothing of the server's internals.
+A request is served from `Variants` when cached; otherwise the original is
+read, transformed, stored, and served. Failures return structured error JSON
+(`{ "error": "NotFound" }`) without server internals.
 
-Every answer the route gives has its headers from one function, `headersFor`.
-A defect is not an answer: a store that fails, or a Worker's layer that
-cannot be built, is the framework's own `500`, with none of them.
+Every response gets its headers from `headersFor`. Unhandled defects (such as
+failing stores or missing Worker layers) produce a framework 500 response.
 
 | Answer | Status | `Cache-Control` |
 | --- | --- | --- |
-| A variant (`ETag: "<hash>/<spelling>"`) | 200 | `public, max-age=31536000, immutable`: the path names the variant, and a new way of making it is a new revision |
-| A request already holding it (`If-None-Match`) | 304 | the same; the store is not read |
-| A URL outside this release's grammar | 400 | `no-store`, and `CDN-Cache-Control: public, max-age=60`: a later release may read it (a new format) |
-| A well-formed URL outside this space | 404 | the same: a later release may offer it |
-| An earlier revision's variant, no longer kept | 302 to the current revision's URL | the same: a rollback answers the old URL again |
-| No original under the hash | 404 | the same: an upload may yet put it there |
-| The original above `maxBytes` (20 MB by default) | 413 | the same: a server configured to read more may answer it |
-| The transformer failed | 502 | `no-store` |
-| The client past its rate limit | 429 | `no-store`, `Retry-After` |
-| The allowance spent | 503 | `no-store`, `Retry-After: 3600` |
+| Variant (`ETag: "<hash>/<spelling>"`) | 200 | `public, max-age=31536000, immutable` |
+| Conditional hit (`If-None-Match`) | 304 | Same as 200; skips reading bytes |
+| Malformed URL | 400 | `no-store` (`CDN-Cache-Control: public, max-age=60`) |
+| Width/format outside space | 404 | Same as 400; next release may add it |
+| Retired revision not in store | 302 | Redirect to current revision; 60s CDN cache |
+| Missing original | 404 | Same as 400; upload may arrive later |
+| Original over `maxBytes` (20 MB) | 413 | Same as 400 |
+| Transformer failure | 502 | `no-store` |
+| Rate limited | 429 | `no-store`, `Retry-After` |
+| Quota spent | 503 | `no-store`, `Retry-After: 3600` |
 
-Every image response also says `X-Content-Type-Options: nosniff`,
-`Access-Control-Allow-Origin: *` (a canvas may read it), `Cross-Origin-Resource-Policy:
-cross-origin` and `Timing-Allow-Origin: *`, and a variant says where it came
-from in `Server-Timing` (`edge`, `store` or `made`). Nothing sends `Vary`: the
-format is in the URL.
+Every image response also sends `X-Content-Type-Options: nosniff`,
+`Access-Control-Allow-Origin: *`, `Cross-Origin-Resource-Policy: cross-origin`,
+`Timing-Allow-Origin: *`, and `Server-Timing` (`edge`, `store`, or `made`).
+Because the format is encoded in the URL path, `Vary` is left unset.
 
-- `serveFetch({ images?, uploads?, otherwise? })` is a Worker's fetch handler.
-  It owns `/_image/` and `/_media/`: `images` (`{ provider?, maxBytes?, layer }`)
-  serves the variants, `uploads` (below) the upload route, each with its
-  services built from the request's bindings once per environment. Anything
-  else under those two prefixes, a route it was not given or a preflight, is a
-  404, and every other path goes to `otherwise` (a 404 without one), so the
-  application's own routes need not know the media paths.
-- `layer({ provider?, maxBytes?, coalesce? })` is the route as an Effect
-  `HttpRouter` layer, for a Node server beside other routes.
-- `variantsNone` keeps nothing, for a host with a cache of its own in front.
+- `serveFetch({ images?, uploads?, otherwise? })` builds a Worker fetch handler
+  owning `/_image/` and `/_media/`. Unmatched subpaths and `OPTIONS` preflights
+  under those prefixes return 404; other paths route to `otherwise` (404 by
+  default).
+- `layer({ provider?, maxBytes?, coalesce? })` mounts the route as an Effect
+  `HttpRouter` layer for Node servers.
+- `variantsNone` skips variant caching for deployments fronted by an external
+  cache.
 
 ### Stores
 
-`Originals` and `Variants` are kept in any Effect `KeyValueStore`
-(`effect/persistence`), the store the application already has:
+`Originals` and `Variants` read from any Effect `KeyValueStore`
+(`effect/persistence`):
 
 ```ts
 import { NodeServices } from '@effect/platform-node'
@@ -356,39 +395,37 @@ const stores = Layer.mergeAll(originalsKeyValueStore(), variantsKeyValueStore())
 )
 ```
 
-- `KeyValueStore.layerMemory` for tests, `layerFileSystem` on a disk (it
-  needs the platform's `FileSystem` and `Path`, Node's on a server),
-  `layerSql` over SQLite or D1, `keyValueStoreR2` (below) over R2.
-- `variantsKeyValueStore({ prefix })` keeps a variant's bytes under
-  `variants/<hash>/<spelling>`; its media type is the key's extension, so
-  nothing else is stored. A store that fails a read or a write is reported
-  (`StoreFailed`) and the request is answered by making the variant: variants
-  are a cache.
-- `originalsKeyValueStore({ prefix })` reads an original under its hash. A
-  store that fails is a 500, not a 404: the original is the data.
+- `KeyValueStore.layerMemory` for tests, `layerFileSystem` on disk (requiring
+  `FileSystem` and `Path`), `layerSql` over SQLite or D1, or `keyValueStoreR2`
+  over R2.
+- `variantsKeyValueStore({ prefix })` stores variants under
+  `variants/<hash>/<spelling>`, deriving media type from the key extension. Read
+  or write errors emit a `StoreFailed` diagnostic and fall back to transforming
+  from the original.
+- `originalsKeyValueStore({ prefix })` reads originals by content hash. Store
+  failures return 500 rather than 404 so missing storage fails loudly.
 
 ### Rate limits
 
-Only a miss costs work, so only a miss is limited: `Admission` is asked after
-the store and before the original is read, and a variant already made is
-served to anyone. It is optional; without it every miss is admitted.
+Only cache misses trigger transforms, so `Admission` runs after a cache miss and
+before reading the original. Cached variants serve all clients without counting
+against rate limits:
 
-- `admissionRateLimiter({ limit, window, algorithm? })` is Effect's
-  `RateLimiter` (`effect/persistence`): `limit` misses a client per `window`,
-  over `RateLimiter.layerStoreMemory` in one process or Redis across several.
-- `admissionRateLimit(binding)` (`foldkit-media/cloudflare`) is a Workers
-  rate-limit binding (`[[ratelimits]]`), whose limit and period are its
-  configuration.
-- A refused client gets a 429 with `Retry-After`. A limiter that fails admits
-  the request, reported (`AdmissionFailed`): a limiter that is down should not
-  take the images down.
-- The client is `CF-Connecting-IP`, else the connection's address. Pass
-  `clientOf` to read your own proxy's header; `X-Forwarded-For` is the
-  client's to write, so it is not read by default.
+- `admissionRateLimiter({ limit, window, algorithm? })` wraps Effect's
+  `RateLimiter` (`effect/persistence`): `limit` misses per client per `window`,
+  backed by memory or Redis.
+- `admissionRateLimit(binding)` (`foldkit-media/cloudflare`) wraps a Cloudflare
+  Workers rate-limit binding (`[[ratelimits]]`).
+- Exceeding the limit returns `429` with `Retry-After`. Limiter failures emit
+  `AdmissionFailed` and admit the request so a down limiter keeps images online.
+- Clients are identified by `CF-Connecting-IP`, then connection address. Pass
+  `clientOf` to read another proxy header (`X-Forwarded-For` is ignored by
+  default since clients can spoof it).
 
 ### On a Node server
 
-`foldkit-media/sharp` gives the `Transformer` (sharp is an optional peer):
+`foldkit-media/sharp` provides the `Transformer` (with `sharp` as an optional
+peer):
 
 ```ts
 import { NodeServices } from '@effect/platform-node'
@@ -410,35 +447,30 @@ const media = layer().pipe(
 )
 ```
 
-- `transformerSharp` and `inspectorSharp` read an original as its EXIF
-  orientation shows it: a phone's portrait photograph, stored landscape, is
-  measured, resized and placeheld upright, as a browser draws it.
-- `transformerSharp` reads an original's size from its header before decoding
-  it, and refuses one above `maxPixels` (50 megapixels by default) with a 413,
-  so a small file that inflates to a huge picture never reaches the heap. It
-  never enlarges, and encodes at the URL's quality.
-- At most `concurrency` transforms run at once (the machine's cores by
-  default), through `limitTransforms(n)`, which wraps any `Transformer`.
-- `layer` coalesces: concurrent misses for one variant share one transform
-  and one write (`coalesce`, on by default here and off for `serveFetch`,
-  since a Worker request cannot wait on another's).
+- `transformerSharp` and `inspectorSharp` normalize EXIF orientation so
+  portrait phone photos are measured, resized, and placeheld upright.
+- `transformerSharp` checks header dimensions before decoding and rejects images
+  above `maxPixels` (50 megapixels by default) with `413` before allocating pixel
+  buffers. It caps output width at the original's width and encodes at the URL's
+  quality.
+- `limitTransforms(n)` caps concurrent transforms on any `Transformer` (defaults
+  to CPU core count).
+- `layer` coalesces concurrent misses for the same variant into one transform
+  and store write (`coalesce` defaults to `true` on Node and `false` in
+  `serveFetch`, where Worker requests run in separate request contexts).
 
 ### Uploads
 
-An original that no CDN or build holds, such as an editor's upload, enters
-through `POST /_media/upload`: the bytes are the body, with an `image/*`
-`Content-Type`. The route reads at most `maxBytes` (20 MB by default) as the
-body streams, reads its facts through the `Inspector`, keeps the bytes under
-their SHA-256 in `Uploads` (where `Originals` reads them) with the facts
-beside them, and answers the facts as a `HashedAsset`, keyed by that hash,
-with a `201`. The variant server serves it at once.
+Uploaded images enter through `POST /_media/upload` as raw `image/*` request
+bodies. The route streams up to `maxBytes` (20 MB by default), extracts facts
+with `Inspector`, stores the bytes under their SHA-256 hash alongside
+`StoredFacts`, and returns a `201` JSON `HashedAsset`. The variant server can
+serve that hash immediately.
 
-**Who may upload** is the application's to say, and the route has no
-default. `UploadPolicy.admit(request, route)` is asked before a byte is read,
-with the route it is for (`'Upload'`, or `'DescribeUrl'` for the facts route
-below). It refuses with `UploadForbidden` (`403`), or with
-`UploadUnauthenticated` (`401`) when it cannot tell who is asking, so a client
-whose session ended knows to sign in again.
+**Authorization is required.** `UploadPolicy.admit(request, route)` runs before
+reading any body bytes, receiving `'Upload'` or `'DescribeUrl'`. It fails with
+`UploadForbidden` (`403`) or `UploadUnauthenticated` (`401`) when identity is
+missing so clients know to refresh a session.
 
 <!-- docs-check standalone
 import { Effect, Option, Schema } from 'effect'
@@ -481,52 +513,37 @@ const uploads = uploadLayer({ maxBytes: 10 * 1024 * 1024 }).pipe(
 )
 ```
 
-- `uploadPolicyBearer(secret)` is for a deployment's secret, a script's: it
-  admits `Authorization: Bearer <secret>`, compared by digest so the time
-  taken says nothing of the secret, and admits nobody while the secret is
-  unset or empty.
-- `GuardMedia.uploadPolicy` from `foldkit-guard/media` decides each route by
-  the principal guards of your guard set (`G`, `Policy`), for who `resolve`
-  says is asking: the resolver your Remote server is given, such as
-  `AuthServer.resolver` from `foldkit-auth/server`. It reads the request's
-  headers alone. A route given no guards admits nobody; here an editor may
-  upload and nobody may have a URL described.
-- `uploadPolicyAny(a, b, …)` tries policies in turn, the first to admit
-  winning; when every one refuses, the last refusal is the answer.
-- A policy of your own is `Layer.succeed(UploadPolicy, { admit })`.
+- `uploadPolicyBearer(secret)` accepts `Authorization: Bearer <secret>` using
+  constant-time digest comparison and rejects requests while the secret is unset
+  or empty.
+- `GuardMedia.uploadPolicy` (`foldkit-guard/media`) authorizes each route using
+  your guard set's principal guards (`G`, `Policy`) and session `resolve` (such
+  as `AuthServer.resolver` from `foldkit-auth/server`). Routes omitted from the
+  map reject all requests; here editors can upload while URL fact lookups stay
+  closed.
+- `uploadPolicyAny(a, b, …)` tries policies in order, admitting on the first
+  match or returning the last refusal.
+- Custom policies use `Layer.succeed(UploadPolicy, { admit })`.
 
-**Registering an upload.** The bytes never travel through RPC; only facts go
-on to the application's data (a CMS's asset row). But the facts the route
-answered are the client's word once they pass through it: a client can change
-a width, or name another original's hash, and decoding with `HashedAsset`
-checks their shape, not that they are true. So the mutation that registers
-an upload takes the hash, and reads the facts the server kept:
-`StoredFacts.get(hash)` answers them, or none for a hash nobody uploaded (or
-one kept before facts were), over the same store as `Uploads`
-(`storedFactsKeyValueStore()`, `storedFactsR2(bucket)`). What only an editor
-knows, such as a focal point, comes with the hash.
+**Registering an upload.** Mutations receive only the submitted hash and look
+up server-recorded facts via `StoredFacts.get(hash)` (backed by
+`storedFactsKeyValueStore()` or `storedFactsR2(bucket)`), returning `none` if
+no upload recorded that hash. Client-submitted editor metadata such as a focal
+point travels alongside the hash.
 
-`uploadsKeyValueStore()` keeps uploads where `originalsKeyValueStore()`
-reads, over the same `KeyValueStore`; on Cloudflare, `uploadsR2(bucket)`
-beside `originalsR2(bucket)`, and `serveFetch`'s `uploads` hosts the route in
-a Worker. A refusal answers its kind and nothing more, and no browser keeps
-it: `403` or `401` from the policy, `415` for a body that is not `image/*` or
-not an image the inspector reads, `413` past `maxBytes` or the inspector's
-pixel limit, and `400` for a body that broke off. Because the body must be
-`image/*`, which is not a type a browser sends to another origin without a
-preflight, and the route answers no preflight, a cookie alone cannot upload
-from another site.
+`uploadsKeyValueStore()` and `uploadsR2(bucket)` share backing stores with
+originals, and `serveFetch`'s `uploads` mounts the routes in a Worker. Refusals
+return minimal status codes with `no-store` (`401`/`403` from policy, `415` for
+unrecognized image bodies, `413` above byte/pixel limits, `400` for truncated
+streams). Requiring `image/*` without CORS `OPTIONS` prevents cross-origin form
+or cookie uploads from other sites.
 
-From a browser, `upload(file, { url?, headers? })` (`foldkit-media/browser`)
-sends one file to the route and is a `Stream`: `Progressed { loaded, total }`
-as the bytes go, then one `Uploaded { asset }` with the route's facts, and it
-ends. A refusal fails it with `UploadFailed { reason, status }`, whose
-`reason` names the route's answer (`Forbidden`, `Unauthenticated`,
-`TooLarge`, `Unsupported`, `Malformed`), `Network` when nothing answered,
-or `Unexpected` for an answer that is not the route's. It is an
-`XMLHttpRequest`, since `fetch` reports no upload progress, and interrupting
-the stream aborts it: a Command or Subscription that runs it cancels by
-ending.
+In the browser, `upload(file, { url?, headers? })` (`foldkit-media/browser`)
+returns a `Stream` emitting `Progressed { loaded, total }` and then
+`Uploaded { asset }`. Failures emit `UploadFailed { reason, status }` (`Forbidden`,
+`Unauthenticated`, `TooLarge`, `Unsupported`, `Malformed`, `Network`, or
+`Unexpected`). It uses `XMLHttpRequest` for upload progress and cancels when the
+Effect stream is interrupted:
 
 ```ts
 import { Effect, Match, Stream } from 'effect'
@@ -545,48 +562,34 @@ const send = (file: File) =>
   )
 ```
 
-A browser authenticates as the page does: a same-origin request carries the
-session cookie, which the application's own `UploadPolicy` reads (as
-`GuardMedia.uploadPolicy` does). `uploadPolicyBearer`'s secret is a deployment's,
-for a script; a page that sends it in `headers` gives it to every visitor. No
-timeout is set: a stalled server shows the send on its way until it is
-interrupted.
+Same-origin browser uploads send the page's session cookie automatically; reserve
+bearer tokens for deploy scripts so secrets stay off client pages.
 
-An image a page names only by URL gets its facts from the same route set:
-`GET /_media/facts?url=` reads it with `factsOf`, behind the same
-`UploadPolicy`, asked for `'DescribeUrl'`, and answers them keyed by the URL (`200`). Only `https` on a
-host in `uploadLayer({ facts: { allow } })` is read, and `allow` is empty
-unless given, so a server names every host it fetches. An editor asks it when
-a URL is set, and stores the facts beside the URL. Neither route limits how
-often it is asked: each admitted call reads up to `maxBytes` and decodes it,
-so the `UploadPolicy` is where an application limits who calls, and how often. What cannot be read (a host
-not allowed, a missing file, no image) is a `422`, saying only that.
+Remote image URLs get their facts from `GET /_media/facts?url=`, protected by
+the same `UploadPolicy` with `'DescribeUrl'`. Configure allowed hosts in
+`uploadLayer({ facts: { allow } })` (empty by default). Unreachable or invalid
+images return `422`.
 
 ### Files
 
-Images are not the only uploads: a form may take a PDF, a spreadsheet, any
-file. `POST /_media/files` keeps any file, and `GET /_media/files/:key` serves
-it back as a download. They are a route set of their own (`fileLayer`), apart
-from the image routes, and a server that mounts only the image routes serves
-no file. Files are kept in a `FileStore` under 32-hex keys, and the variant
-server reads only a 64-hex content hash, so no request to it names a file.
+Forms often need arbitrary attachments (PDFs, spreadsheets). `fileLayer` adds a
+separate route set at `POST /_media/files` and `GET /_media/files/:key`, storing
+bytes in `FileStore` under random 32-hex keys distinct from the 64-hex hashes
+used by `/_image/`.
 
-**Who owns what.** The route owns the bytes and the facts it recorded about
-them: a key it minted, and the name, type and size the uploader declared. The
-application owns which row holds a file and who may read it. A form only ever
-holds a `FileAsset` (`{ key, name, type, size }`, from `foldkit-media`), which
-is the client's word once it has passed through the client.
+**Ownership.** The upload route owns the bytes and recorded metadata (`key`,
+`name`, `type`, `size`). Your application owns which database row holds a
+`FileAsset` and who may download it:
 
-```text
-browser: uploadFile(file)  ->  POST /_media/files  ->  key minted, bytes + record kept  ->  FileAsset
-form submits the FileAsset ->  your mutation: authorize, then keepOrClaim  ->  the server's FileAsset on the row
-GET /_media/files/:key     ->  FileReadPolicy (who asks, may they read this key)  ->  the bytes, as an attachment
-```
+1. The browser runs `uploadFile(file)` to `POST /_media/files`, receiving a
+   minted `FileAsset`.
+2. Your form submits the `FileAsset`; your server mutation authorizes the write
+   and calls `keepOrClaim` to bind the file to the row.
+3. `GET /_media/files/:key` checks `FileReadPolicy` for the requester and
+   streams the file as a download attachment.
 
-A key is 128 random bits, so it cannot be guessed, and each upload's bytes
-are kept on their own, even when equal to another's: sharing them would make
-a second upload of the same bytes answer faster, telling the uploader that
-someone already holds them.
+Each upload receives a fresh 128-bit random key and stores its own copy so
+duplicate uploads reveal nothing about existing files.
 
 ```ts
 import { Effect, Layer, Option } from 'effect'
@@ -636,88 +639,53 @@ const attached = (held: Option.Option<FileAsset>, submitted: FileAsset, user: st
   keepOrClaim(held, submitted, user)
 ```
 
-- **`FileUploadPolicy.admit(request)`** says who is uploading, before a byte
-  is read, and answers their id. Only that id may claim the file later, so it
-  must be stable and never given to another person. An empty id is refused
-  (`403`) and reported (`OwnerMissing`): one id for every visitor would let
-  anyone claim anyone's upload.
-- **`fileReadPolicy({ resolve, read })`** asks in two steps, before the store
-  is read. `resolve` says who is asking from the request alone, never the key,
-  or fails `FileUnauthenticated` (`401`) when it cannot tell, so a client can
-  ask the reader to sign in again. `read` says whether they may read a key,
-  typically by finding the row that holds it. A no is a `404`, the same answer
-  as a key nobody uploaded, so a refusal never says whether a file exists.
-- **`keepOrClaim(held, submitted, owner)`** is what a save stores. When the
-  submitted key is the file the row already holds, it keeps that file and
-  claims nothing, so a teammate re-saving a row is fine. Otherwise it claims
-  the key: `FileStore.claim` answers the facts the route recorded, once, to
-  the uploader, within `claimWithin` (a day by default, an option of
-  `filesKeyValueStore`), and fails `FileUnclaimed` for anything else (an
-  unknown key, an expired one, someone else's, one claimed already), each
-  alike. Call it after authorizing the write, so a refused write claims
-  nothing. A key moves to another row only by being uploaded again.
+- **`FileUploadPolicy.admit(request)`** resolves the uploader's stable owner ID
+  before reading bytes. Blank IDs fail with `403` and emit `OwnerMissing`.
+- **`fileReadPolicy({ resolve, read })`** authenticates the reader first (returning
+  `401` `FileUnauthenticated` when unknown), then checks `read(user, key)`.
+  Refused reads return `404` identically to missing keys so key existence stays
+  hidden.
+- **`keepOrClaim(held, submitted, owner)`** keeps an unchanged key in place when
+  re-saving a row, or claims a newly uploaded key from `FileStore` within
+  `claimWithin` (24 hours by default, failing `FileUnclaimed` for expired,
+  claimed, or foreign keys). Call it after authorizing the mutation so refused
+  writes leave keys unclaimed.
 
-**A download cannot run here.** Every answer the download route writes,
-refusals included, is `application/octet-stream` with `nosniff`, a
-`Content-Security-Policy` of `sandbox; default-src 'none'`,
-`Cross-Origin-Resource-Policy: same-origin` and `Cache-Control: private,
-no-store`. A file comes as an attachment named by its record, never by the
-request, both as RFC 6266's `filename*` and as an ASCII fallback. The
-declared type is never served, so an HTML file uploaded as a PDF downloads
-and runs nothing. None of the image routes' cross-origin headers are sent.
-What the router answers before the route runs (another method, a path it
-cannot decode) and a `500` carry no body, so nothing in them can run.
+**Downloads execute safely.** Responses use `application/octet-stream`,
+`X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`,
+`Cross-Origin-Resource-Policy: same-origin`, `Cache-Control: private, no-store`,
+and an attachment `Content-Disposition` filename from the stored record.
 
-**What an upload must be.** The body is `application/octet-stream`, and the
-file's name and type travel in `x-foldkit-file-name` (percent-encoded UTF-8)
-and `x-foldkit-file-type`. A page on another site cannot send either without a
-preflight, which the route never answers, so a cookie alone cannot upload from
-elsewhere. An application that adds CORS middleware answering `OPTIONS` for
-these paths undoes that. The name must be non-empty, at most 255 bytes, with
-no control or format character (bidi overrides, zero-width characters), line
-separator or slash. The type is parsed, its parameters dropped, and compared
-with `accept` without regard to case: `text/html;x=image/png` is `text/html`.
-`accept` is required, `'*'` for any type. The client writes the type, so
-`accept` shapes the product and secures nothing; to check the content itself
-(magic numbers, a scan), give `inspect: (bytes, declared) => Effect<void,
-FileRefused>`, run before anything is kept.
+**Upload validation.** Bodies arrive as `application/octet-stream` with headers
+`x-foldkit-file-name` (percent-encoded UTF-8, up to 255 bytes, free of control
+chars or slashes) and `x-foldkit-file-type` (parsed media type matched against
+required `accept`, or `'*'`). Because clients declare the type, inspect file
+contents directly with `inspect: (bytes, declared) => Effect<void, FileRefused>`
+when you need magic-number checks.
 
 | Answer | Why |
 | --- | --- |
-| `201` | Kept; the body is the `FileAsset`. |
-| `400` | No name, or one that breaks a rule above; or a body that broke off. |
-| `401` / `403` | The policy could not tell who is asking, or refused them. |
-| `408` | The body came slower than `minBytesPerSecond` (32 KB/s by default) over 10 seconds. |
-| `413` | Past `maxBytes` (20 MB by default), counted as the body streams. |
-| `415` | Not `application/octet-stream`, a type outside `accept`, or refused by `inspect`. |
-| `429` | `Admission`, when one is given, refused this uploader (`Retry-After` says when to try). |
-| `503` | Every slot is taken (`maxConcurrent`, 2 by default), or this uploader already has one. It does not queue: try again soon. |
+| `201` | Kept; body is the `FileAsset` |
+| `400` | Invalid/missing name or truncated body |
+| `401` / `403` | Unauthenticated or policy rejected |
+| `408` | Slower than `minBytesPerSecond` (32 KB/s over 10s) |
+| `413` | Exceeded `maxBytes` (20 MB) |
+| `415` | Wrong content type, outside `accept`, or `inspect` failed |
+| `429` | `Admission` rate limit reached (`Retry-After`) |
+| `503` | Concurrency slots full (`maxConcurrent`: 2) |
 
-**Memory.** An upload holds about twice its size while it is read, so the
-defaults hold at most `2 × 20 MB × 2 = 80 MB`, within a 128 MB Worker. Lower
-`maxBytes` or `maxConcurrent` where an `inspect` copies the bytes. The slots
-belong to the server (a Worker isolate), built once with the layer. A
-download holds its file in memory too, and downloads take no slot, so a
-Worker serving many large files to many readers at once should keep them
-elsewhere (R2 behind a signed URL). One slot per uploader stops one account
-taking every slot, not several: at the minimum rate a 20 MB body takes about
-eleven minutes, so `maxConcurrent` accounts can hold every slot that long.
-Where that matters, ask `Admission` to limit uploads per owner.
+**Memory.** Uploads hold roughly twice their size in memory while streaming (80 MB
+peak at defaults, fitting inside a 128 MB Worker). Downloads also buffer in
+memory, so serve high-traffic large files via signed R2 URLs instead.
 
-From a browser, `uploadFile(file, { url?, headers? })` (`foldkit-media/browser`)
-sends the file as the route expects, and is a `Stream` like `upload`:
-`Progressed` as the bytes go, then `FileUploaded { asset }`. Its
-`UploadFailed` reasons add `TooSlow`, `RateLimited` and `Busy` to `upload`'s.
-In a Worker, `serveFetch`'s `files` hosts the route set. Not done here:
-resumable uploads, range requests, quotas beyond `Admission`, and removing the
-bytes of files nobody claimed (`claimWithin` stops their use; reclaiming the
-space is a sweep left to the application).
+In the browser, `uploadFile(file, { url?, headers? })` (`foldkit-media/browser`)
+emits `Progressed` and `FileUploaded { asset }`, adding `TooSlow`, `RateLimited`,
+and `Busy` failure reasons. Mount in a Worker via `serveFetch`'s `files` option.
 
 ### Written out at build
 
-A static site needs no server for its hosted images: `materialize` makes every
-variant the built pages name, through the server's own handler, and returns
-them as files at their own paths, for `foldkit-ssr`'s `staticSite` `emit`:
+Static sites without an image server can emit every referenced variant during
+build using `materialize` inside `foldkit-ssr`'s `staticSite` `emit`:
 
 ```ts
 import { NodeServices } from '@effect/platform-node'
@@ -756,20 +724,16 @@ export const site = {
 }
 ```
 
-- A variant that cannot be made fails the build, naming each one: a page that
-  names it would show a broken image.
-- More than `maxFiles` (20,000 by default, Cloudflare Pages' free limit) fails
-  the build.
-- A static host sends what its `_headers` says. Add `headersRule()` (what the
-  server sends a variant) to `public/_headers`; given that file's text as
-  `headersFile`, the build fails without it, since Pages would otherwise serve
-  every variant with `max-age=0`.
-- With `Variants` on disk, a second build writes without encoding again.
+- Missing or broken variants fail the build by name.
+- Exceeding `maxFiles` (20,000 by default) fails the build.
+- Include `headersRule()` in `public/_headers` so static hosts serve variants
+  with immutable caching; `materialize` verifies `headersFile` contains it.
+- Keeping `Variants` on disk lets repeat builds skip re-encoding.
 
 ### On Cloudflare
 
-`foldkit-media/cloudflare` gives the services from a Worker's bindings, and
-`serveFetch` is the Worker:
+`foldkit-media/cloudflare` wires R2, Cloudflare Images, and Workers rate
+limiting into `serveFetch`:
 
 ```ts standalone
 import type { ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/workers-types'
@@ -816,45 +780,34 @@ export default {
 }
 ```
 
-- `transformerImages(images)` is the Images binding: it scales down, never up,
-  and names the format. Cloudflare's code for a spent allowance (9422) is the
-  503; any other refusal is the 502, its reason reported (`ImageFailed`).
-- `keyValueStoreR2(bucket)` is an R2 bucket as a `KeyValueStore`, for the
-  store adapters above or the application's own (`clear` and `size` list the
-  bucket).
-- `variantsR2(bucket, { prefix?, cache? })` is `variantsKeyValueStore` over
-  it, so a variant made last month is not made, and billed, again. Two misses
-  for one variant at the same moment both make it, since a Worker request
-  cannot wait on another's; with
-  `cache`, the Cache API is read first and filled from R2: `true` for the
-  Worker's `caches.default`, or a cache of your own (`await caches.open(…)`).
-  `true` outside a Worker throws where the layer is made.
-- `originalsR2(bucket)` streams an original rather than reading it into
-  memory, unlike the general adapter.
+- `transformerImages(images)` scales down without enlarging and returns `503` on
+  quota exhaustion (code `9422`) or `502` with an `ImageFailed` diagnostic.
+- `keyValueStoreR2(bucket)` exposes an R2 bucket as an Effect `KeyValueStore`.
+- `variantsR2(bucket, { prefix?, cache? })` stores variants in R2 so each size
+  is generated once, optionally checking the Worker Cache API (`cache: true` or
+  a custom `Cache` instance) first.
+- `originalsR2(bucket)` streams originals directly to avoid buffering full files
+  in Worker memory.
 
-Cloudflare bills each new width of each original once a month (format and
-quality do not count), so the ladder is the cost: eight widths are at most
-eight transformations an original. `examples/cloudflare` is such a Worker,
-with Remote and Sync as its `otherwise`.
+Cloudflare bills each unique width per original once per month, so a smaller
+width ladder caps monthly transformation cost. See
+[`examples/cloudflare`](../../examples/cloudflare) for a complete Worker setup.
 
 ### Diagnostics
 
-Where the server answers past a failure without telling the caller why, it
-reports a typed diagnostic through `Diagnostics.Reporter` (`foldkit-surface`'s
-channel), which by default is Effect's log, a Worker's `wrangler tail`.
-Reporting changes no answer. Each is exported as a type from
-`foldkit-media/server` (`MediaDiagnostic` is the union):
+When the server recovers from a recoverable failure, it emits a typed
+`MediaDiagnostic` through `foldkit-surface`'s `Diagnostics.Reporter` (which
+defaults to Effect logging and `wrangler tail`):
 
 | `_tag` | `level` | When |
 | --- | --- | --- |
-| `StoreFailed` | `error` | A store failed and was worked around: a read taken as a miss, a write dropped. `store` is `variants`, `edge` (the Cache API in front of R2) or `facts` (`factsOf`'s `cache`), with the `operation`, `key` and `cause`. |
-| `AdmissionFailed` | `error` | A rate limiter failed (`limiter`: `RateLimiter` or `binding`), so `client` was admitted with no limit. |
-| `ImageFailed` | `error` for a `transform`, `warning` for an `inspect` | The transformer or inspector failed, answered `TransformFailed` with its `cause` left out. An inspection that fails is most often an upload that is no image. |
-| `FactsUnanswered` | `warning` | The facts route answered `Unavailable`; the diagnostic carries the `url` and the `reason`. |
-| `RequestDefect` | `error` | A defect `serveFetch` answered 500, with its `cause`. Behind `layer`, a defect is the application's router's to log. |
+| `StoreFailed` | `error` | A variant, edge, or facts cache read/write failed and fell back |
+| `AdmissionFailed` | `error` | Rate limiter failed; request admitted without limiting |
+| `ImageFailed` | `error` / `warning` | Transform failed (`error`), or upload inspection rejected a body (`warning`) |
+| `FactsUnanswered` | `warning` | Facts route returned `Unavailable` for `url` with `reason` |
+| `RequestDefect` | `error` | Unhandled defect answered 500 by `serveFetch` |
 
-Provide another reporter as any service, in the layer the services come from
-(`Diagnostics` is `foldkit-surface`'s):
+Provide a custom reporter as an Effect Layer alongside your media layers:
 
 ```ts
 import { Effect, Layer } from 'effect'
@@ -875,13 +828,13 @@ serveFetch<WorkerEnv>({
 })
 ```
 
-In a test, `Diagnostics.collect()` gives a reporter and the array it fills.
+In tests, `Diagnostics.collect()` gives a reporter and the array it records.
 
 ## Icons
 
-An icon is data too: `IconData` holds its `viewBox`, what its root paints
-(`fill`, `stroke`), and its drawing as nodes, never markup to set as HTML. An
-application imports icons by name, and the build reads them:
+Icons are stored as `IconData` (`viewBox`, root paint attributes, and sanitized
+node descriptors) instead of raw HTML strings. Your Vite build reads them from
+Iconify packages or your own SVG directory:
 
 ```ts standalone
 // vite.config.ts
@@ -898,35 +851,24 @@ import { arrowLeft } from 'virtual:foldkit-icons/lucide'
 import { logo } from 'virtual:foldkit-icons/app'
 ```
 
-`iconify` names Iconify sets by prefix, each read from the application's
-`@iconify-json/<prefix>` (any set: `lucide`, `uil`, `mdi`); `folders` names
-the application's own sets, a folder of SVG files each named by its file
-(`star-filled.svg` is `starFilled`). The import is the selection: the bundler
-drops every icon nothing imports. The plugin writes `foldkit-icons.d.ts` at
-the root (`dts` moves it, `false` writes none), declaring every icon of every
-set, so a misspelt name is a type error; include it in the `tsconfig`.
+`iconify` reads `@iconify-json/<prefix>` packages, and `folders` converts SVG
+files like `star-filled.svg` to `starFilled`. Bundlers tree-shake unused icons,
+and the plugin emits `foldkit-icons.d.ts` (configurable via `dts`) so unknown
+icon names fail typechecking.
 
-A view draws an icon with `Icon.draw(icon, h)`: inline SVG through the view's
-builder (Foldkit's `h`, or anything of its shape, `SvgBuilder`), every
-attribute in the server's markup, `1em` square unless `size` is given, and
-`aria-hidden`, since the control it sits in carries the name.
-`foldkit-mixins-ui`'s `Icon.view({ icon, label? })` draws it into its glyph,
-sized by the recipe, and names it when given a `label`. A style masks with `Icon.maskUrl(icon)`, a CSS `url()`.
+Draw icons inline with `Icon.draw(icon, h)` (`1em` square by default, with
+`aria-hidden`) or through `foldkit-mixins-ui`'s `Icon.view({ icon, label? })`.
+Use `Icon.maskUrl(icon)` for CSS mask URLs.
 
-Every icon is parsed against a presentational allowlist, because it is drawn
-inline. The parse refuses, naming the icon, an element or attribute outside
-it (`script`, `style`, `foreignObject`, an animation, an event, a `class`),
-an `href` or `url()` that leaves the icon or names an id it does not define,
-a CSS function other than a colour, a transform or `url()` (a mask's
-`image-set()` would fetch an image), and a CSS escape. It drops the root's
-size and namespaces, comments and declarations, and the words of `title`,
-`desc` and `metadata`, which a label replaces. A
-refused SVG in a folder fails the build. A refused icon of an Iconify set is
-left out, the declaration says why, and only importing it fails.
+Because icons render inline, the parser enforces a presentational allowlist and
+rejects scripts, styles, `<foreignObject>`, animations, event handlers, classes,
+external `href`/`url()` references, non-color/transform CSS functions, and CSS
+escapes. It also strips metadata, comments, root dimensions, and `<title>`/`<desc>`.
+Bad SVGs in `folders` fail the build; rejected Iconify icons are omitted with
+type-level diagnostics.
 
-A package cannot rely on an application's plugin, so it commits its icons as
-constants, read by `foldkit-media/icons` in a script (in this repository,
-`pnpm icons` writes them from a package's `icons.json`):
+Libraries that ship without an app Vite plugin parse SVGs ahead of time with
+`foldkit-media/icons`:
 
 ```ts
 import { Icon } from 'foldkit-media'
@@ -939,16 +881,19 @@ const check = parse(
 Icon.maskUrl(check) // url("data:image/svg+xml,…") for a mask
 ```
 
-`fromIconify(set, name)` reads one icon of an Iconify set's JSON (decoded
-with the `IconifySet` Schema), through its aliases. `Icon.key(icon)` is a
-short name from the icon's content, the same on a server and in a browser;
-`Icon.prefixIds(icon, prefix)` renames the ids the icon defines and every
-`href` and `url()` naming one, so two icons drawn on one page keep their own.
-`Icon.draw` does both; its `key` option sets two copies of one icon apart,
-because a gradient defined in a hidden copy paints nothing for a shown one.
+`fromIconify(set, name)` reads one icon from an Iconify JSON set. `Icon.key(icon)`
+computes a stable content key, and `Icon.prefixIds(icon, prefix)` scopes
+internal SVG IDs so multiple icons on a page avoid gradient/clip-path collisions
+(`Icon.draw` handles both automatically; pass `key` to distinguish duplicates).
 
 ## Validation
 
-Facts are untrusted input. `ImageAsset` refuses an image with no pixels, and a
-`Placeholder.Color` that is anything but one CSS color (no `;`, no `url(`),
-since it lands in a style the page writes.
+Facts decoded from `ImageAsset` are treated as untrusted input: zero or
+negative pixel dimensions are rejected, and `Placeholder.Color` accepts only a
+single CSS color value (rejecting `;` and `url(`) before writing inline styles.
+
+## Next
+
+- Style and render images and icons in views: [`foldkit-mixins-ui`](../mixins-ui/README.md)
+- Authorize image and file uploads with your user roles: [`foldkit-guard` uploads](../guard/README.md#uploads)
+- See a full Cloudflare Worker serving media alongside Remote and Sync: [`examples/cloudflare`](../../examples/cloudflare)

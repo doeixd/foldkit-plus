@@ -54,7 +54,7 @@ placements of one bundle never claim the same tag.
 
 | Situation | Use |
 | --- | --- |
-| Something needs to inspect what data a feature uses (fetch planning, replication scope, agent context, render binding, Module checks) | a Surface |
+| Tooling must see what data a feature reads (fetch planning, replication, agents, checks) | a Surface |
 | A child machine placed two or more times, or published for others | a Bundle |
 | A child with Subscriptions or resources you keep forgetting to lift | a Bundle, then `placements.complete` |
 | A one-off child used in a single place | a hand-wired Submodel; both are overkill |

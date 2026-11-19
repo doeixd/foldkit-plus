@@ -1,41 +1,30 @@
 # Auth and Guard
 
-`foldkit-auth` says **who is asking**. `foldkit-guard` says **what they may do**.
-They meet at one value, the principal: auth turns a request into it, guard
-decides every read and write on it. Neither does the other's job, and either
-works without the other.
+When users sign in with a session cookie, your server has two distinct security questions on every request: **who is asking**, and **what are they allowed to read or change**. Mixing those checks inside ad-hoc handlers either locks out public visitors or leaves authorization gaps across server queries, sync journals, and AI agents.
 
-```text
-request ─> foldkit-auth: cookie ─> session ─> principal ─> foldkit-guard: rules ─> rows, writes, may
-           authentication                     (User)       authorization
-```
+`foldkit-auth` answers **who is asking** by turning a request's session into your application's **principal** (`User`, or `Option.none()` for an unauthenticated visitor). `foldkit-guard` answers **what they may do** by enforcing read, write, and capability rules against that principal across every seam. Both packages work independently or together through that single principal value.
 
-## Which one owns what
+## How Auth and Guard split responsibility
 
-| Question | Owner | Where it runs | How it says no |
+A request enters `foldkit-auth`, which verifies the cookie/CSRF header and builds your principal; that principal then passes to `foldkit-guard`, which filters readable rows, checks write permissions, and computes UI `may` hints.
+
+| Question | Package / hook | Where it runs | Failure behavior |
 | --- | --- | --- | --- |
-| Is there a session on this request, and may this request use it? | `foldkit-auth` (`AuthServer.resolver`) | server, per request | a 401 (`Unauthenticated`): the request is refused before anything is read |
-| Who is that session in the application's terms (`User`, its role)? | the application's `principal` function, given to the resolver | server, per request | a 401, if it refuses the session |
-| Which rows, members and relations may this `User` read? | `foldkit-guard` (Read rules) | server: a SQL condition or an evaluator | the rows are absent; nothing says they exist |
-| May this `User` make this write? | `foldkit-guard` (Write rules, `GuardServer.writer`, `mutation`) | server, before the write, or in its statement for a rule over another row; what it returns is read back through the Read rules | a 403 (`Forbidden`) |
-| What may the page *show* as allowed? | the server's `may` answer (`Me`, a row's `may`) | answered on the server, read on the client | a button not drawn; a hint only, which the server never reads |
-| Credentials, sign-in, sign-out, the cookie | Yielded Auth itself | its own routes | its own errors (`PasswordRejected`, …) |
+| Valid session on this request? | `foldkit-auth` (`AuthServer.resolver`) | Server per request | `401 Unauthenticated` before reads |
+| Who is the session (`User`, role)? | Your `principal` callback | Server per request | `401` if callback refuses session |
+| Which rows and fields can they read? | `foldkit-guard` (Read rules) | Server SQL or evaluator | Filtered out silently |
+| May they execute this write? | `foldkit-guard` (Write rules) | Server before/in write | `403 Forbidden` |
+| What may the UI draw as allowed? | `Me` and row `may` hints | Server computes; client reads | Button hidden; server re-checks |
+| Sign-in, sign-out, cookies | Yielded Auth | Auth routes | `PasswordRejected`, etc. |
 
-Two things follow from the table:
+Two rules keep the boundary clean:
 
-- **A visitor is not a refusal.** No cookie is `Option.none()`, a principal
-  like any other, and guard decides what a visitor may read (usually nothing
-  guarded). Auth refuses only a credential that was sent and no longer holds,
-  or a request that cannot show it came from the application.
-- **Auth never authorizes.** A resolver that checks a role and refuses has
-  moved a rule out of the guard set, where no read, write, Sync edit or agent
-  will find it. Build the principal in `principal`; decide in guards.
+- **A visitor is valid, not a 401:** A request with no cookie resolves to `Option.none()`, and guard rules decide what public rows a visitor may read. `foldkit-auth` returns `401` only for expired/invalid sessions or missing CSRF headers.
+- **Auth authenticates; Guard authorizes:** Resolve identity in `principal`, and keep role or ownership checks inside your guard set so Remote, Sync, and agents enforce the same policy.
 
-## The seam: one principal type
+## Sharing one principal type across client and server
 
-The guard set declares the principal's Schema, and auth's `principal`
-function returns a value of it. That shared type is the whole contract
-between the two packages (from `examples/auth/src/domain.ts`):
+Your guard set declares the principal schema, and `foldkit-auth`'s `principal` callback returns a value matching it. That schema is the entire contract between the two packages (from [`examples/auth/src/domain.ts`](../examples/auth/src/domain.ts)):
 
 ```ts
 import { Schema } from 'effect'
@@ -66,14 +55,9 @@ export const G = Guards.declare(
 export const Note = NoteFields.pipe(Guards.attach(G, { row: { Read: [G.isAuthor, G.isAdmin] } }))
 ```
 
-This file is shared: the browser imports it too. `isAdmin` is a name here;
-its body is given only on the server. `isAuthor` is data, an `Expr`, which
-the server compiles to SQL ([Expressions](./expressions.md) is the language).
+Both browser and server import this shared domain file. `isAdmin` is declared here as a named predicate whose server implementation stays private, while `isAuthor` is a data expression (`Expr`) that compiles directly to SQL (see [Expressions](./expressions.md)).
 
-On the server, the two packages are wired into one endpoint (from
-`examples/auth/src/server.ts`, reduced). `AppAuth` is Yielded's `Auth`
-service and `AppAuthLive` its Layer, `http` the options given Yielded's
-`Http.make`, `Users` your user store, and `server` your `RemoteServer.make`:
+On the server, wire both into one endpoint (reduced from [`examples/auth/src/server.ts`](../examples/auth/src/server.ts), where `AppAuth`, `AppAuthLive`, `http`, `Users`, and `server` come from your app's auth and server setup):
 
 <!-- docs-check
 import { Auth, AuthContract, Password, Sessions } from '@yielded/auth'
@@ -102,100 +86,68 @@ import { AuthServer } from 'foldkit-auth/server'
 import { RemoteServer } from 'foldkit-remote-server'
 import { serveFetch } from 'foldkit-remote-server/fetch'
 
-// Guard: the principal guards' bodies, server only.
+// Guard: server-only bodies for principal predicates.
 const Policy = G.implement({
   isAdmin: principal => Option.exists(principal, user => user.role === 'admin'),
 })
 
-// Auth: who a session is, looked up per request, never taken from its claims.
+// Auth: look up the current User per request rather than trusting old claims.
 const principal = (session: { readonly subjectId: string }) => Users.find(session.subjectId)
 
 const resolving = { auth: AppAuth, http, principal, key: Policy.key }
 
 export const remote = serveFetch({
-  server, // built with GuardServer.memory / GuardDrizzle, checked by GuardServer.validate
-  resolvePrincipal: AuthServer.resolver(resolving), // auth: request -> Option<User>
+  server,
+  resolvePrincipal: AuthServer.resolver(resolving),
   headers: AuthServer.answered(resolving),
   layer: () => AppAuthLive,
 })
 ```
 
-`serveFetch` asks auth once per request, then answers the request's reads and
-writes through the server's Sources, each of which reads that principal
-through the guard set's rules. The two never call each other. Every answer is
-one principal's, so `serveFetch` marks each `cache-control: no-store` unless
-your `headers` say otherwise.
+`serveFetch` resolves the principal once per request and hands it to your server Sources, marking responses `cache-control: no-store` by default so user-specific answers stay private.
 
-## What the client sees
+## Drawing capabilities and handling refusals in the browser
 
-The browser runs no rule and holds no session. What it knows comes from the
-server, through Remote, and each package has its own piece:
+Rules run on the server; the client renders UI from filtered rows, server-computed `may` flags, and `RemoteData.denied` errors:
 
-| On the client | From | Meaning |
+| On the client | Source | Purpose |
 | --- | --- | --- |
-| `Me` (`Guards.me`) | guard | one row: `signedIn`, `key`, and `may` for named interactions. Read like any row: `Loading`, `Ready`, forgotten by `Remote.forget` |
-| `may` on a row | guard | whether this principal may make a write, answered by the server |
-| `RemoteData.denied(error)` | Remote | `Unauthenticated` (auth's 401: sign in again) or `Forbidden` (guard's 403: not yours) |
-| `believing()` | auth | a `fetch` for Remote's transport that repeats whom the server last answered as, so a read after another tab switched account is refused rather than answered as the other account |
-| `Site.access` | site | presentation from `Me`: send a visitor to sign in instead of drawing an empty page. Never a security boundary |
+| `Me` (`Guards.me`) | `foldkit-guard` | Row with `signedIn`, `key`, and top-level `may` flags |
+| Row `may` | `foldkit-guard` | Per-row permission hint computed by the server |
+| `RemoteData.denied(err)` | `foldkit-remote` | Surfaces `Unauthenticated` (401) or `Forbidden` (403) |
+| `believing()` | `foldkit-auth` | Fetch wrapper detecting account switches in other tabs |
+| `Site.access` | `foldkit-site` | Redirects unauthenticated visitors away from private UI |
 
-The rule of thumb: **draw from `may`, recover from `denied`.** A button the
-server says you may not press is not drawn; a 401 means sign in again
-(`Remote.forget` after a change of principal), a 403 means the server
-refused this one write.
+**Draw from `may`, recover from `denied`.** Hide buttons when `may` says no, prompt for sign-in (and call `Remote.forget`) on `401 Unauthenticated`, and surface a permission error on `403 Forbidden`.
 
-`may` is a UI hint, and enforcement is on the server only. A `may` that says
-yes, because it is stale after a change of role, foreseen by the client for a
-row it just wrote, or edited in the page, changes nothing the server decides:
-the server never reads a `may` from a request, and checks every write when it
-is made. A held `may` that says no refuses the write in the page at once
-(`Forbidden`), which only spares the round trip. The guard README lists [what
-`may` tells a reader, and what it does
-not](../packages/guard/README.md#what-may-tells-a-reader-and-what-it-does-not).
+Because `may` is only a UI hint, the server ignores client `may` flags and re-evaluates every write rule when a mutation arrives. If the client already holds a `may` saying no, it can reject the write locally as `Forbidden` right away to save a round trip. See [what `may` tells a reader](../packages/guard/README.md#what-may-tells-a-reader-and-what-it-does-not) for details.
 
-## Failures, end to end
+## Failure scenarios end to end
 
-| What happens | Auth | Guard | The client sees |
+| Scenario | Auth | Guard | Client sees |
 | --- | --- | --- | --- |
-| No cookie | a visitor (`Option.none()`) | rules decide for a visitor | guarded rows absent; `Me.signedIn` false |
-| A cookie from another site, or without the CSRF header | 401 | never asked | `denied`: `Unauthenticated` |
-| A session that ended (signed out, expired, revoked) | 401, `Your session ended.` | never asked | `denied`: `Unauthenticated` |
-| Another tab switched account | 401, `SUBJECT_CHANGED` (with `believing`) | never asked | forget and read again |
-| Signed in, reading a row a Read rule refuses | the user | the row is filtered out | the row is absent, as if it did not exist |
-| Signed in, a write a Write rule refuses | the user | 403; the write does not land | `denied`: `Forbidden` |
-| A server Source that skips its Read rules | — | `GuardServer.validate` throws at startup | the server does not start |
+| No cookie | `Option.none()` visitor | Evaluates visitor rules | Public rows only; `signedIn: false` |
+| Missing CSRF or foreign cookie | `401` | Skipped | `denied`: `Unauthenticated` |
+| Expired or signed-out session | `401` (`Your session ended.`) | Skipped | `denied`: `Unauthenticated` |
+| Other tab switched accounts | `401` (`SUBJECT_CHANGED`) | Skipped | Call `Remote.forget` and re-fetch |
+| Read rule fails for user | Resolves `User` | Filters row out | Row omitted from results |
+| Write rule fails for user | Resolves `User` | `403`; write aborted | `denied`: `Forbidden` |
+| Source skips Read rules | — | `GuardServer.validate` throws | Server refuses to boot |
 
-## Using one without the other
+## Using Guard or Auth on its own
 
-- **Guard without auth.** Any `resolvePrincipal` that returns the guard set's
-  principal works: a bearer token, a header in a test, a service binding. The
-  guard README's examples provide one directly, as `G.Principal`.
-- **Auth without guard.** `AuthServer.resolver` returns whatever your
-  `principal` builds; your Sources may read it directly. You lose
-  enforcement on every seam from one declaration, and `Me`.
+- **Guard without Auth:** Supply any `resolvePrincipal` function returning your principal type (for example, a bearer token parser or test header reader).
+- **Auth without Guard:** `AuthServer.resolver` returns your `User` directly so custom Sources can inspect it, though you give up shared declarative enforcement and automatic `Me` flags.
 
-## Keep these consistent
+## Keep keys, fresh lookups, and hosts aligned
 
-- **One key.** The guard set's `key` (`Policy.key`) names a principal. Give the
-  same to the resolver (`key: Policy.key`), so the subject header the client
-  repeats (`Me.key`, `AuthServer.answered`) is checked the way it was said.
-- **Fresh principals, not claims.** Build the `User` per request from the
-  session's `subjectId`. A claim is a snapshot from sign-in, and a rule over a
-  stale membership is a hole.
-- **Every host, the same resolver.** Remote's `serveFetch`, a Sync document's
-  socket (`documentHost` with `requests: 'browser'`, since a browser's
-  WebSocket sends no CSRF header), SSR's posted forms, and a page render's
-  reads (`pageReader` with `requests: 'navigation'`, since a navigation
-  carries no CSRF header either, behind a reader that cannot write) each
-  resolve the principal the same way, and guard decides each the same way.
-  `AuthServer.host` hands out the `serveFetch` and `pageReader` pair typed
-  so that neither fits the other.
-- **Validate at startup.** Call `GuardServer.validate(Policy, …)` where the
-  server is built, so a Source that forgot its rules fails loudly.
+- **Share one principal key:** Pass `Policy.key` to `AuthServer.resolver` so client subject checks (`Me.key` and `AuthServer.answered`) match server identity.
+- **Look up fresh principals:** Load `User` from your database per request by `subjectId` instead of trusting login-time claims that miss role revocations.
+- **Use the right host resolver:** Pair `serveFetch` with `pageReader` (`requests: 'navigation'`) using `AuthServer.host`, and use `requests: 'browser'` for WebSocket sync hosts (`documentHost`) where browsers omit custom CSRF headers.
+- **Validate at startup:** Run `GuardServer.validate(Policy, ...)` at boot so an unguarded Source fails immediately.
 
-## See also
+## Next
 
-- [`foldkit-auth`](../packages/auth/README.md) and
-  [`foldkit-guard`](../packages/guard/README.md), each in full.
-- [`examples/auth`](../examples/auth): sign-in, `Me`, guarded notes, a page
-  `Site.access` sends a visitor away from, and a Sync board, end to end.
+- See the full auth and guard example app in [`examples/auth`](../examples/auth).
+- Read the [`foldkit-auth` README](../packages/auth/README.md) for session resolvers, `believing()`, and CSRF options.
+- Read the [`foldkit-guard` README](../packages/guard/README.md) for row rules, write rules, and `may` flags.

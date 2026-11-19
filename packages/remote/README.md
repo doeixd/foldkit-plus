@@ -1,240 +1,94 @@
 # `foldkit-remote`
 
-Server data, cached inside the Foldkit Model. A screen says what it needs;
-the view gets what the cache knows.
+When server data lives in component hooks or an external store beside your
+application state, loading flags duplicate across screens, views reading
+overlapping fields drift out of sync, and optimistic updates fight the next
+network response.
 
-<!-- docs-check standalone define remote-domain
-import { Effect, Layer, Schema, Option } from 'effect'
-import { FetchHttpClient } from 'effect/http'
-import { RpcClient, RpcSerialization } from 'effect/rpc'
-import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
-import { Bundle } from 'foldkit-bundle'
+Keep server-owned data in one normalized cache inside your application's Model
+instead. Each screen declares only the fields it renders, active screens fetch
+only what the cache lacks, and every server result returns as a Message through
+`update`—so views stay pure, overlapping fields share one copy, and screens
+replay from a recorded Model.
+
+`foldkit-remote` is that normalized server cache for Foldkit applications. See
+it running in the live [Chirp demo](https://foldkit-chirp-demo.pages.dev/).
+
+## Install
+
+```bash
+pnpm add foldkit-remote foldkit-entity
+```
+
+`foldkit` and `effect` are peer dependencies; `foldkit-surface` comes with the
+package, and [`foldkit-remote-server`](../remote-server) runs the server side.
+
+## Example: render one server-owned project
+
+Declare a `Project` entity, embed `Remote.Model` inside your application Model,
+and render the project screen from a `Surface`:
+
+```ts standalone
+import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import * as Subscription from 'foldkit/subscription'
-import type * as Update from 'foldkit/update'
+import { Entity, Remote, RemoteData } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
-import {
-  Diagnostics,
-  Entity,
-  Freshness,
-  Mutation,
-  Query,
-  Refusal,
-  Remote,
-  RemoteData,
-  RemoteClient,
-  RemotePolicy,
-  RemoteRpc,
-  type LiveDependencies,
-  type MutationStarted,
-  type ReadDependencies,
-  type RemoteRpcClient,
-  type RemoteMessage,
-  type RetentionRoots,
-} from 'foldkit-remote'
-import { live } from 'foldkit-remote/live'
 
-const Route = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('home') }),
-  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
-])
-const home = (): typeof Route.Type => ({ _tag: 'home' })
-declare const rpcClient: RemoteRpcClient
+const Project = Entity.make('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const ProjectSummary = Project.select({ id: true, name: true })
 
-// 1. Declare the domain
-const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Project = Entity.make(
-  'Project',
-  Schema.Struct({
-    id: Schema.String,
-    name: Schema.String,
-    status: Schema.String,
-    owner: Entity.ref(User),
-  }),
-)
+const Model = Schema.Struct({ remote: Remote.Model })
+const Message = defineMessageUnion({ ...Remote.messages })
+const App = Surface.application({ Model, Message })
+const Data = Remote.make({ model: App.model.remote, entities: [Project] })
 
-const UserSummary = User.select({ id: true, name: true })
-const ProjectSummary = Project.select({ id: true, name: true, status: true, owner: UserSummary })
-
-const ProjectsByOwner = Query.make('ProjectsByOwner', {
-  Input: { ownerId: Schema.String },
-  Result: Project,
-})
-const RenameProject = Mutation.make('RenameProject', {
-  Input: { id: Schema.String, name: Schema.String },
-  Output: { id: Schema.String },
-})
-
-// 2. Embed the submodel and bind the domain
-const Model = Schema.Struct({ route: Route, remote: Remote.Model })
-type Model = typeof Model.Type
-const Message = defineMessageUnion({
-  ...Remote.messages,
-  ClickedRename: { id: Schema.String, name: Schema.String },
-  ClickedMore: {},
-})
-type Message = typeof Message.Type
-
-const App = Surface.application({
-  Model,
-  Message,
-  initial: { route: home(), remote: Remote.initial },
-  update,
-})
-
-const Data = Remote.make({
-  model: App.model.remote,
-  entities: [User, Project],
-  queries: [ProjectsByOwner],
-  mutations: [RenameProject],
-})
-
-// 3. Read in a Surface
-const projects = Data.query(
-  ProjectsByOwner,
-  { ownerId: 'u1' },
-  { select: ProjectSummary, first: 25 },
-)
--->
-<!-- docs-check define remote-update
-// 4. Fetch, subscribe, and retain from the active Surfaces
-const baseSubscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
-  Data.subscriptions(
-    {
-      page: Surface.at(ProjectPage, model =>
-        model.route._tag === 'project'
-          ? Option.some({ projectId: model.route.projectId })
-          : Option.none(),
-      ),
-    },
-    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
-  ),
-)
-
-// 5. Mutate and page from update
-function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
-  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  switch (message._tag) {
-    case 'ClickedRename': {
-      const { id, name } = message
-      const { model: started, command } = Data.mutate(
-        model,
-        RenameProject,
-        { id, name },
-        {
-          optimistic: [Project.patch(id, { name })],
-        },
-      )
-      return { model: started, commands: [command] }
-    }
-    case 'ClickedMore':
-      return { model: Option.getOrElse(Data.more(model, projects), () => model), commands: [] }
-  }
-}
-
-declare const model: Model
-declare const projectId: string
-declare const ownerId: string
-declare const ProjectSkeleton: () => string
-declare const NoSuchProject: () => string
-declare const ErrorView: (error: { readonly message: string }) => string
--->
-<!-- docs-check
-const ProjectPageFull = App.surface('ProjectPage', {
-  params: { projectId: Schema.String },
-  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
-  messages: [Message.ClickedRename, Message.ClickedMore],
-})
-declare const ProjectView: (project: { readonly name: string }) => string
-declare const project: RemoteData<{ readonly name: string }>
--->
-
-```ts
 const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
   model: ({ params }) => ({ project: Data.get(ProjectSummary, params.projectId) }),
 })
 
-RemoteData.render(project, {
-  loading: () => ProjectSkeleton(),
-  notFound: () => NoSuchProject(),
-  failed: error => ErrorView(error),
-  data: project => ProjectView(project),
-})
+const viewProject = (model: typeof Model.Type, projectId: string) =>
+  RemoteData.render(ProjectPage.projection({ projectId }).read(model).project, {
+    loading: () => 'Loading project...',
+    notFound: () => 'Project not found.',
+    failed: error => `Could not load project: ${error.message}`,
+    data: (project, freshness) =>
+      freshness._tag === 'Fresh' ? project.name : `${project.name} (updating...)`,
+  })
 ```
 
-No fetch call, no cache object, no loading flag. While the page is active,
-Remote fetches only the fields the Model lacks, stores each entity once, and
-hands the view one of six states rather than an `undefined`. Every result is a
-Message through one reducer, so a screen replays from a recorded Model.
+Depending on what `model` holds for `projectId`, `viewProject` returns:
 
-Remote is for facts the **server owns**. A write that must reach the server
-even if the page goes first is a durable write, which Remote's outbox sends
-later. An edit the client authors, which must converge with other devices'
-edits while offline, belongs to [`foldkit-sync`](../sync).
+- `'Loading project...'` while the initial fetch is in flight (`Initial` or `Loading`).
+- `'Apollo'` once the server row reduces into `model` (`Ready`).
+- `'Apollo (updating...)'` while a refetch is in flight or after a failed refetch (`Refreshing` or stale `Failed`).
+- `'Project not found.'` when the server confirms the row is absent (`NotFound`).
+- `'Could not load project: ...'` when the request fails with no cached value (`Failed`).
 
-## If you know TanStack Query, TanStack DB or fate
+What the example did:
 
-The same job, done from the other side of the Model:
+- `Project.select({ id: true, name: true })` narrows the screen's requirement to two fields.
+- `Data.get(ProjectSummary, params.projectId)` declares what `ProjectPage` needs from the Model so active subscriptions fetch missing fields.
+- `RemoteData.render` folds all six `RemoteData` states exhaustively instead of exposing `undefined` or separate boolean flags.
 
-| TanStack Query | `foldkit-remote` |
-| --- | --- |
-| `useQuery({ queryKey, queryFn })` in a component | `Data.get(Selection, id)` in a Surface; the active Surface fetches |
-| a `queryKey` you design | the entity, its id and the fields selected; there is no key to design |
-| one cache entry per key | one entity per id, shared by every selection of it |
-| `staleTime`, `refetchOnWindowFocus` | `RemotePolicy`, `Data.refresh` from `update` |
-| `gcTime` | retention: what no active Surface reaches is collected |
-| `onMutate` + `setQueryData` | `optimistic: [Remote.patch(...)]`, a layer the settlement removes |
-| `invalidateQueries` | not needed for overlap: a result updates the one copy |
-| `isPending`, `isError`, `data` | `RemoteData`: six states, one exhaustive fold |
-| a `QueryClient` beside your state | `Remote.Model`, a field of your Model, changed only by Messages |
+**When to use something else:** `foldkit-remote` holds facts owned by the
+server (plus a durable outbox for writes that must survive a reload). Use
+[`foldkit-sync`](../sync) for client-authored edits that must merge across
+offline devices.
 
-Two differences change how you build. **There are no keys.** A TanStack cache
-is a map from keys you design to results you shape, so two components that
-want overlapping data either share a key and over-fetch, or hold two copies
-and invalidate by hand. Remote stores fields by entity and id, and a Surface
-declares which fields it selects, so overlap is the normal case and a
-mutation's result is seen everywhere at once. **The cache is Model.** A
-`QueryClient` lives beside your state and is updated by effects; `Remote.Model`
-is a field of your Model, changed by the same reducer as everything else, so a
-screen is a function of the Model, replays from a recording, and is tested
-without a network.
+**Next:**
 
-What Remote does not have: a component hook (it has Surfaces and Foldkit
-Subscriptions), a devtools panel of its own (`Data.inspect`, `why` and
-`timeline` are the data one would show), and retries of a failed read (it
-stays failed until something asks again; see
-[When a read fails](#when-a-read-fails)). Only a durable write is sent again
-on its own, and only when nothing answered it.
-
-### And TanStack DB, and fate
-
-[TanStack DB](https://tanstack.com/db) is a local database: collections
-populated eagerly (or on demand) from a REST API or a sync engine, live queries
-that update incrementally, and optimistic transactions rolled back on failure.
-Its unit is the collection; a screen queries what is already local. Remote's
-unit is the field: a screen declares which fields of which entities it reads,
-and only those are fetched, so there is no collection to load first and a page
-carries what it shows. Remote has no live query engine: `filtered` and
-`matching` judge the rows a list already holds, a new list is a server query,
-and a list read `live` is kept current by the server's live source, not by
-the client. Where TanStack DB syncs client-authored writes through a sync
-engine, that job here belongs to [`foldkit-sync`](../sync), and Remote stays
-the disposable cache of what the server owns.
-
-[fate](https://fate.technology) is the nearest cousin: components declare
-views of exactly the data they need, composed into one request per screen,
-with a normalized cache that masks what a component did not ask for, and
-actions with optimistic rollback. Remote's Selections are that strictness, and
-its store is that cache. The differences are where it lives and what runs it:
-fate is a React data client, driven by Suspense and Actions; Remote is a
-Submodel of a Foldkit Model, driven by which Surfaces are active, with no view
-framework in it.
+- Wire `update`, active `subscriptions`, and an in-memory client:
+  [Full walkthrough: one entity, one Surface](#full-walkthrough-one-entity-one-surface).
+- Compare with hook caches:
+  [If you know TanStack Query, TanStack DB or fate](#if-you-know-tanstack-query-tanstack-db-or-fate).
+- Debug a read stuck at `Initial`:
+  [Why is it still `Initial`?](#why-is-it-still-initial).
 
 ## Find what you need
 
-Read the [first run](#the-first-run-one-entity-one-surface) once, then jump to
-what you are doing:
+Read the [full walkthrough](#full-walkthrough-one-entity-one-surface) once, then
+jump to what you are doing:
 
 | Task | Start here |
 | --- | --- |
@@ -258,6 +112,62 @@ what you are doing:
 | Hand a server render's data to the browser | [Server rendering](#server-rendering-remoteresume) |
 | Answer the requests on the server | [How the server packages fit](#how-the-server-packages-fit) |
 
+## If you know TanStack Query, TanStack DB or fate
+
+The same job, done from the other side of the Model:
+
+| TanStack Query | `foldkit-remote` |
+| --- | --- |
+| `useQuery({ queryKey, queryFn })` in a component | `Data.get(Selection, id)` in a Surface; the active Surface fetches |
+| a `queryKey` you design | the entity, its id and the fields selected; there is no key to design |
+| one cache entry per key | one entity per id, shared by every selection of it |
+| `staleTime`, `refetchOnWindowFocus` | `RemotePolicy`, `Data.refresh` from `update` |
+| `gcTime` | retention: what no active Surface reaches is collected |
+| `onMutate` + `setQueryData` | `optimistic: [Remote.patch(...)]`, a layer the settlement removes |
+| `invalidateQueries` | a result updates the one normalized copy everywhere |
+| `isPending`, `isError`, `data` | `RemoteData`: six states, one exhaustive fold |
+| a `QueryClient` beside your state | `Remote.Model`, a field of your Model, changed only by Messages |
+
+Two differences change how you build. **There are no keys.** A TanStack cache
+is a map from keys you design to results you shape, so two components that
+want overlapping data either share a key and over-fetch, or hold two copies
+and invalidate by hand. Remote stores fields by entity and id, and a Surface
+declares which fields it selects, so overlap is the normal case and a
+mutation's result is seen everywhere at once. **The cache is Model.** A
+`QueryClient` lives beside your state and is updated by effects; `Remote.Model`
+is a field of your Model, changed by the same reducer as everything else, so a
+screen is a function of the Model, replays from a recording, and is tested
+without a network.
+
+Instead of component hooks, Remote uses Surfaces and Foldkit Subscriptions;
+instead of a standalone devtools panel, `Data.inspect`, `why`, and `timeline`
+expose the same decisions as data. A failed read stays `Failed` until
+`Data.refresh` or a retry asks again (see [When a read fails](#when-a-read-fails));
+only a durable write in the outbox retries automatically when unreachable.
+
+### And TanStack DB, and fate
+
+[TanStack DB](https://tanstack.com/db) is a local database: collections
+populated eagerly (or on demand) from a REST API or a sync engine, live queries
+that update incrementally, and optimistic transactions rolled back on failure.
+Its unit is the collection; a screen queries what is already local. Remote's
+unit is the field: a screen declares which fields of which entities it reads,
+and only those are fetched, so there is no collection to load first and a page
+carries what it shows. `filtered` and `matching` judge the rows a list already
+holds, a new list is a server query, and a list read `live` is kept current by
+the server's live source. Where TanStack DB syncs client-authored writes through
+a sync engine, that job here belongs to [`foldkit-sync`](../sync), and Remote
+stays the disposable cache of what the server owns.
+
+[fate](https://fate.technology) is the nearest cousin: components declare
+views of exactly the data they need, composed into one request per screen,
+with a normalized cache that masks what a component did not ask for, and
+actions with optimistic rollback. Remote's Selections are that strictness, and
+its store is that cache. The differences are where it lives and what runs it:
+fate is a React data client, driven by Suspense and Actions; Remote is a
+Submodel of a Foldkit Model, driven by which Surfaces are active, with no view
+framework in it.
+
 ## Which state belongs here?
 
 One owner per datum:
@@ -275,32 +185,29 @@ recovery, and a write that must be sent later waits in the outbox. With Sync, th
 client owns the edit, its intent must survive offline and a restart, and replay and
 reconciliation are the recovery, so that devices converge.
 
-A Surface may project all of these owners at once. Observation does not transfer
-ownership.
+A Surface may project all of these owners at once while each owner keeps
+write authority over its own slice.
 
-## The mental model
+## How the read loop works
 
-The loop runs one way round. A Surface's Projection declares requirements; an
-active Subscription asks `RemoteClient` for what the cache lacks; the answer
-returns as a Remote Message; `Data.reduce` writes it into the Model; and the
-next read of the Model sees it.
+The loop runs one way round:
 
-A Projection reads the current cache and carries requirements such as
-`Project:p1.name` and `User:u7.name`. An active Subscription compares those
-requirements with the cache, then requests missing or stale fields. The
-result returns as a Message; only reducing it changes what the next read sees.
-Rendering the same Projection twice starts no work by itself.
+1. A Surface's Projection reads the current cache and declares requirements such as
+   `Project:p1.name` and `User:u7.name`.
+2. An active Subscription compares those requirements with the cache and asks
+   `RemoteClient` for missing or stale fields.
+3. The answer returns as a Remote Message.
+4. `Data.reduce` writes it into `Remote.Model`, and the next read of the Model
+   sees the updated fields.
 
-> **A Remote Projection does not fetch. It declares what server-owned facts a
-> consumer requires. I/O happens outside render, and its results reduce back into
-> the Model.**
-
-Four roles carry the loop, and most application code needs no more:
+Rendering the same Projection twice keeps reads pure—fetching happens in
+Subscriptions outside render, and results enter the Model only through
+`Data.reduce`.
 
 | Piece | Responsibility |
 | --- | --- |
 | `Data.get` / `live(Data, …)` / `Data.query` | create pure Projections that declare what a consumer needs |
-| `Data.subscriptions` | turn the requirements of **active** Surfaces into reads, live subscriptions, and retention roots |
+| `Data.subscriptions` | turn requirements of **active** Surfaces into reads, live streams, and retention roots |
 | `Data.reduce` | reduce returned Remote Messages into the application's `Remote.Model` |
 | `RemoteClient` | perform the actual read/query/mutate/live I/O |
 
@@ -310,19 +217,10 @@ else; a server fact only enters the cache as a Remote Message. Never install
 cache state with a ref `set`: requirements, staleness and tombstones stay
 consistent only because every fact arrives through the reducer.
 
-## Install
+## Full walkthrough: one entity, one Surface
 
-```bash
-pnpm add foldkit-remote foldkit-entity
-```
-
-`foldkit` and `effect` are peer dependencies; `foldkit-surface` comes with the
-package. The server-side interpreter is [`foldkit-remote-server`](../remote-server).
-
-## The first run: one entity, one Surface
-
-Six steps take a project's name from a server to a screen. Each says what it
-does, and what it deliberately does not.
+Six steps wire a project's name from a server to a screen, including `update`,
+active subscriptions, and a client layer.
 
 ### 1. Declare an entity and what this screen needs of it
 
@@ -350,8 +248,8 @@ The entity comes from [`foldkit-entity`](../entity), which declares a domain
 without Remote in it, so the same declaration can serve the server's database
 binding and your forms too. It is also what gives an entity
 [relations](#entities-declared-with-foldkit-entity), derived members, and a
-[query body](#queries-and-pagination) to point at. Nothing here touches a
-network.
+[query body](#queries-and-pagination) to point at. These declarations stay pure
+values until a Subscription queries the server.
 
 ### 2. Give Remote a place in the Model, and route its Messages
 
@@ -409,13 +307,12 @@ function update(
 }
 ```
 
-`Remote.Model` is not a second store. It is a Submodel **inside** the
-application Model, and `Data` is the bound API for this domain: it knows where
-that Submodel lives and which entities this application registered. `update`
-matches the union exhaustively; Remote's own Messages arrive inside
-`GotRemoteMessage` and go straight to Remote's reducer. (There is a shorter
-form for an `update` that only reduces; see
-[Routing Remote's Messages](#routing-remotes-messages).)
+`Remote.Model` lives **inside** the application Model as a Submodel, and `Data`
+is the bound API for this domain: it knows where that Submodel lives and which
+entities this application registered. `update` matches the union exhaustively;
+Remote's own Messages arrive inside `GotRemoteMessage` and go straight to
+Remote's reducer. (There is a shorter form for an `update` that only reduces;
+see [Routing Remote's Messages](#routing-remotes-messages).)
 
 ### 3. Declare what the screen reads
 
@@ -424,16 +321,15 @@ const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
 
   model: ({ params }) => ({
-    // Important: this performs no I/O.
-    // It is a pure Projection over Model plus a requirement for these fields.
+    // Pure Projection over Model plus a requirement for these fields; I/O runs in Subscriptions.
     project: Data.get(ProjectSummary, params.projectId),
   }),
 })
 ```
 
 `ProjectPage` reads a `RemoteData<{ id: string; name: string }>` from the Model.
-If those fields are absent, the Projection still does not fetch them: it says
-what it needs, and something else decides whether to ask.
+If those fields are absent, the Projection records the requirement and returns
+`Initial` or `Loading`; the active Subscription decides when to fetch.
 
 ### 4. Let the active screen drive the fetching
 
@@ -524,46 +420,26 @@ const overHttp = Remote.clientLayer(
 )
 ```
 
-Each is a Layer the runtime provides to `subscriptions` and Commands; the
-transport itself is not owned by Remote. See
+Each is a Layer the runtime provides to `subscriptions` and Commands while
+keeping transport outside Remote. See
 [`RemoteServer.memory`](../remote-server/README.md#a-backend-held-in-memory)
-for what the in-memory one can and cannot do, and
+for what the in-memory one supports, and
 [Clients and transports](#clients-and-transports) for the others (a worker or
 a `MessagePort`, live data over HTTP), what a refused or unreachable call
 does, and testing a server over HTTP.
 
 ### 6. Watch it arrive
 
-```text
-ProjectPage Projection
-        |
-        | requirements
-        v
-Data.subscriptions
-        |
-        | plan missing fields
-        v
-RemoteClient
-        |
-        | server result
-        v
-Remote Message
-        |
-        v
-Data.reduce
-        |
-        v
-Remote.Model
-        |
-        v
-ProjectPage now reads Ready(...)
-```
+The loop flows from `ProjectPage`'s Projection to `Data.subscriptions` (which
+plans missing fields), through `RemoteClient` to the server and back as a
+Remote Message, and through `Data.reduce` into `Remote.Model`, where
+`ProjectPage` reads `Ready(...)`.
 
-The first run starts on the `home` route, so no project read runs yet. Your
-route update must activate `{ _tag: 'project', projectId: 'p1' }`, and the
-runtime must install `subscriptions`. The page then reads `Initial` until work
-starts, `Loading` during the first request, and `Ready` once its result is
-reduced. If it stays `Initial`, see [Why is it still `Initial`?](#why-is-it-still-initial).
+The walkthrough starts on the `home` route, so no project read runs yet. When
+your route `update` activates `{ _tag: 'project', projectId: 'p1' }` and the
+runtime installs `subscriptions`, the page moves from `Initial` to `Loading`
+during the first request and then to `Ready` once the result reduces. If it
+stays `Initial`, see [Why is it still `Initial`?](#why-is-it-still-initial).
 
 ## Routing Remote's Messages
 
@@ -648,35 +524,151 @@ from the runtime's resources — the same client layer from above. One assembly
 holds at most one Remote domain: every domain claims the same Message tags,
 and the assembly refuses a second claimant at startup, naming both.
 
+<!-- docs-check standalone define remote-domain
+import { Effect, Layer, Schema, Option } from 'effect'
+import { FetchHttpClient } from 'effect/http'
+import { RpcClient, RpcSerialization } from 'effect/rpc'
+import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
+import { Bundle } from 'foldkit-bundle'
+import { defineMessageUnion } from 'foldkit/message'
+import * as Subscription from 'foldkit/subscription'
+import type * as Update from 'foldkit/update'
+import { Surface } from 'foldkit-surface'
+import {
+  Diagnostics,
+  Entity,
+  Freshness,
+  Mutation,
+  Query,
+  Refusal,
+  Remote,
+  RemoteData,
+  RemoteClient,
+  RemotePolicy,
+  RemoteRpc,
+  type LiveDependencies,
+  type MutationStarted,
+  type ReadDependencies,
+  type RemoteRpcClient,
+  type RemoteMessage,
+  type RetentionRoots,
+} from 'foldkit-remote'
+import { live } from 'foldkit-remote/live'
+
+const Route = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal('home') }),
+  Schema.Struct({ _tag: Schema.Literal('project'), projectId: Schema.String }),
+])
+const home = (): typeof Route.Type => ({ _tag: 'home' })
+declare const rpcClient: RemoteRpcClient
+
+const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Project = Entity.make(
+  'Project',
+  Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    status: Schema.String,
+    owner: Entity.ref(User),
+  }),
+)
+
+const UserSummary = User.select({ id: true, name: true })
+const ProjectSummary = Project.select({ id: true, name: true, status: true, owner: UserSummary })
+
+const ProjectsByOwner = Query.make('ProjectsByOwner', {
+  Input: { ownerId: Schema.String },
+  Result: Project,
+})
+const RenameProject = Mutation.make('RenameProject', {
+  Input: { id: Schema.String, name: Schema.String },
+  Output: { id: Schema.String },
+})
+
+const Model = Schema.Struct({ route: Route, remote: Remote.Model })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ...Remote.messages,
+  ClickedRename: { id: Schema.String, name: Schema.String },
+  ClickedMore: {},
+})
+type Message = typeof Message.Type
+
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { route: home(), remote: Remote.initial },
+  update,
+})
+
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [User, Project],
+  queries: [ProjectsByOwner],
+  mutations: [RenameProject],
+})
+
+const projects = Data.query(
+  ProjectsByOwner,
+  { ownerId: 'u1' },
+  { select: ProjectSummary, first: 25 },
+)
+-->
+<!-- docs-check define remote-update
+const RouteProjectPage = App.surface('RouteProjectPage', {
+  params: { projectId: Schema.String },
+  model: ({ params }) => ({ project: Data.get(ProjectSummary, params.projectId) }),
+})
+
+const baseSubscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
+  Data.subscriptions(
+    {
+      page: Surface.at(RouteProjectPage, model =>
+        model.route._tag === 'project'
+          ? Option.some({ projectId: model.route.projectId })
+          : Option.none(),
+      ),
+    },
+    { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' },
+  ),
+)
+
+function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
+  if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
+  switch (message._tag) {
+    case 'ClickedRename': {
+      const { id, name } = message
+      const { model: started, command } = Data.mutate(
+        model,
+        RenameProject,
+        { id, name },
+        {
+          optimistic: [Project.patch(id, { name })],
+        },
+      )
+      return { model: started, commands: [command] }
+    }
+    case 'ClickedMore':
+      return { model: Option.getOrElse(Data.more(model, projects), () => model), commands: [] }
+  }
+}
+
+declare const model: Model
+declare const projectId: string
+declare const ownerId: string
+declare const ProjectSkeleton: () => string
+declare const NoSuchProject: () => string
+declare const ErrorView: (error: { readonly message: string }) => string
+-->
+
 ## `RemoteData`: what does the Model know right now?
 
-A Remote Projection never lies by pretending an absent value is present. It
-returns a closed `RemoteData` union:
-
-```text
-                         no active fetch
-missing ------------------------------------------------> Initial
-
-                         fetch starts
-missing ------------------------------------------------> Loading
-                                                            |
-                                                         result
-                                                            v
-                                                          Ready
-                                                            |
-                                                       refetch starts
-                                                            v
-                                                        Refreshing
-                                                        old value stays
-                                                            |
-                                                         result
-                                                            v
-                                                          Ready
-
-server says entity is absent ---------------------------> NotFound
-stored value fails Selection decoding -----------------> Failed
-a read or a list's query fails ------------------------> Failed (with the old value, if any)
-```
+A Remote Projection tracks presence separately from values using a closed six-state
+`RemoteData` union: missing data starts as `Initial` (no fetch active) or
+`Loading` (fetch in flight), settles to `Ready` on success (or `NotFound` when
+the server reports absence, or `Failed` when decoding/fetching fails), and
+moves to `Refreshing` during a refetch while keeping the previous value on
+screen.
 
 The states are:
 
@@ -807,12 +799,9 @@ read with its own `match`.
 
 `RemoteData.all({ project: projectRead, owner: ownerRead })` takes a struct of reads and answers one
 `RemoteData` of the struct of their values, so a view that needs all of them
-draws once. It is a pure function of the values you pass: it fetches nothing.
-The first state any entry is in decides the result, in this order:
-
-```text
-Failed  >  NotFound  >  Initial  >  Loading  >  Refreshing  >  Ready
-```
+draws once from the values passed without fetching anything itself. The first
+state any entry holds decides the result, in order: **`Failed` > `NotFound` >
+`Initial` > `Loading` > `Refreshing` > `Ready`**.
 
 `Failed` carries the first failed key's error. When every entry holds a value
 the result is `Refreshing` if any entry is, else `Ready`: it is as fresh as its
@@ -891,16 +880,16 @@ Match them with `Why.match`:
 
 | `Why` | What it says | What restarts it |
 | --- | --- | --- |
-| `List { list, held, inFlight }` | the list's own page is `Missing`, `Evicted` (the budget dropped it) or `Stale` | the read entry, while a Surface reads it |
-| `Invalidated { list, because }` | why a stale list went stale, in the client's words: what a write changed that it could not place, its live stream asking, a refresh | the same read entry; it decides no state of its own |
-| `HeldForHistory { list }` | the list was left, and Back or Forward came back to it within `historyWindow`: it shows as it was, and nothing fetches it | a navigation the reader starts |
-| `Fields { row, via, fields, held, inFlight }` | fields of one row are `Missing`, `Evicted` (the budget dropped the row) or `Stale`; `via` is the relation path (`['owner']`) | the read entry |
-| `ListFailed`, `FieldsFailed` | a request failed | **nothing on its own**: `Data.refresh`, a write of the field, a new page |
+| `List { list, held, inFlight }` | list page is `Missing`, `Evicted`, or `Stale` | the read entry, while a Surface reads it |
+| `Invalidated { list, because }` | why a stale list went stale (write, live, or refresh) | the same read entry |
+| `HeldForHistory { list }` | returned via Back/Forward within `historyWindow` | a reader-initiated navigation |
+| `Fields { row, via, fields, held, inFlight }` | row fields are `Missing`, `Evicted`, or `Stale` (`via`: relation path) | the read entry |
+| `ListFailed`, `FieldsFailed` | a request failed | `Data.refresh`, a field write, or a new page |
 | `Unavailable`, `Undecodable`, `OverlayOnly` | the store holds what cannot be shown | a change of Selection or overlay |
-| `Deleted { row, by }` | the server deleted it (`by` none), or a pending write does | — |
-| `LiveReconnecting`, `LiveRefused` | a live stream of a Surface reading it broke, or was refused | the live entry, with backoff; nothing, for a refusal |
+| `Deleted { row, by }` | server or pending write (`by`) deleted the row | — |
+| `LiveReconnecting`, `LiveRefused` | a live stream broke or was refused | backoff for breaks; never for refusals |
 | `Pending { row, fields, by }` | a pending write shows these fields | its answer |
-| `Joined`, `Left { list, row, by, terms }` | the list shows a row its pages do not hold, or hides one they do | its answer |
+| `Joined`, `Left { list, row, by, terms }` | list shows or hides a row vs. its fetched pages | its answer |
 
 `by` is a `ShownBy`: `Write { requestId, mutation }`, `Overlay { id }` or
 `Live { cursor }`. `terms` are the list body's `where` predicates judged over
@@ -1089,14 +1078,9 @@ const ProjectSummary = Project.select({
 })
 ```
 
-The store remains normalized:
-
-```text
-Project:p1   name PRESENT   owner PRESENT -> User:u7
-User:u7      name PRESENT
-```
-
-The Projection assembles the nested consumer value by following the reference.
+The store keeps `Project:p1` (`name`, `owner -> User:u7`) and `User:u7` (`name`)
+as separate normalized entries. The Projection assembles the nested consumer
+value by following the reference.
 An unknown field or a nested Selection for the wrong entity is a type error.
 Recursive relations remain finite because the entity schema stores references
 (`Entity.ref(User)` / `Entity.refTo('Node')`), not recursively inlined schemas.
@@ -1173,17 +1157,9 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
 domain. Both packages export `Entity`; a module that needs `Entity.from` beside
 `Entity.define` aliases one of them.
 
-Presence is tracked separately from the JavaScript value. These are distinct:
-
-```text
-field missing
-field present with undefined
-field present with null
-field stale
-entity not found
-```
-
-Remote never infers presence from `value === undefined`.
+Presence is tracked separately from the JavaScript value—distinguishing missing
+fields, present `undefined`, present `null`, stale fields, and `NotFound`
+tombstones—rather than inferring absence from `value === undefined`.
 
 ## Reading, policies, and prefetch
 
@@ -1391,10 +1367,10 @@ entry asks for nothing. Add a Surface to `actives` and its refresh comes with
 it. One entry (`Data.refresh(model, actives.project)`), a Projection, or a
 Surface without params narrows it.
 
-`Data.refresh` performs no I/O and restates no request. It returns the Model
-with every selected field the store holds reading `Refreshing`, every entity it
-knew to be absent asked for again (it reads `NotFound`, and stays out of every
-list, until the answer says it exists), and every loaded connection invalidated; the `Data.subscriptions` read entries then refetch it,
+`Data.refresh` marks the Model so `Data.subscriptions` refetches what is
+shown: every selected field the store holds reads `Refreshing`, every entity it
+knew to be absent is asked for again (it reads `NotFound`, and stays out of every
+list, until the answer says it exists), and every loaded connection is invalidated; the `Data.subscriptions` read entries then refetch it,
 since stale data is planned again under every policy, so the page is requested
 once. The Projection must be observed, as it is while it is on screen; for data
 nothing observes, use `Data.prefetch` with `RemotePolicy.networkOnly`.
@@ -1438,15 +1414,15 @@ case 'SignedOut': {
 }
 ```
 
-It performs no I/O and returns the Model with every server-derived fact gone:
-values, tombstones, unavailable fields, connections, live cursors, failures,
-and the reads in flight. Every active Surface's read and live entries restart,
-so the screen asks again as whoever the client now is. A read or stream begun
-before is interrupted, and an answer it had already sent, still queued behind
-the `forget`, writes nothing: each answer carries the generation it was asked
-under, and one from before the `forget` is dropped. A mutation in flight is
-treated as applied, so its answer writes nothing into the new store, and the
-mutation sequence is kept, so request ids stay unique.
+It returns the Model with every server-derived fact cleared—values,
+tombstones, unavailable fields, connections, live cursors, failures, and the
+reads in flight—so every active Surface's read and live entries restart and ask
+again as whoever the client now is. A read or stream begun before is
+interrupted, and an answer it had already sent, still queued behind the
+`forget`, is dropped because each answer carries the generation it was asked
+under. A mutation in flight is treated as applied, so its answer writes nothing
+into the new store, and the mutation sequence is kept so request ids stay
+unique.
 
 Who the client is belongs to the `RemoteClient` layer or the server's session,
 not to Remote. `forget` only says that what was known no longer is.
@@ -1971,17 +1947,11 @@ server last said. The stream restarts on its own; see
 A server may answer a read without a field it was asked for, and mean it: the
 Source's `authorize` withheld it from this principal, or the record it returned
 had no such field. The read result says so, in `settled`: the fields it asked
-for that this answer does not carry and a later one would not either. Why is
-not on the wire. The client records each as **unavailable**, one more kind of
-knowledge beside a value and a tombstone:
-
-```text
-missing      not established; the planner asks
-present      known
-stale        known, and being asked again
-unavailable  asked, and answered without: the planner does not ask again
-tombstone    the whole entity is known absent
-```
+for that this answer omits and a later one would omit too. Why is not on the
+wire. The client records each as **unavailable**, one of five field states
+alongside `missing` (planner asks), `present` (known), `stale` (known, being
+asked again), and `tombstone` (whole entity known absent). Because `unavailable`
+fields were asked and answered without, the planner stops asking for them.
 
 A Selection that names an unavailable field reads `Failed` with an
 `Unavailable` error naming the field, not `Loading` (nothing is fetching it)
@@ -2255,11 +2225,7 @@ sent with the request as the first page its read entry would ask for (the
 query, its input, `first` and `select`). The server reads each after the write,
 as a query of it is read, and answers it beside the rows. In the reduction that
 releases the layer, each list the answer moved takes its page in place of the
-fetch, so it reads `Ready` throughout and nothing more is asked:
-
-```text
-write + the lists its prediction moves -> answer + their first pages -> rows written, lists replaced, layer released
-```
+fetch, so it reads `Ready` throughout without an extra round trip.
 
 A page lands only in a list the answer itself moved, and not in one stale
 before the write, whose own read is on its way. Everything else falls back to
@@ -2670,11 +2636,8 @@ server reads, of each row its answer names, the fields it
 shows that the answer left out, after the write and as any read is, and sends
 that read with the answer (`foldkit-remote-server`'s
 [What an answer carries](../remote-server/README.md#what-an-answer-carries)).
-The client writes it in the reduction that releases the layer:
-
-```text
-answer (rows the write names) + read (what the Surfaces and the layer show of them) -> store, layer released
-```
+The client merges the answered rows and read fields into the store and releases
+the optimistic layer in one reduction.
 
 So a created post lands with the count, the `may` and the author's name the
 feed reads, though the write stored none of them, and the feed never reads
@@ -2686,16 +2649,13 @@ a `Data.mutate` with none registered sends nothing to show.
 ### When the server's reads lag its writes: revisions and read-after tokens
 
 Some servers answer a read from a copy that catches up after a write: a
-Domain View, a database read replica. Two things on Remote's wire, both
-optional and both opaque to Remote, keep such a server from showing a row
-older than one the client already holds:
+Domain View, a database read replica. Two optional wire fields keep such a
+server from showing a row older than one the client already holds:
 
-```text
-a row's revision   NormalizedEntity.revision, EntityPatched.revision
-                   a row of a lower revision than the one held writes nothing
-a write's token    MutationResult.after = { token, rows }
-                   each row is held to the token (its floor) until a read at it answers
-```
+- **Row revision** (`NormalizedEntity.revision`, `EntityPatched.revision`): an
+  answer with a lower revision than the stored row writes nothing.
+- **Write token** (`MutationResult.after = { token, rows }`): each named row
+  is held to that token floor until a read at that token answers.
 
 The store keeps both beside the row (`EntityEntry.revision`, `.floor`), so a
 snapshot `persistence` restores keeps them, as does a server render's capture
@@ -3010,17 +2970,22 @@ SSR.hydrate(config, plan, { buildId, prepare: durable.session })
 See [what only the browser has](../ssr/README.md#what-only-the-browser-has-prepare)
 in `foldkit-ssr`.
 
-```text
-Data.mutate(…, { durable }) → queued in the Model, layer shown   (its Command answers MutationQueued)
-outbox.save  → the queue written to the store, merged with other tabs' → OutboxRead (stored)
-outbox.send  → the oldest stored write sent, one at a time, by one tab  → MutationSucceeded | MutationFailed
-             → answered Unauthenticated or PrincipalChanged: stored as WaitingForSignIn → OutboxRead; the rest held
-Data.signedIn → each write waiting for a sign-in waits its turn again → sent, then those behind it
-outbox.adopt → a visitor's writes, once an answer names who signed in: stamped as them → OutboxMoved
-outbox.hold  → writes made for someone other than whom an answer names: not sent → OutboxHeld
-reload       → outbox.restore: the queue back, layers shown → sent again, same operation id, same now
-server page  → durable.session (prepare) → the served page adopted → outbox.restore's Subscription → OutboxRead → layers shown
-```
+How the durable lifecycle runs:
+
+1. `Data.mutate(..., { durable })` queues the write in the Model, shows its
+   optimistic layer, and emits `MutationQueued`.
+2. `outbox.save` writes the queue to storage, merges with other tabs, and emits
+   `OutboxRead`.
+3. `outbox.send` sends the oldest stored write one at a time from one tab,
+   settling with `MutationSucceeded` or `MutationFailed` (or moving to
+   `WaitingForSignIn` on `Unauthenticated` or `PrincipalChanged` until
+   `Data.signedIn` resumes it).
+4. `outbox.adopt` / `outbox.hold` reassigns visitor writes on sign-in
+   (`OutboxMoved`) or holds writes belonging to another principal
+   (`OutboxHeld`).
+5. On page reload or SSR (`durable.session`), `outbox.restore` reloads the
+   queue, restores the optimistic layers, and resumes sending with the same
+   operation ID and `now`.
 
 - **Stored before sent.** A write is sent only once the store holds it, so a
   reload while it is on its way finds it and sends it again. Its request id is
@@ -3234,14 +3199,11 @@ A stream lags a write's answer: the answer comes back over HTTP while the
 stream may still be sending changes committed before the write. A stream
 sends in commit order, so until it sends the answer's values back, a patch of
 its to those fields is older than the answer, or, from a source that
-coalesces (`pollLive`), a later change that never showed the write. Neither
-overwrites the answer:
-
-```text
-answered Grace -> stream patches name: Ada  -> Grace shown, name read again (Refreshing)
-               -> stream patches name: Grace -> that stream is caught up; its patches apply
-read asked after the answer                  -> its value shows; the wait ends
-```
+coalesces (`pollLive`), a later change that skipped the write. Neither
+overwrites the answer: if the answer wrote `Grace`, an older stream patch
+for `Ada` leaves `Grace` on screen while reading the field again (`Refreshing`),
+until the stream echoes `Grace` (or a read asked after the answer returns) and
+the wait ends.
 
 The wait is per stream and per row (`RemoteModel.echoes`), and covers only
 the fields the answer wrote: other fields of the same patch apply. A later
@@ -3257,13 +3219,11 @@ layer. An absolute patch (`values`) shows over it. A relative one (`adds`,
 `computes`) is worked out over the value the field held before the first
 patch that landed during the write, not over the patch: the patch may be the
 write's own echo, which the client cannot tell from another person's, and
-adding the amount to it would show one too many until the answer.
-
-```text
-likes 10, a pending like (adds 1)      -> shows 11, confirmed 10
-stream patches likes: 11 (its echo)    -> shows 11, confirmed 11
-the answer lands                       -> shows 11, confirmed 11
-```
+adding the amount to it would show one too many until the answer. For example,
+when `likes` starts at `10` with a pending `+1` write, the screen shows `11`
+(`confirmed: 10`); when the stream echoes `likes: 11`, the screen stays at `11`
+(`confirmed: 11`) rather than jumping to `12`, and stays `11` when the answer
+lands.
 
 Another person's like that arrives meanwhile shows when the answer lands; the
 count is never too high. Remote's Model keeps the earlier value
@@ -3286,13 +3246,10 @@ reads nothing again. No protocol field is involved.
 A stream breaks when its transport fails or when an event arrives ahead of
 its cursor (a gap). Either way, what the server said meanwhile is lost: no
 server replays it, since `after` only numbers the events that follow. So
-recovery is a refetch, and the live entry does it on its own:
-
-```text
-break -> gap marked, restarts + 1 -> backoff
-      -> RefreshStarted (what the stream covers) + GapCleared -> resubscribe from the cursor
-                    \-> read entry refetches
-```
+recovery is a refetch, and the live entry handles it automatically: on a break,
+Remote marks the gap, increments `restarts`, backs off, emits `RefreshStarted`
+for what the stream covers along with `GapCleared`, and resubscribes from the
+cursor while the read entry refetches.
 
 - **The backoff is Sync's transport policy:** 50 ms after the first break,
   doubling for each break in a row, at most 5 s, with ±20% jitter.
@@ -3371,13 +3328,12 @@ row the budget evicted reads `Initial` again, and `why` names it
 `Evicted` rather than `Missing`. A hand-wired `Remote.retain` takes `budget`
 in its options.
 
-```text
-Surface left      -> its lists held stale (or with their age, under staleWhileRevalidate), its reads held
-Surface again     -> rows read Refreshing; the planner refetches the stale list
-  through history -> within historyWindow: Ready as it was left, nothing asked
-page arrives      -> it replaces the held rows; Ready
-past the budget   -> evicted, left longest ago first; going back reads Loading and refetches
-```
+When a Surface is left, its lists stay held stale (or keep their age under
+`staleWhileRevalidate`) and its reads remain cached. Returning shows those rows
+as `Refreshing` while the planner refetches stale lists—unless you return via
+Back/Forward within `historyWindow`, which shows `Ready` immediately without
+fetching. Once a page leaves past `budget`, it is evicted oldest-first and the
+next visit reads `Loading` and refetches.
 
 A value nothing reached when retention ran, such as a prefetch no Surface
 showed, is still collected at once. Collecting is safe because the server
@@ -3498,11 +3454,8 @@ Runtime.makeElement(
 ```
 
 After that the wiring restores only a key the Model is not restored from (a
-change of principal), and saves as the cache changes:
-
-```text
-key -> restore -> Hydrated { from: key } -> restoredFrom = key -> save on each change
-```
+change of principal): restoring emits `Hydrated { from: key }`, records
+`restoredFrom = key`, and saves on each cache change thereafter.
 
 Without `restore` in `init`, the wiring restores at start too, a frame late.
 
@@ -3543,13 +3496,9 @@ A saved row or list expires a fixed time after it was **fetched**: the
 `maxAge` of the call that read it, or the wiring's own (one day by default).
 Reading it back does not make it younger: a restore keeps when each row was
 written and when each list's page arrived, so the next save measures from the
-same moment.
-
-```text
-fetched at t  ->  expires at t + maxAge
-save:    drop what has expired -> past maxBytes, drop what was read least recently -> write
-restore: drop what has expired -> Hydrated (ages kept)
-```
+same moment (`fetchedAt + maxAge`). When saving, expired entries are dropped
+first and any entries past `maxBytes` are evicted least-recently-read first; when
+restoring, expired entries are dropped while remaining ages stay intact.
 
 <!-- docs-check
 declare const inbox: Parameters<typeof Data.subscriptions>[0]
@@ -3650,41 +3599,15 @@ in one application its own `id`: `Remote.resume(Catalog, { id: 'catalog' })`.
 
 ## How the server packages fit
 
-`foldkit-remote` owns **client cache semantics**, not your source database or
-network transport.
-
-```text
-client
-
-Surface Projection
-       |
-       v
-foldkit-remote
-requirements + normalized cache
-       |
-       v
-RemoteClient / Effect RPC
-
----------------- server boundary ----------------
-
-foldkit-remote-server
-Sources + field authorization
-       |
-       +---------------------+
-       |                     |
-       v                     v
-foldkit-remote-drizzle    hand-written Source
-(optional SQL compiler)   API / service / database
-```
-
-The package roles are:
+`foldkit-remote` manages client cache semantics while your server Sources and
+network layers run behind `RemoteClient` / Effect RPC:
 
 | Package | Responsibility |
 | --- | --- |
-| `foldkit-remote` | normalized cache, requirements, planning, queries, optimistic overlays, live cursors, retention |
-| `foldkit-remote-server` | interpret client selections/queries against server Sources and enforce semantic-field authorization |
-| `foldkit-remote-drizzle` | optionally compile those selections and queries into typed Drizzle access |
-| Effect RPC / your layers | transport and deployment |
+| `foldkit-remote` | normalized cache, planning, queries, optimistic overlays, live cursors |
+| `foldkit-remote-server` | interpret client selections/queries and enforce field authorization |
+| `foldkit-remote-drizzle` | optionally compile selections and queries into typed Drizzle access |
+| Effect RPC / your layers | transport, authentication, and deployment |
 
 `Remote.clientLayer(rpcClient)` adapts `RemoteRpc` to `RemoteClient` and
 coalesces compatible reads/queries. HTTP, WebSocket, worker, and in-process
@@ -3864,9 +3787,12 @@ first, the newest 256 kept:
 
 | `_tag` | When |
 | --- | --- |
-| `PredictionMismatch` | Under `verifyPredictions`, an answer disagreed with what the client predicted: a field's value (`Value`), a list's order (`Placement`), or a field left out (`Gap`). |
-| `InsertUnpredicted` | Not recorded here: under `verifyPredictions`, `Data.query` reports a list that selects members a declared insert of its Entity cannot predict ([above](#checking-an-answer-against-what-was-shown)). |
-| `WriteUnheard` | A write failed, and the wiring does not share `MutationFailed`. |
+| `PredictionMismatch` | Under `verifyPredictions`, an answer disagreed (`Value`, `Placement`, or `Gap`) |
+| `InsertUnpredicted` | Reported on `Data.query` when a list selects members an insert cannot predict |
+| `WriteUnheard` | A write failed, and the wiring does not share `MutationFailed` |
+
+See [Checking an answer against what was shown](#checking-an-answer-against-what-was-shown)
+for details on `verifyPredictions` mismatches.
 
 Each carries its facts, `source: 'foldkit-remote'`, a `level` and a `message`
 to log. The reducer only records them, since it is pure. The wiring's route and
@@ -4332,23 +4258,15 @@ read result for callers deliberately managing their own Remote store.
 
 ### Subscription entries
 
-`Data.subscriptions` is built from three kernel entries:
-
-```text
-Remote.observe(bound, surface, params, toMessage?, options?)
-  plan + entity reads + query reads
-
-observeLive(bound, surface, params, toMessage?, options?)   (foldkit-remote/live)
-  live streams from the Model-owned cursor
-
-Remote.retain(projections, toMessage?, { connections?, grace? })
-  active roots -> RetentionChanged
-```
+`Data.subscriptions` combines three kernel entries: `Remote.observe` (plan plus
+entity and query reads), `observeLive` from `foldkit-remote/live` (live streams
+from the Model-owned cursor), and `Remote.retain` (active roots driving
+`RetentionChanged`).
 
 The observe entry's dependencies are the current plan, the Model's refresh
 generation, and when a held value next ages out
 (`{ requirements, queries, refresh, expires }`), so `Data.refresh` restarts
-it. If entity requirements and queries are both empty, it performs no I/O. A
+it. When entity requirements and queries are both empty, it stays idle. A
 refreshing read emits `RefreshStarted` first, then a result Message.
 
 A Message that changes the Model makes Foldkit recompute Subscription
@@ -4482,9 +4400,9 @@ any more is interrupted ([Deadlines, aborts and limits](#clients-and-transports)
 `Remote.coalesced(layer, options)` adds the same behavior to a hand-written
 `RemoteClient` layer; `window` widens batching beyond work issued concurrently.
 
-## What Remote owns
+## Boundaries: what Remote manages vs. your app
 
-Remote owns:
+Remote manages:
 
 - typed entity identity, references, selections, and patches;
 - the normalized entity store, field presence/staleness, and tombstones;
@@ -4499,14 +4417,11 @@ Remote owns:
 - the `RemoteClient` semantic transport seam and `RemoteRpc` schemas;
 - pure introspection of the cache and plans.
 
-Remote does **not** own:
-
-- your source database or authoritative server records;
-- local UI/application state outside `Remote.Model`;
-- client-authored state that converges across devices, or replica convergence;
-- HTTP/WebSocket deployment details;
-- authentication; server-side authorization belongs at the Source boundary;
-- a background scheduler or general-purpose database/query engine.
+Your application and neighbouring packages manage the rest: your source database
+and server records belong to your server Sources (`foldkit-remote-server`),
+local UI state outside `Remote.Model` belongs to your Model and `update`,
+offline client-authored convergence belongs to `foldkit-sync`, and HTTP/WebSocket
+transport and authentication belong to your RPC/HTTP layers.
 
 ## Limits
 

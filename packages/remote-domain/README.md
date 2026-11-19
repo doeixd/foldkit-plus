@@ -1,130 +1,31 @@
-# foldkit-remote-domain
+# `foldkit-remote-domain`
 
-Experimental: it tracks a beta. It pins the exact `@alchemy.run/domain` and
-`alchemy` releases it was checked against (`2.0.0-beta.86`).
+If your backend is an event-sourced [Alchemy Domain](https://alchemy.run/domain) server, your page needs to send Commands to Aggregates and read materialized Views without maintaining a second copy of every row or losing optimistic updates while a View catches up.
 
-An [Alchemy Domain](https://alchemy.run/domain) model
-(`@alchemy.run/domain`, an event-sourcing library that is not part of Foldkit
-Plus) is an authoritative server: Commands go to Aggregates that `decide`, the Events they
-record are the truth, and Views fold those Events into rows. This package lets
-a Foldkit page read and write that model **through Remote**, as it reads and
-writes any other server, instead of keeping a second copy of the rows.
+`foldkit-remote-domain` provides a `RemoteClient` layer (`DomainRemote.layer`) backed directly by an Alchemy Domain Api client. Your Foldkit page reads and writes through `foldkit-remote` just as it would against a SQL server—with normalized caching, optimistic predictions, and structured refusals—while the Domain model remains the single authority.
 
-It does that on the client's side of the wire: `DomainRemote.layer` is a
-`RemoteClient` built from the Domain Api's own typed client. Nothing sits
-between them, and no Remote server is involved.
-
-[An event-sourced domain behind Remote](../../docs/event-sourced-domains.md)
-is the guide: when to choose this over rows in a database, the three ways a
-command meets a declared write, and one reservation followed all the way
-round. This README is the package's contract.
-
-## When to use it, and when not
-
-Use it when a Domain model already is, or should be, the authority: the
-Events are the record, an Aggregate decides each command, and Policies, Sagas
-or Projections react to what was recorded. The page then needs no second copy
-of the rules of who reads and what a command does.
-
-Do not reach for it to get declared writes, predictions or refusals: those
-come from `foldkit-entity` and `foldkit-remote` over any authority. Rows in
-SQLite, D1 or Postgres behind `foldkit-remote-server` and
-`foldkit-remote-drizzle` give the same page the same declarations, with one
-thing less to handle: there the write and the rows it answers with come from
-one database, so there is no View to fall behind its write.
-
-## Who owns what
-
-| Fact or transition | Owner |
-| --- | --- |
-| Whether a command is allowed, and the Events it records | the Domain model (`decide`, `evolve`) |
-| Who may read a row | the Domain model (the View's `validate`, its middleware) |
-| The page's copy of a row, a write's pending state, its optimistic value, a refusal | Remote (`Remote.Model`) |
-| A write's **receipt** while its View has not caught up, and each row's revision | Remote (`Remote.Model`), as a read-after token and a row revision on Remote's wire |
-| The receipts and replies of the last 1,024 commands that answered, so a retry of one is not sent | the adapter, in memory: a cache. A reload loses it, and a retry then reaches Domain, whose command id answers it with the first receipt |
-
-The page still declares the write as Plus declares any write
-(`Mutation.write`; [One domain declaration](../../docs/entity.md) teaches the
-declarations), so prediction, `Data.refusal` and `Refusal.isInvalidBy` read
-the same declaration they read against a SQL server. Only the authority changes.
-The adapter owns no row, decides nothing and holds nothing a reload must keep:
-it translates, and its one cache, of replies, only spares a retry its call. The one thing the Domain model cannot tell a client, how far its
-View has to read before it shows a write the client already knows committed,
-it hands to Remote as a token, and Remote keeps it in its Model.
-
-`foldkit-remote-domain` and `foldkit-remote-server` are two ways to reach an
-authority, not two layers of one. A Remote server answers a page from a SQL
-store it guards itself; this package answers it from a Domain Api, which already
-authenticates and decides who reads each key. Do not put one in front of the
-other: each would authorize every call a second time.
-It also does not use `@alchemy.run/domain/Foldkit`, which folds Domain state
-into Model fields of the application's own: beside `Remote.Model` that is two
-owners of one row.
-
-## The mental model
-
-One write, from the page and back. Each step names its owner:
-
-One write, from the page and back. Each step names its owner:
-
-1. **Page, Remote:** `Data.mutate(model, RenameNote, input)` predicts the write and
-   marks it pending.
-2. **Adapter:** `client.Rename(target, input, { commandId })` translates, and
-   derives the `commandId`.
-3. **Domain, the Aggregate:** `decide` appends Events and returns
-   `{ reply, stream, version }`. The Aggregate is the only decision.
-4. **Adapter:** `NoteRow.snapshot(target, { atLeast })` asks the View at the
-   receipt.
-5. **Domain, the View:** the View folds the Events, when delivered. It is the row,
-   and who may read it.
-6. **Adapter:** `MutationSucceeded` carries the View's row, or the reply's fields
-   and the receipt as a token.
-7. **Page, Remote:** the prediction gives way to the answer, which is the row, its
-   revision and the token. A later read carries the token.
-
-A Domain command commits at once, but a View is updated afterwards, so a read
-straight after a write can still show the row from before it. Remote's Model
-keeps the facts that close that gap, and the adapter carries them across:
-
-- `revision(row)` is the View state's revision field, sent with every row.
-- `floor(key)` is the receipt of the newest write to the key that no read has
-  confirmed, sent to Remote as the write's read-after token, `stream@version`.
-
-A row reaches Remote's store only if `revision(row)` is at least the revision Remote
-holds. While a floor is set, a read of the key asks
-`snapshot(key, { atLeast: floor(key) })`. The floor clears when such a read answers;
-a View still behind is named in `behind`.
-
-A **receipt** is the `{ stream, version }` a command answers with. A **revision**
-is a number field of the row that every event of its stream moves, which you
-name when you bind the View. Rows are ordered by it, never by the View's
-cursor: the cursor does not move when a state changes with no output event.
+> **Experimental:** Pinned to `@alchemy.run/domain` and `alchemy` at `2.0.0-beta.86`. For the architectural guide and a full reservation walkthrough, read [An event-sourced domain behind Remote](../../docs/event-sourced-domains.md).
 
 ## Install
 
 ```bash
-pnpm add foldkit-remote-domain foldkit-remote foldkit-entity effect   @alchemy.run/domain@2.0.0-beta.86 alchemy@2.0.0-beta.86
+pnpm add foldkit-remote-domain foldkit-remote foldkit-entity effect \
+  @alchemy.run/domain@2.0.0-beta.86 alchemy@2.0.0-beta.86
 ```
 
-Its peers are `@alchemy.run/domain` and `alchemy` at exactly `2.0.0-beta.86`,
-and `effect ^4.1.0`. Those betas themselves peer on `effect ^4.1.4`, so 4.1.4
-is the lowest `effect` that satisfies all three; Foldkit Plus's own tests run
-on `effect@4.1.4`. `foldkit-remote` and `foldkit-entity` are in the line
-because your code imports them (`Mutation`, `Entity`); `foldkit-guard` joins
-them when you lower a guarded write.
+Requires `@alchemy.run/domain@2.0.0-beta.86`, `alchemy@2.0.0-beta.86`, and `effect >= 4.1.4`. Add `foldkit-guard` when lowering guarded writes.
 
-| Entry | Holds | Runs |
+| Entry | Exports | Runs on |
 | --- | --- | --- |
-| `foldkit-remote-domain` | `DomainRemote`: the `RemoteClient` layer and its bindings | the browser, a test |
-| `foldkit-remote-domain/server` | `pageReader`: the reader a server render reads through | the server that renders pages |
-| `foldkit-remote-domain/lower` | `Lower.check`, `Lower.write`: a declared write becomes an aggregate | where the model is hosted |
-| `foldkit-remote-domain/imported` | `Imported.mutation`, `describe`, `show`: a command nobody declared a `Write` for | anywhere |
-| `foldkit-remote-domain/testing` | `Fixture.make`: a model as a `RemoteClient` for client tests | tests |
+| `foldkit-remote-domain` | `DomainRemote` (`RemoteClient` layer and bindings) | Browser, tests |
+| `foldkit-remote-domain/server` | `pageReader` for SSR pre-reads | Rendering server |
+| `foldkit-remote-domain/lower` | `Lower.check`, `Lower.write` (compile `Write` to aggregate) | Model host |
+| `foldkit-remote-domain/imported` | `Imported.mutation`, `describe`, `show` | Anywhere |
+| `foldkit-remote-domain/testing` | `Fixture.make` (in-memory model as `RemoteClient`) | Tests |
 
-## Sixty seconds: one View, one command
+## A first View and command
 
-The Domain side is Domain's own code: an Event, a Command, an Aggregate that
-decides it, a View that folds it, a Model, an Api.
+Define your Alchemy Domain model as usual—an Event, Command, Aggregate, View, Model, and Api:
 
 ```ts
 import * as Domain from '@alchemy.run/domain'
@@ -169,8 +70,7 @@ class NotesApi extends Domain.Api('NotesApi', {
 }) {}
 ```
 
-The Remote side declares the Entity the page reads and the mutation it sends,
-and binds each to the Api:
+Now bind a Foldkit `Entity` and `Mutation` to that Api and build a `RemoteClient` layer:
 
 ```ts
 const NoteEntity = Entity.define(
@@ -200,85 +100,75 @@ const client = DomainRemote.layer(NotesApi, {
 })
 ```
 
-What each call means:
+Provide `NotesApi.layerClientHttp(url)` in the browser (or `NotesApi.layerClientInProcess` on the server) alongside `client`, and `Remote.make` uses it like any other `RemoteClient`:
 
-- `DomainRemote.view` and `DomainRemote.command` are **declarations**. They do
-  no I/O. They throw, naming the field, where they are made when the View's state
-  lacks a field the Entity declares or `revision` is not stored as a number; the
-  View and command names, and the keys they use, are checked by type against the
-  Api's own.
-- `DomainRemote.layer` is the only call that does anything: it provides
-  `RemoteClient` once the Api's client is provided.
-  Provide that client over a protocol, `NotesApi.layerClientInProcess` on the
-  server or `NotesApi.layerClientHttp(url)` (it needs an `HttpClient`) from a browser, and `Remote.make`'s
-  Data uses it as it uses any `RemoteClient`.
-- `principal` is who the Domain session is, as results name them. The adapter
-  refuses a write made for anyone else before it sends anything:
-  `RemotePrincipalChanged`, or `RemoteUnauthenticated` when nobody is signed
-  in now.
-- `denied` says what a middleware's refusal means to Remote, `'Unauthenticated'`
-  or `'Forbidden'`. A refused read is always `Unauthenticated`.
-- `written` is what the write answers with when its View is behind (below). It
-  does not read the View, and it is not the row: it is the fields the command's
-  reply says it wrote.
+- **`DomainRemote.view` and `DomainRemote.command`** are pure declarations that validate field names and a numeric `revision` at definition time.
+- **`principal`** names the signed-in caller; the adapter refuses writes for a mismatched principal with `RemotePrincipalChanged` (or `RemoteUnauthenticated` when signed out) before touching the network.
+- **`denied`** maps middleware refusals to `'Unauthenticated'` or `'Forbidden'`.
+- **`written`** supplies the fields a committed command wrote so the UI stays consistent if the View has not caught up yet.
 
-## A write whose View is behind
+## Choose between Domain and SQL backends
 
-`mutate` sends the command, and then reads the View at the command's receipt.
-What it answers depends on whether the View has caught up (the **View behind**
-rows are the ones that need the adapter):
+Reach for `foldkit-remote-domain` when an Alchemy Domain model is already your authority: Events are the source of truth, Aggregates decide commands, and Policies or Projections react to them.
 
-| What happened | What Remote sees |
+If you just want declared writes, optimistic predictions, and structured refusals over SQLite, D1, or Postgres, use `foldkit-remote-server` with `foldkit-remote-drizzle`. In SQL, a write and the row it returns come from the same database transaction, so there is no lagging View to bridge.
+
+Use either `foldkit-remote-domain` or `foldkit-remote-server` as the transport for a given authority—stacking them would authenticate and authorize every call twice. Similarly, keep rows in `Remote.Model` rather than duplicating them with `@alchemy.run/domain/Foldkit`.
+
+## How a write flows from page to View and back
+
+Each step of a write has one owner:
+
+| Responsibility | Owner |
 | --- | --- |
-| the command committed, the View is caught up | `MutationSucceeded` with the row the View now holds |
-| the command committed, the View is behind | `MutationSucceeded` with `written(reply, input)` as the row's values, and the receipt as the answer's `after` token: Remote holds the row to it |
-| a Rejection the binding maps with `refuse` | `RemoteMutationError` carrying the mutation's own `Refusal` |
-| a Rejection mapped with `forbid`, `unauthenticated` or `fail` | `RemoteForbidden`, `RemoteUnauthenticated`, or `RemoteMutationError` with a message |
-| a middleware error | `RemoteUnauthenticated` or `RemoteForbidden`, by `denied` |
-| the transport failed, the Api did not answer, or the call was cut short | `RemoteUnreachable`: the outcome is unknown, and Remote's retry carries the same operation |
+| Command decisions and recorded Events | Domain model (`decide`, `evolve`) |
+| Row visibility and read authorization | Domain View (`validate`, middleware) |
+| Cached rows, optimistic values, pending state, refusals | `Remote.Model` |
+| Read-after receipt tokens and row revisions | `Remote.Model` |
+| In-memory reply cache (last 1,024 replies to skip duplicate retries) | Adapter (rebuilt on reload) |
 
-It never answers a committed write as failed, and never with a row older than
-the write. Answering `Unreachable` would call a known commit unknown, and
-answering success with no row would release the optimistic layer over the old
-value; the reply is the third thing the client has, and it is authoritative for
-what the write set. With it in the answer, Remote's own echo rule keeps a
-lagging live patch from overwriting those fields.
+Tracing one write end to end:
 
-Remote keeps the floor in its Model, beside the row: a reload that restores
-the store (`persistence`) restores it too. While it is set, Remote reads the
-row again carrying the token, and the adapter asks the View at the receipt.
-`Data.inspect(model).floors` lists the rows waiting, and `why` names the wait
-(`ReadAfter`). Nothing in the adapter is pending: beside the reply cache above,
-it holds nothing between calls.
+1. **Page (`Remote`):** `Data.mutate(model, RenameNote, input)` applies the optimistic prediction and marks the write pending.
+2. **Adapter:** derives a deterministic `commandId` and calls `client.Rename(target, input, { commandId })`.
+3. **Aggregate:** `decide` appends Events and returns a **receipt** (`{ stream, version }`).
+4. **Adapter:** queries `NoteRow.snapshot(target, { atLeast })` at that receipt.
+5. **View:** folds delivered Events and enforces read rules.
+6. **Adapter:** emits `MutationSucceeded` with the updated row—or, if the View is still behind, the fields from `written(reply, input)` plus the receipt as a read-after token.
+7. **Page (`Remote`):** replaces the optimistic layer with the authoritative answer, recording the row's **revision** and any active read-after **floor** (`stream@version`).
 
-### The command id
+Remote accepts an incoming row only when its `revision` is at least the revision already held. While a floor is active, subsequent reads pass `{ atLeast: floor(key) }` until the View catches up.
 
-A Remote operation is one write across retries; Domain's idempotency key is a
-`commandId`. The adapter derives it, so that a retry is the same command and
-nothing else is:
+## Handle a View that lags behind its write
 
-```text
-commandId = `${mutation}:${operation}:${digest}`
-digest    = a short hash of [principal, target, keys, input]
-```
+After a command commits, `mutate` reads the View at the command's receipt:
 
-| Case | SQLite, ledgered writer | Domain alone | Domain through the adapter |
+| Outcome | What Remote receives |
+| --- | --- |
+| Command committed, View caught up | `MutationSucceeded` with the View's current row |
+| Command committed, View still behind | `MutationSucceeded` with `written(reply, input)` and `after` receipt token |
+| Rejection mapped with `refuse` | `RemoteMutationError` carrying the mutation's `Refusal` |
+| Rejection mapped with `forbid` / `unauthenticated` / `fail` | `RemoteForbidden`, `RemoteUnauthenticated`, or `RemoteMutationError` |
+| Middleware error | `RemoteUnauthenticated` or `RemoteForbidden` (via `denied`) |
+| Transport failure or dropped response | `RemoteUnreachable`; Remote retries with the same operation id |
+
+A committed write is never reported as failed, and an older View row never overwrites it. Remote stores active floors in its Model (surviving persistence restores) and surfaces waiting rows under `Data.inspect(model).floors` with reason `ReadAfter`.
+
+### Idempotency and derived command ids
+
+Each Remote write carries a stable `operation` id across retries. The adapter derives Domain's `commandId` as `${mutation}:${operation}:${digest}`, where `digest` hashes `[principal, target, keys, input]`:
+
+| Scenario | SQLite ledgered writer | Raw Domain | Through `foldkit-remote-domain` |
 | --- | --- | --- | --- |
-| same operation, same request, same principal | answered from the record | first receipt | first receipt |
-| same operation, different input | refused: the operation cannot be sent again with another input | first receipt, silently | a new command, decided on its own |
-| same operation, another principal | decided afresh in its own scope | first receipt, `decide` skipped | a new command, decided afresh |
+| Retry with same input and principal | Returns recorded reply | Returns first receipt | Returns first receipt |
+| Same operation, different input | Refused | Silently returns first receipt | New command, decided independently |
+| Same operation, different principal | Decided in new scope | Skips `decide`, returns first receipt | New command, decided afresh |
 
-A request with no `operation` is refused (`RemoteMutationError`): sending it
-would make a retry a second write. `Data.mutate` always mints one.
+Requests without an `operation` id fail with `RemoteMutationError` (`Data.mutate` always generates one). Lowered writes (`Lower.write`) enforce the full ledger rule on the aggregate side.
 
-The middle row still differs from the SQL ledger for a command written by hand.
-A command lowered with `Lower.write` closes it where it is decided (below).
+## Import a Domain command without a declared Write
 
-## Importing a command nobody declared
-
-A Domain command with no `Write` still has to be callable from a page.
-`Imported.mutation` declares one as a mutation, with the command's own schemas as
-its input and output and no `write`, so Remote predicts nothing for it:
+When a Domain command has no Foldkit `Write` declaration, wrap it with `Imported.mutation` so pages can still invoke it and audit its schema and field footprint:
 
 ```ts
 import { Footprint } from 'foldkit-entity'
@@ -291,43 +181,35 @@ const ImportedRename = Imported.mutation(NotesApi, 'Rename', {
 
 const description = Imported.describe(NotesApi, {
   views: [NoteReads],
-  commands: [DomainRemote.command(ImportedRename, NotesApi, 'Rename', {
-    entity: NoteEntity,
-    target: input => input.target,
-    input: input => input.input,
-  })],
+  commands: [
+    DomainRemote.command(ImportedRename, NotesApi, 'Rename', {
+      entity: NoteEntity,
+      target: input => input.target,
+      input: input => input.input,
+    }),
+  ],
 })
 console.log(Imported.show(description))
 ```
 
-Its **footprint** says which fields the command reads and writes: `Derived` from
-a `Write`, `Declared` by an author (with `by`, whose word it is), or `Unknown`.
-Unknown is a value a consumer must handle, never an empty list: Remote reads it
-as "may write any field", so no list is judged unaffected by the command.
-`Imported.describe` lists what the bindings import, each command with JSON
-Schemas of its input and reply, its rejections and the form key each shows
-beside, and its footprint. `Imported.show` prints that as Markdown. The shop
-example keeps its own as `IMPORTED.md` and a test compares it, so a Domain
-release that changes a schema shows as a diff.
+A command's **footprint** is `Derived` (from a `Write`), `Declared` (explicitly listed with `by`), or `Unknown` (conservatively treated as able to write any field). `Imported.show` renders a Markdown summary of schemas, rejections, and footprints that you can snapshot-test to catch upstream Domain schema changes.
 
-## Testing a page against a Domain model
+## Test a page against an in-memory Domain model
 
-`foldkit-remote-domain/testing` hosts a model in memory with every View delivery
-held until you drain, seeds it, and answers `RemoteClient` through the adapter.
-A client test then drives a page against a real Domain model with no server:
+`foldkit-remote-domain/testing` hosts your Domain model in memory with View deliveries paused until you call `drain`, letting client tests exercise real aggregates and lagging Views with no HTTP server:
 
 ```ts
 import { REMOTE_PROTOCOL_VERSION, RemoteClient } from 'foldkit-remote'
 import { Fixture } from 'foldkit-remote-domain/testing'
 
 const shop = Fixture.make(NotesApi, {
-  model: Notes, // the Domain.Model the Api is over
+  model: Notes,
   given: [{ aggregate: 'Note', id: 'n1', events: [new Renamed({ name: 'Draft', revision: 1 })] }],
   bindings: { views: [NoteReads], commands: [RenameBinding], denied: () => 'Unauthenticated' },
 })
 
 const read = Effect.gen(function* () {
-  yield* shop.drain // the View sees the seeded Event only after this
+  yield* shop.drain
   const client = yield* RemoteClient
   return yield* client.read({
     version: REMOTE_PROTOCOL_VERSION,
@@ -336,37 +218,15 @@ const read = Effect.gen(function* () {
 }).pipe(Effect.provide(shop.layer))
 ```
 
-`shop.layer` provides `RemoteClient` and the Api's own client;
-`shop.commits()` lists the Events commands committed (seeded Events are not
-commands); `shop.as` is who the calls are made as, for a model with middleware
-that reads the call's headers (`as`, `headers`, `middleware` and `handlers` are
-its options). The actor's headers are added to a call's own, which win on a
-name both give. `through` wraps the Api's client after the actor's headers are
-attached, to hold a reply back or lose it after the command ran; this package's
-own ordering tests use it.
+- `shop.layer` provides both `RemoteClient` and the Api client.
+- `shop.commits()` lists Events committed by commands (excluding seeded `given` events).
+- `shop.as`, `headers`, `middleware`, `handlers`, and `through` let tests simulate signed-in actors, dropped replies, and out-of-order deliveries.
 
-`given` commits Events directly, as Domain's Stories do, through
-`Model.Internals`, which Domain marks internal: a Domain release can change it,
-and the tests of this package fail when it does.
+Note that `given` seeds events through Domain's internal `Model.Internals` helper, which may change across beta releases.
 
-## First paint from a server render
+## Pre-read on the server for SSR
 
-A page rendered on the server reads the Domain model in the server's own
-process, and the browser takes the page over without reading any row of it
-again (a live list is read once more as its stream opens, for a row that may
-have joined since the render).
-Two things carry that, and neither is new state:
-
-```text
-server:  request -> principal (from the request) -> pageReader -> Data.satisfy -> render
-           Remote.resume sends each row read, with its revision
-browser: adopts the markup; the read entry plans nothing; the live stream names
-         each row's revision, and the adapter sends no frame at or before it
-         (a live list is invalidated as its stream opens, and read once more)
-```
-
-`pageReader` from `foldkit-remote-domain/server` is the reader a page render
-reads through:
+`pageReader` from `foldkit-remote-domain/server` reads the Domain model in-process during server rendering. `Remote.resume(Data)` sends the pre-read rows and their revisions to the browser so hydration skips duplicate reads (while live streams ignore frames at or before the hydrated revision, and live lists refresh once as their stream opens).
 
 <!-- docs-check
 declare const sessionOf: (request: Request) => Option.Option<string>
@@ -378,47 +238,18 @@ import { pageReader } from 'foldkit-remote-domain/server'
 
 const reader = pageReader(NotesApi, {
   views: [NoteReads],
-  // Who the request is, decided from the request itself: a session cookie.
   resolvePrincipal: (request: Request) => Effect.succeed(sessionOf(request)),
-  // The Api's middleware for this render, trusting that principal. NotesApi has none.
   middleware: () => Layer.empty,
 })
 ```
 
-- `reader(request, env)` is a `Layer` of `RemoteClient`: `DomainRemote.layer`
-  over the Api's in-process client (`clientInProcess`). Provide it to the
-  pre-read, `Data.satisfy(model, actives).pipe(Effect.provide(reader(request,
-  env)))` in `foldkit-ssr`'s `prepare`, with the hosted model's Layer (what
-  `Notes.layer(…)` provides) beside it. `resolvePrincipal` failing
-  `RemoteUnauthenticated` fails the pre-read, as a 401 would.
-- **Who it reads as is the request's, never a header's.** The middleware is
-  built from the principal `resolvePrincipal` decided, in Domain's way of
-  calling an already-authenticated caller in process; no header the request
-  carries reaches it. A middleware that reads headers (as one over HTTP does)
-  is the wrong one to give here.
-- **It only reads.** It binds no command, so a write fails
-  `RemoteMutationError`, and a live stream fails `RemoteLiveError`. Every read
-  and query is noted private for a render `foldkit-ssr` may keep (`PageReads`),
-  so a page read as someone is never served to someone else.
-- **What crosses is Remote's.** `Remote.resume(Data)` in the plan's `parts`
-  sends each row the page's Surfaces read with its revision. (It would also
-  send a row a write in the render held to a receipt with its floor, as a
-  backend whose page reader writes does for a form posted without scripts;
-  `pageReader` binds no command, so no render through it writes.) The
-  browser's `DomainRemote.layer`
-  then answers a live stream that names those revisions (`LiveRequirement.revisions`)
-  with no frame at or before them: a change made between render and hydration
-  is newer, and arrives as a patch.
+- Provide `reader(request, env)` alongside your hosted model Layer to `Data.satisfy` inside `foldkit-ssr`'s `prepare`.
+- Build `middleware` directly from the principal returned by `resolvePrincipal`, never from raw HTTP headers.
+- `pageReader` is read-only (writes fail `RemoteMutationError`; live streams fail `RemoteLiveError`) and marks all reads private (`PageReads`) so one user's render is never cached for another.
 
-[`examples/writes-domain/test/ssr.test.ts`](../../examples/writes-domain/test/ssr.test.ts)
-renders the shop this way under jsdom and hydrates it.
+## Bind paged lists and `one` relations
 
-## Lists and one relations
-
-A Domain Query answers a question across keys from a store a Projection writes.
-`DomainRemote.query` binds a Remote query to a **paged** one: the Domain Query
-decides which rows are listed and in what order, and the adapter then reads each
-listed row through its Entity's View.
+`DomainRemote.query` connects a Remote `Query` to a **paged** Domain Query: Domain chooses the matching row ids and cursor order, and the adapter fetches each listed row through its bound View (dropping any row the View's `validate` hides):
 
 <!-- docs-check standalone
 import * as Domain from '@alchemy.run/domain'
@@ -461,11 +292,6 @@ const principal = Effect.succeedNone
 const denied = () => 'Unauthenticated' as const
 -->
 
-```text
-edges    = the Domain page's entries, by id, less the rows their View answers absent
-entities = those rows as the View answers them, each with its revision
-```
-
 ```ts
 import { Query } from 'foldkit-remote'
 
@@ -477,59 +303,23 @@ const Stocked = Query.define('Stocked', { shelf: Schema.String }, () =>
 )
 
 const Listed = DomainRemote.query(Stocked, ShopApi, 'InStock', {
-  input: input => ({ shelf: input.shelf }), // the Domain Query's input
-  id: entry => entry.id, // the row an entry of its page lists
+  input: input => ({ shelf: input.shelf }),
+  id: entry => entry.id,
 })
 
 DomainRemote.layer(ShopApi, { views: [Products], commands: [], queries: [Listed], principal, denied })
 ```
 
-(The tests' model, with a projection and a supplier, is `test/adapter/lists.ts`.) What each part does:
+Key list and relation rules:
 
-- **The View is the one judge of who sees a row.** A row the Domain Query lists
-  but the View's `validate` hides is left out of the page, so a list never names
-  an id a read of it would hide. Every row a page carries holds its revision, so
-  Remote orders it against what it holds as it does a read's.
-- **Paging is Domain's, forward only.** Remote's `first` is Domain's `take`, and
-  a page's end cursor is Domain's cursor, sent back as `after`. A window from the
-  end (`last`, `before`) is refused by name, and so is `first: 0`, which Domain
-  would answer with one row. A cursor longer than 1,024 characters is refused.
-  The request is decoded with Remote's `QueryRequest` and the Remote query's own
-  `Input` before anything is asked. A Rejection of the Query is a
-  `RemoteQueryError`; its middleware's refusal is `RemoteUnauthenticated`.
-- **A write's answer carries its lists.** When the client asks a write back for
-  the lists it moves (`MutationRequest.lists`), the adapter reads each at the
-  write's receipt (`atLeast`), so a row the write moved shows there. A list
-  whose Query has not caught up within `confirmWithin` is left out, and the
-  client asks for it again.
-- **A page is read with no token.** A floored row on a later plain page is held
-  by Remote, as for any page: the page writes it, and ends its floor, only at a
-  newer revision than the one held; otherwise a read at its token does.
-- **A live list is asked again.** A Domain Query has no watch: the adapter
-  sends `ConnectionInvalidate` once as a live list's stream opens, so the
-  client reads the list once more (the list it holds may be a server render's,
-  or one read before the stream broke); then it watches each row the list
-  holds, asks the list again 50 ms after one changes (the changes of a burst
-  cost one ask), and sends `ConnectionInvalidate` when what it lists moved
-  (never `EntityDeleted` for a row that only left the list), watching the rows
-  that joined and no longer those that left. A row that joins the list while the stream is open, with no change to
-  a row it holds, is not seen until the list is read again.
+- **Forward-only paging:** `first` maps to Domain's `take` and `after` to Domain's cursor. Backward windows (`last`, `before`), `first: 0`, and cursors over 1,024 characters are rejected.
+- **Write answers refresh affected lists:** when a write specifies `MutationRequest.lists`, the adapter reads each list at the write's receipt (`atLeast`), omitting lists that have not caught up within `confirmWithin`.
+- **Live lists:** opening a stream sends one `ConnectionInvalidate`, then watches every listed row and re-queries 50 ms after a row changes. Rows joining without modifying a currently listed row appear on the next read.
+- **`one` relations:** stored as target id or `null` in View state, returned as Remote ref keys (`'Supplier:s1'`), and batch-fetched once per target. `many` relations and relation windows fail with `RemoteReadError`.
 
-A View's state holds a **`one` relation** as the target's id, or `null`.
-`DomainRemote.view` refuses an Entity whose `one` relation the state does not
-hold. A read answers the relation as Remote's ref key (`'Supplier:s1'`) and,
-when the request selects the target, reads it in the same batch through the
-target Entity's own View binding, once however many rows point at it. A target
-its View hides is absent; a `many` relation, a relation window, and a target
-with no View bound fail the read by name (`RemoteReadError`).
+## Lower a declared `Write` into an Aggregate
 
-## Lowering a declared write
-
-`foldkit-remote-domain/lower` turns a `Write` into an aggregate, so the rules
-are declared once and decided by the same code a SQL server runs. `decide` states
-no rule: it lands the write through `RemoteServer.write` over `GuardServer.writer`
-over `RemoteServer.memoryWriter` on the one row the aggregate holds. Change the
-shared rule, and both authorities change.
+`foldkit-remote-domain/lower` compiles a Foldkit `Write` (including its invariants, transitions, and `foldkit-guard` policies) into an Alchemy Domain aggregate so both SQL and event-sourced hosts execute the exact same rule engine:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -581,7 +371,7 @@ const ReserveStock = Mutation.write(
 
 ```ts
 import * as Domain from '@alchemy.run/domain'
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import { RpcMiddleware } from 'effect/rpc'
 import { Lower } from 'foldkit-remote-domain/lower'
 
@@ -614,126 +404,43 @@ const Reserved = Lower.write(ReserveStock, {
     }),
   apply: (row, event) => ({ ...row, reserved: event.reservedAfter, revision: event.revisionAfter }),
 })
-// Reserved.command · .rejections · .decide · .evolve · .reply · .state · .initial
-// Reserved.view · .binding(api) · .reads(api, viewName)
+// Exposes .command, .rejections, .decide, .evolve, .reply, .state, .initial, .view, .binding, .reads
 ```
 
-`Lower.write` derives everything it can, and asks for what it cannot:
-
-| Part of the model | Comes from |
+| Part | Source |
 | --- | --- |
-| The command's tag and target | the mutation's name; the Entity's `id` |
-| The command's input | the write's input fields, less the id, plus the operation and its digest |
-| Rejections `Conflict`, `Unmet`, `Invalid` | the members of the mutation's `Refusal` |
-| Rejections `Forbidden`, `Unauthenticated`, `NotFound`, `Reused` | fixed: how a guarded update refuses, and a reused operation |
-| `decide`, `evolve`, the reply, the View's state and `evolve` | derived; the View copies the aggregate's row field for field |
-| The adapter's two bindings (`binding`, `reads`) | derived from all of the above |
+| Command tag, target, input | Derived from mutation name, Entity `id`, and write input fields |
+| `Conflict`, `Unmet`, `Invalid` rejections | Derived from the mutation's `Refusal` |
+| `Forbidden`, `Unauthenticated`, `NotFound`, `Reused` | Built-in guarded update and idempotency refusals |
+| `decide`, `evolve`, reply, View state, adapter bindings | Derived automatically |
+| `event`, `record`, `apply`, `listed` | Supplied by you (stored Event contract) |
+| `revision`, `principal`, `middleware`, `policy` | Supplied by you (versioning and auth wiring) |
 
-| You supply | Why it cannot be derived |
-| --- | --- |
-| `event`, `record`, `apply` | an Event's tag and fields are a stored contract the declaration has no name for |
-| `listed` | the write updates a row; some Event has to make it exist |
-| `revision` | which field every Event moves, which `expect` reads |
-| `principal`, `middleware` | Domain's middleware provides who asks; the guard consumes it |
-| `policy` (and `operators`) | the rules' implementations, and the table that judges them in memory |
+`Lower.check(write)` inspects a write before lowering and returns any single-aggregate blockers (`OutsideBoundary` for cross-row reads, `NotPersisted` for unstored members). Lowered aggregates also remember the last 256 operation digests per row and refuse mismatched reuse with `Reused` (only after the caller passes authorization).
 
-**`Reused`.** The lowered aggregate remembers, per operation, the digest it was
-first sent with (the last 256), and refuses another request under it. That
-check is answered only to who may write the row: a visitor, or someone the guard
-refuses, hears the guard, never that an operation was used.
+## Failure modes and current limits
 
-**Where it stops.** `Lower.check(write)` returns, as data, what keeps a write out
-of one aggregate: a `when`, a rule, an invariant or a context value that reads
-another row (`OutsideBoundary`), or a member the row does not persist
-(`NotPersisted`). `Lower.write` throws listing them. One aggregate is one
-consistency boundary; Domain's answer for a rule across two is a Saga or a
-Policy, which is not built here. A lowered write holds no ledger,
-`requires`, `cascades`, `restricts` or `clears`.
-
-## Failure and recovery
-
-- **A View behind.** The write answers with `written`'s row and its receipt as
-  a token, and Remote holds the row to it. A read of that key carries the token,
-  and the adapter asks the View at the receipt; if the View has not reached it
-  within `confirmWithin` (2 seconds by default: the Api's client takes no
-  deadline of its own), the read names the row in `behind`, and Remote keeps
-  what it holds and the floor, never the row from before, and asks again with
-  the token after a wait (1 second, doubling, at most 30). A live stream opened
-  while a floor is set gets the token too: its frames for that key are only
-  signals, and the adapter reads at the receipt and sends the row when it
-  answers, which ends the floor. A receipt whose token would pass the wire's
-  512 characters (a very long stream name) holds the row to nothing.
-- **A lost reply.** The command may have committed or not. The call fails
-  `RemoteUnreachable`, and Remote's retry carries the same operation, so the same
-  `commandId`: Domain returns the first receipt and does not decide again.
-  A reply that did arrive is kept (the last 1,024), so a retry of it is not sent.
-- **A reload.** The floor and the revision are in Remote's store, so a reload
-  that restores the store keeps both, and asks at the token again. One that
-  restores nothing starts with nothing held.
-- **Rows out of order.** Every row and live frame carries its revision, and
-  Remote drops one older than the row it holds. Once a key reads as deleted or
-  hidden at a revision, no row of that revision or an earlier one is let back
-  in, and a key created again at a lower revision stays absent until its
-  revision passes the old one. The revision must therefore keep rising across
-  the stream's whole life. Two rows of one key at one revision with different
-  values (an event that did not move it) are both written, the later last; the
-  adapter no longer remembers rows, so it does not report them.
-- **Another principal.** Remote forgets what it holds when who is signed in
-  changes (`Data.forget`); the adapter holds no rows, so none can reach another
-  principal.
-- **A hidden row.** A row the View's `validate` refuses reads as absent, as a
-  guarded SQL read of a hidden row does.
-- **A lowered write that fails on its own side.** A Domain Api sends a defect
-  with its message and cause, so `Lower.write`'s `decide` lets nothing of its
-  own out that way: a failure of the chain it runs (the guard's own, which may
-  name a member a Read rule hides, or whatever a rule's body or an operator
-  threw) is reported as a `ServerDefect` with `during: 'decide <Mutation>'`
-  (`RemoteServer.report`, through the `Diagnostics.Reporter` the model is
-  hosted with), and the defect says only `Internal error, incident <id>`. The
-  adapter answers such a write `RemoteUnreachable`; the incident is in the
-  Api's response, and the cause in the report. A declared refusal is a
-  Rejection, as before.
-
-## Limits
-
-- **Lists are a paged Domain Query's, read forward.** An unpaged Query cannot
-  answer a list, a window from a list's end is refused, and a live list is read
-  once more each time its stream opens; while open, it sees a row join it only
-  when a row it holds changes or it is read again. Each listed
-  row costs one View snapshot (sixteen at a time). A plain page carries no
-  read-after token: Remote's wire has none for a query, so only a write's own
-  answer reads its lists at the receipt. Relations are `one` relations held as
-  ids; a live read with relations is refused (`RemoteLiveError`).
-- **`written` and who may read.** A write's reply is not passed through the
-  View's `validate`. `DomainRemote.command` refuses `written` where its Entity's
-  Update rules do not imply its Read rules, or a member has a Read rule; such a
-  row is read through the View only.
-- **Open upstream behaviour, as of `2.0.0-beta.86`.** These are Domain's, not
-  fixed here, and not yet reported to the Alchemy project:
-  - A `commandId` reused with different input, or by another principal, returns
-    the first receipt and skips `decide`. The adapter derives the id from who
-    asks and what, so it never reuses one; a client of the Api that does is
-    answered with another caller's reply.
-  - The Api's View client takes no timeout for an `atLeast` read, so the adapter
-    supplies its own `confirmWithin`, and a read behind it waits as long as that.
-  - A snapshot carries no stream version, so a client cannot compare one with a
-    receipt: only the server can, through `atLeast`. That is why the adapter
-    orders rows by a revision field you name.
-- **Not exercised.** There is no deploy, Durable Object hosting or WebSocket
-  protocol here: tests run on `Domain.InMemory` and over a local HTTP server
-  (`Domain.protocolHttp`).
-- **A beta.** The adapter breaks when Domain's behaviour does. Its
-  `behaviour.test.ts` fails when a release changes what the adapter relies on.
+- **Lagging Views:** reads wait up to `confirmWithin` (default 2 seconds); if still behind, Remote keeps its optimistic/written row and retries with exponential backoff (1s to 30s). Tokens over 512 characters cannot set a floor.
+- **Monotonic revisions:** Remote drops any row or live frame older than the held revision, including resurrected rows after a delete. Ensure every Event advances `revision`.
+- **Principal switches:** calling `Data.forget` on sign-out clears all cached rows; the adapter itself caches no rows.
+- **Internal defects:** lowered writes log unexpected failures via `RemoteServer.report` (`ServerDefect`) and return only `Internal error, incident <id>` over the wire (mapped to `RemoteUnreachable`).
+- **`written` authorization safety:** `DomainRemote.command` refuses `written` if the Entity's Update rules do not imply its Read rules or if a field has its own Read rule.
+- **Upstream `2.0.0-beta.86` limits:** tested against `Domain.InMemory` and `Domain.protocolHttp` (not Durable Objects or WebSockets); live reads with relations fail `RemoteLiveError`; each listed row costs one View snapshot (16 concurrent).
 
 ## Reference
 
-| Export | Entry | What it is |
+| Export | Entry | Purpose |
 | --- | --- | --- |
-| `DomainRemote.view`, `.command`, `.query` | `.` | bind a View to an Entity, a command to a mutation, a paged Query to a Remote query |
-| `DomainRemote.refuse`, `.forbid`, `.unauthenticated`, `.fail` | `.` | how a Rejection reaches Remote |
-| `DomainRemote.layer` | `.` | the `RemoteClient` |
-| `pageReader`, `PageReaderConfig` | `./server` | the reader a server render reads through |
-| `Receipt` | `.` | `{ stream, version }` |
-| `Lower.check`, `Lower.write`, `LoweringFinding` | `./lower` | lower a declared write |
-| `Imported.mutation`, `.describe`, `.show` | `./imported` | an undeclared command, and what was imported |
-| `Fixture.make` | `./testing` | a model as a client-test fixture |
+| `DomainRemote.view`, `.command`, `.query` | `.` | Bind Views, commands, and paged Queries |
+| `DomainRemote.refuse`, `.forbid`, `.unauthenticated`, `.fail` | `.` | Map Domain rejections to Remote errors |
+| `DomainRemote.layer`, `Receipt` | `.` | Provide `RemoteClient`; `{ stream, version }` type |
+| `pageReader`, `PageReaderConfig` | `./server` | In-process SSR pre-reader |
+| `Lower.check`, `Lower.write`, `LoweringFinding` | `./lower` | Compile declared writes into Aggregates |
+| `Imported.mutation`, `.describe`, `.show` | `./imported` | Wrap and audit undeclared commands |
+| `Fixture.make` | `./testing` | In-memory Domain model as `RemoteClient` |
+
+## Next
+
+- [An event-sourced domain behind Remote](../../docs/event-sourced-domains.md) — full reservation walkthrough and when to choose Domain over SQL.
+- [`foldkit-remote`](../remote/README.md) — normalized store, queries, mutations, and live streams.
+- [`foldkit-entity`](../entity/README.md) — declaring entities, invariants, and writes once.

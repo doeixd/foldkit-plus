@@ -1,48 +1,29 @@
 # `foldkit-primitives`
 
-Ready-made pieces of browser, clock, device, and interaction state for a
-Foldkit application: a media query, a timer, a socket, an undo stack, a roving
-tab stop, a resize observer, a clipboard write. Each comes in the shape Foldkit
-already has, so adding one adds no store, no hook, and no second reducer. The
-fact lives in your Model, arrives as a Message, and replays like everything
-else.
+In browser apps built with [Foldkit](https://foldkit.dev/)—a TypeScript framework where application state lives in one `Model` and changes through `update`—wiring a media query, a keyboard shortcut, a timer, a resize observer, or roving keyboard focus often pulls you into ad-hoc event listeners that live outside your `Model`.
 
-```ts
-import { MediaQuery } from 'foldkit-primitives/media'
-```
+`foldkit-primitives` gives you ready-made pieces for browser, clock, device, and interaction state in the shape Foldkit already uses. Each primitive observes the platform and sends a `Message` into your `update`, so the fact lives in your `Model`, appears in DevTools, and replays cleanly.
 
-> **The browser reports; the Model owns.** A primitive observes something and
-> hands your `update` a Message. What your application keeps, and what it does
-> about it, stays yours.
+See the pieces running live in the [Primitives gallery](https://foldkit-plus.pages.dev/primitives).
 
-## What it owns, and what it does not
+## How primitives fit into your Model and update
 
-It owns interaction **logic**: the transitions of a roving tab stop, a press, a
-drag, an undo stack, a timer, written once as Bundles, Mounts and Behaviors.
-The fact itself stays in your Model, and your `update` decides what it means.
-It does not own a widget or a look: finished components are
-[`foldkit-mixins-ui`](../mixins-ui), and the Slots, Behaviors and styles they are
-drawn with are [`foldkit-mixins`](../mixins). Replicated or durable state is
-[`foldkit-sync`](../sync)'s and [`foldkit-mirror`](../mirror)'s.
+A primitive observes an event or DOM signal and reports it as a `Message`; your `Model` keeps the fact, and your `update` decides what it means.
 
-For keyboard, pointer and focus patterns (the `interaction` subpath) the model is
-four parts:
+Styled widgets live in [`foldkit-mixins-ui`](../mixins-ui/README.md), and the slots and styles behind them live in [`foldkit-mixins`](../mixins/README.md). Offline replication and URL/storage persistence belong in [`foldkit-sync`](../sync/README.md) and [`foldkit-mirror`](../mirror/README.md).
 
-- A **Bundle** holds the state and Messages: which item is current, what is held.
-- A **Mount** reports a DOM fact to a Message: a press, a drag, where focus went.
-- A **Behavior** attaches both to a view's typed Slots: `tabindex`, `aria-*`,
-  handlers.
-- A **Command** does a DOM effect the Model caused: focus this row once it is
-  drawn.
+For keyboard, pointer, and focus patterns (`foldkit-primitives/interaction`), primitives split into four parts:
 
-A widget's keys are `Behaviors.Keys` routes, the one `keydown` owner of a slot,
-so an application adds a key beside them instead of fighting them.
-[Authoring components](../../docs/authoring-components.md) assembles a component
-from these step by step, and says what a new primitive must carry.
+- A **Bundle** holds the interaction state and `Message`s (which item is focused, what is pressed).
+- A **Mount** reports a DOM event as a `Message` (a press, a drag, where focus moved).
+- A **Behavior** attaches `tabindex`, `aria-*`, and handlers to a view's slots, routing keys through `Behaviors.Keys` as the slot's single `keydown` owner.
+- A **Command** performs a DOM effect after render, such as focusing a newly shown row.
+
+See [Authoring components](../../docs/authoring-components.md) for a step-by-step walkthrough of assembling a component from those four parts.
 
 ## Which form a primitive takes
 
-Every primitive is one of six things, chosen by what it has to own:
+Every primitive takes one of six forms depending on what state it needs to own:
 
 | It needs to own | Form | Joins the application by | Examples |
 | --- | --- | --- | --- |
@@ -53,13 +34,9 @@ Every primitive is one of six things, chosen by what it has to own:
 | Nothing: work done once that reports back | **Command** | returning it from `update` | `copyText`, `share`, `enterFullscreen` |
 | Nothing: a value computed from what you have | **function** | calling it | `range`, `matchHotkey`, `formatRelativeTime` |
 
-The lighter form wins when in doubt. Promote to a bundle the day the state
-needs a name in the Model.
+Choose the lighter form when you do not need persistent state; promote to a bundle when the state needs a named field in your `Model`.
 
-The one dependency is [`foldkit-bundle`](../bundle), whose placement
-mechanism every bundle here uses. `interaction` additionally needs
-[`foldkit-mixins`](../mixins), an optional peer, because its Behaviors write to
-a view's slots.
+Stateful bundles use [`foldkit-bundle`](../bundle/README.md) for placement. The `interaction` subpath also uses [`foldkit-mixins`](../mixins/README.md) as an optional peer because its Behaviors write attributes onto view slots.
 
 ## Install
 
@@ -67,14 +44,11 @@ a view's slots.
 pnpm add foldkit-primitives foldkit-bundle effect foldkit
 ```
 
-`effect` and `foldkit` are peer dependencies. Import by subpath (`/media`,
-`/net`, `/time`, `/state`, `/motion`, `/interaction`, `/device`, `/events`,
-`/observers`, `/dom`) so a bundler drops what you never import.
+`effect` and `foldkit` are peer dependencies. Import by subpath (`/media`, `/net`, `/time`, `/state`, `/motion`, `/interaction`, `/device`, `/events`, `/observers`, `/dom`) so your bundler keeps only what you use.
 
-## Sixty seconds: follow the color scheme
+## A first primitive: follow the color scheme
 
-A bundle is placed in a parent, which gains a field for its state and a
-wrapper Message for its transitions:
+This places `MediaQuery` inside a parent page so `model.dark.matches` tracks the visitor's dark-mode preference:
 
 ```ts
 import { Schema } from 'effect'
@@ -100,30 +74,17 @@ const config = placements.complete({
 })
 ```
 
-What each line does, and does not do:
+What happened:
 
-- **`Bundle.compose(...).pipe(withChild('dark', MediaQuery, …))`** states the
-  parent: its own field `theme`, its own Message `ThemeSet`, and `MediaQuery`
-  under `dark`. The Model is `{ theme, dark: { matches } }`; the Message union
-  gains `GotDarkMessage`. Nothing runs.
-- **`placements.initial({ theme: 'light' })`** gives the fields no placement
-  owns; `dark` starts at `{ matches: false }`.
-- **`placements.update(own)`** routes `GotDarkMessage` to the bundle and
-  everything else to your own update.
-- **`placements.subscriptions()`** is the `matchMedia` stream, lifted. The
-  browser is touched only when the runtime subscribes, which then corrects
-  `matches` at once.
-- **`config`** is an ordinary Foldkit application config. Hand it to the
-  runtime.
+- `Page.Model` gains `dark: { matches: boolean }`, and `Page.Message` gains `GotDarkMessage`.
+- `placements.initial({ theme: 'light' })` starts `dark` at `{ matches: false }`, so initial render outputs `<div>Light mode</div>`.
+- Once the Foldkit runtime starts `placements.subscriptions()`, `MediaQuery` reads `matchMedia('(prefers-color-scheme: dark)')` and dispatches `GotDarkMessage` through `placements.update(...)`, updating the view to `<div>Dark mode</div>` whenever dark mode is active.
 
-The Solid line this replaces is `createMediaQuery('(prefers-color-scheme: dark)')`.
-The difference is where the answer lives: in the Model, where replay,
-DevTools, an agent, and a server render all see it.
+Unlike a standalone hook outside your `Model`, `model.dark.matches` stays inspectable in DevTools, deterministic under replay, and safe during server rendering.
 
-## The other three ways in
+## Joining without a bundle: entries, Mounts, and Commands
 
-**An entry**, lifted into your Subscriptions and mapped to your Message. The
-parent keeps whatever it wants of the stream:
+**An entry** lifts a raw event stream into your Subscriptions and maps each event to your own `Message`:
 
 <!-- docs-check
 import { Schema } from 'effect'
@@ -150,8 +111,7 @@ const subscriptions = Subscription.make<GameModel, GameMessage>()(() => ({
 }))
 ```
 
-**A Mount**, attached to the element it observes. No ref to thread: the Mount
-receives its element.
+**A Mount** attaches directly to an element with `h.OnMount` and receives that element when mounted:
 
 <!-- docs-check
 import type { HtmlBuilder } from 'foldkit/html'
@@ -171,8 +131,7 @@ const panel = (model: PanelModel, h: HtmlBuilder<PanelMessage>) =>
   h.div([h.OnMount(Resize())], [`${model.width} × ${model.height}`])
 ```
 
-**A Command**, returned from `update`, whose result comes back as a Message
-your union wraps:
+**A Command** runs once from `update` and delivers its outcome back as a `Message` your union wraps:
 
 <!-- docs-check
 import type * as Update from 'foldkit/update'
@@ -195,31 +154,31 @@ const copy = (model: NoteModel): Update.Return<NoteModel, NoteMessage> => ({
 })
 ```
 
-## Find one by the job
+## Find a primitive by task
 
 | You want to | Reach for | In |
 | --- | --- | --- |
 | Follow the color scheme, reduced motion or any media query | `MediaQuery`, `PrefersDark`, `PrefersReducedMotion` | [media](./media/README.md) |
 | Change the layout at named widths | `Breakpoints` | [media](./media/README.md) |
 | Know whether the tab is visible, the window's size, or the user idle | `Visibility`, `WindowSize`, `Idle` | [events](./events/README.md) |
-| Answer keyboard shortcuts, and draw their labels | `keyboardEvents` with `matchHotkey`, `formatHotkey`, `ariaKeyshortcuts` | [events](./events/README.md) |
+| Answer keyboard shortcuts, and draw their labels | `keyboardEvents`, `matchHotkey`, `formatHotkey` | [events](./events/README.md) |
 | Count ticks, or run something on an interval | `Timer`, `Interval`, `ticks` | [time](./time/README.md) |
 | Wait until typing stops, or limit how often something runs | `debounce`, `Throttle` | [time](./time/README.md) |
 | Say "3 minutes ago" | `formatRelativeTime` | [time](./time/README.md) |
 | Page through a list | `Pagination`, `range` | [state](./state/README.md) |
 | Undo and redo | `history`, `History` | [state](./state/README.md) |
-| Draw only the visible rows of a long list | `Virtual` (drawn as `WindowList` in `foldkit-mixins-ui`) | [state](./state/README.md) |
+| Draw only the visible rows of a long list | `Virtual` (`WindowList` in `foldkit-mixins-ui`) | [state](./state/README.md) |
 | Animate a value, or let an element leave before it is removed | `Tween`, `Spring`, `Presence` | [motion](./motion/README.md) |
-| Move with arrow keys through a toolbar, list, grid, tree or free-form board | `RovingTabindex`, `ListNavigation`, `GridNavigation`, `TreeNavigation`, `SpatialNavigation` | [interaction](./interaction/README.md#choosing-between-near-neighbours) |
+| Move with arrow keys through a list, grid, tree, or board | `RovingTabindex`, `ListNavigation`, `GridNavigation` | [interaction](./interaction/README.md#choosing-between-near-neighbours) |
 | Close a popup on Escape or an outside press | `DismissLayer`, `Overlay` | [interaction](./interaction/README.md) |
 | Press, long-press, or repeat while held (a stepper) | `Press`, `LongPress`, `Repeat` | [interaction](./interaction/README.md) |
-| Drag a window or handle, and nudge or resize it by keys within limits | `Move`, `Move.nudge`, `Move.resizeKeys`, `Box` | [interaction](./interaction/README.md), [state](./state/README.md) |
+| Drag a window or handle, and nudge or resize it by keys | `Move`, `Move.nudge`, `Move.resizeKeys`, `Box` | [interaction](./interaction/README.md) |
 | Reorder a list or tree by keys and by pointer | `Reorder`, `PointerDrag` | [interaction](./interaction/README.md) |
 | Select items, with Shift ranges or a lasso | `Selection`, `Marquee` | [interaction](./interaction/README.md) |
-| Swipe a row open, or settle a scroller on an item | `SwipeActions`, `Swipe`, `ScrollSettle` | [interaction](./interaction/README.md), [dom](./dom/README.md) |
-| Keep focus when a row goes, or return it when an overlay closes | `FocusRecovery`, `FocusReturn`, `FollowTabStop`, `FocusScope` | [interaction](./interaction/README.md#choosing-between-near-neighbours) |
-| Read where the pointer is inside an element (a color area, a dial, a pad drawn on) | `PointerPosition` | [dom](./dom/README.md) |
-| Edit text in place | `InlineEdit` (an `<input>`), `EditableText` (`contenteditable`) | [interaction](./interaction/README.md#choosing-between-near-neighbours) |
+| Swipe a row open, or settle a scroller on an item | `SwipeActions`, `Swipe`, `ScrollSettle` | [interaction](./interaction/README.md) |
+| Keep focus when a row goes, or return it when an overlay closes | `FocusRecovery`, `FocusReturn`, `FocusScope` | [interaction](./interaction/README.md#choosing-between-near-neighbours) |
+| Read where the pointer is inside an element | `PointerPosition` | [dom](./dom/README.md) |
+| Edit text in place | `InlineEdit`, `EditableText` | [interaction](./interaction/README.md#choosing-between-near-neighbours) |
 | Tell a screen reader what changed | `LiveAnnounce` | [interaction](./interaction/README.md) |
 | Know whether the browser is online, or talk over a socket | `Online`, `websocket`, `sse` | [net](./net/README.md) |
 | Talk between tabs | `broadcastMessages`, `SharedHost` | [net](./net/README.md) |
@@ -228,82 +187,58 @@ const copy = (model: NoteModel): Update.Return<NoteModel, NoteMessage> => ({
 | Focus, mask or keep an element in view | `Autofocus`, `InputMask`, `KeepInView` | [dom](./dom/README.md) |
 | Copy, share, load a script or restore scroll | `copyText`, `share`, `loadScript`, `keepScroll` | [dom](./dom/README.md) |
 
-Working widgets built from the interaction primitives are listed under
-[In the examples](./interaction/README.md#in-the-examples).
+Working widgets built from the interaction primitives are listed under [In the examples](./interaction/README.md#in-the-examples).
 
-## The map
+## Subpaths by concern
 
-Each subpath is one concern and one import. Its README has the full
-reference: every Model shape, Message, argument, and failure rule.
+Each subpath is one concern and one import. Its README has the full reference for every Model shape, Message, argument, and failure rule.
 
-| Subpath | What it covers | Primitives |
+| Subpath | What it covers | Key exports |
 | --- | --- | --- |
-| [`media`](./media/README.md) | the environment | `MediaQuery` (+ `PrefersDark`, `PrefersReducedMotion`), `Breakpoints`, `platformFromUA`, `isBrowser` |
-| [`net`](./net/README.md) | the network | `Online`, `websocket`, `sse`, `broadcastMessages`, `postBroadcast`, `SharedHost` |
-| [`time`](./time/README.md) | the clock | `Timer`, `Interval`, `ticks`, `debounce`, `Throttle`, `formatRelativeTime` |
-| [`state`](./state/README.md) | UI state with nowhere else to live | `Pagination`, `history`, `Box`, `Locale`, `SelectionSet`, `Virtual`, `range`, layout math |
+| [`media`](./media/README.md) | environment queries | `MediaQuery`, `PrefersDark`, `PrefersReducedMotion`, `Breakpoints` |
+| [`net`](./net/README.md) | network & tabs | `Online`, `websocket`, `sse`, `broadcastMessages`, `SharedHost` |
+| [`time`](./time/README.md) | timers & formatting | `Timer`, `Interval`, `ticks`, `debounce`, `Throttle`, `formatRelativeTime` |
+| [`state`](./state/README.md) | UI state helpers | `Pagination`, `history`, `Box`, `Locale`, `SelectionSet`, `Virtual`, `range` |
 | [`motion`](./motion/README.md) | animation | `Tween`, `Spring`, `Presence`, the `Motion` service |
-| [`interaction`](./interaction/README.md) | keyboard, pointer, and focus patterns, with their Behaviors | `RovingTabindex`, `Typeahead`, `ListNavigation`, `GridNavigation`, `SpatialNavigation`, `TreeNavigation`, `FocusScope`, `FocusRecovery`, `Presence`, `Press`, `LongPress`, `Repeat`, `SwipeActions`, `Move`, `Targets`, `PointerDrag`, `Marquee`, `Reorder`, `EditableText`, `InlineEdit`, `FocusVisible`, `DismissLayer`, `Layers`, `Overlay`, `Placing`, `Selection`, `LiveAnnounce` |
-| [`device`](./device/README.md) | hardware | `Geolocation`, `mediaDevices`, `mediaStream`, `permissions`, fullscreen |
-| [`events`](./events/README.md) | raw window events | `Visibility`, `WindowSize`, `Idle`, `InputModality`, `keyboardEvents`, `pointerEvents`, `scrollEvents`, `activeElementEvents`, `matchHotkey`, `formatHotkey`, `ariaKeyshortcuts` |
+| [`interaction`](./interaction/README.md) | keyboard & pointer | `RovingTabindex`, `ListNavigation`, `Press`, `Move`, `DismissLayer`, and more |
+| [`device`](./device/README.md) | hardware APIs | `Geolocation`, `mediaDevices`, `mediaStream`, `permissions`, fullscreen |
+| [`events`](./events/README.md) | window events | `Visibility`, `WindowSize`, `Idle`, `keyboardEvents`, `matchHotkey`, and more |
 | [`observers`](./observers/README.md) | element observers | `Resize`, `Intersection`, `Mutation`, `Bounds` |
-| [`dom`](./dom/README.md) | element Mounts and one-shot Commands | `Autofocus`, `InputMask`, `KeepInView`, `Measure`, `FluidHover`, `ScrollBars`, `PointerPosition`, `FocusScope`, `FollowTabStop`, `FocusRecovery`, `FocusReturn`, `ScrollLock`, `HideOutside`, `TrackBox`, `Swipe`, `ScrollSettle`, `KeyboardInset`, `copyText`, `readText`, `share`, `loadScript`, `decodeImage`, `keepScroll`, `pointedLinks`, `visibleLinks` |
+| [`dom`](./dom/README.md) | element mounts & cmds | `Autofocus`, `InputMask`, `FocusScope`, `copyText`, `share`, `keepScroll`, and more |
 
 ## Rules every primitive keeps
 
-These hold across the package, so the subpath pages do not repeat them.
+These guarantees hold across every subpath:
 
-- **A fact that changed nothing returns the Model it was given.** A repeated
-  resize, `Started` while running, a total already held: the placement then
-  returns the parent unchanged, Foldkit renders nothing, and a `createLazy` view
-  over the slice is skipped.
-- **Init is a safe default, not a read.** `matches: false`, `online: true`, a
-  count of zero. A server render shows these; the subscription corrects them on
-  the client. Do not infer readiness from the default.
-- **Without the platform API, nothing throws.** A stream is empty and the
-  slice keeps its default; a Command yields its failure Message (`CopyFailed`,
-  `ShareFailed`); a Mount emits nothing.
-- **One placement observes once.** Two placements of one query open two
-  listeners; share the field. One assembly holds one socket, stream, camera,
-  or permission watch: their resource tags are per module, and `assemble`
-  refuses the second.
-- **An OutMessage cannot be dropped by omission.** `debounce`, `Throttle`,
-  `Press`, `DismissLayer`, and the rest that surface a settled value require
-  `onOut` at placement. `Bundle.ignore` drops one on purpose.
-- **Everything timed runs on Effect's clock.** Timers, tweens, debounces,
-  presence, idle, typeahead. Tests advance them with `TestClock.adjust`
-  instead of waiting.
-- **Reduced motion is a service.** Provide `Motion.live` through the
-  assembly's resources, or `Motion.reduced` and `Motion.full` in a test;
-  absent, motion is full.
-- **Elements never cross into the Model.** A focus report is `{ tag, id }`, a
-  mutation names nodes, a target is its marked id.
+- **Unchanged facts preserve Model identity.** When a resize, start, or update produces the same value, the placement returns the parent Model unchanged so Foldkit skips re-rendering and `createLazy` views stay cached.
+- **Initial values are safe defaults, not live reads.** Slices start at safe values (`matches: false`, `online: true`, `0`) for server rendering; the subscription updates them once mounted in a browser.
+- **Missing platform APIs degrade gracefully.** Streams stay empty, Commands yield failure Messages (`CopyFailed`, `ShareFailed`), and Mounts stay idle rather than throwing.
+- **One placement observes once.** Share a single placed field across components that read the same query; `assemble` refuses duplicate module-scoped resource tags such as sockets or camera streams.
+- **Settled values require `onOut`.** Primitives that emit outcomes (`debounce`, `Throttle`, `Press`, `DismissLayer`) require `onOut` when placed, or `Bundle.ignore` to opt out explicitly.
+- **Timed work runs on Effect's clock.** Timers, tweens, debounces, and idle detectors advance deterministically under `TestClock.adjust`.
+- **Reduced motion uses the `Motion` service.** Provide `Motion.live` in your runtime resources, or `Motion.reduced` / `Motion.full` in tests; full motion is the default when omitted.
+- **DOM elements stay out of the Model.** Focus and mutation reports carry serializable ids and metadata (`{ tag, id }`) rather than element references.
 
 ## Testing a placement
 
-Three ingredients, each shown in this package's `test/` directory under the
-primitive's name:
+Three patterns cover primitive tests without global mocks:
 
-1. **Substitute the environment.** Factories take a `create` (streams,
-   devices, permissions, sockets) or `request` (camera) double, so a test
-   passes a fake instead of stubbing a global.
-2. **Advance time instead of waiting.** Anything on Effect's clock runs under
-   `TestClock.adjust`. Yield after forking before the first adjust, or
-   dispatched events reach listeners not yet registered.
-3. **Never hang on a quiet stream.** Collect with a bounded take that fails
-   fast naming the stall.
+1. **Substitute the environment.** Factories accept `create` (streams, devices, permissions, sockets) or `request` (camera) doubles so tests pass deterministic fakes.
+2. **Advance time with `TestClock.adjust`.** Yield once after forking a subscription so listeners register before advancing the clock.
+3. **Bound stream reads.** Collect test outputs with a bounded `Stream.take` so a stalled stream fails quickly with a clear message.
 
-## With Surface and Mirror
+## Composing with Surface and Mirror
 
-Placed state is ordinary Model, so nothing here has a Surface or Mirror API of
-its own. Declare a Surface over the placed fields to render them or expose them
-to an agent; point `Mirror.url` at them to link them; spread the bundle's cases
-into the same unions. A slice that must survive a reload persists through
-`Mirror.kv`; this package owns live facts only.
+Placed primitive state lives in your ordinary Model, so you can read it in a `foldkit-surface` projection, expose it to an agent, or persist it in the URL with `Mirror.url`. For state that must survive page reloads via `KeyValueStore`, pair it with `Mirror.kv`; primitives track live session facts only.
 
 ## Limits
 
-- Presets cover the common media queries; anything else passes `args`.
-- `Virtual` windows one axis of a list; windowed grids stay out by design.
-- `Sync.lww`-style merging, collaborative text, and other replicated state are
-  [`foldkit-sync`](../sync)'s, not a primitive.
+- Built-in presets cover common media queries; custom queries pass `args`.
+- `Virtual` windows a single scroll axis; 2D virtualized grids are outside its scope.
+- Collaborative merging and offline outboxes belong in [`foldkit-sync`](../sync/README.md).
+
+## Next
+
+- Place and wire multiple primitives cleanly: [`foldkit-bundle`](../bundle/README.md).
+- Build styled components from interaction primitives: [Authoring components](../../docs/authoring-components.md).
+- Use ready-made styled widgets built on these primitives: [`foldkit-mixins-ui`](../mixins-ui/README.md).

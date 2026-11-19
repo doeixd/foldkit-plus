@@ -1,48 +1,30 @@
 # From declarations to the screen
 
-A product changes price. A list sorted by price may need to move it; a card
-showing its name does not need a new name. Foldkit Plus can make some of those
-decisions from the application's declarations: the Entity names the fields, a
-Query names what determines membership and order, and a Selection names what a
-reader wants. Remote compares a change with those declarations and the data the
-client holds. At the view, a Projection and a region can avoid drawing work
-when their inputs have not changed.
+Suppose a product changes price on the server. A catalog list sorted by price needs to move that row to its new position, while a summary card showing only the product's name stays unchanged.
 
-The server owns server facts. Remote holds the client's representation in the
-application Model; a Surface observes it and does not become another owner.
-Local UI state belongs to the Model and changes through Messages and `update`.
-For offline edits whose authoritative order is a journal, see
-[Replicated state](./replication.md).
+Foldkit Plus drives those decisions from declarations you write once: `Entity` names the fields, `Query` names what filters and orders a list, `Write` describes what a mutation updates, and `Selection` plus `Projection` name what a screen reads. The server owns the source of truth; `foldkit-remote` keeps the client's normalized copy inside your `Model`, and `foldkit-surface` reads from that `Model` without creating a second store.
 
-## The path, and what is known where
+For offline edits ordered by a server journal, see [Replicated state](./replication.md).
 
-One change can cross several boundaries:
+## How one declaration crosses boundaries
 
-```text
-Entity and Schema  ->  fields, identity and valid values
-Query and Expr     ->  fields a filter and an order read
-Write              ->  a declared operation on one row
-Remote             ->  reconcile the change and affected connections
-Selection          ->  assemble the fields a reader asked for
-Projection         ->  read a value from the application Model
-Region             ->  reuse a drawing when its inputs have not changed
-```
+Declarations build inspectable values; they perform no database queries or network requests on their own. Instead, interpreters on the server and client read them when data moves across seven steps:
 
-The declarations describe possible work; they do not fetch or mutate data
-when they are built. A server or client interpreter acts on them later. Some
-dependencies are obtained from expression structure, some are supplied with a
-Projection, and some are the actual entity entries visited at runtime. This is
-not a single automatic graph for every line of TypeScript: the boundaries and
-limits below matter.
+1. **`Entity` and `Schema`** declare each record's `id`, fields, and valid values.
+2. **`Query` and `Expr`** declare which fields filter and order a list.
+3. **`Write`** declares a single-row insert, update, or delete by `id`.
+4. **`Remote`** reconciles incoming row changes against loaded lists in your `Model`.
+5. **`Selection`** extracts the exact fields and nested relations a reader wants.
+6. **`Projection`** reads a typed slice from your `Model` and tracks its field paths.
+7. **`SlotView.region`** skips re-rendering a DOM section when its projected inputs match by identity.
 
-## Declare a field and a question
+## Declare a field and a query
 
-An Entity gives a field a schema and an owner. `Expr` and `Order` then use that
-field in inspectable values:
+An `Entity` gives each field a schema and an owner. `Expr` and `Order` build query predicates and sort keys as plain data structures you can inspect:
 
 ```ts
 import { Schema } from 'effect'
-import { Entity, Expr, Order } from 'foldkit-entity'
+import { Entity, Expr, Order, Query as EntityQuery } from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
 
 const Product = Entity.define(
@@ -62,27 +44,27 @@ const PublishedByPrice = Query.define('PublishedByPrice', {}, () =>
     Query.orderBy(Order.asc(Product.fields.price), Order.asc(Product.fields.id)),
   ),
 )
+
+const deps = EntityQuery.dependencies(PublishedByPrice.body)
+console.log({
+  predicate: deps.predicate.map(field => field.key),
+  order: deps.order.map(field => field.key),
+})
 ```
 
-The query describes published Products ordered by price. `Expr.eq` is a value,
-not a database call, and the query body is built once. `Query.dependencies`
-can describe the body's fields, distinguishing the predicate's `status`
-from the order's `price` and `id`. An interpreter can evaluate a body over rows it holds
-or compile it to SQL. A field's schema checks its values; the expression says
-how the field is used. Types and schemas alone do not reveal the behavior of an
-arbitrary function.
+Running that prints:
 
-The language of such bodies, and how SQL, a server in memory and a client are
-held to one answer, is [Expressions](./expressions.md). The complete API and a
-worked server/client example are in the
-[`foldkit-entity` guide](../packages/entity/README.md) and
-[`examples/entity`](../examples/entity/README.md).
+```text
+{ predicate: [ 'status' ], order: [ 'price', 'id' ] }
+```
+
+`PublishedByPrice` builds the query body once without running SQL or touching a cache. `EntityQuery.dependencies` separates the predicate field (`status`) from the ordering fields (`price`, `id`), letting the Drizzle compiler generate SQL on the server and `foldkit-remote` evaluate row changes on the client.
+
+See [Expressions](./expressions.md) for the full expression language and [One domain declaration](./entity.md) for relations and derived fields.
 
 ## Declare a write
 
-A declared write says which Entity and input it uses, what it changes, and
-optionally when it may happen. The following, over the same `Product`, is the
-precondition example from [Declared writes](./declared-writes.md):
+A declared write names the target `Entity`, the accepted input schema, which fields it assigns, and an optional `when` precondition checked on the existing row:
 
 ```ts
 import { Write } from 'foldkit-entity'
@@ -95,99 +77,62 @@ const Publish = Mutation.write(
     { id: 'id', when: () => Expr.eq(Product.fields.status, 'draft') },
   ),
 )
+
+console.log({
+  tag: Publish.write._tag,
+  sets: Publish.write.sets.map(set => set.field.key),
+  hasWhen: Publish.write.when !== undefined,
+})
 ```
 
-`Publish` describes an update to one Product by id. Its input maps `status`
-to the Product field, and the literal constrains it to `published`; `when`
-reads the old status. The declaration performs no write. A server writer
-executes it and reports the result; a guarded writer enforces policy at the
-server. Declared computed assignments and increments can also inform the
-client's prediction while the answer is pending. The guide explains which
-guarantees require revisions or an operation ledger.
+Running that prints:
 
-One declaration is not permission to change a row. Authorization and
-invariants are separate decisions, and the server remains the authority. A
-declared write covers one row by id; a custom multi-row server handler is
-ordinary code, and the declaration does not automatically describe everything
-that handler writes.
+```text
+{ tag: 'Update', sets: [ 'status' ], hasWhen: true }
+```
+
+`Publish` updates one `Product` by `id`, constrains `status` to `'published'`, and checks that the row is currently `'draft'`. A server writer executes the SQL statement and enforces authorization guards and invariants ([Declared writes](./declared-writes.md)).
 
 ## From a changed field to a query
 
-Return to the published-products query: suppose Remote receives a Product
-change that touches `price`. The held connection's query declares `price` in
-its ordering. Remote can compare the changed fields with the query's predicate
-and order dependencies, then consider the actual row, loaded pages and
-available information. Its impact decision can keep a connection, place a row
-where that is safe, or invalidate it so an active read can fetch again.
+When `foldkit-remote` receives a `Product` update that changes `price`, it compares the changed fields against `PublishedByPrice`'s declared `predicate` and `order` dependencies, along with the loaded pages in the cache:
 
-That decision is narrower than “price changed, refresh everything.” A change
-to a selected value can update what a row displays without necessarily changing
-which rows match or their order. Conversely, a price change can alter a sorted
-list's order or bring a row across a page boundary. When the client cannot
-establish the right placement—for example, it lacks a required value or the
-server applies a filter the client cannot judge—it must not claim to know the
-answer. The [Remote guide](../packages/remote/README.md) describes reads,
-freshness, live changes and connection behavior.
+- **Non-matching field:** Changing `name` touches neither `status` nor `price`, so held lists keep their current order without refetching.
+- **Ordering or predicate field:** Changing `price` or `status` moves the row inside a loaded segment when all required fields and boundaries are known. When page boundaries or server filters leave the client uncertain, Remote invalidates the connection so active Surfaces refetch.
 
-For an existing read, `explain` from `foldkit-remote/why` describes its query
-and dependencies; `why` from the same subpath explains the current read state,
-and takes the active Surfaces (`options.surfaces`) to tell which ones read it. Those explanations are
-inspectable data, useful when a list is stale, loading, or showing a pending
-write. They do not promise a single causal trace through every server, client
-and renderer.
+To inspect why a query is in its current state (`Loading`, stale, or holding a pending write), call `explain` and `why` from `foldkit-remote/why` with your active Surfaces (`options.surfaces`). See [the Remote guide](../packages/remote/README.md) for read states, freshness, and live updates.
 
 ## From a Selection to a drawing
 
-An `Entity.select` says which fields and relations a reader needs. A Remote read
-uses that Selection to assemble a value from the Model's normalized store.
-For a project and its owner's name, the read depends on the project entry and
-the owner entry it reaches. Remote can reuse a result when the entries visited
-by that read still match by identity. The Selection gives the relation's shape;
-the current record supplies the particular owner id.
+An `Entity.select` names the fields and relations a screen needs, and `foldkit-remote` assembles that value from the normalized entity store in your `Model`. When a read visits a product entry and its owner entry, Remote reuses the assembled result while those visited entries keep the same object identity.
 
-At the Model boundary, a Projection names a value to read and may carry Model
-path dependencies. `Projection.derive` can reuse its result while the declared
-paths are unchanged. A `SlotView.region` can consume a Projection: during a
-normal render it compares the values at its paths by identity and can reuse its
-previous drawing when the inputs hold. The region's drawing receives the
-projected value, rather than needing the whole Model.
+At the view layer, `Projection.derive` reuses its computed result while its declared `Model` paths remain identical. When a `SlotView.region` renders a Projection, it compares those projected inputs by identity and skips re-drawing its DOM subtree when nothing changed.
 
-There is an important Remote distinction: a Remote read names requirements in
-metadata, not a Model path. A region over such a read reads it on each render
-and can reuse its drawing when the read gives the same fields. A derivation
-that names the Remote store's Model field can avoid re-reading while that store
-holds. See [regions in the Mixins README](../packages/mixins/README.md#regions-redraw-by-the-model-paths-read)
-and [derivations in Surface](../packages/surface/README.md#derivations) for the
-actual APIs and examples.
+Note the boundary between Remote reads and Model paths:
 
-A `SlotView.region` is declared where the application wants one. Separately, a
-Bundle placement's view, a collection's items and a `Link.child` drawn without
-view inputs are kept while the child's Model is the same object (`memo: false`
-opts out). Either way the root view may still run and reach the drawing;
-reusing it is not the same claim as scheduling a single DOM text binding. Ordinary `Projection.derive` takes an explicit list
-of dependencies beside a TypeScript function: that function must read only
-what the list names. A schema cannot infer arbitrary code's reads.
+- A **Remote read** tracks requirements in store metadata rather than a direct `Model` path, so a region reading it evaluates the read on render and skips re-drawing when the returned selection matches.
+- A **Projection** over `App.model.<field>` skips re-running `derive` completely while that `Model` slice is unchanged.
+
+Separately, `Bundle` placements, collection items, and `Link.child` views skip re-drawing while the child's `Model` keeps the same object reference (pass `memo: false` to opt out). Ordinary `Projection.derive` always requires an explicit dependency list beside its function; pass `verify: true` in development to catch reads outside that declared list. See [regions in Mixins](../packages/mixins/README.md#regions-redraw-by-the-model-paths-read) and [derivations in Surface](../packages/surface/README.md#derivations).
 
 ## What is derived, and what remains explicit
 
-| Concern | What Foldkit Plus knows today | What still needs a decision |
+| Concern | Derived automatically | Declared explicitly |
 | --- | --- | --- |
-| Fields and values | Entity identity, member schemas and declared relations | The application declares its domain and storage bindings |
-| Query impact | Query expressions expose predicate and order dependencies; Remote compares changes against held connections | Runtime rows, pages, server filters and delivery determine what can be placed or must be fetched |
-| Writes | A declared single-row Write describes its input, assignments and conditions | A custom handler's arbitrary effects are not inferred; the server checks authority |
-| Selected data | Selections describe fields and relations; Remote tracks entries visited by reads | A particular relation's target is resolved from the data held at runtime |
-| UI regions | Projections describe reads; regions and placed views can reuse drawings | Plain TypeScript derivations declare their dependencies; a normal root render can still reach the region |
-| Distributed edits | Sync distinguishes a committed base from pending edits replayed over it | The journal, transport, authorization and failure policy govern convergence; no global atomicity is implied |
+| Fields and values | Entity id, field schemas, and relations | Domain definitions and database table bindings |
+| Query impact | Predicate and order field dependencies | Loaded pages, server-only filters, live transport |
+| Single-row writes | Input schema, updated fields, `when` check | Custom multi-row handlers and server permissions |
+| Selected data | Visited store entries reused by identity | Relations resolved at runtime from store rows |
+| UI regions | Reused drawings when inputs hold identity | Explicit path dependencies on `Projection.derive` |
+| Distributed edits | Committed base plus pending local edits | Journal, transport, and conflict policy |
 
-[Message write sets](https://github.com/doeixd/foldkit-plus/issues/439) (an
-invalidation map from a write to the lists it reaches) are still a proposal,
-and views compiled to fine-grained patches were closed as not planned
-([#433](https://github.com/doeixd/foldkit-plus/issues/433)); neither is a
-current guarantee. A region reuses its drawing by the identity of the values
-at its declared paths, so a derivation that reads more than it names shows a
-stale value; `Projection.derive`'s `verify` option checks that in development.
+Two explicit boundaries apply today:
 
-The distinction lets the same application use inspectable expressions where
-they pay for themselves and ordinary Foldkit code elsewhere. Declarations can
-identify candidate consequences; data still has to cross the network, policy
-must be enforced, and a runtime must do the work.
+- **Custom server handlers:** A multi-row server handler's side effects are not inferred automatically; declare single-row mutations with `Write` or invalidate affected queries explicitly.
+- **Fine-grained DOM patches:** Views do not compile to per-binding DOM patches; use `SlotView.region` and `Projection.derive` (with `verify` in development) to isolate expensive subtrees cleanly.
+
+## Next
+
+- Learn how `Message`s and structural seams keep state consistent: [Who changes application state, and how](./state-model.md)
+- Define your own entities, relations, and invariants: [One domain declaration](./entity.md)
+- Explore server queries, caching, and optimistic writes: [Remote](../packages/remote/README.md)

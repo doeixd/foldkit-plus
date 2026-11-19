@@ -1,67 +1,15 @@
 # Errors and failures
 
-A failure in a Foldkit Plus application is a value with one owner. What a
-reader must act on lands in the Model through a Message, where the view draws
-it and `update` answers it; nothing throws into a view. What a package meets
-and keeps going past, a reader can do nothing about, so it goes to one
-channel for whoever runs the application: `Diagnostics`.
+When a network read times out, a form fails validation, or a session expires in another tab, letting exceptions bubble into your view blanks out what the user was already reading. Swallowing those errors leaves users clicking dead buttons with no explanation.
 
-This guide maps both across the packages: who owns each failure, what the
-reader sees, and what the application does about it. Each package's README
-has the details; this page links to them.
+Foldkit Plus routes every failure to the party that can act on it:
 
-## Who owns each failure
-
-| Failure | Owner | What the reader sees | What the application does |
-| --- | --- | --- | --- |
-| A read failed: the network, the server, a decode, no answer in time | `foldkit-remote` | `Failed`, with the value it showed kept as `previous`; `RemoteData.isUnreachable` tells a read nothing answered | `Data.refresh(model, actives, { failed: true })` |
-| A field the server will not answer | `foldkit-remote-server` decides; Remote records it | `Failed` with an `Unavailable` error | select without it |
-| A write failed or was refused | `foldkit-remote` (client), the server (refusal) | the optimistic change goes; `Data.failedWrites` lists it, with a typed `refusal` | `Data.retry`, `Data.dismiss`, or show the refusal |
-| A write nothing answered (offline, a gateway's error page) | `foldkit-remote` | a failed write with `_tag: 'Unreachable'`; a durable one waits and is sent again | `Data.retry`, as the same write |
-| A write the client can tell is refused (an invariant it breaks, a `may` that says no) | `foldkit-remote`, judging the Entity's declarations | nothing shows and nothing is sent; `Data.failedWrites` lists it with the refusal the server would send | show the refusal |
-| Who is asking was refused | `foldkit-auth`, `foldkit-remote-server` | `Failed`, or a failed write, that `RemoteData.denied` reads as `Unauthenticated` or `Forbidden` | sign in again, or say no |
-| A draft does not validate | `foldkit-form` | an error beside the field; after a submit, the fields to fix | nothing: the person edits |
-| The server refuses one key of a form | the server, mapped by `foldkit-crud` | the key reads invalid with the server's words | nothing: the person edits |
-| A durable edit is rejected | `foldkit-sync` (the journal decides) | the edit reverts; `status.rejected` says why | explain the revert |
-| An exchange fails (offline) | `foldkit-sync` | nothing changes; `pending` grows | nothing: it retries |
-| A lazy chunk does not load | `foldkit-bundle` | what the Command's failure Message draws | the next `Resource.get` tries again |
-| A defect on the server | `foldkit-remote-server` | `Internal error`, as a failed read or write | read the `ServerDefect` diagnostic |
-| A fallback, a swallowed failure, a misused API | the package that met it | nothing, by design | read the diagnostic; fix the cause |
-
-## The mental model
-
-```text
-a failure the reader can act on
-  └─► a typed value ──Message──► update ──► Model ──► view draws it ──► the reader acts ──► Message
-
-a failure only a developer can fix
-  └─► a Diagnostic ──Diagnostics.report──► Diagnostics.Reporter ──► Effect's log, or your sink
-```
-
-Three rules follow from it.
-
-- **A value once shown stays on screen.** A refresh that fails keeps the value
-  it was refreshing; a list keeps the rows it can draw. A reader keeps working
-  with what they had, told that it may be stale. One case breaks it: a field
-  that only a write's optimistic layer showed, and that its answer left out,
-  reads `Loading` until it is fetched again. The answer carries what the
-  Surfaces show of every row it names, so this is a row the server did not
-  name, or an answer whose read failed (`AnswerUnread`); `verifyPredictions`
-  reports such a field as a `PredictionMismatch`'s `Gap` (see [Checking an answer
-  against what was shown](../packages/remote/README.md#checking-an-answer-against-what-was-shown)).
-- **Nothing a reader started is retried on its own.** A failed read waits for
-  `Data.refresh`, and a failed write for `Data.retry`. A persistent error
-  asked again on every unrelated change would hammer the server and hide the
-  failure. Only the transports retry by themselves (a live stream, a Sync
-  exchange, the durable outbox sending a write nothing answered), since
-  asking again changes nothing the reader sees.
-- **A diagnostic never changes behaviour.** A read, a write and a placement
-  behave the same whether one is reported or not. The channel says why; it
-  decides nothing.
+- **User-facing failures** land in your `Model` as typed values through a `Message`, so your `update` handles them and your `view` keeps showing useful state beside a recovery action.
+- **Developer-facing faults** (caught defects, statement failures, misused APIs) report through `Diagnostics` to your Effect logger or telemetry sink without altering runtime behaviour.
 
 ## A first example: a read that fails
 
-One read, drawn so that a failure shows, and a button that asks again:
+This component renders a project name, keeps showing that name as `Stale` if a background refresh fails, and offers a "Try again" button when nothing has loaded yet:
 
 ```ts
 import { Match, Option, Schema } from 'effect'
@@ -89,13 +37,11 @@ const App = Surface.application({
 })
 const Data = Remote.make({ model: App.model.remote, entities: [Project] })
 
-// What the screen reads, as a function of the Model.
 const project = (model: Model) => Data.get(ProjectName, model.projectId)
 const actives = { project: Data.active('Project', model => Option.some(project(model))) }
 
 function update(model: Model, message: Message): Update.Return<Model, Message, RemoteClient> {
   if (Remote.reduces(message)) return { model: Data.reduce(model, message) }
-  // ClickedTryAgain, the one Message left: ask again for what failed, and only that.
   return { model: Data.refresh(model, actives, { failed: true }) }
 }
 
@@ -111,11 +57,11 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html =>
           h.button([h.OnClick(Message.ClickedTryAgain())], ['Try again']),
         ],
       ),
-    data: (project, freshness) =>
+    data: (row, freshness) =>
       h.div(
         [],
         [
-          h.h1([], [project.name]),
+          h.h1([], [row.name]),
           Match.valueTags(freshness, {
             Fresh: () => h.empty,
             Refreshing: () => h.p([], ['Updating…']),
@@ -126,78 +72,74 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html =>
   })
 ```
 
-`Data.subscriptions(actives)` (or `Data.wiring(actives)`) runs the read; the
-[Remote README](../packages/remote/README.md#4-let-the-active-screen-drive-the-fetching)
-shows that step and the client.
+Pair this with `Data.subscriptions(actives)` (or `Data.wiring(actives)`); see [the Remote README](../packages/remote/README.md#4-let-the-active-screen-drive-the-fetching) for connecting the client.
 
-What each piece does, and does not do:
+What each piece does:
 
-- **`RemoteData.render`** folds the six states of a read into the four things
-  a view draws. `failed` is reached only by a failure with nothing to show. A
-  refresh that fails after the project was shown reaches `data`, with a
-  `Stale` freshness carrying the error, so the name stays on screen.
-- **`notFound`** is not a failure. The server answered and has no such row:
-  asking again would answer the same.
-- **`Data.refresh(…, { failed: true })`** marks only what failed as due, and
-  the read entry asks again. It performs no I/O itself. A read with nothing
-  to show reads `Loading` meanwhile, and `Failed` again if it fails again.
-- **Nothing here retries on a timer.** Without the button, the failure stays
-  until something else writes the value: a live patch, a mutation's answer, a
-  page of a list.
+- **`RemoteData.render`** folds six read states into four view branches. Only a failure with no cached value enters `failed`; a refresh failure after data has rendered reaches `data` with `Stale` freshness so the project name stays visible.
+- **`notFound`** handles a server answer confirming no such record exists, rather than a transient error.
+- **`Data.refresh(model, actives, { failed: true })`** marks failed reads as due so the active subscription re-fetches them.
+- **Explicit retries:** User-initiated reads and writes stay failed until the user triggers `Data.refresh` or `Data.retry`, avoiding automatic retry storms on persistent errors. Transports that recover connection drops (live streams, Sync exchanges, durable outbox writes) retry automatically with backoff.
 
-## Reads
+## How failures reach the screen vs. your logs
 
-A read is a `RemoteData`: `Initial`, `Loading`, `Ready`, `Refreshing`,
-`Failed { error, previous }` or `NotFound`. `RemoteData.match` is the
-exhaustive fold over the six; `RemoteData.render` the view's fold above.
-`Initial` is not a failure but is often a mistake: nothing is fetching the
-read, which a spinner hides. `why(Data, model, read, { surfaces: actives })`
-says why: which list or which field of which row is missing, stale, in
-flight or failed, and what restarts it.
+Every failure follows one of two paths:
 
-A `RemoteError` is `{ _tag, message }`, with `reason` for a refusal of who is
-asking and `refusal` for a mutation's declared refusal. Its `_tag` is open,
-since a transport may report any failure. The ones Remote and its server
-send:
+1. **Actionable failures:** A typed error arrives via `Message`, updates `Model`, and renders in the view with a retry, dismiss, edit, or sign-in control.
+2. **Diagnostics:** A package calls `Diagnostics.report`, delivering `{ _tag, source, level, message }` to `Diagnostics.Reporter` in your Effect context while execution continues safely.
 
-| `_tag` | Meaning | Asking again |
+Three rules govern both paths:
+
+- **Shown data stays on screen.** A failed refresh retains its `previous` value and a list renders every row it can assemble. If an optimistic write left out a field needed by a view, the answer reports `AnswerUnread` and `verifyPredictions` emits a `PredictionMismatch` diagnostic (see [Checking an answer against what was shown](../packages/remote/README.md#checking-an-answer-against-what-was-shown)).
+- **User actions retry on user command.** Failed reads wait for `Data.refresh` and failed writes wait for `Data.retry`, while background transports (live streams, Sync exchanges, durable outboxes) handle transient drops automatically.
+- **Diagnostics only observe.** Reporting a diagnostic logs context for developers and keeps control flow identical whether a reporter is attached or quiet.
+
+## Who owns each failure
+
+| Failure | Owner | User sees | App response |
+| --- | --- | --- | --- |
+| Read timed out or errored | `foldkit-remote` | `Failed` (or `Stale` if cached) | `Data.refresh(..., { failed: true })` |
+| Field withheld by server | `foldkit-remote-server` | `Failed` with `Unavailable` | Remove field from Selection |
+| Mutation failed or refused | Server + `foldkit-remote` | `Data.failedWrites` entry | `Data.retry`, `Data.dismiss`, or show |
+| Mutation got no response | `foldkit-remote` | `Unreachable` (or `Waiting` if durable) | `Data.retry` (automatic if durable) |
+| Client catches invalid write | `foldkit-remote` | `Data.failedWrites` entry immediately | Show refusal without round trip |
+| Auth or permission denied | `foldkit-auth`, `foldkit-guard` | `Unauthenticated` or `Forbidden` | Sign in again or hide action |
+| Form field invalid | `foldkit-form` | Inline field error or submit summary | User edits draft |
+| Server rejects one form key | Server + `foldkit-crud` | Field marked invalid with server text | User edits field |
+| Sync operation rejected | `foldkit-sync` (journal) | Reverted edit + `status.rejected` | Explain revert to user |
+| Sync offline exchange error | `foldkit-sync` | `pending` count grows | Automatic backoff retry |
+| Lazy resource chunk failed | `foldkit-bundle` | Command failure `Message` | Next `Resource.get` retries |
+| Unhandled server exception | `foldkit-remote-server` | `Internal error` + incident ID | Inspect `ServerDefect` diagnostic |
+| Package misuse or fallback | Reporting package | Unchanged UI | Fix diagnostic cause |
+
+## Read failures
+
+A read produces a `RemoteData` state: `Initial`, `Loading`, `Ready`, `Refreshing`, `Failed { error, previous }`, or `NotFound`. Use `RemoteData.match` for exhaustive handling or `RemoteData.render` for views. If a read stays `Initial` behind a spinner, call `why(Data, model, read, { surfaces: actives })` to inspect which field or list is missing or blocked.
+
+Every `RemoteError` has `{ _tag, message }`, plus `reason` on auth/guard denials and `refusal` on declared write refusals:
+
+| `_tag` | Cause | Retry? |
 | --- | --- | --- |
-| `RemoteReadError`, `RemoteQueryError` | the server failed the request: its Source (its message), or a request larger than it takes | may work; a request too large will not |
-| `RemoteMutationError` | a mutation failed: the server's Source (its message), the mutation's declared refusal (`refusal`, which `Data.refusal` decodes), or a request larger than the server takes (a 413) | may work; a refusal or a request too large will not, with the same input |
-| `Unreachable` | a read, a query or a mutation nothing answered: it could not be sent, what came back was no answer (a gateway's 502 page), or none came within the deadline; a mutation may or may not have run | may work; a write as the same write (`Data.retry`), which a ledgered writer answers from its record; a durable write is sent again on its own |
-| `RemoteLiveError` | a live stream broke; `liveStatus(Data, …)` carries it while the stream restarts itself | not needed |
-| `RemoteProtocolError` | client and server speak different protocol versions | never: deploy one version |
-| `DecodeError` | what the server sent does not decode against the Selection | never: the shapes disagree |
-| `Unavailable` | the server settled a selected field without a value | never: select without it |
-| `Overlaid` | a read of a row only overlays show lacks a field nothing will fetch | never: overlay what it reads |
-| `Unauthenticated` | who is asking could not be told: no session, or one that ended | after signing in |
-| `Forbidden` | who is asking may not do this; a write the held `may` says no to is refused so where it is made | never, as the same person |
+| `RemoteReadError`, `RemoteQueryError` | Server Source failed or payload too big | Retry transient errors; shrink oversized ones |
+| `RemoteMutationError` | Server failed, refused, or 413 payload | Retry transient errors; fix refusals |
+| `Unreachable` | Network drop, timeout, or gateway 502 | `Data.retry` (automatic for durable writes) |
+| `RemoteLiveError` | Live stream disconnected | Reconnects automatically; check `liveStatus` |
+| `RemoteProtocolError` | Client and server protocol mismatch | Deploy matching versions |
+| `DecodeError` | Response shape disagrees with Selection | Align Selection and server schema |
+| `Unavailable` | Server omitted a selected field | Drop field from Selection |
+| `Overlaid` | Overlay lacks an unfetched field | Overlay every field read |
+| `Unauthenticated` | Missing or expired session | Retry after signing in |
+| `Forbidden` | Caller lacks permission | Retry only under a different principal |
 
-A failure reaches every read that needs it: a list fails when a field of one
-of its rows failed, a project when its owner's read did. One that showed a
-value keeps it as `previous`. A list whose rows are still arriving reads
-`Refreshing` and draws the rows it can assemble, so a row entering unread
-never hides the rows already shown.
+Failures propagate to every dependent read: a list fails when any row's required field fails, while rows still loading keep `Refreshing` so partial results stay visible.
 
-A broken live stream is not a failed read. It records a gap, keeps what the
-server last said, and restarts on its own with backoff, refetching what it
-covered; `liveStatus(Data, model, active)` reads `Reconnecting` with the error
-meanwhile. A stream the server refuses for what it asks (`RemoteLiveRefused`,
-over `maxIdsPerEntity`) is not restarted: it reads `Refused` until its
-requirements change. See [When a stream breaks](../packages/remote/README.md#when-a-stream-breaks).
+A broken live stream keeps showing cached data, records a gap, and reconnects with backoff (`liveStatus` reads `Reconnecting`). If the server rejects the subscription query itself (`RemoteLiveRefused`, such as exceeding `maxIdsPerEntity`), `liveStatus` reads `Refused` until requirements change; see [When a stream breaks](../packages/remote/README.md#when-a-stream-breaks).
 
-`Data.inspect(model).failures` lists every unsettled failed read, by
-connection and by field, beside what is loading and the diagnostics Remote
-recorded. The [Remote README](../packages/remote/README.md#when-a-read-fails)
-lists everything that settles a failure.
+Call `Data.inspect(model).failures` to view all active read failures alongside recorded diagnostics; see [When a read fails](../packages/remote/README.md#when-a-read-fails) for everything that clears a failure.
 
-## Writes
+## Write failures and typed refusals
 
-A mutation's optimistic change is a layer over the cache. When the write
-fails, the layer comes off and the change disappears; Remote keeps the
-failure, with the mutation and the input it was started with, until the
-application answers it. A mutation can declare what the server may refuse it
-with, as data. Continuing the first example, with a mutation registered:
+When a mutation fails, Remote removes its optimistic layer and records the failed input in `Data.failedWrites` until retried, dismissed, or cleared by `Data.forget`. Continuing the project example with a declared `Rename` mutation:
 
 ```ts
 import { Mutation, Refusal } from 'foldkit-remote'
@@ -209,7 +151,6 @@ const Rename = Mutation.make('Rename', {
 })
 const WriteData = Remote.make({ model: App.model.remote, entities: [Project], mutations: [Rename] })
 
-// The view: one notice per rename that did not land.
 const notices = (model: Model): ReadonlyArray<string> =>
   WriteData.failedWrites(model, Rename).map(write =>
     Option.match(write.refusal, {
@@ -221,7 +162,6 @@ const notices = (model: Model): ReadonlyArray<string> =>
     }),
   )
 
-// update: a notice's two buttons.
 const retried = (model: Model, requestId: string): Update.Return<Model, Message, RemoteClient> =>
   Option.match(WriteData.retry(model, requestId), {
     onNone: () => ({ model }),
@@ -230,102 +170,57 @@ const retried = (model: Model, requestId: string): Update.Return<Model, Message,
 const dismissed = (model: Model, requestId: string): Model => WriteData.dismiss(model, requestId)
 ```
 
-- **`Data.failedWrites(model, Rename)`** lists the failed writes of one
-  mutation, oldest first, with `input` and `refusal` typed by it; without the
-  mutation, every failed write. A write is listed until it is retried,
-  dismissed, or `Data.forget` changes the principal. Nothing drops one on a
-  timer, and the list is persisted only for a durable write (below): a reload
-  forgets the rest.
-- **`refusal`** is `Some` only when the server refused the write as the
-  mutation declares. A network failure or a server error is `None`, with the
-  `error` saying what happened.
-- **`Data.retry`** sends the write again as itself (same input, request id
-  and operation id, so a server that already applied it answers from its
-  record) and shows its optimistic change again. It is `None` for a write
-  that is not failed, so a second press does nothing.
+- **`Data.failedWrites(model, Rename)`** returns failed writes oldest-first with typed `input` and `refusal`. Non-durable writes clear on page reload.
+- **`write.refusal`** holds `Option.some` for declared business refusals and `Option.none` for network or unexpected server errors.
+- **`Data.retry`** re-sends the write with the same request ID and operation ID (so a ledgered server returns the previous outcome instead of re-applying) and restores its optimistic overlay.
 
-To act on a failure in `update` (move focus, put text back), share it:
-`Data.wiring(actives, { shared: ['MutationFailed'] })` hands `MutationFailed`
-to the application's own update after Remote has reduced it, so the Model it
-receives already lists the write. A wiring that does not share it reports a
-`WriteUnheard` diagnostic for each failed write: the change went, and nothing
-in the application was told.
+To react to a failure in `update` (such as restoring focus), share `MutationFailed` in `Data.wiring(actives, { shared: ['MutationFailed'] })`. Unshared failed writes emit a `WriteUnheard` diagnostic.
 
-### A write that must outlive the page
+### Durable writes that outlive a reload
 
-`Data.mutate(model, M, input, { durable: true })` queues the write in the
-outbox (`outbox(Data, …)`) instead of sending it: stored first, sent in order by
-one tab, and kept across a reload. What changes for its failures:
+Using `Data.mutate(model, M, input, { durable: true })` with `outbox(Data, ...)` stores the mutation in `KeyValueStore` before sending:
 
-| Failure | Ordinary write | Durable write |
+| Failure | Ordinary mutation | Durable mutation |
 | --- | --- | --- |
-| Nothing answered (`_tag: 'Unreachable'`: offline, a gateway's error page) | `Failed`; retry by hand | stays `Waiting` and is sent again with a backoff, and when the browser is back online |
-| The server refused it | `Failed`, listed by `failedWrites` | the same, and kept in the store until retried or dismissed |
-| The page reloaded before the answer | lost | sent again with the same operation id and `now` |
+| `Unreachable` (offline or timeout) | `Failed`; manual `Data.retry` | Stays `Waiting`; retries with backoff |
+| Declared server refusal | `Failed` in `failedWrites` | Same; persisted until dismissed or retried |
+| Reload before response arrives | Lost | Re-sent on load with same operation ID |
 
-`outboxStatus(Data, model)` says what waits (`{ waiting, failed, items }`), for
-a "3 changes waiting" line, drawn once an item is `Waiting` with `attempt`
-above zero (`waiting` also counts writes on their way). A write the server applied but whose answer never
-came is answered again from the writer's record, by its operation id: a
-durable Mutation needs a ledgered writer (`RemoteServer.write`, or
-remote-drizzle's `writer` with a ledger).
+Use `outboxStatus(Data, model)` (`{ waiting, failed, items }`) to render indicators such as "3 changes waiting" when `attempt > 0`. Durable mutations require a ledgered writer (`RemoteServer.write` or `foldkit-remote-drizzle`'s `writer` with a ledger) so retries of already-applied writes return cleanly.
 
-Two diagnostics are the outbox's:
+The outbox emits two diagnostics when local persistence has trouble:
 
-- **`OutboxUnreadable`**: a stored write this version cannot read (its
-  Mutation is gone, or its input no longer decodes). It is kept, never sent,
-  shown in `outboxStatus` as `Unreadable`, and the writes after it are sent.
-  `Data.dismiss` removes it.
-- **`OutboxUnsaved`**: the store could not be written (full, or refused). The
-  writes are still sent, but a reload before their answers loses them.
+- **`OutboxUnreadable`:** A stored entry cannot be decoded by the current schema; `outboxStatus` surfaces it as `Unreadable`, later items proceed, and `Data.dismiss` clears it.
+- **`OutboxUnsaved`:** Writing to storage failed; current writes still send, but a reload loses them.
 
-A durable write is still Remote's: one write, sent once, the server's
-answer final. Edits that must merge with other devices' edits while offline
-belong to `foldkit-sync`; see [Remote mutation vs Sync operation](../packages/remote/README.md#remote-mutation-vs-sync-operation).
+For multi-device offline editing that merges concurrent changes, use `foldkit-sync`; see [Remote mutation vs Sync operation](../packages/remote/README.md#remote-mutation-vs-sync-operation).
 
-### What a declared write refuses
+### Refusals from declared writes
 
-A `Mutation.write` over an Entity's `Write` needs no declared `Refusal`: its
-type says what it may be refused with, and the server decides in this order,
-so a refusal discloses nothing to someone who may not write:
+A `Mutation.write` over an Entity's `Write` evaluates rules in a fixed order so unauthorized callers learn nothing about row state:
 
-| Refusal | When | What to do |
+| Refusal | Cause | Response |
 | --- | --- | --- |
-| `Forbidden` (a `RemoteError`, not a `refusal`) | the row is hidden from the caller, or a guard rule does not hold; refused where it is made when the held `may` says no | show it; asking again is refused again |
-| `Conflict` | the row moved past the revision the write `expect`s (an update or a delete) | read it again; let the author decide |
-| `Unmet` | the row does not hold the write's `when` (only for a write with one) | show why; the state changed |
-| `Invalid` | the row it would leave breaks an Entity invariant; refused where it is made when the client holds what the invariant reads | show `message` beside each field `path` names |
-| `Taken` | an insert's id is already a row's (only for an insert), whatever the row holds and whether the caller may see it; a retry of the create that made it is answered from the writer's ledger instead | choose another id; asking again is refused again |
+| `Forbidden` (`RemoteError`) | Guard rule fails or row is hidden | Show denial; retrying changes nothing |
+| `Conflict` | Row revision passed `expect` | Re-read row and let user decide |
+| `Unmet` | Row fails `when` or `from` predicate | Show state change message |
+| `Invalid` | Row after write breaks an invariant | Show `message` at each `path` field |
+| `Taken` | Insert ID already exists | Pick a new ID (retries hit ledger) |
 
-An `Invalid` over a member hidden from the caller names no rule and no path.
-`Refusal.isInvalidBy(refusal, invariant)` asks which invariant refused it, by
-its Entity and its id, since an id is unique only within an Entity. A
-refusal made where the write is made is the one the server would send, so the
-application handles both alike (see [Refused where it is made](../packages/remote/README.md#refused-where-it-is-made)).
-A `CHECK` constraint from `checkConstraints` or `entityChecks` is a backstop for writes past the
-server: one tripped by a handler's statement answers the caller `Internal
-error` with an `incident`, and the driver's error goes only to the
-`StatementFailed` and `ServerDefect` diagnostics under that id. See [Declared writes](declared-writes.md#failure-and-recovery).
+An `Invalid` over a hidden member omits the rule ID and path. Use `Refusal.isInvalidBy(refusal, invariant)` to match a specific Entity invariant. When the client holds the required fields or `may` flag, it computes `Forbidden` and `Invalid` locally using the exact same rules before sending; see [Refused where it is made](../packages/remote/README.md#refused-where-it-is-made).
+
+Database `CHECK` constraints (`checkConstraints` or `entityChecks`) act as a final safety net: tripping one directly returns `Internal error` with an incident ID and logs `StatementFailed` and `ServerDefect`. See [Declared writes](./declared-writes.md#failure-and-recovery).
 
 ## Forms
 
-`foldkit-form` decides when a field's error shows, so a form never shouts at
-someone who has not typed yet:
+`foldkit-form` controls when validation errors appear so users aren't interrupted before typing:
 
-- **An edit** checks the key at once. Leaving a field says nothing new, so
-  tabbing through a required field shows no `Required`.
-- **A submit** checks every key and sets `model.attempted`. Only then does a
-  `foldkit-mixins-form` view of more than one control draw the list of fields
-  to fix above the submit button. That list is the one `role="alert"` for those failures; the errors
-  beside the fields drop their own while it is drawn.
-- **`Message.Validated({ key })`** judges one key as it stands, edited or not:
-  for a stored value shown after a `fill`, which validates nothing.
-- **A rule spanning keys** fails on submit, into `model.errors`. An Entity
-  invariant is judged on submit when the form sets every field it reads, and
-  shows beside each key its path names; one it cannot judge, the server does.
+- **On edit:** Validates the edited field immediately; tabbing through an untouched required field stays quiet.
+- **On submit:** Validates all fields and sets `attempted`. Multi-field `foldkit-mixins-form` views render a single `role="alert"` summary above submit while hiding duplicate field alerts.
+- **`Message.Validated({ key })`:** Forces validation on a single field (useful after `fill` populates stored values).
+- **Cross-field and invariant rules:** Run on submit into `model.errors`; Entity invariants display next to their `path` keys whenever the form holds every field the rule reads.
 
-For `const RenameForm = Form.make('Rename', Entity.input(Post, RenameInput))`,
-placed at `model.renameForm`:
+For `RenameForm = Form.make('Rename', Entity.input(Post, RenameInput))` stored at `model.renameForm`:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -336,77 +231,50 @@ const RenameInput = Schema.Struct({ id: Schema.String, title: Post.fields.title.
 const RenameForm = Form.make('Rename', Entity.input(Post, RenameInput))
 declare const model: { renameForm: typeof RenameForm.initial }
 -->
+
 ```ts
-RenameForm.attempted(model.renameForm) // a submit was asked: the fields to fix are drawn
-RenameForm.Message.Validated({ key: 'title' }) // judge one key now, edited or not
-RenameForm.Message.Refused({ key: 'title', error: 'That title is taken', value: 'Hello' }) // a server's word on the value it was sent
+RenameForm.attempted(model.renameForm)
+RenameForm.Message.Validated({ key: 'title' })
+RenameForm.Message.Refused({ key: 'title', error: 'That title is taken', value: 'Hello' })
 ```
 
-`Refused` lands only while the key still holds the `value` it was sent, and
-holds until the form is edited. `foldkit-crud`'s editor sends it for you: a save refused with
-`Refusal.field` shows the reason on that key, and one refused with
-`Refusal.invalid` shows its message beside each key its path names. Any other
-refusal is the editor's status (`SaveFailed`, `Conflict`) and `saveError`.
-See [Validation](../packages/form/README.md#validation) and
-[the editor's status](../packages/crud/README.md#its-status).
+`Refused` attaches a server message to the field only while its value matches `'Hello'` and clears on the next edit. `foldkit-crud` dispatches `Refused` automatically for `Refusal.field` and `Refusal.invalid`, mapping other failures to editor status (`SaveFailed`, `Conflict`) and `saveError`. See [Form validation](../packages/form/README.md#validation) and [CRUD status](../packages/crud/README.md#its-status).
 
-## The server: what a client is told
+## Server responses and error hiding
 
-A server answers every failure; what it says is chosen so that nothing
-internal leaks. Over `RemoteServer.answer` and `serveFetch`:
+`RemoteServer.answer` and `serveFetch` scrub internal causes before responding:
 
-| On the server | The client receives |
-| --- | --- |
-| A Source fails with `RemoteServerError`, or anything in it throws | `Internal error` and an `incident`, on the call's own error; the message and cause go to `ServerDefect` under that id |
-| A Source fails with `RemoteServer.tell(message)` | `RemoteReadError`, `RemoteQueryError`, `RemoteMutationError` or `RemoteLiveError` with that message, as written: words for the reader |
-| `RemoteServer.refuse(mutation, refusal)` | a 422 with the refusal (a 409 for a `Refusal.taken`), which `Data.refusal` decodes |
-| A writer's `RemoteServer.taken()`, for a declared insert of a taken id | a 409 with the mutation's `Taken` refusal, naming only the Entity and the id |
-| `RemoteServer.forbid(reason?)` | a 403, `_tag: 'Forbidden'`, with `reason` only when given |
-| `RemoteServer.unauthenticated(reason?)` from a resolver | a 401, `_tag: 'Unauthenticated'`, with `reason` only when given |
-| A mutation's input does not decode | `Invalid mutation input`, and nothing of the schema's message |
-| A field `authorize` withholds | the field settled, never why; an id withheld whole reads like an id that does not exist |
-| A Drizzle statement fails | `Internal error` and an `incident`; the driver's error goes to `StatementFailed`, and `Database query failed` or `Database write failed` to `ServerDefect` under that id |
-| A defect, or a layer or resolver that breaks | a 500, `Internal error` and an `incident`; the cause goes to `ServerDefect` under that id, which `RemoteData.incident` reads on the client |
-| A write committed and its answer's read failed | the answer without the rows; the client reads them again (`AnswerUnread`) |
-| A write committed and its live publish failed | the write's answer; live subscribers do not hear it (`PublishFailed`) |
+| Server condition | Client receives | Diagnostic logged |
+| --- | --- | --- |
+| Source fails (`RemoteServerError`) or throws | `Internal error` + incident ID | `ServerDefect` with cause |
+| Source calls `RemoteServer.tell(msg)` | Typed Remote error with `msg` | None |
+| `RemoteServer.refuse(mutation, refusal)` | `422` (`409` for `Taken`) with refusal | None |
+| `RemoteServer.taken()` on insert | `409` `Taken` naming Entity + ID | None |
+| `RemoteServer.forbid(reason?)` | `403` `Forbidden` | None |
+| `RemoteServer.unauthenticated(reason?)` | `401` `Unauthenticated` | None |
+| Mutation input fails schema decode | `Invalid mutation input` | None |
+| Field withheld by `authorize` | Field omitted (ID omitted if whole row) | None |
+| Drizzle query or write statement fails | `Internal error` + incident ID | `StatementFailed` + `ServerDefect` |
+| Layer or principal resolver breaks | `500` `Internal error` + incident ID | `ServerDefect` |
+| Write commits; answer read fails | Write succeeds; rows re-fetched | `AnswerUnread` |
+| Write commits; live publish fails | Write succeeds; live skips notice | `PublishFailed` |
 
-`serveFetch` takes `diagnostics: (diagnostic, request) => Effect`, used for
-everything that request runs, a broken layer included; without it the
-reporter in the Effect context is used. See the remote-server
-[Diagnostics](../packages/remote-server/README.md#diagnostics) and
-[Hardening](../packages/remote-server/README.md#hardening).
+Read the incident ID on the client with `RemoteData.incident(error)` to correlate user reports with server logs. Pass `diagnostics: (diagnostic, request) => Effect` to `serveFetch` to capture every diagnostic for a request, including broken layers. See [Diagnostics](../packages/remote-server/README.md#diagnostics) and [Hardening](../packages/remote-server/README.md#hardening).
 
-## Sync: durable edits
+## Sync failures and rejected edits
 
-A Sync edit is the user's intent, stored before it is sent, so its failures
-are different from a mutation's. See [When things go wrong](../packages/sync/README.md#when-things-go-wrong).
+Because Sync stores user intent locally before talking to a server, its failure states differ from Remote mutations (see [When things go wrong](../packages/sync/README.md#when-things-go-wrong)):
 
-- **Offline is not a failure.** Edits keep applying and keep being saved;
-  `status.pending` grows, and the exchange retries on a backoff. A failed
-  exchange sets `status.lastError` (cleared by the next success) and reports
-  `ExchangeFailed`.
-- **A rejected edit** arrives on the next exchange, not as an error. The
-  replica drops it from the outbox and replays the rest, and the field reverts.
-  `status.rejected` lists it with the operation and a typed `refusal`, in
-  Remote's vocabulary: `Forbidden` with the `authorize` rule's own words when
-  it gave some (none for a plain `false`), and `Invalid` with the fixed
-  sentence `Not a valid operation` when the operation itself failed
-  (`validate` refused or threw, `authorize` threw, or the reducer could not
-  apply it). An error's message is never sent.
-- **A persist that fails** reverts the edit and calls `onPersistenceFailure`,
-  whose returned Model is what the reader sees next. The reader must redo it.
-- **The outbox is user data, not a cache.** Edits not yet committed live only
-  there. Deleting local storage to "fix" a replica deletes them; evicted
-  storage loses them the same way.
+- **Offline mode:** Local edits keep saving to the outbox while `status.pending` counts up and exchanges retry with backoff. Failed exchanges set `status.lastError` and emit `ExchangeFailed`.
+- **Rejected operations:** When the server rejects an operation, the replica removes it from the outbox, replays remaining edits, and appends the rejection to `status.rejected`. `authorize` denials produce `Forbidden`; `validate` errors or reducer failures produce `Invalid` (`Not a valid operation`) without leaking server exception messages.
+- **Storage write failure:** If persisting to local storage fails, the edit reverts and `onPersistenceFailure` returns the fallback `Model`.
+- **Outbox durability:** Unsynced operations live only in browser storage; clearing local storage discards unsent work.
 
 ## Signed out
 
-A request whose session ended answers 401 with `Your session ended.`; a read
-reads `Failed`, and a write is listed failed, with
-`_tag: 'Unauthenticated'`. A 401 from middleware in front of Remote reads the
-same, whatever its body, over `Remote.http` and over Effect RPC with
-`Remote.rpcProtocolHttp`; a durable write so refused is settled, not sent
-again. `RemoteData.denied(error)` reads either as a typed `Denied`:
+### Refusals
+
+When a session expires or middleware returns `401`, Remote reads enter `Failed` and writes land in `failedWrites` with `_tag: 'Unauthenticated'`. Durable writes refused with `401` settle immediately instead of retrying. Match refusals with `RemoteData.denied(error)`:
 
 ```ts
 import { Option } from 'effect'
@@ -422,19 +290,11 @@ const failure = (error: RemoteError): string =>
   })
 ```
 
-Asking again as the same caller is refused again, so show it rather than
-retry. When the signed-in person changes, `Data.forget(model)` drops every
-server-derived fact, failures and failed writes included. A live stream
-refused this way restarts on its backoff like any break, and is refused
-until the page has a session again. See [Refusals](../packages/auth/README.md#refusals)
-and [Who the client believes it is](../packages/auth/README.md#who-the-client-believes-it-is).
+Prompt the user to sign in rather than retrying as the same caller. Whenever the signed-in user changes, call `Data.forget(model)` to clear cached rows, failures, and pending writes. See [Auth refusals](../packages/auth/README.md#refusals) and [Who the client believes it is](../packages/auth/README.md#who-the-client-believes-it-is).
 
 ## Lazy resources
 
-A service whose code loads on first use (`Resource.lazy`) fails its
-`Resource.get` with `LoadError` (`_tag: 'ResourceLoadError'`) when the import
-fails, a dropped connection for instance. The failed load is forgotten, so the
-next `get` imports again: handle it in the Command, and a later ask retries.
+When a `Resource.lazy` chunk fails to import (for example, offline), `Resource.get` fails with `ResourceLoadError`. The failed import cache is cleared so the next `Resource.get` tries importing again:
 
 ```ts
 import { Context, Effect } from 'effect'
@@ -450,18 +310,9 @@ const drawn = Resource.get(Charts).pipe(
 
 ## Diagnostics
 
-A diagnostic is `{ _tag, source, level, message }` plus its facts: `source`
-names the package, `level` is `error` when something broke on this side and
-`warning` when the application should change something. Every package reports
-through `Diagnostics.report`, which hands it to the `Diagnostics.Reporter` in
-the Effect context and never fails. By default that is Effect's log: the
-browser's console, a server's log, `wrangler tail` on a Worker. With Effect's
-default logger an `error` is written with `console.error` (stderr on a server)
-and a `warning` with `console.log`, so DevTools draws an error red and an
-end-to-end check for console errors fails on it, while an offline `warning`
-does not. A server that replaced Effect's logger receives both at their level.
+A diagnostic is `{ _tag, source, level, message }` plus structured fields. `level` is `'error'` when something broke internally and `'warning'` when application code needs an adjustment. `Diagnostics.report` sends entries to `Diagnostics.Reporter` in Effect context—defaulting to `console.error` for errors and `console.log` for warnings.
 
-Replace it like any service, in a runtime's resources or a server's layer:
+Provide a custom reporter in your runtime's `resources` layer using `Diagnostics.layer`:
 
 ```ts
 import { Effect, Layer } from 'effect'
@@ -469,7 +320,6 @@ import { Diagnostics, Remote } from 'foldkit-remote'
 
 const resources = Layer.mergeAll(
   Remote.clientLayer(Remote.http('/remote')),
-  // Logged as by default, and sent on to the server.
   Diagnostics.layer(diagnostic =>
     Effect.andThen(
       Diagnostics.log(diagnostic),
@@ -479,20 +329,13 @@ const resources = Layer.mergeAll(
 )
 ```
 
-In a browser, give the reporter with `Diagnostics.layer(reporter)` rather
-than `Layer.succeed`: Foldkit runs Mounts outside the runtime's `resources`,
-and the layer also claims what a Mount hands the document
-(`Diagnostics.dispatch`), such as `MountFailed`. A page that should not show
-warnings in production picks `Diagnostics.quiet` (errors only) where it
-knows its build mode; in development, `foldkit-mixins`' `DevOverlay` lists
-every diagnostic on the page.
+Use `Diagnostics.layer` (rather than `Layer.succeed`) in the browser so Mounts outside the main runtime share the reporter. Use `Diagnostics.quiet` to suppress warnings in production, or `DevOverlay` from `foldkit-mixins` to view them during development.
 
-`Diagnostics` is `foldkit-surface`'s, re-exported by `foldkit-remote`. Each
-package's variants:
+Diagnostic tags by package:
 
-| Package | `_tag`s |
+| Package | Diagnostic `_tag` values |
 | --- | --- |
-| `foldkit-remote` | `WriteUnheard`, `LiveRefused`, `OutboxUnreadable`, `OutboxUnsaved`; `PredictionMismatch` under `verifyPredictions` |
+| `foldkit-remote` | `WriteUnheard`, `LiveRefused`, `OutboxUnreadable`, `OutboxUnsaved`, `PredictionMismatch` |
 | `foldkit-remote-server` | `ServerDefect`, `AnswerUnread`, `PublishFailed`, `ClockSkewed` |
 | `foldkit-remote-drizzle` | `StatementFailed`, `ServerOnlyRules` |
 | `foldkit-guard` | `ComputeRefused`, `UnpinnedWrites` |
@@ -503,37 +346,19 @@ package's variants:
 | `foldkit-mixins` | `MountFailed` |
 | `foldkit-agent-mcp` | `AuthenticateDefect`, `CapabilityDefect`, `RequestDefect`, `ToolListDefect`, `TransportEndDefect` |
 
-Remote's client also records its diagnostics in the Model
-(`Data.inspect(model).diagnostics`, the newest 256), since its reducer is
-pure: `Data.wiring` and `Remote.fold` report what each update recorded. An
-`update` that calls `Data.reduce` by hand keeps them in the Model and reports
-nothing.
+Remote also stores the newest 256 diagnostics in `Data.inspect(model).diagnostics`, which `Data.wiring` and `Remote.fold` forward to `Diagnostics.report` automatically.
 
-**Development and production report the same** unless the application
-chooses `Diagnostics.quiet`; no package switches a diagnostic off in
-production. What development adds is checks you opt into:
-`Remote.make({ verifyPredictions: import.meta.env?.DEV === true })`, which
-costs a comparison per answer and a fetch per placed list, and reports each
-`PredictionMismatch` at error level; `Trace.run` requires it and fails a
-test on any mismatch. `GuardServer.validate`
-throws at startup for a guard a server does not apply, and reports
-`UnpinnedWrites` for a write a change can come between.
+Opt-in checks during development catch configuration mistakes early:
 
-**A definition the application wrote wrong throws instead**, when it is
-made, naming the call and the option. `Theme.make`, `Theme.set` and
-`Knobs.withValue` throw `foldkit-mixins`' `Diagnostics.DiagnosticError` with
-`theme:knob-value` (`Theme.make: surface.lightness refuses its value: …
-Expected a value between 6 and 36 at ["dark"]`) or `theme:unknown-knob`.
+- `Remote.make({ verifyPredictions: import.meta.env?.DEV === true })` compares server answers against optimistic predictions and emits `PredictionMismatch`.
+- `GuardServer.validate` throws at startup if a Source omits guard rules, and reports `UnpinnedWrites` when a write lacks revision pinning.
+- Invalid static configs (`Theme.make`, `Theme.set`, `Knobs.withValue`) throw `Diagnostics.DiagnosticError` immediately when defined.
 
 ## Testing failures
 
-A failure path is a path like any other: drive it, and assert what the reader
-sees.
+Test failure states with the same deterministic tools you use for happy paths:
 
-- **Without a browser**, `Trace.run` from `foldkit-remote/testing` runs the
-  real `update` and Subscriptions and holds every request; each `Respond`
-  takes `{ fail }` to answer with an error. `Trace.regressions` names every
-  step where a read that showed a value stopped showing it.
+- **In-memory trace (`Trace.run`):** Drive `update` and subscriptions against mock failures (`Respond.read(..., { fail })`) and assert `Trace.regressions` stays empty so loaded screens keep their data:
 
   <!-- docs-check standalone
   import { Effect } from 'effect'
@@ -554,10 +379,10 @@ sees.
   import { Respond, Trace } from 'foldkit-remote/testing'
 
   const trace = await Trace.run(Data, {
-    start: loaded, // a Model showing the project
+    start: loaded,
     update,
     active: actives,
-    client: server, // a fake RemoteClient, or the server's in-process one
+    client: server,
     steps: [
       Message.ClickedTryAgain(),
       Respond.read(Project, 'p1', { fail: new RemoteReadError({ message: 'The server is down' }) }),
@@ -566,15 +391,8 @@ sees.
   expect(Trace.regressions(trace, { project: Data.get(ProjectName, 'p1') })).toEqual([])
   ```
 
-- **A refusal made on the client** is held to the server's by `Law.check`
-  (`foldkit-remote/testing`): it runs one declared write through `Data.mutate`
-  and through the server, and compares what the client predicted, a refusal
-  included, with what the server then holds. See
-  [Testing that a prediction is the truth](../packages/remote/README.md#testing-that-a-prediction-is-the-truth-law).
-
-- **Diagnostics** are asserted with `Diagnostics.collect()`: provide its
-  `report` to the Effect under test (here `program`), then assert on
-  `reported`, `[]` included.
+- **Prediction parity (`Law.check`):** Verify client pre-checks and server refusals agree; see [Testing that a prediction is the truth](../packages/remote/README.md#testing-that-a-prediction-is-the-truth-law).
+- **Diagnostic assertions (`Diagnostics.collect`):** Collect and assert emitted diagnostics around any Effect:
 
   ```ts
   import { Diagnostics } from 'foldkit-remote'
@@ -584,13 +402,12 @@ sees.
   expect(reported).toEqual([])
   ```
 
-- **On a running page**, `foldkit-plus/testing/playwright`'s `Behaviors`
-  watches the page as drawn:
+- **Running pages (`Behaviors.consoleErrors`):** Monitor browser `error` diagnostics and assert error banners stay absent:
 
   ```ts
   import { Behaviors } from 'foldkit-plus/testing/playwright'
 
-  const errors = Behaviors.consoleErrors(page) // console.error and uncaught exceptions, from now on
+  const errors = Behaviors.consoleErrors(page)
   await Behaviors.neverShows(page, {
     text: 'Could not load',
     during: async () => {
@@ -601,18 +418,8 @@ sees.
   expect(errors()).toEqual([])
   ```
 
-  `consoleErrors` lists every `error` diagnostic the default reporter logs,
-  so this test also fails on a `MountFailed` or a `PageContained`. A warning
-  is logged with `console.log` and is not listed: to fail on warnings too,
-  give the page a reporter that calls `console.error` for them.
+## Next
 
-## Where to read more
-
-- [Remote: when a read fails](../packages/remote/README.md#when-a-read-fails),
-  [when a write fails](../packages/remote/README.md#when-a-write-fails),
-  [diagnostics](../packages/remote/README.md#diagnostics)
-- [Declared writes: failure and recovery](declared-writes.md#failure-and-recovery)
-- [Sync: when things go wrong](../packages/sync/README.md#when-things-go-wrong)
-- [Remote server: diagnostics](../packages/remote-server/README.md#diagnostics)
-- [Form: validation](../packages/form/README.md#validation)
-- [Auth: refusals](../packages/auth/README.md#refusals)
+- See how declared writes handle preconditions, invariants, and retries in [Declared writes](./declared-writes.md#failure-and-recovery).
+- Read [Remote: when a read fails](../packages/remote/README.md#when-a-read-fails) and [when a write fails](../packages/remote/README.md#when-a-write-fails).
+- Learn how Sync handles offline rejections in [When things go wrong](../packages/sync/README.md#when-things-go-wrong).

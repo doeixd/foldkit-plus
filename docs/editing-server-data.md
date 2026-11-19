@@ -1,259 +1,188 @@
 # Editing server data through a journal
 
-When rows are too many to replicate, but edits to them must survive going
-offline and agree across devices, let a journal own the edits, make the
-table the journal's read model, and draw each row as Remote read it with the
-edits it has not absorbed laid over it.
+When a database table holds 100,000 rows—far too many to replicate to every browser—yet users still need to edit cells offline and converge across devices, put a durable journal in charge of the edits. Keep the SQL table as the journal's read model, and use `foldkit-remote` to draw each cached row with any unabsorbed edits layered on top.
 
-This guide uses both [Remote](./remote.md) and [Sync](./replication.md); read
-those first. [`examples/registry`](../examples/registry) is the whole pattern,
-100,000 products edited from two devices.
+This guide combines [Remote](./remote.md) and [Replicated state](./replication.md). See [`examples/registry`](../examples/registry) for the complete 100,000-product example running across two devices.
 
-## When to use it, and who owns what
+## When to use this pattern, and who owns what
 
-| You have | Use | Who owns the fact |
+| Situation | Use | Who owns the fact |
 | --- | --- | --- |
-| Rows a server holds, edited online, where losing the cache loses nothing | a Remote mutation | the server; the client's optimistic layer goes when the request settles |
-| A write the server decides once, which must still be sent after a reload or a dropped connection | a durable Remote mutation (`Data.mutate(…, { durable: true })` with `outbox(Data, …)`) | the server; the outbox stores the operation until it answers, and a refusal is final |
-| Shared state small enough for every replica to hold whole | a Sync slice | the journal; every replica keeps the document |
-| Rows too many to replicate, edited offline, and the edits must converge | this pattern | the journal owns the edits; the table is derived from them |
+| Online table edits; cached view is disposable | Remote mutation | Server; optimistic layer clears on settle |
+| Single write that must survive reload offline | Durable Remote mutation (`outbox`) | Server; outbox retries until answered |
+| Shared state small enough for every client | Sync slice | Durable journal; every replica holds it |
+| Large table with offline cell edits | Journal + read-model table | Journal owns edits; table derives from them |
 
-In this pattern:
+In the journal-and-table pattern, ownership splits cleanly:
 
-- **The journal owns the edits.** Each is a durable Message, committed in one
-  order, stamped with the sequence it committed at (`at`) and who committed it
-  (`by`).
-- **The table is the journal's read model.** Only the journal writes it: each
-  committed edit, applied with its sequence. Each row carries the highest
-  sequence applied to it, its `revision`. The table is not a second owner; it
-  can be rebuilt from the seed and the log.
-- **Remote caches the table's rows**, as it caches any server-owned fact.
-- **The replicated slice holds only what the table lacks**: edits not yet
-  applied, or applied but not yet read back. Usually nothing.
+- **The journal owns every edit.** Each edit is a durable `Message` committed in one global order and stamped with its sequence (`at`) and author (`by`).
+- **The SQL table is a derived read model.** Only the journal updates it, writing each committed change alongside the highest sequence applied to that row (`revision`). You can rebuild the table at any time from its seed plus the log.
+- **Remote caches the table's rows** as it caches any server-owned read.
+- **The replicated slice holds only unabsorbed edits**—edits still in flight or not yet folded into the table—so the slice stays tiny.
 
-## The mental model
+## How an edit moves from the screen to the table
 
-```text
-cell shown = the row's value, unless an edit of that cell is
-             pending (no `at`), or
-             committed after the row's revision (at > row.revision)
-```
+A cell on screen shows the row's last read value unless a local or recently committed edit for that cell is still pending (no `at` yet) or committed after the row's `revision` (`at > row.revision`).
 
-```text
-device                                   server
-------                                   -----------------------------------------
-cell edit -> EditedProducts (pending) -> journal: validate -> sequence n -> stamp {at: n, by}
-  shown at once, kept in the outbox        |
-                                           +-> settle -> table: row, revision := n
-                                           |              (only where revision <= n)
-                                           +-> reply and notice -> every replica: edit {at: n}
-Remote read <----------------------------- the row {..., revision}
-shown = row + edits where at is none or at > row.revision
-on a clock: AbsorbedEdits {through} -> replicas drop at <= through; the log compacts
-```
+Each edit passes through four stages:
 
-An edit is in one of four states:
+1. **Pending:** The user edits a cell, appending a pending `EditedProducts` operation to the outbox. The overlay draws the new value immediately.
+2. **Committed, not yet in the row:** The server journal validates the edit, assigns sequence `n`, stamps `{ at: n, by }`, and broadcasts it to every replica. Devices show the edit whenever their cached row has `revision < n`.
+3. **Applied to the table:** The server's `settle` worker writes the cell and updates `revision := n` (refusing to move backward if `revision > n`). Once Remote re-reads the row, the row itself carries the value.
+4. **Absorbed:** On a periodic tick, `absorb` appends an `AbsorbedEdits { through }` operation. Replicas drop edits with `at <= through`, and the journal compacts history behind them.
 
-1. **Pending.** On this device only, in its outbox. Shown at once.
-2. **Committed, not yet in the row.** The journal has it; the table has not
-   written it, or this device has not read the row since. Shown.
-3. **In the row.** A read of the row is at or past its sequence. The row shows
-   it; the edit is not needed.
-4. **Absorbed.** The server has recorded that the table holds it. Every
-   replica drops it, and the log behind it compacts.
+Tracking `revision` per row (instead of one global table checkpoint) matters because Remote fetches and caches individual rows at different times. Because recovery applies edits strictly in commit order and stops at the first failure, a row at `revision: 7` is guaranteed to include every edit to that row up to sequence `7`.
 
-The revision is per row, not one checkpoint for the table, because Remote
-caches rows read at different moments. Recovery applies edits in commit order
-and stops at the first failure, so a row at revision 7 holds every edit to it
-up to 7.
+## A first editable column: `cents`
 
-## A sixty-second path: one column
+Three helpers implement this loop: `EditableEntity` (`foldkit-sync/entity`) tracks per-cell edits, `RemoteEdits` (`foldkit-sync/remote`) projects them onto Remote rows, and `editsJournal` (`foldkit-sync/journal`) settles and compacts them on the server.
 
-`foldkit-sync/entity` keeps the edits one per cell; `foldkit-sync/remote`
-shows them through Remote; `foldkit-sync/journal` keeps the table. In the
-domain, shared by client and server:
+Start in your shared domain module by declaring which entity fields accept cell edits:
 
 <!-- docs-check
-import { Schema } from 'effect'
+import { Effect, Layer, Option, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
-const Product = Entity.define('Product', Schema.Struct({ id: Schema.String, cents: Schema.Number }))
+import { Bundle } from 'foldkit-bundle'
+import { Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+import type { CommitStamp, Operation, WrittenOperation } from 'foldkit-sync'
+import type { Journal } from 'foldkit-durable/core'
+import { applyEdits, type AnyEntityBinding, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import { modifyFields } from 'foldkit/struct'
 -->
 
 ```ts
 import { EditableEntity } from 'foldkit-sync/entity'
 
+const Product = Entity.define('Product', Schema.Struct({ id: Schema.String, cents: Schema.Number }))
 export const ProductEdits = EditableEntity.make(Product, { members: ['cents'] })
 ```
 
-In the application, the durable Message, its fold, and the edits shown through
-Remote:
+Next, add the edits slice and `EditedProducts` durable Message to your application bundle, merge incoming edits in `update`, and reconcile Remote overlays in `Sync.mount`'s `afterUpdate`:
 
-```ts sketch
+<!-- docs-check
+declare const replica: { readonly replicaId: string }
+type Shared = { readonly edits: ReadonlyArray<typeof ProductEdits.Edit.Type> }
+const ProductSchema = Schema.Struct({
+  remote: Remote.Model,
+  edits: Schema.Array(ProductEdits.Edit),
+})
+type Model = typeof ProductSchema.Type
+-->
+
+```ts
+import { RemoteEdits } from 'foldkit-sync/remote'
+
 const Base = Bundle.compose({
   remote: Remote.Model,
   edits: Schema.Array(ProductEdits.Edit),
 }).pipe(Bundle.withMessages({ ...Remote.messages, EditedProducts: ProductEdits.edited }))
 
-// in update
-EditedProducts: ({ changes, at, by }) => ({
+type EditedMsg = { readonly _tag: 'EditedProducts' } & Schema.Schema.Type<
+  Schema.Struct<typeof ProductEdits.edited>
+>
+
+const foldEdited = (model: Model, { changes, at, by }: EditedMsg) => ({
   model: modifyFields(model, {
-    edits: edits =>
+    edits: (edits: ReadonlyArray<typeof ProductEdits.Edit.Type>) =>
       ProductEdits.merge(edits, changes, Option.fromUndefinedOr(at), Option.fromUndefinedOr(by)),
   }),
-}),
+})
 
-// every read of a row draws its edits, as Remote overlays
+const Made = Surface.application({
+  Model: ProductSchema,
+  Message: Base.Message,
+  initial: { remote: Remote.initial, edits: [] },
+  update: (model: Model) => ({ model }),
+})
+const Data = Remote.make({ model: Made.model.remote, entities: [Product], queries: [] })
 const Shown = RemoteEdits.make(Data, ProductEdits)
 
-// in Sync.mount's options: after every live update, never in replay
-afterUpdate: model => ({ model: Shown.reconcile(model, model.edits, replica.replicaId).model }),
+// Run in Sync.mount's afterUpdate hook (never during replay)
+const afterUpdate = (model: Model) => ({
+  model: Shown.reconcile(model, model.edits, replica.replicaId).model,
+})
 ```
 
-In the Sync contract, the stamp the journal writes at commit:
+On your Sync contract, attach the server stamp when `EditedProducts` commits:
 
-```ts sketch
-stamp: {
-  EditedProducts: ({ changes }, commit) =>
-    Message.EditedProducts({ changes, ...ProductEdits.stamped(commit) }),
-},
+```ts
+const stampEdited = ({ changes }: EditedMsg, commit: CommitStamp) => ({
+  changes,
+  ...ProductEdits.stamped(commit),
+})
 ```
 
-On the server, the table:
+On the server, wire `editsJournal` to apply settled edits to your Drizzle binding (`applyEdits`) and compact absorbed history (with your `journal`, `database`, `ProductBinding`, `sqlite`, `editsOf`, and `absorbed` handlers):
 
-```ts sketch
+<!-- docs-check
+declare const sqlite: { readonly highestRevision: () => number }
+declare const ProductBinding: AnyEntityBinding
+declare const database: Layer.Layer<DrizzleDatabase>
+declare const journal: Journal<Operation, Shared, string, WrittenOperation>
+declare const editsOf: (operation: Operation) => Option.Option<{
+  readonly changes: ReadonlyArray<typeof ProductEdits.Change.Type>
+  readonly at: Option.Option<number>
+}>
+declare const absorbed: (through: number, cursor: number) => WrittenOperation
+-->
+
+```ts
+import { editsJournal } from 'foldkit-sync/journal'
+
+const applyProduct = applyEdits(ProductBinding)
+
 const { settle, absorb } = editsJournal({
-  documentId: RegistrySync.documentId,
+  documentId: 'registry-edits',
   journal,
-  editsOf: operation => /* EditedProducts' changes and at, or none */,
-  // One cell, with its sequence, never moving a row back: foldkit-remote-drizzle's
-  // applyEdits(Db.Product), over the binding Remote reads the table through.
+  editsOf,
   apply: (change, at) => applyProduct(change, at).pipe(Effect.provide(database)),
-  // The highest revision any row holds: settling refuses a table past the journal.
   tableRevision: Effect.try(() => sqlite.highestRevision()),
   holdsThrough: (snapshot, through) => ProductEdits.holdsThrough(snapshot.edits, through),
-  absorbed: (through, cursor) => /* the server's AbsorbedEdits operation */,
-  server,
+  absorbed,
+  server: 'server',
 })
-// journalExchange({ ..., settle }) applies on every exchange; a clock calls absorb.
 ```
 
-`editsOf` and `absorbed` are the application's Messages, spelled out in
-[`examples/registry/src/journal.ts`](../examples/registry/src/journal.ts);
-they are elided above. The snippets compile in
-[`examples/registry/test/guide.test-d.ts`](../examples/registry/test/guide.test-d.ts).
+Run `settle` on every journal exchange (via `journalExchange`) and call `absorb` on a schedule. See [`examples/registry/src/journal.ts`](../examples/registry/src/journal.ts) for the full `editsOf` and `absorbed` implementations.
 
-## What each call does, and does not
+## What each helper handles
 
-- **`ProductEdits.edited` and `.Edit`** are schemas: the Message's fields and
-  a cell's stored edit. They describe; they hold nothing.
-- **`merge`** is pure: the edits with the changes laid over them, each cell's
-  latest kept. It does no I/O and sends nothing; `Sync.fact` in `update` is
-  what makes the Message durable and sends it.
-- **The stamp** runs on the server at commit, inside the journal. A client
-  never sends `at` or `by`; the journal's `validate` refuses one that does,
-  since its sender would show the edit as committed when it was not.
-- **`RemoteEdits.reconcile`** is pure: it brings Remote's overlays in line
-  with the slice and returns the Model; Remote's reads, the grid's and any
-  other view's, then draw each edit over its row. It sends nothing. It runs
-  in `afterUpdate`, not in `update`: a durable Message is replayed through
-  `update` on the server and in the replica, where it may change the slice
-  alone.
-- **`settle`** is I/O: it runs `apply` for each committed change as a
-  recovery intent. The effect ledger and the table are separate databases, so
-  an intent may run twice after a crash; `apply` never moving a row back is
-  what makes that harmless. `applyEdits(binding)` is that `apply`: one
-  `update` setting the member's column (the binding's, never a name from the
-  change) and the revision to the sequence, where the row's revision is at or
-  below it.
-- None of this is a Remote mutation. Remote only reads the table.
+- **`ProductEdits.edited` and `ProductEdits.Edit`:** Schemas describing the durable `Message` payload and the stored per-cell edit entries.
+- **`ProductEdits.merge`:** Purely folds new changes over existing edits, keeping the latest edit per cell. Sending the operation to the server happens via `Sync.fact` in `update`.
+- **`ProductEdits.stamped`:** Runs exclusively inside the server journal at commit time. Clients leave `at` and `by` unset; the journal's `validate` rejects any client operation that tries to supply them.
+- **`RemoteEdits.reconcile`:** Purely aligns Remote's optimistic overlays with the current `edits` slice and returns the updated `Model`. Call it in `afterUpdate` rather than `update` so server and replica replay only touch the replicated slice.
+- **`settle` and `applyEdits`:** Runs `apply` for each committed change through a recovery intent. Because the journal's effect ledger and the SQL table may be separate stores, an intent can replay after a crash; `applyEdits` guards the update with `revision <= at` on the binding's fixed columns so replaying an older or identical sequence is safe.
 
-## Build outward
+## Handling conflicts, compaction, and cell marks
 
-**Absorbing.** On a clock, `absorb` records, as the server's own operation,
-that the table holds every edit through the recovery cursor. Every replica
-drops those edits, and the journal compacts the log behind them, so a new
-replica is sent a small snapshot, not the history. It never compacts past
-what recovery has applied. Let only the server append it: an `authorize` rule
-on the contract.
+- **Absorbing history:** Calling `absorb` records a server-originated operation stating that the table holds every edit up to the recovery cursor. Replicas drop those edits and the journal compacts old entries so new devices receive a small snapshot. Guard `AbsorbedEdits` in `authorize` so only the server can append it.
+- **Held edits:** If the slice drops an absorbed edit while a page still holds an older cached row, `reconcile` keeps that edit's overlay held and returns its row key in `held` so the page can refresh the row.
+- **Conflicts:** The later journal commit wins, regardless of when an offline edit was typed. `reconcile` returns a `replaced` entry whenever another replica's commit overwrites this replica's edit—even across two tabs signed in as the same user, or when a read catches an edit that was already absorbed.
+- **Refusals:** Rejected operations return to the sender with their error; `cellsOf` identifies the affected cells so the UI can mark them while the rest of the outbox proceeds.
+- **Cell status marks:** Cells can display pending, committed, refused, replaced, and peer-presence states using `GridMarkStyle` and `GridLegend`.
+- **Unchanged drafts:** Leaving an open cell editor unchanged emits no edit, avoiding accidental overwrites of another device's concurrent change.
 
-**Held edits.** When the slice drops an edit whose row this page has cached at
-an older revision, the row would show the stale read until it is read again.
-`reconcile` keeps such an edit's overlay, held, and returns it in `held`, so
-the page can ask for its row again; once a read reaches the edit, the overlay
-is lifted.
+## Failure modes and recovery
 
-**Conflicts.** The later commit wins, by the journal's order, not by edit
-time: an edit made offline earlier but committed later wins. `replaced` tells
-a page whose own edit lost: its replica wrote the cell, and another
-replica's commit holds another value. It compares replicas, not people, so
-the same person's two tabs are told of each other. When the journal absorbed
-the winning edit before the losing page heard of it, the slice no longer says
-whose it was; `reconcile` sees it in the row, when a read reaches this
-replica's edit (at or past it, another value), returns it in `replaced`, and
-the page says "a later edit". The read may be live: the edit is then still in
-the slice, and `reconcile` keeps its landed overlay to notice.
+- **Offline edits:** Pending edits stay in the outbox across reloads and flush on reconnect.
+- **Table write lag or failure:** Committed edits keep showing on screen while `revision` lags; the next exchange retries `settle`, and `absorb` waits until recovery succeeds.
+- **Duplicate write after a crash:** `applyEdits` checks `revision <= at`, making repeated application harmless.
+- **Refused edit or forged stamp:** `validate` and `authorize` reject bad operations or client-supplied stamps before commit; the sender drops the rejected edit and marks its cells.
+- **Missing row:** Validate row existence before committing in the journal so edits to missing rows fail visibly rather than vanishing after recovery.
+- **Server reset:** When a journal starts a fresh epoch, `onReinstall` fires with `reset`, clears held overlays, and refreshes cached rows. Reset the SQL table alongside the journal: `settle` refuses to run (`TableAheadOfJournalError`) whenever `tableRevision` exceeds the journal's cursor.
+- **Sorted lists:** An unabsorbed edit updates the cell value in place until the next query re-sorts rows on the server.
+- **Recovery cursor:** In persistent deployments, recovery replays from the journal floor after a restart, while the effect ledger prevents duplicate side effects within an epoch.
 
-**Refusals.** A refused operation comes back with its rejection, the operation
-itself included, and the replica drops it. `cellsOf` names what it changed, so
-the page can mark the cells and say why.
+## Limits and when to use simpler tools
 
-**Marks.** Each cell can say where its edit is: not yet sent, saved and not yet
-in the table, refused, replaced, and where another device is. The grid's
-`GridMarkStyle` and `GridLegend` draw them.
+- Cell values are last-writer-wins by commit order; use CRDT-backed documents for collaborative rich text.
+- The journal and the SQL table must be kept or reset together.
+- If the dataset fits comfortably in memory on every client, use a plain [Sync slice](./replication.md).
+- If edits only happen online, use a [Remote mutation](./remote.md).
 
-**An unchanged cell is no edit.** The grid reports nothing for a draft left
-as it began, judged against the text the edit began from, not the row as it
-is now; otherwise leaving an editor as it opened would write the old value
-over a change another device made meanwhile.
+## Next
 
-## Failure and recovery
-
-- **Offline.** The edit stays pending in the outbox, through a reload, and is
-  sent on reconnect.
-- **The table write fails or lags.** The edit is committed and the row's
-  revision older, so it keeps showing. The next exchange's `settle` tries
-  again; nothing absorbs past it. `settle` runs on exchanges, not on a timer.
-- **A write runs twice.** Harmless: it never moves a row back.
-- **A refused operation.** Rejected by id, dropped by the replica, its cells
-  marked; the outbox behind it still goes.
-- **A forged stamp, or a forged `AbsorbedEdits`.** Refused by `validate` and
-  `authorize`.
-- **Two devices edit one cell.** The later commit wins everywhere; the loser
-  is told.
-- **A server restarted over a compacted journal.** `settle` starts at the
-  journal's floor, not at 0, so it does not ask for history that is gone.
-- **A server reset.** A new epoch: replicas rebuild and resend what they had
-  not sent; committed edits of the old history are gone. `onReinstall` is told
-  (`reset`), lifts what it held (`clear`), and reads its rows again, since
-  their revisions counted the old history. The table must be reset with the journal: a table that
-  outlived it holds revisions past every new sequence, so `apply` would skip
-  each new edit and the replicas would count it absorbed. `settle` refuses to
-  start while `tableRevision` is past the journal's cursor
-  (`TableAheadOfJournalError`), on every exchange, until the two agree.
-- **An edit to a row the table has not got.** Refuse it at commit, in the
-  journal's `validate`; its sender is told and its cell marked. Recovery
-  cannot refuse what has committed: let through, the edit would change no row
-  and vanish once absorbed. The registry's `validate` does this.
-- **A sorted page.** An unabsorbed edit shows its new value in its row's old
-  position until the page is read again.
-- **The recovery cursor in a persistent deployment** lives in the process; a
-  restarted server recovers again from the floor, and the ledger keeps each
-  intent from writing twice within an epoch.
-
-## Limits and when not to use it
-
-- A cell is last-writer-wins. Text is not merged; for that, see CRDT-backed
-  documents.
-- The journal and the table must survive, or be rebuilt, together.
-- If every replica can hold the whole state, a plain Sync slice is simpler.
-- If edits need no offline life, a Remote mutation is simpler.
-
-## Terms you may know
-
-| Here | Elsewhere |
-| --- | --- |
-| a row's `revision` | a read model's checkpoint or position (Marten's projection progress, EventStoreDB's subscription checkpoint, Axon's tracking token), kept per row |
-| an edit shows while the row's revision is older | EventStoreDB's stale-read check: the client's position is past the read model's |
-| committed, not yet in the row | Linear's completed transactions waiting for their `lastSyncId` |
-| dropping edits the base has | Replicache discarding mutations up to `lastMutationID`; Electric discarding optimistic state once its txid arrives |
-| journal and table | Kleppmann's system of record and derived data |
+- Learn how Sync's durable log works in [Replicated state](./replication.md).
+- See how Remote caches and overlays server data in [Server-derived state](./remote.md).
+- Explore the full 100,000-row app in [`examples/registry`](../examples/registry).

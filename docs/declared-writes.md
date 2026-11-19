@@ -1,71 +1,38 @@
 # Declared writes
 
-A declared write is a change to one row, written down as data: which row, what
-it sets, what it adds to, and what the row must hold for the change to make
-sense. Because it is data, every party reads the same declaration. The server's
-writer turns it into one compare-and-set statement, the guard decides it over
-the row version that statement will change, and the client shows it before the
-answer comes. Nothing reads the row in one statement and writes it in another,
-so nothing another request does in between is written over.
+Updating a database row safely usually requires reading it first to check permissions and preconditions, then updating it in a second statement, while also duplicating validation and optimistic updates on the client. Any concurrent edit between the read and write risks overwriting data, and client previews drift from server rules.
 
-This guide covers preconditions, increments, computed assignments, invariants
-over a row and over a change, a guard that holds where the write commits,
-operation ids, a write ledger, durable writes, a revision the database moves,
-and what the client shows and refuses before the answer. The runnable version
-is [`examples/writes`](../examples/writes/README.md).
+A **declared write** describes a single-row change—which row, what fields it sets or increments, and what conditions must hold—once as data. From that one value, `foldkit-remote-drizzle` compiles a single compare-and-set SQL statement, `foldkit-guard` checks permissions against the exact row version being modified, and `foldkit-remote` renders optimistic updates and early refusals in the browser.
+
+See the runnable example in [`examples/writes`](../examples/writes/README.md).
 
 ## Who owns what
 
-| Part | Package | Owns | Does not |
-| --- | --- | --- | --- |
-| The declaration | `foldkit-entity` (`Write`) | what changes, `when` it makes sense, what it `increment`s or `compute`s | any I/O; it is a value |
-| The invariants | `foldkit-entity` (`Entity.invariant`) | what every stored row, and every update over the row before, must hold, whoever writes it | who may write; whether this write applies now |
-| The rules | `foldkit-guard` | who may write which row and member, decided over the row being written | the statement; it hands the writer what to check |
-| The writer | `foldkit-remote-drizzle` (`writer`) | the one `update … where` that checks and writes; the ledger, when given one | who may write |
-| The client | `foldkit-remote` (`Data.mutate`) | the operation id; what shows until the answer; refusing at once a write it can already tell is invalid or forbidden; for a durable write, the outbox that sends it | authority: a prediction or a local refusal decides nothing on the server |
+| Piece | Package | Responsibility |
+| --- | --- | --- |
+| Write declaration (`Write`) | `foldkit-entity` | Fields changed, `when` preconditions, increments, `compute` |
+| Row & change invariants | `foldkit-entity` | Rules every stored row or update must satisfy |
+| Authorization rules | `foldkit-guard` | Who may write which row and field |
+| SQL writer & ledger | `foldkit-remote-drizzle` | Single `update ... where` statement and retry ledger |
+| Client mutation & outbox | `foldkit-remote` | Operation IDs, optimistic display, local refusals, outbox |
 
-The table row is the one authoritative fact. The ledger is not a second copy of
-it: it records only which operations already landed, so a retry is not applied
-again. The client's prediction is a display, recomputed from the store each time
-it is read, and dropped when the answer arrives.
+The database row is the single source of truth. The write ledger records which operation IDs have already landed so retries don't double-apply, and the client's optimistic overlay is recomputed from stored rows and dropped as soon as the server answers.
 
-A declared write writes one row by id. A write that spans rows is a handler
-(`RemoteServer.mutation`, guarded by `GuardServer.mutation`), which checks the
-interaction but not what its code writes. A declared write that must survive a
-reload or a lost connection can be durable (below); the server still decides
-it once, and a refusal is final. Edits that must merge with other devices'
-offline edits belong to Sync; see [Editing server data through a
-journal](./editing-server-data.md).
+Declared writes target one row by ID. Multi-row transactions use a handler (`RemoteServer.mutation` with `GuardServer.mutation`), and offline multi-device merges belong in Sync (see [Editing server data through a journal](./editing-server-data.md)).
 
-## The mental model
+## How one row version decides everything
 
-One row version decides everything, and one statement writes it:
+Every declared write passes through three checks on one version of the row:
 
-```text
-the guard reads the row at revision r, and decides its rules over it
-                    |
-                    v
-update … set name = ?, stock = stock + ?, revision = revision + 1
-       where id = ? and revision = r and <when> and <invariants>
-                    |
-     a row changed -+- none changed
-          |                  |
-   the row as written    classified: gone, moved on (Conflict),
-                         does not hold `when` (Unmet), or would break
-                         an invariant (Invalid)
-```
+1. **Authorization (`Forbidden`):** `foldkit-guard` reads the row at revision `r` and checks write rules.
+2. **Statement commit:** The writer executes `update ... set ..., revision = revision + 1 where id = ? and revision = r and <when> and <invariants>`.
+3. **Refusal classification:** If no row changed, a follow-up check reports whether the row disappeared, moved past revision `r` (`Conflict`), failed `<when>` (`Unmet`), or broke an invariant (`Invalid`).
 
-On the client, what a pending write shows is the store plus the pending writes,
-recomputed whenever it is read:
+On the client, any read of the row combines the committed row with pending `set` fields and pending `increment`/`decrement` amounts (`committed + pending sets + pending increments`), recomputed on read.
 
-```text
-shown = committed row + pending sets + pending amounts (added to what is under them)
-```
+## A first precondition: publishing a draft
 
-## A sixty-second path: a precondition
-
-A product is published only from a draft. The declaration says so; the writer
-checks it in the statement that writes.
+Suppose a `Product` can only be published when its `status` is `'draft'`. Declare the entity, a `Publish` write, and a `Sell` stock-adjustment write once, then serve `Publish` without writing a custom SQL handler:
 
 ```ts
 import { Schema } from 'effect'
@@ -90,9 +57,19 @@ const Publish = Mutation.write(
     { id: 'id', when: () => Expr.eq(Product.fields.status, 'draft') },
   ),
 )
+
+const Sell = Mutation.write(
+  'Sell',
+  Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
+      quantity: Entity.unmapped,
+    }),
+    { id: 'id', increment: { stock: 'quantity' } },
+  ),
+)
 ```
 
-On the server, the write is served with no handler:
+Serve `Publish` directly with `writer(Db.Product)`:
 
 ```ts
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
@@ -114,34 +91,18 @@ const server = RemoteServer.make({
 })
 ```
 
-A draft is published. An archived product is refused as `Unmet`, and nothing is
-written. A published one is answered as written and does not change.
+A draft product transitions to `'published'`; an archived product is refused with `Unmet`; an already published product returns cleanly without altering the row.
 
-### What the calls mean
+What each call does:
 
-- **`Write.update(input, { id, when })`** is a declaration. It runs nothing and
-  reads nothing. `when` is built once, at definition, into a query body over the
-  Entity; a `when` over another Entity is refused there.
-- **`Schema.Literal('published')`** is how a write sets a constant. The server
-  decodes the input before anything else, so a client cannot send another value.
-  There is no separate constant-assignment API, because this is one.
-- **`Mutation.write`** types the refusal. A write with a `when` may be refused
-  as `Unmet` as well as `Conflict`; one without has no `Unmet` arm to match. An
-  insert expects no revision, so it is refused as `Taken` (its id is a row's),
-  never as `Conflict`.
-- **`writer(Db.Product)`** is where I/O happens: one `update … where id = ? and
-  <when>`, then, if no row changed, one read to say why. It checks no rules; the
-  guard, below, does.
+- **`Write.update(input, { id, when })`** defines the update declaration and compiles `when` against the Entity's own fields.
+- **`Schema.Literal('published')`** pins a constant value in the input schema so decoders reject any other status before reaching the writer.
+- **`Mutation.write`** types the mutation's exact refusal union (`Unmet` and `Conflict` for guarded/preconditioned updates; `Taken` for inserts).
+- **`writer(Db.Product)`** executes the single SQL `UPDATE` and classifies failures when zero rows match.
 
-## Build outward
+## Pinning guards to the written revision
 
-### Who may: a guard that holds where it commits
-
-Reading the row to check a rule and writing it are two statements, so a change
-of owner between them could let a stale decision write. Name a revision and the
-guard pins the write to the revision its rules were decided over. With `Product`
-carrying its guards (`Guards.attach`) and `Policy` their implementation, as in
-[`examples/writes/src`](../examples/writes/src/server.ts):
+Checking permissions in one query and updating in another leaves a race window if ownership changes in between. Pass `{ revision: 'revision' }` to `GuardServer.writer` so the update statement pins the exact revision the guard inspected (see [`examples/writes/src/server.ts`](../examples/writes/src/server.ts)):
 
 <!-- docs-check standalone
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
@@ -194,40 +155,21 @@ const Db = bind(
 const guarded = GuardServer.writer(Product, Policy, writer(Db.Product), { revision: 'revision' })
 ```
 
-The binding's `visible` rule is how the guard reads a row as its caller may see
-it; the guarded writer refuses a binding without one.
+The `visible` clause filters rows by read permissions before guards evaluate. If the row changes between the guard check and the SQL update, `GuardServer.writer` re-evaluates up to three times before failing with `"changed while it was written"`. `GuardServer.validate` reports unpinned guarded writes as `UnpinnedWrites`.
 
-Every update and delete then lands only at that revision. If the row moved after
-the check, it is decided again over the row as it now is, up to three times, and
-then fails with "changed while it was written". Nothing is written over a version
-no rule saw. `GuardServer.validate` reports each write through a guarded writer
-with no revision that a change can come between (`UnpinnedWrites`).
+Guard rules that cross to another row (such as team membership) are forwarded to the writer as `requires` clauses inside the SQL `WHERE` so they evaluate atomically on commit; see [Rules that read another row](../packages/guard/README.md#rules-that-read-another-row).
 
-A rule that reads another row ("the viewer holds a seat on the note's team")
-cannot be decided over the row alone. For an update or a delete, the guard
-hands it to the writer as `requires`, and the writer adds it to the same
-`where`, so it is judged against the other row as the statement runs; a row
-that fails it is `Forbidden`. A write that would change what such a rule reads
-of its own row is refused. See [Guard's "Rules that read another
-row"](../packages/guard/README.md#rules-that-read-another-row).
+Refusals evaluate in strict security order so callers learn nothing about rows they cannot access:
 
-The guard speaks before the writer, in this order, so a refusal discloses
-nothing the caller may not read:
+1. Hidden rows or failed guard rules return `Forbidden`.
+2. Stale `expect` revisions return `Conflict`.
+3. Failed `when` preconditions return `Unmet`.
 
-1. A row hidden from the caller, then a rule that does not hold: both `Forbidden`.
-2. An input revision the row is not at: `Conflict`, not retried.
-3. The precondition: `Unmet`, so it reaches only someone the rules let write.
+Writes whose `when` or `expect` inspects a field hidden by a Read rule are rejected at boot; see [Guard's Serving writes](../packages/guard/README.md#serving-writes).
 
-A `when` or an `expect` over a member with a Read rule would answer for that
-member (`Unmet` or written), so the guarded writer refuses such a write before
-any rule, whether or not `validate` ran. The full rules are in
-[Guard's "Serving writes"](../packages/guard/README.md#serving-writes).
+## Concurrent increments and decrements
 
-### How much: an increment
-
-`increment` adds an unmapped number from the input to a number field, in the
-statement (`stock = stock + ?`), so a concurrent change to the field is never
-lost:
+Use `increment` or `decrement` to adjust numeric columns atomically in SQL (`stock = stock + ?`) without lost updates:
 
 ```ts
 const Restock = Mutation.write(
@@ -243,36 +185,12 @@ const Restock = Mutation.write(
 )
 ```
 
-The field must be stored as a plain number. A nullable field, the id, the
-revision, and a field another key sets are refused at definition. The guard
-holds the row's rules over the sum the writer will store, so a rule
-`stock >= 0` refuses a sale past zero.
+Increments require a non-nullable numeric field distinct from `id`, `revision`, and `set` fields, and `RemoteServer.write` enforces one of two retry protections:
 
-An increment is not idempotent: applied twice, it adds twice. So it needs one of
-two protections, and `RemoteServer.write` refuses one with neither:
+- **Optimistic revision (`expect: 'revision'`):** Concurrent increments conflict and retries of applied writes return `Conflict`.
+- **Write ledger (no `expect`, like `Sell` above):** Concurrent increments both succeed and retries return the ledgered result by operation ID.
 
-- **`expect` a revision.** A retry of a write that landed finds the row a
-  revision on and is a `Conflict`. Simple, but two increments made from one read
-  conflict too, though they would commute.
-- **A writer with a ledger** (below). Two increments from one read both land, and
-  a retry is recognised by its operation id. Such a write expects no revision:
-
-```ts
-const Sell = Mutation.write(
-  'Sell',
-  Write.update(
-    Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
-      quantity: Entity.unmapped,
-    }),
-    { id: 'id', increment: { stock: 'quantity' } },
-  ),
-)
-```
-
-`decrement` takes the amount away instead, with the same guarantees and the
-same retry protections. A `when` reads the row before the write as `row` beside
-the input, so a sale only of what is in stock says so, and `Mutation.update`'s
-`input` declares the amount in the one call:
+Use `decrement` with a `when` precondition reading `{ row, input }` to ensure stock never drops below zero:
 
 ```ts
 const SellInStock = Mutation.update('SellInStock', Product, {
@@ -282,20 +200,11 @@ const SellInStock = Mutation.update('SellInStock', Product, {
 })
 ```
 
-It is `Mutation.write` of `Write.update` over `Entity.input(Product,
-Schema.Struct({ id, quantity }), { quantity: Entity.unmapped })`, the same
-value. A decrement is bound as the amount negated (`stock = stock + ?` with
-`-quantity`), so a writer, a guard and a client's prediction treat it as they
-treat an increment. A field moved by both an increment and a decrement is
-refused at definition. A sale past the stock is refused as `Unmet` where it
-commits; the page sees it before it sends (`Data.can`, below).
+`Mutation.update` expands to the same `Mutation.write` / `Write.update` structure with `decrement` compiled as negated addition (`-quantity`).
 
-### What it computes: a computed assignment
+## Computed field assignments
 
-`compute` sets a field from the row before the write and the input, in the
-same statement (`name = <expression over name and ?>`). The expression is data
-over operators, so the writer compiles it to SQL and the client predicts it
-with the same operators:
+Use `compute` to derive a field from the pre-write `row` and `input` inside the same SQL statement using declared operators:
 
 ```ts
 const suffixed = Expr.operator('acme.suffixed', {
@@ -320,25 +229,11 @@ const Rebrand = Mutation.write(
 )
 ```
 
-- It reads the row **before** the write, never another assignment's result,
-  and is refused where it is declared when it reads another Entity, writes a
-  field another key sets, or comes to a kind its field does not store.
-- The operator needs an implementation on each side that runs it: the
-  binding's SQL table and memory table on the server, and `Remote.make({
-  operators })` on the client (see [An operator the application
-  implements](../packages/remote-drizzle/README.md#an-operator-the-application-implements)). A binding that cannot
-  run it is refused where the write is served.
-- It is held to a retry as an increment is: with `expect` as here, or, with
-  none, only under a ledger where the writer `commutes` the operator or a
-  guard with a revision pins the row it read.
+Register operator implementations in both your server binding and `Remote.make({ operators })` (see [An operator the application implements](../packages/remote-drizzle/README.md#an-operator-the-application-implements)). Unpinned `compute` writes without `expect` require a ledger plus either a revision-pinned guard or a verified commutative operator.
 
-### What every row holds: an invariant
+## What every row holds: an invariant
 
-A precondition says whether this write applies now; an invariant says what
-every stored row must hold, whoever writes it. With `quantity = 10, reserved =
-5`, an update setting `quantity = 3` decodes, passes every rule, and leaves a
-row holding more reserved than there is. An invariant is declared once on the
-Entity:
+A precondition checks whether *this* write applies; an **invariant** declares what *every* stored row must satisfy regardless of which write touches it:
 
 ```ts
 const StockFields = Entity.define(
@@ -354,44 +249,15 @@ const Stock = StockFields.pipe(
 )
 ```
 
-- **The Entity's, not one name's.** `StockFields` and `Stock` are two
-  descriptors of one Entity, and both carry the invariant: a write, a form or a
-  server binding made from either judges it. Guards differ: they travel on the
-  descriptor `Guards.attach` returns, so a server binds that one, and every
-  guard seam given another descriptor of a guarded Entity throws by name.
-- **Judged over the row a write leaves.** The writer compiles it into the same
-  `WHERE`, with the fields the write sets read as their new values and each
-  incremented field as its column moved: `… and reserved <= 3`. The row judged
-  is the row written, at the version written, so a `reserved` raised by another
-  request after the client's read is judged too. An insert's values are judged
-  before it is written.
-- **Strictly true.** A null fails it, as SQL's unknown drops a row from a
-  `WHERE`. A rule that allows one says so: `Expr.or(Expr.isNull(after.reserved), …)`.
-- **Not a rule.** `Update: [isOwner, isManager]` says who may; an invariant is
-  never one of those alternatives, so authority does not excuse an invalid row
-  and a valid row grants no one anything. The rules speak first, so `Invalid`
-  reaches only someone they let write. One over a member a Read rule hides is
-  enforced, but its refusal names no invariant and no path.
-- **Repair is possible.** A row already invalid is judged by the row a write
-  leaves, so a write that fixes it lands.
-- **Refused before it is sent, where the client can tell.** `Data.mutate`
-  judges the invariants over the row the write would leave, as the store holds
-  it. Where one is definitely broken it shows and sends nothing, and its
-  Command answers `MutationFailed` with the `Refusal.invalid` the server would
-  send; where the store cannot decide (a field it has not read), it refuses
-  nothing and the server judges.
-- **The same declaration, everywhere it can be judged.** `Entity.judge(entity,
-  { after })` is the reference; `Entity.check(entity)` is a Schema check; a form over
-  an input that sets every field one reads judges it on submit and shows the
-  message beside its path; `checkConstraints(binding)` (or `entityChecks` in the Drizzle table)
-  gives each state invariant as a `CHECK` constraint, beside the field rules SQL holds exactly,
-  which hold against handlers and raw SQL too.
+- **Travels with the Entity:** `StockFields` and `Stock` share the invariant across writes, forms, and server bindings (while guard rules stay attached to the `Guards.attach` descriptor).
+- **Evaluated over the post-write row:** The SQL writer folds invariants into `WHERE` using the updated column values (`reserved <= 3`), allowing broken rows to be repaired while refusing writes that leave a row invalid.
+- **Strict null semantics:** A `null` operand fails an invariant unless handled explicitly with `Expr.isNull`.
+- **Independent of authority:** Admins cannot bypass invariants, and hidden-field violations omit the rule ID and `path` from the `Invalid` refusal.
+- **Checked on client and database:** `Data.mutate` rejects definitely-broken writes immediately with `Invalid`, forms display errors at `path` on submit, and `checkConstraints(binding)` generates SQL `CHECK` constraints for defense in depth.
 
-### What every change holds: a transition invariant
+## What every change holds: a transition invariant
 
-Some rules relate two rows, each valid on its own: an order that shipped stays
-shipped. An invariant that reads the row before (`before`) as well as the row
-after is a transition invariant:
+Reading `before` alongside `after` in `Entity.invariant` enforces valid state transitions on updates:
 
 ```ts
 const OrderFields = Entity.define(
@@ -408,21 +274,11 @@ const Order = OrderFields.pipe(
 )
 ```
 
-`before` is each field as the row before holds it and `after` each as the row after holds
-it. Reading `before` is all that makes it a transition invariant; nothing else is
-declared. The writer judges it beside the state invariants, in the same `WHERE`: the row before is
-the columns themselves, and after, a field the write sets is its value, one it
-increments its column moved, and any other unchanged. Every update is judged;
-a create has no row before and a delete none after. It is refused as `Invalid`
-with its id, and like every invariant it is never a guard rule, so no one
-is excused it. A form has no row before, so it judges none; Crud shows the
-server's refusal beside its path. A `CHECK` sees one row, so `checkConstraints`
-leaves it out, and lists it under `serverOnly`.
+The writer compiles transition invariants into the `UPDATE`'s `WHERE` clause (comparing pre-update columns as `before` and updated expressions as `after`), skipping inserts and deletes. Because SQL `CHECK` constraints inspect a single row, `checkConstraints` omits transition invariants and lists them under `serverOnly`.
 
-### What one write leaves: `becomes`
+## Enforcing a postcondition with `becomes`
 
-An invariant is every write's. A claim about one write, that it leaves its row
-in a state (`Entity.refine`), is that write's `becomes`:
+Attach `becomes` on a write to guarantee the resulting row satisfies a named `Entity.refine` state:
 
 ```ts
 const CrateFields = Entity.define(
@@ -441,55 +297,26 @@ const SellCrate = Mutation.write(
     { id: 'id', increment: { stock: 'quantity' }, becomes: InStock },
   ),
 )
-const soldOut = Write.ensured(SellCrate.write) // { id: 'becomes:InStock', entity: 'Crate', … }
+const soldOut = Write.ensured(SellCrate.write) // { id: 'becomes:InStock', entity: 'Crate', ... }
 ```
 
-Where the write is declared, `Write.update` enumerates every row it can start
-from over finite fields: a claim it proves costs nothing at run time, and one it
-disproves throws there, naming a row. A stock moved by an amount cannot be
-enumerated, so this claim is the write's postcondition, `ensures`: an invariant
-of that write alone, with the id `becomes:InStock`. The writer judges it beside
-the Entity's invariants, in the same `WHERE`, and refuses a sale that would
-leave nothing unreserved as `Invalid`, naming `becomes:InStock`; like an
-invariant, it speaks after a stale revision and an unmet precondition.
-`Refusal.isInvalidBy(refusal, soldOut)` tells it apart. A writer that cannot judge one is refused where the write is served,
-by name (`postconditions`): the Drizzle writer, the memory writer and a guarded
-writer over either judge them. `Laws.check` reports such an arrow `enforced`,
-and judges the postcondition as a pair of the write alone: from the amount's
-declared bounds it proves it (`kept`, a `Bounded` record) or prints a row and
-an amount that break it (`refused`, with the witness). `SellCrate`'s is a
-crate holding and reserving nothing, given a quantity of 0: the postcondition
-refuses that sale where it commits.
+When `becomes` spans finite fields, `Write.update` proves or disproves it at declaration time. For numeric expressions like `SellCrate`, `Write.update` attaches a postcondition (`becomes:InStock`) checked by the writer at commit time (`Invalid` on failure, matched via `Refusal.isInvalidBy(refusal, soldOut)`) and analyzed by `Laws.check`.
 
-All three kinds must hold for a write to land:
+For any write to commit, all three checks must pass together: **authorization** (`Forbidden`), **preconditions** (`Unmet`), and **invariants plus postconditions** (`Invalid`).
 
-```text
-authorization (Forbidden) AND precondition (Unmet) AND invariants (Invalid)
-```
+## Retries: three different guarantees
 
-A write's postcondition is judged with the invariants.
-
-### Retries: three different guarantees
-
-| Write | A retry after a lost answer | Two writes from one read |
+| Write kind | Retry after lost response | Two concurrent writes from one read |
 | --- | --- | --- |
-| Sets a value (`name = ?`) | sets it again; answered as written | the later one wins |
-| `expect`s a revision | `Conflict`; the client re-reads | the second is a `Conflict` |
-| Increments over a ledger | found in the ledger, not written again | both land |
+| Sets fixed values (`name = ?`) | Re-applies safely; returns updated row | Later write wins |
+| Pinned with `expect: 'revision'` | Returns `Conflict`; client re-reads | Second write returns `Conflict` |
+| Increment/compute with ledger | Returns ledgered result; not re-applied | Both writes apply |
 
-The first is an idempotent assignment, which is why the Todo examples set
-`done = true` rather than flipping it. The second is optimistic concurrency. The
-third is replay deduplication, and it needs an identity for the operation.
+Setting `done: true` rather than toggling a boolean is naturally idempotent; revision pinning provides optimistic concurrency; ledgers deduplicate non-idempotent retries by operation ID.
 
-### An operation id
+## Operation IDs and retries
 
-A Remote `requestId` names a request to one client only: it is a counter in the
-Model, so it restarts on reload, and two clients' first requests share it.
-`Data.mutate` therefore also sends an **operation** id, minted where the request
-is first sent (`crypto.randomUUID()`, or 128 random bits from
-`getRandomValues` on a page served over plain HTTP). A failed request keeps it,
-and a retry sends it again. With `Data` the application's `Remote.make({ model,
-entities: [Product], mutations: [Sell] })`:
+Every `Data.mutate` mints a persistent **operation ID** (`crypto.randomUUID()` or 128-bit random ID) distinct from the per-session `requestId`. Retrying a failed write re-sends the exact input, `now`, and operation ID (validated on the server as up to 128 URL-safe characters):
 
 <!-- docs-check
 import { Effect } from 'effect'
@@ -504,48 +331,40 @@ const App = Surface.application({
   initial: { remote: Remote.initial },
   update: model => ({ model }),
 })
-const Data = Remote.make({ model: App.model.remote, entities: [Product], mutations: [Sell] })
+const Sell = Mutation.write(
+  'Sell',
+  Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
+      quantity: Entity.unmapped,
+    }),
+    { id: 'id', increment: { stock: 'quantity' } },
+  ),
+)
+const Publish = Mutation.write(
+  'Publish',
+  Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, status: Schema.Literal('published') })),
+    { id: 'id', when: () => Expr.eq(Product.fields.status, 'draft') },
+  ),
+)
+const Data = Remote.make({ model: App.model.remote, entities: [Product], mutations: [Sell, Publish] })
 declare const model: Model
 declare const failedModel: Model
 -->
 ```ts
 const started = Data.mutate(model, Sell, { id: 'p1', quantity: -2 })
-// …the request failed: send it again as itself, same input and operation.
-const again = Data.retry(failedModel, started.requestId) // none unless it failed
+const again = Data.retry(failedModel, started.requestId)
 ```
 
-`Data.retry` is `Data.mutate` with the failed write's own request id, input and
-`now`. The server treats the operation id as untrusted input: at most 128
-characters of `A–Z a–z 0–9 : . _ -`, refused otherwise.
+When a request fails with `Unreachable` (network drop or 502 gateway response), retrying via `Data.retry` is safe according to the retry guarantee table above.
 
-A write whose request did not go, or whose answer was no Remote answer (not
-JSON, or a gateway's 502), fails with `Unreachable`: the server may or may not
-have run it. Sending it again is safe exactly as far as the table below says.
+## Durable writes that outlive page reloads
 
-### A write that outlives the page: durable
+Passing `{ durable: true }` to `Data.mutate(model, Sell, input, { durable: true })` with `outbox(Data, ...)` stores the write in `KeyValueStore` before sending, flushes queued writes in order across reloads with the same operation ID and timestamp, and partitions queues per principal. Pair durable writes with a ledgered writer on the server; entries arriving past `clockSkew` record server time (`ClockSkewed`). See [Remote's outbox section](../packages/remote/README.md#a-write-that-outlives-the-page-outbox).
 
-A page that reloads forgets its Model, and with it the operation ids of writes
-still in flight. A durable write keeps them:
-`Data.mutate(model, Sell, input, { durable: true })` stores the write in
-Remote's outbox (`outbox(Data, …)`) before it is sent, sends stored writes one at a
-time and in order, and sends one again after an `Unreachable` and after a
-reload, with the same operation id and the same `now`. Setup and status are in
-[Remote's outbox section](../packages/remote/README.md#a-write-that-outlives-the-page-outbox).
+## A write ledger
 
-What the server must give it is the third row of the table above: a durable
-write may arrive twice, so it needs a writer with a ledger (below), or a
-handler that records by `operation`. A write sent long after it was made lies
-past the server's `clockSkew`, so the server writes its own time instead
-(reported as `ClockSkewed`). The outbox keeps each principal's queue apart, so
-no write is sent as anyone but who made it.
-
-### A write ledger
-
-A ledger records each update and insert the writer lands under the operation
-that asked for it and the row it wrote, atomically with the write (in its transaction, or on D1
-in one batch with it). `ledger` is the
-Drizzle table below and `User` the principal, as in
-[`examples/writes/src/server.ts`](../examples/writes/src/server.ts):
+A write ledger stores applied operations inside the same database transaction (or D1 batch) as the row update (see [`examples/writes/src/server.ts`](../examples/writes/src/server.ts)):
 
 <!-- docs-check
 import { Option } from 'effect'
@@ -582,39 +401,17 @@ create table write_ledger (
 create index write_ledger_at on write_ledger (at);
 ```
 
-- **`scope`** names whose operations they are, so no one is answered with
-  another's write: an operation id is unique only per client that minted it.
-- **`target`** is the row, so an operation id sent for another row is not that
-  row's retry.
-- **`request`** is a digest of what the operation asked (its mutation, keys
-  and input), so an operation id sent again with another request is refused
-  rather than answered as a retry. An older ledger table gains it with
-  `alter table write_ledger add column request text`; a record without one is
-  answered as a retry until its retention passes.
-- **Copies sent at once.** On Postgres a copy of an operation sent while
-  another is still writing waits for it (a transaction-scoped advisory lock),
-  then finds its record. On D1 the row and its record are written in one
-  batch; a second copy's record collides with the first's primary key, its
-  batch rolls back whole, and it is answered from the first's record.
-- **Retention**, a day unless given: a retry later than that is a new operation,
-  and an increment would be applied again. Records are pruned as new ones are
-  made; the index on `at` keeps that from scanning the table.
-- **Updates and inserts are recorded.** A retried insert is answered from its
-  record with the row it made. Any other insert of a taken id, and without a
-  ledger a retry too, is refused as `Taken`, with one answer whatever the row
-  holds, since comparing the row with the insert would tell its asker what it
-  holds. A retried delete finds the row gone.
+- **`scope` and `target`:** Isolate operation IDs per caller principal and target row.
+- **`request` digest:** Detects if an operation ID is reused with different parameters (`alter table write_ledger add column request text` upgrades older tables).
+- **Concurrency:** Postgres serializes duplicate operations with a transaction-scoped advisory lock; D1 writes both in one batch so the primary key collision rolls back the duplicate and reads the recorded answer.
+- **Retention:** Entries prune automatically after retention expires (default 1 day), indexed by `at`.
+- **Inserts and deletes:** Retried inserts return the original created row from the ledger, while colliding IDs without a matching ledger entry return `Taken`.
 
-A retry found in the ledger is not written again, and the guard does not decide
-it again: it was decided when it landed, and deciding it over a row that has
-moved since could refuse a write that happened. It is answered, as every write
-is, with the row as it now is, read back under the caller's rules.
+Ledgered retries skip re-running guards (which already passed when the write landed) and return the row's current state filtered by read permissions.
 
-### A revision the database moves
+## Moving the revision from database triggers
 
-The guard's pin sees only changes that move the revision. A handler or raw SQL
-that changes the row without moving it is invisible to it. `revisionTrigger`
-is the SQL that makes the database move it on every other update too:
+If raw SQL or handlers also update the table, install `revisionTrigger` with your migrations so every external update bumps `revision` (the column must be `NOT NULL`, and Sync-managed tables using `applyEdits` omit it):
 
 <!-- docs-check
 declare const sqlite: { exec: (sql: string) => void }
@@ -625,66 +422,25 @@ import { revisionTrigger } from 'foldkit-remote-drizzle'
 sqlite.exec(revisionTrigger(Db.Product, 'revision'))
 ```
 
-It moves the revision only for an update that did not set it, so the writer's
-own `revision = revision + 1` is not doubled, and an update that sets it to a
-value of its own is left as set. Run it with the migration that makes the table,
-on SQLite or Postgres; running it again replaces it, and a Postgres table in a
-`pgSchema` is named by its schema. The revision column must be `not null`: the
-trigger compares with `=`, which a null never satisfies. Not for a table Sync
-writes, whose `applyEdits` keeps one revision for two changes in one operation.
+## Optimistic previews in the browser
 
-### What the client shows meanwhile
+While a declared write is in flight, `Data.mutate` layers `set` values and relative `increment` amounts over cached store rows on read:
 
-`Data.mutate` shows a declared update before the answer: the values it sets, and
-each increment as an amount. The amount is added to the value the store holds
-whenever the row is read, not fixed when the request was sent. So:
+- Concurrent live updates merge underneath pending increments rather than being clobbered.
+- Multiple pending increments sum cleanly, and dismissing one leaves the others intact.
+- Queries sort and place optimistic rows whenever all needed fields are held locally.
+- Unfetched fields wait for the server response instead of guessing.
 
-- a live update that reaches the store meanwhile is added to, not hidden;
-- two pending increments add up, and a refused one leaves only the other's;
-- a list sorted by the field places the row where the predicted sum puts it;
-- a field the client has not read is not guessed: it shows the server's sum when
-  the answer comes.
+Client previews and local refusals (`Invalid` from held invariants or `Forbidden` from held `may` flags; see [What the client may do](../packages/guard/README.md#what-the-client-may-do)) save round trips without replacing server enforcement. Inspect `Write.reads(write)` and `Write.writes(write)` to see which fields a write depends on or modifies.
 
-The prediction is never authority. The client cannot know who may write, and its
-row may be stale; the server decides, and its answer replaces the prediction.
-`Write.reads(write)` names what a write reads from its row (what `when` reads,
-each incremented field, the revision), and `Write.writes(write)` what it may
-change.
+## Asking before sending: `Data.can`
 
-Two refusals are made at once, before anything is sent, because the store can
-already tell: an invariant, or the write's postcondition, definitely broken by
-the row the write would leave (`Invalid`, above; a field the write moves is not
-held, so a sale like `SellCrate` is the server's to refuse), and a write a held `may` says no to (`Forbidden`, with the
-rule's `explain` as `reason`; see [Guard's "What the client may
-do"](../packages/guard/README.md#what-the-client-may-do)). Each spares a round
-trip and decides nothing for the server, which judges every write that reaches
-it.
+`Data.can` evaluates held `may` flags, `when` preconditions, and invariants in memory—matching the server's check order—to guide button states:
 
-### Asking before sending: `Data.can`
-
-A button for a write can be grey before it is pressed. `Data.can` answers, from
-what the Model holds and with no I/O, whether the server would refuse the
-write, judging in the server's own order: a held `may` (`Forbidden`), then the
-write's `when` (`Unmet`), then the invariants of the row the write leaves
-(`Invalid`). The first definite refusal answers `No`.
-
-<!-- docs-check
-const Publish = Mutation.write(
-  'Publish',
-  Write.update(
-    Entity.input(
-      Product,
-      Schema.Struct({ id: Schema.String, status: Schema.Literal('published') }),
-    ),
-    { id: 'id', when: () => Expr.eq(Product.fields.status, 'draft') },
-  ),
-)
-const Gate = Remote.make({ model: App.model.remote, entities: [Product], mutations: [Publish] })
--->
 ```ts
 import { Can } from 'foldkit-remote'
 
-const answer = Gate.can(model, Publish, { id: 'p1', status: 'published' })
+const answer = Data.can(model, Publish, { id: 'p1', status: 'published' })
 const label = Can.match(answer, {
   Yes: () => 'Publish',
   No: ({ refusal }) => `Cannot publish: ${refusal._tag}`,
@@ -692,45 +448,21 @@ const label = Can.match(answer, {
 })
 ```
 
-- **`Can.Yes`**: nothing the client holds refuses it.
-- **`Can.No({ refusal })`**: the refusal is `Forbidden { reason }`, `Unmet`, or
-  `Invalid { entity, rule, message, path }`, the shape the server's refusal
-  has, so one component can show either.
-- **`Can.Undecided({ reasons })`**: the client cannot tell. The row is not held,
-  a field or operator a rule reads is missing, an increment or computed field
-  would have to be worked out, an input key the `when` reads was left out, or
-  a `may` member of the row is not held (the reason names it, `Doc.gate`): a
-  gate the client has not read could refuse the write. The rows a delete clears
-  or takes with it are not asked; the server judges them.
-  `input` is `Partial`: ask with the id alone and a `when` over the input says
-  `Undecided`, ask per value and it decides. Invariants are judged over the row
-  as it would be with the keys given.
+- **`Can.Yes`:** Held data passes all checks.
+- **`Can.No({ refusal })`:** Returns the exact `Forbidden`, `Unmet`, or `Invalid` refusal shape the server returns.
+- **`Can.Undecided({ reasons })`:** Returned when rows, fields, operators, input keys, or `may` flags are missing locally.
 
-`No` is a hint, not a refusal. `Data.mutate` does not consult it: a write the
-client calls `Unmet` is still sent, because the server answers some of them as
-written (publishing a published product is answered as a retry would be, not
-refused), and a row the client holds may be stale. `Data.can` never decides for
-the server. It throws for a mutation that was not declared as a `Write`, since
-nothing is declared to judge.
+`Data.can` is strictly an advisory UI hint (`Data.mutate` still sends `Unmet` writes in case local data is stale) and throws on non-declared mutations.
 
-### Checking the prediction against the server
+## Checking the prediction against the server
 
-The client and the server must agree: what a pending write shows should be
-what the server then holds, and a write the client refuses should be one the
-server refuses alike. `Law.check` (`foldkit-remote/testing`) runs one declared
-write both ways, over a Model holding what the server sends the principal and
-with the same `now`, and compares every part the client predicted: each field,
-whether the row is there, each held list's order, and a refusal by its
-`refusal`. Here `server` is the `RemoteServer.make` that serves `Sell` over a
-real database (remote-drizzle's law suite runs SQLite and Postgres),
-`principal` whom it answers as, and `model` the application's Model before the
-client holds anything:
+`Law.check` (`foldkit-remote/testing`) executes one declared write on both client and server (with matching `now` and principal) and verifies optimistic predictions and refusals agree:
 
 <!-- docs-check
-import { RemoteServer } from 'foldkit-remote-server'
-const server = RemoteServer.make({
+import { RemoteServer as LawServer } from 'foldkit-remote-server'
+const lawServer = LawServer.make({
   entities: [],
-  mutations: [RemoteServer.write(Sell, writer(Db.Product))],
+  mutations: [LawServer.write(Sell, writer(Db.Product))],
 })
 declare const principal: undefined
 -->
@@ -743,55 +475,47 @@ const report = Law.check(Data, {
   mutation: Sell,
   input: { id: 'p1', quantity: -2 },
   now: 0,
-}).pipe(Effect.provide(Remote.clientLayer(RemoteServer.handlers(server, principal))))
+}).pipe(Effect.provide(Remote.clientLayer(LawServer.handlers(lawServer, principal))))
 ```
 
-What the client left unknown is not compared, and a check that compared
-nothing fails, since two sides that both said nothing prove nothing. In
-development, `Remote.make({ verifyPredictions: true })` compares each answer
-with what its pending write showed, and reports a disagreement as a
-`PredictionMismatch` diagnostic.
+Enable `Remote.make({ verifyPredictions: true })` in development to log `PredictionMismatch` diagnostics whenever a live server response disagrees with a client overlay.
 
 ## Failure and recovery
 
-| Outcome | Meaning | What the client does |
+| Outcome | Meaning | Client response |
 | --- | --- | --- |
-| Written | the row as it now is, under the caller's rules; a row the write hid from them as deleted | nothing; the answer replaces what showed |
-| `Forbidden` | a hidden row, or a rule that does not hold | show it; asking again is refused again |
-| `Conflict` | the input's revision is not the row's | re-read, then let the author decide |
-| `Unmet` | the row does not hold the write's `when` | show why; the state changed |
-| `Invalid` | the row the write would leave breaks an invariant, over a row or over the change | show its `message` beside its `path`; change the input |
-| `Taken` | an insert's id is already a row's, and the ledger holds no record of this operation making it (a 409 over HTTP) | choose another id; the refusal names the Entity and the id, nothing of the row |
-| "changed while it was written" | the row kept moving through three decisions | retry later |
-| `Unreachable` | no answer came back; the write may or may not have landed | `Data.retry` (a durable write is sent again on its own); safe as far as the retry table says |
-| "needs a database with transactions" | a ledger over a database with neither a transaction nor D1's batch | give the writer a Drizzle database |
+| Written | Row updated (or deleted if hidden) | Replaces optimistic overlay |
+| `Forbidden` | Hidden row or failed guard rule | Display refusal; don't retry |
+| `Conflict` | Row revision moved past `expect` | Re-read row; let user decide |
+| `Unmet` | Row failed `when` or `from` | Show state change |
+| `Invalid` | Row broke invariant or `becomes` | Show `message` at `path` |
+| `Taken` | Insert ID already exists (409) | Choose a new ID |
+| `"changed while it was written"` | Row contended past 3 retries | Retry later |
+| `Unreachable` | Network or gateway failure | `Data.retry` (auto if durable) |
+| `"needs a database with transactions"` | Non-transactional ledger database | Pass a Drizzle database |
 
-### What each database guarantees
+### Database guarantees
 
-| | SQLite | Postgres | D1 |
+| Feature | SQLite | Postgres | D1 |
 | --- | --- | --- | --- |
-| Revision, `when`, increment, invariant | one statement | one statement | one statement |
-| `checkConstraints`, `entityChecks` | in `create table` | `alter table … add` | in `create table` |
-| Ledger | a synchronous transaction | an awaited transaction; the primary key settles a race | a read, then one `batch`; the primary key settles a race |
-| `revisionTrigger` | yes | yes | yes (SQLite) |
+| Revision, `when`, increment, invariant | Single statement | Single statement | Single statement |
+| `checkConstraints`, `entityChecks` | In `CREATE TABLE` | `ALTER TABLE ... ADD` | In `CREATE TABLE` |
+| Ledger atomicity | Sync transaction | Async tx + advisory lock | Read + single `batch` + PK |
+| `revisionTrigger` | Supported | Supported | Supported (SQLite) |
 
-One statement is atomic on every database, so a precondition and an increment
-need no transaction. D1 runs no `BEGIN`, so its ledger writes the row and the
-record in one batch, the record decided in SQL (`changes() > 0`) since a batch
-reads nothing between its statements. Opening a transaction is not by itself a
-guarantee: the ledger relies on its primary key, not on isolation, to refuse a
-second copy.
+Single-statement checks are atomic on every backend. On D1, the ledger relies on `changes() > 0` and primary-key rollback inside one `batch` to serialize concurrent duplicates.
 
 ## Limits
 
-- One row by id. Bulk predicates, nested writes and multi-row programs are
-  handlers.
-- An invariant reads one row. Uniqueness, foreign keys and limits across rows
-  need the database to coordinate them; a predicate cannot say them.
-- A computed assignment reads its own row before the write and the input,
-  never another row or another assignment's result.
-- A rule that reads facts outside the database (a remote permission service)
-  cannot be made atomic with the write; only what the statement can read is.
-- Without the trigger, the pin trusts every writer to move the revision.
-- A ledger's record lasts its retention; an increment retried later is applied
-  again.
+- Declared writes modify a single row by ID; multi-row or bulk writes use handlers.
+- Invariants inspect one row at a time; cross-row uniqueness and foreign keys belong in SQL constraints.
+- Computed assignments read pre-write fields and input only.
+- External permission calls outside the database cannot be pinned atomically with the SQL write.
+- Without `revisionTrigger`, revision pinning depends on every writer incrementing `revision`.
+- Retrying an increment after its ledger retention expires applies the increment again.
+
+## Next
+
+- Explore the full runnable example in [`examples/writes`](../examples/writes/README.md).
+- Decide where rules belong and run static checks in [Laws](./laws.md).
+- Learn how `Expr` predicates work across SQL and memory in [Expressions](./expressions.md).

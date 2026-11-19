@@ -1,65 +1,21 @@
 # `foldkit-remote-server`
 
-The server-side interpreter for [`foldkit-remote`](../remote).
+When screens declare the exact fields they need, serving them usually forces
+you to choose between writing one custom endpoint per screen or exposing a raw
+query language that mixes row loading with field permissions.
 
-A Remote client sends **semantic requirements** — entity ids, selected fields,
-query windows, mutations, and live requirements. `foldkit-remote-server` turns
-those requirements into calls to application-owned **Sources**, enforces
-field-level read authorization while the field names are still known, and
-normalizes the results back into the patches the client cache understands.
+This package lets you keep one server definition instead. Define a small
+**Source** for each entity, query, mutation, and live stream. When a client
+sends semantic requirements, the server validates the protocol and input,
+strips any fields the caller may not read before touching your database,
+de-duplicates shared IDs, and normalizes rows back into patches for
+[`foldkit-remote`](../remote).
 
-The central pipeline is:
-
-```text
-Remote requirement
-      |
-      v
-RemoteServer handlers
-      |
-      +-- validate protocol / input
-      +-- filter fields by Entity + principal
-      +-- group and de-duplicate reads
-      |
-      v
-application Source
-      |
-      v
-normalized Remote result
-      |
-      v
-Remote client -> Message -> Data.reduce -> Model
-```
-
-A Source is deliberately small: it says how your application reads one Entity,
-runs one Query or Mutation, or produces one live stream. The package does **not**
-own HTTP, WebSockets, authentication, or a database connection;
-[`answer`](#over-plain-json) answers a JSON request a server you run received. Authentication
-resolves a `principal` outside this package; database/API clients remain Effect
-requirements of the Sources that use them.
-
-Use this package when the server is yours and you want the selections declared
-by `foldkit-remote` to survive all the way to the data boundary instead of
-turning back into hand-written per-screen endpoints.
-
-## What this package owns
-
-The client owns which server facts are required. This package owns interpreting
-those requirements: field authorization, grouping and de-duplicating reads,
-walking nested selections, and the normalized wire results. Your Sources own how
-the facts are actually loaded or changed. Effect RPC and your application own
-transport, serialization and authentication.
-
-That separation matters. `RemoteServer` can decide that a client may read
-`Project.name` but not `Project.privateNotes`; only your Source knows whether
-that field comes from Postgres, another service, an in-memory index, or
-something else.
-
-It does **not** own HTTP or WebSocket transport, authentication or session
-storage, a database connection, the client's normalized cache, or Surface
-activation. A durable write is the client's to keep (Remote's outbox) and the
-writer's to recognise when it comes again (a ledger); this package only passes
-its operation id through. Client-authored state that must merge across devices
-is [`foldkit-sync`](../sync)'s.
+`foldkit-remote-server` runs the [Chirp demo](https://foldkit-chirp-demo.pages.dev/)
+and [`examples/kitchen-sink`](../../examples/kitchen-sink). Your Sources decide
+how data is loaded and written; your application authenticates the caller into a
+`principal` and serves over Effect RPC, plain JSON over HTTP, Cloudflare
+Workers, or a `MessagePort`.
 
 ## Install
 
@@ -68,12 +24,13 @@ pnpm add foldkit-remote-server
 ```
 
 `effect` is a peer dependency; `foldkit-remote` comes with the package.
-[`foldkit-remote-drizzle`](../remote-drizzle) is an optional Source compiler for
-Drizzle-backed entities and queries.
+[`foldkit-remote-drizzle`](../remote-drizzle) compiles Drizzle tables into
+Sources when your data lives in SQLite or Postgres.
 
-## Sixty seconds: answer one Entity read
+## Example: serve one Entity read with field permissions
 
-Start with the same Entity the client selects:
+Define an entity, authorize fields per caller, and mount the Source into
+Effect RPC handlers:
 
 ```ts
 import { Effect, Schema } from 'effect'
@@ -82,201 +39,96 @@ import { RemoteServer } from 'foldkit-remote-server'
 
 const Project = Entity.make(
   'Project',
-  Schema.Struct({
-    id: Schema.String,
-    name: Schema.String,
-    privateNotes: Schema.String,
-  }),
+  Schema.Struct({ id: Schema.String, name: Schema.String, privateNotes: Schema.String }),
 )
-```
-
-Give that Entity one Source:
-
-```ts
-// Your authentication's principal type; without it `principal` is `unknown`.
 type Principal = { readonly isAdmin: boolean }
-
-const rows = new Map([
-  ['p1', { id: 'p1', name: 'Apollo', privateNotes: 'Internal' }],
-])
+const rows = new Map([['p1', { id: 'p1', name: 'Apollo', privateNotes: 'Internal' }]])
 
 const ProjectSource = RemoteServer.entity<Principal>(Project, {
-  // Authentication already resolved `principal` before RemoteServer sees it.
-  // Return only fields this caller may read.
   authorize: (principal, fields) =>
     fields.filter(field => field !== 'privateNotes' || principal.isAdmin),
-
-  read: ({ ids, fields }) => Effect.succeed(ids.flatMap(id => {
-    const row = rows.get(id)
-    return row === undefined ? [] : [{
-      id,
-      values: Object.fromEntries(Object.entries(row).filter(([field]) => fields.includes(field))),
-    }]
-  })),
+  read: ({ ids, fields }) =>
+    Effect.succeed(
+      ids.flatMap(id => {
+        const row = rows.get(id)
+        if (row === undefined) return []
+        const values = Object.fromEntries(Object.entries(row).filter(([k]) => fields.includes(k)))
+        return [{ id, values }]
+      }),
+    ),
 })
 
-const Server = RemoteServer.make({
-  entities: [ProjectSource],
-})
-```
-
-Compile that definition into the Remote RPC handlers for one authenticated
-principal:
-
-```ts
+const Server = RemoteServer.make({ entities: [ProjectSource] })
 const principal: Principal = { isAdmin: false }
 const handlers = RemoteServer.handlers(Server, principal)
 const layer = RemoteRpc.toLayer(handlers)
 ```
 
-`RemoteServer.entity` and `make` only describe the server. `handlers` binds
-a principal; `RemoteRpc.toLayer` provides handlers to Effect RPC. Neither starts
-an HTTP listener. In this example the source returns an Effect over local rows;
-replace its body with your database or API reader when connecting real data.
+When a client requests `Project:p1 [id, name, privateNotes]` for a non-admin
+caller:
 
-A client requirement such as:
+1. `Project` declares `id`, `name`, and `privateNotes`, so all three pass
+   schema validation.
+2. `authorize` removes `privateNotes`, leaving `['id', 'name']`.
+3. `read` receives `ids: ['p1']` and `fields: ['id', 'name']`, and returns
+   `{ id: 'p1', values: { id: 'p1', name: 'Apollo' } }`.
+4. The handler returns `{ id: 'p1', values: { id: 'p1', name: 'Apollo' } }` and
+   marks `privateNotes` as **settled** (`unavailable`).
 
-```text
-Project:p1 [id, name, privateNotes]
-```
+Because `privateNotes` is settled without a value, the client stops asking for
+it on subsequent renders. A selection that omits `privateNotes` reads `Ready`;
+one that includes it reads `Failed` with an `Unavailable` error until
+`Data.refresh` asks again.
 
-runs as:
+## How a read resolves
 
-```text
-1. Project declares:       id, name, privateNotes
-2. authorize returns:      id, name
-3. Source receives:        ids=[p1], fields=[id,name]
-4. Source returns:         { id: 'p1', values: { id: 'p1', name: 'Apollo' } }
-5. handler normalizes:     Project:p1 { id, name }, settled: privateNotes
-6. client records presence for the returned fields, privateNotes as unavailable
-```
+A client selection can request several IDs and nested relations at once. Before
+calling your Sources, the handler groups requirements by entity, takes the union
+of requested fields across screens, keeps only declared fields that pass
+`authorize`, and batches de-duplicated IDs into one `read({ ids, fields,
+windows?, principal })` call per entity.
 
-`privateNotes` never reaches `read`. Authorization happens before application
-data access, while the request still has semantic field names. The answer
-names the field as **settled**, so the client stops asking for it; it does not
-say why. A Selection naming it reads `Failed` with an `Unavailable` error, one
-that does not name it is unaffected, and `Data.refresh` asks again.
+If any selected field is a relation reference, the handler follows the returned
+IDs level by level into the target Entity's Source until every selected branch is
+resolved, then returns normalized patches.
 
-## The read lifecycle
+Key rules enforced by every Entity Source:
 
-An Entity read is more than a direct function call because a Remote selection
-may contain several ids and nested relations. The handler performs the mechanical
-work once so Sources do not have to:
+- Undeclared fields are dropped before `authorize` or `read` runs. Fields,
+  relations, and derived members are all declared on the Entity, so a relation
+  such as `owner` is authorized and followed like any field.
+- Requested fields are matched as own properties returned by your Source, so
+  `constructor` or `__proto__` are settled rather than read from
+  `Object.prototype`.
+- `authorize` can only narrow requested fields; it never adds fields the client
+  did not ask for.
+- A Source may omit a requested field; any omitted field is settled as
+  unavailable so the client stops re-requesting it.
+- Shared IDs across multiple selections are fetched once, and relation targets
+  are batched level by level without redundant fetches.
+- A relation the principal may not read is skipped without following its target.
+- `authorize` runs once per field across all rows; `filter` runs per record
+  after `read` and may request extra fields (such as an owner ID) needed to
+  decide visibility. Members removed by `filter` are settled as unavailable.
+  `foldkit-guard` builds `filter` rules from member guards.
+- A Source or Query Source may declare `visible` (from a Drizzle binding or
+  `RemoteServer.memory`'s `readable`) so startup checks like
+  `GuardServer.validate` can verify row-level rules.
 
-```text
-client requirements
-      |
-      v
-group by Entity
-      |
-      v
-union requested fields
-      |
-      v
-filter declared + authorized fields
-      |
-      v
-batch / de-duplicate ids
-      |
-      v
-Entity Source.read(...)
-      |
-      v
-follow selected relation refs
-      |
-      v
-next Entity Source
-      |
-      v
-normalized patches
-```
-
-A Source therefore receives the useful boundary directly:
-
-```text
-RemoteServer.entity(entity, {
-  read: ({ ids, fields, windows?, principal }) => Effect<
-    ReadonlyArray<{ id: string; values: Record<string, unknown> }>,
-    RemoteServerError,
-    R
-  >,
-
-  authorize?: (principal, fields) => readonly string[]
-
-  filter?: (principal, fields) => Effect<{
-    fields: readonly string[]          // what to read: the allowed fields, and any the decision needs
-    apply: (record) => record          // one record as the principal sees it
-  }, RemoteServerError, R>
-})
-```
-
-Important consequences:
-
-- a field the Entity does not declare never reaches `authorize` or `read`.
-  Its fields, relations and derived members are all declared, so a relation
-  such as `owner` is read and followed like any field;
-- a requested field is client input, answered only when the source returns it
-  as its own: `constructor` or `__proto__` is settled, never read off
-  `Object.prototype`;
-- `authorize` can only remove requested fields, never add new ones;
-- a Source may return a partial entity — a requested field it omits is settled,
-  so the client records it unavailable rather than asking again;
-- ids shared by several selections are de-duplicated;
-- relation targets are fetched level by level and shared targets are not loaded
-  repeatedly;
-- a relation the principal may not read is never followed;
-- `authorize` decides per field, for every row alike; `filter` decides per
-  record, after `read`. It runs once per read (by id or live), may read
-  fields the client did not ask for so it can decide (an owner id, say),
-  and a member it drops from a record is settled like one the Source did not
-  return. `foldkit-guard` builds one from a member's guards.
-- a Source, and a query Source, may carry `visible`: the rule that decides
-  which rows it returns, as it was given one (a Drizzle binding's `visible`,
-  `RemoteServer.memory`'s `readable`). The server never runs it; it is there
-  for a startup check such as `GuardServer.validate` to confirm a Source
-  applies the rule its Entity requires.
-
-The Source should still avoid reading or returning columns the request did not
-ask for. The handler filters returned values again, but the data boundary is the
-best place to preserve least privilege and avoid wasted work.
+Keep your Source queries tight by projecting only `fields` in your database or
+API call: the handler strips extra keys on return, and projecting at the data
+boundary avoids wasted work.
 
 ## Nested selections
 
-Suppose the client projects:
+When a client projects `Project:p1 { id, name, owner { id, name } }`, the
+`Project` Source returns `owner` as a reference (`User:u7`) rather than joining
+or inlining the user row.
 
-```text
-Project:p1 {
-  id
-  name
-  owner { id name }
-}
-```
-
-and the Project Source returns an owner ref:
-
-```text
-Project:p1.owner = User:u7
-```
-
-The handler follows that ref through the `User` Source on the next level:
-
-```text
-Project requirement
-      |
-      v
-Project Source
-      |
-      | owner = User:u7
-      v
-User requirement
-      |
-      v
-User Source
-```
-
-The Sources do not recursively call each other. `RemoteServer` owns traversal,
-depth limits, batching, and de-duplication; each Source still answers only for
-its own Entity.
+`RemoteServer` collects all `owner` refs across the batch and requests their
+selected fields from `UserSource` in one batched level. The Sources never call
+each other recursively: `RemoteServer` handles traversal, depth limits,
+batching, and de-duplication while each Source answers only for its own Entity.
 
 ## Queries
 
@@ -501,7 +353,7 @@ through the whole path; what this package does with each part of a write:
   retried insert, which only a writer's ledger recognises, keeps its first
   time. A retried update is a new write to a server without a ledger, and
   stores the time of the attempt that ran: the same sent `now` while it lies
-  within `clockSkew`, else the server's clock at that attempt (#291). A ledger
+  within `clockSkew`, else the server's clock at that attempt. A ledger
   answers the retry from its record, so the first time stays.
 - **`expect`**: the writer is told the revision the row was read at; no row
   at it is refused as `Refusal.conflict`.
@@ -543,14 +395,14 @@ wrongly:
 
 | `EntityWriter` says | It | Needed by |
 | --- | --- | --- |
-| `preconditions: true` | checks `when` in the statement | a write with a `when` |
-| `invariants: true` | judges the Entity's invariants | a write of an Entity that has any |
-| `postconditions: true` | judges the write's `ensures` (a `becomes` enumeration could not decide) beside them, handed to `update` and `insert` | a write with one |
-| `increments: true` | adds `increments` in the statement | a write with an increment |
-| `assignments: true` | computes `assignments` in the statement | a write with a computed assignment |
-| `ledger: true` (with `recorded`) | records each update and insert under its `operation`, and answers a retry from the record | an increment or computed assignment with no `expect` |
-| `requires: true` | holds the row to `requires` | `GuardServer.writer` over a rule reading another row, which throws where it is made without it |
-| `refuses(write)` | names what only its store knows it cannot land (the Drizzle writer: a fractional amount for an integer column) | every write, asked once |
+| `preconditions: true` | checks `when` in the write statement | a write with a `when` |
+| `invariants: true` | judges the Entity's invariants | a write of an Entity with invariants |
+| `postconditions: true` | judges `ensures` beside invariants on `update` and `insert` | a write with `ensures` |
+| `increments: true` | adds `increments` in the write statement | a write with an increment |
+| `assignments: true` | computes `assignments` in the write statement | a write with a computed assignment |
+| `ledger: true` (with `recorded`) | records each update and insert under its `operation` | an increment or computed write without `expect` |
+| `requires: true` | holds the row to `requires` | `GuardServer.writer` over cross-row rules |
+| `refuses(write)` | names store limits (such as fractional ints in Drizzle) | every write, checked before execution |
 
 A writer with a `read` (the row as a principal may see it, under the read
 rule its Source applies) answers through it: the patch is the written row as
@@ -569,11 +421,7 @@ A Source answers the rows it changed; the client says what it shows of them.
 entity, every field its optimistic layer shows, and the supplied members a
 created or edited row foresees (`may`) (`shown`). After the Source runs, the handler reads, of each row the
 outcome names (a patch, or a list insert), the shown fields the patch left out
-and every shown relation, and answers that read beside the patch (`read`):
-
-```text
-outcome rows × client's shown fields − fields the patch carries -> read -> answer
-```
+and every shown relation, and returns that read beside the patch (`read`).
 
 So a declared write, which answers the columns it stored, also answers the
 derived count, the `may` and the author's name the page reads of the row, and
@@ -600,12 +448,9 @@ not read.
 A request also names the lists the client judges the write moves (`lists`):
 each the first page of a query, as the client's read entry would ask for it.
 The handler admits them before the write runs, then reads each after it with
-the query's own handler, so the page is what `FoldkitRemoteQuery` would answer,
-`authorize` and `filter` included, and answers them beside the rows (`lists`):
-
-```text
-request lists -> admitted (before the write) -> read as queries (after it) -> answer.lists
-```
+the query's own handler, so the page is what `FoldkitRemoteQuery` would answer
+(`authorize` and `filter` included), and returns them beside the rows in
+`answer.lists`.
 
 A list is admitted when its query is one the server serves, its window is a
 first page (`first`, no `after`), its `select` names the query's Entity within
@@ -620,11 +465,9 @@ through a `one` relation, before and after the write, through the writer's
 `linked`, where that link can change one of the row's derived members: a
 `Derived.count` or `Derived.exists` over that relation, or any supplied member
 (`Derived.make`), which may read anything. Inserting a `Like` reads what the
-page shows of its post, the new `likeCount` included
-([#233](https://github.com/doeixd/foldkit-plus/issues/233)), and not its user,
+page shows of its post, the new `likeCount` included, and not its user,
 whose members no like changes. A member declared after `Entity.relate` counts:
-the Entity has one set of members, whichever descriptor declared them
-([#332](https://github.com/doeixd/foldkit-plus/issues/332)). A row's derived
+the Entity has one set of members, whichever descriptor declared them. A row's derived
 members change only with the rows pointing at it, so no app names them. These rows are read, never sent as patches of their own: one the
 asker may not see is not answered at all. Live subscribers hear the outcome's
 own patches, not the read, which is one asker's view.
@@ -817,24 +660,15 @@ or the other for a given subscription path rather than mixing cursor domains.
 
 ## Authentication vs authorization
 
-Keep these boundaries separate:
+Keep authentication and authorization at separate boundaries:
 
-```text
-authentication
-  "Who is making this request?"
-  Effect RPC middleware / application
-             |
-             v
-          Principal
-             |
-             v
-authorization
-  "Which semantic fields may this principal read?"
-  RemoteServer.entity(... authorize ...)
-```
+- **Authentication** ("who is making this request?") runs in your Effect RPC
+  middleware or HTTP handler and resolves a `Principal`.
+- **Authorization** ("which semantic fields may this principal read?") runs in
+  `RemoteServer.entity(..., { authorize })`.
 
-`RemoteServer.handlers(Server, principal)` deliberately receives a resolved
-principal. It does not inspect headers, sessions, cookies, or bearer tokens.
+`RemoteServer.handlers(Server, principal)` receives an already-resolved
+principal rather than inspecting headers, sessions, cookies, or bearer tokens.
 The principal is a value, or a Context key that each call reads, so one
 handler set (one RPC layer) answers every request and authentication provides
 the key per request:
@@ -958,20 +792,11 @@ does not choose HTTP, WebSocket, or another transport for you.
 
 ## Runtime dependencies belong to Sources
 
-Sources are Effects, so dependencies stay explicit:
+Sources are Effects, so dependencies stay explicit: a `Project` Source can
+require `Database` and a `Billing` Query Source can require `BillingApi`, making
+the composed `RemoteServer` require `Database | BillingApi`.
 
-```text
-Project Source
-    requires Database
-
-Billing Query Source
-    requires BillingApi
-
-RemoteServer
-    requires Database | BillingApi
-```
-
-The server definition does not capture either service. Provide their Layers at
+The server definition leaves both services uncaptured; provide their Layers at
 the application boundary. This is also why `foldkit-remote-drizzle` provides
 Drizzle-backed Sources rather than putting a database inside `RemoteServer`.
 
@@ -1512,15 +1337,15 @@ prerendered page naming the first read that was not.
 ### Keeping public reads: `cache`
 
 A read every visitor gets the same answer to costs the same work every
-time it is asked. With `cache`, `serveFetch` keeps such reads and answers
-them again from a store, without asking a Source:
+time it is asked. With `cache`, `serveFetch` keeps public reads in a store and
+answers them without asking a Source:
 
-```text
-a read -> public? (no rule about who asks, freshness declared)
-       -> yes: answered as the visitor, kept by its body for maxAge
-       -> no:  answered as who asks, cache-control: private, no-store
-a write -> purges every kept read holding a row it names, and every list of that row's entity
-```
+- **Public read** (no per-caller rule and freshness declared): answered as the
+  visitor and kept in the store for `maxAge`.
+- **Private read**: answered as the authenticated caller with
+  `Cache-Control: private, no-store`.
+- **Write**: purges every kept read holding a row it names and every list of
+  that row's entity.
 
 The domain declares how long a read stays fresh; it never says who may
 share it. An Entity says it with `EdgeCache.of`, a Query with `cache`:
@@ -1645,10 +1470,10 @@ its message:
 
 | What happened | What the caller reads |
 | --- | --- |
-| A refusal the application wrote: `RemoteServer.refuse`, `forbid`, `unauthenticated`, a writer's `unmet`, `taken` or `invalid` | the refusal, its message and its reason, as written; of a `forbid` or an `unauthenticated`, `answer` and `serveFetch` send the reason, or `Forbidden` or `Unauthenticated` when it has none |
+| Application refusal (`refuse`, `forbid`, `unauthenticated`, `unmet`, `taken`, `invalid`) | the refusal's message and reason (or `Forbidden` / `Unauthenticated`) |
 | `RemoteServer.tell(message)` | `message`, as written |
-| The request itself is at fault: an unknown query or mutation, an input its Schema refuses, too many ids, another protocol version | the server's fixed sentence, naming only what the request said |
-| Anything else: a `RemoteServerError` not made with `tell`, anything thrown in a Source, an `authorize`, a `filter`, `memory`'s `readable` or an operator, a defect, a mutation output its Schema refuses | `Internal error`, and an `incident` |
+| Bad request (unknown query/mutation, Schema mismatch, too many IDs, wrong protocol) | a fixed sentence naming only what the request sent |
+| Unclassified failure or defect in a Source, `authorize`, `filter`, or operator | `Internal error`, and an `incident` |
 
 So a failure nobody classified is this side's: its message and cause are
 reported as a `ServerDefect` [diagnostic](#diagnostics) and never sent. A
@@ -1739,10 +1564,14 @@ channel, re-exported by `foldkit-remote`), which by default is Effect's log:
 
 | `_tag` | `level` | When |
 | --- | --- | --- |
-| `ServerDefect` | `error` | Something on this side broke (a Source's failure not made with `RemoteServer.tell`, a thrown error, a layer, a resolver, a handler's defect). It carries the `cause`, the `incident` a caller was answered with, and `during`: what was asked (`read Note`, `query Notes`, `mutate SaveNote`, `live Note`, or `request` where no handler was reached). |
-| `AnswerUnread` | `warning` | A mutation committed, but reading its answer failed: the client reads those rows again. |
-| `PublishFailed` | `error` | A mutation committed, but its live publish failed: live subscribers do not hear it. |
-| `ClockSkewed` | `warning` | A write's time was past `clockSkew` from the server's clock (a client clock that is off, or a durable write that waited), so the server wrote its own; it carries `sent`, `own` and `bound`. |
+| `ServerDefect` | `error` | Unclassified Source failure, thrown error, broken layer, or handler defect |
+| `AnswerUnread` | `warning` | Mutation committed, but reading its answer failed; client re-reads |
+| `PublishFailed` | `error` | Mutation committed, but its live publish failed; subscribers miss it |
+| `ClockSkewed` | `warning` | Client write timestamp exceeded `clockSkew`; server used its own clock |
+
+`ServerDefect` carries the `cause`, the `incident` returned to the caller, and
+`during` (`read Note`, `query Notes`, `mutate SaveNote`, `live Note`, or
+`request`). `ClockSkewed` carries `sent`, `own`, and `bound`.
 
 Provide another reporter as any service: `Layer.succeed(Diagnostics.Reporter,
 report)` in the layer the handlers run in. `serveFetch` takes one with the

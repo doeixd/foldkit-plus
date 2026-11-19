@@ -1,70 +1,54 @@
 # foldkit-entity
 
-A domain declared once as typed values, which other packages interpret: each
-Entity's fields, relations and derived members, and over them a small language
-for which rows (`Expr`, `Query`), what a write does to one (`Write`), and what
-every stored row must hold (invariants). This package only describes, and
-gives the language its reference meaning over rows already in hand.
+In most TypeScript apps, the same `Product` or `Post` gets written four times:
+once for SQL tables and queries, once for server input validation, once for form
+fields and error messages, and once for client filters and optimistic updates.
+Every copy can drift from the others, so the browser lets someone click a button
+that the server rejects.
 
-New to the idea of one declared domain? Start with the guide,
-[One domain declaration](../../docs/entity.md), which carries a small domain
-through every reader; this README is the reference for each declaration. For
-the whole path in one runnable trace, domain to client to SQL, see
-[`examples/entity`](../../examples/entity).
+`foldkit-entity` lets you declare your domain once as typed data — fields,
+relations, derived counts, invariants, queries, and writes — without importing a
+database driver or a UI framework. Other packages interpret that one declaration:
+`foldkit-remote-drizzle` compiles queries, writes, and invariants to SQL;
+`foldkit-remote` queries and updates normalized rows in the browser;
+`foldkit-form` derives form controls and validation; and `foldkit-guard`
+attaches row-level permissions.
 
-## What it owns
+See a full app built from one domain declaration running live at
+[foldkit-chirp-demo.pages.dev](https://foldkit-chirp-demo.pages.dev/) and in
+[`examples/entity`](../../examples/entity), or read
+[One domain declaration](../../docs/entity.md) for a step-by-step walkthrough.
 
-`foldkit-entity` owns **domain structure**: which members an entity has, what
-kind each is, and which entity a relation points to. It also owns the
-**meaning** of the declarations made over it: what a query body, a declared
-write and an invariant say, as values every interpreter reads the same way.
+## What your domain module holds and who runs it
 
-It does not own:
+A domain declaration is pure data split into parts with clear owners:
 
-- **Validity of one value.** `entity.schema` is an ordinary Effect
-  `Schema.Struct` and stays the rule for a value. An invariant adds only what a
-  Schema cannot judge: a rule across fields, or between a row before and after
-  a write.
-- **Storage or fetching.** A relation says "one Author", not "a foreign key" or
-  "a join table". A query body fetches nothing; `foldkit-remote-drizzle`
-  compiles it, and `foldkit-remote` judges the rows it holds by it.
-- **Operations.** An Entity implies no create, update, or delete. A `Write`
-  is declared by an operation, and an Entity having a field grants no one the
-  right to set it.
-- **Who may.** Authorization is `foldkit-guard`'s, written in the same `Expr`.
-- **Application state.** Nothing here touches a Model or dispatches a Message.
+- **Fields and schemas (`Entity.define`):** intrinsic values backed by an
+  Effect `Schema.Struct` that validates single-field values.
+- **Relations (`Entity.relate`):** typed `one` and `many` navigation edges
+  between Entities, independent of foreign keys or join tables.
+- **Derived members (`Entity.derived`):** read-only counts (`Derived.count`),
+  viewer existence flags (`Derived.exists`), or server-supplied values
+  (`Derived.make`).
+- **Context-set members (`Entity.sets`):** values filled on write from
+  `Expr.viewer` or `Expr.now`.
+- **Invariants and states (`Entity.invariant`, `Entity.refine`):** rules across
+  fields or across `before`/`after` rows, plus named row states.
+- **Operations (`Entity.select`, `Query`, `Write`):** explicit projections of
+  what a view reads, which rows a query returns, and what a mutation writes.
 
-Its readers are the neighbouring packages. `foldkit-remote`
-[registers Entities and reads Selections and query bodies](../remote/README.md#entities-declared-with-foldkit-entity),
-and judges the rows it holds by them. `foldkit-remote-drizzle` binds a related
-set to tables with
-[`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain) and
-compiles bodies, writes and invariants to SQL. [`foldkit-form`](../form/README.md)
-builds a form from `Entity.input`, [`foldkit-crud`](../crud/README.md) joins
-one to a Remote operation, and `foldkit-guard` writes its rules as `Expr`.
+| Concern | Package that owns it |
+| --- | --- |
+| Domain structure, `Expr`, `Query`, `Write` | `foldkit-entity` |
+| SQL compilation and database storage | `foldkit-remote-drizzle` |
+| Normalized client cache and subscriptions | `foldkit-remote` |
+| Form drafts and field validation | `foldkit-form` |
+| Who may read or change each row | `foldkit-guard` |
+| Application state and Messages | Your Foldkit `Model` and `update` |
 
-## Mental model
-
-An Entity is declared once, as data. It has:
-
-- **fields**: intrinsic values, the properties of `entity.schema`;
-- **relations**: navigation edges, one or many of another Entity (`Entity.relate`);
-- **derived** values: readable values an interpreter supplies, such as counts or finds;
-- **members**: all three under one namespace, so keys never collide;
-- **sets**: members the write's context fills (who asks, when);
-- **invariants**: what every stored row must hold (`Entity.invariant`).
-
-Over an Entity, also as data, a **Selection** says which members a consumer reads
-(`Entity.select`), a **Query** says which rows in which order (`Query.from` and
-`Expr`), and a **Write** says what one operation does to one row (`Write.update`,
-`insert`, `delete`).
-
-An interpreter reads all of that and runs it: SQL, or the client's store. Through
-`foldkit-metadata` it can attach to an Entity or a member what it needs.
-
-A declaration is checked where it is made wherever it can be: a type error
-where the types can see it, a throw for what they cannot. An interpreter that
-cannot run something refuses it by name rather than skipping it.
+Declarations are checked where they are written: mismatches fail at compile
+time when TypeScript can see them and throw at startup when it cannot, and
+interpreters refuse unsupported query operations by name.
 
 ## Install
 
@@ -72,40 +56,62 @@ cannot run something refuses it by name rather than skipping it.
 pnpm add effect foldkit-entity
 ```
 
-## Sixty seconds: describe one read
+## A first query
+
+This declares a `Task` entity, filters for unfinished tasks with a `Query`, runs
+that query in memory with `evaluate`, and declares a minimal `TaskTitle`
+selection for a view:
 
 ```ts
 import { Schema } from 'effect'
-import { Entity, type Selected } from 'foldkit-entity'
+import { Entity, Expr, Query, evaluate, type Selected } from 'foldkit-entity'
 
-const Task = Entity.define('Task', Schema.Struct({
-  id: Schema.String,
-  title: Schema.String,
-  done: Schema.Boolean,
-}))
+const Task = Entity.define(
+  'Task',
+  Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean }),
+)
+
+const OpenTasks = Query.from(Task).pipe(Query.where(Expr.eq(Task.fields.done, false)))
+const rows = [
+  { id: 't1', title: 'Write schema once', done: true },
+  { id: 't2', title: 'Run query in memory', done: false },
+]
+
+evaluate(OpenTasks, {}, rows)
+// [{ id: 't2', title: 'Run query in memory', done: false }]
+
 const TaskTitle = Entity.select(Task, { id: true, title: true })
-type TaskTitle = Selected<typeof TaskTitle> // the value it reads
-const value: TaskTitle = { id: 't1', title: 'Read the guide' }
+type TaskTitle = Selected<typeof TaskTitle> // { id: string; title: string }
 ```
 
-`Task` describes the domain. `TaskTitle` describes one consumer's result shape;
-it does not query a database or allocate a cache. Its schema validates that
-shape when an interpreter produces data. A selection does not include `done`
-unless you select it.
-
-Next, hand the Entity to Remote for client reads or bind it to Drizzle tables
-on the server. Declare operation input separately when adding a form: selecting
-readable fields does not grant permission to write them.
+`evaluate` runs `OpenTasks` over in-memory rows and returns only `t2`. The same
+`OpenTasks` value compiles to `WHERE done = false` in `foldkit-remote-drizzle`
+and filters cached rows in `foldkit-remote`. `TaskTitle` narrows reads to `id`
+and `title` and carries a `schema` for decoding responses; operation inputs are
+declared separately with `Entity.input` so readable fields stay distinct from
+writable ones.
 
 ## Where to go next
 
-| To | Reference, here | Taught in |
-| --- | --- | --- |
-| Declare Entities, relations and derived members, and select what a reader wants | [Relations and derived values](#relations-and-derived-values), [Selecting a view](#selecting-a-view), [variants](#rows-of-several-shapes-variants) | [One domain declaration](../../docs/entity.md) |
-| Say which rows, and judge one you hold | [`Expr`, `Query`, `Judge`](#saying-something-about-a-row-expr) | [Expressions](../../docs/expressions.md) |
-| Read an operation's input and declare what it writes | [Reading an operation's input](#reading-an-operations-input), [Declaring what an input writes](#declaring-what-an-input-writes) | [Declared writes](../../docs/declared-writes.md) |
-| Say what every row must hold, and check every write against it | [Invariants](#what-every-row-and-change-must-hold-invariants), [States and `Laws.check`](#states-of-a-row-and-what-every-write-does-to-them) | [Laws](../../docs/laws.md) |
-| Name a question an interpreter answers its own way | [Operators](#naming-a-question-operators) | [Operators](../../docs/operators.md) |
+- **Entities, relations, derived members, selections, variants:**
+  [Relations and derived values](#relations-and-derived-values),
+  [Selecting a view](#selecting-a-view), and
+  [Rows of several shapes: variants](#rows-of-several-shapes-variants) (taught in
+  [One domain declaration](../../docs/entity.md))
+- **Queries and in-memory evaluation:**
+  [`Expr`, `Query`, `Judge`](#saying-something-about-a-row-expr) (taught in
+  [Expressions](../../docs/expressions.md))
+- **Operation inputs and declared writes:**
+  [Reading an operation's input](#reading-an-operations-input) and
+  [Declaring what an input writes](#declaring-what-an-input-writes) (taught in
+  [Declared writes](../../docs/declared-writes.md))
+- **Invariants, states, and `Laws.check`:**
+  [Invariants](#what-every-row-and-change-must-hold-invariants) and
+  [States and `Laws.check`](#states-of-a-row-and-what-every-write-does-to-them)
+  (taught in [Laws](../../docs/laws.md))
+- **Custom and kernel operators:**
+  [Naming a question: operators](#naming-a-question-operators) (taught in
+  [Operators](../../docs/operators.md))
 
 ## Relations and derived values
 
@@ -196,20 +202,14 @@ target is found when `relate` runs.
 
 ### One Entity, several descriptors
 
-An Entity has **one set of members**, and one set of invariants.
-`Entity.relate`, `Entity.derived`, `Entity.sets` and `Entity.invariant` add
-to it, and every descriptor of the Entity reads it: the one declared before
-`relate`, the one a relation's `target()` returns, the one a query captured.
-Metadata is the exception: `Entity.annotate` and `Entity.annotateMembers`
-return a new descriptor that carries its own, so one reader's view (a form's
-labels) stays its own. Compare descriptors with `Entity.same(a, b)`, not
-`a === b`.
-
-```text
-identity ── relations, derived, sets, invariants   one per Entity; relate / derived / sets / invariant add
-   ├── descriptor  fields, metadata                 define, relate, derived, sets, invariant return it
-   └── descriptor  fields, metadata'                annotate / annotateMembers make one
-```
+Every Entity has **one shared identity** holding its fields, relations, derived
+members, sets, and invariants. `Entity.relate`, `Entity.derived`, `Entity.sets`,
+and `Entity.invariant` attach to that identity, so descriptors returned before
+`relate`, from `target()`, or captured in a query all read the same members.
+Metadata is scoped per descriptor: `Entity.annotate` and `Entity.annotateMembers`
+return a fresh descriptor carrying its own labels or options so one view keeps
+its annotations separate. Compare descriptors with `Entity.same(a, b)` rather
+than `===`.
 
 A descriptor's *type* still shows only the steps it came through: read typed
 members from the descriptor `relate` returned, or a later one.
@@ -291,8 +291,8 @@ Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
 ## Selecting a view
 
 A Selection names the members a consumer wants and carries the schema of the
-value that results. It does not fetch that value; whoever produces it (a server
-adapter, a test, a form) decodes against `selection.schema`.
+value that results. Whoever produces the data (a server adapter, a test, or a
+form) decodes against `selection.schema`.
 
 ```ts
 const AuthorOption = Entity.select(Blog.Author, { id: true, name: true })
@@ -414,10 +414,9 @@ const isPublished = Expr.eq(Blog.Post.fields.published, true)
 const newestTerms = [Order.desc(Blog.Post.fields.title), Order.asc(Blog.Post.fields.id)]
 ```
 
-Building one performs no work: it reads nothing, names no database, and runs no
-query. An interpreter runs it (`foldkit-remote-drizzle` compiles it to SQL,
-`evaluate` judges rows in memory), which is what lets one query mean the same
-thing in more than one place.
+Building one produces pure data; an interpreter runs it
+(`foldkit-remote-drizzle` compiles it to SQL, `evaluate` judges rows in memory),
+so one query means the same thing on client and server.
 
 > **Why `evaluate` lives here.** It is the reference semantics of the
 > language: what each operation means over rows already in hand. It may depend
@@ -612,8 +611,8 @@ const oneOf = Query.from(Blog.Post).pipe(published, Query.where(byTitle))
 ```
 
 `published` and `newest` are fragments: written once, piped into any query over
-the same Entity. Composing performs no work — no table is named, no connection
-opened, nothing read. A fragment over another Entity is refused where it is
+the same Entity. Composing builds an immutable query value; an interpreter runs
+it when asked. A fragment over another Entity is refused where it is
 piped: a predicate's type names the Entities its fields belong to, so
 `Query.from(Blog.Post).pipe(Query.where(Expr.eq(Blog.Comment.fields.body, 'x')))`
 reads `a predicate reads Comment, but the query is from Post`, and an ordering
@@ -915,14 +914,14 @@ a bound parameter, `contains` is named rather than rendered as somebody's
 `like`, and no dialect's escaping or collation is implied. `Expr.show(node)`
 does the same for one expression.
 
-A `Query` says which rows. It does not say which fields (a Selection does),
-how many, whether absence is an error, or whether to watch for changes: those
-belong to the consumer doing the reading.
+A `Query` specifies which rows to match and how to order them. Which fields to
+return belongs to a Selection, while page sizes, missing-row handling, and live
+updates belong to the consumer running the query.
 
 ## Rows of several shapes: variants
 
-> Experimental (#357): the Entity, its Selections and `Expr`. Remote's
-> store, forms and guards read the stored row for now.
+> Experimental: covers the Entity, its Selections, and `Expr`. Remote's store,
+> forms, and guards read the stored row for now.
 
 A domain search answers `Available`, with a price and a term, or
 `Unconfirmed`, with neither. `Entity.defineVariants` declares that as one
@@ -941,13 +940,12 @@ const priceOf = (row: typeof Domain.variants.Type) =>
   Domain.variants.match(row, { Available: ({ price }) => price, Unconfirmed: () => 0 })
 ```
 
-One Entity has two views of one row:
+One Entity exposes two views of each row:
 
-```text
-row          Domain.variants      { _tag: 'Available', id, name, price, years }
-                                | { _tag: 'Unconfirmed', id, name }
-stored row   Domain.fields        { _tag, id, name, price | null, years | null }
-```
+| View | Shape |
+| --- | --- |
+| Typed row (`Domain.variants`) | `{ _tag: 'Available', id, name, price, years } \| { _tag: 'Unconfirmed', id, name }` |
+| Stored row (`Domain.fields`) | `{ _tag, id, name, price \| null, years \| null }` |
 
 - **The stored row** is what `fields` and `schema` describe: `_tag`, every
   field all cases have as declared, and every other field nullable, since a
@@ -1011,10 +1009,10 @@ would say which case a row is.
 > Experimental: the smallest mapping that several operation shapes and
 > [`foldkit-form`](../form/README.md) needed.
 
-An Entity does not decide what may be written; an operation does (a Remote
-mutation, an RPC, a form). `Entity.input` takes that operation's input schema
-and says what each key means in terms of the Entity, so a consumer can find the
-field's metadata for a label, or the relation's target for a picker.
+Each operation (a Remote mutation, an RPC, or a form) decides its own input
+schema. `Entity.input` takes that operation's input schema and maps each key to
+the Entity so consumers can read field metadata for labels or relation targets
+for pickers.
 
 ```ts
 const CreatePostInput = Schema.Struct({
@@ -1119,8 +1117,8 @@ Write.bind(Edit, { id: 'p1', title: 'Compilers' })
 // { entity: 'Post', id: 'p1', values: { title: 'Compilers' }, links: {}, increments: {}, assignments: {} }
 ```
 
-It is declared data, like a query body: nothing is written by building one, and
-an Entity having a field grants no one the right to set it. `bind` encodes each
+A `Write` is pure data, like a query body: an interpreter executes it, and only
+fields mapped by the operation can be set. `bind` encodes each value through its
 value through its field's schema, so the patch is in the store's shape, and
 takes the keys to write when an author changed only some. `expect` names a key
 holding the revision the row was read at, for an interpreter to write only a row
@@ -1171,9 +1169,9 @@ declared. `Write.contextValues(write, { viewer, now }, read)` works out what
 they come to, `read` giving one member of one row at a time for a path. Each interpreter fills them from what
 it has: a server from its principal and its clock, a client as a prediction. A
 value that comes to null where the member holds none (a visitor) is named
-`unfilled`: a server refuses the write, a client predicts nothing for it.
-Nothing else about what a write does is declared anywhere: what it moves is
-read from the Entities' derived members and the queries' bodies.
+`unfilled`: a server refuses the write, and a client omits the prediction.
+Which lists and counts a write updates follows from your Entities' derived
+members and query bodies.
 
 ### When a write applies: `when`
 
@@ -1324,12 +1322,10 @@ Entity.judge(Order, { before: shipped, after: { ...shipped, status: 'placed' } }
 // { _tag: 'Invalid', failures: [{ id: 'shippedStaysShipped', … }] }
 ```
 
-What a rule reads decides when it is judged; nothing else is stored:
-
-```text
-reads after only   -> state invariant:      every create and update; a CHECK constraint
-reads before too   -> transition invariant: every update, the only write with a row before
-```
+What a rule reads determines when it runs: rules reading only `after` are
+**state invariants** (checked on every create and update, compiled to a SQL
+`CHECK` constraint), and rules reading `before` too are **transition
+invariants** (checked on updates).
 
 `Entity.readsBefore(invariant)` says which one is, for each of
 `Entity.invariants(entity)`, whichever step declared it.
@@ -1630,11 +1626,11 @@ of these that decides it:
 
 | Case | Verdict |
 | --- | --- |
-| A state invariant, and the write writes no member it reads | `Kept`, by disjointness |
-| Every member it reads is finite (a literal, a union of literals, a boolean, with or without null), and the write changes each only by setting it | Enumerated: `Kept`, or `Refused` with the rows that break it |
-| The rule holds whatever the members it cannot enumerate hold: closing an account leaves "while open, the balance is not negative" nothing to bind | `Kept`, `vacuous` |
-| The numbers it reads, bounded, decide it (below) | `Kept`, `bounds`; or `Refused` with a witness |
-| Anything else: free text, a link, a relation between two unknowns, an operator with no monotonic law, more than 4,096 rows | `Undecided`, with the reason and an `obligation` |
+| State invariant; write changes none of its fields | `Kept`, by disjointness |
+| Finite fields set directly by the write | Enumerated: `Kept`, or `Refused` with witness |
+| Rule holds vacuously for non-enumerable fields | `Kept`, `vacuous` |
+| Bounded numbers decide the inequality | `Kept`, `bounds`; or `Refused` with witness |
+| Unbounded text, links, or > 4,096 combinations | `Undecided`, with reason and `obligation` |
 
 A transition invariant is never kept by disjointness: `after.count >
 before.count` is broken by every write that leaves `count` alone. Rows are not
@@ -1779,7 +1775,7 @@ Query.show(PublicStories)
 // WHERE acme.published(Story.publishedAt)
 ```
 
-- **It computes nothing of its own, and reads only its arguments.**
+- **Expands purely from its arguments:**
   `definedAs` builds an expression from a call's arguments, once per call, and
   every interpreter runs that expression (`Expr.expanded` writes a predicate's
   calls out); one that closes over a field or an input instead of taking it is
@@ -1881,8 +1877,9 @@ refused where it is written.
 ### Laws, and holding an implementation to them
 
 An operator may declare the equations every implementation of it keeps. A law
-describes: nothing rewrites a body by one. `Conformance.laws` tests an
-implementation against them, and what it finds is evidence its table records.
+is descriptive: interpreters execute expressions as written without algebraic
+rewrites. `Conformance.laws` tests an implementation against them, and what it
+finds is evidence its table records.
 
 ```ts
 import { Schema } from 'effect'
@@ -1984,96 +1981,90 @@ server on different deploys see which side is behind.
 - A member is added once per Entity: two pipe chains from one descriptor that
   each add `score` are refused, as one chain adding it twice is. Adding the very
   spec again (`Guards.may` on a second view) is the member it added.
-- No registry: nothing checks that two different entities share a name.
+- **Value identity:** Entities have no global name registry; share references by
+  importing the Entity values themselves.
 
-## API
+## Summary of exports
+
+### Entities, relations, and selections
 
 | Call | Meaning |
 | --- | --- |
-| `Entity.define(name, struct)` | A new Entity with a Field per property. |
-| `Entity.defineVariants(name, { Case: fields, … })` | Experimental. An Entity whose row is one of its cases: `variants` is their tagged union, `fields` the stored row (`_tag`, shared fields, the rest nullable), with an invariant per case. |
-| `Entity.selectionSchema(entity, schemas)` | The schema a Selection of those members reads, given each one's schema: a Struct, or a variant Entity's union when `_tag` is among them. What an interpreter reading members its own way (Remote's refs) builds a Selection's value with. |
-| `Entity.variantsOf(entity)` | An Entity's variants for an interpreter (the union, each case's fields, the codec from a stored row to its case), or none. |
-| `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
-| `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result; a tagged union of cases for a variant Entity whose `_tag` is selected. |
-| `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
-| `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
-| `Write.update(input, { id, expect?, when?, from?, becomes?, increment?, decrement? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when` (`({ row, input }) => predicate`), what the row must hold for it to land; `from`, a state whose predicate joins the `when`; `becomes`, the state every row it starts from is in once it lands, proved where declared or else held where it commits (`ensures`); `increment` and `decrement`, the number fields it adds an input amount to or takes one from. |
-| `Write.insert(input, { id, becomes? })` / `Write.delete(input, { id, expect?, when?, from? })` | A declared insert under an id the client chose; a declared delete of one row, which sets nothing. |
-| `Write.ensured(write)` | The postcondition a `becomes` enumeration could not decide holds the write to where it commits (`becomes:<State>`), for `Refusal.isInvalidBy`; throws for a write with none. |
-| `Write.footprint(write)` | What a write reads and writes of its row, by field key, as a `Footprint.Derived`. |
-| `Entity.refine(entity, name, { field: value } or ({ row }) => predicate)` | A named state of the row, declared on the Entity: `predicate`, `after`, `local`, `reads`, `is(row)`. |
-| `Entity.states(entity)` / `Entity.inState(state, row, operators?)` | Every state declared on an Entity; whether a stored row is in one (`Option`, none where it lacks a field the state reads). |
-| `Query.from(state)` | Every row in a state: the Entity's query with its predicate in `where`. |
-| `Laws.check({ writes, operators? })` / `Laws.show(report)` | Each write (`{ name, write }` or `{ name, entity, footprint }`) against each invariant of its Entity, and the arrows between its states, by enumeration over finite fields and intervals over numbers: a `LawReport` of `pairs` (each with its `Enumerated` or `Bounded` `evidence`, if decided kept; a refusal's `witness`; an undecided pair's `obligation`), `arrows`, `states`, `findings` and `totals`; the report as text, each witness under its line. |
-| `Laws.facts(report)` / `Laws.transition(entry)` / `Laws.law(invariant)` | The report as graph facts (`LawFacts`: `LawNode`s and `LawEdge`s); a transition's id (`write:Sell`) and a law's (`Product.reservedWithinStock`) in evidence and the graph. |
-| `lawFactsOf(entries)` | `Laws.check`'s entries as graph facts, read off the declarations with no check run: what `Graph.of` derives a contract's `laws.entities` with. |
-| `Footprint.declared({ reads?, writes, by })` / `Footprint.unknown` | What a transition that is no declared write reads and writes, on whose word; or nothing known, which writes every member. |
-| `Write.reads(write)` | The fields a write reads from its row: its `when`'s, each it increments, its assignments', the revision. |
-| `Write.update(input, { …, compute })` / `Computation` | A field computed from the row before the write and the input, carried as data. |
-| `Write.apply(row, bound, { operators })` / `Write.boundReads(bound)` | The row a bound write leaves, and what of the row before it that needs. |
-| `Write.writes(write)` / `Write.bind(write, value, keys?)` | The fields it may change; the row and values one input writes, encoded as the store holds them. |
-| `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
-| `Relation.nested(relation, input)` | In an input mapping: the key holds the target itself, written through `input`. |
-| `Entity.selectFor(input, { also? })` | The Selection of the members an input writes, and `also` beside them: what an edit screen loads. |
-| `Entity.valuesFor(input, value)` | The input values that reproduce a loaded value: fields as they are, refs as ids. |
-| `Entity.derived({ key: Derived.make(schema, { predict?, forbids? }) })` | Pipe step adding readable, externally supplied members; `predict` and `forbids` say what a client foresees of one. |
-| `Derived.count(Other.relations.pointer)` | A derived member counting the rows whose `one` relation points at this one. |
-| `Derived.exists(Other.relations.pointer, { viewer: Other.relations.by })` | The id of a row pointing at this one and at whoever reads it, or none. |
-| `Entity.invariant(id, ({ before, after }) => predicate, { message, path, in? })` | Pipe step: what every stored row must hold, judged over the row a write leaves; `in: State` binds it to rows in that state. |
-| `Entity.judge(entity, { after, before? })` / `Entity.check(entity)` | Judge rows against the invariants (`Valid`, `Invalid`, `Undecided`); the state invariants as a Schema check. |
-| `Entity.transition(id, ({ before, after }) => predicate, { message, path, in? })` | Pipe step: the rule `Entity.invariant` stores, refused where it is declared when it reads nothing of `before`. |
-| `Entity.invariants(entity)` / `Entity.readsBefore(invariant)` | The invariants an Entity holds; whether one reads the row before (a transition invariant). |
-| `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
-| `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
-| `Entity.same(a, b)` | Whether two descriptors are of one Entity. |
-| `Selected<typeof selection>` | Type: the value a Selection reads (its `schema`'s `Type`). |
-| `Words.of(schema)` | A schema's `title` and `description`, each an `Option`, including a title given before a check. |
-| `Entity.is(value)` | Whether a value is an Entity descriptor. |
-| `Expr.eq(left, right)` | Two values are the same: a field (or an expression) on the left, and the value on the right, which is typed from it; a predicate may stand where a boolean is wanted. A plain value on the left is a compile error that says so. |
-| `Expr.isNull(field)` / `Expr.isNotNull(field)` | Whether a value is absent; one node, with the answer absence gives flipped. |
-| `Expr.contains(field, search)` | Whether text contains a value or an input's text, over a text or nullable-text operand only. Containing the empty string is everything, but a null contains nothing. |
-| `Expr.in(field, among)` | Whether a value is one of a list (written out, or an input), each compared as `eq` compares; SQL's `in`, an empty list matching nothing. |
-| `Expr.and(a, b, …)` / `Expr.or(a, b, …)` | Every operand holds / at least one does, as SQL's three-valued `and` and `or`. At least one operand; a nested one of the same kind is flattened in. |
-| `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
-| `Expr.implies(condition, then)` | `then` holds wherever `condition` does: `Expr.or(Expr.not(condition), then)`, the same nodes. |
-| `Expr.add(a, b)` / `Expr.sub(a, b)` | A sum, a difference of two numbers: the kernel's primitive operators `number.add` and `number.subtract`, run by every reader; null if either side is null. |
-| `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
-| `Expr.is(entity or relation, tag, fields => predicate?)` | The row, or the row a `one` relation reaches, is of a case of a variant Entity, and holds what is asked of that case's fields, typed as the case holds them. False on another case. |
-| `Expr.path(relation, end)` | What the row a `one` relation points at holds: a field, a further path, or an exists; null where no row is reached. At most `maxPathLength` (4) relations. |
-| `Entity.sets({ member: Expr.viewer(E) or Expr.now }, { on })` | Pipe step: members whose value the write's context gives, on every insert (`'create'`) or every insert and update (`'write'`); no input sets them. A value may also be a path from the viewer (`Expr.path(Expr.viewer(E), end)`). `Write.contextValues(write, context, read)` is what they come to. |
-| `Expr.eq(Post.relations.author, …)` | A `one` relation as an operand: the id it points at, null for none. |
-| `Expr.exists(relation, where?)` | Some row of another Entity points here through its `one` relation and holds `where`, a predicate over its own fields and the input. |
-| `Judge.predicate(p, row, options)` / `Judge.query(body, input, row, options)` | The reference semantics over a `HeldRow`: a `Verdict`, `Known` (SQL's answer) or `Unknown` with why. `Judge.match` reads one. |
-| `Held.fromRefs(query, row)` | A row holding each `one` relation as its ref key (`'User:ada'`), as a Source answers it and a Remote store keeps it, with each link the query reads given as the id it points at. |
-| `Judge.pins(predicates, { input, context })` | What a conjunction fixes by field (each `eq` of a field and a literal, an input or the viewer), and whether that is all it says (`whole`). What an exists passes `HeldRow.pointing`, so a holder holding every row with those values can say it misses none. |
-| `Held.isLink(identity, key)` | Whether `key` is a `one` relation of the Entity `identity` names: how a ref-keyed holder reads a row it knows only by identity, as a row `HeldRow.pointing` returns is. |
-| `Held.rows(tables)` | A holder over plain records, each table complete or not, with keys hidden; `row(entity, id)` and `rows(entity)` give `HeldRow`s. |
-| `Expr.whenGiven(input, given => predicate)` | A filter applying only when a nullable input is given: `or(isNull(input), predicate)`, the predicate seeing the input as never null. |
-| `Expr.operator(id, { input, output, definedAs?, version?, description?, nulls?, collation?, laws? })` | An operator: defined by what a call means (`definedAs`, whose expansion every interpreter runs) or primitive (each interpreter's table implements it). Calling it builds a `Test` predicate (a boolean output) or a `Call` scalar. |
-| `Expr.unsupported(nodes, { operations, operators })` | What these expressions need that an interpreter lacks: operations, then primitive operators by name. |
-| `Text.startsWith(text, prefix, { collation? })` | Whether text begins with a prefix, under its collation; the kernel's primitive operator. |
-| `Expr.eq.step(value)` / `lt` / `lte` / `gt` / `gte.step(value, { collation? })` / `contains.step(search)` / `in.step(list)`; `operator.step(...rest)` | The call without its subject, for `pipe` and `flow`: `pipe(Post.fields.status, Expr.eq.step('draft'))` builds the node `Expr.eq(Post.fields.status, 'draft')` builds. One signature, so reads stay exact. |
-| `Operators.memory(...)` / `implement` / `implementHandlingNulls` / `merge` / `override` / `checked` / `kernel` | Tables of in-memory implementations of primitive operators, passed to `evaluate` and every judge. |
-| `Law.associative` / `commutative` / `idempotent` / `identity` / `absorbing` / `inverse` / `distributes` / `monotonic` / `preservesCollation` / `within` / `describe` | Laws an operator declares (`Expr.operator(id, { laws })`), checked where declared, described as JSON. |
-| `Operators.withEvidence(table, evidence)` / `describeTable(table)` / `Evidence.Proven` | What is known of a table's implementations' laws, and the table as JSON. |
-| `Conformance.laws(op, table)` / `lawsBy(op, runner, { implementation })` (a Promise) / `operator(op, { implementations })` / `memory(table)` (`foldkit-entity/conformance`) | Test an implementation's laws, in memory or through any runner; run one set of calls through several implementations. |
-| `Operators.describe(op)` / `OperatorDescription` / `Query.operators(body)` | An operator's signature as JSON, the Schema it keeps, and the operators a body calls, by name. |
-| `valueOfOperand(node, { operators })` | What an operand, a call of literals say, comes to over no row. |
-| `Expr.expanded(predicate)` | The predicate with every call of a defined operator written out as what it means, deeply; what an interpreter compiles. |
-| `Expr.field(field)` | One field of one Entity, as a scalar. |
-| `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
-| `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |
-| `Order.asc(expr, { nulls? })` / `Order.desc(expr, { nulls? })` | One term of an ordering, over a field or a scalar. Rows without a value go last ascending and first descending unless `nulls` says otherwise; every interpreter is told, since databases disagree when it is unsaid. |
-| `Collation.binary` / `.asciiFold` / `.locale(name)` / `.of(collation)` | How a text field orders, as member metadata; see above. |
-| `ReadFilter.of(members)` / `.members(metadata)` | Entity metadata: the members a server filters rows by under a rule the client does not run (an authorization rule; `foldkit-guard` attaches it). A client placing rows in a list fetches the list instead when one changes. Annotations add up. |
-| `Query.placement(query, input, { operators })` | `Placeable`, or `NotPlaceable` with why: whether a client running `operators` can order as the server does. |
-| `Order.chosen(sort, choices)` | The field or call an input's sort names (`{ by, direction }`, or `null` for none), among `choices`. |
-| `dependenciesOf(...nodes)` | The distinct fields, inputs, and operations those expressions use. |
-| `Query.from(entity)` | Every row of an Entity: the query each step narrows. |
-| `Query.where(...predicates)` | Pipe step keeping the rows those hold for; conjoins with what is there. |
-| `Query.orderBy(...terms)` | Pipe step reading in that order; appends after existing terms. |
-| `Query.orderFor(query, input)` | The fixed terms it orders by for one input, each chosen order resolved, ending on the id. |
-| `Query.dependencies(query)` | What the whole query reads, with its fields also split by role: `predicate` (can change which rows match) and `order` (can change where a row sits). |
-| `Query.unsupported(query, supported)` | The operations it needs that an interpreter does not run. |
-| `Query.show(query)` / `Expr.show(node)` | The query or expression as readable text, for a person and not for an interpreter. |
+| `Entity.define(name, struct)` | Declare an Entity with a Field per struct property |
+| `Entity.defineVariants(name, cases)` | Experimental: tagged-union Entity (`variants`, `fields`) |
+| `Entity.relate(entities, relations)` | Declare `Relation.one` / `Relation.many` edges between Entities |
+| `Entity.select(entity, spec)` | Declare a Selection carrying `members` and `schema` |
+| `Entity.page(selection, window)` | Select a `many` relation as a cursor-paginated page |
+| `Entity.selectionSchema(entity, schemas)` | Build a Selection schema from per-member schemas |
+| `Entity.variantsOf(entity)` | Read variant union, case fields, and stored-row codec |
+| `Entity.fields(entity, ...keys)` | Extract field schemas by key for spreading into inputs |
+| `Entity.derived({ key: spec })` | Attach `Derived.make`, `Derived.count`, or `Derived.exists` |
+| `Entity.annotate(meta)` / `annotateMembers` | Attach `foldkit-metadata` entries to Entity or members |
+| `Entity.same(a, b)` / `Entity.is(value)` | Check shared Entity identity or descriptor shape |
+| `Selected<typeof selection>` | Result TypeScript type of a Selection |
+| `Words.of(schema)` | Read `title` and `description` `Option`s across checks |
+
+### Inputs, writes, invariants, and states
+
+| Call | Meaning |
+| --- | --- |
+| `Entity.input(entity, struct, mapping?)` | Experimental: map operation input keys to Entity members |
+| `Relation.nested(relation, input)` | Map an input key to a nested target input |
+| `Entity.selectFor(input, { also? })` | Derive a Selection for loading an edit screen |
+| `Entity.valuesFor(input, value)` | Convert a loaded row back into input form values |
+| `Write.update(input, options)` | Declare an update (`id`, `expect?`, `when?`, `from?`, `becomes?`) |
+| `Write.insert` / `Write.delete` | Declare an insert or delete over an operation input |
+| `Write.writes` / `reads` / `bind` / `apply` | Inspect footprints, encode patches, and compute resulting rows |
+| `Write.ensured` / `footprint` / `boundReads` | Read postcondition invariants and bound read/write footprints |
+| `Entity.sets({ member: term }, { on })` | Set `Expr.viewer` or `Expr.now` automatically on create/write |
+| `Entity.invariant` / `Entity.transition` | Attach state (`after`) or transition (`before`/`after`) rules |
+| `Entity.judge` / `Entity.check` | Evaluate invariants (`Valid`, `Invalid`, `Undecided`) or Schema |
+| `Entity.invariants` / `Entity.readsBefore` | List attached invariants and whether they inspect `before` |
+| `Entity.refine` / `states` / `inState` | Declare named row states and test stored rows against them |
+| `Laws.check` / `show` / `facts` / `lawFactsOf` | Verify writes against invariants and emit graph facts |
+| `Footprint.declared` / `Footprint.unknown` | Declare write footprints for non-`Write` transitions |
+
+### Expressions and queries
+
+| Call | Meaning |
+| --- | --- |
+| `Query.from(entityOrState)` | Start a query over all rows or a named state |
+| `Query.where(...predicates)` | Conjoin predicates onto a query |
+| `Query.orderBy(...terms)` | Append `Order.asc` / `Order.desc` / `Order.chosen` terms |
+| `Query.orderFor(query, input)` | Resolve fixed ordering terms ending on `id` |
+| `Query.placement(query, input, options)` | Check if a query orders identically on the client |
+| `Query.dependencies` / `unsupported` / `show` | Inspect read fields, missing ops, and readable text |
+| `Expr.eq` / `isNull` / `isNotNull` / `in` | Equality, null checks, and list membership predicates |
+| `Expr.lt` / `lte` / `gt` / `gte` | Ordering comparisons (`binary` or `asciiFold` for text) |
+| `Expr.contains` / `Text.startsWith` | Case-insensitive substring and collation-aware prefix match |
+| `Expr.and` / `or` / `not` / `implies` | Three-valued SQL boolean connectives |
+| `Expr.add` / `Expr.sub` | Portable numeric addition and subtraction (`number.add`/`subtract`) |
+| `Expr.path` / `Expr.exists` / `Expr.is` | Traverse `one` relations, check `many` pointers, narrow variants |
+| `Expr.whenGiven(input, fn)` | Apply a predicate only when a nullable input is non-null |
+| `Expr.field` / `input` / `literal` / `show` | Explicit scalar nodes and readable expression formatting |
+
+### Judges, operators, and conformance
+
+| Call | Meaning |
+| --- | --- |
+| `evaluate` / `evaluateEach` | Run a `Query` over in-memory rows |
+| `Judge.predicate` / `Judge.query` | Evaluate three-valued truth over partial `HeldRow` caches |
+| `Held.rows` / `Held.fromRefs` / `isLink` | Build `HeldRow` caches and normalize relation ref keys |
+| `Judge.pins` | Extract fixed field values from a conjunction for `pointing` |
+| `Expr.operator(id, options)` | Define a reusable macro (`definedAs`) or primitive operator |
+| `Expr.expanded` / `unsupported` / `dependenciesOf` | Expand operator macros and inspect expression dependencies |
+| `Operators.memory` / `implement` / `kernel` | Build and compose in-memory primitive operator tables |
+| `Operators.merge` / `override` / `checked` | Combine operator tables and validate outputs in tests |
+| `Law.*` (`associative`, `monotonic`, …) | Algebraic laws declared on primitive operators |
+| `Conformance.laws` / `lawsBy` / `operator` | Test operator implementations against laws and each other |
+| `Operators.withEvidence` / `describeTable` | Record conformance evidence and serialize table capabilities |
+| `Collation.*` / `ReadFilter.*` | Collation metadata and server-filtered member metadata |
+| `valueOfOperand(node, { operators })` | Evaluate a row-independent scalar expression |
+
+## Next
+
+- Walk through one domain end to end: [One domain declaration](../../docs/entity.md)
+- Serve Entities over HTTP, SQLite, and Postgres: [`foldkit-remote`](../remote/README.md) and [`foldkit-remote-drizzle`](../remote-drizzle/README.md)
+- Build forms and permissions from your Entities: [`foldkit-form`](../form/README.md) and [`foldkit-guard`](../guard/README.md)
+- See a full application built on one domain: [`examples/entity`](../../examples/entity)
+

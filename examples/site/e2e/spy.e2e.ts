@@ -93,7 +93,7 @@ const open = async (path: string, width = 1600) => {
   return page
 }
 
-const GUIDE = '/remote'
+const GUIDE = '/mixins/guides/style-appearance-as-data'
 
 const nth = (ids: ReadonlyArray<string>, at: number): string => {
   const id = ids[at]

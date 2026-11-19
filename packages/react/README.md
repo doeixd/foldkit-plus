@@ -1,31 +1,8 @@
 # foldkit-react
 
-Use React components inside a Foldkit view, and Foldkit programs inside a React
-app. Each side keeps its own renderer and its own state; they meet at a single
-DOM element, and only Messages and Ports cross it.
+Teams migrating incrementally between Foldkit and React—or adopting a specialized React widget like a rich editor or chart inside a Foldkit screen—need both frameworks to share one page without fighting over the same DOM subtree or duplicating state.
 
-**React inside Foldkit.** The Foldkit view calls `ReactComponent.view`, which draws a
-`<foldkit-react-host>` element and passes props as a DOM prop. A React root inside
-it renders the React component, and each event the component raises becomes a
-Message that goes to `update`.
-
-**Foldkit inside React.** A React component such as `<Counter step={2} onCount={…} />`
-draws a `<div>` that React owns. The component's props go in as inbound Ports, and
-`Runtime.embed` runs the Foldkit program in the `<div>`, whose outbound Ports come
-out as callback props.
-
-## Who owns what
-
-- **React inside Foldkit.** The Foldkit Model owns every value it passes as a
-  prop. React owns the component's internal state (`useState`, focus, a
-  library's selection), which survives Foldkit renders. A React event never
-  changes the Model directly: you map it to a Message and `update` decides.
-- **Foldkit inside React.** The Foldkit program owns its Model. React props
-  reach it only through the program's inbound Ports, and it reports back only
-  through outbound Ports. There is no access to its Model from React.
-
-Neither renderer ever touches the other's DOM subtree, so there is no second
-reconciler and no shared ownership to reason about.
+`foldkit-react` runs React components inside Foldkit views (`ReactComponent.define`) and embeds Foldkit programs inside React apps (`FoldkitComponent.define`). Each side keeps its own renderer and internal state; they meet at a single host element where only props, Messages (events sent to Foldkit's `update`), and Foldkit Ports cross the boundary. See both directions wired together in [`examples/react`](../../examples/react).
 
 ## Install
 
@@ -33,10 +10,13 @@ reconciler and no shared ownership to reason about.
 pnpm add foldkit-react foldkit effect react react-dom
 ```
 
-React 19 is required. [`examples/react`](../../examples/react) runs both
-directions, plus codegen, as a pinned transcript.
+React 19 is required.
 
-## React inside Foldkit
+## Start with a React widget in Foldkit
+
+### React inside Foldkit
+
+Wrap a React component with `ReactComponent.define`, list its event callback props, and render it from a Foldkit `view`:
 
 ```ts
 import { Schema } from 'effect'
@@ -53,44 +33,24 @@ type Model = typeof Model.Type
 const Message = defineMessageUnion({ Incremented: {} })
 type Message = typeof Message.Type
 
-const update = (model: Model, _message: Message) => ({
-  model: { count: model.count + 1 },
-})
+const update = (model: Model, _message: Message) => ({ model: { count: model.count + 1 } })
 const view = (model: Model, h: HtmlBuilder<Message>): Html =>
-  ReactButton.view({
-    props: { label: `Count: ${model.count}` },
-    messages: { onPress: () => Message.Incremented() },
-  }, h)
+  ReactButton.view(
+    { props: { label: `Count: ${model.count}` }, messages: { onPress: () => Message.Incremented() } },
+    h,
+  )
 ```
 
-Use this `view` and `update` in a Foldkit program initialized with `{ count: 0 }`.
-The button is a real React component; its callback becomes `Incremented`, and
-the next Model supplies its next label. Replace `Button` with a library widget
-using the same event mapping. Non-event function props remain ordinary props.
+Rendered in a Foldkit program initialized at `{ count: 0 }`, `ReactButton.view` mounts a `<foldkit-react-host>` element containing the React button. Clicking it calls `onPress`, dispatches `Message.Incremented()`, increments `count` in `update`, and re-renders the same React root with `"Count: 1"` without remounting.
 
-What happens:
+Ownership stays cleanly separated across both directions:
 
-- `define` does no rendering. It records the component and which props are
-  events. Events must be callbacks returning `void`; a callback that returns a
-  value (`shouldClose: () => boolean`) is a normal prop.
-- `view` returns ordinary Foldkit `Html`: a `<foldkit-react-host>` element whose
-  `input` DOM property carries the props. Foldkit diffs that property like any
-  other, so a new Model re-renders the same React root. It does not remount.
-- `messages` maps each event's arguments to a Message. The Message reaches
-  `update` through Foldkit's normal event path, so inside a Submodel it is lifted
-  by `toParentMessage` like a click would be. An event without a mapper is not
-  passed to the component.
-- The Message type comes from `h`, so a mapper returning the wrong Message is a
-  type error.
+- **React inside Foldkit:** Your Foldkit `Model` owns prop values; React owns internal widget state (`useState`, focus, library selections) inside `<foldkit-react-host>`. Events return `void` callbacks (callbacks returning values such as `shouldClose: () => boolean` stay ordinary props) and reach `update` through `messages`.
+- **Foldkit inside React:** The embedded Foldkit program owns its `Model`; React communicates exclusively through inbound and outbound Foldkit Ports.
 
-### Suspense and errors
+### Add Suspense and error boundaries
 
-Each island is its own React root, so it has its own Suspense boundary: `lazy`,
-`use(promise)`, and libraries that suspend all work, showing
-`suspenseFallback` (default: nothing) meanwhile.
-
-The following integration fragment assumes your `Editor`, `Spinner`, and
-`EditorCrashed` Message; define `ReactEditor` with `ReactComponent.define(Editor)`.
+Each React island owns its own React root, so `lazy`, `use(promise)`, and suspending libraries show `suspenseFallback` while waiting, and `errorBoundary` catches render failures and optionally emits a Foldkit Message (in the snippet below, `model` and `h` come from your Foldkit `view`, and `Editor` / `Spinner` are your React components):
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -127,21 +87,14 @@ ReactEditor.view(
 )
 ```
 
-Without `errorBoundary`, a render error is uncaught at the island's React root,
-which React handles as in any app: it removes that root's tree and reports the
-error. With it, the island shows `fallback` and, if given,
-`toMessage` dispatches a Message so the Model can record the crash. The
-fallback stays until the island is removed.
+Without `errorBoundary`, render errors remove the island root and propagate normally; with it, `fallback` stays mounted until the island unmounts.
 
-### Waiting on Model data: `readAsyncData`
+### Suspend on `AsyncData` with `readAsyncData`
 
-Loading belongs to Foldkit: a Command fetches, `update` stores an `AsyncData` in
-the Model. An island can suspend on that value instead of branching on its tag:
+When Foldkit Commands manage loading via `AsyncData` in your `Model`, `readAsyncData` lets a React island read that value directly through Suspense and `errorBoundary`:
 
 <!-- docs-check
-interface User {
-  readonly name: string
-}
+interface User { readonly name: string }
 -->
 ```ts
 const Profile = ({ user }: { readonly user: AsyncData.AsyncData<User, string> }) => {
@@ -162,24 +115,19 @@ ReactProfile.view(
 )
 ```
 
-```text
-Idle | Loading       -> suspends: the island's suspenseFallback
-Failure(error)       -> throws AsyncDataFailure: the island's errorBoundary
-Success(data)        -> { data }
-Refreshing(data)     -> { data, isRefreshing: true }        no suspension
-Stale(error, data)   -> { data, maybeStaleError: Some(error) }
-```
+| `AsyncData` state | `readAsyncData` behavior |
+| --- | --- |
+| `Initial` / `Loading` | Suspends to `suspenseFallback` |
+| `Failure(error)` | Throws `AsyncDataFailure` to `errorBoundary` |
+| `Success(data)` | Returns `{ data }` |
+| `Refreshing(data)` | Returns `{ data, isRefreshing: true }` |
+| `Stale(error, data)` | Returns `{ data, maybeStaleError: Some(error) }` |
 
-`readAsyncData` starts nothing and caches nothing. The suspended component
-retries when the next value reaches it as props or React state, which is how
-island props and outbound Port values arrive; a value read from anywhere else
-would never retry.
+Pass `AsyncData` values through island props or React state (such as outbound Ports) so updates retry suspended components automatically.
 
-### The host element
+### Style and key the host element
 
-`hostAttributes` go on `<foldkit-react-host>`, which Foldkit owns: keys for
-keyed lists, classes, ARIA labels. The host is `display: inline` by default, as
-every unknown element is; style it if the component needs a block.
+Pass `hostAttributes` to attach Foldkit keys, classes, or ARIA attributes onto `<foldkit-react-host>` (which defaults to `display: inline`):
 
 <!-- docs-check
 const ReactCounter = ReactComponent.define(Counter)
@@ -189,16 +137,11 @@ declare const row: { readonly id: string }
 ReactCounter.view({ props: { id: row.id }, hostAttributes: [h.Key(row.id), h.Class('row')] }, h)
 ```
 
-With Foldkit DevTools time travel, jumping to a past Model re-renders the same
-React root with that Model's props; React's internal state is not rewound, since
-Foldkit does not own it. Island events while paused reach no Model, like any
-other handler in the replayed view, and resuming restores the live props.
-
-An island removed by Foldkit unmounts its React tree, running effect cleanups.
-A keyed move keeps it mounted, because the host defers unmounting until after
-the move completes.
+Keyed moves keep the React tree mounted; removing the island unmounts React and runs effect cleanups. Under Foldkit DevTools time travel, jumping to past Models updates island props while leaving React's internal state alone.
 
 ## Foldkit inside React
+
+Embed a Foldkit `Runtime.makeElement` program with Ports inside any React component using `FoldkitComponent.define` (assuming `makeCounter` and `makeDashboard` return `Runtime.makeElement` programs with matching `inbound`/`outbound` Ports):
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -234,53 +177,31 @@ interface DashboardProps {
 import { FoldkitComponent } from 'foldkit-react'
 
 const Counter = FoldkitComponent.define({
-  // Runs once per runtime. Props here are initial configuration only.
   make: (container, props: CounterProps) => makeCounter(container, props.initialCount),
-  // Re-sent whenever the selected value changes (Object.is).
   inbound: { stepChanged: props => props.step },
-  // Called with the latest props, so a new onCountChange needs no resubscribe.
   outbound: { countChanged: (count, props) => props.onCountChange?.(count) },
 })
 
-// <Counter initialCount={10} step={2} onCountChange={setCount} />
+// Usage in JSX: <Counter initialCount={10} step={2} onCountChange={setCount} />
 ```
 
-`makeCounter` returns a program from `Runtime.makeElement` with `ports`. Port
-names and value types are checked against it: bindings send and receive each
-Port's **Encoded** side, the same values `EmbedHandle.ports` uses.
+`make` runs once per mounted runtime; `inbound` selects prop slices to push into inbound Ports whenever `Object.is` changes; `outbound` invokes the latest prop callback without resubscribing. Bindings validate against each Port's encoded Schema type.
 
-The component renders a `<div>` (it accepts `className` and `style`) and embeds
-the program in a child element React never renders. On unmount it disposes the
-runtime, stopping its Subscriptions, Managed Resources, and in-flight
-Commands.
+`FoldkitComponent` renders a `<div>` (accepting `className` and `style`) and embeds Foldkit inside a child container React leaves alone, buffering early inbound/outbound values across startup, handling React Strict Mode double-mounts cleanly, logging invalid inbound values without re-sending them on every render, and disposing Subscriptions and Commands on unmount.
 
-- **Strict Mode** mounts, disposes, and mounts again; only the second runtime
-  keeps running.
-- **Initial values arrive in order.** Inbound values sent before the program's
-  Subscriptions start are buffered, and outbound values emitted by `init`
-  Commands are delivered after the listeners are attached.
-- **Invalid inbound values** fail the Port's Schema, are logged, and never reach
-  the app. The same invalid value is not re-sent on every render.
-
-### Custom equality and restarts
+### Customize equality and restart keys
 
 ```ts
 const Dashboard = FoldkitComponent.define({
   make: (container, props: DashboardProps) => makeDashboard(container, props.userId),
   inbound: { filtersChanged: { select: props => props.filters, equals: shallowEqual } },
-  // A different user is a different program, not a new Port value.
   restartKey: props => props.userId,
 })
 ```
 
-When `restartKey` changes (compared with `Object.is`), the runtime is disposed
-and a fresh one is made with the current props, which also receives every
-inbound value.
+When `restartKey` changes (`Object.is`), the previous Foldkit runtime disposes and a fresh runtime starts with current props and inbound values.
 
-### `useFoldkitElement`
-
-The hook under `FoldkitComponent`, for components that need the Port handles
-themselves:
+### Use `useFoldkitElement` for direct Port handles
 
 ```ts
 import { useFoldkitElement } from 'foldkit-react'
@@ -297,19 +218,16 @@ const HookCounter = ({ step }: { readonly step: number }) => {
 }
 ```
 
-`handle` is `undefined` before the first effect and after unmount. `onEmbed`
-runs synchronously after `embed`, the place to subscribe to an outbound Port
-without missing emissions from `init`. Give the ref'd element no React
-children.
+`handle` is `undefined` before mount and after unmount; pass `onEmbed` to subscribe immediately after `embed` before `init` Commands emit. Keep the `ref` element free of React children.
 
 ## Limits
 
-- No Foldkit children inside a React island: pass React children as
-  `props.children`, and place Foldkit content beside the island.
-- Foldkit Commands are not React Suspense. An outer `<Suspense>` does not wait
-  for an embedded program; the program shows its own loading states from its
-  Model.
-- A server render emits an empty `<foldkit-react-host>`; the React component
-  renders on the client.
-- The event mapper's argument types come from the last overload of an
-  overloaded callback prop.
+- **React children only inside islands:** Pass React elements via `props.children` and place Foldkit markup alongside the island.
+- **No cross-framework Suspense:** Outer React `<Suspense>` boundaries wait on React resources, while embedded Foldkit programs render loading states from their own `Model`.
+- **Client-rendered islands:** Server rendering emits an empty `<foldkit-react-host>`; the React island mounts on the client.
+- **Overloaded event callbacks:** Event argument types infer from the last overload of an overloaded callback prop.
+
+## Next
+
+- Compile pure Foldkit views to static React TSX source: [`foldkit-react-codegen`](../react-codegen)
+- Run the interactive React bridge and codegen examples: [`examples/react`](../../examples/react)

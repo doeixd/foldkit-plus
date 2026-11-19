@@ -1,44 +1,18 @@
 # Events, folds and gates
 
-Foldkit Plus is event-sourced in two places and state-sourced in a third. The
-Model is `update` folded over every Message. A Sync document is the same fold
-over a stored log of durable Messages. A Remote row is plain stored state,
-changed by declared writes.
+Suppose your todo app syncs `todos` across devices while keeping `filter` (`'all'` or `'done'`) local to each device. You add a `ClearedShown` Message that checks `model.filter` inside `update` so it removes only the todos visible on screen.
 
-This guide is about what that gives you and what it does not. The short
-version: the Messages you declare decide which kinds of change exist. They do
-not make a state correct. Correctness is decided at the **gate** that admits a
-Message, and the gate can only judge what the state it reads contains.
+On your laptop with `filter: 'done'`, `ClearedShown` clears only completed items. On the server and on your phone, however, `filter` is local and not shared, so both replay `ClearedShown` with `initial.filter` (`'all'`) and wipe out **every** todo in the list. When the synced state lands back on your laptop, your screen clears too.
 
-## Who owns what
+That bug reveals the three rules behind shared state in Foldkit Plus:
 
-| State | The log | The fold | The gate | History kept |
-| --- | --- | --- | --- | --- |
-| The local Model | Messages as they are dispatched; not stored | `update` | None for a view. For an agent, the capability's `available` and `authorize` | No |
-| A Sync document | Durable Messages in the journal, in the server's order | `update`, through the derived replay | `authorize`, `validate` and the laws, on the server, inside the commit | Until the journal is compacted; then a checkpoint |
-| A Remote row | None | None: the row is what is stored | The declared write: its rules, its `when`, the Entity's invariants | No |
+1. **A replicated Message must carry the exact facts of what changed**, never depend on unshared local state.
+2. **State is whatever `update` leaves after folding Messages**, starting from `initial`.
+3. **Correctness is enforced at the server gate** (`authorize` and `laws`), not by trusting the client's `Message` union.
 
-A row edited offline through a journal is the second case with a table as its
-read model. See
-[Editing server data through a journal](./editing-server-data.md).
+## Fold Messages into state
 
-## The model
-
-```text
-state = update folded over the events, from initial
-
-intent ──► gate ──► log ──► fold ──► state
-            │
-            └─ refused: nothing is appended
-```
-
-An entity is whatever the fold leaves. Nothing else holds it, which is the
-rule in [Who changes application state](./state-model.md) seen from the other
-side: no second place keeps state, so the fold's result is the state.
-
-## The fold, in one line
-
-Start from an application. This one keeps a todo list and a filter:
+Start with a standard Foldkit application tracking `todos` and a local `filter`:
 
 ```ts
 import { Schema } from 'effect'
@@ -88,7 +62,7 @@ const update = (model: Model, message: Message): Return =>
 const App = Surface.application({ Model, Message, initial, update })
 ```
 
-The Model at any moment is this, and nothing more:
+Folding a sequence of Messages through `update` gives the `Model` directly:
 
 ```ts
 const history: ReadonlyArray<Message> = [
@@ -98,19 +72,59 @@ const history: ReadonlyArray<Message> = [
 ]
 
 const folded = history.reduce((model, message) => update(model, message).model, initial)
-// { todos: [{ id: 'a', …, done: true }, { id: 'b', …, done: false }], filter: 'all' }
+console.log(folded)
 ```
 
-- The todo `a`, done, is not stored anywhere as a todo. It is what three
-  Messages leave.
-- The fold does no I/O and judges nothing. Hand it any sequence of Messages and
-  it returns a Model.
-- The local Model keeps no log. The runtime applies each Message and forgets
-  it.
+Running that fold prints:
 
-## A document: the same fold, with a gate and a stored log
+```text
+{
+  todos: [
+    { id: 'a', title: 'Write the guide', done: true },
+    { id: 'b', title: 'Review it', done: false }
+  ],
+  filter: 'all'
+}
+```
 
-Sync stores the Messages and adds the gate and the document's laws:
+Todo `a` (done) is never stored as a separate record locally; it is the result of folding those three Messages. In a plain local app, the Foldkit runtime runs each Message through `update` and discards the Message immediately.
+
+## Decide locally, store the fact
+
+When `foldkit-sync` replays a durable Message on the server or on another device, it installs the shared slice (`todos`) into `initial`, runs `update`, and reads `todos` back. Every unshared field — like `filter` — starts at its `initial` value during replay.
+
+| What a durable Message does | Result when submitted |
+| --- | --- |
+| Returns a `Command` | Refused: live side effects cannot replay |
+| Modifies a field outside the shared slice | Refused, naming the unshared field |
+| Reads a field outside the shared slice | Accepted, but replay sees `initial` instead |
+
+That third case is why `ClearedShown` deletes the wrong rows. Resolve local context on the device *before* creating the durable Message, and put the concrete `ids` inside `ClearedTodos`:
+
+```ts
+const clearShownMessage = (model: Model) => {
+  const shown = model.todos.filter(todo => model.filter === 'all' || todo.done)
+  return Message.ClearedTodos({ ids: shown.map(todo => todo.id) })
+}
+```
+
+Calling `clearShownMessage` with `filter: 'done'` over `folded` returns `ClearedTodos({ ids: ['a'] })`. Every replica now clears only `'a'`, regardless of its own local `filter`. The same rule applies to generated UUIDs and timestamps: create them once when building the intent, and store the resulting values inside the Message.
+
+## Where state lives, and what checks it
+
+Foldkit Plus handles local state, synced documents, and server database rows with one rule for each:
+
+| State kind | Storage | Transition | Server gate | History kept |
+| --- | --- | --- | --- | --- |
+| Local `Model` | Memory only | `update` | None (view/agent checks) | None |
+| Sync document | Server journal (`foldkit-durable`) | `update` on replay | `authorize`, `validate`, `laws` | Until compacted |
+| Remote row | Database table | Declared writes (`Write`) | Guards, `when`, `invariant` | None |
+
+When server database rows are edited offline through a journal, edits replay into the database table as a read model; see [Editing server data through a journal](./editing-server-data.md).
+
+## Add a server gate to a fold
+
+Wrap `App` with `forApplication(App)` from `foldkit-sync` to declare which slice syncs (`shared`), which Messages travel (`durable`), who may send each one (`authorize`), and what must always remain true (`laws`):
 
 ```ts
 type Principal = { readonly actorId: string; readonly canWrite: boolean }
@@ -138,168 +152,74 @@ const TodoSync = forApplication(App)
   })
 ```
 
-- **`shared`** is the state the fold produces: the slice every replica agrees
-  on. `filter` is not in it, so it stays this device's.
-- **`durable`** is the event vocabulary. Each of these Messages becomes an
-  operation in the outbox and a row in the journal. `ChoseFilter` is not
-  listed, so it changes the Model and goes nowhere.
-- **`authorize`** is the gate on who and what may be asked. It runs on the server,
-  inside the commit, against the authoritative snapshot before the operation.
-- **`laws`** say what the document must always be. A cap on its length is a
-  law, not an `authorize` rule: it judges what an operation leaves, so every
-  Message that can grow the list is held to it, including ones added to
-  `durable` later. See [A rule that fits](./replication.md#a-rule-that-fits-at-most-100-todos).
+Each option plays a specific role:
 
-The declaration runs nothing. [Replicated state](./replication.md) covers the
-client, the server and what the person sees while an edit is in flight.
+- **`shared`:** Names the Model slice kept in sync across replicas. Because `filter` is omitted, it stays local to each device.
+- **`durable`:** Lists the `MessageSet` allowed in the outbox and server journal. `ChoseFilter` is omitted, so changing the filter updates the local screen without syncing.
+- **`authorize`:** Checks permission on the server inside the commit against the authoritative snapshot *before* the operation.
+- **`laws`:** Checks invariants against the snapshot *after* every durable operation.
 
-## What the vocabulary gives you
+`TodoSync` describes the sync contract as data; [Replicated state](./replication.md) shows how clients and servers execute it.
 
-A change with no Message cannot be asked for.
+## Message allowlists, authorization rules, and laws
 
-- A replica cannot submit a Message outside `durable`.
-- An agent can only send Messages `update` already handles
-  ([Agents](./agents.md)).
-- A client cannot originate a Message declared `serverOnly`.
+Declaring a `MessageSet` restricts *which kinds of change* a caller can ask for:
 
-So the set of Messages is an allowlist of the kinds of change. If no Message
-deletes an audit entry, no view, agent or device can delete one.
+- A Sync replica rejects any Message outside `durable`.
+- An AI agent can send only the Messages exposed in its capability set ([Agents](./agents.md)).
+- A client cannot originate a Message marked `serverOnly`.
 
-The one path around it is deliberate: infrastructure installs a value that
-was already derived (a checkpoint, a restored URL) through a declared seam.
-See [the two write paths](./state-model.md#the-two-write-paths).
+If your union contains no Message that deletes an audit record, neither a view nor an agent can delete one. The only bypass is structural installation (checkpoints or URL restoration) through declared infrastructure seams; see [the two write paths](./state-model.md#the-two-write-paths).
 
-## What it does not give you: a correct state
+An allowlist alone still lets invalid states pass. Decide between `authorize` and `laws` (or `Entity.invariant` for Remote rows) by what they check:
 
-The fold accepts any sequence. Whether a sequence should have happened is the
-gate's question, and the two hooks answer it differently:
+- **`authorize` checks one Message before it runs.** A durable Message with no entry in `authorize` passes authorization by default. Whenever you add a new durable Message, check whether existing `authorize` rules should apply to it too.
+- **`laws` check every Message after it runs.** Because `atMost100Todos` inspects `after.todos.length`, adding an `ImportedTodos` Message later is automatically held to the 100-item cap.
+- **`Entity.invariant` checks every row write.** On database-backed Entities, invariants run on every `Write` regardless of which mutation triggered it; see [What every row holds](./declared-writes.md#what-every-row-holds-an-invariant).
 
-- **An `authorize` rule covers its own Message only.** A variant without a rule
-  is allowed, and the rule reads the snapshot before the operation, not the one
-  it leaves.
-- **A law covers every Message.** It judges the snapshot an operation leaves, so
-  the cap above holds for a later `ImportedTodos` with no rule of its own.
+## Rules run once at admission
 
-A rule about who may ask belongs in `authorize`, and has to be written for each
-Message it applies to: when you add a durable Message, ask of each existing rule
-whether it applies to the new one too. A rule about what the document must
-always be belongs in a law. Test a new Message at a law's limit all the same.
+A Message is checked when the server admits it to the journal. Once committed, it is a historical fact:
 
-Rows work the other way round. An `Entity.invariant` is declared once on the
-Entity and judged over the row every write would leave, whoever writes it. See
-[What every row holds](./declared-writes.md#what-every-row-holds-an-invariant).
+- Replicas never re-run `authorize` during replay.
+- Tightening an `authorize` rule or `law` later applies to new submissions without invalidating past snapshots.
+- On database rows, an existing row that predates a new `invariant` is judged by the row the *next* write leaves behind, allowing a repair write to succeed.
 
-## A fact carries what it means
+## One Message is both request and fact
 
-Replay installs the shared slice into `initial`, applies the Message and reads
-the slice back. During replay every field outside the slice holds its initial
-value. So a durable Message must mean the same thing whatever the rest of the
-Model holds.
+Some event-sourced architectures separate an incoming command from multiple emitted domain events. In `foldkit-sync`, the client proposes `CreatedTodo` and the server commits that exact `CreatedTodo` Message (or rejects it).
 
-| A durable Message that… | On its first submit |
-| --- | --- |
-| returns a Command | is refused: a live effect cannot be replayed |
-| changes a field outside the slice | is refused, naming the field |
-| reads a field outside the slice | is accepted. Replay cannot see it |
+Messages that only the server may originate are marked `serverOnly` and appended with `appendAsServer`; follow-up side effects after a commit run as reactions ([The server's own writes](./replication.md#the-servers-own-writes-and-work-after-a-commit)). If your workflow requires one command handler that emits several distinct domain events or runs a multi-step server process, model that logic on the server instead of `foldkit-sync`.
 
-The third is yours to keep. This Message clears the todos the person is
-looking at, and decides which those are from the local filter:
+## Choosing document boundaries
 
-```ts sketch
-// Not a fact: its meaning depends on this device's filter.
-ClearedShown: () => ({
-  model: modifyFields(model, {
-    todos: () => model.todos.filter(todo => (model.filter === 'done' ? !todo.done : false)),
-  }),
-})
-```
-
-On the device, `update` runs over the live Model and clears the done todos.
-In the replica, on the server and on every other device, the same Message
-replays with `filter: 'all'` and clears everything. The devices agree with
-each other and none of them did what the person asked. The screen changes to
-match when the slice is next installed from the replica.
-
-Decide where the person is, and put the decision in the Message:
-
-```ts sketch
-// A fact: the ids say exactly what was cleared.
-const shown = model.todos.filter(todo => model.filter === 'all' || todo.done)
-Message.ClearedTodos({ ids: shown.map(todo => todo.id) })
-```
-
-This is the rule that already applies to ids and timestamps: a local intent
-mints them, and the durable fact carries them.
-
-## Rules are asked once
-
-A Message is judged when it is admitted. After that it is a fact.
-
-- Replay never asks again. A replica does not run `authorize` at all.
-- Tightening a rule does not revoke history. A snapshot can hold what today's
-  rule would refuse, and that is correct: it happened.
-- A row is judged the same way, where a write commits. A stored row that
-  breaks an invariant is judged by the row the next write leaves, so a write
-  that repairs it lands.
-
-## One Message is both the request and the fact
-
-Many event-sourced designs separate a command from the events it produces. A
-handler reads the command and may answer with different events. Here the
-client proposes `CreatedTodo` and the server commits that same Message, or
-refuses it. There is no step that answers with other facts.
-
-What only the server may say is a `serverOnly` Message, appended with
-`appendAsServer`. Work that follows a commit is a reaction. Both are in
-[The server's own writes](./replication.md#the-servers-own-writes-and-work-after-a-commit).
-
-If your domain needs a handler that turns one request into several facts, or
-a process that waits, that is a server model of its own and Sync does not
-provide it.
-
-## Which folds are entities
-
-Any projection of a fold is a view. It is an entity, something a rule can be
-enforced on, when its own state is enough to decide what may happen to it
-next. That is the rule for drawing a document:
+Any fold can produce a read view, but a Sync document can only enforce a law when its own state holds everything needed to check that law:
 
 > A rule can be enforced where one document's snapshot is enough to judge it.
 
-A cap on one list fits, because the list is the document. A username unique
-across users does not fit one user's document, because the fact that decides
-it is in someone else's.
-[Choosing document boundaries](./replication.md#choosing-document-boundaries)
-gives three ways to give such a rule an owner.
+A 100-todo limit belongs on the todo list document because the list holds all its todos. A globally unique username does *not* fit on an individual user's document because checking uniqueness requires reading every other user. See [Choosing document boundaries](./replication.md#choosing-document-boundaries) for ways to give cross-record rules a proper owner.
 
-## What the stored log lets you change
+## Schema changes and compaction
 
-Less than "replay everything through new code" suggests. State the guarantees
-narrowly:
+Because durable Messages and snapshots persist across deploys:
 
-- **The local Model** is never stored, so a new build simply folds from
-  `initial`.
-- **A durable Message's Schema is a stored format.** Operations sit in outboxes
-  across a deploy and in the journal for as long as its history is kept.
-  Declare the change as a history. See
-  [Changing a durable Message](./replication.md#changing-a-durable-message).
-- **The slice's own Schema is stored too**, in snapshots and checkpoints, and
-  the Message history does not cover it.
-- **The journal compacts.** A replica behind the floor adopts a checkpoint,
-  which is a result of the fold, not the events. How long history is kept is
-  the application's decision.
+- **The local `Model`** is ephemeral; a fresh build starts cleanly from `initial`.
+- **Durable Message schemas** sit in offline outboxes and server journals across releases; evolve them with explicit migrations ([Changing a durable Message](./replication.md#changing-a-durable-message)).
+- **Shared slice schemas** live in stored snapshots and checkpoints.
+- **Compaction discards old Messages:** When a journal compacts past an offline replica's cursor, that replica adopts a compacted checkpoint (the folded state) rather than replaying ancient Messages.
 
 ## Limits
 
-- The local Model has no gate for a view. A Message that should not apply now
-  is `update`'s to ignore.
-- Remote rows keep no history. If you need one, write it as rows, or edit the
-  rows through a journal.
-- Nothing here derives new read models from a full event history on demand.
+- The local `Model` has no gate before `update`; ignore disallowed UI actions inside `update`.
+- `foldkit-remote` rows keep no event log by default; write an explicit audit Entity or edit rows through a journal when history is required.
+- Neither package builds arbitrary new read models by replaying every historical event from scratch on demand.
 
 ## Background
 
-The idea that a coarse-grained state is a level in its own right only when it
-is self-contained is worked out formally in Rosas et al., "Software in the
-natural world: A computational approach to hierarchical emergence"
-(arXiv:2402.09090). Its closure condition is the one behind "a fact carries
-what it means" and behind the document boundary rule.
+The rule that a coarse-grained document acts as a self-contained boundary only when its own state closes over its transitions follows Rosas et al., *"Software in the natural world: A computational approach to hierarchical emergence"* (arXiv:2402.09090).
+
+## Next
+
+- Walk through client sync, offline outboxes, and conflict resolution: [Replicated state](./replication.md)
+- See how `Message`s avoid frame-lag bugs in the UI: [Who changes application state, and how](./state-model.md)
+- Trace declared entities and queries to rendered regions: [From declarations to the screen](./declared-data-to-ui.md)

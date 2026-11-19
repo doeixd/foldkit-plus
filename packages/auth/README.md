@@ -1,81 +1,24 @@
-# foldkit-auth
+# `foldkit-auth`
 
-Who is signed in, for a Foldkit Plus server: a [Yielded Auth](https://github.com/yielded-dev/auth)
-session read from the request and handed to Remote's `serveFetch` and Sync's
-document host as their principal.
+When your application uses [Yielded Auth](https://github.com/yielded-dev/auth)
+for sign-in, Yielded sets an HTTP session cookie — but your data endpoints
+(`foldkit-remote-server`'s `serveFetch`), real-time sync sockets
+(`foldkit-sync`'s `defineDocumentHost`), and server-rendered pages
+(`foldkit-ssr`) each need to know who is asking. Re-implementing cookie
+parsing, `Origin` and CSRF header checks, and `verifySession` lookups on every
+endpoint risks letting a cross-site request borrow someone's session or
+silently treating an ended session as an anonymous visitor.
 
-## What it is
+`foldkit-auth` turns a Yielded Auth session cookie into a typed principal for
+Remote, Sync, and SSR. `AuthServer.resolver` verifies the request's origin,
+checks the session against your `Auth` service, and maps it to your
+application's user type — or returns `Option.none()` for a visitor, or `401`
+when a session ended or came from an untrusted origin. `AuthServer.host` pairs
+the scripted, navigation, and auth route handlers from one configuration.
 
-Yielded Auth signs people in and keeps their sessions. `serveFetch`, Remote's
-Web handler, and `defineDocumentHost`, Sync's Durable Object, each ask "who
-is this request?" through a `resolvePrincipal` Effect, as SSR's posted forms
-do through their `resources`. `AuthServer.resolver` is
-that Effect for an application on Yielded: it reads the session cookie
-Yielded set, verifies it with the application's own `Auth` service, and
-gives back the application's principal, a visitor, or a refusal the client
-decodes. `AuthServer.host` makes the pair a server that also renders pages
-needs, one for Remote and one for a page's reads, typed so that neither fits
-the other's consumer, beside Yielded's own routes.
-
-
-## What it owns, and what it does not
-
-| Fact | Owner |
-| --- | --- |
-| Credentials, sign-in, sessions, the cookie, renewing a session | Yielded Auth (`Auth.make`, `Http.make`) |
-| Which session a request carries, and whether the request may use it | `AuthServer.resolver`; per consumer, `AuthServer.host` |
-| Who the session is in the application's terms (a guard set's `User`) | the application's `principal` function, per request |
-| Who may do what | `foldkit-guard`, given the principal |
-
-It does not sign anyone in, or set, renew or clear a cookie: Yielded's
-routes do, mounted by the application (`Http.layer(AppAuth, http)`) or by
-`AuthServer.host` over the application's built `Auth`. It does not authorize
-either: the principal it returns is what `foldkit-guard` decides on.
-
-## Mental model
-
-A request is judged in order. With no session cookie it is a visitor. A cookie from
-a request that does not show it came from the application is refused with a 401.
-Otherwise `verifySession` checks it: an ended session is a 401. Then
-`principal(session)` maps the session to a principal: a refusal there is a 401, and
-success answers the request as a `User`.
-
-A request is one of three things: a visitor (`Option.none()`), someone
-(`Option.some(user)`), or refused (`RemoteUnauthenticated`, a 401 the client
-decodes). A cookie rides along with any request to the site, so one is used
-only from a request that shows it came from the application, by the rule
-Yielded applies to its own mutations: an `Origin` it trusts and its CSRF
-header (`x-effect-auth-csrf: 1`), or, for what a browser sends on the page's
-behalf, the `Origin` alone (below). From any other request it is refused, never
-quietly ignored: a page elsewhere borrows no one's session, and a client of
-the application's own that forgot the header learns so on its first call.
-
-### Why the Origin, and not SameSite or a token
-
-The check is made at the HTTP boundary, from what the browser sends and no
-page can set, so there is no token to issue, store or rotate:
-
-- **`Origin`**, compared with `http.origin` and `http.trustedOrigins`
-  exactly. Where a browser sends none (a same-origin `GET`) or an opaque one
-  (`Origin: null`, below), the Fetch Metadata header **`Sec-Fetch-Site`**
-  must say `same-origin`. A request with neither is refused: a browser too
-  old to send them, or a client that is not a browser and had better not be
-  holding someone's cookie.
-- **The CSRF header** is a constant, not a secret. A page on a trusted
-  origin that can run a script can send it; markup alone, such as an HTML
-  form injected into that page, cannot. `requests: 'browser'` drops it where
-  the browser itself makes the request.
-- **`SameSite`** is not relied on. Yielded sets `SameSite=Lax` explicitly
-  (Chrome's default for a cookie that names none sends it on a cross-site
-  `POST` for two minutes after it is set), but a site is not an origin:
-  every subdomain of the registrable domain is same-site, so a sibling such
-  as `user-content.app.example` would pass. Origins are compared instead, and a
-  sibling is trusted only when `trustedOrigins` names it.
-
-Remote posts every call, and Yielded's mutations are posts. Keep a `GET`
-of any endpoint of your own that the resolver answers from changing
-anything: the resolver refuses a cookie on a link followed from elsewhere (a
-cross-site `GET`), and a safe `GET` makes a gap in that check cost nothing.
+See it running end-to-end in [`examples/auth`](../../examples/auth),
+[`examples/reference`](../../examples/reference), and
+[`examples/cloudflare`](../../examples/cloudflare).
 
 ## Install
 
@@ -83,41 +26,152 @@ cross-site `GET`), and a safe `GET` makes a gap in that check cost nothing.
 pnpm add effect @yielded/auth foldkit-remote foldkit-remote-server foldkit-auth
 ```
 
-`@yielded/auth` is a peer, pinned exactly while Yielded is in beta: install
-`@yielded/auth@0.1.0-beta.47`, since its `latest` tag is an older beta. Yielded
-needs `effect` 4.1, the minor `foldkit` 0.170 takes, and each `@effect/*`
-release peers on an `effect` at least its own, so an application pins every
-Effect package to one release in its `package.json` to keep one copy of each.
-With pnpm:
+`@yielded/auth` is a peer dependency while Yielded is in beta. Run
+`npx --legacy-peer-deps foldkit-plus setup` in your project directory to print
+the pinned package version and `effect` overrides for your package manager.
 
-```json
-{
-  "pnpm": {
-    "overrides": {
-      "effect": "4.1.0",
-      "@effect/platform-browser": "4.1.0",
-      "@effect/platform-node": "4.1.0",
-      "@effect/platform-node-shared": "4.1.0",
-      "@effect/sql-sqlite-node": "4.1.0"
-    },
-    "peerDependencyRules": {
-      "allowedVersions": { "effect": "4.1.0", "@effect/platform-browser": "4.1.0" }
-    }
-  }
-}
+## A first protected endpoint
+
+This configures a Yielded `Auth` service, builds a principal resolver with
+`AuthServer.resolver`, and wires it into `serveFetch` so every `/remote` request
+receives `Option.some({ id })` or `Option.none()`:
+
+```ts
+import { Auth, AuthContract, Password, Sessions } from '@yielded/auth'
+import { Context, Effect, Layer, Option, Schema } from 'effect'
+import { AuthServer } from 'foldkit-auth/server'
+import { RemoteServer } from 'foldkit-remote-server'
+import { serveFetch } from 'foldkit-remote-server/fetch'
+
+const AppAuth = Auth.make(
+  AuthContract.make('readme/Auth', {
+    claims: Schema.Struct({}),
+    actions: sessions => ({ signIn: AuthContract.passwordSignIn(sessions) }),
+  }),
+  {
+    sessions: Sessions.stateful({ idleTimeout: '10 minutes', maxAge: '1 hour' }),
+    strategies: { password: Password.make() },
+    defaultStrategy: 'password',
+  },
+)
+const server = RemoteServer.make<Option.Option<{ readonly id: string }>>({ entities: [] })
+
+export const makeRemote = (layer: () => Layer.Layer<Context.Service.Identifier<typeof AppAuth>>) =>
+  serveFetch({
+    server,
+    resolvePrincipal: AuthServer.resolver({
+      auth: AppAuth,
+      http: { origin: 'https://app.example' },
+      principal: session => Effect.succeed({ id: session.subjectId }),
+    }),
+    layer,
+  })
 ```
 
-npm takes the same pins as `overrides`, and overrides a package the project
-depends on itself only where `dependencies` names that same release, so set
-those to it too. `npx --legacy-peer-deps foldkit-plus setup` prints the fields for the
-project's package manager.
+A request with no session cookie passes `Option.none()` (a visitor) into
+`server`. A request carrying a valid session cookie with
+`Origin: https://app.example` and `x-effect-auth-csrf: 1` resolves to
+`Option.some({ id: session.subjectId })`. Any request carrying a cookie from an
+untrusted origin, missing the CSRF header, or holding an expired session returns
+`401` (`RemoteUnauthenticated`).
 
-## Sixty seconds
+- **`AuthServer.resolver(config)`** declares the per-request principal Effect.
+  It validates `http.origin` at creation time and reads headers and the session
+  store on each call.
+- **`auth`** is your `Auth.make(…)` service; `serveFetch`'s `layer` provides the
+  same persistence layer shared with Yielded's sign-in routes.
+- **`http`** is the same object passed to Yielded's `Http.make(AppAuth, http)`,
+  so cookie names, trusted origins, and CSRF headers stay aligned.
+- **`principal(session)`** maps a verified session to your application user per
+  request. Read fresh memberships here from `session.subjectId` rather than
+  relying on claims captured at sign-in; you can also fail with
+  `RemoteServer.unauthenticated(reason)`.
+
+## What `foldkit-auth` owns
+
+| Concern | Owner |
+| --- | --- |
+| Sign-in, passwords, sessions, and cookies | Yielded Auth (`Auth.make`, `Http.make`) |
+| Verifying request origin and session cookie | `AuthServer.resolver`; per consumer via `AuthServer.host` |
+| Mapping a session to your `User` type | Your `principal` function, run per request |
+| Row- and field-level authorization | `foldkit-guard`, given the resolved principal |
+
+Cookie issuance, renewal, and sign-out stay in Yielded Auth's HTTP routes
+(mounted directly with `Http.layer(AppAuth, http)` or returned by
+`AuthServer.host`). Authorization decisions stay in
+[`foldkit-guard`](../guard/README.md), which consumes the principal this package
+returns.
+
+## How a request is verified
+
+Every incoming request is evaluated in four steps:
+
+1. **Missing cookie:** If no session cookie is present, the request proceeds as
+   an anonymous visitor (`Option.none()`).
+2. **Origin and CSRF check:** Because browsers attach cookies to cross-site
+   requests automatically, a request with a cookie must prove it came from your
+   application. Scripted requests require a trusted `Origin` (or
+   `Sec-Fetch-Site: same-origin`) and `x-effect-auth-csrf: 1`; browser requests
+   and page navigations use origin and Fetch Metadata checks suited to their
+   transport. Failed checks return `401`, never quietly dropping to visitor.
+3. **Session lookup:** `verifySession` checks the token against your session
+   store; an ended or revoked session returns `401`.
+4. **Principal mapping:** `principal(session)` returns `Option.some(user)` or
+   refuses with `401`.
+
+### Why the Origin check instead of `SameSite` or a token
+
+Checking browser-enforced headers at the HTTP boundary avoids issuing, storing,
+or rotating a separate CSRF token:
+
+- **`Origin`** is compared strictly against `http.origin` and
+  `http.trustedOrigins`. When a browser omits `Origin` (same-origin `GET`) or
+  sends `Origin: null`, `Sec-Fetch-Site` must equal `same-origin`. Requests with
+  neither header are refused.
+- **The CSRF header (`x-effect-auth-csrf: 1`)** is a static marker, not a
+  secret: scripts on a trusted origin can send it, while injected HTML forms
+  cannot. Setting `requests: 'browser'` skips this header where the browser
+  itself initiates the request (like a `WebSocket` upgrade or form `POST`).
+- **`SameSite=Lax`** is too coarse alone because every subdomain shares a site;
+  comparing exact origins ensures sibling subdomains like
+  `user-content.app.example` are trusted only when listed in `trustedOrigins`.
+
+Keep your own `GET` endpoints read-only whenever they rely on cookie auth, so
+cross-site links cannot trigger side effects.
+
+## The client's side
+
+Remote's HTTP transport posts every call, so browsers include `Origin`
+automatically; add the CSRF header in `httpWithLive`:
+
+```ts
+import { httpWithLive } from 'foldkit-remote/live'
+
+const transport = httpWithLive('/remote', {
+  headers: () => ({ 'x-effect-auth-csrf': '1' }),
+})
+```
+
+A `401` refusal reaches your Model as a failure; `RemoteData.denied(error)` from
+`foldkit-remote` classifies it as `Unauthenticated` with the server's reason.
+
+## Who the client believes it is
+
+Because cookies are shared across browser tabs, signing in or out in one tab
+changes who another tab's next request answers as. Without coordination, an
+in-flight read in tab two could merge the new account's rows into the old
+account's cached Model.
+
+Pair `AuthServer.answered` on the server with `believing()` on the client so
+every request echoes who the tab expects to be:
 
 <!-- docs-check standalone
 import { Auth, AuthContract, Password, Sessions } from '@yielded/auth'
-import { Context, Layer, Option, Schema } from 'effect'
+import { Context, Effect, Layer, Option, Schema } from 'effect'
+import { AuthServer } from 'foldkit-auth/server'
 import { RemoteServer } from 'foldkit-remote-server'
+import { serveFetch } from 'foldkit-remote-server/fetch'
+
 const AppAuth = Auth.make(
   AuthContract.make('readme/Auth', {
     claims: Schema.Struct({}),
@@ -131,65 +185,11 @@ const AppAuth = Auth.make(
 )
 declare const AppAuthLive: Layer.Layer<Context.Service.Identifier<typeof AppAuth>>
 const server = RemoteServer.make<Option.Option<{ readonly id: string }>>({ entities: [] })
+const http = { origin: 'https://app.example' } as const
 declare const Policy: { readonly key: (user: { readonly id: string }) => string }
 const principal = (session: { readonly subjectId: string }) =>
   Effect.succeed({ id: session.subjectId })
 -->
-```ts
-import { Effect } from 'effect'
-import { AuthServer } from 'foldkit-auth/server'
-import { serveFetch } from 'foldkit-remote-server/fetch'
-
-const http = { origin: 'https://app.example' } as const // the options given Http.make(AppAuth, http)
-
-export const remote = serveFetch({
-  server, // RemoteServer.make(…)
-  resolvePrincipal: AuthServer.resolver({
-    auth: AppAuth, // Auth.make(…)
-    http,
-    principal: session => Effect.succeed({ id: session.subjectId }),
-  }),
-  layer: () => AppAuthLive, // AppAuth.layer, with its persistence
-})
-```
-
-- `AuthServer.resolver(config)` is a declaration: it returns the function
-  `serveFetch` calls per request, and throws at once if `http` names an
-  origin that is not one (`null`, a trailing slash). Each call reads headers
-  and asks the session store; it writes nothing.
-- `auth` is the `Auth.make(…)` value; the resolver yields it as a service, so
-  the host's `layer` must provide it. That is the one store, shared with the
-  routes that set the cookie.
-- `http` is the same object given `Http.make`: the cookie's name, the trusted
-  origins and the CSRF header are read from it, so the two agree.
-- `principal` builds the application's principal from the verified session,
-  per request. Read memberships fresh here, from `session.subjectId`; a
-  session's claims are a snapshot taken at sign-in. It may refuse, with
-  `RemoteServer.unauthenticated(reason)`.
-
-## The client's side
-
-Remote's transport posts every call, so a browser sends `Origin` on its own;
-the CSRF header is the client's to add:
-
-```ts
-import { httpWithLive } from 'foldkit-remote/live'
-
-const transport = httpWithLive('/remote', {
-  headers: () => ({ 'x-effect-auth-csrf': '1' }),
-})
-```
-
-A refusal reaches the Model as a failure; `RemoteData.denied(error)` from
-`foldkit-remote` reads it as `Unauthenticated` with the `reason` below.
-
-## Who the client believes it is
-
-The cookie is the browser's, shared by every tab: a sign-in in one tab
-changes who another tab's next read is answered as. A broadcast between
-tabs tells the others, but a read already on its way would land the new
-account's answers in a cache that shows the old one. So the server says
-whom it answered as, and the client repeats it:
 
 ```ts
 import { believing } from 'foldkit-auth'
@@ -199,11 +199,11 @@ const resolving = { auth: AppAuth, http, principal, key: Policy.key }
 serveFetch({
   server,
   resolvePrincipal: AuthServer.resolver(resolving),
-  headers: AuthServer.answered(resolving), // `x-foldkit-subject` on each answer
+  headers: AuthServer.answered(resolving), // sends `x-foldkit-subject` on each response
   layer: () => AppAuthLive,
 })
 
-// The browser: Remote's transport through a fetch that repeats it.
+// Browser: wrap fetch so Remote sends and updates the believed subject.
 export const belief = believing()
 httpWithLive('/remote', {
   headers: () => ({ 'x-effect-auth-csrf': '1' }),
@@ -211,39 +211,28 @@ httpWithLive('/remote', {
 })
 ```
 
-- `AuthServer.answered` takes the resolver's own config, and needs its
-  `key`, so the header names the principal as the check reads it:
-  `subjectSaid(Option.some(key(user)))`, or `visitor`. The key is
-  URI-encoded, as a header carries Latin-1 only.
-- `believing()` holds what the last answer said, beside the cookie it
-  describes, never in the Model. Once the cookie means someone else, the
-  next request is refused with `SUBJECT_CHANGED` instead of answered.
-- Any 401 makes it believe no one, so the reads asked after it learn who is
-  signed in now. The application's `update` answers a read refused with
-  `SUBJECT_CHANGED` with `Remote.forget`, which asks them; a refusal for any
-  other reason (`Your session ended.`) is shown, since asking again would
-  be refused again.
-- Believing no one is a gap: after a 401 or `forget()`, the next request is
-  answered as whoever the cookie names. An application that keeps what
-  Remote holds through a 401 (a session that ended, its old rows still
-  shown) should forget them before another tab could sign in, or the next
-  read merges the new account's answers into them. An answer to a request
-  sent before the last 401 or `forget()` is never believed.
-- A sign-in or sign-out this tab makes calls `belief.forget()` in its
-  Command, before `update` forgets what Remote holds, so the reads after
-  it are not refused once first.
+- **`AuthServer.answered`** takes the same config plus `key`, writing
+  `subjectSaid(Option.some(key(user)))` or `'visitor'` into `x-foldkit-subject`
+  (URI-encoded for Latin-1 headers).
+- **`believing()`** tracks the last confirmed subject alongside the cookie. Once
+  the cookie resolves to someone else, the server rejects the request with
+  `SUBJECT_CHANGED` (`401`).
+- **Handling `401`:** Any `401` resets `believing()` to anonymous so subsequent
+  reads learn the new identity. When `update` sees `SUBJECT_CHANGED`, call
+  `Remote.forget` to re-fetch as the new user; for any other `401` reason
+  (`Your session ended.`), prompt the user to sign in.
+- **Same-tab sign-in or sign-out:** Call `belief.forget()` in the sign-in or
+  sign-out Command before clearing `Remote` state so subsequent reads succeed
+  immediately instead of hitting one `SUBJECT_CHANGED` round trip.
 
-[`examples/auth`](../../examples/auth) wires all of it.
+[`examples/auth`](../../examples/auth) wires this end to end.
 
 ## Sync's socket
 
-A browser's `WebSocket` sends no header of the page's, so an upgrade cannot
-carry the CSRF header. `requests: 'browser'` says so: the resolver reads the
-cookie of an upgrade whose `Origin`, which every browser sends on one, is
-trusted, and asks for no header; the rest is unchanged. `defineDocumentHost`
-takes the `Auth` service from its `layer`, kept while the socket is open, so
-`revalidate` can ask the session store again and close a socket whose
-session ended (4401):
+Browser `WebSocket` upgrades carry `Origin` but cannot set custom headers like
+`x-effect-auth-csrf`. Pass `requests: 'browser'` so the resolver verifies the
+`Origin` without requiring the CSRF header, and pass `revalidate` to close open
+sockets if the session ends (`4401`):
 
 ```ts sketch
 import { DurableObject } from 'cloudflare:workers'
@@ -251,7 +240,7 @@ import { defineDocumentHost } from 'foldkit-sync/do'
 
 export class SyncHost extends defineDocumentHost(DurableObject, {
   sync, // Sync.make(…)
-  openJournal, // the document's journal, as foldkit-sync's README opens it
+  openJournal, // document journal opener
   resolvePrincipal: AuthServer.resolver({
     requests: 'browser',
     auth: AppAuth,
@@ -265,15 +254,16 @@ export class SyncHost extends defineDocumentHost(DurableObject, {
 
 ## SSR's posted forms
 
-A form `foldkit-ssr` handles without scripts is a browser request too.
-`SSR.entry`'s `origins` answers a post from anywhere else `403` before its
-body is read; its `resources` give the post's Commands who posted, from a
-resolver built once with `requests: 'browser'`:
+Forms handled by `foldkit-ssr` without client JavaScript are standard browser
+`POST`s. `SSR.entry`'s `origins` check rejects cross-origin form posts with
+`403` before reading the body, and `resources` resolves the poster using
+`requests: 'browser'`:
 
 <!-- docs-check
 declare const config: Parameters<typeof SSR.entry>[0]
 declare const plan: Parameters<typeof SSR.entry>[1]
 -->
+
 ```ts
 import { Context, Layer, Option } from 'effect'
 import { SSR } from 'foldkit-ssr'
@@ -281,6 +271,7 @@ import { SSR } from 'foldkit-ssr'
 class Principal extends Context.Service<Principal, Option.Option<{ readonly id: string }>>()(
   'app/Principal',
 ) {}
+
 const whoPosted = AuthServer.resolver({
   requests: 'browser',
   auth: AppAuth,
@@ -296,22 +287,18 @@ export const entry = SSR.entry(config, plan, {
 })
 ```
 
-That Layer cannot fail, so a post whose session ended is a `500` for now,
-not a way back to sign-in. Resolve the session in the host before calling
-`renderPage`, as `Site.access`'s 303 does, to answer it with a redirect.
+Because `Layer.orDie` converts a failed session check into a defect (`500`),
+resolve the session in your host before calling `renderPage` (as `Site.access`
+does for `303` redirects) if you want an expired session to redirect to sign-in.
 
 ## SSR's page reads
 
-A server-rendered page reads what it shows before it renders, as whoever
-asked for it. The request is the page's own navigation: it carries no CSRF
-header, and, followed from a link elsewhere or typed into the address bar, no
-`Origin` and no `Sec-Fetch-Site: same-origin` either, so the resolver above
-refuses its cookie. `requests: 'navigation'` reads the cookie of a `GET` or
-`HEAD` without asking for either, as any server-rendered site reads its
-reader's session for the page they asked for. It refuses it on any other
-method, on a protocol upgrade (a WebSocket's, which any site may open and
-read), and on a request the browser marks as no navigation (`Sec-Fetch-Mode`
-other than `navigate`, a script's `fetch`):
+When the server renders a page for whoever navigated to it, the browser sends a
+`GET` or `HEAD` navigation with no CSRF header and often no `Origin` or
+`Sec-Fetch-Site: same-origin` (for example, from an external link or the address
+bar). Use `requests: 'navigation'` for `pageReader` so those page navigations
+can read the cookie while refusing non-GET methods, upgrades, and script
+`fetch`es (`Sec-Fetch-Mode` other than `navigate`):
 
 ```ts
 import { pageReader } from 'foldkit-remote-server/fetch'
@@ -324,22 +311,21 @@ const reader = pageReader({
 })
 ```
 
-It is for that reader alone. `pageReader` answers reads and refuses every
-write and live stream, so the checks this drops guard nothing there. Given
-to `serveFetch`, which answers only posts, it would refuse every signed-in
-reader, and a later loosening of either check could open `/remote` to a page
-elsewhere. `AuthServer.host`, next, hands out the two so that the mistake
-does not compile.
+Use `'navigation'` exclusively with `pageReader` (which handles reads only and
+refuses writes and live streams). Passing it to `serveFetch` would break
+writes; `AuthServer.host` separates the two types at compile time.
 
 ## One host: `AuthServer.host`
 
-A server that answers Yielded's routes, `/remote` and its own pages reads
-one cookie three ways, from one set of options. `AuthServer.host` makes all
-three from the application's built `Auth`:
+A server answering Yielded's auth routes, `/remote`, and SSR page reads needs
+three configurations over one `Auth` service. `AuthServer.host` builds all three
+from one config and types `scripted` and `navigation` separately so they cannot
+be swapped by mistake:
 
 <!-- docs-check
 declare const services: Context.Context<Context.Service.Identifier<typeof AppAuth>>
 -->
+
 ```ts
 const host = AuthServer.host({
   auth: AppAuth,
@@ -350,158 +336,104 @@ const host = AuthServer.host({
 })
 
 export const site = {
-  auth: host.routes, // Yielded's routes, under /auth/
+  auth: host.routes, // Yielded's routes under /auth/
   remote: serveFetch({ server, layer: () => Layer.empty, ...host.scripted }),
   read: pageReader({ server, layer: () => Layer.empty, ...host.navigation }),
 }
 ```
 
-- `host.scripted` is `serveFetch`'s: its resolver reads the cookie only from
-  a request with a trusted `Origin` and the CSRF header, the default
-  `'scripted'` above. With `key`, its `headers` say whom each answer was for
-  (`AuthServer.answered`).
-- `host.navigation` is `pageReader`'s: the `'navigation'` resolver of the
-  previous section, which reads the cookie of a `GET` or `HEAD` navigation
-  from anywhere and refuses any other method, an upgrade and a script's
-  `fetch`. The reader it makes cannot write.
-- They are typed apart. `serveFetch` hands its resolver a `ScriptedRequest`
-  and `pageReader` a `NavigationRequest` (types `foldkit-remote` exports;
-  nothing at run time), so `serveFetch({ …, ...host.navigation })`,
-  `pageReader({ …, ...host.scripted })`, or either given to a socket's
-  `defineDocumentHost`, is a type error. A resolver of your own that takes
-  any `Request` still fits both.
-- Both provide the `Auth` service from `services` themselves, so each
-  `layer` needs only what the server's Sources and `principal` need. The
-  routes are mounted over that same `Auth` (`Http.make(auth, http)`), so the
-  cookie they set is the one the resolvers read. `services` is built once
-  (per isolate, on Workers: below) and holds no principal: each request's is
-  read when it arrives.
-- It mounts no OAuth callbacks: `http` takes no `oauth`, and an object that
-  carries one throws. A socket still takes `AuthServer.resolver({ requests:
-  'browser' })`. `dispose()` closes the routes; `services` stays the caller's.
+- **`host.scripted`** requires a trusted `Origin` and `x-effect-auth-csrf: 1`
+  and attaches `AuthServer.answered` headers when `key` is set. Typed as
+  `ScriptedRequest`, so passing it to `pageReader` is a compile error.
+- **`host.navigation`** allows `GET`/`HEAD` navigations and refuses writes,
+  upgrades, and script `fetch`es. Typed as `NavigationRequest`, so passing it
+  to `serveFetch` or `defineDocumentHost` is a compile error.
+- **`services`** provides `Auth` automatically inside both `host.scripted` and
+  `host.navigation`; each `layer` callback only supplies what your Sources and
+  `principal` need. Build `services` once per isolate (never per request).
+- **Routes:** `host.routes` mounts `Http.make(auth, http)` (without OAuth
+  callbacks; passing `http.oauth` throws). Sync sockets still take
+  `AuthServer.resolver({ requests: 'browser', … })`. Call `host.dispose()` when
+  shutting down; `services` stays caller-managed.
 
-[`examples/reference`](../../examples/reference)'s `src/worker.ts` serves all
-three from one Worker; [`examples/auth`](../../examples/auth)'s `src/server.ts`
-does on Node, beside the board's socket.
+See [`examples/reference/src/worker.ts`](../../examples/reference/src/worker.ts)
+on Workers and [`examples/auth/src/server.ts`](../../examples/auth/src/server.ts)
+on Node.
 
 ## Refusals
 
-| Request | Answer |
+| Request condition | Response |
 | --- | --- |
-| No session cookie | a visitor |
-| A cookie, from a request without a trusted `Origin` or, lacking one, `Sec-Fetch-Site: same-origin` (and, for `'scripted'`, the CSRF header) | 401, `The request did not show it came from this application.` |
-| For `'navigation'`, a cookie on any method but `GET` and `HEAD`, on an `Upgrade` request, or with a `Sec-Fetch-Mode` other than `navigate` | 401, `The request did not show it came from this application.` |
-| A cookie that no longer verifies (signed out, expired, idle, revoked) | 401, `Your session ended.` |
-| Two session cookies | 401, `Sign in again.` |
-| `x-foldkit-subject` naming someone other than the session | 401, `Who is signed in changed.` (`SUBJECT_CHANGED`) |
-| A session store that fails | a defect (500), never a visitor |
+| No session cookie | Treated as visitor (`Option.none()`) |
+| Missing trusted `Origin` / `Sec-Fetch-Site: same-origin` (or CSRF header) | `401`, `The request did not show it came from this application.` |
+| `'navigation'` on non-`GET`/`HEAD`, upgrade, or non-`navigate` mode | `401`, `The request did not show it came from this application.` |
+| Cookie expired, signed out, idle, or revoked | `401`, `Your session ended.` |
+| Multiple session cookies on the request | `401`, `Sign in again.` |
+| `x-foldkit-subject` differs from the active session | `401`, `Who is signed in changed.` (`SUBJECT_CHANGED`) |
+| Session store error | `500` defect (never falls back to visitor) |
 
-A page served with `Referrer-Policy: no-referrer` sends `Origin: null` on its
-own posts, and a same-origin `GET` sends no `Origin`; either counts as the
-application's when its `Sec-Fetch-Site`, which no page can set, says
-`same-origin`. Browsers send Fetch Metadata only to secure origins (`https:`
-and `localhost`), so over plain `http:` elsewhere such a request is refused.
+Pages with `Referrer-Policy: no-referrer` send `Origin: null`, and same-origin
+`GET`s omit `Origin`; both pass when `Sec-Fetch-Site` equals `same-origin`.
+Browsers send Fetch Metadata only over secure contexts (`https:` and
+`localhost`), so plain `http:` on remote hosts is refused.
 
-**A long-lived connection re-checks the cookie it opened with.** `revalidate`
-asks again of the request a live stream or socket opened with, and Yielded's
-renewal rotates the session's credential, so after the page renews, that
-stream or socket ends refused (`Your session ended.`, a 4401) though the
-session lives. The client opens it again with the new cookie; the first
-refusal of a fresh request is the one that means signed out.
-
-**Remote's calls do not keep a session alive.** The resolver verifies with
-`verifySession`, which renews nothing. A stateful session with an
-`idleTimeout` ends that long after its last renewal however busy Remote is,
-and every call then answers `Your session ended.` Renew through Yielded's
-session renew operation (`renewSession`) while the reader is active, or
-choose an idle timeout that fits.
-
-The `x-foldkit-subject` header (`SUBJECT_HEADER`, from `foldkit-auth`, which
-imports nothing of Yielded's and so suits a browser bundle) carries no
-secret: `visitor` or `subject:<key>`, what `Me` already shows the client. A
-client that sends none is answered as whoever the session says. Without
-`key` the resolver compares it with the session's `subjectId`, for a client
-that writes the header itself; `AuthServer.answered` needs `key`.
+- **Long-lived connections:** `revalidate` re-checks the cookie a live stream or
+  socket opened with. Because Yielded rotates session credentials on renewal, an
+  open socket closes with `4401` (`Your session ended.`) after renewal so the
+  client reconnects with the new cookie.
+- **Session idle timeouts:** `verifySession` checks validity without extending
+  `idleTimeout`. Call Yielded's `renewSession` while the user is active, or
+  size `idleTimeout` to fit your session lifetime.
+- **Subject header (`x-foldkit-subject`):** Imported as `SUBJECT_HEADER` from
+  `foldkit-auth` (browser-safe, no Yielded import). Holds `'visitor'` or
+  `'subject:<key>'`. Without `key`, the resolver compares against
+  `session.subjectId`.
 
 ## On Workers with D1
 
-[`examples/cloudflare`](../../examples/cloudflare) runs it end to end on
-Miniflare: Yielded's routes (`/auth/…`) and `/me`, which answers through
-`AuthServer.resolver`, in the same Worker as `serveFetch`
-(`src/authRoutes.ts`); the account table and Yielded's own as a D1 migration
-(`migrations/0005_auth.sql`); sign-up provisioning the account row; and a
-test that signs up, signs in and reads the session back (`test/auth.test.ts`).
-Three things it shows that the sections above do not:
+[`examples/cloudflare`](../../examples/cloudflare) wires Yielded Auth and
+`AuthServer.resolver` on Miniflare and D1 (`src/authRoutes.ts`,
+`migrations/0005_auth.sql`, `test/auth.test.ts`). Three Workers-specific rules:
 
-- **Persistence on D1 is `@yielded/auth-persistence-drizzle/D1`.** The
-  `AuthPersistence` of `@yielded/auth-persistence` commits a sign-in or a
-  sign-up in an interactive transaction, which `@effect/sql-d1` does not run
-  ("transactions are not supported in D1"). The Drizzle package's D1 module
-  commits through D1's atomic batches instead; give it
-  `D1Client.layer({ db: env.DB })` and its tables through
-  `Persistence.managed({ subjects, prefix })`. Its `Persistence` has the
-  `Provisioning` and `Config` of [Signing up](#signing-up).
-- **The migration is the application's.** Yielded checks the columns and
-  unique keys it reads when it first runs, and creates nothing. Write each
-  managed table as Drizzle declares it; the example's test derives the
-  statements from `storage.schema` and compares.
-- **`@yielded/auth-platform-workerd` needs `nodejs_compat` and a Wasm module.**
-  Its `layer` gives Yielded its crypto and password hashing on Workers; the
-  hashing imports `node:crypto` and an Argon2 `.wasm` file, and a bundle that is
-  not Wrangler's keeps the `.wasm` beside the script as a compiled module. Node
-  cannot load it, so keep the auth definition (tables included) in a module
-  that does not import it, for tests to read.
+- **Use `@yielded/auth-persistence-drizzle/D1`:** `@effect/sql-d1` rejects
+  interactive transactions; the Drizzle D1 adapter commits via D1 atomic batches
+  given `D1Client.layer({ db: env.DB })` and
+  `Persistence.managed({ subjects, prefix })`.
+- **Write your own migrations:** Yielded validates expected columns and unique
+  keys at startup instead of running DDL. Declare the managed tables in your
+  Drizzle schema and migrations.
+- **Keep `@yielded/auth-platform-workerd` in server entry code only:** It
+  requires `nodejs_compat` and bundles an Argon2 `.wasm` module that Node tests
+  cannot load. Keep shared `Auth.make` and table schemas in a separate module.
 
-Beyond those, a few settings a server on one machine never needs:
+Three runtime tips for Workers:
 
-- **Build auth once per isolate.** Make `AppAuth`'s layer and its persistence
-  over the D1 binding once, in a `ManagedRuntime`, and provide its context to
-  each request. A D1 binding is not I/O a request owns, so sharing it is safe.
-  Built per request, Yielded runs its storage's first-use setup again with
-  each build, and two requests carrying one cookie at once (a refresh beside a
-  page's read) can fail session verification, which `serveFetch` answers as a
-  500.
-- **Allow the clocks to differ.** Yielded's `AuthenticationClock` is strict by
-  default (`futureToleranceMillis: 0`), and a session's issue time comes from
-  the Worker while D1 keeps its own clock. A Worker's `Date.now()` moves only
-  between I/O, so a session can read as a moment in the future, and a correct
-  password is refused as `PasswordRejected`. Give the clock some room:
-
-  ```ts
-  import { Operations } from '@yielded/auth'
-  import { Layer } from 'effect'
-
-  const withClock = Layer.provideMerge(
-    Operations.AuthenticationClock.layer({ futureToleranceMillis: 1000 }),
-  )
-  ```
-- **Expect the sign-in limit to be per isolate.** Yielded counts password
-  attempts, successful ones included, per email and per account: by default
-  10, then one more every 6 seconds. It counts in memory unless the layer is
-  given an Effect `RateLimiterStore` (`effect/persistence/RateLimiter`), so
-  each isolate keeps its own count, which is lost when the isolate is evicted.
-  Give the layer a shared store for a limit that holds across isolates. A test
-  that signs one account in more than ten times in quick succession is refused as
-  `PasswordRejected`, so sign each test account in once.
+- **Build auth once per isolate:** Initialize `AppAuth` and persistence once in
+  a `ManagedRuntime` per D1 binding (via `Host.isolate`), and pass its context
+  to each request. Rebuilding per request re-runs first-use storage checks and
+  can fail concurrent requests with `500`.
+- **Allow small clock skew:** Workers `Date.now()` advances only between I/O
+  turns, so a newly issued session can appear slightly ahead of D1's clock and
+  fail with `PasswordRejected`. Provide tolerance via
+  `Operations.AuthenticationClock.layer({ futureToleranceMillis: 1000 })`.
+- **Use a shared `RateLimiterStore` for global limits:** Default password rate
+  limiting (10 attempts per email/account, then 1 per 6 seconds) lives in
+  isolate memory. Provide an Effect `RateLimiterStore` for limits shared across
+  isolates, and sign each test account in once in automated tests.
 
 ## Signing up
 
-`foldkit-auth` reads sessions; it creates no accounts. Sign-up is Yielded's
-password strategy, and the application's own account row is written in the
-same commit, by a hook the application supplies. Wiring it to
-`@yielded/auth@0.1.0-beta.47` takes four pieces.
+`foldkit-auth` reads sessions; account registration lives in Yielded's password
+strategy, which inserts your application's account row in the same commit via a
+provisioning hook. Four parts wire it together:
 
-**The contract names the action.** `AuthContract` has a helper for password
-sign-in but none for registration, so `register` is declared with the schemas
-of the strategy's own `register` operation. An action calls the strategy method
-of its own name, so the name is `register`:
+**1. Declare the `register` action in your contract:**
 
 ```ts standalone
 import { AuthContract, Password } from '@yielded/auth'
 import { Email } from '@yielded/auth/Schema'
 import { Schema } from 'effect'
 
-/** What sign-up asks beyond an email and a password: the application's own fields. */
 export const Registration = Schema.Struct({ displayName: Schema.NonEmptyString })
 
 export const AuthApi = AuthContract.make('app/Auth', {
@@ -531,16 +463,10 @@ export const AuthApi = AuthContract.make('app/Auth', {
 })
 ```
 
-**The strategy takes `registration` only beside `reset`.** Registration
-comes with Yielded's password management (add, change, reset), not alone.
-`Http.layer` serves only the actions the contract names, so an application
-whose contract names no reset action serves none. It must still configure
-one. `Password.resetLink({ url })` checks its URL when the layer is built.
-The URL must be `https:`, with no query or fragment, and exactly its own
-`href`, so `https://app.example/reset` is accepted, while
-`https://app.example` (whose `href` adds a slash) and `http://localhost:5173/reset`
-fail with `ProofConfigurationError { reason: 'delivery' }`.
-`Password.resetCode()` takes no URL, but requires `Proofs.ProofKeys`:
+**2. Configure `Password.make` with `registration` and `reset`:**
+`Password.resetLink({ url })` validates an `https:` URL with no query or
+fragment and an exact `href` (such as `'https://app.example/reset'`);
+`Password.resetCode()` uses `Proofs.ProofKeys` instead.
 
 ```ts
 import { Auth, Sessions } from '@yielded/auth'
@@ -557,14 +483,7 @@ export const AppAuth = Auth.make(AuthApi, {
 })
 ```
 
-**Provisioning writes the account row.** `AuthPersistence.make(AppAuth)`
-asks for `Provisioning`. Its `values` returns the new subject row, keyed by
-the column keys of the subject table given `Persistence.Config`: the id, the
-active status, the first security revision, and the application's own
-columns. Yielded inserts that row in the commit that binds the email and
-password, so an account never exists without its row. `values` must not
-write or call out; on D1 only this form is accepted (an interactive driver
-also takes a callback that inserts the row itself):
+**3. Provision the application's subject row atomically:**
 
 ```ts
 import { AuthPersistence } from '@yielded/auth-persistence'
@@ -577,7 +496,7 @@ export const Provisioning = Layer.succeed(Persistence.Provisioning, {
     values: ({ identifier, registration }) =>
       Effect.sync(() => ({
         id: crypto.randomUUID(),
-        status: 'active', // the subject table's `activeValue`
+        status: 'active',
         securityRevision: crypto.randomUUID(),
         email: identifier.value,
         displayName: registration.displayName,
@@ -586,17 +505,10 @@ export const Provisioning = Layer.succeed(Persistence.Provisioning, {
 })
 ```
 
-**Management needs three services that sign-in does not.** Yielded gives
-them no default:
-
-- `Password.CompromisedPasswords` screens every new password, so it is
-  asked at each sign-up. Yielded makes no network call of its own and
-  allows nothing by default: check a local list here, or Pwned Passwords'
-  range API. It is given the email too (`accountName`), to refuse a password
-  that contains it (`'contextual'`).
-- `Password.PasswordActionEvidence` and `EmailDelivery.EmailDelivery` serve
-  password change and reset. A contract without those actions never asks
-  them, so refusing stubs are enough.
+**4. Provide the password-management services:**
+Screen new passwords with `Password.CompromisedPasswords`, and provide
+`PasswordActionEvidence` and `EmailDelivery` stubs if your contract omits
+password-change and reset actions:
 
 ```ts
 import { EmailDelivery } from '@yielded/auth'
@@ -622,17 +534,14 @@ export const PasswordOnly = Layer.mergeAll(
 )
 ```
 
-Provide `PasswordOnly` to `AppAuth.layer`, and `Provisioning` to
-`Persistence.layer`, alongside what sign-in already needs: the persistence
-layer and its `Config`, `SessionClaims`, and the platform's crypto and
-hashing (`@yielded/auth-platform-workerd`'s `layer` on Workers). Yielded's `Testing` store
-refuses password management when it is built, so a sign-up test needs SQL
-persistence, such as SQLite in memory.
+Provide `PasswordOnly` to `AppAuth.layer` and `Provisioning` to
+`Persistence.layer` alongside SQL persistence (Yielded's in-memory `Testing`
+store refuses password management; use SQLite in memory for sign-up tests).
 
-**The client registers, then signs in.** `register` answers
-`RegistrationAccepted` both when it creates an account and when the email
-already has one, so it does not reveal which emails are taken. It does not
-sign in either:
+**From the browser, register then sign in:** `register` always answers
+`RegistrationAccepted` without leaking whether an email is already taken, and
+requires at least 15 code points by default (override via
+`Password.NewPasswordCheck.layer`):
 
 ```ts
 import * as Client from '@yielded/auth/Client'
@@ -640,7 +549,7 @@ import * as Client from '@yielded/auth/Client'
 const AppClient = Client.make(AuthApi, { baseUrl: location.origin })
 
 export const signUp = (form: {
-  readonly requestId: string // one per submission, handed to `values` as `requestId`
+  readonly requestId: string
   readonly email: string
   readonly password: Redacted.Redacted<string>
   readonly displayName: string
@@ -657,23 +566,22 @@ export const signUp = (form: {
   })
 ```
 
-- `register` fails with `NewPasswordRejected` for a password the policy or the
-  screening refuses, whether the email is taken or not. By default a new password needs 15
-  code points (NIST SP 800-63B for a single factor), so say so on the form, or
-  supply `Password.NewPasswordCheck.layer(policy)` with another
-  `minimumCodePoints`.
-- With a taken email, the sign-in after it fails with `PasswordRejected`,
-  unless the password is that account's own.
-- A retried `register` creates nothing twice: by then the email is taken, and
-  the retry is answered `RegistrationAccepted` like the first.
-- Call `belief.forget()` after the sign-in succeeds, as for any sign-in.
+Call `belief.forget()` after `signIn` succeeds so subsequent Remote requests pick
+up the new session immediately.
 
 ## Limits
 
-- MCP agents send a bearer credential, which no resolver here reads yet. A
-  Sync replica reconnects after a 4401, refused at each upgrade, since a
-  browser's `WebSocket` does not say why an upgrade failed.
-- Cookie sessions only; a bearer credential is not read.
-- A session cookie with a `domain` trusts every subdomain, as Yielded
-  documents: one that sets its own cookie of the same name makes every
-  request `Sign in again.` until it is cleared.
+- **Cookie sessions only:** Bearer credentials (such as MCP tokens) are not
+  read by these resolvers.
+- **Sync reconnect on rotation:** After a session credential rotates, a Sync
+  replica receives `4401` and reconnects; browsers do not expose HTTP failure
+  reasons on `WebSocket` upgrades.
+- **Subdomain cookies:** Setting a `domain` on the session cookie allows
+  subdomains to set a duplicate cookie of the same name, causing
+  `Sign in again.` (`401`) until cleared.
+
+## Next
+
+- Enforce row and field permissions from the resolved principal: [`foldkit-guard`](../guard/README.md) and [Auth and Guard](../../docs/auth-and-guard.md)
+- Wire auth routes, Remote, and SSR into one Worker: [`foldkit-host`](../host/README.md)
+- Handle `401` and `SUBJECT_CHANGED` in your UI: [Errors and failures](../../docs/errors.md#refusals)

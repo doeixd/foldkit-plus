@@ -8,7 +8,7 @@ the Model; a payload only notifies, and the parent keeps what it wants of it.
 | Name | Form | Model | Messages | Args |
 | --- | --- | --- | --- | --- |
 | `Online` | bundle | `{ online }` | `Changed { online }` | none |
-| `websocket({ name, createSocket? })` | bundle factory | `{ url, status, lastError, opened }` | `Connecting`, `Opened`, `Received { data }`, `Sent { data }`, `SendFailed`, `Closed`, `Failed`, `TimedOut` | `{ url, connectTimeoutMs? }` |
+| `websocket({ name, createSocket? })` | bundle factory | `{ url, status, lastError, opened }` | `Connecting`, `Opened`, `Received`, `Sent`, `SendFailed`, `Closed`, `Failed`, `TimedOut` | `{ url, connectTimeoutMs? }` |
 | `sse({ name, createSource? })` | bundle factory | `{ url, status, lastError }` | `Connecting`, `Opened`, `Received { data }`, `Closed`, `Failed` | `{ url }` |
 | `broadcastMessages(name)` | entry | | `Received { data }` | |
 | `postBroadcast(name, data)` | Command | | `Posted`, `BroadcastFailed` | |

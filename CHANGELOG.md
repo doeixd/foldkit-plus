@@ -7,6 +7,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Fixed
+
+- `examples/chirp`: a chirp that says nothing (empty or only whitespace) is refused by the compose form, the editor and the server, and the table's `CHECK` refuses an empty body.
+
 ## 0.43.0
 
 Nothing needs changing unless your code reads the output of the checker, which
