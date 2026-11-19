@@ -6,7 +6,8 @@
  * that a card is out of date. `--default` draws `default.png` from
  * `assets/blog-card.svg` instead, the card of the index and of a post whose
  * card is missing. Run `pnpm --filter foldkit-example-site social` after
- * adding a post or editing a title, and commit the images with the JSON.
+ * adding a post or editing a title, and commit the images with the JSON. Pass
+ * `--only=<slug>` to update just one post and leave the other cards intact.
  *
  * The page loads the face the site loads (the Google Fonts stylesheet of
  * `index.html`), and the script fails when it is not the face drawn, or
@@ -68,7 +69,7 @@ const FAINT = 'oklch(66% 0 0)'
 const HAIRLINE = 'oklch(88% 0.003 270)'
 const SOFT = 'oklch(93% 0.003 270)'
 
-const card = ({ title, kicker, date }) => `<!doctype html>
+const card = ({ title, kicker, date, releaseVersion }) => `<!doctype html>
 <meta charset="utf-8">
 <link rel="stylesheet" href="${FONTS}">
 <style>
@@ -92,10 +93,17 @@ const card = ({ title, kicker, date }) => `<!doctype html>
   .foot { position: absolute; inset: auto 80px 56px 80px; padding-top: 24px; border-top: 1px solid ${SOFT};
     display: flex; justify-content: space-between; font: 400 24px "Geist Mono", ui-monospace, monospace; color: ${FAINT} }
   .foot span:first-child { color: ${MUTED} }
+  ${
+    releaseVersion === ''
+      ? ''
+      : `.main { gap: 16px }
+  .kicker { border: 0; padding: 0; color: ${INK}; font: 700 124px/1 "Geist", ui-sans-serif, sans-serif;
+    letter-spacing: -0.05em; background: transparent }`
+  }
 </style>
 <div class="frame"></div><div class="dots"></div>
 <div class="top"><span class="mark">F+</span><span class="word">Foldkit Plus</span></div>
-<div class="main">${kicker === '' ? '' : `<span class="kicker">${escape(kicker)}</span>`}<h1>${escape(title)}</h1></div>
+<div class="main">${releaseVersion || kicker ? `<span class="kicker">${escape(releaseVersion || kicker)}</span>` : ''}<h1>${escape(title)}</h1></div>
 <div class="foot"><span>${escape(day(date))}</span><span>foldkit-plus.pages.dev/blog</span></div>`
 
 /** Largest of three sizes at which the title takes at most three lines, none wider than its box. */
@@ -104,13 +112,16 @@ const SIZES = [96, 84, 72, 64]
 const drawPost = async (browser, post) => {
   const page = await browser.newPage({ viewport: { width: 1200, height: 630 } })
   try {
-    await page.setContent(card({ ...splitTitle(post.title), date: post.date }), {
+    const releaseVersion = post.slug === 'foldkit-plus-0-43-0' ? '0.43' : ''
+    const sizes = releaseVersion === '' ? SIZES : [60, 54, 48]
+    await page.setContent(card({ ...splitTitle(post.title), date: post.date, releaseVersion }), {
       waitUntil: 'networkidle',
     })
     await page.evaluate(async () => {
       await Promise.all(
         [
           '600 64px Geist',
+          '700 124px Geist',
           '600 30px Geist',
           '700 20px "Geist Mono"',
           '500 24px "Geist Mono"',
@@ -131,10 +142,10 @@ const drawPost = async (browser, post) => {
         if (lines <= 3 && !wide && clear) return { size, lines }
       }
       return undefined
-    }, SIZES)
+    }, sizes)
     if (fit === undefined)
       throw new Error(
-        `${post.slug}: the title "${post.title}" does not fit three lines at ${SIZES.at(-1)}px`,
+        `${post.slug}: the title "${post.title}" does not fit three lines at ${sizes.at(-1)}px`,
       )
     // The face drawn is the one the site ships: read it from the engine, not from the CSS.
     const cdp = await page.context().newCDPSession(page)
@@ -166,8 +177,13 @@ try {
     writeFileSync(join(directory, 'default.png'), await page.screenshot({ type: 'png' }))
   } else {
     const all = readPosts()
-    for (const post of all) await drawPost(browser, post)
-    const hashes = Object.fromEntries(all.map(post => [post.slug, hashOf(post.title, post.date)]))
+    const only = process.argv.find(arg => arg.startsWith('--only='))?.slice('--only='.length)
+    const selected = only === undefined ? all : all.filter(post => post.slug === only)
+    if (selected.length === 0) throw new Error(`No post with slug "${only}"`)
+    for (const post of selected) await drawPost(browser, post)
+    const hashes =
+      only === undefined ? {} : JSON.parse(readFileSync(join(directory, 'cards.json'), 'utf8'))
+    for (const post of selected) hashes[post.slug] = hashOf(post.title, post.date)
     mkdirSync(dirname(join(directory, 'cards.json')), { recursive: true })
     writeFileSync(join(directory, 'cards.json'), `${JSON.stringify(hashes, null, 2)}\n`)
   }

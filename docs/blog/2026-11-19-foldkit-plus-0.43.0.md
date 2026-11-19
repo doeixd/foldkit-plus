@@ -99,10 +99,13 @@ All of these run live, with full source, on the
 
 ## Building blocks for your own interface
 
-When a finished component is not the right fit, Foldkit Plus ships smaller
-building blocks in `foldkit-primitives`. Keyboard routes let behaviors share
-key handling; focus recovery moves focus to a sensible control when the focused
-element is removed. Explore them live in the
+Vercel's [UI SDK](https://github.com/vercel-labs/ui) has brought attention to
+reusable interface behaviors. Our take for Foldkit puts those smaller pieces
+alongside the state and events your application already owns. For example,
+`foldkit-primitives` can move focus to a sensible control when the focused
+element is removed. `foldkit-mixins` can also compose keyboard behavior: Escape
+can clear a search field before a second press closes the surrounding dialog.
+Explore the building blocks in the
 [Primitives gallery](https://foldkit-plus.pages.dev/primitives).
 
 ![The Primitives gallery showing interactive keyboard, focus, motion, and device building blocks.](/blog/2026-11-18-foldkit-plus-0-41/primitives-gallery.png "Interactive building blocks in the Primitives gallery")
@@ -438,7 +441,7 @@ lists every change.
 
 ## See it, try it
 
-- [Quickstart](https://foldkit-plus.pages.dev/learn/guides/quickstart) — build
+- [Quickstart](https://foldkit-plus.pages.dev/learn) — build
   and run your first Foldkit Plus program in five minutes.
 - [The combobox page](https://foldkit-plus.pages.dev/components/combobox), and
   the [component pages](https://foldkit-plus.pages.dev/components) for the
@@ -464,7 +467,7 @@ pnpm add foldkit foldkit-mixins foldkit-mixins-ui foldkit-primitives @foldkit/ui
 ```
 
 Then try the [combobox examples](https://foldkit-plus.pages.dev/components/combobox)
-or follow the [Quickstart](https://foldkit-plus.pages.dev/learn/guides/quickstart).
+or follow the [Quickstart](https://foldkit-plus.pages.dev/learn).
 For the data side, add the packages for records, server data, and permissions:
 
 ```bash
