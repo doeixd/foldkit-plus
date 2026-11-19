@@ -170,7 +170,7 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html => {
         },
         h,
       ),
-      Guide({ demo: registryDemo, corner: 'top-end', compact: true, inset: '0.75rem' }, h),
+      Guide({ demo: registryDemo, corner: 'top-end', compact: true, inset: '0.375rem' }, h),
     ],
   )
 }
