@@ -7,7 +7,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- `foldkit-ssr`: `Meta` takes `imageSize` and `imageAlt` (`og:image:width`, `og:image:height`, `og:image:alt`) and `article.authors` and `article.tags` (one `article:author` or `article:tag` each); `twitter:title`, `twitter:description`, `twitter:image` and `twitter:image:alt` repeat the Open Graph words whenever those are given.
+
 ### Changed
+
 
 - `foldkit-mixins-ui`: a `CodeBlock` with `collapsed` keeps every line in the page and clips it by style to the first `lines`, under the fade, so a find, a copy of the page's text and an anchor reach the whole code (it drew only the first lines). `collapsed: { lines, expanded?, onToggle? }` replaces `{ lines, onExpand }`: the application flips `expanded` from `onToggle`, and an expanded block's button offers `words.collapse` (new, `Show less`). `onToggle` may be left out for a server-rendered static region whose script toggles the block: the button then carries the words it shows after a press as `data-toggled-label`. The root writes `data-collapsed="true"` or `"false"` and `--fk-code-clamp`, only when the code has more than `lines` lines.
 - `foldkit-mixins-ui`: a VirtualList's box is filled with `surface.subtle` (it was `surface.default`, a mid grey against a white card), the step a CodeBlock takes.

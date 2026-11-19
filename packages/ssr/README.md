@@ -386,13 +386,19 @@ const Post = SSR.plan(App, {
 ```
 
 `SSR.page` and `SSR.generate` write the tags (`description`, `og:*`,
-`twitter:card`, `article:*`, `robots`, `link rel="alternate"`, and one JSON-LD
+`twitter:*`, `article:*`, `robots`, `link rel="alternate"`, and one JSON-LD
 script per entry) before `</head>`, every value escaped, and `SSR.render`
 checks them like the view: a `meta` that reads a field `state` does not send
 is `ViewDependsOnUnsentState`. `SSR.hydrate` keeps them in step with the Model,
 so a move to another post replaces the description too. Each carries
 `data-foldkit-meta` (`META_ATTRIBUTE`), which is how the browser finds the
 ones to replace; leave such tags out of the template.
+
+An `image` is an absolute URL; `imageSize` and `imageAlt` add `og:image:width`,
+`og:image:height` and the alt text, and `article` takes `authors` and `tags`
+(one `article:author` or `article:tag` each). `twitter:title`,
+`twitter:description` and `twitter:image` repeat the Open Graph words, for
+previews that read only `twitter:*`.
 
 ## Serving pages
 
