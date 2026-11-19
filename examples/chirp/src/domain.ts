@@ -21,8 +21,16 @@ export const PostFields = Entity.define(
   'Post',
   Schema.Struct({
     id: Schema.String,
-    // Characters as people count them (code points), which is what SQL counts too.
-    body: Schema.String.check(Schema.isMaxCodePoints(280)),
+    // A chirp says something: 1 to 280 code points, as people and SQL count
+    // them, and not whitespace alone. The lengths compile to the table's CHECK;
+    // the trimmed rule is the server's, since SQL's trim is not JavaScript's.
+    body: Schema.String.check(
+      Schema.isMinCodePoints(1),
+      Schema.isMaxCodePoints(280),
+      Schema.makeFilter((text: string) => text.trim().length > 0, {
+        expected: 'a chirp with something in it',
+      }),
+    ),
     createdAt: Schema.Number,
   }),
 )

@@ -12,7 +12,7 @@ browser, so nothing you post leaves it.
 
 | Fact | Owner | Where |
 | --- | --- | --- |
-| What a user and a post are, that a body holds at most 280 characters, and what a handle may be | the domain, declared once; the tables' `CHECK`s are compiled from it | `domain.ts` (`foldkit-entity`), `server/server.ts` (`checkConstraints`) |
+| What a user and a post are, that a chirp says something and holds at most 280 characters, and what a handle may be | the domain, declared once; the tables' `CHECK`s are compiled from it | `domain.ts` (`foldkit-entity`), `server/server.ts` (`checkConstraints`) |
 | Who may write a post: its author, or an admin | the domain declares it; the server decides | `guard.ts`, `server/server.ts` (`foldkit-guard`) |
 | The posts and the likes | the server's database | `server/server.ts` (`foldkit-remote-server`, `foldkit-remote-drizzle`) |
 | The posts the page shows, cached in the Model | Remote, inside the Model | `state.ts`, `app.ts` (`foldkit-remote`) |
@@ -72,12 +72,14 @@ link and a like's `user` are `Expr.viewer(User)`, whoever asks, and a post's
 column: a rule or a query compares it directly. No write's input sets them; the server fills them, and the page predicts them.
 Nothing else about a write's effects is declared: counts follow from the
 `Derived` members, and a list's membership and order from its query's body.
-The 280-character rule is the
-body's own Schema check (`isMaxCodePoints`, characters as SQL counts them), and a
-handle's is a pattern with its lengths. The server's decode and the form read
-them, and `server/server.ts` makes each table's `CHECK`s from them with
-`checkConstraints`, so the database refuses the same thing and no rule is
-written twice.
+A chirp says something: the body's own Schema checks are 1 to 280 code points
+(`isMinCodePoints` and `isMaxCodePoints`, characters as SQL counts them) and a
+trimmed length that is not zero; a handle's is a pattern with its lengths. The
+server's decode and the form read them, and `server/server.ts` makes each table's
+`CHECK`s from them with `checkConstraints`, so the database refuses an empty or
+over-long body and no CHECK is written by hand. SQL cannot say "not whitespace
+alone" exactly, so `checkConstraints` leaves that rule to the server's writes
+and reports it once.
 
 **The guards** (`guard.ts`). `Guards.declare` names three guards: `isAuthor`,
 a row guard comparing the post's `author` link with the asker

@@ -153,14 +153,20 @@ it('keeps the left nav at the top of the window to the end of the posts', async 
 
 it('dims the compose button while it reads aria-disabled, and keeps hover off it', async () => {
   await mount('/')
+  // An empty chirp cannot be posted, so the form marks its button from the
+  // start. Give it a body to enable it, as the page does when you type.
+  const box = await vi.waitUntil(() => document.querySelector('textarea'), answered)
+  await userEvent.fill(box, 'A chirp to post.')
   const submit = await vi.waitUntil(
-    () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Chirp'),
+    () =>
+      [...document.querySelectorAll('button')].find(
+        button => button.textContent === 'Chirp' && button.getAttribute('aria-disabled') === null,
+      ),
     answered,
   )
-  // The form marks it so while it submits or cannot; set here, since an empty
-  // chirp is a valid form and nothing in the page holds it marked for long.
   const enabled = getComputedStyle(submit).opacity
   const resting = getComputedStyle(submit).backgroundColor
+  // Force the marked state to check its style, as a submitting form would.
   submit.setAttribute('aria-disabled', 'true')
   expect(enabled).toBe('1')
   expect(getComputedStyle(submit).opacity).toBe('0.5')
@@ -235,6 +241,22 @@ const frames = (count: number) =>
       left === 0 ? resolve() : requestAnimationFrame(() => next(left - 1))
     next(count)
   })
+
+it('posts nothing while the compose box says nothing', async () => {
+  await mount('/')
+  await vi.waitUntil(() => posts().length === 6, answered)
+  const button = () =>
+    [...document.querySelectorAll('button')].find(element => element.textContent === 'Chirp')!
+  // Blank, and then whitespace alone: neither is a chirp, so the button refuses
+  // both. A press still reaches the form, which refuses it and sends no write.
+  expect(button().getAttribute('aria-disabled')).toBe('true')
+  await userEvent.fill(document.querySelector('textarea')!, '   \n  ')
+  expect(button().getAttribute('aria-disabled')).toBe('true')
+  button().click()
+  await frames(2)
+  expect(posts().length).toBe(6)
+  expect(heard.filter(tag => tag === 'ClockedPost')).toEqual([])
+})
 
 it('draws a chirp posted once, where it stays, through the answer', async () => {
   // The answer held until the chirp has been drawn a few frames, as a slow server's is.

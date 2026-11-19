@@ -2,7 +2,7 @@
 /**
  * The server as the page reaches it, over Remote's handlers: the timeline,
  * posting, and editing, each asked as one person. The guards decide who may
- * write a post; the body's rule refuses one too long.
+ * write a post; the body's rules refuse one blank or too long.
  */
 import { Effect, Option, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
@@ -160,15 +160,26 @@ describe('posting', () => {
     expect(result._tag).toBe('Failure')
     expect(await you.timeline()).not.toContain('n1')
   })
+
+  it.each(['', '   ', '\t\n ', '\u00a0'])('refuses a chirp that says nothing (%j)', async body => {
+    const you = sandbox()('you')
+    expect((await you.mutate('PostChirp', { id: 'n1', body }))._tag).toBe('Failure')
+    expect(await you.timeline()).not.toContain('n1')
+  })
 })
 
 describe('the database', () => {
-  // Raw SQL passes the server's checks; the tables' CHECKs, compiled from the domain, do not.
-  it("holds the domain's rules against a write that skips the server", () => {
+  // Raw SQL passes the server's checks; the tables' CHECKs, compiled from the
+  // domain, hold the lengths. A body of only whitespace is the server's rule:
+  // SQL's trim is not JavaScript's, so checkConstraints reports it once.
+  it("holds the domain's lengths against a write that skips the server", () => {
     const sqlite = memorySqlite()
     openServer(sqlite)
     const insert = (statement: string) => () => sqlite.exec(statement)
     expect(insert(`insert into posts values ('n1', 'you', '${'x'.repeat(281)}', 0)`)).toThrow(
+      'CHECK constraint failed: posts_body_check',
+    )
+    expect(insert("insert into posts values ('n0', 'you', '', 0)")).toThrow(
       'CHECK constraint failed: posts_body_check',
     )
     // 280 characters, each two UTF-16 units: the rule counts characters, as SQL does.
@@ -193,6 +204,13 @@ describe('editing', () => {
     const you = sandbox()('you')
     expect((await you.mutate('EditPost', { id: 'p4', body: 'Edited' }))._tag).toBe('Success')
     expect(await you.read('p4', ['body'])).toEqual({ body: 'Edited' })
+  })
+
+  it('refuses an edit that leaves a chirp saying nothing', async () => {
+    const you = sandbox()('you')
+    const before = await you.read('p4', ['body'])
+    expect((await you.mutate('EditPost', { id: 'p4', body: '  \t ' }))._tag).toBe('Failure')
+    expect(await you.read('p4', ['body'])).toEqual(before)
   })
 
   it('refuses an edit of someone else’s post', async () => {
