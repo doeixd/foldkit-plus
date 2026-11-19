@@ -1,6 +1,6 @@
 # foldkit-guard
 
-Checked against `foldkit-guard` 0.12.0.
+Checked against `foldkit-guard` 0.14.0.
 
 A guard set is declared once, implemented on the server, attached to
 Entities, and enforced by each seam through a subpath: reads and writes
@@ -344,6 +344,18 @@ yes and `May.refused(may, 'Update')` only on a no: hide or disable on
   say; an explained refusal is the agent error's message);
   `Agent.forApplication(App).withPrincipal(G.Principal)`.
 
+## How Guard works as a constraint system
+
+Guard, `Expr`, and `Laws` share one typed expression tree (`Guard and from/when and invariants and Schema`):
+
+- **Two-step reduction (`Policy.readable` / `writable`):** principal guards decide once per request into `Always` or `Never` and simplify the `Condition` tree; only surviving `RowGuard`s reach SQL (`GuardDrizzle.visible`) or memory (`Condition.holds`).
+- **Partial evaluation & residualization:** `Condition.residual` decides single-row guards immediately and leaves only cross-row guards (`Expr.path`, `Expr.exists`) for the write's SQL statement. `Condition.judge` runs over partial client rows twice (assuming unknowns `true` and `false`) and decides only where both agree.
+- **Structural safety guarantees:**
+  - `GuardServer.writer` checks `Update` row rules on **both `before` and `after`** (blocking privilege escape), checks each member/`Link` rule on `after` with that one change undone, checks cascading `Delete` child rows in the same statement, and pins writes with `revision` (retrying up to 3 times on concurrent edits).
+  - `GuardServer.validate` and `GuardServer.writer` block hidden-field side channels: queries cannot filter/sort by Read-ruled members, writes cannot read them in `when`/`expect`/`compute`, and invariant failures over them return generic `Invalid`.
+  - `May.answer` is three-valued (`Option<boolean>`); disable UI only on `May.refused` so undecided actions stay live for the server.
+- **Authority stays separate from validity:** `Entity.invariant` and `Laws.check` never assume discretionary Guards as hypotheses. Guards are alternatives (`[isOwner, isAdmin]`) that change with roles; invariants hold for everyone (`Forbidden` vs `Unmet` vs `Invalid`).
+
 ## Known traps
 
 Met in applications on this stack: what failed, and what to do instead.
@@ -362,4 +374,4 @@ Worked app: [examples/chirp](https://github.com/doeixd/foldkit-plus/tree/main/ex
 `src/guard.ts` (a post is written by its author or an admin), enforced in
 `src/server/server.ts`.
 
-See the [README](https://github.com/doeixd/foldkit-plus/blob/main/packages/guard/README.md).
+See the [How Guard works guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/guard.md) and the [README](https://github.com/doeixd/foldkit-plus/blob/main/packages/guard/README.md).

@@ -83,6 +83,7 @@ Link and Placement to Connection and Segment, are in the
 | Decide where a rule goes: a Schema, an invariant, a write's `when`, or a guard, and what each refuses as | [Laws](./laws.md) | `foldkit-entity`, `foldkit-guard`, `foldkit-remote` |
 | Name a rule once, search and order by what the kernel lacks, compute a write, and have server and client mean the same by it | [Operators](./operators.md) | `foldkit-entity`, `foldkit-remote-drizzle`, `foldkit-remote`, `foldkit-guard` |
 | Tell who is asking from what they may do, and wire the two | [Auth and Guard](./auth-and-guard.md) | `foldkit-auth`, `foldkit-guard` |
+| Understand how Guard decides permissions, blocks leaks and races, and works with Expressions and Laws like a constraint solver | [How Guard works](./guard.md) | `foldkit-guard`, `foldkit-entity` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Use a ready-made widget (menus, dialogs, tabs, tables, toolbars, search fields) in the application's theme | [Widget catalog](../packages/mixins-ui/README.md) | `foldkit-mixins-ui`, `foldkit-primitives` |
 | Build a component, widget, recipe or primitive of your own when the catalog lacks one, with the tests that prove it | [Authoring components](./authoring-components.md) | `foldkit-mixins`, `foldkit-mixins-ui`, `foldkit-primitives`, `foldkit-bundle` |

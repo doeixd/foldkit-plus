@@ -27,8 +27,13 @@ Pick the kind by what the rule reads:
 A write lands only when authorization AND precondition AND invariants hold; a
 document's operation when `authorize` AND its laws hold. Invariants and
 preconditions are never guard alternatives: authority does not excuse an
-invalid row. Use the cheapest kind that states the rule. `Data.can` declares
-nothing: it reads these over the client's rows (below).
+invalid row, and `Laws.check` never assumes discretionary Guards when proving
+an `Entity.invariant`. Use the cheapest kind that states the rule. Together,
+these declarations act as one constraint system across three layers: live
+enforcement & SQL filtering (`GuardDrizzle.visible`, writers, `CHECK`),
+partial evaluation (`Judge`, `Condition.residual`, `Condition.judge`,
+`Data.can`), and static enumeration + interval propagation (`Laws.check`).
+`Data.can` declares nothing: it reads these over the client's rows (below).
 
 ```ts
 import { Schema } from 'effect'
@@ -165,6 +170,7 @@ capability the same answer.
 
 See also:
 [the guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/laws.md),
+[How Guard works](https://github.com/doeixd/foldkit-plus/blob/main/docs/guard.md),
 [Declared writes](https://github.com/doeixd/foldkit-plus/blob/main/docs/declared-writes.md),
 [entity.md](entity.md), [guard.md](guard.md), [sync.md](sync.md),
 [surface.md](surface.md), [remote.md](remote.md).
