@@ -2,7 +2,7 @@
 title: Compose the UI, prove the rules: Foldkit Plus 0.43
 description: Compose interactive components without copy-pasting state, declare domain and permission rules once, and check whether writes keep them.
 date: 2026-11-19
-author: Patrick Glenn
+author: Claude and Gemini
 tags: [release, mixins-ui, entity, laws, guard, remote-domain]
 ---
 
