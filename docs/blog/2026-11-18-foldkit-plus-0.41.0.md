@@ -493,15 +493,23 @@ Account
 OpenAccount     x neverOverdrawn              kept: 1 row enumerated
 OpenAccount     x withinDailyLimit            kept: 1 row enumerated
 OpenAccount     x aClosedAccountStaysClosed   kept: a create has no row before
-DepositMoney    x neverOverdrawn              undecided: balance is incremented
+DepositMoney    x neverOverdrawn              refused: An open account cannot be overdrawn
+    before   status: "open", balance: 0
+    input    amount: -1
+    after    status: "open", balance: -1
 DepositMoney    x withinDailyLimit            kept: writes no member it reads
 DepositMoney    x aClosedAccountStaysClosed   kept: 1 row enumerated
-WithdrawMoney   x neverOverdrawn              undecided: balance is computed
-WithdrawMoney   x withinDailyLimit            undecided: withdrawnToday is incremented
+WithdrawMoney   x neverOverdrawn              undecided: bank.minus is not in the operator table
+WithdrawMoney   x withinDailyLimit            refused: At most 500 can be withdrawn a day
+    before   status: "open", withdrawnToday: 500, balance: 0
+    input    amount: 1
+    after    status: "open", withdrawnToday: 501
 WithdrawMoney   x aClosedAccountStaysClosed   kept: 1 row enumerated
-CloseAccount    x neverOverdrawn              undecided: balance is not finite
-CloseAccount    x withinDailyLimit            undecided: withdrawnToday is not finite
+CloseAccount    x neverOverdrawn              kept: holds whatever balance holds, over 1 row enumerated
+CloseAccount    x withinDailyLimit            kept: writes no member it reads
 CloseAccount    x aClosedAccountStaysClosed   kept: 1 row enumerated
+
+1 entity, 2 states, 4 writes, 3 rules: 12 pairs, 9 kept, 2 refused, 1 undecided
 ```
 
 Read it from the top. Closing takes

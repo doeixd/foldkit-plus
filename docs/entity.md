@@ -93,14 +93,19 @@ Entity.judge(Item, { after: { id: 'i1', stock: 3, reserved: 5 } })._tag // 'Inva
 
 // Reader 2: a check of every declared write against every invariant.
 Laws.show(Laws.check({ writes: [Hold] }))
-// Hold   x reservedWithinStock   undecided: reserved is set to any value its input holds
+// Hold   x reservedWithinStock   refused: Reserved stock cannot exceed the stock
+//     before   reserved: 0, stock: 0
+//     input    reserved: 1
+//     after    reserved: 1, stock: 0
+//
+// 1 entity, 0 states, 1 write, 1 rule: 1 pair, 0 kept, 1 refused, 0 undecided
 ```
 
 Neither call touches a database. `Entity.invariant` declared the rule and ran
 nothing; `Entity.judge` is one interpreter of it, and `Laws.check` another,
-which reads the write's declaration and reports that `Hold` can break the rule
-(it sets `reserved` to whatever it is given), so something must refuse it
-where it commits. That something is reader 3, the server's writer, which
+which reads the write's declaration and reports that `Hold` can break the rule,
+with a row that shows it: it sets `reserved` to whatever it is given, so
+something must refuse it where it commits. That something is reader 3, the server's writer, which
 compiles the same invariant into the `UPDATE` that lands `Hold`. Nothing was
 written twice to get all three.
 
@@ -284,14 +289,23 @@ Product
   Published                      terminal
 
 Publish   x reservedWithinStock   kept: writes no member it reads
-Reserve   x reservedWithinStock   undecided: reserved is set to any value its input holds
+Reserve   x reservedWithinStock   refused: Reserved stock cannot exceed the stock
+    before   reserved: 0, stock: 0
+    input    reserved: 1
+    after    reserved: 1, stock: 0
+
+1 entity, 2 states, 2 writes, 1 rule: 2 pairs, 1 kept, 1 refused, 0 undecided
 ```
 
 `Laws.check` reads only declarations. It proves `Publish` takes every draft to
 published, and that `Publish` cannot break the stock rule because it writes
-nothing the rule reads. It cannot decide `Reserve`, which sets `reserved` to
-any number: that pair needs the writer to refuse it where it commits, and the
-report says so instead of calling it kept. It also reports `Draft` as
+nothing the rule reads. It refuses `Reserve`, which sets `reserved` to any
+number, and prints the smallest row and input it found that break the rule:
+that pair needs the writer to refuse it where it commits. Numbers are judged
+by their declared bounds (each Schema's checks, the write's `from` and `when`,
+and the invariants held before the write). A `when` that compares the input
+with `stock`, two unknowns, would make the pair undecided rather than refused,
+with what a solver would have to prove; intervals alone do not relate them. It also reports `Draft` as
 unreached: no declared write leaves a product a draft, since nothing here
 creates one. Keep the report beside the code, as
 [`examples/writes/LAWS.md`](../examples/writes/LAWS.md) does, and a new write

@@ -109,14 +109,19 @@ first, a hint; match the refusal with `Sync.isInvalidBy(refusal, Board.laws.x)`.
 
 `Laws.check({ writes })` (`foldkit-entity`) is pure: each declared write
 against each invariant of its Entity (`kept`, `refused`, `undecided`), and the
-arrows writes make between states. `Laws.show(report)` prints it;
+arrows writes make between states. It enumerates finite fields and bounds
+numbers by intervals: each number's Schema checks, narrowed by the write's
+`from`/`when` (against a value) and by the state invariants, assumed to hold
+before the write. `Laws.show(report)` prints it, each refusal's witness
+(before, input, after) under its line, and the totals last;
 `npx foldkit-plus laws src/laws.ts#report` prints a module's export.
 
 | Says | Repair |
 | --- | --- |
-| `kept` | none (an `Enumerated` record) |
-| `refused` (pair) | the writer refusing it is the law at work (add a `runtimeOnly` line); otherwise narrow the write's `when`/`from` or input |
-| `undecided` | a number, text, increment or missing operator: walk it through the writer, a scenario, or a `runtimeOnly` line |
+| `kept` | none (an `Enumerated` record; `Bounded` for one decided from numbers' bounds) |
+| `refused` (pair) | read the witness: bound the input (`Schema.isGreaterThanOrEqualTo(0)`), narrow the `when`/`from`; or, where the writer refusing it is the law at work, add a `runtimeOnly` line. A `hint` means it starts in a state no write reaches: an invariant ruling that out settles it |
+| `undecided` | text, a link, a `when` comparing two unknowns (`amount <= balance`), an operator with no `Law.monotonic` per argument: walk it through the writer, a scenario, or a `runtimeOnly` line; `verdict.obligation` holds what a solver would prove |
+| `unmeetable` | no row the invariants allow meets the write's `from`/`when`: fix the condition |
 | `holds`, `enforced` | none |
 | `undeclared` | declare `from` and `becomes`, or narrow the write |
 | `refused` (arrow) | right if the invariant forbids the move; else fix the write or the rule |
@@ -137,6 +142,7 @@ needs evidence per law, and a Message added later is reported until covered.
 | Record | Issued by |
 | --- | --- |
 | `Enumerated` | `Laws.check`, a pair kept by reading declarations (in `report.pairs[].evidence`) |
+| `Bounded` | `Laws.check`, a pair kept from the numbers' declared bounds, for every row and input within them |
 | `Walked` | `Walk.run` (`foldkit-remote/testing`), no walk failing |
 | `Scenario` | `Scenario.run` (`foldkit-remote/testing`), a runner with no mismatch |
 | `RuntimeOnly` | `Evidence.runtimeOnly({ transition, law, why })`, by hand, `why` non-empty |

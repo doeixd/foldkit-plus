@@ -1604,21 +1604,37 @@ keeps the whole report, so a write added changes a checked-in file):
 Product
   Draft -> Published   Publish   holds
   Published -> Draft   Revert    refused by publishedStaysPublished
+      before   status: "published"
+      input    status: "draft"
+      after    status: "draft"
   Archived -> Draft    Revert    undeclared
   Archived                       unreached
 
 Rename    x reservedWithinStock       kept: writes no member it reads
-Revert    x publishedStaysPublished   refused: from {"status":"published"} it leaves {"status":"draft"}
-Sell      x reservedWithinStock       undecided: stock is incremented
+Restock   x reservedWithinStock       refused: Reserved stock cannot exceed the stock
+    before   reserved: 0, stock: 0
+    input    quantity: -1
+    after    reserved: 0, stock: -1
+
+1 entity, 4 states, 5 writes, 2 rules: 11 pairs, 7 kept, 4 refused, 0 undecided
 ```
 
-One write against one invariant comes to one of three verdicts:
+A refusal prints its witness under it: the row before (none for a create),
+the input, and the row after, over the members the rule and the write read,
+the smallest the check found. The last line is what the report stands on.
+Here nothing bounds `Restock`'s quantity, so a negative one breaks the rule;
+`Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))` on the input keeps it.
+
+One write against one invariant comes to one of three verdicts, by the first
+of these that decides it:
 
 | Case | Verdict |
 | --- | --- |
 | A state invariant, and the write writes no member it reads | `Kept`, by disjointness |
 | Every member it reads is finite (a literal, a union of literals, a boolean, with or without null), and the write changes each only by setting it | Enumerated: `Kept`, or `Refused` with the rows that break it |
-| Anything else: a number, free text, an increment, a computed field, a link, an operator the table lacks, more than 4,096 rows | `Undecided`, with the reason |
+| The rule holds whatever the members it cannot enumerate hold: closing an account leaves "while open, the balance is not negative" nothing to bind | `Kept`, `vacuous` |
+| The numbers it reads, bounded, decide it (below) | `Kept`, `bounds`; or `Refused` with a witness |
+| Anything else: free text, a link, a relation between two unknowns, an operator with no monotonic law, more than 4,096 rows | `Undecided`, with the reason and an `obligation` |
 
 A transition invariant is never kept by disjointness: `after.count >
 before.count` is broken by every write that leaves `count` alone. Rows are not
@@ -1626,11 +1642,44 @@ filtered by the invariants before enumeration, since a row may be invalid
 before a write; a row the write's `when` (and `from`) definitely refuses is
 dropped, and one it cannot judge stays.
 
-The findings (`holds`, `enforced`, `undeclared`, `refused`, `unreached`,
-`terminal`) are reports, never faults: a write an invariant can refuse is
-legitimate. `enforced` (`* -> InStock   Sell   enforced`) is a `becomes` held by
-its postcondition where the write commits, and that postcondition is a pair of
-the write alone (`Sell x becomes:InStock`).
+#### Numbers, by their bounds
+
+A number member or input key the check cannot enumerate gets an interval:
+its Schema's checks (`isGreaterThanOrEqualTo`, `isBetween`, `Schema.Int`…),
+narrowed by the write's `from` and `when` where they compare it with a value,
+and by the Entity's state invariants, assumed to hold of the row before the
+write. That assumption is what makes the proof inductive: a write that keeps a
+rule from every row the rules allow keeps it on every row the writes make,
+starting from rows that held it. The write's effect is carried through the
+intervals (a set, an increment, a `compute` through operators that declare
+`Law.monotonic` for each argument), and the rule is judged over the result in
+SQL's three values. `Kept` by `bounds` holds for every row and input within
+those bounds.
+
+It is deliberately non-relational: a `when` comparing two unknowns
+(`amount <= balance`) narrows each only by the other's interval, so it keeps
+nothing on its own, and the pair is `Undecided`: "it rests on comparing
+balance with amount". A refusal is never inferred from intervals: the check
+tries the values nearest 0 and at each interval's ends, and refuses only with
+a row and input the reference judge refuses, within every Schema, meeting the
+`when`, and keeping every state invariant they hold the members of. The
+numbers are the judge's (JavaScript's, rounding monotone); a store that rounds
+otherwise is outside what it proves.
+
+An `Undecided` pair of a declared write carries an `obligation`: the `write`,
+the `rule`, the state invariants `assumed` before it and the `cases` (values
+of the finite members) left, all as declared, for a later pass, such as a
+solver, to prove without reading the source again.
+
+The findings (`holds`, `enforced`, `undeclared`, `refused`, `unmeetable`,
+`unreached`, `terminal`) are reports, never faults: a write an invariant can
+refuse is legitimate. `enforced` (`* -> InStock   Sell   enforced`) is a
+`becomes` held by its postcondition where the write commits, and that
+postcondition is a pair of the write alone (`Sell x becomes:InStock`).
+`unmeetable` is a write whose `from` and `when` no row the state invariants
+allow can meet. A refusal whose witness starts in states no write reaches
+carries a `hint` saying so: an invariant ruling those states out would settle
+the pair.
 
 A transition that is no declared write (another package's command, an
 import) is an entry with a `Footprint`: what its author says it writes, or
@@ -1653,9 +1702,10 @@ is a declared write's own.
 
 #### Evidence, and the graph's facts
 
-A pair the check keeps by reading the declarations (by disjointness, by
-enumeration, a create against a transition invariant, a delete) carries an
-`Enumerated` record in `evidence`, issued by `foldkit-entity/laws`. A pair
+A pair the check keeps by reading the declarations carries a record in
+`evidence`, issued by `foldkit-entity/laws`: `Bounded` for one the numbers'
+bounds decided, `Enumerated` for the rest (by disjointness, by enumeration,
+`vacuous`, a create against a transition invariant, a delete). A pair
 kept on its author's word (`declared`), refused or undecided carries none:
 for those, the evidence is a walk through the writer, a scenario, or
 `Evidence.runtimeOnly` with its reason. These records are
@@ -1955,7 +2005,7 @@ server on different deploys see which side is behind.
 | `Entity.refine(entity, name, { field: value } or ({ row }) => predicate)` | A named state of the row, declared on the Entity: `predicate`, `after`, `local`, `reads`, `is(row)`. |
 | `Entity.states(entity)` / `Entity.inState(state, row, operators?)` | Every state declared on an Entity; whether a stored row is in one (`Option`, none where it lacks a field the state reads). |
 | `Query.from(state)` | Every row in a state: the Entity's query with its predicate in `where`. |
-| `Laws.check({ writes, operators? })` / `Laws.show(report)` | Each write (`{ name, write }` or `{ name, entity, footprint }`) against each invariant of its Entity, and the arrows between its states, by enumeration over finite fields: a `LawReport` of `pairs` (each with its `Enumerated` `evidence`, if decided kept), `arrows`, `states` and `findings`; the report as text. |
+| `Laws.check({ writes, operators? })` / `Laws.show(report)` | Each write (`{ name, write }` or `{ name, entity, footprint }`) against each invariant of its Entity, and the arrows between its states, by enumeration over finite fields and intervals over numbers: a `LawReport` of `pairs` (each with its `Enumerated` or `Bounded` `evidence`, if decided kept; a refusal's `witness`; an undecided pair's `obligation`), `arrows`, `states`, `findings` and `totals`; the report as text, each witness under its line. |
 | `Laws.facts(report)` / `Laws.transition(entry)` / `Laws.law(invariant)` | The report as graph facts (`LawFacts`: `LawNode`s and `LawEdge`s); a transition's id (`write:Sell`) and a law's (`Product.reservedWithinStock`) in evidence and the graph. |
 | `lawFactsOf(entries)` | `Laws.check`'s entries as graph facts, read off the declarations with no check run: what `Graph.of` derives a contract's `laws.entities` with. |
 | `Footprint.declared({ reads?, writes, by })` / `Footprint.unknown` | What a transition that is no declared write reads and writes, on whose word; or nothing known, which writes every member. |

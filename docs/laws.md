@@ -402,8 +402,17 @@ Product
 
 Publish   x reservedWithinStock   kept: writes no member it reads
 Release   x reservedWithinStock   kept: writes no member it reads
-Restock   x reservedWithinStock   undecided: stock is incremented
+Restock   x reservedWithinStock   refused: Reserved stock cannot exceed the stock
+    before   reserved: 0, stock: 0
+    input    quantity: -1
+    after    reserved: 0, stock: -1
+
+1 entity, 2 states, 3 writes, 1 rule: 3 pairs, 2 kept, 1 refused, 0 undecided
 ```
+
+Nothing bounds the quantity, so a restock of -1 from an empty shelf breaks
+the rule: the line under the refusal is that row, the input and the row it
+leaves. The last line is what the report stands on.
 
 The report has two halves, and neither is a failure. The pairs (a write
 against an invariant) say whether the write can break the rule; the findings
@@ -414,9 +423,10 @@ Each pair and finding has one repair:
 
 | The check says | It means | Repair |
 | --- | --- | --- |
-| `kept` | The write cannot break the rule: it writes no member the invariant reads, or every row it can start from was enumerated | None. It issues an `Enumerated` record. |
-| `refused` (a pair) | From these rows the write leaves a row that breaks the invariant | If the writer should refuse it, nothing: that is the law working, and a line of `Evidence.runtimeOnly` says so. If the write should never break it, narrow its `when` or `from`, or its input, so those rows cannot start it. |
-| `undecided` | The rule reads a number, text, an increment or an operator the table lacks, so the rows cannot be enumerated | Show it kept another way: a walk through the real writer, a scenario, or a `runtimeOnly` line with the reason. Or state the rule over a finite field. |
+| `kept` | The write cannot break the rule: it writes no member the invariant reads, every row it can start from was enumerated, the rule holds whatever the members it cannot enumerate hold (`vacuous`), or the numbers' declared bounds decide it for every row and input within them (`bounds`) | None. It issues an `Enumerated` record, or `Bounded` for `bounds`. |
+| `refused` (a pair) | The witness under it is a row the rules allow and an input that leave a row breaking the invariant | If the writer should refuse it, nothing: that is the law working, and a line of `Evidence.runtimeOnly` says so. If the write should never break it, bound its input (`Schema.isGreaterThanOrEqualTo(0)`), or narrow its `when` or `from`, so that row cannot start it. A `hint` says the witness starts in a state no write reaches: an invariant ruling that state out settles the pair. |
+| `undecided` | The rule reads text or a link, rests on a `when` comparing two unknowns (`amount <= balance`), or computes through an operator with no `Law.monotonic` for each argument | Show it kept another way: a walk through the real writer, a scenario, or a `runtimeOnly` line with the reason. Its `obligation` is what a solver would have to prove. |
+| `unmeetable` | No row the invariants allow, and no input, meets the write's `from` and `when` | Fix the condition, or the write can never land. |
 | `holds` | A declared `becomes`, proved where the write is declared | None. |
 | `enforced` | A `becomes` enumeration could not decide, kept by the write's postcondition where it commits | None. The client's `Data.can` judges it too. |
 | `undeclared` | A write with no `becomes` takes a row from one state to another | If it is meant to, declare `from` and `becomes` (as `Release` does). If not, narrow the write. |
@@ -441,6 +451,7 @@ issued by whatever produced it, and each kind says how much it proves:
 | Kind | Issued by | What it shows |
 | --- | --- | --- |
 | `Enumerated` | `Laws.check`, for each pair it decided `kept` by reading the declarations | Read off the declarations: the write touches nothing the rule reads, or every row it can start from was judged. A proof, not a sample. |
+| `Bounded` | `Laws.check`, for each pair the numbers' declared bounds decided `kept` | Every row and input within the bounds (Schemas, the write's `from` and `when`, the invariants held before) keeps the rule. A proof over those bounds, not a sample. |
 | `Walked` | `Walk.run` (`foldkit-remote/testing`), when no walk failed | Seeded sequences of Messages, through the real writer, never broke the law. Says which seeds passed, not that none can. |
 | `Scenario` | `Scenario.run` (`foldkit-remote/testing`), per runner with no mismatch | One written case ran on each backend and agreed. |
 | `RuntimeOnly` | `Evidence.runtimeOnly`, by hand, with a `why` | Only the writer or the journal refuses it in production, and nothing earlier covers it. A reasoned admission, not a test. |
@@ -644,7 +655,8 @@ writes](./declared-writes.md#who-owns-what).
 - A state that reaches another row is a query's and a guard rule's, and no
   write's `from` or `becomes`.
 - `Laws.check` enumerates finite fields (literals, unions of them, booleans)
-  and decides nothing else: a number or text rule is `undecided`
+  and bounds numbers by intervals, one member at a time: a text rule, or a
+  number rule resting on a relation between two unknowns, is `undecided`
   until a walk, a scenario or a `runtimeOnly` line covers it.
 - A local Message has no `writes` edge in the graph yet, so a law over the
   local Model has no `law-unwitnessed`.

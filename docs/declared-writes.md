@@ -454,7 +454,12 @@ leave nothing unreserved as `Invalid`, naming `becomes:InStock`; like an
 invariant, it speaks after a stale revision and an unmet precondition.
 `Refusal.isInvalidBy(refusal, soldOut)` tells it apart. A writer that cannot judge one is refused where the write is served,
 by name (`postconditions`): the Drizzle writer, the memory writer and a guarded
-writer over either judge them. `Laws.check` reports such an arrow `enforced`.
+writer over either judge them. `Laws.check` reports such an arrow `enforced`,
+and judges the postcondition as a pair of the write alone: from the amount's
+declared bounds it proves it (`kept`, a `Bounded` record) or prints a row and
+an amount that break it (`refused`, with the witness). `SellCrate`'s is a
+crate holding and reserving nothing, given a quantity of 0: the postcondition
+refuses that sale where it commits.
 
 All three kinds must hold for a write to land:
 
