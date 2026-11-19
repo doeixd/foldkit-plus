@@ -925,7 +925,11 @@ describe('the generated site', () => {
             if (!emitted.has(target)) broken.push(`${path} -> ${href}`)
           } else if (anchor !== undefined && anchor !== '' && !to.ids.has(anchor))
             broken.push(`${path} -> ${href} (no #${anchor})`)
-        } else if (href.startsWith(`${GITHUB}/blob/`) || href.startsWith(`${GITHUB}/tree/`)) {
+          // A link pinned to a release tag (a post's) names the tree as it was, not as it is.
+        } else if (
+          href.startsWith(`${GITHUB}/blob/main/`) ||
+          href.startsWith(`${GITHUB}/tree/main/`)
+        ) {
           const file = href.slice(`${GITHUB}/blob/main/`.length).split('#')[0]!
           if (!existsSync(join(repository, decodeURIComponent(file))))
             broken.push(`${path} -> ${href}`)
