@@ -6,20 +6,23 @@
  * theme creator are a second application (`main.ts`) that adds their state to
  * this one's, so a visitor to a guide loads none of their code.
  */
-import { Effect, Equal, Match, Option, Schema, Stream } from 'effect'
+import * as UiDialog from '@foldkit/ui/dialog'
+import { Effect, Equal, Match, Option, Queue, Schema, Stream } from 'effect'
 import { Command, Dom, Subscription, Update } from 'foldkit'
 import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
+import { Bundles, Sheet } from 'foldkit-mixins-ui'
 import { chooseScheme, currentScheme } from 'foldkit-mixins/theme'
 import { PrefersDark } from 'foldkit-primitives/media'
 import { Timer } from 'foldkit-primitives/time'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
+import { NARROW } from './breakpoints.js'
 import { allSubsites } from './catalog.js'
-import { COPY_ATTRIBUTE, EXPAND_ATTRIBUTE, type Library } from './library.js'
+import { COPY_ATTRIBUTE, EXPAND_ATTRIBUTE, MENU_ID, type Library } from './library.js'
 import { Example, Page, PageScheme } from './page.js'
 import { markSection, sections } from './spy.js'
 import { Body } from './view/shellLayout.js'
@@ -29,12 +32,13 @@ import { Body } from './view/shellLayout.js'
 /** The primitives the Primitives overview shows running: each a field of this Model. */
 export const Dark = Bundle.declare(PrefersDark, 'dark')
 export const Ticks = Bundle.declare(Timer, 'ticks')
+/** The phone menu: a Sheet from the inline-start edge, holding the rail's contents. */
+export const Menu = Bundle.declare(Bundles.Sheet, 'menu')
 
 /** What the second application adds its own fields to. */
 export const fields = {
   path: Schema.String,
   page: Page,
-  menuOpen: Schema.Boolean,
   example: Example,
   copied: Schema.Boolean,
   pageScheme: PageScheme,
@@ -42,6 +46,7 @@ export const fields = {
   spied: Schema.Option(Schema.String),
   ...Dark.fields,
   ...Ticks.fields,
+  ...Menu.fields,
 }
 
 export const Model = Schema.Struct(fields)
@@ -51,7 +56,8 @@ export type Model = typeof Model.Type
 
 /** What the second application shares with this one: its Messages are these and more. */
 export const cases = {
-  ToggledMenu: {},
+  ChoseMenuLink: { href: Schema.String },
+  LeftMenu: {},
   ChoseExample: { example: Example },
   PressedCopy: { text: Schema.String },
   CopiedText: {},
@@ -67,6 +73,7 @@ export const cases = {
   MarkedSection: {},
   ...Dark.cases,
   ...Ticks.cases,
+  ...Menu.cases,
 }
 
 export const Message = defineMessageUnion(cases)
@@ -77,6 +84,7 @@ const Parent = Bundle.parent({ Model, Message })
 export const placements = Parent.assemble(
   Parent.at(Dark),
   Parent.at(Ticks, { args: { intervalMs: 1000 } }),
+  Parent.at(Menu, { args: { id: MENU_ID, side: 'left' }, onOut: Bundle.ignore }),
 )
 
 // COMMAND
@@ -143,6 +151,43 @@ export const ToggleCode = Command.define('ToggleCode', {
     }),
 })
 
+/** What the open menu's history entry carries, which Back takes off instead of leaving the page. */
+const MENU_ENTRY = 'foldkitPlusMenu'
+
+const holdsMenuEntry = (): boolean => {
+  const state: unknown = history.state
+  return typeof state === 'object' && state !== null && MENU_ENTRY in state
+}
+
+/**
+ * Goes where a link of the open menu leads. The menu holds a history entry
+ * of its own, so the entry is taken off first: Back from the new page then
+ * lands on the old one, not on the same page twice.
+ */
+export const LeaveMenu = Command.define('LeaveMenu', {
+  args: { href: Schema.String },
+  messages: [Message.LeftMenu],
+  execute: ({ href }) =>
+    Effect.callback<typeof Message.LeftMenu.Type>(resume => {
+      const go = () => {
+        location.assign(href)
+        resume(Effect.succeed(Message.LeftMenu()))
+      }
+      if (!holdsMenuEntry()) return go()
+      // A browser that never answers `history.back()` must not strand the link.
+      const timer = setTimeout(go, 300)
+      addEventListener(
+        'popstate',
+        () => {
+          clearTimeout(timer)
+          go()
+        },
+        { once: true },
+      )
+      history.back()
+    }),
+})
+
 /** Applies the reader's scheme to the page and keeps it for the next visit. */
 export const ApplyPageScheme = Command.define('ApplyPageScheme', {
   args: { scheme: PageScheme },
@@ -177,7 +222,8 @@ export type OwnMessage = Bundle.OwnMessage<Message, typeof placements.placements
 /** The Messages both applications answer alike: the second hands them back to this. */
 export const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
   Match.valueTags(message, {
-    ToggledMenu: () => ({ model: modifyFields(model, { menuOpen: open => !open }) }),
+    ChoseMenuLink: ({ href }) => ({ model, commands: [LeaveMenu({ href })] }),
+    LeftMenu: () => ({ model }),
     ChoseExample: ({ example }) =>
       example === model.example
         ? { model }
@@ -229,9 +275,7 @@ export const codeCopyOf = (event: MouseEvent): Option.Option<Message> =>
 
 /** Which collapsed block's button a click landed on, counted in the page's order. */
 export const codeToggleOf = (event: MouseEvent): Option.Option<Message> =>
-  Option.map(buttonIndexOf(EXPAND_ATTRIBUTE, event), index =>
-    Message.PressedCodeToggle({ index }),
-  )
+  Option.map(buttonIndexOf(EXPAND_ATTRIBUTE, event), index => Message.PressedCodeToggle({ index }))
 
 /** A code block's copy button, answered for the static region that drew it without a handler. */
 export const codeCopy = Subscription.persistentEntry(
@@ -251,6 +295,68 @@ export const codeToggle = Subscription.persistentEntry(
   }),
 )
 
+/** A plain click on a link of the open menu: the page is left once the menu's history entry is. */
+export const menuLinkOf = (event: MouseEvent): Option.Option<Message> => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+    return Option.none()
+  const link =
+    event.target instanceof Element ? event.target.closest(`#${MENU_ID}-panel a[href]`) : null
+  return link instanceof HTMLAnchorElement &&
+    link.target !== '_blank' &&
+    !link.hasAttribute('download')
+    ? Option.some(Message.ChoseMenuLink({ href: link.href }))
+    : Option.none()
+}
+
+/** A link of the menu, led to by the page's script so the menu's history entry goes first. */
+export const menuLinks = Subscription.persistentEntry(
+  Dom.streamFromEventFilterMapPreventDefault({
+    target: () => document,
+    type: 'click',
+    filterMapEvent: menuLinkOf,
+  }),
+)
+
+const closeMenu = Message.GotMenuMessage({
+  message: Sheet.Message.GotDialog({ message: UiDialog.Message.RequestedClose() }),
+})
+
+/**
+ * While the menu is open: a history entry of its own, so Back closes it; and
+ * a widened window closes it, since the rail it stands for is then drawn. The
+ * entry is taken off when the menu closes any other way.
+ */
+const menuOpenEvents = Stream.callback<Message>(queue =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      const close = () => Queue.offerUnsafe(queue, closeMenu)
+      const narrow = matchMedia(NARROW)
+      const widened = () => {
+        if (!narrow.matches) close()
+      }
+      history.pushState({ [MENU_ENTRY]: true }, '')
+      addEventListener('popstate', close)
+      narrow.addEventListener('change', widened)
+      return () => {
+        removeEventListener('popstate', close)
+        narrow.removeEventListener('change', widened)
+        if (holdsMenuEntry()) history.back()
+      }
+    }),
+    release => Effect.sync(release),
+  ),
+)
+
+export const menuWatch = Subscription.make<Model, Message>()(entry => ({
+  menuWatch: entry(
+    { open: Schema.Boolean },
+    {
+      modelToDependencies: model => ({ open: Sheet.isOpen(model.menu) }),
+      dependenciesToStream: ({ open }) => (open ? menuOpenEvents : Stream.empty),
+    },
+  ),
+}))
+
 /** The reader's place among the page's sections, restarted with each page so a new page starts unmarked. */
 export const sectionSpy = Subscription.make<Model, Message>()(entry => ({
   sectionSpy: entry(
@@ -265,8 +371,9 @@ export const sectionSpy = Subscription.make<Model, Message>()(entry => ({
 
 export const subscriptions = placements.subscriptions(
   Subscription.aggregate(
-    Subscription.make<Model, Message>()(() => ({ codeCopy, codeToggle })),
+    Subscription.make<Model, Message>()(() => ({ codeCopy, codeToggle, menuLinks })),
     sectionSpy,
+    menuWatch,
   ),
 )
 
@@ -276,7 +383,6 @@ export const subscriptions = placements.subscriptions(
 export const initial: Model = placements.initial({
   path: '/',
   page: Page.Missing(),
-  menuOpen: false,
   example: 'view',
   copied: false,
   pageScheme: 'system',
@@ -321,7 +427,7 @@ const planOf = (withMeta: boolean) =>
     id: 'site',
     state: Projection.pick(App.model.path, App.model.page),
     local: [
-      App.model.menuOpen,
+      App.model.menu,
       App.model.example,
       App.model.copied,
       App.model.pageScheme,

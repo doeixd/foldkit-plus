@@ -19,7 +19,7 @@ Read before running Vitest or pnpm mutate, adding a Vitest config or alias, or d
 - **jsdom's `DOMParser` parses every inline stylesheet too.**
   The site's link check read 3,666 pages with it, each carrying 110 KB of CSS, and spent about a quarter of its eight minutes there; parse5 reads one such page in 4ms against jsdom's 18ms. Read links, ids and attributes of many pages with parse5; keep jsdom for the few a test queries.
 - **Two sessions' browser tests collide on Vitest's default port.**
-  A second run fails "Failed to fetch dynamically imported module". Give each its own with `--browser.api.port=<port>`.
+  A second run fails "Failed to fetch dynamically imported module" (the page URL shows the port it fell to). Give each its own with `--api.port=<port>`: `--browser.api.port` is deprecated in Vitest 5 and was ignored, so a run seemed to pass or fail by whether the other session's server was up. `pnpm mutate` takes no port, so its baseline fails (twice, so "rerun once" below does not help) while another session holds 63315: `netstat -ano | grep :63315`, and run the spec when it is free.
 
 ## pnpm mutate
 

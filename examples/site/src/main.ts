@@ -57,7 +57,7 @@ import {
   withValue,
 } from './gallery/theme.js'
 import { addressOf, queryOf } from './gallery/themeUrl.js'
-import { CREATE, type Library } from './library.js'
+import { CREATE, MENU_ID, type Library } from './library.js'
 import { Body } from './view/layout.js'
 import { Page } from './page.js'
 import * as Shell from './shell.js'
@@ -149,6 +149,7 @@ const Parent = Bundle.parent({ Model, Message })
 const placements = Parent.assemble(
   Parent.at(Shell.Dark),
   Parent.at(Shell.Ticks, { args: { intervalMs: 1000 } }),
+  Parent.at(Shell.Menu, { args: { id: MENU_ID, side: 'left' }, onOut: Bundle.ignore }),
   Parent.at(PrimitiveBundles.Connection),
   Parent.at(PrimitiveBundles.Window),
   Parent.at(PrimitiveBundles.Fade, { args: { from: 0, to: 100, ms: 1500 } }),
@@ -364,7 +365,8 @@ const asShell = (model: Model, message: Shell.OwnMessage): UpdateReturn => {
 
 const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
   Match.valueTags(message, {
-    ToggledMenu: message => asShell(model, message),
+    ChoseMenuLink: message => asShell(model, message),
+    LeftMenu: message => asShell(model, message),
     ChoseExample: message => asShell(model, message),
     PressedCopy: message => asShell(model, message),
     CopiedText: message => asShell(model, message),
@@ -556,8 +558,10 @@ export const subscriptions = placements.subscriptions(
       ),
       codeCopy: Shell.codeCopy,
       codeToggle: Shell.codeToggle,
+      menuLinks: Shell.menuLinks,
     })),
     Shell.sectionSpy,
+    Shell.menuWatch,
     Subscription.lift(WidgetsUpdate.subscriptions)<Model, Message>({
       read: model => Option.some(model.widgets),
       toParentMessage: message => Message.GotWidget({ message }),
@@ -623,7 +627,6 @@ const elsewhere = (page: string): never => {
 export const initial: Model = placements.initial({
   path: '/',
   page: Page.Missing(),
-  menuOpen: false,
   example: 'view',
   copied: false,
   linkCopied: false,
@@ -667,7 +670,7 @@ const planOf = (withMeta: boolean) =>
     id: 'gallery',
     state: Projection.pick(App.model.path, App.model.page),
     local: [
-      App.model.menuOpen,
+      App.model.menu,
       App.model.example,
       App.model.copied,
       App.model.selection,

@@ -221,8 +221,12 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     return page
   }
 
-  const sidebar =
-    (current: DocPage) =>
+  /**
+   * The subsite's guides and API. The phone menu folds each package's pages
+   * under its name (`fold`), the current page's group open.
+   */
+  const sidebarOf =
+    (current: DocPage, fold: boolean) =>
     (ih: Ih): Region => {
       const pages = inSubsite.get(current.subsite) ?? []
       const marked = (page: DocPage) => {
@@ -234,10 +238,20 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
       const groups = (kind: DocPage['kind']) => {
         const ofKind = pages.filter(page => page.kind === kind && page.listed)
         const labels = [...new Set(ofKind.map(page => page.group))]
-        return labels.flatMap(label => [
-          ...(labels.length === 1 ? [] : [ih.h3([], [label])]),
-          ih.ul([], ofKind.filter(page => page.group === label).map(link)),
-        ])
+        return labels.flatMap(label => {
+          const inGroup = ofKind.filter(page => page.group === label)
+          const list = ih.ul([], inGroup.map(link))
+          if (labels.length === 1) return [list]
+          if (!fold) return [ih.h3([], [label]), list]
+          return [
+            ih.details(
+              inGroup.some(page => page === current || page.path === current.module)
+                ? [ih.Attribute('open', '')]
+                : [],
+              [ih.summary([], [label]), list],
+            ),
+          ]
+        })
       }
       const hasApi = pages.some(page => page.kind === 'api')
       return [
@@ -403,7 +417,8 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
         ? Page.Missing()
         : Page.Doc({ subsite: page.subsite.id, title: page.title, description: page.description })
     },
-    sidebar: path => sidebar(pageOf(path)),
+    sidebar: path => sidebarOf(pageOf(path), false),
+    menuSidebar: path => sidebarOf(pageOf(path), true),
     article: path => article(pageOf(path)),
     pager: path => ih => [pager(pageOf(path), ih)],
     outline: path => outline(pageOf(path)),

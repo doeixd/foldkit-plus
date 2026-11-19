@@ -25,7 +25,7 @@ export interface Input {
 }
 
 const galleryFrame = frame<Message>({
-  toggledMenu: () => Message.ToggledMenu(),
+  menu: message => Message.GotMenuMessage({ message }),
   chosePageScheme: scheme => Message.ChosePageScheme({ scheme }),
 })
 

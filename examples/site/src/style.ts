@@ -6,12 +6,20 @@
  * article, a sidebar) is reached through its container's slot by element.
  */
 import { Capability, Style, type Piece } from 'foldkit-mixins'
-import { CodeBlockSlots, DrawerSlots, Recipes, TabsSlots, TooltipSlots } from 'foldkit-mixins-ui'
+import {
+  CodeBlockSlots,
+  DialogSlots,
+  DrawerSlots,
+  Recipes,
+  TabsSlots,
+  TooltipSlots,
+} from 'foldkit-mixins-ui'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
 import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
 
+import { NARROW } from './breakpoints.js'
 import { declared } from './gallery/theme.js'
 
 // The site's own colors, black on white and white on near-black, over the
@@ -153,8 +161,6 @@ const COLUMNS = '(min-width: 80rem)'
 /** What of the docked drawer shows peeking: its handle and the pane names. */
 const DRAWER_PEEK = '8rem'
 
-/** Below this width the rail becomes a bar over the page. */
-const NARROW = '(max-width: 56rem)'
 /** Below this width a doc page drops its "On this page" column. */
 const NO_OUTLINE = '(max-width: 76rem)'
 /** A phone: one card across, and a table's rows stacked. */
@@ -266,32 +272,77 @@ export const SiteStyle = slots(
       fontSize: '0.6875rem',
       fontWeight: t.weight.bold,
     },
+    // The phone's bar holds it; it opens the menu, a Sheet (`MenuSheetStyle`).
     menuButton: Style.slot({ capability: Capability.Focusable }, [
       {
         display: 'none',
+        alignItems: 'center',
         font: 'inherit',
-        fontSize: '0.875rem',
+        fontSize: '0.9375rem',
         color: t.text.default,
         background: 'transparent',
         border: rule,
         borderRadius: t.radius.md,
-        padding: `0.25rem ${t.space.sm}`,
+        // A finger's target: 44px each way.
+        minBlockSize: '2.75rem',
+        minInlineSize: '2.75rem',
+        padding: `0.25rem ${t.space.md}`,
         cursor: 'pointer',
       },
-      Style.media(NARROW, { display: 'inline-block' }),
+      Style.media(NARROW, { display: 'inline-flex' }),
       focus,
     ]),
-    // What the rail holds below the brand; on a phone, only while the menu is open.
+    // What the rail holds below the brand; on a phone the menu holds it instead.
     railBody: [
       { display: 'flex', flexDirection: 'column', gap: t.space.lg },
-      Style.nest('&[data-open="false"]', { display: 'var(--rail-closed, flex)' }),
-      // On a phone the open menu scrolls on its own, under the bar it opens from.
-      Style.media(NARROW, {
-        paddingBlock: t.space.sm,
-        '--rail-closed': 'none',
-        maxBlockSize: 'calc(100dvh - 3.75rem)',
-        overflowY: 'auto',
-        overscrollBehavior: 'contain',
+      Style.media(NARROW, { display: 'none' }),
+    ],
+    // The menu's head: its name, and the button that closes it.
+    menuHead: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: t.space.md,
+      marginBlockEnd: t.space.sm,
+    },
+    // What the menu holds, in the rail's own styles with the targets made a
+    // finger's: every link, summary and button 44px tall. `&&` outweighs the
+    // sidebar's and the nav's own rules for a link.
+    menuBody: [
+      { display: 'flex', flexDirection: 'column', gap: t.space.md, minInlineSize: '0' },
+      Style.nest('&& a', {
+        display: 'flex',
+        alignItems: 'center',
+        minBlockSize: '2.75rem',
+        paddingBlock: '0.25rem',
+        fontSize: '1rem',
+        lineHeight: '1.35',
+        overflowWrap: 'anywhere',
+      }),
+      // A package's pages, folded: the current one's group is open.
+      Style.nest('&& details', { borderBlockStart: rule }),
+      Style.nest('&& summary', {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: t.space.sm,
+        minBlockSize: '2.75rem',
+        listStyle: 'none',
+        cursor: 'pointer',
+        color: t.text.overt,
+        fontWeight: t.weight.medium,
+        fontSize: '1rem',
+      }),
+      Style.nest('&& summary::-webkit-details-marker', { display: 'none' }),
+      Style.nest('&& summary::after', {
+        content: '"+"',
+        fontFamily: t.font.mono,
+        color: t.text.subtle,
+      }),
+      Style.nest('&& details[open] > summary::after', { content: '"−"' }),
+      Style.nest('&& summary:focus-visible', {
+        outline: `2px solid ${t.accent.default}`,
+        outlineOffset: '-2px',
       }),
     ],
     nav: [
@@ -332,6 +383,15 @@ export const SiteStyle = slots(
         padding: `0.25rem ${t.space.sm}`,
         cursor: 'pointer',
       }),
+      // In the phone's menu, where it stands: a finger's target.
+      Style.at(
+        `@media ${NARROW}`,
+        Style.nest('button', {
+          minBlockSize: '2.75rem',
+          paddingInline: t.space.md,
+          fontSize: '0.8125rem',
+        }),
+      ),
       Style.nest('button[aria-pressed="true"]', {
         color: t.text.overt,
         background: t.surface.muted,
@@ -1537,6 +1597,34 @@ export const SiteStyle = slots(
     ],
   },
   { name: 'SiteStyle' },
+)
+
+/**
+ * The phone menu: a Sheet from the inline-start edge, wide enough for a
+ * sidebar's names. The close button is the site's own, a finger's target.
+ */
+export const MenuSheetStyle = Style.forSlots(DialogSlots)(
+  Recipes.Sheet.extend({
+    base: {
+      // It leaves as long as it came: the exit is the Sheet's slide on every other page.
+      dialog: Style.self({ '--fk-motion-sheet-exit': t.motion.sheet }),
+      closeButton: Style.self({
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minBlockSize: '2.75rem',
+        minInlineSize: '2.75rem',
+        padding: `0 ${t.space.md}`,
+        font: 'inherit',
+        fontSize: '0.9375rem',
+        color: t.text.default,
+        background: 'transparent',
+        border: rule,
+        borderRadius: t.radius.md,
+        cursor: 'pointer',
+      }),
+    },
+  })({ size: 'lg', handle: 'none', close: 'none' }),
 )
 
 /**

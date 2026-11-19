@@ -204,7 +204,7 @@ describe('the generated site', () => {
     const live = page('/remote/guides/live-data')
     expect(live.title).toBe('Live data · Remote · Foldkit Plus')
     expect(hrefs(live, 'nav[aria-label="Site"] [aria-current="page"]')).toEqual(['/#packages'])
-    expect(hrefs(live, 'nav[aria-label="Documentation"] [aria-current="page"]')).toEqual([
+    expect(hrefs(live, '#rail nav[aria-label="Documentation"] [aria-current="page"]')).toEqual([
       '/remote/guides/live-data',
     ])
     expect(live.querySelector('article h1')?.textContent).toBe('Live data')
@@ -214,9 +214,29 @@ describe('the generated site', () => {
     const fence = live.querySelector('article figure')
     expect(fence?.querySelector('[data-copy-code]')?.textContent).toBe('Copy')
     expect(fence?.querySelector('pre code')?.textContent).toContain('liveQuery(Data, Notes')
-    expect(hrefs(live, 'nav[aria-label="Documentation"] a')).toContain(
+    expect(hrefs(live, '#rail nav[aria-label="Documentation"] a')).toContain(
       '/remote/guides/remote-server',
     )
+  })
+
+  test("every page holds the phone menu: the rail's places, the pages folded by package, the theme control", () => {
+    const live = page('/remote/guides/live-data')
+    const menus = live.querySelectorAll('dialog#site-menu')
+    expect(menus).toHaveLength(1)
+    const menu = menus[0]!
+    // Drawn closed, so the sidebar's static region is in the page for the browser to adopt.
+    expect(menu.hasAttribute('open')).toBe(false)
+    expect(hrefs(menu, 'nav[aria-label="Site menu"] a')).toEqual(
+      hrefs(live, '#rail nav[aria-label="Site"] a'),
+    )
+    expect(hrefs(menu, 'nav[aria-label="Site menu"] [aria-current="page"]')).toEqual(['/#packages'])
+    expect(menu.querySelectorAll('[aria-pressed]')).toHaveLength(3)
+    // The same pages as the rail, a package's under its name, the current page's package open.
+    const rail = new Set(hrefs(live, '#rail nav[aria-label="Documentation"] a'))
+    const folded = hrefs(menu, 'nav[aria-label="Documentation"] a')
+    expect(new Set(folded)).toEqual(rail)
+    expect(hrefs(menu, 'details[open] [aria-current="page"]')).toEqual(['/remote/guides/live-data'])
+    expect(menu.querySelectorAll('details:not([open])').length).toBeGreaterThan(0)
   })
 
   test('a guide draws its Mermaid fence as a diagram, its source folded beneath it', () => {
@@ -233,7 +253,7 @@ describe('the generated site', () => {
 
   test("a subsite's API lists its entry points, each leading to a page per export", () => {
     const entry = page('/ssr/api/ssr')
-    const sidebar = (at: Document) => hrefs(at, 'nav[aria-label="Documentation"] a')
+    const sidebar = (at: Document) => hrefs(at, '#rail nav[aria-label="Documentation"] a')
     expect(sidebar(entry)).toEqual(
       expect.arrayContaining(['/ssr/api/ssr', '/ssr/api/ssr-client', '/ssr/api/ssr-vite']),
     )
@@ -243,7 +263,7 @@ describe('the generated site', () => {
 
     const ssr = page('/ssr/api/ssr/ssr')
     expect(ssr.querySelector('article h1')?.textContent).toBe('SSR')
-    expect(hrefs(ssr, 'nav[aria-label="Documentation"] [aria-current="location"]')).toEqual([
+    expect(hrefs(ssr, '#rail nav[aria-label="Documentation"] [aria-current="location"]')).toEqual([
       '/ssr/api/ssr',
     ])
     // The guides that name it are listed under it: "A first page" is a section of the package's first page now.
@@ -352,7 +372,7 @@ describe('the generated site', () => {
   test("a component's page offers its recipe's variants, previews it and shows its code", () => {
     const button = page('/components/button')
     expect(button.title).toBe('Button · Components · Foldkit Plus')
-    expect(hrefs(button, 'nav[aria-label="Components"] [aria-current="page"]')).toEqual([
+    expect(hrefs(button, '#rail nav[aria-label="Components"] [aria-current="page"]')).toEqual([
       '/components/button',
     ])
     const pressed = Array.from(button.querySelectorAll('main fieldset'), axis => [
