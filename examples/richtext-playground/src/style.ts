@@ -891,6 +891,9 @@ const barSlots = (root: StyleValue) =>
       Style.self({ position: 'relative' }),
       // The last menu (More, on a compact bar) opens toward the bar's start, not off the screen.
       Style.nest('&:last-child > [role="menu"]', { insetInline: 'auto 0' }),
+      // More sits at the end of its row: a wrapped bar can leave it alone at the start of a second
+      // row, where a menu aligned to its end would open past the screen's edge.
+      Style.nest('&:last-child:has(> [data-item="more"])', { marginInlineStart: 'auto' }),
     ),
     menu: Style.compose(
       popup,
