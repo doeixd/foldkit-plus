@@ -7,17 +7,48 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.42.0
+
+One thing to change when you upgrade. `foldkit-mixins-ui`'s `CodeBlock`
+`collapsed` is `{ lines, expanded?, onToggle? }` in place of `{ lines, onExpand
+}`: keep `expanded` in your Model and flip it from `onToggle`. The block keeps
+every line in the page, clipped by style, so a find and a copy reach all the
+code.
+
+What is new. A recipe's shipped look is one call, `Recipes.Table.style({ rows:
+'striped' })`. `foldkit-remote` declares a write in one call with
+`Mutation.update`, `Mutation.insert` and `Mutation.delete`. `foldkit-ssr`'s
+`Meta` carries an image's size and alt, an article's authors and tags, and the
+Twitter mirrors. The website gains a blog, a phone layout and 34 more live
+primitive examples.
+
+Versions: 42 packages are a new minor: `foldkit-entity`, `foldkit-mixins`,
+`foldkit-mixins-ui`, `foldkit-remote` and `foldkit-ssr` changed their published
+files, and every other package that depends on one of them follows.
+`foldkit-bundle`, `foldkit-durable`, `foldkit-host`, `foldkit-metadata`,
+`foldkit-react` and `foldkit-react-codegen` keep their versions.
+
 ### Added
 
 - `foldkit-mixins`: every `Style.recipeFor` recipe, after `.add` and `.extend` too, has `.style(selection?, options?)`, `Style.forSlots(Slots)(recipe(selection), options)` in one call. The shipped look of a widget is now one line with one import: `Recipes.Table.style({ rows: 'striped' })` in place of `Style.forSlots(TableSlots)(Recipes.Table({ rows: 'striped' }))`, and `Recipes.Table.style()` is the defaults. The result is the same `NamedStyle` of the recipe's contract, so `Table.view`'s and `Table.configure`'s `style` take it and another widget's refuse it; a value or an axis the recipe lacks is a type error at the argument. An application on `AppStyle` passes `{ layer: L.layer('app') }`. The two-call form stays, for pieces composed before `forSlots`.
 - `foldkit-ssr`: `Meta` takes `imageSize` and `imageAlt` (`og:image:width`, `og:image:height`, `og:image:alt`) and `article.authors` and `article.tags` (one `article:author` or `article:tag` each); `twitter:title`, `twitter:description`, `twitter:image` and `twitter:image:alt` repeat the Open Graph words whenever those are given.
 - `foldkit-remote`: `Mutation.update(name, Entity, { set, when?, from?, becomes?, expect?, compute? })`, `Mutation.insert(name, Entity, { set, becomes? })` and `Mutation.delete(name, Entity, { when?, from? }?)` declare a write in one call: `Mutation.update('Rename', Product, { set: { name: Schema.String } })` in place of `Mutation.write('Rename', Write.update(Entity.input(Product, Schema.Struct({ id: Schema.String, name: Schema.String })), { id: 'id' }))`. The input is the Entity's own `id` field beside `set`, each field by its key with the schema the input holds it with; a key that is no field, the id, or a value its field does not store is a type error at the key. The result is the long form's value (`Mutation.write` of `Write.update` of `Entity.input`), with the same refusals, prediction and request; the long form stays for an input key named otherwise than its field, a relation, or an unmapped key. `WriteMutation` and `WriteInputFields` name the types.
+- Docs: the Primitives gallery on the website runs 34 live examples, each a module of its own under `examples/site/src/examples/primitives/`: the time family (`debounce`, `throttle`, `interval`, relative time), state (Pagination, SelectionSet, Locale), media (MediaQuery, Breakpoints, `platformFromUA`), events (Visibility, Idle, InputModality, keyboard and hotkeys, pointer, scroll, active element), observers (Intersection, Mutation, Bounds), motion (Spring, Presence), dom (InputMask, `copyText`, `share`, `loadScript`), device (Geolocation, `mediaDevices`, fullscreen; each behind a press), interaction (Press, Selection, LiveAnnounce, Move) and net (broadcast between tabs). Five run in a browser test, and the gallery adopts all of them on a phone.
+- Docs: each blog post gets its own branded social card, and `docs/upgrading-0.41.md` is a guide of the site ("Upgrading to 0.41"), which the 0.41 post links to.
 
 ### Changed
 
 - Docs: the website has a blog, at `/blog` with an Atom feed at `/blog/feed.xml`. A post is Markdown with strict front matter in `docs/blog/<yyyy-mm-dd>-<slug>.md` (`examples/site/README.md`, "Writing a post"), set as an article with a table of contents beside it or folded above it, and its head carries Open Graph, Twitter and a `BlogPosting`. The 0.41.0 release post moved there from `docs/release-0.41.0.md` and the 0.7.0 post from `docs/blog/0.7.0.md`, and `scripts/docs-check.mjs` compiles the folder's TypeScript blocks.
-- `foldkit-mixins-ui`: a `CodeBlock` with `collapsed` keeps every line in the page and clips it by style to the first `lines`, under the fade, so a find, a copy of the page's text and an anchor reach the whole code (it drew only the first lines). `collapsed: { lines, expanded?, onToggle? }` replaces `{ lines, onExpand }`: the application flips `expanded` from `onToggle`, and an expanded block's button offers `words.collapse` (new, `Show less`). `onToggle` may be left out for a server-rendered static region whose script toggles the block: the button then carries the words it shows after a press as `data-toggled-label`. The root writes `data-collapsed="true"` or `"false"` and `--fk-code-clamp`, only when the code has more than `lines` lines.
+- `foldkit-mixins-ui`: **Breaking:** a `CodeBlock` with `collapsed` keeps every line in the page and clips it by style to the first `lines`, under the fade, so a find, a copy of the page's text and an anchor reach the whole code (it drew only the first lines). `collapsed: { lines, expanded?, onToggle? }` replaces `{ lines, onExpand }`: write `collapsed: { lines: 12, expanded: model.open, onToggle: Toggled() }` and flip `open` in `update` where `onExpand`'s Message used to drop `collapsed`; an expanded block's button offers `words.collapse` (new, `Show less`). `onToggle` may be left out for a server-rendered static region whose script toggles the block: the button then carries the words it shows after a press as `data-toggled-label`. The root writes `data-collapsed="true"` or `"false"` and `--fk-code-clamp`, only when the code has more than `lines` lines.
 - `foldkit-mixins-ui`: a VirtualList's box is filled with `surface.subtle` (it was `surface.default`, a mid grey against a white card), the step a CodeBlock takes.
+- Docs: the website reads on a phone: its menu is a Sheet, the Primitives gallery's cards are bounded, and the rail, the phone menu and the outlines share one navigation link style. Every code block over 14 lines collapses to 12 under a fade with a button for the rest (the first use of `CodeBlock`'s `collapsed`), and the 0.41 post is rewritten as an argument with its own images, with the upgrade steps moved to the guide.
+- Docs: the demos' pages are laid out for a phone: the todo app, data grid, registry, pages, rich-text playground, widgets, Chirp, Cloudflare CRUD and CMS demos take less around their content, with tighter headers and controls.
+- CI: the release workflow runs no checks of its own, makes the GitHub release from this file's section for the tag (falling back to a summary when the section passes GitHub's length limit), and redeploys the website and each demo whose sources changed when the Cloudflare secrets are set.
+
+### Fixed
+
+- Docs: on a touch screen the website's Copy button takes a band above the code, and a primitive example's button and the footer's links are 44px targets.
+- Docs: the registry demo's grid takes what the rows above it leave, so the page no longer scrolls 93px past the screen on a phone; the pages and rich-text playground formatting bars are one row of 44px targets on a touch phone; and the CMS page builder opens on the page on a phone, under one row for the title and the address.
 
 ## 0.41.0
 

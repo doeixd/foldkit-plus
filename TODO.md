@@ -213,14 +213,13 @@ In the same change:
       go-ahead. #185, #64, #483 and #440 closed; the narrowed issues retitled
       and commented; park comments on #376, #433, #148, #149 and a comment on
       #474; the two Bundle.lazy bugs filed as #501 and #502.
-- [ ] **Release 0.40.0 is prepared, not tagged** (db24769e, 58aa1412, b5e1d029):
-      35 packages one minor up, `foldkit-host` at 0.2.0 and marked Published in
-      `docs/releases.md`. Once it is on `main`: `git tag v0.40.0 b5e1d0290 &&
-      git push origin v0.40.0` runs `release.yml`, which publishes when
-      `NPM_TOKEN` is set and makes the GitHub release from `## 0.40.0`. Still
-      deprecated and not removed, though 0.39.0's notes said the next release
-      would: `editsJournal`'s `absorbed` and `server`, and the `saved` inputs
-      of `foldkit-mixins-form` and `foldkit-crud`.
+- [x] **Releases 0.40.0 and 0.41.0 are tagged and published** (`v0.40.0`,
+      and `v0.41.0` at c45381cc6 on 2026-11-18); each tag ran `release.yml`,
+      which publishes what the registry lacks and makes the GitHub release
+      from the matching `CHANGELOG.md` section. Still deprecated and not
+      removed, though 0.39.0's notes said the next release would:
+      `editsJournal`'s `absorbed` and `server`, and the `saved` inputs of
+      `foldkit-mixins-form` and `foldkit-crud`.
 - [x] **Decisions on the laws and Alchemy notes, made 2026-11-12 by
       delegation:** raise the workspace's Effect to 4.1.4 (A-WP1 does it, and
       the lockfile, the skill's "tested on" line and `packages/plus/src/setup.ts`
