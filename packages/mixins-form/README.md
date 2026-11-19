@@ -49,7 +49,7 @@ pnpm add effect foldkit foldkit-bundle foldkit-form foldkit-mixins foldkit-mixin
 ## Start without customization
 
 Given `Edit`, a `Form.make` result from the
-[Form example](../form/README.md#example), the default rendering path is:
+[Form example](../form/README.md#a-first-form), the default rendering path is:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -206,7 +206,7 @@ the generated view with UI field overrides through a Submodel and a
 ## Example
 
 `Edit` is a `Form.make` result, as in the
-[`foldkit-form` README](../form/README.md#example).
+[`foldkit-form` README](../form/README.md#a-first-form).
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
