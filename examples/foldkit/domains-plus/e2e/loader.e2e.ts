@@ -38,7 +38,7 @@ beforeAll(async () => {
     dev: { server: { hostname: '127.0.0.1', port: 0 }, inspector: false, logLevel: 'error' },
   })
   origin = (await worker.url).origin
-  browser = await chromium.launch()
+  browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] })
 })
 
 afterAll(async () => {

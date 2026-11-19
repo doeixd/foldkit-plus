@@ -26,7 +26,7 @@ beforeAll(async () => {
   )
   await onFreePort(() => vite.listen())
   url = vite.resolvedUrls!.local[0]!.replace(/\/$/, '')
-  browser = await chromium.launch()
+  browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] })
 })
 
 afterAll(async () => {
@@ -48,8 +48,12 @@ const wheelToEnd = async (page: Page, width: number, height: number) => {
   for (let step = 0; step < 40; step++) {
     await page.mouse.wheel(0, 800)
     await page.waitForTimeout(40)
+    const atEnd = await page.evaluate(() => {
+      const main = document.getElementById('studio-main')!
+      return main.scrollTop + main.clientHeight >= main.scrollHeight - 1
+    })
+    if (atEnd) break
   }
-  await page.waitForTimeout(300)
 }
 
 test.each([
@@ -151,10 +155,9 @@ test('the centre column keeps its scroll across navigations: Back and Forward re
   await page.goto(`${url}/?as=edda`)
   const first = page.locator('#studio-main tbody button').first()
   await first.waitFor({ timeout: 120_000 })
-  await page.waitForTimeout(500)
   const room = (target: Page) =>
     column(target).evaluate(element => element.scrollHeight - element.clientHeight)
-  expect(await room(page)).toBeGreaterThan(40)
+  await expect.poll(() => room(page), { timeout: 10_000 }).toBeGreaterThan(40)
 
   // The list, scrolled; opening a post is a pushed entry, which starts at the top.
   await scrollTo(page, 60)
@@ -228,11 +231,15 @@ test.each(
         })
       }, css)
     await openPost(page)
-    // The width is measured a frame after the bar is drawn, and the bar redraws for it.
-    await page.waitForTimeout(1500)
+    await page.evaluate(() => document.fonts.ready)
     const toolbar = page.getByRole('toolbar')
-    const overflow = await toolbar.evaluate(each => each.scrollWidth - each.clientWidth)
-    expect(overflow, `the bar overflows at ${width}px`).toBeLessThanOrEqual(0)
+    // The width is measured a frame after the bar is drawn, and the bar redraws for it.
+    await expect
+      .poll(() => toolbar.evaluate(each => each.scrollWidth - each.clientWidth), {
+        timeout: 5_000,
+        message: `the bar overflows at ${width}px`,
+      })
+      .toBeLessThanOrEqual(0)
 
     const drawn = await toolbar.evaluate(each =>
       Array.from(each.querySelectorAll('button'), tool => tool.getAttribute('aria-label') ?? ''),

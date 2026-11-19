@@ -28,7 +28,7 @@ beforeAll(async () => {
   )
   await onFreePort(() => vite.listen())
   url = vite.resolvedUrls!.local[0]!.replace(/\/$/, '')
-  browser = await chromium.launch()
+  browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] })
 })
 
 afterAll(async () => {
@@ -36,13 +36,15 @@ afterAll(async () => {
   await vite?.close()
 })
 
-/** The first page of the pages list, open in the builder. */
+/** The first page of the pages list, open in the builder with its history row settled. */
 const openPage = async (page: Page) => {
   await page.goto(`${url}/pages?as=edda&reset`)
   const first = page.locator('#sitePages button').first()
   await first.waitFor({ timeout: 120_000 })
   await first.click()
   await page.getByRole('button', { name: 'Add Heading' }).waitFor({ timeout: 60_000 })
+  // The studio draws its page's history row (`#manage`) once the entry loads, shifting the panels down.
+  await page.locator('#manage').waitFor({ timeout: 60_000 })
 }
 
 const layers = (page: Page) =>
@@ -170,8 +172,6 @@ const desktop = async (browser: Browser) => {
   const errors: Array<string> = []
   page.on('pageerror', error => errors.push(String(error)))
   await openPage(page)
-  // The studio draws its page's history row late and moves the panels down by its height.
-  await page.waitForTimeout(1500)
   return { context, page, errors }
 }
 
@@ -332,8 +332,6 @@ const phone = async (browser: Browser, height = 844) => {
   const errors: Array<string> = []
   page.on('pageerror', error => errors.push(String(error)))
   await openPage(page)
-  // The studio draws its page's history row late and moves the panels down by its height.
-  await page.waitForTimeout(1500)
   // The page is the first thing in the editor, under the title row; its bar, the tabs and the
   // panel they choose are below it, reached by scrolling, as a thumb would.
   await page.locator('[data-builder-canvas]').scrollIntoViewIfNeeded()
@@ -599,7 +597,6 @@ test('at 390px the page editor does not scroll sideways, and its panels are reac
     expect(await page.getByRole('button', { name, exact: true }).isVisible()).toBe(true)
   // The page is on the first screen, and the title and address share one row above it, where
   // the two stacked fields and the panel above the page put it 897px down.
-  await page.waitForTimeout(1500)
   const [canvas, title, address] = await Promise.all(
     ['[data-builder-canvas]', '#PageForm-title', '#PageForm-slug'].map(selector =>
       page.locator(selector).evaluate(each => each.getBoundingClientRect()),
@@ -614,7 +611,6 @@ test('at 1280px a tile held in the bottom strip of the centre column scrolls it,
   const context = await browser.newContext({ viewport: { width: 1280, height: 600 } })
   const page = await context.newPage()
   await openPage(page)
-  await page.waitForTimeout(1500)
   const main = page.locator('#studio-main')
   const room = () => main.evaluate(each => each.scrollHeight - each.clientHeight)
   expect(await room()).toBeGreaterThan(100)
