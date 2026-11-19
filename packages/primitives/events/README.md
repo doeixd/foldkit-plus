@@ -17,7 +17,7 @@ or [`dom`](../dom/README.md), not to these window-level streams.
 | `pointerEvents()` | entry | | `Moved { x, y }` | |
 | `scrollEvents()` | entry | | `Scrolled { x, y }` | |
 | `activeElementEvents()` | entry | | `Changed { tag, id }` | |
-| `matchHotkey(pattern, press, { platform?, allowInInput? })`, `ariaKeyshortcuts(pattern, platform?)`, `formatHotkey(pattern, platform?)`, `isTypingTarget(target)` | functions | | | |
+| `matchHotkey`, `ariaKeyshortcuts`, `formatHotkey`, `isTypingTarget` | functions | | | |
 
 ## Start with one: is the tab visible
 
