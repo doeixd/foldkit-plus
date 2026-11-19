@@ -1,40 +1,46 @@
 # foldkit-form
 
-A form as a Foldkit Submodel: built from the input an operation accepts, holding
-what the user is typing, and handing the parent a decoded value when it is
-valid. It adds no state system. Field state is Foldkit core's
-`fieldValidation`, and the form is a [`foldkit-bundle`](../bundle/README.md)
-Bundle the parent places like any other.
+Every web form repeats the same plumbing by hand: storing unfinished text or
+checkbox drafts separately from decoded numbers and IDs, deciding whether to
+validate on input, blur, or submit, tracking whether the user changed anything
+since loading, and guarding against double submits or stale async checks.
 
-> **Status:** headless. It owns the Model, Messages, validation, and a
-> description of each control, and draws nothing.
-> [`foldkit-mixins-form`](../mixins-form/README.md) draws it through Mixins
-> slots; or draw from `controls` yourself.
+`foldkit-form` builds a form's state, validation, and control metadata directly
+from the Effect `Schema.Struct` your submit handler already accepts. You pass an
+operation's input schema (`Entity.input` or `Form.input`), and you get back a
+[`foldkit-bundle`](../bundle/README.md) Bundle whose Model holds one
+`foldkit/fieldValidation` field per key, plus typed `controls` for your view.
+It is headless; [`foldkit-mixins-form`](../mixins-form/README.md) renders those
+controls with accessible styling, or you can render `controls` yourself.
 
-## What it owns
+See a live form editing entities in [`examples/entity`](../../examples/entity)
+and at [foldkit-chirp-demo.pages.dev](https://foldkit-chirp-demo.pages.dev/).
+
+## What the form owns and what your app owns
 
 | Fact | Owner |
 | --- | --- |
-| What may be submitted, and when it is valid | the input `Schema.Struct` |
-| What each input key means (a field, a relation's id) | [`Entity.input`](../entity/README.md#reading-an-operations-input) |
-| The draft in each control, and whether it has been checked | `foldkit-form`, in the parent's Model |
-| What happens to a submitted value | the parent: a Remote mutation, a Sync operation, a plain `update` |
-| Whether a submit is in flight, and its failure | whoever performs it; not the form |
-| The options of a relation picker | the application; the form only names the target Entity |
+| Valid input shape and constraints | Your input `Schema.Struct` |
+| Meaning of each key (field or relation ID) | [`Entity.input`](../entity/README.md#reading-an-operations-input) |
+| Drafts, validation state, and dirty tracking | `foldkit-form`, inside the parent Model |
+| What happens on submit | Your parent `update` (mutation, sync op, or local state) |
+| In-flight save state and server errors | Whoever runs the save (`foldkit-crud` or your app) |
+| Options for a relation picker | Your application's query |
 
-## Mental model
+## How drafts become decoded values
 
-`Form.make` takes the operation's input `Schema.Struct` and `Entity.input`, which
-says what each key means. It gives you two things. The first is the controls, each
-with a key, a control, a label and whether it is required: these are what you draw.
-The second is a Bundle whose Model holds one `fieldValidation` Field per key, with
-the draft. A `Changed` Message validates the draft against the key's schema. A
-`Submitted` Message checks that every key is valid, decodes the input, and sends the
-out Message `{ value }`.
+A **draft** is what the control holds while the user is typing — raw text such
+as `"4."` for a number, or `""` for an unchosen relation — which stays separate
+from the typed submission value.
 
-A **draft** is what the control holds, which is not the value it submits. A
-number being typed is text (`"4."` is a fine thing to have typed), an unchosen
-relation is `""`. The draft becomes a value only when it is checked.
+`Form.make` inspects your input schema and builds:
+
+1. **`controls` and `controlsByKey`:** each field's kind, label, description,
+   required flag, and Entity metadata for your view.
+2. **`bundle`:** a Foldkit Bundle whose `update` handles `Changed`, `Blurred`,
+   `Toggled`, `Submitted`, `Reset`, `Validated`, and `ValidatedAll`. On a valid
+   `Submitted`, the bundle emits `{ _tag: 'Submitted', value }` with the decoded
+   input.
 
 ## Install
 
@@ -42,11 +48,14 @@ relation is `""`. The draft becomes a value only when it is checked.
 pnpm add effect foldkit foldkit-bundle foldkit-entity foldkit-form
 ```
 
-## Example
+## A first form
+
+This defines a `Post` entity with a required `title`, builds a `Rename` form,
+and runs two edits through its `update` — first triggering a validation error,
+then producing a decoded submission value:
 
 ```ts
 import { Schema } from 'effect'
-import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 
@@ -54,58 +63,43 @@ const Post = Entity.define(
   'Post',
   Schema.Struct({
     id: Schema.String,
-    title: Schema.String.check(Schema.isMinLength(1)).annotate({ title: 'Title' }),
+    title: Schema.String.check(Schema.isMinLength(1, { message: 'Enter a title' })).annotate({ title: 'Title' }),
   }),
 )
-
-// The operation's input, declared once. Give the same value to the operation.
 const RenameInput = Schema.Struct({ id: Schema.String, title: Post.fields.title.schema })
-
 const Rename = Form.make('Rename', Entity.input(Post, RenameInput))
 
-// Place it: a Model field and a Message variant of the page.
+// 1. Typing an empty title fails the field check immediately.
+const empty = Rename.bundle.update(
+  Rename.initial,
+  Rename.Message.Changed({ key: 'title', value: '' }),
+  undefined,
+)
+Rename.field(empty.model, 'title') // { _tag: 'Invalid', value: '', errors: ['Enter a title'] }
+
+// 2. Fixing the title and submitting decodes a typed RenameInput.
+const typed = Rename.bundle.update(empty.model, Rename.Message.Changed({ key: 'title', value: 'Hello' }), undefined)
+const submitted = Rename.bundle.update(typed.model, Rename.Message.Submitted(), undefined)
+submitted.outMessage // { _tag: 'Submitted', value: { id: '', title: 'Hello' } }
+```
+
+### Placing the form in a page
+
+Compose `Rename.bundle` into your page with `Bundle.withChild`. `onOut` is
+required so submitted values are always handled:
+
+```ts
+import { Bundle } from 'foldkit-bundle'
+
 const Page = Bundle.compose({ saved: Schema.Array(RenameInput) }).pipe(
   Bundle.withChild('rename', Rename.bundle, {
-    // `submitted.value` is a decoded RenameInput. What it means is the page's.
     onOut: submitted => model => ({
       model: { ...model, saved: [...model.saved, submitted.value] },
     }),
   }),
 )
 const RenameForm = Page.children.rename
-```
 
-- `Form.make` takes the name and an `Entity.input`. It resolves a control per
-  key and throws if it cannot. A form that writes no Entity of its own (a
-  sign-up, a search, a login) takes `Form.input(schema)`, an input over an
-  Entity defined from that schema: `Form.make('Search', Form.input(SearchInput))`. A view must also supply a renderer for each
-  control kind, including custom kinds.
-- `Rename.bundle` is an ordinary Bundle. `onOut` is required, so a submit is
-  never dropped by omission.
-- `Rename.Message` builds the form's Messages for your view to dispatch:
-  `Changed({ key, value })`, `Blurred({ key })`, `Submitted()`, `Reset()`,
-  `Validated({ key })` and `ValidatedAll()` (see [Validation](#validation)). `Toggled({ key })`
-  flips a flag and `Toggled({ key, choice })` lets go of or adds one choice of a
-  list, both to the draft as it stands when the Message lands, so a view sends
-  them for a press: two presses before the next draw both count. `FollowedIssue({ id })`
-  says a view's link to a field was followed, and `AskedForMore({ key })` that a
-  relation picker's reader wants more choices (its `key` is typed by the
-  form's relation keys); the form changes nothing for
-  either, and the page that owns the list answers the second.
-- `Rename.controls` lists the keys in the input's order, each with its
-  `control`, `label`, `description`, `required`, and the Entity `member`.
-  `Rename.controlsByKey` holds the same entries by key, for a view that places
-  each field itself: `Rename.controlsByKey.title.label`.
-- `Rename.field(model.rename, key)` reads one key's state as `Field<Draft>`, for
-  a view that walks `controls`; `model.rename.fields.title` is the same value
-  typed to its key.
-
-### Run one edit through the parent
-
-Continuing the example above, an assembly initializes the slice and routes its
-wrapped Messages. This reducer-level example needs no renderer:
-
-```ts
 const { placements } = Page
 const update = placements.update(model => ({ model }))
 let model = placements.initial({ saved: [] }).model
@@ -115,41 +109,46 @@ model = update(model, Page.Message.GotRenameMessage({
 model = update(model, Page.Message.GotRenameMessage({
   message: Rename.Message.Submitted(),
 })).model
-// model.saved contains the decoded input, with title "Hello" and id "".
+// model.saved now holds [{ id: '', title: 'Hello' }]
 ```
 
-Here a plain `Schema.String` allows the empty id. For editing a real row, fill
-the form with that row's id first; add an input-schema constraint if an empty
-id is invalid for your operation. `onOut` stores the value locally in this
-example. It does not save to a server. Forms with asynchronous checks also need
-the runtime to execute their returned Commands.
+- For forms without an Entity (search, login, sign-up), pass `Form.input(schema)`:
+  `Form.make('Search', Form.input(SearchInput))`.
+- `Rename.Message` provides `Changed({ key, value })`, `Blurred({ key })`,
+  `Submitted()`, `Reset()`, `Validated({ key })`, `ValidatedAll()`,
+  `Toggled({ key })` / `Toggled({ key, choice })` (applied to the current draft
+  on click), `FollowedIssue({ id })`, and `AskedForMore({ key })`.
+- `Rename.controls` and `Rename.controlsByKey` describe each field for views;
+  `Rename.field(model.rename, key)` and `model.rename.fields.title` read a
+  field's `Field<Draft>` validation state.
+- When editing an existing row, call `RenameForm.helpers.fill(row)` first so
+  `id` and existing values populate before submit.
 
 ## Controls
 
-A control is data: a `kind` (a name), the `draft` the Model holds while it is
-edited, and whatever `data` its kind needs, with nothing about how it is drawn.
-There is one primitive, and every kind is a value of it, the ones below
-included.
+A control is pure data: a `kind`, the `draft` kept in the Model, and kind
+metadata.
 
 | Kind | Draft | Chosen when |
 | --- | --- | --- |
-| `Text`, `Multiline` | `string` | the schema is a string (`Multiline` only when asked for) |
-| `Hidden` | `string` | only when asked for: a key the form carries and does not show, such as the id being edited |
-| `Number` | `string` | the schema is a number |
-| `Toggle` | `boolean` | the schema is a boolean |
-| `Select` | `string` | the schema is a union of string or number literals; carries `options`, and gives the chosen option itself, so `3` is `3` |
-| `Choices` | `string[]` | the schema is an array of string or number literals; carries `options`, and gives the options themselves, so `3` is `3` |
-| `RelationOne` | `string` (an id, `""` for none) | the key is `Relation.input` of a `one` |
-| `RelationMany` | `string[]` | the key is `Relation.input` of a `many` |
+| `Text`, `Multiline` | `string` | Schema is a string (`Multiline` when opted in) |
+| `Hidden` | `string` | Opted in for non-visible keys such as `id` |
+| `Number` | `string` | Schema is a number |
+| `Toggle` | `boolean` | Schema is a boolean |
+| `Select` | `string` | Union of string/number literals; submits the chosen literal |
+| `Choices` | `string[]` | Array of string/number literals; submits chosen literals |
+| `RelationOne` | `string` (`""` when empty) | Key is `Relation.input` of a `one` relation |
+| `RelationMany` | `string[]` | Key is `Relation.input` of a `many` relation |
 
-The resolver goes from the most to the least explicit source:
+Control resolution runs from most explicit to least explicit:
 
-1. `inputs` given to `Form.make`, for this form only.
-2. `Input.of(control)` metadata on the Entity member, for that member everywhere.
-3. The relation the key writes.
+1. `inputs` passed to `Form.make` (for this form only).
+2. `Input.of(control)` metadata on the Entity member (everywhere that member is
+   used).
+3. The relation mapped by the key.
 4. The shape of the key's schema.
 
-If none of them says, `Form.make` throws and names the key. It does not guess.
+Unknown schemas throw with the key name when `Form.make` runs.
 
 ```ts
 import { Form, Input } from 'foldkit-form'
@@ -159,14 +158,15 @@ const Cms = Post.pipe(Entity.annotateMembers({ title: Input.of(Input.multiline()
 Form.make('Rename', Entity.input(Cms, RenameInput), { inputs: { id: Input.text() } })
 ```
 
-A key that holds an id without being a relation asks for a picker with
-`Input.relationOne(Author)` or `Input.relationMany(Tag)`, as the page Builder's
-Block props do. A key the schema cannot spell — `Schema.Array(Schema.Number)` —
-takes the choices it may hold from `Input.choices([1, 2])`. A `Select` or
-`Choices` draft is each option as text, filled values included, so two options
-drawn alike (`'1'` and `1`) are refused when the control is made.
+Keys holding an ID without an Entity relation can request a picker via
+`Input.relationOne(Author)` or `Input.relationMany(Tag)`. Unbounded literal arrays
+like `Schema.Array(Schema.Number)` take options via `Input.choices([1, 2])`.
+`Select` and `Choices` store drafts as strings and reject collisions where two
+values format identically (such as `'1'` and `1`).
 
 ### Your own kind of control
+
+Custom kinds such as prices or date pickers are built with `Input.kind`:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -217,9 +217,6 @@ const input = Entity.input(
 const slugify = (text: string): string => text.toLowerCase()
 -->
 
-The kinds above are made with `Input.kind`, and so is a date picker, a rich text
-editor, or a price:
-
 ```ts
 const Cents = Input.kind<{ readonly currency: string }>('Cents', {
   draft: 'text', // what the Model holds while it is edited
@@ -237,32 +234,21 @@ const { control } = Price.controlsByKey.cents
 Cents.is(control) && control.data.currency // 'USD'
 ```
 
-- `draft` is `'text'`, `'flag'` (a boolean) or `'list'` (each chosen value as
-  text, as a group of checkboxes holds them).
-- `parse` reads text as something else before the key's schema sees it, as
-  `Number` does; `undefined` means it does not read, and `unparsed` is what to
-  say. Text that is only spaces is nothing entered, not a failure to parse.
-- `parseList` is the same for a `'list'` draft, given every chosen value as
-  text; `undefined` means one of them is not allowed.
-- `format` is the other direction: the text a value is shown as when the form is
-  filled with it, so a stored `1234` reads as `'12.34'`. It is called by `fill`
-  only, never while someone types, so a caret and a composition are never
-  disturbed. A `format` that throws fails the fill, naming the key.
-- A hook a draft can never reach is a type error, not a hook that is silently
-  never called: `parse` and `format` are a `'text'` draft's, `parseList` a
-  `'list'` draft's.
-- `shown: false` makes a kind that is carried and not drawn, as `Hidden` is.
-- Nothing else in the form treats a shipped kind differently. A view draws your
-  kind once it has a renderer for it; see
-  [`foldkit-mixins-form`](../mixins-form/README.md#renderers).
+- `draft` is `'text'`, `'flag'`, or `'list'`.
+- `parse` converts `'text'` drafts before schema validation (`parseList` does
+  the same for `'list'` drafts); returning `undefined` reports `unparsed`.
+  Whitespace-only text counts as empty rather than unparsed.
+- `format` turns a stored value back into `'text'` during `fill` (leaving live
+  typing untouched); throwing inside `format` fails the `fill`, naming the key.
+- Hooks unreachable for the chosen `draft` type fail at compile time.
+- `shown: false` hides the control from rendered field lists (like `Hidden`),
+  and custom kinds render through [`foldkit-mixins-form`](../mixins-form/README.md#renderers).
 
 ### A control with a Model of its own
 
-Some controls are more than a draft. A color picker has a popover that is open
-or closed and a palette it looked up; a page builder has a selection and an undo
-history; a rich-text editor has a document and a cursor. `Input.bundle` makes
-such a control out of an ordinary [Bundle](../bundle/README.md): the key's draft
-*is* the Bundle's Model, and the form carries everything else the Bundle has.
+Rich controls — a color picker with an open popover, a page builder with
+selection and undo, or a rich-text editor — wrap an ordinary
+[Bundle](../bundle/README.md) with `Input.bundle`:
 
 ```ts
 const ColorInput = Input.bundle('ColorPicker', {
@@ -279,45 +265,29 @@ color.field(PostForm.initial) // { _tag, value: { open, hex, recent } }: validat
 color.send(ColorMessage.Opened()) // the form's Message carrying one of the picker's own
 ```
 
-What the form does with it:
-
-- **The Bundle's Messages** travel as the form's `Control` Message, and
-  `color.send` builds one. One the Bundle does not take is dropped.
-- **An edit is a change of value.** A Message that changes `value(model)` is
-  validated against the key's schema, clears the last submit's failures, and
-  makes `authoredChanged` true, so a CMS autosaves it. A Message that changes
-  only the rest of the Model, such as opening the popover, is none of those.
-- **Its Commands, Subscriptions and Resources are the form's.** Commands come
-  back as `Control` Messages. The form's Bundle gains the control's
-  Subscriptions and Resources, keyed under the key (`ColorPicker@fields.color/…`),
-  and `init` starts the control's init Commands.
-- **`fill`, `partial`, `settled`, submit and `Reset`** all go through `value`,
-  `fill` and `settled`. `Reset` returns the Bundle's initial Model.
-- **Work the value waits on** (an upload, a lookup the Bundle runs) is `busy`:
-  `busy: model => model.sending`. A submit made while it is true waits, as it
-  waits for a check: the key reads `Validating` rather than missing, the
-  submit goes out when the work lands with a value, and when the work ends
-  without one the key is validated (a required key then says `Required`) and
-  nothing is submitted. A control in a row holds the submit the same way. Give
-  a busy control `settled` too, which says whether a stored value shown again
-  needs work: `busy` without it is a type error (reported at the call), and
-  `Input.bundle` throws on it for an untyped caller, since such a form would
-  wait for good.
-- **Nothing entered** is `value` giving `undefined` or `null`, which a required
-  key refuses as it would an empty text box.
-- **Types follow the control.** `model.fields.color.value` is the picker's
-  Model, `color.send` takes only the picker's Messages, and `field` refuses the
-  key, whose draft is not text.
-
-The Bundle may not have an OutMessage, since a key has no parent to hand one
-to, and its Commands may need no services. A key given a control like this
-takes no `check`; say what is valid in its schema. A nested form whose control
-has Subscriptions or Resources is refused, because a row cannot run them yet.
+- **Messaging and edits:** control Messages travel through `Control` via
+  `color.send`. Only Messages that change `value(model)` trigger validation,
+  clear submit marks, and flip `authoredChanged`; UI-only changes such as
+  opening a popover keep validation and dirty state clean.
+- **Effects and lifecycle:** Commands, Subscriptions, and Managed Resources lift
+  into the parent form keyed by the control (`ColorPicker@fields.color/…`).
+  `fill`, `partial`, `settled`, submit, and `Reset` delegate through `value`,
+  `fill`, and `settled`.
+- **In-flight control work (`busy`):** pass `busy: model => model.sending` when
+  a control runs uploads or lookups. Submitting while busy waits (`Validating`)
+  until `busy` clears, then validates and submits. Controls with `busy` also
+  require `settled` so restored models settle cleanly.
+- **Empty values and types:** returning `undefined` or `null` from `value`
+  triggers `Required` on required keys. `model.fields.color.value` is typed as
+  the picker's Model, and `color.send` accepts only the picker's Messages.
+- **Constraints:** control Bundles omit `OutMessage` and command service
+  requirements, validate via schema rather than `check`, and omit Subscriptions
+  and Resources inside nested row forms.
 
 ### A key that follows another
 
-A slug is its title until the author decides otherwise. `Input.following` keeps
-the key's own control and writes its draft from another key:
+Use `Input.following` when one field derives from another until edited manually
+(such as a URL slug following a title):
 
 ```ts
 const SlugForm = Form.make('SlugForm', input, {
@@ -330,22 +300,19 @@ SlugForm.settled(SlugForm.initial) // a stored Model, shown again with no check 
 SlugForm.Message.Refused({ key: 'slug', error: 'That address is taken', value: 'hello' }) // a server's word on the value sent
 ```
 
-- While the author has not written the key, each edit of the key it follows
-  rewrites it, through the function given, and it is validated and checked as if
-  typed. With nothing to follow yet it shows no failure; a submit still does.
-- **Once they write it, it is theirs**, and the key it followed moves on without
-  it. Emptying it hands it back, which is how a view offers "regenerate".
-- **A form filled with a value for it does not follow.** An address that is
-  already published must not move because its title was edited. Filled with
-  nothing for it, it follows.
-- A key may follow a key that follows. A key that follows itself, through any
-  chain, or that follows something that is not another text key of the form, is
-  refused when the form is made.
+- Until the user edits the dependent key, edits to the source key rewrite and
+  validate it automatically (suppressing premature errors while empty until
+  submit).
+- Editing the dependent key detaches it; clearing it back to empty resumes
+  following.
+- Calling `fill` with a non-empty value for the dependent key keeps it detached
+  (preserving published slugs).
+- Cycles and references to non-text keys throw when `Form.make` runs.
 
 ### A picker that searches
 
-A relation usually has too many targets to list. `Input.search()` keeps the
-key's picker and gives it a search:
+Add `Input.search()` to hold search text for large relation pickers without
+modifying the selected ID or running validation:
 
 ```ts
 const EditPost = Form.make('EditPost', input, { inputs: { authorId: Input.search() } })
@@ -355,112 +322,89 @@ const { model } = EditPost.bundle.update(EditPost.initial, searched, undefined)
 EditPost.search(model, 'authorId') // 'ad'
 ```
 
-The form holds what was typed and does nothing else with it: it changes no
-draft and validates nothing. The application reads it as the input of the query
-that lists the choices, so finding an author is an ordinary query. A fill or a
-reset starts the search over. `Input.search()` on a key that is not a relation
-throws.
+Your application feeds `Form.search(model, key)` into the query listing picker
+choices. `fill` and `Reset` clear the search text. Applying `Input.search()` to
+a non-relation key throws.
 
 ### Labels
 
-A label is the schema's own `title` annotation, and the description its
-`description`, first on the input key's schema and then on the Entity field's.
-Those annotations already reach JSON Schema, so an agent tool and a form read
-the same words. A relation has no schema to annotate, so it takes
-`Form.label('Author', 'Who wrote it')` as Entity metadata. With neither, the
-label is the key.
+Labels and descriptions come from Effect Schema's `annotate({ title, description })`
+(checking the input key's schema first, then the Entity field's) or `Form.label('Author', 'Who wrote it')`
+on relations, falling back to the key name.
 
 ## Validation
 
-Each key is checked against **the input's own schema for that key**, not the
-Entity's: the operation decides what is valid, and may be stricter.
+Every key validates against **the input's own schema for that key**, allowing an
+operation to be stricter than the underlying Entity.
 
-- **An edit** (`Changed`) checks the new draft at once.
-- **Leaving a control** (`Blurred`) says nothing new: an edit has already
-  checked the key, and a key never edited is not judged before a submit. So
-  tabbing through a required field, or leaving the emptied field of a form that
-  was just reset, shows no `Required`. Emptying a required field you typed in
-  does say so.
-- **`Validated({ key })`** checks one key as it stands, edited or not: for a
-  program that shows a stored value's failure after a `fill`, which validates
-  nothing.
-- **Empty** means `""` or `[]`. What an empty draft submits is whatever the
-  input admits for it, tried in order: leaving the key out (`Schema.optionalKey`,
-  `Schema.optional`), `Option.none()` for a key typed `Option`, `null`, then the
-  empty value itself. A key is `required` exactly when none is admitted, so an
-  optional key, `Schema.NullOr`, and an array need no flag from you. A plain
-  `Schema.String` admits `""`; add `Schema.isMinLength(1)` to require it.
-- **A key typed `Option`** (`Schema.OptionFromNullOr(Schema.String)`) is edited
-  as what it holds: a `Text` control, checked by the inner schema, submitting
-  `Option.some(value)`, and filled from an `Option`.
-- **A number** that does not parse reads `Enter a number`; one that parses is
-  checked by the schema. Only spaces is nothing entered, not zero.
-- **Submit** checks every key, so every failure shows, and sets
-  `model.attempted`. When all pass, the whole input is decoded; a rule that
-  spans keys fails there and lands in `model.errors`, since it belongs to no
-  one control. The next edit clears them. `attempted` stays until a `Reset` or
-  a `fill`: a view draws its list of fields to fix only once it is set, so a
-  failure shows first beside its field, and the list follows a submit.
-- **An invariant** of the Entity (`Entity.invariant`) is judged on submit over
-  the row the decoded value describes (`Entity.judgeInput`), as the server will
-  judge it: a row that breaks one does not go out, and its message shows beside
-  each key its path names, or in `model.errors` when the form sets none of
-  them. Beside a key it is a mark (`model.marks`), not the key's own
-  validation: `form.field` shows the two together, and **any edit clears the
-  marks**, since `reserved <= quantity` named on `reserved` is often mended by
-  raising `quantity`. Until an edit a submit stops; after one it judges again.
-  A `Message.Refused` is a mark too, and lands only while the key still holds
-  the `value` refused. One reading a field the form does not set is not judged here; the
-  server decides it, and the form never calls the input valid on its account.
-  Unless the form is over the row it edits, below.
-- **A form over the row it edits.** An edit form sets a few fields of a row
-  that exists. Give it that row, encoded, with `form.over(model, row)`
-  (`Entity.rowFrom(entity, loaded)`), and its invariants are judged over the
-  row with the form's values laid over it, the row being the one before: a
-  rule over a field the form does not set is decided, and a transition
-  (`before.status`) is judged too. The row is taken once, when the form is
-  filled, and is not followed after; `fill` keeps it and `Reset` drops it, so
-  a form with none judges as above. Load what decides the rules beside the
-  form's keys: `Entity.selectFor(input, { also: Entity.judgedBy(input) })`.
-  A form over a row also judges **on each edit**, as #192 has every key do:
-  a failure shows once the person has edited every key of the form that sets
-  a member the rule reads, a field or a relation it points (`model.reached`),
-  so a rule over two keys waits for
-  the second; a blur judges nothing; a submit shows every failure, edited or
-  not. A rule the row lacks a field for is still the server's.
-  `foldkit-crud`'s editor does all of this.
-  The same holds for one calling a primitive operator the form's table does
-  not run: give the table as `operators` (`Form.make(name, input, { operators
-  })`, `Operators.kernel` by default), and a nested form given none uses it.
-- **`ValidatedAll`** checks every key a submit would, rows too, and submits
-  nothing: for a page that sends several forms at once. A rule that spans keys
-  is said only by a submit, and the page that sends it owns the submit, so it
-  does not set `attempted`.
-- A validation that changes nothing, such as a blur, or `Validated` on an
-  empty optional key, returns the Model it was given, so nothing redraws.
+### When fields validate
 
-Two questions a view asks before a submit:
+- **`Changed`:** validates the edited key immediately.
+- **`Blurred`:** leaves untouched fields unjudged until submit so tabbing past a
+  required field stays quiet, while clearing and blurring a previously edited
+  field shows its error.
+- **`Validated({ key })`:** validates one key on demand (useful for showing
+  errors on a freshly `fill`ed record).
+- **`ValidatedAll`:** validates every key (including loaded row invariants)
+  without setting `attempted` or submitting, for pages submitting multiple
+  forms together.
+- **No-op updates:** validations that leave state unchanged return the same
+  Model reference to skip redundant redraws.
+
+### Empty values, numbers, and submits
+
+- **Empty drafts (`""` or `[]`):** resolved in order against what the schema
+  accepts — omitted key (`optionalKey`/`optional`), `Option.none()`, `null`, or
+  the empty value itself. A key is `required` when none of those decode. Plain
+  `Schema.String` accepts `""`; add `Schema.isMinLength(1)` to require text.
+- **Option keys:** `Schema.OptionFromNullOr(Schema.String)` renders as a text
+  control, validates the inner schema, submits `Option.some`/`Option.none`, and
+  fills from `Option`.
+- **Numbers:** unparseable text reads `"Enter a number"`; whitespace-only text
+  counts as empty rather than zero.
+- **Submit (`Submitted`):** validates every key and sets `model.attempted`.
+  Cross-field schema errors land in `model.errors` until the next edit;
+  `attempted` clears on `Reset` or `fill`.
+
+### Entity invariants and editing an existing row
+
+- **State invariants on submit:** `Submitted` evaluates the Entity's
+  `Entity.invariant` rules over the decoded input (`Entity.judgeInput`), placing
+  failures in `model.marks` beside named `path` keys (or `model.errors` when
+  unpathed). Any edit clears `marks` so fixing either side of a rule clears the
+  error. `Message.Refused` sets a mark while the key still holds the refused
+  value.
+- **Judging against an existing row (`form.over`):** edit forms often set a
+  subset of fields on an existing row. Pass the loaded, encoded row via
+  `form.over(model, Entity.rowFrom(entity, loaded))` (selecting extra fields
+  with `Entity.selectFor(input, { also: Entity.judgedBy(input) })`). Invariants
+  then judge the merged row (including `before.status` transition rules) on
+  every edit once all participating form keys have been touched (`model.reached`).
+  `foldkit-crud` wires this automatically.
+- **Custom primitive operators:** pass `{ operators }` to `Form.make` when
+  invariants use operators outside `Operators.kernel` (nested forms inherit the
+  parent table by default).
+
+### Checking whether a form can submit
 
 | Query | True when |
 | --- | --- |
-| `form.isValid(model)` | a submit now would hand over the value at once: every key and row valid, no check running or still to run |
-| `form.canSubmit(model)` | nothing is invalid; a check still running does not stop it, since the submit waits for the answer |
-| `form.value(model)` | the decoded input as `Some` when every key and row is valid as it stands, `None` otherwise: all or nothing, unlike `partial` |
+| `form.isValid(model)` | Every key and row passes; async checks idle |
+| `form.canSubmit(model)` | Invalid errors clear; async checks may still run |
+| `form.value(model)` | `Some(input)` when all valid; otherwise `None` |
 
-A page that submits its forms itself reads `isValid` and sends `form.value`;
-a Save button reads `canSubmit`.
+Read `form.isValid` and `form.value` when submitting manually; bind a Save
+button's enabled state to `form.canSubmit`.
 
-Field state is `foldkit/fieldValidation`'s `Field`: `NotValidated`, `Validating`
-(a check is running), `Valid`, `Invalid` with its `errors`. Read it with that module's `match`, `isInvalid`,
-and the rest.
-
-How a form's failures meet a server's refusals and the rest of an application's
-is [Errors and failures](../../docs/errors.md#forms).
+Field state uses `foldkit/fieldValidation`'s `Field` (`NotValidated`,
+`Validating`, `Valid`, `Invalid` with `errors`). See
+[Errors and failures](../../docs/errors.md#forms) for how form validation meets
+server refusals.
 
 ### Checks: rules only something else can answer
 
-Whether a slug is taken is not in the schema. A check is an Effect the form is
-given; it answers with what is wrong, or nothing:
+Async checks (such as checking whether a slug is taken on the server) return an
+Effect yielding an error string or `undefined`:
 
 <!-- docs-check standalone
 import { Effect, Schema } from 'effect'
@@ -492,64 +436,37 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
 })
 ```
 
-`submitWaits: false` refuses a submit made while a check runs instead of
-holding it for the answer (the default); `canSubmit` is then false until the
-checks answer. A checked key that has never been checked, as in a form filled
-from an existing record, cannot submit at rest then: the first submit only
-starts its check and is refused, and the reader submits again after the answer.
-
-- A check runs **after** the key's own schema passes, never instead of it, so it
-  receives a decoded value: a number, not the text that was typed.
-- While it runs the key reads `Validating`, which is Foldkit core's own state for
-  this. `Valid` on a checked key means the check passed.
-- The form does not know what answers. The check's requirements (`R`) become the
-  Bundle's, so a check that needs `RemoteClient` makes the placement need it.
-  **Add such a check with the `Form.checks` step, not in `Form.make`'s options:**
-  Effect's `R` is not an inference site a mapped type can win, so `Form.make`
-  reads it as `never` and refuses the check ("`RemoteClient` is not assignable to
-  `never`"). The step reads the requirement off the functions it is given.
+- **Runs after schema validation:** checks only see decoded values (numbers, not
+  raw strings). Keys read `Validating` while running and `Valid` when passing.
+- **Adding service requirements (`Form.checks`):** when a check needs a service
+  such as `RemoteClient`, attach it with the `Form.checks` pipe step so
+  TypeScript infers the Bundle's service requirements (`R`):
 
   ```ts
   const CheckedForm = Form.make('PostForm', Entity.input(Post, PostInput), {
     debounce: 0,
   }).pipe(Form.checks({ slug: isAddressFree }))
   ```
-- Each edit asks again after `debounce`, and an answer for a draft the key no
-  longer holds is dropped. An answer carries the `values` and `subject` it was
-  asked with; when another key or the subject changed while it ran, it is not
-  taken but asked again, so a submit waiting on it waits for the answer about
-  the form as it is. An answer already taken stands until its own key is
-  edited: the server checks the write.
-- The ask is the form's Command `PostForm.Check` (named `PostForm.check`), a
-  Command definition like any other, so a Scene or Story resolves it with
-  `Command.resolve(PostForm.Check, PostForm.Message.Checked({ key, draft, error }))`.
-  An answer made so, without `values` and `subject`, answers the form as it is.
-- **A submit waits.** Submitted while a check runs, the form sets `submitPending`
-  and sends the value when the last check passes, or nothing if one fails. An
-  edit in between cancels the wait. A filled form (`fill` validates nothing) is
-  checked on submit the same way.
-- `context.values` holds the other keys that currently decode, which is how an
-  edit form lets a post keep its own slug.
-- `context.subject` is what the form is editing, for what its values do not say.
-  A post's input carries a title and an address, not the row's id, so "is this
-  address taken?" cannot tell the post's own address from someone else's. Send
-  `Message.About({ subject: { id } })` once when the form opens on a row, and the
-  check has it; `form.subject(model)` reads it back. A form that creates
-  something is about nothing, which is the `{}` it starts with. It changes no
-  draft, answers no submit, and survives `fill` and `Reset`: which row the form
-  is about does not change because its contents did.
+
+- **Stale results and waiting submits:** edits re-run checks after `debounce`,
+  discarding results for outdated drafts, `values`, or `subject`. Submitting
+  while a check runs holds `submitPending` and emits `{ _tag: 'Submitted', value }`
+  once checks pass (pass `submitWaits: false` to refuse submits while checks run
+  instead).
+- **Testing and `context.subject`:** checks run through `PostForm.Check`
+  (resolve in stories via `Command.resolve(PostForm.Check, PostForm.Message.Checked({ key, draft, error }))`).
+  When editing an existing record whose `id` sits outside the form input, send
+  `Message.About({ subject: { id } })` once on open to populate `context.subject`.
 
 ### Messages
 
-Say a rule in its own words on the rule, where Effect Schema already takes
-them:
+Attach custom field error messages directly on Effect Schema checks:
 
 ```ts
 Schema.String.check(Schema.isMinLength(3, { message: 'Give it at least 3 letters' }))
 ```
 
-The form has three things to say for itself, and `messages` words them, or
-rewrites what Schema says by default, which is also how a form is translated:
+Customize the form's built-in messages with `messages`:
 
 ```ts
 const Localized = Form.make('Rename', Entity.input(Post, RenameInput), {
@@ -564,20 +481,18 @@ const Localized = Form.make('Rename', Entity.input(Post, RenameInput), {
 
 | Message | Said when | Default |
 | --- | --- | --- |
-| `required(field)` | an empty draft the schema does not admit | `Required` |
-| `unparsed(field)` | text its control cannot read, such as a `Number` that is not one | the kind's own words (`Enter a number`) |
-| `invalid(field, message)` | the key's schema rejects the draft; `message` is the check's own, or Schema's | `message` |
-| `form(message)` | the input as a whole fails: a rule that spans keys | `message` |
+| `required(field)` | Empty draft on a required key | `Required` |
+| `unparsed(field)` | Draft text fails control parsing | Kind's `unparsed` (`Enter a number`) |
+| `invalid(field, message)` | Key schema rejects the draft | `message` |
+| `form(message)` | Cross-key input schema fails | `message` |
 
-`field` is the key, its label, and its control.
+`field` carries the key, its label, and its control.
 
 ### Words as text, in one place
 
-Each of these may be text with blanks instead of a function: `'{label} is required'`
-(`{label}`, `{key}`, and `{message}` where there is one). Text can be kept in a
-translation catalogue, and it can go where a function cannot: Foldkit admits no
-function nested in a placed view's inputs. The drawn packages' words are text
-too, and the three shapes share no key, so an application writes its words once:
+Every message entry also accepts a template string (`'{label} is required'`,
+with `{label}`, `{key}`, and `{message}` placeholders), which keeps words
+serializable in view inputs and lets you share one catalogue across packages:
 
 ```ts
 import type { FormMessages } from 'foldkit-form'
@@ -593,20 +508,13 @@ export const words = {
 } satisfies FormMessages & FormViewWords & ViewWords
 ```
 
-Each package takes the one object:
-
-```ts sketch
-Form.make('EditPost', input, { messages: words })
-placed.view(model, h, { options, words })
-PostTable({ page, words }, h)
-```
-
-`fillWords(template, values)` is the blank-filling they all use.
+Pass the same `words` object to `Form.make`, `placed.view`, and `PostTable`;
+`fillWords(template, values)` performs the substitution.
 
 ## Pipe steps
 
-Every option is also a pipe step that gives a new form, made from the same input
-with that option added to:
+Every option is also an immutable pipe step (`Form.inputs`, `Form.checks`,
+`Form.messages`, `Form.nested`, `Form.debounce`) that adds to an existing form:
 
 <!-- docs-check standalone
 import { Effect, Schema } from 'effect'
@@ -633,17 +541,13 @@ const Finished = AuthorForm.pipe(
 )
 ```
 
-`Form.inputs`, `Form.checks`, `Form.messages`, `Form.nested` and `Form.debounce`.
-Each adds to what the form already has, so a form can be made in one place and
-finished in another. A step's keys are checked against the form it is piped
-into, and `Form.checks` adds what its checks need to what the form needs. The
-first form is left as it was.
+Keys are typechecked against the form, and `Form.checks` merges service
+requirements into the resulting Bundle.
 
 ## Nested input
 
 A key mapped with [`Relation.nested`](../entity/README.md#an-input-that-holds-the-target-itself)
-holds the relation's target, not an id. **A nested form is a form**: the key
-holds rows, each a Model of the form built from the nested input.
+holds child rows, each managed as a Model of the nested form:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -682,36 +586,26 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
 
 | The key is | Rows |
 | --- | --- |
-| a `one` whose schema must be there | exactly one, from the start; it cannot be removed |
-| a `one` that admits `null` or `undefined` | none or one; none submits that nothing |
-| a `many` | any number, starting with none |
+| Required `one` relation | One row from the start; stays present |
+| Optional `one` relation | Zero or one row; empty submits `null`/`undefined` |
+| `many` relation | Zero or more rows |
 
-- **The nested form is one you make and pass** (`nested: { comments: CommentForm }`),
-  from the same input `Relation.nested` was given. The form that edits a comment
-  alone is the form a post nests, with its controls, checks and words. A nested
-  key given none gets a plain form of its input, with this form's `messages` and
-  `debounce`. A form of another input throws.
-- **A row is addressed with types.** `PostForm.row('comments', id)` has the nested
-  form's own constructors (`Changed`, `Blurred`, `Searched`, `RowAdded`, ...), each
-  giving `PostForm`'s Message, and `send(message)` for one already made, which is
-  how a row inside a row is reached. `PostForm.nested.comments` is the form
-  itself. Underneath it is `Message.Nested({ key, row, message })`. A Message for a row that is gone, or
-  that is not one of the nested form, is dropped. A row's id is never reused.
-- A nested key's control is of kind `Nested`, with `data` `{ cardinality, optional, form }`
-  (narrow it with `Input.Nested.is(control)`);
-  `form` is the nested form, with its own `controls`, `field`, and `rows`. Nested
-  keys are in `model.rows`, not `model.fields`.
-- A submit validates every row too and shows every failure; it waits for a check
-  running in a row as it does for its own. A rule on the list itself
-  (`Schema.isMaxLength(5)`) is a failure of the whole, in `errors`.
-- `fill` fills rows from values, and nesting goes as deep as the inputs do.
+- Pass `nested: { comments: CommentForm }` with a form built from the same
+  target input (omitting it generates a default form inheriting `messages` and
+  `debounce`).
+- `PostForm.row('comments', id)` constructs typed Messages (`Changed`,
+  `Blurred`, `Searched`, `RowAdded`, `send(msg)`) targeting `model.rows`; stale
+  row IDs are ignored and row IDs are unique across the form's lifetime.
+- Nested controls have kind `Nested` (`Input.Nested.is(control)`), holding
+  `{ cardinality, optional, form }`.
+- `Submitted` validates every row, waits on row async checks, surfaces list-level
+  errors (such as `Schema.isMaxLength(5)`) in `model.errors`, and `fill`
+  populates nested rows recursively.
 
 ## A form over a variant Entity
 
-An Entity declared with `Entity.defineVariants` has a row that is one of its
-cases. Its input names `_tag`, which is the case picker, and declares each
-field only some cases have with `Schema.optionalKey`, so a row of another case
-leaves it out:
+For an Entity created with `Entity.defineVariants`, include `_tag` as a case
+picker and declare case-specific fields with `Schema.optionalKey`:
 
 ```ts
 const Domain = Entity.defineVariants('Domain', {
@@ -734,21 +628,17 @@ Listing.chosen(Listing.initial) // Option.none(): no case chosen yet
 Listing.shows(Listing.initial, 'price') // false until Available is chosen
 ```
 
-- `_tag`'s control is a choice of the case names, like any key of literals.
-- A key of some cases is asked only once one of them is chosen: a view draws
-  the keys `shows` says, and a submit validates and sends those alone. In its
-  case it is required as the case holds it, though the input declares it
-  optional. What was typed in it under another case stays in its draft and
-  is not sent.
-- Such a key that the input does not declare optional is refused when the form
-  is made, since a row of another case could never leave it out.
-- The value is the input's Struct, holding the chosen case's keys: an
-  operation taking that input takes it as it is.
+- `_tag` becomes a choice control of case names.
+- `Listing.shows(model, key)` tells your view which fields belong to the chosen
+  case; `Submitted` validates and emits only the active case's fields (keeping
+  other drafts intact if the user switches cases back).
+- Case-specific fields must be marked `optionalKey` on the input struct so other
+  cases decode cleanly.
 
 ## Editing existing values
 
-`fill` shows values as drafts, for an edit form. Keys you do not pass keep their
-draft.
+`fill` populates drafts from loaded values while keeping drafts for keys omitted
+from the patch:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -777,8 +667,7 @@ declare const scheduleAutosave: () => void
 const load = RenameForm.helpers.fill({ id: 'p1', title: 'Hello' }) // an Update.Step of the page
 ```
 
-What to load, and how a loaded value becomes input values, both follow from the
-form's input, which the form keeps as `Rename.input`:
+Derive both the load Selection and the fill shape from `Rename.input`:
 
 ```ts
 const Current = Entity.selectFor(Rename.input) // a Selection of `id` and `title`
@@ -787,14 +676,15 @@ declare const loaded: typeof Current.schema.Type
 const prefill = RenameForm.helpers.fill(Entity.valuesFor(Rename.input, loaded))
 ```
 
-A relation is loaded as a ref and read back as the id the form holds. See
-[`foldkit-entity`](../entity/README.md#showing-what-is-there).
-[`foldkit-crud`](../crud/README.md) does this, the save, and its status for you.
+Relations load as refs and convert back into IDs for pickers (see
+[`foldkit-entity`](../entity/README.md#showing-what-is-there)).
+[`foldkit-crud`](../crud/README.md) automates loading, filling, saving, and
+save status tracking.
 
 ## Did an edit change anything?
 
-`authoredChanged(before, after)` answers whether a completed transition changed
-what the author wrote:
+`authoredChanged(before, after)` reports whether a transition changed authored
+drafts or rows:
 
 ```ts
 const message = Rename.Message.Changed({ key: 'title', value: 'Hello' })
@@ -802,25 +692,24 @@ const next = Rename.bundle.update(Rename.initial, message, undefined)
 if (Rename.authoredChanged(Rename.initial, next.model)) scheduleAutosave()
 ```
 
-It compares the two Models, not the Message: validation state, search text, the
-edited subject, and row bookkeeping are not authored content, so a blur, a
-refused edit, or a repeated value reports `false` while a changed draft, an
-added or removed row, or a changed row reports `true`. Nested rows recurse
-through their own forms, and a control whose output is written back into the
-Model composes for the same reason — which is what lets a consumer such as
-[`foldkit-cms`](../cms/README.md) autosave without knowing the form's Message
-tags.
+It compares authored state across both Models directly, so blurs, refused
+inputs, search text, `subject`, and row bookkeeping return `false`, letting
+packages like [`foldkit-cms`](../cms/README.md) trigger autosave reliably.
 
 ## Limits
 
-- Headless: no view here (see `foldkit-mixins-form`), and no relation picker data. `RelationOne` and
-  `RelationMany` carry the target Entity; listing its options is a query the
-  application makes.
-- One `Changed` Message carries any draft, so a view can dispatch a draft of the
-  wrong kind for a key. The form ignores it rather than storing it.
-- A key whose value is a struct is editable as a nested input of a relation's
-  target, or through a control backed by a Bundle (`Input.bundle`). Rows keep
-  the order they were added in; there is no reordering.
-- A control backed by a Bundle takes no `check`, its Bundle has no OutMessage
-  and needs no services, and inside a nested form's rows it may have no
-  Subscriptions or Resources.
+- **Headless:** draw forms with [`foldkit-mixins-form`](../mixins-form/README.md)
+  or your own renderer over `controls`, and fetch relation picker options via a
+  query (or [`foldkit-crud`](../crud/README.md)).
+- **Draft type safety:** `Changed` accepts any draft value; drafts of the wrong
+  type for a key are ignored rather than stored.
+- **Struct values and row order:** struct fields edit via `Relation.nested` or
+  `Input.bundle`; nested rows keep insertion order without built-in reordering.
+- **Bundle-backed controls:** omit `OutMessage`, command services, and `check`
+  options; inside nested rows, omit Subscriptions and Resources.
+
+## Next
+
+- Render forms with accessible slots and styles: [`foldkit-mixins-form`](../mixins-form/README.md)
+- Wire a form to load, save, and delete Remote records: [`foldkit-crud`](../crud/README.md)
+- Understand how form errors and server refusals fit together: [Errors and failures](../../docs/errors.md#forms)
