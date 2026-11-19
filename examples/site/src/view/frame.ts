@@ -47,15 +47,7 @@ export interface Input<M> {
 }
 
 /** Which of the rail's places the page belongs to. */
-type Place =
-  | 'home'
-  | 'learn'
-  | 'packages'
-  | 'components'
-  | 'primitives'
-  | 'demos'
-  | 'blog'
-  | 'none'
+type Place = 'home' | 'learn' | 'packages' | 'components' | 'primitives' | 'demos' | 'blog' | 'none'
 
 const placeOf = (page: Page): Place =>
   Page.match<Place>(page, {
