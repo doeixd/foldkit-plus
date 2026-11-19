@@ -1,121 +1,126 @@
 # Glossary
 
-Every term the packages use, in one line each, grouped by the package that owns
-it. Each links to where it is explained properly. The Foldkit terms at the top
-are not this repository's, but everything here is built on them; the
-[docs index](./README.md#the-vocabulary-that-repeats-everywhere) says more about
-each of those.
+Plain-English definitions for the words used across Foldkit and Foldkit Plus, grouped by area.
 
-## Foldkit
+## Foldkit basics
 
-| Term | What it is |
-| --- | --- |
-| **Model** | The application's whole state, one value typed by a Schema. |
-| **Message** | A tagged value naming something that happened. The union of them is everything that can. |
-| **`update`** | The one pure function from a Model and a Message to the next Model and some Commands. |
-| **Command** | One-shot work caused by a transition. Runs once, then reports back as a Message. |
-| **Subscription** | Ongoing work whose lifetime follows Model state. Scoped by a slice; restarts when that slice changes. |
-| **Mount** | Element-scoped imperative work. Emits Messages while the element is live; cleans up on unmount. |
-| **Resource / ManagedResource** | A dependency shared with Commands and Subscriptions. A `ManagedResource`'s lifetime follows a Model slice. |
-| **Submodel** | A child state machine whose state is a field of the parent Model and whose Messages are a variant of the parent's. |
-| **Owner** | The one authoritative source for a datum. Every package in this repository is built around there being exactly one. On a view's slot it is the one attachment that writes an event, an attribute or a style property: a second is a diagnostic, not a winner. |
+| Term | Meaning | Guide |
+| --- | --- | --- |
+| **Model** | One typed value holding your entire application state. | [Quickstart](./quickstart.md) |
+| **Message** | One tagged event describing what happened, such as a click or server reply. | [Quickstart](./quickstart.md) |
+| **`update`** | Pure function taking the current Model and a Message to return the next Model. | [Quickstart](./quickstart.md) |
+| **Command** | One-off side effect returned by `update` that reports back via a Message. | [State model](./state-model.md) |
+| **Subscription** | Ongoing work (timers, sockets) that starts and stops as Model fields change. | [State model](./state-model.md) |
+| **Mount** | DOM setup and cleanup tied to a single element's lifetime. | [State model](./state-model.md) |
+| **Resource** | Shared dependency (like a socket or client) scoped to a Model field. | [Wiring](./wiring.md) |
+| **Submodel** | A child state machine stored as a field inside a parent Model. | [Bundle](../packages/bundle/README.md) |
+| **Owner** | The single authority allowed to change a datum or write to a view slot. | [State model](./state-model.md) |
 
-## `foldkit-surface`: boundaries
+## Feature boundaries (`foldkit-surface`)
 
-| Term | What it is |
-| --- | --- |
-| **Application** | `Surface.application({ Model, Message, … })`: the schemas plus a reference to every Model field. Data, not a running instance. [Applications](../packages/surface/README.md#applications) |
-| **Field reference** | `App.model.todos`: a typed reference to one Model field, which reads it and says what it depends on. A `ModelRef`. [Field references](../packages/surface/README.md#field-references) |
-| **Projection** | A pure, named read of the Model with a schema, built from field references. It never fetches or dispatches. [Projections](../packages/surface/README.md#projections) |
-| **Message subset** | `MessageSet.make(App, [...])`: the Messages a consumer is allowed to send. [Message subsets](../packages/surface/README.md#message-subsets) |
-| **Surface** | A named boundary: a Projection of what a feature reads, plus the Messages it may send. [Surfaces](../packages/surface/README.md#surfaces) |
-| **Active Surface** | A Surface placed with params from the Model (`Surface.at`, `Surface.when`); active while those params exist, and always, if it takes none. What Remote fetches for. |
-| **Module** | An application's contracts collected as data, so `Module.validate` can find a Model path with two owners. [Modules](../packages/surface/README.md#modules) |
+| Term | Meaning | Guide |
+| --- | --- | --- |
+| **Application** | Your `Model`, `Message`, `initial`, and `update` registered with `Surface.application`. | [Surface](../packages/surface/README.md#applications) |
+| **Field reference** | Typed pointer (`App.model.todos`) to one field in your Model (`ModelRef`). | [Field references](../packages/surface/README.md#field-references) |
+| **Projection** | Pure read that extracts selected Model fields along with their dependency paths. | [Projections](../packages/surface/README.md#projections) |
+| **Message subset** | Typed allowlist (`MessageSet.make`) of Messages a feature or agent may send. | [Message subsets](../packages/surface/README.md#message-subsets) |
+| **Surface** | Named boundary pairing what a feature reads with the Messages it may send. | [Surfaces](../packages/surface/README.md#surfaces) |
+| **Active Surface** | A Surface turned on by current Model state (`Surface.at`, `Surface.when`). | [Remote](../packages/remote/README.md) |
+| **Module** | An app's Surfaces collected together so `Module.validate` catches write overlaps. | [Modules](../packages/surface/README.md#modules) |
 
-## `foldkit-bundle`: placing child machines
+## Reusable submodels (`foldkit-bundle`)
 
-| Term | What it is |
-| --- | --- |
-| **Bundle** | A child machine's parts in one value: Model, Messages, init, update, subscriptions, resources, view. [The package](../packages/bundle/README.md) |
-| **Link** | Where a Bundle lives: a lens onto the child Model and the parent Message variant it travels in. |
-| **Placement** | A Bundle plus a Link: the same parts, lifted into the parent. Still an ordinary Submodel. |
-| **Wiring** | An integration's contribution to a page, as data: which Messages it routes, its Subscriptions, its startup Command, its contract. `Data.wiring(…)` is Remote's. [Wiring](./wiring.md) |
-| **`Page.assemble`** | Joins placements and wirings into one list, from which `update`, `init`, Subscriptions and the Module are derived. |
+| Term | Meaning | Guide |
+| --- | --- | --- |
+| **Bundle** | A packaged child feature with its Model, Messages, `init`, `update`, and view. | [Bundle](../packages/bundle/README.md) |
+| **Link** | Maps where a Bundle lives in a parent Model and which parent Message wraps it. | [Bundle](../packages/bundle/README.md) |
+| **Placement** | A Bundle attached to a parent application through a Link. | [Bundle](../packages/bundle/README.md) |
+| **Wiring** | An integration's Messages, Subscriptions, and startup Commands as data. | [Wiring](./wiring.md) |
+| **`Page.assemble`** | Combines Placements and Wirings into one `init`, `update`, and `Module`. | [Bundle](../packages/bundle/README.md) |
 
-## `foldkit-entity`: the domain
+## Domain rules and permissions (`foldkit-entity` & `foldkit-guard`)
 
-| Term | What it is |
-| --- | --- |
-| **Entity** | A named record type with an `id`, declared once with `Entity.define`, and read by Remote, the Drizzle binding and forms. [The package](../packages/entity/README.md) |
-| **Domain module** | The one module that declares an application's Entities, relations, invariants, states, writes, query bodies and guard rules, importing neither a database nor a client; the server, the page, forms and checks each read it. [One domain declaration](./entity.md) |
-| **Relation** | A member that points at another Entity (`Relation.one`, `Relation.many`, declared together with `Entity.relate`). Remote's store holds it as a ref key such as `'User:u1'`, a table as a foreign key; never a copy. |
-| **Derived member** | A readable value that is not a field: supplied by an interpreter (`Derived.make`), a count of the rows pointing here (`Derived.count`), or the row the reader has pointing here (`Derived.exists`). |
-| **Selection** | Exactly which fields of an Entity, and through which relations, a consumer needs; it decodes to that shape. `Entity.select`. |
-| **`Expr`** | A statement about one row, as a value: comparisons, `and`/`or`/`not`, paths through `one` relations, an exists, an input placeholder, who asks (`Expr.viewer`) and when (`Expr.now`). Three-valued, as SQL is. [Expressions](./expressions.md) |
-| **Query body** | What a list means, as a value: `Query.from(Entity)` with `Expr` predicates and an order; `foldkit-remote`'s `Query.define(name, Input, ({ input }) => …)` names one. Compiled to SQL on a server, judged over held rows on the client. |
-| **Collation** | How text compares and orders (`Collation.binary`, `asciiFold`, `locale`), declared on a field or a term; text with none is not compared, since databases disagree. |
-| **`Judge`** | The reference meaning of a body over rows a holder has (`Held.rows`): a verdict, `Known` (as SQL answers) or `Unknown` with why, never a guess. |
-| **Interpreter** | Whatever answers an `Expr`: the SQL compiler of `foldkit-remote-drizzle`, `evaluate` over one table's rows in memory, or `Judge` over what a holder has. Each refuses, by name, what it does not run. [Expressions](./expressions.md#three-interpreters-one-answer) |
-| **Conformance suite** | Bodies, rows and expected ids (`foldkit-entity/conformance`), chosen to make interpreters disagree; every interpreter here runs it, and one written elsewhere can. |
-| **Reach** | What a body reads in other rows: a path through `one` relations or an exists. Listed in `Query.dependencies(body).reaches`, never in `fields`. |
-| **Holder** | Whoever has some rows and some fields of them (`Held.rows`): a page's store, a test. To a holder a missing field is not held, which is not null. |
-| **Operator** | A word an application adds to `Expr` (`Expr.operator`): defined by an expression, or primitive and implemented per interpreter, held to its laws by `Conformance`. [Operators](./operators.md) |
-| **Context set** | A member the write's context fills, never the input: `Entity.sets({ author: Expr.viewer(User) }, { on: 'create' })`. |
-| **Declared write** | A change to one row by id, as data (`Write.update`, `insert`, `delete`): what it sets, adds, and must find. Served with no handler. [Declared writes](./declared-writes.md) |
-| **Precondition** | A declared write's `when`: what the row must hold for the write to land, checked in the statement; refused as `Unmet`. |
-| **Invariant** | What every stored row of an Entity must hold (`Entity.invariant`), judged over the row a write leaves and refused as `Invalid`; one that reads the row before too is a transition invariant, judged on updates (a shipped order stays shipped). Not a rule, so it grants and excuses no one. [Declared writes](./declared-writes.md#what-every-row-holds-an-invariant) |
-| **Increment** | A declared write's `increment`: an amount added to a number field in the statement (`stock = stock + ?`). |
+| Term | Meaning | Guide |
+| --- | --- | --- |
+| **Entity** | A named record type with an `id`, shared by client views, forms, and the server. | [Domain](./entity.md) |
+| **Domain module** | Shared module declaring Entities, relations, queries, writes, invariants, and guards. | [Domain](./entity.md) |
+| **Relation** | Typed link between Entities (`Relation.one` or `Relation.many`) stored by id. | [Domain](./entity.md) |
+| **Derived member** | Computed or server-supplied read value on an Entity, such as a related count. | [Entity](../packages/entity/README.md) |
+| **Selection** | Typed list of fields and nested relations (`Entity.select`) a screen reads. | [Entity](../packages/entity/README.md) |
+| **`Expr`** | Filter or check built as data so both SQL and client code evaluate it identically. | [Expressions](./expressions.md) |
+| **Query body** | Filter and sort order (`Query.from(Entity)`) run as SQL on servers or JS on clients. | [Expressions](./expressions.md) |
+| **Collation** | Explicit text comparison rule (`binary`, `asciiFold`, or `locale`). | [Expressions](./expressions.md) |
+| **`Judge`** | Evaluates a Query body against held rows and returns `Known` or `Unknown`. | [Expressions](./expressions.md) |
+| **Interpreter** | Engine that runs an `Expr` or Query (SQL compiler, in-memory runner, or `Judge`). | [Expressions](./expressions.md#three-interpreters-one-answer) |
+| **Reach** | Fields in other rows that a query reads across a relation. | [Expressions](./expressions.md) |
+| **Holder** | Partial set of cached rows where unread fields are missing, not null. | [Expressions](./expressions.md) |
+| **Operator** | Custom comparison added to `Expr` (`Expr.operator`) and implemented per engine. | [Operators](./operators.md) |
+| **Context set** | Field filled automatically on the server (such as author or timestamp), never input. | [Declared writes](./declared-writes.md) |
+| **Declared write** | Single-row insert, update, or delete (`Write.update`, `insert`, `delete`) as data. | [Declared writes](./declared-writes.md) |
+| **Precondition** | A write's `when` rule over the existing row; fails with `Unmet` if false. | [Declared writes](./declared-writes.md) |
+| **Invariant** | Rule (`Entity.invariant`) every row must satisfy; violations fail with `Invalid`. | [Laws](./laws.md) |
+| **Refinement** | Named state of a row (`Draft`, `Published`) reused in queries, guards, and writes. | [Laws](./laws.md) |
+| **Increment** | Atomic numeric addition (`stock = stock + ?`) inside a declared write. | [Declared writes](./declared-writes.md) |
+| **Guard** | Permission rule saying who may read or write an Entity, enforced on the server. | [Guard](../packages/guard/README.md) |
+| **Principal** | The signed-in actor (user, service, or none) checked by Guards on every request. | [Auth and Guard](./auth-and-guard.md) |
 
-## `foldkit-remote`: server data
+## Server data (`foldkit-remote`)
 
-| Term | What it is |
-| --- | --- |
-| **`Remote.Model`** | Remote's Submodel inside your Model: the normalized entity cache, connections, and what is loading or failed. [The package](../packages/remote/README.md) |
-| **`Data`** | The domain bound to its place in your Model (`Remote.make`); every application-facing operation hangs off it. |
-| **Requirement** | What a read needs: an entity, an id, some fields. It rides on a Projection; the planner compares it with the cache. |
-| **`RemoteData`** | What the cache knows about one read right now: `Initial`, `Loading`, `Ready`, `Refreshing`, `Failed` or `NotFound`. [RemoteData](../packages/remote/README.md#remotedata-what-does-the-model-know-right-now) |
-| **Connection** | An ordered list of results from one query and input, as edges. What `Data.query` reads. |
-| **Edge** | One entry in a connection: a key and a reference to an entity. |
-| **Segment** | A run of adjacent edges. The gap between two segments is rows nobody has fetched. |
-| **Boundary** | What is known past a segment's end: `Terminal` (nothing more), `Cursor` (where to page from), or `Unknown`. |
-| **Optimistic layer** | A mutation's patches shown over the cache while it is in flight, removed when it settles. An increment's amount (`adds`) is added to the value under it each time it is read. |
-| **Operation id** | A mutation's identity to a server, unique across clients (`crypto.randomUUID()`), resent by a retry with the same `requestId`. The request id is a per-Model counter, except a durable write's, which the outbox names. |
-| **Outbox** | Durable writes stored before they are sent, sent in order by one tab, kept across a reload (`Data.mutate(…, { durable: true })`, `outbox(Data, …)`). [The outbox](../packages/remote/README.md#a-write-that-outlives-the-page-outbox) |
-| **Write ledger** | `foldkit-remote-drizzle`'s record of the updates a writer landed, by operation and row, so a retry is not applied twice. [Declared writes](./declared-writes.md#a-write-ledger) |
-| **Overlay** | Operations shown over the cache with no request behind them, until lifted: a preview. |
-| **Retention** | Keeping only what active Surfaces reach; the rest is collected when they change. |
+| Term | Meaning | Guide |
+| --- | --- | --- |
+| **`Remote.Model`** | Submodel storing cached Entities, query pages, and request statuses in your Model. | [Remote](../packages/remote/README.md) |
+| **`Data`** | Your domain bound to `Remote.Model` via `Remote.make`, exposing queries and writes. | [Remote](../packages/remote/README.md) |
+| **Requirement** | Specific fields and Entity id a read needs, used to avoid duplicate fetches. | [Remote](../packages/remote/README.md) |
+| **`RemoteData`** | Six read states: `Initial`, `Loading`, `Ready`, `Refreshing`, `Failed`, `NotFound`. | [RemoteData](../packages/remote/README.md#remotedata-what-does-the-model-know-right-now) |
+| **Connection** | Paginated list of query results stored as ordered Edges. | [Remote](../packages/remote/README.md) |
+| **Edge** | One entry in a Connection pairing a sort cursor with an Entity reference. | [Remote](../packages/remote/README.md) |
+| **Segment** | Contiguous run of fetched Edges; gaps between segments mean unfetched rows. | [Remote](../packages/remote/README.md) |
+| **Boundary** | What sits past a Segment's end: `Terminal`, `Cursor`, or `Unknown`. | [Remote](../packages/remote/README.md) |
+| **Optimistic layer** | Pending mutation changes shown over cached rows until the server answers. | [State model](./state-model.md) |
+| **Operation id** | Unique UUID on a mutation so retries do not apply the same write twice. | [Declared writes](./declared-writes.md) |
+| **Outbox** | Durable mutations saved locally so writes survive page reloads and offline gaps. | [Outbox](../packages/remote/README.md#a-write-that-outlives-the-page-outbox) |
+| **Write ledger** | Server table of landed Operation ids keeping retried updates idempotent. | [Write ledger](./declared-writes.md#a-write-ledger) |
+| **Overlay** | Temporary local patches drawn over the cache with no server request behind them. | [Remote](../packages/remote/README.md) |
+| **Retention** | Dropping cached rows no longer needed by any active Surface. | [Remote](../packages/remote/README.md) |
 
-## Other packages
+## Routing, sync, mirrors, and agents
 
-| Term | What it is |
-| --- | --- |
-| **`may`** | `foldkit-guard`'s derived member saying what the reader may do with a row, for the UI to draw; a hint, since the server checks every write by its rules. [What the client may do](../packages/guard/README.md#what-the-client-may-do) |
-| **Mirror** | A Model slice represented in the URL or a key-value store. The Model stays the owner. [`foldkit-mirror`](../packages/mirror/README.md) |
-| **Epoch** | The identity of a document's history on the server (`journal.epoch(key)`). A replica that comes back with another holds a cursor into history the server lacks, and rebuilds. [Replicated state](./replication.md) |
-| **Replica** | `foldkit-sync`'s client side: your Messages as durable operations, pending ones replayed over the committed state. [Replicated state](./replication.md) |
-| **Journal** | `foldkit-durable`'s server side: the authoritative order of committed operations. |
-| **Read model** | A store derived from the journal, such as a table each committed edit is applied to; only the journal writes it, and it can be rebuilt from the log. [Editing server data](./editing-server-data.md) |
-| **Revision** | The highest journal sequence a row of a read model has applied: an edit committed after it is not in the row yet. |
-| **Absorbed** | An edit the read model holds, recorded so by the server; replicas drop it and the log compacts. |
-| **Held edit** | An absorbed edit a page keeps while the row it has cached is behind it, so the row never shows a stale read (`EditableEntity.held`). |
-| **Alchemy Domain** | An external event-sourcing library (`@alchemy.run/domain`): Commands go to Aggregates that decide, Events are the facts, Views fold them into rows. `foldkit-remote-domain` lets a page read and write such a model through Remote. Not the `alchemy` deploy tool. Command, Aggregate, Event, View, Rejection, Story and Api are its words. [An event-sourced domain behind Remote](./event-sourced-domains.md) |
-| **Receipt** | What a Domain command answers with (`{ stream, version }`). Remote keeps it as a read-after token until the View shows the write, so a read never shows the row from before it. |
-| **Lowering** | Turning a declared write into one Alchemy Domain Aggregate's Command (`Lower.write`): its `decide` lands the write through the chain a server runs, over the one row the Aggregate holds, so the rules are stated once. A write that reads another row cannot be lowered (`Lower.check`). [An event-sourced domain behind Remote](./event-sourced-domains.md) |
-| **Agent contract** | What an agent may see (a Projection) and do (a Message subset), built from `Agent.forApplication(App)` and served by an adapter. [Agents](./agents.md) |
+| Term | Meaning | Guide |
+| --- | --- | --- |
+| **Site** | Tree of typed route nodes (`foldkit-site`) defining URLs, titles, and Surfaces. | [Site](../packages/site/README.md) |
+| **Mirror** | Keeps a Model slice in sync with the URL, local storage, or a cookie. | [Mirror](../packages/mirror/README.md) |
+| **Replica** | Client store in `foldkit-sync` holding local Messages and replaying pending edits. | [Sync](./replication.md) |
+| **Journal** | Server log in `foldkit-durable` storing committed Sync operations in order. | [Sync](./replication.md) |
+| **Epoch** | Identifies a document's server history; a mismatch makes an old Replica rebuild. | [Sync](./replication.md) |
+| **Read model** | Database table updated as each Journal edit commits for fast queries. | [Editing server data](./editing-server-data.md) |
+| **Revision** | Highest Journal sequence number applied to a row in a Read model. | [Editing server data](./editing-server-data.md) |
+| **Absorbed** | Edit already written to the Read model so Replicas can drop it. | [Editing server data](./editing-server-data.md) |
+| **Held edit** | Absorbed edit kept on the client until its cached row catches up. | [Editing server data](./editing-server-data.md) |
+| **Alchemy Domain** | External `@alchemy.run/domain` event-sourcing library wired via Remote. | [Event-sourced domains](./event-sourced-domains.md) |
+| **Receipt** | Stream and version token returned by a Domain command to avoid stale reads. | [Event-sourced domains](./event-sourced-domains.md) |
+| **Lowering** | Turning a single-row declared write into a Domain Aggregate command. | [Event-sourced domains](./event-sourced-domains.md) |
+| **Agent contract** | What an AI agent may read (Projection) and trigger (Message subset). | [Agents](./agents.md) |
+| **`may`** | Server hint on a row showing which guarded actions the current Principal can run. | [Guard](../packages/guard/README.md#what-the-client-may-do) |
 
-## `foldkit-mixins` and `foldkit-primitives`: views and interaction
+## Views and interaction (`foldkit-mixins` & `foldkit-primitives`)
 
-| Term | What it is |
-| --- | --- |
-| **Slot** | A named extension point in a view (`root`, `label`, …) that Style and Behavior attach to. A metadata contract, not a DOM node. [`foldkit-mixins`](../packages/mixins/README.md#slots-the-public-contract) |
-| **SlotView** | A pure view that renders its slots and resolves what is attached to them. [SlotView](../packages/mixins/README.md#slotview) |
-| **Style** | Appearance attached to a slot as data: classes, declarations and compiled rules, built from tokens. A *piece* is one value of it. [Style](../packages/mixins/README.md#style-appearance-as-data) |
-| **Behavior** | Element-level interaction attached to a slot: attributes and an optional Mount, built from the view's input. It sends Messages and owns no state. [Behavior](../packages/mixins/README.md#behavior-reusable-element-level-interaction) |
-| **Mixin** | What Style and Behavior both compile to. The resolver merges the Mixins on a view and refuses two owners of one event, attribute or style property. |
-| **Recipe** | A widget's default look: pieces for its slots over the theme's tokens, chosen by axes (`size`, `variant`) and adjusted with `.extend`, never forked. [Recipes](../packages/mixins-ui/README.md) |
-| **Obligation** | Something a pattern asks an attachment to do on a slot: navigate its items, make each reachable, activate it, write a state attribute, give it a name. [Obligations](../packages/mixins/README.md#obligations-who-does-what-a-pattern-asks) |
-| **Supply** | A claim that an obligation is met: a Behavior slot's `provides`, or `A11y.base` (the view's own markup), `A11y.native` (a native element) and `A11y.delegated` (another slot's Behavior). `A11y.conform` refuses a view where one has none. |
-| **Key route** | One named `keydown` answer for a slot: the chords it takes and the Message each means. `Behaviors.Keys` folds a slot's routes into its one handler, so a widget's own keys and an application's share it; two routes on a chord are `mixins:key-conflict`. [Keys](../packages/mixins/README.md#keys-one-owner-for-a-slots-keydown) |
-| **Part** | In `SlotView.parts`, a piece of a view that is drawn again only when the input keys it reads change. In `FocusRecovery`, a slot whose element focus can be lost with, given fallback steps. |
-| **Conformance** | `foldkit-mixins/testing`'s rendered scenarios (`listbox`, `tree`, `dialog`, `tabs`, `checkbox`): they drive a real page and read what it did, where `A11y.check` only reads declarations. [Conformance](../packages/mixins/README.md#conformance-the-rendered-check) |
-| **Primitive** | A ready-made piece of browser or interaction state in `foldkit-primitives`: a Bundle (state in your Model), a Mount (a DOM fact), a Behavior (the Bundle attached to slots), a Command or a pure function. [Primitives](../packages/primitives/README.md) |
+| Term | Meaning | Guide |
+| --- | --- | --- |
+| **Slot** | Named extension point in a view (`root`, `label`) where styles and behaviors attach. | [Mixins](../packages/mixins/README.md#slots-the-public-contract) |
+| **`SlotView`** | Pure view function rendering Slots with attached styles and behaviors merged. | [SlotView](../packages/mixins/README.md#slotview) |
+| **Style** | Classes, declarations, and rules built from theme tokens and attached to a Slot. | [Style](../packages/mixins/README.md#style-appearance-as-data) |
+| **Behavior** | Attributes and DOM Mounts attached to a Slot; sends Messages, owns no state. | [Behavior](../packages/mixins/README.md#behavior-reusable-element-level-interaction) |
+| **Mixin** | Compiled Style or Behavior; merging refuses two owners of one attribute or event. | [Mixins](../packages/mixins/README.md) |
+| **Recipe** | Widget's default themed Styles across variants (`size`, `variant`). | [Recipes](../packages/mixins-ui/README.md) |
+| **Obligation** | Accessibility requirement (focus, ARIA state, keys) a Slot must satisfy. | [Obligations](../packages/mixins/README.md#obligations-who-does-what-a-pattern-asks) |
+| **Supply** | Proof that an Obligation is met via markup, native HTML, or a Behavior. | [Mixins](../packages/mixins/README.md) |
+| **Key route** | Named `keydown` handler mapping key chords to Messages on a Slot. | [Keys](../packages/mixins/README.md#keys-one-owner-for-a-slots-keydown) |
+| **Part** | Memoized section of a `SlotView` that re-renders only when its keys change. | [Mixins](../packages/mixins/README.md) |
+| **Conformance** | Real-browser tests (`foldkit-mixins/testing`) checking rendered focus and keys. | [Conformance](../packages/mixins/README.md#conformance-the-rendered-check) |
+| **Primitive** | Ready-made interaction helper in `foldkit-primitives` (timer, undo, resize, etc.). | [Primitives](../packages/primitives/README.md) |
+
+## Next
+
+- Build a working example in five minutes: [Quickstart](./quickstart.md)
+- Learn how updates avoid race conditions and lost edits: [Who changes application state, and how](./state-model.md)
+- See how queries, writes, and projections work together: [From declarations to the screen](./declared-data-to-ui.md)
