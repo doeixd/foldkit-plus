@@ -329,18 +329,25 @@ follow. This part uses one bank account throughout.
 `foldkit-entity`, our package for describing an application's records, calls
 the description of one kind of record an *Entity*. Each field's type is a
 *Schema* from Effect, the TypeScript library Foldkit is built on; a Schema
-describes a value's shape and checks it. A rule is written as an
-*expression*, built with `Expr` and kept as a value instead of code that
-runs, and a rule every stored record must keep, whoever writes it, is an
-*invariant*:
+describes a value's shape and checks it. A named condition on a record, such
+as "is open", is a *state*, declared with `Entity.refine`. A rule is written
+as an *expression*, built with `Expr` and kept as a value instead of code
+that runs. A rule every stored record must keep, whoever writes it, is an
+*invariant*, and one about how a record may change is a *transition*.
+
+The code in this part is written in the forms on the main branch today. A
+few arrived after 0.41: `Mutation.update` in 0.42, and `in:`,
+`Entity.transition`, `Expr.implies`, `input`, `decrement` and a `when` over
+the row in the next release. 0.41's longer forms are in
+[the domain guide as it stood at 0.41](https://github.com/doeixd/foldkit-plus/blob/v0.41.0/docs/entity.md).
 
 ```ts standalone
 import { Schema } from 'effect'
-import { Entity, Expr, Laws, Write } from 'foldkit-entity'
+import { Entity, Expr, Laws, Operators } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 
 // One kind of record and its fields, much like a table definition.
-const AccountFields = Entity.define(
+const Account = Entity.define(
   'Account',
   Schema.Struct({
     id: Schema.String,
@@ -351,27 +358,30 @@ const AccountFields = Entity.define(
   }),
 )
 
-// `after` is the account as a write leaves it; `before`, as it was.
-const Account = AccountFields.pipe(
-  Entity.invariant(
-    'neverOverdrawn',
-    ({ after }) => Expr.or(Expr.not(Expr.eq(after.status, 'open')), Expr.gte(after.balance, 0)),
-    { message: 'An open account cannot be overdrawn', path: ['balance'] },
-  ),
-  Entity.invariant('withinDailyLimit', ({ after }) => Expr.lte(after.withdrawnToday, 500), {
-    message: 'At most 500 can be withdrawn a day',
-    path: ['withdrawnToday'],
+// Two named states of an account.
+const Open = Entity.refine(Account, 'Open', { status: 'open' })
+const Closed = Entity.refine(Account, 'Closed', { status: 'closed' })
+
+// The rules belong to the Entity. `after` is the account as a write leaves it; `before`, as it was.
+Account.pipe(
+  Entity.invariant('neverOverdrawn', ({ after }) => Expr.gte(after.balance, 0), {
+    message: 'An open account is never overdrawn',
+    in: Open,
   }),
-  Entity.invariant(
+  Entity.invariant('withinDailyLimit', ({ after }) => Expr.lte(after.withdrawnToday, 500), {
+    message: 'An open account withdraws at most 500 a day',
+    in: Open,
+  }),
+  Entity.transition(
     'aClosedAccountStaysClosed',
-    ({ before, after }) => Expr.or(Expr.not(Expr.eq(before.status, 'closed')), Expr.eq(after.status, 'closed')),
-    { message: 'A closed account stays closed', path: ['status'] },
+    ({ before, after }) => Expr.implies(Expr.eq(before.status, 'closed'), Expr.eq(after.status, 'closed')),
+    { message: 'A closed account stays closed' },
   ),
 )
 ```
 
-"While open, never below zero" is spelled as "not open, or at least zero",
-because there is no "implies" yet; a shorter form is being added now.
+`in: Open` says a rule binds only open accounts, so a closed account with a
+negative balance breaks nothing.
 
 #### One rule, every reader
 
@@ -379,20 +389,20 @@ Because a rule is a value, each party reads it in its own terms. On the
 server, `foldkit-remote-drizzle`, our adapter for the Drizzle SQL toolkit,
 turns the two rules that read one row into SQL `CHECK` constraints for the
 accounts table. For this account its `checkConstraints` function writes, for
-SQLite:
+SQLite (the state `in: Open` names becomes the `status = 'open'` part):
 
 ```text
 constraint "accounts_neverOverdrawn" check (((not ("accounts"."status" = 'open') or "accounts"."balance" >= 0)) is true)
-constraint "accounts_withinDailyLimit" check (("accounts"."withdrawn_today" <= 500) is true)
+constraint "accounts_withinDailyLimit" check (((not ("accounts"."status" = 'open') or "accounts"."withdrawn_today" <= 500)) is true)
 ```
 
-The third rule compares the account before and after a write, which a
+The transition compares the account before and after a write, which a
 `CHECK` cannot see, so the adapter reports it as enforced only by the
 server's writer instead of pretending. (`is true` is there because SQL lets
 a row through when a condition is unknown, and an invariant does not.) The
-same rule is compiled into the statement that saves an account, judged by a
-form before anything is sent, with its `message` shown beside the field
-`path` names, and judged by the page before it sends a write. The Drizzle
+same rules are compiled into the statement that saves an account, judged by
+a form before anything is sent, with each `message` shown beside its field,
+and judged by the page before it sends a write. The Drizzle
 adapter's
 [README](https://foldkit-plus.pages.dev/remote/guides/remote-drizzle)
 shows how the constraints reach a migration.
@@ -408,21 +418,20 @@ than stored. New in 0.41 is one guide that teaches all this as a language:
 
 An account is open, then closed. Before 0.41 such states had no names: each
 write restated "is open" as a condition of its own, and which states existed
-was known only by reading every write. Now a state is named once with
-`Entity.refine`. A *declared write* is a change the server accepts,
-described as data instead of as a request handler, so the page and the
-server read the same description; `foldkit-remote`, our package for server
-data, declares one with `Mutation`, and a write can say which state it
-starts from and which it leaves:
+was known only by reading every write. A *declared write* is a change the
+server accepts, described as data instead of as a request handler, so the
+page and the server read the same description; `foldkit-remote`, our package
+for server data, declares one with `Mutation`, and a write can say which
+state it starts from and which it leaves:
 
 ```ts
-// Two named states of an account.
-const Open = Entity.refine(Account, 'Open', { status: 'open' })
-const Closed = Entity.refine(Account, 'Closed', { status: 'closed' })
+// An amount is never negative.
+const Amount = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))
 
 // A new account starts open and empty; its input is its id and owner.
 const OpenAccount = Mutation.insert('OpenAccount', Account, {
   set: { ownerId: Schema.String, status: Schema.Literal('open'), balance: Schema.Literal(0), withdrawnToday: Schema.Literal(0) },
+  becomes: Open,
 })
 
 // Close takes an open account and must leave it closed.
@@ -433,31 +442,20 @@ const CloseAccount = Mutation.update('CloseAccount', Account, {
 })
 
 // A deposit and a withdrawal take an amount, which is not a field of the account.
-const byAmount = Entity.input(Account, Schema.Struct({ id: Schema.String, amount: Schema.Number }), {
-  amount: Entity.unmapped,
+const DepositMoney = Mutation.update('DepositMoney', Account, {
+  input: { amount: Amount },
+  from: Open,
+  increment: { balance: 'amount' },
 })
-// Subtraction is an operator the application names, for now.
-const minus = Expr.operator('bank.minus', { input: [Schema.Number, Schema.Number], output: Schema.Number })
-
-const DepositMoney = Mutation.write(
-  'DepositMoney',
-  Write.update(byAmount, { id: 'id', from: Open, increment: { balance: 'amount' } }),
-)
-const WithdrawMoney = Mutation.write(
-  'WithdrawMoney',
-  Write.update(byAmount, {
-    id: 'id',
-    from: Open,
-    compute: { balance: ({ row, input }) => minus(row.balance, input.amount) },
-    increment: { withdrawnToday: 'amount' },
-  }),
-)
+const WithdrawMoney = Mutation.update('WithdrawMoney', Account, {
+  input: { amount: Amount },
+  from: Open,
+  decrement: { balance: 'amount' },
+  increment: { withdrawnToday: 'amount' },
+  // Only when the account holds the amount.
+  when: ({ row, input }) => Expr.lte(input.amount, row.balance),
+})
 ```
-
-`Mutation.insert` and `Mutation.update` declare a write in one call since
-0.42; a write whose input holds something that is not a field, such as an
-amount, still takes the longer form, and subtraction needs an operator you
-name. Both are being made shorter now; this is what compiles today.
 
 Because each write is data, three things follow with no handler to write.
 The server's writer turns `CloseAccount` into one `UPDATE … WHERE` holding
@@ -478,11 +476,15 @@ archived product in the demo had been put there by raw SQL
 
 `Laws.check`, new in 0.41, does that reading for you. It reads only the
 declarations, needs no database, and reports for every write and rule
-whether the write can break it, and what the writes do to the states. This
-is what it printed for the bank account on 2026-11-19:
+whether the write can break it, and what the writes do to the states. Given
+the kernel's operators (it needs them to read the arithmetic in a
+`decrement`), this is what it prints for the account above, run on the main
+branch at commit `c0fd9b69d`:
 
 ```ts
-export const report = Laws.show(Laws.check({ writes: [OpenAccount, DepositMoney, WithdrawMoney, CloseAccount] }))
+export const report = Laws.show(
+  Laws.check({ writes: [OpenAccount, DepositMoney, WithdrawMoney, CloseAccount], operators: Operators.kernel }),
+)
 ```
 
 ```text
@@ -493,41 +495,56 @@ Account
 OpenAccount     x neverOverdrawn              kept: 1 row enumerated
 OpenAccount     x withinDailyLimit            kept: 1 row enumerated
 OpenAccount     x aClosedAccountStaysClosed   kept: a create has no row before
-DepositMoney    x neverOverdrawn              refused: An open account cannot be overdrawn
-    before   status: "open", balance: 0
-    input    amount: -1
-    after    status: "open", balance: -1
+DepositMoney    x neverOverdrawn              kept: proved from the bounds on balance, for every row and input within them
 DepositMoney    x withinDailyLimit            kept: writes no member it reads
 DepositMoney    x aClosedAccountStaysClosed   kept: 1 row enumerated
-WithdrawMoney   x neverOverdrawn              undecided: bank.minus is not in the operator table
-WithdrawMoney   x withinDailyLimit            refused: At most 500 can be withdrawn a day
-    before   status: "open", withdrawnToday: 500, balance: 0
+WithdrawMoney   x neverOverdrawn              undecided: it rests on comparing amount with balance, which intervals alone cannot use
+WithdrawMoney   x withinDailyLimit            refused: An open account withdraws at most 500 a day
+    before   status: "open", withdrawnToday: 500, balance: 1
     input    amount: 1
-    after    status: "open", withdrawnToday: 501
-WithdrawMoney   x aClosedAccountStaysClosed   kept: 1 row enumerated
+    after    status: "open", withdrawnToday: 501, balance: 0
+WithdrawMoney   x aClosedAccountStaysClosed   kept: 2 rows enumerated
 CloseAccount    x neverOverdrawn              kept: holds whatever balance holds, over 1 row enumerated
-CloseAccount    x withinDailyLimit            kept: writes no member it reads
+CloseAccount    x withinDailyLimit            kept: holds whatever withdrawnToday holds, over 1 row enumerated
 CloseAccount    x aClosedAccountStaysClosed   kept: 1 row enumerated
 
-1 entity, 2 states, 4 writes, 3 rules: 12 pairs, 9 kept, 2 refused, 1 undecided
+1 entity, 2 states, 4 writes, 3 rules: 12 pairs, 10 kept, 1 refused, 1 undecided
 ```
 
-Read it from the top. Closing takes
-every open account to closed, and nothing leaves `Closed`, so it is
-*terminal*: findings to read, not failures. A new account cannot be
-overdrawn, because the checker tried the one account it creates. A deposit
-cannot break the daily limit, because it writes no member (a field or
-relation) the rule reads. And no account can reopen, because every write
-was tried against both states.
+Read it from the top. Closing takes every open account to closed, and
+nothing leaves `Closed`, so it is *terminal*: findings to read, not failures.
+A deposit cannot overdraw an account, proved from the bounds: the balance is
+at least zero before, the amount is never negative, so their sum is at least
+zero after. It cannot break the daily limit either, because it writes no
+member (a field or relation) the rule reads. Closing breaks neither number
+rule, because once an account is closed they no longer bind it.
 
-The honest part is the word *undecided*. Every pair that adds to or takes
-from a number is undecided, so today the checker proves nothing about the
-two rules a bank cares about most; a guarded withdrawal and a careless one
-read the same. Teaching it to decide such rules, first from the
-declarations' own bounds and then with a solver behind it, is the work we
-are doing next ([#600](https://github.com/doeixd/foldkit-plus/issues/600)).
+The refusal is a real bug in the example as written. The withdrawal checks
+the balance but not the day's total, and the report shows the account that
+proves it: 500 already withdrawn today, a balance of 1, a withdrawal of 1,
+and the day ends at 501. The fix is one more condition on the write:
 
-Until then, the evidence for a number rule is a test, and 0.41 ships two in
+```diff
+-  when: ({ row, input }) => Expr.lte(input.amount, row.balance),
++  when: ({ row, input }) =>
++    Expr.and(Expr.lte(input.amount, row.balance), Expr.lte(Expr.add(row.withdrawnToday, input.amount), 500)),
+```
+
+With it, the refusal is gone, and the line reads:
+
+```text
+WithdrawMoney   x withinDailyLimit            undecided: it rests on comparing amount with balance and withdrawnToday with amount, which intervals alone cannot use
+```
+
+What is left undecided is the kind of question intervals cannot answer: the
+withdrawal is safe because the amount is compared with the balance, a
+relation between two numbers rather than a bound on one. A solver settles
+that kind of question, and putting one behind the checker is what we are
+building next ([#600](https://github.com/doeixd/foldkit-plus/issues/600)).
+`Laws.check` itself is new in 0.41; the bounds, the witness rows and the
+totals line above arrived after it and ship in the next release.
+
+Until then, the evidence for such a rule is a test, and 0.41 ships two in
 `foldkit-remote/testing`. `Scenario` writes a test case as data (the
 accounts that exist, who asks, the time, the write and what must come of it)
 and runs it through each backend you give it. `Walk.run` sends seeded random
@@ -573,7 +590,7 @@ const User = Schema.Struct({ id: Schema.String })
 const Bank = Guards.declare(
   'Bank',
   User,
-  guard => ({ isOwner: guard.row(AccountFields, user => Expr.eq(AccountFields.fields.ownerId, user.id)) }),
+  guard => ({ isOwner: guard.row(Account, user => Expr.eq(Account.fields.ownerId, user.id)) }),
   { key: user => user.id, unguarded: 'deny' },
 )
 
