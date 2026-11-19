@@ -144,6 +144,20 @@ const mount = async (scheme: 'light' | 'dark') => {
     }),
   )
   await vi.waitFor(() => expect(document.getElementById('blog-current')).not.toBeNull())
+  // The browser tests share one real pointer: an earlier file may have left it over a link, which
+  // then reads as hovered. Park it on a spot of our own that no link is drawn at, and let any
+  // colour transition it started finish before a rest colour is read.
+  const spot = document.createElement('div')
+  spot.id = 'nav-links-spot'
+  spot.style.cssText =
+    'position: fixed; inset-block-end: 0; inset-inline-end: 0; inline-size: 40px; block-size: 40px'
+  document.body.appendChild(spot)
+  await userEvent.hover(spot)
+  await vi.waitFor(() =>
+    expect(document.getAnimations().filter(animation => animation.playState === 'running')).toEqual(
+      [],
+    ),
+  )
 }
 
 /** The painted channels of a CSS colour, read through a canvas (the computed value may be oklch). */
