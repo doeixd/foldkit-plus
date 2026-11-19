@@ -10,6 +10,7 @@ import { Bounded, judgeBounded, meetable, witnessOf, type Witness } from './boun
 import { Steps, finiteValues, steps, type Step } from './enumerate.js'
 import { judgeAgainst, readsBefore, invariantsOf, type Invariant } from './invariant.js'
 import { declaredOwner, Footprint } from './footprint.js'
+import { dependenciesOf } from './expr.js'
 import { lawId, transitionId } from './lawIds.js'
 import type { AnyEntity, EntityField } from './index.js'
 import { kernelOperators } from './memoryTable.js'
@@ -205,9 +206,29 @@ const footprintOf = (entry: LawEntry): Footprint => {
 }
 
 /** Every member an invariant reads, before and after. */
-const readOf = (held: Invariant): ReadonlyArray<string> => [
-  ...new Set([...held.before, ...held.after]),
-]
+const reads = new WeakMap<Invariant, ReadonlyArray<string>>()
+
+/**
+ * Every member an invariant reads, before and after, and the relation of its
+ * own row each path or exists leaves by: a write relinking it changes what the
+ * rule reads, though it writes no field the rule names (`held.before` and
+ * `held.after` hold its own row's fields alone).
+ */
+const readOf = (held: Invariant): ReadonlyArray<string> => {
+  const known = reads.get(held)
+  if (known !== undefined) return known
+  const links = dependenciesOf(held.predicate).reaches.flatMap(reach =>
+    Match.valueTags(reach, {
+      Path: ({ via }) => [via[0].key],
+      Exists: ({ via }) => via.slice(0, 1).map(relation => relation.key),
+      // A path from the viewer starts at the viewer's row, not this one.
+      ViewerPath: () => [],
+    }),
+  )
+  const read = [...new Set([...held.before, ...held.after, ...links])]
+  reads.set(held, read)
+  return read
+}
 
 const disjoint = (writes: ReadonlyArray<string>, reads: ReadonlyArray<string>): boolean =>
   !writes.some(key => reads.includes(key))

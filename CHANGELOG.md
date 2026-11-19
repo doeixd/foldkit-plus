@@ -28,6 +28,10 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-entity`: `Laws.show` prints a refused pair as `refused: <the rule's message>` with its witness under it (before, input, after) in place of `refused: from {…} it leaves {…}`, a refused arrow's witness under it, and a last line of totals. `LawVerdict.Kept` gains `over` and the `by` values `vacuous` and `bounds`; `Undecided` gains `obligation`; `Refused` gains `witness` and `hint`; a `Finding` match must handle `Unmeetable`.
 - `foldkit-remote`: `Scenario.fromReport` makes no scenario of a refused pair with no enumerated steps (one found among the numbers), as it made none of the undecided pair it was before.
 
+### Fixed
+
+- `foldkit-entity`: `Laws.check` kept by disjointness, and issued an `Enumerated` record for, a write relinking the relation a rule reads another row through (`Expr.path(Claim.relations.customer, Customer.fields.name)`), since a pair's `reads` held its own row's fields alone. A pair now reads the relation each path or exists leaves its row by, so such a write is judged, and `Laws.facts` draws that read.
+
 ## 0.42.0
 
 One thing to change when you upgrade. `foldkit-mixins-ui`'s `CodeBlock`

@@ -14,6 +14,7 @@ import {
   LawEdge,
   LawNode,
   Laws,
+  Relation,
   Write,
   lawFactsOf,
   lawId,
@@ -263,6 +264,57 @@ describe('Laws.check: an insert', () => {
     expect(
       verdict(Laws.check({ writes: [create(Schema.optionalKey(Schema.Boolean))] }), 'Create', 'on'),
     ).toMatchObject({ _tag: 'Undecided', reason: 'the write may leave on unwritten' })
+  })
+})
+
+describe('Laws.check: a rule that reads another row', () => {
+  const CustomerFields = Entity.define(
+    'LawCustomer',
+    Schema.Struct({ id: Schema.String, name: Schema.String }),
+  )
+  const { Customer, Claim } = Entity.relate(
+    {
+      Customer: CustomerFields,
+      Claim: Entity.define(
+        'LawClaim',
+        Schema.Struct({ id: Schema.String, ownerName: Schema.String, note: Schema.String }),
+      ),
+    },
+    { Claim: { customer: Relation.one(CustomerFields) } },
+  )
+  const Claimed = Claim.pipe(
+    Entity.invariant(
+      'belongsToCustomer',
+      ({ after }) =>
+        Expr.eq(after.ownerName, Expr.path(Claim.relations.customer, Customer.fields.name)),
+      { message: 'A claim names its customer' },
+    ),
+  )
+  const Move = {
+    name: 'MoveClaim',
+    write: Write.update(
+      Entity.input(Claimed, Schema.Struct({ id: Schema.String, customer: Schema.String }), {
+        customer: Relation.input(Claimed.relations.customer),
+      }),
+      { id: 'id' },
+    ),
+  }
+  const Annotate = {
+    name: 'Annotate',
+    write: Write.update(
+      Entity.input(Claimed, Schema.Struct({ id: Schema.String, note: Schema.String })),
+      { id: 'id' },
+    ),
+  }
+  const report = Laws.check({ writes: [Move, Annotate] })
+
+  it('reads the relation its path leaves by, so relinking it is never kept by disjointness', () => {
+    expect(report.pairs[0]!.reads).toEqual(['ownerName', 'customer'])
+    expect(verdict(report, 'MoveClaim', 'belongsToCustomer')._tag).toBe('Undecided')
+    expect(verdict(report, 'Annotate', 'belongsToCustomer')).toMatchObject({
+      _tag: 'Kept',
+      by: 'disjointness',
+    })
   })
 })
 

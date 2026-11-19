@@ -19,6 +19,17 @@ export default [
     tests: [laws, account],
   },
   {
+    name: "a path's relation left out of what a rule reads",
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: '      Path: ({ via }) => [via[0].key],',
+        replace: '      Path: () => [],',
+      },
+    ],
+    tests: [laws],
+  },
+  {
     name: 'the when skipped while enumerating',
     edits: [{ file: '../src/enumerate.ts', find: 'if (refused) continue', replace: '' }],
     tests: [laws, refine],
