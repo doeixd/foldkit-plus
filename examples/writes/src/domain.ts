@@ -76,12 +76,7 @@ export const InStock = Entity.refine(Product, 'InStock', ({ row }) =>
 )
 
 /** A guarded rename: the rules decide who may, the writer's revision pin when it lands. */
-export const Rename = Mutation.write(
-  'Rename',
-  Write.update(Entity.input(Product, Schema.Struct({ id: Schema.String, name: Schema.String })), {
-    id: 'id',
-  }),
-)
+export const Rename = Mutation.update('Rename', Product, { set: { name: Schema.String } })
 
 /**
  * A transition that makes sense from one state only: a draft is published.
@@ -89,30 +84,23 @@ export const Rename = Mutation.write(
  * again changes nothing and is answered as written, as a retry would be.
  * That it leaves the product published is proved where it is declared.
  */
-export const Publish = Mutation.write(
-  'Publish',
-  Write.update(
-    Entity.input(
-      Product,
-      Schema.Struct({ id: Schema.String, status: Schema.Literal('published') }),
-    ),
-    { id: 'id', from: Draft, becomes: Published },
-  ),
-)
+export const Publish = Mutation.update('Publish', Product, {
+  set: { status: Schema.Literal('published') },
+  from: Draft,
+  becomes: Published,
+})
 
 /** Sets a product back to draft, which its transition invariant allows only of one never published. */
-export const Revert = Mutation.write(
-  'Revert',
-  Write.update(
-    Entity.input(Product, Schema.Struct({ id: Schema.String, status: Schema.Literal('draft') })),
-    { id: 'id' },
-  ),
-)
+export const Revert = Mutation.update('Revert', Product, {
+  set: { status: Schema.Literal('draft') },
+})
 
 /**
  * A computed write: the stock moves by the quantity where it commits. It
  * expects the revision it was read at, so a retry of one that landed is a
- * conflict, never a second restock.
+ * conflict, never a second restock. Its `quantity` is no field but an amount
+ * (`Entity.unmapped`), so it is written out: the input, then the write, then
+ * the mutation.
  */
 export const Restock = Mutation.write(
   'Restock',
