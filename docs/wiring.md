@@ -1,132 +1,14 @@
-# Wiring: one list for joining an application
+# Wiring: join integrations in one list
 
-A **Wiring** is a value describing how one integration joins a Foldkit
-application: which Messages it folds, what it runs at startup, what it
-subscribes to, and what it owns. The assembly collects one wiring per
-integration (plus any bundle placements) and derives the runtime config —
-`update`, initial state, Subscriptions, resources, URL handling, Module
-contracts — from that single list, checking it as it goes.
+Adding remote data, URL filters, saved preferences, and sync to a Foldkit application usually means wiring each integration by hand in five places: spreading message variants, branching in `update`, deriving `subscriptions`, handling `url` changes, and dispatching startup commands. Miss one step and the code still compiles while silently dropping server answers, ignoring shared links, or forgetting drafts.
 
-This guide explains the idea and how it compares to the neighboring
-abstractions. For the per-package calls, see
-the `foldkit-remote`, `foldkit-mirror`, `foldkit-sync`, and `foldkit-agent`
-READMEs and skill references.
+A **Wiring** packages how one integration joins your application—the Messages it folds, the startup commands it runs, the subscriptions it opens, and the resources it owns—into a single value. Passing a list of wirings to `Page.assemble` derives `update`, `initial`, `subscriptions`, `url`, and your module contract in one pass, turning missed plumbing into a type error or a clear startup error.
 
-## What it is
+For package-specific calls, see [Remote](./remote.md), [Mirror](./mirror.md), [Replicated state](./replication.md), and [Agents](./agents.md).
 
-The interface, declared in `foldkit-surface` and repeated structurally in
-`foldkit-bundle` (so the bundle core does not depend on Surface), abridged:
+## A first assembly: two mirrors, one list
 
-```ts sketch
-interface Wiring<Model, Message, R = never, Claims extends string = string> {
-  readonly key: string                                            // remote:Board
-  readonly handles: ReadonlyArray<Claims>                         // Message tags route folds
-  readonly shared?: readonly string[] | undefined                 // tags several wirings may handle
-  route?(model: Model, message: Message): Option<Update.Return<Model, Message, R>>
-  readonly init?: Update.Step<Model, Message, R> | undefined      // runs once at startup
-  readonly onUrl?: ((model: Model, url: Url) => Model) | undefined
-  readonly subscriptions?: Subscription.Subscriptions<Model, Message, R> | undefined
-  readonly resources?: Record<string, ManagedResource.Entry<...>> | undefined
-  readonly contract?: Contract | undefined                        // for Module.validate
-}
-```
-
-Every field is optional except `key` and `handles`. A wiring is data plus
-pure functions: it performs no I/O itself. `R` is the Effect services its
-Commands and Subscription streams need (`RemoteClient`, a `KeyValueStore`);
-the assembly threads it into the derived config's requirements.
-
-The producers, one per integration:
-
-| Integration | Call | Brings |
-| --- | --- | --- |
-| Remote | `Data.wiring(active, options?)` | `route` into `Data.reduce`, entries per active Surface, contract, `RemoteClient`; `shared` names the Remote Messages the application's update hears too |
-| Remote cache across a reload | `persistence(Data, { key, … })` | restores the stored cache and writes it back, `restore` for the first frame, a `KeyValueStore` |
-| Remote durable writes | `outbox(Data, { key, … })` | stores durable writes and sends them, `restore` for the first frame, a `KeyValueStore` |
-| URL mirror | `Filters.wiring(tag)` | routes the app's URL Message, `onUrl`, subscriptions, contract |
-| Key-value mirror | `Prefs.wiring()` | routes its own `MirrorRestored`, `restore` as `init`, subscriptions, contract |
-| Sync | `TodoSync.wiring()` | contract only |
-| Agent | `AppAgent.wiring()` | contract only |
-
-## Who owns what
-
-The wiring changes nothing about ownership. It describes *joining*; the
-contracts each package already declares still own the transitions:
-
-- Remote's reducer still owns the cache slice; Mirror still owns nothing (it
-  observes); Sync still owns replication through `mount`, not through the
-  assembly; the agent still only sends Messages `update` already handles.
-- The assembly never becomes a second reducer. `update` routes each Message to
-  exactly one item's fold and falls through to the application's own update.
-  A shared tag is the exception that proves it: it is observed, not claimed, so
-  every wiring sharing it folds it in list order and the application's update
-  sees it after them. Several URL mirrors read one `UrlChanged`, and the
-  application still routes on it, over the slices they have already read.
-
-## The mental model
-
-```text
-integration + its config ──► Wiring
-Wiring + Wiring + placement + … ──Page.assemble──► Assembly
-Assembly ──update / initial / subscriptions / resources / url / module──► runtime config + Module
-runtime config ──complete──► checked (type-level), unchanged (runtime)
-Assembly ──runtime──► runtime config, with the derivations filled in
-```
-
-## Why it exists, and whether you need it
-
-Each integration used to ask the application to wire it by hand, in several
-places, each phrased differently — spread `...Remote.messages`, add the
-`Data.reduce` branch, derive `Data.subscriptions(active)`, provide the client
-layer, reduce the URL at startup, dispatch `Prefs.restore` after mounting.
-Every one of those steps compiles when missed and then silently does nothing:
-server results dropped, nothing fetched, shared links opening on defaults,
-drafts never restored.
-
-The assembly turns the missed *derivation* into an error: `complete()` only
-accepts a config whose `update` takes the whole parent Message, whose
-`subscriptions` came from the assembly, and whose `managedResources`, `init`,
-and `url` came from the assembly wherever an item needs them (a placement
-with resources, a wiring with startup Commands, a wiring that reads the URL).
-Two items claiming one Message tag fail `assemble` at startup naming both
-(unless every claimant declares the tag `shared`: each folds it in turn, like
-per-name `MirrorRestored` and the URL Message). Every Remote domain claims the
-same tags, so one assembly holds at most one `Data.wiring`.
-
-Where the update already routes every placement, `assembly.runtime({
-initial, update, … })` builds the config instead of checking it: `initial`
-rest becomes `init` (or an init function returning `assembly.initial(...)`
-is used as `init`), and the own Subscriptions and Managed Resources default
-to the items'. The mistakes it can still make — a narrowed update, an
-unbranded init function, a missing `url` — are type errors at the property,
-as with `complete`.
-
-Whether you need it depends on the size of the list:
-
-- One integration, hand-wired once, with a test that dispatches its Messages:
-  the assembly buys little. Hand-wiring stays supported; every lower-level API
-  remains.
-- Two or more integrations, or an application where the wiring author and the
-  runtime author are different people: the list earns its keep, because a
-  silently dropped step costs a debugging session and the assembly turns it
-  into a named error.
-
-Deleting a wiring line is caught where the wiring claims tags of its own. A
-wiring whose `handles` are typed as literals (Remote's are every `RemoteMessage`
-tag) takes those tags out of the Message `assembly.update(own)` hands `own`; an
-`own` that matches every tag it gets (`Match.valueTags`, a Message union's
-`match`) then fails to compile once the wiring is gone, since the tags come back
-unmatched. Two cases stay quiet: a wiring whose tags are all `shared` (a URL
-mirror's, a key-value mirror's `MirrorRestored`), since `own` sees those anyway,
-and an `own` written as a `switch` with no exhaustiveness check. There the loss
-shows up in behavior, which pinned transcripts and Message-level tests catch.
-
-## Sixty seconds: two mirrors, one list
-
-This is `examples/todo-app` trimmed to the wiring shape. The union carries
-both mirror Messages; everything else is the application's own. (`App`,
-`Model`, `Message`, `initialModel`, `own`, and `view` are the todo-app
-declarations.)
+This example wires a URL filter mirror and a key-value draft mirror into one application using `Bundle.parent` and `Page.assemble` (assuming your app already defines `Model`, `Message`, `initialModel`, `own`, and `view`):
 
 <!-- docs-check
 import { Schema } from 'effect'
@@ -158,126 +40,102 @@ const Prefs = Mirror.kv(App, { key: 'todo/prefs', fields: [App.model.draft] })
 const Page = Bundle.parent({ Model, Message })
 const wiring = Page.assemble(Filters.wiring('UrlChanged'), Prefs.wiring())
 
-const update = wiring.update(own)              // mirrors route first; own sees the rest, and UrlChanged after them
-const start = wiring.initial(initialModel)     // model + the restore Command
-const subscriptions = wiring.subscriptions()   // both mirrors' entries, merged
+const update = wiring.update(own)
+const start = wiring.initial(initialModel)
+const subscriptions = wiring.subscriptions()
 const url = wiring.url(next => Message.UrlChanged({ url: next }))
 ```
 
-`assemble` runs the startup checks now (duplicate keys, double-claimed tags,
-shared resource tags) and throws naming the offenders. Nothing subscribes,
-fetches, or dispatches yet: those come from the derived values. `complete`
-then proves the runtime config was built from them:
+`Page.assemble` checks the list right away for duplicate keys, double-claimed Message tags, and colliding resource names, throwing if two entries conflict. Both mirrors then route their messages before `own` runs, `start` includes the draft restore command, and `subscriptions` merges both mirrors' entries.
+
+Pass the derived values to `wiring.complete` to verify at compile time that nothing in your runtime config was written by hand:
 
 ```ts
 const config = wiring.complete({ update, init: () => start, subscriptions, url, view })
 ```
 
-`complete` returns its argument unchanged. Its work is all in the types: pass a
-hand-written `subscriptions` and the property errors, pointing at the assembly
-call that should have built it.
+`complete` returns its argument unchanged at runtime. If you swap `subscriptions` for a hand-written object, TypeScript reports an error on that property pointing to the missing assembly call. For a shorter setup when your `own` update already routes placements, `wiring.runtime({ initial, update, view })` fills in `init`, `subscriptions`, and `resources` automatically.
 
-## How the assembly uses a wiring
+## What a Wiring brings and who provides one
 
-- **A claimed tag goes to its one claimant; a shared tag to every wiring
-  sharing it, in list order, then to the application's update.** `route`
-  returns an `Option`: `Some` when the Message is this wiring's, `None` otherwise. A
-  key-value mirror returns `None` for another mirror's `MirrorRestored`; that
-  is what lets the tag be `shared`. A placement folds a Message when its
-  wrapper unwraps it, and ignores the rest the same way.
-- **`init` steps run placements first (shallowest first), then wirings in list
-  order.** A mirror's `restore` is an ordinary Command in the returned config;
-  whoever mounts the app dispatches it like any other startup Command.
-- **Subscriptions merge by key.** A duplicate key throws, as
-  `Subscription.aggregate` does. The merged record carries the union of the
-  items' service requirements, so a Remote wiring pulls `RemoteClient` into
-  the runtime's `resources` layer type.
-- **`url` folds every `onUrl`.** Its `init` applies each wiring's URL read to
-  the Model; its `onUrlChange` builds the Message a wiring routes.
-- **`module` collects contracts.** Placements contribute a contract owning
-  their Model path; each wiring contributes its own contract as-is, so
-  `Module.validate` sees every owner in the one list. A wiring with no
-  contract (nothing owned, nothing observed) contributes nothing.
+Each integration builds its own wiring from your declaration. Every wiring carries a unique `key`, the Message tags it `handles`, optional `shared` tags that multiple wirings may observe, and optional hooks (`route`, `init`, `onUrl`, `subscriptions`, `resources`, and `contract`).
 
-## Wiring versus Surface
-
-Different questions, different values:
-
-| | Surface | Wiring |
+| Integration | Call | What it brings |
 | --- | --- | --- |
-| Answers | "What may this feature observe, and which Messages may it cause?" | "How does this integration join: route, start, subscribe, own?" |
-| Owns transitions | Never. No private Model, no child update. | Describes who folds what; the integration still owns its transitions. |
-| Messages | An allowlist of constructible variants (capability boundary). | A routing table over tags already in the union (`handles`). |
-| Has runtime behavior | None. Pure contract. | None itself — data plus pure functions. The *derived* config runs. |
-| Wraps Messages | Never. | Never; integrations speak flat union cases (see below). |
+| Remote data | `Data.wiring(active, options?)` | `route` for `Data.reduce`, fetch subscriptions, `RemoteClient` |
+| Remote cache persistence | `persistence(Data, { key, ... })` | Cache restore/save hooks, `restore` init, `KeyValueStore` |
+| Remote durable outbox | `outbox(Data, { key, ... })` | Outbox restore/send hooks, `restore` init, `KeyValueStore` |
+| URL mirror | `Filters.wiring(tag)` | Routes the URL Message, `onUrl`, subscriptions, contract |
+| Key-value mirror | `Prefs.wiring()` | Routes `MirrorRestored`, `restore` init, subscriptions |
+| Sync | `TodoSync.wiring()` | Module ownership contract for validation |
+| Agent | `AppAgent.wiring()` | Module ownership contract for validation |
 
-A Surface never routes, starts, or subscribes, so it cannot replace a wiring.
-A wiring never declares what a feature may observe, so it cannot replace a
-Surface. They meet in the Module, which collects both, and in Remote, which
-reads a Surface's projections to plan its fetches.
+A wiring holds data and pure functions; the Effect services needed by commands and streams (such as `RemoteClient` or `KeyValueStore`) flow through the `R` type parameter into the final runtime config.
 
-## Wiring versus Projection and metadata
+## How the assembly routes Messages and builds the runtime config
 
-A Projection is a pure, typed read of the Model: codec, `read`, dependency
-paths, and opaque metadata. Metadata is the per-package extension point —
-Remote attaches its fetch requirements under its own `Metadata.key`, and other
-packages do the same under theirs. Surface merges metadata when projections
-combine and summarizes it for inspection; it never interprets another
-package's entries.
+From a list of wirings and bundle placements, `Page.assemble` produces an assembly value that derives each runtime piece in order:
 
-Wiring is not metadata and does not ride on it:
+- **Claimed vs. shared tags:** Each claimed tag routes to its single wiring via `route` (which returns `Option.some` when handled and `Option.none` otherwise), and falls through to `own` for everything else. A `shared` tag—such as `UrlChanged` or `MirrorRestored`—is folded by every wiring sharing it in list order, then passed to `own`.
+- **Startup commands:** `wiring.initial` runs placement `init` steps (shallowest first), then each wiring's `init` step in list order. A key-value mirror's `restore` command is returned as a normal Foldkit command.
+- **Subscriptions and resources:** Subscription entries and managed resources merge by key, throwing on duplicate keys and combining all Effect service requirements into the runtime type.
+- **URL handling:** `wiring.url` runs every wiring's `onUrl` on the initial URL and builds the `onUrlChange` dispatcher for navigation messages.
+- **Module contracts:** `wiring.module` collects every placement contract (owning its Model path) and every wiring contract into one list for `Module.validate`.
 
-- Metadata flows Model → package ("this projection needs these fields").
-  Wiring flows Message → Model (`route`) plus startup and subscriptions.
-- A wiring's subscriptions are *built from* projections' metadata at runtime
-  (Remote diffs the requirements its entries read against the store), but the
-  wiring itself is a separate value with its own lifecycle: route per Message,
-  init once, entries for the runtime.
-- If you need a new fact to travel with a Projection, add a metadata key.
-  If you need a new integration to join an application, add a wiring.
+## Who owns state when using an assembly
 
-## Wiring versus bundles and placements
+Joining integrations in one list leaves state ownership unchanged: each package keeps the exact responsibilities it had when wired by hand.
 
-A bundle packages a child state machine once — Model, Message, init, update,
-Subscriptions, resources, view — and a Link places it at a Model path, possibly
-many times. A placement owns its slice: its Messages are *wrapped* variants of
-the parent union (`GotDarkMessage`), routed by wrapper to that slice.
+- **Remote** owns the normalized server cache slice through `Data.reduce`.
+- **Mirror** observes local fields in your `Model`; your `update` remains the owner of those fields.
+- **Sync** owns replication through `Sync.mount`, contributing only its contract to the assembly.
+- **Agent** dispatches Messages from your union, which `update` handles as usual.
+- **Placements** own their slice of the parent `Model` via wrapped child Messages.
 
-A wiring handles the Messages that must stay *flat*: facts about the whole
-application that agents, journals, and DevTools name directly
-(`MirrorRestored`, Remote's cases, the URL Message). Wrapping them per owner
-would just add unwrapping; the `handles`/`shared` table is the routing for
-flat Messages the way the wrapper is the routing for placed ones.
+## Why use an assembly instead of hand-wiring?
 
-In the assembly they are separate item kinds in one list — placements route by
-wrapper, wirings route by tag — sharing the key/tag/resource checks, the init
-ordering, the subscription merge, and the Module. Contract-only wirings (Sync,
-Agent) contribute nothing but their contract: Sync owns the runtime through
-`mount` rather than joining it, and an agent adds no state.
+With hand-wiring, forgetting a branch or omitting `Data.subscriptions(active)` compiles cleanly and fails silently at runtime. An assembly catches those omissions before shipping:
 
-## When not to use it
+- **`complete` checks derivations:** Passing a non-derived `update`, `subscriptions`, `url`, `init`, or `managedResources` fails to compile whenever an item in the list requires it.
+- **Startup checks catch collisions:** Two wirings claiming the same non-shared Message tag, sharing a `key`, or registering the same resource tag fail `Page.assemble` with both names in the error.
+- **Exhaustive `own` catches a deleted wiring:** When a wiring claims literal tags (such as Remote's Message tags), removing it from `assemble(...)` puts those tags back into `own`'s input type, causing an exhaustive `Match.valueTags` or union `match` to fail compilation.
 
-- A single integration whose hand-wiring is covered by a dispatch-level test.
-  The assembly is process, not safety, at that scale.
-- Anything outside an application with a parent scope. A wiring describes
-  joining; without `Page.assemble` there is nothing to join.
-- As a Route replacement. `wiring.url` assumes one URL Message; applications
-  with real routing keep their router and let a mirror read the URL like any
-  other consumer.
-- To skip understanding the integration. The wiring calls the same `reduce`,
-  `restore`, and `subscriptions` the hand-wiring called; it checks the
-  plumbing, not the semantics.
+Note that deleting a wiring whose tags are all `shared` (such as a mirror), or using a non-exhaustive `switch` in `own`, leaves `own`'s types satisfied. Test those behaviors with dispatch-level tests.
+
+## When to wire by hand instead
+
+- **A single integration:** If your app has one integration already covered by a dispatch test, hand-wiring is straightforward and remains fully supported.
+- **Custom routers:** `wiring.url` assumes a single URL Message; apps with a multi-route router keep their router and feed URL changes to mirrors directly.
+- **Standalone scopes:** Without a parent `Model` and `Message` union, there is nothing for `Page.assemble` to join.
+
+## Wiring vs. Surface, Projection, and Bundles
+
+Each abstraction answers a distinct question in your architecture:
+
+| Concept | Question it answers | Runtime role |
+| --- | --- | --- |
+| **Surface** | What may this feature read, and what may it send? | Pure capability contract; no routing or subscriptions |
+| **Projection & Metadata** | How do I read a slice, and what facts travel with it? | Typed lens plus package-specific metadata (like fetches) |
+| **Bundle placement** | Where does this child state machine sit? | Routes *wrapped* child Messages to a `Model` path |
+| **Wiring** | How does a top-level integration join the runtime? | Routes *flat* parent Messages, startup, and streams |
+
+Surfaces and Wirings meet in two places: `Module` collects both contracts to validate ownership, and Remote reads a Surface's projections (via metadata) to build its subscription fetches.
 
 ## Failure and recovery
 
 | Failure | Where it surfaces |
 | --- | --- |
-| Two items share a key | `assemble` throws, naming the key |
-| Two items handle one tag (not `shared`) | `assemble` throws, naming both |
-| Two items use one Managed Resource tag | `assemble`/`resources` throws |
-| Config built by hand instead of derived | `complete` type error at the property |
-| A wiring deleted from the list | A type error in an exhaustive `own` when the wiring claims literal tags of its own; otherwise silent, caught by behavior (transcript, dispatch tests) |
-| A `route` that returns `None` for its own values | Silent drop; the parity tests each package carries exist for this |
+| Two items share a `key` | `Page.assemble` throws naming the duplicate key |
+| Two items claim one non-shared tag | `Page.assemble` throws naming both claimants |
+| Two items share a Managed Resource tag | `Page.assemble` or `resources` throws |
+| Hand-written config passed to `complete` | Type error on the hand-written property |
+| Claimed wiring removed from `assemble` | Type error in exhaustive `own` update |
+| `route` returns `None` for its own tag | Silent drop; catch with message parity tests |
 
-Recovery is re-derivation: the assembly output is disposable — rebuild it from
-the list and the error names the line that is wrong.
+Because the assembly output is derived purely from the list, fix the offending wiring line and re-derive the config.
+
+## Next
+
+- See a working assembly with URL and KV mirrors in [Mirrored state](./mirror.md).
+- Learn how capability boundaries work in [Surface and Bundle](./surface-vs-bundles.md).
+- Connect a Remote server cache in [Server-derived state](./remote.md).

@@ -1,5 +1,11 @@
 # An event-sourced domain behind Remote
 
+Some backends keep every change as a recorded event ("stock reserved", "order
+placed") and build the rows readers see from those events. That history is
+valuable, but it makes the page harder: a read straight after a write can come
+from a read model that has not caught up, and the page still needs optimistic
+updates, refusals and permissions that agree with the server.
+
 [Alchemy Domain](https://alchemy.run/domain) (`@alchemy.run/domain`) is an
 event-sourcing library for Effect, separate from Foldkit Plus. In its words: a
 **Command** asks for a change, an **Aggregate** decides it and records
@@ -7,11 +13,11 @@ event-sourcing library for Effect, separate from Foldkit Plus. In its words: a
 what clients may send and read.
 
 [`foldkit-remote-domain`](../packages/remote-domain/README.md) puts such a
-model behind [Remote](remote.md): the page reads its Views and sends its
-Commands as it reads and writes any server, and the domain you declared with
-[`foldkit-entity`](entity.md) keeps meaning one thing on both sides. This
-guide is about how the two fit. The package README is the contract, and
-[`examples/writes-domain`](../examples/writes-domain) is the running proof.
+model behind [Remote](remote.md), Foldkit Plus's package for server data. The
+page reads Views and sends Commands as it reads and writes any server, and the
+records and rules you declared with [`foldkit-entity`](entity.md) mean the same
+thing on both sides. This guide is about how the two fit; the package README is
+the reference.
 
 The package is experimental and pins one beta of Domain (`2.0.0-beta.86`).
 
@@ -37,9 +43,10 @@ predictions and refusals with no View to wait for.
 
 | Fact or transition | Owner |
 | --- | --- |
-| The Events, and whether a Command is accepted | the Domain model: the Aggregate's `decide` and `evolve` |
-| The row a reader sees, and whether they may see it | the Domain model: the View, and its `validate` |
-| What a write means: its precondition, its guard, the invariants of the row it leaves | the declaration (`Write`, `Guards`, `Entity.invariant`), when the write is lowered; the Aggregate's own `decide` when it is not |
+| The Events, and whether a Command is accepted | the Aggregate's `decide` and `evolve` |
+| The row a reader sees, and whether they may see it | the View, and its `validate` |
+| A lowered write's precondition, guard and invariants | the declaration (`Write`, `Guards`, `Entity.invariant`) |
+| A hand-written Command's rules | the Aggregate's own `decide` |
 | The page's copy of a row, a pending write and its prediction, a refusal | Remote (`Remote.Model`) |
 | The receipt of a write whose View is behind, and each row's revision | Remote, as a read-after token and a row revision |
 | Translating between the two | the adapter (`DomainRemote.layer`), which owns no row and decides nothing |
@@ -50,34 +57,39 @@ number field of the row that every Event of the stream moves; you name it when
 you bind the View, and Remote orders two copies of a row by it. "Receipt",
 "Command", "Aggregate", "Event", "View", "Rejection", "Story" and "Api" are
 Domain's words; "Entity", "declared write", "guard", "invariant", "Refusal"
-and "prediction" are this project's.
+and "prediction" are Foldkit Plus's.
 
 ## The loop
 
-```text
-page      Data.mutate(model, ReserveStock, input)    Remote predicts from the declaration; the write is pending
-adapter   client.ReserveStock(id, input,             the Command, under a commandId derived from
-            { commandId })                             who asks, the operation and the input
-Domain    decide -> [StockReserved] appended          the one decision; a refusal is a Rejection
-          -> { reply, stream, version }               the receipt
-adapter   ProductRow.snapshot(id, { atLeast })        asks the View at the receipt, for a bounded time
-Domain    the View folds StockReserved                when the Event is delivered to it
-adapter   answers the write: the View's row, or       a Rejection becomes the mutation's Refusal
-            the reply's fields with the receipt
-page      the answer replaces the prediction;         Remote holds the row to the receipt until a
-            a later read carries the receipt            read at it answers
-```
+1. **Page:** `Data.mutate(model, ReserveStock, input)`. Remote predicts the
+   result from the declaration and marks the write pending.
+2. **Adapter:** sends `client.ReserveStock(id, input, { commandId })`. The
+   `commandId` is derived from who asks, the operation and the input.
+3. **Domain:** `decide` appends `[StockReserved]` and answers
+   `{ reply, stream, version }`, the receipt. A refusal is a Rejection.
+4. **Adapter:** asks `ProductRow.snapshot(id, { atLeast })`, the View at the
+   receipt, for a bounded time.
+5. **Domain:** the View folds `StockReserved` when the Event reaches it.
+6. **Adapter:** answers the write with the View's row, or with the reply's
+   fields and the receipt. A Rejection becomes the mutation's `Refusal`.
+7. **Page:** the answer replaces the prediction. Remote holds the row to the
+   receipt, and a later read carries it until a read at the receipt answers.
 
 The page never reads the Aggregate, and never folds an Event itself. It reads
 rows from a View and learns of its own write from the Command's reply.
 
 ## Three ways a Command meets a declared write
 
-| | The rules are decided by | The page predicts | Use it when |
-| --- | --- | --- | --- |
-| **Lower** a declared write (`Lower.write`) | the declaration, run inside the Aggregate's `decide` | yes, from the same declaration | the write fits one Aggregate, and you want one statement of the rules |
-| **Bind** a Command you wrote (`DomainRemote.command`) | your `decide` | yes if the page's mutation is a `Mutation.write`: a second statement of the rules, which `Law.check` compares with the first | the model exists, or its `decide` does more than a declared write says |
-| **Import** a Command (`Imported.mutation`) | your `decide` | no: the mutation carries no write, only a footprint of the fields it touches | the page only needs to send it |
+- **Lower a declared write (`Lower.write`).** The declaration runs inside the
+  Aggregate's `decide`, and the page predicts from that same declaration. Use
+  it when the write fits one Aggregate and you want the rules stated once.
+- **Bind a Command you wrote (`DomainRemote.command`).** Your `decide` rules.
+  If the page's mutation is a `Mutation.write`, the page predicts from a second
+  statement of the rules, which `Law.check` compares with the first. Use it
+  when the model already exists, or `decide` does more than a declared write.
+- **Import a Command (`Imported.mutation`).** Your `decide` rules, and the page
+  predicts nothing: the mutation carries only a footprint of the fields it
+  touches. Use it when the page only needs to send the Command.
 
 The rest of this guide lowers one write, because that is where the declared
 domain and the Domain model meet most closely.
@@ -332,21 +344,33 @@ and prints who held what
 
 ## When it goes wrong
 
-Each row is held by a test; the paths are under
-[`packages/remote-domain/test`](../packages/remote-domain/test) and
-[`examples/writes-domain/test`](../examples/writes-domain/test).
-
-| What happens | What the page shows | Held by |
-| --- | --- | --- |
-| The Aggregate rejects the Command | the prediction is taken back; `Data.refusal` gives the mutation's `Refusal` (`Conflict`, `Unmet`, `Invalid` with the invariant's id, message and path); the stream gains no Event | `loop.test.ts` steps 6 and 7; `adapter.test.ts`, "decodes a typed Rejection" |
-| The write was made at a revision the row has left | `Conflict`, as above. It is decided by the `expect` inside `decide`, not by the stream's version | `loop.test.ts` step 7; `scenario.test.ts` |
-| The Command committed and its View is behind | the write is applied, with the reply's fields as the row. Remote holds the row to the receipt, a read at it names the row `behind`, and the page keeps what it has until the View answers | `adapter.test.ts`, "a write whose View is behind"; `loop.test.ts` steps 3 to 5 |
-| A View frame older than the row arrives late | nothing changes: Remote drops a row of a lower revision | `ordering.test.ts`, "an observation older than one already shown" |
-| The reply is lost after the commit | the write fails `Unreachable` and the prediction is taken back, though the Event exists. The retry is the same operation and so the same `commandId`; Domain answers it from its record and does not decide again | `ordering.test.ts`, "a lost reply"; `http.test.ts` |
-| The same operation is sent again with other input | the adapter gives it another `commandId`, so Domain decides it. A lowered Aggregate remembers its last 256 operations and rejects this one `Reused`, which the page sees as a failed write with a message; a visitor, or someone the guard refuses, hears the guard instead | `lower/ledger.test.ts` |
-| The middleware refuses who asks | `RemoteUnauthenticated` or `RemoteForbidden`, as the layer's `denied` says | `adapter.test.ts`, "answers a middleware refusal" |
-| A reader may not see the row | it reads as absent, as a guarded SQL read of a hidden row does | `adapter.test.ts`, "reads a row validate hides as absent" |
-| The page reloads while a row is held to a receipt | the hold is in `Remote.Model`: a reload that restores the store restores it, and one that restores nothing holds nothing | the README's "Failure and recovery" |
+- **The Aggregate rejects the Command.** The prediction is taken back and the
+  stream gains no Event. `Data.refusal` gives the mutation's `Refusal`:
+  `Conflict`, `Unmet`, or `Invalid` with the invariant's id, message and path.
+- **The write was made at a revision the row has left.** `Conflict`, decided by
+  the `expect` inside `decide`, not by the stream's version.
+- **The Command committed and its View is behind.** The write is applied with
+  the reply's fields as the row. Remote holds the row to the receipt, a read at
+  it names the row `behind`, and the page keeps what it has until the View
+  answers.
+- **A View frame older than the row arrives late.** Nothing changes: Remote
+  drops a row of a lower revision.
+- **The reply is lost after the commit.** The write fails `Unreachable` and the
+  prediction is taken back, though the Event exists. The retry carries the
+  same operation, so the same `commandId`, and Domain answers it from its
+  record without deciding again.
+- **The same operation is sent again with other input.** The adapter gives it
+  another `commandId`, so Domain decides it. A lowered Aggregate remembers its
+  last 256 operations and rejects this one `Reused`, which the page sees as a
+  failed write. A visitor, or someone the guard refuses, hears the guard
+  instead.
+- **The middleware refuses who asks.** `RemoteUnauthenticated` or
+  `RemoteForbidden`, as the layer's `denied` says.
+- **A reader may not see the row.** It reads as absent, as a guarded SQL read
+  of a hidden row does.
+- **The page reloads while a row is held to a receipt.** The hold lives in
+  `Remote.Model`: a reload that restores the store restores it, and one that
+  restores nothing holds nothing.
 
 Two guarantees are narrower than they may look:
 
@@ -381,13 +405,16 @@ a delete), names its row by `id`, and keeps no write ledger.
 
 ## Testing it
 
-| What you want to know | Use | In the example |
-| --- | --- | --- |
-| The Aggregate records and rejects what it should | Domain's `Story` (`given`, `when`, `then`, `rejected`, `view`) and `Domain.verify` | `test/lower/story.test.ts` |
-| The declarations agree with each other | `Laws.check`, which reads only declarations | [Laws](laws.md) |
-| Two authorities decide a write alike | `Scenario` from `foldkit-remote/testing`, run on each | `test/scenario/scenario.test.ts`, `test/lower/parity.test.ts` |
-| The page behaves against the real model | `Fixture.make` from `foldkit-remote-domain/testing`: the model in memory, View deliveries held until you `drain` | `src/scenario/world.ts` |
-| The page's prediction matches what Domain answers | `Law.check` through the adapter | `packages/remote-domain/test/adapter/adapter.test.ts`, "the law over the write" |
+| What you want to know | Use |
+| --- | --- |
+| The Aggregate records and rejects what it should | Domain's `Story` (`given`, `when`, `then`) and `Domain.verify` |
+| The declarations agree with each other | `Laws.check`, which reads only declarations ([Laws](laws.md)) |
+| Two authorities decide a write alike | `Scenario` from `foldkit-remote/testing`, run on each |
+| The page behaves against the real model | `Fixture.make` from `foldkit-remote-domain/testing` |
+| The page's prediction matches what Domain answers | `Law.check` through the adapter |
+
+`Fixture.make` hosts the model in memory and holds View deliveries until you
+call `drain`, so a test can show the page a View that is behind.
 
 ## Limits
 

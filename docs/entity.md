@@ -1,74 +1,43 @@
 # One domain declaration
 
-A shop has products. Each has an owner, a stock, a state it is in, and
-reviews. In most applications that knowledge is written down several times:
-as tables and SQL on the server, as cache keys and optimistic updates on the
-page, as the fields and validation of a form, as the checks a handler makes
-before it writes. Each copy can drift from the others, and the page then shows
-something the server will not do.
+In most applications, facts about your data—such as products having an owner, stock limits, lifecycle states, and reviews—get duplicated in four places: SQL tables on the server, cache keys and optimistic updates in the browser, validation in forms, and pre-checks inside handlers. Every extra copy drifts over time until the UI permits an action or renders a list that the server rejects.
 
-Foldkit Plus writes it down once, as data, in a **domain module**: the
-Entities and how they relate, what every row must hold, the states a row
-passes through, who may change it, the writes that exist, and the questions a
-list asks. The module imports no database and no client. The server, the page,
-a form and a test each read the same declaration and add only what they alone
-know, so none of them can disagree with it.
+Foldkit Plus lets you write those facts once in a **domain module** using `foldkit-entity`, `foldkit-guard`, and `foldkit-remote`: Entities and relations, invariants, lifecycle states, guard rules, declared writes, and queries. The domain module stays free of database drivers and UI code, so the server, browser cache, forms, and tests all read one source of truth.
 
-If you know domain-driven design, this is its model, kept as values rather
-than classes: an Entity and its invariants, a declared write for a command, a
-guard for a policy, a query body for a read model, a binding for a repository.
-It is state-based, not event-sourced: the stored row is the fact. For a model
-whose facts are events, see [When not to use it](#when-not-to-use-it).
+This model is state-based—the stored row is the authoritative fact. If your server is event-sourced, see [When to use another approach](#when-to-use-another-approach).
 
-## Who owns what
+## Who owns what across the domain
 
-| Fact | Owner |
+| Responsibility | Owner |
 | --- | --- |
-| A Product has a name, an owner, a stock, many Reviews, a review count | `foldkit-entity` (`Entity.define`, `Entity.relate`, `Entity.derived`) |
-| Whether a name is valid | the Effect `Schema` of that field |
-| What every stored Product must hold, across fields or across a write | `foldkit-entity` (`Entity.invariant`) |
-| Which state a Product is in | `foldkit-entity` (`Entity.refine`) |
-| What an edit does to the row (sets, adds, must find) | a declared write (`Write`), declared by the operation |
-| Which Products a list holds, in which order | a query body (`Query`, `Expr`), declared by the application |
-| Who may read or write a Product | `foldkit-guard`, in the same `Expr` |
-| The stored row, and whether a write lands | the server: its database, through `foldkit-remote-drizzle` |
-| `owner` is the `owner_id` column; `name` is stored as `title` | `foldkit-remote-drizzle` (`bind`) |
-| The page's copy of a row, a pending write, a refusal | `foldkit-remote`, in the Model |
-| What the user is typing, and whether it is valid yet | `foldkit-form`, in the parent's Model |
-| Which id is open, which save is in flight | `foldkit-crud`, reading Remote |
+| Product fields, relations, derived counts | `foldkit-entity` (`define`, `relate`, `derived`) |
+| Single-field format rules | Effect `Schema` on the field |
+| Cross-field and transition invariants | `foldkit-entity` (`Entity.invariant`) |
+| Named lifecycle states | `foldkit-entity` (`Entity.refine`) |
+| Operation-level writes and preconditions | Declared `Write` (`Mutation.update` / `Write`) |
+| Filtered and sorted queries | `Query` and `Expr` declarations |
+| Read and write authorization rules | `foldkit-guard` using the same `Expr` |
+| SQL tables and column mappings | Server (`foldkit-remote-drizzle`'s `bind`) |
+| Browser row cache and optimistic layers | Client (`foldkit-remote` in `Model`) |
+| Form drafts and submit validation | `foldkit-form` in parent `Model` |
+| Editor open state and save status | `foldkit-crud` reading Remote |
 
-Two things the domain module does not do. It implies no operations: there is
-no generated CRUD, a list exists because someone declared a query, and a
-relation existing is not a licence to read a table. And it decides nothing at
-run time: the server's writer decides whether a write lands, and everything a
-page works out from the same declaration is a display or a hint until the
-server answers.
+Two boundaries keep the domain predictable:
 
-## The mental model
+- **Declarations stay explicit:** Adding an Entity or relation adds no automatic endpoints or CRUD lists; every query and write exists only where you declare it.
+- **The server writer decides:** Client evaluations and forms compute early hints and optimistic layers from the same rules, while the server's database statement makes the binding decision.
 
-```text
-                          domain module
-   Entity.define · relate · derived · invariant · refine · select
-   Write declarations · Query bodies · guard rules
-                (imports neither Remote nor Drizzle)
-          |                    |                     |
-          v                    v                     v
-   server                   page                  no I/O at all
-   bind(entities, tables)   Remote.make({ … })    Entity.judge(row)
-   source · query · writer  Data.query · mutate   Laws.check({ writes })
-   GuardServer.writer       Data.can              a form's controls
-   checkConstraints         Form.make · Crud
-          |                    |
-   decides, in one        shows, predicts, hints;
-   statement              replaced by the answer
-```
+## How one domain feeds the server, client, and checks
 
-Every rule and question in the module is written in one small language,
-`Expr`, which is what lets SQL, a server in memory and the page answer it
-alike. [Expressions](./expressions.md) teaches the language; this guide
-teaches what is declared with it.
+Every rule and query in the domain module uses the `Expr` language ([Expressions](./expressions.md)), so three independent consumers interpret the exact same declarations:
 
-## Sixty seconds: one rule, three readers
+1. **The server (`foldkit-remote-drizzle`):** Binds Entities to SQL tables (`bind`), compiles queries and guard rules to SQL (`query`, `source`), attaches `CHECK` constraints (`checkConstraints`), and executes declared writes (`writer`, `GuardServer.writer`).
+2. **The browser (`foldkit-remote`, `foldkit-form`, `foldkit-crud`):** Tracks cached rows, applies optimistic write layers, places rows in lists, computes `Data.can` hints, and validates form inputs against `Entity.input`.
+3. **Offline checks (`Entity.judge`, `Laws.check`):** Evaluates invariants against test rows and verifies declared writes against every rule without touching a database.
+
+## One rule, three readers
+
+This short example declares an `Item` entity with a stock invariant and a `Hold` write, then checks it with `Entity.judge` and `Laws.check`:
 
 ```ts
 import { Schema } from 'effect'
@@ -85,38 +54,28 @@ const Item = Entity.define(
   }),
 )
 
-// A write that sets one item's reservation, by its id.
 const Hold = Mutation.update('Hold', Item, { set: { reserved: Schema.Number } })
 
-// Reader 1: the reference judge, over a row you hand it.
+// Reader 1: pure reference judge over an in-memory row.
 Entity.judge(Item, { after: { id: 'i1', stock: 3, reserved: 5 } })._tag // 'Invalid'
 
-// Reader 2: a check of every declared write against every invariant.
+// Reader 2: static analysis of every declared write against every invariant.
 Laws.show(Laws.check({ writes: [Hold] }))
 // Hold   x reservedWithinStock   refused: Reserved stock cannot exceed the stock
 //     before   reserved: 0, stock: 0
 //     input    reserved: 1
 //     after    reserved: 1, stock: 0
-//
-// 1 entity, 0 states, 1 write, 1 rule: 1 pair, 0 kept, 1 refused, 0 undecided
 ```
 
-Neither call touches a database. `Entity.invariant` declared the rule and ran
-nothing; `Entity.judge` is one interpreter of it, and `Laws.check` another,
-which reads the write's declaration and reports that `Hold` can break the rule,
-with a row that shows it: it sets `reserved` to whatever it is given, so
-something must refuse it where it commits. That something is reader 3, the server's writer, which
-compiles the same invariant into the `UPDATE` that lands `Hold`. Nothing was
-written twice to get all three.
+Both `Entity.judge` and `Laws.check` run purely on declarations in memory. `Laws.check` immediately flags that `Hold` allows setting `reserved` past `stock`, meaning the third reader—the server writer—must enforce that invariant inside the SQL `UPDATE` where `Hold` commits. All three readers act on one rule written once.
 
-## One domain, layer by layer
+## Building one domain, layer by layer
 
-The rest of the guide carries one small domain from declaration to each
-reader. Every block continues the one above.
+The sections below walk a single catalog domain from Entity definition through server, client, and agent integration. Each snippet builds on the one above it.
 
 <!-- docs-check standalone -->
 
-### 1. What exists: Entities, relations, derived members
+### 1. Entities, relations, and derived members
 
 ```ts
 import { Schema } from 'effect'
@@ -142,38 +101,26 @@ const Catalog = Entity.relate(
 )
 ```
 
-A field's Schema is the rule for one value: a name is not empty, a status is
-one of two. A relation says "a Review has one Product", not "a foreign key";
-how it is stored is the binding's to say. Relations are declared in one step
-over Entities that already exist, because Entities point at each other and
-TypeScript cannot infer two constants each typed by the other.
+Field schemas enforce per-value constraints (`name` length, `status` enum). Declaring relations separately in `Entity.relate` lets mutually referencing Entities resolve cleanly without circular TypeScript inference, keeping storage column names out of the domain.
 
-### 2. What is always true: derived members, invariants, states
+### 2. Derived members, invariants, and lifecycle states
 
 ```ts
 const Guarded = Catalog.Product.pipe(
-  // Not stored, so it cannot disagree with the reviews: each reader computes it.
   Entity.derived({ reviewCount: Derived.count(Catalog.Review.relations.product) }),
-  // What every stored product holds, whoever writes it.
   Entity.invariant('reservedWithinStock', ({ after }) => Expr.lte(after.reserved, after.stock), {
     message: 'Reserved stock cannot exceed the stock',
     path: ['reserved'],
   }),
 )
 
-// The states a product passes through, each named once.
 const Draft = Entity.refine(Guarded, 'Draft', { status: 'draft' })
 const Published = Entity.refine(Guarded, 'Published', { status: 'published' })
 ```
 
-Reach for the cheapest declaration that can state a rule: a Schema for one
-value, a derived member for a value other rows decide, an invariant for what
-relates fields (`in: Published` binds one to a state's rows), a transition
-(`Entity.transition`) for what relates a row before and after, a state for a
-condition named in several places. [Laws](./laws.md) is the map from the question a rule answers
-to the declaration that holds it.
+Derived counts (`Derived.count`) are computed dynamically by readers so they stay consistent with reviews, invariants enforce multi-field rules, and `Entity.refine` names reusable states. See [Laws](./laws.md) for choosing the right declaration for each rule.
 
-### 3. Who may: a guard
+### 3. Authorization guards
 
 ```ts
 import { Guards } from 'foldkit-guard'
@@ -192,13 +139,9 @@ const Shop = Guards.declare(
 const Product = Guarded.pipe(Guards.attach(Shop, { row: { Read: [Shop.isOwner], Update: [Shop.isOwner] } }))
 ```
 
-Authority is not validity. An owner cannot skip an invariant, and a valid row
-grants no one anything, so the two are declared apart and refused apart
-(`Forbidden` against `Invalid`). `Guards.attach` returns the descriptor that
-carries the rules; a server binds that one. See
-[Auth and Guard](./auth-and-guard.md).
+Authority stays separate from row validity: an owner cannot violate an invariant, and a valid row grants no permission on its own. `Guards.attach` returns the guarded descriptor that servers bind; see [Auth and Guard](./auth-and-guard.md).
 
-### 4. What can happen: declared writes
+### 4. Declared writes
 
 ```ts
 import { Mutation, Query } from 'foldkit-remote'
@@ -212,14 +155,9 @@ const Publish = Mutation.update('Publish', Product, {
 const Reserve = Mutation.update('Reserve', Product, { set: { reserved: Schema.Number } })
 ```
 
-A write is declared by its operation, not by the Entity: a product having a
-`reserved` field grants no one the right to set it. `set` says what this
-operation may change, each field by its key with the schema the input holds
-it with (`Schema.Literal('published')` is narrower than the field, which is
-what lets `becomes` be proved), and `from` and `becomes` say which state the
-write starts in and leaves. The input is the product's `id` beside those
-fields. `Mutation.update` is one call for three layers, and each can be
-written out:
+Each write specifies the exact fields it updates (`set`) plus optional `from` and `becomes` lifecycle states. Narrowing `status` to `Schema.Literal('published')` lets `Laws.check` prove `becomes: Published` statically.
+
+When an input field name differs from the Entity field or carries extra parameters (such as an `increment` quantity), compose `Entity.input`, `Write.update`, and `Mutation.write` explicitly:
 
 ```ts
 const PublishLong = Mutation.write(
@@ -231,19 +169,9 @@ const PublishLong = Mutation.write(
 )
 ```
 
-`Entity.input` reads the input against the Entity (which key is which member;
-a form is built from it alone), `Write.update` says what the write does to the
-row (what `Laws.check` and each writer read), and `Mutation.write` names it
-for the wire, types its refusals and installs the page's prediction. Write
-them out when a key is named otherwise than its field or points a relation. A
-key about the operation alone, an amount, is the one call's `input`, which
-`increment`, `decrement` and `when` read (`Mutation.update('Restock', Product,
-{ input: { quantity: Schema.Int }, increment: { stock: 'quantity' } })`). Because the
-write is data, the server needs no handler for it and the page can show its
-result before the answer. [Declared writes](./declared-writes.md) covers
-preconditions, increments, retries and ledgers.
+Because writes are declarative data, the server needs no custom imperative handler and the browser can predict optimistic updates right away. See [Declared writes](./declared-writes.md) for preconditions, increments, retries, and ledgers.
 
-### 5. What is asked: a query and a Selection
+### 5. Queries and Selections
 
 ```ts
 const ForSale = Query.define('ForSale', { search: Schema.String }, ({ input }) =>
@@ -256,33 +184,22 @@ const ForSale = Query.define('ForSale', { search: Schema.String }, ({ input }) =
 const Card = Entity.select(Product, { name: true, stock: true, reviewCount: true })
 ```
 
-A query body says which rows and in which order; a Selection says which
-members a reader wants. Neither fetches. `ForSale` asks for products in the
-`Published` state, so the state is not spelled a second time.
+`ForSale` defines which rows match (reusing `Published`) and how they sort, while `Card` selects which fields to fetch. Printing `Body.show(ForSale.body)` displays the exact query structure:
 
-The query carries its body, so any reader can take it from there. Printed, it
-is the question in the language's own words:
-
-```ts
-Body.show(ForSale.body)
-```
-
-```text
+```output
 FROM Product
 WHERE Product.Published
   AND contains(Product.name, $search)
 ORDER BY Product.stock DESC
 ```
 
-That is the whole domain module: about sixty lines, no table and no fetch.
-
-### 6. Reader: a check, with no database
+### 6. Checking rules without a database
 
 ```ts
 Laws.show(Laws.check({ writes: [Publish, Reserve] }))
 ```
 
-```text
+```output
 Product
   Draft -> Published   Publish   holds
   Draft                          unreached
@@ -297,24 +214,11 @@ Reserve   x reservedWithinStock   refused: Reserved stock cannot exceed the stoc
 1 entity, 2 states, 2 writes, 1 rule: 2 pairs, 1 kept, 1 refused, 0 undecided
 ```
 
-`Laws.check` reads only declarations. It proves `Publish` takes every draft to
-published, and that `Publish` cannot break the stock rule because it writes
-nothing the rule reads. It refuses `Reserve`, which sets `reserved` to any
-number, and prints the smallest row and input it found that break the rule:
-that pair needs the writer to refuse it where it commits. Numbers are judged
-by their declared bounds (each Schema's checks, the write's `from` and `when`,
-and the invariants held before the write). A `when` that compares the input
-with `stock`, two unknowns, would make the pair undecided rather than refused,
-with what a solver would have to prove; intervals alone do not relate them. It also reports `Draft` as
-unreached: no declared write leaves a product a draft, since nothing here
-creates one. Keep the report beside the code, as
-[`examples/writes/LAWS.md`](../examples/writes/LAWS.md) does, and a new write
-shows up as a difference to read.
+`Laws.check` proves `Publish` transitions `Draft -> Published` safely and flags `Reserve` as needing runtime enforcement at commit time. It also notes that `Draft` is unreached because no declared insert write creates drafts yet. Teams often check this report into source control alongside their domain, as in [`examples/writes/LAWS.md`](../examples/writes/LAWS.md).
 
-### 7. Reader: the server
+### 7. Wiring the server
 
-The server adds the one thing the domain did not say, where each member is
-stored, and gets the rest from the declarations:
+The server maps Entity fields to Drizzle table columns and hands everything else to `source`, `query`, `GuardServer.writer`, and `checkConstraints`:
 
 ```ts
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
@@ -346,7 +250,6 @@ const Db = bind(
   {
     Product: {
       table: products,
-      // The domain calls it `name`; the column is `title`.
       fields: { name: products.title },
       visible: GuardDrizzle.visible(Policy, [Product]).Product,
     },
@@ -354,10 +257,7 @@ const Db = bind(
   },
 )
 
-// The invariant as CHECK constraints, for the table's DDL.
 const checks = checkConstraints(Db.Product).constraints.map(check => check.constraint)
-
-// Each write lands in one statement, on the revision its rules were decided over.
 const guarded = GuardServer.writer(Product, Policy, writer(Db.Product), { revision: 'revision' })
 
 const server = RemoteServer.make<Option.Option<typeof User.Type>, DrizzleDatabase>({
@@ -371,15 +271,11 @@ const server = RemoteServer.make<Option.Option<typeof User.Type>, DrizzleDatabas
 void [checks, server, Card]
 -->
 
-There is no handler for `Publish` and no SQL for `ForSale`. The writer turns a
-declared write into one `update … where`: the id, the revision the guard read,
-the state it starts from, and every invariant over the row it would leave.
-`query` compiles the body, the state included, into the list's `WHERE` and
-`ORDER BY`, under what the reader may see. `reviewCount` has no entry in the
-binding: a `Derived.count` says what it counts, and `bind` counts it on the
-pointing table. This is the only place a rule is *decided*.
+Notice `Db` requires no custom SQL for `ForSale`, no handler for `Publish`, and no mapping for `reviewCount` (which `bind` counts automatically from `Review`). This is where rules are enforced authoritatively.
 
-### 8. Reader: the page
+### 8. Wiring the browser
+
+The client creates a `Remote` instance over the exact same `Product`, `ForSale`, `Publish`, and `Reserve` declarations:
 
 ```ts
 import { Optic } from 'effect'
@@ -397,10 +293,8 @@ const Data = Remote.make({
 
 declare const model: typeof Model.Type
 
-// A read: a Projection of the Model, fetched because a screen shows it.
 const forSale = Data.query(ForSale, { search: '' }, { select: Card })
 
-// A hint, from what the page holds, with no I/O.
 const label = Can.match(Data.can(model, Publish, { id: 'p1', status: 'published' }), {
   Yes: () => 'Publish',
   No: ({ refusal }) => `Cannot publish: ${refusal._tag}`,
@@ -412,36 +306,17 @@ const label = Can.match(Data.can(model, Publish, { id: 'p1', status: 'published'
 void [forSale, label]
 -->
 
-Remote keeps the page's copy of each row in the application's Model and owns
-nothing else: the server's row is the fact, and refetching is recovery.
-Because the page read the same declarations, it can do three things without
-asking:
+Using those shared declarations, `Remote` keeps cached rows inside your `Model` and adds three capabilities automatically:
 
-- **Show a write before the answer.** `Data.mutate(Publish, input)` shows the
-  product as published while the request is out. The shown value is the stored
-  row plus the pending write, recomputed when read, and dropped when the
-  answer arrives.
-- **Place the row in lists.** `ForSale`'s body says a publish can bring a
-  product into the list and that `stock` orders it, so the page moves the row
-  where the body puts it, or, where it cannot tell (a field it does not hold),
-  leaves the list for the server to answer again.
-- **Hint.** `Data.can` answers `Yes`, `No` with the refusal the server would
-  give, or `Undecided`. A page that holds no row for `p1` answers `Undecided`;
-  it never guesses.
+- **Optimistic layers:** `Data.mutate` previews changes immediately and clears the overlay once the server settles.
+- **List placement:** `ForSale` moves optimistic items into or out of cached query results when every required field is held locally, deferring uncertain lists to the server.
+- **Pre-send hints:** `Data.can` returns `Yes`, `No`, or `Undecided` from cached rows without guessing when fields are absent.
 
-A form reads the same input struct the write was declared with
-(`Form.make('Reserve', Entity.input(Product, …))`), so its controls, its
-per-field validation and the invariant it marks under `reserved` come from the
-declarations above. [From declarations to the
-screen](./declared-data-to-ui.md) follows a change from here to a drawing.
+Forms also consume `Entity.input(Product, ...)` directly to generate controls, per-field rules, and invariant markers; see [From declarations to the screen](./declared-data-to-ui.md).
 
-### 9. Reader: an agent
+### 9. Wiring an AI agent
 
-An agent does not call a declared write. It sends one of the application's
-Messages, as a person's click does, and the Message's `update` starts the
-write. What the declarations add is the gate: `foldkit-guard/agent` answers a
-capability's `authorize` from the `may` the server sent with the row, which is
-the guard's verdict for that row and that principal.
+An agent exposes capabilities backed by your `Message` union, using `Guards.may` and `GuardAgent.authorize` to gate actions based on the permissions the server sent with each row:
 
 ```ts
 import { defineMessageUnion } from 'foldkit/message'
@@ -452,7 +327,6 @@ import { Surface } from 'foldkit-surface'
 const Message = defineMessageUnion({ RequestedPublish: { id: Schema.String } })
 const App = Surface.application({ Model, Message })
 
-// `Guards.may` adds the member a reader asks the server's verdict through.
 const Asked = Product.pipe(Guards.may)
 const Row = Entity.select(Asked, { name: true, may: true })
 
@@ -468,104 +342,50 @@ ShopAgent.expose(Message, {
 })
 ```
 
-`Row` selects `may`, which the server answers for each row it sends (its
-binding declares the member `supplied`, and `GuardServer.filter` fills it). A row the
-page has not read, or whose read failed, refuses: there is no answer to go on.
-This keeps an agent from attempting what the server would refuse; it is not
-the check. `Publish` is judged by the same guard where it commits, whoever
-sent the Message. [Agents](./agents.md) covers capabilities, and the
-[guard README](../packages/guard/README.md#agents) the `may` answer.
+If a row isn't loaded yet or its `may` flag forbids updates, the agent refuses early; the server still verifies guards on commit. See [Agents](./agents.md) and the [guard README](../packages/guard/README.md#agents).
 
-## When it goes wrong
+## How refusals map back to declarations
 
-The server's answer is final, and each refusal says which declaration made it:
-
-| What happened | The page sees | Declared by | Recovery |
+| Failure condition | Client sees | Origin | Recovery |
 | --- | --- | --- | --- |
-| The caller is not the owner | `Forbidden` | the guard | none: it is not theirs to do |
-| The product is not a draft | `Unmet` | the write's `from` or `when` | re-read; the row moved on |
-| The write `expect`s a revision, and the row has moved on | `Conflict` | the write's `expect` | re-read, then decide again |
-| The result would break a rule | `Invalid`, with the invariant's id, message and path | `Entity.invariant` | show `message` at `path`; change the input |
-| The value is malformed | a decode failure | the field's Schema | the form shows it before anything is sent |
+| Caller lacks permission | `Forbidden` | `foldkit-guard` | Unauthorized; keep hidden |
+| Row is in wrong state | `Unmet` | Write `from` or `when` | Re-read updated row |
+| Row revision changed | `Conflict` | Write `expect` | Re-read and retry |
+| Resulting row breaks invariant | `Invalid` + `message` / `path` | `Entity.invariant` | Show error at `path` |
+| Input fails schema validation | Field error | Field `Schema` | Fix input in form |
 
-Four cases need care:
+Four edge cases to expect:
 
-- **A prediction the server contradicts.** The page shows a `Reserve` of 4
-  over the stock of 10 it holds; another session has since sold down to 3,
-  and the server answers `Invalid`. The pending write is dropped, the row
-  shows what the server holds, and `Data.refusal` carries the refusal. A
-  prediction is never merged into the stored row, so there is nothing to
-  undo.
-- **A rule the page cannot judge.** `Reserve` on a product whose `stock` the
-  page never read: the page sends it, and the server refuses or accepts. A
-  hint that cannot decide refuses nothing.
-- **A rule across fields, in a form.** `reservedWithinStock` reads two fields,
-  so its failure belongs to neither field's own validation. On submit the
-  form shows the message beside the key the invariant's `path` names, as a
-  mark, and any edit clears the mark, since raising the stock may mend it.
-- **A rule the database cannot hold.** `checkConstraints` gives a `CHECK` for
-  an invariant over one row. An invariant that reads the row before the write
-  has none, so only the declared writer holds it, and raw SQL does not. The
-  writer reports this once as a `ServerOnlyRules` diagnostic.
+- **Stale client prediction:** If another user reduced stock before your `Reserve` arrived, the server returns `Invalid`, Remote discards the optimistic layer, and `Data.refusal` surfaces the reason.
+- **Missing fields on client:** When the client lacks `stock`, it sends `Reserve` directly and lets the server decide.
+- **Cross-field form invariants:** Form errors from multi-field invariants clear on any edit to the form, since editing another referenced field might satisfy the rule.
+- **Database `CHECK` limits:** State invariants compile to SQL `CHECK` constraints via `checkConstraints`, whereas transition invariants (`before` + `after`) are enforced only by the server writer (which logs `ServerOnlyRules` once at startup).
 
-How to prove the page and the server agree, instead of hoping: `Law.check`
-from `foldkit-remote/testing` sends one write through a page and through the
-server and compares what each said. [`examples/writes`](../examples/writes/README.md)
-runs it for every write of a domain like this one.
+Use `Law.check` from `foldkit-remote/testing` to verify automatically that client predictions match server execution; see [`examples/writes`](../examples/writes/README.md).
 
-## Five rules that keep the copies from coming back
+## Five rules that prevent drift
 
-- **Relations are declared in one step**, with `Entity.relate`, over Entities
-  that already exist.
-- **A Selection carries its schema and fetches nothing.** Remote compiles it
-  into the requirement graph it plans from; a test can decode against it
-  directly.
-- **A query body, a write and an invariant mean one thing everywhere.** The
-  server compiles them to SQL, and the page judges the rows it holds by the
-  same declaration, so what it shows before an answer is what the server will
-  say, or nothing.
-- **An invariant is the Entity's, a guard its descriptor's.** Relations,
-  derived members, `sets` and invariants are added to the Entity itself, so
-  any name of it (the one declared, the one a pipe returned) judges every
-  invariant. `Guards.attach` returns a descriptor that carries its rules; a
-  server binds that one, and a guard seam given another descriptor of a
-  guarded Entity throws by name.
-- **An operation's input is read against the Entity, not derived from it.**
-  `Entity.input` says what each key of the struct means (`authorId` is the
-  `author` relation). From that reading follow a form's controls, what an edit
-  screen loads (`Entity.selectFor`), and how a loaded value fills the form
-  (`Entity.valuesFor`).
+- **Declare relations together:** Pass all related Entities to one `Entity.relate` call.
+- **Keep Selections declarative:** Selections carry schemas and compile into Remote's requirement graph without fetching directly.
+- **Share predicates as values:** One `Expr` drives SQL compilation, in-memory `evaluate`, and browser `Judge`.
+- **Bind the guarded descriptor:** Add derived members and invariants to the Entity first, then pass the result of `Guards.attach` to your server binding so guard rules are enforced at startup.
+- **Map operation inputs via `Entity.input`:** Forms, `Entity.selectFor`, and `Entity.valuesFor` all derive from that mapping.
 
-## Where to go next
+## When to use another approach
 
-| You want | Read | Run |
+- **Small domains with no forms:** Remote's built-in `Entity.make` and `Entity.ref` require less ceremony and compose cleanly alongside `foldkit-entity` later.
+- **Offline multi-device merging:** Declared writes settle on one server; offline edits that merge across devices belong in [Replicated state](./replication.md) and [Editing server data through a journal](./editing-server-data.md).
+- **Event-sourced servers:** If your backend models commands and events with `@alchemy.run/domain`, [`foldkit-remote-domain`](../packages/remote-domain/README.md) bridges those same Remote declarations to your domain; see [`examples/writes-domain`](../examples/writes-domain/README.md).
+
+## Next
+
+| Topic | Guide | Example |
 | --- | --- | --- |
-| The language every rule and question is written in | [Expressions](./expressions.md) | `pnpm --filter foldkit-example-entity language` |
-| To decide where a rule goes, and check every write against every rule | [Laws](./laws.md) | [`examples/writes`](../examples/writes/README.md), its `LAWS.md` |
-| A write that holds where it commits: preconditions, increments, retries | [Declared writes](./declared-writes.md) | `pnpm --filter foldkit-example-writes demo` |
-| Who may read and change what | [Auth and Guard](./auth-and-guard.md) | |
-| To name a question once and reuse it | [Operators](./operators.md) | |
-| A change followed from the declaration to the drawing | [From declarations to the screen](./declared-data-to-ui.md) | |
-| Every declaration's API | the [`foldkit-entity` README](../packages/entity/README.md) | [`examples/entity`](../examples/entity/README.md): one domain read through SQLite, a form and a list |
-| The interpreters | [Remote](../packages/remote/README.md#entities-declared-with-foldkit-entity), [Drizzle `bind`](../packages/remote-drizzle/README.md#binding-a-foldkit-entity-domain), [`foldkit-form`](../packages/form/README.md), [`foldkit-crud`](../packages/crud/README.md) | |
-
-## When not to use it
-
-- **Two entities and no forms.** Remote's own `Entity.make` and `Entity.ref`
-  are less to learn and can share a domain with Entities declared here. Reach
-  for `foldkit-entity` when the same domain is about to be written down a
-  second time.
-- **Edits that must merge offline across devices.** A declared write is
-  decided once by the server. Client-authored operations that survive offline
-  and replay in a server's order belong to Sync; see [Replicated
-  state](./replication.md) and [Editing server data through a
-  journal](./editing-server-data.md).
-- **A model whose facts are events.** Here the row is the fact and a write
-  changes it in place. If your server is an event-sourced model built with
-  [Alchemy Domain](https://github.com/alchemy-run/alchemy) (`@alchemy.run/domain`: Commands,
-  Aggregates that decide, Events, Views), the page still reads and writes it
-  through Remote with the same declarations:
-  [`foldkit-remote-domain`](../packages/remote-domain/README.md) is that bridge, and
-  [`examples/writes-domain`](../examples/writes-domain/README.md) decides one declared
-  write by SQLite, in memory and by a Domain model, and compares the three.
-  It is experimental and tracks a beta of that library.
+| The `Expr` predicate language | [Expressions](./expressions.md) | [`examples/entity`](../examples/entity/README.md) |
+| Where rules live and `Laws.check` | [Laws](./laws.md) | [`examples/writes`](../examples/writes/README.md) |
+| Preconditions, increments, and ledgers | [Declared writes](./declared-writes.md) | [`examples/writes`](../examples/writes/README.md) |
+| Permissions and sessions | [Auth and Guard](./auth-and-guard.md) | [`examples/auth`](../examples/auth/README.md) |
+| Named reusable expressions | [Operators](./operators.md) | — |
+| Full `foldkit-entity` API | [`foldkit-entity` README](../packages/entity/README.md) | — |
+| Reading entities through Remote | [Remote](../packages/remote/README.md#entities-declared-with-foldkit-entity) | — |
+| Binding entities to SQL tables | [Drizzle `bind`](../packages/remote-drizzle/README.md#binding-a-foldkit-entity-domain) | — |

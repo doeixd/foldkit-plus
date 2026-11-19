@@ -1,16 +1,16 @@
 # Site and Foldkit's Router
 
-Foldkit already routes. Its Router turns a URL into a typed route value and a
-route value back into a URL, and its runtime turns link clicks and history
-moves into Messages. `foldkit-site` does not replace any of that: every node of
-a Site is a Foldkit Router, and the Site's parser is Foldkit's `oneOf` and
-`parseUrlWithFallback` over them. What the Site adds is everything an
-application with several screens used to write around the Router by hand.
+Once an application has more than a handful of screens, the router stops being
+the hard part. You still need breadcrumbs, a nav that highlights the current
+section, page titles, keyboard shortcuts, a sitemap, and a rule for when a link
+adds a Back step. Each of those gets written by hand around the router, and
+each drifts when a route moves.
 
-```text
-Foldkit Router      URL  <->  route value               (one address)
-foldkit-site        route value -> place in a tree      (every address, and what is around it)
-```
+Foldkit's Router answers one question: which route value is this URL, and which
+URL is this route value. `foldkit-site` keeps that Router and adds a tree on
+top. Every node of a Site is a Foldkit Router plus a title, a parent and a few
+annotations, so the questions about what surrounds a page are answered from the
+same place the address is.
 
 This page says where the line between them falls, what the Site does with
 each question it answers, and how it does it.
@@ -177,8 +177,8 @@ whole application.
 
 | Question | Foldkit Router | `foldkit-site` |
 | --- | --- | --- |
-| What route is this URL? | `parseUrlWithFallback(oneOf(...), NotFound)`, routers in the order you list | The same, built from the tree: `Site.parse(site, NotFound)`, nodes in tree order |
-| What URL is this route? | Call its router: `personRouter({ personId: 3 })` | `Site.target(PersonNode, { personId: 3 })` gives the route value and its URL together; `Site.hrefOf(site, route)` builds from any route value |
+| What route is this URL? | `parseUrlWithFallback(oneOf(...), NotFound)` | `Site.parse(site, NotFound)`, nodes in tree order |
+| What URL is this route? | Call its router: `personRouter({ personId: 3 })` | `Site.target(PersonNode, { personId: 3 })` or `Site.hrefOf(site, route)` |
 | Which page is around this one? | Not asked | `Site.chainOf`, `parentOf`, `ancestorsOf`, `sectionOf` |
 | What is it called? | Not asked | `Site.titleOf`, and `Site.metaOf` for the page's head |
 | Where does the nav point? Which keys go there? | Not asked | `Site.landing(site, section)`, `Site.shortcuts(site, toMessage)` |
@@ -227,11 +227,10 @@ and handles the URL-change Message before passing it on.
 
 On a **click**:
 
-```text
-UrlRequest.External                      -> load the page in full
-UrlRequest.Internal, the tree holds it   -> pushUrl or replaceUrl, per Site.historyOf
-UrlRequest.Internal, no node takes it    -> load the page in full
-```
+- `UrlRequest.External` loads the page in full.
+- `UrlRequest.Internal` that the tree holds becomes `pushUrl` or `replaceUrl`,
+  as `Site.historyOf` decides.
+- `UrlRequest.Internal` that no node takes loads the page in full.
 
 The last line is the difference from Foldkit's own split. Foldkit calls a link
 internal when it is on this origin. The Site calls it internal when this
