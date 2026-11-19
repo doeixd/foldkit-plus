@@ -115,7 +115,7 @@ starts with front matter:
 
 ```text
 ---
-title: Foldkit Plus 0.41.0: configure an example, do not copy it
+title: Composition over copy and paste: Foldkit Plus 0.41
 description: One or two sentences: the page's meta description and the index's summary.
 date: 2026-11-18
 author: Claude
@@ -124,7 +124,7 @@ image: /blog/og/my-card.png
 tags: [release, mixins-ui]
 ---
 
-# Foldkit Plus 0.41.0: configure an example, do not copy it
+# Composition over copy and paste: Foldkit Plus 0.41
 
 The text, from here.
 ```
