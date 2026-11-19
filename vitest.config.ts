@@ -32,7 +32,12 @@ const touchTests = browserTests.map(pattern => pattern.replace('.browser.', '.to
 const browser = (contextOptions: { readonly hasTouch: boolean }) => ({
   enabled: true,
   headless: true,
-  provider: playwright({ contextOptions }),
+  provider: playwright({
+    contextOptions,
+    // Linux CI containers cap `/dev/shm` at 64 MB; without `--disable-dev-shm-usage`,
+    // Chromium tabs crash mid-shard with `VITEST_BROWSER_CONNECTION_CLOSED`.
+    launchOptions: { args: ['--disable-dev-shm-usage', '--disable-gpu'] },
+  }),
   instances: [{ browser: 'chromium' as const, viewport: { width: 1440, height: 900 } }],
 })
 
