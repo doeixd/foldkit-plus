@@ -662,6 +662,8 @@ export const SiteStyle = slots(
       {
         marginInlineStart: t.space.xs,
         padding: `0.125rem ${t.space.sm}`,
+        // A finger's target on a phone; a line's height beside the words elsewhere.
+        minBlockSize: '2.75rem',
         borderRadius: t.radius.sm,
         border: rule,
         background: t.surface.base,
@@ -1010,6 +1012,15 @@ export const SiteStyle = slots(
       Style.nest('a:hover', { color: t.text.overt }),
       Style.nest('p', { margin: '0' }),
       Style.nest('nav', { display: 'flex', gap: t.space.md }),
+      // A finger's target on a phone.
+      Style.at(
+        `@media ${PHONE}`,
+        Style.nest('nav a', {
+          display: 'inline-flex',
+          alignItems: 'center',
+          minBlockSize: '2.75rem',
+        }),
+      ),
     ],
 
     // DOC PAGES

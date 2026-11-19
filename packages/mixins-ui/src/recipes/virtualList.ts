@@ -30,7 +30,7 @@ export const VirtualList = Style.recipeFor(VirtualListSlots)({
           overflow: 'hidden',
           border: `${ref.border.thin} solid ${ref.outline.subtle}`,
           borderRadius: ref.radius.md,
-          background: ref.surface.default,
+          background: ref.surface.subtle,
         }),
       ),
       overlaidChild,
