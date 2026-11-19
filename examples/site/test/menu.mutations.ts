@@ -67,13 +67,13 @@ export default [
   edit(
     'the rail body shows under the phone bar as well as in the menu',
     '../src/style.ts',
-    "      { display: 'flex', flexDirection: 'column', gap: t.space.lg },\n      Style.media(NARROW, { display: 'none' }),",
-    "      { display: 'flex', flexDirection: 'column', gap: t.space.lg },",
+    "      Style.nest('> [role=\"group\"]', { alignSelf: 'flex-start' }),\n      Style.media(NARROW, { display: 'none' }),",
+    "      Style.nest('> [role=\"group\"]', { alignSelf: 'flex-start' }),",
   ),
   edit(
     'the menu button shows at a desktop width',
     '../src/style.ts',
-    "      Style.media(NARROW, { display: 'inline-flex' }),\n      focus,",
-    "      { display: 'inline-flex' },\n      focus,",
+    "      Style.media(NARROW, { display: 'inline-flex' }),",
+    "      { display: 'inline-flex' },",
   ),
 ]

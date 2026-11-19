@@ -195,25 +195,70 @@ const quiet = (color: string, ...more: ReadonlyArray<Piece>) =>
 const mono = { fontFamily: t.font.mono, fontSize: '0.75rem', letterSpacing: '0.02em' }
 const rule = `${t.border.thin} solid ${t.outline.subtle}`
 
+/**
+ * A link of the site's navigation, one source for every list of them: the
+ * rail's places, a package's pages, the posts, "On this page", a family of
+ * primitives, the home page's sections. A start-edge bar marks it: clear at
+ * rest, a hairline's grey under the pointer, the text's own colour for the
+ * page or section the reader is in (`aria-current`, which the scrollspy sets
+ * as `location`). The phone menu makes the targets taller on top of it.
+ */
+export const navLink = (selector: string) =>
+  Style.compose(
+    Style.nest(selector, {
+      display: 'block',
+      padding: '0.3125rem 0 0.3125rem 0.75rem',
+      borderInlineStart: '2px solid transparent',
+      color: t.text.muted,
+      textDecoration: 'none',
+      fontSize: '0.875rem',
+      lineHeight: '1.35',
+    }),
+    Style.nest(`${selector}:hover`, {
+      color: t.text.overt,
+      borderInlineStartColor: t.outline.default,
+    }),
+    Style.nest(`${selector}[aria-current]`, {
+      color: t.text.overt,
+      fontWeight: t.weight.medium,
+      borderInlineStartColor: t.text.overt,
+    }),
+    Style.nest(`${selector}:focus-visible`, {
+      outline: `2px solid ${t.accent.default}`,
+      outlineOffset: '2px',
+      borderRadius: t.radius.sm,
+    }),
+  )
+
+/** The small-caps name above a list of links: "Guides", "Posts", "On this page". */
+export const navLabel = {
+  ...mono,
+  margin: `0 0 ${t.space.xs}`,
+  textTransform: 'uppercase',
+  color: t.text.subtle,
+  fontWeight: t.weight.normal,
+  letterSpacing: '0.08em',
+} as const
+
 /** Links in a rendered list: the current one marked by `aria-current`. */
 const navList = Style.compose(
   Style.nest('ul', { listStyle: 'none', margin: '0', padding: '0' }),
-  Style.nest('li a', {
-    display: 'block',
-    padding: `0.3125rem 0 0.3125rem 0.75rem`,
-    borderInlineStart: `${t.border.thin} solid ${t.outline.subtle}`,
-    color: t.text.muted,
-    textDecoration: 'none',
-    fontSize: '0.875rem',
-    lineHeight: '1.35',
+  navLink('li a'),
+)
+
+/** A button in a hairline outline: the one that opens the phone's menu, and the one that closes it. */
+const outlineButton = Style.compose(
+  Style.self({
+    font: 'inherit',
+    fontSize: '0.9375rem',
+    color: t.text.default,
+    background: 'transparent',
+    border: rule,
+    borderRadius: t.radius.md,
+    cursor: 'pointer',
   }),
-  Style.nest('li a:hover', { color: t.text.overt }),
-  Style.nest('li a[aria-current]', {
-    color: t.text.overt,
-    fontWeight: t.weight.medium,
-    borderInlineStartColor: t.text.overt,
-  }),
-  Style.nest('a:focus-visible', { outline: `2px solid ${t.accent.default}`, outlineOffset: '2px' }),
+  Style.pseudo(':hover', { background: t.surface.subtle, color: t.text.overt }),
+  focus,
 )
 
 const codeBox = {
@@ -285,27 +330,21 @@ export const SiteStyle = slots(
     },
     // The phone's bar holds it; it opens the menu, a Sheet (`MenuSheetStyle`).
     menuButton: Style.slot({ capability: Capability.Focusable }, [
+      outlineButton,
       {
         display: 'none',
         alignItems: 'center',
-        font: 'inherit',
-        fontSize: '0.9375rem',
-        color: t.text.default,
-        background: 'transparent',
-        border: rule,
-        borderRadius: t.radius.md,
         // A finger's target: 44px each way.
         minBlockSize: '2.75rem',
         minInlineSize: '2.75rem',
         padding: `0.25rem ${t.space.md}`,
-        cursor: 'pointer',
       },
       Style.media(NARROW, { display: 'inline-flex' }),
-      focus,
     ]),
     // What the rail holds below the brand; on a phone the menu holds it instead.
     railBody: [
       { display: 'flex', flexDirection: 'column', gap: t.space.lg },
+      Style.nest('> [role="group"]', { alignSelf: 'flex-start' }),
       Style.media(NARROW, { display: 'none' }),
     ],
     // The menu's head: its name, and the button that closes it.
@@ -321,6 +360,12 @@ export const SiteStyle = slots(
     // sidebar's and the nav's own rules for a link.
     menuBody: [
       { display: 'flex', flexDirection: 'column', gap: t.space.md, minInlineSize: '0' },
+      Style.nest('> [role="group"]', { alignSelf: 'flex-start' }),
+      // The theme control's options, as tall as the links.
+      Style.nest('&& [role="group"] button', {
+        minBlockSize: '2.75rem',
+        paddingInline: t.space.md,
+      }),
       Style.nest('&& a', {
         display: 'flex',
         alignItems: 'center',
@@ -356,73 +401,14 @@ export const SiteStyle = slots(
         outlineOffset: '-2px',
       }),
     ],
-    nav: [
-      { display: 'flex', flexDirection: 'column', gap: '0.125rem' },
-      Style.nest('a', {
-        color: t.text.muted,
-        textDecoration: 'none',
-        fontSize: '0.9375rem',
-        padding: '0.1875rem 0 0.1875rem 0.75rem',
-        borderInlineStart: '2px solid transparent',
-      }),
-      Style.nest('a:hover', { color: t.text.overt }),
-      Style.nest('a[aria-current="page"]', {
-        color: t.text.overt,
-        borderInlineStartColor: t.text.overt,
-      }),
-      Style.nest('a:focus-visible', {
-        outline: `2px solid ${t.accent.default}`,
-        outlineOffset: '2px',
-      }),
-    ],
+    nav: [{ display: 'flex', flexDirection: 'column' }, navLink('a')],
     railRule: { border: '0', borderBlockStart: rule, margin: '0' },
     railNote: [{ ...mono, color: t.text.subtle, margin: '0', lineHeight: '1.6' }],
-    // The page's light or dark: three buttons in one outline, the chosen one filled.
-    schemeChoice: [
-      {
-        display: 'flex',
-        alignSelf: 'flex-start',
-        border: rule,
-        borderRadius: t.radius.md,
-        overflow: 'hidden',
-      },
-      Style.nest('button', {
-        ...mono,
-        color: t.text.muted,
-        background: 'transparent',
-        border: '0',
-        padding: `0.25rem ${t.space.sm}`,
-        cursor: 'pointer',
-      }),
-      // In the phone's menu, where it stands: a finger's target.
-      Style.at(
-        `@media ${NARROW}`,
-        Style.nest('button', {
-          minBlockSize: '2.75rem',
-          paddingInline: t.space.md,
-          fontSize: '0.8125rem',
-        }),
-      ),
-      Style.nest('button[aria-pressed="true"]', {
-        color: t.text.overt,
-        background: t.surface.muted,
-      }),
-      Style.nest('button:focus-visible', {
-        outline: `2px solid ${t.accent.default}`,
-        outlineOffset: '-2px',
-      }),
-    ],
     // The home page's sections, numbered, in the mono voice.
     contents: [
       { listStyle: 'none', margin: '0', padding: '0', counterReset: 'section' },
-      Style.nest('a', {
-        ...mono,
-        display: 'block',
-        padding: '0.1875rem 0',
-        color: t.text.muted,
-        textDecoration: 'none',
-      }),
-      Style.nest('a:hover', { color: t.text.overt }),
+      navLink('a'),
+      Style.nest('a', { fontFamily: t.font.mono, fontSize: '0.75rem', letterSpacing: '0.02em' }),
       Style.nest('li', { counterIncrement: 'section' }),
       Style.nest('a::before', {
         content: 'counter(section, decimal-leading-zero) "  "',
@@ -433,14 +419,7 @@ export const SiteStyle = slots(
     // A subsite's Guides and API, rendered by the build.
     sidebar: [
       { display: 'flex', flexDirection: 'column', gap: t.space.lg },
-      Style.nest('h2', {
-        ...mono,
-        margin: `0 0 ${t.space.xs}`,
-        textTransform: 'uppercase',
-        color: t.text.subtle,
-        fontWeight: t.weight.normal,
-        letterSpacing: '0.08em',
-      }),
+      Style.nest('h2', navLabel),
       Style.nest('h3', {
         margin: `${t.space.md} 0 ${t.space['2xs']}`,
         fontSize: '0.8125rem',
@@ -1246,28 +1225,11 @@ export const SiteStyle = slots(
         overflowY: 'auto',
         fontSize: '0.8125rem',
       },
-      Style.nest('h2', {
-        margin: `0 0 ${t.space.sm}`,
-        fontSize: '0.8125rem',
-        fontWeight: t.weight.medium,
-        color: t.text.overt,
-      }),
-      Style.nest('ul', {
-        listStyle: 'none',
-        margin: '0',
-        padding: '0',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.375rem',
-      }),
-      Style.nest('a', { color: t.text.muted, textDecoration: 'none', lineHeight: '1.4' }),
-      Style.nest('a:hover', { color: t.text.overt }),
-      // The section the reader is in, marked by the scrollspy (`spy.ts`).
-      Style.nest('a[aria-current="location"]', {
-        color: t.text.overt,
-        fontWeight: t.weight.medium,
-      }),
-      Style.nest('.depth-3', { paddingInlineStart: t.space.sm }),
+      Style.nest('h2', { ...navLabel, margin: `0 0 ${t.space.sm}` }),
+      Style.nest('ul', { listStyle: 'none', margin: '0', padding: '0' }),
+      // The section the reader is in is marked by the scrollspy (`spy.ts`).
+      navLink('a'),
+      Style.nest('.depth-3 a', { paddingInlineStart: '1.5rem' }),
       Style.nest('p', { margin: `${t.space.md} 0 0`, color: t.text.subtle }),
       Style.media(NO_OUTLINE, { display: 'none' }),
     ],
@@ -1386,7 +1348,8 @@ export const SiteStyle = slots(
       },
       Style.pseudo(':hover:not(:disabled)', { color: t.text.overt }),
       Style.nest('&[aria-pressed="true"]', {
-        background: t.surface.muted,
+        // A tint of the ink, which reads on the page and on a raised panel alike.
+        background: `color-mix(in oklab, ${t.text.overt} 9%, transparent)`,
         color: t.text.overt,
         fontWeight: t.weight.medium,
       }),
@@ -1630,21 +1593,17 @@ export const MenuSheetStyle = Style.forSlots(DialogSlots)(
     base: {
       // It leaves as long as it came: the exit is the Sheet's slide on every other page.
       dialog: Style.self({ '--fk-motion-sheet-exit': t.motion.sheet }),
-      closeButton: Style.self({
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minBlockSize: '2.75rem',
-        minInlineSize: '2.75rem',
-        padding: `0 ${t.space.md}`,
-        font: 'inherit',
-        fontSize: '0.9375rem',
-        color: t.text.default,
-        background: 'transparent',
-        border: rule,
-        borderRadius: t.radius.md,
-        cursor: 'pointer',
-      }),
+      closeButton: Style.compose(
+        outlineButton,
+        Style.self({
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minBlockSize: '2.75rem',
+          minInlineSize: '2.75rem',
+          padding: `0 ${t.space.md}`,
+        }),
+      ),
     },
   })({ size: 'lg', handle: 'none', close: 'none' }),
 )

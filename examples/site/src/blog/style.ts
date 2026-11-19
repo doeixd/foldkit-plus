@@ -11,7 +11,7 @@ import { Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 
 import { NARROW } from '../breakpoints.js'
-import { slots, t } from '../style.js'
+import { navLabel, navLink, slots, t } from '../style.js'
 
 /** At and above this width the table of contents stands beside the column. */
 const BESIDE = '(min-width: 80rem)'
@@ -153,34 +153,10 @@ export const BlogStyle = slots({
       display: 'none',
     },
     Style.media(BESIDE, { display: 'block' }),
-    Style.nest('h2', {
-      ...mono,
-      margin: `0 0 ${t.space.sm}`,
-      textTransform: 'uppercase',
-      letterSpacing: '0.08em',
-      fontWeight: t.weight.normal,
-      color: t.text.subtle,
-    }),
+    Style.nest('h2', { ...navLabel, margin: `0 0 ${t.space.sm}` }),
     Style.nest('ol', { listStyle: 'none', margin: '0', padding: '0' }),
-    Style.nest('a', {
-      display: 'block',
-      padding: '0.3125rem 0 0.3125rem 0.75rem',
-      borderInlineStart: rule,
-      color: t.text.muted,
-      textDecoration: 'none',
-      lineHeight: '1.35',
-    }),
-    Style.nest('a:hover', { color: t.text.overt }),
-    // The section the reader is in, marked by the scrollspy (`spy.ts`).
-    Style.nest('a[aria-current="location"]', {
-      color: t.text.overt,
-      fontWeight: t.weight.medium,
-      borderInlineStartColor: t.text.overt,
-    }),
-    Style.nest('a:focus-visible', {
-      outline: `2px solid ${t.accent.default}`,
-      outlineOffset: '2px',
-    }),
+    // The section the reader is in is marked by the scrollspy (`spy.ts`).
+    navLink('a'),
   ],
   folded: [
     {

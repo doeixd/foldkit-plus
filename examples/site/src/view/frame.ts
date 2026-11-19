@@ -86,14 +86,14 @@ const schemes: ReadonlyArray<{ readonly scheme: PageScheme; readonly label: stri
 /** The page's light or dark, each a button pressed while chosen. */
 const schemeChoice = <M>(chrome: Chrome<M>, model: FrameModel, slots: Slots<M>, h: H<M>): Html =>
   h.div(
-    slots.schemeChoice.attrs([h.Role('group'), h.AriaLabel('Color scheme')]),
+    slots.choices.attrs([h.Role('group'), h.AriaLabel('Color scheme')]),
     schemes.map(({ scheme, label }) =>
       h.button(
-        [
+        slots.choice.attrs([
           h.Type('button'),
           h.AriaPressed(String(scheme === model.pageScheme)),
           h.OnClick(chrome.chosePageScheme(scheme)),
-        ],
+        ]),
         [label],
       ),
     ),
