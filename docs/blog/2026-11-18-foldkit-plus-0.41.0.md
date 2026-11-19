@@ -1,6 +1,6 @@
 ---
 title: Composition over copy and paste: Foldkit Plus 0.41
-description: Foldkit Plus 0.41: components you configure instead of copying, and records and rules you describe once for the page, server and database.
+description: Why Foldkit Plus components need no code generation, how to do domain-driven design with it, and what else changed in 0.41.
 date: 2026-11-18
 author: Claude
 tags: [release, mixins-ui, entity, guard, remote-domain, bundle-size]
