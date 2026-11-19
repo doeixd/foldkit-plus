@@ -141,8 +141,12 @@ file's name after its date with each `.` made a `-`.
   GitHub; when it is there it must be the title, and the page draws the title
   as its own `h1`. A `##` heading is a section of the table of contents.
 - `image` is the social card: a PNG under `public/`, written as the site serves
-  it. A post without one shares [`/blog/og/default.png`](public/blog/og/default.png),
-  made by `node scripts/social.mjs` from `assets/blog-card.svg`. The card's
+  it. A post without one shares its own card, `/blog/og/<slug>.png`, drawn from
+  its title and date by `pnpm --filter foldkit-example-site social` (Chrome,
+  and the site's Geist from Google Fonts); `test/blog.test.ts` fails when a post
+  has no card or its title changed since (`cards.json` holds the hashes). The
+  index shares [`/blog/og/default.png`](public/blog/og/default.png), made by
+  `node scripts/social.mjs --default` from `assets/blog-card.svg`. The card's
   pixels are read from the file for `og:image:width` and `og:image:height`;
   1200 by 630 is what link previews want.
 - A paragraph that holds only an image is a `<figure>`: its size is read from the

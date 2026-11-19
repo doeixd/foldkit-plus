@@ -356,6 +356,28 @@ export default [
     tests: browser,
   },
   {
+    name: 'a post never takes the card drawn for it, only the default',
+    edits: [
+      {
+        file: posts,
+        find: 'existsSync(join(repository, PUBLIC, own)) ? own : DEFAULT_CARD.path',
+        replace: 'DEFAULT_CARD.path',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a post with no card of its own is given one that is not there',
+    edits: [
+      {
+        file: posts,
+        find: 'existsSync(join(repository, PUBLIC, own)) ? own : DEFAULT_CARD.path',
+        replace: 'own',
+      },
+    ],
+    tests: unit,
+  },
+  {
     name: 'a contents drawn twice is read as two lists of sections',
     edits: [{ file: '../src/spy.ts', find: ' || ids.includes(idOf(link))', replace: '' }],
     tests: ['examples/site/test/spy.browser.test.ts'],

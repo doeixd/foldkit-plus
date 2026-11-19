@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
+import { hashOf } from '../src/blog/cardHash.js'
 import { imageSize } from '../src/blog/imageSize.js'
 import { DEFAULT_CARD, metaOf } from '../src/blog/meta.js'
 import { loadPosts, minutesToRead } from '../src/blog/posts.js'
@@ -126,10 +127,37 @@ describe('posts', () => {
     expect(posts.map(post => post.date)).toEqual([...posts.map(post => post.date)].sort().reverse())
     for (const post of posts)
       expect(post.image, post.file).toEqual({
-        path: DEFAULT_CARD.path,
+        path: `/blog/og/${post.slug}.png`,
         width: DEFAULT_CARD.width,
         height: DEFAULT_CARD.height,
       })
+  })
+
+  test('every real post has its own card, drawn from its current title and date', () => {
+    const hashes: Record<string, string> = JSON.parse(
+      readFileSync(join(REPOSITORY, 'examples/site/public/blog/og/cards.json'), 'utf8'),
+    )
+    for (const post of loadPosts(REPOSITORY)) {
+      const how = `${post.file}: run \`pnpm --filter foldkit-example-site social\` and commit examples/site/public/blog/og`
+      expect(post.image.path, `${how} (no card for ${post.slug})`).toBe(`/blog/og/${post.slug}.png`)
+      expect(hashes[post.slug], `${how} (its title or date changed since the card was drawn)`).toBe(
+        hashOf(post.title, post.date),
+      )
+    }
+  })
+
+  test('a post with a card of its own, by its slug, shares that and not the default', () => {
+    const [post] = loadPosts(
+      repositoryOf(
+        {
+          '2026-01-10-first.md': `${front({ ...base, title: 'First', date: '2026-01-10' })}
+Text.
+`,
+        },
+        { '/blog/og/first.png': png(1200, 630) },
+      ),
+    )
+    expect(post!.image.path).toBe('/blog/og/first.png')
   })
 
   test.each([

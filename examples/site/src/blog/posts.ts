@@ -72,6 +72,12 @@ const imageOf = (repository: string, file: string, path: string): Post['image'] 
   return { path, ...imageSize(file, readFileSync(disk)) }
 }
 
+/** The card `scripts/social.mjs` drew for a post, else the default one. */
+const cardOf = (repository: string, slug: string): string => {
+  const own = `/blog/og/${slug}.png`
+  return existsSync(join(repository, PUBLIC, own)) ? own : DEFAULT_CARD.path
+}
+
 const readPost = (repository: string, name: string): Post => {
   const file = `${POSTS_DIRECTORY}/${name}`
   const [, day, rest] = FILE.exec(name) ?? []
@@ -104,7 +110,7 @@ const readPost = (repository: string, name: string): Post => {
     modified: data.updated ?? data.date,
     author: data.author,
     tags: data.tags,
-    image: imageOf(repository, file, data.image ?? DEFAULT_CARD.path),
+    image: imageOf(repository, file, data.image ?? cardOf(repository, slug)),
     nodes,
     sections: nodes.flatMap(node =>
       node.type === 'heading' && node.depth === 2 ? [{ id: idOf(node), text: textOf(node) }] : [],
