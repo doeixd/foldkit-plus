@@ -1,29 +1,12 @@
 # foldkit-plus
 
- [![Ask DeepWiki about this project](https://deepwiki.com/badge.svg)](https://deepwiki.com/doeixd/foldkit-plus)
+An application starts clean, then its state splinters. A fetch hook caches server rows, a URL store holds the active filter, a sync layer grows its own reducer, and an agent handler re-implements transitions. Soon those copies disagree.
 
-> Packages that extend a [Foldkit](https://foldkit.dev/) application
-> outward — to agents, servers, other devices, the URL, and design systems —
-> without giving it a second place to keep state.
+[Foldkit](https://foldkit.dev/) keeps UI state in one state machine: one typed **Model** (your application state), a **Message** union (everything that can happen), and one pure **`update`** function that produces the next Model. **Foldkit Plus** extends that state machine to the rest of your app without adding a second store. Server data reconciles into the Model, offline edits replay through `update`, the URL mirrors Model fields, and agents only send Messages your application already handles.
 
-A Foldkit application is one state machine: a Schema-typed **Model**, a
-**Message** union naming everything that can happen, and one pure **`update`**
-function that turns a Message into the next Model and some Commands. That shape
-is easy to reason about, test, and replay. It gets lost the moment an app grows a
-cache in a hook, a store in the URL, a tool handler that re-implements a
-transition, or a sync layer with its own reducer.
+## Try the live demos
 
-Everything in this repository keeps the one state machine. An agent can only
-send Messages `update` already handles. Server data lives in the Model and is
-reconciled by `update`. Replicas replay the same Messages through the same
-`update`. The URL and local storage mirror a slice of the Model; they never own
-one. Views are styled from outside without forking. Each package answers one
-question, and they compose because they meet at explicit application boundaries.
-
-**The website:** [foldkit-plus.pages.dev](https://foldkit-plus.pages.dev/)
-has each package's guides and API reference, and the demos, each an example
-from this repository built as static files. Those with a server run it in your
-browser, shared by every tab, so nothing you do leaves it:
+See the packages running at [foldkit-plus.pages.dev](https://foldkit-plus.pages.dev/). Server-backed demos run their server inside your browser, shared across tabs, so nothing leaves your machine:
 
 <!-- demos -->
 - [A blog studio and its site](https://foldkit-cms-demo.pages.dev/) ([`examples/cms`](./examples/cms)): Drafts beside the row, revisions, scheduled publishing and a page builder, with the public site rendered at build time.
@@ -36,616 +19,85 @@ browser, shared by every tab, so nothing you do leaves it:
 - [Eight widgets from shared primitives](https://foldkit-widgets-demo.pages.dev/) ([`examples/widgets`](./examples/widgets)): Once the capabilities exist, a family of widgets gets cheap: each one is a Bundle placement plus Behaviors on a shared Collection description, with no bespoke state machine.
 <!-- /demos -->
 
-## Choose who owns the state
+## Which package do you need?
 
-| What you are adding | Authoritative owner | Extension |
+| What you want to do | Package | Guide |
 | --- | --- | --- |
-| Local UI state or a reusable widget | Parent Model and its update/child update | Bundle, Primitives |
-| Facts loaded from a server | Server; the client cache is disposable | Remote |
-| Offline edits that must converge | Client-authored operations in an authoritative journal order | Sync + Durable |
-| Offline edits to rows a server owns | The journal; the table is its read model | Sync (`/entity`, `/journal`) + Remote |
-| An interactive grid over the application's rows | The grid's Bundle for focus, selection and columns; the rows stay the application's | Data grid |
-| A URL or remembered preference | Local Model; the external value is a representation | Mirror |
-| Agent access or a customizable view | Existing state and transitions | Agent, Surface, Mixins |
+| Keep filters or drafts in the URL or storage | `foldkit-mirror` | [Mirrored state](./docs/mirror.md) |
+| Cache server data and mutate optimistically | `foldkit-remote` | [Server-derived state](./docs/remote.md) |
+| Sync offline edits across devices and tabs | `foldkit-sync`, `foldkit-durable` | [Replicated state](./docs/replication.md) |
+| Edit server rows offline through a journal | `foldkit-sync`, `foldkit-remote` | [Editing server data](./docs/editing-server-data.md) |
+| Let an AI agent use your app via MCP or A2A | `foldkit-agent` | [Agents](./docs/agents.md) |
+| Share one data schema across DB, cache, and forms | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
+| Enforce read and write permissions everywhere | `foldkit-guard` | [Guard README](./packages/guard/README.md) |
+| Build forms and CRUD screens from a schema | `foldkit-form`, `foldkit-crud` | [Form README](./packages/form/README.md) |
+| Use accessible, themed UI widgets | `foldkit-mixins-ui` | [Widget catalog](./packages/mixins-ui/README.md) |
+| Style or extend views without forking markup | `foldkit-mixins` | [View composition](./docs/mixins.md) |
+| Reuse a child state machine in many places | `foldkit-bundle` | [Bundle README](./packages/bundle/README.md) |
+| Render on the server and resume in the browser | `foldkit-ssr` | [SSR README](./packages/ssr/README.md) |
+| Edit rich text or a 100,000-row data grid | `foldkit-richtext`, `foldkit-data-grid` | [Rich text](./packages/richtext-dom/README.md) |
 
-A Surface can observe several owners. Observing a field does not grant a second
-package permission to change it outside its owning transition.
+For the rest of the catalog—including `foldkit-surface`, `foldkit-primitives`, `foldkit-cms`, `foldkit-media`, `foldkit-site`, `foldkit-host`, and `foldkit-react`—see [the documentation map](./docs/README.md).
 
-```text
-intent → Message → update → Model → Projection / Surface → consumer
-                      |
-                      └→ Command → result Message → update
-```
+## Keep a filter in the URL without a second store
 
-## Sixty seconds of code
-
-Start with one mechanism: an inspectable boundary around an existing Model.
-
-The fastest way to see how the packages compose is to watch several of them
-reuse one application declaration. Assume `Model`, `Message`, `initial`, and
-`update` are an ordinary Foldkit todo app you already wrote. Everything around
-them derives from the same state machine; none of it introduces a second
-reducer.
+To connect an extension without a second store, `foldkit-surface` wraps your `Model`, `Message`, and `update` so extensions can point at Model fields by name. Below, `foldkit-mirror` binds `filter` and `page` to the URL and reads query strings back into the Model:
 
 ```ts
 import { Schema } from 'effect'
-import { Agent } from 'foldkit-agent'
+import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import { Surface } from 'foldkit-surface'
 import { Mirror } from 'foldkit-mirror'
-import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
-import { SurfaceView } from 'foldkit-mixins-surface'
-import { MessageSet, Module, Projection, Surface } from 'foldkit-surface'
-import { DocumentId, Sync } from 'foldkit-sync'
 
-type Principal = { readonly role: 'owner' | 'guest' }
-const isOwner = (principal: Principal) => principal.role === 'owner'
-
-// 1. This is still the application: one Model, one Message union, one update.
-// Surface adds typed references and inspection metadata; it does not add runtime state.
-const App = Surface.application({ Model, Message, initial, update })
-
-// 2. A Surface is a public boundary for a feature: what it may observe and cause.
-// A renderer bound to Board can only construct these two Messages.
-const Board = App.surface('Board', {
-  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
-  messages: [Message.ToggledTodo, Message.DeletedTodo],
-})
-
-// A read-only Surface can be reused by something that only needs context.
-const Overview = App.surface('Overview', {
-  model: ({ model }) => ({ todos: model.todos, filter: model.filter }),
-})
-
-// 3. Mixins separate "where customization is allowed" from "what gets attached there."
-//
-// BoardSlots is the view's public customization contract. It renders nothing by
-// itself. It only names the places the view agrees other code may extend later:
-// `root` will be the outer <section>; `list` will be the <ul>.
-// Capabilities describe what kind of element lives at each point so incompatible
-// Styles or Behaviors can be rejected instead of silently doing the wrong thing.
-const BoardSlots = Slots.define({
-  root: Slot.make({ capability: Capability.Container }),
-  list: Slot.make({ capability: Capability.Collection }),
-})
-
-// Style is data written against that slot contract. Nothing is applied yet, and
-// BoardStyle cannot read or change application state. Because it is created with
-// `forSlots(BoardSlots)`, misspelling a slot or styling one Board never published
-// is a type error rather than a convention.
-const BoardStyle = Style.forSlots(BoardSlots)({
-  root: Style.class('todo-board'), // contribute a class to the `root` slot
-  list: Style.inline({ margin: '0', padding: '0', listStyle: 'none' }), // style `list`
-})
-
-// SurfaceView.define ties three boundaries together:
-//   Board      -> the projected Model this view receives and the Messages it may emit
-//   BoardSlots -> the places outside customization may attach
-//   render fn  -> the actual markup
-//
-// So `model` is not the whole application Model; it is Board's { todos, filter }.
-// And `h` is typed to the Messages Board declared above.
-export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h) =>
-  h.section(
-    // `.attrs()` is the handoff point between markup and Mixins. It resolves the
-    // view's own attributes plus every Style/Behavior attached to `root` into
-    // ordinary Foldkit attributes for this <section>.
-    slots.root.attrs(),
-    [
-      h.ul(
-        // Same idea here: this exact DOM position is the published `list` slot.
-        slots.list.attrs(),
-        model.todos.map(todo => h.li([], [todo.title])),
-      ),
-    ],
-  ),
-).pipe(
-  // Attach appearance from the outside. BoardView never imports CSS decisions into
-  // its markup, so styles can be swapped/composed without copying the component or
-  // adding a growing collection of styling props.
-  Style.attach(BoardStyle),
-)
-
-// Behavior can attach element-level interaction through those same slots. It may
-// contribute attributes, event handlers, or a Mount, but it still owns no Model;
-// application state and transitions remain Model / Message / update.
-
-// 4. Sync declares ownership of one writable slice and the facts that change it.
-// Projection.pick is writable because checkpoints must install back into Model;
-// replay still runs these Messages through the application's own update.
-const TodoSync = Sync.forApplication(App)
-  .withPrincipal<Principal>()
-  .make({
-    documentId: DocumentId.make('todos'),
-    shared: Projection.pick(App.model.todos),
-    durable: MessageSet.make(App, [
-      Message.SubmittedTodo,
-      Message.ToggledTodo,
-      Message.DeletedTodo,
-    ]),
-    authorize: {
-      // Policy lives on the contract and is enforced by the server journal.
-      DeletedTodo: ({ principal }) => isOwner(principal),
-    },
+const Filter = Schema.Literals(['all', 'active', 'done'])
+const Model = Schema.Struct({ filter: Filter, page: Schema.Number })
+const Message = defineMessageUnion({ ChangedFilter: { filter: Filter } })
+const initial = { filter: 'all', page: 1 } as const
+const update = (model: typeof Model.Type, message: typeof Message.Type) =>
+  Message.match(message, {
+    ChangedFilter: ({ filter }) => ({ model: modifyFields(model, { filter: () => filter }) }),
   })
 
-// The server gets codecs, empty snapshot, replay, and authorization from Sync.
-// There is no second server-side reducer to keep in agreement.
-TodoSync.journalContract()
+const App = Surface.application({ Model, Message, initial, update })
+const Filters = Mirror.url(App, { name: 'filters', fields: [App.model.filter, App.model.page] })
 
-// 5. First specialize the Agent API to this application and Principal type.
-// `forApplication(...).withPrincipal(...)` does NOT create an agent; it creates
-// a typed builder whose helpers know App's Model, Message union, and Principal.
-const AgentBuilder = Agent.forApplication(App).withPrincipal<Principal>()
-
-// `make` creates the concrete agent contract that MCP/WebMCP/A2A/etc. can serve:
-// what this agent sees, which existing Messages it may cause, and their policy.
-const AssistantAgent = AgentBuilder.make({
-  context: Overview,
-  messages: AgentBuilder.expose(Message, {
-    RequestedTodo: Agent.variant({
-      name: 'add_todo',
-      description: 'Add a todo with the given title',
-
-      // The protocol input can be smaller than the internal Message. The call's
-      // invocation id rides on the intent, and the Command copies it onto the fact.
-      input: Schema.Struct({ title: Schema.String }),
-      toMessage: ({ title }, { invocation }) => ({ title, requestId: invocation.id }),
-
-      // RequestedTodo is an intent. The tool call completes when update later
-      // applies the durable fact that carries this call's id: two calls adding
-      // "Milk" each finish on their own todo, which a title could not tell apart.
-      completion: {
-        success: Message.SubmittedTodo,
-        correlate: (_, result, { invocation }) => result.requestId === invocation.id,
-      },
-    }),
-    ToggledTodo: { name: 'toggle_todo', description: 'Toggle a todo' },
-    DeletedTodo: {
-      name: 'delete_todo',
-      description: 'Delete a todo (owner only)',
-      // Same rule, checked early at the agent boundary; the journal still owns trust.
-      authorize: ({ principal }) => isOwner(principal),
-    },
-  }),
-})
-
-// 6. Mirrors do not own state. They are secondary representations of Model fields.
-const Filters = Mirror.url(App, {
-  name: 'filters',
-  fields: [App.model.filter], // linkable: ?filter=active
-})
-const Prefs = Mirror.kv(App, {
-  key: 'todo/prefs',
-  fields: [App.model.draft], // remembered on this device
-})
-
-// 7. The architecture itself is data. Validate ownership/capability relationships,
-// or turn the same declarations into documentation and tooling input.
-const Project = Module.make(App, [
-  Board,
-  Overview,
-  TodoSync,
-  AssistantAgent,
-  Filters.contract,
-  Prefs.contract,
-])
-
-Module.validate(Project) // []
-Module.toMermaid(Project) // architecture generated from the declarations above
+const active = Filters.urlChanged(initial, '/todos?filter=active&page=2')
+const next = update(active, Message.ChangedFilter({ filter: 'done' })).model
+console.log(active)
+console.log(Filters.href(next))
+console.log(Filters.href(initial))
 ```
 
-The code is large because the point is composition, not because any one package
-requires all of it.
+What happened when this ran:
 
-1. **The application stays the center.** Model, Message, `update`, Commands,
-   Submodels, and Mounts still mean what they mean in Foldkit.
-2. **Surface makes boundaries explicit.** A Projection says what a consumer may
-   observe; a Message subset says what it may cause. Those declarations are data,
-   so other packages can reuse and inspect them.
-3. **Extensions reuse application semantics instead of copying them.** Agents
-   expose existing Messages, Sync replays them, Mirror represents Model fields
-   elsewhere, and Mixins extends views without owning state.
-4. **Ownership stays singular.** A URL mirror does not become a URL store; a
-   replica does not grow a second reducer; a Style does not become view state.
-5. **The architecture itself becomes inspectable.** `Module.validate` catches
-   conflicting ownership, and `Module.toMermaid` turns the declarations into
-   documentation or tooling input.
-
-State changes take exactly two paths, and they are not equal. Ordinary
-application transitions travel `Message → update`. Everything else, such as
-a Sync checkpoint, a Mirror restoration or a Remote cache write, installs an
-already-derived value through a structural seam (`ModelRef.set`/`modify`,
-`WritableProjection.set`). A setter is infrastructure, not a second update;
-see [Who changes application state, and how](./docs/state-model.md).
-
-The important part is what is **missing**: no agent reducer, sync reducer, URL
-store, persistence state machine, server copy of the shared schema, or forked
-component just to restyle it.
-
-`foldkit-remote` is deliberately not in this block. Remote is easiest to
-understand with an actual server-owned entity and query; see
-[the Remote example](./examples/remote/README.md) or the
-[`kitchen-sink`](./examples/kitchen-sink) for that path. For the running
-version of this app, follow [the todo app](./examples/todo-app/README.md).
-
-The sample above is typechecked in
-[`examples/todo-app/test/readme.test-d.ts`](./examples/todo-app/test/readme.test-d.ts),
-so the front page cannot quietly drift from the API.
-
-## Which package do I need?
-
-If a term below is new, the [glossary](./docs/glossary.md) defines each one
-in a line.
-
-| You want to… | Reach for | Read |
-| --- | --- | --- |
-| Let an LLM or another agent use the app, safely, over MCP, WebMCP, A2A, or Agent Native | `foldkit-agent` + one adapter | [Agents](./docs/agents.md) |
-| Cache server entities once, know what is missing, mutate optimistically, keep a write across a reload until the server has it, get live updates | `foldkit-remote` (+ `-server`, `-drizzle` on the server) | [Server-derived state](./docs/remote.md) |
-| Work offline, on several devices, or with other people, and converge | `foldkit-sync` on the client, `foldkit-durable` on the server | [Replicated state](./docs/replication.md) |
-| Edit rows a server owns offline, with the table kept as the journal's read model | `foldkit-sync/entity` and `foldkit-sync/journal`, over `foldkit-remote` | [Editing server data](./docs/editing-server-data.md) |
-| Keep the filter and page in the URL, remember a draft or a preference | `foldkit-mirror` | [Mirrored state](./docs/mirror.md) |
-| Declare where the application is: route nodes, typed targets, titles, history intent | `foldkit-site` (early) | [package README](./packages/site) |
-| Package a Submodel once and place it several times, or once per key, with every part wired | `foldkit-bundle` (+ `-surface` for Module ownership) | [package README](./packages/bundle) |
-| Reach for everyday browser and interaction primitives instead of hand-wiring them: media queries, timers, sockets, observers, clipboard, and arrow-key navigation, focus, press, drag, reorder, undo | `foldkit-primitives` | [package README](./packages/primitives) (a task map to each subpath) |
-| Draw responsive images (`srcset`, `sizes`, a source per format, a placeholder, the box held before the file arrives), make and keep their variants on a server or in a build, and import icons as data by name | `foldkit-media` (+ `Image` and `Icon.view` in `foldkit-mixins-ui`; early) | [package README](./packages/media) |
-| Restyle or add behaviour to views, including `@foldkit/ui`, without copying markup | `foldkit-mixins` (+ `-surface`) | [View composition](./docs/mixins.md), [package README](./packages/mixins) |
-| Use ready-made, themed, accessible widgets (menus, dialogs, tabs, tables, toolbars, search fields), or build one from the same Slots and primitives | `foldkit-mixins-ui` (+ `foldkit-primitives`) | [Widget catalog](./packages/mixins-ui), [UI architecture](./docs/ui-architecture.md) |
-| Use a React component in a Foldkit view, or embed a Foldkit program in a React app | `foldkit-react` | [package README](./packages/react) |
-| Compile Foldkit views to React TSX source | `foldkit-react-codegen` | [package README](./packages/react-codegen) |
-| Say what a feature observes and may cause, and check that nothing owns a field twice | `foldkit-surface` | [package README](./packages/surface) |
-| Declare a domain once (fields, relations, selections) for the client cache, the database binding, and forms to share | `foldkit-entity` | [One domain declaration](./docs/entity.md) |
-| Say once who may read and write what, and have every read, write, Sync edit and agent capability enforce it | `foldkit-guard` | [package README](./packages/guard) |
-| Decide where a rule about state goes (a Schema, an invariant, a state, a guard, a document's law), and check the writes keep it | `foldkit-entity` + `foldkit-guard` + `foldkit-sync` | [Laws](./docs/laws.md) |
-| Build a form from the input an operation accepts, with validation and a decoded value handed to the parent | `foldkit-form` (+ `foldkit-mixins-form` to draw it) | [package README](./packages/form) |
-| Join a form, a Remote mutation or query, and their Entity into an edit screen or a list | `foldkit-crud` (+ `foldkit-mixins-crud` to draw lists and details) | [package README](./packages/crud) |
-| Edit an interactive grid over rows the application owns: keyboard focus, ranges, typed editors, copy and paste, fill, 100,000 rows virtualized | `foldkit-data-grid` (+ `foldkit-mixins-data-grid` to draw it; experimental) | [package README](./packages/data-grid) |
-| Render on the server and hand the Model over, rather than rerunning `init`: resumable pages, forms without scripts | `foldkit-ssr` | [package README](./packages/ssr) |
-| One server `fetch` from parts: assets, the configured origin, routes in order, values built once per isolate, the page template, the same handler on Node | `foldkit-host` (early) | [package README](./packages/host) |
-| Give content drafts, revisions, a schedule, and a published/unpublished boundary, without a status column | `foldkit-cms` + `foldkit-cms-drizzle` (the editor's state and the server) | [package README](./packages/cms) |
-| Edit rich text: a semantic document in the Model, an editor on the page, Markdown in and out | `foldkit-richtext` + `foldkit-richtext-dom` (+ `-markdown`, `-code` or `-code-shiki` for highlighted code, and `foldkit-mixins-richtext` to draw the chrome) | [package README](./packages/richtext-dom) |
-| Store a page as Blocks in Regions, checked against a Catalog of what may exist | `foldkit-composition` (experimental) | [package README](./packages/composition) |
-| Edit such a page with a selection and undo, as one key of a form | `foldkit-builder` (+ `foldkit-mixins-builder` to draw it; experimental) | [package README](./packages/builder) |
-
-`foldkit-surface` is the shared semantic seam for Agent, Remote, Sync, Mirror,
-and the Surface/Mixins bridge. It is not a mandatory base class for the whole
-repository: `foldkit-durable`, core `foldkit-mixins`, and the protocol/UI
-adapters can stand on their own and meet Surface-backed packages at explicit
-boundaries.
-
-## How they fit together
-
-```mermaid
-flowchart TB
-  app["Foldkit application<br/>Model · Message · update · Commands"]
-  surface["foldkit-surface<br/>Projection · field refs · Message subsets · Module"]
-  agent["foldkit-agent"]
-  agentAdapters["foldkit-agent-webmcp · foldkit-agent-mcp<br/>foldkit-agent-a2a · foldkit-agent-native"]
-  remote["foldkit-remote<br/>normalized server cache"]
-  server["foldkit-remote-server"]
-  drizzle["foldkit-remote-drizzle"]
-  sync["foldkit-sync<br/>local replica"]
-  durable["foldkit-durable<br/>ordered server log"]
-  mirror["foldkit-mirror<br/>URL · KeyValueStore"]
-  bundle["foldkit-bundle<br/>Submodel placements"]
-  bundleSurface["foldkit-bundle-surface"]
-  primitives["foldkit-primitives<br/>ready-made bundles · entries · Mounts"]
-  mixins["foldkit-mixins<br/>typed view extension points"]
-  mixinsSurface["foldkit-mixins-surface"]
-  mixinsUi["foldkit-mixins-ui"]
-  entity["foldkit-entity<br/>the domain, declared once"]
-  guard["foldkit-guard<br/>who may do what · enforced on every seam"]
-  form["foldkit-form<br/>headless form from an operation's input"]
-  mixinsForm["foldkit-mixins-form"]
-  mixinsCrud["foldkit-mixins-crud"]
-  cms["foldkit-cms<br/>drafts beside the row · derived state"]
-  cmsDrizzle["foldkit-cms-drizzle<br/>audience boundary · drafts · publish"]
-  crud["foldkit-crud<br/>editor · list · detail · remover"]
-  metadata["foldkit-metadata<br/>opaque typed metadata"]
-  ssr["foldkit-ssr<br/>server render · Model handover · resume"]
-  richtext["foldkit-richtext<br/>semantic documents · transactions"]
-  richtextDom["foldkit-richtext-dom<br/>contenteditable adapter · editor Bundle"]
-  mixinsRichtext["foldkit-mixins-richtext<br/>toolbars · menus · handle · source mode"]
-  richtextMarkdown["foldkit-richtext-markdown<br/>Markdown in and out · source sessions"]
-  richtextCode["foldkit-richtext-code · -code-shiki<br/>code tokenizers · syntax decorations"]
-  react["foldkit-react<br/>React islands · Foldkit in React"]
-  reactCodegen["foldkit-react-codegen<br/>views compiled to React TSX"]
-  composition["foldkit-composition<br/>a page as Blocks in Regions · experimental"]
-  builder["foldkit-builder<br/>the page editor, as a form key · experimental"]
-  mixinsBuilder["foldkit-mixins-builder<br/>the page editor, drawn · experimental"]
-  dataGrid["foldkit-data-grid<br/>grid geometry · experimental"]
-  mixinsDataGrid["foldkit-mixins-data-grid<br/>the grid, drawn · experimental"]
-
-  app -- "describe observation / capability" --> surface
-  app --> mixins
-  app --> bundle --> bundleSurface
-  app --> primitives
-  app --> dataGrid
-  bundle --> dataGrid
-  dataGrid --> mixinsDataGrid
-  crud -- "rows from a list" --> dataGrid
-  sync -- "edits to server rows" --> remote
-  mixins --> mixinsDataGrid
-  bundle --> primitives
-  surface --> bundleSurface
-  surface --> agent --> agentAdapters
-  surface --> remote --> server
-  drizzle --> server
-  surface --> sync --> durable
-  surface --> mirror
-  surface --> mixinsSurface
-  mixins --> mixinsSurface
-  mixins --> mixinsUi
-  entity -- "read by" --> remote
-  entity -- "bound to tables" --> drizzle
-  entity --> form
-  entity --> guard
-  guard --> cmsDrizzle
-  bundle --> form
-  form --> mixinsForm
-  mixins --> mixinsForm
-  form --> crud
-  crud --> mixinsCrud
-  entity --> cms
-  form --> cms
-  crud --> cms
-  cms --> cmsDrizzle
-  drizzle --> cmsDrizzle
-  mixins --> mixinsCrud
-  remote --> crud
-  metadata --> surface
-  metadata --> entity
-  metadata --> composition
-  composition --> builder
-  bundle --> builder
-  form --> builder
-  primitives --> builder
-  builder --> mixinsBuilder
-  mixins --> mixinsBuilder
-  surface --> ssr
-  remote -- "resume part" --> ssr
-  app --> richtext --> richtextDom
-  richtext --> richtextMarkdown
-  richtext --> richtextCode
-  richtextMarkdown --> mixinsRichtext
-  bundle --> richtextDom
-  richtextDom --> mixinsRichtext
-  mixins --> mixinsRichtext
-  app --> react
-  app -- "views read as source" --> reactCodegen
+```text
+{ filter: 'active', page: 2 }
+/?filter=done&page=2
+/
 ```
 
-The arrows are integration boundaries, not new application state machines.
-Agent projects application capabilities. Remote reconciles server facts into the
-Model. Sync replays application Messages against an authoritative server order.
-Mirror keeps a secondary representation of Model fields. Mixins extends view
-structure without touching Model state. Primitives packages reusable
-browser and clock behaviour without hiding state. Entity declares a domain once
-as plain values; Remote, the Drizzle binding, and Form read it, and Crud joins a
-form to a Remote operation. Form and Crud own their submodel transitions inside the parent Model;
-Entity describes structure without holding runtime state. Durable can also be used independently
-as an ordered server journal.
-
-The rule that makes the whole graph composable is **one owner per datum**:
-
-| State | Owner | Package |
-| --- | --- | --- |
-| The route, the selection, a transient error | the local Model, plain `update` | — |
-| A reusable child machine's slice, placed once or per key | the parent Model | `foldkit-bundle` places |
-| A media query, timer reading, socket state, device list, or clipboard result | the parent Model | `foldkit-primitives` places |
-| A filter the URL shows, a draft a device remembers | the local Model | `foldkit-mirror` observes |
-| Facts owned by another system | the server | `foldkit-remote` caches |
-| Client-authored state that must survive offline and converge | the durable log | `foldkit-sync` + `foldkit-durable` |
-| An edit to a row the server owns, until the table has it | the journal; the table is its read model | `foldkit-sync/entity` lays it over Remote's row |
-| Which cell has focus, what is selected, how the columns stand | the grid's Bundle in the parent Model | `foldkit-data-grid` places |
-| What an agent may see and do | the application | `foldkit-agent` observes and exposes |
-| An image's file | its source (a bucket, the repository, another host); its variants are a cache | `foldkit-media` describes it and writes its URLs |
-
-That ownership rule is more important than the package boundaries. A single
-Surface may read across local state, Remote state, and Submodels because a Surface
-is an observation/capability boundary, not a second owner.
-
-## Try it
-
-Start with [`examples/todo-app`](./examples/todo-app). It is the browser version
-of the architecture above: local-first state, owner-only rules, WebMCP tools, a
-linkable filter, and view composition around one Foldkit application.
-
-For the broadest integration trace, use
-[`examples/kitchen-sink`](./examples/kitchen-sink). For one concept at a time:
-
-| Example | Shows |
-| --- | --- |
-| [`examples/todo`](./examples/todo) | Agent contracts and WebMCP |
-| [`examples/sync`](./examples/sync) | durable Messages, replicas, and server ordering |
-| [`examples/remote`](./examples/remote) | normalized server-owned state end to end |
-| [`examples/mixins`](./examples/mixins) | typed view extension points end to end |
-| [`examples/cloudflare`](./examples/cloudflare) | Remote over D1, Sync through a Durable Object, live by re-reading D1, and a Pages list of Entity, Form, and Crud |
-
-The application examples print transcripts with important lines pinned by tests.
-`pnpm demo` runs the root integration sequence; run the CMS demo separately. The [examples index](./examples/README.md) gives the recommended
-reading order.
+`Filters.urlChanged` reads the query string back into your Model (`{ filter: 'active', page: 2 }`). After `update` sets `filter` to `'done'`, `Filters.href(next)` builds `/?filter=done&page=2`, while `Filters.href(initial)` drops default values back to `/`. Your Model owns both fields and `update` remains the only place they change.
 
 ## Install
 
-Tell your coding agent to run:
+Run the setup command to check your `effect` and `foldkit` versions, print the install command for your package manager, and optionally install the coding-agent skill:
 
 ```bash
 npx --legacy-peer-deps foldkit-plus setup
 ```
 
-It reads your project and prints what to install with your package manager, the
-`effect` or `foldkit` version that needs changing, a `.gitattributes` that keeps
-LF line endings when the project has none, the agent skill, and which package
-does which job. By hand, `foldkit-plus` brings every package at once,
-each under a subpath named for it (`foldkit-plus/remote-server`). Foldkit takes
-Effect `~4.1.0` and these packages are tested on `4.1.0`, so pin every Effect
-package to it first, to keep one copy of each, as this repository's
-`pnpm-workspace.yaml` does (`setup` prints the fields for npm, Yarn and Bun too):
-
-```json
-{
-  "pnpm": {
-    "overrides": {
-      "effect": "4.1.0",
-      "@effect/platform-browser": "4.1.0",
-      "@effect/platform-node": "4.1.0",
-      "@effect/platform-node-shared": "4.1.0",
-      "@effect/sql-sqlite-node": "4.1.0"
-    },
-    "peerDependencyRules": {
-      "allowedVersions": { "effect": "4.1.0", "@effect/platform-browser": "4.1.0" }
-    }
-  }
-}
-```
+Or install the umbrella package directly with pnpm (every package is also published on its own):
 
 ```bash
-pnpm add --save-exact effect@4.1.0 foldkit@0.170.0 @effect/platform-browser@4.1.0 foldkit-plus
+pnpm add foldkit-plus
 ```
 
-Or install the pieces for the boundary you are adding; the packages are designed
-to be adopted independently.
+## Where to go next
 
-```bash
-# typed application boundaries
-pnpm add foldkit-surface
+- **Browse guides and API docs:** [foldkit-plus.pages.dev](https://foldkit-plus.pages.dev/)
+- **Explore the full documentation map:** [docs/README.md](./docs/README.md)
+- **Run focused code examples:** [examples/README.md](./examples/README.md)
+- **Install the coding-agent skill:** `npx skills add doeixd/foldkit-plus --skill foldkit-plus`
 
-# agent capabilities + one protocol adapter
-pnpm add foldkit-agent foldkit-agent-webmcp
-
-# normalized server-owned state
-pnpm add foldkit-surface foldkit-remote
-pnpm add foldkit-remote-server foldkit-remote-drizzle drizzle-orm # optional server compilation
-
-# local-first replicated state
-pnpm add foldkit-surface foldkit-sync foldkit-durable
-
-# URL / local key-value representations
-pnpm add foldkit-mirror
-
-# reusable Submodels placed with every part wired
-pnpm add foldkit-bundle foldkit-bundle-surface foldkit-surface
-
-# a domain declared once, forms from an operation's input, and edit screens
-pnpm add foldkit-entity foldkit-form foldkit-mixins-form
-pnpm add foldkit-guard # who may do what, declared on the domain and enforced on the server
-pnpm add foldkit-crud foldkit-remote # an editor, list, detail, and remover over Remote
-pnpm add foldkit-mixins-crud # draws a list as a table and a detail as a description list
-pnpm add foldkit-cms # content types, drafts beside the row, and a derived lifecycle
-pnpm add foldkit-cms-drizzle drizzle-orm # its server: the audience boundary, drafts, and a publish that is whole
-
-# an interactive data grid, and the accessible view that draws it
-pnpm add foldkit-data-grid foldkit-mixins-data-grid
-
-# rich text: the document, the editor on the page, Markdown and code
-pnpm add foldkit-richtext foldkit-richtext-dom foldkit-mixins-richtext
-pnpm add foldkit-richtext-markdown foldkit-richtext-code
-
-# server rendering that hands the Model over
-pnpm add foldkit-ssr
-
-# ready-made primitives: media, timers, sockets, observers, clipboard
-pnpm add foldkit-primitives
-
-# responsive images, their variants, and icons as data
-pnpm add foldkit-media
-
-# view extension points
-pnpm add foldkit-mixins foldkit-mixins-surface
-
-# ready-made widgets (its peers are the interaction primitives and Slots they compose)
-pnpm add foldkit-mixins-ui foldkit-mixins foldkit-primitives foldkit-media @foldkit/ui
-
-# React interop in either direction
-pnpm add foldkit-react react react-dom
-pnpm add -D foldkit-react-codegen # views to TSX source
-```
-
-Other agent adapters are `foldkit-agent-mcp`, `foldkit-agent-a2a`, and
-`foldkit-agent-native`; `foldkit-mixins-ui` adapts compatible `@foldkit/ui`
-components.
-
-`foldkit` and `effect` are peer dependencies. These packages ask for
-`effect@^4.1.0` and are tested on 4.1.0; Foldkit `0.170.0` itself asks for
-`effect@~4.1.0` and `@effect/platform-browser@~4.1.0`. Each `@effect/*` release
-peers on an `effect` at least its own version, so the overrides above hold the
-application at one copy of Effect. `foldkit-durable`'s Node entry
-requires Node 22 for `node:sqlite`; `foldkit-durable/core` runs on any SQLite
-client, a browser's included. `drizzle-orm` is a peer of the Drizzle
-packages, so the application's copy is the one they use. The [release matrix](./docs/releases.md)
-lists every package's current version.
-
-### Agent skill
-
-[`skills/foldkit-plus`](./skills/foldkit-plus/SKILL.md) is an
-[Agent Skill](https://agentskills.io) that teaches a coding agent what each
-package owns, when to reach for it, and a basic example of each. Install it into
-Claude Code, Cursor, OpenCode, and other agents with
-[skills.sh](https://skills.sh), which fetches the latest:
-
-```bash
-npx skills add doeixd/foldkit-plus --skill foldkit-plus
-```
-
-The skill and the guides also ship inside the `foldkit-plus` npm package, at the
-version of the code: `npx foldkit-plus skill` installs that copy into the project,
-and `npx foldkit-plus docs <query>` answers from them offline.
-
-## Go deeper
-
-The root README is the map. The guides teach the architecture and each package
-README documents its API.
-
-| Topic | Guide |
-| --- | --- |
-| Agent contracts and adapters | [Agents](./docs/agents.md) |
-| Server-owned normalized state | [Server-derived state](./docs/remote.md) |
-| A write's effects declared once, for the server and the optimistic client | [Declared writes](./docs/declared-writes.md) |
-| What fails where, and what recovers it | [Errors and failures](./docs/errors.md) |
-| One domain for the cache, the database, forms, and edit screens | [One domain declaration](./docs/entity.md) |
-| Local-first replication and the durable server log | [Replicated state](./docs/replication.md) |
-| URL and key-value mirrors | [Mirrored state](./docs/mirror.md) |
-| Inside-out view composition | [View composition](./docs/mixins.md) |
-| The layers every UI package shares: anatomy, patterns, behavior, recipe, theme | [UI architecture](./docs/ui-architecture.md) |
-| Running a Foldkit app over a replica | [Runtime binding](./docs/sync-runtime-binding.md) |
-| Design lineage and prior art | [Prior art and design lineage](./docs/prior-art.md) |
-
-The [0.7 release post](./docs/blog/2026-09-19-foldkit-plus-0.7.0.md) introduces Entity, Form, and Crud.
-The [documentation map](./docs/README.md) gives the full reading order, package
-references, design notes, and historical material. The
-[release matrix](./docs/releases.md) tracks published versions.
-
-## Status
-
-Foldkit Plus is `0.x`, built against a `0.x` Foldkit and Effect 4. APIs are still settling and minor releases may break. The
-[CHANGELOG](./CHANGELOG.md) records what changed and why.
-
-The repository is exercised as a system: package tests run in CI, README-facing
-examples are type-checked or pinned as deterministic transcripts, and `pnpm demo`
-runs the worked examples together.
-
-## Contributing and releasing
-
-```bash
-pnpm install
-pnpm format:check
-pnpm typecheck
-pnpm test
-pnpm demo
-```
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full development workflow and
-[AGENTS.md](./AGENTS.md) for repository working agreements and documentation
-standards. Release mechanics and the package/version matrix live in
-[docs/releases.md](./docs/releases.md).
-
-## License
-
-MIT. These are community packages, published unscoped as Foldkit itself is. They
-are not affiliated with or endorsed by the Foldkit maintainers, and the names are
-theirs for the asking.
-
-## References
-
-- Foldkit — <https://foldkit.dev/> · <https://github.com/foldkit/foldkit>
-- WebMCP — <https://github.com/webmachinelearning/webmcp>
-- Agent Native — <https://github.com/BuilderIO/agent-native>
+MIT license. These are community packages for [Foldkit](https://foldkit.dev/) and are not affiliated with or endorsed by the Foldkit maintainers.
