@@ -1,17 +1,19 @@
 ---
-title: Composition over copy and paste: Foldkit Plus 0.43
-description: Build interactive components, declare domain rules across your app, and check whether changes keep those rules.
+title: Compose the UI, prove the rules: Foldkit Plus 0.43
+description: Compose interactive components without copy-pasting state, declare domain and permission rules once, and check whether writes keep them.
 date: 2026-11-19
-author: Claude
-tags: [release, mixins-ui, entity, guard, remote-domain, bundle-size]
+author: Patrick Glenn
+tags: [release, mixins-ui, entity, laws, guard, remote-domain]
 ---
 
-# Composition over copy and paste: Foldkit Plus 0.43
+# Compose the UI, prove the rules: Foldkit Plus 0.43
 
-A searchable picker looks small until you build it. A person types a name,
-moves through matching results with the keyboard, and chooses one. Your app
-needs the selected person; the control also needs to track the typed text,
-the highlighted option, and whether the menu is open.
+A searchable picker looks small until you build it. Someone types part of a
+city name, moves through matching results with the keyboard, and chooses one.
+Your app needs the selected city; the control also has to track the typed text,
+the highlighted option, and whether the menu is open. Most UI kits force a
+trade-off: accept a black box you cannot customize, or copy hundreds of lines
+of component state into your own repository.
 
 [Try the combobox examples](https://foldkit-plus.pages.dev/components/combobox):
 search for a city, select several as chips, or explore the loading and empty
@@ -19,54 +21,49 @@ states. They are part of Foldkit Plus, a set of open-source packages for
 [Foldkit](https://foldkit.dev/), a TypeScript framework where a page's state
 lives in one object and changes through named events.
 
-This release also helps you check the rules behind an interface. A rule such
-as “an open account is never overdrawn” must hold for every change your app
-can make. Foldkit Plus 0.43 improves its checker so it can reason about more
-numeric rules and show an example when a change breaks one.
+This release also pushes the data side further: you can declare your records,
+invariants, writes, and permissions once, and check statically whether any
+write can break a rule. In Foldkit Plus 0.43, the checker reasons about numeric
+bounds and prints a concrete counterexample when a write slips past a rule.
 
-## A searchable picker without building the interaction
+## Compose a searchable picker instead of copying it
 
-Imagine assigning a person to an issue. The reader types part of a name,
-navigates the matches, and chooses someone. Your application owns the people
-and the selected assignee; the picker handles the interaction and reports
-the selection back to the application.
+In Foldkit Plus, a component is a small state machine (`Bundle`) that you mount
+inside your own application state. Your app owns the selected city; the
+combobox owns the typed text, open menu, and highlighted row, and emits a small
+output event when someone picks an option.
 
-The [basic combobox example](https://foldkit-plus.pages.dev/components/combobox)
-uses cities instead of people. Its application state stores the selected city
-alongside the combobox's own state, which tracks the typed text and highlighted
-option. The view connects the two; see the
-[complete example](https://github.com/doeixd/foldkit-plus/blob/v0.43.0/examples/site/src/examples/combobox/basic.ts)
-for the state and event handling around it.
-
-The important part of the view is small. Here `model.box` is the picker's
-state, and `model.city` is the application's selected city. The callback
-wraps interaction events in a message the application can handle. `style`
-is the chosen look and `h` is Foldkit's HTML builder; the complete example
-supplies both alongside the page's state and message handler:
+Here is the state wiring and view from the
+[basic combobox example](https://github.com/doeixd/foldkit-plus/blob/v0.43.0/examples/site/src/examples/combobox/basic.ts).
+`Bundle.withChild` mounts `Bundles.Combobox` at `model.box`, and `onOut` folds
+each pick into `model.city` with `City.picked`. `style` holds the chosen visual
+recipe and `h` is Foldkit's HTML builder:
 
 <!-- docs-check standalone
 import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Bundles, Recipes } from 'foldkit-mixins-ui'
 import type { HtmlBuilder } from 'foldkit/html'
-const fixtureCities = ['Kyiv', 'Lagos', 'Lima', 'Oslo', 'Osaka', 'Quito', 'Seoul', 'Zurich'] as const
-const fixtureCity = Combobox.one(fixtureCities)
-const App = Bundle.compose({ city: Schema.Option(Schema.Literals(fixtureCities)) }).pipe(
-  Bundle.withChild('box', Bundles.Combobox, {
-    args: { id: 'city', animated: true },
-    onOut: out => model => ({ model: { ...model, city: fixtureCity.picked(model.city, out) } }),
-  }),
-)
 declare const model: typeof App.Model.Type
 declare const onMessage: (message: typeof App.Message.Type) => typeof App.Message.Type
 declare const h: HtmlBuilder<typeof App.Message.Type>
 const style = Recipes.Combobox.style()
 -->
 ```ts
-import { Combobox } from 'foldkit-mixins-ui'
+import { Schema } from 'effect'
+import { Bundle } from 'foldkit-bundle'
+import { Bundles, Combobox } from 'foldkit-mixins-ui'
 
 const cities = ['Kyiv', 'Lagos', 'Lima', 'Oslo', 'Osaka', 'Quito', 'Seoul', 'Zurich'] as const
 const City = Combobox.one(cities)
+
+// Your app owns `city`; `Bundles.Combobox` owns the query, menu, and highlight.
+const App = Bundle.compose({ city: Schema.Option(Schema.Literals(cities)) }).pipe(
+  Bundle.withChild('box', Bundles.Combobox, {
+    args: { id: 'city', animated: true },
+    onOut: out => model => ({ model: { ...model, city: City.picked(model.city, out) } }),
+  }),
+)
 
 Combobox.view(
   {
@@ -78,57 +75,64 @@ Combobox.view(
     filter: Combobox.contains,
     placeholder: 'Find a city',
     style,
-    mixins: Combobox.fluid,
   },
   h,
 )
 ```
 
-The picker filters the cities as you type and reports a selection. The
-example's application handler uses `City.picked` to store that selection in
-`model.city`. An app can then use it to filter a list or submit a form.
+As someone types, the combobox filters `cities`, handles keyboard navigation,
+and sends its output through `onOut`, where `City.picked` updates `model.city`.
+Your app never reimplements menu focus or filtering, and it never loses
+ownership of its own state.
 
-The same component can select several values as chips, or display a loading
-message and an empty result. The application still owns fetching and loading
-state; the component displays what it is given. Another example adds an
-application rule that limits the selection to three, while keeping the
-picker's interaction. These examples are on the
-[combobox page](https://foldkit-plus.pages.dev/components/combobox), with
-their complete source. You can also change the component's look by targeting
-its named parts while retaining its interaction behavior.
+Because the app owns the value and the visual slots, variations compose without
+forking the component:
+
+- Select several values as chips (`Combobox.many`), or cap the selection at
+  three in `onOut` while keeping the same picker.
+- Show loading and empty states driven by your own fetch state.
+- Restyle any named part (input, listbox, option, chip) or attach pointer
+  hover highlights (`Combobox.fluid`) without touching the behavior.
+
+All of these run live, with full source, on the
+[combobox page](https://foldkit-plus.pages.dev/components/combobox).
 
 ## Building blocks for your own interface
 
-When a finished component is not the right fit, Foldkit Plus also offers
-smaller building blocks. Keyboard routes let behaviors share key handling;
-focus recovery can move focus to a useful place when the focused control is
-removed. Explore these and other examples in the
+When a finished component is not the right fit, Foldkit Plus ships smaller
+building blocks in `foldkit-primitives`. Keyboard routes let behaviors share
+key handling; focus recovery moves focus to a sensible control when the focused
+element is removed. Explore them live in the
 [Primitives gallery](https://foldkit-plus.pages.dev/primitives).
+
+![The Primitives gallery showing interactive keyboard, focus, motion, and device building blocks.](/blog/2026-11-18-foldkit-plus-0-41/primitives-gallery.png "Interactive building blocks in the Primitives gallery")
 
 ## Describe your records once
 
-Take one rule from a bank: "an open account is never overdrawn." In a typical
-web app it is written four times: as a SQL constraint, a check in the server handler,
-validation in the withdrawal form, and the condition disabling the Withdraw
-button. Four people write those at four times. Eventually the button lets you
-try what the server refuses, or the form rejects what the database would have
-taken.
+Take one rule from a bank: "an open account is never overdrawn." In most web
+apps, that rule gets written four times: a SQL `CHECK` constraint, a guard in
+the server handler, validation in the withdrawal form, and the condition
+disabling the Withdraw button. Four people write those at four times.
+Eventually the button lets someone submit what the server refuses, or the form
+rejects what the database would have accepted.
 
-Foldkit Plus lets you describe your records and rules once, as plain data
-with no database or network imports. The database adapter, the server, the
-form and the page all read that one description. The rest of this section
-walks through one bank account.
+Foldkit Plus lets you describe your records and rules once, as plain data with
+no database or network imports. The database adapter, the server, the form, and
+the browser all read that single description. Let's walk through one bank
+account.
 
 ### Records and rules
 
-`foldkit-entity` calls the description of one kind of record an *Entity*.
-Each field uses a *Schema* from Effect (the TypeScript library Foldkit builds
-on) to describe and validate its shape. A named condition on a record, such
-as "is open", is a *state* declared with `Entity.refine`. Rules are written
-with `Expr` as data, which the database, the server and the browser can each
-read, rather than as functions only one of them can run. An *invariant* is a
-rule every stored row must keep. A *transition* is a rule about how a row may
-change.
+`foldkit-entity` calls the description of one kind of record an *Entity*. Each
+field uses a *Schema* from [Effect](https://effect.website/) (the TypeScript
+library Foldkit builds on) to describe and validate its shape. A named
+condition on a record, such as "is open", is a *state* declared with
+`Entity.refine`.
+
+Rules are built with `Expr` as inspectable data rather than opaque functions,
+so SQL generators, servers, and browsers can each read them. An *invariant* is
+a rule every stored row must keep; a *transition* is a rule about how a row may
+change from `before` to `after`.
 
 ```ts standalone
 import { Schema } from 'effect'
@@ -168,43 +172,40 @@ Account.pipe(
 )
 ```
 
-`in: Open` scopes a rule to open accounts, so a closed account with a
-negative balance breaks nothing.
+`in: Open` scopes a rule to open accounts, so a closed account with a negative
+balance breaks nothing.
 
 ### One rule, every reader
 
 Because each rule is data, every layer reads it in its own terms. On the
 server, `foldkit-remote-drizzle` (our adapter for the Drizzle SQL toolkit)
-turns the two single-row invariants into SQL `CHECK` constraints. For
-SQLite, its `checkConstraints` function writes:
+turns the two single-row invariants into SQL `CHECK` constraints. For SQLite,
+its `checkConstraints` function emits:
 
 ```text
 constraint "accounts_neverOverdrawn" check (((not ("accounts"."status" = 'open') or "accounts"."balance" >= 0)) is true)
 constraint "accounts_withinDailyLimit" check (((not ("accounts"."status" = 'open') or "accounts"."withdrawn_today" <= 500)) is true)
 ```
 
-The transition compares the row before and after a write, which a `CHECK`
-cannot see, so the adapter reports it as held by the server alone. The same
-rules are checked in the statement that saves a row, in the form (each
-`message` shown beside its field), and in the browser before a request is
-sent. The Drizzle adapter's
-[page](https://foldkit-plus.pages.dev/remote/guides/remote-drizzle) shows how
-the constraints reach a migration.
+The transition compares the row before and after a write, which a SQL `CHECK`
+cannot see, so the adapter marks it as enforced by the server. Those same rules
+run in the statement that saves a row, in forms (showing each `message` beside
+its field), and in the browser before a request leaves the page. See the
+[Drizzle adapter guide](https://foldkit-plus.pages.dev/remote/guides/remote-drizzle)
+for how these constraints reach a migration.
 
 When a rule needs a record the browser does not hold, the browser answers
-*unknown* and leaves the decision to the server, so the page never shows a
-guess as an answer. Values
-computed from related records, such as counts, are declared as *derived
-values* rather than stored. The
+*unknown* and leaves the decision to the server, so the page never turns a
+guess into a false refusal. The
 [Expressions guide](https://foldkit-plus.pages.dev/entity/guides/expressions)
-teaches the whole language.
+covers the full expression language.
 
 ### States, and the writes between them
 
-A *declared write* describes a change the server accepts as data, instead of
-as a request handler, so client and server share one contract.
-`foldkit-remote`, our package for server data, declares writes with
-`Mutation`, each naming the state it starts from and the state it leaves:
+A *declared write* describes a change the server accepts as data instead of a
+hand-written request handler, so client and server share one contract.
+`foldkit-remote`, our package for server data, declares writes with `Mutation`,
+each naming the state it starts from and the state it leaves:
 
 ```ts
 import { Mutation } from 'foldkit-remote'
@@ -212,7 +213,7 @@ import { Mutation } from 'foldkit-remote'
 // An amount is never negative.
 const Amount = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))
 
-// Starts open and empty; the input is the account's `id` plus the fields in `set`.
+// Starts open and empty; literal fields fix the initial values on insert.
 const OpenAccount = Mutation.insert('OpenAccount', Account, {
   set: { ownerId: Schema.String, status: Schema.Literal('open'), balance: Schema.Literal(0), withdrawnToday: Schema.Literal(0) },
   becomes: Open,
@@ -241,19 +242,19 @@ const WithdrawMoney = Mutation.update('WithdrawMoney', Account, {
 })
 ```
 
-What you get with no handler to write: the server turns `CloseAccount` into
-one `UPDATE … WHERE` that checks the id, the starting state and the rules, so
-closing an already-closed account comes back as an `Unmet` refusal your page
-can show, not a generic error. And the page shows the write's result while
-the request is in flight, then settles on the server's answer.
+You write no route handler. The server compiles `CloseAccount` into one
+`UPDATE … WHERE` checking the id, the starting state, and every rule. Closing
+an already-closed account returns a structured `Unmet` refusal your page can
+display, not a generic 500. In the browser, the page renders the write's result
+optimistically while the request is in flight, then settles on the server's
+answer.
 
 ## Check your writes before they run
 
 Declaring rules does not prove that your writes keep them. `Laws.check` reads
-your declarations, with no database, and tells you which write can break
-which rule. Pass it `Operators.kernel`, the built-in arithmetic that
-`increment` and `decrement` use. Here is its report for the bank account
-above:
+your declarations, with no database, and tells you which write can break which
+rule. Pass it `Operators.kernel`, the built-in arithmetic used by `increment`
+and `decrement`. Here is its report for the bank account above:
 
 ```ts
 import { Laws, Operators } from 'foldkit-entity'
@@ -287,20 +288,21 @@ CloseAccount    x aClosedAccountStaysClosed   kept: 1 row enumerated
 1 entity, 2 states, 4 writes, 3 rules: 12 pairs, 10 kept, 1 refused, 1 undecided
 ```
 
-Each line under the states is a *pair*: one write against one rule (`x`
+Each line under the states is a *pair*: one write checked against one rule (`x`
 reads "against"). *Kept* means the write cannot break the rule, and
-"enumerated" means the checker tried every row the write could start from.
-Read it from the top. Closing moves every open account to `Closed`, and
-nothing leaves `Closed`, so it is *terminal*, which is an observation, not an
-error. A deposit cannot overdraw an account: the balance starts at zero or
-more and the amount is never negative, so their sum is zero or more. It
-cannot break the daily limit because it never touches `withdrawnToday`, and
-closing breaks neither number rule because both apply only to open accounts.
+"enumerated" means the checker tried every starting state the write allows.
 
-The `refused` line is a real bug in `WithdrawMoney` as written. It checks the
-balance, not the day's total, and the report shows the account that proves
-it: 500 already withdrawn today, a balance of 1, a withdrawal of 1, leaving
-501. One extra condition fixes it:
+Reading from the top: closing moves every open account to `Closed`, and nothing
+leaves `Closed` (making it *terminal*—an observation, not an error). A deposit
+cannot overdraw an account because the balance starts at zero or more and the
+amount is never negative, so their sum is zero or more. It cannot break the
+daily limit because it never touches `withdrawnToday`, and closing breaks
+neither number rule because both apply only to open accounts.
+
+The `refused` line catches a real bug in `WithdrawMoney`. It checked the
+balance, not the day's total, and the report prints the exact account that
+breaks it: 500 already withdrawn today, a balance of 1, a withdrawal of 1,
+leaving 501. One extra condition fixes it:
 
 ```diff
 -  when: ({ row, input }) => Expr.lte(input.amount, row.balance),
@@ -308,64 +310,100 @@ it: 500 already withdrawn today, a balance of 1, a withdrawal of 1, leaving
 +    Expr.and(Expr.lte(input.amount, row.balance), Expr.lte(Expr.add(row.withdrawnToday, input.amount), 500)),
 ```
 
-With that condition added, the refusal is gone. Two pairs stay *undecided*:
-each depends on comparing two numbers with each other, the amount with the
-balance, which the checker cannot settle. Cover those with a test.
+With that condition added, the refusal disappears. Two pairs stay *undecided*:
+each compares two variables against each other (`amount` against `balance`, and
+`withdrawnToday + amount` against `500`), which interval bounds alone cannot
+settle yet. Cover those with a test.
 
-Two tools in `foldkit-remote/testing` do that. `Scenario` writes a test case
-as data (the starting rows, who asks, the time, the write and the expected
-result) and runs it against every backend you give it. `Walk.run` drives
-random sequences of events through your app and checks your rules after
-every step. `npx foldkit-plus laws <module>` prints the report above from the
-command line.
+Two tools in `foldkit-remote/testing` fill that gap. `Scenario` writes a test
+case as data—starting rows, who asks, the clock, the write, and the expected
+outcome—and runs it against any backend you give it. `Walk.run` drives random
+sequences of events through your app and checks your rules after every step.
+You can also run `npx foldkit-plus laws <module>` from the command line or CI.
 
-The same rules reach the page. A `foldkit-remote` client's `Data.can` tells
-the UI whether a write would be refused, so the Withdraw button is disabled on
+The same rules reach the page. A `foldkit-remote` client's `Data.can` tells the
+UI whether a write would be refused, so the Withdraw button disables itself on
 a closed account before anyone clicks it. Documents shared across devices with
 `foldkit-sync` can declare rules of their own, checked after every edit. The
-[domain guide](https://foldkit-plus.pages.dev/entity/guides/domain) and the
+[domain guide](https://foldkit-plus.pages.dev/entity/guides/domain) and
 [Laws guide](https://foldkit-plus.pages.dev/entity/guides/laws) walk through
 the full workflow.
 
 ## Guard: who may read and change what
 
-Permissions often end up scattered across endpoints and components.
-`foldkit-guard` lets you declare who may read or change a record alongside
-your domain rules. The server enforces the rules; the interface can use
-permission information to decide which controls to show.
+Permissions usually end up scattered across route handlers, SQL `WHERE`
+clauses, and UI conditionals. `foldkit-guard` lets you declare who may read or
+change a record right beside your domain rules.
 
-Try [Chirp](https://foldkit-chirp-demo.pages.dev/) and switch users: admins
-can edit any post, while only the author can delete it. The
-[Guard guide](https://foldkit-plus.pages.dev/guard/guides/how-guard-works) explains how
-to declare and enforce those rules.
+Continuing the bank account example, you can declare that only an account's
+owner—or a bank admin—can read it, while only the owner can update it:
+
+```ts
+import { Guards } from 'foldkit-guard'
+
+const User = Schema.Struct({ id: Schema.String, role: Schema.Literals(['admin', 'customer']) })
+
+const AccountGuards = Guards.declare(
+  'Accounts',
+  User,
+  guard => ({
+    isAdmin: guard.principal(),
+    isOwner: guard.row(Account, user => Expr.eq(Account.fields.ownerId, user.id)),
+  }),
+  { key: user => user.id, unguarded: 'deny' },
+)
+
+export const GuardedAccount = Account.pipe(
+  Guards.attach(AccountGuards, {
+    row: { Read: [AccountGuards.isOwner, AccountGuards.isAdmin], Update: [AccountGuards.isOwner] },
+  }),
+)
+```
+
+For a customer, `isAdmin` resolves to false on the server and drops away, so
+`isOwner` compiles straight into `WHERE owner_id = ?`. For an admin, `isAdmin`
+resolves to true and the query reads every account. The same rules drive UI
+permission hints, so buttons only appear for actions the signed-in user can
+actually perform.
+
+Try [Chirp](https://foldkit-chirp-demo.pages.dev/) and switch users: admins can
+edit any post, while only the author can delete it. Read
+[How Guard works](https://foldkit-plus.pages.dev/guard/guides/how-guard-works)
+for the full mental model, including how guards compile into SQL and verify
+with `Laws`.
 
 ![Chirp signed in as Ada Lovelace: her own post shows both Edit and Delete buttons, while Grace Hopper's post below it shows Edit because Ada is an admin and no Delete.](/blog/2026-11-18-foldkit-plus-0-41/chirp-guard.png "Chirp shows different actions for posts by different authors")
 
 ## Putting an event-sourced server behind Remote
 
-Some teams record changes as events, such as “money deposited”, and build
-the records readers see from those events. The experimental
-`foldkit-remote-domain` adapter connects an
-[Alchemy Domain](https://github.com/alchemy-run/alchemy) server to Remote,
-so an application can use Remote's queries and writes with that backend.
+Some teams record changes as events, such as "money deposited", and project the
+records readers see from those events. The experimental `foldkit-remote-domain`
+adapter connects an [Alchemy Domain](https://github.com/alchemy-run/alchemy)
+server to Remote, so an application can use Remote's queries and writes over an
+event-sourced backend.
 
 The adapter targets a specific Alchemy beta and has been tested with its
-in-memory host and a local HTTP server. For its current limits and an
-example, see [An event-sourced domain behind Remote](https://foldkit-plus.pages.dev/remote/guides/event-sourced-domains).
+in-memory host and a local HTTP server. For its current limits and a working
+example, see
+[An event-sourced domain behind Remote](https://foldkit-plus.pages.dev/remote/guides/event-sourced-domains).
 
 ## Upgrading
 
-Coming from 0.40, most breaking changes are renames, so the TypeScript
-compiler lists every place to update; [Upgrading to 0.41](../upgrading-0.41.md)
-has a before and after for each. Four changes compile either way, so check
-them by eye: the default theme now casts shadows, rounds corners more and
-deepens the accent (the guide lists the settings that bring the old look
-back); a card group draws its pointer highlight only when you pass
-`fluid: Card.fluid`; an image cropper draws its zoom slider only when you pass
-`zoom: ImageCropper.zoomSlider()`; and a color picker's eyedropper is off
-unless you pass `eyedropper`.
+Coming from 0.40, most breaking changes are renames, so the TypeScript compiler
+lists every place to update;
+[Upgrading to 0.41](https://foldkit-plus.pages.dev/learn/guides/upgrading-0-41)
+has a before and after for each. Four changes compile either way, so check them
+by eye:
 
-Coming from 0.41 or 0.42, little changes: CodeBlock's `collapsed` option
+- **Default theme:** casts shadows, rounds corners more, and deepens the accent
+  (the upgrade guide lists the settings that restore the old look).
+- **Card group:** draws its pointer highlight only when you pass
+  `fluid: Card.fluid`.
+- **Image cropper:** draws its zoom slider only when you pass
+  `zoom: ImageCropper.zoomSlider()`.
+- **Color picker:** eyedropper is off unless you pass `eyedropper`.
+
+Coming from 0.41 or 0.42, little changes: `CodeBlock`'s `collapsed` option
 takes `{ lines, expanded, onToggle }`, and code that reads `Laws.check`'s
 report has new cases to handle. The
 [changelog](https://github.com/doeixd/foldkit-plus/blob/main/CHANGELOG.md)
@@ -373,54 +411,55 @@ lists every change.
 
 ## Also new
 
-- **FileUpload**, a file field supporting drop, pick and paste, per-file
-  refusals, previews and retries
+- **FileUpload:** a file field supporting drop, pick, and paste, with per-file
+  refusals, previews, and retries
   ([page](https://foldkit-plus.pages.dev/components/file-upload)).
-- **CodeBlock** marks added, removed and highlighted lines and folds long
+- **CodeBlock:** marks added, removed, and highlighted lines and folds long
   blocks behind a button
   ([page](https://foldkit-plus.pages.dev/components/code-block)).
-- **Page builder, rich text and data grid:** finger-sized drag handles, a
-  standard formatting toolbar with a "More" menu, and copying a grid
-  selection as an HTML table
+- **Page builder, rich text, and data grid:** finger-sized drag handles, a
+  standard formatting toolbar with a "More" menu, and copying a grid selection
+  as an HTML table
   ([builder](https://foldkit-plus.pages.dev/composition/guides/mixins-builder),
   [rich text](https://foldkit-plus.pages.dev/richtext),
   [grid](https://foldkit-plus.pages.dev/data-grid)).
-- **Selected text** takes the theme's accent colour.
-- **Website:** every component page is built from live example modules, and
-  the Primitives gallery shows the building blocks.
+- **Selected text** takes the theme's accent color.
+- **Website:** every component page is built from live example modules, and the
+  Primitives gallery shows the building blocks.
 - **Fixes:** pale tints painted pink in Chrome 157, an input mask scrambled
   typed digits, server data did not survive a development reload, scroll was
   not restored on reload, and two tabs could send the same write twice.
 
 ## See it, try it
 
+- [Quickstart](https://foldkit-plus.pages.dev/learn/guides/quickstart) — build
+  and run your first Foldkit Plus program in five minutes.
 - [The combobox page](https://foldkit-plus.pages.dev/components/combobox), and
   the [component pages](https://foldkit-plus.pages.dev/components) for the
   other ninety.
 - [The widgets demo](https://foldkit-widgets-demo.pages.dev/), a small
   application using many components together.
 - [Chirp](https://foldkit-chirp-demo.pages.dev/), for a declared domain,
-  writes and permissions in one running app.
+  writes, and permissions in one running app.
 - [The registry demo](https://foldkit-registry-demo.pages.dev/), for offline
-  edits across two devices: press *Go offline* on one, edit, then *Go
-  online*.
+  edits across two devices: press *Go offline* on one, edit, then *Go online*.
 
 ![The widget showcase in a dark scheme: a Toolbar with Bold, Italic, Strikethrough and Link, a Mute toggle, a left, center and right toggle group, an accordion with Billing, Team and API keys, and a Delete project button.](/blog/2026-11-18-foldkit-plus-0-41/widgets-dark.png "The widget demo in a dark scheme")
 
 Next we are giving dialogs and popovers the same one-call drawing other
 components have, and teaching the checker to settle rules that compare two
-numbers, like
-`amount <= balance`.
+variables, like `amount <= balance`.
 
-To try it, install `foldkit-mixins-ui` along with Foldkit, its unstyled
-`@foldkit/ui` components and Effect:
+To try the UI components, install `foldkit-mixins-ui` along with Foldkit, its
+unstyled `@foldkit/ui` components, and Effect:
 
 ```bash
 pnpm add foldkit foldkit-mixins foldkit-mixins-ui foldkit-primitives @foldkit/ui effect
 ```
 
-Then try the [combobox examples](https://foldkit-plus.pages.dev/components/combobox).
-For the data side, add the packages for records, server data and permissions:
+Then try the [combobox examples](https://foldkit-plus.pages.dev/components/combobox)
+or follow the [Quickstart](https://foldkit-plus.pages.dev/learn/guides/quickstart).
+For the data side, add the packages for records, server data, and permissions:
 
 ```bash
 pnpm add foldkit-entity foldkit-remote foldkit-guard
