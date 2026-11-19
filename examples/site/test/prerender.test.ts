@@ -7,7 +7,6 @@
  */
 import { schemeScript } from 'foldkit-mixins/theme'
 import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
-import { existsSync } from 'node:fs'
 import { availableParallelism, freemem } from 'node:os'
 import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
@@ -20,6 +19,7 @@ import { listed } from '../src/gallery/primitiveExamples.js'
 import { families } from '../src/gallery/primitives.js'
 import { showcases } from '../src/gallery/showcases.js'
 import { codeOf, defaults } from '../src/gallery/theme.js'
+import { brokenGithubLink } from './githubLinks.js'
 import type { Links, Share } from './prerendered.js'
 
 const repository = join(import.meta.dirname, '../../..')
@@ -925,14 +925,9 @@ describe('the generated site', () => {
             if (!emitted.has(target)) broken.push(`${path} -> ${href}`)
           } else if (anchor !== undefined && anchor !== '' && !to.ids.has(anchor))
             broken.push(`${path} -> ${href} (no #${anchor})`)
-          // A link pinned to a release tag (a post's) names the tree as it was, not as it is.
-        } else if (
-          href.startsWith(`${GITHUB}/blob/main/`) ||
-          href.startsWith(`${GITHUB}/tree/main/`)
-        ) {
-          const file = href.slice(`${GITHUB}/blob/main/`.length).split('#')[0]!
-          if (!existsSync(join(repository, decodeURIComponent(file))))
-            broken.push(`${path} -> ${href}`)
+        } else {
+          const why = brokenGithubLink(repository, href)
+          if (why !== undefined) broken.push(`${path} -> ${href} (${why})`)
         }
       }
     expect(broken).toEqual([])
