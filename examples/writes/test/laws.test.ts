@@ -5,6 +5,7 @@
  * write added to `domain.ts` changes that file, with no other edit, and this
  * test fails until the change is looked at (`vitest -u` writes it).
  */
+import { Option } from 'effect'
 import { Laws } from 'foldkit-entity'
 import { Graph } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
@@ -53,6 +54,14 @@ describe('the laws of the declared writes', () => {
         from: 'Published',
         to: 'Draft',
         invariant: 'publishedStaysPublished',
+        witness: {
+          before: Option.some({ status: 'published' }),
+          input: { status: 'draft' },
+          after: { status: 'draft' },
+          invariant: 'publishedStaysPublished',
+          message: 'A published product does not go back to draft',
+          path: ['status'],
+        },
       },
       { _tag: 'Undeclared', entity: 'Product', write: 'Revert', from: 'Archived', to: 'Draft' },
       { _tag: 'Enforced', entity: 'Product', write: 'Sell', to: 'InStock' },

@@ -3,6 +3,7 @@
  * turn: `pnpm mutate packages/entity/test/laws.mutations.ts`.
  */
 const laws = 'packages/entity/test/laws.test.ts'
+const account = 'packages/entity/test/lawsAccount.test.ts'
 const refine = 'packages/entity/test/refine.test.ts'
 
 export default [
@@ -11,8 +12,19 @@ export default [
     edits: [
       {
         file: '../src/laws.ts',
-        find: 'Undecided: ({ reason }) => LawVerdict.Undecided({ reason }),',
-        replace: "Undecided: () => LawVerdict.Kept({ by: 'enumeration', rows: 0 }),",
+        find: 'LawVerdict.Undecided({ reason, obligation: obligation(cases) }),',
+        replace: "kept('enumeration'),",
+      },
+    ],
+    tests: [laws, account],
+  },
+  {
+    name: "a path's relation left out of what a rule reads",
+    edits: [
+      {
+        file: '../src/laws.ts',
+        find: '      Path: ({ via }) => [via[0].key],',
+        replace: '      Path: () => [],',
       },
     ],
     tests: [laws],
@@ -54,8 +66,8 @@ export default [
     edits: [
       {
         file: '../src/laws.ts',
-        find: "Unknown: () => LawVerdict.Undecided({ reason: 'what it writes is unknown, so every member' }),",
-        replace: "Unknown: () => LawVerdict.Kept({ by: 'declared', rows: 0 }),",
+        find: "Unknown: () => undecided('what it writes is unknown, so every member'),",
+        replace: "Unknown: () => kept('declared'),",
       },
     ],
     tests: [laws],
@@ -152,8 +164,8 @@ export default [
     edits: [
       {
         file: '../src/laws.ts',
-        find: '[...invariantsOf(entity), ...ensured]',
-        replace: 'invariantsOf(entity)',
+        find: '[...invariants, ...ensured]',
+        replace: 'invariants',
       },
     ],
     tests: [laws],
@@ -205,8 +217,8 @@ export default [
     edits: [
       {
         file: '../src/laws.ts',
-        find: 'issuer.issue(Evidence.Enumerated({ transition: transition({ name }), law: law(held) })),',
-        replace: 'Evidence.Enumerated({ transition: transition({ name }), law: law(held) }),',
+        find: "issuer.issue(by === 'bounds' ? Evidence.Bounded(pair) : Evidence.Enumerated(pair)),",
+        replace: "by === 'bounds' ? Evidence.Bounded(pair) : Evidence.Enumerated(pair),",
       },
     ],
     tests: [laws],

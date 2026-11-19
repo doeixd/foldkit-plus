@@ -15,8 +15,11 @@ import { onFreePort } from '../../../scripts/free-port.mjs'
 let vite: ViteDevServer
 let browser: Browser
 let url: string
+let previousNoApi: string | undefined
 
 beforeAll(async () => {
+  previousNoApi = process.env['FOLDKIT_SITE_NO_API']
+  process.env['FOLDKIT_SITE_NO_API'] = '1'
   const serving = await config({ command: 'serve', mode: 'development', isPreview: false })
   vite = await createServer(
     mergeConfig(serving, {
@@ -28,10 +31,12 @@ beforeAll(async () => {
   )
   await onFreePort(() => vite.listen())
   url = vite.resolvedUrls!.local[0]!.replace(/\/$/, '')
-  browser = await chromium.launch()
+  browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] })
 }, 500_000)
 
 afterAll(async () => {
+  if (previousNoApi === undefined) delete process.env['FOLDKIT_SITE_NO_API']
+  else process.env['FOLDKIT_SITE_NO_API'] = previousNoApi
   await browser?.close()
   await vite?.close()
 })

@@ -6,11 +6,10 @@
  * package, @foldkit/ui and floating-ui into the page (#241).
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
-import { build as buildPackage } from 'tsdown'
+import { dirname, join, resolve } from 'node:path'
 import { build as buildPage } from 'vite'
 import { afterAll, expect, test } from 'vitest'
-import config from '../tsdown.config.js'
+import { builtUiEntry } from './builtPackage.js'
 
 const packageDir = resolve(import.meta.dirname, '..')
 // Inside the package, so the built files resolve its dependencies.
@@ -20,13 +19,14 @@ afterAll(() => rmSync(out, { recursive: true, force: true }))
 
 /** Every module a page bundle of `source` keeps, importing the built package as `ui`. */
 const keptBy = async (name: string, source: string): Promise<ReadonlyArray<string>> => {
+  const ui = await builtUiEntry()
   const entry = join(out, `${name}.ts`)
   writeFileSync(entry, source)
   const result = await buildPage({
     configFile: false,
     logLevel: 'silent',
     root: out,
-    resolve: { alias: { ui: join(out, 'dist/index.js') }, conditions: ['foldkit-plus:source'] },
+    resolve: { alias: { ui }, conditions: ['foldkit-plus:source'] },
     build: { write: false, minify: false, lib: { entry, formats: ['es'], fileName: name } },
   })
   const outputs = [result].flat().flatMap(built => ('output' in built ? built.output : []))
@@ -42,14 +42,6 @@ const keptBy = async (name: string, source: string): Promise<ReadonlyArray<strin
 const upstream = (id: string) => /\/@foldkit\/ui\/|\/@floating-ui\//.test(id)
 
 test('an Avatar and its recipe keep no other component', async () => {
-  await buildPackage({
-    ...config,
-    config: false,
-    cwd: packageDir,
-    outDir: join(out, 'dist'),
-    dts: false,
-    logLevel: 'silent',
-  })
   const [avatar, withPicture, everything] = await Promise.all([
     keptBy(
       'avatar',
@@ -63,8 +55,9 @@ export const avatar = [Avatar.view, Avatar.picture]`,
     ),
     keptBy('everything', `export * as UI from 'ui'`),
   ])
+  const distPrefix = `${dirname(await builtUiEntry()).replaceAll('\\', '/')}/`
   const ours = (kept: ReadonlyArray<string>) =>
-    kept.flatMap(id => (id.startsWith(`${out.replaceAll('\\', '/')}/dist/`) ? [id] : []))
+    kept.flatMap(id => (id.startsWith(distPrefix) ? [id] : []))
   expect(ours(avatar).some(id => id.endsWith('/dist/recipes/avatar.js'))).toBe(true)
   expect(ours(avatar).filter(id => /\/dist\/(recipes\/)?popover\.js$/.test(id))).toEqual([])
   expect(avatar.filter(upstream)).toEqual([])
@@ -78,14 +71,6 @@ export const avatar = [Avatar.view, Avatar.picture]`,
 }, 120_000)
 
 test('a Card or an Item page ships no pointer highlight, and a group that passes one does', async () => {
-  await buildPackage({
-    ...config,
-    config: false,
-    cwd: packageDir,
-    outDir: join(out, 'dist'),
-    dts: false,
-    logLevel: 'silent',
-  })
   const [card, item, group] = await Promise.all([
     keptBy(
       'card',
@@ -111,14 +96,6 @@ export const page = [Card.group, Card.fluid]`,
 }, 120_000)
 
 test('an Image page keeps the load watch and the audit only when it names them', async () => {
-  await buildPackage({
-    ...config,
-    config: false,
-    cwd: packageDir,
-    outDir: join(out, 'dist'),
-    dts: false,
-    logLevel: 'silent',
-  })
   const [plain, watching, auditing] = await Promise.all([
     keptBy(
       'imagePlain',
@@ -144,14 +121,6 @@ export const page = [Image.view, Image.audit]`,
 }, 120_000)
 
 test('a choice control page keeps the drag, the reading keys, the fluid pill and the options-level views only when it names them', async () => {
-  await buildPackage({
-    ...config,
-    config: false,
-    cwd: packageDir,
-    outDir: join(out, 'dist'),
-    dts: false,
-    logLevel: 'silent',
-  })
   const [adapters, viewed, dragged, keyed, fluid] = await Promise.all([
     keptBy(
       'choiceAdapters',

@@ -144,7 +144,7 @@ export default [
   edit(
     'every amount reads as an integer',
     entity,
-    'return Object.freeze({ key, field, integer })',
-    'return Object.freeze({ key, field, integer: true })',
+    'return Object.freeze({ key, field, integer, direction })',
+    'return Object.freeze({ key, field, integer: true, direction })',
   ),
 ]

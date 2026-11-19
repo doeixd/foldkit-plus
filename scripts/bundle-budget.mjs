@@ -31,7 +31,17 @@ const measureInChild = (dir, dump) => {
   }
 }
 
-export const clientBudget = ({ name, dir, ceiling, childProcess = false, absent = [] }) => {
+export const clientBudget = ({
+  name,
+  dir,
+  ceiling,
+  childProcess = false,
+  absent = [],
+  // Build twice to assert bit-identical output on main (and whenever opted in);
+  // on PRs, building every example twice costs ~30 redundant production Vite
+  // builds while `examples/cloudflare` keeps `determinism: true` on every PR.
+  determinism = process.env.GITHUB_REF === 'refs/heads/main',
+}) => {
   test(`the ${name} client loads at most the budgeted brotli JavaScript`, async () => {
     const dumps = mkdtempSync(join(tmpdir(), 'bundle-budget-dump-'))
     const [first, second] = [join(dumps, 'first'), join(dumps, 'second')]
@@ -40,14 +50,16 @@ export const clientBudget = ({ name, dir, ceiling, childProcess = false, absent 
     try {
       const report = await build(first)
       expect(report.total.chunks).toBeGreaterThan(0)
-      // One source, one reading: a random build id moved it by up to 0.2 kB (#490).
-      const again = await build(second)
-      expect(
-        again.total.brotli,
-        again.total.brotli === report.total.brotli
-          ? undefined
-          : explainDifference(report, again, first, second),
-      ).toBe(report.total.brotli)
+      if (determinism) {
+        // One source, one reading: a random build id moved it by up to 0.2 kB (#490).
+        const again = await build(second)
+        expect(
+          again.total.brotli,
+          again.total.brotli === report.total.brotli
+            ? undefined
+            : explainDifference(report, again, first, second),
+        ).toBe(report.total.brotli)
+      }
       record({
         kind: 'size',
         name: `${name} client JS, brotli`,

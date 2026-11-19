@@ -687,15 +687,19 @@ Never `Unaffected` where the declarations are silent; `explain`'s `reachedBy` li
 **Declared writes.** `Mutation.update('Rename', Product, { set: { name: Schema.String } })`
 (or `Mutation.insert`, with a client-minted id, or `Mutation.delete`) declares one in a call: its
 input is the Entity's `id` beside the fields `set` names by key (a key that is no field, the id, or a
-value the field does not store is a type error there), and `when`, `from`, `becomes`, `expect` and
-`compute` are the write's. It is the same value as the long form
-`Mutation.write(name, Write.update(Entity.input(Product, input), { id: 'id' }))`, which a write needs
-when an input key is named otherwise than its field, points a relation (`Relation.input`), or is
-unmapped (an `increment`'s amount); `Entity.input` alone is what a `Form` takes. Either is a
+value the field does not store is a type error there), and `when`, `from`, `becomes`, `expect`,
+`increment`, `decrement` and `compute` are the write's. An update's `input: { amount: Schema.Number }`
+holds keys about the operation alone (each `Entity.unmapped`), which `increment`, `decrement`,
+`compute` and `when` (`({ row, input }) => Expr.lte(input.amount, row.balance)`) read; a key in
+both `set` and `input`, or the id there, is refused at the key and where declared. It is the same
+value as the long form `Mutation.write(name, Write.update(Entity.input(Product, input, mapping),
+{ id: 'id' }))`, which a write needs when an input key is named otherwise than its field or points a
+relation (`Relation.input`); `Entity.input` alone is what a `Form` takes. Either is a
 mutation whose effect is data: `Data.mutate` derives its optimistic patch
 (`Write.bind`), and `options.keys` narrows it to the input keys an author
 changed and sends them with the request. A write may ask of its row (`when`, `expect`)
-and compute where it commits (`increment`, `compute`); Remote shows an increment as an
+and compute where it commits (`increment`, `decrement`, bound as the amount negated, and
+`compute`); Remote shows an increment as an
 amount added to whatever the store holds when it is read, and a computed field worked
 out by `Remote.make`'s `operators` over the row as read, so a live update meanwhile is
 added to or computed from, not hidden; without the operator it shows the stored value.

@@ -1,6 +1,6 @@
 {
   "name": "foldkit-metadata",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Opaque typed metadata for Foldkit Plus: each interpreter owns a key, its merge, and its summary.",
   "keywords": [
     "foldkit",

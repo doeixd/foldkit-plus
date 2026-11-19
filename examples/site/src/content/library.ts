@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { Option } from 'effect'
 
 import { compilerOptionsOf, extract, packageSource } from '../api/extract.js'
+import type { ApiPackage } from '../api/model.js'
 import { allSubsites, type Subsite } from '../catalog.js'
 import { README, topicsFor } from '../gallery/related.js'
 import { exampleFile } from '../gallery/showcase.js'
@@ -145,16 +146,25 @@ export interface ServerLibrary extends Library {
   readonly feed: (origin: string) => string
 }
 
-export const makeLibrary = async (repository: string): Promise<ServerLibrary> => {
-  const highlight = await highlighter()
-  const guides = guidePages(repository, allSubsites)
-  const packages = await extract(
+/** Extracts the public API of every package listed across the site's subsites. */
+export const extractSitePackages = (repository: string): Promise<ReadonlyArray<ApiPackage>> =>
+  extract(
     repository,
     allSubsites
       .flatMap(subsite => subsite.packages)
       .flatMap(dir => Option.toArray(packageSource(join(repository, 'packages', dir)))),
     compilerOptionsOf(repository),
   )
+
+export const makeLibrary = async (
+  repository: string,
+  extracted?: ReadonlyArray<ApiPackage>,
+): Promise<ServerLibrary> => {
+  const highlight = await highlighter()
+  const guides = guidePages(repository, allSubsites)
+  const packages =
+    extracted ??
+    (process.env['FOLDKIT_SITE_NO_API'] === '1' ? [] : await extractSitePackages(repository))
   const packagesOf = (subsite: Subsite) =>
     packages.filter(source => subsite.packages.includes(source.dir))
   // A package's name leads to the first page of its README's guides.

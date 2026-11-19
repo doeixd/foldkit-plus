@@ -68,7 +68,10 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // line above guessed). Since that reading the Worker gained the recipe `.style` method, the
 // `selection` tokens' text on accent fills, and `foldkit-ssr`'s wider `Meta`; not bisected.
 // Ceiling: CI's reading, rounded up.
-const CEILING = 3_268_000
+// +5,000 on 2026-11-19: 3,272,257 raw measured after `Expr.add`/`sub`/`implies`, `in:`,
+// `Entity.transition`, `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600) in
+// `foldkit-entity` and `foldkit-remote` (and their doc comments). Ceiling: reading, rounded up.
+const CEILING = 3_273_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

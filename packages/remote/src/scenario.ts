@@ -485,6 +485,7 @@ const fromReport = <Principal>(
       Undeclared: () => [],
       Enforced: () => [],
       Refused: () => [],
+      Unmeetable: () => [],
       Unreached: () => [],
       Terminal: () => [],
       Holds: finding => [
@@ -522,7 +523,8 @@ const fromReport = <Principal>(
       Kept: () => [],
       Undecided: () => [],
       Refused: ({ steps }) => {
-        if (pair.postcondition) return []
+        // A refusal found among the numbers enumerated no step: its witness is a row, not a state to start from.
+        if (pair.postcondition || steps.length === 0) return []
         const mutation = writeOf(pair.write)
         const label = `${pair.write} x ${pair.invariant}`
         for (const step of steps)

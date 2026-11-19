@@ -1,0 +1,103 @@
+/**
+ * `Expr.implies`, the kernel's arithmetic and the rules said with a state or
+ * as a transition, each broken in turn:
+ * `pnpm mutate packages/entity/test/arithmetic.mutations.ts`.
+ */
+const expr = '../src/expr.ts'
+const memory = '../src/memoryTable.ts'
+const sql = '../../remote-drizzle/src/operators.ts'
+const write = '../src/write.ts'
+const invariant = '../src/invariant.ts'
+const entityTests = [
+  'packages/entity/test/arithmetic.test.ts',
+  'packages/entity/test/rules.test.ts',
+]
+const sqlTests = [
+  'packages/remote-drizzle/test/conformance.test.ts',
+  'packages/remote-drizzle/test/operatorConformance.test.ts',
+]
+const edit = (
+  name: string,
+  file: string,
+  find: string,
+  replace: string,
+  tests: ReadonlyArray<string> = entityTests,
+) => ({ name, edits: [{ file, find, replace }], tests })
+
+export default [
+  edit(
+    'an implication drops the negation',
+    expr,
+    'Expr.or(Expr.not(condition), then) as',
+    'Expr.or(condition, then) as',
+  ),
+  edit(
+    'memory adds as it subtracts',
+    memory,
+    '(left as number) + (right as number)',
+    '(left as number) - (right as number)',
+  ),
+  edit(
+    'memory subtracts the first from the second',
+    memory,
+    '(left as number) - (right as number)',
+    '(right as number) - (left as number)',
+  ),
+  edit(
+    'SQL subtracts as it adds',
+    sql,
+    'sql`(${left} - ${right})`',
+    'sql`(${left} + ${right})`',
+    sqlTests,
+  ),
+  edit(
+    'SQL adds the first to itself',
+    sql,
+    'sql`(${left} + ${right})`',
+    'sql`(${left} + ${left})`',
+    sqlTests,
+  ),
+  edit(
+    'a sum prints as a call',
+    expr,
+    'const infix = arithmeticSymbols.get(node.operator)',
+    'const infix = undefined as string | undefined',
+  ),
+  edit(
+    'a difference of integers is no integer',
+    write,
+    '(operator === Expr.add.descriptor || operator === Expr.sub.descriptor) &&',
+    'false &&',
+  ),
+  edit(
+    'a sum of anything is an integer',
+    write,
+    'args.every(arg => !isPredicate(arg) && comesToInteger(arg))',
+    'true',
+  ),
+  edit(
+    'a state binds nothing',
+    invariant,
+    'if (state === undefined) return predicate',
+    'return predicate',
+  ),
+  edit(
+    'a state of another Entity is taken',
+    invariant,
+    'if (state.entity.identity !== entity.identity)',
+    'if (false)',
+  ),
+  edit('a state reaching another row is taken', invariant, 'if (!state.local)', 'if (false)'),
+  edit(
+    'a transition need not read the row before',
+    invariant,
+    "if (step === 'transition' && beforeReads.length === 0) {",
+    'if (false) {',
+  ),
+  edit(
+    'the guard is left out of what a rule reads after',
+    invariant,
+    'const afterReads = dependenciesOf(predicate).next.map(field => field.key)',
+    'const afterReads = dependencies.next.map(field => field.key)',
+  ),
+]

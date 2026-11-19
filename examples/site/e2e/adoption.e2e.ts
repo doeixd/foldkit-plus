@@ -31,9 +31,13 @@ let server: PreviewServer
 let browser: Browser
 let url: string
 
+let previousOnly: string | undefined
+
 beforeAll(async () => {
   out = mkdtempSync(join(tmpdir(), 'site-adoption-'))
   process.env['FOLDKIT_BUILD_ID'] = 'adoption'
+  previousOnly = process.env['FOLDKIT_SITE_ONLY']
+  process.env['FOLDKIT_SITE_ONLY'] = [...new Set([...PAGES, '/components/switch'])].join(',')
   const building = await config({ command: 'build', mode: 'production', isPreview: false })
   await build(
     mergeConfig(building, { root, configFile: false, logLevel: 'error', build: { outDir: out } }),
@@ -49,10 +53,12 @@ beforeAll(async () => {
     }),
   )
   url = server.resolvedUrls!.local[0]!.replace(/\/$/, '')
-  browser = await chromium.launch()
+  browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] })
 }, 900_000)
 
 afterAll(async () => {
+  if (previousOnly === undefined) delete process.env['FOLDKIT_SITE_ONLY']
+  else process.env['FOLDKIT_SITE_ONLY'] = previousOnly
   await browser?.close()
   await server?.close()
   if (out !== undefined) rmSync(out, { recursive: true, force: true })

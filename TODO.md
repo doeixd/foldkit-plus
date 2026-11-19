@@ -213,8 +213,9 @@ In the same change:
       go-ahead. #185, #64, #483 and #440 closed; the narrowed issues retitled
       and commented; park comments on #376, #433, #148, #149 and a comment on
       #474; the two Bundle.lazy bugs filed as #501 and #502.
-- [x] **Releases 0.40.0 and 0.41.0 are tagged and published** (`v0.40.0`,
-      and `v0.41.0` at c45381cc6 on 2026-11-18); each tag ran `release.yml`,
+- [x] **Releases 0.40.0, 0.41.0 and 0.42.0 are tagged and published**
+      (`v0.40.0`; `v0.41.0` at c45381cc6 on 2026-11-18; `v0.42.0` at
+      caa5622ae on 2026-11-19); each tag ran `release.yml`,
       which publishes what the registry lacks and makes the GitHub release
       from the matching `CHANGELOG.md` section. Still deprecated and not
       removed, though 0.39.0's notes said the next release would:

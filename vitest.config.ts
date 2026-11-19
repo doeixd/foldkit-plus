@@ -7,6 +7,8 @@ import {
   buildsElsewhere,
   inBrowser,
   perfTests,
+  playwrightUnitElsewhere,
+  playwrightUnitTests,
   shared,
 } from './vitest.shared.js'
 
@@ -32,7 +34,12 @@ const touchTests = browserTests.map(pattern => pattern.replace('.browser.', '.to
 const browser = (contextOptions: { readonly hasTouch: boolean }) => ({
   enabled: true,
   headless: true,
-  provider: playwright({ contextOptions }),
+  provider: playwright({
+    contextOptions,
+    // Linux CI containers cap `/dev/shm` at 64 MB; without `--disable-dev-shm-usage`,
+    // Chromium tabs crash mid-shard with `VITEST_BROWSER_CONNECTION_CLOSED`.
+    launchOptions: { args: ['--disable-dev-shm-usage', '--disable-gpu'] },
+  }),
   instances: [{ browser: 'chromium' as const, viewport: { width: 1440, height: 900 } }],
 })
 
@@ -60,6 +67,7 @@ export default defineConfig({
             ...browserTests,
             ...(budgetsElsewhere ? perfTests.unit : []),
             ...(buildsElsewhere ? buildTests : []),
+            ...(playwrightUnitElsewhere ? playwrightUnitTests : []),
             '**/node_modules/**',
           ],
         },
@@ -71,6 +79,8 @@ export default defineConfig({
           name: 'browser',
           include: browserTests,
           exclude: [...touchTests, '**/node_modules/**'],
+          // One retry on shared CI runners for single-frame/Chromium hiccups; 0 locally.
+          retry: process.env.CI !== undefined ? 1 : 0,
           // The benchmarks measure Node; several cannot load in a page at all.
           benchmark: { include: [] },
           browser: browser({ hasTouch: false }),
@@ -97,6 +107,7 @@ export default defineConfig({
         test: {
           name: 'browser-touch',
           include: touchTests,
+          retry: process.env.CI !== undefined ? 1 : 0,
           benchmark: { include: [] },
           browser: browser({ hasTouch: true }),
         },

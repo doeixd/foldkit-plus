@@ -43,7 +43,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // (`recipes/field.ts`), with `adornments` (0.4 kB minified) beside `input`. The first chunk holds no
 // module the page does not draw: `toggleRow` (0.1 kB) is the Checkbox contract's layout Slots, read
 // through `CheckboxSlots`. Ceiling raised to the reading plus about 0.4%, rounded up.
-const CEILING = 221_000
+// +1,000 on 2026-11-19: CI read 221,307 (+307 over 221,000) after `Expr.add`/`sub`/`implies`,
+// `Entity.transition`, `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600).
+const CEILING = 222_000
 
 clientBudget({
   name: 'entity',

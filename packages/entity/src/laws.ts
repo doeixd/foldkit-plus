@@ -6,9 +6,11 @@
  */
 import { Data, Match, Option, type Schema } from 'effect'
 import { Evidence } from 'foldkit-metadata'
+import { Bounded, judgeBounded, meetable, witnessOf, type Witness } from './bounds.js'
 import { Steps, finiteValues, steps, type Step } from './enumerate.js'
 import { judgeAgainst, readsBefore, invariantsOf, type Invariant } from './invariant.js'
 import { declaredOwner, Footprint } from './footprint.js'
+import { dependenciesOf } from './expr.js'
 import { lawId, transitionId } from './lawIds.js'
 import type { AnyEntity, EntityField } from './index.js'
 import { kernelOperators } from './memoryTable.js'
@@ -46,23 +48,68 @@ type Checked<X> = X extends {
     : X
   : X
 
+/**
+ * What a pair left undecided asks of a later pass, as the declarations hold
+ * it: break `rule` with a row before that keeps every `assumed` invariant and
+ * an input within its Schema, meeting the `write`'s `when` (its `from` folded
+ * in), with the row after the `write`'s sets, increments and assignments make.
+ * `cases` are the values of the finite members this pass could not decide
+ * (each a step: the row before, the input, and the row after over them); none
+ * where it enumerated nothing.
+ */
+export interface Obligation {
+  readonly write: AnyWrite
+  readonly rule: Invariant
+  /** The Entity's state invariants, held by the row before (none for a create). */
+  readonly assumed: ReadonlyArray<Invariant>
+  readonly cases: ReadonlyArray<Step>
+}
+
 /** How one transition stands against one invariant. */
 export type LawVerdict = Data.TaggedEnum<{
   /**
    * It cannot break it. `by`: it writes nothing the (state) invariant reads,
-   * its author says so, every row it can start from was enumerated, or there
-   * is no row to judge (a create and a transition, a delete).
+   * its author says so, every row it can start from was enumerated, there is
+   * no row to judge (a create and a transition, a delete), the rule holds
+   * whatever the members it cannot enumerate hold (`vacuous`: a write
+   * leaving the row where the rule does not bind), or the numbers' declared
+   * bounds decide it for every row and input within them (`bounds`). `over`:
+   * the members a `vacuous` or `bounds` keep holds over.
    */
   Kept: {
-    readonly by: 'disjointness' | 'declared' | 'enumeration' | 'create' | 'delete'
+    readonly by:
+      | 'disjointness'
+      | 'declared'
+      | 'enumeration'
+      | 'create'
+      | 'delete'
+      | 'vacuous'
+      | 'bounds'
     readonly rows: number
+    readonly over: ReadonlyArray<string>
   }
-  /** These steps leave a row that breaks it. */
-  Refused: { readonly steps: ReadonlyArray<Step> }
-  /** Nothing here can say, and why. */
-  Undecided: { readonly reason: string }
+  /**
+   * A row it can start from, and an input, that it leaves breaking it: the
+   * enumerated `steps` that do (empty where the witness was found among the
+   * numbers), and the smallest `witness` the check made, checked by the
+   * reference judge. `hint` says when the witness starts from a state no
+   * declared write reaches.
+   */
+  Refused: {
+    readonly steps: ReadonlyArray<Step>
+    readonly witness: Witness
+    readonly hint: Option.Option<string>
+  }
+  /** Nothing here can say, why, and, for a declared write, what a later pass would have to prove. */
+  Undecided: { readonly reason: string; readonly obligation: Option.Option<Obligation> }
 }>
 export const LawVerdict = Data.taggedEnum<LawVerdict>()
+
+const kept = (
+  by: Extract<LawVerdict, { readonly _tag: 'Kept' }>['by'],
+  rows = 0,
+  over: ReadonlyArray<string> = [],
+): LawVerdict => LawVerdict.Kept({ by, rows, over })
 
 /** One transition against one invariant of its Entity. */
 export interface LawPair {
@@ -82,9 +129,9 @@ export interface LawPair {
   /** True for a write's own `ensures`: a law of that write alone, held where it commits. */
   readonly postcondition: boolean
   /**
-   * An `Enumerated` record for a pair the check kept by reading the
-   * declarations; none for an author's word (`declared`), a refusal, or an
-   * undecided pair.
+   * A record for a pair the check kept by reading the declarations:
+   * `Bounded` for one the numbers' bounds decided, `Enumerated` for the rest;
+   * none for an author's word (`declared`), a refusal, or an undecided pair.
    */
   readonly evidence: Option.Option<Evidence>
 }
@@ -108,8 +155,10 @@ export type Finding = Data.TaggedEnum<{
    * by its postcondition: every row it lands is in `to`, from whatever state.
    */
   Enforced: { readonly entity: string; readonly write: string; readonly to: string }
-  /** Every row the arrow leaves breaks `invariant`, which refuses the write there. */
-  Refused: Arrow & { readonly invariant: string }
+  /** Every row the arrow leaves breaks `invariant`, which refuses the write there; `witness` is one. */
+  Refused: Arrow & { readonly invariant: string; readonly witness: Witness }
+  /** No row the Entity's state invariants allow, and no input, meets the write's `from` and `when`. */
+  Unmeetable: { readonly entity: string; readonly write: string }
   /** No write leaves a row in the state. */
   Unreached: { readonly entity: string; readonly state: string }
   /** No write starts from it. */
@@ -117,12 +166,28 @@ export type Finding = Data.TaggedEnum<{
 }>
 export const Finding = Data.taggedEnum<Finding>()
 
+/** What a report stands on, counted. */
+export interface LawTotals {
+  readonly entities: number
+  /** The Entities' local states. */
+  readonly states: number
+  /** The transitions checked: one per entry. */
+  readonly writes: number
+  /** The Entities' invariants (a write's own postcondition is a pair, not a rule). */
+  readonly rules: number
+  readonly pairs: number
+  readonly kept: number
+  readonly refused: number
+  readonly undecided: number
+}
+
 export interface LawReport {
   readonly pairs: ReadonlyArray<LawPair>
   readonly arrows: ReadonlyArray<Arrow>
   /** Each Entity's local states, by name. */
   readonly states: ReadonlyArray<{ readonly entity: string; readonly names: ReadonlyArray<string> }>
   readonly findings: ReadonlyArray<Finding>
+  readonly totals: LawTotals
 }
 
 const isWriteEntry = (entry: LawEntry): entry is WriteEntry => Object.hasOwn(entry, 'write')
@@ -141,9 +206,29 @@ const footprintOf = (entry: LawEntry): Footprint => {
 }
 
 /** Every member an invariant reads, before and after. */
-const readOf = (held: Invariant): ReadonlyArray<string> => [
-  ...new Set([...held.before, ...held.after]),
-]
+const reads = new WeakMap<Invariant, ReadonlyArray<string>>()
+
+/**
+ * Every member an invariant reads, before and after, and the relation of its
+ * own row each path or exists leaves by: a write relinking it changes what the
+ * rule reads, though it writes no field the rule names (`held.before` and
+ * `held.after` hold its own row's fields alone).
+ */
+const readOf = (held: Invariant): ReadonlyArray<string> => {
+  const known = reads.get(held)
+  if (known !== undefined) return known
+  const links = dependenciesOf(held.predicate).reaches.flatMap(reach =>
+    Match.valueTags(reach, {
+      Path: ({ via }) => [via[0].key],
+      Exists: ({ via }) => via.slice(0, 1).map(relation => relation.key),
+      // A path from the viewer starts at the viewer's row, not this one.
+      ViewerPath: () => [],
+    }),
+  )
+  const read = [...new Set([...held.before, ...held.after, ...links])]
+  reads.set(held, read)
+  return read
+}
 
 const disjoint = (writes: ReadonlyArray<string>, reads: ReadonlyArray<string>): boolean =>
   !writes.some(key => reads.includes(key))
@@ -156,27 +241,51 @@ const law = lawId
 /** The record for a pair the check decided it keeps, unless only its author says so. */
 const evidenceOf = (name: string, held: Invariant, verdict: LawVerdict): Option.Option<Evidence> =>
   LawVerdict.$match(verdict, {
-    Kept: ({ by }) =>
-      by === 'declared'
-        ? Option.none()
-        : Option.some(
-            issuer.issue(Evidence.Enumerated({ transition: transition({ name }), law: law(held) })),
-          ),
+    Kept: ({ by }) => {
+      if (by === 'declared') return Option.none()
+      const pair = { transition: transition({ name }), law: law(held) }
+      return Option.some(
+        issuer.issue(by === 'bounds' ? Evidence.Bounded(pair) : Evidence.Enumerated(pair)),
+      )
+    },
     Refused: () => Option.none(),
     Undecided: () => Option.none(),
   })
 
 /** One declared write against one invariant. */
-const judgeWrite = (write: AnyWrite, held: Invariant, operators: MemoryOperators): LawVerdict => {
-  if (write._tag === 'Delete') return LawVerdict.Kept({ by: 'delete', rows: 0 })
+const judgeWrite = (
+  write: AnyWrite,
+  held: Invariant,
+  invariants: ReadonlyArray<Invariant>,
+  operators: MemoryOperators,
+): LawVerdict => {
+  if (write._tag === 'Delete') return kept('delete')
   const transition = readsBefore(held)
-  if (write._tag === 'Insert' && transition) return LawVerdict.Kept({ by: 'create', rows: 0 })
+  if (write._tag === 'Insert' && transition) return kept('create')
   const reads = readOf(held)
   // Disjointness decides a state invariant only: a transition invariant can be broken by a write leaving it alone.
   if (write._tag === 'Update' && !transition && disjoint(writtenKeys(write), reads))
-    return LawVerdict.Kept({ by: 'disjointness', rows: 0 })
+    return kept('disjointness')
+  const obligation = (cases: ReadonlyArray<Step>) =>
+    Option.some({
+      write,
+      rule: held,
+      assumed: Match.valueTags(write, {
+        Insert: () => [],
+        Update: () => invariants.filter(each => !readsBefore(each)),
+        Delete: () => invariants.filter(each => !readsBefore(each)),
+      }),
+      cases,
+    })
   return Steps.$match(steps(write, reads, { operators }), {
-    Undecided: ({ reason }) => LawVerdict.Undecided({ reason }),
+    // Past what enumeration reaches: the members it cannot list, unknown or bounded.
+    Undecided: () =>
+      Bounded.$match(judgeBounded(write, held, invariants, operators), {
+        Kept: ({ by, rows, over }) => kept(by, rows, over),
+        Refused: ({ witness }) => LawVerdict.Refused({ steps: [], witness, hint: Option.none() }),
+        Undecided: ({ reason, cases }) =>
+          LawVerdict.Undecided({ reason, obligation: obligation(cases) }),
+      }),
     Steps: ({ steps: each }) => {
       const refused: Array<Step> = []
       // An insert's step has an empty row before, which a state invariant does not read.
@@ -194,29 +303,38 @@ const judgeWrite = (write: AnyWrite, held: Invariant, operators: MemoryOperators
                 : `the write may leave ${fields.join(', ')} unwritten`,
             ),
         })
-        if (Option.isSome(undecided)) return LawVerdict.Undecided({ reason: undecided.value })
+        if (Option.isSome(undecided))
+          return LawVerdict.Undecided({ reason: undecided.value, obligation: obligation([step]) })
       }
       return refused.length > 0
-        ? LawVerdict.Refused({ steps: refused })
-        : LawVerdict.Kept({ by: 'enumeration', rows: each.length })
+        ? LawVerdict.Refused({
+            steps: refused,
+            witness: witnessOf(write, held, refused[0]!),
+            hint: Option.none(),
+          })
+        : kept('enumeration', each.length)
     },
   })
 }
 
+/** Undecided with no write a later pass could read. */
+const undecided = (reason: string): LawVerdict =>
+  LawVerdict.Undecided({ reason, obligation: Option.none() })
+
 /** One transition known by its footprint alone against one invariant. */
 const judgeFootprint = (footprint: Footprint, held: Invariant): LawVerdict =>
   Footprint.$match(footprint, {
-    Unknown: () => LawVerdict.Undecided({ reason: 'what it writes is unknown, so every member' }),
-    Derived: () => LawVerdict.Undecided({ reason: 'a derived footprint needs its write' }),
+    Unknown: () => undecided('what it writes is unknown, so every member'),
+    Derived: () => undecided('a derived footprint needs its write'),
     Declared: ({ writes, by }) => {
       if (readsBefore(held))
-        return LawVerdict.Undecided({
-          reason: `a transition invariant is not kept by disjointness, and ${by}'s word is all there is`,
-        })
+        return undecided(
+          `a transition invariant is not kept by disjointness, and ${by}'s word is all there is`,
+        )
       const touched = writes.filter(key => readOf(held).includes(key))
       return touched.length === 0
-        ? LawVerdict.Kept({ by: 'declared', rows: 0 })
-        : LawVerdict.Undecided({ reason: `${by} says it writes ${touched.join(', ')}` })
+        ? kept('declared')
+        : undecided(`${by} says it writes ${touched.join(', ')}`)
     },
   })
 
@@ -268,10 +386,14 @@ const arrowsOf = (
     Steps: ({ steps: each }) => {
       const reached = new Set<string>()
       const left = new Set<string>()
-      // Per arrow: whether every row it leaves is refused, and by which invariant first.
+      // Per arrow: whether every row it leaves is refused, by which invariant first, and the first such row.
       const groups = new Map<
         string,
-        { from: string; to: string; refusedBy: Option.Option<string> }
+        {
+          from: string
+          to: string
+          refusedBy: Option.Option<{ readonly invariant: string; readonly witness: Witness }>
+        }
       >()
       const inOf = (row: Step['after']) =>
         enumerable.filter(state => Option.getOrElse(inState(state, row, operators), () => false))
@@ -284,9 +406,13 @@ const arrowsOf = (
         const before = inOf(step.before)
         const judged = judgeAgainst(invariants, step, operators)
         const refusedBy = Match.valueTags(judged, {
-          Invalid: ({ failures }) => Option.some(failures[0]!.id),
-          Valid: () => Option.none<string>(),
-          Undecided: () => Option.none<string>(),
+          Invalid: ({ failures }) =>
+            Option.some({
+              invariant: failures[0]!.id,
+              witness: witnessOf(write, failures[0]!, step),
+            }),
+          Valid: () => Option.none(),
+          Undecided: () => Option.none(),
         })
         for (const from of before) {
           for (const to of after) {
@@ -296,8 +422,11 @@ const arrowsOf = (
             groups.set(key, {
               from: from.name,
               to: to.name,
+              // Refused while every row is, and shown by the first.
               refusedBy:
-                group === undefined ? refusedBy : Option.flatMap(group.refusedBy, () => refusedBy),
+                group === undefined
+                  ? refusedBy
+                  : Option.flatMap(group.refusedBy, first => Option.map(refusedBy, () => first)),
             })
             left.add(from.name)
             if (Option.isNone(refusedBy)) reached.add(to.name)
@@ -311,7 +440,7 @@ const arrowsOf = (
         arrows.push(arrow)
         findings.push(
           Option.match(refusedBy, {
-            onSome: invariant => Finding.Refused({ ...arrow, invariant }),
+            onSome: ({ invariant, witness }) => Finding.Refused({ ...arrow, invariant, witness }),
             onNone: () =>
               Option.exists(write.becomes, state => state.name === to)
                 ? Finding.Holds(arrow)
@@ -339,7 +468,10 @@ const check = <const W extends ReadonlyArray<LawEntry>>(options: {
   const operators = options.operators ?? kernelOperators
   const entries = options.writes as ReadonlyArray<LawEntry>
   const pairs: Array<LawPair> = []
+  // Each pair's Entity, by the pair's place, for the hints read once the states are known.
+  const pairEntities: Array<AnyEntity> = []
   const entities: Array<AnyEntity> = []
+  const unmeetable: Array<Finding> = []
   const names = new Set<string>()
   for (const entry of entries) {
     // Pairs, arrows and evidence name a transition by its name alone.
@@ -349,12 +481,16 @@ const check = <const W extends ReadonlyArray<LawEntry>>(options: {
     const entity = entityOf(entry)
     if (!entities.some(known => known.identity === entity.identity)) entities.push(entity)
     const footprint = footprintOf(entry)
+    const invariants = invariantsOf(entity)
+    if (isWriteEntry(entry) && !meetable(entry.write, invariants, operators))
+      unmeetable.push(Finding.Unmeetable({ entity: entity.name, write: entry.name }))
     // A write's own postcondition is judged as an invariant of that write alone.
     const ensured = isWriteEntry(entry) ? Option.toArray(entry.write.ensures) : []
-    for (const held of [...invariantsOf(entity), ...ensured]) {
+    for (const held of [...invariants, ...ensured]) {
       const verdict = isWriteEntry(entry)
-        ? judgeWrite(entry.write, held, operators)
+        ? judgeWrite(entry.write, held, invariants, operators)
         : judgeFootprint(entry.footprint, held)
+      pairEntities.push(entity)
       pairs.push({
         write: entry.name,
         entity: entity.name,
@@ -415,7 +551,65 @@ const check = <const W extends ReadonlyArray<LawEntry>>(options: {
         findings.push(Finding.Terminal({ entity: entity.name, state: state.name }))
     }
   }
-  return { pairs, arrows, states: stateList, findings }
+  findings.push(...unmeetable)
+  const hinted = pairs.map((pair, at) => hintedPair(pair, pairEntities[at]!, findings, operators))
+  const count = (tag: LawVerdict['_tag']) => hinted.filter(pair => pair.verdict._tag === tag).length
+  return {
+    pairs: hinted,
+    arrows,
+    states: stateList,
+    findings,
+    totals: {
+      entities: entities.length,
+      states: stateList.reduce((sum, { names: each }) => sum + each.length, 0),
+      writes: entries.length,
+      rules: entities.reduce((sum, entity) => sum + invariantsOf(entity).length, 0),
+      pairs: hinted.length,
+      kept: count('Kept'),
+      refused: count('Refused'),
+      undecided: count('Undecided'),
+    },
+  }
+}
+
+/**
+ * A refused pair whose witness starts in states no declared write reaches,
+ * marked so: the rule may still hold of every row the writes make, and an
+ * invariant ruling those states out would settle the pair.
+ */
+const hintedPair = (
+  pair: LawPair,
+  entity: AnyEntity,
+  findings: ReadonlyArray<Finding>,
+  operators: MemoryOperators,
+): LawPair => {
+  if (pair.verdict._tag !== 'Refused') return pair
+  const verdict = pair.verdict
+  return Option.match(verdict.witness.before, {
+    onNone: () => pair,
+    onSome: before => {
+      const unreached = new Set(
+        findings
+          .filter(Finding.$is('Unreached'))
+          .filter(finding => finding.entity === entity.name)
+          .map(finding => finding.state),
+      )
+      const starts = states(entity)
+        .filter(state => state.local)
+        .filter(state => Option.getOrElse(inState(state, before, operators), () => false))
+        .map(state => state.name)
+      if (starts.length === 0 || !starts.every(name => unreached.has(name))) return pair
+      return {
+        ...pair,
+        verdict: LawVerdict.Refused({
+          ...verdict,
+          hint: Option.some(
+            `it starts ${starts.join(' and ')}, which no declared write reaches: an invariant ruling that out would settle this pair`,
+          ),
+        }),
+      }
+    },
+  })
 }
 
 const pad = (rows: ReadonlyArray<ReadonlyArray<string>>): ReadonlyArray<string> => {
@@ -431,20 +625,39 @@ const pad = (rows: ReadonlyArray<ReadonlyArray<string>>): ReadonlyArray<string> 
   )
 }
 
+const plural = (count: number, one: string, many = `${one}s`): string =>
+  `${count} ${count === 1 ? one : many}`
+
 const shownVerdict = (verdict: LawVerdict): string =>
   LawVerdict.$match(verdict, {
-    Kept: ({ by, rows }) =>
+    Kept: ({ by, rows, over }) =>
       ({
         disjointness: 'kept: writes no member it reads',
         declared: 'kept: declared to write no member it reads',
-        enumeration: `kept: ${rows} row${rows === 1 ? '' : 's'} enumerated`,
+        enumeration: `kept: ${plural(rows, 'row')} enumerated`,
         create: 'kept: a create has no row before',
         delete: 'kept: a delete leaves no row',
+        vacuous: `kept: holds whatever ${over.join(' and ')} hold${over.length === 1 ? 's' : ''}, over ${plural(rows, 'row')} enumerated`,
+        bounds: `kept: proved from the bounds on ${over.join(' and ')}, for every row and input within them`,
       })[by],
-    Refused: ({ steps: each }) =>
-      `refused: from ${JSON.stringify(each[0]!.before)} it leaves ${JSON.stringify(each[0]!.after)}`,
+    Refused: ({ witness }) => `refused: ${witness.message}`,
     Undecided: ({ reason }) => `undecided: ${reason}`,
   })
+
+/** A row's members as `key: value`, each value as JSON. */
+const members = (row: Readonly<Record<string, unknown>>): string =>
+  Object.entries(row)
+    .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+    .join(', ')
+
+/** A witness, and a hint, as lines to print under the pair or arrow they belong to. */
+const shownWitness = (witness: Witness, hint: Option.Option<string>): ReadonlyArray<string> =>
+  pad([
+    ['before', Option.match(witness.before, { onNone: () => '(none: a create)', onSome: members })],
+    ['input', members(witness.input)],
+    ['after', members(witness.after)],
+    ...Option.toArray(Option.map(hint, text => ['hint', text])),
+  ]).map(line => `    ${line}`)
 
 const shownFinding = (finding: Finding): readonly [string, string, string] =>
   Finding.$match(finding, {
@@ -453,25 +666,48 @@ const shownFinding = (finding: Finding): readonly [string, string, string] =>
     Enforced: ({ to, write }) => [`* -> ${to}`, write, 'enforced'] as const,
     Refused: ({ from, to, write, invariant }) =>
       [`${from} -> ${to}`, write, `refused by ${invariant}`] as const,
+    Unmeetable: ({ write }) => ['', write, 'no row meets its from and when'] as const,
     Unreached: ({ state }) => [state, '', 'unreached'] as const,
     Terminal: ({ state }) => [state, '', 'terminal'] as const,
   })
 
-/** The entity a finding is of. */
-const findingEntity = (finding: Finding): string => finding.entity
+/** Lines, each followed by the block that belongs under it. */
+const withBlocks = (
+  lines: ReadonlyArray<string>,
+  blocks: ReadonlyArray<ReadonlyArray<string>>,
+): ReadonlyArray<string> => lines.flatMap((line, at) => [line, ...(blocks[at] ?? [])])
 
-/** The report as text: each Entity's states and arrows, then each pair. */
+/** The report as text: each Entity's states and arrows, then each pair, then what it stands on. */
 const show = (report: LawReport): string => {
-  const sections = report.states.map(({ entity }) => {
-    const lines = pad(
-      report.findings.filter(finding => findingEntity(finding) === entity).map(shownFinding),
+  const sectioned = [
+    ...new Set([
+      ...report.states.map(({ entity }) => entity),
+      ...report.findings.map(finding => finding.entity),
+    ]),
+  ]
+  const sections = sectioned.map(entity => {
+    const own = report.findings.filter(finding => finding.entity === entity)
+    const lines = withBlocks(
+      pad(own.map(shownFinding)),
+      own.map(finding =>
+        Finding.$is('Refused')(finding) ? shownWitness(finding.witness, Option.none()) : [],
+      ),
     )
     return [entity, ...lines.map(line => `  ${line}`)].join('\n')
   })
-  const pairs = pad(
-    report.pairs.map(pair => [pair.write, `x ${pair.invariant}`, shownVerdict(pair.verdict)]),
+  const pairs = withBlocks(
+    pad(report.pairs.map(pair => [pair.write, `x ${pair.invariant}`, shownVerdict(pair.verdict)])),
+    report.pairs.map(pair =>
+      LawVerdict.$match(pair.verdict, {
+        Refused: ({ witness, hint }) => shownWitness(witness, hint),
+        Kept: () => [],
+        Undecided: () => [],
+      }),
+    ),
   )
-  return [...sections, pairs.join('\n')].filter(part => part.length > 0).join('\n\n')
+  const { totals } = report
+  const footing = `${plural(totals.entities, 'entity', 'entities')}, ${plural(totals.states, 'state')}, ${plural(totals.writes, 'write')}, ${plural(totals.rules, 'rule')}: ${plural(totals.pairs, 'pair')}, ${totals.kept} kept, ${totals.refused} refused, ${totals.undecided} undecided`
+  return [...sections, pairs.join('\n'), footing].filter(part => part.length > 0).join('\n\n')
 }
 
 /** A node of the law half of `foldkit-surface`'s graph, as plain data. */

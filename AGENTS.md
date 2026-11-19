@@ -127,15 +127,17 @@ Slop is also code that looks finished and is wrong:
 - **A claim about focus, layout or the pointer is a browser test** (`*.browser.test.ts`) in the view packages: jsdom lays nothing out and moves no focus. An example with a server has an end-to-end test (`examples/*/e2e/*.e2e.ts`, run with `pnpm e2e`) for what only the running page shows.
 - Run a test from the repo root; after a package's behaviour change run `npx vitest run examples --project unit` too.
 
-## Documentation and README standard
+## Documentation
 
-A README is an onboarding document first and a reference second: the reader understands the package's idea, ownership boundary and normal path before the API surface. Full standard: `docs/agents/readme-standard.md` (read it before writing or reviewing a README or guide).
+Our documents are accurate and hard to read: they open with what a package is in our words, use our terms before explaining them, and put a landing page, a tutorial and a reference in one 2,000-line file. **Read `docs/agents/writing-docs.md` before you write or edit any README, guide, skill reference, changelog summary or post.** The rules that matter most:
 
-- **Reading order:** what it is (one thesis); when it owns the problem and what a neighbouring package owns; the mental model (the smallest lifecycle or equation, naming the authoritative owner); install and a sixty-second example that teaches one mechanism; what each call does and does not do (I/O, state, mutation); common workflows and integrations; failure and recovery semantics; advanced and lower-level API; limits; reference.
-- **Teach ownership before features.** Say who owns the authoritative fact or transition; distinguish observation, capability, caching, mirroring, replication and persistence from ownership; compare easily confused packages near the top; state what the package does not own. Ordinary Model changes happen in `update`, normally with `modifyFields`.
-- **Examples are executable claims.** Read the implementation and real examples first; use exact current names and shapes; copy snippets from typechecked examples or tests; label schematic ones as pseudocode; verify negative claims ("this does not fetch") against source; a docs-only change still needs a diff review against source.
-- **Progressive disclosure, not duplication.** Explain a mechanism once at the right level; keep the first example small; link to a guide or `examples/` demo for depth.
-- **Review as a newcomer before calling it done:** after two paragraphs can I say what problem it solves? Do I know who owns the state? Is there one mental model before the API grows? Does the first example prove the core idea with minimal machinery? Are I/O and transitions explicit? Are advanced features introduced only after the need? Are failure and recovery visible before a bad architectural choice? Is every copyable claim verified, every diagram consistent with the implementation, every repeated catalogue removed? The usual failure is too much correct information in the wrong order.
+- **One page, one job, one reader.** A package README is its landing page (about 200 lines); task guides and reference go in files of their own.
+- **The first 150 words name a problem the reader has**, before any name of ours, and link to something running. Problem, then the plain idea, then its name.
+- **Every term is explained where it first appears.** List each term, API and package name in order of first use with the sentence that introduces it; any that sentence does not explain is a defect.
+- **The first example is small and shows what happened:** at most 5 imports and 25 lines, everything it uses visible, a result after it.
+- **Say what happens, to "you", plainly.** Headings name the task or question; failures start from the symptom; evidence names its source; no history, issue numbers or repository scripts outside the changelog.
+- **Examples are executable claims.** Compile every snippet and check every claim against the source, negative claims included.
+- **A cold reader checks it.** Before calling a document done, have an agent with no context read it as the guide describes, and fix what it reports.
 
 ## The `foldkit-plus` agent skill
 
@@ -184,7 +186,7 @@ Every trap here cost real time. **Before you change code in an area, read the tr
 | `traps-tooling-vitest-mutate.md` | running Vitest or `pnpm mutate`, a Vitest config or alias, driving a dev server and browser |
 | `traps-tooling-ci-npm.md` | a dependency or lockfile, a publish or release step, a CI job, a Jev review |
 
-Guidance files, same folder: `readme-standard.md` (READMEs and guides), `skill.md` (the skill), `styling.md` (themes, tokens, recipes).
+Guidance files, same folder: `writing-docs.md` (every document: READMEs, guides, the skill, posts), `skill.md` (the skill), `styling.md` (themes, tokens, recipes).
 
 ### Traps that bite everywhere
 

@@ -2464,7 +2464,12 @@ declares one in a call: its input is the Entity's `id`, naming the row, beside
 each field `set` names by its key, with the schema the input holds it with
 (`Entity.fields(Project, 'name')` for the field's own). `Mutation.insert` and
 `Mutation.delete` are the other two kinds, and the options (`when`, `from`,
-`becomes`, `expect`, `compute`) are the write's.
+`becomes`, `expect`, `increment`, `decrement`, `compute`) are the write's.
+An update's `input` holds keys about the operation alone, each mapped to no
+field, which `increment`, `decrement`, `compute` and `when` read:
+`Mutation.update('Deposit', Account, { input: { amount: Schema.Number },
+increment: { balance: 'amount' } })`. A key in both `set` and `input`, or the
+id in `input`, is refused at the key and where it is declared.
 
 <!-- docs-check standalone use bare-app
 import { Entity as DomainEntity, Write } from 'foldkit-entity'
@@ -2506,15 +2511,15 @@ the long form `Mutation.write(name, Write.update(Entity.input(Project, input),
 alone), `Write.update` says what the write does to the row (`foldkit-entity`'s,
 which `Laws.check` and every writer read), and `Mutation.write` names it,
 types what it may be refused with and installs the prediction below. Write
-the long form when an input key is named otherwise than its field, points a
-relation (`Relation.input`), or is about the operation alone
-(`Entity.unmapped`, an `increment`'s amount).
+the long form when an input key is named otherwise than its field, or points a
+relation (`Relation.input`); a key about the operation alone (`Entity.unmapped`,
+an `increment`'s amount) is the short form's `input`.
 
 Its input is
 the write's, it answers nothing of its own, and `Data.mutate` shows an update's
 or an insert's row until the server answers, so it needs no `optimistic` list;
 a delete shows its row deleted, as `Remote.tombstone` does. An update's
-`increment` is shown as a prediction: its amount is added to the value the store
+`increment` (and `decrement`, its amount negated) is shown as a prediction: its amount is added to the value the store
 holds whenever the row is read, so a change that reaches the store meanwhile is
 added to rather than hidden, and two pending increments add up. A computed
 field is predicted the same way, by `Remote.make`'s `operators` over the row as

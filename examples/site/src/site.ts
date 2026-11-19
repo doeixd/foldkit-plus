@@ -22,13 +22,19 @@ export const siteOf = (library: () => Promise<ServerLibrary>): SiteModule => ({
   // The host serves `404.html` for an address with no page.
   paths: async () => {
     const { paths, modified } = await library()
-    return [
+    const all = [
       ...paths.map(path => {
         const at = modified.get(path)
         return at === undefined ? path : { path, modified: at }
       }),
       '/404.html',
     ]
+    // Used by `e2e/adoption.e2e.ts` so it builds the real production bundle while
+    // rendering only the pages it opens in Chromium (`prerender.test.ts` builds all).
+    const only = process.env['FOLDKIT_SITE_ONLY']
+    if (only === undefined || only === '') return all
+    const wanted = new Set(only.split(',').map(path => path.trim()))
+    return all.filter(entry => wanted.has(typeof entry === 'string' ? entry : entry.path))
   },
   // The blog's Atom feed, which the pages' head links (`index.html`).
   emit: async () => [{ file: 'blog/feed.xml', contents: (await library()).feed(Shell.ORIGIN) }],

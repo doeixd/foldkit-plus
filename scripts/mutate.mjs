@@ -51,12 +51,17 @@ const load = async path => {
     const { name, edits, tests, survives } = mutation ?? {}
     const where = `${path}: ${typeof name === 'string' ? name : '(unnamed)'}`
     if (typeof name !== 'string' || name === '') problems.push(`${where}: a mutation needs a name`)
-    if (!Array.isArray(tests) || tests.length === 0 || !tests.every(test => typeof test === 'string')) {
+    if (
+      !Array.isArray(tests) ||
+      tests.length === 0 ||
+      !tests.every(test => typeof test === 'string')
+    ) {
       problems.push(`${where}: name the tests that should fail`)
     } else {
       // A test file renamed away leaves the mutation nothing to fail.
       for (const test of tests)
-        if (!existsSync(resolve(root, test))) problems.push(`${where}: the test ${test} does not exist`)
+        if (!existsSync(resolve(root, test)))
+          problems.push(`${where}: the test ${test} does not exist`)
     }
     if (survives !== undefined && (typeof survives !== 'string' || survives === '')) {
       problems.push(`${where}: say why it survives`)
@@ -78,9 +83,12 @@ const load = async path => {
       }
       const source = readFileSync(target, 'utf8')
       const count = source.split(find).length - 1
-      if (count === 0) problems.push(`${where}: the anchor is not in ${file}: ${JSON.stringify(find)}`)
+      if (count === 0)
+        problems.push(`${where}: the anchor is not in ${file}: ${JSON.stringify(find)}`)
       if (count > 1 && !all)
-        problems.push(`${where}: the anchor occurs ${count} times in ${file}; pass all: true or narrow it`)
+        problems.push(
+          `${where}: the anchor occurs ${count} times in ${file}; pass all: true or narrow it`,
+        )
       if (find === replace) problems.push(`${where}: the edit changes nothing`)
       return [{ file: target, find, replace, all }]
     })
@@ -97,14 +105,7 @@ const load = async path => {
 const everySpec = () => {
   const listed = spawnSync(
     'git',
-    [
-      'ls-files',
-      '--cached',
-      '--others',
-      '--exclude-standard',
-      '*.mutations.ts',
-      '*.mutations.mjs',
-    ],
+    ['ls-files', '--cached', '--others', '--exclude-standard', '*.mutations.ts', '*.mutations.mjs'],
     { cwd: root, encoding: 'utf8' },
   )
   if (listed.status !== 0) fail(`git ls-files failed:\n${listed.stderr}`)
@@ -112,6 +113,21 @@ const everySpec = () => {
   return [...new Set(listed.stdout.split('\n').filter(Boolean))].filter(path =>
     existsSync(resolve(root, path)),
   )
+}
+
+const vitestBin = join(root, 'node_modules', 'vitest', 'vitest.mjs')
+
+/** Narrow Vitest to the project(s) matching `tests` so unit mutations never boot Chromium. */
+const projectsFor = tests => {
+  const projects = new Set()
+  for (const test of tests) {
+    if (test.endsWith('.e2e.ts')) return []
+    if (test.includes('.touch.browser.')) projects.add('browser-touch')
+    else if (test.includes('.browser.')) projects.add('browser')
+    else if (test.startsWith('examples/foldkit/domains/')) projects.add('foldkit-domains')
+    else projects.add('unit')
+  }
+  return [...projects].flatMap(name => ['--project', name])
 }
 
 /**
@@ -124,17 +140,17 @@ const run = (tests, env) => {
   const report = join(work, 'report.json')
   rmSync(report, { force: true })
   const result = spawnSync(
-    'pnpm',
+    process.execPath,
     [
-      'exec',
-      'vitest',
+      vitestBin,
       'run',
+      ...projectsFor(tests),
       ...tests,
       '--fsModuleCache=false',
       '--reporter=json',
       `--outputFile=${report}`,
     ],
-    { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8', shell: process.platform === 'win32' },
+    { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' },
   )
   const json = existsSync(report) ? JSON.parse(readFileSync(report, 'utf8')) : undefined
   const cases = json?.testResults.flatMap(suite => suite.assertionResults) ?? []
@@ -159,15 +175,18 @@ const outcomeOf = (edits, applied, result, baseline) => {
 
 /** Why the line says what it says: which test killed it, or why it may survive. */
 const reasonOf = ({ mutation, outcome, failed }) => {
-  if (outcome === 'killed') return `by ${failed[0]}${failed.length > 1 ? ` and ${failed.length - 1} more` : ''}`
-  if (outcome === 'survived' && mutation.survives !== undefined) return `as declared: ${mutation.survives}`
+  if (outcome === 'killed')
+    return `by ${failed[0]}${failed.length > 1 ? ` and ${failed.length - 1} more` : ''}`
+  if (outcome === 'survived' && mutation.survives !== undefined)
+    return `as declared: ${mutation.survives}`
   return ''
 }
 
 const args = process.argv.slice(2)
 // Repeatable, never a comma list: mutation names contain commas.
 const only = args.flatMap((arg, index) => (arg === '--only' ? [args[index + 1]] : []))
-if (only.some(name => name === undefined || name.startsWith('--'))) fail('--only needs a mutation name')
+if (only.some(name => name === undefined || name.startsWith('--')))
+  fail('--only needs a mutation name')
 const checkOnly = args.includes('--check')
 const named = args.filter((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--only')
 
@@ -213,8 +232,15 @@ const results = mutations.map(mutation => {
     FOLDKIT_MUTATION: JSON.stringify(mutation.edits),
     FOLDKIT_MUTATION_MARKER: marker,
   })
-  const applied = existsSync(marker) ? new Set(readFileSync(marker, 'utf8').split('\n').filter(Boolean)) : new Set()
-  const outcome = outcomeOf(mutation.edits, applied, result, baselines.get(JSON.stringify(mutation.tests)))
+  const applied = existsSync(marker)
+    ? new Set(readFileSync(marker, 'utf8').split('\n').filter(Boolean))
+    : new Set()
+  const outcome = outcomeOf(
+    mutation.edits,
+    applied,
+    result,
+    baselines.get(JSON.stringify(mutation.tests)),
+  )
   const expected = mutation.survives === undefined ? outcome === 'killed' : outcome === 'survived'
   return { mutation, outcome, expected, failed: result.failed, output: result.output }
 })

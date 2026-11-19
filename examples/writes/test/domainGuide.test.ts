@@ -142,7 +142,14 @@ describe('sixty seconds: one rule, three readers', () => {
     expect(Entity.judge(Item, { after: { id: 'i1', stock: 3, reserved: 5 } })._tag).toBe('Invalid')
     expect(Entity.judge(Item, { after: { id: 'i1', stock: 5, reserved: 5 } })._tag).toBe('Valid')
     expect(Laws.show(Laws.check({ writes: [Hold] }))).toBe(
-      'Hold   x reservedWithinStock   undecided: reserved is set to any value its input holds',
+      [
+        'Hold   x reservedWithinStock   refused: Reserved stock cannot exceed the stock',
+        '    before   reserved: 0, stock: 0',
+        '    input    reserved: 1',
+        '    after    reserved: 1, stock: 0',
+        '',
+        '1 entity, 0 states, 1 write, 1 rule: 1 pair, 0 kept, 1 refused, 0 undecided',
+      ].join('\n'),
     )
   })
 })
@@ -181,7 +188,12 @@ describe('one domain declaration, read by several readers', () => {
         '  Published                      terminal',
         '',
         'Publish   x reservedWithinStock   kept: writes no member it reads',
-        'Reserve   x reservedWithinStock   undecided: reserved is set to any value its input holds',
+        'Reserve   x reservedWithinStock   refused: Reserved stock cannot exceed the stock',
+        '    before   reserved: 0, stock: 0',
+        '    input    reserved: 1',
+        '    after    reserved: 1, stock: 0',
+        '',
+        '1 entity, 2 states, 2 writes, 1 rule: 2 pairs, 1 kept, 1 refused, 0 undecided',
       ].join('\n'),
     )
   })

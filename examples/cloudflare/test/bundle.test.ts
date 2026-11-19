@@ -20,10 +20,13 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // Input recipe gained the grouped start and end sides and the ghost and underline variants
 // (`recipes/field.ts`), with `adornments` beside `input`; no module the page does not draw is in its
 // first chunk. Ceiling raised to the reading plus about 0.4%, rounded up.
-const CEILING = 224_000
+// +500 on 2026-11-19: 224,160 measured, 160 over, after `Expr.add`/`sub`/`implies`, `decrement`,
+// row-reading `when` and `Mutation.update`'s `input` (#600) in `foldkit-entity` and `foldkit-remote`.
+const CEILING = 224_500
 
 clientBudget({
   name: 'cloudflare',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
+  determinism: true,
 })

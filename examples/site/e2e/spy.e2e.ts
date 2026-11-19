@@ -20,10 +20,17 @@ let out: string
 let server: PreviewServer
 let browser: Browser
 let url: string
+let previousOnly: string | undefined
+let previousNoApi: string | undefined
 
 beforeAll(async () => {
   out = mkdtempSync(join(tmpdir(), 'site-spy-'))
   process.env['FOLDKIT_BUILD_ID'] = 'spy'
+  previousOnly = process.env['FOLDKIT_SITE_ONLY']
+  previousNoApi = process.env['FOLDKIT_SITE_NO_API']
+  // Only render the guide page this test opens, without extracting 43 packages' API docs.
+  process.env['FOLDKIT_SITE_ONLY'] = GUIDE
+  process.env['FOLDKIT_SITE_NO_API'] = '1'
   const building = await config({ command: 'build', mode: 'production', isPreview: false })
   await build(
     mergeConfig(building, {
@@ -45,10 +52,14 @@ beforeAll(async () => {
     }),
   )
   url = server.resolvedUrls!.local[0]!.replace(/\/$/, '')
-  browser = await chromium.launch()
+  browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] })
 }, 900_000)
 
 afterAll(async () => {
+  if (previousOnly === undefined) delete process.env['FOLDKIT_SITE_ONLY']
+  else process.env['FOLDKIT_SITE_ONLY'] = previousOnly
+  if (previousNoApi === undefined) delete process.env['FOLDKIT_SITE_NO_API']
+  else process.env['FOLDKIT_SITE_NO_API'] = previousNoApi
   await browser?.close()
   await server?.close()
   if (out !== undefined) rmSync(out, { recursive: true, force: true })

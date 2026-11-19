@@ -52,7 +52,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // applications share (the runtime, Remote, Entity and the start-up), since the studio and the
 // public site are chunks of their own, loaded by the address (`client.ts`). What each screen loads
 // first is held by `routes.test.ts`, which adds the chunk: studio 366.6 kB, site 322.2 kB.
-const CEILING = 164_000
+// +500 on 2026-11-19: CI read 164,044 (+44 over 164,000) after `Expr.add`/`sub`/`implies`,
+// `Entity.transition`, `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600).
+const CEILING = 164_500
 
 clientBudget({
   name: 'cms',

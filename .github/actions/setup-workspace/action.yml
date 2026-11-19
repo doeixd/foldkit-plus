@@ -1,0 +1,29 @@
+name: Setup Workspace
+description: Install pnpm, Node 22 with optional pnpm store cache, and workspace dependencies.
+inputs:
+  install:
+    description: Whether to run pnpm install --frozen-lockfile.
+    required: false
+    default: 'true'
+  cache:
+    description: Whether to cache the pnpm store.
+    required: false
+    default: 'true'
+  registry-url:
+    description: Optional npm registry URL for publishing.
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 22
+        cache: ${{ inputs.cache == 'true' && 'pnpm' || '' }}
+        registry-url: ${{ inputs.registry-url }}
+
+    - if: inputs.install == 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile

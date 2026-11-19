@@ -43,6 +43,10 @@ export const budgetsElsewhere =
 export const buildTests = [
   'examples/**/test/bundle.test.ts',
   'examples/auth/test/{boot,split}.test.ts',
+  'examples/cms/test/routes.test.ts',
+  'packages/mixins-ui/test/*.build.test.ts',
+  'packages/mixins-ui/test/breadcrumbBuild.test.ts',
+  'packages/mixins-ui/test/treeShaking.test.ts',
   'scripts/test/{readOnlyPage,publishedBuild}.test.ts',
   // Prerenders the whole site: 10 of the 12.5 minutes of the shard that held it.
   'examples/site/test/prerender.test.ts',
@@ -56,6 +60,19 @@ export const buildsElsewhere =
   process.env.CI !== undefined &&
   process.env.FOLDKIT_BUILDS === undefined &&
   process.env.FOLDKIT_PERF === undefined
+
+/**
+ * The two Node unit files that launch Chromium themselves via Playwright.
+ * On CI they run alongside `browser-touch` (`FOLDKIT_PLAYWRIGHT_UNIT=1`) so
+ * none of the `unit` shards need to install Chromium or its OS packages.
+ */
+export const playwrightUnitTests = [
+  'packages/mixins-data-grid/test/branded.test.ts',
+  'packages/plus/test/playwright.test.ts',
+] as const
+
+export const playwrightUnitElsewhere =
+  process.env.CI !== undefined && process.env.FOLDKIT_PLAYWRIGHT_UNIT === undefined
 
 /** For tests in Node or jsdom. */
 export const shared = defineConfig({

@@ -17,6 +17,12 @@ import { Data, Option } from 'effect'
 export type Evidence = Data.TaggedEnum<{
   /** `Laws.check` decided the pair by reading the declarations. */
   Enumerated: { readonly transition: string; readonly law: string }
+  /**
+   * `Laws.check` proved the pair from the numbers' declared bounds (the
+   * write's `from` and `when`, the input's Schema checks, the invariants held
+   * before), for every row and input within them: no row was enumerated.
+   */
+  Bounded: { readonly transition: string; readonly law: string }
   /** A scenario ran on `runner` (`remote`, `sqlite`, `domain-story`) with no mismatch. */
   Scenario: {
     readonly transition: string
@@ -78,6 +84,7 @@ const byHand = issuer('foldkit-metadata/runtimeOnly')
 export const Evidence = {
   /** Records for a producer to `issue`; one made here and not issued has no issuer. */
   Enumerated: constructors.Enumerated,
+  Bounded: constructors.Bounded,
   Scenario: constructors.Scenario,
   Walked: constructors.Walked,
   $is: constructors.$is,

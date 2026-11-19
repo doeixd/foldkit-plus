@@ -268,6 +268,14 @@ ids(Expr.or(Expr.isNull(Post.fields.publishedAt), Expr.not(early))) // ['p2', 'p
 ids(Expr.eq(Post.fields.publishedAt, null)) // []: ask with isNull
 ```
 
+`Expr.implies(a, b)` is `Expr.or(Expr.not(a), b)`, the same nodes: `b` must
+hold only where `a` does, which is how a rule binds some rows and not others.
+
+```ts
+// A short post was published from 200 on; a long one is not asked.
+ids(Expr.implies(Expr.lt(Post.fields.words, 1000), Expr.gte(Post.fields.publishedAt, 200))) // ['p2', 'p3']
+```
+
 `and` takes false over unknown and `or` takes true over it, as SQL does.
 `Expr.isNull` and `Expr.isNotNull` always have an answer. This is the place
 JavaScript intuition goes wrong most often: "everything except X" over a
@@ -296,6 +304,26 @@ written, naming the field. `Expr.contains` is a search: case-insensitive for
 ASCII letters only (`É` does not match `é`), with `%` and `_` read as
 characters. `Expr.in(field, list)` is SQL's `in`: an empty list matches no row.
 There is no `between`; write the two comparisons under `Expr.and`.
+
+### Sums and differences
+
+`Expr.add(a, b)` and `Expr.sub(a, b)` are numbers computed from numbers: a
+field, an input, a literal or another sum, on either side. A comparison, an
+order term, a write's `when` and its `compute` read one as any number.
+
+```ts
+// With a 200-word preface, still under 1000.
+ids(Expr.lt(Expr.add(Post.fields.words, 200), 1000)) // ['p3']
+Expr.show(Expr.sub(Post.fields.words, Expr.input('cut', Schema.Number))) // '(Post.words - $cut)'
+```
+
+They are the kernel's own primitive operators (`number.add`,
+`number.subtract`), so every reader runs them: `+` and `-` in memory, in SQLite
+and in Postgres, held to one answer by the conformance suite. A null on either
+side gives null. Past what a double holds the readers part: memory and SQLite
+give an infinity, Postgres refuses the statement as out of range (and adds two
+integer columns as integers, refusing past their range). A text operand is a
+type error where it is passed.
 
 ### Order
 
@@ -543,9 +571,10 @@ Three of these are easy to mistake for bugs:
 The language says which rows, in which order, and whether a row holds. It does
 not:
 
-- compute a value to show. There is no arithmetic and no aggregate in a
-  predicate; a count or a lookup over other rows is a derived member
-  (`Derived.count`, `Derived.exists`), and a derived member is not an operand;
+- aggregate, or compute past a sum and a difference. There is no
+  multiplication, division or aggregate in a predicate; a count or a lookup
+  over other rows is a derived member (`Derived.count`, `Derived.exists`), and
+  a derived member is not an operand;
 - join. A predicate reads its own row, rows reached through `one` relations,
   and whether a pointing row exists;
 - order by another row's value, or by a locale on a client;
@@ -567,6 +596,8 @@ this language existed.
 | `Expr.contains(text, search)` | `search` occurs in `text`, ASCII case folded | unknown if either is null |
 | `Expr.in(a, list)` | `a` is one of `list` | unknown for a null `a`; an empty list matches nothing |
 | `Expr.and`, `Expr.or`, `Expr.not` | SQL's three-valued connectives | `not` of unknown is unknown |
+| `Expr.implies(a, b)` | `b` wherever `a`: `or(not(a), b)` | true where `a` is false |
+| `Expr.add(a, b)`, `Expr.sub(a, b)` | a sum, a difference of numbers | null if either is null |
 | `Expr.whenGiven(input, build)` | a filter that applies when its input is not null | |
 | `Expr.input(key, schema)` | a value the run is given | |
 | `Expr.viewer(Entity)`, `Expr.now` | who asks, and when, from the run's context | a visitor is null |

@@ -30,7 +30,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // not draw (none of mixins-ui's bundles, choice, configure, calendar, combobox or fileUpload); `press` (0.5 kB
 // minified) comes with the Button and Card it draws. Ceiling raised to the reading plus about
 // 0.3%, rounded up.
-const CEILING = 228_000
+// +500 on 2026-11-19: CI read 228,029 (+29 over 228,000) after recipe `.style` (0.42.0) and
+// `Expr.add`/`sub`/`implies`, `Entity.transition`, `decrement` and `Mutation.update`'s `input` (#600).
+const CEILING = 228_500
 
 clientBudget({
   name: 'auth',

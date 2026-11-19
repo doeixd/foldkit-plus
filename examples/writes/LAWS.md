@@ -8,6 +8,9 @@ difference.
 Product
   Draft -> Published   Publish   holds
   Published -> Draft   Revert    refused by publishedStaysPublished
+      before   status: "published"
+      input    status: "draft"
+      after    status: "draft"
   Archived -> Draft    Revert    undeclared
   * -> InStock         Sell      enforced
   Archived                       unreached
@@ -16,13 +19,27 @@ Publish   x reservedWithinStock       kept: writes no member it reads
 Publish   x publishedStaysPublished   kept: 1 row enumerated
 Rename    x reservedWithinStock       kept: writes no member it reads
 Rename    x publishedStaysPublished   kept: 3 rows enumerated
-Restock   x reservedWithinStock       undecided: stock is incremented
+Restock   x reservedWithinStock       refused: Reserved stock cannot exceed the stock
+    before   reserved: 0, stock: 0
+    input    quantity: -1
+    after    reserved: 0, stock: -1
 Restock   x publishedStaysPublished   kept: 3 rows enumerated
 Revert    x reservedWithinStock       kept: writes no member it reads
-Revert    x publishedStaysPublished   refused: from {"status":"published"} it leaves {"status":"draft"}
-Sell      x reservedWithinStock       undecided: stock is incremented
+Revert    x publishedStaysPublished   refused: A published product does not go back to draft
+    before   status: "published"
+    input    status: "draft"
+    after    status: "draft"
+Sell      x reservedWithinStock       refused: Reserved stock cannot exceed the stock
+    before   reserved: 0, stock: 0
+    input    quantity: -1
+    after    reserved: 0, stock: -1
 Sell      x publishedStaysPublished   kept: 3 rows enumerated
-Sell      x becomes:InStock           undecided: stock is incremented
+Sell      x becomes:InStock           refused: The Product would not be InStock once written
+    before   stock: 0, reserved: 0
+    input    quantity: 0
+    after    stock: 0, reserved: 0
+
+1 entity, 4 states, 5 writes, 2 rules: 11 pairs, 7 kept, 4 refused, 0 undecided
 ```
 
 ## Evidence

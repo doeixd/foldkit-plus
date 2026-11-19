@@ -4,7 +4,7 @@
  */
 import { Option } from 'effect'
 import { Collation } from './collation.js'
-import type { OperatorDescriptor } from './expr.js'
+import { Expr, type OperatorDescriptor } from './expr.js'
 import type {
   Evidence,
   MemoryImplementation,
@@ -111,5 +111,17 @@ const startsWith = implementation(Text.startsWith.descriptor, 'strict', (...give
     : beginsWith(text, prefix)
 })
 
-/** The kernel's own operators (`Text.startsWith`): every memory interpreter's default. */
-export const kernelOperators = table([startsWith], false, [])
+/** Addition and subtraction as a double does them, which SQL's `+` and `-` match within range. */
+const add = implementation(
+  Expr.add.descriptor,
+  'strict',
+  (left, right) => (left as number) + (right as number),
+)
+const sub = implementation(
+  Expr.sub.descriptor,
+  'strict',
+  (left, right) => (left as number) - (right as number),
+)
+
+/** The kernel's own operators (`Text.startsWith`, `Expr.add`, `Expr.sub`): every memory interpreter's default. */
+export const kernelOperators = table([startsWith, add, sub], false, [])

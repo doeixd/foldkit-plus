@@ -7,7 +7,9 @@ Read when: changing a public API, adding a package, or editing `skills/foldkit-p
 package owns, when to use it, and basic examples. Users install it with
 `npx skills add doeixd/foldkit-plus --skill foldkit-plus`
 ([skills.sh](https://skills.sh)), which looks for `skills/<name>/SKILL.md`.
-It is published documentation: treat it like a README.
+It is published documentation: [`writing-docs.md`](./writing-docs.md)
+says what its reader (a coding agent) needs from `SKILL.md` and from each
+reference; the rules below are the mechanics.
 
 Use it yourself, too: for what each package is for and a basic example of
 each, read `SKILL.md` and the `references/` file for the package at hand

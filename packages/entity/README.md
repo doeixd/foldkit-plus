@@ -726,6 +726,9 @@ one of the same kind is flattened into its parent, and one operand is that
 operand. An interpreter that runs per request decides an operand that reads no
 field before it writes anything: `whenGiven` compiles to `true`, which filters
 nothing, when its input is null, and to the predicate alone when it is given.
+`Expr.implies(a, b)` is `Expr.or(Expr.not(a), b)`, the same nodes: `b` binds
+only the rows `a` holds of (`Expr.implies(Expr.eq(Product.fields.status,
+'active'), Expr.gt(Product.fields.cents, 0))`).
 
 **Comparisons** order two values: `Expr.lt`, `lte`, `gt` and `gte`.
 
@@ -750,6 +753,25 @@ throws where the comparison is built. A value is
 compared in its encoded form, which is why a date stored as an ISO string is
 text here. A null on either side is unknown, as in SQL. There is no `between`;
 it is the `and` above.
+
+**Sums and differences** are numbers too: `Expr.add(a, b)` and `Expr.sub(a, b)`,
+over number fields, inputs, literals and each other, on either side.
+
+```ts
+const price = { discount: Expr.input('discount', Schema.Number) }
+Expr.gte(Expr.sub(Product.fields.cents, price.discount), 100)
+Expr.show(Expr.sub(Product.fields.cents, price.discount)) // '(Product.cents - $discount)'
+```
+
+They are the kernel's primitive operators `number.add` and `number.subtract`,
+in `Operators.kernel` and every binding's SQL kernel: `+` and `-` in memory, in
+SQLite and in Postgres, and conformance cases hold the three to one answer. A
+null on either side gives null; a text operand is a type error where it is
+passed. A comparison, an order term, an invariant, a write's `when` and its
+`compute` read one as any number, and a sum of integers computes an integer
+field. Past what a double holds the readers part: memory and SQLite give an
+infinity, and Postgres refuses the statement as out of range (two integer
+columns add as integers there).
 
 ### Reading across relations: `Expr.path` and `Expr.exists`
 
@@ -1158,7 +1180,10 @@ read from the Entities' derived members and the queries' bodies.
 An update or a delete may also say when it makes sense: `when` is what the row
 must hold for it to land, written as a query body is: `() =>
 Expr.eq(Post.fields.title, 'Draft')`, or with the input, `({ input }) =>
-Expr.eq(Post.fields.title, input.from)`. It reads the row as it is before the write and the input,
+Expr.eq(Post.fields.title, input.from)`. `row` is the row before the write,
+each field as `Expr.field`, as `compute` reads it, so a precondition comparing
+the input with the row reads in that order: `({ row, input }) =>
+Expr.lte(input.amount, row.balance)`. It reads the row as it is before the write and the input,
 and only its own Entity: a field of another is a type error, and refused where
 the write is declared. Who is asking is a guard's: a `when` reading
 `Expr.viewer` or `Expr.now` (also through a path from the viewer or an exists)
@@ -1169,12 +1194,20 @@ writes, and a row it does not hold of is refused as unmet. A write declared with
 one is a `ConditionedWrite`, which is how `Mutation.write` knows it may be
 refused so.
 
-### Moving a number: `increment`
+### Moving a number: `increment` and `decrement`
 
 An update may move a number field by an amount the input holds, rather than set
 it: `increment: { stock: 'quantity' }` adds the input's `quantity` (an unmapped
 key, a number; negative takes away) to the stored `stock`, in the statement that
-writes, so no concurrent change is lost. A retry must not add twice, so either it
+writes, so no concurrent change is lost. `decrement: { balance: 'amount' }`
+takes the amount away, with the same guarantees and caveats: it is bound as the
+amount negated (`Write.bind`'s `increments` holds `balance: -amount`), so a
+writer adds it as it adds an increment's and a client predicts it the same way.
+One key may move several fields (a withdrawal decrements `balance` and
+increments `withdrawnToday` by one `amount`); a field moved by both an
+increment and a decrement is refused where the write is declared, naming it, as
+one also set or computed is. Each entry of `write.increments` says which way it
+moves (`direction`). A retry must not add twice, so either it
 expects a revision (a retry of a write that landed is then a conflict), or its
 writer keeps a ledger, which answers the retry from its record and lets two
 concurrent increments both land. `RemoteServer.write` refuses one with neither,
@@ -1267,7 +1300,10 @@ Entity.judge(Inventory, { after: { id: 'i1', quantity: 3, reserved: 5 } })
 ```
 
 One that reads the row before too (`before`) relates the two, each of which may
-be valid on its own: an order that shipped stays shipped.
+be valid on its own: an order that shipped stays shipped. Declare it with
+`Entity.transition`, which stores the same rule `Entity.invariant` would and
+refuses, where it is declared, one that reads nothing of `before`, so its name
+says what kind it is:
 
 ```ts
 const OrderFields = Entity.define(
@@ -1275,10 +1311,10 @@ const OrderFields = Entity.define(
   Schema.Struct({ id: Schema.String, status: Schema.Literals(['placed', 'shipped']) }),
 )
 const Order = OrderFields.pipe(
-  Entity.invariant(
+  Entity.transition(
     'shippedStaysShipped',
     ({ before, after }) =>
-      Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status, 'shipped')),
+      Expr.implies(Expr.eq(before.status, 'shipped'), Expr.eq(after.status, 'shipped')),
     { message: 'A shipped order stays shipped', path: ['status'] },
   ),
 )
@@ -1288,7 +1324,7 @@ Entity.judge(Order, { before: shipped, after: { ...shipped, status: 'placed' } }
 // { _tag: 'Invalid', failures: [{ id: 'shippedStaysShipped', … }] }
 ```
 
-What an invariant reads decides when it is judged; nothing else is declared:
+What a rule reads decides when it is judged; nothing else is stored:
 
 ```text
 reads after only   -> state invariant:      every create and update; a CHECK constraint
@@ -1296,7 +1332,31 @@ reads before too   -> transition invariant: every update, the only write with a 
 ```
 
 `Entity.readsBefore(invariant)` says which one is, for each of
-`Entity.invariants(entity)`.
+`Entity.invariants(entity)`, whichever step declared it.
+
+A rule that binds only rows in one state names the state (`Entity.refine`) as
+`in`, and says it once: the rule is `Expr.implies(state.after, rule)`, judged
+over the row the write leaves. States refine the Entity, so declare them before
+the rules that name them:
+
+```ts
+const Account = Entity.define(
+  'Account',
+  Schema.Struct({ id: Schema.String, status: Schema.Literals(['open', 'closed']), balance: Schema.Number }),
+)
+const Open = Entity.refine(Account, 'Open', { status: 'open' })
+Account.pipe(
+  Entity.invariant('neverOverdrawn', ({ after }) => Expr.gte(after.balance, 0), {
+    message: 'An open account is never overdrawn',
+    in: Open,
+  }),
+)
+
+Entity.judge(Account, { after: { id: 'a1', status: 'closed', balance: -5 } })._tag // 'Valid'
+```
+
+A state of another Entity, or one that reaches another row (it has no row
+after a write to judge), is refused where the rule is declared.
 
 `before` and `after` hold each field as the store does, encoded, and are typed
 so: a date stored as ISO text is compared with ISO text
@@ -1544,21 +1604,37 @@ keeps the whole report, so a write added changes a checked-in file):
 Product
   Draft -> Published   Publish   holds
   Published -> Draft   Revert    refused by publishedStaysPublished
+      before   status: "published"
+      input    status: "draft"
+      after    status: "draft"
   Archived -> Draft    Revert    undeclared
   Archived                       unreached
 
 Rename    x reservedWithinStock       kept: writes no member it reads
-Revert    x publishedStaysPublished   refused: from {"status":"published"} it leaves {"status":"draft"}
-Sell      x reservedWithinStock       undecided: stock is incremented
+Restock   x reservedWithinStock       refused: Reserved stock cannot exceed the stock
+    before   reserved: 0, stock: 0
+    input    quantity: -1
+    after    reserved: 0, stock: -1
+
+1 entity, 4 states, 5 writes, 2 rules: 11 pairs, 7 kept, 4 refused, 0 undecided
 ```
 
-One write against one invariant comes to one of three verdicts:
+A refusal prints its witness under it: the row before (none for a create),
+the input, and the row after, over the members the rule and the write read,
+the smallest the check found. The last line is what the report stands on.
+Here nothing bounds `Restock`'s quantity, so a negative one breaks the rule;
+`Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))` on the input keeps it.
+
+One write against one invariant comes to one of three verdicts, by the first
+of these that decides it:
 
 | Case | Verdict |
 | --- | --- |
 | A state invariant, and the write writes no member it reads | `Kept`, by disjointness |
 | Every member it reads is finite (a literal, a union of literals, a boolean, with or without null), and the write changes each only by setting it | Enumerated: `Kept`, or `Refused` with the rows that break it |
-| Anything else: a number, free text, an increment, a computed field, a link, an operator the table lacks, more than 4,096 rows | `Undecided`, with the reason |
+| The rule holds whatever the members it cannot enumerate hold: closing an account leaves "while open, the balance is not negative" nothing to bind | `Kept`, `vacuous` |
+| The numbers it reads, bounded, decide it (below) | `Kept`, `bounds`; or `Refused` with a witness |
+| Anything else: free text, a link, a relation between two unknowns, an operator with no monotonic law, more than 4,096 rows | `Undecided`, with the reason and an `obligation` |
 
 A transition invariant is never kept by disjointness: `after.count >
 before.count` is broken by every write that leaves `count` alone. Rows are not
@@ -1566,11 +1642,44 @@ filtered by the invariants before enumeration, since a row may be invalid
 before a write; a row the write's `when` (and `from`) definitely refuses is
 dropped, and one it cannot judge stays.
 
-The findings (`holds`, `enforced`, `undeclared`, `refused`, `unreached`,
-`terminal`) are reports, never faults: a write an invariant can refuse is
-legitimate. `enforced` (`* -> InStock   Sell   enforced`) is a `becomes` held by
-its postcondition where the write commits, and that postcondition is a pair of
-the write alone (`Sell x becomes:InStock`).
+#### Numbers, by their bounds
+
+A number member or input key the check cannot enumerate gets an interval:
+its Schema's checks (`isGreaterThanOrEqualTo`, `isBetween`, `Schema.Int`…),
+narrowed by the write's `from` and `when` where they compare it with a value,
+and by the Entity's state invariants, assumed to hold of the row before the
+write. That assumption is what makes the proof inductive: a write that keeps a
+rule from every row the rules allow keeps it on every row the writes make,
+starting from rows that held it. The write's effect is carried through the
+intervals (a set, an increment, a `compute` through operators that declare
+`Law.monotonic` for each argument), and the rule is judged over the result in
+SQL's three values. `Kept` by `bounds` holds for every row and input within
+those bounds.
+
+It is deliberately non-relational: a `when` comparing two unknowns
+(`amount <= balance`) narrows each only by the other's interval, so it keeps
+nothing on its own, and the pair is `Undecided`: "it rests on comparing
+balance with amount". A refusal is never inferred from intervals: the check
+tries the values nearest 0 and at each interval's ends, and refuses only with
+a row and input the reference judge refuses, within every Schema, meeting the
+`when`, and keeping every state invariant they hold the members of. The
+numbers are the judge's (JavaScript's, rounding monotone); a store that rounds
+otherwise is outside what it proves.
+
+An `Undecided` pair of a declared write carries an `obligation`: the `write`,
+the `rule`, the state invariants `assumed` before it and the `cases` (values
+of the finite members) left, all as declared, for a later pass, such as a
+solver, to prove without reading the source again.
+
+The findings (`holds`, `enforced`, `undeclared`, `refused`, `unmeetable`,
+`unreached`, `terminal`) are reports, never faults: a write an invariant can
+refuse is legitimate. `enforced` (`* -> InStock   Sell   enforced`) is a
+`becomes` held by its postcondition where the write commits, and that
+postcondition is a pair of the write alone (`Sell x becomes:InStock`).
+`unmeetable` is a write whose `from` and `when` no row the state invariants
+allow can meet. A refusal whose witness starts in states no write reaches
+carries a `hint` saying so: an invariant ruling those states out would settle
+the pair.
 
 A transition that is no declared write (another package's command, an
 import) is an entry with a `Footprint`: what its author says it writes, or
@@ -1593,9 +1702,10 @@ is a declared write's own.
 
 #### Evidence, and the graph's facts
 
-A pair the check keeps by reading the declarations (by disjointness, by
-enumeration, a create against a transition invariant, a delete) carries an
-`Enumerated` record in `evidence`, issued by `foldkit-entity/laws`. A pair
+A pair the check keeps by reading the declarations carries a record in
+`evidence`, issued by `foldkit-entity/laws`: `Bounded` for one the numbers'
+bounds decided, `Enumerated` for the rest (by disjointness, by enumeration,
+`vacuous`, a create against a transition invariant, a delete). A pair
 kept on its author's word (`declared`), refused or undecided carries none:
 for those, the evidence is a walk through the writer, a scenario, or
 `Evidence.runtimeOnly` with its reason. These records are
@@ -1692,7 +1802,8 @@ Query.show(PublicStories)
 
 Without `definedAs`, an operator is **primitive**: it means what each
 interpreter's implementation does, and every implementation is held to the
-same statement of it. The kernel ships one, `Text.startsWith`; an application
+same statement of it. The kernel ships three, `Text.startsWith`, `Expr.add` and
+`Expr.sub`; an application
 declares its own and implements it, here for the in-memory interpreter:
 
 ```ts standalone
@@ -1887,14 +1998,14 @@ server on different deploys see which side is behind.
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result; a tagged union of cases for a variant Entity whose `_tag` is selected. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
-| `Write.update(input, { id, expect?, when?, from?, becomes?, increment? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land; `from`, a state whose predicate joins the `when`; `becomes`, the state every row it starts from is in once it lands, proved where declared or else held where it commits (`ensures`); `increment`, the number fields it moves by an input amount. |
+| `Write.update(input, { id, expect?, when?, from?, becomes?, increment?, decrement? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when` (`({ row, input }) => predicate`), what the row must hold for it to land; `from`, a state whose predicate joins the `when`; `becomes`, the state every row it starts from is in once it lands, proved where declared or else held where it commits (`ensures`); `increment` and `decrement`, the number fields it adds an input amount to or takes one from. |
 | `Write.insert(input, { id, becomes? })` / `Write.delete(input, { id, expect?, when?, from? })` | A declared insert under an id the client chose; a declared delete of one row, which sets nothing. |
 | `Write.ensured(write)` | The postcondition a `becomes` enumeration could not decide holds the write to where it commits (`becomes:<State>`), for `Refusal.isInvalidBy`; throws for a write with none. |
 | `Write.footprint(write)` | What a write reads and writes of its row, by field key, as a `Footprint.Derived`. |
 | `Entity.refine(entity, name, { field: value } or ({ row }) => predicate)` | A named state of the row, declared on the Entity: `predicate`, `after`, `local`, `reads`, `is(row)`. |
 | `Entity.states(entity)` / `Entity.inState(state, row, operators?)` | Every state declared on an Entity; whether a stored row is in one (`Option`, none where it lacks a field the state reads). |
 | `Query.from(state)` | Every row in a state: the Entity's query with its predicate in `where`. |
-| `Laws.check({ writes, operators? })` / `Laws.show(report)` | Each write (`{ name, write }` or `{ name, entity, footprint }`) against each invariant of its Entity, and the arrows between its states, by enumeration over finite fields: a `LawReport` of `pairs` (each with its `Enumerated` `evidence`, if decided kept), `arrows`, `states` and `findings`; the report as text. |
+| `Laws.check({ writes, operators? })` / `Laws.show(report)` | Each write (`{ name, write }` or `{ name, entity, footprint }`) against each invariant of its Entity, and the arrows between its states, by enumeration over finite fields and intervals over numbers: a `LawReport` of `pairs` (each with its `Enumerated` or `Bounded` `evidence`, if decided kept; a refusal's `witness`; an undecided pair's `obligation`), `arrows`, `states`, `findings` and `totals`; the report as text, each witness under its line. |
 | `Laws.facts(report)` / `Laws.transition(entry)` / `Laws.law(invariant)` | The report as graph facts (`LawFacts`: `LawNode`s and `LawEdge`s); a transition's id (`write:Sell`) and a law's (`Product.reservedWithinStock`) in evidence and the graph. |
 | `lawFactsOf(entries)` | `Laws.check`'s entries as graph facts, read off the declarations with no check run: what `Graph.of` derives a contract's `laws.entities` with. |
 | `Footprint.declared({ reads?, writes, by })` / `Footprint.unknown` | What a transition that is no declared write reads and writes, on whose word; or nothing known, which writes every member. |
@@ -1909,8 +2020,9 @@ server on different deploys see which side is behind.
 | `Entity.derived({ key: Derived.make(schema, { predict?, forbids? }) })` | Pipe step adding readable, externally supplied members; `predict` and `forbids` say what a client foresees of one. |
 | `Derived.count(Other.relations.pointer)` | A derived member counting the rows whose `one` relation points at this one. |
 | `Derived.exists(Other.relations.pointer, { viewer: Other.relations.by })` | The id of a row pointing at this one and at whoever reads it, or none. |
-| `Entity.invariant(id, ({ before, after }) => predicate, { message, path })` | Pipe step: what every stored row must hold, judged over the row a write leaves. |
+| `Entity.invariant(id, ({ before, after }) => predicate, { message, path, in? })` | Pipe step: what every stored row must hold, judged over the row a write leaves; `in: State` binds it to rows in that state. |
 | `Entity.judge(entity, { after, before? })` / `Entity.check(entity)` | Judge rows against the invariants (`Valid`, `Invalid`, `Undecided`); the state invariants as a Schema check. |
+| `Entity.transition(id, ({ before, after }) => predicate, { message, path, in? })` | Pipe step: the rule `Entity.invariant` stores, refused where it is declared when it reads nothing of `before`. |
 | `Entity.invariants(entity)` / `Entity.readsBefore(invariant)` | The invariants an Entity holds; whether one reads the row before (a transition invariant). |
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
@@ -1924,6 +2036,8 @@ server on different deploys see which side is behind.
 | `Expr.in(field, among)` | Whether a value is one of a list (written out, or an input), each compared as `eq` compares; SQL's `in`, an empty list matching nothing. |
 | `Expr.and(a, b, …)` / `Expr.or(a, b, …)` | Every operand holds / at least one does, as SQL's three-valued `and` and `or`. At least one operand; a nested one of the same kind is flattened in. |
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
+| `Expr.implies(condition, then)` | `then` holds wherever `condition` does: `Expr.or(Expr.not(condition), then)`, the same nodes. |
+| `Expr.add(a, b)` / `Expr.sub(a, b)` | A sum, a difference of two numbers: the kernel's primitive operators `number.add` and `number.subtract`, run by every reader; null if either side is null. |
 | `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
 | `Expr.is(entity or relation, tag, fields => predicate?)` | The row, or the row a `one` relation reaches, is of a case of a variant Entity, and holds what is asked of that case's fields, typed as the case holds them. False on another case. |
 | `Expr.path(relation, end)` | What the row a `one` relation points at holds: a field, a further path, or an exists; null where no row is reached. At most `maxPathLength` (4) relations. |

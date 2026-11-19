@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: "Write.update(inputOver(entity, set), { ...options, id: 'id' } as never)",
-        replace: "Write.update(inputOver(entity, set), { id: 'id' } as never)",
+        find: "Write.update(inputOver(entity, set, input), { ...options, id: 'id' } as never)",
+        replace: "Write.update(inputOver(entity, set, input), { id: 'id' } as never)",
       },
     ],
     tests,
@@ -38,8 +38,52 @@ export default [
     edits: [
       {
         file,
-        find: "Schema.Struct({ ...Entity.fields(entity, 'id'), ...set })",
-        replace: 'Schema.Struct({ id: Schema.String, ...set })',
+        find: "Schema.Struct({ ...Entity.fields(entity, 'id'), ...set, ...input })",
+        replace: 'Schema.Struct({ id: Schema.String, ...set, ...input })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an update drops its input',
+    edits: [
+      {
+        file,
+        find: 'Write.update(inputOver(entity, set, input),',
+        replace: 'Write.update(inputOver(entity, set),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an input key is mapped to its field',
+    edits: [
+      {
+        file,
+        find: 'for (const key of Object.keys(input)) unmapped[key] = Entity.unmapped',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a key in set and input is taken',
+    edits: [
+      {
+        file,
+        find: "Object.keys(input).find(key => key === 'id' || Object.hasOwn(set, key))",
+        replace: "Object.keys(input).find(key => key === 'id')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the id in input is taken',
+    edits: [
+      {
+        file,
+        find: "Object.keys(input).find(key => key === 'id' || Object.hasOwn(set, key))",
+        replace: 'Object.keys(input).find(key => Object.hasOwn(set, key))',
       },
     ],
     tests,

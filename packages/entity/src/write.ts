@@ -62,9 +62,12 @@ export interface WriteSet {
  * One input key holding an amount, and the field it moves. `integer` is whether
  * the amount's schema holds it to an integer (`Schema.isInt`): a writer over an
  * integer column refuses an increment without it, which the Entity cannot see.
+ * `direction` is which way: `increment` adds the amount, `decrement` takes it
+ * away, bound as the amount negated (`Write.bind`), so every writer adds.
  */
 export interface WriteIncrement extends WriteSet {
   readonly integer: boolean
+  readonly direction: 'increment' | 'decrement'
 }
 
 /**
@@ -162,8 +165,9 @@ export interface Write<
   /** The keys it sets, in the input's order. */
   readonly sets: ReadonlyArray<WriteSet>
   /**
-   * The fields it moves by an amount the input holds (`stock + quantity`),
-   * computed where the write commits: the input key, and the field it moves.
+   * The fields it moves by an amount the input holds (`stock + quantity`, or
+   * `balance - amount` for a decrement), computed where the write commits: the
+   * input key, the field it moves, and which way.
    */
   readonly increments: ReadonlyArray<WriteIncrement>
   /** The fields it computes, each from the row before the write and the input. */
@@ -206,7 +210,7 @@ type NumberKeys<Fields> = {
     : never
 }[keyof Fields & string]
 
-/** An update's increments: a number field of the Entity, by the input key holding the amount. */
+/** An update's increments (or decrements): a number field of the Entity, by the input key holding the amount. */
 export type WriteIncrements<E extends AnyEntity, Fields extends Schema.Struct.Fields> = {
   readonly [
     K in NumberKeys<{ [F in keyof E['fields']]: E['fields'][F]['schema'] }>
@@ -233,6 +237,7 @@ type UpdateOptions<
   Fields extends Schema.Struct.Fields,
 > = RowOptions<Fields> & {
   readonly increment?: WriteIncrements<E, Fields>
+  readonly decrement?: WriteIncrements<E, Fields>
   readonly compute?: WriteComputations<E, Fields>
   readonly becomes?: RefinementOf<E> | undefined
 }
@@ -304,11 +309,14 @@ const remove: DeleteWrite = (
 }
 
 /**
- * A write's precondition: a predicate over its Entity's row, given one
- * placeholder per input key, as a `Query.define` body is. It is built once,
- * so `input` stands for what the write will be given.
+ * A write's precondition: a predicate over its Entity's row before the write
+ * (`row`, each field as `Expr.field`, as `compute` reads it; or the Entity's
+ * own fields), given one placeholder per input key, as a `Query.define` body
+ * is. It is built once, so `input` stands for what the write will be given:
+ * `({ row, input }) => Expr.lte(input.amount, row.balance)`.
  */
 export type WriteCondition<E extends AnyEntity, Fields extends Schema.Struct.Fields> = (context: {
+  readonly row: BeforeRow<E>
   readonly input: {
     readonly [K in keyof Fields & string]: InputExpr<Schema.Schema.Type<Fields[K]>>
   }
@@ -325,7 +333,7 @@ export interface BoundWrite {
    * key on the wire, a foreign key in a table) is each interpreter's.
    */
   readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
-  /** Each field it moves, by the amount, encoded: added by the server, and predicted over what a client holds. */
+  /** Each field it moves, by the amount, encoded (a decrement's negated): added by the server, and predicted over what a client holds. */
   readonly increments: Readonly<Record<string, number>>
   /** Each field it computes, as data: run by the server where it writes, predicted by a client. */
   readonly assignments: Readonly<Record<string, Computation>>
@@ -383,6 +391,7 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
     readonly from?: RefinementOf<E> | undefined
     readonly becomes?: RefinementOf<E> | undefined
     readonly increment?: Readonly<Record<string, string | undefined>>
+    readonly decrement?: Readonly<Record<string, string | undefined>>
     readonly compute?: WriteComputations<E, Fields> | undefined
   },
 ): Write<E, Fields, Kind> => {
@@ -427,13 +436,17 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
   const becomes = Option.map(Option.fromUndefinedOr(options.becomes), state =>
     localTo(input.entity, state as AnyRefinement, 'becomes'),
   )
+  const fields = input.entity.fields as Readonly<Record<string, E['fields'][string]>>
+  const row = Object.fromEntries(
+    Object.entries(fields).map(([key, field]) => [key, Expr.field(field)]),
+  ) as unknown as BeforeRow<E>
   // The `from` state's predicate joins the `when`, so another state is refused as unmet.
   const conditions = [
     ...Option.toArray(Option.map(from, state => state.predicate as Predicate)),
     ...Option.toArray(
       Option.map(
         Option.fromUndefinedOr(options.when),
-        condition => condition({ input: placeholders as never }) as Predicate,
+        condition => condition({ row, input: placeholders as never }) as Predicate,
       ),
     ),
   ]
@@ -450,13 +463,13 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind
     conditions.length === 0
       ? Option.none<AnyQuery>()
       : Option.some(Query.from(input.entity).pipe(Query.where(...conditions)) as AnyQuery)
-  const increments = Object.entries(options.increment ?? {}).flatMap(([fieldKey, key]) =>
-    key === undefined ? [] : [incrementOf(input, fieldKey, key, { expect, sets })],
-  )
-  const fields = input.entity.fields as Readonly<Record<string, E['fields'][string]>>
-  const row = Object.fromEntries(
-    Object.entries(fields).map(([key, field]) => [key, Expr.field(field)]),
-  ) as unknown as BeforeRow<E>
+  const increments: Array<WriteIncrement> = []
+  for (const direction of ['increment', 'decrement'] as const) {
+    for (const [fieldKey, key] of Object.entries(options[direction] ?? {})) {
+      if (key !== undefined)
+        increments.push(incrementOf(input, fieldKey, key, direction, { expect, sets, increments }))
+    }
+  }
   const computes: ReadonlyArray<
     readonly [string, WriteComputations<E, Fields>[keyof E['fields'] & string]]
   > = Object.entries(options.compute ?? {})
@@ -636,7 +649,11 @@ const comesToInteger = (expr: AnyExpr): boolean =>
       Field: ({ schema }) => storesIntegers(schema),
       Input: ({ schema }) => storesIntegers(schema),
       Literal: ({ value }) => value === null || Number.isInteger(value),
-      Call: ({ operator }) => storesIntegers(operator.output),
+      // A sum or difference of integers is one, whatever the operator's number output says.
+      Call: ({ operator, args }) =>
+        storesIntegers(operator.output) ||
+        ((operator === Expr.add.descriptor || operator === Expr.sub.descriptor) &&
+          args.every(arg => !isPredicate(arg) && comesToInteger(arg))),
     }),
     // What else an expression reads is refused in an assignment before this is asked.
     Match.orElse(() => false),
@@ -807,28 +824,41 @@ const storedAsInteger = (schema: Schema.Top): boolean =>
   SchemaShape.holdsIntegers(Schema.toEncoded(schema).ast)
 
 /**
- * One increment, checked: a field of the Entity stored as a number, written
- * by nothing else, moved by an unmapped input key whose value is a number, and
- * an integer when the field is one.
+ * One increment or decrement, checked: a field of the Entity stored as a
+ * number, written by nothing else (an increment and a decrement of one field
+ * included: say the one amount it moves by), moved by an unmapped input key
+ * whose value is a number, and an integer when the field is one.
  */
 const incrementOf = (
   input: EntityInput<AnyEntity, any, any>,
   fieldKey: string,
   key: string,
-  declared: { readonly expect: WriteSet | undefined; readonly sets: ReadonlyArray<WriteSet> },
+  direction: WriteIncrement['direction'],
+  declared: {
+    readonly expect: WriteSet | undefined
+    readonly sets: ReadonlyArray<WriteSet>
+    readonly increments: ReadonlyArray<WriteIncrement>
+  },
 ): WriteIncrement => {
+  const verb = `${direction}s`
   const fields = input.entity.fields as Readonly<Record<string, AnyField>>
   const field = Object.hasOwn(fields, fieldKey) ? fields[fieldKey] : undefined
-  if (field === undefined) return fail(input, `increments "${fieldKey}", which is not a field`)
-  if (fieldKey === 'id') return fail(input, 'increments the id')
+  if (field === undefined) return fail(input, `${verb} "${fieldKey}", which is not a field`)
+  if (fieldKey === 'id') return fail(input, `${verb} the id`)
   if (declared.expect?.field.key === fieldKey) {
-    return fail(input, `increments "${fieldKey}", the revision it expects`)
+    return fail(input, `${verb} "${fieldKey}", the revision it expects`)
   }
   if (declared.sets.some(set => set.field.key === fieldKey)) {
-    return fail(input, `increments "${fieldKey}", which a key also sets`)
+    return fail(input, `${verb} "${fieldKey}", which a key also sets`)
+  }
+  if (declared.increments.some(increment => increment.field.key === fieldKey)) {
+    return fail(
+      input,
+      `${verb} "${fieldKey}", which it also increments; move a field by one amount`,
+    )
   }
   if (!storedAsNumber(field.schema as unknown as Schema.Top)) {
-    return fail(input, `increments "${fieldKey}", which is not stored as a number`)
+    return fail(input, `${verb} "${fieldKey}", which is not stored as a number`)
   }
   const member = own(membersOf(input), key)
   if (member === undefined) return fail(input, `"${key}" is not a key of the input`)
@@ -846,7 +876,7 @@ const incrementOf = (
       `"${key}" may not be an integer, but "${fieldKey}" is one; give the amount Schema.Int`,
     )
   }
-  return Object.freeze({ key, field, integer })
+  return Object.freeze({ key, field, integer, direction })
 }
 
 /**
@@ -942,6 +972,11 @@ export const Write = {
    * One enumeration cannot decide (`becomes: InStock` over an increment) is
    * the write's postcondition, `ensures`: each writer judges it where the
    * write commits and refuses a row it leaves outside as `Invalid`.
+   *
+   * `increment: { stock: 'quantity' }` adds an unmapped number input to a
+   * field where it commits, and `decrement: { balance: 'amount' }` takes one
+   * away; neither is idempotent, so a retry needs `expect` or a ledger. A field
+   * moved by both, or also set or computed, is refused.
    *
    * `compute` sets a field to what an expression comes to over the row before
    * the write and the input, run where it commits
@@ -1151,13 +1186,15 @@ export const Write = {
       )
     }
     const increments: Record<string, number> = {}
-    for (const { key, field } of write.increments) {
+    for (const { key, field, direction } of write.increments) {
       // `keys` names input keys, so an increment is asked for by its amount's key.
       if (!asked(key)) continue
       const schema = write.input.schema.fields[key] as unknown as Schema.Codec<unknown, number>
-      Option.map(given(own(input, key)), held =>
-        put(increments, field.key, Schema.encodeUnknownSync(schema)(held)),
-      )
+      Option.map(given(own(input, key)), held => {
+        const amount = Schema.encodeUnknownSync(schema)(held)
+        // A decrement is the amount taken away, `0 - amount` so a zero stays `0`, not `-0`.
+        put(increments, field.key, direction === 'decrement' ? 0 - amount : amount)
+      })
     }
     // Every assignment: it reads the row as well as the input, so no key alone asks for it.
     const assignments: Record<string, Computation> = {}

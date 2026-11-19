@@ -102,6 +102,24 @@ describe.each(Object.entries(databases))('Operators run by %s', (_, database) =>
     expect(report.disagreements).toEqual([])
   })
 
+  it.each([
+    ['Expr.add', Expr.add],
+    ['Expr.sub', Expr.sub],
+  ] as const)('%s answers every generated call as memory does', async (_, op) => {
+    const report = await Conformance.operator(op, { implementations })
+    // Null, nine numbers, both sides: 10 × 10.
+    expect(report.cases).toBe(100)
+    expect(report.disagreements).toEqual([])
+  })
+
+  it.each([
+    ['Expr.add', Expr.add],
+    ['Expr.sub', Expr.sub],
+  ] as const)('%s keeps the laws it declares, run by the database', async (name, op) => {
+    const verdict = await Conformance.lawsBy(op, database, { implementation: name })
+    expect(verdict._tag).toBe('Holds')
+  })
+
   it('an application’s concat answers every generated call as memory does', async () => {
     const report = await Conformance.operator(concat, { implementations })
     expect(report.cases).toBeGreaterThan(100)

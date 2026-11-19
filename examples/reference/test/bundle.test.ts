@@ -39,7 +39,9 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // to every page that uses `Style`, measured by its author with the method taken out of one tree;
 // the rest of the 106 over the last reading is `Mutation.update/insert/delete` (684308739), which
 // this page's Remote carries. Ceiling: the reading, rounded up.
-const CEILING = 251_150
+// +850 on 2026-11-19: 251,780 measured after `Expr.add`/`sub`/`implies`, `Entity.transition`,
+// `decrement`, row-reading `when` and `Mutation.update`'s `input` (#600) in `foldkit-entity` / `foldkit-remote`.
+const CEILING = 252_000
 
 clientBudget({
   name: 'reference',

@@ -10,4 +10,10 @@ export declare const clientBudget: (options: {
   readonly childProcess?: boolean
   /** Modules the page must not load at start, as `package/file` without an extension. */
   readonly absent?: ReadonlyArray<string>
+  /**
+   * Build twice and require the two readings to agree. Defaults to true on
+   * pushes to `main` and false on PRs/local runs so PRs do not double-build
+   * every example.
+   */
+  readonly determinism?: boolean
 }) => void

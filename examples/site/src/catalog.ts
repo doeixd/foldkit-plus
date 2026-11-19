@@ -162,15 +162,18 @@ export const subsites: ReadonlyArray<Subsite> = [
       doc('journal', 'Editing server data', 'editing-server-data'),
     ],
   ),
-  family({
-    id: 'guard',
-    title: 'Guard',
-    tagline:
-      'Who may read and change what, declared once and enforced on the server, in sync and for agents.',
-    owner: 'the domain declaration',
-    shelf: 'Data',
-    packages: ['guard'],
-  }),
+  family(
+    {
+      id: 'guard',
+      title: 'Guard',
+      tagline:
+        'Who may read and change what, declared once and enforced on the server, in sync and for agents.',
+      owner: 'the domain declaration',
+      shelf: 'Data',
+      packages: ['guard'],
+    },
+    [doc('how-guard-works', 'How Guard works', 'guard')],
+  ),
   family(
     {
       id: 'auth',
