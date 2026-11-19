@@ -334,7 +334,8 @@ const phone = async (browser: Browser, height = 844) => {
   await openPage(page)
   // The studio draws its page's history row late and moves the panels down by its height.
   await page.waitForTimeout(1500)
-  // The palette shows first; the page is under it, reached by scrolling, as a thumb would.
+  // The page is the first thing in the editor, under the title row; its bar, the tabs and the
+  // panel they choose are below it, reached by scrolling, as a thumb would.
   await page.locator('[data-builder-canvas]').scrollIntoViewIfNeeded()
   return { context, page, errors }
 }
@@ -596,6 +597,16 @@ test('at 390px the page editor does not scroll sideways, and its panels are reac
   expect(scroll).toBeLessThanOrEqual(client)
   for (const name of ['Add', 'Layers', 'Settings'])
     expect(await page.getByRole('button', { name, exact: true }).isVisible()).toBe(true)
+  // The page is on the first screen, and the title and address share one row above it, where
+  // the two stacked fields and the panel above the page put it 897px down.
+  await page.waitForTimeout(1500)
+  const [canvas, title, address] = await Promise.all(
+    ['[data-builder-canvas]', '#PageForm-title', '#PageForm-slug'].map(selector =>
+      page.locator(selector).evaluate(each => each.getBoundingClientRect()),
+    ),
+  )
+  expect(canvas!.top).toBeLessThanOrEqual(220)
+  expect(Math.abs(title!.top - address!.top)).toBeLessThan(8)
   await context.close()
 })
 

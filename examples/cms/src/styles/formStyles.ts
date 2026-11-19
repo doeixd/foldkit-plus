@@ -12,7 +12,18 @@ import { Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
-import { app, button, field, L, phone, serif, stateBadge, t, visuallyHidden } from './style.js'
+import {
+  app,
+  button,
+  field,
+  hiddenDeclarations,
+  L,
+  phone,
+  serif,
+  stateBadge,
+  t,
+  visuallyHidden,
+} from './style.js'
 
 // --- the form, the worklist, and the Builder --------------------------------------
 
@@ -199,7 +210,14 @@ export const PageFieldStyle = Style.forSlots(FieldSlots)(
     ...Field({}),
     root: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space['3xs'] })),
-      onKey(['document'], Style.self({ gridColumn: '1 / -1', marginBlockStart: t.space.sm })),
+      onKey(
+        ['document'],
+        Style.compose(
+          Style.self({ gridColumn: '1 / -1', marginBlockStart: t.space.sm }),
+          // The form's gap is the room above the page on a phone.
+          Style.media(phone, { marginBlockStart: '0' }),
+        ),
+      ),
     ),
     // An address's `/` inside the field, as one box: the recipe's pieces, as
     // tall as a text field beside it.
@@ -207,6 +225,9 @@ export const PageFieldStyle = Style.forSlots(FieldSlots)(
     label: Style.compose(
       Style.self({ color: t.text.muted, fontSize: t.size.xs, fontWeight: t.weight.semibold }),
       onKey(['document'], visuallyHidden),
+      // On a phone the words are the title in bold and an address after its slash: read, not
+      // shown, which gives the page its 20px.
+      Style.media('(max-width: 40rem)', hiddenDeclarations),
     ),
     description: Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
     text: Style.compose(
@@ -237,7 +258,12 @@ export const PageFormStyle = Style.forSlots(FormSlots)(
         gap: t.space.md,
         gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
       }),
-      Style.media('(max-width: 52rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
+      // The title and the address stay on one row on a phone, the title wider: the page is the
+      // point of the screen, and two stacked fields stood 130px above it.
+      Style.media('(max-width: 52rem)', {
+        gap: t.space.sm,
+        gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)',
+      }),
     ),
     errors: Style.compose(form.errors, Style.self({ gridColumn: '1 / -1' })),
   },
