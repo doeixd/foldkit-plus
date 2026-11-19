@@ -370,6 +370,8 @@ const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
     CopiedText: message => asShell(model, message),
     PressedCodeCopy: message => asShell(model, message),
     CopiedCode: message => asShell(model, message),
+    PressedCodeToggle: message => asShell(model, message),
+    ToggledCode: message => asShell(model, message),
     FailedToCopy: message => asShell(model, message),
     ChosePageScheme: message => asShell(model, message),
     FoundPageScheme: message => asShell(model, message),
@@ -553,6 +555,7 @@ export const subscriptions = placements.subscriptions(
         },
       ),
       codeCopy: Shell.codeCopy,
+      codeToggle: Shell.codeToggle,
     })),
     Shell.sectionSpy,
     Subscription.lift(WidgetsUpdate.subscriptions)<Model, Message>({

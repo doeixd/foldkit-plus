@@ -19,7 +19,7 @@ import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { allSubsites } from './catalog.js'
-import { COPY_ATTRIBUTE, type Library } from './library.js'
+import { COPY_ATTRIBUTE, EXPAND_ATTRIBUTE, type Library } from './library.js'
 import { Example, Page, PageScheme } from './page.js'
 import { markSection, sections } from './spy.js'
 import { Body } from './view/shellLayout.js'
@@ -57,6 +57,8 @@ export const cases = {
   CopiedText: {},
   PressedCodeCopy: { index: Schema.Number },
   CopiedCode: {},
+  PressedCodeToggle: { index: Schema.Number },
+  ToggledCode: {},
   FailedToCopy: {},
   ChosePageScheme: { scheme: PageScheme },
   FoundPageScheme: { scheme: PageScheme },
@@ -113,6 +115,34 @@ export const CopyCode = Command.define('CopyCode', {
     }).pipe(Effect.orElseSucceed(() => Message.FailedToCopy())),
 })
 
+/**
+ * Opens or closes the collapsed code block whose button is the `index`th on
+ * the page. The block is in a static region, so its state is the attributes
+ * the styles read (`data-collapsed` on the figure, `aria-expanded` on the
+ * button) and the button's two labels, swapped where they stand; the focus
+ * stays on the button because nothing is drawn again.
+ */
+export const ToggleCode = Command.define('ToggleCode', {
+  args: { index: Schema.Number },
+  messages: [Message.ToggledCode],
+  execute: ({ index }) =>
+    Effect.sync(() => {
+      const button = document.querySelectorAll<HTMLElement>(`[${EXPAND_ATTRIBUTE}]`)[index]
+      const figure = button?.closest('figure')
+      if (button === undefined || figure === null || figure === undefined)
+        return Message.ToggledCode()
+      const open = button.getAttribute('aria-expanded') !== 'true'
+      const shown = button.textContent
+      button.setAttribute('aria-expanded', String(open))
+      figure.dataset['collapsed'] = String(!open)
+      button.textContent = button.dataset['toggledLabel'] ?? shown
+      button.dataset['toggledLabel'] = shown ?? ''
+      // A block that closes is shorter than the page was: keep its button in view.
+      if (!open) button.scrollIntoView({ block: 'nearest' })
+      return Message.ToggledCode()
+    }),
+})
+
 /** Applies the reader's scheme to the page and keeps it for the next visit. */
 export const ApplyPageScheme = Command.define('ApplyPageScheme', {
   args: { scheme: PageScheme },
@@ -156,6 +186,8 @@ export const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
     CopiedText: () => ({ model: modifyFields(model, { copied: () => true }) }),
     PressedCodeCopy: ({ index }) => ({ model, commands: [CopyCode({ index })] }),
     CopiedCode: () => ({ model }),
+    PressedCodeToggle: ({ index }) => ({ model, commands: [ToggleCode({ index })] }),
+    ToggledCode: () => ({ model }),
     FailedToCopy: () => ({ model }),
     ChosePageScheme: ({ scheme }) =>
       scheme === model.pageScheme
@@ -183,14 +215,23 @@ export const update = placements.update(updateOwn)
 
 // SUBSCRIPTION
 
-/** Which copy button a click landed on, counted in the page's order. */
-export const codeCopyOf = (event: MouseEvent): Option.Option<Message> => {
-  const button =
-    event.target instanceof Element ? event.target.closest(`[${COPY_ATTRIBUTE}]`) : null
+/** Which button carrying `attribute` a click landed on, counted in the page's order. */
+const buttonIndexOf = (attribute: string, event: MouseEvent): Option.Option<number> => {
+  const button = event.target instanceof Element ? event.target.closest(`[${attribute}]`) : null
   if (button === null) return Option.none()
-  const index = Array.from(document.querySelectorAll(`[${COPY_ATTRIBUTE}]`)).indexOf(button)
-  return index === -1 ? Option.none() : Option.some(Message.PressedCodeCopy({ index }))
+  const index = Array.from(document.querySelectorAll(`[${attribute}]`)).indexOf(button)
+  return index === -1 ? Option.none() : Option.some(index)
 }
+
+/** Which copy button a click landed on, counted in the page's order. */
+export const codeCopyOf = (event: MouseEvent): Option.Option<Message> =>
+  Option.map(buttonIndexOf(COPY_ATTRIBUTE, event), index => Message.PressedCodeCopy({ index }))
+
+/** Which collapsed block's button a click landed on, counted in the page's order. */
+export const codeToggleOf = (event: MouseEvent): Option.Option<Message> =>
+  Option.map(buttonIndexOf(EXPAND_ATTRIBUTE, event), index =>
+    Message.PressedCodeToggle({ index }),
+  )
 
 /** A code block's copy button, answered for the static region that drew it without a handler. */
 export const codeCopy = Subscription.persistentEntry(
@@ -198,6 +239,15 @@ export const codeCopy = Subscription.persistentEntry(
     target: () => document,
     type: 'click',
     filterMapEvent: codeCopyOf,
+  }),
+)
+
+/** A collapsed code block's button, answered for the static region that drew it without a handler. */
+export const codeToggle = Subscription.persistentEntry(
+  Dom.streamFromEventFilterMap({
+    target: () => document,
+    type: 'click',
+    filterMapEvent: codeToggleOf,
   }),
 )
 
@@ -215,7 +265,7 @@ export const sectionSpy = Subscription.make<Model, Message>()(entry => ({
 
 export const subscriptions = placements.subscriptions(
   Subscription.aggregate(
-    Subscription.make<Model, Message>()(() => ({ codeCopy })),
+    Subscription.make<Model, Message>()(() => ({ codeCopy, codeToggle })),
     sectionSpy,
   ),
 )

@@ -221,30 +221,59 @@ describe('CodeBlock lines', () => {
     )
   })
 
-  it('draws the first lines of a collapsed block and a button that asks for the rest', () => {
+  it('clamps a collapsed block to its first lines, every line still in the page, and draws a button for the rest', () => {
     const block = view<string>(
-      { code: `${five}\n`, collapsed: { lines: 2, onExpand: 'more' } },
+      { code: `${five}\n`, collapsed: { lines: 2, onToggle: 'more' } },
       sent,
     )
-    expect(Inert.text(Inert.byTag(block, 'code')[0])).toBe('a\nb')
-    expect(Inert.value(Inert.byTag(block, 'figure')[0], 'data-collapsed')).toBe('true')
+    expect(Inert.text(Inert.byTag(block, 'code')[0])).toBe(`${five}\n`)
+    const [figure] = Inert.byTag(block, 'figure')
+    expect(Inert.value(figure, 'data-collapsed')).toBe('true')
+    expect(Inert.style(figure)['--fk-code-clamp']).toBe('2')
     const [expand] = Inert.byTag(block, 'button')
-    expect([Inert.text(expand), Inert.value(expand, 'aria-expanded')]).toEqual([
-      'Show all 5 lines',
-      'false',
-    ])
+    expect([
+      Inert.text(expand),
+      Inert.value(expand, 'aria-expanded'),
+      Inert.value(expand, 'data-toggled-label'),
+    ]).toEqual(['Show all 5 lines', 'false', 'Show less'])
     sends<string>(
-      drawn => view({ code: five, collapsed: { lines: 2, onExpand: 'more' } }, drawn),
+      drawn => view({ code: five, collapsed: { lines: 2, onToggle: 'more' } }, drawn),
       Scene.click(Scene.role('button', { name: 'Show all 5 lines' })),
       Scene.expectOutMessage('more'),
     )
   })
 
-  it('draws a block shorter than its collapse whole, with no button', () => {
-    const block = view<string>({ code: five, collapsed: { lines: 5, onExpand: 'more' } }, sent)
+  it('draws an expanded block unclamped, its button offering to collapse it', () => {
+    const block = view<string>(
+      { code: five, collapsed: { lines: 2, expanded: true, onToggle: 'less' } },
+      sent,
+    )
+    const [figure] = Inert.byTag(block, 'figure')
+    expect(Inert.value(figure, 'data-collapsed')).toBe('false')
+    const [button] = Inert.byTag(block, 'button')
+    expect([
+      Inert.text(button),
+      Inert.value(button, 'aria-expanded'),
+      Inert.value(button, 'data-toggled-label'),
+    ]).toEqual(['Show less', 'true', 'Show all 5 lines'])
+  })
+
+  it('draws the button with no handler when no Message is given, for a page whose script toggles it', () => {
+    expect(() =>
+      sends<string>(
+        drawn => view({ code: five, collapsed: { lines: 2 } }, drawn),
+        Scene.click(Scene.role('button', { name: 'Show all 5 lines' })),
+      ),
+    ).toThrow(/no click handler|has a click handler/)
+  })
+
+  it('draws a block no longer than its collapse whole, with no button', () => {
+    const block = view<string>({ code: five, collapsed: { lines: 5, onToggle: 'more' } }, sent)
     expect(Inert.text(Inert.byTag(block, 'code')[0])).toBe(five)
     expect(Inert.byTag(block, 'button')).toEqual([])
-    expect(Inert.value(Inert.byTag(block, 'figure')[0], 'data-collapsed')).toBeUndefined()
+    const [figure] = Inert.byTag(block, 'figure')
+    expect(Inert.value(figure, 'data-collapsed')).toBeUndefined()
+    expect(Inert.style(figure)).toEqual({})
   })
 
   it('wraps only when asked', () => {
@@ -266,7 +295,7 @@ describe('CodeBlock lines', () => {
       },
     ],
     ['a fractional start', { startLine: 1.5 }],
-    ['a collapse to no lines', { collapsed: { lines: 0, onExpand: 'more' } }],
+    ['a collapse to no lines', { collapsed: { lines: 0, onToggle: 'more' } }],
   ])('refuses %s', (_, options) => {
     expect(() => view<string>({ code: five, ...options }, sent)).toThrow(RangeError)
   })
@@ -352,7 +381,7 @@ describe('CodeBlock recipe', () => {
         lineNumbers: true,
         marks: [{ line: 2, kind: 'added' }],
         wrap: true,
-        collapsed: { lines: 1, onExpand: 'more' },
+        collapsed: { lines: 1, onToggle: 'more' },
         lineAction: () => Option.some(sent.span([], ['ok'])),
         style,
       },

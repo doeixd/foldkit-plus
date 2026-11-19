@@ -10,7 +10,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Behavior } from 'foldkit-mixins'
 import { CodeBlock, CodeBlockSlots } from 'foldkit-mixins-ui'
 
-import { COPY_ATTRIBUTE } from '../library.js'
+import { COPY_ATTRIBUTE, EXPAND_ATTRIBUTE } from '../library.js'
 import { CodeStyle, DiagramStyle } from '../style.js'
 import { diagram } from './diagram.js'
 import { textOf } from './text.js'
@@ -29,9 +29,15 @@ const unlinked = (context: Context): Context => ({ ...context, codeLink: () => O
 
 type Ih = HtmlBuilder<never>
 
-const CopyHook = Behavior.forSlots(CodeBlockSlots)<undefined, never>({
+const Hooks = Behavior.forSlots(CodeBlockSlots)<undefined, never>({
   copy: { attributes: ({ h }) => [h.Attribute(COPY_ATTRIBUTE, '')] },
+  expand: { attributes: ({ h }) => [h.Attribute(EXPAND_ATTRIBUTE, '')] },
 })
+
+/** A block of more lines than this is drawn collapsed. */
+const COLLAPSE_ABOVE = 14
+/** The lines a collapsed block shows. */
+const COLLAPSED_LINES = 12
 
 /** A block that scrolls sideways is reached by Tab, and named for a screen reader. */
 const scrollable = (name: string) =>
@@ -53,24 +59,31 @@ export interface Code {
   readonly copy: boolean
 }
 
-/** A code block, its tokens colored by kind, drawn with the shipped `CodeBlock`. */
+/**
+ * A code block, its tokens colored by kind, drawn with the shipped `CodeBlock`.
+ * One longer than `COLLAPSE_ABOVE` lines is clamped with a button for the rest;
+ * the block is in a static region, so its button carries no handler and the
+ * page's script flips it (`shell.ts`'s `ToggleCode`).
+ */
 export const codeBlock = (
   ih: Ih,
   highlight: Highlight,
   { code, lang, label, copy }: Code,
 ): Html => {
   const diagram = lang === null || lang === undefined || lang === 'text'
+  const lines = code.split('\n')
   return CodeBlock.view(
     {
       code,
       tokens: highlight(code, lang),
       ...(label === undefined ? {} : { language: label }),
       ...(copy ? { copy: {} } : {}),
+      ...(lines.length > COLLAPSE_ABOVE ? { collapsed: { lines: COLLAPSED_LINES } } : {}),
       style: diagram ? DiagramStyle : CodeStyle,
       mixins: [
-        CopyHook.mixin,
+        Hooks.mixin,
         // A short block never scrolls on a phone, and no tab stop is spent on it.
-        ...(code.split('\n').some(line => line.length > NARROWEST)
+        ...(lines.some(line => line.length > NARROWEST)
           ? [diagram ? Scrollable.diagram : Scrollable.code]
           : []),
       ],

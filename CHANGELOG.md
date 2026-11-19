@@ -7,6 +7,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Changed
+
+- `foldkit-mixins-ui`: a `CodeBlock` with `collapsed` keeps every line in the page and clips it by style to the first `lines`, under the fade, so a find, a copy of the page's text and an anchor reach the whole code (it drew only the first lines). `collapsed: { lines, expanded?, onToggle? }` replaces `{ lines, onExpand }`: the application flips `expanded` from `onToggle`, and an expanded block's button offers `words.collapse` (new, `Show less`). `onToggle` may be left out for a server-rendered static region whose script toggles the block: the button then carries the words it shows after a press as `data-toggled-label`. The root writes `data-collapsed="true"` or `"false"` and `--fk-code-clamp`, only when the code has more than `lines` lines.
+
 ## 0.41.0
 
 What to change when you upgrade. `foldkit-mixins-ui` is reshaped (#589), and

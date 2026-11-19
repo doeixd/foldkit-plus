@@ -99,8 +99,11 @@ export const CodeBlock = Style.recipeFor(CodeBlockSlots)({
         tabSize: '2',
       }),
       Style.nest(wrapped, { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }),
-      // The fade says there is more below, over the last lines drawn.
+      // A collapsed block keeps every line in the page and clips to its first
+      // `--fk-code-clamp`; the fade says there is more below.
       Style.nest(':where([data-collapsed="true"]) > &', {
+        maxBlockSize: 'calc(var(--fk-code-clamp) * 1lh)',
+        overflowY: 'hidden',
         maskImage: 'linear-gradient(to bottom, black calc(100% - 4lh), transparent)',
       }),
     ),

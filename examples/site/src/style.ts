@@ -91,6 +91,12 @@ const floatedCopy = {
   ),
   // The language is not a title: the label would sit under the button.
   title: Style.self({ display: 'none' }),
+  // A finger's target: the button that opens a collapsed block, and Copy on a touch screen.
+  expand: Style.self({ minBlockSize: '2.75rem' }),
+  copy: Style.at(
+    '@media (hover: none)',
+    Style.nest('&', { minBlockSize: '2.75rem', minInlineSize: '2.75rem' }),
+  ),
   line: Style.nest('&:first-child', { paddingInlineEnd: COPY_ROOM }),
 }
 

@@ -13,6 +13,9 @@ import type { Example, Page } from './page.js'
  */
 export const COPY_ATTRIBUTE = 'data-copy-code'
 
+/** The same for the button that opens a collapsed code block: the page's script flips it. */
+export const EXPAND_ATTRIBUTE = 'data-expand-code'
+
 /** The component gallery and the theme creator; each component's page is under the gallery's. */
 export const COMPONENTS = '/components'
 export const CREATE = '/create'
