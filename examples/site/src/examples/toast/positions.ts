@@ -1,9 +1,8 @@
 import { Bundle } from 'foldkit-bundle'
-import { Bundles, Button, ButtonSlots, Recipes, Toast, ToastSlots } from 'foldkit-mixins-ui'
+import { Bundles, Button, Recipes, Toast, ToastSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Choose = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const Choose = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 // A stack stands where its Model says (`position`), so a place is a stack:
 // one Bundle each, in a field of its own.

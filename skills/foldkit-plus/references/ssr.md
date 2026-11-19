@@ -1,6 +1,6 @@
 # foldkit-ssr
 
-Checked against `foldkit-ssr` 0.13.0, `foldkit` 0.170.0.
+Checked against `foldkit-ssr` 0.14.0, `foldkit` 0.170.0.
 
 Server rendering that hands the browser **the Model the server reached**, not
 the inputs to rebuild it: `init` runs once, on the server, and the browser
@@ -165,9 +165,11 @@ would rebuild those elements.
   Foldkit fills `canonical` and `og:url` only into tags the template has; a
   render that sets one into a template without its tag is refused.
 - `SSR.plan({ meta: model => Meta })` writes the description, `og:*`,
-  `twitter:card`, `article:*`, `robots`, alternates and JSON-LD into the head,
+  `twitter:*`, `article:*`, `robots`, alternates and JSON-LD into the head,
   escaped and checked like the view, and `SSR.hydrate` replaces them as the
-  Model changes. `Meta` is typed (`import type { Meta } from 'foldkit-ssr'`).
+  Model changes. `Meta` is typed (`import type { Meta } from 'foldkit-ssr'`):
+  `image` (absolute) takes `imageSize` and `imageAlt`; `article` takes
+  `authors` and `tags`.
 - A Surface in `surfaces` that reads or is activated by a field in none of
   `state`, `restored` or `local`, reads Remote data no part resumes, or activates
   differently from the browser's Model fails with `Uncovered`. A

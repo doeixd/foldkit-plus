@@ -7,7 +7,8 @@
 import { Style } from 'foldkit-mixins'
 import type { SiteModule } from 'foldkit-ssr/vite'
 
-import { library } from './content/load.js'
+import type { ServerLibrary } from './content/library.js'
+import { library as repositoryLibrary } from './content/load.js'
 import { headScripts } from './head.js'
 import * as Gallery from './main.js'
 import { isComponentPath } from './paths.js'
@@ -15,10 +16,22 @@ import * as Shell from './shell.js'
 import { stylesheet } from './style.js'
 
 // Annotated rather than `satisfies`: the inferred type, the whole Model's, is too long to write out.
-export const site: SiteModule = {
+// A function of its library, so a test can render the site from a smaller one.
+export const siteOf = (library: () => Promise<ServerLibrary>): SiteModule => ({
   origin: Shell.ORIGIN,
   // The host serves `404.html` for an address with no page.
-  paths: async () => [...(await library()).paths, '/404.html'],
+  paths: async () => {
+    const { paths, modified } = await library()
+    return [
+      ...paths.map(path => {
+        const at = modified.get(path)
+        return at === undefined ? path : { path, modified: at }
+      }),
+      '/404.html',
+    ]
+  },
+  // The blog's Atom feed, which the pages' head links (`index.html`).
+  emit: async () => [{ file: 'blog/feed.xml', contents: (await library()).feed(Shell.ORIGIN) }],
   config: async (path: string) => {
     const content = await library()
     return isComponentPath(path)
@@ -48,4 +61,6 @@ export const site: SiteModule = {
   files: 'flat',
   sitemap: true,
   robots: true,
-}
+})
+
+export const site = siteOf(repositoryLibrary)

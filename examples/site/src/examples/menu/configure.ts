@@ -2,7 +2,6 @@ import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Bundles, Menu, MenuSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
 const rows: ReadonlyArray<Menu.Row> = [
   { value: 'open', label: 'Open' },
@@ -10,7 +9,7 @@ const rows: ReadonlyArray<Menu.Row> = [
   { value: 'delete', label: 'Delete', tone: 'destructive' },
 ]
 
-const Roomy = forSlots(MenuSlots)(Recipes.Menu({ size: 'md' }))
+const Roomy = Recipes.Menu.style({ size: 'md' })
 
 // The look and the anchor every menu of the application starts from. Its
 // `mixins` and the call's concatenate; the Model, rows and Messages stay at the call.

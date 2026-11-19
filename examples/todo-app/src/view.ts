@@ -79,7 +79,7 @@ export const HeaderView = SurfaceView.define(Header, HeaderSlots, (model, slots,
     ),
     h.p(slots.tally.attrs(), [`${tally.active} active · ${tally.completed} completed`]),
     h.p(slots.intro.attrs(), [
-      'Every edit is saved on this device first and synced when it can be, so it survives a reload and works offline. An agent can add, finish and rename todos here too.',
+      'Edits save on this device first and sync when they can, so they survive a reload and work offline. An agent can edit here too.',
     ]),
   ])
 }).pipe(Style.attach(HeaderStyle))

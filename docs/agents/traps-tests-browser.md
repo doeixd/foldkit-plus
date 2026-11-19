@@ -15,6 +15,9 @@ Read before writing or debugging a `*.browser.test.ts`, an e2e test, a touch or 
 - **End goes to the end of a line, not of a block, and CI wraps elsewhere.**
   The playground's e2e pressed a callout then End and typed; CI's fonts (DejaVu Sans) wrap onto more lines, so the caret stopped mid-text (Windows and the Playwright image passed). Put the caret at a block's end with a press past its last line (`caretAtEnd` in `playground.e2e.ts`); reproduce in the Playwright image with `fonts-dejavu-core`.
 
+- **A test that drives `history` shares it with the tester, and a runtime left running answers the next test's Back.**
+  The tests run in an iframe whose session history is the page's, so one `history.back()` too many left the tester ("Browser connection was closed"). The phone menu's test kept every earlier test's runtime alive (nothing disposed it), so each runtime's `popstate` listener saw the next test's Back and each open menu took off its own entry. `await handle.dispose()` in `afterEach`, and judge a push by the entries it leaves (`history.state`, the length once the menu's own entry is on the stack), not by the length from before the test: an earlier Back leaves forward entries that a push replaces.
+
 ## The shared pointer and Vitest's locators
 
 - **The browser tests share one real pointer: park it somewhere known before asserting `:hover`/`:active`.**

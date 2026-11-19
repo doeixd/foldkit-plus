@@ -1,8 +1,7 @@
-import { Button, ButtonSlots, Card, CardSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, Card, CardSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Action = forSlots(ButtonSlots)(Recipes.Button({ size: 'sm' }))
+const Action = Recipes.Button.style({ size: 'sm' })
 
 // `divide` draws a hairline under the header, or under it and over the
 // footer, edge to edge, so the regions read as sections of one sheet.

@@ -59,9 +59,9 @@ describe('the showcases', () => {
   })
 
   it('name only the values that differ from the defaults in code', () => {
-    expect(selectionCode(button, {})).toBe('forSlots(ButtonSlots)(Recipes.Button({}))')
+    expect(selectionCode(button, {})).toBe('Recipes.Button.style()')
     expect(selectionCode(button, { tone: 'accent', size: 'lg', variant: 'ghost' })).toBe(
-      "forSlots(ButtonSlots)(Recipes.Button({ variant: 'ghost', size: 'lg' }))",
+      "Recipes.Button.style({ variant: 'ghost', size: 'lg' })",
     )
   })
 
@@ -86,7 +86,7 @@ describe('the showcases', () => {
       values: ['unset', 'compact', 'regular', 'comfortable'],
       initial: 'unset',
     })
-    expect(selectionCode(table, {})).toBe('forSlots(TableSlots)(Recipes.Table({}))')
+    expect(selectionCode(table, {})).toBe('Recipes.Table.style()')
     const [basic] = table.examples
     expect(markup(basic!.render({ density: 'compact' }, live))).not.toBe(
       markup(basic!.render({}, live)),

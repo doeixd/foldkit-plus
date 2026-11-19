@@ -1,8 +1,7 @@
 import { Bundles, Recipes, Timer, TimerSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Tiles = forSlots(TimerSlots)(Recipes.Timer({ look: 'tiles', tone: 'neutral' }))
+const Tiles = Recipes.Timer.style({ look: 'tiles', tone: 'neutral' })
 
 // What every timer of an application starts from: its look, its units and
 // its words, said once. A preset is a named set over it, chosen at a use.

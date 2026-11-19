@@ -1,8 +1,7 @@
-import { Badge, BadgeSlots, Card, CardSlots, Recipes } from 'foldkit-mixins-ui'
+import { Badge, Card, CardSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Tag = forSlots(BadgeSlots)(Recipes.Badge())
+const Tag = Recipes.Badge.style()
 
 // A number with what it counts and how it moved: the content is the figure.
 export default example({

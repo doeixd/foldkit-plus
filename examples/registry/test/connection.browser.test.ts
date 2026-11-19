@@ -11,7 +11,7 @@ import { KeyValueStore } from 'effect/persistence'
 import { Remote, type RemoteRpcClient } from 'foldkit-remote'
 import { ReplicaId, type Storage } from 'foldkit-sync'
 import { afterEach, expect, it, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { Message } from '../src/app.js'
 import { ProductId } from '../src/domain.js'
 import { stylesheet } from '../src/style.js'
@@ -102,4 +102,18 @@ it('announces a refused edit in a polite region that was already in the page', a
   await vi.waitFor(() => expect(region?.textContent).toContain('A price, like 4.99'))
   // The same element: a region replaced by the redraw would announce nothing.
   expect(document.getElementById('refused')).toBe(region)
+})
+
+it('fills the screen on a phone to its last pixel and does not scroll past it', async () => {
+  await page.viewport(390, 844)
+  await mount()
+  const grid = await vi.waitFor(() => {
+    const element = document.getElementById('products')
+    expect(element).not.toBeNull()
+    return element!
+  })
+  const root = document.documentElement
+  expect(root.scrollHeight).toBeLessThanOrEqual(root.clientHeight)
+  // The grid takes what the rows above it leave, down to the page's own bottom padding.
+  expect(grid.getBoundingClientRect().bottom).toBeGreaterThan(root.clientHeight - 48)
 })

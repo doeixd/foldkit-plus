@@ -1,11 +1,10 @@
 import * as UiDialog from '@foldkit/ui/dialog'
 import { Bundle } from 'foldkit-bundle'
-import { Bundles, Button, ButtonSlots, Dialog, DialogSlots, Recipes } from 'foldkit-mixins-ui'
+import { Bundles, Button, Dialog, DialogSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
-const Quiet = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'ghost' }))
+const Primary = Recipes.Button.style({})
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'ghost' })
 
 // A dialog opened from another: the inner one is drawn inside the outer
 // `dialog`, beside its panel, and the outer panel steps back while it is

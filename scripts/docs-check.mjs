@@ -1,6 +1,7 @@
 /**
  * Type-checks the TypeScript blocks of the published docs: each package's
- * README, `docs/*.md` (not `docs/design/`) and the `foldkit-plus` skill (#229).
+ * README, `docs/*.md` and the posts in `docs/blog/` (not `docs/design/`) and the
+ * `foldkit-plus` skill (#229).
  * A block is a claim a reader copies, so it compiles against the workspace's
  * packages by their published names, as the skill's snippet rule asks.
  *
@@ -60,7 +61,7 @@ const tracked = spawnSync('git', ['ls-files', '-z', '--', '*.md'], { cwd: root, 
     file =>
       // A package's README, and a subpath's (`foldkit-primitives/dom`).
       /^packages\/[^/]+\/(?:(?!test\/)[^/]+\/)?README\.md$/.test(file) ||
-      /^docs\/[^/]+\.md$/.test(file) ||
+      /^docs\/(?:blog\/)?[^/]+\.md$/.test(file) ||
       file.startsWith('skills/foldkit-plus/'),
   )
 const only = process.argv.slice(2).map(file => posix(relative(root, resolve(file))))

@@ -1,16 +1,8 @@
 import { Option } from 'effect'
-import {
-  Avatar,
-  AvatarSlots,
-  Bundles,
-  FileUpload,
-  FileUploadSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Avatar, Bundles, FileUpload, FileUploadSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Face = forSlots(AvatarSlots)(Recipes.Avatar({ size: 'lg' }))
+const Face = Recipes.Avatar.style({ size: 'lg' })
 
 // `picture` draws the picker's face from the first file's image, here with
 // the Avatar the application already has. No list is drawn.

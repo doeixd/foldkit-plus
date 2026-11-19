@@ -43,11 +43,11 @@ export const ReplacedStyle = demoStyle.forSlots(AlertSlots)(Recipes.Alert({ tone
   name: 'ReplacedStyle',
 })
 
-/** The grid's frame, over the grid's own style: the room the page leaves it. */
+/** The grid's frame, over the grid's own style: what the page's column has left. */
 export const GridFrame = demoStyle.forSlots(GridSlots)(
   {
     root: Style.self({
-      height: 'calc(100dvh - 12rem)',
+      flex: '1 1 20rem',
       minHeight: '20rem',
       border: `1px solid ${t.outline.subtle}`,
       borderRadius: t.radius.lg,
@@ -62,7 +62,12 @@ export const GridFrame = demoStyle.forSlots(GridSlots)(
 
 export const Page = demoStyle.slots(
   {
-    content: L.in('layouts', Layout.stack({ gap: t.space.sm })),
+    // At least the main region's height, so the grid takes what the rows above it leave
+    // instead of a guessed height that let the page scroll past the screen.
+    content: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.sm })),
+      Style.self({ minBlockSize: '100%' }),
+    ),
     toolbar: L.in('layouts', Layout.cluster({ gap: t.space.sm, justify: 'space-between' })),
     counts: Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted }),
     // Always in the page, so a change is announced.
@@ -167,7 +172,10 @@ export const DeviceBadgeStyle = demoStyle.forSlots(BadgeSlots)(
 
 export const Sandbox = demoStyle.slots(
   {
-    content: L.in('layouts', Layout.stack({ gap: t.space.lg })),
+    content: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.lg })),
+      Style.media('(max-width: 63.99rem)', { gap: t.space.sm }),
+    ),
     // The lede and the conflict steps side by side where there is room, so the devices start high.
     intro: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
@@ -180,6 +188,9 @@ export const Sandbox = demoStyle.slots(
           alignItems: 'start',
         }),
       ),
+      // One device at a time on a phone: the intro's words give way to it. The heading stays on
+      // top and the lede and steps move under the device, as the content's own children.
+      Style.media('(max-width: 63.99rem)', { display: 'contents' }),
     ),
     eyebrow: Style.self({
       gridColumn: '1 / -1',
@@ -194,21 +205,25 @@ export const Sandbox = demoStyle.slots(
       color: t.text.overt,
       gridColumn: '1 / -1',
     }),
-    lede: Style.self({ margin: '0', maxInlineSize: '44rem', color: t.text.muted }),
+    // `order` has an effect only where the intro is `display: contents` (a phone): there the
+    // device and its switch come before the words about them.
+    lede: Style.self({ margin: '0', maxInlineSize: '44rem', color: t.text.muted, order: '3' }),
     steps: Style.self({
       margin: '0',
       paddingInlineStart: t.space.lg,
       maxInlineSize: '44rem',
       fontSize: t.size.sm,
       color: t.text.muted,
+      order: '3',
     }),
     // Only a phone, which shows one device at a time, needs the switch.
     switch: Style.compose(
-      Style.self({ display: 'none' }),
+      Style.self({ display: 'none', order: '1' }),
       Style.media('(max-width: 63.99rem)', { display: 'block' }),
     ),
     devices: Style.compose(
       Style.self({
+        order: '2',
         display: 'grid',
         gap: t.space.md,
         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
@@ -230,7 +245,7 @@ export const Sandbox = demoStyle.slots(
     frame: Style.self({
       display: 'block',
       inlineSize: '100%',
-      blockSize: '80vh',
+      blockSize: '80dvh',
       minBlockSize: '34rem',
       border: '0',
     }),

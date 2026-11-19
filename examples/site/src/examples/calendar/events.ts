@@ -1,12 +1,11 @@
 import { Option } from 'effect'
 import { Calendar as Dates } from 'foldkit'
-import { Bundles, Calendar, CalendarSlots, Item, ItemSlots, Recipes } from 'foldkit-mixins-ui'
+import { Bundles, Calendar, CalendarSlots, Item, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { note, stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 import { today } from '../../snippets/today.js'
 
-const EventStyle = forSlots(ItemSlots)(Recipes.Item({ density: 'compact' }))
+const EventStyle = Recipes.Item.style({ density: 'compact' })
 
 /** A few events, days from the day the page was loaded. */
 const EVENTS = [

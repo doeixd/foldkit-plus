@@ -1,18 +1,10 @@
 import { Match, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import {
-  Bundles,
-  Button,
-  ButtonSlots,
-  FloatingPanel,
-  FloatingPanelSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Bundles, Button, FloatingPanel, FloatingPanelSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
-const Plain = forSlots(ButtonSlots)(Recipes.Button({ variant: 'outline', size: 'sm' }))
+const Primary = Recipes.Button.style({})
+const Plain = Recipes.Button.style({ variant: 'outline', size: 'sm' })
 
 // `helpers.dock` (the `Docked` Message) lays the panel along an edge of the
 // viewport as measured when it lands, `thickness` across and the whole of the

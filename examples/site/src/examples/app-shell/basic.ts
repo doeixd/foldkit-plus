@@ -1,17 +1,8 @@
-import {
-  AppShell,
-  AppShellSlots,
-  Badge,
-  BadgeSlots,
-  Button,
-  ButtonSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { AppShell, AppShellSlots, Badge, Button, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Live = forSlots(BadgeSlots)(Recipes.Badge())
-const Quiet = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const Live = Recipes.Badge.style()
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 // The page's frame, with no state and no Message: a skip link, the header (the
 // banner) with its status and actions, the main region and the footer. Shown

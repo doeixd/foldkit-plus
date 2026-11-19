@@ -1,10 +1,9 @@
-import { Avatar, AvatarGroupSlots, AvatarSlots, Recipes } from 'foldkit-mixins-ui'
+import { Avatar, AvatarSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
 import { portrait } from '../../snippets/portrait.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Stack = forSlots(AvatarGroupSlots)(Recipes.AvatarGroup({ lift: 'hover' }))
+const Stack = Recipes.AvatarGroup.style({ lift: 'hover' })
 
 // `lift: 'hover'` raises the avatar under the pointer; `rest` draws an icon
 // in the count's disc in place of `+2`.

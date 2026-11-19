@@ -1,12 +1,11 @@
 import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 import { invoices, money, type Invoice } from '../../snippets/invoices.js'
 
 // Stated once, at module scope: the look, the words and the highlight every
 // table of the application starts from, and a preset over it.
-const Dense = forSlots(TableSlots)(Recipes.Table({ density: 'compact', rows: 'plain' }))
-const Roomy = forSlots(TableSlots)(Recipes.Table({ density: 'comfortable' }))
+const Dense = Recipes.Table.style({ density: 'compact', rows: 'plain' })
+const Roomy = Recipes.Table.style({ density: 'comfortable' })
 
 const AppTable = Table.configure({
   base: { style: Roomy, fluid: Table.fluid, words: { selectRow: 'Pick this row' } },

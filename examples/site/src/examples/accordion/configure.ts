@@ -1,10 +1,11 @@
 import { Accordion, AccordionSlots, Bundles, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Cards = forSlots(AccordionSlots)(
-  Recipes.Accordion({ variant: 'separated', indicator: 'plus', indicatorPosition: 'start' }),
-)
+const Cards = Recipes.Accordion.style({
+  variant: 'separated',
+  indicator: 'plus',
+  indicatorPosition: 'start',
+})
 
 // What every accordion of an application starts from: its look and its
 // heading level, said once. Which sections open stays the Bundle's.

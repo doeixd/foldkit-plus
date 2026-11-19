@@ -1,8 +1,7 @@
-import { Frame, FrameSlots, Item, ItemSlots, Recipes } from 'foldkit-mixins-ui'
+import { Frame, FrameSlots, Item, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Row = forSlots(ItemSlots)(Recipes.Item({ density: 'compact' }))
+const Row = Recipes.Item.style({ density: 'compact' })
 
 // One Item to a panel: the panel is the surface, the Item the row.
 export default example({

@@ -84,6 +84,9 @@ const page = (path: string, cookie?: string, headers: Record<string, string> = {
     const asked = request(
       `${stack.origin}${path}`,
       {
+        // A new connection per request: the global agent keeps sockets alive, and one the server
+        // closed while idle is reused by the next request, which then fails "socket hang up".
+        agent: false,
         headers: {
           accept: 'text/html',
           'sec-fetch-mode': 'navigate',

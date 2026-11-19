@@ -9,11 +9,12 @@ const SOURCE = Array.from(
 ).join('\n')
 
 const Model = Schema.Struct({ expanded: Schema.Boolean })
-const Message = defineMessageUnion({ Expanded: {} })
+const Message = defineMessageUnion({ Toggled: {} })
 
-// `collapsed` draws the first lines and a button that asks for the rest;
-// whether the block is open is the application's, so it draws the block
-// without `collapsed` once the button is pressed.
+// `collapsed` clips the block to its first lines under a fade and draws a
+// button for the rest; every line stays in the page, so a find or a copy
+// reaches all of it. Whether the block is open is the application's: the
+// button's Message flips `expanded`, and the block then offers to close.
 export default example({
   title: 'Collapsed',
   slots: CodeBlockSlots,
@@ -22,7 +23,7 @@ export default example({
     Model,
     Message,
     init: () => ({ model: { expanded: false } }),
-    update: model => ({ model: model.expanded ? model : { expanded: true } }),
+    update: model => ({ model: { expanded: !model.expanded } }),
   },
   view: ({ style, model, onMessage, h }) =>
     CodeBlock.view(
@@ -30,9 +31,11 @@ export default example({
         code: SOURCE,
         title: 'items.ts',
         lineNumbers: true,
-        ...(model.expanded
-          ? {}
-          : { collapsed: { lines: 5, onExpand: onMessage(Message.Expanded()) } }),
+        collapsed: {
+          lines: 5,
+          expanded: model.expanded,
+          onToggle: onMessage(Message.Toggled()),
+        },
         style,
       },
       h,

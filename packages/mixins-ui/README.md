@@ -74,9 +74,11 @@ so one extension contract covers both families.
 A variation of a widget is a call with options, never a copied file. A widget
 is made of four kinds of fact, and each has one place it is given:
 
-- **Look** is CSS over fixed markup. `Recipes.X(selection)` picks values on
-  axes, `.extend` adjusts them and `.add` gives a recipe an axis or a value it
-  lacks ([Recipes](#recipes)).
+- **Look** is CSS over fixed markup. `Recipes.X.style(selection)` picks values
+  on axes and gives the style `X.view` takes, `.extend` adjusts them and `.add`
+  gives a recipe an axis or a value it lacks ([Recipes](#recipes)). A view
+  given no `style` draws bare markup, so a page that styles a widget its own
+  way never ships the shipped look.
 - **State** is a Model and the Messages that change it, and it is the
   application's: `X.init` and `X.update` for the widgets that keep interaction
   state, folded by hand or placed as `Bundles.X`. The value a user chose stays
@@ -100,8 +102,7 @@ drawn into a slot option such as `aside`, `footer`, `trailing` or `content`).
 ```ts standalone
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { Style } from 'foldkit-mixins'
-import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
+import { Recipes, Table } from 'foldkit-mixins-ui'
 
 const Message = defineMessageUnion({ Noop: {} })
 type Message = typeof Message.Type
@@ -111,8 +112,8 @@ interface Product {
   readonly price: string
 }
 
-// Look: compiled once, at module scope.
-const ProductsStyle = Style.forSlots(TableSlots)(Recipes.Table({ density: 'compact' }))
+// Look: the shipped table, compact, compiled once at module scope.
+const ProductsStyle = Recipes.Table.style({ density: 'compact' })
 
 // Drawing: `fluid` is a passed value, `words` is text with blanks.
 export const products = (rows: ReadonlyArray<Product>, h: HtmlBuilder<Message>): Html =>
@@ -488,10 +489,8 @@ const BarModel = Schema.Struct({ stop: Schema.NullOr(Schema.String), bold: Schem
 const BarMessage = defineMessageUnion({ Focused: { id: Schema.String }, ToggledBold: {} })
 type BarMessage = typeof BarMessage.Type
 
-const BarStyle = Style.forSlots(ToolbarSlots)(Recipes.Toolbar({}))
-const ToolStyle = Style.forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'outline' }),
-)
+const BarStyle = Recipes.Toolbar.style()
+const ToolStyle = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 const barView = (model: typeof BarModel.Type, h: HtmlBuilder<BarMessage>) =>
   Toolbar.view(
@@ -754,7 +753,7 @@ const searchView = (text: string, h: HtmlBuilder<Search>) =>
       onInput: text => Search.Typed({ text }),
       clear: { onClear: Search.Cleared() },
       routes: [openResults],
-      style: Style.forSlots(SearchFieldSlots)(Recipes.SearchField({})),
+      style: Recipes.SearchField.style(),
     },
     h,
   )
@@ -826,7 +825,7 @@ const FilesMessage = defineMessageUnion({
 })
 type FilesMessage = typeof FilesMessage.Type
 
-const FileFieldStyle = Style.forSlots(FileInputSlots)(Recipes.FileInput({}))
+const FileFieldStyle = Recipes.FileInput.style()
 
 const filesUpdate = (
   model: typeof FilesModel.Type,
@@ -935,7 +934,7 @@ const upUpdate = (model: UpModel, message: UpMessage): Return<UpModel, UpMessage
     },
   })
 
-const UpStyle = Style.forSlots(FileUploadSlots)(Recipes.FileUpload({ layout: 'zone' }))
+const UpStyle = Recipes.FileUpload.style({ layout: 'zone' })
 
 const upView = (model: UpModel, h: HtmlBuilder<UpMessage>) =>
   FileUpload.view(
@@ -984,7 +983,7 @@ picker holds. The list is not drawn, and the one file's Remove button follows th
 picker, over its corner in `avatar` and `cover`:
 
 ```ts
-const UpAvatarStyle = Style.forSlots(FileUploadSlots)(Recipes.FileUpload({ layout: 'avatar' }))
+const UpAvatarStyle = Recipes.FileUpload.style({ layout: 'avatar' })
 
 const upAvatar = (model: UpModel, h: HtmlBuilder<UpMessage>) =>
   FileUpload.view(
@@ -1046,11 +1045,9 @@ Progress widget. Give the view `progress` and an uploading row draws a bar (or, 
 the row says the same in its state text:
 
 ```ts
-import { FileUploadProgress, ProgressSlots } from 'foldkit-mixins-ui'
+import { FileUploadProgress } from 'foldkit-mixins-ui'
 
-const UpBar = FileUploadProgress.make({
-  style: Style.forSlots(ProgressSlots)(Recipes.Progress({})),
-})
+const UpBar = FileUploadProgress.make({ style: Recipes.Progress.style() })
 // FileUpload.view({ ..., progress: UpBar }, h)
 ```
 
@@ -1622,7 +1619,7 @@ style draws the overlay bar).
 import * as UiDialog from '@foldkit/ui/dialog'
 import { Dialog, DialogSlots } from 'foldkit-mixins-ui'
 
-const DialogStyle = Style.forSlots(DialogSlots)(Recipes.Dialog({ size: 'sm' }))
+const DialogStyle = Recipes.Dialog.style({ size: 'sm' })
 
 // The dialog's Model and Messages are @foldkit/ui's: the application folds them
 // with `Dialog.update`, and opens it with `Dialog.open`.
@@ -1970,7 +1967,7 @@ import { Disclosure as UiDisclosure } from '@foldkit/ui'
 import { Style } from 'foldkit-mixins'
 import { Disclosure, DisclosureSlots, Recipes } from 'foldkit-mixins-ui'
 
-const DetailsStyle = Style.forSlots(DisclosureSlots)(Recipes.Disclosure({ variant: 'bordered' }))
+const DetailsStyle = Recipes.Disclosure.style({ variant: 'bordered' })
 
 const details = (isOpen: boolean, h: HtmlBuilder<Message>) =>
   UiDisclosure.view(
@@ -2025,7 +2022,7 @@ with `U.srOnly` from `foldkit-mixins/utilities`.
 | `Frame` | `{ title?, headingLevel?, description?, action?, panels, footer? }`: a tray holding several things that belong together, each in a panel of its own (a few Alerts, a list of Items, an accordion's items); the frame places what it is given and understands none of it. `Frame.configure({ base, presets })` binds a look once. Reach for `Card` when there is one thing to hold. | `variant`: `muted` (default, a quiet step off the page), `outline`, `plain`; `padding`: `comfortable` (default), `none` where the panel's content draws its own room; `spacing`: `compact`, `comfortable`, `roomy`; `radius`: `md`, `lg`, `none`. Slots `root`, `header`, `title`, `description`, `action`, `panels`, `panel`, `footer`. |
 | `AspectRatio` | `{ content? }`. `AspectRatio.configure({ base, presets })` binds a look (a ratio) once. | `ratio`: `square` (default), `video` (16/9), `portrait` (3/4); another ratio is `Recipes.AspectRatio.add({ ratio: { cinema: { frame: Style.self({ aspectRatio: '21 / 9' }) } } })`. The corner reads `radius`. Slot `frame`. |
 | `Icon` | `{ icon, label?, key?, mark?, style?, mixins? }` or `{ glyph, label?, mark? }`: an `IconData` drawn as inline SVG with `foldkit-media`'s `Icon.draw`, or a drawing of your own (initials, a count, an emoji) in the box; one or the other. A `label` makes it `role="img"`; without one the glyph is `aria-hidden`. `key` parts two copies of one icon on a page. `mark` is a Badge or a dot on the corner, inside the image. | `size`: `xs`, `sm`, `md`, `lg`, `xl` on the type scale; none (the default) stands on the size ladder. `surface`: `outline`, `soft`, `solid`, `raised` makes the box a tile twice the icon's size; `tone`: `accent`, `neutral`, `info`, `success`, `warning`, `danger`; `shape`: `circle`, `square`. Slots `glyph`, `mark`. |
-| `CodeBlock` | `{ code, tokens?, language?, title?, lineNumbers?, startLine?, gutter?, marks?, wrap?, collapsed?, onLineSelect?, lineAction?, copy?, words? }`. `tokens` are `{ from, to, kind }`, as `foldkit-richtext-code` and `foldkit-richtext-code-shiki` tokenizers return them; each is drawn with `data-kind`, and a token out of order or outside the code throws. Every line number the block hands out counts from `startLine` (default 1). `marks: [{ line, kind }]` writes `data-mark` on a whole line (`added`, `removed`, `highlight`, `error`, `warning`, `dim`, `selected`, or a kind of your own; a mark off the code, or two on a line, throws); `gutter(line)` is a line's gutter text in place of its number (a patch's `+`, two columns of numbers); `wrap` wraps long lines; `collapsed: { lines, onExpand }` draws the first lines and a button that sends `onExpand` (`words.expand`, `{count}`), the expanded state the application's; `onLineSelect(line)` makes each gutter a button (`words.selectLine`, pressed on a line marked `selected`); `lineAction(line)` is an `Option` of Html at the line's end. The gutter draws from `data-number`, so the block's text is the code exactly, bar what `lineAction` adds. `copy: { onCopy?, copied? }`: `onCopy` gets the code, so run `copyText` from `foldkit-primitives`; without it the button has no handler, for a page whose script copies. `CodeBlock.follow`, passed in `mixins`, keeps a growing block's end in view while the reader is at it. `CodeBlock.linesOf` is the cut; a final line break is not a numbered line, and a copy is announced in the `status` slot. | `header`: `bar` (default) or `float` (no bar; the copy button pins to the code's corner); `scheme`: `page` (default) or `dark`. Colors each kind from the theme's `syntax` group and tints each line by its mark across the row; `data-copied` marks a copy done. Slots `root`, `header`, `title`, `copy`, `status`, `body`, `code`, `line`, `gutter`, `token`, `lineAction`, `expand`. |
+| `CodeBlock` | `{ code, tokens?, language?, title?, lineNumbers?, startLine?, gutter?, marks?, wrap?, collapsed?, onLineSelect?, lineAction?, copy?, words? }`. `tokens` are `{ from, to, kind }`, as `foldkit-richtext-code` and `foldkit-richtext-code-shiki` tokenizers return them; each is drawn with `data-kind`, and a token out of order or outside the code throws. Every line number the block hands out counts from `startLine` (default 1). `marks: [{ line, kind }]` writes `data-mark` on a whole line (`added`, `removed`, `highlight`, `error`, `warning`, `dim`, `selected`, or a kind of your own; a mark off the code, or two on a line, throws); `gutter(line)` is a line's gutter text in place of its number (a patch's `+`, two columns of numbers); `wrap` wraps long lines; `collapsed: { lines, expanded?, onToggle? }` clips a block of more than `lines` lines to its first `lines` under a fade, every line still in the page (so a find, a copy of the page's text and an anchor reach all of it), with a button (`words.expand`, `{count}`; `words.collapse` once `expanded`) that sends `onToggle`, the expanded state the application's; without `onToggle` the button has no handler, for a static region whose script flips `data-collapsed` on the root and `aria-expanded` on the button, and the button carries the words it shows next as `data-toggled-label`; `onLineSelect(line)` makes each gutter a button (`words.selectLine`, pressed on a line marked `selected`); `lineAction(line)` is an `Option` of Html at the line's end. The gutter draws from `data-number`, so the block's text is the code exactly, bar what `lineAction` adds. `copy: { onCopy?, copied? }`: `onCopy` gets the code, so run `copyText` from `foldkit-primitives`; without it the button has no handler, for a page whose script copies. `CodeBlock.follow`, passed in `mixins`, keeps a growing block's end in view while the reader is at it. `CodeBlock.linesOf` is the cut; a final line break is not a numbered line, and a copy is announced in the `status` slot. | `header`: `bar` (default) or `float` (no bar; the copy button pins to the code's corner); `scheme`: `page` (default) or `dark`. Colors each kind from the theme's `syntax` group and tints each line by its mark across the row; `data-copied` marks a copy done. Slots `root`, `header`, `title`, `copy`, `status`, `body`, `code`, `line`, `gutter`, `token`, `lineAction`, `expand`. |
 | `QrCode` | After Zag's: `QrCode.view({ id, value, label?, level?, quietZone?, overlay?, words?, style? }, h)`, one `img` named `QR code: <value>` (or `label`), every dark module one SVG `path` over a background that carries the quiet zone. `level` is the error correction, `M` by default and `H` under an `overlay` (a logo at the centre). `QrCode.encode(text, level)` gives the matrix, none when no version holds the text, and `pathOf` its path; both are pure. `QrCode.Download({ id, format, filename, pixels })` saves the drawn code as PNG or SVG in the colors it shows; the overlay is not in the file. | `scheme`: `light` (dark on light on any page), `page`; `size`. Slots `root`, `frame`, `background`, `pattern`, `overlay`, `fallback`. |
 | `Chart` | After shadcn's Chart. A small Model for the lit point: `Chart.init()`, folded with `Chart.update`. `Chart.view({ id, label, kind, categories, series: [{ name, values, color? }], model, onMessage, description?, format?, legend?, table?, categoryLabel? }, h)`, where `kind` is a value you pass: `Chart.bars` (`stack?`), `Chart.line` (`curve?`, `markers?`) or `Chart.area` (`stack?`, `curve?`, `markers?`), or `Chart.donut` with `slices: [{ name, value, color? }]`, `totalLabel?` and `hole?` (`0` is a pie). A page ships the kinds it names. A `ChartKind` of your own is an object with `entries`, `points`, `head` and `draw`, and gets the title, legend, status line and data table from the chart. See [Chart](#chart). | `height`: `sm`, `md`, `lg`; `grid`: `lines`, `zero`; `indicator`: `dot`, `line`. Slots `root`, `title`, `description`, `legend`, `legendItem`, `swatch`, `body`, `yAxis`, `xAxis`, `yTick`, `xTick`, `plot`, `canvas`, `paths`, `grid`, `cursor`, `bar`, `line`, `area`, `dot`, `slice`, `band`, `center`, `centerValue`, `centerLabel`, `tooltip` and its parts, `status`, `table` and its parts. |
 | `ImageCropper` | After Zag's: the image fitted in a viewport, a selection that a drag moves and eight handles resize, zoom by a Slider, the wheel, two fingers or `+`/`-`, a pan of the zoomed image, quarter turns, an aspect lock and a round crop. A small Model: `ImageCropper.init({ id, aspect?, shape?, crop?, min?, maxZoom? })` holds the crop, in the turned image's pixels, folded with `ImageCropper.update`. `Bundles.ImageCropper` places it with `init`'s options as its args; an export the application asks for (`RequestedExport`, sent to the placed child) comes back in `onOut` as `ImageCropper.OutMessage`, `Exported { url, width, height }` or `FailedExport { reason }`. `ImageCropper.view({ model, onMessage, label, src, crossOrigin?, controls?, zoom?, words?, disabled? }, h)`. `zoom: ImageCropper.zoomSlider(style?)` draws the zoom Slider, and a cropper given none draws none and ships no Slider (the wheel and `+`/`-` still zoom). `ImageCropper.crop(model)` is the crop in whole pixels (an `Option`); `RequestedExport({ type, quality })` returns the `Export` Command, answered by `Exported({ url, width, height })` or `FailedExport`. Keys (arrows, Shift ×10, Alt to resize) step by screen pixels. | `guides`; `handles`: `all`, `corners`; `viewport`: `landscape`, `wide`, `square`. `zoomSlider`'s style takes `Recipes.Slider({ label: 'hidden' })`. Slots `root`, `label`, `viewport`, `stage`, `pan`, `image`, `selection`, `guides`, `handle`, `controls`, `zoom`, `rotate`, `reset`. |
@@ -2036,8 +2033,8 @@ import { parse } from 'foldkit-media/icons'
 import { Style } from 'foldkit-mixins'
 import { AspectRatio, AspectRatioSlots, Icon, IconSlots, Recipes } from 'foldkit-mixins-ui'
 
-const Frame = Style.forSlots(AspectRatioSlots)(Recipes.AspectRatio({ ratio: 'video' }))
-const Mark = Style.forSlots(IconSlots)(Recipes.Icon({ size: 'sm' }))
+const Frame = Recipes.AspectRatio.style({ ratio: 'video' })
+const Mark = Recipes.Icon.style({ size: 'sm' })
 
 // `h` is the view's builder. `content` is `Html`.
 AspectRatio.view({ content: h.span([], ['poster']), style: Frame }, h)
@@ -2091,7 +2088,7 @@ interface Product {
 const Sort = defineMessageUnion({ Sorted: { column: Schema.Literal('name') } })
 type Sort = typeof Sort.Type
 
-const ProductsStyle = Style.forSlots(TableSlots)(Recipes.Table({}))
+const ProductsStyle = Recipes.Table.style()
 
 const productsTable = (
   rows: ReadonlyArray<Product>,
@@ -2668,7 +2665,7 @@ given `itemsScrollClassName` or `itemsScrollAttributes`, and its class joins the
 ScrollArea.view(
   {
     content: h.p([], ['A long text']),
-    style: Style.forSlots(ScrollAreaSlots)(Recipes.ScrollArea({})),
+    style: Recipes.ScrollArea.style(),
     mixins: ScrollArea.overlayBars,
   },
   h,
@@ -2793,15 +2790,19 @@ error), and the stroke is redrawn into each mask, which CSS cannot reach once it
 
 The adapters only name slots. `Recipes` gives those slots, and the views above, a look:
 one `Style.recipeFor` per contract, built on the tokens of `foldkit-mixins/theme`. Select
-variants (an axis's values are listed in the catalog rows), hand the pieces to
-`Style.forSlots`, and attach the result like any other Style:
+variants (an axis's values are listed in the catalog rows) with `.style`, and attach the
+result like any other Style:
 
 ```ts
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 
-const DeleteStyle = Style.forSlots(ButtonSlots)(
+const DeleteStyle = Recipes.Button.style({ tone: 'danger', variant: 'outline', size: 'sm' })
+
+// The same Style in two calls: the selection's pieces, then `Style.forSlots` of them.
+// Take the pieces when you compose them with your own first (see Segmented).
+const Spelled = Style.forSlots(ButtonSlots)(
   Recipes.Button({ tone: 'danger', variant: 'outline', size: 'sm' }),
 )
 
@@ -2833,6 +2834,11 @@ assumes and does:
   )
   // Style.stylesheet(L.declare, …, DeleteStyle, Red): Red's background wins.
   ```
+
+  `.style` takes the same options as `Style.forSlots`. An application on `AppStyle` passes
+  its layer, `Recipes.Button.style(selection, { layer: L.layer('app') })`: the shipped
+  pieces keep their own layers either way, and a piece its `.extend` added with no layer
+  lands in `app`, as `AppStyle`'s `forSlots` would place it.
 - **Controls stand on one size ladder.** A button, a field, a select, a tab, a segmented
   control, a table row and the rows of a menu, listbox or combobox are all one rung tall:
   36px by default and 28px compact, their padding, gap and text stepping with them
@@ -3221,15 +3227,14 @@ style, its words, its mixins, its structural choices.
 ```ts standalone
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { Style } from 'foldkit-mixins'
-import { Button, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, Recipes } from 'foldkit-mixins-ui'
 
 const Message = defineMessageUnion({ Saved: {}, Deleted: {} })
 type Message = typeof Message.Type
 
 // Styles are compiled once, in a module the build may ship as data.
-const Quiet = Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
-const Danger = Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' }))
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
+const Danger = Recipes.Button.style({ tone: 'danger' })
 
 export const AppButton = Button.configure({
   base: { style: Quiet },
@@ -3280,13 +3285,13 @@ it, not forked from it:
 
 ```ts standalone
 import { Style } from 'foldkit-mixins'
-import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Recipes } from 'foldkit-mixins-ui'
 
 const Buttons = Recipes.Button.add({
   tone: { brand: { button: Style.self({ background: 'rebeccapurple', color: 'white' }) } },
 })
 
-export const Brand = Style.forSlots(ButtonSlots)(Buttons({ tone: 'brand', variant: 'solid' }))
+export const Brand = Buttons.style({ tone: 'brand', variant: 'solid' })
 ```
 
 ## Why some components needed a fork

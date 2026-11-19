@@ -1,6 +1,6 @@
 # Mixins: `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui`
 
-Checked against `foldkit-mixins` 0.26.0, `foldkit-mixins-surface` 0.12.0 and `foldkit-mixins-ui` 0.27.0.
+Checked against `foldkit-mixins` 0.27.0, `foldkit-mixins-surface` 0.12.0 and `foldkit-mixins-ui` 0.28.0.
 
 ## 1. Purpose
 
@@ -291,7 +291,9 @@ Style.install(stylesheet) // browser entry only; returns the <style>
 ```
 
 A piece is a `StyleValue`, a declarations object (`Style.self`), or a list (`Style.compose`).
-`AppStyle`'s `slots`/`forSlots` compile in the `app` layer; its `stylesheet` is layer order,
+`AppStyle`'s `slots`/`forSlots` compile in the `app` layer (a recipe's `.style(selection, {
+layer: L.layer('app') })` places what an `.extend` added with no layer there too; shipped pieces
+keep `components`/`variants`); its `stylesheet` is layer order,
 reset, tokens, palette and `Defaults.body` (`global` adds to `defaults`), built when first read:
 with `foldkit-mixins/vite`, read it in a server-only module, never in the browser. Utilities take token
 names, so `U.p('4xl')` and `U.bg('surface.nope')` are type errors. `U.scrollFade(axis)` dissolves a
@@ -484,7 +486,7 @@ import { Disclosure as UiDisclosure } from '@foldkit/ui'
 import { Style } from 'foldkit-mixins'
 import { Disclosure, DisclosureSlots, Recipes } from 'foldkit-mixins-ui'
 
-const DetailsStyle = Style.forSlots(DisclosureSlots)(Recipes.Disclosure({ variant: 'bordered' }))
+const DetailsStyle = Recipes.Disclosure.style({ variant: 'bordered' })
 
 const details = (isOpen: boolean, h: HtmlBuilder<Message>) =>
   UiDisclosure.view(
@@ -511,8 +513,8 @@ const details = (isOpen: boolean, h: HtmlBuilder<Message>) =>
 ```
 
 `Recipes.Accordion | Button | Input | Textarea | Select | Checkbox | Switch | Fieldset | Disclosure | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | Carousel | CheckboxGroup | CodeBlock | ColorPicker | Command | Empty | HoverCard | Icon | InputCopy | Item | Kbd | Label | Menubar | MenubarMenu | Meter | Nav | NumberField | OtpField | Pagination | PasswordInput | SearchField | Toolbar | FileInput | Progress | Rating | Resizable | ScrollArea | Separator | Sheet | Picker | Drawer | Sidebar | Skeleton | Spinner | Steps | Table | TagsInput | TreeView | Typography | VirtualList | ChatMessage | ChatMessageGroup | MessageScroller | ThinkingIndicator | ThinkingSteps | Questionnaire | AngleSlider | Timer | Marquee | ImageCropper | SignaturePad | QrCode | Chart | CascadeSelect | FloatingPanel | Tour | Image | Figure | AppShell` are shipped
-`Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
-'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
+`Style.recipeFor` recipes over those contracts: `Recipes.Button.style({ tone: 'danger', variant:
+'outline', size: 'sm' })` is the view's style, adjusted with `.extend(patch)`. They reference
 the shipped tokens (`Theme.root(Theme.standard(theme))` ships them; a theme is typed knob values,
 `Theme.make({ shape: { radius: 1.8 }, menu: { panel: 'inverted' } })` over `Knobs.standard`, pipeable with
 `Theme.set` and `Theme.describe`; the defaults are `shape.radius` 1 (6px controls; 0.45 is the old, squarer look), `menu.panel` `'default'` (the page's raised surface; `'inverted'` is the old panel), `surface.saturation` 0.005 and accent `lightness` 54, and a TagsInput chip and a Badge are full pills; `shadow: { relief: 'bevel' }` raises every faced button and sinks every
@@ -582,17 +584,14 @@ export const labelsField = (model: Model, h: HtmlBuilder<Message>): Html =>
 ```ts standalone
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { Style } from 'foldkit-mixins'
-import { Button, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, Recipes } from 'foldkit-mixins-ui'
 
 const Message = defineMessageUnion({ Saved: {}, Deleted: {} })
 type Message = typeof Message.Type
 
 export const AppButton = Button.configure({
-  base: {
-    style: Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' })),
-  },
-  presets: { danger: { style: Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' })) } },
+  base: { style: Recipes.Button.style({ tone: 'neutral', variant: 'outline' }) },
+  presets: { danger: { style: Recipes.Button.style({ tone: 'danger' }) } },
 })
 
 export const actions = (h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
@@ -606,8 +605,7 @@ export const actions = (h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
 ```ts standalone
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { Style } from 'foldkit-mixins'
-import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
+import { Recipes, Table } from 'foldkit-mixins-ui'
 
 const Message = defineMessageUnion({ Noop: {} })
 type Message = typeof Message.Type
@@ -628,23 +626,23 @@ export const products = (rows: ReadonlyArray<Product>, h: HtmlBuilder<Message>):
       rowKey: row => row.name,
       fluid: Table.fluid,
       words: { selectAll: 'Choose every product' },
-      style: Style.forSlots(TableSlots)(Recipes.Table({ density: 'compact' })),
+      style: Recipes.Table.style({ density: 'compact' }),
     },
     h,
   )
 ```
 
-**Look: `Recipes.X(selection)`, `.extend`, `.add`.** `.extend` adjusts a value the recipe has; `.add` gives it an axis or a value it lacks (a value it already has throws `mixins:recipe-value-exists`).
+**Look: `Recipes.X.style(selection)`, `.extend`, `.add`.** `.style(selection?, options?)` is `Style.forSlots(XSlots)(Recipes.X(selection), options)` in one call; `Recipes.X(selection)` alone gives the pieces, for composing before `forSlots`. `.extend` adjusts a value the recipe has; `.add` gives it an axis or a value it lacks (a value it already has throws `mixins:recipe-value-exists`). A view given no `style` draws bare markup: the shipped look is never a default.
 
 ```ts standalone
 import { Style } from 'foldkit-mixins'
-import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Recipes } from 'foldkit-mixins-ui'
 
 const Buttons = Recipes.Button.add({
   tone: { brand: { button: Style.self({ background: 'rebeccapurple', color: 'white' }) } },
 })
 
-export const Brand = Style.forSlots(ButtonSlots)(Buttons({ tone: 'brand', variant: 'solid' }))
+export const Brand = Buttons.style({ tone: 'brand', variant: 'solid' })
 ```
 
 ### States
@@ -676,7 +674,7 @@ Marquee, ImageCropper, SignaturePad, Chart, CascadeSelect, FloatingPanel and
 Tour keep a small Model of interaction state that the
 application keeps and folds with their `update`, the value chosen staying the
 application's. Every view takes optional `style`
-(`Style.forSlots(XSlots)(Recipes.X(selection))`) and `mixins`. Hide text with
+(`Recipes.X.style(selection)`) and `mixins`. Hide text with
 `U.srOnly`. Name a control with `FieldAssociation`; `Label.view` takes the id
 that derived.
 
@@ -711,7 +709,7 @@ that derived.
 | `RadioGroup` | `RadioGroup.view({ model, onMessage, legend, options: RowContent & { value }[], value: Option, orientation?, hideLegend?, disabled?, readOnly?, invalid?, error?, name? }, h)` over `Bundles.RadioGroup` (the focus cursor; the chosen value is the application's, from `Selected`); `RadioGroup.configure`; `RadioGroup.readingKeys` in `mixins`. `RadioGroup.toView` is the adapter. | `variant`: `plain`, `card`; `layout`: `stacked`, `grid`; `tone` adds `danger`. Slots add `root`, `legend`, `text`, `icon`, `trailing`, `error`. |
 | `Select` | `Select.view({ id, label, options: { value, label, group?, disabled? }[], value?, onChange?, placeholder?, description?, disabled?, invalid?, name? }, h)`: the native `select`, neighbours with one `group` under an `optgroup`; `Select.configure`. `Select.toView` is the adapter. | `size`, `variant` as before. Slots add `root`. |
 | `CheckboxGroup` | `{ id, legend, options: RowContent & { value }[] (`description`, `icon`, `trailing`, `content`, `disabled`), checked, onToggle, error?, name?, selectAll? }`; `toggled(checked, value)` is one option's transition, `coverage(options, checked)` is `none` \| `some` \| `all` (a disabled option counts for neither), and `setEnabled(options, checked, on)` is every enabled option or none, a disabled one keeping its state in `checked`. `selectAll: { label, onSet }` draws a first row checked, `mixed` or not by `coverage`, whose press sends `onSet` with `setEnabled`'s values. A `fieldset` named by its `legend`, each option the APG's checkbox (`role="checkbox"`) named by a `label` for it, so a press on the words toggles it. `error` is shown under the options: the `fieldset` is described by it and each checkbox is `aria-invalid`, as a `fieldset` has no such property. `name` submits each checked value as one `hiddenInput`, in the options' order. | `variant`: `plain` (default), `card` (each row boxed and filled when checked, one press target), `list` (checked rows fill, and merge where they stand together; a vertical list has no gap, or the block would split). `orientation`: `vertical` (default), `horizontal` (a wrapping row). The checkbox sits on the label's row, so a description does not pull it down. Slots `root`, `legend`, `options`, `option`, `checkbox`, `label`, `icon`, `description`, `trailing`, `error`. `CheckboxGroup.configure`. |
-| `CodeBlock` | `{ code, tokens?, language?, title?, lineNumbers?, startLine?, gutter?, marks?, wrap?, collapsed?, onLineSelect?, lineAction?, copy?, words? }`; `tokens` are a tokenizer's `{ from, to, kind }` (`foldkit-richtext-code`, `-shiki`); lines count from `startLine`; `marks: [{ line, kind }]` tints whole lines (`added`, `removed`, `highlight`, `error`, `warning`, `dim`, `selected`); `gutter(line)` replaces a number; `collapsed: { lines, onExpand }` draws the first lines and an expand button (the expanded state the app's); `onLineSelect(line)` makes each gutter a button; `lineAction(line)` is an `Option<Html>` at a line's end; `copy.onCopy(code)` sends a Message, so run `copyText` from `foldkit-primitives`; `CodeBlock.follow` in `mixins` keeps a growing block's end in view. A final line break is not a numbered line, and a copy is announced in the `status` slot. | `header`: `bar`, `float`; `scheme`: `page`, `dark`; colors kinds from the theme's `syntax` group. Slots `root`, `header`, `title`, `copy`, `status`, `body`, `code`, `line`, `gutter`, `token`, `lineAction`, `expand`. |
+| `CodeBlock` | `{ code, tokens?, language?, title?, lineNumbers?, startLine?, gutter?, marks?, wrap?, collapsed?, onLineSelect?, lineAction?, copy?, words? }`; `tokens` are a tokenizer's `{ from, to, kind }` (`foldkit-richtext-code`, `-shiki`); lines count from `startLine`; `marks: [{ line, kind }]` tints whole lines (`added`, `removed`, `highlight`, `error`, `warning`, `dim`, `selected`); `gutter(line)` replaces a number; `collapsed: { lines, expanded?, onToggle? }` clips a longer block to its first lines under a fade, every line kept in the page, with a button that sends `onToggle` (the expanded state the app's; no `onToggle` leaves the button handler-free for a script to flip `data-collapsed` and `aria-expanded`); `onLineSelect(line)` makes each gutter a button; `lineAction(line)` is an `Option<Html>` at a line's end; `copy.onCopy(code)` sends a Message, so run `copyText` from `foldkit-primitives`; `CodeBlock.follow` in `mixins` keeps a growing block's end in view. A final line break is not a numbered line, and a copy is announced in the `status` slot. | `header`: `bar`, `float`; `scheme`: `page`, `dark`; colors kinds from the theme's `syntax` group. Slots `root`, `header`, `title`, `copy`, `status`, `body`, `code`, `line`, `gutter`, `token`, `lineAction`, `expand`. |
 | `Kbd` | `{ key }`, text or a drawing. Names the key. `Kbd.combo({ keys, joiner? }, h)` draws several (each text or a drawing) in one `kbd`, with an optional joiner between them. | No axis. Slots `key`, `combo`, `joiner`. |
 | `Label` | `{ for, text, required?, optional?, disabled?, invalid?, trailing?, words? }`. Names a control by `for`. `required` is a hidden star and `optional` words that are read (never both); `disabled` and `invalid` write `data-disabled` and `data-invalid` on the label alone; `trailing` stands beside the label (slot `root` holds both), so a button there is not inside the `label`. | No axis. Slots `label`, `marker`, `trailing`, `root`. |
 | `Menubar` | A row of `@foldkit/ui` Menus, shadcn's and the APG's menubar: `Menubar.view({ label, model, menus, onMessage, direction?, anchor?, routes?, style?, menuMixins? }, h)` (`Bundles.Menubar.with({ ids, isAnimated?, isModal? })` places the Model and reports `Selected` with the menu's index; `Menubar.configure({ base, presets })`), each menu's `{ label, rows, isRowDisabled?, header?, footer? }` (Html in its panel above and below the rows) taking a Menu's rows (none opening a submenu), its Model (`Menubar.init(ids, { isAnimated?, isModal? })`) folded with `Menubar.update`, whose `Selected` OutMessage names the menu and the row's `value`. One trigger is the tab stop; ArrowLeft/ArrowRight (Home/End while all are shut) move it, swapped under `direction: 'rtl'` (drawn as the bar's `dir`), and with a menu open they open the next on its first row. While one is open, pointing at another opens it, and opening any shuts the rest. `routes` takes keys the application answers on the bar, beside the arrows, Home and End; a route on the same gesture is a `mixins:key-conflict` diagnostic naming both. `Recipes.MenubarMenu` is the Menu recipe with a bar's flat triggers. | No axis. Slots `bar`, `menu`; each menu's are `MenuSlots`. |

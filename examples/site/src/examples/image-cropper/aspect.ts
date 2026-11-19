@@ -1,19 +1,11 @@
 import { Equal, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import {
-  Bundles,
-  ImageCropper,
-  ImageCropperSlots,
-  Recipes,
-  Segmented,
-  SegmentedSlots,
-} from 'foldkit-mixins-ui'
+import { Bundles, ImageCropper, ImageCropperSlots, Recipes, Segmented } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { stack } from '../../snippets/layout.js'
 import { LANDSCAPE } from '../../snippets/landscape.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Ratios = forSlots(SegmentedSlots)(Recipes.Segmented({ size: 'sm' }))
+const Ratios = Recipes.Segmented.style({ size: 'sm' })
 const ratios = [
   { label: 'Free', aspect: Option.none<number>() },
   { label: '1:1', aspect: Option.some(1) },

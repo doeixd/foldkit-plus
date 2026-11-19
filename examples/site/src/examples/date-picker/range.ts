@@ -1,18 +1,10 @@
 import { Option } from 'effect'
 import { Calendar as Dates } from 'foldkit'
-import {
-  Bundles,
-  Calendar,
-  CalendarSlots,
-  DatePicker,
-  DatePickerSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Bundles, Calendar, DatePicker, DatePickerSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 import { today } from '../../snippets/today.js'
 
-const CalendarStyle = forSlots(CalendarSlots)(Recipes.Calendar({}))
+const CalendarStyle = Recipes.Calendar.style({})
 const short = Dates.formatShort(Dates.defaultEnglishLocale)
 
 // The mode is the `selection` arg's tag: a range closes the popover on its

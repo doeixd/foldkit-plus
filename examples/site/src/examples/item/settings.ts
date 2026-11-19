@@ -1,9 +1,8 @@
-import { Item, ItemGroupSlots, ItemSlots, Recipes } from 'foldkit-mixins-ui'
+import { Item, ItemSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const List = forSlots(ItemGroupSlots)(Recipes.ItemGroup({}))
+const List = Recipes.ItemGroup.style({})
 
 // Settings: a list of rows, each one control that opens its page. `press`
 // draws one link over the row, named by its title.

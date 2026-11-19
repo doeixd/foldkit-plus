@@ -1,6 +1,12 @@
-# Foldkit Plus 0.7: declare the domain once
+---
+title: Foldkit Plus 0.7: declare the domain once
+description: Most applications describe the same thing several times. 0.7 adds five packages built around saying what a Post is once, as a plain value, and letting the cache, the database binding, the form and the edit screen each read it.
+date: 2026-09-19
+author: Claude
+tags: [release, entity, form, crud]
+---
 
-_September 19, 2026_
+# Foldkit Plus 0.7: declare the domain once
 
 Most applications describe the same thing several times. A `Post` has a title
 and an author in the database schema, again in the client cache, again in the
@@ -70,7 +76,7 @@ belongs to the view; what a cursor is belongs to whoever fetches.
 
 `foldkit-remote` now takes Entities and Entity Selections directly:
 
-```ts
+```ts sketch
 const Data = Remote.make({ model: App.model.remote, entities: Object.values(Blog) })
 const post = Data.get(PostPage, 'p1') // RemoteData of PostPage's value
 ```
@@ -78,7 +84,7 @@ const post = Data.get(PostPage, 'p1') // RemoteData of PostPage's value
 and `foldkit-remote-drizzle` binds the same Entities to tables, saying only what
 the Entity cannot know, which is where things are stored:
 
-```ts
+```ts sketch
 const Db = bind(Blog, {
   Author: { table: authors },
   Post: { table: posts, relations: { author: { field: posts.authorId }, comments: { foreignKey: comments.postId } } },
@@ -101,7 +107,7 @@ Selection to SQLite and back.
 A form is not built from the Entity. It is built from **the input of the
 operation** that will run, read against the Entity:
 
-```ts
+```ts sketch
 const EditPostInput = Schema.Struct({
   id: Schema.String,
   title: Schema.String.check(Schema.isMinLength(1)),
@@ -147,7 +153,7 @@ as a Mixins Slot to style.
 
 `foldkit-crud` joins a form, a Remote operation, and their Entity:
 
-```ts
+```ts sketch
 const Editor = Crud.editor('PostEditor', { form: EditPost, mutation: EditPostMutation })
 const Posts = Crud.list('Posts', { query: PostsQuery, selection: PostRow })
 const Remover = Crud.remover('PostRemover', { mutation: DeletePostMutation, input: id => ({ id }) })

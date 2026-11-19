@@ -2,9 +2,8 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Recipes, Segmented, SegmentedSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Small = forSlots(SegmentedSlots)(Recipes.Segmented({ size: 'sm' }))
+const Small = Recipes.Segmented.style({ size: 'sm' })
 
 // Every segmented control of the application is small, and glides its pill
 // (`Segmented.fluid`, passed here and nowhere else); a use gives only its

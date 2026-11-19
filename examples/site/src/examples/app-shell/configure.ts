@@ -1,8 +1,7 @@
 import { AppShell, AppShellSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Contained = forSlots(AppShellSlots)(Recipes.AppShell({ width: 'contained' }))
+const Contained = Recipes.AppShell.style({ width: 'contained' })
 
 // Every page's frame said once: the look and the skip link's words. A page
 // passes only what is its own, its title and content.

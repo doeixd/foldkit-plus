@@ -1,10 +1,9 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Recipes, SearchField, SearchFieldSlots, Spinner, SpinnerSlots } from 'foldkit-mixins-ui'
+import { Recipes, SearchField, SearchFieldSlots, Spinner } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Wheel = forSlots(SpinnerSlots)(Recipes.Spinner({ size: 'sm', tone: 'current' }))
+const Wheel = Recipes.Spinner.style({ size: 'sm', tone: 'current' })
 const Model = Schema.Struct({ query: Schema.String })
 const Message = defineMessageUnion({ Typed: { text: Schema.String }, Cleared: {} })
 

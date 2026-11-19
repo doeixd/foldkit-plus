@@ -52,4 +52,31 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a link pinned to a tag is checked in no tree at all',
+    edits: [
+      {
+        file: './githubLinks.ts',
+        find: "git(repository, 'cat-file', '-e', `${ref}:${path}`) === undefined",
+        replace: 'false',
+      },
+    ],
+    tests: ['examples/site/test/githubLinks.test.ts'],
+  },
+  {
+    name: 'a link pinned to a tag is looked up in the working tree',
+    edits: [{ file: './githubLinks.ts', find: "if (ref === 'main') {", replace: 'if (true) {' }],
+    tests: ['examples/site/test/githubLinks.test.ts'],
+  },
+  {
+    name: 'a heading of a file at a tag is never looked for',
+    edits: [
+      {
+        file: './githubLinks.ts',
+        find: 'return idsOf(text).has(anchor) ?',
+        replace: 'return true ?',
+      },
+    ],
+    tests: ['examples/site/test/githubLinks.test.ts'],
+  },
 ]

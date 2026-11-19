@@ -103,14 +103,14 @@ export const idleHint = (
     : undefined
 }
 
-/** `Recipes.Button({ tone: 'neutral' })`: the selection as code, naming only what differs from the defaults. */
+/** `Recipes.Button.style({ tone: 'neutral' })`: the selection as code, naming only what differs from the defaults. */
 export const selectionCode = (showcase: Showcase, selection: Selection): string => {
   const picked = showcase.axes.flatMap(axis => {
     const value = valueOf(axis, selection)
     return value === axis.initial ? [] : [`${axis.name}: '${value}'`]
   })
-  const argument = picked.length === 0 ? '{}' : `{ ${picked.join(', ')} }`
-  return `forSlots(${showcase.contract})(Recipes.${showcase.recipe}(${argument}))`
+  const argument = picked.length === 0 ? '' : `{ ${picked.join(', ')} }`
+  return `Recipes.${showcase.recipe}.style(${argument})`
 }
 
 /** What the catalogue says of a showcase, before its recipe and drawings load. */

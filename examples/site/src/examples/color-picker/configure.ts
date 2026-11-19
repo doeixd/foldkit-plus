@@ -1,8 +1,7 @@
-import { Bundles, ColorPicker, ColorPickerSlots, Recipes, SliderSlots } from 'foldkit-mixins-ui'
+import { Bundles, ColorPicker, ColorPickerSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Channel = forSlots(SliderSlots)(Recipes.Slider({ track: 'paint', label: 'hidden' }))
+const Channel = Recipes.Slider.style({ track: 'paint', label: 'hidden' })
 
 // What every picker of an application starts from: its swatches, its sliders'
 // look and its words. A preset is a named set over it: the opaque one drops

@@ -1,19 +1,16 @@
 import {
   Bundles,
   ChatMessage,
-  ChatMessageSlots,
   MessageScroller,
   MessageScrollerSlots,
   Recipes,
   ScrollArea,
-  ScrollAreaSlots,
 } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { GroupStyle } from '../../snippets/chat.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Area = forSlots(ScrollAreaSlots)(Recipes.ScrollArea({}))
-const Bubble = forSlots(ChatMessageSlots)(Recipes.ChatMessage({}))
+const Area = Recipes.ScrollArea.style({})
+const Bubble = Recipes.ChatMessage.style({})
 
 const lines = Array.from({ length: 14 }, (_, at) => ({
   key: `line-${at}`,

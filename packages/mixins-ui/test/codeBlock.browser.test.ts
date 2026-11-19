@@ -119,6 +119,36 @@ test('every line starts its code in one column, whatever its gutter says', async
   }
 })
 
+test('a collapsed block clips to its first lines, keeps all of them in the page, and opens whole', async () => {
+  const { handle, figure, body, lines } = await mount(
+    { collapsed: { lines: 3 } },
+    {},
+    // Long enough that the clip is far from the code's own height.
+    20,
+  )
+  try {
+    const first = lines()[0]!.getBoundingClientRect()
+    const lineHeight = first.height
+    expect(lines()).toHaveLength(20)
+    expect(body.textContent).toBe(Array.from({ length: 20 }, (_, at) => `line ${at}`).join('\n'))
+    // Three lines and the block's own padding, not twenty.
+    const padding =
+      Number.parseFloat(getComputedStyle(body).paddingTop) +
+      Number.parseFloat(getComputedStyle(body).paddingBottom)
+    expect(body.getBoundingClientRect().height).toBeCloseTo(3 * lineHeight + padding, 0)
+    expect(body.scrollHeight).toBeGreaterThan(body.clientHeight * 3)
+    expect(getComputedStyle(body).maskImage).not.toBe('none')
+    // The button is a button, and opening it frees the height.
+    const button = figure.querySelector<HTMLElement>('button')!
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    figure.dataset['collapsed'] = 'false'
+    expect(body.getBoundingClientRect().height).toBeCloseTo(20 * lineHeight + padding, 0)
+    expect(getComputedStyle(body).maskImage).toBe('none')
+  } finally {
+    await handle.dispose()
+  }
+})
+
 test('a wrapped block keeps a long line inside the frame', async () => {
   const { handle, body, lines } = await mount({ code: long, wrap: true })
   try {

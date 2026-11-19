@@ -26,6 +26,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "readme": "tsx scripts/readme.ts",
+    "social": "node scripts/social.mjs",
     "typecheck": "tsc -b"
   },
   "dependencies": {

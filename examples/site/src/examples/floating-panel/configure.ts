@@ -1,16 +1,8 @@
 import { Bundle } from 'foldkit-bundle'
-import {
-  Bundles,
-  Button,
-  ButtonSlots,
-  FloatingPanel,
-  FloatingPanelSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Bundles, Button, FloatingPanel, FloatingPanelSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
+const Primary = Recipes.Button.style({})
 
 // What every window of an application starts from, said once: focus goes back
 // to what opened it, and Escape is left to the page. A preset is a named set

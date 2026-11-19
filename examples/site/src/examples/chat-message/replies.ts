@@ -1,11 +1,10 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Button, ButtonSlots, ChatMessage, ChatMessageSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, ChatMessage, ChatMessageSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { column } from '../../snippets/chat.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Reply = forSlots(ButtonSlots)(Recipes.Button({ size: 'sm' }))
+const Reply = Recipes.Button.style({ size: 'sm' })
 
 const Model = Schema.Struct({ chosen: Schema.String })
 const Message = defineMessageUnion({ Chose: { reply: Schema.String } })

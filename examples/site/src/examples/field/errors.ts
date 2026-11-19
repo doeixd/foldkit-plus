@@ -1,10 +1,9 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Field, FieldSlots, Input, InputSlots, Recipes } from 'foldkit-mixins-ui'
+import { Field, FieldSlots, Input, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Control = forSlots(InputSlots)(Recipes.Input({}))
+const Control = Recipes.Input.style({})
 const Model = Schema.Struct({ handle: Schema.String })
 const Message = defineMessageUnion({ Typed: { value: Schema.String } })
 

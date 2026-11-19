@@ -1,9 +1,8 @@
 import { Option } from 'effect'
-import { Badge, BadgeSlots, CodeBlock, CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
+import { Badge, CodeBlock, CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Tag = forSlots(BadgeSlots)(Recipes.Badge({ size: 'sm' }))
+const Tag = Recipes.Badge.style({ size: 'sm' })
 
 const problems = new Map([
   [2, { kind: 'error', text: 'name is never read' }],

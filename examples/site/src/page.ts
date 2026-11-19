@@ -15,6 +15,18 @@ export const Page = defineTaggedUnion({
   Component: { slug: Schema.String },
   Create: {},
   Doc: { subsite: Schema.String, title: Schema.String, description: Schema.String },
+  Blog: {},
+  /** A blog post, with everything its head says of it: the browser has no library to ask. */
+  Post: {
+    slug: Schema.String,
+    title: Schema.String,
+    description: Schema.String,
+    published: Schema.String,
+    modified: Schema.String,
+    author: Schema.String,
+    tags: Schema.Array(Schema.String),
+    image: Schema.Struct({ path: Schema.String, width: Schema.Number, height: Schema.Number }),
+  },
   Missing: {},
 })
 export type Page = typeof Page.Type

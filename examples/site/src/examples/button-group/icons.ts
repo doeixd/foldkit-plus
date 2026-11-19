@@ -1,12 +1,9 @@
-import { Button, ButtonGroup, ButtonGroupSlots, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, ButtonGroup, ButtonGroupSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
-import { forSlots } from '../../snippets/theme.js'
 
 // `shape: 'square'` shows each icon alone; its label stays the button's name.
-const Square = forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'outline', shape: 'square' }),
-)
+const Square = Recipes.Button.style({ tone: 'neutral', variant: 'outline', shape: 'square' })
 
 const alignments = [
   { label: 'Align left', icon: 'M2 3.5h12M2 6.5h8M2 9.5h12M2 12.5h8' },

@@ -1,15 +1,14 @@
-import { Avatar, AvatarGroupSlots, AvatarSlots, Recipes } from 'foldkit-mixins-ui'
+import { Avatar, AvatarSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { portrait } from '../../snippets/portrait.js'
 import { row } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
 // Stated once, at module scope: the look and words every avatar of the
 // application starts from, and the look of its groups. A preset's `style` is
 // worn by a group's avatars too.
-const Face = forSlots(AvatarSlots)(Recipes.Avatar({ ring: 'page', color: 'name' }))
-const Big = forSlots(AvatarSlots)(Recipes.Avatar({ size: 'lg', color: 'name' }))
-const Stack = forSlots(AvatarGroupSlots)(Recipes.AvatarGroup({}))
+const Face = Recipes.Avatar.style({ ring: 'page', color: 'name' })
+const Big = Recipes.Avatar.style({ size: 'lg', color: 'name' })
+const Stack = Recipes.AvatarGroup.style({})
 
 const AppAvatar = Avatar.configure({
   base: { style: Face, groupStyle: Stack, words: { online: 'Here now' } },

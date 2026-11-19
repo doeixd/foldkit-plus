@@ -1,16 +1,8 @@
 import { Bundle } from 'foldkit-bundle'
-import {
-  Bundles,
-  Button,
-  ButtonSlots,
-  FloatingPanel,
-  FloatingPanelSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Bundles, Button, FloatingPanel, FloatingPanelSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
+const Primary = Recipes.Button.style({})
 
 // `grid` snaps every move and resize to multiples of 40 pixels, and `min` and
 // `max` bound the size a resize reaches. They are the Bundle's args, kept in

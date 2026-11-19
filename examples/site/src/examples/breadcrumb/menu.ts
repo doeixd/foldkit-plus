@@ -1,14 +1,6 @@
 import { mapMessages } from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
-import {
-  Breadcrumb,
-  BreadcrumbMenu,
-  BreadcrumbSlots,
-  Menu,
-  MenuSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
-import { forSlots } from '../../snippets/theme.js'
+import { Breadcrumb, BreadcrumbMenu, BreadcrumbSlots, Menu, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 
 const steps = [
@@ -21,7 +13,7 @@ const steps = [
 ]
 const MAX = 3
 
-const MenuStyle = forSlots(MenuSlots)(Recipes.Menu({}))
+const MenuStyle = Recipes.Menu.style({})
 const Message = defineMessageUnion({ GotMenu: { message: Menu.Message } })
 const got = (message: Menu.Message) => Message.GotMenu({ message })
 

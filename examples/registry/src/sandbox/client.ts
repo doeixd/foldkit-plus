@@ -104,6 +104,17 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html => {
           style: ShellStyle,
           main: [
             h.div(slots.content.attrs(), [
+              // In the page's flow on a phone, where a fixed pill would cover what scrolls under it.
+              Guide(
+                {
+                  demo: registryDemo,
+                  corner: 'top-end',
+                  compact: true,
+                  inset: '0.75rem',
+                  flowOnPhone: true,
+                },
+                h,
+              ),
               h.header(slots.intro.attrs(), [
                 h.p(slots.eyebrow.attrs(), ['Remote, Sync and Durable']),
                 h.h1(slots.heading.attrs(), ['Two devices, one registry']),
@@ -170,7 +181,6 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html => {
         },
         h,
       ),
-      Guide({ demo: registryDemo, corner: 'top-end', compact: true, inset: '0.75rem' }, h),
     ],
   )
 }

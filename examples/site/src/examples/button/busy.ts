@@ -1,13 +1,12 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { Button, ButtonSlots, Recipes, Spinner, SpinnerSlots } from 'foldkit-mixins-ui'
+import { Button, ButtonSlots, Recipes, Spinner } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { row } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Refused = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
-const Wheel = forSlots(SpinnerSlots)(Recipes.Spinner({ size: 'sm', tone: 'current' }))
+const Refused = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
+const Wheel = Recipes.Spinner.style({ size: 'sm', tone: 'current' })
 
 const Model = Schema.Struct({ saving: Schema.Boolean })
 const Message = defineMessageUnion({ Started: {}, Finished: {} })

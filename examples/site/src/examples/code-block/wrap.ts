@@ -1,11 +1,10 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Button, ButtonSlots, CodeBlock, CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, CodeBlock, CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 import { stack } from '../../snippets/layout.js'
 
-const Toggle = forSlots(ButtonSlots)(Recipes.Button({ variant: 'outline', size: 'sm' }))
+const Toggle = Recipes.Button.style({ variant: 'outline', size: 'sm' })
 
 const LOG = [
   '[12:04:01] GET /api/projects/7f3c2a/members?include=roles,invitations&page=1 200 34ms',

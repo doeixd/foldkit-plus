@@ -1,20 +1,9 @@
-import {
-  Button,
-  ButtonGroup,
-  ButtonGroupSlots,
-  ButtonSlots,
-  Input,
-  InputSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Button, ButtonGroup, ButtonGroupSlots, Input, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Square = forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'outline', shape: 'square' }),
-)
-const Field = forSlots(InputSlots)(Recipes.Input({}))
+const Square = Recipes.Button.style({ tone: 'neutral', variant: 'outline', shape: 'square' })
+const Field = Recipes.Input.style({})
 
 // Words are an item too, drawn in the group's `text` box: here a field's
 // fixed prefix.

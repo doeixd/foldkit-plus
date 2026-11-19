@@ -7,15 +7,13 @@ import {
   Dialog,
   DialogSlots,
   Input,
-  InputSlots,
   Recipes,
 } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
-const Quiet = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'ghost' }))
-const Field = forSlots(InputSlots)(Recipes.Input({}))
+const Primary = Recipes.Button.style({})
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'ghost' })
+const Field = Recipes.Input.style({})
 
 // A form in the body, its submit button in the footer: `form` ties the two,
 // so Enter in a field submits it too. `Dialog.keyboard` keeps the panel above

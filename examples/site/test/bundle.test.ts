@@ -61,7 +61,12 @@ const script = resolve(import.meta.dirname, '../../../scripts/bundle-report.mjs'
 // Bundles and preview lists are 18.8 kB of the total (not compared with a build before them). The gallery Model's fields
 // for converted pages (`widgets.ts`, `widgetsUpdate.ts`, 3.6 kB) are still loaded until phase 5
 // deletes them. Ceiling: the reading plus about 0.3%, rounded up.
-const CEILINGS = { shell: 188_000, gallery: 445_000 }
+// Later on 2026-11-18 the Primitives gallery's thirty-four example modules (`src/examples/primitives`)
+// took the gallery from 445,289 to 456,598, +11.3 kB, measured in one tree with the modules' glob
+// pointed at nothing and back. They sit in the gallery chunk because their state is a field of the
+// gallery's Model and their views must be there to adopt the served markup; loading them apart would
+// need the Primitives gallery to be an application of its own. Ceiling: the reading plus 0.3%, rounded up.
+const CEILINGS = { shell: 188_000, gallery: 458_000 }
 
 /** Strings only the previews' state writes: the ids its widgets are initialised with. */
 const PREVIEWS = ['preview-heading', 'preview-trip']

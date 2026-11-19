@@ -1,17 +1,9 @@
 import { Bundle } from 'foldkit-bundle'
-import {
-  Bundles,
-  ColorPicker,
-  ColorPickerSlots,
-  PopoverSlots,
-  Recipes,
-  SliderSlots,
-} from 'foldkit-mixins-ui'
+import { Bundles, ColorPicker, ColorPickerSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Channel = forSlots(SliderSlots)(Recipes.Slider({ track: 'paint', label: 'hidden' }))
-const Panel = forSlots(PopoverSlots)(Recipes.Popover({}))
+const Channel = Recipes.Slider.style({ track: 'paint', label: 'hidden' })
+const Panel = Recipes.Popover.style({})
 
 const accents: ReadonlyArray<ColorPicker.ColorPickerPreset> = [
   { label: 'Blue', value: ColorPicker.color('#3b82f6') },

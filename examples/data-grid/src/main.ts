@@ -426,7 +426,10 @@ const Registry = DataGridView<Message>()
     Style.attach(
       Style.forSlots(GridSlots)({
         root: Style.inline({
-          height: '70vh',
+          // Takes what the page leaves under the controls (the page is a column at least one screen
+          // tall), so a phone shows rows, not a band of 70vh below a tall header.
+          flex: '1 1 0',
+          minHeight: '16rem',
           border: '1px solid light-dark(#e4e4e7, #2e2e33)',
           borderRadius: '10px',
         }),
@@ -457,12 +460,14 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
       [
         h.Style({
           boxSizing: 'border-box',
-          display: 'grid',
-          gap: '0.25rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+          minHeight: '100dvh',
           // The columns' 830px, the grid's border and this padding: no empty band beside the grid.
           maxWidth: '55rem',
           margin: '0 auto',
-          padding: 'clamp(1rem, 4vw, 2.5rem) clamp(0.75rem, 4vw, 1.5rem)',
+          padding: 'clamp(0.5rem, 4vw, 2.5rem) clamp(0.75rem, 4vw, 1.5rem)',
           font: '14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif',
           color: 'var(--fk-text-default)',
         }),
@@ -473,6 +478,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
             h.Style({
               margin: '0',
               fontSize: '1.375rem',
+              lineHeight: '1.25',
               fontWeight: '600',
               letterSpacing: '-0.015em',
             }),
@@ -481,10 +487,8 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
         ),
         h.p(
           [h.Style({ margin: '0', color: 'var(--fk-text-muted)', fontSize: '13px' })],
-          [
-            'Enter edits a cell, Shift+arrows select a range, Ctrl+C copies it. ',
-            'A header’s funnel filters and its menu pins or hides; scroll sideways for the rest.',
-          ],
+          // The keys are listed under "Keyboard shortcuts", so this says only what the keys cannot.
+          ['A header’s funnel filters and its menu pins or hides; scroll sideways for the rest.'],
         ),
         h.div(
           [
@@ -492,8 +496,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
               display: 'flex',
               flexWrap: 'wrap',
               alignItems: 'center',
-              gap: '0.5rem',
-              margin: '0 0 1rem',
+              gap: '0.25rem 0.5rem',
               color: 'var(--fk-text-muted)',
               fontSize: '13px',
             }),

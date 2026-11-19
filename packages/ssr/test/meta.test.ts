@@ -6,7 +6,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import type { Url } from 'foldkit/url'
 import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { META_ATTRIBUTE, SSR } from 'foldkit-ssr'
+import { META_ATTRIBUTE, SSR, metaMarkup } from 'foldkit-ssr'
 import { load, settle, template } from './handoverFixture.js'
 
 const Model = Schema.Struct({ path: Schema.String, secret: Schema.String })
@@ -71,6 +71,42 @@ describe('a plan’s meta', () => {
     expect(head).not.toContain('</script><b>')
     // Foldkit filled the tags the template has.
     expect(head).toContain('<link rel="canonical" href="https://example.test/about" />')
+  })
+
+  it('writes an image with its size and words, an article with its authors and tags, and the twitter mirrors', () => {
+    const tags = metaMarkup({
+      title: 'A "post"',
+      description: 'Why',
+      image: 'https://example.test/card.png',
+      imageSize: { width: 1200, height: 630 },
+      imageAlt: 'The card',
+      type: 'article',
+      article: {
+        published: '2026-11-18',
+        modified: '2026-11-19',
+        authors: ['Ada', 'Grace'],
+        tags: ['release', 'ssr'],
+      },
+    }).split('\n')
+    const has = (attribute: 'name' | 'property', name: string) =>
+      tags
+        .filter(tag => tag.includes(` ${attribute}="${name}" `))
+        .map(tag => /content="([^"]*)"/.exec(tag)?.[1])
+    expect(has('property', 'og:image:width')).toEqual(['1200'])
+    expect(has('property', 'og:image:height')).toEqual(['630'])
+    expect(has('property', 'og:image:alt')).toEqual(['The card'])
+    expect(has('name', 'twitter:title')).toEqual(['A &quot;post&quot;'])
+    expect(has('name', 'twitter:description')).toEqual(['Why'])
+    expect(has('name', 'twitter:image')).toEqual(['https://example.test/card.png'])
+    expect(has('name', 'twitter:image:alt')).toEqual(['The card'])
+    expect(has('property', 'article:author')).toEqual(['Ada', 'Grace'])
+    expect(has('property', 'article:tag')).toEqual(['release', 'ssr'])
+  })
+
+  it('writes none of them for a meta that gives none', () => {
+    expect(metaMarkup({ description: 'Only this' })).not.toMatch(
+      /og:image|twitter:(title|image)|article:/,
+    )
   })
 
   it('is refused when it reads a field the plan does not send', async () => {

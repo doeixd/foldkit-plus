@@ -1,9 +1,8 @@
 import { Card, CardSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
 const Levels = (['0', '1', '2', '3'] as const).map(elevation =>
-  forSlots(CardSlots)(Recipes.Card({ surface: 'elevated', elevation })),
+  Recipes.Card.style({ surface: 'elevated', elevation }),
 )
 
 // Each level one more step above what holds it: lighter on a dark page, a

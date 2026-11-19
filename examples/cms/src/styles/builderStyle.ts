@@ -131,6 +131,8 @@ const narrowBuilder = `builder (max-width: ${narrowWidth})`
 
 export const BuilderStyle = Style.forSlots(BuilderSlots)(
   {
+    // A column, so a narrow editor can place the tabs among the regions' parts (below).
+    root: Style.self({ display: 'flex', flexDirection: 'column' }),
     // Laid out by the editor's own width (`builder`), so a narrow editor stacks in a wide window.
     regions: Style.compose(
       Style.self({
@@ -150,13 +152,9 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
       Style.global(
         `@media ${phone} { html { scroll-padding-top: calc(${phoneBarSize} + 0.5rem); } }`,
       ),
-      Style.container(narrowBuilder, {
-        gridTemplateAreas: 'none',
-        gridTemplateColumns: 'minmax(0, 1fr)',
-        gridTemplateRows: 'none',
-        height: 'auto',
-        rowGap: t.space.sm,
-      }),
+      // Narrow, the regions' parts are the editor's own flex items, so the page can come
+      // first and the tabs and the panel they choose under it (their `order`, below).
+      Style.container(narrowBuilder, { display: 'contents' }),
     ),
     start: Style.compose(
       Style.self({
@@ -166,26 +164,35 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         gridArea: 'start',
         minHeight: '0',
       }),
-      // Narrow, the panel a tab shows sits under the tabs, before the page: the
+      // Narrow, the panel a tab shows sits under the tabs, after the page and its bar: the
       // inspector too, which is drawn after the page.
-      Style.container(narrowBuilder, { gridArea: 'auto', order: '1' }),
+      Style.container(narrowBuilder, {
+        gridArea: 'auto',
+        marginBlockStart: t.space.sm,
+        order: '4',
+      }),
     ),
     bar: Style.compose(
       Style.self({ alignItems: 'center', display: 'flex', gap: t.space.md, gridArea: 'bar' }),
       Style.container(narrowBuilder, {
         flexWrap: 'wrap',
         gridArea: 'auto',
-        order: '3',
+        marginBlockStart: t.space.sm,
+        order: '2',
       }),
     ),
     // The alert lies over the top of the page, in the same cell.
     stage: Style.compose(
       Style.self({ display: 'grid', gridArea: 'stage', minHeight: '0' }),
-      Style.container(narrowBuilder, { gridArea: 'auto', order: '4' }),
+      Style.container(narrowBuilder, { gridArea: 'auto', order: '1' }),
     ),
     end: Style.compose(
       Style.self({ display: 'flex', flexDirection: 'column', gridArea: 'end', minHeight: '0' }),
-      Style.container(narrowBuilder, { gridArea: 'auto', order: '2' }),
+      Style.container(narrowBuilder, {
+        gridArea: 'auto',
+        marginBlockStart: t.space.sm,
+        order: '5',
+      }),
     ),
     palette: Style.compose(
       builderPanel,
@@ -457,6 +464,8 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
     panelTabs: Style.compose(
       Recipes.Segmented({ tray: 'tray' }).group,
       Style.self({ inlineSize: 'auto' }),
+      // Under the page and its bar, over the panel they choose.
+      Style.container(narrowBuilder, { marginBlockStart: t.space.sm, order: '3' }),
     ),
     panelTab: Style.compose(Recipes.Segmented({ size: 'sm' }).option, Style.self({ flex: '1' })),
     viewport: Style.compose(
@@ -492,7 +501,8 @@ export const BuilderStyle = Style.forSlots(BuilderSlots)(
         padding: t.space.lg,
       }),
       Style.pseudo(':focus-visible', { outline: `2px solid ${t.accent.default}` }),
-      Style.container(narrowBuilder, { minHeight: '30rem' }),
+      // Narrow, the page is the first thing in the editor: the form's own gap is its room above.
+      Style.container(narrowBuilder, { marginBlockStart: '0', minHeight: '30rem' }),
       Style.container('builder (max-width: 30rem)', { padding: t.space.xs }),
       // Room for the grip, which sits above the selected node's top edge and is finger-sized here.
       Style.media('(pointer: coarse)', { paddingBlockStart: '3.5rem' }),

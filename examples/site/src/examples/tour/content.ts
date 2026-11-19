@@ -1,9 +1,8 @@
 import { Bundle } from 'foldkit-bundle'
-import { Bundles, Button, ButtonSlots, Kbd, Recipes, Tour, TourSlots } from 'foldkit-mixins-ui'
+import { Bundles, Button, Kbd, Recipes, Tour, TourSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
+const Primary = Recipes.Button.style({})
 
 // The steps are data in the Model; `content` draws Html in place of a step's
 // words, here a key to press. Steps with no target stand in the middle,

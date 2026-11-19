@@ -2,9 +2,8 @@ import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Bundles, RadioGroup, RadioGroupSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Cards = forSlots(RadioGroupSlots)(Recipes.RadioGroup({ variant: 'card' }))
+const Cards = Recipes.RadioGroup.style({ variant: 'card' })
 
 // Every group of the application is a row of cards with the arrows as the
 // APG asks them; a preset stacks them. The Message lift and the Model stay

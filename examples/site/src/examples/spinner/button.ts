@@ -1,8 +1,7 @@
-import { Button, ButtonSlots, Recipes, Spinner, SpinnerSlots } from 'foldkit-mixins-ui'
+import { Button, Recipes, Spinner, SpinnerSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Face = forSlots(ButtonSlots)(Recipes.Button({}))
+const Face = Recipes.Button.style({})
 
 // A spinner in a Button's `icon`, with `busy` on: the button draws none of its
 // own, so a page that never shows one never ships it. The spinner takes the

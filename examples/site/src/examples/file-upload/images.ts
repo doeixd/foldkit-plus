@@ -5,11 +5,9 @@ import {
   FileUpload,
   FileUploadProgress,
   FileUploadSlots,
-  ProgressSlots,
   Recipes,
 } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 import { simulated } from '../../snippets/upload.js'
 
 const LANES = 2
@@ -20,7 +18,7 @@ const App = Bundle.compose({}).pipe(
   }),
 )
 const lift = (message: FileUpload.Message) => App.Message.GotUploadMessage({ message })
-const Bar = FileUploadProgress.make({ style: forSlots(ProgressSlots)(Recipes.Progress({})) })
+const Bar = FileUploadProgress.make({ style: Recipes.Progress.style({}) })
 
 // The gallery and the sending together: each tile shows its thumbnail at
 // once, from the file in the page, and a bar until it has been sent.

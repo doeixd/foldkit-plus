@@ -68,6 +68,18 @@ export const GuideStyle = Style.forSlots(GuideSlots)(
         insetBlockStart: 'var(--demo-guide-inset, 1rem)',
         insetBlockEnd: 'auto',
       }),
+      // On a phone a fixed pill covers whatever scrolls under it, so a page can ask for it in its
+      // flow, where it takes a place of its own and covers nothing. Later than the corners, whose
+      // insets it undoes.
+      Style.at(
+        '@media (max-width: 63.99rem)',
+        Style.nest('&[data-flow-phone]', {
+          position: 'relative',
+          insetBlock: 'auto',
+          insetInline: 'auto',
+          marginInlineStart: 'auto',
+        }),
+      ),
       // The pill sits over the page's last lines: a page that scrolls ends in room as tall
       // as the pill and its margins, so they scroll clear of it. A block after the body's
       // content, not the body's padding, which a page's own unlayered rule would win over.
@@ -241,7 +253,9 @@ export type GuideCorner = 'bottom-end' | 'bottom-start' | 'top-end' | 'top-start
  * Placement, for a demo whose own controls fill a corner: `corner` picks the
  * screen corner (bottom-end by default), `inset` is its distance from the edge
  * (any CSS length, `1rem` by default), `compact` collapses the pill to a dot
- * with the same name for a screen reader, and `reserve: false` keeps a page
+ * with the same name for a screen reader, `flowOnPhone` draws it in the page's
+ * flow, at the end of its line, below 64rem (draw the guide where it should sit
+ * in the page), and `reserve: false` keeps a page
  * that fills the screen from gaining a block of room at its end for the pill
  * (a page that scrolls ends in that room, so its last lines scroll clear).
  *
@@ -262,6 +276,7 @@ export const demoGuide = <Message>() =>
           inset,
           compact = false,
           reserve = true,
+          flowOnPhone = false,
         }: {
           readonly demo: Demo
           readonly more?: ReadonlyArray<string>
@@ -270,6 +285,7 @@ export const demoGuide = <Message>() =>
           readonly inset?: string
           readonly compact?: boolean
           readonly reserve?: boolean
+          readonly flowOnPhone?: boolean
         },
         slots,
         h,
@@ -279,6 +295,7 @@ export const demoGuide = <Message>() =>
             h.DataAttribute('corner', corner),
             ...(compact ? [h.DataAttribute('compact', '')] : []),
             ...(reserve ? [] : [h.DataAttribute('reserve', 'false')]),
+            ...(flowOnPhone ? [h.DataAttribute('flow-phone', '')] : []),
             ...(inset === undefined ? [] : [h.Style({ '--demo-guide-inset': inset })]),
           ]),
           [

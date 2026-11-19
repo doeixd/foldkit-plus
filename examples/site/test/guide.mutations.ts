@@ -29,6 +29,19 @@ export default [
     tests,
   },
   {
+    name: 'a pill asked to sit in the flow on a phone stays fixed and covers what scrolls under it',
+    edits: [
+      {
+        file,
+        find: `'&[data-flow-phone]', {
+          position: 'relative',`,
+        replace: `'&[data-flow-phone]', {
+          position: 'fixed',`,
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the compact pill keeps its width',
     edits: [
       {

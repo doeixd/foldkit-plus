@@ -1,21 +1,12 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import {
-  Button,
-  ButtonGroup,
-  ButtonGroupSlots,
-  ButtonSlots,
-  Menu,
-  MenuSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Button, ButtonGroup, ButtonGroupSlots, Menu, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
 import { note, stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Face = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
-const MenuStyle = forSlots(MenuSlots)(Recipes.Menu({}))
+const Face = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
+const MenuStyle = Recipes.Menu.style({})
 
 const rows: ReadonlyArray<Menu.Row> = [
   { value: 'Save as copy', label: 'Save as copy' },

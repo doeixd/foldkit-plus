@@ -5,12 +5,10 @@ import {
   FileUpload,
   FileUploadProgress,
   FileUploadSlots,
-  ProgressSlots,
   Recipes,
 } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { label } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 import { simulated } from '../../snippets/upload.js'
 
 const App = Bundle.compose({}).pipe(
@@ -21,7 +19,7 @@ const App = Bundle.compose({}).pipe(
 )
 const lift = (message: FileUpload.Message) => App.Message.GotUploadMessage({ message })
 const Ring = FileUploadProgress.make({
-  style: forSlots(ProgressSlots)(Recipes.Progress({ shape: 'ring' })),
+  style: Recipes.Progress.style({ shape: 'ring' }),
 })
 
 // One wide image: the picker is the picture, and a ring stands on it while

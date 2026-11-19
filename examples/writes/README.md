@@ -96,7 +96,8 @@ row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":
   a draft (`Unmet`), and putting a published product back to draft would break
   the transition invariant (`Invalid`). They are hints. Further down, the
   server answers "publish it again" as written, where the page said `Unmet`.
-- **A guarded rename.** `Rename` is a plain `Write.update`. Its guard, built with
+- **A guarded rename.** `Rename` is a plain update, declared in one call
+  (`Mutation.update`, the long form `Mutation.write` of a `Write.update`). Its guard, built with
   `{ revision: 'revision' }`, writes only the revision its rules were decided
   over, and the revision moves on with the write (1 to 2). Had the owner changed
   between the check and the write, the write would miss and be decided again

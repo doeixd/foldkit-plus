@@ -2,19 +2,16 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import {
   Button,
-  ButtonSlots,
   ChatMessage,
   ChatMessageSlots,
   Recipes,
   ThinkingIndicator,
-  ThinkingIndicatorSlots,
 } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { column } from '../../snippets/chat.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Action = forSlots(ButtonSlots)(Recipes.Button({}))
-const Dots = forSlots(ThinkingIndicatorSlots)(Recipes.ThinkingIndicator({}))
+const Action = Recipes.Button.style({})
+const Dots = Recipes.ThinkingIndicator.style({})
 
 const Stage = Schema.Literals(['thinking', 'typing', 'settled'])
 const Model = Schema.Struct({ stage: Stage })

@@ -1,8 +1,7 @@
-import { Card, CardGroupSlots, CardSlots, Recipes } from 'foldkit-mixins-ui'
+import { Card, CardGroupSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Tile = forSlots(CardSlots)(Recipes.Card({ lift: 'hover' }))
+const Tile = Recipes.Card.style({ lift: 'hover' })
 
 // No `fluid`: the group draws no highlight element and no Mount, and each
 // card lifts by its own `lift`. A page that never passes `Card.fluid` ships

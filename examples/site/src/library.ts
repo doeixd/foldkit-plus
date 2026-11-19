@@ -13,6 +13,12 @@ import type { Example, Page } from './page.js'
  */
 export const COPY_ATTRIBUTE = 'data-copy-code'
 
+/** The same for the button that opens a collapsed code block: the page's script flips it. */
+export const EXPAND_ATTRIBUTE = 'data-expand-code'
+
+/** The phone menu's Dialog id; its panel is `site-menu-panel`, which the page's script finds links by. */
+export const MENU_ID = 'site-menu'
+
 /** The component gallery and the theme creator; each component's page is under the gallery's. */
 export const COMPONENTS = '/components'
 export const CREATE = '/create'
@@ -29,6 +35,8 @@ export interface Library {
   readonly pageAt: (path: string) => Page
   /** A doc page's sidebar: its subsite's guides and API. */
   readonly sidebar: (path: string) => Draw
+  /** The same pages for the phone menu, a package's pages folded under its name. */
+  readonly menuSidebar: (path: string) => Draw
   /** A doc page's article. */
   readonly article: (path: string) => Draw
   /** The links to the pages before and after it, under its article. */
@@ -43,8 +51,14 @@ export interface Library {
   readonly module: (slug: string, name: string) => Draw
   /** A primitive example's source, as `snippets/primitives.ts` writes it, coloured. */
   readonly primitive: (id: string) => Draw
+  /** A primitive example module's whole text (`src/examples/primitives/<family>/<name>.ts`), coloured. */
+  readonly primitiveModule: (file: string) => Draw
   /** The guides a component page links for the mechanisms that apply to it. */
   readonly related: (slug: string) => Draw
+  /** The blog's index or a post, the whole page. */
+  readonly blog: (path: string) => Draw
+  /** The posts, newest first, for the rail and the menu, the open one marked. */
+  readonly blogPosts: (path: string) => Draw
 }
 
 const unavailable =
@@ -62,6 +76,7 @@ export const browserLibrary: Library = {
     throw new Error('the browser does not look pages up: the server named this one')
   },
   sidebar: () => unavailable('sidebar'),
+  menuSidebar: () => unavailable('menu sidebar'),
   article: () => unavailable('article'),
   pager: () => unavailable('pager'),
   outline: () => unavailable('outline'),
@@ -69,5 +84,8 @@ export const browserLibrary: Library = {
   usage: () => unavailable('usage'),
   module: () => unavailable('example module'),
   primitive: () => unavailable('primitive example'),
+  primitiveModule: () => unavailable('primitive example module'),
   related: () => unavailable('related topics'),
+  blog: () => unavailable('blog page'),
+  blogPosts: () => unavailable('list of posts'),
 }

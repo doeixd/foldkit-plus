@@ -387,22 +387,29 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         padding: `${t.space['2xl']} ${t.space.xl}`,
       }),
       Style.media(phone, {
-        padding: `${t.space.lg} ${t.space.md} calc(${t.space.lg} + ${pillRoom})`,
+        gap: t.space.sm,
+        padding: `${t.space.md} ${t.space.md} calc(${t.space.lg} + ${pillRoom})`,
       }),
       // A lone link or button in the column is as wide as its words, not the column.
       Style.nest('> a', { alignSelf: 'flex-start' }),
     ),
-    screenHead: L.in(
-      'layouts',
-      Layout.cluster({ gap: t.space.md, justify: 'space-between', align: 'end' }),
+    screenHead: Style.compose(
+      L.in('layouts', Layout.cluster({ gap: t.space.md, justify: 'space-between', align: 'end' })),
+      // On a phone the title and the main button share a row; the line of words under the title
+      // gives way (the section's tab and the list say what it is).
+      Style.media(phone, { flexWrap: 'nowrap', alignItems: 'center' }),
+      Style.at(`@media ${phone}`, Style.nest(' p', { display: 'none' })),
     ),
-    screenTitle: Style.self({
-      color: t.text.overt,
-      fontSize: t.size['3xl'],
-      fontWeight: t.weight.bold,
-      letterSpacing: '-0.025em',
-      margin: '0',
-    }),
+    screenTitle: Style.compose(
+      Style.self({
+        color: t.text.overt,
+        fontSize: t.size['3xl'],
+        fontWeight: t.weight.bold,
+        letterSpacing: '-0.025em',
+        margin: '0',
+      }),
+      Style.media(phone, { fontSize: t.size['2xl'] }),
+    ),
     filters: Style.compose(
       L.in(
         'layouts',
@@ -431,7 +438,8 @@ export const AdminStyle = Style.forSlots(AdminSlots)(
         minWidth: '14rem',
         position: 'relative',
       }),
-      Style.media(phone, { flex: '1 1 100%', minWidth: '0' }),
+      // Beside the tabs where it fits (it takes what they leave), under them where it does not.
+      Style.media(phone, { flex: '1 1 8rem', minWidth: '0' }),
       Style.nest('> svg', { insetInlineStart: '0.7rem', position: 'absolute' }),
     ),
     editorScreen: Style.compose(
@@ -706,6 +714,7 @@ export const PagesListStyle = Style.forSlots(RowListSlots)(
         width: '100%',
       }),
       Style.nest('> svg', { color: t.text.muted }),
+      Style.media(phone, { padding: `${t.space.sm} ${t.space.md}` }),
       // The state sits at the row's end.
       Style.nest('> :last-child', { marginInlineStart: 'auto' }),
       Style.pseudo(':hover', { background: t.surface.subtle }),

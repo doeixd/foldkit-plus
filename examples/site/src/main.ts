@@ -34,6 +34,7 @@ import {
 } from './gallery/studio.js'
 import * as Examples from './gallery/examplesState.js'
 import * as PrimitiveBundles from './gallery/primitiveBundles.js'
+import { PRIMITIVES_SLUG } from './gallery/primitiveExamples.js'
 import * as Widgets from './gallery/widgets.js'
 import * as WidgetsUpdate from './gallery/widgetsUpdate.js'
 import {
@@ -56,7 +57,7 @@ import {
   withValue,
 } from './gallery/theme.js'
 import { addressOf, queryOf } from './gallery/themeUrl.js'
-import { CREATE, type Library } from './library.js'
+import { CREATE, MENU_ID, type Library } from './library.js'
 import { Body } from './view/layout.js'
 import { Page } from './page.js'
 import * as Shell from './shell.js'
@@ -148,6 +149,7 @@ const Parent = Bundle.parent({ Model, Message })
 const placements = Parent.assemble(
   Parent.at(Shell.Dark),
   Parent.at(Shell.Ticks, { args: { intervalMs: 1000 } }),
+  Parent.at(Shell.Menu, { args: { id: MENU_ID, side: 'left' }, onOut: Bundle.ignore }),
   Parent.at(PrimitiveBundles.Connection),
   Parent.at(PrimitiveBundles.Window),
   Parent.at(PrimitiveBundles.Fade, { args: { from: 0, to: 100, ms: 1500 } }),
@@ -363,12 +365,15 @@ const asShell = (model: Model, message: Shell.OwnMessage): UpdateReturn => {
 
 const updateOwn = (model: Model, message: OwnMessage): UpdateReturn =>
   Match.valueTags(message, {
-    ToggledMenu: message => asShell(model, message),
+    ChoseMenuLink: message => asShell(model, message),
+    LeftMenu: message => asShell(model, message),
     ChoseExample: message => asShell(model, message),
     PressedCopy: message => asShell(model, message),
     CopiedText: message => asShell(model, message),
     PressedCodeCopy: message => asShell(model, message),
     CopiedCode: message => asShell(model, message),
+    PressedCodeToggle: message => asShell(model, message),
+    ToggledCode: message => asShell(model, message),
     FailedToCopy: message => asShell(model, message),
     ChosePageScheme: message => asShell(model, message),
     FoundPageScheme: message => asShell(model, message),
@@ -552,8 +557,11 @@ export const subscriptions = placements.subscriptions(
         },
       ),
       codeCopy: Shell.codeCopy,
+      codeToggle: Shell.codeToggle,
+      menuLinks: Shell.menuLinks,
     })),
     Shell.sectionSpy,
+    Shell.menuWatch,
     Subscription.lift(WidgetsUpdate.subscriptions)<Model, Message>({
       read: model => Option.some(model.widgets),
       toParentMessage: message => Message.GotWidget({ message }),
@@ -564,7 +572,10 @@ export const subscriptions = placements.subscriptions(
     }),
     Examples.subscriptions<Model, Message>({
       read: model => model.examples,
-      onPage: (model, slug) => model.page._tag === 'Component' && model.page.slug === slug,
+      onPage: (model, slug) =>
+        slug === PRIMITIVES_SLUG
+          ? model.page._tag === 'Primitives'
+          : model.page._tag === 'Component' && model.page.slug === slug,
       toParent: Message.GotExample,
     }),
   ),
@@ -589,6 +600,8 @@ const descriptionOf = (page: Page): string =>
     Home: () => elsewhere('Home'),
     Demos: () => elsewhere('Demos'),
     Doc: () => elsewhere('Doc'),
+    Blog: () => elsewhere('Blog'),
+    Post: () => elsewhere('Post'),
   })
 
 const titleOf = (page: Page): string =>
@@ -605,6 +618,8 @@ const titleOf = (page: Page): string =>
     Home: () => elsewhere('Home'),
     Demos: () => elsewhere('Demos'),
     Doc: () => elsewhere('Doc'),
+    Blog: () => elsewhere('Blog'),
+    Post: () => elsewhere('Post'),
   })
 
 /** A page of the guides application, which this one is never given: a routing mistake, said loudly. */
@@ -616,7 +631,6 @@ const elsewhere = (page: string): never => {
 export const initial: Model = placements.initial({
   path: '/',
   page: Page.Missing(),
-  menuOpen: false,
   example: 'view',
   copied: false,
   linkCopied: false,
@@ -660,7 +674,7 @@ const planOf = (withMeta: boolean) =>
     id: 'gallery',
     state: Projection.pick(App.model.path, App.model.page),
     local: [
-      App.model.menuOpen,
+      App.model.menu,
       App.model.example,
       App.model.copied,
       App.model.selection,

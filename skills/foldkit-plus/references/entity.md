@@ -1,6 +1,6 @@
 # foldkit-entity
 
-Checked against `foldkit-entity` 0.18.0.
+Checked against `foldkit-entity` 0.19.0.
 
 A domain entity declared once as a typed value: intrinsic fields, relations to
 other entities, and derived members. It **describes only**. It fetches, stores,
@@ -207,7 +207,9 @@ a `one` relation key is pointed (bound to a ref in `links`), and an unmapped key
 or nested key is refused. `Write.writes(write)` is what it may change, `Write.reads(write)` what it
 reads from its row, and `Write.bind(write, value, keys?)` the row and its encoded new values, for an
 optimistic patch or a server to write. See "Declared writes and invariants" below for what a write may
-ask of its row.
+ask of its row. Where every input key is a field named for itself, `foldkit-remote`'s
+`Mutation.update(name, Post, { set: { title: Schema.String } })` (and `insert`, `delete`) declares the
+input (`{ id, ...set }`), the write and the mutation in one call; the value is the long form's.
 
 **What the server chooses:** `Entity.sets({ author: Expr.viewer(User), createdAt: Expr.now }, { on:
 'create' })` and `Entity.sets({ editedAt: Expr.now }, { on: 'write' })`, added after `Entity.relate`, are

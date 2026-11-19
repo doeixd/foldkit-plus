@@ -1,13 +1,10 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Button, ButtonGroup, ButtonGroupSlots, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, ButtonGroup, ButtonGroupSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Square = forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'outline', shape: 'square' }),
-)
+const Square = Recipes.Button.style({ tone: 'neutral', variant: 'outline', shape: 'square' })
 
 const pages = 12
 const Model = Schema.Struct({ page: Schema.Number })

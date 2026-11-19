@@ -303,9 +303,16 @@ export const Page = demoStyle.slots({
       background: t.surface.subtle,
       overflow: 'auto',
     }),
+    // Above the page on a phone, so it is a few short rows: the brand beside New page, the
+    // list, and the status words sharing a line, not a tall column pushing the page down.
     Style.media(NARROW, {
       position: 'static',
       blockSize: 'auto',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: `${t.space['2xs']} ${t.space.xs}`,
+      padding: `${t.space.xs} ${t.space.sm}`,
       borderInlineEnd: '0',
       borderBlockEnd: `1px solid ${t.outline.subtle}`,
     }),
@@ -325,16 +332,23 @@ export const Page = demoStyle.slots({
     color: t.accent['on-fill'],
     fontSize: t.size.xs,
   }),
-  section: Style.self({ display: 'grid', gap: '1px' }),
-  sectionTitle: Style.self({
-    margin: '0',
-    padding: `0 ${t.space.xs} ${t.space['2xs']}`,
-    color: t.text.muted,
-    fontSize: t.size.xs,
-    fontWeight: t.weight.semibold,
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-  }),
+  section: Style.compose(
+    Style.self({ display: 'grid', gap: '1px' }),
+    Style.media(NARROW, { flex: '1 1 100%' }),
+  ),
+  sectionTitle: Style.compose(
+    Style.self({
+      margin: '0',
+      padding: `0 ${t.space.xs} ${t.space['2xs']}`,
+      color: t.text.muted,
+      fontSize: t.size.xs,
+      fontWeight: t.weight.semibold,
+      letterSpacing: '0.04em',
+      textTransform: 'uppercase',
+    }),
+    // The brand above already says "Pages", and the list is under it.
+    Style.media(NARROW, { display: 'none' }),
+  ),
   // The field that narrows the list: quiet until it is used, a finger's height on a touch screen.
   pageFilter: Style.compose(
     Style.self({
@@ -389,6 +403,7 @@ export const Page = demoStyle.slots({
   newPage: Style.compose(
     control,
     Style.self({ justifyContent: 'flex-start', inlineSize: '100%', color: t.text.muted }),
+    Style.media(NARROW, { inlineSize: 'auto', marginInlineStart: 'auto' }),
   ),
   trash: Style.compose(
     Style.self({ fontSize: t.size.sm, color: t.text.muted }),
@@ -606,15 +621,19 @@ export const Page = demoStyle.slots({
     Style.media(NARROW, { paddingInlineStart: '0' }),
   ),
   // Nothing open: a quiet prompt in the middle of the page.
-  empty: Style.self({
-    display: 'grid',
-    justifyItems: 'center',
-    alignContent: 'center',
-    gap: t.space.xs,
-    minBlockSize: '70dvh',
-    padding: t.space.lg,
-    textAlign: 'center',
-  }),
+  empty: Style.compose(
+    Style.self({
+      display: 'grid',
+      justifyItems: 'center',
+      alignContent: 'center',
+      gap: t.space.xs,
+      minBlockSize: '70dvh',
+      padding: t.space.lg,
+      textAlign: 'center',
+    }),
+    // The sidebar is above it on a phone: what is left of the screen, not 70% of it more.
+    Style.media(NARROW, { minBlockSize: '50dvh' }),
+  ),
   notice: Style.self({
     display: 'flex',
     alignItems: 'center',

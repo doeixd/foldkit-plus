@@ -1,19 +1,11 @@
 import { Option } from 'effect'
 import { Calendar as Dates } from 'foldkit'
-import {
-  Bundles,
-  Calendar,
-  CalendarSlots,
-  DatePicker,
-  DatePickerSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Bundles, Calendar, DatePicker, DatePickerSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 import { today } from '../../snippets/today.js'
 
 // A picker is two contracts: its own Slots, picked above, and its calendar's.
-const CalendarStyle = forSlots(CalendarSlots)(Recipes.Calendar({}))
+const CalendarStyle = Recipes.Calendar.style({})
 
 // The Bundle holds the popover, the calendar and the selection, and closes
 // the popover on the pick that makes the selection whole.

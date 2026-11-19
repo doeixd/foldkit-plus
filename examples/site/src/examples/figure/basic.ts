@@ -1,8 +1,7 @@
-import { CodeBlock, CodeBlockSlots, Figure, FigureSlots, Recipes } from 'foldkit-mixins-ui'
+import { CodeBlock, Figure, FigureSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Code = forSlots(CodeBlockSlots)(Recipes.CodeBlock({}))
+const Code = Recipes.CodeBlock.style({})
 
 // A `figure` whose caption names it for assistive technology on its own: the
 // caption needs no ARIA. The content is anything: a picture, a chart, a quote.

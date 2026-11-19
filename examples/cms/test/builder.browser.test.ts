@@ -454,16 +454,33 @@ it.skipIf(import.meta.env.VITE_MEASURE === undefined)(
   60_000,
 )
 
-it('shows its tabs at every width it stacks at, so the page is never pushed below every panel', async () => {
-  // Wider than a phone's editor, narrower than the three-panel layout's 56rem (896px): a tablet's.
-  unmount = mount(stylesheet, 3, longPage(3), '800px')
-  const tabs = () => document.querySelector<HTMLElement>('[aria-label="Panels"]')
-  await vi.waitFor(() => expect(canvas()).not.toBeNull())
-  expect(tabs()?.checkVisibility()).toBe(true)
-  // One panel above the page, so the page starts within a window's height.
-  const top = canvas()?.getBoundingClientRect().top ?? Infinity
-  expect(top - (tabs()?.getBoundingClientRect().top ?? 0)).toBeLessThan(700)
-})
+it.each([
+  // A phone's editor, and one wider than it yet narrower than the three-panel layout's 56rem (896px).
+  [390, '364px'],
+  [800, '800px'],
+])(
+  'at a window of %ipx the stacked editor draws the page first, and its tabs and the panel they choose under it',
+  async (window, width) => {
+    await page.viewport(window, 844)
+    try {
+      unmount = mount(stylesheet, 3, longPage(3), width)
+      const tabs = () => document.querySelector<HTMLElement>('[aria-label="Panels"]')
+      await vi.waitFor(() => expect(canvas()).not.toBeNull())
+      expect(tabs()?.checkVisibility()).toBe(true)
+      const editor = document.querySelector('main')!.getBoundingClientRect()
+      const stage = canvas()!.getBoundingClientRect()
+      const tab = tabs()!.getBoundingClientRect()
+      const panel = document.querySelector('[aria-label="Add a block"]')!.getBoundingClientRect()
+      // The page is what the editor opens on: only its own gap above it, so a form above the
+      // editor spends all it has on the page's title, not on panels the page then lies beneath.
+      expect(stage.top - editor.top).toBeLessThan(16)
+      expect(tab.top).toBeGreaterThanOrEqual(stage.bottom)
+      expect(panel.top).toBeGreaterThanOrEqual(tab.bottom)
+    } finally {
+      await page.viewport(1440, 900)
+    }
+  },
+)
 
 it('keeps focus in the layers through a duplicate and a delete, on the row they leave current', async () => {
   unmount = mount(stylesheet, 3)

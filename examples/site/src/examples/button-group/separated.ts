@@ -1,9 +1,8 @@
-import { Button, ButtonGroup, ButtonGroupSlots, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, ButtonGroup, ButtonGroupSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Filled = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral' }))
+const Filled = Recipes.Button.style({ tone: 'neutral' })
 
 const clipboard = [
   {

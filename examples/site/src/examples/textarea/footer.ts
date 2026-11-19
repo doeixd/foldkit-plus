@@ -1,14 +1,11 @@
 import { FieldValidation } from 'foldkit'
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Recipes, Textarea, TextareaSlots, Button, ButtonSlots } from 'foldkit-mixins-ui'
+import { Recipes, Textarea, TextareaSlots, Button } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Ghost = forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
-)
-const Send = forSlots(ButtonSlots)(Recipes.Button({ size: 'sm' }))
+const Ghost = Recipes.Button.style({ tone: 'neutral', variant: 'ghost', size: 'sm' })
+const Send = Recipes.Button.style({ size: 'sm' })
 
 const Model = Schema.Struct({ text: Schema.String })
 const Message = defineMessageUnion({ Typed: { value: Schema.String } })

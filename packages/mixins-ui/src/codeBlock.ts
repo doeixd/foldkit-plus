@@ -58,8 +58,10 @@ export interface CodeBlockWords {
   readonly copied: string
   /** A line's gutter button under `onLineSelect`; `{line}` is its number. */
   readonly selectLine: string
-  /** The button under a `collapsed` block; `{count}` is how many lines the code has. */
+  /** The button under a collapsed block; `{count}` is how many lines the code has. */
   readonly expand: string
+  /** The same button once the block shows all of its code. */
+  readonly collapse: string
 }
 
 /** The words a code block starts from; `words` overrides them one at a time. */
@@ -68,13 +70,26 @@ export const words: CodeBlockWords = {
   copied: 'Copied',
   selectLine: 'Line {line}',
   expand: 'Show all {count} lines',
+  collapse: 'Show less',
 }
 
-/** Draws the first `lines` lines and a button that asks for the rest. */
+/**
+ * Shows the first `lines` lines under a fade, and a button for the rest. Every
+ * line stays in the page, clamped by style, so a find, a copy of the page's
+ * text and an anchor still reach the whole code. A block of `lines` lines or
+ * fewer is drawn whole, with no button.
+ */
 export interface CodeBlockCollapsed<Message> {
   readonly lines: number
-  /** Sent by the button; the application then draws the block without `collapsed`. */
-  readonly onExpand: Message
+  /** Whether the whole code shows, and the button offers `words.collapse`. Default: no. */
+  readonly expanded?: boolean | undefined
+  /**
+   * The Message a press sends; the application flips `expanded`. Without one
+   * the button is drawn with no handler, for a page whose script toggles it
+   * (a server-rendered static region): the button carries the words it shows
+   * after a press as `data-toggled-label`.
+   */
+  readonly onToggle?: Message | undefined
 }
 
 /**
@@ -223,14 +238,15 @@ export const view = <Message>(options: CodeBlockView<Message>, h: HtmlBuilder<Me
         ]
   const all = linesOf(options.code, options.tokens ?? [])
   const marks = marksOf(options.marks ?? [], first, all.length)
-  const shown = collapsed === undefined ? all : all.slice(0, collapsed.lines)
-  const hidden = shown.length < all.length
+  // Only a block longer than its `lines` has anything to clamp.
+  const clamped = collapsed !== undefined && all.length > collapsed.lines
+  const expanded = collapsed?.expanded === true
   const numberOf = (line: number) => (gutter === undefined ? String(line) : gutter(line))
   const numbered =
     gutter !== undefined || options.lineNumbers === true || onLineSelect !== undefined
   // Every gutter as wide as the widest, so the code starts in one column.
   const gutterWidth = numbered
-    ? Math.max(2, ...shown.map((_, index) => numberOf(first + index).length))
+    ? Math.max(2, ...all.map((_, index) => numberOf(first + index).length))
     : 0
   const gutterOf = (line: number) => {
     const number = h.DataAttribute('number', numberOf(line))
@@ -250,7 +266,7 @@ export const view = <Message>(options: CodeBlockView<Message>, h: HtmlBuilder<Me
   // Lines are inline and joined by the line breaks themselves, so the text of
   // the block is the code exactly (bar what `lineAction` adds), for a copy
   // that reads it from the page; the gutter draws its text from an attribute.
-  const lines = shown.flatMap((runs, index) => {
+  const lines = all.flatMap((runs, index) => {
     const line = first + index
     const mark = marks.get(line)
     const action = lineAction === undefined ? Option.none() : lineAction(line)
@@ -270,31 +286,34 @@ export const view = <Message>(options: CodeBlockView<Message>, h: HtmlBuilder<Me
       ]),
     ]
   })
+  const rootStyle = {
+    ...(numbered ? { '--fk-code-gutter': `${gutterWidth}ch` } : {}),
+    ...(collapsed !== undefined && clamped ? { '--fk-code-clamp': String(collapsed.lines) } : {}),
+  }
+  const expandWords = fill(text.expand, { count: all.length })
   return h.figure(
     builders.root.attrs([
       ...(options.language === undefined ? [] : [h.DataAttribute('language', options.language)]),
       h.DataAttribute('line-numbers', String(options.lineNumbers === true)),
       ...(options.wrap === true ? [h.DataAttribute('wrap', 'true')] : []),
-      ...(hidden ? [h.DataAttribute('collapsed', 'true')] : []),
-      ...(numbered ? [h.Style({ '--fk-code-gutter': `${gutterWidth}ch` })] : []),
+      ...(clamped ? [h.DataAttribute('collapsed', String(!expanded))] : []),
+      ...(Object.keys(rootStyle).length === 0 ? [] : [h.Style(rootStyle)]),
     ]),
     [
       ...header,
       h.pre(builders.body.attrs(), [
-        h.code(builders.code.attrs(), [
-          ...lines,
-          ...(!hidden && options.code.endsWith('\n') ? ['\n'] : []),
-        ]),
+        h.code(builders.code.attrs(), [...lines, ...(options.code.endsWith('\n') ? ['\n'] : [])]),
       ]),
-      ...(collapsed !== undefined && hidden
+      ...(collapsed !== undefined && clamped
         ? [
             h.button(
               builders.expand.attrs([
                 h.Type('button'),
-                h.AriaExpanded(false),
-                h.OnClick(collapsed.onExpand),
+                h.AriaExpanded(expanded),
+                h.DataAttribute('toggled-label', expanded ? expandWords : text.collapse),
+                ...(collapsed.onToggle === undefined ? [] : [h.OnClick(collapsed.onToggle)]),
               ]),
-              [fill(text.expand, { count: all.length })],
+              [expanded ? text.collapse : expandWords],
             ),
           ]
         : []),

@@ -14,6 +14,7 @@ import { allSubsites, type Subsite } from '../catalog.js'
 import { README, topicsFor } from '../gallery/related.js'
 import { exampleFile } from '../gallery/showcase.js'
 import { showcaseOf, showcases } from '../gallery/showcases.js'
+import { listed as listedPrimitives } from '../gallery/primitiveExamples.js'
 import { examples as primitiveExamples } from '../snippets/primitives.js'
 import {
   COMPONENTS,
@@ -26,6 +27,7 @@ import {
 import { Page, type Example } from '../page.js'
 import type { RootContent } from 'mdast'
 
+import { makeBlog } from '../blog/library.js'
 import { packageName } from '../demos.js'
 import { apiPages, apiTargets, type ApiPage, type Mention } from './api.js'
 import { links, type Links, type Target } from './links.js'
@@ -137,6 +139,10 @@ export const regionsOf = (source: string): ReadonlyMap<string, string> => {
 export interface ServerLibrary extends Library {
   /** Every address the build writes a page for. */
   readonly paths: ReadonlyArray<string>
+  /** When a page was last changed, for the addresses that say (the blog's), for the sitemap. */
+  readonly modified: ReadonlyMap<string, string>
+  /** The blog's Atom feed under the site's origin. */
+  readonly feed: (origin: string) => string
 }
 
 export const makeLibrary = async (repository: string): Promise<ServerLibrary> => {
@@ -220,8 +226,12 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     return page
   }
 
-  const sidebar =
-    (current: DocPage) =>
+  /**
+   * The subsite's guides and API. The phone menu folds each package's pages
+   * under its name (`fold`), the current page's group open.
+   */
+  const sidebarOf =
+    (current: DocPage, fold: boolean) =>
     (ih: Ih): Region => {
       const pages = inSubsite.get(current.subsite) ?? []
       const marked = (page: DocPage) => {
@@ -233,10 +243,20 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
       const groups = (kind: DocPage['kind']) => {
         const ofKind = pages.filter(page => page.kind === kind && page.listed)
         const labels = [...new Set(ofKind.map(page => page.group))]
-        return labels.flatMap(label => [
-          ...(labels.length === 1 ? [] : [ih.h3([], [label])]),
-          ih.ul([], ofKind.filter(page => page.group === label).map(link)),
-        ])
+        return labels.flatMap(label => {
+          const inGroup = ofKind.filter(page => page.group === label)
+          const list = ih.ul([], inGroup.map(link))
+          if (labels.length === 1) return [list]
+          if (!fold) return [ih.h3([], [label]), list]
+          return [
+            ih.details(
+              inGroup.some(page => page === current || page.path === current.module)
+                ? [ih.Attribute('open', '')]
+                : [],
+              [ih.summary([], [label]), list],
+            ),
+          ]
+        })
       }
       const hasApi = pages.some(page => page.kind === 'api')
       return [
@@ -347,6 +367,13 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
   }
   // Every example's region read now, so a missing one fails the build, not one page.
   for (const example of primitiveExamples) primitive(example.id)
+  // A primitive's example module is shown whole, as a component's is.
+  const primitiveModule = (file: string): Draw => {
+    const code = modules.get(file) ?? readFileSync(join(repository, file), 'utf8').trimEnd()
+    modules.set(file, code)
+    return ih => [codeBlock(ih, highlight, { code, lang: 'ts', copy: true })]
+  }
+  for (const { file } of listedPrimitives) primitiveModule(file)
 
   // The README's own resolver: a heading it no longer has leads to the README's first page, not nowhere.
   const readmeLink = guides.linksFrom(README)
@@ -369,6 +396,8 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
       ),
     ]
 
+  const blog = makeBlog(repository, highlight, { href: guides.linksFrom, codeLink: linkOf })
+
   return {
     paths: [
       HOME,
@@ -377,10 +406,17 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
       ...componentPaths,
       CREATE,
       PRIMITIVES_GALLERY,
+      ...blog.paths,
       ...byPath.keys(),
     ],
+    modified: blog.modified,
+    feed: blog.feed,
+    blog: blog.region,
+    blogPosts: blog.posts,
     pageAt: path => {
       const normal = normalize(path)
+      const post = blog.pageAt(normal)
+      if (Option.isSome(post)) return post.value
       if (normal === HOME) return Page.Home()
       if (normal === DEMOS) return Page.Demos()
       if (normal === COMPONENTS) return Page.Components()
@@ -395,7 +431,8 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
         ? Page.Missing()
         : Page.Doc({ subsite: page.subsite.id, title: page.title, description: page.description })
     },
-    sidebar: path => sidebar(pageOf(path)),
+    sidebar: path => sidebarOf(pageOf(path), false),
+    menuSidebar: path => sidebarOf(pageOf(path), true),
     article: path => article(pageOf(path)),
     pager: path => ih => [pager(pageOf(path), ih)],
     outline: path => outline(pageOf(path)),
@@ -403,6 +440,7 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
     usage,
     module,
     primitive,
+    primitiveModule,
     related,
   }
 }

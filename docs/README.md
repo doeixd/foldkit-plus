@@ -28,8 +28,12 @@ size of an example.
 
 ## Release posts
 
-- [0.7: declare the domain once](./blog/0.7.0.md): Entity, Form, the drawn form,
+- [0.41: composition over copy and paste](./blog/2026-11-18-foldkit-plus-0.41.0.md):
+  widgets made of four factories, and a page that ships only what it draws.
+- [0.7: declare the domain once](./blog/2026-09-19-foldkit-plus-0.7.0.md): Entity, Form, the drawn form,
   and Crud, and what changed in Remote to let them in.
+
+The posts are also on the website's blog, `/blog`.
 
 ## The vocabulary that repeats everywhere
 

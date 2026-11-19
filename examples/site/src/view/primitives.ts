@@ -5,17 +5,15 @@
 import type { Html } from 'foldkit/html'
 import { SSR } from 'foldkit-ssr/client'
 
+import { listed, type ListedPrimitive } from '../gallery/primitiveExamples.js'
 import { families, guideOf, importPath, type Card, type Family } from '../gallery/primitives.js'
 import type { Library } from '../library.js'
 import { Message, type Model } from '../main.js'
-import { examples, type PrimitiveExample } from '../snippets/primitives.js'
+import { examples } from '../snippets/primitives.js'
 import type { H, Slots } from './layout.js'
+import { row, withCode } from './primitiveRow.js'
 
 const GUIDE = '/primitives'
-
-/** A sentence with `code` in backticks drawn as code. */
-const withCode = (h: H, text: string): ReadonlyArray<Html | string> =>
-  text.split('`').map((part, at) => (at % 2 === 1 ? h.code([], [part]) : part))
 
 /** The rail on the gallery: the guide, and each family. */
 export const primitivesContents = (slots: Slots, h: H): ReadonlyArray<Html> => [
@@ -40,8 +38,9 @@ export const primitivesContents = (slots: Slots, h: H): ReadonlyArray<Html> => [
 /** A running example, as a component's page shows one: its title and line, the primitive running in this page's Model on a framed stage, and its source whole. */
 const exampleBlock = (
   model: Model,
-  example: PrimitiveExample,
-  library: Library,
+  example: { readonly id: string; readonly title: string; readonly text: string },
+  stage: Html,
+  source: Html,
   slots: Slots,
   h: H,
 ): Html =>
@@ -50,22 +49,31 @@ const exampleBlock = (
     h.p(slots.cellText.attrs(), withCode(h, example.text)),
     // Until the browser has taken the page over, the served markup has no handler.
     h.div(slots.demo.attrs(model.addressRead ? [] : [h.Attribute('inert', ''), h.AriaBusy(true)]), [
-      example.draw(model, slots, h),
+      stage,
     ]),
-    h.div(slots.themeCode.attrs(), [SSR.static(example.id, library.primitive(example.id))]),
+    h.div(slots.themeCode.attrs(), [source]),
   ])
 
-/** A primitive as a row of its family's list: name, what it is for, the form it takes. */
-const row = (family: Family, entry: Card, slots: Slots, h: H): Html =>
-  h.li(
-    [],
-    [
-      h.a(slots.primitive.attrs([h.Href(guideOf(family.id))]), [
-        h.span(slots.primitiveName.attrs(), [entry.name]),
-        h.span(slots.primitiveAbout.attrs(), withCode(h, entry.about)),
-        h.span(slots.primitiveForm.attrs(), [entry.form]),
-      ]),
-    ],
+/** An example of a module of its own: its state is the page's `examples` field under its key. */
+const moduleBlock = (
+  model: Model,
+  entry: ListedPrimitive,
+  library: Library,
+  slots: Slots,
+  h: H,
+): Html =>
+  exampleBlock(
+    model,
+    { id: entry.id, ...entry.example },
+    entry.example.render(
+      slots,
+      model.examples[entry.key],
+      message => Message.GotExample({ key: entry.key, message }),
+      h,
+    ),
+    SSR.static(entry.id, library.primitiveModule(entry.file)),
+    slots,
+    h,
   )
 
 /** Whether a primitive answers the search box: its name, what it says, its form or its module. */
@@ -88,6 +96,7 @@ const familySection = (
   h: H,
 ): Html => {
   const shown = examples.filter(example => example.family === family.id)
+  const modules = listed.filter(entry => entry.family === family.id)
   return h.section(
     slots.shelf.attrs([
       h.Id(family.id),
@@ -108,12 +117,22 @@ const familySection = (
         slots.primitives.attrs(),
         rows.map(entry => row(family, entry, slots, h)),
       ),
-      ...(shown.length === 0
+      ...(shown.length + modules.length === 0
         ? []
         : [
             h.div(slots.examples.attrs(), [
               h.p(slots.examplesLabel.attrs(), ['Examples']),
-              ...shown.map(example => exampleBlock(model, example, library, slots, h)),
+              ...shown.map(example =>
+                exampleBlock(
+                  model,
+                  example,
+                  example.draw(model, slots, h),
+                  SSR.static(example.id, library.primitive(example.id)),
+                  slots,
+                  h,
+                ),
+              ),
+              ...modules.map(entry => moduleBlock(model, entry, library, slots, h)),
             ]),
           ]),
     ],

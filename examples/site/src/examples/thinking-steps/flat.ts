@@ -1,10 +1,9 @@
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Button, ButtonSlots, Recipes, ThinkingSteps, ThinkingStepsSlots } from 'foldkit-mixins-ui'
+import { Button, Recipes, ThinkingSteps, ThinkingStepsSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Again = forSlots(ButtonSlots)(Recipes.Button({ size: 'sm', variant: 'outline' }))
+const Again = Recipes.Button.style({ size: 'sm', variant: 'outline' })
 
 const Model = Schema.Struct({ retried: Schema.Boolean })
 const Message = defineMessageUnion({ Retried: {} })

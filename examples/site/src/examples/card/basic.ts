@@ -1,12 +1,11 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Badge, BadgeSlots, Button, ButtonSlots, Card, CardSlots, Recipes } from 'foldkit-mixins-ui'
+import { Badge, Button, Card, CardSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Action = forSlots(ButtonSlots)(Recipes.Button({}))
-const Tag = forSlots(BadgeSlots)(Recipes.Badge())
+const Action = Recipes.Button.style({})
+const Tag = Recipes.Badge.style()
 
 const Model = Schema.Struct({ dismissed: Schema.Boolean })
 const Message = defineMessageUnion({ Dismissed: {}, Restored: {} })

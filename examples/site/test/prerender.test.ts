@@ -7,7 +7,6 @@
  */
 import { schemeScript } from 'foldkit-mixins/theme'
 import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
-import { existsSync } from 'node:fs'
 import { availableParallelism, freemem } from 'node:os'
 import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
@@ -16,9 +15,11 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import { allSubsites, subsites } from '../src/catalog.js'
 import { GITHUB } from '../src/content/guides.js'
 import { demos, onGitHub } from '../src/demos.js'
+import { listed } from '../src/gallery/primitiveExamples.js'
 import { families } from '../src/gallery/primitives.js'
 import { showcases } from '../src/gallery/showcases.js'
 import { codeOf, defaults } from '../src/gallery/theme.js'
+import { brokenGithubLink } from './githubLinks.js'
 import type { Links, Share } from './prerendered.js'
 
 const repository = join(import.meta.dirname, '../../..')
@@ -79,6 +80,7 @@ let paths: ReadonlyArray<string>
 let links: ReadonlyMap<string, Links>
 let read: ReadonlyMap<string, Document>
 let sitemap = ''
+let emitted: ReadonlySet<string> = new Set()
 
 /** One share of the pages, rendered in a thread of its own (`prerender.worker.mjs`). */
 const render = (index: number, count: number): Promise<Share> =>
@@ -112,6 +114,7 @@ beforeAll(async () => {
   links = new Map(shares.flatMap(share => share.links))
   // Each share's sitemap lists its own pages.
   sitemap = shares.map(share => share.sitemap).join('\n')
+  emitted = new Set(shares.flatMap(share => share.emitted))
   const parser = new DOMParser()
   read = new Map(
     shares.flatMap(share =>
@@ -137,6 +140,20 @@ describe('the generated site', () => {
       expect(links.has(path), path).toBe(true)
     expect(sitemap).toContain('<loc>https://foldkit-plus.pages.dev/remote</loc>')
     expect(page('/404.html').querySelector('h1')?.textContent).toContain('Not found')
+  })
+
+  test('the blog is in the sitemap with each post’s last change, the navigation and the head lead to it', () => {
+    expect(sitemap).toContain(
+      '<loc>https://foldkit-plus.pages.dev/blog/foldkit-plus-0-41-0</loc><lastmod>2026-11-18</lastmod>',
+    )
+    expect(sitemap).toContain('<loc>https://foldkit-plus.pages.dev/blog</loc><lastmod>')
+    for (const path of ['/blog', '/blog/foldkit-plus-0-41-0', '/blog/foldkit-plus-0-7-0'])
+      expect(links.has(path), path).toBe(true)
+    expect(hrefs(page('/'), '#rail nav[aria-label="Site"] a')).toContain('/blog')
+    expect(hrefs(page('/'), '#status a')).toContain('/blog')
+    expect(hrefs(page('/').head, 'link[rel="alternate"][type="application/atom+xml"]')).toEqual([
+      '/blog/feed.xml',
+    ])
   })
 
   test('the link check reads every page the build writes', () => {
@@ -203,7 +220,7 @@ describe('the generated site', () => {
     const live = page('/remote/guides/live-data')
     expect(live.title).toBe('Live data · Remote · Foldkit Plus')
     expect(hrefs(live, 'nav[aria-label="Site"] [aria-current="page"]')).toEqual(['/#packages'])
-    expect(hrefs(live, 'nav[aria-label="Documentation"] [aria-current="page"]')).toEqual([
+    expect(hrefs(live, '#rail nav[aria-label="Documentation"] [aria-current="page"]')).toEqual([
       '/remote/guides/live-data',
     ])
     expect(live.querySelector('article h1')?.textContent).toBe('Live data')
@@ -213,9 +230,29 @@ describe('the generated site', () => {
     const fence = live.querySelector('article figure')
     expect(fence?.querySelector('[data-copy-code]')?.textContent).toBe('Copy')
     expect(fence?.querySelector('pre code')?.textContent).toContain('liveQuery(Data, Notes')
-    expect(hrefs(live, 'nav[aria-label="Documentation"] a')).toContain(
+    expect(hrefs(live, '#rail nav[aria-label="Documentation"] a')).toContain(
       '/remote/guides/remote-server',
     )
+  })
+
+  test("every page holds the phone menu: the rail's places, the pages folded by package, the theme control", () => {
+    const live = page('/remote/guides/live-data')
+    const menus = live.querySelectorAll('dialog#site-menu')
+    expect(menus).toHaveLength(1)
+    const menu = menus[0]!
+    // Drawn closed, so the sidebar's static region is in the page for the browser to adopt.
+    expect(menu.hasAttribute('open')).toBe(false)
+    expect(hrefs(menu, 'nav[aria-label="Site menu"] a')).toEqual(
+      hrefs(live, '#rail nav[aria-label="Site"] a'),
+    )
+    expect(hrefs(menu, 'nav[aria-label="Site menu"] [aria-current="page"]')).toEqual(['/#packages'])
+    expect(menu.querySelectorAll('[aria-pressed]')).toHaveLength(3)
+    // The same pages as the rail, a package's under its name, the current page's package open.
+    const rail = new Set(hrefs(live, '#rail nav[aria-label="Documentation"] a'))
+    const folded = hrefs(menu, 'nav[aria-label="Documentation"] a')
+    expect(new Set(folded)).toEqual(rail)
+    expect(hrefs(menu, 'details[open] [aria-current="page"]')).toEqual(['/remote/guides/live-data'])
+    expect(menu.querySelectorAll('details:not([open])').length).toBeGreaterThan(0)
   })
 
   test('a guide draws its Mermaid fence as a diagram, its source folded beneath it', () => {
@@ -232,7 +269,7 @@ describe('the generated site', () => {
 
   test("a subsite's API lists its entry points, each leading to a page per export", () => {
     const entry = page('/ssr/api/ssr')
-    const sidebar = (at: Document) => hrefs(at, 'nav[aria-label="Documentation"] a')
+    const sidebar = (at: Document) => hrefs(at, '#rail nav[aria-label="Documentation"] a')
     expect(sidebar(entry)).toEqual(
       expect.arrayContaining(['/ssr/api/ssr', '/ssr/api/ssr-client', '/ssr/api/ssr-vite']),
     )
@@ -242,7 +279,7 @@ describe('the generated site', () => {
 
     const ssr = page('/ssr/api/ssr/ssr')
     expect(ssr.querySelector('article h1')?.textContent).toBe('SSR')
-    expect(hrefs(ssr, 'nav[aria-label="Documentation"] [aria-current="location"]')).toEqual([
+    expect(hrefs(ssr, '#rail nav[aria-label="Documentation"] [aria-current="location"]')).toEqual([
       '/ssr/api/ssr',
     ])
     // The guides that name it are listed under it: "A first page" is a section of the package's first page now.
@@ -323,6 +360,18 @@ describe('the generated site', () => {
     expect(hrefs(gallery, 'nav[aria-label="Primitives"] a')).toContain('/primitives')
   })
 
+  test('the primitives gallery draws each live example on its family’s shelf with the module that runs', () => {
+    const gallery = page('/primitives/gallery')
+    for (const { id, family, file } of listed) {
+      const block = gallery.querySelector(`section#${family} #${id}`)
+      expect(block, id).not.toBeNull()
+      expect(block?.querySelector('h3')?.textContent, id).not.toBe('')
+      // The module is shown whole, from its imports to the export.
+      const code = block?.querySelector('pre code')?.textContent ?? ''
+      expect(code, file).toContain('export default primitiveExample({')
+    }
+  })
+
   test('the rail lists every component by name, in alphabetical order', () => {
     const rail = page('/components/button').querySelector('nav[aria-label="Components"]')!
     const titles = Array.from(
@@ -339,7 +388,7 @@ describe('the generated site', () => {
   test("a component's page offers its recipe's variants, previews it and shows its code", () => {
     const button = page('/components/button')
     expect(button.title).toBe('Button · Components · Foldkit Plus')
-    expect(hrefs(button, 'nav[aria-label="Components"] [aria-current="page"]')).toEqual([
+    expect(hrefs(button, '#rail nav[aria-label="Components"] [aria-current="page"]')).toEqual([
       '/components/button',
     ])
     const pressed = Array.from(button.querySelectorAll('main fieldset'), axis => [
@@ -872,15 +921,15 @@ describe('the generated site', () => {
         if (href.startsWith('/') || href.startsWith('#')) {
           const [target = '', anchor] = href.split('#')
           const to = target === '' ? at : links.get(target)
-          if (to === undefined) broken.push(`${path} -> ${href}`)
-          else if (anchor !== undefined && anchor !== '' && !to.ids.has(anchor))
+          if (to === undefined) {
+            if (!emitted.has(target)) broken.push(`${path} -> ${href}`)
+          } else if (anchor !== undefined && anchor !== '' && !to.ids.has(anchor))
             broken.push(`${path} -> ${href} (no #${anchor})`)
-        } else if (href.startsWith(`${GITHUB}/blob/`) || href.startsWith(`${GITHUB}/tree/`)) {
-          const file = href.slice(`${GITHUB}/blob/main/`.length).split('#')[0]!
-          if (!existsSync(join(repository, decodeURIComponent(file))))
-            broken.push(`${path} -> ${href}`)
+        } else {
+          const why = brokenGithubLink(repository, href)
+          if (why !== undefined) broken.push(`${path} -> ${href} (${why})`)
         }
       }
     expect(broken).toEqual([])
-  })
+  }, 60_000)
 })

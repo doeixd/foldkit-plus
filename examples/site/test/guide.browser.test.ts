@@ -144,3 +144,60 @@ test('the guide’s links are a finger’s height', async () => {
   expect(links.length).toBeGreaterThan(0)
   for (const link of links) expect(link.getBoundingClientRect().height).toBeGreaterThanOrEqual(24)
 })
+
+/** A page of right-aligned buttons, 80px apart, the guide first in its flow. */
+const mountButtons = async () => {
+  document.body.style.margin = '0'
+  const container = document.createElement('div')
+  container.id = 'guided'
+  document.body.appendChild(container)
+  const view = (_: unknown, h: HtmlBuilder<never>): Html =>
+    h.div(
+      [],
+      [
+        Guide({ demo: cmsDemo, corner: 'top-end', compact: true, flowOnPhone: true }, h),
+        ...Array.from({ length: 24 }, (_, index) =>
+          h.button(
+            [
+              h.Key(String(index)),
+              h.Style({ display: 'block', marginInlineStart: 'auto', marginBlockEnd: '40px' }),
+            ],
+            [`Row ${index}`],
+          ),
+        ),
+      ],
+    )
+  Runtime.embed(
+    Runtime.makeElement({
+      Model: Schema.Struct({}),
+      container,
+      init: () => ({ model: {} }),
+      update: (model: object) => ({ model }),
+      view,
+    }),
+  )
+  await vi.waitFor(() => expect(document.querySelector('summary')).not.toBeNull())
+}
+
+test('on a phone a page may draw the pill in its flow, where it covers no control at any scroll', async () => {
+  await page.viewport(390, 800)
+  await mountButtons()
+  expect(getComputedStyle(document.querySelector('details')!).position).not.toBe('fixed')
+  const buttons = [...document.querySelectorAll('button')]
+  const root = document.documentElement
+  for (let at = 0; at <= root.scrollHeight - root.clientHeight; at += 50) {
+    window.scrollTo(0, at)
+    await vi.waitFor(() => expect(window.scrollY).toBe(at))
+    const pill = document.querySelector('summary')!.getBoundingClientRect()
+    for (const button of buttons)
+      expect(overlaps(button.getBoundingClientRect(), pill), `${button.textContent} at ${at}`).toBe(
+        false,
+      )
+  }
+})
+
+test('and on a desktop the same pill stays fixed in its corner', async () => {
+  await page.viewport(1280, 900)
+  await mountButtons()
+  expect(getComputedStyle(document.querySelector('details')!).position).toBe('fixed')
+})

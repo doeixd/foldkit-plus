@@ -4,14 +4,20 @@
  * (#378), so a domain that registers none never loads it.
  */
 import { Match, Option, Schema } from 'effect'
-import type {
-  AnyWrite,
-  ConditionedWrite,
-  EntityIdentity,
-  Footprint,
-  Invariant,
+import {
+  Entity,
   Write,
-  WriteKind,
+  type AnyEntity,
+  type AnyWrite,
+  type ConditionedWrite,
+  type EntityField,
+  type EntityIdentity,
+  type Footprint,
+  type Invariant,
+  type RefinementOf,
+  type WriteComputations,
+  type WriteCondition,
+  type WriteKind,
 } from 'foldkit-entity'
 import { Installs, type Install } from './capability.js'
 import { installWrites } from './writes.js'
@@ -148,13 +154,173 @@ export type RefusalOfWrite<W> =
   | ('Delete' extends KindOf<W> ? typeof referenced.Type : never)
   | typeof invalid.Type
 
-export const Mutation = {
+/** A mutation that is the declared write `W`, over an input of `Fields`: what `Mutation.write` returns. */
+export type WriteMutation<
+  Name extends string,
+  Fields extends Schema.Struct.Fields,
+  W,
+> = MutationDescriptor<Name, Schema.Struct.Type<Fields>, {}, RefusalOfWrite<W>> & {
+  readonly write: W
+}
+
+type IdSchemaOf<E extends AnyEntity> = E['fields'] extends {
+  readonly id: EntityField<any, any, infer S extends Schema.Top>
+}
+  ? S
+  : never
+
+/**
+ * The input of `Mutation.update`, `insert` and `delete`: the Entity's own `id`
+ * field, naming the row, and every field the write sets, by its key.
+ */
+export type WriteInputFields<E extends AnyEntity, Set extends Schema.Struct.Fields> = {
+  readonly [K in 'id' | keyof Set]: K extends 'id' ? IdSchemaOf<E> : Set[K & keyof Set]
+}
+
+type FieldValue<E extends AnyEntity, K extends keyof E['fields']> = Schema.Schema.Type<
+  E['fields'][K]['schema']
+>
+
+/**
+ * What `set` may hold: a schema per field of the Entity, by the field's key,
+ * whose value the field stores (a narrower one, `Schema.Literal('published')`,
+ * is how a write promises a state). An `Option` or a null is a key the input
+ * may leave unset, as `Entity.input` reads it.
+ */
+type Settable<E extends AnyEntity, Set> = {
+  readonly [K in keyof Set]: K extends 'id'
+    ? 'the id names the row the write changes: it is in the input already, never set'
+    : K extends keyof E['fields']
+      ? Schema.Top & {
+          readonly Type: FieldValue<E, K> | Option.Option<FieldValue<E, K>> | null | undefined
+        }
+      : `"${K & string}" is not a field of ${E['name']}`
+}
+
+/** What `update` and `insert` take beside their kind's own: the fields set, and the state it leaves. */
+interface SetOptions<E extends AnyEntity, Set extends Schema.Struct.Fields> {
   /**
-   * Declares a mutation. `Input` and `Output` are codecs, or the fields of the
-   * `Schema.Struct` they would be (`{ id: ProjectId, name: Schema.String }`).
-   * `Refusal`, when given, is what the server may refuse with: a codec, usually
-   * a union of `Refusal.field(...)` and `Refusal.conflict`.
+   * The fields the write sets, each by its key and the schema the input holds
+   * it with: `{ title: Schema.String }`, or the field's own with
+   * `Entity.fields(Todo, 'title')`.
    */
+  readonly set: Set & Settable<E, Set>
+  readonly becomes?: RefinementOf<E> | undefined
+}
+
+type UpdateOptions<E extends AnyEntity, Set extends Schema.Struct.Fields> = SetOptions<E, Set> & {
+  /** The key of `set` holding the revision the row was read at: see `Write.update`. */
+  readonly expect?: keyof Set & string
+  readonly compute?: WriteComputations<E, WriteInputFields<E, Set>>
+}
+
+/** `Mutation.update`: conditioned when given `when` or `from`, as `Write.update` is. */
+interface UpdateMutation {
+  <const Name extends string, E extends AnyEntity, Set extends Schema.Struct.Fields>(
+    name: Name,
+    entity: E,
+    options: UpdateOptions<E, Set> & {
+      readonly when: WriteCondition<E, WriteInputFields<E, Set>>
+      readonly from?: RefinementOf<E> | undefined
+    },
+  ): WriteMutation<
+    Name,
+    WriteInputFields<E, Set>,
+    ConditionedWrite<E, WriteInputFields<E, Set>, 'Update'>
+  >
+  <const Name extends string, E extends AnyEntity, Set extends Schema.Struct.Fields>(
+    name: Name,
+    entity: E,
+    options: UpdateOptions<E, Set> & { readonly when?: undefined; readonly from: RefinementOf<E> },
+  ): WriteMutation<
+    Name,
+    WriteInputFields<E, Set>,
+    ConditionedWrite<E, WriteInputFields<E, Set>, 'Update'>
+  >
+  <const Name extends string, E extends AnyEntity, Set extends Schema.Struct.Fields>(
+    name: Name,
+    entity: E,
+    options: UpdateOptions<E, Set> & { readonly when?: undefined; readonly from?: undefined },
+  ): WriteMutation<Name, WriteInputFields<E, Set>, Write<E, WriteInputFields<E, Set>, 'Update'>>
+}
+
+type NoFields = {}
+
+/** `Mutation.delete`: its input is the id alone; conditioned when given `when` or `from`. */
+interface DeleteMutation {
+  <const Name extends string, E extends AnyEntity>(
+    name: Name,
+    entity: E,
+    options: {
+      readonly when: WriteCondition<E, WriteInputFields<E, NoFields>>
+      readonly from?: RefinementOf<E> | undefined
+    },
+  ): WriteMutation<
+    Name,
+    WriteInputFields<E, NoFields>,
+    ConditionedWrite<E, WriteInputFields<E, NoFields>, 'Delete'>
+  >
+  <const Name extends string, E extends AnyEntity>(
+    name: Name,
+    entity: E,
+    options: { readonly when?: undefined; readonly from: RefinementOf<E> },
+  ): WriteMutation<
+    Name,
+    WriteInputFields<E, NoFields>,
+    ConditionedWrite<E, WriteInputFields<E, NoFields>, 'Delete'>
+  >
+  <const Name extends string, E extends AnyEntity>(
+    name: Name,
+    entity: E,
+    options?: { readonly when?: undefined; readonly from?: undefined },
+  ): WriteMutation<
+    Name,
+    WriteInputFields<E, NoFields>,
+    Write<E, WriteInputFields<E, NoFields>, 'Delete'>
+  >
+}
+
+/** The input `{ id, ...set }` read against `entity`, every key naming its own field. */
+const inputOver = (entity: AnyEntity, set: Schema.Struct.Fields) =>
+  Entity.input(entity, Schema.Struct({ ...Entity.fields(entity, 'id'), ...set }))
+
+const ofWrite = <
+  const Name extends string,
+  Fields extends Schema.Struct.Fields,
+  W extends Write<any, Fields> = Write<any, Fields>,
+>(
+  name: Name,
+  write: W & Write<any, Fields>,
+): WriteMutation<Name, Fields, W> => ({
+  name,
+  Input: write.input.schema as unknown as Schema.Codec<Schema.Struct.Type<Fields>>,
+  Output: Schema.Struct({}),
+  Refusal: refusalOfWrite(write) as unknown as Schema.Codec<RefusalOfWrite<W>, unknown>,
+  write,
+  [Installs]: installWrites,
+})
+
+// Each is `Mutation.write` of the long form it stands for, so the two declare the same value.
+const update: UpdateMutation = (
+  name: string,
+  entity: AnyEntity,
+  { set, ...options }: UpdateOptions<AnyEntity, Schema.Struct.Fields>,
+) => ofWrite(name, Write.update(inputOver(entity, set), { ...options, id: 'id' } as never)) as never
+
+const insert = <const Name extends string, E extends AnyEntity, Set extends Schema.Struct.Fields>(
+  name: Name,
+  entity: E,
+  { set, becomes }: SetOptions<E, Set>,
+): WriteMutation<Name, WriteInputFields<E, Set>, Write<E, WriteInputFields<E, Set>, 'Insert'>> =>
+  ofWrite(name, Write.insert(inputOver(entity, set), { id: 'id', becomes }) as never) as never
+
+const remove: DeleteMutation = (
+  name: string,
+  entity: AnyEntity,
+  options?: { readonly when?: unknown; readonly from?: unknown },
+) => ofWrite(name, Write.delete(inputOver(entity, {}), { ...options, id: 'id' } as never)) as never
+
+export const Mutation = {
   /**
    * A mutation that is a declared `Write` (`update`, `insert` or `delete`): its
    * input is the write's, and it answers nothing but the row it changed, as a
@@ -164,25 +330,51 @@ export const Mutation = {
    * `when`; a delete as referenced, while rows point at the row through a
    * relation that restricts it; and any as invalid, when the row it would
    * leave breaks an invariant.
+   *
+   * `Mutation.update`, `insert` and `delete` say the common case in one call.
    */
-  write: <
-    const Name extends string,
-    Fields extends Schema.Struct.Fields,
-    W extends Write<any, Fields> = Write<any, Fields>,
-  >(
-    name: Name,
-    write: W & Write<any, Fields>,
-  ): MutationDescriptor<Name, Schema.Struct.Type<Fields>, {}, RefusalOfWrite<W>> & {
-    readonly write: W
-  } => ({
-    name,
-    Input: write.input.schema as unknown as Schema.Codec<Schema.Struct.Type<Fields>>,
-    Output: Schema.Struct({}),
-    Refusal: refusalOfWrite(write) as unknown as Schema.Codec<RefusalOfWrite<W>, unknown>,
-    write,
-    [Installs]: installWrites,
-  }),
+  write: ofWrite,
 
+  /**
+   * A write that updates one row of `entity`, by its id: the same mutation as
+   * `Mutation.write(name, Write.update(Entity.input(entity, input), { id: 'id',
+   * ...options }))`, where `input` is the Entity's `id` field beside `set`.
+   *
+   * ```ts
+   * const Rename = Mutation.update('Rename', Product, { set: { name: Schema.String } })
+   * const Publish = Mutation.update('Publish', Product, {
+   *   set: { status: Schema.Literal('published') },
+   *   from: Draft,
+   *   becomes: Published,
+   * })
+   * ```
+   *
+   * `when`, `from`, `becomes`, `expect` and `compute` are `Write.update`'s. An
+   * input key named otherwise than its field, a relation, or a key that is
+   * about the operation alone (`increment`'s amount) takes the long form.
+   */
+  update,
+
+  /**
+   * A write that inserts one row of `entity`, under an id the client chose:
+   * `Mutation.write(name, Write.insert(Entity.input(entity, input), { id: 'id' }))`,
+   * where `input` is the Entity's `id` field beside `set`.
+   */
+  insert,
+
+  /**
+   * A write that deletes one row of `entity`, by its id, the input's one key:
+   * `Mutation.write(name, Write.delete(Entity.input(entity, input), { id: 'id' }))`.
+   * `when` and `from` are `Write.delete`'s.
+   */
+  delete: remove,
+
+  /**
+   * Declares a mutation. `Input` and `Output` are codecs, or the fields of the
+   * `Schema.Struct` they would be (`{ id: ProjectId, name: Schema.String }`).
+   * `Refusal`, when given, is what the server may refuse with: a codec, usually
+   * a union of `Refusal.field(...)` and `Refusal.conflict`.
+   */
   make: <
     const Name extends string,
     Input extends SchemaOrFields,

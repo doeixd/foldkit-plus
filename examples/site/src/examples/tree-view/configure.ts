@@ -1,8 +1,7 @@
 import { Bundles, Recipes, TreeView, TreeViewSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Guided = forSlots(TreeViewSlots)(Recipes.TreeView({ guides: 'lines' }))
+const Guided = Recipes.TreeView.style({ guides: 'lines' })
 
 // What every tree of an application starts from: its look and its glide, said
 // once. `fluid` is a value, so a tree that names it is the only one to ship it.

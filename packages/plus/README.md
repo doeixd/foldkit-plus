@@ -118,7 +118,7 @@ pinned to the same tag; both stay in the repository as they were.
 
 `docs` answers from what is installed in the project it runs in. It reads the
 skill and the guides of the project's installed `foldkit-plus` (labelled
-`foldkit-plus@0.23.0 skill references/remote.md`, `foldkit-plus@0.23.0 guide
+`foldkit-plus@0.24.0 skill references/remote.md`, `foldkit-plus@0.24.0 guide
 remote.md`; the CLI's own copy only when the project has none), the README of
 each Foldkit Plus package that an import from the project would load (one the
 project names from its own folder; the rest from beside `foldkit-plus`), and for

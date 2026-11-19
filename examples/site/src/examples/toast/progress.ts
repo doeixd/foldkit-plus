@@ -1,21 +1,11 @@
 import { Duration, Effect, Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
-import {
-  Button,
-  ButtonSlots,
-  Progress,
-  ProgressSlots,
-  Recipes,
-  Toast,
-  ToastSlots,
-  ToastView,
-} from 'foldkit-mixins-ui'
+import { Button, Progress, Recipes, Toast, ToastSlots, ToastView } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
-const Bar = forSlots(ProgressSlots)(Recipes.Progress({}))
+const Primary = Recipes.Button.style({})
+const Bar = Recipes.Progress.style({})
 
 // A toast that shows progress: the entry holds a percentage, and `revise`
 // replaces it as the work reports, keeping the toast's place and its

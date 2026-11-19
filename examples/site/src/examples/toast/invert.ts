@@ -1,9 +1,8 @@
 import { Bundle } from 'foldkit-bundle'
-import { Bundles, Button, ButtonSlots, Recipes, Toast, ToastSlots } from 'foldkit-mixins-ui'
+import { Bundles, Button, Recipes, Toast, ToastSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
+const Primary = Recipes.Button.style({})
 
 // The text's ink as the card, as Sonner's inverted toasts: dark on a light
 // page, light on a dark one. The recipe's `tone: 'invert'`; its buttons keep

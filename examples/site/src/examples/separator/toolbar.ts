@@ -1,9 +1,8 @@
-import { Button, ButtonSlots, Recipes, Separator, SeparatorSlots } from 'foldkit-mixins-ui'
+import { Button, Recipes, Separator, SeparatorSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Tool = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'icon', size: 'sm' }))
+const Tool = Recipes.Button.style({ tone: 'neutral', variant: 'icon', size: 'sm' })
 
 // Pinned: `Recipes.Separator({ spacing: 'sm', inset: 'sm' })`. Between groups
 // of a toolbar's buttons, the rule stops short of the row's height.

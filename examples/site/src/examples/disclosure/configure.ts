@@ -1,8 +1,7 @@
 import { Bundles, Disclosure, DisclosureSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Card = forSlots(DisclosureSlots)(Recipes.Disclosure({ variant: 'bordered' }))
+const Card = Recipes.Disclosure.style({ variant: 'bordered' })
 
 // What every disclosure of an application starts from: its look, said once.
 // A preset is a named set over it, chosen at a use.

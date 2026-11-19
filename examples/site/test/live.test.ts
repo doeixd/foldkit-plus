@@ -30,7 +30,7 @@ describe('the placed primitives', () => {
   })
 
   it("leave the site's own Messages to its own update", () => {
-    expect(update(initial, Message.ToggledMenu()).model.menuOpen).toBe(true)
+    expect(update(initial, Message.CopiedText()).model.copied).toBe(true)
     expect(update(initial, Message.CopiedCode()).model).toBe(initial)
   })
 })

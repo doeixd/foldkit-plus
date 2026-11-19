@@ -22,8 +22,41 @@ export default [
     edits: [
       {
         file: style,
-        find: "      Style.self({ inlineSize: 'auto' }),\n    ),\n    panelTab:",
-        replace: '    ),\n    panelTab:',
+        find: "      Style.self({ inlineSize: 'auto' }),\n      // Under the page and its bar",
+        replace: '      // Under the page and its bar',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the narrow editor draws its page after the panel',
+    edits: [
+      {
+        file: style,
+        find: "Style.container(narrowBuilder, { gridArea: 'auto', order: '1' }),",
+        replace: "Style.container(narrowBuilder, { gridArea: 'auto', order: '6' }),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the narrow editor draws its tabs before the page',
+    edits: [
+      {
+        file: style,
+        find: "marginBlockStart: t.space.sm, order: '3' }),",
+        replace: "marginBlockStart: t.space.sm, order: '0' }),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the narrow editor keeps its regions a box, which holds its panel above the tabs',
+    edits: [
+      {
+        file: style,
+        find: "Style.container(narrowBuilder, { display: 'contents' }),",
+        replace: "Style.container(narrowBuilder, { height: 'auto' }),",
       },
     ],
     tests,

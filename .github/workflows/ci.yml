@@ -125,7 +125,10 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     steps:
+      # The site's link-check tests read a release tag's tree (`githubLinks.test.ts`).
       - uses: actions/checkout@v7
+        with:
+          fetch-tags: true
 
       - uses: pnpm/action-setup@v6
 
@@ -198,7 +201,10 @@ jobs:
     env:
       FOLDKIT_BUILDS: '1'
     steps:
+      # The link check reads a post's links to a release tag in that tag's tree.
       - uses: actions/checkout@v7
+        with:
+          fetch-tags: true
 
       - uses: pnpm/action-setup@v6
 

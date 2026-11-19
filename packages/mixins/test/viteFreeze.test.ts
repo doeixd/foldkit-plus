@@ -83,6 +83,11 @@ describe('a module in `modules`', { timeout: 60_000 }, () => {
     expect(drawn(frozen.Page.style.mixin.contributions)).toEqual(
       drawn(Runtime.Page.style.mixin.contributions),
     )
+    // A recipe's `.style(…)` freezes like `Style.forSlots`.
+    expect(drawn(frozen.Tinted.mixin.contributions)).toEqual(
+      drawn(Runtime.Tinted.mixin.contributions),
+    )
+    expect(Runtime.Tinted.rules.length).toBe(2)
     expect(frozen.Card.name).toBe('Card')
     expect(frozen.Card.mixin.name).toBe(Runtime.Card.mixin.name)
     expect(Slots.describe(frozen.Page.slots)).toEqual(Slots.describe(Runtime.Page.slots))
@@ -94,7 +99,7 @@ describe('a module in `modules`', { timeout: 60_000 }, () => {
     expect(frozen.tokens).toEqual(Runtime.tokens)
     // Every class it draws has its rule in the sheet the same build wrote.
     const css = cssOf(output)
-    for (const name of Runtime.Card.rules.map(rule => rule.className))
+    for (const name of [...Runtime.Card.rules, ...Runtime.Tinted.rules].map(rule => rule.className))
       expect(css).toContain(`.${name}`)
   })
 
@@ -248,7 +253,7 @@ describe('a whenInput with an imported predicate in `modules`', { timeout: 60_00
 
 describe('the rule check', () => {
   const frozen = freeze('/frozen.ts', Runtime)
-  const css = Runtime.Card.css + Runtime.Page.style.css
+  const css = Runtime.Card.css + Runtime.Page.style.css + Runtime.Tinted.css
 
   it('passes when the sheet holds every class the module draws', () => {
     expect(() => assertRules(new Map([['/frozen.ts', frozen]]), css)).not.toThrow()

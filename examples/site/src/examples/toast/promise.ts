@@ -1,21 +1,11 @@
 import { Duration, Effect, Match, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import * as Command from 'foldkit/command'
-import {
-  Bundles,
-  Button,
-  ButtonSlots,
-  Recipes,
-  Spinner,
-  SpinnerSlots,
-  Toast,
-  ToastSlots,
-} from 'foldkit-mixins-ui'
+import { Bundles, Button, Recipes, Spinner, Toast, ToastSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
-const Ring = forSlots(SpinnerSlots)(Recipes.Spinner({}))
+const Primary = Recipes.Button.style({})
+const Ring = Recipes.Spinner.style({})
 
 // A promise toast: raise a loading toast, run the work as a Command, and
 // settle the same toast with its outcome when the work's Message comes back.

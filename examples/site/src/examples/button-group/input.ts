@@ -1,18 +1,9 @@
-import {
-  Button,
-  ButtonGroup,
-  ButtonGroupSlots,
-  ButtonSlots,
-  Input,
-  InputSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Button, ButtonGroup, ButtonGroupSlots, Input, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Face = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
-const Field = forSlots(InputSlots)(Recipes.Input({}))
+const Face = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
+const Field = Recipes.Input.style({})
 
 // A field joins the buttons like any other item, and takes the room they leave:
 // the group spans its container.

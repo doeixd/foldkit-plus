@@ -72,7 +72,7 @@ teaches what is declared with it.
 
 ```ts
 import { Schema } from 'effect'
-import { Entity, Expr, Laws, Write } from 'foldkit-entity'
+import { Entity, Expr, Laws } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 
 const Item = Entity.define(
@@ -85,12 +85,8 @@ const Item = Entity.define(
   }),
 )
 
-const Hold = Mutation.write(
-  'Hold',
-  Write.update(Entity.input(Item, Schema.Struct({ id: Schema.String, reserved: Schema.Number })), {
-    id: 'id',
-  }),
-)
+// A write that sets one item's reservation, by its id.
+const Hold = Mutation.update('Hold', Item, { set: { reserved: Schema.Number } })
 
 // Reader 1: the reference judge, over a row you hand it.
 Entity.judge(Item, { after: { id: 'i1', stock: 3, reserved: 5 } })._tag // 'Invalid'
@@ -201,26 +197,40 @@ carries the rules; a server binds that one. See
 ```ts
 import { Mutation, Query } from 'foldkit-remote'
 
-const Publish = Mutation.write(
-  'Publish',
-  Write.update(
-    Entity.input(Product, Schema.Struct({ id: Schema.String, status: Schema.Literal('published') })),
-    { id: 'id', from: Draft, becomes: Published },
-  ),
-)
+const Publish = Mutation.update('Publish', Product, {
+  set: { status: Schema.Literal('published') },
+  from: Draft,
+  becomes: Published,
+})
 
-const Reserve = Mutation.write(
-  'Reserve',
-  Write.update(Entity.input(Product, Schema.Struct({ id: Schema.String, reserved: Schema.Number })), {
-    id: 'id',
-  }),
-)
+const Reserve = Mutation.update('Reserve', Product, { set: { reserved: Schema.Number } })
 ```
 
 A write is declared by its operation, not by the Entity: a product having a
-`reserved` field grants no one the right to set it. The input struct says what
-this operation may change, `Entity.input` says what each key means, and `from`
-and `becomes` say which state the write starts in and leaves. Because the
+`reserved` field grants no one the right to set it. `set` says what this
+operation may change, each field by its key with the schema the input holds
+it with (`Schema.Literal('published')` is narrower than the field, which is
+what lets `becomes` be proved), and `from` and `becomes` say which state the
+write starts in and leaves. The input is the product's `id` beside those
+fields. `Mutation.update` is one call for three layers, and each can be
+written out:
+
+```ts
+const PublishLong = Mutation.write(
+  'Publish',
+  Write.update(
+    Entity.input(Product, Schema.Struct({ ...Entity.fields(Product, 'id'), status: Schema.Literal('published') })),
+    { id: 'id', from: Draft, becomes: Published },
+  ),
+)
+```
+
+`Entity.input` reads the input against the Entity (which key is which member;
+a form is built from it alone), `Write.update` says what the write does to the
+row (what `Laws.check` and each writer read), and `Mutation.write` names it
+for the wire, types its refusals and installs the page's prediction. Write
+them out when a key is named otherwise than its field, points a relation, or
+is about the operation alone (`Entity.unmapped`). Because the
 write is data, the server needs no handler for it and the page can show its
 result before the answer. [Declared writes](./declared-writes.md) covers
 preconditions, increments, retries and ledgers.

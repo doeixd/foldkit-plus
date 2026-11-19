@@ -1,8 +1,7 @@
-import { Button, ButtonSlots, Recipes, Separator, SeparatorSlots } from 'foldkit-mixins-ui'
+import { Button, Recipes, Separator, SeparatorSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Face = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const Face = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 // Words in the middle of the rule, read as text; the rules either side are drawing.
 export default example({

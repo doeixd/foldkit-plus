@@ -1,11 +1,10 @@
 import * as UiDialog from '@foldkit/ui/dialog'
 import { Bundle } from 'foldkit-bundle'
-import { Bundles, Button, ButtonSlots, Dialog, DialogSlots, Recipes } from 'foldkit-mixins-ui'
+import { Bundles, Button, Dialog, DialogSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Danger = forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' }))
-const Quiet = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'ghost' }))
+const Danger = Recipes.Button.style({ tone: 'danger' })
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'ghost' })
 
 // An alert dialog asks for an answer: `role: 'alertdialog'`, no close button,
 // and `dismissible: false`, so Escape and the backdrop send a Message the

@@ -3,14 +3,13 @@ import * as Command from 'foldkit/command'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { Kbd, KbdSlots, Recipes, Sidebar, SidebarSlots } from 'foldkit-mixins-ui'
+import { Kbd, Recipes, Sidebar, SidebarSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
 import { SheetStyle } from '../../snippets/sidebar.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Floating = forSlots(SidebarSlots)(Recipes.Sidebar({ variant: 'floating' }))
-const Key = forSlots(KbdSlots)(Recipes.Kbd())
+const Floating = Recipes.Sidebar.style({ variant: 'floating' })
+const Key = Recipes.Kbd.style()
 const Model = Schema.Struct({ sidebar: Sidebar.Model, acted: Schema.Option(Schema.String) })
 const Message = defineMessageUnion({
   Got: { message: Sidebar.Message },

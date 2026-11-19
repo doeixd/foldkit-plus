@@ -12,6 +12,12 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
   tests,
 })
 
+const browserEdit = (name: string, file: string, find: string, replace: string) => ({
+  name,
+  edits: [{ file, find, replace }],
+  tests: [browser],
+})
+
 export default [
   {
     name: 'the break that ends the code makes a numbered line',
@@ -141,7 +147,7 @@ export default [
   edit(
     'the gutters as wide as the first',
     '../src/codeBlock.ts',
-    '...shown.map((_, index) => numberOf(first + index).length)',
+    '...all.map((_, index) => numberOf(first + index).length)',
     'numberOf(first).length',
   ),
   edit(
@@ -163,16 +169,40 @@ export default [
     '',
   ),
   edit(
-    'a collapsed block drawn whole',
+    'a collapsed block clamps every block, short or long',
     '../src/codeBlock.ts',
-    'all.slice(0, collapsed.lines)',
-    'all',
+    'const clamped = collapsed !== undefined && all.length > collapsed.lines',
+    'const clamped = collapsed !== undefined',
   ),
   edit(
-    'the expand button counts the lines drawn',
+    'the expand button counts the lines of the clamp',
     '../src/codeBlock.ts',
     'fill(text.expand, { count: all.length })',
-    'fill(text.expand, { count: shown.length })',
+    'fill(text.expand, { count: collapsed?.lines ?? 0 })',
+  ),
+  edit(
+    'an expanded block still says it is collapsed',
+    '../src/codeBlock.ts',
+    "h.DataAttribute('collapsed', String(!expanded))",
+    "h.DataAttribute('collapsed', 'true')",
+  ),
+  edit(
+    'the expand button says it is closed when it is open',
+    '../src/codeBlock.ts',
+    'h.AriaExpanded(expanded),',
+    'h.AriaExpanded(false),',
+  ),
+  browserEdit(
+    'a collapsed block is not clipped',
+    '../src/recipes/codeBlock.ts',
+    "maxBlockSize: 'calc(var(--fk-code-clamp) * 1lh)',",
+    '',
+  ),
+  browserEdit(
+    'a collapsed block has no fade',
+    '../src/recipes/codeBlock.ts',
+    "maskImage: 'linear-gradient(to bottom, black calc(100% - 4lh), transparent)',",
+    '',
   ),
   edit(
     'a collapse to no lines accepted',

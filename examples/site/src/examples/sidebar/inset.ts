@@ -1,11 +1,10 @@
-import { Card, CardSlots, Recipes, Sidebar, SidebarSlots } from 'foldkit-mixins-ui'
+import { Card, Recipes, Sidebar, SidebarSlots } from 'foldkit-mixins-ui'
 import { Theme } from 'foldkit-mixins/theme'
 import { example } from '../../gallery/example.js'
 import { Got, SheetStyle, sidebarState, workspace } from '../../snippets/sidebar.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Inset = forSlots(SidebarSlots)(Recipes.Sidebar({ variant: 'inset' }))
-const Page = forSlots(CardSlots)(Recipes.Card({}))
+const Inset = Recipes.Sidebar.style({ variant: 'inset' })
+const Page = Recipes.Card.style({})
 const token = Theme.ref(Theme.standard())
 
 // Borderless, on the frame's muted surface; the page beside it is the card.

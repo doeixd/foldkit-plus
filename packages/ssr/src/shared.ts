@@ -82,11 +82,20 @@ export const attributeOf = (json: string): string =>
 export interface Meta {
   readonly description?: string | undefined
   readonly title?: string | undefined
+  /** An absolute URL: a preview fetches it from outside the site. */
   readonly image?: string | undefined
+  /** The image's pixels and its words, which `og:image:*` and `twitter:image:alt` carry. */
+  readonly imageSize?: { readonly width: number; readonly height: number } | undefined
+  readonly imageAlt?: string | undefined
   readonly type?: 'website' | 'article' | undefined
   readonly siteName?: string | undefined
   readonly article?:
-    | { readonly published?: string | undefined; readonly modified?: string | undefined }
+    | {
+        readonly published?: string | undefined
+        readonly modified?: string | undefined
+        readonly authors?: ReadonlyArray<string> | undefined
+        readonly tags?: ReadonlyArray<string> | undefined
+      }
     | undefined
   readonly robots?: string | undefined
   readonly alternates?:
@@ -134,11 +143,21 @@ export const metaMarkup = (meta: Meta): string => {
     ...property('og:type', meta.type),
     ...property('og:site_name', meta.siteName),
     ...property('og:image', meta.image),
+    ...property('og:image:width', meta.imageSize?.width.toString()),
+    ...property('og:image:height', meta.imageSize?.height.toString()),
+    ...property('og:image:alt', meta.imageAlt),
     ...(meta.description === undefined && meta.image === undefined && meta.title === undefined
       ? []
       : named('twitter:card', meta.image === undefined ? 'summary' : 'summary_large_image')),
+    // Link previews that read only `twitter:*` find the same words as `og:*`.
+    ...named('twitter:title', meta.title),
+    ...named('twitter:description', meta.description),
+    ...named('twitter:image', meta.image),
+    ...named('twitter:image:alt', meta.imageAlt),
     ...property('article:published_time', meta.article?.published),
     ...property('article:modified_time', meta.article?.modified),
+    ...(meta.article?.authors ?? []).flatMap(author => property('article:author', author)),
+    ...(meta.article?.tags ?? []).flatMap(tag => property('article:tag', tag)),
     ...named('robots', meta.robots),
     ...(meta.alternates ?? []).map(({ hreflang, href }) =>
       tag('link', [

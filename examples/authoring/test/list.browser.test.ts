@@ -36,15 +36,33 @@ const button = (name: string) =>
   document.querySelector<HTMLElement>(`button[aria-label="${name}"]`)!
 
 test('dismissing a row hands focus to the next row at once, makes it inert while it leaves, then removes it', async () => {
-  button('Dismiss Review the pull request').focus()
-  await userEvent.keyboard('{Enter}')
-  // The frame that draws the leave also moves focus: nothing waits for the removal.
-  await vi.waitFor(() => expect(document.activeElement).toBe(button('Dismiss Ship it')))
   const leaving = rows()[1]!
-  expect(leaving.hasAttribute('inert')).toBe(true)
-  expect(leaving.getAttribute('data-presence')).toBe('hiding')
-  await vi.waitFor(() => expect(titles()).toEqual(['Write the guide', 'Ship it']))
-  expect(document.activeElement).toBe(button('Dismiss Ship it'))
+  const next = button('Dismiss Ship it')
+  // The leave lasts 200ms and a slow runner can read the page after it: so the row's state is
+  // recorded as it changes, and focus as it moves, not read at one moment afterwards.
+  let inertWhileHiding = false
+  let focusedBeforeRemoval = false
+  const watch = new MutationObserver(() => {
+    if (leaving.hasAttribute('inert') && leaving.getAttribute('data-presence') === 'hiding')
+      inertWhileHiding = true
+  })
+  watch.observe(leaving, { attributes: true })
+  const moved = (event: FocusEvent) => {
+    if (event.target === next) focusedBeforeRemoval = leaving.isConnected
+  }
+  document.addEventListener('focusin', moved)
+  try {
+    button('Dismiss Review the pull request').focus()
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(titles()).toEqual(['Write the guide', 'Ship it']))
+  } finally {
+    watch.disconnect()
+    document.removeEventListener('focusin', moved)
+  }
+  // The frame that draws the leave also moves focus: nothing waits for the removal.
+  expect(focusedBeforeRemoval).toBe(true)
+  expect(inertWhileHiding).toBe(true)
+  expect(document.activeElement).toBe(next)
 })
 
 test.each([1, 6, 20])('a leaving row takes no press at CPU throttling %i', async rate => {

@@ -1,11 +1,10 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Button, ButtonSlots, CodeBlock, CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, CodeBlock, CodeBlockSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 import { stack } from '../../snippets/layout.js'
 
-const Write = forSlots(ButtonSlots)(Recipes.Button({ variant: 'outline', size: 'sm' }))
+const Write = Recipes.Button.style({ variant: 'outline', size: 'sm' })
 
 // A body that scrolls: `extend` gives it a height of its own.
 const Short = Recipes.CodeBlock.extend({

@@ -320,6 +320,7 @@ export const learn: Subsite = {
     doc('wiring', 'Wiring', 'wiring'),
     doc('errors', 'Errors and failures', 'errors'),
     doc('ui', 'UI architecture', 'ui-architecture'),
+    doc('upgrading-0-41', 'Upgrading to 0.41', 'upgrading-0.41'),
     doc('glossary', 'Glossary', 'glossary'),
   ],
 }

@@ -1,12 +1,9 @@
 import { Icon, IconSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { row } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 import { icons } from '../../view/iconData.js'
 
-const Sizes = (['xs', 'sm', 'md', 'lg', 'xl'] as const).map(size =>
-  forSlots(IconSlots)(Recipes.Icon({ size })),
-)
+const Sizes = (['xs', 'sm', 'md', 'lg', 'xl'] as const).map(size => Recipes.Icon.style({ size }))
 
 // With no size an icon stands on the size ladder, so it steps with the control
 // it sits in; a size fixes it to the type scale, `xs` to `xl`.

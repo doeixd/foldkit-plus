@@ -609,7 +609,7 @@ README documents its API.
 | Running a Foldkit app over a replica | [Runtime binding](./docs/sync-runtime-binding.md) |
 | Design lineage and prior art | [Prior art and design lineage](./docs/prior-art.md) |
 
-The [0.7 release post](./docs/blog/0.7.0.md) introduces Entity, Form, and Crud.
+The [0.7 release post](./docs/blog/2026-09-19-foldkit-plus-0.7.0.md) introduces Entity, Form, and Crud.
 The [documentation map](./docs/README.md) gives the full reading order, package
 references, design notes, and historical material. The
 [release matrix](./docs/releases.md) tracks published versions.

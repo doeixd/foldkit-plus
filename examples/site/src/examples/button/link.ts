@@ -1,9 +1,8 @@
 import { Button, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { row } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Quiet = forSlots(ButtonSlots)(Recipes.Button({ variant: 'link' }))
+const Quiet = Recipes.Button.style({ variant: 'link' })
 
 // `href` draws an anchor in place of the button, with the same look: it has
 // no `type` and no click, and `external` opens a new tab and says so aloud.

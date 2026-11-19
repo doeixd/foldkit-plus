@@ -4,24 +4,20 @@ import { modifyFields } from 'foldkit/struct'
 import {
   Bundles,
   Button,
-  ButtonSlots,
   ChatMessage,
-  ChatMessageSlots,
   MessageScroller,
   MessageScrollerSlots,
   Recipes,
   ScrollArea,
-  ScrollAreaSlots,
 } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { GroupStyle } from '../../snippets/chat.js'
 import { row } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Area = forSlots(ScrollAreaSlots)(Recipes.ScrollArea({}))
-const Bubble = forSlots(ChatMessageSlots)(Recipes.ChatMessage({}))
-const Action = forSlots(ButtonSlots)(Recipes.Button({}))
-const Quiet = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const Area = Recipes.ScrollArea.style({})
+const Bubble = Recipes.ChatMessage.style({})
+const Action = Recipes.Button.style({})
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 const Entry = Schema.Struct({
   id: Schema.String,

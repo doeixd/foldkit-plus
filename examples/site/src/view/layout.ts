@@ -25,7 +25,7 @@ export interface Input {
 }
 
 const galleryFrame = frame<Message>({
-  toggledMenu: () => Message.ToggledMenu(),
+  menu: message => Message.GotMenuMessage({ message }),
   chosePageScheme: scheme => Message.ChosePageScheme({ scheme }),
 })
 
@@ -48,6 +48,8 @@ export const Body = ({ model, library }: Input, h: H) =>
           Home: () => elsewhere(model.path),
           Demos: () => elsewhere(model.path),
           Doc: () => elsewhere(model.path),
+          Blog: () => elsewhere(model.path),
+          Post: () => elsewhere(model.path),
         }),
       page: (slots, h) =>
         Page.match(model.page, {
@@ -63,6 +65,8 @@ export const Body = ({ model, library }: Input, h: H) =>
           Home: () => elsewhere(model.path),
           Demos: () => elsewhere(model.path),
           Doc: () => elsewhere(model.path),
+          Blog: () => elsewhere(model.path),
+          Post: () => elsewhere(model.path),
         }),
     },
     h,

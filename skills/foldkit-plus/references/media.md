@@ -33,8 +33,7 @@ original is described with the original's width, once.
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { ImageAsset, Layout, Provider } from 'foldkit-media'
-import { Style } from 'foldkit-mixins'
-import { Image, ImageSlots, Recipes } from 'foldkit-mixins-ui'
+import { Image, Recipes } from 'foldkit-mixins-ui'
 
 const hero = Schema.decodeUnknownSync(ImageAsset)({
   key: 'photos/hero.jpg',
@@ -45,7 +44,7 @@ const hero = Schema.decodeUnknownSync(ImageAsset)({
   placeholder: { _tag: 'Color', value: '#20304a' },
 })
 
-const imageStyle = Style.forSlots(ImageSlots)(Recipes.Image({ edge: 'line' }))
+const imageStyle = Recipes.Image.style({ edge: 'line' })
 
 export const heroView = (h: HtmlBuilder<never>) =>
   Image.view(

@@ -2,9 +2,8 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Recipes, Select, SelectSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Filled = forSlots(SelectSlots)(Recipes.Select({ variant: 'filled', size: 'sm' }))
+const Filled = Recipes.Select.style({ variant: 'filled', size: 'sm' })
 
 // Every select of the application is a small filled one with the same
 // placeholder; a use gives its options and its value.

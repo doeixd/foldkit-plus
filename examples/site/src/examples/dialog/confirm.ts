@@ -1,10 +1,9 @@
 import * as UiDialog from '@foldkit/ui/dialog'
-import { Bundles, Button, ButtonSlots, Dialog, DialogSlots, Recipes } from 'foldkit-mixins-ui'
+import { Bundles, Button, Dialog, DialogSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Danger = forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' }))
-const Quiet = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'ghost' }))
+const Danger = Recipes.Button.style({ tone: 'danger' })
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'ghost' })
 
 // A dialog that asks before something that cannot be undone. Escape, a press
 // on the backdrop and Cancel close it; `isAnimated` keeps it drawn while it

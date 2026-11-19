@@ -2,10 +2,8 @@ import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import {
   Avatar,
-  AvatarSlots,
   Bundles,
   Button,
-  ButtonSlots,
   ImageCropper,
   ImageCropperSlots,
   Recipes,
@@ -13,10 +11,9 @@ import {
 import { example } from '../../gallery/example.js'
 import { row, stack } from '../../snippets/layout.js'
 import { LANDSCAPE } from '../../snippets/landscape.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Use = forSlots(ButtonSlots)(Recipes.Button({ variant: 'outline', size: 'sm' }))
-const Picture = forSlots(AvatarSlots)(Recipes.Avatar({ size: 'lg' }))
+const Use = Recipes.Button.style({ variant: 'outline', size: 'sm' })
+const Picture = Recipes.Avatar.style({ size: 'lg' })
 
 // A round crop locked square. The page asks for the crop with
 // `RequestedExport`, sent to the placed child, and the Bundle reports

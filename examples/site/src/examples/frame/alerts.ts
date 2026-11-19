@@ -1,9 +1,8 @@
-import { Alert, AlertSlots, Frame, FrameSlots, Recipes } from 'foldkit-mixins-ui'
+import { Alert, Frame, FrameSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Notice = forSlots(AlertSlots)(Recipes.Alert({ tone: 'warning' }))
-const Failure = forSlots(AlertSlots)(Recipes.Alert({ tone: 'danger' }))
+const Notice = Recipes.Alert.style({ tone: 'warning' })
+const Failure = Recipes.Alert.style({ tone: 'danger' })
 
 // Composition: the frame places what it is given and understands none of it.
 // Each Alert is drawn by its own widget, in its own tone.

@@ -1,6 +1,5 @@
 import { Alert, AlertSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
 const tones = [
   { tone: 'info', title: 'Heads up', description: 'Something worth knowing.' },
@@ -25,7 +24,7 @@ export default example({
             layout: 'inline',
             title,
             description,
-            style: forSlots(AlertSlots)(Recipes.Alert({ tone })),
+            style: Recipes.Alert.style({ tone }),
           },
           h,
         ),

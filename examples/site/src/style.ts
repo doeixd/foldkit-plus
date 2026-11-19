@@ -6,12 +6,20 @@
  * article, a sidebar) is reached through its container's slot by element.
  */
 import { Capability, Style, type Piece } from 'foldkit-mixins'
-import { CodeBlockSlots, DrawerSlots, Recipes, TabsSlots, TooltipSlots } from 'foldkit-mixins-ui'
+import {
+  CodeBlockSlots,
+  DialogSlots,
+  DrawerSlots,
+  Recipes,
+  TabsSlots,
+  TooltipSlots,
+} from 'foldkit-mixins-ui'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
 import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
 
+import { NARROW } from './breakpoints.js'
 import { declared } from './gallery/theme.js'
 
 // The site's own colors, black on white and white on near-black, over the
@@ -31,7 +39,7 @@ const { t, slots, stylesheet } = AppStyle.make({
   }),
 })
 
-export { stylesheet }
+export { slots, stylesheet, t }
 
 /** Faces with `─ │ ┌ ┐ └ ┘ ├ ┤ → ← ↑ ↓` at the width of a letter, the platform's own first. */
 const DIAGRAM_FONT =
@@ -65,12 +73,13 @@ const scrollFocus = Style.nest('&:focus-visible', {
 const COPY_ROOM = `calc(${t.space.md} + 4.5rem)`
 
 /**
- * No header band: a site's block names no file, so the band would hold the
- * Copy button and nothing else. The button floats over the code's top
- * inline-end corner, quiet until the block is hovered or the button focused
- * (still a tab stop at rest, and always shown on a touch screen), and the
- * first line ends in room for it, so scrolled to its end it is clear of the
- * button. Every site block takes these slots, so one source styles them all.
+ * No header band with a pointer: a site's block names no file, so the band
+ * would hold the Copy button and nothing else. The button floats over the
+ * code's top inline-end corner, quiet until the block is hovered or the
+ * button focused (still a tab stop at rest), and the first line ends in room
+ * for it, so scrolled to its end it is clear of the button. A touch screen
+ * has no hover to reveal it, so there the button is always shown, in a band
+ * above the code. Every site block takes these slots, so one source styles them all.
  */
 const floatedCopy = {
   header: Style.compose(
@@ -88,10 +97,26 @@ const floatedCopy = {
       '@media (hover: none)',
       Style.nest(':where(:not(:hover, :focus-within)) > &', { opacity: '1' }),
     ),
+    // A touch screen has no hover to reveal it, so the button is always there:
+    // it takes a band of its own above the code rather than lie over a line.
+    Style.at(
+      '@media (hover: none)',
+      Style.self({ position: 'static', justifyContent: 'flex-end' }),
+    ),
   ),
   // The language is not a title: the label would sit under the button.
   title: Style.self({ display: 'none' }),
-  line: Style.nest('&:first-child', { paddingInlineEnd: COPY_ROOM }),
+  // A finger's target: the button that opens a collapsed block, and Copy on a touch screen.
+  expand: Style.self({ minBlockSize: '2.75rem' }),
+  copy: Style.at(
+    '@media (hover: none)',
+    Style.nest('&', { minBlockSize: '2.75rem', minInlineSize: '2.75rem' }),
+  ),
+  line: Style.compose(
+    Style.nest('&:first-child', { paddingInlineEnd: COPY_ROOM }),
+    // The band holds the button on a touch screen, so the line needs no room for it.
+    Style.at('@media (hover: none)', Style.nest('&:first-child', { paddingInlineEnd: t.space.md })),
+  ),
 }
 
 /** The site's code: the shipped recipe, colored from the theme's `syntax` group. */
@@ -147,8 +172,6 @@ const COLUMNS = '(min-width: 80rem)'
 /** What of the docked drawer shows peeking: its handle and the pane names. */
 const DRAWER_PEEK = '8rem'
 
-/** Below this width the rail becomes a bar over the page. */
-const NARROW = '(max-width: 56rem)'
 /** Below this width a doc page drops its "On this page" column. */
 const NO_OUTLINE = '(max-width: 76rem)'
 /** A phone: one card across, and a table's rows stacked. */
@@ -172,25 +195,70 @@ const quiet = (color: string, ...more: ReadonlyArray<Piece>) =>
 const mono = { fontFamily: t.font.mono, fontSize: '0.75rem', letterSpacing: '0.02em' }
 const rule = `${t.border.thin} solid ${t.outline.subtle}`
 
+/**
+ * A link of the site's navigation, one source for every list of them: the
+ * rail's places, a package's pages, the posts, "On this page", a family of
+ * primitives, the home page's sections. A start-edge bar marks it: clear at
+ * rest, a hairline's grey under the pointer, the text's own colour for the
+ * page or section the reader is in (`aria-current`, which the scrollspy sets
+ * as `location`). The phone menu makes the targets taller on top of it.
+ */
+export const navLink = (selector: string) =>
+  Style.compose(
+    Style.nest(selector, {
+      display: 'block',
+      padding: '0.3125rem 0 0.3125rem 0.75rem',
+      borderInlineStart: '2px solid transparent',
+      color: t.text.muted,
+      textDecoration: 'none',
+      fontSize: '0.875rem',
+      lineHeight: '1.35',
+    }),
+    Style.nest(`${selector}:hover`, {
+      color: t.text.overt,
+      borderInlineStartColor: t.outline.default,
+    }),
+    Style.nest(`${selector}[aria-current]`, {
+      color: t.text.overt,
+      fontWeight: t.weight.medium,
+      borderInlineStartColor: t.text.overt,
+    }),
+    Style.nest(`${selector}:focus-visible`, {
+      outline: `2px solid ${t.accent.default}`,
+      outlineOffset: '2px',
+      borderRadius: t.radius.sm,
+    }),
+  )
+
+/** The small-caps name above a list of links: "Guides", "Posts", "On this page". */
+export const navLabel = {
+  ...mono,
+  margin: `0 0 ${t.space.xs}`,
+  textTransform: 'uppercase',
+  color: t.text.subtle,
+  fontWeight: t.weight.normal,
+  letterSpacing: '0.08em',
+} as const
+
 /** Links in a rendered list: the current one marked by `aria-current`. */
 const navList = Style.compose(
   Style.nest('ul', { listStyle: 'none', margin: '0', padding: '0' }),
-  Style.nest('li a', {
-    display: 'block',
-    padding: `0.3125rem 0 0.3125rem 0.75rem`,
-    borderInlineStart: `${t.border.thin} solid ${t.outline.subtle}`,
-    color: t.text.muted,
-    textDecoration: 'none',
-    fontSize: '0.875rem',
-    lineHeight: '1.35',
+  navLink('li a'),
+)
+
+/** A button in a hairline outline: the one that opens the phone's menu, and the one that closes it. */
+const outlineButton = Style.compose(
+  Style.self({
+    font: 'inherit',
+    fontSize: '0.9375rem',
+    color: t.text.default,
+    background: 'transparent',
+    border: rule,
+    borderRadius: t.radius.md,
+    cursor: 'pointer',
   }),
-  Style.nest('li a:hover', { color: t.text.overt }),
-  Style.nest('li a[aria-current]', {
-    color: t.text.overt,
-    fontWeight: t.weight.medium,
-    borderInlineStartColor: t.text.overt,
-  }),
-  Style.nest('a:focus-visible', { outline: `2px solid ${t.accent.default}`, outlineOffset: '2px' }),
+  Style.pseudo(':hover', { background: t.surface.subtle, color: t.text.overt }),
+  focus,
 )
 
 const codeBox = {
@@ -260,92 +328,87 @@ export const SiteStyle = slots(
       fontSize: '0.6875rem',
       fontWeight: t.weight.bold,
     },
+    // The phone's bar holds it; it opens the menu, a Sheet (`MenuSheetStyle`).
     menuButton: Style.slot({ capability: Capability.Focusable }, [
+      outlineButton,
       {
         display: 'none',
-        font: 'inherit',
-        fontSize: '0.875rem',
-        color: t.text.default,
-        background: 'transparent',
-        border: rule,
-        borderRadius: t.radius.md,
-        padding: `0.25rem ${t.space.sm}`,
-        cursor: 'pointer',
+        alignItems: 'center',
+        // A finger's target: 44px each way.
+        minBlockSize: '2.75rem',
+        minInlineSize: '2.75rem',
+        padding: `0.25rem ${t.space.md}`,
       },
-      Style.media(NARROW, { display: 'inline-block' }),
-      focus,
+      Style.media(NARROW, { display: 'inline-flex' }),
     ]),
-    // What the rail holds below the brand; on a phone, only while the menu is open.
+    // What the rail holds below the brand; on a phone the menu holds it instead.
     railBody: [
       { display: 'flex', flexDirection: 'column', gap: t.space.lg },
-      Style.nest('&[data-open="false"]', { display: 'var(--rail-closed, flex)' }),
-      // On a phone the open menu scrolls on its own, under the bar it opens from.
-      Style.media(NARROW, {
-        paddingBlock: t.space.sm,
-        '--rail-closed': 'none',
-        maxBlockSize: 'calc(100dvh - 3.75rem)',
-        overflowY: 'auto',
-        overscrollBehavior: 'contain',
-      }),
+      Style.nest('> [role="group"]', { alignSelf: 'flex-start' }),
+      Style.media(NARROW, { display: 'none' }),
     ],
-    nav: [
-      { display: 'flex', flexDirection: 'column', gap: '0.125rem' },
-      Style.nest('a', {
-        color: t.text.muted,
-        textDecoration: 'none',
-        fontSize: '0.9375rem',
-        padding: '0.1875rem 0 0.1875rem 0.75rem',
-        borderInlineStart: '2px solid transparent',
+    // The menu's head: its name, and the button that closes it.
+    menuHead: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: t.space.md,
+      marginBlockEnd: t.space.sm,
+    },
+    // What the menu holds, in the rail's own styles with the targets made a
+    // finger's: every link, summary and button 44px tall. `&&` outweighs the
+    // sidebar's and the nav's own rules for a link.
+    menuBody: [
+      { display: 'flex', flexDirection: 'column', gap: t.space.md, minInlineSize: '0' },
+      Style.nest('> [role="group"]', { alignSelf: 'flex-start' }),
+      // The theme control's options, as tall as the links.
+      Style.nest('&& [role="group"] button', {
+        minBlockSize: '2.75rem',
+        paddingInline: t.space.md,
       }),
-      Style.nest('a:hover', { color: t.text.overt }),
-      Style.nest('a[aria-current="page"]', {
-        color: t.text.overt,
-        borderInlineStartColor: t.text.overt,
-      }),
-      Style.nest('a:focus-visible', {
-        outline: `2px solid ${t.accent.default}`,
-        outlineOffset: '2px',
-      }),
-    ],
-    railRule: { border: '0', borderBlockStart: rule, margin: '0' },
-    railNote: [{ ...mono, color: t.text.subtle, margin: '0', lineHeight: '1.6' }],
-    // The page's light or dark: three buttons in one outline, the chosen one filled.
-    schemeChoice: [
-      {
+      Style.nest('&& a', {
         display: 'flex',
-        alignSelf: 'flex-start',
-        border: rule,
-        borderRadius: t.radius.md,
-        overflow: 'hidden',
-      },
-      Style.nest('button', {
-        ...mono,
-        color: t.text.muted,
-        background: 'transparent',
-        border: '0',
-        padding: `0.25rem ${t.space.sm}`,
+        alignItems: 'center',
+        minBlockSize: '2.75rem',
+        paddingBlock: '0.25rem',
+        fontSize: '1rem',
+        lineHeight: '1.35',
+        overflowWrap: 'anywhere',
+      }),
+      // A package's pages, folded: the current one's group is open.
+      Style.nest('&& details', { borderBlockStart: rule }),
+      Style.nest('&& summary', {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: t.space.sm,
+        minBlockSize: '2.75rem',
+        listStyle: 'none',
         cursor: 'pointer',
-      }),
-      Style.nest('button[aria-pressed="true"]', {
         color: t.text.overt,
-        background: t.surface.muted,
+        fontWeight: t.weight.medium,
+        fontSize: '1rem',
       }),
-      Style.nest('button:focus-visible', {
+      Style.nest('&& summary::-webkit-details-marker', { display: 'none' }),
+      Style.nest('&& summary::after', {
+        content: '"+"',
+        fontFamily: t.font.mono,
+        color: t.text.subtle,
+      }),
+      Style.nest('&& details[open] > summary::after', { content: '"−"' }),
+      Style.nest('&& summary:focus-visible', {
         outline: `2px solid ${t.accent.default}`,
         outlineOffset: '-2px',
       }),
     ],
+    nav: [{ display: 'flex', flexDirection: 'column' }, navLink('a')],
+    railRule: { border: '0', borderBlockStart: rule, margin: '0' },
+    railNote: [{ ...mono, color: t.text.subtle, margin: '0', lineHeight: '1.6' }],
     // The home page's sections, numbered, in the mono voice.
     contents: [
       { listStyle: 'none', margin: '0', padding: '0', counterReset: 'section' },
-      Style.nest('a', {
-        ...mono,
-        display: 'block',
-        padding: '0.1875rem 0',
-        color: t.text.muted,
-        textDecoration: 'none',
-      }),
-      Style.nest('a:hover', { color: t.text.overt }),
+      navLink('a'),
+      Style.nest('a', { fontFamily: t.font.mono, fontSize: '0.75rem', letterSpacing: '0.02em' }),
       Style.nest('li', { counterIncrement: 'section' }),
       Style.nest('a::before', {
         content: 'counter(section, decimal-leading-zero) "  "',
@@ -356,14 +419,7 @@ export const SiteStyle = slots(
     // A subsite's Guides and API, rendered by the build.
     sidebar: [
       { display: 'flex', flexDirection: 'column', gap: t.space.lg },
-      Style.nest('h2', {
-        ...mono,
-        margin: `0 0 ${t.space.xs}`,
-        textTransform: 'uppercase',
-        color: t.text.subtle,
-        fontWeight: t.weight.normal,
-        letterSpacing: '0.08em',
-      }),
+      Style.nest('h2', navLabel),
       Style.nest('h3', {
         margin: `${t.space.md} 0 ${t.space['2xs']}`,
         fontSize: '0.8125rem',
@@ -425,7 +481,7 @@ export const SiteStyle = slots(
     },
     heroTitle: {
       margin: '0',
-      fontSize: Theme.fluidType({ min: '2.25rem', max: '3.5rem' }),
+      fontSize: Theme.fluidType({ min: '2rem', max: '3.5rem' }),
       lineHeight: '1.05',
       letterSpacing: '-0.035em',
       fontWeight: t.weight.semibold,
@@ -442,6 +498,8 @@ export const SiteStyle = slots(
         maxWidth: '38rem',
       },
       Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
+      // A column of 40 characters reads at 1rem; the 1.125rem opening runs ten lines on a phone.
+      Style.media(PHONE, { fontSize: '1rem', lineHeight: '1.55' }),
     ],
     actions: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: t.space.sm },
     primary: Style.slot({ capability: Capability.Focusable }, [
@@ -594,6 +652,8 @@ export const SiteStyle = slots(
       {
         marginInlineStart: t.space.xs,
         padding: `0.125rem ${t.space.sm}`,
+        // A finger's target on a phone; a line's height beside the words elsewhere.
+        minBlockSize: '2.75rem',
         borderRadius: t.radius.sm,
         border: rule,
         background: t.surface.base,
@@ -735,7 +795,7 @@ export const SiteStyle = slots(
       color: t.text.overt,
     },
     shelfAbout: [
-      { margin: '0', fontSize: '0.9375rem', color: t.text.muted },
+      { margin: '0', fontSize: '0.9375rem', lineHeight: '1.5', color: t.text.muted },
       Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
     ],
     // A family's primitives, one row each under a hairline: the name, what it
@@ -759,31 +819,53 @@ export const SiteStyle = slots(
       },
       Style.pseudo(':hover', { background: t.surface.subtle }),
       focus,
-      // A phone: the name and the form on one line, what it is for under them.
-      Style.media(PHONE, { gridTemplateColumns: 'minmax(0, 1fr) auto' }),
+      // A phone: the name and the form on one line, what it is for under them,
+      // in a row tall enough to press (44px) from its padding.
+      Style.media(PHONE, {
+        gridTemplateColumns: 'minmax(0, 1fr) auto',
+        paddingBlock: t.space.md,
+        rowGap: t.space.xs,
+      }),
       Style.at(
         `@media ${PHONE}`,
         Style.nest('> :nth-child(2)', { gridColumn: '1 / -1', gridRow: '2' }),
       ),
     ]),
-    primitiveName: {
-      fontFamily: t.font.mono,
-      fontSize: '0.8125rem',
-      fontWeight: t.weight.medium,
-      color: t.text.overt,
-    },
+    // An identifier may be long (`broadcastMessages`): it breaks where it must.
+    primitiveName: [
+      {
+        fontFamily: t.font.mono,
+        fontSize: '0.8125rem',
+        fontWeight: t.weight.medium,
+        color: t.text.overt,
+        minWidth: '0',
+        overflowWrap: 'anywhere',
+      },
+      Style.media(PHONE, { fontSize: '0.9375rem' }),
+    ],
     primitiveAbout: [
       { fontSize: '0.875rem', lineHeight: '1.5', color: t.text.muted },
-      Style.nest('code', { fontFamily: t.font.mono, fontSize: '0.85em', color: t.text.default }),
+      Style.nest('code', {
+        fontFamily: t.font.mono,
+        fontSize: '0.85em',
+        color: t.text.default,
+        overflowWrap: 'anywhere',
+      }),
+      Style.media(PHONE, { fontSize: '0.9375rem' }),
     ],
-    primitiveForm: { ...mono, color: t.text.subtle, fontSize: '0.6875rem', whiteSpace: 'nowrap' },
+    primitiveForm: [
+      { ...mono, color: t.text.subtle, fontSize: '0.6875rem', whiteSpace: 'nowrap' },
+      Style.media(PHONE, { fontSize: '0.75rem' }),
+    ],
     search: [
       {
         font: 'inherit',
-        fontSize: '0.875rem',
+        // 16px: a smaller field makes a phone zoom in on focus.
+        fontSize: '1rem',
         boxSizing: 'border-box',
         inlineSize: '100%',
         maxInlineSize: '24rem',
+        minBlockSize: '2.75rem',
         padding: `${t.space.xs} ${t.space.sm}`,
         border: rule,
         borderRadius: t.radius.md,
@@ -797,12 +879,15 @@ export const SiteStyle = slots(
     ],
     // A family's examples: a small label, then each as a title, a line, the
     // running example on a framed stage, and its source whole beneath.
-    examples: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: t.space.lg,
-      marginBlockStart: t.space.md,
-    },
+    examples: [
+      {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: t.space.lg,
+        marginBlockStart: t.space.md,
+      },
+      Style.media(PHONE, { gap: t.space.md, marginBlockStart: t.space.sm }),
+    ],
     examplesLabel: { ...mono, margin: '0', color: t.text.subtle },
     example: { display: 'flex', flexDirection: 'column', gap: t.space.sm, minWidth: '0' },
     demo: [
@@ -820,6 +905,7 @@ export const SiteStyle = slots(
         overflowWrap: 'anywhere',
       },
       Style.nest('p', { margin: '0' }),
+      Style.media(PHONE, { padding: t.space.md }),
     ],
     none: { margin: '0', color: t.text.muted, fontSize: '0.9375rem' },
     cards: {
@@ -916,6 +1002,15 @@ export const SiteStyle = slots(
       Style.nest('a:hover', { color: t.text.overt }),
       Style.nest('p', { margin: '0' }),
       Style.nest('nav', { display: 'flex', gap: t.space.md }),
+      // A finger's target on a phone.
+      Style.at(
+        `@media ${PHONE}`,
+        Style.nest('nav a', {
+          display: 'inline-flex',
+          alignItems: 'center',
+          minBlockSize: '2.75rem',
+        }),
+      ),
     ],
 
     // DOC PAGES
@@ -1130,28 +1225,11 @@ export const SiteStyle = slots(
         overflowY: 'auto',
         fontSize: '0.8125rem',
       },
-      Style.nest('h2', {
-        margin: `0 0 ${t.space.sm}`,
-        fontSize: '0.8125rem',
-        fontWeight: t.weight.medium,
-        color: t.text.overt,
-      }),
-      Style.nest('ul', {
-        listStyle: 'none',
-        margin: '0',
-        padding: '0',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.375rem',
-      }),
-      Style.nest('a', { color: t.text.muted, textDecoration: 'none', lineHeight: '1.4' }),
-      Style.nest('a:hover', { color: t.text.overt }),
-      // The section the reader is in, marked by the scrollspy (`spy.ts`).
-      Style.nest('a[aria-current="location"]', {
-        color: t.text.overt,
-        fontWeight: t.weight.medium,
-      }),
-      Style.nest('.depth-3', { paddingInlineStart: t.space.sm }),
+      Style.nest('h2', { ...navLabel, margin: `0 0 ${t.space.sm}` }),
+      Style.nest('ul', { listStyle: 'none', margin: '0', padding: '0' }),
+      // The section the reader is in is marked by the scrollspy (`spy.ts`).
+      navLink('a'),
+      Style.nest('.depth-3 a', { paddingInlineStart: '1.5rem' }),
       Style.nest('p', { margin: `${t.space.md} 0 0`, color: t.text.subtle }),
       Style.media(NO_OUTLINE, { display: 'none' }),
     ],
@@ -1184,7 +1262,10 @@ export const SiteStyle = slots(
       // Served, before the page's code has taken it over: not yet pressable.
       Style.nest('&[aria-busy="true"]', { opacity: '0.6', cursor: 'progress' }),
       // A gallery card's: smaller, and nothing in it takes a click or focus.
+      // Bounded: a card's preview is a thumbnail of its widget, never as tall
+      // as the widget (a list of a thousand rows), and clips what does not fit.
       Style.nest('&[data-size="thumb"]', {
+        maxBlockSize: '22rem',
         minBlockSize: '11rem',
         padding: t.space.lg,
         overflow: 'hidden',
@@ -1267,7 +1348,8 @@ export const SiteStyle = slots(
       },
       Style.pseudo(':hover:not(:disabled)', { color: t.text.overt }),
       Style.nest('&[aria-pressed="true"]', {
-        background: t.surface.muted,
+        // A tint of the ink, which reads on the page and on a raised panel alike.
+        background: `color-mix(in oklab, ${t.text.overt} 9%, transparent)`,
         color: t.text.overt,
         fontWeight: t.weight.medium,
       }),
@@ -1500,6 +1582,30 @@ export const SiteStyle = slots(
     ],
   },
   { name: 'SiteStyle' },
+)
+
+/**
+ * The phone menu: a Sheet from the inline-start edge, wide enough for a
+ * sidebar's names. The close button is the site's own, a finger's target.
+ */
+export const MenuSheetStyle = Style.forSlots(DialogSlots)(
+  Recipes.Sheet.extend({
+    base: {
+      // It leaves as long as it came: the exit is the Sheet's slide on every other page.
+      dialog: Style.self({ '--fk-motion-sheet-exit': t.motion.sheet }),
+      closeButton: Style.compose(
+        outlineButton,
+        Style.self({
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minBlockSize: '2.75rem',
+          minInlineSize: '2.75rem',
+          padding: `0 ${t.space.md}`,
+        }),
+      ),
+    },
+  })({ size: 'lg', handle: 'none', close: 'none' }),
 )
 
 /**

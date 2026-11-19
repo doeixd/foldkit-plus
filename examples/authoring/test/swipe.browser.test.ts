@@ -73,11 +73,22 @@ const drag = async (by: number) => {
   pointer('pointerup', from + by)
 }
 
-/** A short, fast drag: the release speed decides, not the distance. */
+/**
+ * A short, fast drag: the release speed decides, not the distance. The speed is read from the
+ * events' own time stamps, which a run of synchronous dispatches may stamp alike (a speed of 0)
+ * and a sleep between them can stretch past the 100ms the swipe reads, so the waits spin: 30px
+ * in 8ms is far over the 0.4px a millisecond that makes a flick.
+ */
 const flick = (by: number) => {
+  const spin = (ms: number) => {
+    const until = performance.now() + ms
+    while (performance.now() < until) {}
+  }
   const from = face().getBoundingClientRect().left + 200
   pointer('pointerdown', from)
+  spin(4)
   pointer('pointermove', from + by / 2)
+  spin(4)
   pointer('pointermove', from + by)
   pointer('pointerup', from + by)
 }

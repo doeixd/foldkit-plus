@@ -431,7 +431,11 @@ export const PortraitStyle = forSlots(AvatarSlots)(
 /** A form's field: the label for screen readers, the placeholder for eyes. */
 export const FieldStyle = forSlots(FieldSlots)(
   {
-    root: [{ display: 'flex', flexDirection: 'column', gap: t.space.xs }],
+    root: [
+      { display: 'flex', flexDirection: 'column', gap: t.space.xs },
+      // Beside the form's submit on a phone, which takes what the pill leaves.
+      Style.media(NARROW, { flex: '1 1 0', minWidth: '0' }),
+    ],
     label: [U.srOnly],
     error: [U.text('sm'), { color: t.error.default }],
   },
@@ -462,10 +466,13 @@ export const TextareaStyle = forSlots(TextareaSlots)(
   { name: 'ChirpTextarea' },
 )
 
-/** A form: its field, then the submit as a pill at the end of the row. */
+/** A form: its field, then the submit as a pill at the end of the row (beside it on a phone). */
 export const FormStyle = forSlots(FormSlots)(
   {
-    root: [{ display: 'flex', flexDirection: 'column', gap: t.space.xs }],
+    root: [
+      { display: 'flex', flexDirection: 'column', gap: t.space.xs },
+      Style.media(NARROW, { flexDirection: 'row', alignItems: 'flex-end' }),
+    ],
     submit: [
       {
         ...pill,

@@ -1,6 +1,6 @@
 {
   "name": "foldkit-remote-domain",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Experimental bridge from an Alchemy Domain Api to Remote: receipts, a lowered write, and the imported graph. Tracks a beta.",
   "keywords": [
     "foldkit",

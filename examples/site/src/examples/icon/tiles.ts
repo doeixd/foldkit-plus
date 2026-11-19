@@ -1,11 +1,10 @@
 import { Icon, IconSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { row } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 import { icons } from '../../view/iconData.js'
 
 const Surfaces = (['outline', 'soft', 'solid', 'raised'] as const).map(surface =>
-  forSlots(IconSlots)(Recipes.Icon({ surface, tone: 'accent', size: 'lg' })),
+  Recipes.Icon.style({ surface, tone: 'accent', size: 'lg' }),
 )
 
 // A `surface` makes the box a tile around the icon, twice its size; `tone`

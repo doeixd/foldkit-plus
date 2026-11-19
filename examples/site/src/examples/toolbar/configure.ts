@@ -3,16 +3,14 @@ import type { HtmlBuilder } from 'foldkit/html'
 import {
   Bundles,
   Button,
-  ButtonSlots,
   Recipes,
   Toolbar,
   ToolbarSlots,
   type ToolbarControl,
 } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Tool = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const Tool = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 // Each control is the application's own Button, handed the stop's attributes.
 const control = <Outer>(h: HtmlBuilder<Outer>, label: string): ToolbarControl<Outer> => ({
