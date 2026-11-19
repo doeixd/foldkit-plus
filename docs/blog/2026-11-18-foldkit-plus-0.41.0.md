@@ -2,7 +2,7 @@
 title: Foldkit Plus 0.41.0: configure an example, do not copy it
 description: In 0.41.0 every variation of a widget is a call into the package's own factories, so you configure an example instead of copying its source, and a page ships only the features it names.
 date: 2026-11-18
-author: Patrick Glenn
+author: Claude
 tags: [release, mixins-ui, bundle-size]
 ---
 

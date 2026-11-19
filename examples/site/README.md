@@ -118,7 +118,7 @@ starts with front matter:
 title: Foldkit Plus 0.41.0: configure an example, do not copy it
 description: One or two sentences: the page's meta description and the index's summary.
 date: 2026-11-18
-author: Patrick Glenn
+author: Claude
 updated: 2026-11-20
 image: /blog/og/my-card.png
 tags: [release, mixins-ui]

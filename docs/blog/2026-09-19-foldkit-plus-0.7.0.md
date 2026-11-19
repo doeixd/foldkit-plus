@@ -2,7 +2,7 @@
 title: Foldkit Plus 0.7: declare the domain once
 description: Most applications describe the same thing several times. 0.7 adds five packages built around saying what a Post is once, as a plain value, and letting the cache, the database binding, the form and the edit screen each read it.
 date: 2026-09-19
-author: Patrick Glenn
+author: Claude
 tags: [release, entity, form, crud]
 ---
 
