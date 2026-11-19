@@ -1,11 +1,10 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Bundles, Menubar, MenubarSlots, MenuSlots, Recipes } from 'foldkit-mixins-ui'
+import { Bundles, Menubar, MenubarSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { note, stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const MenuStyle = forSlots(MenuSlots)(Recipes.MenubarMenu({}))
+const MenuStyle = Recipes.MenubarMenu.style({})
 
 // The bar's state is a Bundle: one shut menu for each id, the first trigger
 // the tab stop. A chosen row comes out as `Selected`, with the menu's index.

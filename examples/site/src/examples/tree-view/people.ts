@@ -1,19 +1,9 @@
-import {
-  Avatar,
-  AvatarSlots,
-  Badge,
-  BadgeSlots,
-  Bundles,
-  Recipes,
-  TreeView,
-  TreeViewSlots,
-} from 'foldkit-mixins-ui'
+import { Avatar, Badge, Bundles, Recipes, TreeView, TreeViewSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { portrait } from '../../snippets/portrait.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Face = forSlots(AvatarSlots)(Recipes.Avatar({ size: 'xs' }))
-const Mark = forSlots(BadgeSlots)(Recipes.Badge({}))
+const Face = Recipes.Avatar.style({ size: 'xs' })
+const Mark = Recipes.Badge.style({})
 
 const org: ReadonlyArray<TreeView.TreeNode> = [
   {

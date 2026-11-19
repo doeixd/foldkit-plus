@@ -1,10 +1,9 @@
 import { Recipes, Steps, StepsSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
 // The look and the words every stepper of the application starts from, and a
 // named preset over them. A use gives only what differs.
-const Wizard = forSlots(StepsSlots)(Recipes.Steps({ connector: 'segments', size: 'sm' }))
+const Wizard = Recipes.Steps.style({ connector: 'segments', size: 'sm' })
 
 const AppSteps = Steps.configure({
   base: { style: Wizard, words: { complete: 'Done', upcoming: 'Not yet' } },

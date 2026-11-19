@@ -1,18 +1,10 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { modifyFields } from 'foldkit/struct'
-import {
-  Bundles,
-  Meter,
-  MeterSlots,
-  PasswordInput,
-  PasswordInputSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Bundles, Meter, PasswordInput, PasswordInputSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Gauge = forSlots(MeterSlots)(Recipes.Meter({}))
+const Gauge = Recipes.Meter.style({})
 const App = Bundle.compose({ password: Schema.String }).pipe(
   Bundle.withMessages({ Typed: { password: Schema.String } }),
   Bundle.withChild('field', Bundles.PasswordInput, { args: {} }),

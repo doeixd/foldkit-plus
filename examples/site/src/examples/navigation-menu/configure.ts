@@ -2,9 +2,8 @@ import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Bundles, Nav, NavSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Pill = forSlots(NavSlots)(Recipes.Nav({ indicator: 'pill' }))
+const Pill = Recipes.Nav.style({ indicator: 'pill' })
 
 // The look and the direction every navigation of the application starts
 // from, and a named preset over them. A use gives the Model and the entries.

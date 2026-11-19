@@ -1,11 +1,10 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Button, ButtonSlots, QrCode, QrCodeSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, QrCode, QrCodeSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 import { row, stack } from '../../snippets/layout.js'
 
-const Save = forSlots(ButtonSlots)(Recipes.Button({ variant: 'outline', size: 'sm' }))
+const Save = Recipes.Button.style({ variant: 'outline', size: 'sm' })
 
 const Model = Schema.Struct({ saved: Schema.Array(QrCode.Format) })
 // `Downloaded` and `DownloadFailed` are what `QrCode.Download` answers.

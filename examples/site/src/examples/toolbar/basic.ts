@@ -1,12 +1,11 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { modifyFields } from 'foldkit/struct'
-import { Bundles, Button, ButtonSlots, Recipes, Toolbar, ToolbarSlots } from 'foldkit-mixins-ui'
+import { Bundles, Button, Recipes, Toolbar, ToolbarSlots } from 'foldkit-mixins-ui'
 import type { ToolbarControl } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Tool = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const Tool = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 // Which tools are on is the application's; where the one tab stop is belongs
 // to the Toolbar's Bundle.

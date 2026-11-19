@@ -1,9 +1,8 @@
 import { Bundle } from 'foldkit-bundle'
-import { Bundles, Button, ButtonSlots, Recipes, Toast, ToastSlots } from 'foldkit-mixins-ui'
+import { Bundles, Button, Recipes, Toast, ToastSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
+const Primary = Recipes.Button.style({})
 
 // Actions and a cancel: each action dismisses the toast and says its `value`
 // in `Acted`, which `onOut` answers (here dropped: an application undoes the

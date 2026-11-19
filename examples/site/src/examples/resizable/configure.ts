@@ -1,8 +1,7 @@
 import { Bundles, Recipes, Resizable, ResizableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Pill = forSlots(ResizableSlots)(Recipes.Resizable({ handle: 'pill' }))
+const Pill = Recipes.Resizable.style({ handle: 'pill' })
 
 // What every split of an application starts from: its look, said once; a
 // preset is a named set over it. The bounds are a Model fact (`init`).

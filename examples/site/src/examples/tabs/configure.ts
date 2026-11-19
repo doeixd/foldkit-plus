@@ -2,9 +2,8 @@ import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Bundles, Recipes, Tabs, TabsSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Pills = forSlots(TabsSlots)(Recipes.Tabs({ variant: 'pill' }))
+const Pills = Recipes.Tabs.style({ variant: 'pill' })
 
 // The look every tab list of the application starts from, and a named preset
 // over it. `fluid` is imported here, in the application's own module, so a

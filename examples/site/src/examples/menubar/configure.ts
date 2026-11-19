@@ -1,11 +1,10 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Bundles, Menubar, MenubarSlots, MenuSlots, Recipes } from 'foldkit-mixins-ui'
+import { Bundles, Menubar, MenubarSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const BarStyle = forSlots(MenubarSlots)(Recipes.Menubar({}))
-const MenuStyle = forSlots(MenuSlots)(Recipes.MenubarMenu({}))
+const BarStyle = Recipes.Menubar.style({})
+const MenuStyle = Recipes.MenubarMenu.style({})
 
 // The bar's look, its menus' look and where they open, stated once. A preset
 // moves the menus: this one opens them above the bar.

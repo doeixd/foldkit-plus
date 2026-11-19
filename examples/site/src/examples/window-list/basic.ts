@@ -1,16 +1,8 @@
 import { Bundle } from 'foldkit-bundle'
-import {
-  Bundles,
-  Button,
-  ButtonSlots,
-  Recipes,
-  WindowList,
-  WindowListSlots,
-} from 'foldkit-mixins-ui'
+import { Bundles, Button, Recipes, WindowList, WindowListSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Jump = forSlots(ButtonSlots)(Recipes.Button({ variant: 'outline' }))
+const Jump = Recipes.Button.style({ variant: 'outline' })
 
 const TOWNS = Array.from({ length: 1_000 }, (_, index) => ({
   id: `town-${index}`,

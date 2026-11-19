@@ -1,6 +1,5 @@
 import { Recipes, ThinkingIndicator, ThinkingIndicatorSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
 const kinds = [
   { mark: 'dots', label: 'shimmer' },
@@ -9,9 +8,7 @@ const kinds = [
   { mark: 'dots', label: 'hidden' },
 ] as const
 
-const styles = kinds.map(selection =>
-  forSlots(ThinkingIndicatorSlots)(Recipes.ThinkingIndicator(selection)),
-)
+const styles = kinds.map(selection => Recipes.ThinkingIndicator.style(selection))
 
 // Dots or a pulse beside the words, the words alone, or the dots alone with
 // the words said, not shown. Each holds still under reduced motion.

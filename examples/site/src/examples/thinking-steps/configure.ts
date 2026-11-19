@@ -1,8 +1,7 @@
 import { Bundles, Recipes, ThinkingSteps, ThinkingStepsSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Cards = forSlots(ThinkingStepsSlots)(Recipes.ThinkingSteps({ variant: 'card' }))
+const Cards = Recipes.ThinkingSteps.style({ variant: 'card' })
 
 // What every trace of an application starts from: its look and its words in
 // its language. Which steps are open stays the Bundle's.

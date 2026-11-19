@@ -2,13 +2,12 @@ import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Pagination, PaginationSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
 const Message = defineMessageUnion({ Went: { page: Schema.Number } })
 
 // The look, windows and words every pager of the application starts from,
 // and a named preset over them. The page and `onPage` stay each use's.
-const Pills = forSlots(PaginationSlots)(Recipes.Pagination({ shape: 'round' }))
+const Pills = Recipes.Pagination.style({ shape: 'round' })
 
 const AppPagination = Pagination.configure({
   base: { style: Pills, siblings: 2, words: { previous: 'Back' } },

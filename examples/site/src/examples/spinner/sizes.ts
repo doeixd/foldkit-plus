@@ -1,10 +1,9 @@
 import { Recipes, Spinner, SpinnerSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { row } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
 const Sizes = (['sm', 'md', 'lg'] as const).map(size =>
-  forSlots(SpinnerSlots)(Recipes.Spinner({ size, tone: 'current' })),
+  Recipes.Spinner.style({ size, tone: 'current' }),
 )
 
 // Three sizes in the ink of the text around them, as inside a button or a badge.

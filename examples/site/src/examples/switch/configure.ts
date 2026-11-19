@@ -3,10 +3,9 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Recipes, Switch, SwitchSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Neutral = forSlots(SwitchSlots)(Recipes.Switch({ tone: 'neutral' }))
-const Danger = forSlots(SwitchSlots)(Recipes.Switch({ tone: 'danger' }))
+const Neutral = Recipes.Switch.style({ tone: 'neutral' })
+const Danger = Recipes.Switch.style({ tone: 'danger' })
 
 // Every switch of the application is neutral with its words first; one
 // named preset is the destructive one.

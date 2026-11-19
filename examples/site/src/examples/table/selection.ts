@@ -1,9 +1,8 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
-import { CheckboxSlots, Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
+import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 import { invoices, money, type Invoice } from '../../snippets/invoices.js'
 
 const Model = Schema.Struct({ chosen: Schema.Array(Schema.String) })
@@ -12,7 +11,7 @@ const Message = defineMessageUnion({
   ChoseAll: { ids: Schema.Array(Schema.String) },
 })
 
-const Boxes = forSlots(CheckboxSlots)(Recipes.Checkbox({}))
+const Boxes = Recipes.Checkbox.style({})
 
 // The rows chosen are the application's. `control` is the one place Checkbox
 // is imported: a table that selects nothing never loads it.

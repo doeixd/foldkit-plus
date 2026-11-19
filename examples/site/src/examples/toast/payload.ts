@@ -15,10 +15,8 @@ import {
 import { example } from '../../gallery/example.js'
 import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
-const Dismiss = forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'ghost', size: 'sm' }),
-)
+const Primary = Recipes.Button.style({})
+const Dismiss = Recipes.Button.style({ tone: 'neutral', variant: 'ghost', size: 'sm' })
 // The toast's card pads the notice, so the row adds none of its own.
 const Notice = forSlots(ItemSlots)(
   Recipes.Item.extend({ variants: { density: { comfortable: { root: { padding: '0' } } } } })({}),

@@ -1,10 +1,9 @@
 import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import { Badge, BadgeSlots, Bundles, RadioGroup, RadioGroupSlots, Recipes } from 'foldkit-mixins-ui'
+import { Badge, Bundles, RadioGroup, RadioGroupSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Tag = forSlots(BadgeSlots)(Recipes.Badge({}))
+const Tag = Recipes.Badge.style({})
 
 const App = Bundle.compose({ plan: Schema.OptionFromNullOr(Schema.String) }).pipe(
   Bundle.withChild('plans', Bundles.RadioGroup, {

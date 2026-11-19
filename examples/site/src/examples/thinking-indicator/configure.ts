@@ -1,10 +1,7 @@
 import { Recipes, ThinkingIndicator, ThinkingIndicatorSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Calm = forSlots(ThinkingIndicatorSlots)(
-  Recipes.ThinkingIndicator({ mark: 'pulse', label: 'plain', tone: 'accent' }),
-)
+const Calm = Recipes.ThinkingIndicator.style({ mark: 'pulse', label: 'plain', tone: 'accent' })
 
 // The application's look and its word for the wait, said once; a use names a
 // preset or gives its own `label`.

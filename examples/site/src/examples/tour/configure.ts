@@ -1,10 +1,9 @@
 import { Bundle } from 'foldkit-bundle'
-import { Bundles, Button, ButtonSlots, Recipes, Tour, TourSlots } from 'foldkit-mixins-ui'
+import { Bundles, Button, Recipes, Tour, TourSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
-const Plain = forSlots(ButtonSlots)(Recipes.Button({ variant: 'outline' }))
+const Primary = Recipes.Button.style({})
+const Plain = Recipes.Button.style({ variant: 'outline' })
 
 // Every tour of an application said once: focus goes back to what started it
 // and a press on the dim skips. The `strict` preset keeps the target out of

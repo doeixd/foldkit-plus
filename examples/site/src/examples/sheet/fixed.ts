@@ -1,10 +1,9 @@
 import * as UiDialog from '@foldkit/ui/dialog'
-import { Bundles, Button, ButtonSlots, DialogSlots, Recipes, Sheet } from 'foldkit-mixins-ui'
+import { Bundles, Button, DialogSlots, Recipes, Sheet } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
-const Quiet = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'ghost' }))
+const Primary = Recipes.Button.style({})
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'ghost' })
 
 const open = Sheet.Message.GotDialog({ message: UiDialog.Message.RequestedOpen() })
 const close = Sheet.Message.GotDialog({ message: UiDialog.Message.RequestedClose() })

@@ -1,9 +1,8 @@
-import { Empty, EmptySlots, Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
+import { Empty, Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 import type { Invoice } from '../../snippets/invoices.js'
 
-const Quiet = forSlots(EmptySlots)(Recipes.Empty({ size: 'compact' }))
+const Quiet = Recipes.Empty.style({ size: 'compact' })
 
 // While there are no rows, `empty` stands across the table: an `Empty.view`.
 export default example({
