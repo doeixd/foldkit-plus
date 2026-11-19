@@ -1,54 +1,21 @@
 # `foldkit-remote-drizzle`
 
-**Provisional.** A Drizzle compiler for [`foldkit-remote`](../remote) and
-[`foldkit-remote-server`](../remote-server).
+Every endpoint that reads or updates a database table usually ends up
+hand-writing column lists, `WHERE` filters, keyset cursors, and
+optimistic-conflict checks separately for each screen. Whenever a screen adds a
+field or changes a sort order, that SQL drifts from what the client asked for.
 
-A Remote client already knows **which semantic fields it needs**. A
-`RemoteServer` Source already knows **which ids and authorized fields to load**.
-`foldkit-remote-drizzle` turns that Source request into the smallest useful
-Drizzle query, then turns the rows back into normalized Remote patches.
+Bind each Drizzle table once as a shared entity instead. Client screens select
+only the fields they render, [`foldkit-remote-server`](../remote-server)
+removes any fields the caller may not read, and `foldkit-remote-drizzle`
+compiles those requirements into parameterized SQLite or Postgres queries and
+normalizes the rows back into patches for [`foldkit-remote`](../remote).
 
-For one read, a Remote Selection becomes a requirement such as `Project:p1 [id,name]`.
-`RemoteServer` turns that into a Source context, `ids=[p1]` and `fields=[id,name]`.
-`foldkit-remote-drizzle` turns the context into `SELECT id,name FROM projects WHERE id IN (...)`,
-and the rows come back as a normalized patch, `Project:p1 { id, name }`.
-
-The important design choice is that an Entity is declared **once**:
-
-```ts sketch
-const Project = entity('Project', projects)
-```
-
-That value is both the Drizzle binding and the Remote `EntityDescriptor`. A
-Selection therefore checks fields against the real table declaration, while
-`source(Project)` can compile those same semantic fields back into SQL without a
-second mapping per screen.
-
-Use this package when your Remote entities map cleanly onto Drizzle tables and
-you want projection, relation loading, and keyset pagination derived from the
-Remote contract. It is **not** an ORM on top of Drizzle and it does not own the
-database connection. Sources require a `DrizzleDatabase` Effect service supplied
-by the application.
-
-## What it owns
-
-- `foldkit-remote` owns the semantic Entity, Selection and Query.
-- `foldkit-remote-server` owns the authorized Source request.
-- `foldkit-remote-drizzle` owns the columns, joins and pagination SQL, and the
-  normalization of rows into Remote.
-- Drizzle owns database execution.
-
-It does not own:
-
-- client caching or rendering;
-- Remote field authorization policy itself;
-- authentication;
-- mutation semantics;
-- a database connection;
-- arbitrary aggregate/query DSLs.
-
-Those boundaries are deliberate. The adapter compiles Remote's existing
-semantics instead of introducing a second data model.
+See it running in [`examples/kitchen-sink`](../../examples/kitchen-sink) and the
+live [Chirp demo](https://foldkit-chirp-demo.pages.dev/). Your application keeps
+ownership of the `DrizzleDatabase` connection, authentication, and field
+authorization rules; this adapter compiles columns, joins, pagination, and
+guarded writes.
 
 ## Install
 
@@ -56,19 +23,15 @@ semantics instead of introducing a second data model.
 pnpm add foldkit-remote-drizzle drizzle-orm effect
 ```
 
-`effect` and `drizzle-orm` (currently `1.0.0-rc.5`) are peer dependencies, so
-the adapter reads the tables you define with your own Drizzle, not a copy of
-its own; `foldkit-entity`, `foldkit-remote` and `foldkit-remote-server` come
-with the package.
+`effect` and `drizzle-orm` are peer dependencies, so the adapter reads the
+tables you define with your own Drizzle; `foldkit-entity`, `foldkit-remote`,
+and `foldkit-remote-server` come with the package.
 
 ### SQLite and Postgres
 
-SQLite needs no extra setup. The package reads a table's dialect from
-Drizzle's own entity kinds, so a SQLite application never loads
-`drizzle-orm/pg-core`.
-
-Postgres support is a separate entry point. Register it once, at the top of the
-module that binds your tables, before the first binding:
+SQLite needs no extra setup because the package inspects Drizzle's table kinds
+at runtime without loading `drizzle-orm/pg-core`. For Postgres, call `postgres()`
+once at the top of the module that binds your tables:
 
 ```ts
 import { postgres } from 'foldkit-remote-drizzle/pg'
@@ -76,18 +39,15 @@ import { postgres } from 'foldkit-remote-drizzle/pg'
 postgres()
 ```
 
-A Postgres table reached without it throws an error naming this entry.
+## Example: bind one Drizzle table to a Source
 
-For the ownership and requirement-planning model first, read
-[Server-derived state](../../docs/remote.md).
-
-## Sixty seconds: one table, one Entity, one Source
-
-Start with a normal Drizzle table:
+Define a Drizzle table, bind it once with `entity`, select the fields a screen
+needs, and expose a `source`:
 
 ```ts
-import { postgres } from 'foldkit-remote-drizzle/pg'
 import { pgTable, text, uuid } from 'drizzle-orm/pg-core'
+import { entity, source } from 'foldkit-remote-drizzle'
+import { postgres } from 'foldkit-remote-drizzle/pg'
 
 postgres()
 
@@ -96,41 +56,23 @@ export const projects = pgTable('projects', {
   name: text('name').notNull(),
   status: text('status').notNull(),
 })
-```
-
-Bind it once:
-
-```ts
-import { entity, source } from 'foldkit-remote-drizzle'
 
 const Project = entity('Project', projects)
-
-// This is a real Remote Selection because Project is also an EntityDescriptor.
-const ProjectSummary = Project.select({
-  id: true,
-  name: true,
-})
-
-// This is a RemoteServer EntitySource backed by Drizzle.
+const ProjectSummary = Project.select({ id: true, name: true })
 const ProjectSource = source(Project)
 ```
 
-A client requirement for:
+When a screen selects `ProjectSummary` for `00000000-0000-4000-8000-000000000001`,
+`ProjectSource` compiles a parameterized SQL query over only the needed columns
+(plus `id` for cache normalization):
 
-```text
-Project:00000000-0000-4000-8000-000000000001 [id,name]
-```
-
-causes that Source to select only the needed columns, plus whatever identity is
-required for normalization:
-
-```text
+```sql
 SELECT id, name
 FROM projects
-WHERE id IN ('00000000-0000-4000-8000-000000000001')
+WHERE id IN ($1)
 ```
 
-and return a record with this Remote wire shape:
+and returns the normalized Remote patch:
 
 ```json
 {
@@ -142,15 +84,10 @@ and return a record with this Remote wire shape:
 }
 ```
 
-There is no per-screen SQL mapping. The Selection declares the semantic shape;
-`RemoteServer` hands the Source the authorized fields; the Drizzle Source turns
-those fields into columns.
-
-`pgTable`, `entity`, `select`, and `source` above are declarations. They do not
-create the table, open a database connection, or execute a query. Apply your
-migrations, register the Source with RemoteServer, and provide the
-[database service](#database-service) when running its handlers. The SQL above
-illustrates the selected columns; actual execution uses bound parameters.
+`pgTable`, `entity`, `select`, and `source` are pure declarations that stay
+separate from your connection pool. Run your migrations, mount `ProjectSource`
+in `RemoteServer`, and provide the [database service](#database-service) when
+serving requests.
 
 ## Put the Source behind `RemoteServer`
 
@@ -321,14 +258,14 @@ source(Db.Post) // an ordinary binding
 
 | Entity member | Storage |
 | --- | --- |
-| Field | the column of the same name, or `fields: { name: posts.title }` |
-| `one` relation | `{ field }`: the foreign key on the owner's table |
-| `many` relation | `{ foreignKey, localKey? }` on the target's table (`localKey` defaults to the owner's `id`), or `{ through, localColumn, foreignColumn }` |
-| `Derived.count(Other.relations.pointer)` | nothing: counted on the pointing table by its `{ field }` column |
-| `Derived.exists(Other.relations.pointer, { viewer })` | nothing: found on the pointing table by both relations' `{ field }` columns |
-| `Derived.make` | `{ relation, where? }`: a count of a `many` relation, or `{ supplied: true }` |
+| Field | same-named column, or `fields: { name: posts.title }` |
+| `one` relation | `{ field }`: foreign key on the owner's table |
+| `many` relation | `{ foreignKey, localKey? }` on target, or `{ through, localColumn, foreignColumn }` |
+| `Derived.count(Other.relations.pointer)` | counted on the pointing table by `{ field }` |
+| `Derived.exists(Other.relations.pointer, { viewer })` | checked on the pointing table by both `{ field }` columns |
+| `Derived.make` | `{ relation, where? }` for a count, or `{ supplied: true }` |
 
-`orderBy` and `where` go on a `many` storage as they do on `many(…)`.
+For a `many` relation, `localKey` defaults to the owner's `id`. `orderBy` and `where` go on a `many` storage as they do on `many(…)`.
 
 A `Derived.count` says what it counts, so it takes no entry: `bind` counts the
 rows of the pointing Entity's table by the column its `one` relation is stored
@@ -486,21 +423,9 @@ const UserSource = source(User, {
 })
 ```
 
-Conceptually:
-
-```text
-client asks for [id,name,email]
-          |
-          v
-RemoteServer authorize
-          |
-          v
-allowed [id,name]
-          |
-          v
-Drizzle source
-SELECT id,name ...
-```
+When a client asks for `[id, name, email]`, `RemoteServer` runs `authorize` first
+and narrows the field list to `[id, name]`, so the Drizzle source only selects
+`id` and `name`.
 
 `filter` is `RemoteServer.entity`'s per-record decision, passed through the
 same way: the Source reads the fields its plan names, and `RemoteServer`
@@ -575,16 +500,9 @@ owner: one(User, {
 A database `NULL` then becomes a **present null** in Remote rather than looking
 like an absent field that should be fetched forever.
 
-A nested Selection does not embed the User row into Project. `RemoteServer`
-follows the ref into the User Source at the next selection level, preserving the
-normalized cache:
-
-```text
-Project:p1.owner -> User:u1
-                      |
-                      v
-                 User Source
-```
+A nested Selection keeps the User row separate from Project. `ProjectSource`
+emits `owner = "User:u1"`, and `RemoteServer` follows that ref into `UserSource`
+at the next selection level so the client cache stays normalized.
 
 ## Collection relations
 
@@ -888,20 +806,9 @@ Three things are worth being exact about:
 query lives on this side; such a descriptor has no body, and `orderBy` is then
 required as before.
 
-Think of the pieces as:
-
-```text
-Remote Query descriptor
-  input + result entity
-          |
-          v
-Drizzle query source
-  where + stable total order
-          |
-          v
-QueryPage
-  edges + explicit boundaries
-```
+The Drizzle query source takes your Remote Query descriptor (input and result
+entity), applies `where` and a stable total order, and returns a `QueryPage`
+with edges and explicit boundaries.
 
 `orderBy` must be non-empty and should form a stable total order. Add a unique
 tie-breaker such as the id.
@@ -1959,21 +1866,26 @@ The adapter tells a caller only about the request the caller itself sent, with
 | a query cursor of another order, or one this server did not make | `The query cursor is not one this server minted for this order` |
 | a relation window's cursor with more than one parent | `Relation "<field>" cursor needs a single parent` |
 | a relation window's cursor whose row is gone, or hidden from the caller | `Relation "<field>" cursor no longer resolves` |
-| an operation id it already sent with another mutation, keys or input | `Operation "<id>" cannot be sent again with another mutation, keys or input: a retry sends the same ones` |
+| an operation id reused with a different mutation, keys, or input | `Operation "<id>" cannot be sent again with another mutation, keys or input…` |
 
-A declared refusal (`Taken`, `Conflict`, `Unmet`, `Invalid`, `Referenced`) is
+The full operation-id error ends with `: a retry sends the same ones`. A declared refusal (`Taken`, `Conflict`, `Unmet`, `Invalid`, `Referenced`) is
 not a failure and travels as its own value.
 
 ## Diagnostics
 
-Two things the adapter goes past without telling the caller are reported
-through `foldkit-surface`'s `Diagnostics` channel (re-exported by
-`foldkit-remote`), by default Effect's log:
+Two events that the adapter recovers from or logs without forwarding internals
+to the caller are emitted through `foldkit-surface`'s `Diagnostics` channel
+(re-exported by `foldkit-remote`), defaulting to Effect's log:
 
 | `_tag` | `level` | When |
 | --- | --- | --- |
-| `StatementFailed` | `error` | The driver failed a statement (`runStatement`, every read and write here); the Source failed with `failed` (`Database query failed` for a read or query, `Database write failed` for a write), which the caller reads as `Internal error`, and this carries the driver's `error`, with its SQL. |
-| `ServerOnlyRules` | `warning` | Once per binding, on its first write through `writer`: the Entity's rules no CHECK can hold (`checkConstraints(...).serverOnly`), held by the server's declared writes alone. Nothing when there are none. |
+| `StatementFailed` | `error` | `runStatement` failed on a read, query, or write |
+| `ServerOnlyRules` | `warning` | First write through `writer` on a binding with server-only rules |
+
+`StatementFailed` carries the driver's `error` and SQL while the Source fails
+with `Database query failed` or `Database write failed` (returned to the caller
+as `Internal error`). `ServerOnlyRules` fires once per binding when
+`checkConstraints(...).serverOnly` holds rules that no SQL `CHECK` can enforce.
 
 Each is reported inside the read or write, so the reporter the server runs
 with applies: `serveFetch`'s `diagnostics`, or
@@ -2008,16 +1920,14 @@ only wiring.
 
 Declared writes run there too: a revision, a precondition, an increment and an
 invariant are one statement, as everywhere. A [ledger](#a-ledger-a-retry-is-never-applied-twice)
-works with no transaction, since D1 offers none (its Drizzle database has a
-`transaction`, whose `BEGIN` D1 refuses):
+works without transactions (D1's Drizzle database exposes `transaction`, but D1
+refuses `BEGIN`):
 
-```text
-read the record of (scope, operation, row)
-  found, same request   -> answered from it; nothing is written
-  found, other request  -> refused ("cannot be sent again with another …")
-  none                  -> one batch: prune expired records, write the row,
-                           record it where the write changed a row
-```
+1. Read the record for `(scope, operation, row)`.
+2. If found with the same request, answer from the stored record without writing.
+3. If found with a different request, refuse (`Operation "<id>" cannot be sent again...`).
+4. Otherwise run one batch: prune expired records, write the row, and insert the
+   ledger record only where the write changed a row.
 
 The batch cannot read between its statements, so the record is decided in SQL:
 `insert … select … where changes() > 0`, holding the row as the write left it
