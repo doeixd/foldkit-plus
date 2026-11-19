@@ -37,8 +37,8 @@ export default [
   edit(
     'a bound increment is assigned',
     write,
-    'put(increments, field.key, Schema.encodeUnknownSync(schema)(held)),',
-    'void (increments[field.key] = Schema.encodeUnknownSync(schema)(held)),',
+    "put(increments, field.key, direction === 'decrement' ? 0 - amount : amount)",
+    "void (increments[field.key] = direction === 'decrement' ? 0 - amount : amount)",
   ),
   edit(
     'a bound link is assigned',

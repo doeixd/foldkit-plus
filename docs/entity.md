@@ -163,8 +163,9 @@ const Published = Entity.refine(Guarded, 'Published', { status: 'published' })
 
 Reach for the cheapest declaration that can state a rule: a Schema for one
 value, a derived member for a value other rows decide, an invariant for what
-relates fields or a row before and after, a state for a condition named in
-several places. [Laws](./laws.md) is the map from the question a rule answers
+relates fields (`in: Published` binds one to a state's rows), a transition
+(`Entity.transition`) for what relates a row before and after, a state for a
+condition named in several places. [Laws](./laws.md) is the map from the question a rule answers
 to the declaration that holds it.
 
 ### 3. Who may: a guard
@@ -229,8 +230,10 @@ const PublishLong = Mutation.write(
 a form is built from it alone), `Write.update` says what the write does to the
 row (what `Laws.check` and each writer read), and `Mutation.write` names it
 for the wire, types its refusals and installs the page's prediction. Write
-them out when a key is named otherwise than its field, points a relation, or
-is about the operation alone (`Entity.unmapped`). Because the
+them out when a key is named otherwise than its field or points a relation. A
+key about the operation alone, an amount, is the one call's `input`, which
+`increment`, `decrement` and `when` read (`Mutation.update('Restock', Product,
+{ input: { quantity: Schema.Int }, increment: { stock: 'quantity' } })`). Because the
 write is data, the server needs no handler for it and the page can show its
 result before the answer. [Declared writes](./declared-writes.md) covers
 preconditions, increments, retries and ledgers.

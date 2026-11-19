@@ -7,11 +7,12 @@ const tests = [
   'packages/entity/test/decrement.test.ts',
   'packages/entity/test/precondition.test.ts',
   'packages/remote-drizzle/test/decrement.test.ts',
+  'packages/remote-drizzle/test/bank.test.ts',
 ]
-const edit = (name: string, find: string, replace: string) => ({
+const edit = (name: string, find: string, replace: string, only = tests) => ({
   name,
   edits: [{ file: write, find, replace }],
-  tests,
+  tests: only,
 })
 
 export default [
@@ -41,5 +42,7 @@ export default [
     'a when is given no row',
     'condition({ row, input: placeholders as never })',
     'condition({ row: {} as never, input: placeholders as never })',
+    // The bank's writes are declared as its module loads, which this mutation makes throw.
+    tests.filter(test => !test.endsWith('bank.test.ts')),
   ),
 ]

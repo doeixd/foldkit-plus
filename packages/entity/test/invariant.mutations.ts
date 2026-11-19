@@ -40,7 +40,7 @@ export default [
   ),
   edit(
     'an invariant may read only the row before',
-    'if (afterReads.length === 0) {',
+    'if (dependencies.next.length === 0) {',
     'if (false) {',
   ),
   edit('an invariant may read an input', 'if (dependencies.inputs.length > 0) {', 'if (false) {'),

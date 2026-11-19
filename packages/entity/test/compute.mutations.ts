@@ -113,8 +113,8 @@ export default [
   ),
   edit(
     'an operator is an integer whatever it answers',
-    'Call: ({ operator }) => storesIntegers(operator.output),',
-    'Call: () => true,',
+    'storesIntegers(operator.output) ||',
+    'true ||',
   ),
   edit(
     'a literal is an integer whatever it holds',
