@@ -87,11 +87,12 @@ const LOW_MARKS: ReadonlyArray<string> = ['Underline', 'Strikethrough', 'Code', 
 
 /**
  * What gives way on a narrow window (`{ low }`) is still in the slash menu, a chord, or the bar
- * over selected text. Seven controls stay: with a finger's 44px each, that is one row of a phone.
+ * over selected text. Five controls and More stay, which with a finger's 44px each (56px for those
+ * with a chevron) is 298px: one row at a 360px phone, where undo and redo with them did not fit.
  */
 const BAR_ITEMS: ReadonlyArray<FormattingItem> = [
-  'undo',
-  'redo',
+  { low: 'undo' },
+  { low: 'redo' },
   'separator',
   'style',
   'separator',

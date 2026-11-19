@@ -946,12 +946,14 @@ describe('the window’s width, which the formatting bar is compact at', () => {
         [...document.querySelectorAll('[role="toolbar"][aria-label="Formatting"] button')].map(
           button => button.getAttribute('data-item'),
         )
-      const high = ['undo', 'redo', 'style', 'mark-Bold', 'mark-Italic', 'link', 'insert']
+      const high = ['style', 'mark-Bold', 'mark-Italic', 'link', 'insert']
       // The low controls are in More, which the wide bar does not draw.
       await vi.waitFor(() => expect(drawn()).toEqual([...high, 'more']))
       mounted.dispatch(Message.NarrowChanged({ narrow: false }))
       await vi.waitFor(() => expect(drawn()).toHaveLength(15))
       expect(drawn().filter(item => !high.includes(item ?? ''))).toEqual([
+        'undo',
+        'redo',
         'mark-Underline',
         'mark-Strikethrough',
         'mark-Code',

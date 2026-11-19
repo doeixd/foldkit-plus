@@ -196,16 +196,8 @@ test('on a phone the formatting bar is one row of the controls that fit, one tab
   const drawn = await bar
     .locator('button')
     .evaluateAll(buttons => buttons.map(button => button.getAttribute('data-item')))
-  expect(drawn).toEqual([
-    'undo',
-    'redo',
-    'style',
-    'mark-Bold',
-    'mark-Italic',
-    'link',
-    'insert',
-    'more',
-  ])
+  // Undo and redo are in More: six controls and More are what one row of 44px targets holds at 360px.
+  expect(drawn).toEqual(['style', 'mark-Bold', 'mark-Italic', 'link', 'insert', 'more'])
   // One row: the bar is as high as one control and its padding (43px), where three rows were 145px.
   const height = await bar.evaluate(element => element.getBoundingClientRect().height)
   expect(height).toBeGreaterThan(38)
@@ -223,7 +215,7 @@ test('on a phone the formatting bar is one row of the controls that fit, one tab
   ).toBe(0)
 
   // Tab from the title lands on the bar's one stop; the arrows visit exactly what is drawn, an
-  // unavailable control (nothing to undo) included, and wrap.
+  // unavailable control included, and wrap.
   expect(await bar.locator('button[tabindex="0"]').count()).toBe(1)
   await page.keyboard.press('Tab')
   const visited: Array<string | undefined> = []
@@ -235,16 +227,19 @@ test('on a phone the formatting bar is one row of the controls that fit, one tab
     await page.keyboard.press('ArrowRight')
   }
   expect(visited).toEqual(drawn.map(item => `bar-${item}`))
-  await poll(() => focused(page)).toBe('bar-undo')
-  expect(await bar.locator('[data-item="undo"]').getAttribute('aria-disabled')).toBe('true')
-  await poll(() => bar.locator('button[tabindex="0"]').getAttribute('id')).toBe('bar-undo')
+  await poll(() => focused(page)).toBe('bar-style')
+  await poll(() => bar.locator('button[tabindex="0"]').getAttribute('id')).toBe('bar-style')
   await page.keyboard.press('End')
   await poll(() => focused(page)).toBe('bar-more')
 
-  // Redo has nothing to redo: a press on it changes nothing.
-  expect(await bar.locator('[data-item="redo"]').getAttribute('aria-disabled')).toBe('true')
-  await bar.locator('[data-item="redo"]').dispatchEvent('click')
-  expect(await bar.locator('[data-item="undo"]').getAttribute('aria-disabled')).toBe('true')
+  // Undo and redo have nothing to take back or redo, and More says so: a press changes nothing.
+  await page.keyboard.press('Enter')
+  const undo = page.locator('[data-more="undo"]')
+  const redo = page.locator('[data-more="redo"]')
+  await poll(() => undo.getAttribute('aria-disabled')).toBe('true')
+  expect(await redo.getAttribute('aria-disabled')).toBe('true')
+  await redo.dispatchEvent('click')
+  expect(await undo.getAttribute('aria-disabled')).toBe('true')
   await context.close()
 })
 
@@ -257,15 +252,17 @@ test('a wide window draws every control of the bar', async () => {
   await poll(() => formattingBar(page).locator('button').count()).toBe(15)
   // Narrowed, the low controls go (to More, which is one more button); widened again, they come back.
   await page.setViewportSize(PHONE)
-  await poll(() => formattingBar(page).locator('button').count()).toBe(8)
+  await poll(() => formattingBar(page).locator('button').count()).toBe(6)
   await page.setViewportSize({ width: 1100, height: 800 })
   await poll(() => formattingBar(page).locator('button').count()).toBe(15)
   await context.close()
 })
 
-for (const [name, viewport] of [
-  ['a phone', PHONE],
-  ['a desk', { width: 1100, height: 800 }],
+// The bar's first control, and the arrows from it to the style trigger and on to Bold: undo and
+// redo lead the bar on a desk, and are in More on a phone.
+for (const [name, viewport, first, toStyle, toBold] of [
+  ['a phone', PHONE, 'style', [], ['mark-Bold']],
+  ['a desk', { width: 1100, height: 800 }, 'undo', ['redo', 'style'], ['mark-Bold']],
 ] as const) {
   test(`on ${name}, pressing Bold and then Italic marks the same text, which stays selected, and typing replaces it`, async () => {
     const { context, page } = await pageWithSelection(viewport, 'Milk')
@@ -291,9 +288,9 @@ for (const [name, viewport] of [
     const control = (item: string) => formattingBar(page).locator(`[data-item="${item}"]`)
     // Back from the text is the bar's one stop, where the focus is by design.
     await page.keyboard.press('Shift+Tab')
-    await poll(() => focused(page)).toBe('bar-undo')
+    await poll(() => focused(page)).toBe(`bar-${first}`)
     await poll(() => standIn(page)).toBe('Milk')
-    for (const item of ['redo', 'style', 'mark-Bold']) {
+    for (const item of [...toStyle, ...toBold]) {
       await poll(() =>
         formattingBar(page).locator('button[tabindex="0"]').getAttribute('id'),
       ).not.toBe(`bar-${item}`)
@@ -344,8 +341,8 @@ for (const [name, viewport] of [
 
     // The style menu, by key: back to the bar, to its trigger, into the menu, Enter on a style.
     await page.keyboard.press('Shift+Tab')
-    await poll(() => focused(page)).toBe('bar-undo')
-    for (const item of ['redo', 'style']) {
+    await poll(() => focused(page)).toBe(`bar-${first}`)
+    for (const item of toStyle) {
       await page.keyboard.press('ArrowRight')
       await poll(() => focused(page)).toBe(`bar-${item}`)
       await poll(() => formattingBar(page).locator('button[tabindex="0"]').getAttribute('id')).toBe(

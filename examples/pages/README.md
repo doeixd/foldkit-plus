@@ -88,8 +88,8 @@ control holds the focus, the page paints the editor's `selection` decoration as 
 (`[data-decoration="selection"]` in `src/style.ts`), and Escape returns to the text.
 
 On a window at most 40rem wide the bar is `compact`: the controls wrapped `{ low }` in
-`src/view.ts` (four marks, the lists and the quote) are not drawn, and the seven left are one
-row of a phone. The Model's `narrow` is read from `matchMedia` before the first drawing
+`src/view.ts` (undo and redo, four marks, the lists and the quote) are not drawn, and the five
+left with More are one row of 44px targets at a 360px phone (`test/formatBar.touch.browser.test.ts`). The Model's `narrow` is read from `matchMedia` before the first drawing
 (`src/browser.ts` passes it to the initial Model) and followed by a `NarrowChanged` Message, so
 a phone never draws the wide bar first. The sidebar's field filters the page list by title
 (`listedPages`).

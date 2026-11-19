@@ -476,6 +476,11 @@ export const Page = demoStyle.slots({
   tool: Style.compose(
     control,
     Style.media('(max-width: 40rem)', { minInlineSize: '1.875rem', paddingInline: '0' }),
+    // After the narrow width, which would otherwise keep a finger's target at 30px.
+    Style.at(
+      '@media (pointer: coarse)',
+      Style.self({ minBlockSize: '2.75rem', minInlineSize: '2.75rem' }),
+    ),
     Style.at(
       '@media (max-width: 40rem)',
       Style.pseudo('[data-priority="low"]', { display: 'none' }),
@@ -859,13 +864,18 @@ const barSlots = (root: StyleValue) =>
       ),
       Style.at(`@media ${PHONE}`, Style.pseudo(LESS_USED, { display: 'none' })),
     ),
-    // Insert and the text style are an icon or a word and a chevron: on a phone the style keeps its
-    // word, which says what the caret is in, and Insert is its plus.
+    // Insert and the text style are an icon or a word and a chevron: Insert is its plus on any
+    // narrow screen, and on a touch phone the style is its chevron, since a 44px target for each
+    // control leaves no room on one row for the word.
     label: Style.compose(
       Style.self({ fontSize: t.size.sm }),
       Style.at(
         '@media (max-width: 40rem)',
         Style.nest(':where([data-item="insert"]) > &', { display: 'none' }),
+      ),
+      Style.at(
+        `@media ${PHONE}`,
+        Style.nest(':where([data-item="style"]) > &', { display: 'none' }),
       ),
     ),
     separator: Style.compose(

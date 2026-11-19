@@ -112,7 +112,9 @@ const barItems = (
   ...MARKS.map((mark): FormattingItem<Message> =>
     LEAST_USED.has(mark) ? { low: { mark } } : { mark },
   ),
-  'link',
+  // The link, which Mod+K and the bar over a selection also offer, gives way before the marks
+  // do: a compact bar on a phone holds a 44px target for each control that stays.
+  { low: 'link' },
   'separator',
   { low: 'bulleted-list' },
   { low: 'numbered-list' },
@@ -293,13 +295,15 @@ export const PlaygroundView = SlotView.forMessages<Message>()
         },
       },
       {
-        control: {
-          id: 'find',
-          label: 'Find and replace',
-          icon: 'search',
-          shortcut: 'mod+f',
-          pressed: Option.isSome(model.find),
-          message: Message.OpenedFind(),
+        low: {
+          control: {
+            id: 'find',
+            label: 'Find and replace',
+            icon: 'search',
+            shortcut: 'mod+f',
+            pressed: Option.isSome(model.find),
+            message: Message.OpenedFind(),
+          },
         },
       },
       {
