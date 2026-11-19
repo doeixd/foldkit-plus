@@ -402,7 +402,7 @@ Everything else, entry by entry, is in the
 
 Most of the breaking changes are renames, and a rename is a type error where
 you used the old name, so the TypeScript compiler gives you the list.
-[Upgrading to 0.41](https://github.com/doeixd/foldkit-plus/blob/main/docs/upgrading-0.41.md)
+[Upgrading to 0.41](../upgrading-0.41.md)
 covers every package, with a before and after for each change. Four changes
 compile either way, so check them by eye:
 
