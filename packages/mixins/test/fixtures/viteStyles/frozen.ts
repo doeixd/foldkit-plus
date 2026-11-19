@@ -30,6 +30,12 @@ export const Page = Style.slots(
   { layer: Layers.standard.layer('app') },
 )
 
+/** A recipe's selection taken in one call: the recipe stays in the module, the Style is exported. */
+export const Tinted = Style.recipeFor(Contract)({
+  base: { root: Style.self({ display: 'flex' }) },
+  variants: { tone: { quiet: { button: Style.self({ opacity: '0.6' }) } } },
+}).style({ tone: 'quiet' }, { name: 'Tinted', layer: Layers.standard.layer('app') })
+
 export const NARROW = '(max-width: 700px)'
 
 export const tokens = { brand: { ink: 'var(--fk-brand-ink)' } }

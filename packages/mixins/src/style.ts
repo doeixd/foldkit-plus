@@ -555,6 +555,15 @@ export interface SlotRecipe<
   readonly add: <const More extends AxisNames>(
     more: AddedAxes<Slots, Variants, More>,
   ) => SlotRecipe<Slots, MergeAxes<Slots, Variants, More>, Known>
+  /**
+   * A selection as a style of the recipe's contract, ready for a view's
+   * `style`: `Style.forSlots(slots)(recipe(selection), options)` in one call.
+   * With no selection, the defaults.
+   */
+  readonly style: (
+    selection?: SlotRecipeSelection<Variants>,
+    options?: StyleOptions,
+  ) => NamedStyle<Slots>
 }
 
 /** The axes and value names `add` was given; what each value holds is `StylePieces`. */
@@ -633,7 +642,8 @@ const assertKnownSlots = <Slots>(
 /**
  * A recipe over every slot of a contract: `base` pieces per slot, `variants`
  * per axis and value, `defaults`, and `compound` matches. The result of a
- * selection is a `StylePieces` for `Style.forSlots`. A design system ships
+ * selection is a `StylePieces` for `Style.forSlots`; `.style(selection)` is
+ * that `NamedStyle` in one call. A design system ships
  * the recipe; an application adjusts it with `extend` instead of forking.
  */
 export const recipeFor =
@@ -713,9 +723,11 @@ export const recipeFor =
       // Defining the result checks the added pieces' slots.
       return recipeFor(slots)<SlotRecipeVariants<Slots>, Base>({ ...def, variants })
     }
+    const style = (selection?: SlotRecipeSelection<Variants>, options?: StyleOptions) =>
+      forSlots(slots)(select(selection), options)
     // `select` merges the base first and removes nothing, so every base key
     // is present; `extend`'s merged base holds both bases' keys.
-    return Object.assign(select, { def: full, extend, add }) as unknown as SlotRecipe<
+    return Object.assign(select, { def: full, extend, add, style }) as unknown as SlotRecipe<
       Slots,
       Variants,
       PresentKeys<Base>
