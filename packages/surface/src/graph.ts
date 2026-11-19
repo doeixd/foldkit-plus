@@ -386,6 +386,7 @@ const findingsOf = (
 const evidenceText = (record: Evidence): string =>
   Evidence.$match(record, {
     Enumerated: () => 'enumerated',
+    Bounded: () => 'bounded',
     Walked: ({ seeds, steps, starts }) =>
       `walked: ${seeds} seeds of ${steps} steps from ${starts.join(', ')}`,
     Scenario: ({ name, runner }) => `scenario on ${runner}: ${name}`,

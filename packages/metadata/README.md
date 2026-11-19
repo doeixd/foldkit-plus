@@ -86,6 +86,7 @@ only if something showed it. An `Evidence` record says what did:
 | Record | Issued by | When |
 | --- | --- | --- |
 | `Enumerated` | `Laws.check` (`foldkit-entity`) | It kept the pair by reading the declarations |
+| `Bounded` | `Laws.check` (`foldkit-entity`) | It proved the pair from the numbers' declared bounds, for every row and input within them; no row was enumerated |
 | `Walked` | `Walk.run` (`foldkit-remote/testing`) | Every seeded walk from every start passed; it names the seeds, steps and starts |
 | `Scenario` | `Scenario.run` (`foldkit-remote/testing`, not built yet: #538) | A scenario ran on a runner with no mismatch |
 | `RuntimeOnly` | `Evidence.runtimeOnly` | By hand: only the writer or the journal refuses it in production, and `why` nothing earlier covers it |
@@ -131,7 +132,7 @@ producer modules. And a `Walked` record says only which seeds passed.
 | `Evidence.issuedBy(record)` | The producer that issued `record`: an `Option`, none for a record typed by hand or copied. |
 | `Evidence.runtimeOnly({ transition, law, why })` | An issued `RuntimeOnly` record; throws on an empty `why`. |
 | `Evidence.issuer(name)` | For a producer, once at module level: `{ name, issue(record) }`, where `issue` returns a frozen, stamped copy (its arrays copied and frozen too). Throws for a name that already has an issuer. |
-| `Evidence.Enumerated` / `Scenario` / `Walked`, `$match`, `$is` | A producer's records before it issues them, and reading a record by kind. |
+| `Evidence.Enumerated` / `Bounded` / `Scenario` / `Walked`, `$match`, `$is` | A producer's records before it issues them, and reading a record by kind. |
 
 ## Limits
 
