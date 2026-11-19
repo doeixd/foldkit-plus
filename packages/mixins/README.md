@@ -324,7 +324,7 @@ one.
 | `Style.when(condition, piece)` | a boolean known at authoring time |
 | `Style.whenInput(predicate, piece)` | a condition read from the view input at render time |
 | `Style.recipe({ base, variants, defaults, compound })` | one slot: returns `selection => StyleValue`; every field is optional, so a recipe may be only its base |
-| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => RecipePieces`, in which every `base` slot is present and a variant's slot may be absent; `null` unsets a defaulted axis, which is how a recipe makes a piece optional; `.extend(patch)` composes per slot, removes nothing, and refuses a slot the contract lacks; `.add(more)` gives it an axis or a value it lacks ([A look a shipped recipe lacks](#a-look-a-shipped-recipe-lacks)) |
+| `Style.recipeFor(Slots)({ base, variants, defaults, compound })` | every slot: returns `selection => RecipePieces`, in which every `base` slot is present and a variant's slot may be absent; `null` unsets a defaulted axis, which is how a recipe makes a piece optional; `.extend(patch)` composes per slot, removes nothing, and refuses a slot the contract lacks; `.add(more)` gives it an axis or a value it lacks ([A look a shipped recipe lacks](#a-look-a-shipped-recipe-lacks)); `.style(selection?, options?)` is `Style.forSlots(Slots)(recipe(selection), options)` in one call, the `NamedStyle` a view's `style` takes |
 | `Style.perItem(item => piece)` / `Style.stagger({ stepMs })` | a piece from the item the slot is rendered for (`attrs(base, item)`); stagger writes `--fk-index` inline and the `calc` delay as a rule |
 | `Style.forCapability(Slots)(capability, piece)` | one piece for every public slot whose capability satisfies it |
 | `Style.slots(pieces, options?)` / `Style.slot(slotOptions, piece)` | an application's own Slots declared by their style: `{ slots, style }` (see [An application's own look](#an-applications-own-look)) |
@@ -429,8 +429,8 @@ it in two ways, and neither forks it:
 - `.add(more)` gives it what it **lacks**: a value on an axis it has, or a new axis. A value
   the axis already has is refused, in the type and with `mixins:recipe-value-exists`.
 
-Both return a recipe, so `.extend`, `.add` and a `null` selection work on the result, and
-neither changes the recipe it was called on.
+Both return a recipe, so `.extend`, `.add`, `.style` and a `null` selection work on the
+result, and neither changes the recipe it was called on.
 
 ```ts standalone
 import { Capability, Slot, Slots, Style } from 'foldkit-mixins'
@@ -457,8 +457,11 @@ const AppButton = Button.add({
   width: { full: { button: Style.self({ inlineSize: '100%' }) } },
 })
 
-export const Brand = Style.forSlots(ButtonSlots)(AppButton({ tone: 'brand', width: 'full' }))
-export const Accent = Style.forSlots(ButtonSlots)(AppButton())
+// `.style` selects and makes the view's Style in one call; `.style()` is the defaults.
+export const Brand = AppButton.style({ tone: 'brand', width: 'full' })
+export const Accent = AppButton.style()
+// The same in two calls, for when the pieces are composed first.
+export const Spelled = Style.forSlots(ButtonSlots)(AppButton({ tone: 'brand', width: 'full' }))
 
 // @ts-expect-error `accent` is the recipe's own: adjust it with `extend`.
 Button.add({ tone: { accent: { button: Style.self({ background: 'navy' }) } } })
@@ -912,6 +915,7 @@ that case the contract, the style and the setup can each be written once:
 | You are... | Use |
 | --- | --- |
 | styling a contract someone published | `Style.forSlots(ButtonSlots)(pieces, options)` |
+| taking a published recipe's look as it ships | `Recipes.Button.style(selection, options)` |
 | declaring your own Slots and their look | `Style.slots(pieces, options)` |
 | fixing theme, `app` layer and page sheet for one application | `AppStyle.make` from `foldkit-mixins/app` |
 | writing a token-backed declaration in a word | `Utilities` from `foldkit-mixins/utilities` |
@@ -946,7 +950,10 @@ Style.install(stylesheet)
 ```
 
 A published contract takes the same layer through the kit's `forSlots`, as
-`forSlots(ButtonSlots)(Recipes.Button())` with `foldkit-mixins-ui`.
+`forSlots(ButtonSlots)(Recipes.Button())` with `foldkit-mixins-ui`, and a recipe's `.style`
+takes it as an option: `Recipes.Button.style({}, { layer: L.layer('app') })`, with `L` from
+`AppStyle.make`. The shipped pieces keep their `components` and `variants` layers either way;
+the layer places what the application's own `.extend` added with none.
 
 What each call does, and does not do:
 

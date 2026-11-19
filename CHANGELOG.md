@@ -9,6 +9,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins`: every `Style.recipeFor` recipe, after `.add` and `.extend` too, has `.style(selection?, options?)`, `Style.forSlots(Slots)(recipe(selection), options)` in one call. The shipped look of a widget is now one line with one import: `Recipes.Table.style({ rows: 'striped' })` in place of `Style.forSlots(TableSlots)(Recipes.Table({ rows: 'striped' }))`, and `Recipes.Table.style()` is the defaults. The result is the same `NamedStyle` of the recipe's contract, so `Table.view`'s and `Table.configure`'s `style` take it and another widget's refuse it; a value or an axis the recipe lacks is a type error at the argument. An application on `AppStyle` passes `{ layer: L.layer('app') }`. The two-call form stays, for pieces composed before `forSlots`.
 - `foldkit-ssr`: `Meta` takes `imageSize` and `imageAlt` (`og:image:width`, `og:image:height`, `og:image:alt`) and `article.authors` and `article.tags` (one `article:author` or `article:tag` each); `twitter:title`, `twitter:description`, `twitter:image` and `twitter:image:alt` repeat the Open Graph words whenever those are given.
 
 ### Changed

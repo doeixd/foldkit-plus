@@ -74,9 +74,11 @@ so one extension contract covers both families.
 A variation of a widget is a call with options, never a copied file. A widget
 is made of four kinds of fact, and each has one place it is given:
 
-- **Look** is CSS over fixed markup. `Recipes.X(selection)` picks values on
-  axes, `.extend` adjusts them and `.add` gives a recipe an axis or a value it
-  lacks ([Recipes](#recipes)).
+- **Look** is CSS over fixed markup. `Recipes.X.style(selection)` picks values
+  on axes and gives the style `X.view` takes, `.extend` adjusts them and `.add`
+  gives a recipe an axis or a value it lacks ([Recipes](#recipes)). A view
+  given no `style` draws bare markup, so a page that styles a widget its own
+  way never ships the shipped look.
 - **State** is a Model and the Messages that change it, and it is the
   application's: `X.init` and `X.update` for the widgets that keep interaction
   state, folded by hand or placed as `Bundles.X`. The value a user chose stays
@@ -100,8 +102,7 @@ drawn into a slot option such as `aside`, `footer`, `trailing` or `content`).
 ```ts standalone
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { Style } from 'foldkit-mixins'
-import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
+import { Recipes, Table } from 'foldkit-mixins-ui'
 
 const Message = defineMessageUnion({ Noop: {} })
 type Message = typeof Message.Type
@@ -111,8 +112,8 @@ interface Product {
   readonly price: string
 }
 
-// Look: compiled once, at module scope.
-const ProductsStyle = Style.forSlots(TableSlots)(Recipes.Table({ density: 'compact' }))
+// Look: the shipped table, compact, compiled once at module scope.
+const ProductsStyle = Recipes.Table.style({ density: 'compact' })
 
 // Drawing: `fluid` is a passed value, `words` is text with blanks.
 export const products = (rows: ReadonlyArray<Product>, h: HtmlBuilder<Message>): Html =>
@@ -488,10 +489,8 @@ const BarModel = Schema.Struct({ stop: Schema.NullOr(Schema.String), bold: Schem
 const BarMessage = defineMessageUnion({ Focused: { id: Schema.String }, ToggledBold: {} })
 type BarMessage = typeof BarMessage.Type
 
-const BarStyle = Style.forSlots(ToolbarSlots)(Recipes.Toolbar({}))
-const ToolStyle = Style.forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'outline' }),
-)
+const BarStyle = Recipes.Toolbar.style()
+const ToolStyle = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 const barView = (model: typeof BarModel.Type, h: HtmlBuilder<BarMessage>) =>
   Toolbar.view(
@@ -754,7 +753,7 @@ const searchView = (text: string, h: HtmlBuilder<Search>) =>
       onInput: text => Search.Typed({ text }),
       clear: { onClear: Search.Cleared() },
       routes: [openResults],
-      style: Style.forSlots(SearchFieldSlots)(Recipes.SearchField({})),
+      style: Recipes.SearchField.style(),
     },
     h,
   )
@@ -826,7 +825,7 @@ const FilesMessage = defineMessageUnion({
 })
 type FilesMessage = typeof FilesMessage.Type
 
-const FileFieldStyle = Style.forSlots(FileInputSlots)(Recipes.FileInput({}))
+const FileFieldStyle = Recipes.FileInput.style()
 
 const filesUpdate = (
   model: typeof FilesModel.Type,
@@ -935,7 +934,7 @@ const upUpdate = (model: UpModel, message: UpMessage): Return<UpModel, UpMessage
     },
   })
 
-const UpStyle = Style.forSlots(FileUploadSlots)(Recipes.FileUpload({ layout: 'zone' }))
+const UpStyle = Recipes.FileUpload.style({ layout: 'zone' })
 
 const upView = (model: UpModel, h: HtmlBuilder<UpMessage>) =>
   FileUpload.view(
@@ -984,7 +983,7 @@ picker holds. The list is not drawn, and the one file's Remove button follows th
 picker, over its corner in `avatar` and `cover`:
 
 ```ts
-const UpAvatarStyle = Style.forSlots(FileUploadSlots)(Recipes.FileUpload({ layout: 'avatar' }))
+const UpAvatarStyle = Recipes.FileUpload.style({ layout: 'avatar' })
 
 const upAvatar = (model: UpModel, h: HtmlBuilder<UpMessage>) =>
   FileUpload.view(
@@ -1046,11 +1045,9 @@ Progress widget. Give the view `progress` and an uploading row draws a bar (or, 
 the row says the same in its state text:
 
 ```ts
-import { FileUploadProgress, ProgressSlots } from 'foldkit-mixins-ui'
+import { FileUploadProgress } from 'foldkit-mixins-ui'
 
-const UpBar = FileUploadProgress.make({
-  style: Style.forSlots(ProgressSlots)(Recipes.Progress({})),
-})
+const UpBar = FileUploadProgress.make({ style: Recipes.Progress.style() })
 // FileUpload.view({ ..., progress: UpBar }, h)
 ```
 
@@ -1622,7 +1619,7 @@ style draws the overlay bar).
 import * as UiDialog from '@foldkit/ui/dialog'
 import { Dialog, DialogSlots } from 'foldkit-mixins-ui'
 
-const DialogStyle = Style.forSlots(DialogSlots)(Recipes.Dialog({ size: 'sm' }))
+const DialogStyle = Recipes.Dialog.style({ size: 'sm' })
 
 // The dialog's Model and Messages are @foldkit/ui's: the application folds them
 // with `Dialog.update`, and opens it with `Dialog.open`.
@@ -1970,7 +1967,7 @@ import { Disclosure as UiDisclosure } from '@foldkit/ui'
 import { Style } from 'foldkit-mixins'
 import { Disclosure, DisclosureSlots, Recipes } from 'foldkit-mixins-ui'
 
-const DetailsStyle = Style.forSlots(DisclosureSlots)(Recipes.Disclosure({ variant: 'bordered' }))
+const DetailsStyle = Recipes.Disclosure.style({ variant: 'bordered' })
 
 const details = (isOpen: boolean, h: HtmlBuilder<Message>) =>
   UiDisclosure.view(
@@ -2036,8 +2033,8 @@ import { parse } from 'foldkit-media/icons'
 import { Style } from 'foldkit-mixins'
 import { AspectRatio, AspectRatioSlots, Icon, IconSlots, Recipes } from 'foldkit-mixins-ui'
 
-const Frame = Style.forSlots(AspectRatioSlots)(Recipes.AspectRatio({ ratio: 'video' }))
-const Mark = Style.forSlots(IconSlots)(Recipes.Icon({ size: 'sm' }))
+const Frame = Recipes.AspectRatio.style({ ratio: 'video' })
+const Mark = Recipes.Icon.style({ size: 'sm' })
 
 // `h` is the view's builder. `content` is `Html`.
 AspectRatio.view({ content: h.span([], ['poster']), style: Frame }, h)
@@ -2091,7 +2088,7 @@ interface Product {
 const Sort = defineMessageUnion({ Sorted: { column: Schema.Literal('name') } })
 type Sort = typeof Sort.Type
 
-const ProductsStyle = Style.forSlots(TableSlots)(Recipes.Table({}))
+const ProductsStyle = Recipes.Table.style()
 
 const productsTable = (
   rows: ReadonlyArray<Product>,
@@ -2668,7 +2665,7 @@ given `itemsScrollClassName` or `itemsScrollAttributes`, and its class joins the
 ScrollArea.view(
   {
     content: h.p([], ['A long text']),
-    style: Style.forSlots(ScrollAreaSlots)(Recipes.ScrollArea({})),
+    style: Recipes.ScrollArea.style(),
     mixins: ScrollArea.overlayBars,
   },
   h,
@@ -2793,15 +2790,19 @@ error), and the stroke is redrawn into each mask, which CSS cannot reach once it
 
 The adapters only name slots. `Recipes` gives those slots, and the views above, a look:
 one `Style.recipeFor` per contract, built on the tokens of `foldkit-mixins/theme`. Select
-variants (an axis's values are listed in the catalog rows), hand the pieces to
-`Style.forSlots`, and attach the result like any other Style:
+variants (an axis's values are listed in the catalog rows) with `.style`, and attach the
+result like any other Style:
 
 ```ts
 import { Layers, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 
-const DeleteStyle = Style.forSlots(ButtonSlots)(
+const DeleteStyle = Recipes.Button.style({ tone: 'danger', variant: 'outline', size: 'sm' })
+
+// The same Style in two calls: the selection's pieces, then `Style.forSlots` of them.
+// Take the pieces when you compose them with your own first (see Segmented).
+const Spelled = Style.forSlots(ButtonSlots)(
   Recipes.Button({ tone: 'danger', variant: 'outline', size: 'sm' }),
 )
 
@@ -2833,6 +2834,11 @@ assumes and does:
   )
   // Style.stylesheet(L.declare, …, DeleteStyle, Red): Red's background wins.
   ```
+
+  `.style` takes the same options as `Style.forSlots`. An application on `AppStyle` passes
+  its layer, `Recipes.Button.style(selection, { layer: L.layer('app') })`: the shipped
+  pieces keep their own layers either way, and a piece its `.extend` added with no layer
+  lands in `app`, as `AppStyle`'s `forSlots` would place it.
 - **Controls stand on one size ladder.** A button, a field, a select, a tab, a segmented
   control, a table row and the rows of a menu, listbox or combobox are all one rung tall:
   36px by default and 28px compact, their padding, gap and text stepping with them
@@ -3221,15 +3227,14 @@ style, its words, its mixins, its structural choices.
 ```ts standalone
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { Style } from 'foldkit-mixins'
-import { Button, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, Recipes } from 'foldkit-mixins-ui'
 
 const Message = defineMessageUnion({ Saved: {}, Deleted: {} })
 type Message = typeof Message.Type
 
 // Styles are compiled once, in a module the build may ship as data.
-const Quiet = Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
-const Danger = Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' }))
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
+const Danger = Recipes.Button.style({ tone: 'danger' })
 
 export const AppButton = Button.configure({
   base: { style: Quiet },
@@ -3280,13 +3285,13 @@ it, not forked from it:
 
 ```ts standalone
 import { Style } from 'foldkit-mixins'
-import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Recipes } from 'foldkit-mixins-ui'
 
 const Buttons = Recipes.Button.add({
   tone: { brand: { button: Style.self({ background: 'rebeccapurple', color: 'white' }) } },
 })
 
-export const Brand = Style.forSlots(ButtonSlots)(Buttons({ tone: 'brand', variant: 'solid' }))
+export const Brand = Buttons.style({ tone: 'brand', variant: 'solid' })
 ```
 
 ## Why some components needed a fork

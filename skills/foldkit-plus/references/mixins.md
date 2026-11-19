@@ -291,7 +291,9 @@ Style.install(stylesheet) // browser entry only; returns the <style>
 ```
 
 A piece is a `StyleValue`, a declarations object (`Style.self`), or a list (`Style.compose`).
-`AppStyle`'s `slots`/`forSlots` compile in the `app` layer; its `stylesheet` is layer order,
+`AppStyle`'s `slots`/`forSlots` compile in the `app` layer (a recipe's `.style(selection, {
+layer: L.layer('app') })` places what an `.extend` added with no layer there too; shipped pieces
+keep `components`/`variants`); its `stylesheet` is layer order,
 reset, tokens, palette and `Defaults.body` (`global` adds to `defaults`), built when first read:
 with `foldkit-mixins/vite`, read it in a server-only module, never in the browser. Utilities take token
 names, so `U.p('4xl')` and `U.bg('surface.nope')` are type errors. `U.scrollFade(axis)` dissolves a
@@ -484,7 +486,7 @@ import { Disclosure as UiDisclosure } from '@foldkit/ui'
 import { Style } from 'foldkit-mixins'
 import { Disclosure, DisclosureSlots, Recipes } from 'foldkit-mixins-ui'
 
-const DetailsStyle = Style.forSlots(DisclosureSlots)(Recipes.Disclosure({ variant: 'bordered' }))
+const DetailsStyle = Recipes.Disclosure.style({ variant: 'bordered' })
 
 const details = (isOpen: boolean, h: HtmlBuilder<Message>) =>
   UiDisclosure.view(
@@ -511,8 +513,8 @@ const details = (isOpen: boolean, h: HtmlBuilder<Message>) =>
 ```
 
 `Recipes.Accordion | Button | Input | Textarea | Select | Checkbox | Switch | Fieldset | Disclosure | RadioGroup | Slider | Dialog | Tabs | Segmented | Menu | Listbox | Combobox | Calendar | DatePicker | Popover | Tooltip | Toast | FileDrop | Alert | AspectRatio | Avatar | Badge | Breadcrumb | ButtonGroup | Card | CardGroup | Carousel | CheckboxGroup | CodeBlock | ColorPicker | Command | Empty | HoverCard | Icon | InputCopy | Item | Kbd | Label | Menubar | MenubarMenu | Meter | Nav | NumberField | OtpField | Pagination | PasswordInput | SearchField | Toolbar | FileInput | Progress | Rating | Resizable | ScrollArea | Separator | Sheet | Picker | Drawer | Sidebar | Skeleton | Spinner | Steps | Table | TagsInput | TreeView | Typography | VirtualList | ChatMessage | ChatMessageGroup | MessageScroller | ThinkingIndicator | ThinkingSteps | Questionnaire | AngleSlider | Timer | Marquee | ImageCropper | SignaturePad | QrCode | Chart | CascadeSelect | FloatingPanel | Tour | Image | Figure | AppShell` are shipped
-`Style.recipeFor` recipes over those contracts: `Style.forSlots(ButtonSlots)(Recipes.Button({ tone:
-'danger', variant: 'outline', size: 'sm' }))`, adjusted with `.extend(patch)`. They reference
+`Style.recipeFor` recipes over those contracts: `Recipes.Button.style({ tone: 'danger', variant:
+'outline', size: 'sm' })` is the view's style, adjusted with `.extend(patch)`. They reference
 the shipped tokens (`Theme.root(Theme.standard(theme))` ships them; a theme is typed knob values,
 `Theme.make({ shape: { radius: 1.8 }, menu: { panel: 'inverted' } })` over `Knobs.standard`, pipeable with
 `Theme.set` and `Theme.describe`; the defaults are `shape.radius` 1 (6px controls; 0.45 is the old, squarer look), `menu.panel` `'default'` (the page's raised surface; `'inverted'` is the old panel), `surface.saturation` 0.005 and accent `lightness` 54, and a TagsInput chip and a Badge are full pills; `shadow: { relief: 'bevel' }` raises every faced button and sinks every
@@ -582,17 +584,14 @@ export const labelsField = (model: Model, h: HtmlBuilder<Message>): Html =>
 ```ts standalone
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { Style } from 'foldkit-mixins'
-import { Button, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, Recipes } from 'foldkit-mixins-ui'
 
 const Message = defineMessageUnion({ Saved: {}, Deleted: {} })
 type Message = typeof Message.Type
 
 export const AppButton = Button.configure({
-  base: {
-    style: Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' })),
-  },
-  presets: { danger: { style: Style.forSlots(ButtonSlots)(Recipes.Button({ tone: 'danger' })) } },
+  base: { style: Recipes.Button.style({ tone: 'neutral', variant: 'outline' }) },
+  presets: { danger: { style: Recipes.Button.style({ tone: 'danger' }) } },
 })
 
 export const actions = (h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
@@ -606,8 +605,7 @@ export const actions = (h: HtmlBuilder<Message>): ReadonlyArray<Html> => [
 ```ts standalone
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
-import { Style } from 'foldkit-mixins'
-import { Recipes, Table, TableSlots } from 'foldkit-mixins-ui'
+import { Recipes, Table } from 'foldkit-mixins-ui'
 
 const Message = defineMessageUnion({ Noop: {} })
 type Message = typeof Message.Type
@@ -628,23 +626,23 @@ export const products = (rows: ReadonlyArray<Product>, h: HtmlBuilder<Message>):
       rowKey: row => row.name,
       fluid: Table.fluid,
       words: { selectAll: 'Choose every product' },
-      style: Style.forSlots(TableSlots)(Recipes.Table({ density: 'compact' })),
+      style: Recipes.Table.style({ density: 'compact' }),
     },
     h,
   )
 ```
 
-**Look: `Recipes.X(selection)`, `.extend`, `.add`.** `.extend` adjusts a value the recipe has; `.add` gives it an axis or a value it lacks (a value it already has throws `mixins:recipe-value-exists`).
+**Look: `Recipes.X.style(selection)`, `.extend`, `.add`.** `.style(selection?, options?)` is `Style.forSlots(XSlots)(Recipes.X(selection), options)` in one call; `Recipes.X(selection)` alone gives the pieces, for composing before `forSlots`. `.extend` adjusts a value the recipe has; `.add` gives it an axis or a value it lacks (a value it already has throws `mixins:recipe-value-exists`). A view given no `style` draws bare markup: the shipped look is never a default.
 
 ```ts standalone
 import { Style } from 'foldkit-mixins'
-import { ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Recipes } from 'foldkit-mixins-ui'
 
 const Buttons = Recipes.Button.add({
   tone: { brand: { button: Style.self({ background: 'rebeccapurple', color: 'white' }) } },
 })
 
-export const Brand = Style.forSlots(ButtonSlots)(Buttons({ tone: 'brand', variant: 'solid' }))
+export const Brand = Buttons.style({ tone: 'brand', variant: 'solid' })
 ```
 
 ### States
@@ -676,7 +674,7 @@ Marquee, ImageCropper, SignaturePad, Chart, CascadeSelect, FloatingPanel and
 Tour keep a small Model of interaction state that the
 application keeps and folds with their `update`, the value chosen staying the
 application's. Every view takes optional `style`
-(`Style.forSlots(XSlots)(Recipes.X(selection))`) and `mixins`. Hide text with
+(`Recipes.X.style(selection)`) and `mixins`. Hide text with
 `U.srOnly`. Name a control with `FieldAssociation`; `Label.view` takes the id
 that derived.
 
