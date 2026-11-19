@@ -61,8 +61,10 @@ test('one call keeps what two calls keep, and an own style keeps no recipe', asy
   const [twoCalls, oneCall, own] = await Promise.all([
     pageOf(
       'twoCalls',
-      `import { Style } from 'foldkit-mixins'
-import { Recipes, Table, TableSlots } from 'ui'
+      // Import `ui` first in both entries so Rolldown traverses modules in the
+      // same order and minified identifier mangling does not add order jitter.
+      `import { Recipes, Table, TableSlots } from 'ui'
+import { Style } from 'foldkit-mixins'
 export const page = [Table.view, Style.forSlots(TableSlots)(Recipes.Table({ rows: 'striped' }))]`,
     ),
     pageOf(
