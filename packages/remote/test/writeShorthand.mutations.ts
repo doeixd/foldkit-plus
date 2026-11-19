@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: "write(name, Write.update(inputOver(entity, set), { ...options, id: 'id' } as never))",
-        replace: "write(name, Write.update(inputOver(entity, set), { id: 'id' } as never))",
+        find: "Write.update(inputOver(entity, set), { ...options, id: 'id' } as never)",
+        replace: "Write.update(inputOver(entity, set), { id: 'id' } as never)",
       },
     ],
     tests,
@@ -27,8 +27,8 @@ export default [
     edits: [
       {
         file,
-        find: "write(name, Write.delete(inputOver(entity, {}), { ...options, id: 'id' } as never))",
-        replace: "write(name, Write.delete(inputOver(entity, {}), { id: 'id' } as never))",
+        find: "Write.delete(inputOver(entity, {}), { ...options, id: 'id' } as never)",
+        replace: "Write.delete(inputOver(entity, {}), { id: 'id' } as never)",
       },
     ],
     tests,
