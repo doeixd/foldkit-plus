@@ -1,6 +1,6 @@
 # A standard library of types and operations for expressions (#601)
 
-Status: design, 2026-11-19. Nothing here is built. It changes one rule of the expression language: "only operations a query in this repository needed exist" (`docs/expressions.md`, Limits) becomes "a deliberate set of types and operations ships with the language, each defined once and held to one answer on every reader". It interlocks with the solver design ([600-solver-pass-DESIGN.md](./600-solver-pass-DESIGN.md)); section 10 says which of its phases waits on which of these.
+Status: design, 2026-11-19, revised the same day to drop a proposed `Kind` namespace in favour of recognising Effect's own Schemas (section 3.1, and section 9 for why). Nothing here is built. It changes one rule of the expression language: "only operations a query in this repository needed exist" (`docs/expressions.md`, Limits) becomes "a deliberate set of types and operations ships with the language, each defined once and held to one answer on every reader". It interlocks with the solver design ([600-solver-pass-DESIGN.md](./600-solver-pass-DESIGN.md)); section 10 says which of its phases waits on which of these.
 
 The probes behind every claim about SQLite, Postgres, JavaScript, Effect and Z3 are in the session scratchpad's `stdlib-probe/` (scripts, outputs and `RESULTS.md` kept; `node_modules` deleted). Versions: SQLite 3.53.3 (`node:sqlite`), Postgres 18.7 (PGlite 0.5.17, C collation), Postgres 17.10 and 18.6 in Docker initialised `--locale=en_US.UTF-8`, Node 26.5.0, the repository's `effect` 4.1.4, `z3-solver` 5.4.1, `tsc` 7.0.2.
 
@@ -10,7 +10,7 @@ An application here states its rules once, as data: "an open account is never ov
 
 The language those rules are written in knows little. A value is a number (a JavaScript double), text, a boolean, a literal union or a nullable one. The only named operations are `Expr.add`, `Expr.sub` and `Text.startsWith`. A real domain needs more: a date thirty days after another, a total as quantity times price, a price that must stay exact, an email compared trimmed and lower-cased. Each of those has to be an *operator* the application declares with `Expr.operator`. It then implements the operator once per reader: a JavaScript function for the judge and the page, an SQL builder for the server, and nothing at all for the checker, which then answers `undecided`. Every application pays that cost again, and meets alone the places where SQLite, Postgres and JavaScript quietly disagree.
 
-**Decision: ship a standard library in `foldkit-entity`.** It has value types (*kinds*) that a field declares through its Schema, and operations over them. Each operation is defined once, with an implementation for every reader, the laws the checker and solver may use, and conformance cases that hold all readers to one answer. The case in one sentence: we pay once for each disagreement between readers and pin or refuse it for everyone, and every rule written with the library becomes one the checker, the solver, the page, the form and the database can act on.
+**Decision: ship a standard library in `foldkit-entity`.** Its value types are Schemas: the readers recognise Effect's own (`Schema.Int`, `Schema.DateTimeUtcFromMillis`, …), and the library ships a Schema only for the four meanings Effect lacks (a decimal at a scale, money, a calendar day, an ordered enumeration). It adds operations over them. Each operation is defined once, with an implementation for every reader, the laws the checker and solver may use, and conformance cases that hold all readers to one answer. The case in one sentence: we pay once for each disagreement between readers and pin or refuse it for everyone, and every rule written with the library becomes one the checker, the solver, the page, the form and the database can act on.
 
 What it is not. It is not a programming language: no user-defined functions with bodies beyond today's `definedAs` (which builds an expression from expressions), no recursion, no loops, no I/O, no randomness, and no clock read inside an operation (the time enters only as a context term, `Expr.now` or `Time.today`, which whoever runs the write reads once and binds as a value). An operation enters only if every reader can implement it exactly or refuse it by name (section 8 states the line). Custom operators stay, for the domain-specific questions no library should own.
 
@@ -48,12 +48,12 @@ What each reader does with that today:
 With the library:
 
 ```ts sketch
-balance: Kind.money('EUR'),            // integer cents in every store; EUR's scale, 2, from ISO 4217
-lastFeeOn: Kind.date,                  // a calendar day, 'YYYY-MM-DD'
+balance: Money.schema('EUR'),          // integer cents in every store; EUR's scale, 2, from ISO 4217
+lastFeeOn: Time.Day,                   // a calendar day, 'YYYY-MM-DD'
 const Fee = Money.of('EUR', '5.00')
 
 const ChargeFee = Mutation.update('ChargeFee', Account, {
-  input: { on: Kind.date },
+  input: { on: Time.Day },
   from: Open,
   decrement: { balance: Fee },
   set: { lastFeeOn: 'on' },
@@ -69,7 +69,7 @@ A transfer between two accounts is two rows. Today it is two writes, a withdrawa
 
 ```ts sketch
 const Transfer = Entity.define('Transfer', Schema.Struct({
-  id: Schema.String, amount: Kind.money('EUR').check(Schema.isGreaterThan(0)), on: Kind.date,
+  id: Schema.String, amount: Money.schema('EUR', { minimum: '0.01' }), on: Time.Day,
 })).pipe(Entity.relate({ from: Entity.one(Account), to: Entity.one(Account) }))
 
 // The balance of the account `of` names: what came in less what went out.
@@ -107,8 +107,8 @@ With the library:
 
 ```ts sketch
 const Booking = Entity.define('Booking', Schema.Struct({
-  id: Schema.String, start: Kind.date, end: Kind.date, trialEndsOn: Kind.date,
-  plan: Kind.enum(['trial', 'monthly', 'yearly']),
+  id: Schema.String, start: Time.Day, end: Time.Day, trialEndsOn: Time.Day,
+  plan: Schema.Literals(['trial', 'monthly', 'yearly']),
 })).pipe(Entity.relate({ room: Entity.one(Room) }))
 
 Booking.pipe(
@@ -117,7 +117,7 @@ Booking.pipe(
     Expr.eq(after.trialEndsOn, Time.addDays(after.start, 30))),
 )
 const Book = Mutation.insert('Book', Booking, {
-  set: { start: Kind.date, end: Kind.date, trialEndsOn: Kind.date, plan: … },
+  set: { start: Time.Day, end: Time.Day, trialEndsOn: Time.Day, plan: … },
   // A `when` refuses the clock terms today; reading `today` here waits on that (section 4.3).
   when: ({ input }) => Expr.and(
     Expr.gte(input.start, Time.today('Europe/Paris')),
@@ -138,7 +138,7 @@ What becomes possible:
 | solver | overlap: two bookings moved apart searched over two symbolic rows (probed sat with a witness) |
 | page | shows "starts in the past" and the trial's end before sending, from the browser's `Intl` zone data |
 | database | `CHECK (end > start)` and `CHECK (start = date(start))` (which refuses '2026-02-30', probed) |
-| types | `Time.addDays(start, at)` with a timestamp, or `Expr.gt(end, createdAt)` across kinds, is refused |
+| types | `Time.addDays(at, 30)` on a timestamp, or comparing a day with an instant, is refused |
 
 ### 2.3 An order with line items, a discount and tax
 
@@ -151,16 +151,16 @@ With the library:
 ```ts sketch
 const Line = Entity.define('Line', Schema.Struct({
   id: Schema.String,
-  quantity: Kind.int.check(Schema.isGreaterThanOrEqualTo(1)),
-  unitPrice: Kind.money('EUR').check(Schema.isGreaterThanOrEqualTo(0)),
+  quantity: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)), // Effect's own: recognised as it is
+  unitPrice: Money.schema('EUR', { minimum: '0.00' }),
 })).pipe(Entity.relate({ order: Entity.one(Order) }))
 
 const lineTotal = Number.times(Line.fields.unitPrice, Line.fields.quantity) // money x int -> money
 const subtotal = Rows.sum(Line.relations.order, lineTotal)
 const discount = Number.percent(subtotal, Order.fields.discountPct, { rounding: 'half-even' })
-const tax = Number.scale(Number.minus(subtotal, discount), Order.fields.taxRate, { rounding: 'half-even' })
+const tax = Number.scale(Expr.sub(subtotal, discount), Order.fields.taxRate, { rounding: 'half-even' })
 
-Order.pipe(Entity.derived({ total: Derived.of(Number.plus(Number.minus(subtotal, discount), tax)) }))
+Order.pipe(Entity.derived({ total: Derived.of(Expr.add(Expr.sub(subtotal, discount), tax)) }))
 ```
 
 What becomes possible:
@@ -178,24 +178,42 @@ What becomes possible:
 
 ## 3. The value types
 
-### 3.1 How a kind is declared and carried
+### 3.1 What a Schema already tells every reader, and the four things it does not
 
-A *kind* is what a value means beyond its JavaScript type: "a number of cents", "a calendar day", "a duration in milliseconds". Today the language reads a field's kind from its Schema's encoded form only: number, text or boolean (`orderKindOf` and `storedKindOf` in `expr.ts`). The library adds kinds as Schemas carrying a metadata annotation, so a field still declares itself with a Schema, and every reader (the compilers, the checker, the form, the JSON Schema an agent sees) reads the same annotation.
+A field declares itself with an Effect Schema, as today, and nothing new is asked of the user to say what a value means. The readers recognise the Schema. Inside the library, the word *kind* names what a reader reads off a Schema ("a safe integer", "an instant in milliseconds"); it extends `storedKindOf` and `orderKindOf` in `expr.ts`, which today read only number, text or boolean from the encoded side. No user-facing API says "kind".
 
-```ts sketch
-import { Kind } from 'foldkit-entity/kind'
-Kind.int                    // Schema.Int (safe integers), annotated { kind: 'int' }
-Kind.decimal({ scale: 3 })  // BigDecimal in code, integer thousandths stored
-Kind.money('EUR')           // decimal at the currency's scale, currency in the type
-Kind.date                   // a calendar day
-Kind.timestamp              // an instant, milliseconds since the epoch
-Kind.duration               // a fixed length of time, milliseconds
-Kind.enum(['draft', 'review', 'published'], { ordered: true })
-```
+**What Effect's own Schemas already say.** Each one carries an id a reader can match, and `bounds.ts` already reads checks this way (`checkRange`). Probed on the repository's `effect` 4.1.4 (`recognise.mjs`):
 
-Each kind's *encoded* side is a JSON scalar (a number or a string). That is a requirement, not a convenience: rows travel and are held in their encoded form (the conformance suite's `Timestamp` fixture exists to keep interpreters honest about it), Remote's runtime JSON (`packages/remote/src/runtimeJson.ts`) and the cursor's `encodeKey` (`remote-drizzle/src/cursor.ts`) already carry numbers and strings, and so no new wire tag is needed. Effect's own `Schema.BigDecimal`, `Schema.BigInt` and `Schema.Duration` encode to objects or bigints (probed), so the library composes them with an encoding to a scalar rather than using them as they are.
+| A field declared as | Means | The reader matches | Encoded side |
+| --- | --- | --- | --- |
+| `Schema.Int` | a safe integer | the check id `effect/schema/isInt` | a number |
+| `Schema.Finite` | a float, never NaN or infinite | the check id `effect/schema/isFinite` | a number |
+| `Schema.Number` | today's double, NaN admitted | no id: left exactly as it is | a number |
+| `Schema.DateTimeUtcFromMillis` | an instant | Declaration `effect/schema/DateTimeUtc`, encoded side a number | a number of ms |
+| `Schema.DurationFromMillis` | a fixed length of time | Declaration `effect/schema/Duration` | a number of ms |
+| `Schema.Literals([...])` | an unordered enumeration | a union of literals | a string |
+| `Schema.String` with a `Collation` | text | as today | a string |
 
-**Kinds in TypeScript.** The type a node carries is the stored type plus a type-only brand, `number & { readonly '~kind'?: 'decimal:2' }`, the same optional-property idiom `Reads` uses. Where both sides carry a kind, a mix is a type error at the argument; where one side is a plain number, it is a throw where the expression is built. Probed with `tsc` 7.0.2 (`kinds.ts`): two scales, money and a count, a timestamp and a count, a number of days given as a duration, and a date given as a timestamp are all refused at the argument; a literal and a plain `number` pass. So a field declared with `Schema.Number` keeps mixing with anything at the type level, and the declaration check (`argumentFor` in `expr.ts`, extended from three stored kinds to the kinds below) refuses the mix where the expression is built, naming both kinds. That is the compatibility line: nothing written today stops compiling. A literal is written in the decoded form (`Decimal.of('12.50')`, a `BigDecimal`) and encoded through the other side's Schema before any reader sees it, as a `Date` literal against the conformance suite's `Timestamp` field already is; a literal with more digits than the scale is refused there.
+Checks and nullability pass through: `Schema.Int.check(isBetween(…))` still carries `isInt`, and `NullOr(…)` is read through, as `SchemaShape.present` already does. So an existing `Schema.Int` field is an integer to every reader without being declared again. One Schema needs care: `Schema.DateTimeUtc` (ISO text on the wire) carries the same id as `DateTimeUtcFromMillis`, so the reader also checks that the encoded side is a number. A timestamp kept as ISO text gets no timestamp arithmetic; the refusal names `DateTimeUtcFromMillis`.
+
+**What no existing Schema says.** Four things, each of which needs a Schema the library ships, exported from the module that owns its operations:
+
+| Meaning | Shipped Schema | In code | Encoded and stored |
+| --- | --- | --- | --- |
+| a decimal at a scale | `Decimal.schema({ scale: 2 })` | `BigDecimal`, branded by scale | integer units: 1250 for 12.50 |
+| money | `Money.schema('EUR')` | `BigDecimal`, branded by currency | integer minor units |
+| a calendar day | `Time.Day` | `'YYYY-MM-DD'` text, branded | the same text |
+| an order on an enumeration | `Enum.ordered(['draft', 'review', 'published'])` | the literals | the literal text |
+
+They are needed for three reasons. First, the encoded side must be a JSON scalar: rows travel and are held encoded (the conformance suite's `Timestamp` fixture exists to keep interpreters honest about it), and Remote's runtime JSON and the cursor's `encodeKey` carry numbers and strings, so no new wire tag is needed. Effect's `Schema.BigDecimal` encodes to an object (probed), so a decimal composes it with an encoding to integer units. Second, every reader must agree on one annotation (the scale, the currency, the order), which an application-written refinement would not give them. Third, the brand on the decoded type is what lets the editor refuse a mix.
+
+**What the editor refuses, and what only the declaration refuses.** New operations are typed by the decoded side, as `Expr.eq` already types its right side (`ValueOf`). Probed with `tsc` 7.0.2:
+
+- `DateTimeUtcFromMillis` decodes to `DateTime.Utc` and `DurationFromMillis` to `Duration.Duration`, distinct types. So passing a timestamp where a duration is wanted is an editor error.
+- The shipped Schemas brand their decoded types (`Schema.brand` exists, and a plain string is refused where a branded day is wanted). Two scales, two currencies, and a day passed for a timestamp are editor errors.
+- `Schema.Int`, `Schema.Finite` and `Schema.Number` all decode to plain `number`, so nothing in the type tells them apart. Where it matters (a float given to `Number.rem` or as `Time.addDays`'s count, which take an integer), the refusal comes where the expression is built (`argumentFor`, extended to the kinds), naming both, not in the editor. An integer with a float simply gives a float, so existing expressions keep compiling and running (section 7).
+
+That is also the compatibility line: a `Schema.Number` field mixes with anything at the type level, as today, and nothing written today stops compiling. A literal is written in the decoded form and encoded through the other side's Schema before any reader sees it, as a `Date` literal against the conformance `Timestamp` field already is. For a branded type that means a constructor: `Decimal.of(2, '12.50')`, `Money.of('EUR', '5.00')`, `Time.day('2026-01-31')`. A literal with more digits than the scale is refused there. One existing type needs widening: `OrderedOperand` admits number, text and `Date`, so a comparison of two `DateTime.Utc` fields needs it extended to the recognised Schemas.
 
 ### 3.2 Where the readers disagree, and the rule for each
 
@@ -232,33 +250,33 @@ Every row was probed (`RESULTS.md` has the full table). "Pin" means every reader
 
 Four of these surprised: Postgres's `cast(2.7 as integer)` rounds where SQLite truncates; `least(1, null)` is 1 in Postgres where SQLite's `min(1, null)` is null; adding `interval '1 day'` to a `timestamptz` gives a different instant depending on the connection's `TimeZone` setting (12:00 under New York, 13:00 under UTC, on Postgres 17 in Docker); and SQLite's `sum()` raises "integer overflow" where its `+` silently becomes a real.
 
-### 3.3 Each kind
+### 3.3 Each value type
 
-Each kind below gives: how it is declared, how it is held in JavaScript, on the wire, in SQLite and in Postgres, how it compares, what missing means, how `Expr.show` prints a literal, and what the checker and solver model it as. Missing is the same for every kind: a nullable field (`Schema.NullOr`, or `Schema.OptionFromNullOr` in code) holds SQL null, and every operation is null-strict unless its table says otherwise, so a comparison with a missing value is unknown, as today. A row the page does not hold is unknown to the judge, as today.
+Each type below gives: the Schema that declares it, how it is held in JavaScript, on the wire, in SQLite and in Postgres, how it compares, what missing means, how `Expr.show` prints a literal, and what the checker and solver model it as. Missing is the same for every type: a nullable field (`Schema.NullOr`, or `Schema.OptionFromNullOr` in code) holds SQL null, and every operation is null-strict unless its table says otherwise, so a comparison with a missing value is unknown, as today. A row the page does not hold is unknown to the judge, as today.
 
 **Boolean.** `Schema.Boolean`. JS boolean, JSON boolean, SQLite 0/1, Postgres `boolean`. Equality only (no order, as today). Literal `true`. Checker: finite, enumerated. Solver: `Bool`. Unchanged.
 
-**Integer.** `Kind.int`, which is `Schema.Int`: Effect's `isInt` is `Number.isSafeInteger` (probed: `Schema.Int` refuses 2^60 and 1.5). JS number, JSON number, SQLite `integer`, Postgres `bigint` (or `integer` where the Schema bounds it within 32 bits). Numeric order. Literal `42`. Checker: intervals. Solver: `Int` with the safe range assumed of fields and proved of each operation's result (600 §5). The judge refuses an intermediate result outside the safe range, so the page shows unknown rather than a different answer; SQL is exact to 2^63, so the server's answer is right where the page declines. No reader gives a wrong answer; one declines. A stored result outside the range is refused by the field's `CHECK`, and the solver reports any write that could produce one (600 §5).
+**Integer.** `Schema.Int`, recognised by its `isInt` check, with any further checks: Effect's `isInt` is `Number.isSafeInteger` (probed: `Schema.Int` refuses 2^60 and 1.5). JS number, JSON number, SQLite `integer`, Postgres `bigint` (or `integer` where the Schema bounds it within 32 bits). Numeric order. Literal `42`. Checker: intervals. Solver: `Int` with the safe range assumed of fields and proved of each operation's result (600 §5). The judge refuses an intermediate result outside the safe range, so the page shows unknown rather than a different answer; SQL is exact to 2^63, so the server's answer is right where the page declines. No reader gives a wrong answer; one declines. A stored result outside the range is refused by the field's `CHECK`, and the solver reports any write that could produce one (600 §5).
 
-**Decimal.** `Kind.decimal({ scale })`, scale 0 to 9. In code an Effect `BigDecimal` (exact, with ten rounding modes, probed), so `12.50` reads and prints as written. Stored and on the wire as an integer count of units of `10^-scale` (12.50 at scale 2 is `1250`): SQLite `integer`, Postgres `bigint`. The reason is the probe: SQLite has no decimal type, its `numeric` affinity turned `'12.50'` into the real 12.5, and every reader already agrees on integer arithmetic. A double cannot hold most cent amounts exactly (0.1 + 0.2 is 0.30000000000000004 on SQLite and in JavaScript), so sums drift, rounding differs by reader (section 3.2), and the solver would need floating-point theory to say anything. Order and indexes are integer ones. Range: ±(2^53-1) units, so ±90 trillion at scale 2. Literal `12.50` (always `scale` digits). Checker: intervals over the integer. Solver: `Int`, exact, linear. This settles #600's open question 2 for every quantity declared a decimal: no floating-point theory is needed for money.
+**Decimal.** `Decimal.schema({ scale })`, scale 0 to 9, shipped from `foldkit-entity/decimal`, the module of its operations. In code an Effect `BigDecimal` branded by its scale (exact, with ten rounding modes, probed), so `12.50` reads and prints as written. Stored and on the wire as an integer count of units of `10^-scale` (12.50 at scale 2 is `1250`): SQLite `integer`, Postgres `bigint`. The reason is the probe: SQLite has no decimal type, its `numeric` affinity turned `'12.50'` into the real 12.5, and every reader already agrees on integer arithmetic. A double cannot hold most cent amounts exactly (0.1 + 0.2 is 0.30000000000000004 on SQLite and in JavaScript), so sums drift, rounding differs by reader (section 3.2), and the solver would need floating-point theory to say anything. Order and indexes are integer ones. Range: ±(2^53-1) units, so ±90 trillion at scale 2. Literal `12.50` (always `scale` digits). Checker: intervals over the integer. Solver: `Int`, exact, linear. This settles #600's open question 2 for every quantity declared a decimal: no floating-point theory is needed for money.
 
-**Float.** `Kind.float`, which is `Schema.Finite`. Only where asked: a measurement, a score. JS double, JSON number, SQLite `real`, Postgres `double precision`. Arithmetic is today's `Expr.add` semantics. Solver: IEEE doubles with `fp.*`, as 600 phase 2 proposes. A field declared `Schema.Number` (which admits NaN, probed) keeps meaning exactly what it means today: an unannotated double, outside every kind check.
+**Float.** `Schema.Finite`, recognised by its `isFinite` check. Only where asked: a measurement, a score. JS double, JSON number, SQLite `real`, Postgres `double precision`. Arithmetic is today's `Expr.add` semantics. Solver: IEEE doubles with `fp.*`, as 600 phase 2 proposes. A field declared `Schema.Number` (which admits NaN, probed) keeps meaning exactly what it means today: an unrecognised double, mixing with every number as now.
 
-**Money.** `Kind.money(currency, { scale? })`: a decimal whose currency is part of the type (open question 3), scale from ISO 4217, the standard that fixes each currency's minor unit (EUR 2, JPY 0, BHD 3), unless given. Stored as the decimal's integer. Arithmetic only with money of the same currency; multiplication only by an integer or a decimal, never by money. Literal `EUR 12.50`. Rounding names its mode at each operation that can produce a fraction of a unit; the default offered in docs is half-even (banker's rounding), because it does not drift upward over many roundings. Solver: `Int`; the currency is in the type, so the solver never sees it.
+**Money.** `Money.schema(currency, { scale?, minimum?, maximum? })` from `foldkit-entity/money`: a decimal whose currency is part of the type (open question 3), scale from ISO 4217, the standard that fixes each currency's minor unit (EUR 2, JPY 0, BHD 3), unless given. Stored as the decimal's integer. Arithmetic only with money of the same currency; multiplication only by an integer or a decimal, never by money. Literal `EUR 12.50`. Rounding names its mode at each operation that can produce a fraction of a unit; the default offered in docs is half-even (banker's rounding), because it does not drift upward over many roundings. Solver: `Int`; the currency is in the type, so the solver never sees it.
 
 **Text.** `Schema.String`, with `Collation.binary` or `Collation.asciiFold` declared where it orders or folds case, as today. Length is in code points everywhere (`Schema.isMaxCodePoints` already exists; `isMaxLength` counts UTF-16 units, a known trap). A lone surrogate reads as U+FFFD and NUL is refused, as today. Literal `'it''s'`. Solver: `String` (600 phase 2).
 
-**Enumeration.** `Kind.enum(values, { ordered })`, which is `Schema.Literals(values)` annotated. Stored as text (readable, and what the examples do). Unordered: equality and `in`. Ordered: compared by position, compiled `case x when 'draft' then 0 when 'review' then 1 … end` on both dialects; such a comparison uses no index on the column, which the docs say. Literal `'draft'`. Checker: finite, enumerated. Solver: a finite set (probed with a datatype of three plans).
+**Enumeration.** `Schema.Literals(values)`, recognised as it is, for an unordered one. Stored as text (readable, and what the examples do). Unordered: equality and `in`. An order is the one thing the literals do not say, so an ordered enumeration is `Enum.ordered(values)` from `foldkit-entity/enum`: the same `Schema.Literals`, with the order as an annotation every reader reads. Ordered: compared by position, compiled `case x when 'draft' then 0 when 'review' then 1 … end` on both dialects; such a comparison uses no index on the column, which the docs say. Literal `'draft'`. Checker: finite, enumerated. Solver: a finite set (probed with a datatype of three plans).
 
-**Identifier and reference.** An `id` field and a `one` relation's value are text today (`linkExpr` in `expr.ts`). They gain the kind `id:<Entity>`, so an id is never added to anything, a numeric id included, and an id of one Entity is not compared with another's. Equality and `in` only. Solver: `String`, equality only.
+**Identifier and reference.** An `id` field and a `one` relation's value are text today (`linkExpr` in `expr.ts`). The readers already know a field is an id (its key, or the relation it stores), so no Schema changes: the declaration check treats it as an id of its Entity, so an id is never added to anything, a numeric id included, and an id of one Entity is not compared with another's. Equality and `in` only. Solver: `String`, equality only.
 
-**Date (a calendar day, no zone).** `Kind.date`. In code `'YYYY-MM-DD'` text (no time, no zone; an Effect `DateTime` carries a time, so it is not the type here). Wire and SQLite: the same text, which orders correctly as text and keeps indexes; validity is held by the Schema and by `CHECK (x = date(x))`, which refuses `'2026-02-30'` since SQLite normalises it to `'2026-03-02'` (probed). Postgres: `date`. Range 0001-01-01 to 9999-12-31, the range CEL (Google's Common Expression Language, section 9) gives its timestamps. Literal `date'2026-01-31'`. Checker: intervals over the day number. Solver: `Int` days since 1970-01-01, a bijection on that range.
+**Date (a calendar day, no zone).** `Time.Day` from `foldkit-entity/time`: Effect has no Schema for a day without a time (a `DateTime` carries a time, so it is not the type here). In code `'YYYY-MM-DD'` text, branded, so plain text is refused where a day is wanted (probed with `Schema.brand`). Wire and SQLite: the same text, which orders correctly as text and keeps indexes; validity is held by the Schema and by `CHECK (x = date(x))`, which refuses `'2026-02-30'` since SQLite normalises it to `'2026-03-02'` (probed). Postgres: `date`. Range 0001-01-01 to 9999-12-31, the range CEL (Google's Common Expression Language, section 9) gives its timestamps. Literal `date'2026-01-31'`. Checker: intervals over the day number. Solver: `Int` days since 1970-01-01, a bijection on that range.
 
 **Time of day.** Deferred. Nothing here needs it yet that a timestamp or a date does not cover, there is no time field in `foldkit-mixins-ui` to draw it, and it brings questions (24:00, leap seconds, a time that a daylight-saving change skips) that are worth answering with a caller. When it comes: milliseconds since midnight, an integer everywhere.
 
-**Timestamp (an instant).** `Kind.timestamp`. In code an Effect `DateTime.Utc` (`Schema.DateTimeUtcFromMillis` exists, probed). Stored and on the wire as integer milliseconds since the epoch: SQLite `integer`, Postgres `bigint`. That is what `Expr.now` already is (`context.ts`: `Schema.Int` milliseconds) and what Chirp stores. Postgres `timestamptz` is refused for this kind: it keeps microseconds, and a value read through a JavaScript `Date` and written back no longer equals the stored one (probed). Literal `ts'2026-01-31T10:00:00.000Z'`. Solver: `Int`.
+**Timestamp (an instant).** `Schema.DateTimeUtcFromMillis`, recognised by its Declaration id and its number encoding; no wrapper. In code an Effect `DateTime.Utc`. Stored and on the wire as integer milliseconds since the epoch: SQLite `integer`, Postgres `bigint`. That is what `Expr.now` already is (`context.ts`: `Schema.Int` milliseconds) and what Chirp stores. Postgres `timestamptz` is refused as its column: it keeps microseconds, and a value read through a JavaScript `Date` and written back no longer equals the stored one (probed). Literal `ts'2026-01-31T10:00:00.000Z'`. Solver: `Int`.
 
-**Duration.** `Kind.duration`: a fixed length, integer milliseconds (Effect `Duration` in code, `Schema.DurationFromMillis`). Not a calendar length: "one month" is not a fixed number of milliseconds, nor is "one day" across a daylight-saving change (the probe's `interval '1 day'` added 23 hours in New York on 8 March). Calendar arithmetic exists only on dates, as named operations (`Time.addDays`, `Time.addMonths`), never as a duration value. This is the split CEL makes (its durations stop at hours), carried one step further. Literal `duration'PT15M'`.
+**Duration.** `Schema.DurationFromMillis`, recognised by its Declaration id; no wrapper. A fixed length, integer milliseconds, an Effect `Duration` in code. (`Schema.Duration` itself encodes to an object, probed, so it is not recognised; the refusal names `DurationFromMillis`.) Not a calendar length: "one month" is not a fixed number of milliseconds, nor is "one day" across a daylight-saving change (the probe's `interval '1 day'` added 23 hours in New York on 8 March). Calendar arithmetic exists only on dates, as named operations (`Time.addDays`, `Time.addMonths`), never as a duration value. This is the split CEL makes (its durations stop at hours), carried one step further. Literal `duration'PT15M'`.
 
 **Lists and sets of scalars.** Deferred to phase 6. A set field (tags from a closed enumeration) would be stored as JSON array text in SQLite and `text[]` in Postgres, with `List.has(field, value)` and `List.size(field)`. Against a related Entity it is worth it only for a small closed set with no identity of its own; anything with identity, order or unbounded growth stays a relation, which every reader already handles (`Expr.exists`).
 
@@ -266,13 +284,13 @@ Each kind below gives: how it is declared, how it is held in JavaScript, on the 
 
 ### 3.4 In the first release, and deferred
 
-| Kind | First release | Why |
+| Type | First release | Why |
 | --- | --- | --- |
-| boolean, text, enumeration, identifier | yes (enumeration order and identifier kinds are new) | cheap; already half there |
+| boolean, text, enumeration, identifier | yes (enumeration order and id checks are new) | cheap; already half there |
 | integer, decimal | yes, phase 1 | unblock money and totals; the solver's best theory |
 | date, timestamp, duration | yes, phase 3 | the most common reason a custom operator is written |
 | money | yes, phase 6 (a decimal plus a currency in the type) | needs decimal and its rounding first |
-| float | yes, as an annotation of `Schema.Finite` | arithmetic is today's; solver waits on 600 phase 2 |
+| float | yes: `Schema.Finite` recognised | arithmetic is today's; solver waits on 600 phase 2 |
 | time of day | deferred | no caller, no widget, unanswered edge cases |
 | lists, sets | deferred to phase 6 | storage differs by dialect; a relation covers most cases |
 | JSON | refused | readers cannot agree on its equality |
@@ -280,7 +298,7 @@ Each kind below gives: how it is declared, how it is held in JavaScript, on the 
 
 ## 4. The operations
 
-Names follow what exists: `Expr.add`, `Expr.gt`, `Text.startsWith`. New operations live in one module each, grouped by subpath (`foldkit-entity/number`, `/text`, `/time`, `/money`, `/rows`) and imported by name or as an ESM namespace (`import * as Number from 'foldkit-entity/number'`, which bundlers shake member by member), never as members of an object, so a page carries only what it names (section 5). `Number` follows Effect's own module of that name; it shadows the global only in a file that imports it so. `Expr.add`, `Expr.sub` and `Text.startsWith` stay where they are (on the `Expr` and `Text` objects every page already imports) and gain the kinds; `foldkit-entity/text` re-exports `startsWith` beside the new text operations.
+Names follow what exists: `Expr.add`, `Expr.gt`, `Text.startsWith`. New operations live in one module each, grouped by subpath (`foldkit-entity/number`, `/decimal`, `/money`, `/text`, `/time`, `/enum`, `/rows`; the three shipped Schemas live in the subpath of their operations) and imported by name or as an ESM namespace (`import * as Number from 'foldkit-entity/number'`, which bundlers shake member by member), never as members of an object, so a page carries only what it names (section 5). `Number` follows Effect's own module of that name; it shadows the global only in a file that imports it so. `Expr.add`, `Expr.sub` and `Text.startsWith` stay where they are (on the `Expr` and `Text` objects every page already imports) and learn the recognised Schemas; `foldkit-entity/text` re-exports `startsWith` beside the new text operations.
 
 Every operation below is null-strict (a null argument gives null, a predicate over one is unknown) unless its row says otherwise. "Laws" are the `Law` values the operation declares (`law.ts`), which `Conformance.laws` tests, the interval pass of `Laws.check` uses for monotonic ones (`bounds.ts`), and the solver instantiates. "Solver" names the theory: LIA is linear integer arithmetic, NIA nonlinear, which 600 phase 1 refuses.
 
@@ -302,7 +320,7 @@ Every operation below is null-strict (a null argument gives null, a predicate ov
 | `Number.toInt(d, { rounding })` | `decimal -> int` | monotonic increasing | yes | LIA |
 | `Expr.lt` … `gte`, `eq` | `K x K -> boolean`, as today | | yes | LIA |
 
-`K` is one numeric kind; two arguments must have the same kind and, for decimals and money, the same scale and currency. A plain literal on either side takes the other side's kind and is checked where the expression is built (a scale-2 literal `12.505` is refused). `rounding` is one of `'half-even'`, `'half-away-from-zero'`, `'floor'`, `'ceiling'`, `'toward-zero'`; it is required, because a default here is a silent decision about money.
+`K` is one numeric kind (integer, float, decimal at a scale, money in a currency; a plain `Schema.Number` joins any). Two decimals or two amounts must share the scale and currency; an integer with a float gives a float, so existing expressions keep working. A plain literal on either side takes the other side's kind and is checked where the expression is built (a scale-2 literal `12.505` is refused). `rounding` is one of `'half-even'`, `'half-away-from-zero'`, `'floor'`, `'ceiling'`, `'toward-zero'`; it is required, because a default here is a silent decision about money.
 
 **SQL.** No operation compiles to a database's `round`, `/`, `cast`, `least` or `min`, since each of those disagrees (section 3.2). Each compiles to integer arithmetic both dialects agree on, given integers: `+`, `-`, `*`, `%` (truncating in both, probed) and `/` applied to an exact multiple. Here are floor division and half-even rounding of `n / d` for a positive literal `d`, as emitted. Postgres parameters are cast to `bigint`, as `castFor` in `compile.ts` already casts numbers.
 
@@ -426,7 +444,7 @@ Today a primitive kernel operator is three separate pieces that nothing ties tog
 
 **The judge without a registry of everything.** The judge must run a kernel operation it meets in a node, but a page must not import every implementation to make that possible. So a kernel descriptor carries its memory implementation: the node built by `Number.times(…)` refers to the descriptor, which refers to its function, and a page that never calls `times` never imports either. Application tables (`Operators.memory`, `override`) keep working for custom operators. A pending write that carries a computed assignment by name (`number.times@1`) is resolved against the operators reachable from the writes and queries given to `Remote.make`, not a global list, so `Operators.kernel` stops being "every kernel operator" and becomes "every operator the application's declarations name".
 
-**Where it lives, and what a page carries.** One file per operation, each a package entry (as `foldkit-entity`'s build already makes each source file an entry, #215), re-exported by name from `foldkit-entity/number`, `/text`, `/time`, `/money`, `/rows` and `/kind`, each subpath an ESM module whose namespace import is shaken per member. Not as members of the `Expr` or `Text` objects: a namespace object keeps every member's module in every page that reads one member (`docs/agents/traps-bundling-and-builds.md`). The kernel's namespaces (`number`, `text`, `time`, `decimal`, `money`, `rows`, `choice`, `list`) are reserved: `Expr.operator` refuses an application id under them, as it refuses `foldkit.` today. A bundle budget pins a page that uses one date operation with every other library module `absent`.
+**Where it lives, and what a page carries.** One file per operation, each a package entry (as `foldkit-entity`'s build already makes each source file an entry, #215), re-exported by name from `foldkit-entity/number`, `/decimal`, `/money`, `/text`, `/time`, `/enum` and `/rows`, each subpath an ESM module whose namespace import is shaken per member. Not as members of the `Expr` or `Text` objects: a namespace object keeps every member's module in every page that reads one member (`docs/agents/traps-bundling-and-builds.md`). The kernel's namespaces (`number`, `text`, `time`, `decimal`, `money`, `enum`, `rows`, `choice`, `list`) are reserved: `Expr.operator` refuses an application id under them, as it refuses `foldkit.` today. A bundle budget pins a page that uses one date operation with every other library module `absent`.
 
 **A custom operator keeps working,** unchanged. It becomes provable in one of two ways. Defined by an expression (`definedAs`), it is expanded and is exactly as provable as the library operations it is built from; the library's main effect on custom operators is that most of them become defined ones (`bank.monthOf` is `Time.startOfMonth`). Primitive, it stays a black box to the solver except for the laws it declares, which 600 §4 instantiates as ground facts over the calls in a question (probed: `add_months` with the law "greater for m >= 1" proves `end > start`; without it, a witness). Entity still gains no solver vocabulary for applications: only the kernel's entries have solver translations, which the kernel owns and tests.
 
@@ -438,7 +456,7 @@ What exists to build on: `foldkit-entity/conformance` runs bodies, rows and expe
 
 The library extends each:
 
-- [ ] **Generators per kind.** Each kind supplies its awkward values (decimal: 0, ±1 unit, an exact half at each scale, the largest safe count of units; date: 29 February, the 28th to 31st of every month, 0001-01-01, 9999-12-31; text: the existing samples plus combining marks and U+10FFFF; timestamp: the epoch, negative instants) and a seeded random generator within its Schema's bounds. `samplesOf` in `conformance/operator.ts` gains them.
+- [ ] **Generators per value type.** Each type supplies its awkward values (decimal: 0, ±1 unit, an exact half at each scale, the largest safe count of units; date: 29 February, the 28th to 31st of every month, 0001-01-01, 9999-12-31; text: the existing samples plus combining marks and U+10FFFF; timestamp: the epoch, negative instants) and a seeded random generator within its Schema's bounds. `samplesOf` in `conformance/operator.ts` gains them.
 - [ ] **Every operation through every reader.** For each kernel operation, every generated and hand-picked case runs through the judge, the page's predictor (the same memory implementation, through `Write.apply` for writes), SQLite, PGlite and a real Postgres in a locale. The solver joins as a ground reader: it asserts the arguments and asks for the result, as 600 §5 proposes. All agree, or all refuse. A disagreement prints the case, each reader's answer and the seed.
 - [ ] **A grammar of expressions.** The differential test of 600 phase 0 generates domains from a grammar; its grammar gains the library's operations and kinds, so random nestings (`round(times(sum(…), 3) / 7)`) meet every reader, not only one operation at a time.
 - [ ] **The laws, tested.** Every declared law runs through `Conformance.laws` on the memory implementation and `Conformance.lawsBy` on each SQL dialect; the evidence is recorded in both tables (`withEvidence`). An operation claiming a law no implementation passes fails the completeness test of section 5.
@@ -468,7 +486,7 @@ Cost in CI: the conformance run is sized by seed count, as 600's differential su
 
 | Library phase | Solver phase it feeds | What it settles there |
 | --- | --- | --- |
-| 1: integer, decimal, the single-definition format | 600 phase 1 (integers) | money as `Int`, exact: open question 2 is needed only for `Kind.float` |
+| 1: integer, decimal, the single-definition format | 600 phase 1 (integers) | money as `Int`, exact: open question 2 is needed only for `Schema.Finite` |
 | 2: `if`, `match`, `coalesce` | 600 phase 1 (`ite` over booleans, literal unions) | nothing open |
 | 3: date, timestamp, duration, today | 600 phase 2 (`Expr.now`, context) | dates as `Int` days; `today` as a free `Int` per zone |
 | 4: text | 600 phase 2 (text) | which text operations get exact theory terms (table 4.2) |
@@ -478,20 +496,20 @@ Cost in CI: the conformance run is sized by seed count, as 600's differential su
 **Beyond checking.**
 
 - **`CHECK` constraints.** `checks.ts` compiles Schema checks and one-row invariants with each table's operators; library operations bring their SQL with them, so `Expr.gt(after.end, after.start)`, `trialIsThirtyDays` and every kind's validity (`x = cast(x as integer)` for a decimal, `x = date(x)` for a date on SQLite) become generated constraints. A rule over an aggregate stays the writer's, reported as `serverOnly` as today.
-- **Forms.** `Input.resolve` (`packages/form/src/input.ts`) maps text, number, boolean and literal unions to inputs and leaves a date unresolved. With kinds it maps a date to `DatePicker` and a date range to `Calendar`'s `Selection.Range`, an int to `NumberField` with step 1, a decimal and money to the amount input `packages/form-recipes` already has (minor units, currency, scale, locale), an enumeration to `Select`. A time of day has no widget yet, which is one reason it is deferred.
-- **Crud and the data grid.** Filters and sorts are chosen per kind: a range for dates and amounts, `in` for an enumeration, an ordered enumeration sorted by position.
-- **CMS.** Field kinds for dates and amounts instead of ISO text the site parses (`dateOf` in `examples/cms/src/content/site.ts`); `cms.published` stays a defined operator.
+- **Forms.** `Input.resolve` (`packages/form/src/input.ts`) maps text, number, boolean and literal unions to inputs and leaves a date unresolved. Reading the same recognised Schemas, it maps a `Time.Day` to `DatePicker` and a date range to `Calendar`'s `Selection.Range`, a `Schema.Int` to `NumberField` with step 1, a decimal and money to the amount input `packages/form-recipes` already has (minor units, currency, scale, locale), an enumeration to `Select`. A time of day has no widget yet, which is one reason it is deferred.
+- **Crud and the data grid.** Filters and sorts are chosen by the field's Schema: a range for dates and amounts, `in` for an enumeration, an ordered enumeration sorted by position.
+- **CMS.** Day, timestamp and money fields instead of ISO text the site parses (`dateOf` in `examples/cms/src/content/site.ts`); `cms.published` stays a defined operator.
 - **Guard.** Rules over dates and amounts with no custom operator; a rule over the clock remains Guard's call (section 4.3).
-- **Sync.** A document's laws are functions (`holds({ before, after })`) and stay so; a document that wants checkable laws can state them as expressions over its slice once the kinds exist.
+- **Sync.** A document's laws are functions (`holds({ before, after })`) and stay so; a document that wants checkable laws can state them as expressions over its slice once these types and operations exist.
 - **Agents.** A tool's input schema (`jsonSchemaOf`) says `{ "type": "string", "format": "date" }` for a date and carries a decimal's scale and a money field's currency, so an agent sends `"2026-01-31"`, not "next Friday".
 
 ## 7. Compatibility and migration
 
-- **Nothing breaks on its own.** `Schema.Number` fields keep their meaning (a double, NaN admitted), `Expr.add` and `Expr.sub` behave as today on them, and every new kind is opt-in. The only refusals added to existing code are the reserved kernel namespaces (an application operator named `number.times` must be renamed) and the declaration check between two different kinds, which no existing field has.
-- **A double becomes a decimal** by changing the field's Schema and migrating its column. The library provides a generated migration per dialect that rounds each stored double half-even at the scale into a new integer column, and a report of every row whose double was not within a millionth of a unit of a value at that scale, for review, never silently rounded. The column's type changes from `real` to `integer` (SQLite) or `double precision` to `bigint` (Postgres); `bind`'s column check (`checkColumn` in `remote-drizzle/src/bind.ts`) gains the kinds and refuses a decimal on a `real` column with that sentence.
-- **Dates kept as ISO text** (the CMS's `publishedAt`) become `Kind.date` or `Kind.timestamp` with no data change where the text is already a day or an instant is already milliseconds; ISO instant text to milliseconds is a generated migration.
-- **`Expr.show`** prints each kind's literal (`12.50`, `EUR 12.50`, `date'2026-01-31'`, `ts'…'`, `duration'PT15M'`) and each operation by name, `(a * 3)` for `times` by a literal; existing output is unchanged.
-- **The wire.** Encoded values are JSON scalars, so rows, inputs and cursors travel as today. An operator's `OperatorDescription` (published by `Operators.describeTable`) gains each argument's kind through its JSON Schema. A client and a server on different deploys already refuse a call to an operator version the other lacks (`missingName`); a new kernel operation is version 1 of a new id, so an old client refuses it by name rather than misreading it.
+- **Nothing breaks on its own.** `Schema.Number` fields keep their meaning (a double, NaN admitted), and `Expr.add` and `Expr.sub` behave as today on them. Recognising Effect's own Schemas could have refused mixes that compile today, so the rules are set not to: an integer with a float gives a float, and a `Schema.Number` mixes with every number, as now. What is refused is new: the shipped Schemas (a decimal, money, a day) mixed with anything else, and a timestamp or duration used as a plain number, which no expression can do today (`OrderedOperand` admits no `DateTime`). `Expr.now` keeps its `Schema.Int` milliseconds, so Chirp's `createdAt: Schema.Number` set from it is unchanged; `Time.now` is the same clock typed as a timestamp. The other added refusal is the reserved kernel namespaces (an application operator named `number.times` must be renamed).
+- **A double becomes a decimal** by changing the field's Schema and migrating its column. The library provides a generated migration per dialect that rounds each stored double half-even at the scale into a new integer column, and a report of every row whose double was not within a millionth of a unit of a value at that scale, for review, never silently rounded. The column's type changes from `real` to `integer` (SQLite) or `double precision` to `bigint` (Postgres); `bind`'s column check (`checkColumn` in `remote-drizzle/src/bind.ts`) learns the recognised Schemas and refuses a decimal on a `real` column with that sentence.
+- **Dates kept as ISO text** (the CMS's `publishedAt`) become `Time.Day` or `Schema.DateTimeUtcFromMillis` with no data change where the text is already a day or an instant is already milliseconds; ISO instant text to milliseconds is a generated migration.
+- **`Expr.show`** prints each type's literal (`12.50`, `EUR 12.50`, `date'2026-01-31'`, `ts'…'`, `duration'PT15M'`) and each operation by name, `(a * 3)` for `times` by a literal; existing output is unchanged.
+- **The wire.** Encoded values are JSON scalars, so rows, inputs and cursors travel as today. An operator's `OperatorDescription` (published by `Operators.describeTable`) gains what each argument means through its JSON Schema (`format: date`, a scale, a currency). A client and a server on different deploys already refuse a call to an operator version the other lacks (`missingName`); a new kernel operation is version 1 of a new id, so an old client refuses it by name rather than misreading it.
 
 ## 8. Costs and risks
 
@@ -507,39 +525,40 @@ Cost in CI: the conformance run is sized by seed count, as 600's differential su
 
 **The line against a programming language.** An operation enters only if (1) every reader implements it exactly, or refuses it by name with a reason; (2) it has conformance cases, including the awkward values of its kinds, that pass on every reader; (3) it is total over its input Schema, or its partiality is a declared answer (`onZero`); (4) it reads nothing but its arguments: no clock, no randomness, no other row except through `Rows`. User-defined functions with bodies, recursion and loops are refused, and so are regular expressions, floating-point money and Unicode casing until every reader can do it.
 
-**Risks.** A second and third semantics for every operation (SQL, the solver) can drift from the judge: the completeness test, the generated conformance cases and the mutation specs are the guard, as they are for the SQL compilers today. The kind brand is optional at the type level, so a `Schema.Number` field mixes with a kinded one in TypeScript and is caught only where the expression is built: the error is a throw at definition, not in the editor. Aggregates invite rules whose safety depends on the writer's isolation (section 4.5); refusing them on D1 and requiring a lock on Postgres is part of the design, not an afterthought.
+**Risks.** A second and third semantics for every operation (SQL, the solver) can drift from the judge: the completeness test, the generated conformance cases and the mutation specs are the guard, as they are for the SQL compilers today. `Schema.Int`, `Schema.Finite` and `Schema.Number` all decode to plain `number`, so what tells them apart is caught only where the expression is built: a throw at definition, not an editor error. The shipped Schemas and Effect's `DateTime` and `Duration` types are caught in the editor. A reader that recognises Schemas by their ids depends on Effect keeping those ids (`effect/schema/isInt`, `effect/schema/DateTimeUtc`, …); a test pins each one, so an Effect upgrade that renames one fails there first. Aggregates invite rules whose safety depends on the writer's isolation (section 4.5); refusing them on D1 and requiring a lock on Postgres is part of the design, not an afterthought.
 
 ## 9. Rejected alternatives
 
 - **Leave it to custom operators.** That is today, and the cost is in section 2: every application writes the same operators, implements each per reader, meets the same disagreements alone, and gets `undecided` from the checker for all of them.
 - **Raw SQL fragments in expressions.** The judge, the page, the checker and the solver cannot read SQL text, and a fragment is one dialect's. It would make every rule that uses one server-only.
 - **CEL (Common Expression Language)**, the closest prior art for "one expression, several evaluators". Its language definition gets several things right, and we take them: integer overflow is an error, not a wrap ("Arithmetic operations raise an error when the results exceed the range of the integer type"); there are no implicit numeric conversions (`1 + 1u` does not dispatch); string size counts code points; timestamps and durations are separate types, and durations stop at hours ("Durations greater than the hour granularity, such as days or weeks, are not supported"), with calendar fields read through accessors that take a zone. What it lacks for us: it has no SQL compiler and no notion of SQL's unknown (its errors absorb in `&&` and `||`, a different logic from SQL's three values); it has `double` but no exact decimal; timestamps have nanosecond precision, which no JavaScript `Date` keeps; its regular expressions are RE2, which neither SQLite nor Postgres runs; and its definition does not say what division by zero or a negative remainder gives. Adopting it would mean a CEL-to-SQL compiler and a CEL judge in the browser, then pinning everything section 3.2 pins anyway.
-- **JSONLogic.** Portable JSON, but untyped: `{"+": [1, "2"]}` has an answer, which is the class of mistake kinds exist to refuse. No dates, no decimals, no SQL.
+- **JSONLogic.** Portable JSON, but untyped: `{"+": [1, "2"]}` has an answer, which is the class of mistake the recognised Schemas exist to refuse. No dates, no decimals, no SQL.
 - **A SQL subset as the language.** Its semantics are the dialects', which disagree exactly where section 3.2 shows; a subset that pins each would be this library written in SQL's syntax, without types.
-- **Zod or ArkType refinements, or Effect Schema filters.** They check one value in JavaScript; they are not data a compiler or solver can read. Effect Schema stays the way a field declares its kind.
+- **Zod or ArkType refinements, or Effect Schema filters.** They check one value in JavaScript; they are not data a compiler or solver can read. Effect Schema stays the way a field declares what it holds.
+- **A `Kind` namespace** (`Kind.int`, `Kind.date`, `Kind.money('EUR')`, an earlier draft of this note). `Kind.int` beside `Schema.Int` is two ways to say one thing, and an existing `Schema.Int` field would have meant nothing to the readers until declared again. Effect's own Schemas already carry ids every reader can match (section 3.1), so the library recognises them and ships a Schema only where Effect says nothing: a scale, a currency, a calendar day, an order. Those live with their operations (`Decimal`, `Money`, `Time`, `Enum`), not in a grab-bag, and no user-facing page needs the word "kind". No recognised Schema needed a wrapper: `DateTimeUtcFromMillis` and `DurationFromMillis` already encode to a number, and `Schema.Int` and `Schema.Finite` to a number with an id.
 - **Exact decimals as Postgres `numeric` and SQLite text.** Text does not order as numbers do (`'10.00' < '9.00'`), and SQLite's `numeric` affinity turns `'12.50'` into a double (probed). Integer units agree everywhere and keep indexes (open question 1 keeps the choice visible).
 
 ## 10. A plan in phases
 
 Smallest first. Each phase says what a user can do afterwards, what must pass before it is done, the solver phase it feeds, and whether it waits on a decision.
 
-**Phase 1: integers and decimals, and the single-definition format.** A user declares `Kind.int` and `Kind.decimal`, and uses `times` and `scale` by a literal, `negate`, `abs`, `min`, `max`, `round`, `div` by a literal and the conversions; mixing kinds is refused at the argument. Acceptance: the format of section 5 with `KernelId` and the completeness test; every number row of section 3.2 a conformance case; the half-even differential (0 disagreements in 2,000) in CI; the bank with its balance as `Kind.decimal({ scale: 2 })` (money, with its currency in the type, comes in phase 6), with `ChargeFee x neverOverdrawn` decided by intervals. Feeds 600 phase 1. Waits on question 1.
+**Phase 1: integers and decimals, and the single-definition format.** A user's `Schema.Int` and `Schema.Finite` fields are recognised as they are; a user declares a decimal with `Decimal.schema({ scale })`, and uses `times` and `scale` by a literal, `negate`, `abs`, `min`, `max`, `round`, `div` by a literal and the conversions; a decimal of another scale, or a decimal and an integer, is refused (in the editor where the types can tell, at definition otherwise). Acceptance: the format of section 5 with `KernelId` and the completeness test; every number row of section 3.2 a conformance case; the half-even differential (0 disagreements in 2,000) in CI; the bank with its balance as `Kind.decimal({ scale: 2 })` (money, with its currency in the type, comes in phase 6), with `ChargeFee x neverOverdrawn` decided by intervals. Feeds 600 phase 1. Waits on question 1.
 
 **Phase 2: choice.** A user writes `Expr.if`, `Expr.match` and `Expr.coalesce`. Acceptance: a `match` missing a value is a type error and a declaration error; `if` with an unknown condition takes `else` on every reader. Feeds 600 phase 1. No decision.
 
-**Phase 3: dates and times.** A user declares `Kind.date`, `Kind.timestamp` and `Kind.duration`; uses `today`, `addDays`, `addMonths`, `daysBetween`, `startOfMonth`, `part`, `add`, `between` and `overlaps`; a form draws a date picker for a date. Acceptance: the month-clamp and days differentials in CI; the booking's one-row rules generated as `CHECK`s; the page's prediction over `today` unknown near midnight. Feeds 600 phase 2. Waits on questions 2 and 4.
+**Phase 3: dates and times.** A user declares a day with `Time.Day`, and `Schema.DateTimeUtcFromMillis` and `Schema.DurationFromMillis` fields are recognised as they are; uses `today`, `addDays`, `addMonths`, `daysBetween`, `startOfMonth`, `part`, `add`, `between` and `overlaps`; a form draws a date picker for a date. Acceptance: the month-clamp and days differentials in CI; the booking's one-row rules generated as `CHECK`s; the page's prediction over `today` unknown near midnight. Feeds 600 phase 2. Waits on questions 2 and 4.
 
 **Phase 4: text.** A user uses `length`, `lowerAscii`, `upperAscii`, `trim`, `concat`, `endsWith` and `includes`. Acceptance: the text differentials (0 in 500 each) in CI, on a Postgres in `en_US.UTF-8` too. Feeds 600 phase 2. No decision.
 
 **Phase 5: across related rows.** A user uses `Rows.sum`, `count`, `min`, `max`, `every` and `any` with `{ of }`, defines members with `Derived.of`, and states rules over aggregates. Acceptance: the order domain with its total derived, edits proved to keep it, and the credit limit decided by delta; the Postgres writer locks the parent row; D1 refuses such a rule where declared. Feeds 600 phase 3. No decision.
 
-**Phase 6: money, lists and sets.** A user declares `Kind.money(currency)` and set fields. Acceptance: adding a EUR and a USD amount is a type error; a form draws the amount input for money. Feeds 600 phases 1 and 3. Waits on question 3.
+**Phase 6: money, lists and sets.** A user declares money with `Money.schema(currency)` and set fields. Acceptance: adding a EUR and a USD amount is a type error; a form draws the amount input for money. Feeds 600 phases 1 and 3. Waits on question 3.
 
-Each phase lands with its README and guide sections (`docs/expressions.md` gains a section per kind), the skill reference for `foldkit-entity`, a changelog entry, mutation specs and a bundle budget pinning unnamed operations absent, as every published change does. Before phase 1, the inventory the issue asks for: today the repository's own sources declare two operators besides the kernel's (`cms.published`, defined; `text.startsWith`, the kernel's) and the examples none; the tests declare about thirty (`acme.concat`, `acme.half`, `bank.opaqueMinus`, `acme.twice`, …), and most of them are operations this library ships.
+Each phase lands with its README and guide sections (`docs/expressions.md` gains a section per value type), the skill reference for `foldkit-entity`, a changelog entry, mutation specs and a bundle budget pinning unnamed operations absent, as every published change does. Before phase 1, the inventory the issue asks for: today the repository's own sources declare two operators besides the kernel's (`cms.published`, defined; `text.startsWith`, the kernel's) and the examples none; the tests declare about thirty (`acme.concat`, `acme.half`, `bank.opaqueMinus`, `acme.twice`, …), and most of them are operations this library ships.
 
 ## 11. Open questions for the maintainer
 
 1. **How a decimal is stored.** Recommended: an integer count of units at the declared scale in every store (SQLite `integer`, Postgres `bigint`), `BigDecimal` in code. Every reader agrees on integer arithmetic, order and indexes are integer ones, and the solver gets exact linear arithmetic. The cost is a range of ±(2^53-1) units and a column that holds 1250 for 12.50 when read by hand. Otherwise: Postgres `numeric(p, s)` and SQLite text, which then needs our own arithmetic in SQLite and loses numeric order there.
 2. **Calendar durations.** Recommended: durations are fixed lengths only; months and days are operations on dates (`addMonths` clamped to the month's end, as Postgres and Effect do, `addDays`). Otherwise: refuse months altogether, and a monthly subscription's renewal becomes a custom operator again.
-3. **Currency in the type, or in a field.** Recommended: in the type (`Kind.money('EUR')`), so mixing currencies is a type error and the solver never sees one. An application with per-row currencies declares an amount and a currency field and compares only within one currency through a guard (`Expr.eq(a.currency, b.currency)`) until a per-row form is designed. Otherwise: currency as a field from the start, with every arithmetic operation checking equality at run time and the solver carrying it as a variable.
+3. **Currency in the type, or in a field.** Recommended: in the type (`Money.schema('EUR')`), so mixing currencies is a type error and the solver never sees one. An application with per-row currencies declares an amount and a currency field and compares only within one currency through a guard (`Expr.eq(a.currency, b.currency)`) until a per-row form is designed. Otherwise: currency as a field from the start, with every arithmetic operation checking equality at run time and the solver carrying it as a variable.
 4. **Where "today" gets its zone.** Recommended: a literal IANA zone written in the expression (`Time.today('Europe/Paris')`), computed by the server and bound, computed by the page with `Intl`, and unknown on the page within an hour of that zone's midnight. Otherwise: UTC only, which is wrong for any user not in UTC, or the viewer's zone, which the server cannot trust and which makes the page and the server mean different days.
