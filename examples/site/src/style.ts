@@ -73,12 +73,13 @@ const scrollFocus = Style.nest('&:focus-visible', {
 const COPY_ROOM = `calc(${t.space.md} + 4.5rem)`
 
 /**
- * No header band: a site's block names no file, so the band would hold the
- * Copy button and nothing else. The button floats over the code's top
- * inline-end corner, quiet until the block is hovered or the button focused
- * (still a tab stop at rest, and always shown on a touch screen), and the
- * first line ends in room for it, so scrolled to its end it is clear of the
- * button. Every site block takes these slots, so one source styles them all.
+ * No header band with a pointer: a site's block names no file, so the band
+ * would hold the Copy button and nothing else. The button floats over the
+ * code's top inline-end corner, quiet until the block is hovered or the
+ * button focused (still a tab stop at rest), and the first line ends in room
+ * for it, so scrolled to its end it is clear of the button. A touch screen
+ * has no hover to reveal it, so there the button is always shown, in a band
+ * above the code. Every site block takes these slots, so one source styles them all.
  */
 const floatedCopy = {
   header: Style.compose(
@@ -96,6 +97,12 @@ const floatedCopy = {
       '@media (hover: none)',
       Style.nest(':where(:not(:hover, :focus-within)) > &', { opacity: '1' }),
     ),
+    // A touch screen has no hover to reveal it, so the button is always there:
+    // it takes a band of its own above the code rather than lie over a line.
+    Style.at(
+      '@media (hover: none)',
+      Style.self({ position: 'static', justifyContent: 'flex-end' }),
+    ),
   ),
   // The language is not a title: the label would sit under the button.
   title: Style.self({ display: 'none' }),
@@ -105,7 +112,11 @@ const floatedCopy = {
     '@media (hover: none)',
     Style.nest('&', { minBlockSize: '2.75rem', minInlineSize: '2.75rem' }),
   ),
-  line: Style.nest('&:first-child', { paddingInlineEnd: COPY_ROOM }),
+  line: Style.compose(
+    Style.nest('&:first-child', { paddingInlineEnd: COPY_ROOM }),
+    // The band holds the button on a touch screen, so the line needs no room for it.
+    Style.at('@media (hover: none)', Style.nest('&:first-child', { paddingInlineEnd: t.space.md })),
+  ),
 }
 
 /** The site's code: the shipped recipe, colored from the theme's `syntax` group. */

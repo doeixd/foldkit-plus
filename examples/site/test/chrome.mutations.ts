@@ -20,8 +20,8 @@ export default [
     edits: [
       {
         file,
-        find: "line: Style.nest('&:first-child', { paddingInlineEnd: COPY_ROOM }),",
-        replace: "line: Style.nest('&:first-child', { paddingInlineEnd: '0' }),",
+        find: "Style.nest('&:first-child', { paddingInlineEnd: COPY_ROOM }),",
+        replace: "Style.nest('&:first-child', { paddingInlineEnd: '0' }),",
       },
     ],
     tests: ['examples/site/test/codeSurface.browser.test.ts'],
@@ -58,5 +58,16 @@ export default [
       },
     ],
     tests: ['examples/site/test/codeSurface.browser.test.ts'],
+  },
+  {
+    name: 'the Copy button lies over the first line on a touch screen',
+    edits: [
+      {
+        file,
+        find: "Style.self({ position: 'static', justifyContent: 'flex-end' }),",
+        replace: 'Style.self({}),',
+      },
+    ],
+    tests: ['examples/site/test/codeSurface.touch.browser.test.ts'],
   },
 ]
