@@ -166,7 +166,7 @@ This is the package's home page on the site and on npm. It is one page.
 ### A post
 
 - **Job:** tell a reader who may not use Foldkit Plus why this release
-  matters to them. `docs/blog/2026-11-18-foldkit-plus-0.41.0.md`, compared
+  matters to them. `docs/blog/2026-11-19-foldkit-plus-0.43.0.md`, compared
   with its first draft (`git show a32b4476e:docs/release-0.41.0.md`), is the
   model and the warning.
 - **Shape:** open with a problem the reader has, not with what we did; a

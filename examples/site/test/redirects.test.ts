@@ -8,14 +8,29 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
+import { loadPosts } from '../src/blog/posts.js'
 import { allSubsites } from '../src/catalog.js'
 import { guidePages } from '../src/content/guides.js'
 
 const repository = fileURLToPath(new URL('../../..', import.meta.url))
-const rules = readFileSync(new URL('../public/_redirects', import.meta.url), 'utf8')
+const all = readFileSync(new URL('../public/_redirects', import.meta.url), 'utf8')
   .split('\n')
   .filter(line => /^\/\S+ \/\S+ 301$/.test(line))
   .map(line => line.split(' ') as [string, string, string])
+const isPost = ([from]: readonly [string, string, string]) => from.startsWith('/blog/')
+const rules = all.filter(rule => !isPost(rule))
+
+describe('the renamed posts', () => {
+  it('redirect each old address to a post that is there, and no post is redirected away', () => {
+    const paths = new Set(loadPosts(repository).map(post => post.path))
+    const moved = all.filter(isPost)
+    expect(moved.length).toBeGreaterThan(0)
+    for (const [from, to] of moved) {
+      expect(paths.has(to), `${from} -> ${to}`).toBe(true)
+      expect(paths.has(from), `${from} is still a post`).toBe(false)
+    }
+  })
+})
 
 describe('the moved guide pages', () => {
   const pages = guidePages(repository, allSubsites).pages
