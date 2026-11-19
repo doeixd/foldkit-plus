@@ -43,11 +43,11 @@ export const ReplacedStyle = demoStyle.forSlots(AlertSlots)(Recipes.Alert({ tone
   name: 'ReplacedStyle',
 })
 
-/** The grid's frame, over the grid's own style: the room the page leaves it. */
+/** The grid's frame, over the grid's own style: what the page's column has left. */
 export const GridFrame = demoStyle.forSlots(GridSlots)(
   {
     root: Style.self({
-      height: 'calc(100dvh - 12rem)',
+      flex: '1 1 20rem',
       minHeight: '20rem',
       border: `1px solid ${t.outline.subtle}`,
       borderRadius: t.radius.lg,
@@ -62,7 +62,12 @@ export const GridFrame = demoStyle.forSlots(GridSlots)(
 
 export const Page = demoStyle.slots(
   {
-    content: L.in('layouts', Layout.stack({ gap: t.space.sm })),
+    // At least the main region's height, so the grid takes what the rows above it leave
+    // instead of a guessed height that let the page scroll past the screen.
+    content: Style.compose(
+      L.in('layouts', Layout.stack({ gap: t.space.sm })),
+      Style.self({ minBlockSize: '100%' }),
+    ),
     toolbar: L.in('layouts', Layout.cluster({ gap: t.space.sm, justify: 'space-between' })),
     counts: Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted }),
     // Always in the page, so a change is announced.
