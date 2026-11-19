@@ -668,8 +668,11 @@ export {
   type LawFacts,
   type LawPair,
   type LawReport,
+  type LawTotals,
+  type Obligation,
   type WriteEntry,
 } from './laws.js'
+export type { Witness } from './bounds.js'
 export type { Step } from './enumerate.js'
 export { lawId, transitionId } from './lawIds.js'
 export {

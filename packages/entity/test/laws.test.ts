@@ -116,10 +116,11 @@ describe('Laws.check: a write against an invariant', () => {
     })
   })
 
-  it('never keeps a transition invariant by disjointness: over a number it is undecided', () => {
-    expect(verdict(report, 'Rename', 'soldNeverFalls')).toEqual({
-      _tag: 'Undecided',
-      reason: 'sold is not finite',
+  it('never keeps a transition invariant by disjointness: over a number it leaves, it reads that number against itself', () => {
+    expect(verdict(report, 'Rename', 'soldNeverFalls')).toMatchObject({
+      _tag: 'Kept',
+      by: 'bounds',
+      over: ['sold'],
     })
   })
 
@@ -131,10 +132,16 @@ describe('Laws.check: a write against an invariant', () => {
     })
   })
 
-  it('a numeric invariant the write moves is undecided, never kept', () => {
-    expect(verdict(report, 'Sell', 'reservedWithinStock')).toEqual({
-      _tag: 'Undecided',
-      reason: 'stock is incremented',
+  it('refuses a numeric invariant an unbounded amount can break, with the smallest witness', () => {
+    expect(verdict(report, 'Sell', 'reservedWithinStock')).toMatchObject({
+      _tag: 'Refused',
+      steps: [],
+      witness: {
+        before: Option.some({ reserved: 0, stock: 0 }),
+        input: { quantity: -1 },
+        after: { reserved: 0, stock: -1 },
+        invariant: 'reservedWithinStock',
+      },
     })
   })
 
@@ -189,7 +196,7 @@ describe('Laws.check: an operator the table lacks', () => {
   }
 
   it('is undecided, never kept', () => {
-    expect(verdict(Laws.check({ writes: [SetKind] }), 'SetKind', 'odd')).toEqual({
+    expect(verdict(Laws.check({ writes: [SetKind] }), 'SetKind', 'odd')).toMatchObject({
       _tag: 'Undecided',
       reason: 'it calls acme.odd, which the operator table does not run',
     })
@@ -217,7 +224,7 @@ describe('Laws.check: a write expecting a revision', () => {
   }
 
   it('moves the revision on, so an invariant over it is not kept by disjointness', () => {
-    expect(verdict(Laws.check({ writes: [Edit] }), 'Edit', 'fewRevisions')).toEqual({
+    expect(verdict(Laws.check({ writes: [Edit] }), 'Edit', 'fewRevisions')).toMatchObject({
       _tag: 'Undecided',
       reason: 'revision is the revision it expects, moved on where it lands',
     })
@@ -255,7 +262,7 @@ describe('Laws.check: an insert', () => {
   it('is undecided where it may leave a field unwritten', () => {
     expect(
       verdict(Laws.check({ writes: [create(Schema.optionalKey(Schema.Boolean))] }), 'Create', 'on'),
-    ).toEqual({ _tag: 'Undecided', reason: 'the write may leave on unwritten' })
+    ).toMatchObject({ _tag: 'Undecided', reason: 'the write may leave on unwritten' })
   })
 })
 
@@ -325,6 +332,14 @@ describe('Laws.check: states', () => {
           from: 'Published',
           to: 'Draft',
           invariant: 'publishedStaysPublished',
+          witness: {
+            before: Option.some({ status: 'published' }),
+            input: { status: 'draft' },
+            after: { status: 'draft' },
+            invariant: 'publishedStaysPublished',
+            message: 'A published product does not go back to draft',
+            path: ['status'],
+          },
         }),
         Finding.Undeclared({ entity: 'Product', write: 'Revert', from: 'Archived', to: 'Draft' }),
         Finding.Unreached({ entity: 'Product', state: 'Archived' }),
@@ -382,9 +397,9 @@ describe('Laws.check: states', () => {
       { ...Finding.Enforced({ entity: 'Product', write: 'SellInStock', to: 'InStock' }) },
     ])
     // The postcondition can refuse the sale, as an invariant can: it is a pair of that write alone.
-    expect(verdict(report, 'SellInStock', 'becomes:InStock')).toEqual({
-      _tag: 'Undecided',
-      reason: 'stock is incremented',
+    expect(verdict(report, 'SellInStock', 'becomes:InStock')).toMatchObject({
+      _tag: 'Refused',
+      witness: { before: Option.some({ stock: 0 }), input: { quantity: 0 }, after: { stock: 0 } },
     })
     expect(Laws.show(report).split('\n').slice(0, 2)).toEqual([
       'Product',
@@ -401,18 +416,29 @@ describe('Laws.check: states', () => {
         'Product',
         '  Draft -> Published   Publish   holds',
         '  Published -> Draft   Revert    refused by publishedStaysPublished',
+        '      before   status: "published"',
+        '      input    status: "draft"',
+        '      after    status: "draft"',
         '  Archived -> Draft    Revert    undeclared',
         '  Archived                       unreached',
         '',
         'Publish   x reservedWithinStock       kept: writes no member it reads',
         'Publish   x publishedStaysPublished   kept: 1 row enumerated',
-        'Publish   x soldNeverFalls            undecided: sold is not finite',
+        'Publish   x soldNeverFalls            kept: proved from the bounds on sold, for every row and input within them',
         'Revert    x reservedWithinStock       kept: writes no member it reads',
-        'Revert    x publishedStaysPublished   refused: from {"status":"published"} it leaves {"status":"draft"}',
-        'Revert    x soldNeverFalls            undecided: sold is not finite',
-        'Sell      x reservedWithinStock       undecided: stock is incremented',
+        'Revert    x publishedStaysPublished   refused: A published product does not go back to draft',
+        '    before   status: "published"',
+        '    input    status: "draft"',
+        '    after    status: "draft"',
+        'Revert    x soldNeverFalls            kept: proved from the bounds on sold, for every row and input within them',
+        'Sell      x reservedWithinStock       refused: Reserved stock cannot exceed the stock',
+        '    before   reserved: 0, stock: 0',
+        '    input    quantity: -1',
+        '    after    reserved: 0, stock: -1',
         'Sell      x publishedStaysPublished   kept: 3 rows enumerated',
-        'Sell      x soldNeverFalls            undecided: sold is not finite',
+        'Sell      x soldNeverFalls            kept: proved from the bounds on sold, for every row and input within them',
+        '',
+        '1 entity, 4 states, 3 writes, 3 rules: 9 pairs, 7 kept, 2 refused, 0 undecided',
       ].join('\n'),
     )
   })
@@ -424,7 +450,8 @@ describe('Laws.check: evidence', () => {
     entity: Product,
     footprint: Footprint.declared({ writes: [Product.fields.name], by: 'the Domain model' }),
   }
-  const report = Laws.check({ writes: [Rename, Revert, Sell, Remove, Touch] })
+  const Import = { name: 'Import', entity: Product, footprint: Footprint.unknown }
+  const report = Laws.check({ writes: [Rename, Revert, Sell, Remove, Touch, Import] })
   const evidence = (write: string, invariant: string) =>
     report.pairs.find(each => each.write === write && each.invariant === invariant)!.evidence
 
@@ -441,7 +468,8 @@ describe('Laws.check: evidence', () => {
   })
 
   it.each([
-    ['Sell', 'reservedWithinStock', 'undecided'],
+    ['Import', 'reservedWithinStock', 'undecided'],
+    ['Sell', 'reservedWithinStock', 'refused on a witness among the numbers'],
     ['Revert', 'publishedStaysPublished', 'refused'],
     ['Touch', 'reservedWithinStock', "kept on its author's word"],
   ])('issues none for %s x %s, %s', (write, invariant) => {
