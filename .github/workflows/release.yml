@@ -287,7 +287,7 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in 1 2 3; do
-            if npx -y wrangler@4 pages deploy ${{ matrix.out }} --project-name ${{ matrix.project }} --branch main --commit-dirty=true; then
+            if pnpm dlx wrangler@4 pages deploy ${{ matrix.out }} --project-name ${{ matrix.project }} --branch main --commit-dirty=true; then
               echo "Deployed \`${{ matrix.package }}\` to Pages project \`${{ matrix.project }}\`." >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
