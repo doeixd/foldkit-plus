@@ -1,38 +1,21 @@
 # `foldkit-bundle`
 
-Packages a Foldkit child machine, a Submodel, **once**, and places it anywhere
-in a parent, **without adding a store, a reducer, or a runtime**.
+In [Foldkit](https://foldkit.dev/), adding a reusable child state machine—a counter, a date picker, or a media query—means wiring it by hand in five places inside the parent: `init` (to seed its initial state and Commands), `update` (to unwrap `GotChildMessage` and fold the child's transition), `subscriptions` (to lift its streams), `managedResources` (to lift its resources), and `view` (to mount `h.submodel`). Placing the same child twice repeats all five by hand.
 
-A Submodel in Foldkit is wired by hand in five places: the update fold, the
-init, the Subscription lift, the Managed Resource lift, and the view. Placing
-the same child twice repeats all five. A Bundle holds the child's parts in one
-value, and a Link says where it lives. Placing it compiles each part to the
-Foldkit lift that already exists for it.
+`foldkit-bundle` packages a child's `Model`, `Message`, `init`, `update`, `subscriptions`, `resources`, `view`, and `helpers` into one `Bundle`, and pairs it with a `Link` naming where its slice lives in the parent `Model` and `Message`. Placing the bundle compiles each part to Foldkit's standard lifts—keeping the parent `Model` as the single owner, so replay, DevTools, and Scene tests work the same as with hand-wired Submodels.
 
-A Bundle says what the child is: its Model, Message, init, update,
-subscriptions, resources, view and helpers. A Link says where it lives: a lens
-onto the child Model and the parent Message variant. The two together give a
-Placed child, the same parts lifted into the parent.
+See reusable widgets placed and wired in the [live widgets demo](https://foldkit-widgets-demo.pages.dev/), or compare both styles side by side in [Bundle versus Submodel](../../docs/bundle-vs-submodel.md).
 
-A placement is still an ordinary Submodel. The child's state is a field of the
-parent Model, its Messages are a variant of the parent Message, and every
-transition goes through the parent's `update`. Replay, DevTools, and Scene tests
-see exactly what they saw before.
-
-## When to use it
+## Choose between a Bundle and a hand-wired Submodel
 
 | Situation | Use |
 | --- | --- |
 | A child machine placed two or more times, or published for others | a Bundle |
 | A child with Subscriptions or resources you keep forgetting to lift | a Bundle, then `placements.complete` |
-| A one-off child used in a single place, such as a `@foldkit/ui` component | a hand-wired Submodel, with a [Link as its fold's lens](#a-link-without-a-bundle-updatefoldchild) |
+| A one-off child used in one place, such as a `@foldkit/ui` component | a hand-wired Submodel with a [Link](#a-link-without-a-bundle-updatefoldchild) |
 | Something without its own Model: a one-shot effect, a DOM attachment | a Command or a Mount, not a Bundle |
 
-A Bundle owns nothing at runtime. **The parent Model owns the child's state**;
-the bundle describes the transitions of that slice, and the Link says which
-slice. Two placements are two independent slices with two independent sets of
-Subscriptions. To check that ownership beside Sync and Remote, see
-[`foldkit-bundle-surface`](../bundle-surface).
+The **parent `Model` owns each placement's state**; a `Bundle` describes the transitions of that slice, and the `Link` names which slice. Placing a bundle twice creates two independent slices with separate `Subscriptions`. To check ownership alongside `Sync` and `Remote`, see [`foldkit-bundle-surface`](../bundle-surface/README.md).
 
 ## Install
 
@@ -42,7 +25,9 @@ pnpm add foldkit-bundle effect foldkit
 
 `effect` and `foldkit` are peer dependencies.
 
-## Sixty seconds: one counter
+## A first Bundle: one counter
+
+This defines a reusable `Count` bundle, places it under `clicks` in a `Page` parent, and builds the parent's runtime `config`:
 
 ```ts
 import { Schema } from 'effect'
@@ -76,16 +61,13 @@ const config = placements.complete({
 })
 ```
 
-`Count` describes a child machine. `Page` is the parent: its own field,
-`greeting`, and `Count` placed under `clicks`. From that one declaration it
-derives the parent's Model, `{ greeting, clicks }`, its Message union, with the
-wrapper `GotClicksMessage`, and the assembly that routes that wrapper to the
-child and writes its next value back into `model.clicks`. A click changes 0 to
-1 through the parent's update; no additional store is created.
+What happened:
 
-`config` supplies `init`, `update`, and `view` to your Foldkit runtime. These
-declarations do not mount anything. For a runnable assembly, see
-[the settings example](../../examples/bundle/README.md).
+- `Page.Model` becomes `{ greeting: string, clicks: { count: number } }`, and `Page.Message` gains `GotClicksMessage`.
+- Hand `config` to `Runtime.makeApplication` or `Runtime.makeElement`: initial render draws `<button>Hello: 0</button>`.
+- Clicking the button sends `Page.Message.GotClicksMessage({ message: CountMessage.Incremented() })`, which `placements.update` routes to `Count.update` and writes back to `model.clicks`, updating the button text to `Hello: 1`.
+
+See a complete running assembly in [`examples/bundle`](../../examples/bundle/README.md).
 
 ## Composing a parent
 
@@ -294,19 +276,19 @@ pass their `url` from `placements.url`. For a hand-built `init` or config,
 
 ### What each call does
 
-- **`Bundle.make(name, spec)`** only collects the parts. It runs nothing and
-  holds no state. `Bundle.make({ name, ...spec })` is the same.
+- **`Bundle.make(name, spec)`** collects the child's parts into a pure value.
+  `Bundle.make({ name, ...spec })` is an equivalent form.
 - **`Bundle.compose(fields).pipe(...)`** does the next four steps from one
   declaration; see [Composing a parent](#composing-a-parent).
 - **`Bundle.declare(bundle, field)`** names where a placement will live: `fields`
   for the parent `Schema.Struct`, `cases` for its `defineMessageUnion`.
 - **`Bundle.parent({ Model, Message })`** states the parent once, as the Schemas
   it already has, so nothing after it takes a type argument.
-- **`Page.at(declared, config)`** places the bundle. It checks that the field
-  holds the bundle's Model and that the parent Message has the wrapper variant,
-  and lifts every part: `update` through `Update.foldChildStep`, Subscriptions
+- **`Page.at(declared, config)`** places the bundle, checking that the field
+  holds the bundle's Model and the parent Message has the wrapper variant, and
+  lifting every part: `update` through `Update.foldChildStep`, Subscriptions
   through `Subscription.lift`, resources through `ManagedResource.lift`, and the
-  view through `h.submodel`. It performs no I/O.
+  view through `h.submodel`.
 - **`Page.assemble(...items)`** is the one list of what joins the parent:
   placements, collections, and integration wiring. An integration's wiring
   brings its routing, startup step, Subscriptions, and contract the same way a
@@ -613,8 +595,7 @@ const Shown = Shelf.at(Notice, {
 ```
 
 `given` is what `Shown.view(model, h, inputs)` was called with, and the
-function returns the inputs the child's view takes. It reads; it changes no
-Model. `Crud.editor` places its form this way, so the drawn form reads busy
+function returns the inputs the child's view takes as a pure read of the Model. `Crud.editor` places its form this way, so the drawn form reads busy
 while its save is in flight.
 
 A view that takes no inputs (`(model, h)`) refuses `viewInputs` as a type
@@ -637,12 +618,9 @@ for a Message union built another way.
 ## Many of one: collections
 
 A collection places a bundle once per key. The parent Model still owns every
-item; the collection routes by key:
-
-```text
-Parent Model.rows = { a: Row.Model, b: Row.Model }
-GotRowsMessage({ key: 'b', message }) -> Row.update on rows.b -> rows.b written back
-```
+item; the collection routes by key. For example, if the parent holds
+`rows: { a: Row.Model, b: Row.Model }`, a `GotRowsMessage({ key: 'b', message })`
+runs `Row.update` on `rows.b` and writes the updated item back into `rows.b`.
 
 <!-- docs-check
 const RowModel = Schema.Struct({ id: Schema.String, count: Schema.Number })
@@ -734,9 +712,8 @@ placed per key; the type says why.
 `@foldkit/ui` components export `Model`, `Message`, and an `init` that returns
 only the Model, and `create()` returns their `{ update, view }` pair.
 `Bundle.fromParts` takes them as they are. A bundle's `init` returns a Model and
-Commands and never an OutMessage; a component whose open state needs Commands,
-such as `Dialog.boot` since `@foldkit/ui` 0.161, runs `boot` inside `init` and
-returns its Model and Commands from there.
+Commands; a component whose open state needs Commands (such as `Dialog.boot`)
+runs `boot` inside `init` and returns its Model and Commands from there.
 
 ```ts
 import * as Tabs from '@foldkit/ui/tabs'
@@ -1217,7 +1194,7 @@ property that is wrong:
 
 | Mistake | Reported at |
 | --- | --- |
-| An `update` that does not accept the whole parent Message, such as one written by hand with a narrower union | `update` |
+| An `update` missing placement wrappers (such as a hand-written narrower union) | `update` |
 | `subscriptions` not built with `placements.subscriptions(own)` | `subscriptions` |
 | `managedResources` not built with `placements.resources(own)`, when a placement has resources | `managedResources` |
 | `init` not returning `placements.initial(rest)`, when a wiring runs startup Commands | `init` |
@@ -1357,14 +1334,9 @@ repeats them.
   runtime.
 - **Collections cannot hold resources**, for the tag reason above.
 
-## See also
+## Next
 
-- [`foldkit-bundle-surface`](../bundle-surface): placements as Module contracts,
-  and the scope from a Surface application.
-- [`examples/bundle`](../../examples/bundle): a settings page built from
-  placements, with its transcript pinned.
-- [Bundle versus Submodel](../../docs/bundle-vs-submodel.md): one child wired
-  by hand and as a Bundle, side by side.
-- [Wiring](../../docs/wiring.md): Remote, Mirror, Sync, and Agent join the
-  same assembly through wiring, so routing, startup, Subscriptions, and the
-  Module derive from one list.
+- Check placement ownership beside Sync and Remote: [`foldkit-bundle-surface`](../bundle-surface/README.md).
+- Compare hand-wired Submodels with Bundles side by side: [Bundle versus Submodel](../../docs/bundle-vs-submodel.md).
+- See a full settings page built from placements: [`examples/bundle`](../../examples/bundle/README.md).
+- Wire Remote, Mirror, Sync, and Agent into one assembly: [Wiring](../../docs/wiring.md).

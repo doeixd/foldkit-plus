@@ -1,32 +1,16 @@
 # `foldkit-surface`
 
-Say once, in one value, which parts of a Foldkit Model a feature reads and which
-Messages it may send. That value — a **Surface** — is derived from the Model's
-own Schema rather than a second hand-written interface, so it cannot name a
-field the Model does not have. It reads the Model purely, it binds a renderer,
-and it can be inspected: given a Surface, a tool can answer "what does this
-screen depend on?" without running anything.
+When a [Foldkit](https://foldkit.dev/) app grows—one `Model` holding everything and one `update` handling every `Message`—different parts of your app still need clear boundaries. A screen should declare which fields it reads, an AI agent or page block should only be able to send specific `Message`s, and a sync or data-fetching layer needs to know what data a view depends on without running the UI or duplicating TypeScript interfaces by hand.
 
-Reach for it when something else needs that answer. `foldkit-remote` fetches
-exactly the server fields the active Surfaces read; `foldkit-sync` replicates
-exactly the Model slice a feature declares; `Module.validate` catches two
-features claiming the same Model path before either runs. If nothing needs to
-inspect a feature's data needs, a plain function of the Model is simpler — this
-package performs no I/O, renders nothing itself, and adds no runtime behaviour
-of its own.
+`foldkit-surface` derives typed field references, read projections, and `Message` subsets directly from your existing `Model` and `Message` Schemas, and pairs them into a named contract called a **Surface**. Because a Surface is inspectable data tied to your `Model` Schema, it cannot name a field your `Model` lacks, and packages such as `foldkit-remote`, `foldkit-sync`, and `foldkit-agent` can inspect what a feature reads and may trigger without running anything.
 
-## The mental model
+See five feature Surfaces and a `Module` wired together in [`examples/todo-app`](../../examples/todo-app), or read [Server-derived state](../../docs/remote.md).
 
-A Surface is derived in three steps from the application's Model Schema: the
-Schema gives typed field references, a Projection picks the fields a feature
-reads, and a named Surface pairs that Projection with the Messages the feature
-may send. At run time the application's Model is read through the Projection to
-give the feature its input, and the feature's Message goes to the application's
-`update`, which produces the next Model.
+## How a Surface reads state and sends Messages
 
-Declaring or reading a Surface does not dispatch a Message, fetch data, or
-create a state owner. Its Message list constrains consumers; the application's
-reducer still defines what those Messages do.
+A Surface is built in three steps from your `Model` Schema: `Surface.application` generates typed field references from the Schema, a `Projection` selects the fields a feature reads, and a named `Surface` pairs that `Projection` with the `Message`s the feature may send. At run time, `Surface.read` extracts the feature's input purely from the `Model`, while dispatched `Message`s flow through your `update` to produce the next `Model`.
+
+Listing `Message`s on a Surface constrains what consumers (such as an agent) may send; your `update` remains the single place that defines what those `Message`s do. If nothing needs to inspect a feature's data or `Message` dependencies, a plain function over your `Model` is simpler.
 
 ## Install
 
@@ -36,7 +20,9 @@ pnpm add foldkit-surface
 
 `foldkit` and `effect` are peer dependencies.
 
-## Quick start
+## A first Surface
+
+This defines a todo app, pairs the `todos` and `selectedTodoId` fields with two allowed `Message`s into a `TodoList` Surface, and reads that slice from a sample `Model`:
 
 ```ts
 import { Option, Schema } from 'effect'
@@ -54,14 +40,11 @@ const Message = defineMessageUnion({
   ToggledTodo: { id: Schema.String },
   SelectedTodo: { id: Schema.String },
 })
-
 const App = Surface.application({ Model, Message })
-
 const TodoList = App.surface('TodoList', {
   model: ({ model }) => ({ todos: model.todos, selectedTodoId: model.selectedTodoId }),
   messages: [Message.ToggledTodo, Message.SelectedTodo],
 })
-
 const model: typeof Model.Type = {
   todos: [{ id: 't1', title: 'Read the guide', done: false }],
   todosById: {},
@@ -71,24 +54,17 @@ Surface.read(TodoList, model)
 // { todos: [{ id: 't1', title: 'Read the guide', done: false }], selectedTodoId: Option.some('t1') }
 ```
 
-`TodoList` is a named contract: the projection a feature reads (here the two
-fields, as `Projection.struct` lifts them) and the Messages it may send. It
-reads purely (`Surface.read(TodoList, model)`), binds a renderer
-(`Surface.view`), and is what `foldkit-remote`, `foldkit-sync`, and
-`foldkit-agent` derive their work from. `Projection.pick(App.model.todos)` is
-a writable projection of the same field for a replicator. The extra
-`todosById` field illustrates dynamic record lookups later; this read neither
-uses it nor synchronizes it with `todos`. Choose one authoritative collection
-in a real application.
+What happened:
+
+- `TodoList` binds a projection of `todos` and `selectedTodoId` to `[Message.ToggledTodo, Message.SelectedTodo]`, excluding `CreatedTodo`.
+- `Surface.read(TodoList, model)` returns only `{ todos, selectedTodoId }`, omitting `todosById`.
+- `Surface.view(TodoList, ...)` binds a renderer to that slice, while `foldkit-remote`, `foldkit-sync`, and `foldkit-agent` inspect `TodoList` to derive fetches, replication, and agent tools.
+
+(`todosById` in `Model` is used by the dynamic record-lookup examples below; in a real application, keep a single authoritative collection.)
 
 ## Field references
 
-`Surface.application` generates a reference tree from the Model Schema, one node
-per field. A ref's string keys are the fields below it, and nothing else, so a
-Model field may have any name (`index`, `at`, `get`, `select`). The ref's own
-members are its *focus*, kept under a symbol and read with `ModelRef.focus`:
-its optic, codec, path, `get`, `set`, and the field name as a literal type, so a
-selection can infer its own output keys without a parallel field registry.
+`Surface.application` generates a reference tree from your `Model` Schema, one node per field. A ref's string keys are strictly its child fields, so `Model` fields may use any name (`index`, `at`, `get`, `select`). A ref's own metadata lives under a symbol accessed via `ModelRef.focus`: its optic, codec, dependency path, `get`, `set`, and literal field name.
 
 ```ts
 App.model.todos                                // FieldRef<Model, Todo[], 'todos'>
@@ -98,44 +74,20 @@ ModelRef.focus(App.model.todosById).at('t1')   // OptionalRef<Model, Option<Todo
 ModelRef.focus(App.model.todos).index(0)       // OptionalRef<Model, Option<Todo>> (dynamic index)
 ```
 
-A Model field that is itself a `Schema.Struct` recurses, so each of its fields is
-a `FieldRef` too. A focus reaches into an array with `index(i)` and into a record
-with `at(key)`, each only where the value is one; both return an `OptionalRef` —
-a `ModelRef` with an `Option` value. Those are dynamic selections, so
-`Projection.pick` (which needs a static field name) rejects them; they are
-useful inside a `Projection`.
+Nested `Schema.Struct` fields recurse into child `FieldRef`s. Accessing an array with `index(i)` or a record with `at(key)` returns an `OptionalRef` (`ModelRef` yielding an `Option`). Because those lookups are dynamic, `Projection.pick` requires static field names and refuses them, though you can use them inside read-only `Projection`s. (`App.fields` is a deprecated alias for `App.model`; prefer `App.model`.)
 
-`App.fields` is the same tree under a second name, kept only so older code
-compiles. It is deprecated; use `App.model`.
-
-`Projection.pick` turns references into a writable projection — a `Schema.Struct`,
-`get`, and `set`:
+`Projection.pick` turns static references into a writable projection holding `{ schema, dependencies, get, set }`:
 
 ```ts
 const Shared = Projection.pick(App.model.todos, App.model.selectedTodoId)
 // { schema, dependencies, get, set }
 ```
 
-Each picked field is named by its last key, so `App.model.post.id` is `id`.
-Two fields with the same name at different paths, such as `post.id` and
-`viewer.id`, would be one field, and are refused when the projection is
-built; pick them in separate projections. `Projection.compose` refuses the
-same collision between its parts.
-
-A reference from a different application is rejected by a per-application owner
-token, so two structurally identical Models cannot be mixed. Duplicate members
-deduplicate; a conflicting definition throws.
-
-`Projection.compose` merges disjoint writable projections, keeping each part's own
-write behavior. `ModelRef.fromOptic` builds a reference from an optic you already
-have.
+Each picked field uses its final key name (`App.model.post.id` becomes `id`), so picking two fields that share a leaf name (`post.id` and `viewer.id`) throws; place them in separate projections instead. A per-application owner token prevents mixing references across two structurally identical `Model`s. Duplicate members deduplicate, conflicting definitions throw, `Projection.compose` merges disjoint writable projections, and `ModelRef.fromOptic` builds a reference from an existing Effect optic.
 
 ## Projections
 
-A `Projection<Root, Value>` is a `Model` codec for `Value`, a pure
-`read(root) => Value`, its `dependencies` (Model paths), and its `metadata`:
-facts other packages attach and interpret, such as the server data a
-`foldkit-remote` selection needs. Reading never performs I/O.
+A `Projection<Root, Value>` pairs a `Model` codec for `Value` with a pure `read(root) => Value`, its `dependencies` (Model paths), and opaque `metadata` attached by other packages (such as `foldkit-remote` query requirements).
 
 ```ts
 const Summary = Projection.struct({
@@ -149,45 +101,24 @@ Projection.option(Titles) // Projection<Option<Root>, Option<Value>>
 Projection.fromReader(Schema.Number, (model: typeof Model.Type) => model.todos.length)
 ```
 
-`Projection.struct` accepts `ModelRef`s and nested `Projection`s, so a Surface can
-mix local fields with remote or replicated values. A nested projection
-contributes its dependencies and metadata to the parent.
+`Projection.struct` accepts `ModelRef`s and nested `Projection`s, merging dependencies and metadata upward so a Surface can combine local fields with remote or synced slices.
 
 ### Derivations
 
-A view often works out a value from the Model on every render: a filtered
-list, a count, a summary of many server reads. `Projection.derive(on, derive)`
-works it out again only when a value at one of the paths `on` names is a new
-object:
+Views often compute derived values on every render, such as filtered lists, counts, or summaries. `Projection.derive(on, derive)` caches the computed value and recomputes only when an object at one of `on`'s dependency paths changes identity:
 
 ```ts
 const Open = Projection.derive([App.model.todos], model =>
   model.todos.filter(todo => !todo.done),
 )
-Open.read(model) // the same array while `model.todos` is
+Open.read(model) // returns the same array reference while `model.todos` is unchanged
 ```
 
-`on` takes field references and Projections, whose `dependencies` it reads;
-`derive` must read nothing else, or it shows what it read last. In
-development, `Projection.derive(on, derive, { verify: import.meta.env?.DEV ===
-true })` checks that: where the memo would hand back its last value, it works
-the value out again, and throws, naming `on`'s paths, when the two differ by
-`Equal.equals`. It doubles the work, so leave it off in production. A Remote read
-declares no path (its data is named by its metadata), and a `struct` holding
-one declares only its other entries' paths, so while `on` holds such a read
-the value is worked out on every read. Name the store's field,
-`App.model.remote`, in `on` in its place, reading the Remote read inside
-`derive`, and the value is kept while the store holds. A new result
-with the same fields as the last (shallowly) gives the last back, so a memo
-keyed on it downstream holds. It keeps one result, the one for the Model it
-was last given, and an empty `on` throws, since nothing could tell it to work
-the value out again. What it returns is `{ dependencies, read }`, which
-`foldkit-mixins`' `SlotView.region` takes, and a region uses the same rule.
+Pass field references or Projections in `on` (an empty `on` throws), and read only those dependencies inside `derive`. In development, pass `{ verify: import.meta.env?.DEV === true }` to re-run `derive` on cache hits and throw via `Equal.equals` if an untracked field changed; keep `verify` off in production since it doubles the work.
 
-A Derived can be an entry of `Projection.struct` when it names the Schema of its
-value, `Projection.derive(on, derive, { Model: Schema.Number })`. The struct then
-reads the memoized value, declares the Derived's paths and checks the value
-against `Model` like any entry, so a Surface can show it:
+`derive` caches the single most recent result and returns the previous object reference whenever a new result has shallowly equal fields, matching `foldkit-mixins`' `SlotView.region`. Remote queries declare metadata rather than static Model paths, so passing a Remote query alone in `on` recomputes on every read. Name the store field (such as `App.model.remote`) in `on` and read the Remote query inside `derive` so the cache holds while the store stays unchanged.
+
+To include a derived value inside `Projection.struct`, supply its output `Model` Schema:
 
 ```ts
 const Count = Projection.derive([App.model.todos], model => model.todos.length, {
@@ -196,15 +127,11 @@ const Count = Projection.derive([App.model.todos], model => model.todos.length, 
 const Board = Projection.struct({ count: Count, selected: App.model.selectedTodoId })
 ```
 
-A Derived carries no metadata, so the struct plans no requirements for it,
-whatever `on` holds: a Remote read it works from is planned by the Remote read
-itself, not by the struct that shows the value. A Derived without `Model` is a
-type error in a `struct`, and throws if the type is bypassed.
+A `Derived` value carries no metadata of its own, so Remote reads used inside it are still planned by the Remote read itself rather than by the struct. Omitting `Model` when placing a `Derived` inside `Projection.struct` is a type error (and throws at runtime if bypassed).
 
 ### Metadata
 
-`Metadata` is [`foldkit-metadata`](../metadata/README.md), re-exported so an
-application needs one import. A package declares its own slot once and reads back only its own entries:
+`Metadata` is re-exported from [`foldkit-metadata`](../metadata/README.md) so applications need only one import. Each package declares its own key once and reads only its own entries:
 
 ```ts
 import { Metadata } from 'foldkit-surface'
@@ -220,24 +147,11 @@ const beta = Projection.fromReader(Schema.Boolean, (_model: typeof Model.Type) =
 Flags.get(Projection.struct({ beta, todos: App.model.todos }).metadata) // ['beta']
 ```
 
-Entries are combined per key with that key's `merge` as projections compose, and
-looked up by the key object, never by its name, so two packages cannot collide.
-The flip side: two copies of one package (a duplicated install, a reloaded
-module) declare two keys and do not see each other's entries. `Metadata` is
-opaque and its entries frozen; only a key's `of` and composition make one.
-Surface never interprets them; `Surface.inspect` and `Module` show them through
-`summarize`.
+As projections compose, entries merge per key using that key's `merge` function. Lookup uses key object identity rather than string names, preventing collisions across packages (avoid duplicate installs or reloaded modules that create two instances of a key). `Metadata` values are opaque and frozen; `Surface.inspect` and `Module` format them using `summarize`.
 
 ### Closure
 
-A projection is **closed** when its value after a Message depends only on the
-projection before it and the Message. Sync replays a durable Message over the
-shared slice alone, so the slice has to be closed for it. `Closure.reads` is
-the check: it runs `update` on the Model, and again with every top-level field
-the projection does not depend on reset to `initial`, compares the two
-projections with the projection's codec, and names the fields whose reset
-changed the answer. It returns `[]` for a closed step. Nothing else runs:
-Commands `update` returns are ignored, and nothing is written.
+A projection is **closed** when its value after a `Message` depends only on the projection's previous value and that `Message`. `foldkit-sync` requires durable slices to be closed so edits replay identically across devices. `Closure.reads` tests closure by running `update` on the `Model` and again with every non-projection top-level field reset to `initial`, returning `[]` when closed or naming any outside fields that changed the output:
 
 ```ts standalone
 import { Schema } from 'effect'
@@ -263,21 +177,11 @@ Closure.reads({ initial, update }, Projection.pick(App.model.todos), shown, Mess
 // ['filter']: the slice after ClearedShown depends on it
 ```
 
-It takes a read-only `Projection` as well as a `WritableProjection`, and a
-field that holds any path of the projection is never named. `Sync.mount` runs it
-on every durable dispatch; see the
-[Sync README](https://github.com/doeixd/foldkit-plus/blob/main/packages/sync/README.md#what-makes-a-message-durable).
+Returned Commands are ignored and nothing is persisted during this check. `Sync.mount` runs `Closure.reads` on every durable dispatch; see the [Sync README](../sync/README.md#what-makes-a-message-durable).
 
 ### A closed Surface
 
-`closed: true` on a Surface declares the same property of the whole Surface: for
-a Message in its `messages`, the projection after depends only on the projection
-before and the Message, and no other Message changes it. Declaring it enforces
-nothing at run time; it is a law of the application, tested in a walk.
-`Closure.violations(app, surfaces)` returns a step check,
-`(before, message, after) => violations`, to call at every step of a walk. It
-tests only the Surfaces declared closed, and refuses a closed Surface with
-params, which has no one projection.
+Setting `closed: true` on a Surface declares that its `messages` depend only on the Surface's own projection and that other `Message`s leave its projection unchanged. `Closure.violations(app, surfaces)` builds a step checker `(before, message, after) => violations` for tests and walks (parameterized Surfaces are excluded since they have no single static projection):
 
 ```ts standalone
 import { Schema } from 'effect'
@@ -308,30 +212,13 @@ check(initial, counted, update(initial, counted).model)
 // []: Counted is outside the Surface and leaves its projection alone
 ```
 
-A violation is a `ClosureViolation`: `Reads({ surface, fields })` for a Message
-in the set that reads fields outside the Surface (the fields are named), or
-`Outside({ surface })` for a Message outside the set that changed the
-projection. Read one through `ClosureViolation.$match`.
-`Surface.contract` carries `closed: true` for such a Surface.
+Each violation is a `ClosureViolation`: `Reads({ surface, fields })` when an allowed `Message` reads outside fields, or `Outside({ surface })` when an outside `Message` mutates the projection (match with `ClosureViolation.$match`). `Surface.contract` preserves `closed: true`.
 
 ## Applications
 
-`Surface.application({ Model, Message })` returns an `Application`: the schemas
-(`App.Model`, `App.Message`), the reference tree (`App.model`, with `App.fields`
-a deprecated alias), the identity token (`App.owner`), and `App.surface`. No transition, so a consumer
-that only inspects the Model needs nothing more.
+`Surface.application({ Model, Message })` creates an `Application` holding `App.Model`, `App.Message`, `App.model` (`App.fields` is a deprecated alias), `App.owner`, and `App.surface`. Passing `initial` and `update` as well creates a `RunnableApplication` for replicators, threading Command resource requirements into the type.
 
-`Surface.application({ Model, Message, initial, update })` adds `App.initial` and
-`App.update` and returns a `RunnableApplication`, which a replicator needs to
-derive the initial shared value and replay. `update`'s Commands may carry
-resources; the resource set is threaded through the returned type.
-
-When the update is built from what is made over the references (a Remote
-domain over `App.model.remote`, a placed Bundle), it cannot be given when
-they are made. `App.runnable({ initial, update })` adds it afterwards and
-returns a `RunnableApplication` with the same references and the same owner.
-A second `Surface.application` for the update would be another application,
-whose references `Projection.pick` refuses to mix with the first's:
+When `update` depends on values built from `App.model` (such as a Remote domain or placed Bundle), call `App.runnable({ initial, update })` afterward rather than calling `Surface.application` a second time, keeping the same owner token across all references:
 
 <!-- docs-check standalone define todoApp
 import { Option, Schema } from 'effect'
@@ -365,8 +252,7 @@ const App = Made.runnable({ initial, update })
 
 ## Message subsets
 
-A subset selects typed variants of one application's Message union by constructor
-reference:
+A subset selects typed variants of one application's `Message` union by constructor reference:
 
 ```ts
 import { MessageSet } from 'foldkit-surface'
@@ -376,17 +262,11 @@ const SelectionChanges = MessageSet.make(App, [Message.SelectedTodo])
 const AllChanges = MessageSet.union(TodoChanges, SelectionChanges)
 ```
 
-A subset carries the constructors, a pure codec for exactly those variants, a
-`tags` set, and an `includes` guard. A constructor that is not a variant of the
-application, a duplicate tag, or a subset from another application throws.
-Surface does not label a subset durable, agent-visible, or presence; `Sync` and
-`Agent` attach those policies to the same value.
+A subset carries its constructors, a pure codec for those variants, a `tags` set, and an `includes` guard. Passing constructors from another application or duplicate tags throws. `foldkit-sync` and `foldkit-agent` attach durability or agent-visibility policies onto these subsets.
 
 ## Actions
 
-An Action is a capability a consumer may invoke by name with data: an agent's
-tool, a page Block's button. It ends in one of the application's own Messages,
-so `update` stays the only place a Message has effects:
+An `Action` defines a named capability—such as an AI agent tool or a page Block button—that validates input and produces one of your application's `Message`s so effects stay in `update`:
 
 ```ts
 import { Action } from 'foldkit-surface'
@@ -401,18 +281,11 @@ const SelectTodo = Action.define({
 Action.run(SelectTodo, { id: 't1' }) // Result: the Message, or why the input was refused
 ```
 
-`Action.run` decodes the data as the Action's input before `toMessage` sees it,
-so data from a Document or a tool call never executes. The Action is declared
-once: `Agent.action(SelectTodo)` exposes it to an agent, and a page's Catalog
-lists it for Blocks to reference by name.
+`Action.run` decodes inputs against `input` before `toMessage` runs, so untrusted payloads from a Document or tool call are validated first. Declare once and pass to `Agent.action(SelectTodo)` or a page Catalog.
 
 ## Surfaces
 
-A Surface binds a projection and the Messages a feature may use into a named,
-inspectable contract. `App.surface(name, { params?, model, messages? })` is
-the form to write: `params` are the fields of a `Schema.Struct` (or a schema,
-kept as is), and `model` returns a Projection, or an object of Projections and
-field refs that becomes `Projection.struct`.
+`App.surface(name, { params?, model, messages? })` pairs a projection (returning a `Projection` or a plain object of `Projection`s and `ModelRef`s) with the `Message`s a feature may send:
 
 ```ts
 const TodoDetail = App.surface('TodoDetail', {
@@ -432,41 +305,18 @@ const render = Surface.view(TodoDetail, (todos, h) => h.div([], [`${todos.todos.
 Surface.rootView(TodoDetail, undefined, render)    // bound to the app root
 ```
 
-The Surface's Model is the projected value (`{ todos; selectedTodoId }`), its
-Params the fields, and its Message the union of the constructors listed; a
-constructor from another application is a compile error at the constructor.
-A parameterized Surface's projection is not evaluated until it has params:
-`Surface.read(ById, root)` without them is a type error, and a caller the types
-do not reach is refused with an error naming the Surface.
+The Surface's `Model` type is the projected record (`{ todos, selectedTodoId }`), and its `Message` type is the union of listed constructors (constructors from other applications fail to compile). Parameterized Surfaces require `params` whenever read.
 
-`Surface.at(surface, params)` is the Surface as the Model activates it: `params`
-is the value, or a function of the Model returning it as an `Option` (none while
-the Surface is inactive, on another route say). Its `projectionOf(model)` is the
-projection for those params, an `Option` too, and it carries the Surface's
-`owner` and `messages`, the tags of the Messages the Surface lists; a Subscription derives what to fetch from a list of them
-(`foldkit-remote`'s `Data.subscriptions`).
-
-`Surface.each(child, { from, instances })` is one Surface definition as zero to
-many keyed instances: `instances` maps the parent's projected Model to
-`{ key, params }` items, and there is an instance per item while the parent is
-active, none while it is not. Keys are stable strings (`__proto__` and
-duplicates throw). The family keeps its `from` parent, so a consumer can fetch
-the parent first and what the parent reveals after. `SurfaceSource` is the
-shared shape — `at`/`when` values resolve their lone instance through it, keyed
-by Surface name — read with `Surface.instances(source, model)`.
+- `Surface.at(surface, params)` tracks an active Surface instance where `params` is either static or `(model) => Option<Params>`, exposing `projectionOf(model)`, `owner`, and `messages` for consumers such as `foldkit-remote`'s `Data.subscriptions`.
+- `Surface.each(child, { from, instances })` expands one Surface definition into zero-to-many keyed instances while its parent `from` Surface is active, throwing on duplicate keys or `__proto__`. Both `at` and `each` share the `SurfaceSource` interface read via `Surface.instances(source, model)`.
 
 ### `Surface.make`, the explicit form
 
-`Surface.make(app, name, { Params?, model, messages? })` takes the wrappers
-`App.surface` lifts: `Params` as a schema and `model` returning a Projection
-(`Projection.struct({ … })` for several fields). `App.surface` compiles to it.
+`Surface.make(app, name, { Params?, model, messages? })` is the underlying function `App.surface` calls, taking a `Params` schema and a `model` callback returning a `Projection`.
 
 ## Modules
 
-A `Module` collects an application's contracts as pure data, so their
-relationships can be validated and inspected without starting a runtime. Sync,
-Remote, and Agent contracts carry a `contract` description; a Surface is
-described in place (`Surface.contract(surface, params)` for a parameterized one).
+A `Module` collects an application's contracts as pure data so tools can inspect ownership and catch conflicts before starting a runtime. Sync, Remote, and Agent contracts carry a `contract` property; describe a Surface with `Surface.contract(surface, params)`.
 
 ```ts
 import { Module } from 'foldkit-surface'
@@ -479,47 +329,13 @@ Module.toMarkdown(Project)
 Module.toMermaid(Project)
 ```
 
-```text
-Model
-├── route           LOCAL
-├── selectedNoteId  LOCAL
-├── notes           SYNC notes
-└── remote          REMOTE remote
-```
-
-`validate` reports what the types cannot: a contract from another application,
-a duplicate `kind:name`, two owners of overlapping Model paths, a Message
-recorded by two replication contracts, and a path or Message the application
-does not declare. `Module.add(module, ...more)` returns a new Module, so feature
-modules can contribute their contracts independently.
+For example, `Module.manifest` might list `route` and `selectedNoteId` as `LOCAL`, `notes` as `SYNC notes`, and `remote` as `REMOTE remote`. `Module.validate` catches cross-app contracts, duplicate `kind:name` entries, overlapping `Model` path owners, `Message`s claimed by two replication contracts, and undeclared paths or `Message`s. Feature modules can extend a `Module` with `Module.add(module, ...more)`.
 
 ### Laws in the graph
 
-A contract may also say which laws it holds and which transitions can break
-them. `Contract.laws` holds the declarations themselves, and `Graph.of`
-derives their nodes and edges only when it is asked. `Graph` is apart from
-`Module`: a page that reads only `Module` (to draw who owns what) carries
-none of the graph's code. `laws.entities` lists transitions over
-Entities as `Laws.check` takes them: Remote declares each declared write, which
-becomes `write:Sell` beside a law per invariant of its Entity
-(`Product.reservedWithinStock`). `laws.model` names laws over the contract's
-Model slice: Sync declares its document's, each `sync:<name>.<id>` reading the
-whole slice, and each of its Messages is `durable:<tag>` writing it. A closed
-Surface is a level with a `closure:<name>` law over its paths.
-`Graph.of(module, { evidence })` joins them.
+Contracts can declare laws and transitions that might break them in `Contract.laws` (`laws.entities` for Entity invariants and writes, `laws.model` for Sync document laws and `durable:<tag>` transitions, plus `closure:<name>` for closed Surfaces). `Graph.of(module, { evidence })` builds the dependency graph between transitions that write paths, laws that read paths, and `Evidence` records (`Enumerated`, `Walked`, or `Evidence.runtimeOnly`) that attest a transition preserves a law.
 
-```text
-transition --writes--> path <--reads-- law
-transition ----------keeps(evidence)--> law
-```
-
-A transition that writes a path a law reads could break it. The graph does not
-decide whether it does; evidence says so: `Laws.check`'s `Enumerated` records,
-what a walk or a scenario returns, or `Evidence.runtimeOnly` for a pair only
-the writer or the journal refuses. `Graph.validate(module, { evidence })` asks
-the one question of the graph; with no `evidence`, every pair a transition can
-break is unwitnessed. `Module.validate` asks none of these rules, and
-`Graph.validate` none of `Module`'s, so a test that wants both asks both.
+`Graph` is split from `Module` so bundle readers that only render `Module.manifest` omit graph validation code. Run both `Module.validate` and `Graph.validate` in tests since each checks a separate rule set:
 
 ```ts standalone
 import { Schema } from 'effect'
@@ -558,38 +374,22 @@ Graph.breakersOf(Graph.of(Todos, { evidence: [judged] }), 'sync:todos.capped')
 // [{ transition: 'durable:Added', paths: [['todos']], evidence: [judged] }]
 ```
 
-The rules over the graph:
+Graph validation rules:
 
 | Rule | Reported when |
 | --- | --- |
-| `law-unwitnessed` | A transition writes a path a law reads (one within the other), and no evidence joins them. A pair sharing no path is never reported, but a law over a row's change (one reading `before`) reads the whole row, since a write leaving its members alone can still break it. |
-| `evidence-unmatched` | A record was issued by no producer (typed by hand, or a copy of one), or names a transition or law no contract declares, or a pair the graph does not join: a write and a law of two Entities, or a Message and a law over Model paths that do not overlap (two documents'). |
+| `law-unwitnessed` | A transition writes a path a law reads with no matching evidence. |
+| `evidence-unmatched` | Evidence was constructed manually, or names an unknown or unrelated pair. |
 | `level-declared-twice` | Two closed Surfaces observe the same paths and list the same Messages. |
-| `transition-declared-twice` | Two contracts declare a write of one name (`write:Sell` in two Remote domains): the graph and evidence name a write by its name, so neither can tell them apart. |
+| `transition-declared-twice` | Two contracts declare a write of the same name (such as `write:Sell`). |
 
-So a durable Message added to a document, or a write added to a domain, is
-reported until a walk or a scenario draws it, or a line says why only
-production refuses it. `Graph.toMarkdown` takes the same options and writes a
-Laws section, to set beside `Module.toMarkdown`'s: each law, each transition
-that can break it, its evidence, then `Graph.validate`'s findings.
-`Graph.toMermaid` draws the same as a flowchart of its own. The graph holds no transition for a local Message: what
-`modifyFields` writes is known only at run time, so a law over the local Model
-has no `law-unwitnessed` yet, though a walk over it still runs.
-`examples/writes` keeps its table in `LAWS.md`.
+For `law-unwitnessed`, a law that reads `before` counts as reading the entire row because any row write can affect it. `Graph.toMarkdown` and `Graph.toMermaid` render the law table and flowchart (see `LAWS.md` in `examples/writes`). Local `modifyFields` writes are checked by walks rather than static graph edges.
 
 ## Diagnostics
 
-`Diagnostics` is the one channel every Foldkit Plus package reports into what
-it met and kept going past: a fallback, a refusal it answered generically, a
-failure it swallowed, a check run in development. This package owns the
-channel, not the reports: each package declares its own variants on the base
-`Diagnostic` (`_tag`, `source`, `level`, `message`) and lists them in its
-README.
+`Diagnostics` is the shared reporting channel where Foldkit Plus packages send non-fatal warnings and errors (fallbacks, swallowed store failures, dev checks). Each package defines its own `Diagnostic` variants (`_tag`, `source`, `level`, `message`).
 
-A report goes to the `Diagnostics.Reporter` in the Effect context, which by
-default is Effect's log at the diagnostic's level (an `error` reaches
-`console.error`, or stderr on a server). Replace it to send reports elsewhere,
-and collect them in a test:
+Reports go to `Diagnostics.Reporter` in the Effect context, defaulting to Effect's logger. Swap or collect reports using `Diagnostics.layer`, `Layer.succeed`, or `Diagnostics.collect()`:
 
 ```ts
 import { Effect, Layer } from 'effect'
@@ -610,33 +410,15 @@ const { report, reported } = Diagnostics.collect()
 const inTest = Layer.succeed(Diagnostics.Reporter, report)
 ```
 
-`Diagnostics.report(diagnostic)` reports one and never fails: a reporter that
-breaks is logged with what it was given.
+`Diagnostics.report(diagnostic)` always succeeds; if a custom reporter fails, the error is logged with the original diagnostic.
 
-**Mounts.** Foldkit runs a Mount in the runtime's own context, not its
-`resources`, so a reporter there reaches Commands and Subscriptions but no
-Mount. A Mount reports with `Diagnostics.dispatch(element, diagnostic)`
-instead: a `DiagnosticEvent` at its element, which `Diagnostics.layer(reporter)`
-claims for `reporter` while the runtime holds its resources. Nothing claims it
-on a page without that layer, and it goes to the reporter in context, the log.
-Two limits: Foldkit builds `resources` at the first Command or Subscription
-(before `init` with Flags), so a Mount that fails earlier is logged; and with
-two runtimes in one document, the first to build its resources claims both
-runtimes' events. Only events `foldkit-surface` built are claimed, so a script
-dispatching a `foldkit-diagnostic` event cannot reach your reporter.
+**Mounts.** Because Foldkit runs Mounts outside `resources`, Mounts report via `Diagnostics.dispatch(element, diagnostic)` using a verified `DiagnosticEvent` claimed by `Diagnostics.layer(reporter)`. Mounts that fail before `resources` initialize log directly, and if two runtimes share one document, the first runtime to initialize `resources` claims both runtimes' events.
 
-**Production.** The default is the same in every build: this package cannot
-tell a production build from a development one in every bundler. A page that
-should not show warnings (which ask a developer to change something) chooses
-`Diagnostics.quiet`, which logs errors and drops warnings, where it knows its
-mode: `Diagnostics.layer(import.meta.env.DEV ? Diagnostics.log : Diagnostics.quiet)`.
-In development, `foldkit-mixins`' `DevOverlay` lists what was reported on the
-page.
+**Production.** Use `Diagnostics.quiet` in production (`Diagnostics.layer(import.meta.env.DEV ? Diagnostics.log : Diagnostics.quiet)`) to log errors and suppress developer warnings. In development, `foldkit-mixins`' `DevOverlay` displays reported diagnostics on the page.
 
-## Advanced: how this relates to Optics and Submodels
+## Comparing Optics, Surfaces, and Submodels
 
-Surface sits near two existing ideas in Effect and Foldkit, so the overlap is
-intentional. They operate at different levels:
+Surface complements Effect Optics and Foldkit Submodels at different levels of an application:
 
 | Concept | What it answers |
 | --- | --- |
@@ -645,18 +427,7 @@ intentional. They operate at different levels:
 | **Surface** | "What may this feature observe, and which application Messages may it cause?" |
 | **Foldkit Submodel** | "Which state machine owns this state and these transitions?" |
 
-A useful shorthand is:
-
-```text
-modifyFields      = modify application data inside update
-Optic / ModelRef  = locate a value structurally
-Projection        = describe/read/write a known Model slice
-Surface           = observation + capability contract
-Submodel          = state-machine ownership boundary
-```
-
-They compose; none replaces the others. Each line below changes
-or reads the same field, `todos` (`restoredTodos` is an already-decoded value):
+They compose rather than replace one another: `modifyFields` performs application transitions inside `update`, an `Optic` or `ModelRef` locates a value structurally, a `Projection` reads or writes a known `Model` slice, a `Surface` pairs observation with allowed `Message`s, and a `Submodel` owns a state machine boundary:
 
 <!-- docs-check standalone use todoApp
 const App = Surface.application({ Model, Message }).runnable({ initial, update })
@@ -677,79 +448,14 @@ ModelRef.focus(App.model.todos).set(model, restoredTodos)
 
 ### Surface builds on Optics rather than replacing them
 
-Every generated `ModelRef` contains an Effect `Optic.Optional` underneath it.
-The optic supplies the structural focus. Surface enriches that focus with the
-information the rest of an application architecture needs:
-
-```text
-Effect Optic
-   + Schema
-   + dependency path
-   + application identity
-   + get / set
-        ↓
-     ModelRef
-        ↓
-     Projection
-   + metadata (Remote's requirements, …)
-        ↓
-      Surface
-   + name / params
-   + allowed Messages
-```
-
-For example, `App.model.todos` is not an alternative to an optic. It is an
-optic-backed reference that also knows that the value is the `todos` field of
-*this* application, how it is encoded, and that a consumer depending on it
-depends on the `todos` Model path. `ModelRef.fromOptic` is the escape hatch when
-you already have an optic and want to add that metadata yourself.
-
-That extra metadata is the reason Surface exists. An optic can focus
-`model.todos`; by itself it cannot tell `foldkit-sync` that `todos` is the slice
-to replicate, `Module` that another contract claims the same path, or
-`foldkit-remote` that a derived projection needs server data. Surface carries
-that last fact as opaque metadata: `foldkit-remote` attaches its requirements
-under its own `Metadata.key` and reads them back, and Surface only merges them.
-
-A `Projection` also need not correspond to one structural focus. It can combine
-several refs or derived values into one read model while preserving the
-dependencies and metadata of every part.
+Every `ModelRef` wraps an Effect `Optic.Optional`. Surface layers Schema validation, dependency paths, application owner identity, `get`/`set` accessors, and opaque `Metadata` onto that optic to form `Projection`, and adds a name, optional `params`, and allowed `Message`s to form `Surface`. Use `ModelRef.fromOptic` when you already have an Effect optic and want it to carry Surface dependency and owner metadata.
 
 ### Surface and Submodels solve different decompositions
 
-A [Foldkit Submodel](https://foldkit.dev/core/submodel) is for a part of the
-application that **owns a state machine**. It has its own Model, Message, update,
-view, and Commands. The parent stores the child Model, routes child Messages,
-and delegates transitions to the child's update.
+- **Submodels** partition an application by **transition ownership**: each child owns its own `Model`, `Message`, `update`, `view`, and Commands.
+- **Surfaces** partition an application by **consumer needs**: each Surface declares what an existing screen, agent, or subsystem observes and which `Message`s it may send, without introducing a new state machine.
 
-A Surface owns none of those things. It has no private state, no child update,
-no runtime boundary, no Message wrapping, and no Command lifting. It describes
-a restricted interface to state and Messages that already belong to the
-application.
-
-```text
-Submodel
-  "This child owns how this state changes."
-
-Surface
-  "This consumer may see these values and cause these application Messages."
-```
-
-The most useful way to distinguish them is by the decomposition they create:
-
-```text
-Submodels divide the application by ownership:
-  who owns this state and these transitions?
-
-Surfaces divide the application by consumer needs:
-  what does this screen / agent / subsystem need to observe and cause?
-```
-
-Those boundaries do not need to line up. In fact, a Surface can deliberately
-span several Submodels because observation is not ownership. A page that reads
-the route, a theme owned by `Settings`, and the signed-in user owned by
-`Session` does not need to become a third state machine just to assemble those
-values:
+Because observation is separate from ownership, one Surface can read across multiple Submodels—such as reading a parent `route`, a `Settings` theme, and a `Session` user together on an account page:
 
 <!-- docs-check standalone
 import { Schema } from 'effect'
@@ -780,99 +486,32 @@ const AccountPage = App.surface('AccountPage', {
 })
 ```
 
-Conceptually:
-
-```text
-Root application
-├── route                         parent-owned
-├── settings: Settings.Model      Settings owns transitions
-└── session: Session.Model        Session owns transitions
-        │               │
-        └───────┬───────┘
-                │ observed by
-         AccountPage Surface
-       (+ parent-owned route)
-```
-
-This is a feature of the model, not a leak in it: **Submodels partition
-transition ownership; Surfaces may cut across those partitions to describe a
-consumer-facing read/capability boundary.** A screen, an agent context, or
-another interpreter often needs a coherent read model assembled from several
-owners.
-
-The Surface does **not** weaken any of those Submodel boundaries. Reading
-`model.settings.theme` through a `ModelRef` does not grant permission to change
-it directly. If `Settings` owns that state, changes must still go through the
-Settings state machine: its child Message and update, routed through the normal
-parent/child path (`Update.foldChild`, an exported child helper, or the wrapped
-Message path used by the application).
-
-The same rule applies to Surface capabilities. If `AccountPage` may cause a
-Settings transition, expose the **root application Message constructor that
-routes to Settings** in the Surface's `messages`; do not use the underlying
-optic/setter as a shortcut around the child update.
-
-`FieldRef.set` and writable `Projection`s are structural/infrastructure tools.
-Their existence does not imply ownership of the focused state. A Submodel's
-invariants still belong to its update.
-
-Likewise, Surface does not replace `h.submodel`: `h.submodel` creates the runtime
-child boundary and routes child Messages. A Surface is pure, inspectable data
-that may observe across those runtime boundaries without creating another one.
+Reading `model.settings.theme` through a `ModelRef` keeps ownership inside `Settings`. Any transition to `Settings` state still goes through the root `Message` routed to `Settings`'s `update` (`Update.foldChild`), rather than writing directly through a setter. Similarly, `h.submodel` remains the runtime boundary that mounts child views and routes child `Message`s.
 
 ### Which one should I reach for?
 
-- **You need to focus or update nested immutable data:** start with an Effect
-  Optic; use `ModelRef.fromOptic` if that focus must participate in Surface
-  metadata.
-- **A feature needs its own state, Message vocabulary, update logic, Commands,
-  or reusable stateful lifecycle:** use a Foldkit Submodel.
-- **Something needs an inspectable declaration of what existing application
-  state a feature reads or which existing Messages it may cause:** use a
-  Surface.
-- **A screen or subsystem reads across several Submodels:** use one Surface over
-  those child fields; do not invent a new Submodel merely to aggregate them.
-- **You need both:** keep transition ownership in each Submodel and describe the
-  consumer-facing observation/capability boundary with Surface.
+- **Focus or update nested immutable data:** use an Effect Optic (or `ModelRef.fromOptic` to participate in Surface metadata).
+- **Own private state, update logic, or Commands:** use a Foldkit Submodel.
+- **Declare what a feature reads and which Messages it may send:** use a Surface.
+- **Read across multiple Submodels for one screen:** build one Surface over those fields instead of creating a new Submodel to aggregate them.
 
-## What it owns
+## Ownership and responsibilities
 
-- Reference-based Model selection (`App.model`, `Projection.pick`,
-  `Projection.compose`).
-- Pure `Projection` values with their codec, reader, dependencies, and opaque
-  interpreter metadata (`Metadata.key`).
-- Application scopes (`Surface.application`) and their identity token.
-- Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
-- `Closure.reads`: whether a projection after a Message depends on the rest of the Model.
-- `Closure.violations`: the closed Surfaces a step broke, as `ClosureViolation`s; `Surface.make`'s and `App.surface`'s `closed`.
-- The law half of the contract graph: `Contract.laws`, and `Graph`: `Graph.of`,
-  `Graph.validate` (`law-unwitnessed`, `evidence-unmatched`,
-  `level-declared-twice`, `transition-declared-twice`), `Graph.breakersOf`,
-  `Graph.toMarkdown` and `Graph.toMermaid`. It owns the question, not the answers: each contract
-  owns its declared laws, and the producers of `Evidence` own its records.
-- Actions (`Action.define`, `Action.run`): a named capability ending in a Message.
-- Named Surfaces and their renderer binding.
-- The `Diagnostics` channel and its default reporter; each package owns its own
-  variants.
+- Reference-based `Model` selection (`App.model`, `Projection.pick`, `Projection.compose`).
+- Pure `Projection` values with codecs, readers, dependency paths, and opaque `Metadata.key` slots.
+- Application scopes (`Surface.application`) with owner identity tokens.
+- Typed `Message` subsets (`MessageSet.make`, `MessageSet.union`) and validated `Action` capabilities (`Action.define`, `Action.run`).
+- Closure checks (`Closure.reads`, `Closure.violations`) and the law/evidence graph (`Contract.laws`, `Graph.of`, `Graph.validate`, `Graph.breakersOf`, `Graph.toMarkdown`, `Graph.toMermaid`).
+- Named Surfaces, view bindings, and the shared `Diagnostics` channel.
 
 ## Limits
 
-- It performs no I/O and knows nothing about transport. Fetching remote data is
-  [`foldkit-remote`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote);
-  replicating Messages is
-  [`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync).
-- `Model` codecs are pure by construction: Foldkit Model fields carry no decoding
-  or encoding services.
-- A projection declares dependencies and carries metadata but does not act on
-  either; an interpreter such as `foldkit-remote` reads the metadata it owns.
+- Pure data and static descriptions only: fetching remote rows lives in [`foldkit-remote`](../remote/README.md), and offline replication lives in [`foldkit-sync`](../sync/README.md).
+- `Model` codecs run purely without Effect services.
+- Projections declare dependencies and carry metadata without acting on them; downstream packages such as `foldkit-remote` interpret their own keys.
 
-## See also
+## Next
 
-- The packages built on this boundary: [`foldkit-remote`](https://github.com/doeixd/foldkit-plus/tree/main/packages/remote) projects requirements
-  from it, [`foldkit-sync`](https://github.com/doeixd/foldkit-plus/tree/main/packages/sync) replicates a projection of it, [`foldkit-agent`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent) makes one
-  an agent's context, [`foldkit-mirror`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mirror) keeps one in the URL or a store, and
-  [`foldkit-mixins-surface`](https://github.com/doeixd/foldkit-plus/tree/main/packages/mixins-surface) renders one.
-- [Server-derived state](https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md) — the guide that covers
-  this boundary and the Remote Submodel above it.
-- [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app) — five feature Surfaces, a Module, and every contract in one
-  application.
+- Fetch server-derived slices declared on Surfaces: [`foldkit-remote`](../remote/README.md) and [Server-derived state](../../docs/remote.md).
+- Replicate a closed slice offline across devices: [`foldkit-sync`](../sync/README.md).
+- Expose Actions and Surfaces to an AI agent: [`foldkit-agent`](../agent/README.md).
