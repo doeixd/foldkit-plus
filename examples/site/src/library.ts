@@ -55,6 +55,10 @@ export interface Library {
   readonly primitiveModule: (file: string) => Draw
   /** The guides a component page links for the mechanisms that apply to it. */
   readonly related: (slug: string) => Draw
+  /** The blog's index or a post, the whole page. */
+  readonly blog: (path: string) => Draw
+  /** The posts, newest first, for the rail and the menu, the open one marked. */
+  readonly blogPosts: (path: string) => Draw
 }
 
 const unavailable =
@@ -82,4 +86,6 @@ export const browserLibrary: Library = {
   primitive: () => unavailable('primitive example'),
   primitiveModule: () => unavailable('primitive example module'),
   related: () => unavailable('related topics'),
+  blog: () => unavailable('blog page'),
+  blogPosts: () => unavailable('list of posts'),
 }

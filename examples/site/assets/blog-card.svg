@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#2a2a2a"/>
+    </pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#101010" stop-opacity="0"/>
+      <stop offset="1" stop-color="#101010"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#101010"/>
+  <rect width="1200" height="630" fill="url(#dots)"/>
+  <rect y="260" width="1200" height="370" fill="url(#fade)"/>
+  <g font-family="Geist, 'Segoe UI', Arial, Helvetica, sans-serif">
+    <circle cx="112" cy="112" r="34" fill="#f5f5f5"/>
+    <text x="112" y="122" fill="#101010" font-family="'Geist Mono', Consolas, 'Courier New', monospace" font-size="27" font-weight="700" text-anchor="middle">F+</text>
+    <text x="168" y="124" fill="#f5f5f5" font-size="36" font-weight="600" letter-spacing="-0.4">Foldkit Plus</text>
+    <text x="80" y="352" fill="#f5f5f5" font-size="104" font-weight="700" letter-spacing="-4">Ready-made patterns</text>
+    <text x="80" y="466" fill="#8a8a8a" font-size="104" font-weight="700" letter-spacing="-4">for Foldkit.</text>
+    <path d="M80 540h1040" stroke="#2a2a2a" stroke-width="2"/>
+    <text x="80" y="588" fill="#9a9a9a" font-family="'Geist Mono', Consolas, 'Courier New', monospace" font-size="26">foldkit-plus.pages.dev/blog</text>
+  </g>
+</svg>

@@ -45,7 +45,8 @@ const reading = (): Option.Option<string> => {
   const tops: Array<number> = []
   for (const link of linksOf()) {
     const heading = document.getElementById(idOf(link))
-    if (heading === null) continue
+    // A list drawn twice (a post's contents, beside its column and above it) names a section once.
+    if (heading === null || ids.includes(idOf(link))) continue
     ids.push(idOf(link))
     tops.push(heading.getBoundingClientRect().top)
   }

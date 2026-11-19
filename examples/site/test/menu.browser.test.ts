@@ -69,6 +69,8 @@ const library: Library = {
   primitive: none,
   primitiveModule: none,
   related: none,
+  blog: none,
+  blogPosts: none,
 }
 
 const mount = async (width = 390) => {

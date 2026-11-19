@@ -11,6 +11,7 @@ import { Page } from '../page.js'
 import { Message, type Model } from '../shell.js'
 import type { SiteStyle } from '../style.js'
 import { demosPage } from './demos.js'
+import { blogPage, blogPosts } from './blog.js'
 import { docPage } from './doc.js'
 import { frame, missing } from './frame.js'
 import { homeContents, homePage } from './home.js'
@@ -56,6 +57,8 @@ const contentsOf =
             : SSR.static('menu-sidebar', library.menuSidebar(model.path)),
         ]),
       ],
+      Blog: () => blogPosts(model, library, region, slots, h),
+      Post: () => blogPosts(model, library, region, slots, h),
       Missing: () => [],
       Components: () => elsewhere(model.path),
       Primitives: () => elsewhere(model.path),
@@ -74,6 +77,8 @@ export const Body = ({ model, library }: Input, h: H) =>
           Home: () => homePage(model, library, slots, h),
           Demos: () => demosPage(slots, h),
           Doc: () => docPage(model, library, slots, h),
+          Blog: () => blogPage(model, library, h),
+          Post: () => blogPage(model, library, h),
           Missing: () => missing(model, slots, h),
           Components: () => elsewhere(model.path),
           Primitives: () => elsewhere(model.path),

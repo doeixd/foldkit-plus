@@ -47,7 +47,15 @@ export interface Input<M> {
 }
 
 /** Which of the rail's places the page belongs to. */
-type Place = 'home' | 'learn' | 'packages' | 'components' | 'primitives' | 'demos' | 'none'
+type Place =
+  | 'home'
+  | 'learn'
+  | 'packages'
+  | 'components'
+  | 'primitives'
+  | 'demos'
+  | 'blog'
+  | 'none'
 
 const placeOf = (page: Page): Place =>
   Page.match<Place>(page, {
@@ -58,6 +66,8 @@ const placeOf = (page: Page): Place =>
     Component: () => 'components',
     Create: () => 'components',
     Doc: ({ subsite }) => (subsite === 'learn' ? 'learn' : 'packages'),
+    Blog: () => 'blog',
+    Post: () => 'blog',
     Missing: () => 'none',
   })
 
@@ -72,6 +82,7 @@ const places: ReadonlyArray<{
   { place: 'components', label: 'Components', href: '/components' },
   { place: 'primitives', label: 'Primitives', href: PRIMITIVES_GALLERY },
   { place: 'demos', label: 'Demos', href: '/demos' },
+  { place: 'blog', label: 'Blog', href: '/blog' },
 ]
 
 const schemes: ReadonlyArray<{ readonly scheme: PageScheme; readonly label: string }> = [

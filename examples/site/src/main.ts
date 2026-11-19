@@ -600,6 +600,8 @@ const descriptionOf = (page: Page): string =>
     Home: () => elsewhere('Home'),
     Demos: () => elsewhere('Demos'),
     Doc: () => elsewhere('Doc'),
+    Blog: () => elsewhere('Blog'),
+    Post: () => elsewhere('Post'),
   })
 
 const titleOf = (page: Page): string =>
@@ -616,6 +618,8 @@ const titleOf = (page: Page): string =>
     Home: () => elsewhere('Home'),
     Demos: () => elsewhere('Demos'),
     Doc: () => elsewhere('Doc'),
+    Blog: () => elsewhere('Blog'),
+    Post: () => elsewhere('Post'),
   })
 
 /** A page of the guides application, which this one is never given: a routing mistake, said loudly. */

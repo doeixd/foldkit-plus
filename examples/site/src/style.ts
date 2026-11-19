@@ -39,7 +39,7 @@ const { t, slots, stylesheet } = AppStyle.make({
   }),
 })
 
-export { stylesheet }
+export { slots, stylesheet, t }
 
 /** Faces with `─ │ ┌ ┐ └ ┘ ├ ┤ → ← ↑ ↓` at the width of a letter, the platform's own first. */
 const DIAGRAM_FONT =

@@ -21,6 +21,7 @@ import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { NARROW } from './breakpoints.js'
+import { BLOG_DESCRIPTION, metaOf } from './blog/meta.js'
 import { allSubsites } from './catalog.js'
 import { COPY_ATTRIBUTE, EXPAND_ATTRIBUTE, MENU_ID, type Library } from './library.js'
 import { Example, Page, PageScheme } from './page.js'
@@ -414,6 +415,8 @@ export const descriptionOf = (page: Page): string =>
     Component: () => elsewhere('Component'),
     Create: () => elsewhere('Create'),
     Doc: ({ description }) => (description === '' ? DESCRIPTION : description),
+    Blog: () => BLOG_DESCRIPTION,
+    Post: ({ description }) => description,
     Missing: () => DESCRIPTION,
   })
 
@@ -437,7 +440,14 @@ const planOf = (withMeta: boolean) =>
     ],
     // The server cannot know a reader's scheme; the head script applied it.
     boot: () => [ReadPageScheme()],
-    ...(withMeta ? { meta: (model: Model) => ({ description: descriptionOf(model.page) }) } : {}),
+    ...(withMeta
+      ? {
+          meta: (model: Model) =>
+            Option.getOrElse(metaOf(model.page, ORIGIN), () => ({
+              description: descriptionOf(model.page),
+            })),
+        }
+      : {}),
   })
 
 /** The plan the build generates pages with. */
@@ -464,6 +474,8 @@ export const titleOf = (page: Page): string =>
         ? `${title} · Foldkit Plus`
         : `${title} · ${family.title} · Foldkit Plus`
     },
+    Blog: () => 'Blog · Foldkit Plus',
+    Post: ({ title }) => `${title} · Foldkit Plus`,
     Missing: () => 'Not found · Foldkit Plus',
   })
 

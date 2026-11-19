@@ -27,6 +27,7 @@ import {
 import { Page, type Example } from '../page.js'
 import type { RootContent } from 'mdast'
 
+import { makeBlog } from '../blog/library.js'
 import { packageName } from '../demos.js'
 import { apiPages, apiTargets, type ApiPage, type Mention } from './api.js'
 import { links, type Links, type Target } from './links.js'
@@ -138,6 +139,10 @@ export const regionsOf = (source: string): ReadonlyMap<string, string> => {
 export interface ServerLibrary extends Library {
   /** Every address the build writes a page for. */
   readonly paths: ReadonlyArray<string>
+  /** When a page was last changed, for the addresses that say (the blog's), for the sitemap. */
+  readonly modified: ReadonlyMap<string, string>
+  /** The blog's Atom feed under the site's origin. */
+  readonly feed: (origin: string) => string
 }
 
 export const makeLibrary = async (repository: string): Promise<ServerLibrary> => {
@@ -391,6 +396,8 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
       ),
     ]
 
+  const blog = makeBlog(repository, highlight, { href: guides.linksFrom, codeLink: linkOf })
+
   return {
     paths: [
       HOME,
@@ -399,10 +406,17 @@ export const makeLibrary = async (repository: string): Promise<ServerLibrary> =>
       ...componentPaths,
       CREATE,
       PRIMITIVES_GALLERY,
+      ...blog.paths,
       ...byPath.keys(),
     ],
+    modified: blog.modified,
+    feed: blog.feed,
+    blog: blog.region,
+    blogPosts: blog.posts,
     pageAt: path => {
       const normal = normalize(path)
+      const post = blog.pageAt(normal)
+      if (Option.isSome(post)) return post.value
       if (normal === HOME) return Page.Home()
       if (normal === DEMOS) return Page.Demos()
       if (normal === COMPONENTS) return Page.Components()
