@@ -1,8 +1,7 @@
-import { Bundles, Card, CardSlots, FileUpload, FileUploadSlots, Recipes } from 'foldkit-mixins-ui'
+import { Bundles, Card, FileUpload, FileUploadSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Panel = forSlots(CardSlots)(Recipes.Card({}))
+const Panel = Recipes.Card.style({})
 
 // Composition is nesting: the field is the card's content.
 export default example({

@@ -1,10 +1,7 @@
-import { Button, ButtonSlots, Frame, FrameSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, Frame, FrameSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Quiet = forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
-)
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'outline', size: 'sm' })
 
 // A tray with a heading, an action and a note, holding one panel for each
 // thing that belongs with the others. Each panel is a surface of its own, so

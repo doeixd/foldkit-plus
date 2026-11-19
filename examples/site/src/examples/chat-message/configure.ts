@@ -1,9 +1,8 @@
 import { ChatMessage, ChatMessageSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { column, GroupStyle } from '../../snippets/chat.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Outlined = forSlots(ChatMessageSlots)(Recipes.ChatMessage({ bubble: 'outline' }))
+const Outlined = Recipes.ChatMessage.style({ bubble: 'outline' })
 
 // What every message of an application starts from: its look and its words in
 // its language. One use names a preset that changes how the actions show.

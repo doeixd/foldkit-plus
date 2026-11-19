@@ -1,9 +1,8 @@
-import { Fieldset, FieldsetSlots, Input, InputSlots, Recipes } from 'foldkit-mixins-ui'
+import { Fieldset, FieldsetSlots, Input, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Control = forSlots(InputSlots)(Recipes.Input({}))
+const Control = Recipes.Input.style({})
 
 // `view` draws the native fieldset: a legend that names the group, an optional
 // description, and the content you drew. `disabled` turns off every control inside.

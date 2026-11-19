@@ -5,14 +5,11 @@ import {
   FileUpload,
   FileUploadProgress,
   FileUploadSlots,
-  ProgressSlots,
   Recipes,
   Table,
-  TableSlots,
 } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { label } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 import { simulated } from '../../snippets/upload.js'
 
 const LANES = 2
@@ -23,9 +20,9 @@ const App = Bundle.compose({}).pipe(
   }),
 )
 const lift = (message: FileUpload.Message) => App.Message.GotUploadMessage({ message })
-const Rows = forSlots(TableSlots)(Recipes.Table({}))
+const Rows = Recipes.Table.style({})
 const Ring = FileUploadProgress.make({
-  style: forSlots(ProgressSlots)(Recipes.Progress({ shape: 'ring' })),
+  style: Recipes.Progress.style({ shape: 'ring' }),
 })
 
 // `FileUpload.parts` hands back the drawings `view` assembles, apart, so the

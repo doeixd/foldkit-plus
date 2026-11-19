@@ -5,11 +5,9 @@ import {
   FileUpload,
   FileUploadProgress,
   FileUploadSlots,
-  ProgressSlots,
   Recipes,
 } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 import { simulated } from '../../snippets/upload.js'
 
 const LANES = 3
@@ -23,7 +21,7 @@ const lift = (message: FileUpload.Message) => App.Message.GotUploadMessage({ mes
 
 // The widget sends nothing: the application's transport and the Progress
 // bar are both passed in, so a field that only posts with a form ships neither.
-const Bar = FileUploadProgress.make({ style: forSlots(ProgressSlots)(Recipes.Progress({})) })
+const Bar = FileUploadProgress.make({ style: Recipes.Progress.style({}) })
 
 export default example({
   title: 'Progress: three at a time (name a file "fail" to see a retry)',

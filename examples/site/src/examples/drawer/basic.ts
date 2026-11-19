@@ -1,9 +1,8 @@
-import { Bundles, Button, ButtonSlots, Drawer, DrawerSlots, Recipes } from 'foldkit-mixins-ui'
+import { Bundles, Button, Drawer, DrawerSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { frame } from '../../gallery/previewShared.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
+const Primary = Recipes.Button.style({})
 
 // A panel docked to the bottom of the screen: the handle peeks, and a press,
 // Enter or a drag opens it. The page under it stays live. `keepFocus` keeps

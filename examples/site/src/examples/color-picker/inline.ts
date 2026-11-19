@@ -1,9 +1,8 @@
-import { Bundles, ColorPicker, ColorPickerSlots, Recipes, SliderSlots } from 'foldkit-mixins-ui'
+import { Bundles, ColorPicker, ColorPickerSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
 // The hue and alpha tracks are Sliders, painted from the color.
-const Channel = forSlots(SliderSlots)(Recipes.Slider({ track: 'paint', label: 'hidden' }))
+const Channel = Recipes.Slider.style({ track: 'paint', label: 'hidden' })
 
 // The colors one press away: the one equal to the color is checked.
 const accents: ReadonlyArray<ColorPicker.ColorPickerPreset> = [

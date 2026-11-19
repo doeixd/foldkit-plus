@@ -1,11 +1,10 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Button, ButtonSlots, ChatMessage, ChatMessageSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, ChatMessage, ChatMessageSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { column } from '../../snippets/chat.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Action = forSlots(ButtonSlots)(Recipes.Button({}))
+const Action = Recipes.Button.style({})
 
 const ANSWER =
   'The ladder has two ends, 36 pixels and 28, and the step knob moves every control between them at once, so a region set compact shrinks its buttons, fields and rows together.'.split(

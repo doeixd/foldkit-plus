@@ -1,17 +1,8 @@
-import {
-  Avatar,
-  AvatarSlots,
-  Button,
-  ButtonSlots,
-  Card,
-  CardSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Avatar, Button, Card, CardSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Face = forSlots(AvatarSlots)(Recipes.Avatar({ size: 'lg', color: 'name' }))
-const Action = forSlots(ButtonSlots)(Recipes.Button({}))
+const Face = Recipes.Avatar.style({ size: 'lg', color: 'name' })
+const Action = Recipes.Button.style({})
 
 // A person: their avatar leading in the media's place, a name and a role.
 export default example({

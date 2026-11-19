@@ -1,8 +1,7 @@
-import { Button, ButtonSlots, Item, ItemSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, Item, ItemSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Small = forSlots(ButtonSlots)(Recipes.Button({ size: 'sm', variant: 'outline' }))
+const Small = Recipes.Button.style({ size: 'sm', variant: 'outline' })
 
 // `header` and `footer` are full-width bands above and below the row. The
 // whole item is a link, and the footer's button stays pressable above it.

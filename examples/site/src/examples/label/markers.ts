@@ -1,9 +1,8 @@
-import { Input, InputSlots, Label, LabelSlots, Recipes } from 'foldkit-mixins-ui'
+import { Input, Label, LabelSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Field = forSlots(InputSlots)(Recipes.Input({}))
+const Field = Recipes.Input.style({})
 
 // `required` draws a star the screen reader skips (the control itself says it
 // is required); `optional` says so in words that are read. A field is one or

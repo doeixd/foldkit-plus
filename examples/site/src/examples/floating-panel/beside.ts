@@ -1,16 +1,8 @@
 import { Bundle } from 'foldkit-bundle'
-import {
-  Bundles,
-  Button,
-  ButtonSlots,
-  FloatingPanel,
-  FloatingPanelSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Bundles, Button, FloatingPanel, FloatingPanelSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
+const Primary = Recipes.Button.style({})
 
 // `openBeside` opens the panel next to the element with that id: a Command
 // reads the opener's box after the update, and `Placed` puts the panel there,

@@ -1,12 +1,9 @@
-import { Button, ButtonGroup, ButtonGroupSlots, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, ButtonGroup, ButtonGroupSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
 import { row } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Square = forSlots(ButtonSlots)(
-  Recipes.Button({ tone: 'neutral', variant: 'outline', shape: 'square' }),
-)
+const Square = Recipes.Button.style({ tone: 'neutral', variant: 'outline', shape: 'square' })
 
 const history = [
   { label: 'Undo', icon: 'M5.5 3.5L2.5 6.5l3 3M2.5 6.5h7a3.5 3.5 0 0 1 0 7h-2' },

@@ -1,10 +1,9 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Card, CardGroupSlots, CardSlots, Recipes } from 'foldkit-mixins-ui'
+import { Card, CardGroupSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Region = forSlots(CardSlots)(Recipes.Card({}))
+const Region = Recipes.Card.style({})
 
 const Model = Schema.Struct({ chosen: Schema.String })
 const Message = defineMessageUnion({ Chose: { region: Schema.String } })

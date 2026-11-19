@@ -3,9 +3,8 @@ import { Bundle } from 'foldkit-bundle'
 import { Bundles, Listbox, ListboxSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { row } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Quiet = forSlots(ListboxSlots)(Recipes.Listbox({ trigger: 'ghost', size: 'sm' }))
+const Quiet = Recipes.Listbox.style({ trigger: 'ghost', size: 'sm' })
 
 // Stated once, at module scope: the look every filter of the application
 // starts from, and a named preset over it.

@@ -1,14 +1,13 @@
 import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { modifyFields } from 'foldkit/struct'
-import { Bundles, Button, ButtonSlots, Combobox, ComboboxSlots, Recipes } from 'foldkit-mixins-ui'
+import { Bundles, Button, Combobox, ComboboxSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
 const cities = ['Kyiv', 'Lagos', 'Lima', 'Oslo', 'Osaka', 'Quito', 'Seoul', 'Zurich'] as const
 const City = Combobox.one(cities)
-const LoadingStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const LoadingStyle = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 // Whether the cities are still being fetched is the application's fact. While
 // it holds, no row is offered and `empty` says why; after, it says no city

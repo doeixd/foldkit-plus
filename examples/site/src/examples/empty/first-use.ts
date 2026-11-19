@@ -1,10 +1,9 @@
-import { Button, ButtonSlots, Empty, EmptySlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, Empty, EmptySlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Action = forSlots(ButtonSlots)(Recipes.Button({}))
-const Other = forSlots(ButtonSlots)(Recipes.Button({ variant: 'outline' }))
+const Action = Recipes.Button.style({})
+const Other = Recipes.Button.style({ variant: 'outline' })
 
 // First use: a dashed frame where the first item will go.
 export default example({

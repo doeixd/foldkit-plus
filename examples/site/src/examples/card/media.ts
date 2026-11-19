@@ -1,9 +1,8 @@
-import { Button, ButtonSlots, Card, CardSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, Card, CardSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { portrait } from '../../snippets/portrait.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Action = forSlots(ButtonSlots)(Recipes.Button({}))
+const Action = Recipes.Button.style({})
 
 // A picture across the top, bled to the card's edges.
 export default example({

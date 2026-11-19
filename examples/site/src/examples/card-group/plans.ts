@@ -1,10 +1,9 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Card, CardGroupSlots, CardSlots, Recipes } from 'foldkit-mixins-ui'
+import { Card, CardGroupSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Plan = forSlots(CardSlots)(Recipes.Card({ surface: 'plain', orientation: 'inline' }))
+const Plan = Recipes.Card.style({ surface: 'plain', orientation: 'inline' })
 
 const plans = [
   { key: 'starter', title: 'Starter', description: 'One editor and three pages.', price: 'Free' },

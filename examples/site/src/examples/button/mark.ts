@@ -1,10 +1,9 @@
-import { Badge, BadgeSlots, Button, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Badge, Button, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
 import { row } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Counts = forSlots(BadgeSlots)(Recipes.Badge({ appearance: 'solid', size: 'sm' }))
+const Counts = Recipes.Badge.style({ appearance: 'solid', size: 'sm' })
 
 // A `mark` sits on the button's corner: a count Badge here, so what it says
 // is read with the label. The mark's slot places it; the Badge's own style

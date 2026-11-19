@@ -1,19 +1,11 @@
 import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
-import {
-  Bundles,
-  Button,
-  ButtonSlots,
-  CascadeSelect,
-  CascadeSelectSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Bundles, Button, CascadeSelect, CascadeSelectSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { row } from '../../snippets/layout.js'
 import { Places } from '../../snippets/places.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Quiet = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const Quiet = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 // The path is the widget's own value, and `helpers.set` is how the parent
 // writes it: buttons of the application's set it, or clear it with an empty

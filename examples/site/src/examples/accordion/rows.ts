@@ -1,19 +1,9 @@
-import {
-  Accordion,
-  AccordionSlots,
-  Avatar,
-  AvatarSlots,
-  Badge,
-  BadgeSlots,
-  Bundles,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Accordion, AccordionSlots, Avatar, Badge, Bundles, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { portrait } from '../../snippets/portrait.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Face = forSlots(AvatarSlots)(Recipes.Avatar({ size: 'sm' }))
-const Mark = forSlots(BadgeSlots)(Recipes.Badge({}))
+const Face = Recipes.Avatar.style({ size: 'sm' })
+const Mark = Recipes.Badge.style({})
 
 // A row's `icon` stands before its title and its `trailing` after it: an
 // avatar and a role here, any drawing the application makes. The title stays

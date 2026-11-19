@@ -1,8 +1,7 @@
-import { Button, ButtonGroup, ButtonGroupSlots, ButtonSlots, Recipes } from 'foldkit-mixins-ui'
+import { Button, ButtonGroup, ButtonGroupSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Face = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const Face = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 // Outlined buttons, joined: their borders overlap at each seam.
 export default example({

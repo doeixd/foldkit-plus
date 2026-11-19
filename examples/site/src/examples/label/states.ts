@@ -1,9 +1,8 @@
-import { Input, InputSlots, Label, LabelSlots, Recipes } from 'foldkit-mixins-ui'
+import { Input, Label, LabelSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Field = forSlots(InputSlots)(Recipes.Input({}))
+const Field = Recipes.Input.style({})
 
 // `disabled` and `invalid` only mark the label (`data-disabled`, `data-invalid`):
 // the control carries its own state, so pass both the same value.

@@ -1,10 +1,9 @@
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Badge, BadgeSlots, Checkbox, CheckboxSlots, Recipes } from 'foldkit-mixins-ui'
+import { Badge, Checkbox, CheckboxSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Tag = forSlots(BadgeSlots)(Recipes.Badge({}))
+const Tag = Recipes.Badge.style({})
 
 const Model = Schema.Struct({ checked: Schema.Boolean })
 const Message = defineMessageUnion({ Toggled: { checked: Schema.Boolean } })

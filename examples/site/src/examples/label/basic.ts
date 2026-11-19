@@ -1,9 +1,8 @@
-import { Input, InputSlots, Label, LabelSlots, Recipes } from 'foldkit-mixins-ui'
+import { Input, Label, LabelSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Field = forSlots(InputSlots)(Recipes.Input({}))
+const Field = Recipes.Input.style({})
 
 // `for` is the id the control carries. Pass the one `FieldAssociation`
 // derived, so there is no second naming scheme beside it.

@@ -1,22 +1,11 @@
-import {
-  Badge,
-  BadgeSlots,
-  Button,
-  ButtonSlots,
-  Input,
-  InputSlots,
-  Label,
-  LabelSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Badge, Button, Input, Label, LabelSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { outline } from '../../snippets/icon.js'
 import { stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Field = forSlots(InputSlots)(Recipes.Input({}))
-const Help = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'icon', size: 'xs' }))
-const Soon = forSlots(BadgeSlots)(Recipes.Badge({ size: 'sm' }))
+const Field = Recipes.Input.style({})
+const Help = Recipes.Button.style({ tone: 'neutral', variant: 'icon', size: 'xs' })
+const Soon = Recipes.Badge.style({ size: 'sm' })
 
 // `trailing` stands beside the label, not inside it, so a button there is not
 // part of what names the control.

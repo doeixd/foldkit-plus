@@ -1,14 +1,13 @@
 import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { modifyFields } from 'foldkit/struct'
-import { Bundles, Button, ButtonSlots, Calendar, CalendarSlots, Recipes } from 'foldkit-mixins-ui'
+import { Bundles, Button, Calendar, CalendarSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { stack } from '../../snippets/layout.js'
-import { forSlots } from '../../snippets/theme.js'
 import { today } from '../../snippets/today.js'
 
 const times = ['09:00', '10:30', '13:00', '15:30']
-const TimeStyle = forSlots(ButtonSlots)(Recipes.Button({ tone: 'neutral', variant: 'outline' }))
+const TimeStyle = Recipes.Button.style({ tone: 'neutral', variant: 'outline' })
 
 // The time is a fact of its own, so it is the application's field and its
 // own buttons, and the calendar only places them, in `aside`.

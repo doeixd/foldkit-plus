@@ -1,16 +1,8 @@
 import { Bundle } from 'foldkit-bundle'
-import {
-  Bundles,
-  Button,
-  ButtonSlots,
-  FloatingPanel,
-  FloatingPanelSlots,
-  Recipes,
-} from 'foldkit-mixins-ui'
+import { Bundles, Button, FloatingPanel, FloatingPanelSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Primary = forSlots(ButtonSlots)(Recipes.Button({}))
+const Primary = Recipes.Button.style({})
 
 // `overflow: true` lets the panel be dragged past the edges of the viewport,
 // as a palette that is parked half off screen is.

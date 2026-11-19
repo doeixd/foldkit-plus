@@ -1,9 +1,8 @@
-import { Avatar, AvatarGroupSlots, AvatarSlots, Recipes } from 'foldkit-mixins-ui'
+import { Avatar, AvatarSlots, Recipes } from 'foldkit-mixins-ui'
 import { example } from '../../gallery/example.js'
 import { portrait } from '../../snippets/portrait.js'
-import { forSlots } from '../../snippets/theme.js'
 
-const Stack = forSlots(AvatarGroupSlots)(Recipes.AvatarGroup({}))
+const Stack = Recipes.AvatarGroup.style({})
 
 // Overlapping, each ringed in the page, at most four and a count of the rest.
 // `wrap` draws around each avatar: here a link to the person's page.
