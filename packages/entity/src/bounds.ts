@@ -610,9 +610,12 @@ const effectOf = (write: AnyWrite, key: string): Change => {
     return Change.Other({ reason: `${key} is set by the write's context` })
   if (write.expect?.field.key === key)
     return Change.Other({ reason: `${key} is the revision it expects, moved on where it lands` })
-  return write._tag === 'Insert'
-    ? Change.Other({ reason: `${key} is not written by the insert, so the store decides it` })
-    : Change.Keep()
+  return Match.valueTags(write, {
+    Insert: () =>
+      Change.Other({ reason: `${key} is not written by the insert, so the store decides it` }),
+    Update: () => Change.Keep(),
+    Delete: () => Change.Keep(),
+  })
 }
 
 /** A row before, an input and the row after, concrete, that break a rule: what a refusal shows. */
@@ -629,7 +632,11 @@ export interface Witness {
 
 /** The witness one enumerated step makes. */
 export const witnessOf = (write: AnyWrite, held: Invariant, step: Step): Witness => ({
-  before: write._tag === 'Insert' ? Option.none() : Option.some(step.before),
+  before: Match.valueTags(write, {
+    Insert: () => Option.none(),
+    Update: () => Option.some(step.before),
+    Delete: () => Option.some(step.before),
+  }),
   input: step.input,
   after: step.after,
   invariant: held.id,
@@ -786,11 +793,14 @@ const caseOf = (
     integers,
     effects: new Map(),
     kept: new Set(
-      write._tag === 'Insert'
-        ? []
-        : [...members.numeric]
+      Match.valueTags(write, {
+        Insert: () => [],
+        Update: () =>
+          [...members.numeric]
             .filter(([, change]) => Change.$is('Keep')(change))
             .map(([key]) => key),
+        Delete: () => [],
+      }),
     ),
     relations: new Set(),
   }
@@ -1041,7 +1051,11 @@ export const judgeBounded = (
   invariants: ReadonlyArray<Invariant>,
   operators: MemoryOperators,
 ): Bounded => {
-  const assumed = write._tag === 'Insert' ? [] : invariants.filter(each => !readsBefore(each))
+  const assumed = Match.valueTags(write, {
+    Insert: () => [],
+    Update: () => invariants.filter(each => !readsBefore(each)),
+    Delete: () => invariants.filter(each => !readsBefore(each)),
+  })
   const members = membersOf(write, [...new Set([...held.before, ...held.after])], assumed)
   const inputs = inputBounds(write, members)
   const listed = steps(write, members.finite, { operators })

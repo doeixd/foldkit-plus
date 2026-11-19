@@ -623,11 +623,17 @@ test('at 1280px a tile held in the bottom strip of the centre column scrolls it,
   const start = await main.evaluate(each => each.scrollTop)
 
   const from = await middle(tile)
+  const mainBox = (await main.boundingBox())!
+  const targetX = mainBox.x + mainBox.width / 2
+  const targetY = Math.min(590, mainBox.y + mainBox.height - 10)
   await page.mouse.move(from.x, from.y)
   await page.mouse.down()
   // Out of the panel and into the column's last 20px, then held: the strip scrolls after 150ms.
   for (let step = 1; step <= 10; step++) {
-    await page.mouse.move(from.x + 5 * step, from.y + ((590 - from.y) * step) / 10)
+    await page.mouse.move(
+      from.x + ((targetX - from.x) * step) / 10,
+      from.y + ((targetY - from.y) * step) / 10,
+    )
     await page.waitForTimeout(35)
   }
   await expect

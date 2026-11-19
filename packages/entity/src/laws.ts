@@ -270,7 +270,11 @@ const judgeWrite = (
     Option.some({
       write,
       rule: held,
-      assumed: write._tag === 'Insert' ? [] : invariants.filter(each => !readsBefore(each)),
+      assumed: Match.valueTags(write, {
+        Insert: () => [],
+        Update: () => invariants.filter(each => !readsBefore(each)),
+        Delete: () => invariants.filter(each => !readsBefore(each)),
+      }),
       cases,
     })
   return Steps.$match(steps(write, reads, { operators }), {

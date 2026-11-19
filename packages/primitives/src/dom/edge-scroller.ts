@@ -193,9 +193,9 @@ export const edgeScroller = (
       if (offset(scroller, axis) !== before) moved = true
     }
     if (moved) owed = 0
-    // A step too small to move the scroll waits for more time; one that should have moved it
-    // and did not (a page that will not scroll) ends the loop rather than spin.
-    else if (seconds * speed >= 2) return
+    // A step too small to move the scroll waits for more time; one whose attempted distance
+    // should have moved it and did not (a page that will not scroll) ends the loop rather than spin.
+    else if (Math.max(...steps.map(step => Math.abs(step.by))) * seconds * speed >= 2) return
     if (moved) onScrolled()
     frame = view?.requestAnimationFrame(tick)
   }

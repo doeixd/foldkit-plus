@@ -355,7 +355,12 @@ test('the guide pill covers no control or grid cell, at rest and scrolled to the
     await cell(page, 'Device A', 'p000002', 'cents').waitFor({ timeout: 60_000 })
     expect(await overlaps(page), `at ${viewport.width}x${viewport.height}`).toEqual([])
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
-    expect(await overlaps(page), `scrolled, at ${viewport.width}x${viewport.height}`).toEqual([])
+    await expect
+      .poll(() => overlaps(page), {
+        timeout: 5_000,
+        message: `scrolled, at ${viewport.width}x${viewport.height}`,
+      })
+      .toEqual([])
     await page.close()
   }
 })

@@ -15,7 +15,7 @@ import { Array as Arr, Match, Option, Pipeable, Schema, SchemaAST } from 'effect
 import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
 import { SchemaShape } from './shape.js'
-import { Law, type Side } from './law.js'
+import type { Law, Side } from './law.js'
 import { Laws, lawKind } from './lawCore.js'
 import { now, viewer, type NowExpr, type ViewerExpr, type ViewerPathExpr } from './context.js'
 import { own, put } from './record.js'
@@ -1313,7 +1313,7 @@ const makeOperator = (
 const NullableNumber = Schema.NullOr(Schema.Number)
 
 /** Each law of addition and subtraction holds over finite numbers; an infinity minus itself is NaN. */
-const finite = (law: Law): Law => Law.within(law, Schema.Finite)
+const finiteDomain: Option.Option<Schema.Top> = Option.some(Schema.Finite)
 
 /**
  * The kernel's addition: primitive, so each interpreter implements it
@@ -1326,9 +1326,9 @@ const add = makeOperator('number.add', {
   description:
     'Addition over numbers, of two arguments: the first plus the second (left + right); null when either is null.',
   laws: [
-    finite(Law.commutative),
-    finite(Law.monotonic('increasing', 0)),
-    finite(Law.monotonic('increasing', 1)),
+    Laws.Commutative({ domain: finiteDomain }),
+    Laws.Monotonic({ domain: finiteDomain, direction: 'increasing', position: 0 }),
+    Laws.Monotonic({ domain: finiteDomain, direction: 'increasing', position: 1 }),
   ],
 }) as unknown as Operator<
   readonly [typeof NullableNumber, typeof NullableNumber],
@@ -1341,7 +1341,10 @@ const sub = makeOperator('number.subtract', {
   output: Schema.Number,
   description:
     'Subtraction over numbers, of two arguments: the first minus the second (left - right); null when either is null.',
-  laws: [finite(Law.monotonic('increasing', 0)), finite(Law.monotonic('decreasing', 1))],
+  laws: [
+    Laws.Monotonic({ domain: finiteDomain, direction: 'increasing', position: 0 }),
+    Laws.Monotonic({ domain: finiteDomain, direction: 'decreasing', position: 1 }),
+  ],
 }) as unknown as Operator<
   readonly [typeof NullableNumber, typeof NullableNumber],
   typeof Schema.Number
