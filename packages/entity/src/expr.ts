@@ -15,7 +15,7 @@ import { Array as Arr, Match, Option, Pipeable, Schema, SchemaAST } from 'effect
 import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
 import { SchemaShape } from './shape.js'
-import type { Law, Side } from './law.js'
+import { Law, type Side } from './law.js'
 import { Laws, lawKind } from './lawCore.js'
 import { now, viewer, type NowExpr, type ViewerExpr, type ViewerPathExpr } from './context.js'
 import { own, put } from './record.js'
@@ -1309,6 +1309,50 @@ const makeOperator = (
   >
 }
 
+/** A number, or a null, which a strict operator answers with null. */
+const NullableNumber = Schema.NullOr(Schema.Number)
+
+/** Each law of addition and subtraction holds over finite numbers; an infinity minus itself is NaN. */
+const finite = (law: Law): Law => Law.within(law, Schema.Finite)
+
+/**
+ * The kernel's addition: primitive, so each interpreter implements it
+ * (`+` in memory and in SQL). The id, the description and the laws are what a
+ * reader of a body has of it: two numbers in, their sum out.
+ */
+const add = makeOperator('number.add', {
+  input: [NullableNumber, NullableNumber],
+  output: Schema.Number,
+  description:
+    'Addition over numbers, of two arguments: the first plus the second (left + right); null when either is null.',
+  laws: [
+    finite(Law.commutative),
+    finite(Law.monotonic('increasing', 0)),
+    finite(Law.monotonic('increasing', 1)),
+  ],
+}) as unknown as Operator<
+  readonly [typeof NullableNumber, typeof NullableNumber],
+  typeof Schema.Number
+>
+
+/** The kernel's subtraction: as `add`, the second argument taken from the first. */
+const sub = makeOperator('number.subtract', {
+  input: [NullableNumber, NullableNumber],
+  output: Schema.Number,
+  description:
+    'Subtraction over numbers, of two arguments: the first minus the second (left - right); null when either is null.',
+  laws: [finite(Law.monotonic('increasing', 0)), finite(Law.monotonic('decreasing', 1))],
+}) as unknown as Operator<
+  readonly [typeof NullableNumber, typeof NullableNumber],
+  typeof Schema.Number
+>
+
+/** The kernel's arithmetic, by descriptor: what `Expr.show` prints infix. */
+const arithmeticSymbols: ReadonlyMap<OperatorDescriptor, string> = new Map([
+  [add.descriptor, '+'],
+  [sub.descriptor, '-'],
+])
+
 /** Each defined call replaced by its expansion, deeply; built once per node. */
 const expandedCache = new WeakMap<object, AnyExpr | Predicate>()
 
@@ -2002,6 +2046,28 @@ export const Expr = {
   gte: comparison('gte'),
 
   /**
+   * The sum of two numbers, as a scalar a comparison, an order term or a
+   * write's `compute` reads:
+   *
+   * ```ts
+   * Expr.lte(Expr.add(row.withdrawnToday, input.amount), 500)
+   * ```
+   *
+   * A primitive operator of the kernel (`number.add`), so each interpreter
+   * runs it: `+` in memory, in SQLite and in Postgres. Each argument is a
+   * number as stored (a text field is a type error where it is passed). A null
+   * on either side gives null, as SQL's `+` does. Where the readers part is
+   * past what a double holds: memory gives an infinity, SQLite an infinity
+   * (and a real for two integers past 64 bits), and Postgres refuses the
+   * statement as out of range; an infinity plus its negation is NaN in memory
+   * and Postgres and null in SQLite. A NaN given is refused, as a comparison
+   * refuses one.
+   */
+  add,
+  /** The first number less the second (`number.subtract`); see `Expr.add`. */
+  sub,
+
+  /**
    * Every operand holds, as one predicate to place inside another: `where`'s
    * list is already a conjunction, so this is for `or(and(a, b), c)`.
    * Unknown as SQL's `and` is: false wins over unknown, which wins over true.
@@ -2037,6 +2103,25 @@ export const Expr = {
     }
     return node({ _tag: 'Not', operand })
   },
+
+  /**
+   * `then` holds wherever `condition` does: exactly `Expr.or(Expr.not(condition),
+   * then)`, the same nodes, so every interpreter reads it already. It is how a
+   * rule binds only some rows, "while open, the balance is not negative":
+   *
+   * ```ts
+   * Expr.implies(Expr.eq(after.status, 'open'), Expr.gte(after.balance, 0))
+   * ```
+   *
+   * Three-valued as its parts: true where the condition is false or `then`
+   * true, false where the condition is true and `then` false, unknown otherwise.
+   */
+  implies: <A extends Predicate, B extends Predicate>(
+    condition: A,
+    then: B,
+  ): OrPredicate & Reads<ReadsOf<A> | ReadsOf<B>> =>
+    // `Reads` is type-only: the `not` reads what the condition does.
+    Expr.or(Expr.not(condition), then) as OrPredicate & Reads<ReadsOf<A> | ReadsOf<B>>,
 
   /**
    * A filter that applies only when its input is given: `or(isNull($x), …)`,
@@ -3049,7 +3134,12 @@ const showExpr = (node: AnyExpr | Predicate): string => {
       return `not (${showExpr(node.operand)})`
     case 'Compare':
       return `${showOperand(node.left)} ${symbols[node.operator]} ${showOperand(node.right)}`
-    case 'Call':
+    case 'Call': {
+      const infix = arithmeticSymbols.get(node.operator)
+      return infix === undefined
+        ? `${operatorName(node.operator)}(${node.args.map(showOperand).join(', ')})`
+        : `(${node.args.map(showOperand).join(` ${infix} `)})`
+    }
     case 'Test':
       return `${operatorName(node.operator)}(${node.args.map(showOperand).join(', ')})`
     // `Post.author.handle`: the judged row's relation, then each next one, then the field.

@@ -8,6 +8,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { Option } from 'effect'
 import {
+  Expr,
   Law,
   Operators,
   Text,
@@ -108,6 +109,21 @@ const startsWith: SqlImplementation = Object.freeze({
       : sql`${collate(sql`substr(${text}, 1, length(${prefix}))`)} = ${collate(prefix!)}`,
 })
 
+/**
+ * `Expr.add` and `Expr.sub` as SQL's `+` and `-`, parenthesised so a call
+ * nested in another keeps its grouping. A parameter arrives cast to `double
+ * precision` on Postgres by the operator's number input, which `+` needs to
+ * resolve; two integer columns add as integers there.
+ */
+const add: SqlImplementation = Object.freeze({
+  operator: Expr.add.descriptor,
+  build: ({ args: [left, right] }: SqlContext) => sql`(${left} + ${right})`,
+})
+const sub: SqlImplementation = Object.freeze({
+  operator: Expr.sub.descriptor,
+  build: ({ args: [left, right] }: SqlContext) => sql`(${left} - ${right})`,
+})
+
 export const DrizzleOperators = {
   /**
    * An SQL implementation: built from the call's arguments, compiled, and its
@@ -201,8 +217,8 @@ export const DrizzleOperators = {
     return table(base.implementations, [...base.evidence, ...evidence])
   },
 
-  /** The kernel's own operators (`Text.startsWith`): every binding's default. */
-  kernel: table([startsWith], []),
+  /** The kernel's own operators (`Text.startsWith`, `Expr.add`, `Expr.sub`): every binding's default. */
+  kernel: table([startsWith, add, sub], []),
 }
 
 /** Both kernels: what a binding runs by when it is given no table. */

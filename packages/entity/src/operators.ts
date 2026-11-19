@@ -287,6 +287,6 @@ export const Operators = {
   checked: (base: MemoryOperators): MemoryOperators =>
     table(base.implementations, true, base.evidence),
 
-  /** The kernel's own operators (`Text.startsWith`): every memory interpreter's default. */
+  /** The kernel's own operators (`Text.startsWith`, `Expr.add`, `Expr.sub`): every memory interpreter's default. */
   kernel: kernelOperators,
 }

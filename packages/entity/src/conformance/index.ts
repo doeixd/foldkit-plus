@@ -650,9 +650,12 @@ export const cases: ReadonlyArray<ConformanceCase> = [
 
 const prefix = Expr.input('prefix', Schema.NullOr(Schema.String))
 const asciiFold = { collation: Collation.asciiFold }
+/** A number the caller may leave out: none is null. */
+const maybeRank = Expr.input('maybeRank', Schema.NullOr(Schema.Number))
 
 /**
- * Bodies calling the kernel's primitive operators (`Text.startsWith`). An
+ * Bodies calling the kernel's primitive operators (`Text.startsWith`,
+ * `Expr.add`, `Expr.sub`). An
  * interpreter runs these once it implements them: the in-memory one through
  * `Operators.kernel`, a compiler through its own table.
  */
@@ -707,6 +710,56 @@ export const primitiveCases: ReadonlyArray<ConformanceCase> = [
     body: from.pipe(Query.where(Expr.not(Text.startsWith(Subject.fields.tag, 'x', binary))), byId),
     input: {},
     expected: ['e'],
+  },
+  // ---- add and sub ---------------------------------------------------------
+  {
+    what: 'add sums a field and an input',
+    body: from.pipe(Query.where(Expr.gte(Expr.add(Subject.fields.rank, below), 5)), byId),
+    input: { below: 2 },
+    expected: ['c', 'd', 'e'],
+  },
+  {
+    what: 'add of an integer and a fraction keeps the fraction',
+    body: from.pipe(Query.where(Expr.eq(Expr.add(Subject.fields.rank, 0.5), 2.5)), byId),
+    input: {},
+    expected: ['a'],
+  },
+  {
+    what: 'sub takes the second from the first',
+    body: from.pipe(Query.where(Expr.lt(Expr.sub(0, Subject.fields.rank), -2)), byId),
+    input: {},
+    expected: ['c', 'd', 'e'],
+  },
+  {
+    what: 'sub of a field from itself is zero for every row',
+    body: from.pipe(
+      Query.where(Expr.eq(Expr.sub(Subject.fields.rank, Subject.fields.rank), 0)),
+      byId,
+    ),
+    input: {},
+    expected: ['a', 'b', 'c', 'd', 'e'],
+  },
+  {
+    what: 'add of a null is null, so neither it nor its not matches',
+    body: from.pipe(
+      Query.where(
+        Expr.or(
+          Expr.eq(Expr.add(Subject.fields.rank, maybeRank), 3),
+          Expr.not(Expr.eq(Expr.add(Subject.fields.rank, maybeRank), 3)),
+        ),
+      ),
+      byId,
+    ),
+    input: { maybeRank: null },
+    expected: [],
+  },
+  {
+    what: 'a list orders by a difference, ties by id',
+    body: from.pipe(
+      Query.orderBy(Order.asc(Expr.sub(0, Subject.fields.rank)), Order.asc(Subject.fields.id)),
+    ),
+    input: {},
+    expected: ['e', 'c', 'd', 'a', 'b'],
   },
 ]
 

@@ -636,7 +636,11 @@ const comesToInteger = (expr: AnyExpr): boolean =>
       Field: ({ schema }) => storesIntegers(schema),
       Input: ({ schema }) => storesIntegers(schema),
       Literal: ({ value }) => value === null || Number.isInteger(value),
-      Call: ({ operator }) => storesIntegers(operator.output),
+      // A sum or difference of integers is one, whatever the operator's number output says.
+      Call: ({ operator, args }) =>
+        storesIntegers(operator.output) ||
+        ((operator === Expr.add.descriptor || operator === Expr.sub.descriptor) &&
+          args.every(arg => !isPredicate(arg) && comesToInteger(arg))),
     }),
     // What else an expression reads is refused in an assignment before this is asked.
     Match.orElse(() => false),

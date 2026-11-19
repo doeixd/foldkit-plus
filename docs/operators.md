@@ -131,8 +131,9 @@ Query.operators(Listed) // ['acme.listed']
 ### Searching text: the kernel's primitive operator
 
 Some questions the kernel cannot say. A UPC is typed from its start, so a
-search should match from its start, not anywhere. `Text.startsWith` is the
-kernel's one primitive operator:
+search should match from its start, not anywhere. `Text.startsWith` is one of
+the kernel's primitive operators (the others are `Expr.add` and `Expr.sub`,
+`number.add` and `number.subtract`):
 
 ```ts
 import { Text } from 'foldkit-entity'
