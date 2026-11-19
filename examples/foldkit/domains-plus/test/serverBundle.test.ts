@@ -64,7 +64,11 @@ import { record } from '../../../../scripts/perf-report.mjs'
 // -20,000 on 2026-11-18: that ceiling was an estimate, and the Worker now reads 3,266,801 in a local
 // build (CI, by the offset above, about 3,263,5xx), the factory families' work (#589) having taken
 // more out than it added. Ceiling: the local reading, rounded up.
-const CEILING = 3_267_000
+// +1,000 on 2026-11-19: CI read 3,267,470 (so CI does not read lower than a local build, as the
+// line above guessed). Since that reading the Worker gained the recipe `.style` method, the
+// `selection` tokens' text on accent fills, and `foldkit-ssr`'s wider `Meta`; not bisected.
+// Ceiling: CI's reading, rounded up.
+const CEILING = 3_268_000
 
 test('the Worker bundle is at most the budgeted size', async () => {
   const report = await measureServer(resolve(import.meta.dirname, '..'))

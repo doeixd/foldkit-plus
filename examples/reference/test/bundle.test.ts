@@ -35,7 +35,11 @@ import { clientBudget } from '../../../scripts/bundle-budget.mjs'
 // +150 on 2026-11-18 (250,896): themed text selection (90ab7073e), the `selection` tokens and the
 // rule reading them; with `defaults.ts`, `theme/oklch.ts` and the three recipes that read the
 // tokens swapped back in one tree the page passes its old ceiling. Ceiling: the reading, rounded up.
-const CEILING = 251_000
+// +150 on 2026-11-19: CI read 251,002. A recipe's `.style` method (cf7645a00) adds 47 minified bytes
+// to every page that uses `Style`, measured by its author with the method taken out of one tree;
+// the rest of the 106 over the last reading is `Mutation.update/insert/delete` (684308739), which
+// this page's Remote carries. Ceiling: the reading, rounded up.
+const CEILING = 251_150
 
 clientBudget({
   name: 'reference',

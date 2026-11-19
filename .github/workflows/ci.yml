@@ -125,7 +125,10 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     steps:
+      # The site's link-check tests read a release tag's tree (`githubLinks.test.ts`).
       - uses: actions/checkout@v7
+        with:
+          fetch-tags: true
 
       - uses: pnpm/action-setup@v6
 
