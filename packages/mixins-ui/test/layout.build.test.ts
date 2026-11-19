@@ -8,24 +8,27 @@
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { build as buildPackage } from 'tsdown'
 import { build as buildPage } from 'vite'
 import { afterAll, expect, test } from 'vitest'
-import config from '../tsdown.config.js'
+import { builtUiEntry } from './builtPackage.js'
 
 const packageDir = resolve(import.meta.dirname, '..')
 mkdirSync(join(packageDir, '.tsbuild'), { recursive: true })
 const out = mkdtempSync(join(packageDir, '.tsbuild', 'layout-'))
 afterAll(() => rmSync(out, { recursive: true, force: true }))
 
-const keptBy = async (name: string, source: string): Promise<ReadonlyArray<string>> => {
+const keptBy = async (
+  uiEntry: string,
+  name: string,
+  source: string,
+): Promise<ReadonlyArray<string>> => {
   const entry = join(out, `${name}.ts`)
   writeFileSync(entry, source)
   const result = await buildPage({
     configFile: false,
     logLevel: 'silent',
     root: out,
-    resolve: { alias: { ui: join(out, 'dist/index.js') }, conditions: ['foldkit-plus:source'] },
+    resolve: { alias: { ui: uiEntry }, conditions: ['foldkit-plus:source'] },
     build: { write: false, minify: false, lib: { entry, formats: ['es'], fileName: name } },
   })
   return [result]
@@ -44,14 +47,7 @@ const has = (kept: ReadonlyArray<string>, file: string) =>
   kept.some(id => id.endsWith(`/dist/${file}.js`))
 
 test('a layout page keeps the state, behaviour values and Bundles it names, and no others', async () => {
-  await buildPackage({
-    ...config,
-    config: false,
-    cwd: packageDir,
-    outDir: join(out, 'dist'),
-    dts: false,
-    logLevel: 'silent',
-  })
+  const uiEntry = await builtUiEntry()
   const pages = {
     accordion: `import { Accordion } from 'ui'
 export const page = [Accordion.view, Accordion.toggled]`,
@@ -85,7 +81,7 @@ export const page = [Sidebar.view, Sidebar.fluid]`,
   const kept = Object.fromEntries(
     await Promise.all(
       Object.entries(pages).map(
-        async ([name, source]) => [name, await keptBy(name, source)] as const,
+        async ([name, source]) => [name, await keptBy(uiEntry, name, source)] as const,
       ),
     ),
   )

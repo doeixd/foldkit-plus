@@ -43,6 +43,10 @@ export const budgetsElsewhere =
 export const buildTests = [
   'examples/**/test/bundle.test.ts',
   'examples/auth/test/{boot,split}.test.ts',
+  'examples/cms/test/routes.test.ts',
+  'packages/mixins-ui/test/*.build.test.ts',
+  'packages/mixins-ui/test/breadcrumbBuild.test.ts',
+  'packages/mixins-ui/test/treeShaking.test.ts',
   'scripts/test/{readOnlyPage,publishedBuild}.test.ts',
   // Prerenders the whole site: 10 of the 12.5 minutes of the shard that held it.
   'examples/site/test/prerender.test.ts',

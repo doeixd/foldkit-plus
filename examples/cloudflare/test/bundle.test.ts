@@ -28,4 +28,5 @@ clientBudget({
   name: 'cloudflare',
   dir: resolve(import.meta.dirname, '..'),
   ceiling: CEILING,
+  determinism: true,
 })

@@ -9,10 +9,9 @@
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { build as buildPackage } from 'tsdown'
 import { build as buildPage } from 'vite'
 import { afterAll, expect, test } from 'vitest'
-import config from '../tsdown.config.js'
+import { builtUiEntry } from './builtPackage.js'
 
 const packageDir = resolve(import.meta.dirname, '..')
 mkdirSync(join(packageDir, '.tsbuild'), { recursive: true })
@@ -20,13 +19,14 @@ const out = mkdtempSync(join(packageDir, '.tsbuild', 'overlays-'))
 afterAll(() => rmSync(out, { recursive: true, force: true }))
 
 const keptBy = async (name: string, source: string): Promise<ReadonlyArray<string>> => {
+  const ui = await builtUiEntry()
   const entry = join(out, `${name}.ts`)
   writeFileSync(entry, source)
   const result = await buildPage({
     configFile: false,
     logLevel: 'silent',
     root: out,
-    resolve: { alias: { ui: join(out, 'dist/index.js') }, conditions: ['foldkit-plus:source'] },
+    resolve: { alias: { ui }, conditions: ['foldkit-plus:source'] },
     build: { write: false, minify: false, lib: { entry, formats: ['es'], fileName: name } },
   })
   return [result]
@@ -44,14 +44,6 @@ const keptBy = async (name: string, source: string): Promise<ReadonlyArray<strin
 const anyKept = (kept: ReadonlyArray<string>, file: RegExp) => kept.some(id => file.test(id))
 
 test('a page keeps the behaviour values and neighbours it names, and no others', async () => {
-  await buildPackage({
-    ...config,
-    config: false,
-    cwd: packageDir,
-    outDir: join(out, 'dist'),
-    dts: false,
-    logLevel: 'silent',
-  })
   const [dialog, bars, keys, back, drawer, keep, toast, toastKeep, inline, popover, bundle] =
     await Promise.all([
       keptBy(

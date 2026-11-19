@@ -361,6 +361,10 @@ jobs:
       - run: >-
           pnpm exec vitest run --project unit --maxWorkers=2
           test/bundle.test.ts auth/test/boot.test.ts auth/test/split.test.ts
+          examples/cms/test/routes.test.ts
+          .build.test.ts
+          packages/mixins-ui/test/breadcrumbBuild.test.ts
+          packages/mixins-ui/test/treeShaking.test.ts
           scripts/test/readOnlyPage.test.ts scripts/test/publishedBuild.test.ts
 
   # Every performance budget, on one quiet Linux runner, reusing prebuilt `dist`.

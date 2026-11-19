@@ -8,10 +8,9 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { brotliCompressSync } from 'node:zlib'
-import { build as buildPackage } from 'tsdown'
 import { build as buildPage } from 'vite'
 import { afterAll, expect, test } from 'vitest'
-import config from '../tsdown.config.js'
+import { builtUiEntry } from './builtPackage.js'
 
 const packageDir = resolve(import.meta.dirname, '..')
 mkdirSync(join(packageDir, '.tsbuild'), { recursive: true })
@@ -23,13 +22,14 @@ const pageOf = async (
   name: string,
   source: string,
 ): Promise<{ readonly modules: ReadonlyArray<string>; readonly brotli: number }> => {
+  const ui = await builtUiEntry()
   const entry = join(out, `${name}.ts`)
   writeFileSync(entry, source)
   const result = await buildPage({
     configFile: false,
     logLevel: 'silent',
     root: out,
-    resolve: { alias: { ui: join(out, 'dist/index.js') }, conditions: ['foldkit-plus:source'] },
+    resolve: { alias: { ui }, conditions: ['foldkit-plus:source'] },
     build: { write: false, minify: true, lib: { entry, formats: ['es'], fileName: name } },
   })
   const chunks = [result]
@@ -49,14 +49,6 @@ const pageOf = async (
 const isMenu = (id: string) => /\/dist\/(recipes\/)?menu(View|Utils)?\.js$/.test(id)
 
 test('a trail with no Menu keeps none, and one given BreadcrumbMenu.make keeps it', async () => {
-  await buildPackage({
-    ...config,
-    config: false,
-    cwd: packageDir,
-    outDir: join(out, 'dist'),
-    dts: false,
-    logLevel: 'silent',
-  })
   const [plain, expand, withMenu] = await Promise.all([
     pageOf(
       'plain',
