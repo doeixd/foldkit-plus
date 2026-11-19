@@ -12,6 +12,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   # `write` so the tag can be turned into a GitHub release; the publish step
   # itself needs nothing beyond the npm token.
@@ -28,6 +32,7 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -92,19 +97,52 @@ jobs:
               "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME" >> summary.md
             mv summary.md release-notes.md
           fi
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
-            --notes-file release-notes.md
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; updating notes."
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file release-notes.md
+          fi
+
+  # Check once whether Cloudflare deploy secrets exist so missing secrets warn
+  # visibly instead of spinning up ten runners that quietly skip.
+  deploy-check:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      enabled: ${{ steps.secrets.outputs.enabled }}
+    steps:
+      - id: secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not set — skipping all Cloudflare deploys."
+            {
+              echo "### Cloudflare deploys skipped"
+              echo "Set both \`CLOUDFLARE_API_TOKEN\` and \`CLOUDFLARE_ACCOUNT_ID\` repository secrets to enable automatic deploys on release."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
 
   # The website and the demos, each only when it needs it: a target is
   # redeployed when its example, or a workspace package it depends on, changed
   # since the tag before this one (`pnpm --filter "...[<tag>]"` lists what
   # changed with everything that depends on it). A manual run deploys them all.
   # Needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets;
-  # without them every target is skipped. `examples/cloudflare` (a Worker with
-  # D1 migrations to read before applying) stays a manual deploy.
+  # without them `deploy-check` warns and skips the matrix. `examples/cloudflare`
+  # (a Worker with D1 migrations to read before applying) stays a manual deploy.
   deploy:
-    needs: publish
+    needs: [publish, deploy-check]
+    if: needs.deploy-check.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -121,7 +159,7 @@ jobs:
               dir: examples/site,
               out: dist,
               project: foldkit-plus,
-              also: "docs README.md CHANGELOG.md 'packages/*/README.md'",
+              also: 'docs README.md CHANGELOG.md packages/*/README.md',
             }
           - {
               package: foldkit-example-cms,
@@ -204,11 +242,10 @@ jobs:
 
       - name: Needed?
         id: needed
+        env:
+          ALSO: ${{ matrix.also }}
         run: |
           set -euo pipefail
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "No Cloudflare secrets: skipping." && echo "deploy=false" >> "$GITHUB_OUTPUT" && exit 0
-          fi
           if [ "$GITHUB_REF_TYPE" != "tag" ]; then
             echo "A manual run deploys every target." && echo "deploy=true" >> "$GITHUB_OUTPUT" && exit 0
           fi
@@ -219,8 +256,15 @@ jobs:
           pnpm install --frozen-lockfile --ignore-scripts > /dev/null
           if pnpm --filter "...[$previous]" ls --depth -1 --parseable | grep -qx "$GITHUB_WORKSPACE/${{ matrix.dir }}"; then
             echo "${{ matrix.package }} or a package it uses changed since $previous." && echo "deploy=true" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ matrix.also }}" ] && ! git diff --quiet "$previous" "$GITHUB_REF_NAME" -- ${{ matrix.also }}; then
-            echo "A file ${{ matrix.package }} publishes changed since $previous." && echo "deploy=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$ALSO" ]; then
+            set -f
+            read -ra extra <<< "$ALSO"
+            set +f
+            if ! git diff --quiet "$previous" "$GITHUB_REF_NAME" -- "${extra[@]}"; then
+              echo "A file ${{ matrix.package }} publishes changed since $previous." && echo "deploy=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Nothing ${{ matrix.package }} is built from changed since $previous." && echo "deploy=false" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "Nothing ${{ matrix.package }} is built from changed since $previous." && echo "deploy=false" >> "$GITHUB_OUTPUT"
           fi
@@ -243,9 +287,29 @@ jobs:
       - name: Deploy to Pages
         if: steps.needed.outputs.deploy == 'true' && !matrix.worker
         working-directory: ${{ matrix.dir }}
-        run: npx -y wrangler@4 pages deploy ${{ matrix.out }} --project-name ${{ matrix.project }} --branch main --commit-dirty=true
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if npx -y wrangler@4 pages deploy ${{ matrix.out }} --project-name ${{ matrix.project }} --branch main --commit-dirty=true; then
+              echo "Deployed \`${{ matrix.package }}\` to Pages project \`${{ matrix.project }}\`." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            echo "::warning::wrangler pages deploy attempt $attempt failed; retrying in 10s"
+            sleep 10
+          done
 
       - name: Deploy the Worker
         if: steps.needed.outputs.deploy == 'true' && matrix.worker
         working-directory: ${{ matrix.dir }}
-        run: npx -y wrangler@4 deploy
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if npx -y wrangler@4 deploy; then
+              echo "Deployed Worker \`${{ matrix.package }}\`." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then exit 1; fi
+            echo "::warning::wrangler deploy attempt $attempt failed; retrying in 10s"
+            sleep 10
+          done

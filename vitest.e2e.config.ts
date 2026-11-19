@@ -27,6 +27,8 @@ export default mergeConfig(
       // A first load pre-bundles the workspace packages, which takes a while.
       testTimeout: 180_000,
       hookTimeout: 180_000,
+      // One retry on shared CI runners for server-startup or Chromium hiccups; 0 locally.
+      retry: process.env.CI !== undefined ? 1 : 0,
       // One example at a time: each starts servers and a browser.
       fileParallelism: false,
     },

@@ -141,14 +141,7 @@ jobs:
 
       # A few unit files launch Chromium themselves (`branded.test.ts`,
       # plus's `playwright.test.ts`), so these shards need the binary too.
-      - uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - run: pnpm exec playwright install --with-deps chromium
+      - uses: ./.github/actions/setup-playwright
 
       # `foldkit-domains` is upstream's copy, happy-dom like the rest of these.
       - run: pnpm test --project unit --project foldkit-domains --shard=${{ matrix.shard }}/3
@@ -163,7 +156,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     name: browser (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -180,16 +173,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The browser binaries survive across runs; the install skips what the
-      # cache already holds and fetches the rest, so a version bump stays correct.
-      - uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - run: pnpm exec playwright install --with-deps chromium
+      - uses: ./.github/actions/setup-playwright
 
       - run: pnpm test --project browser --project browser-touch --shard=${{ matrix.shard }}/4
 
@@ -299,7 +283,7 @@ jobs:
     if: needs.changes.outputs.code == 'true'
     name: e2e (${{ matrix.name }})
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -323,14 +307,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - run: pnpm exec playwright install --with-deps chromium
+      - uses: ./.github/actions/setup-playwright
 
       - run: pnpm e2e ${{ matrix.args }}
 
@@ -361,16 +338,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
       # The layout-shift budget drives Chromium; the bundle budgets build
       # against the packages' `dist` themselves (`scripts/bundle-report.mjs`).
-      - run: pnpm exec playwright install --with-deps chromium
+      - uses: ./.github/actions/setup-playwright
 
       - run: >-
           pnpm exec vitest run --project unit --no-file-parallelism

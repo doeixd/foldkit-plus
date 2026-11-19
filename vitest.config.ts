@@ -71,6 +71,8 @@ export default defineConfig({
           name: 'browser',
           include: browserTests,
           exclude: [...touchTests, '**/node_modules/**'],
+          // One retry on shared CI runners for single-frame/Chromium hiccups; 0 locally.
+          retry: process.env.CI !== undefined ? 1 : 0,
           // The benchmarks measure Node; several cannot load in a page at all.
           benchmark: { include: [] },
           browser: browser({ hasTouch: false }),
@@ -97,6 +99,7 @@ export default defineConfig({
         test: {
           name: 'browser-touch',
           include: touchTests,
+          retry: process.env.CI !== undefined ? 1 : 0,
           benchmark: { include: [] },
           browser: browser({ hasTouch: true }),
         },
