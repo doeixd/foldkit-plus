@@ -1180,7 +1180,10 @@ read from the Entities' derived members and the queries' bodies.
 An update or a delete may also say when it makes sense: `when` is what the row
 must hold for it to land, written as a query body is: `() =>
 Expr.eq(Post.fields.title, 'Draft')`, or with the input, `({ input }) =>
-Expr.eq(Post.fields.title, input.from)`. It reads the row as it is before the write and the input,
+Expr.eq(Post.fields.title, input.from)`. `row` is the row before the write,
+each field as `Expr.field`, as `compute` reads it, so a precondition comparing
+the input with the row reads in that order: `({ row, input }) =>
+Expr.lte(input.amount, row.balance)`. It reads the row as it is before the write and the input,
 and only its own Entity: a field of another is a type error, and refused where
 the write is declared. Who is asking is a guard's: a `when` reading
 `Expr.viewer` or `Expr.now` (also through a path from the viewer or an exists)
@@ -1191,12 +1194,20 @@ writes, and a row it does not hold of is refused as unmet. A write declared with
 one is a `ConditionedWrite`, which is how `Mutation.write` knows it may be
 refused so.
 
-### Moving a number: `increment`
+### Moving a number: `increment` and `decrement`
 
 An update may move a number field by an amount the input holds, rather than set
 it: `increment: { stock: 'quantity' }` adds the input's `quantity` (an unmapped
 key, a number; negative takes away) to the stored `stock`, in the statement that
-writes, so no concurrent change is lost. A retry must not add twice, so either it
+writes, so no concurrent change is lost. `decrement: { balance: 'amount' }`
+takes the amount away, with the same guarantees and caveats: it is bound as the
+amount negated (`Write.bind`'s `increments` holds `balance: -amount`), so a
+writer adds it as it adds an increment's and a client predicts it the same way.
+One key may move several fields (a withdrawal decrements `balance` and
+increments `withdrawnToday` by one `amount`); a field moved by both an
+increment and a decrement is refused where the write is declared, naming it, as
+one also set or computed is. Each entry of `write.increments` says which way it
+moves (`direction`). A retry must not add twice, so either it
 expects a revision (a retry of a write that landed is then a conflict), or its
 writer keeps a ledger, which answers the retry from its record and lets two
 concurrent increments both land. `RemoteServer.write` refuses one with neither,
@@ -1937,7 +1948,7 @@ server on different deploys see which side is behind.
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result; a tagged union of cases for a variant Entity whose `_tag` is selected. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
-| `Write.update(input, { id, expect?, when?, from?, becomes?, increment? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land; `from`, a state whose predicate joins the `when`; `becomes`, the state every row it starts from is in once it lands, proved where declared or else held where it commits (`ensures`); `increment`, the number fields it moves by an input amount. |
+| `Write.update(input, { id, expect?, when?, from?, becomes?, increment?, decrement? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when` (`({ row, input }) => predicate`), what the row must hold for it to land; `from`, a state whose predicate joins the `when`; `becomes`, the state every row it starts from is in once it lands, proved where declared or else held where it commits (`ensures`); `increment` and `decrement`, the number fields it adds an input amount to or takes one from. |
 | `Write.insert(input, { id, becomes? })` / `Write.delete(input, { id, expect?, when?, from? })` | A declared insert under an id the client chose; a declared delete of one row, which sets nothing. |
 | `Write.ensured(write)` | The postcondition a `becomes` enumeration could not decide holds the write to where it commits (`becomes:<State>`), for `Refusal.isInvalidBy`; throws for a write with none. |
 | `Write.footprint(write)` | What a write reads and writes of its row, by field key, as a `Footprint.Derived`. |

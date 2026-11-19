@@ -269,6 +269,27 @@ const Sell = Mutation.write(
 )
 ```
 
+`decrement` takes the amount away instead, with the same guarantees and the
+same retry protections. A `when` reads the row before the write as `row` beside
+the input, so a sale only of what is in stock says so, and `Mutation.update`'s
+`input` declares the amount in the one call:
+
+```ts
+const SellInStock = Mutation.update('SellInStock', Product, {
+  input: { quantity: Schema.Int },
+  decrement: { stock: 'quantity' },
+  when: ({ row, input }) => Expr.lte(input.quantity, row.stock),
+})
+```
+
+It is `Mutation.write` of `Write.update` over `Entity.input(Product,
+Schema.Struct({ id, quantity }), { quantity: Entity.unmapped })`, the same
+value. A decrement is bound as the amount negated (`stock = stock + ?` with
+`-quantity`), so a writer, a guard and a client's prediction treat it as they
+treat an increment. A field moved by both an increment and a decrement is
+refused at definition. A sale past the stock is refused as `Unmet` where it
+commits; the page sees it before it sends (`Data.can`, below).
+
 ### What it computes: a computed assignment
 
 `compute` sets a field from the row before the write and the input, in the

@@ -326,7 +326,8 @@ const Restock = Write.update(
 )
 ```
 
-- **`when`** reads the row before the write (and the input), over its own Entity only; it is compiled
+- **`when`** reads the row before the write (and the input; `({ row, input }) => Expr.lte(input.amount,
+  row.balance)`, `row` as `compute` has it), over its own Entity only; it is compiled
   into the write's own `WHERE`, so it holds of the row the statement changes. Only a write with one has
   `Unmet` in its `Refusal` type.
 - **`expect: 'revision'`** lands only on that revision and moves it on: a second write from one read is a
@@ -335,7 +336,9 @@ const Restock = Write.update(
   does an `integer` column under any field, or the Drizzle `writer` refuses it at registration. A
   retry must not add twice: give it `expect`, or serve it through a writer with a ledger (a retry is
   answered from its record, so concurrent increments both land; of an integer only, since adding reals
-  does not associate). Remote predicts the sum over the value it holds.
+  does not associate). Remote predicts the sum over the value it holds. **`decrement: { balance:
+  'amount' }`** takes the amount away, with the same guarantees and caveats; it is bound as the amount
+  negated, and a field moved by both, or also set or computed, is refused where declared.
 - **`compute: { label: ({ row, input }) => concat(input.prefix, row.name) }`** sets a field from the row
   before the write and the input, never the row after or another Entity; refused for a field another key
   writes or a kind it does not store, and for a number that may not be whole into a `Schema.Int` field (its

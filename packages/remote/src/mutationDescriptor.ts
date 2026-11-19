@@ -17,6 +17,7 @@ import {
   type RefinementOf,
   type WriteComputations,
   type WriteCondition,
+  type WriteIncrements,
   type WriteKind,
 } from 'foldkit-entity'
 import { Installs, type Install } from './capability.js'
@@ -171,10 +172,19 @@ type IdSchemaOf<E extends AnyEntity> = E['fields'] extends {
 
 /**
  * The input of `Mutation.update`, `insert` and `delete`: the Entity's own `id`
- * field, naming the row, and every field the write sets, by its key.
+ * field, naming the row, every field the write sets, by its key, and each key
+ * of `Input` (`Mutation.update`'s `input`), about the operation alone.
  */
-export type WriteInputFields<E extends AnyEntity, Set extends Schema.Struct.Fields> = {
-  readonly [K in 'id' | keyof Set]: K extends 'id' ? IdSchemaOf<E> : Set[K & keyof Set]
+export type WriteInputFields<
+  E extends AnyEntity,
+  Set extends Schema.Struct.Fields,
+  Input extends Schema.Struct.Fields = {},
+> = {
+  readonly [K in 'id' | keyof Set | keyof Input]: K extends 'id'
+    ? IdSchemaOf<E>
+    : K extends keyof Set
+      ? Set[K]
+      : Input[K & keyof Input]
 }
 
 type FieldValue<E extends AnyEntity, K extends keyof E['fields']> = Schema.Schema.Type<
@@ -208,40 +218,91 @@ interface SetOptions<E extends AnyEntity, Set extends Schema.Struct.Fields> {
   readonly becomes?: RefinementOf<E> | undefined
 }
 
-type UpdateOptions<E extends AnyEntity, Set extends Schema.Struct.Fields> = SetOptions<E, Set> & {
+/**
+ * What `input` may hold: a schema per key that is about the operation alone
+ * (an amount), never the id or a key `set` writes.
+ */
+type Unmapped<Set, Input> = {
+  readonly [K in keyof Input]: K extends 'id'
+    ? 'the id names the row the write changes: it is in the input already'
+    : K extends keyof Set
+      ? `"${K & string}" is in set, which writes it; a key is written or about the operation, not both`
+      : Schema.Top
+}
+
+type UpdateOptions<
+  E extends AnyEntity,
+  Set extends Schema.Struct.Fields,
+  Input extends Schema.Struct.Fields,
+> = Partial<SetOptions<E, Set>> & {
+  /**
+   * Keys about the operation alone, each with its schema (`{ amount:
+   * Schema.Number }`): in the input, written to no field, read by
+   * `increment`, `decrement`, `compute` and `when`.
+   */
+  readonly input?: Input & Unmapped<Set, Input>
   /** The key of `set` holding the revision the row was read at: see `Write.update`. */
   readonly expect?: keyof Set & string
-  readonly compute?: WriteComputations<E, WriteInputFields<E, Set>>
+  /** Number fields moved by a number key of `input`, added where it commits: see `Write.update`. */
+  readonly increment?: WriteIncrements<E, Input>
+  /** Number fields a number key of `input` is taken from where it commits: see `Write.update`. */
+  readonly decrement?: WriteIncrements<E, Input>
+  readonly compute?: WriteComputations<E, WriteInputFields<E, Set, Input>>
 }
 
 /** `Mutation.update`: conditioned when given `when` or `from`, as `Write.update` is. */
 interface UpdateMutation {
-  <const Name extends string, E extends AnyEntity, Set extends Schema.Struct.Fields>(
+  <
+    const Name extends string,
+    E extends AnyEntity,
+    Set extends Schema.Struct.Fields = {},
+    Input extends Schema.Struct.Fields = {},
+  >(
     name: Name,
     entity: E,
-    options: UpdateOptions<E, Set> & {
-      readonly when: WriteCondition<E, WriteInputFields<E, Set>>
+    options: UpdateOptions<E, Set, Input> & {
+      readonly when: WriteCondition<E, WriteInputFields<E, Set, Input>>
       readonly from?: RefinementOf<E> | undefined
     },
   ): WriteMutation<
     Name,
-    WriteInputFields<E, Set>,
-    ConditionedWrite<E, WriteInputFields<E, Set>, 'Update'>
+    WriteInputFields<E, Set, Input>,
+    ConditionedWrite<E, WriteInputFields<E, Set, Input>, 'Update'>
   >
-  <const Name extends string, E extends AnyEntity, Set extends Schema.Struct.Fields>(
+  <
+    const Name extends string,
+    E extends AnyEntity,
+    Set extends Schema.Struct.Fields = {},
+    Input extends Schema.Struct.Fields = {},
+  >(
     name: Name,
     entity: E,
-    options: UpdateOptions<E, Set> & { readonly when?: undefined; readonly from: RefinementOf<E> },
+    options: UpdateOptions<E, Set, Input> & {
+      readonly when?: undefined
+      readonly from: RefinementOf<E>
+    },
   ): WriteMutation<
     Name,
-    WriteInputFields<E, Set>,
-    ConditionedWrite<E, WriteInputFields<E, Set>, 'Update'>
+    WriteInputFields<E, Set, Input>,
+    ConditionedWrite<E, WriteInputFields<E, Set, Input>, 'Update'>
   >
-  <const Name extends string, E extends AnyEntity, Set extends Schema.Struct.Fields>(
+  <
+    const Name extends string,
+    E extends AnyEntity,
+    Set extends Schema.Struct.Fields = {},
+    Input extends Schema.Struct.Fields = {},
+  >(
     name: Name,
     entity: E,
-    options: UpdateOptions<E, Set> & { readonly when?: undefined; readonly from?: undefined },
-  ): WriteMutation<Name, WriteInputFields<E, Set>, Write<E, WriteInputFields<E, Set>, 'Update'>>
+    options: UpdateOptions<E, Set, Input> & {
+      readonly when?: undefined
+      readonly from?: undefined
+    },
+  ): WriteMutation<
+    Name,
+    WriteInputFields<E, Set, Input>,
+    Write<E, WriteInputFields<E, Set, Input>, 'Update'>
+  >
 }
 
 type NoFields = {}
@@ -280,9 +341,31 @@ interface DeleteMutation {
   >
 }
 
-/** The input `{ id, ...set }` read against `entity`, every key naming its own field. */
-const inputOver = (entity: AnyEntity, set: Schema.Struct.Fields) =>
-  Entity.input(entity, Schema.Struct({ ...Entity.fields(entity, 'id'), ...set }))
+/**
+ * The input `{ id, ...set, ...input }` read against `entity`: each key of `set`
+ * naming its own field, each of `input` mapped to `Entity.unmapped`.
+ */
+const inputOver = (
+  entity: AnyEntity,
+  set: Schema.Struct.Fields,
+  input: Schema.Struct.Fields = {},
+) => {
+  const both = Object.keys(input).find(key => key === 'id' || Object.hasOwn(set, key))
+  if (both !== undefined) {
+    throw new Error(
+      both === 'id'
+        ? `[foldkit-remote] Mutation.update of ${entity.name}: "id" is in input, but the id names the row and is in the input already`
+        : `[foldkit-remote] Mutation.update of ${entity.name}: "${both}" is in set and in input; a key is written or about the operation, not both`,
+    )
+  }
+  const unmapped: Record<string, typeof Entity.unmapped> = Object.create(null)
+  for (const key of Object.keys(input)) unmapped[key] = Entity.unmapped
+  return Entity.input(
+    entity,
+    Schema.Struct({ ...Entity.fields(entity, 'id'), ...set, ...input }),
+    unmapped as never,
+  )
+}
 
 const ofWrite = <
   const Name extends string,
@@ -304,8 +387,16 @@ const ofWrite = <
 const update: UpdateMutation = (
   name: string,
   entity: AnyEntity,
-  { set, ...options }: UpdateOptions<AnyEntity, Schema.Struct.Fields>,
-) => ofWrite(name, Write.update(inputOver(entity, set), { ...options, id: 'id' } as never)) as never
+  {
+    set = {},
+    input,
+    ...options
+  }: UpdateOptions<AnyEntity, Schema.Struct.Fields, Schema.Struct.Fields>,
+) =>
+  ofWrite(
+    name,
+    Write.update(inputOver(entity, set, input), { ...options, id: 'id' } as never),
+  ) as never
 
 const insert = <const Name extends string, E extends AnyEntity, Set extends Schema.Struct.Fields>(
   name: Name,
@@ -337,8 +428,10 @@ export const Mutation = {
 
   /**
    * A write that updates one row of `entity`, by its id: the same mutation as
-   * `Mutation.write(name, Write.update(Entity.input(entity, input), { id: 'id',
-   * ...options }))`, where `input` is the Entity's `id` field beside `set`.
+   * `Mutation.write(name, Write.update(Entity.input(entity, schema, mapping), {
+   * id: 'id', ...options }))`, where `schema` is the Entity's `id` field beside
+   * `set` and `input`, and `mapping` maps each key of `input` to
+   * `Entity.unmapped`.
    *
    * ```ts
    * const Rename = Mutation.update('Rename', Product, { set: { name: Schema.String } })
@@ -349,9 +442,22 @@ export const Mutation = {
    * })
    * ```
    *
-   * `when`, `from`, `becomes`, `expect` and `compute` are `Write.update`'s. An
-   * input key named otherwise than its field, a relation, or a key that is
-   * about the operation alone (`increment`'s amount) takes the long form.
+   * `when`, `from`, `becomes`, `expect`, `increment`, `decrement` and
+   * `compute` are `Write.update`'s. `input` holds the keys about the operation
+   * alone, mapped to `Entity.unmapped`, which `increment`, `decrement`,
+   * `compute` and `when` read:
+   *
+   * ```ts
+   * const Deposit = Mutation.update('Deposit', Account, {
+   *   input: { amount: Schema.Number },
+   *   from: Open,
+   *   increment: { balance: 'amount' },
+   * })
+   * ```
+   *
+   * A key in both `set` and `input`, or the id in `input`, is refused at the
+   * key and where it is declared. An input key named otherwise than its field,
+   * or a relation, takes the long form.
    */
   update,
 
