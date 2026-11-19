@@ -931,5 +931,5 @@ describe('the generated site', () => {
         }
       }
     expect(broken).toEqual([])
-  })
+  }, 60_000)
 })

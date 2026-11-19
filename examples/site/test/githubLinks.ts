@@ -37,8 +37,10 @@ const idsOf = (markdown: string): ReadonlySet<string> => {
   )
 }
 
+const answers = new Map<string, string | undefined>()
+
 /** Why `href` leads nowhere, or nothing when it is not a link to this repository's files or leads somewhere. */
-export const brokenGithubLink = (repository: string, href: string): string | undefined => {
+const check = (repository: string, href: string): string | undefined => {
   const [, ref, encoded = '', anchor] = LINK.exec(href) ?? []
   if (ref === undefined) return undefined
   const path = decodeURIComponent(encoded)
@@ -55,4 +57,11 @@ export const brokenGithubLink = (repository: string, href: string): string | und
   }
   if (anchor === undefined || !path.endsWith('.md')) return undefined
   return idsOf(text).has(anchor) ? undefined : `no #${anchor} in ${path} at ${ref}`
+}
+
+/** Each link is looked up once: a page's links repeat on every page that draws them, and a git process costs. */
+export const brokenGithubLink = (repository: string, href: string): string | undefined => {
+  const key = `${repository}|${href}`
+  if (!answers.has(key)) answers.set(key, check(repository, href))
+  return answers.get(key)
 }
