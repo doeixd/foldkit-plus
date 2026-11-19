@@ -25,7 +25,7 @@ tables, charts. In release 0.41 you get each variation of a component by
 calling the package with different arguments, and your page ships the code
 for the arguments you pass and nothing more.
 
-<!-- image: https://foldkit-plus.pages.dev/components/table, three of its examples (Basic, Following highlight, Configure once) side by side, light scheme -->
+![Three table examples side by side: Basic, a four-row invoice table; Following highlight, the same table with the second row shaded; Configure once, three small tables stacked, one roomy, one dense and one in the style picked above.](/blog/2026-11-18-foldkit-plus-0-41/table-three-ways.png "Three of the Table examples on the components page: Basic, Following highlight and Configure once")
 
 You do not need to know Foldkit to read this post: the examples are
 functions that return HTML.
@@ -156,7 +156,7 @@ export const highlightedTable = (h: HtmlBuilder<never>) =>
 
 A page that never writes `Table.fluid` never downloads the highlight's code.
 
-<!-- image: https://foldkit-plus.pages.dev/components/table, the "Following highlight" example with the pointer over the second row and the highlight behind it -->
+![An invoice table with four rows. The second row, INV-002, Pending, $150.00, has a rounded grey highlight behind it where the pointer is.](/blog/2026-11-18-foldkit-plus-0-41/table-highlight.png "The Following highlight example, the pointer over the second row")
 
 **The same table, configured once.** An application usually wants every
 table to look alike. `Table.configure` takes the arguments that never change
@@ -355,7 +355,7 @@ scrolling at the edges, a lasso on empty space and drops between items. The
 site's new [Primitives gallery](https://foldkit-plus.pages.dev/primitives/gallery)
 shows each one, several running live.
 
-<!-- image: https://foldkit-plus.pages.dev/primitives/gallery, the first screen of cards with one live example in view -->
+![The top of the Primitives gallery: its heading, a search box, the Media family with three primitives listed (MediaQuery, Breakpoints, platformFromUA) and, below them, the live PrefersDark example reading that the system asks for a light colour scheme.](/blog/2026-11-18-foldkit-plus-0-41/primitives-gallery.png "The Primitives gallery: the Media family and its live PrefersDark example")
 
 ### Two new components: FileUpload and CodeBlock
 
@@ -365,14 +365,14 @@ time with previews, and a failed one can be retried. Reach for it for a
 profile picture or a batch of attachments
 ([page](https://foldkit-plus.pages.dev/components/file-upload)).
 
-<!-- image: https://foldkit-plus.pages.dev/components/file-upload, a zone with three files: one sent, one uploading with its bar, one refused for its size -->
+![Two FileUpload examples. In the first, contract.pdf shows Uploaded and photo.png is part way through with a blue progress bar. In the second, scan.tiff is refused with the message that it is over 5.0 MB while invoice.pdf is kept in the list.](/blog/2026-11-18-foldkit-plus-0-41/file-upload-states.png "Two FileUpload examples: one file sent and the next uploading, and a file over the size limit refused")
 
 **CodeBlock** can now mark whole lines as added, removed or highlighted,
 fold a long block behind an "expand" button, and make each line number a
 button, which is what a code review or a tutorial wants
 ([page](https://foldkit-plus.pages.dev/components/code-block)).
 
-<!-- image: https://foldkit-plus.pages.dev/components/code-block, a block with added and removed lines and a folded tail -->
+![Two CodeBlock examples. In the first, a diff in profile.ts: one removed line shaded red and two added lines shaded green. In the second, items.ts shows four numbered lines fading out above a "Show all 14 lines" button.](/blog/2026-11-18-foldkit-plus-0-41/code-block-diff-collapsed.png "CodeBlock marking added and removed lines, and folding a long block behind a button")
 
 ### The page builder, rich text and the data grid
 
@@ -442,7 +442,7 @@ See it first:
 - [The Primitives gallery](https://foldkit-plus.pages.dev/primitives/gallery),
   for the building blocks.
 
-<!-- image: https://foldkit-widgets-demo.pages.dev/, the first screen in a dark scheme -->
+![The widget showcase in a dark scheme: a Toolbar with Bold, Italic, Strikethrough and Link, a Mute toggle, a left, center and right toggle group, an accordion with Billing, Team and API keys, and a Delete project button.](/blog/2026-11-18-foldkit-plus-0-41/widgets-dark.png "The widget demo in a dark scheme")
 
 Then try it. Install the widget package and the packages it builds on:
 
