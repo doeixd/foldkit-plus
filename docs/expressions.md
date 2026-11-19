@@ -366,6 +366,7 @@ import {
   Write,
   evaluate,
 } from 'foldkit-entity'
+import { Mutation } from 'foldkit-remote'
 -->
 
 Declare relations with `Entity.relate`, and a predicate can read past its own
@@ -496,11 +497,12 @@ const Live = Entity.refine(Post, 'Live', { published: true })
 evaluate(Query.from(Live).pipe(byTitle), {}, posts).map(row => row.id) // ['p1', 'p3']
 
 // When a write applies: compiled into the UPDATE's WHERE, so it is checked where it commits.
-const Publish = Write.update(
-  Entity.input(Post, Schema.Struct({ id: Schema.String, published: Schema.Literal(true) })),
-  { id: 'id', when: () => Expr.gt(Post.fields.words, 0) },
-)
-Write.reads(Publish).map(field => field.key) // ['words']
+// (`Mutation.update` declares the write and the mutation that sends it, in `foldkit-remote`.)
+const Publish = Mutation.update('Publish', Post, {
+  set: { published: Schema.Literal(true) },
+  when: () => Expr.gt(Post.fields.words, 0),
+})
+Write.reads(Publish.write).map(field => field.key) // ['words']
 ```
 
 A guard rule is the same again, with the principal's fields as its inputs

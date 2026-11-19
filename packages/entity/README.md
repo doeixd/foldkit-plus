@@ -1108,6 +1108,15 @@ optional relation set to nothing), and each interpreter carries it its own way,
 a ref key in a store, a foreign key in a table. A `many` relation or a nested
 key is refused where the write is declared.
 
+An application sends a write as a `foldkit-remote` mutation,
+`Mutation.write(name, write)`, which names it and types what it may be refused
+with. When the input is the row's `id` and fields named for themselves,
+`Mutation.update('EditPost', Blog.Post, { set: { title: Schema.String } })`
+(and `Mutation.insert`, `Mutation.delete`) is the same mutation in one call:
+the input, the write and its name. The input and the write stay values of
+their own here, since a form is built from the input alone, and every writer
+and `Laws.check` read the write.
+
 ### Values no client chooses: `Entity.sets`
 
 Some values no client should choose: who wrote a row, and when. The Entity

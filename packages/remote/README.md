@@ -2459,8 +2459,58 @@ it failed for another reason.
 
 ### Declared writes: what the client predicts
 
-A mutation can be a declared write: `Mutation.write(name, write)` over a
-`foldkit-entity` `Write.update`, `Write.insert` or `Write.delete`. Its input is
+A mutation can be a declared write. `Mutation.update(name, Entity, { set })`
+declares one in a call: its input is the Entity's `id`, naming the row, beside
+each field `set` names by its key, with the schema the input holds it with
+(`Entity.fields(Project, 'name')` for the field's own). `Mutation.insert` and
+`Mutation.delete` are the other two kinds, and the options (`when`, `from`,
+`becomes`, `expect`, `compute`) are the write's.
+
+<!-- docs-check standalone use bare-app
+import { Entity as DomainEntity, Write } from 'foldkit-entity'
+import { Mutation as Declare } from 'foldkit-remote'
+
+const Project = DomainEntity.define(
+  'Project',
+  Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
+)
+// The long form, registered: the snippet's short form is the same mutation.
+const Registered = Declare.write(
+  'EditProject',
+  Write.update(
+    DomainEntity.input(
+      Project,
+      Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
+    ),
+    { id: 'id' },
+  ),
+)
+const Data = Remote.make({ model: App.model.remote, entities: [Project], mutations: [Registered] })
+declare const model: typeof Model.Type
+-->
+
+```ts
+import { Mutation } from 'foldkit-remote'
+
+const EditProject = Mutation.update('EditProject', Project, {
+  set: { name: Schema.String, status: Schema.String },
+})
+Data.mutate(model, EditProject, { id: 'p1', name: 'Apollo II', status: 'active' }, { keys: ['name'] })
+```
+
+Building it sends nothing and runs nothing: it is a declaration a page
+registers with `Remote.make` and a server with `RemoteServer.write`. It is
+the long form `Mutation.write(name, Write.update(Entity.input(Project, input),
+{ id: 'id' }))`, the same value, whose three calls each own a part:
+`Entity.input` says which input key is which member (a `Form` is built from it
+alone), `Write.update` says what the write does to the row (`foldkit-entity`'s,
+which `Laws.check` and every writer read), and `Mutation.write` names it,
+types what it may be refused with and installs the prediction below. Write
+the long form when an input key is named otherwise than its field, points a
+relation (`Relation.input`), or is about the operation alone
+(`Entity.unmapped`, an `increment`'s amount).
+
+Its input is
 the write's, it answers nothing of its own, and `Data.mutate` shows an update's
 or an insert's row until the server answers, so it needs no `optimistic` list;
 a delete shows its row deleted, as `Remote.tombstone` does. An update's
@@ -2560,38 +2610,6 @@ the same answer into a `foldkit-agent` capability's `authorize`, `applies` and
 They judge as the Model's viewer: as an agent's only `authorize` they give it
 the viewer's write rights, so compose them with a check of the agent's
 principal.
-
-<!-- docs-check standalone use bare-app
-import { Entity as DomainEntity, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
-
-const Project = DomainEntity.define(
-  'Project',
-  Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
-)
-const EditProjectInput = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  status: Schema.String,
-})
-const Registered = Mutation.write(
-  'EditProject',
-  Write.update(DomainEntity.input(Project, EditProjectInput), { id: 'id' }),
-)
-const Data = Remote.make({ model: App.model.remote, entities: [Project], mutations: [Registered] })
-declare const model: typeof Model.Type
--->
-
-```ts
-import { Entity, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
-
-const EditProject = Mutation.write(
-  'EditProject',
-  Write.update(Entity.input(Project, EditProjectInput), { id: 'id' }),
-)
-Data.mutate(model, EditProject, { id: 'p1', name: 'Apollo II', status: 'active' }, { keys: ['name'] })
-```
 
 ### Refused where it is made
 

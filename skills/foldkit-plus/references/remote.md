@@ -684,8 +684,14 @@ A mutation that is no `Write` may carry a `footprint` (`{ entity, footprint }`, 
 `foldkit-remote-domain/imported` sets): a `Declared` one is read as an in-place update of those fields only (a command that creates or deletes rows, or changes relations, must declare `Footprint.unknown`, or `reachedBy` under-reports), an `Unknown` one as a handler.
 Never `Unaffected` where the declarations are silent; `explain`'s `reachedBy` lists the registered mutations that `Reads` a list.
 
-**Declared writes.** `Mutation.write(name, Write.update(input, { id }))` (or
-`Write.insert` with a client-minted id, or `Write.delete`) is a
+**Declared writes.** `Mutation.update('Rename', Product, { set: { name: Schema.String } })`
+(or `Mutation.insert`, with a client-minted id, or `Mutation.delete`) declares one in a call: its
+input is the Entity's `id` beside the fields `set` names by key (a key that is no field, the id, or a
+value the field does not store is a type error there), and `when`, `from`, `becomes`, `expect` and
+`compute` are the write's. It is the same value as the long form
+`Mutation.write(name, Write.update(Entity.input(Product, input), { id: 'id' }))`, which a write needs
+when an input key is named otherwise than its field, points a relation (`Relation.input`), or is
+unmapped (an `increment`'s amount); `Entity.input` alone is what a `Form` takes. Either is a
 mutation whose effect is data: `Data.mutate` derives its optimistic patch
 (`Write.bind`), and `options.keys` narrows it to the input keys an author
 changed and sends them with the request. A write may ask of its row (`when`, `expect`)
